@@ -39,10 +39,16 @@ set(CMAKE_CXX_FLAGS       "${CMAKE_CXX_FLAGS} -std=c++11")
 install(DIRECTORY broker DESTINATION include)
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Just a convienience to add non-compiled files to IDEs - CMake currently does
+# not add such files unless they appear either add_executable or add_library.
+set(BROKER_HDR
+    broker/broker.h
+    broker/broker.hh)
+
 set(BROKER_SRC
     src/broker.cc)
 
-add_library(broker_objs OBJECT ${BROKER_SRC})
+add_library(broker_objs OBJECT ${BROKER_SRC} ${BROKER_HDR})
 
 if ( ENABLE_SHARED )
     add_library(broker SHARED $<TARGET_OBJECTS:broker_objs>)

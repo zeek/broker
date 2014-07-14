@@ -6,3 +6,6 @@ endif ()
 
 add_executable(scratch scratch.c)
 target_link_libraries(scratch ${libbroker})
+
+add_executable(scratch++ scratch.cc)
+target_link_libraries(scratch++ ${libbroker})
