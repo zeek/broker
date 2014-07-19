@@ -31,7 +31,7 @@ private:
 	std::unordered_set<Key> DoKeys() override
 		{
 		std::unordered_set<Key> rval;
-		for ( auto kv : store ) rval.insert(kv.first);
+		for ( const auto& kv : store ) rval.insert(kv.first);
 		return rval;
 		}
 

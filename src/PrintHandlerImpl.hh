@@ -3,14 +3,15 @@
 
 #include "broker/PrintHandler.hh"
 
+#include <cppa/cppa.hpp>
+
 namespace broker {
 
 class PrintHandler::Impl {
 public:
 
 	std::string topic;
-	PrintHandler::Callback cb;
-	void* cookie;
+	cppa::actor subscriber;
 };
 
 } // namespace broker

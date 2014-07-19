@@ -1,4 +1,5 @@
 #include "broker/broker.hh"
+#include "Subscription.hh"
 
 #include <cppa/cppa.hpp>
 
@@ -6,7 +7,15 @@
 
 int broker::init(int flags)
 	{
-	// TODO: cppa announcements
+	cppa::announce<SubscriptionType>();
+	cppa::announce<SubscriptionTopic>(
+	            std::make_pair(&SubscriptionTopic::get_type,
+	                           &SubscriptionTopic::set_type),
+	            std::make_pair(&SubscriptionTopic::get_topic,
+	                           &SubscriptionTopic::set_topic));
+	cppa::announce(typeid(Subscriptions),
+	     std::unique_ptr<cppa::uniform_type_info>{new Subscriptions_type_info});
+	cppa::announce<Subscriber>(&Subscriber::first, &Subscriber::second);
 	return 0;
 	}
 

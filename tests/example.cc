@@ -4,6 +4,8 @@
 #include <functional>
 #include <unordered_set>
 
+// TODO: break this file into smaller unit tests once stuff is implemented.
+
 using namespace std;
 
 struct bro_key;

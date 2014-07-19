@@ -12,8 +12,7 @@ namespace broker {
 class PrintHandler {
 public:
 
-	using Callback = std::function<void (const std::string& topic,
-	                                     const std::string& msg,
+	using Callback = std::function<void (std::string topic, std::string msg,
 	                                     void* cookie)>;
 
 	/**

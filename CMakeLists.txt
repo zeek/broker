@@ -57,7 +57,9 @@ set(BROKER_HDR
     src/EndpointImpl.hh
     src/PeerImpl.hh
     src/PrintHandlerImpl.hh
+    src/PrintSubscriberActor.hh
     src/EndpointActor.hh
+    src/Subscription.hh
     src/data/FacadeImpl.hh
     src/data/MasterImpl.hh
     src/data/CloneImpl.hh)

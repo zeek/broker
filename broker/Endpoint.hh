@@ -10,7 +10,11 @@
 
 namespace broker {
 
+class PrintHandler;
+
 class Endpoint {
+friend class broker::PrintHandler;
+
 public:
 
 	/**
@@ -24,6 +28,11 @@ public:
 	 * Shutdown the local broker endpoint and disconnect from peers.
 	 */
 	~Endpoint();
+
+	/**
+	 * @return the descriptive name for this endpoint (as given to ctor).
+	 */
+	const std::string& Name() const;
 
 	/**
 	 * @return an error code associated with the last failed endpoint operation.

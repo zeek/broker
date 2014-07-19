@@ -2,6 +2,7 @@
 #include "EndpointImpl.hh"
 #include "PeerImpl.hh"
 #include "EndpointActor.hh"
+#include "Subscription.hh"
 
 broker::Endpoint::Endpoint(std::string name, int flags)
     : p(new Impl{std::move(name), cppa::spawn<broker::EndpointActor>()})
@@ -12,9 +13,14 @@ broker::Endpoint::~Endpoint()
 	{
 	cppa::anon_send(p->endpoint, cppa::atom("quit"));
 
-	for ( auto peer : p->peers )
+	for ( const auto& peer : p->peers )
 		if ( peer.second.Remote() )
 			cppa::anon_send(peer.second.p->endpoint, cppa::atom("quit"));
+	}
+
+const std::string& broker::Endpoint::Name() const
+	{
+	return p->name;
 	}
 
 int broker::Endpoint::LastErrno() const
@@ -54,7 +60,7 @@ broker::Peer broker::Endpoint::AddPeer(std::string addr, uint16_t port,
 	{
 	auto port_addr = std::pair<std::string, uint16_t>(addr, port);
 
-	for ( auto peer : p->peers )
+	for ( const auto& peer : p->peers )
 		if ( peer.second.Remote() && port_addr == peer.second.RemoteTuple() )
 			return peer.second;
 
@@ -66,9 +72,7 @@ broker::Peer broker::Endpoint::AddPeer(std::string addr, uint16_t port,
 	rval.p->remote = true;
 	rval.p->remote_tuple = port_addr;
 	p->peers[remote] = rval;
-	cppa::anon_send(p->endpoint, cppa::atom("peer"), remote);
-	// Once the remote proxy actor connects, it will send the other peer msg
-	// so the remote endpoint knows about this local endpoint.
+	// The remote proxy will initiate peer requests once connected.
 	return rval;
 	}
 
@@ -86,7 +90,6 @@ broker::Peer broker::Endpoint::AddPeer(const Endpoint& e)
 	rval.p->endpoint = e.p->endpoint;
 	p->peers[e.p->endpoint] = rval;
 	cppa::anon_send(p->endpoint, cppa::atom("peer"), e.p->endpoint);
-	cppa::anon_send(e.p->endpoint, cppa::atom("peer"), p->endpoint);
 	return rval;
 	}
 
@@ -103,10 +106,15 @@ bool broker::Endpoint::RemPeer(broker::Peer peer)
 	p->peers.erase(it);
 	cppa::anon_send(p->endpoint, cppa::atom("unpeer"), peer.p->endpoint);
 	cppa::anon_send(peer.p->endpoint, cppa::atom("unpeer"), p->endpoint);
+
+	if ( peer.Remote() )
+		cppa::anon_send(peer.p->endpoint, cppa::atom("quit"));
+
 	return true;
 	}
 
 void broker::Endpoint::Print(std::string topic, std::string msg) const
 	{
-	// TODO
+	SubscriptionTopic st{SubscriptionType::PRINT, std::move(topic)};
+	cppa::anon_send(p->endpoint, std::move(st), std::move(msg));
 	}
