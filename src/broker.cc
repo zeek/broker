@@ -38,7 +38,7 @@ const char* broker::strerror(int arg_errno)
 	{
 	switch ( arg_errno ) {
 	default:
-		return strerror(arg_errno);
+		return ::strerror(arg_errno);
 	};
 	}
 
