@@ -44,6 +44,10 @@ public:
 			send(local, atom("unpeer"), remote);
 			quit();
 			},
+		on(atom("connwait")) >> [=]
+			{
+			return atom("ok");
+			},
 		on_arg_match >> [=](down_msg d)
 			{
 			demonitor(remote);

@@ -5,6 +5,7 @@
 #include <utility>
 #include <cstdint>
 #include <string>
+#include <chrono>
 
 namespace broker {
 
@@ -28,6 +29,9 @@ public:
 	bool Remote() const;
 
 	const std::pair<std::string, uint16_t>& RemoteTuple() const;
+
+	bool BlockUntilConnected(std::chrono::duration<double> timeout) const;
+	void BlockUntilConnected() const;
 
 private:
 

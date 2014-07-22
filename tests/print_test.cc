@@ -45,7 +45,13 @@ int main(int argc, char** argv)
 		{
 		broker::Endpoint n1{argv[1]};
 		auto peer = n1.AddPeer("localhost", 9999);
-		//n1.RemPeer(peer);
+
+		if ( ! peer.BlockUntilConnected(std::chrono::seconds(3)) )
+			{
+			cerr << "connection timed out" << endl;
+			}
+
+		peer.BlockUntilConnected();
 
 		broker::PrintHandler hb{n1, "topic_b", print_cb, &mtx};
 		broker::PrintHandler hc{n1, "topic_c", print_cb, &mtx};
