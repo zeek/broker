@@ -2,6 +2,7 @@
 #include "EndpointImpl.hh"
 #include "PeerImpl.hh"
 #include "EndpointActor.hh"
+#include "EndpointProxyActor.hh"
 #include "Subscription.hh"
 
 broker::Endpoint::Endpoint(std::string name, int flags)
@@ -64,15 +65,15 @@ broker::Peer broker::Endpoint::AddPeer(std::string addr, uint16_t port,
 		if ( peer.second.Remote() && port_addr == peer.second.RemoteTuple() )
 			return peer.second;
 
-	auto remote = cppa::spawn<RemoteEndpointActor>(p->endpoint,
-	                                               addr, port, retry);
+	auto remote = cppa::spawn<EndpointProxyActor>(p->endpoint,
+	                                              addr, port, retry);
 
 	Peer rval;
 	rval.p->endpoint = remote;
 	rval.p->remote = true;
 	rval.p->remote_tuple = port_addr;
 	p->peers[remote] = rval;
-	// The remote proxy will initiate peer requests once connected.
+	// The proxy actor will initiate peer requests once connected.
 	return rval;
 	}
 
@@ -104,11 +105,12 @@ bool broker::Endpoint::RemPeer(broker::Peer peer)
 		return false;
 
 	p->peers.erase(it);
-	cppa::anon_send(p->endpoint, cppa::atom("unpeer"), peer.p->endpoint);
-	cppa::anon_send(peer.p->endpoint, cppa::atom("unpeer"), p->endpoint);
 
 	if ( peer.Remote() )
+		// The proxy actor initiates unpeer messages.
 		cppa::anon_send(peer.p->endpoint, cppa::atom("quit"));
+	else
+		cppa::anon_send(p->endpoint, cppa::atom("unpeer"), peer.p->endpoint);
 
 	return true;
 	}
