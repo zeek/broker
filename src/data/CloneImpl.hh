@@ -1,16 +1,19 @@
-#ifndef DATA_CLONEIMPL_HH
-#define DATA_CLONEIMPL_HH
+#ifndef BROKER_DATA_CLONEIMPL_HH
+#define BROKER_DATA_CLONEIMPL_HH
 
 #include "broker/data/Clone.hh"
+
+#include <cppa/cppa.hpp>
 
 namespace broker { namespace data {
 
 class Clone::Impl {
 public:
-	// TODO
+
+	cppa::actor clone;
 };
 
 } // namespace data
 } // namespace broker
 
-#endif // DATA_CLONEIMPL_HH
+#endif // BROKER_DATA_CLONEIMPL_HH

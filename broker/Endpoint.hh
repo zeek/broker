@@ -10,10 +10,14 @@
 
 namespace broker {
 
+namespace data { class Facade; class Master; class Clone; }
 class PrintHandler;
 
 class Endpoint {
 friend class broker::PrintHandler;
+friend class broker::data::Facade;
+friend class broker::data::Master;
+friend class broker::data::Clone;
 
 public:
 

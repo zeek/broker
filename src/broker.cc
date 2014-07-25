@@ -1,5 +1,7 @@
 #include "broker/broker.hh"
+#include "broker/data/Store.hh"
 #include "Subscription.hh"
+#include "data/RequestMsgs.hh"
 
 #include <cppa/cppa.hpp>
 
@@ -11,11 +13,21 @@ int broker::init(int flags)
 	cppa::announce<SubscriptionTopic>(
 	            std::make_pair(&SubscriptionTopic::get_type,
 	                           &SubscriptionTopic::set_type),
-	            std::make_pair(&SubscriptionTopic::get_topic,
-	                           &SubscriptionTopic::set_topic));
+	            &SubscriptionTopic::topic);
 	cppa::announce(typeid(Subscriptions),
 	     std::unique_ptr<cppa::uniform_type_info>{new Subscriptions_type_info});
 	cppa::announce<Subscriber>(&Subscriber::first, &Subscriber::second);
+	cppa::announce<data::SequenceNum>(&data::SequenceNum::sequence);
+	cppa::announce<data::StoreSnapshot>(&data::StoreSnapshot::store,
+	                              &data::StoreSnapshot::sn);
+	cppa::announce<data::SnapshotRequest>(&data::SnapshotRequest::st,
+	                                      &data::SnapshotRequest::clone);
+	cppa::announce<data::LookupRequest>(&data::LookupRequest::st,
+	                                    &data::LookupRequest::key);
+	cppa::announce<data::HasKeyRequest>(&data::HasKeyRequest::st,
+	                                    &data::HasKeyRequest::key);
+	cppa::announce<data::KeysRequest>(&data::KeysRequest::st);
+	cppa::announce<data::SizeRequest>(&data::SizeRequest::st);
 	return 0;
 	}
 

@@ -1,16 +1,19 @@
-#ifndef DATA_MASTERIMPL_HH
-#define DATA_MASTERIMPL_HH
+#ifndef BROKER_DATA_MASTERIMPL_HH
+#define BROKER_DATA_MASTERIMPL_HH
 
 #include "broker/data/Master.hh"
+
+#include <cppa/cppa.hpp>
 
 namespace broker { namespace data {
 
 class Master::Impl {
 public:
-	// TODO
+
+	cppa::actor master;
 };
 
 } // namespace data
 } // namespace broker
 
-#endif // DATA_MASTERIMPL_HH
+#endif // BROKER_DATA_MASTERIMPL_HH

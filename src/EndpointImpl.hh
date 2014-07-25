@@ -1,5 +1,5 @@
-#ifndef ENDPOINTIMPL_HH
-#define ENDPOINTIMPL_HH
+#ifndef BROKER_ENDPOINTIMPL_HH
+#define BROKER_ENDPOINTIMPL_HH
 
 #include "broker/Endpoint.hh"
 
@@ -21,4 +21,4 @@ public:
 };
 } // namespace broker
 
-#endif // ENDPOINTIMPL_HH
+#endif // BROKER_ENDPOINTIMPL_HH

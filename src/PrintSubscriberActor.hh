@@ -1,5 +1,5 @@
-#ifndef PRINTSUBSCRIBERACTOR_HH
-#define PRINTSUBSCRIBERACTOR_HH
+#ifndef BROKER_PRINTSUBSCRIBERACTOR_HH
+#define BROKER_PRINTSUBSCRIBERACTOR_HH
 
 #include <cppa/cppa.hpp>
 
@@ -43,4 +43,4 @@ private:
 
 } // namespace broker
 
-#endif // PRINTSUBSCRIBERACTOR_HH
+#endif // BROKER_PRINTSUBSCRIBERACTOR_HH

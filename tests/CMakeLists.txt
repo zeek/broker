@@ -15,3 +15,6 @@ target_link_libraries(endpoint_test ${libbroker})
 
 add_executable(print_test print_test.cc)
 target_link_libraries(print_test ${libbroker})
+
+add_executable(data_test data_test.cc)
+target_link_libraries(data_test ${libbroker})

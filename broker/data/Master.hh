@@ -10,11 +10,14 @@ namespace broker { namespace data {
 class Master : public Facade {
 public:
 
-	Master(const Endpoint& e, std::string topic, Store s = InMemoryStore());
+	Master(const Endpoint& e, std::string topic, std::unique_ptr<Store> s =
+	                            std::unique_ptr<Store>{new InMemoryStore});
 
 	~Master();
 
 private:
+
+	void* GetBackendHandle() const override;
 
 	class Impl;
 	std::unique_ptr<Impl> p;

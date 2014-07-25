@@ -1,5 +1,5 @@
-#ifndef SUBSCRIPTION_HH
-#define SUBSCRIPTION_HH
+#ifndef BROKER_SUBSCRIPTION_HH
+#define BROKER_SUBSCRIPTION_HH
 
 #include <cppa/cppa.hpp>
 #include <cppa/util/abstract_uniform_type_info.hpp>
@@ -15,8 +15,9 @@ enum class SubscriptionType : uint16_t {
 	PRINT = 0,
 	EVENT,
 	LOG,
-	DATA,
-	NUM_TYPES // Sentinel for last enum value.
+	DATA_REQUEST,     // Used by master data stores to handle requests.
+	DATA_UPDATE,      // Used by master data stores to receive updates.
+	NUM_TYPES         // Sentinel for last enum value.
 };
 
 constexpr std::underlying_type<SubscriptionType>::type
@@ -32,8 +33,6 @@ struct SubscriptionTopic {
 	// TODO: workaround for libcppa bug in announcing enum members directly
 	const SubscriptionType& get_type() const { return type; }
 	void set_type(SubscriptionType val) { type = std::move(val); }
-	const std::string& get_topic() const { return topic; }
-	void set_topic(std::string val) { topic = std::move(val); }
 };
 
 inline bool operator==(const SubscriptionTopic& lhs,
@@ -102,7 +101,7 @@ private:
 			auto num_topic_strings = source->begin_sequence();
 
 			for ( size_t j = 0; j < num_topic_strings; ++j )
-				topic_strings.insert(std::move(source->read<std::string>()));
+				topic_strings.insert(source->read<std::string>());
 
 			source->end_sequence();
 			}
@@ -242,4 +241,4 @@ private:
 
 } // namespace broker
 
-#endif // SUBSCRIPTION_HH
+#endif // BROKER_SUBSCRIPTION_HH

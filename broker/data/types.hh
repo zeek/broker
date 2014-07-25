@@ -13,7 +13,11 @@ namespace broker { namespace data {
 using Key = std::string;
 using Val = std::string;
 
-using LookupCallback = std::function<void (Key key, std::unique_ptr<Val> val,
+using LookupCallback = std::function<void (Key key,
+                                           std::unique_ptr<Val> val,
+                                           void* cookie)>;
+using HasKeyCallback = std::function<void (Key key,
+                                           bool exists,
                                            void* cookie)>;
 using KeysCallback = std::function<void (std::unordered_set<Key> keys,
                                          void* cookie)>;

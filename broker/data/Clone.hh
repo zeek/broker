@@ -14,6 +14,8 @@ public:
 
 private:
 
+	void* GetBackendHandle() const override;
+
 	class Impl;
 	std::unique_ptr<Impl> p;
 };

@@ -1,5 +1,5 @@
-#ifndef PEERIMPL_HH
-#define PEERIMPL_HH
+#ifndef BROKER_PEERIMPL_HH
+#define BROKER_PEERIMPL_HH
 
 #include "broker/Peer.hh"
 
@@ -21,4 +21,4 @@ public:
 
 } // namespace broker
 
-#endif // PEERIMPL_HH
+#endif // BROKER_PEERIMPL_HH

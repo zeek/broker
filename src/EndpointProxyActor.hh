@@ -1,5 +1,5 @@
-#ifndef ENDPOINTPROXYACTOR_HH
-#define ENDPOINTPROXYACTOR_HH
+#ifndef BROKER_ENDPOINTPROXYACTOR_HH
+#define BROKER_ENDPOINTPROXYACTOR_HH
 
 #include <cppa/cppa.hpp>
 
@@ -103,4 +103,4 @@ private:
 
 } // namespace broker
 
-#endif // ENDPOINTPROXYACTOR_HH
+#endif // BROKER_ENDPOINTPROXYACTOR_HH

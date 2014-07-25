@@ -54,6 +54,7 @@ set(BROKER_HDR
     broker/data/Facade.hh
     broker/data/Master.hh
     broker/data/Clone.hh
+    broker/data/SequenceNum.hh
     src/EndpointImpl.hh
     src/PeerImpl.hh
     src/PrintHandlerImpl.hh
@@ -63,7 +64,10 @@ set(BROKER_HDR
     src/Subscription.hh
     src/data/FacadeImpl.hh
     src/data/MasterImpl.hh
-    src/data/CloneImpl.hh)
+    src/data/CloneImpl.hh
+    src/data/MasterActor.hh
+    src/data/CloneActor.hh
+    src/data/RequestMsgs.hh)
 
 set(BROKER_SRC
     src/broker.cc
@@ -72,7 +76,8 @@ set(BROKER_SRC
     src/PrintHandler.cc
     src/data/Facade.cc
     src/data/Master.cc
-    src/data/Clone.cc)
+    src/data/Clone.cc
+    src/data/SequenceNum.cc)
 
 add_library(broker_objs OBJECT ${BROKER_SRC} ${BROKER_HDR})
 

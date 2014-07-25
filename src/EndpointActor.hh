@@ -1,9 +1,10 @@
-#ifndef ENDPOINTACTOR_HH
-#define ENDPOINTACTOR_HH
+#ifndef BROKER_ENDPOINTACTOR_HH
+#define BROKER_ENDPOINTACTOR_HH
 
 #include <cppa/cppa.hpp>
 
 #include "Subscription.hh"
+#include "data/RequestMsgs.hh"
 
 namespace broker {
 
@@ -16,8 +17,73 @@ public:
 		{
 		using namespace cppa;
 		using namespace std;
+		using namespace broker::data;
 
-		active = (
+		// TODO: more generic way to intercept requests?
+		auto handle_snapshot = [=](const SnapshotRequest& r) -> optional<bool>
+			{
+			auto master = FindMaster(r.st);
+			if ( ! master ) return true;
+			forward_to(master);
+			return {};
+			};
+
+		auto handle_lookup = [=](const LookupRequest& r) -> optional<bool>
+			{
+			auto master = FindMaster(r.st);
+			if ( ! master ) return true;
+			forward_to(master);
+			return {};
+			};
+
+		auto handle_haskey = [=](const HasKeyRequest& r) -> optional<bool>
+			{
+			auto master = FindMaster(r.st);
+			if ( ! master ) return true;
+			forward_to(master);
+			return {};
+			};
+
+		auto handle_keys = [=](const KeysRequest& r) -> optional<bool>
+			{
+			auto master = FindMaster(r.st);
+			if ( ! master ) return true;
+			forward_to(master);
+			return {};
+			};
+
+		auto handle_size = [=](const SizeRequest& r) -> optional<bool>
+			{
+			auto master = FindMaster(r.st);
+			if ( ! master ) return true;
+			forward_to(master);
+			return {};
+			};
+
+		partial_function data_requests {
+		on(handle_snapshot) >> [=](bool)
+			{
+			return make_cow_tuple(atom("dne"));
+			}, on_arg_match >> [](const SnapshotRequest&) {},
+		on(handle_lookup) >> [=](bool)
+			{
+			return make_cow_tuple(atom("dne"));
+			}, on_arg_match >> [](const LookupRequest&) {},
+		on(handle_haskey) >> [=](bool)
+			{
+			return make_cow_tuple(atom("dne"));
+			}, on_arg_match >> [](const HasKeyRequest&) {},
+		on(handle_keys) >> [=](bool)
+			{
+			return make_cow_tuple(atom("dne"));
+			}, on_arg_match >> [](const KeysRequest&) {},
+		on(handle_size) >> [=](bool)
+			{
+			return make_cow_tuple(atom("dne"));
+			}, on_arg_match >> [](const SizeRequest&) {}
+		};
+
+		active = data_requests.or_else(
 		on(atom("quit")) >> [=]
 			{
 			//aout(this) << "quit" << endl;
@@ -40,7 +106,6 @@ public:
 			},
 		on(atom("peer"), arg_match) >> [=](actor peer, Subscriptions t)
 			{
-			//aout(this) << "send peer response" << endl;
 			demonitor(peer);
 			monitor(peer);
 			peers[peer.address()] = peer;
@@ -77,9 +142,7 @@ public:
 			{
 			demonitor(subscriber);
 			monitor(subscriber);
-			Subscriptions subs;
-			subs[+t.type].insert(t.topic);
-			local_subs.AddSubscriber(Subscriber{move(subs), move(subscriber)});
+			local_subs.AddSubscription(t, move(subscriber));
 
 			for ( const auto& p : peers )
 				send(p.second, atom("subpeer"), t, this);
@@ -96,6 +159,19 @@ public:
 		}
 
 private:
+
+	cppa::actor FindMaster(const SubscriptionTopic& t)
+		{
+		auto m = local_subs.Match(t);
+
+		if ( m.empty() )
+			m = peer_subs.Match(t);
+
+		if ( m.empty() )
+			return cppa::invalid_actor;
+
+		return *m.begin();
+		}
 
 	void PublishCurrentMsg(const SubscriptionTopic& topic)
 		{
@@ -121,4 +197,4 @@ private:
 
 } // namespace broker
 
-#endif // ENDPOINTACTOR_HH
+#endif // BROKER_ENDPOINTACTOR_HH

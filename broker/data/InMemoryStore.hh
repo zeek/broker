@@ -3,40 +3,47 @@
 
 #include <broker/data/Store.hh>
 
-#include <unordered_map>
-
 namespace broker { namespace data {
 
 class InMemoryStore : public Store {
+public:
+
+	InMemoryStore(StoreSnapshot sss = {})
+	    : Store(std::move(sss.sn)), store(std::move(sss.store))
+		{ }
+
 private:
 
 	void DoInsert(Key k, Val v) override
-		{ store.insert(std::make_pair<Key, Val>(std::move(k), std::move(v))); }
+		{ store[std::move(k)] = std::move(v); }
 
-	void DoErase(Key k) override
+	void DoErase(const Key& k) override
 		{ store.erase(k); }
 
 	void DoClear() override
 		{ store.clear(); }
 
-	std::unique_ptr<Val> DoLookup(Key k) override
+	std::unique_ptr<Val> DoLookup(const Key& k) const override
 		{
 		try { return std::unique_ptr<Val>(new Val(store.at(k))); }
 		catch ( const std::out_of_range& ) { return {}; }
 		}
 
-	bool DoHasKey(Key k) override
+	bool DoHasKey(const Key& k) const override
 		{ if ( store.find(k) == store.end() ) return false; else return true; }
 
-	std::unordered_set<Key> DoKeys() override
+	std::unordered_set<Key> DoKeys() const override
 		{
 		std::unordered_set<Key> rval;
 		for ( const auto& kv : store ) rval.insert(kv.first);
 		return rval;
 		}
 
-	uint64_t DoSize() override
+	uint64_t DoSize() const override
 		{ return store.size(); }
+
+	StoreSnapshot DoSnapshot() const override
+		{ return {store, GetSequenceNum()}; }
 
 	std::unordered_map<Key, Val> store;
 };

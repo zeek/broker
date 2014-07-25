@@ -1,5 +1,5 @@
-#ifndef PRINTHANDLERIMPL_HH
-#define PRINTHANDLERIMPL_HH
+#ifndef BROKER_PRINTHANDLERIMPL_HH
+#define BROKER_PRINTHANDLERIMPL_HH
 
 #include "broker/PrintHandler.hh"
 
@@ -16,4 +16,4 @@ public:
 
 } // namespace broker
 
-#endif // PRINTHANDLERIMPL_HH
+#endif // BROKER_PRINTHANDLERIMPL_HH
