@@ -6,11 +6,12 @@
 #include "broker/data/Store.hh"
 #include "broker/data/InMemoryStore.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/sb_actor.hpp>
+#include <caf/actor_ostream.hpp>
 
 namespace broker { namespace data {
 
-static void dbg_dump(const cppa::actor& a, const std::string& store_id,
+static void dbg_dump(const caf::actor& a, const std::string& store_id,
                      const Store& store)
     {
 	// TODO: remove or put this in a preprocessor macro
@@ -28,46 +29,47 @@ static void dbg_dump(const cppa::actor& a, const std::string& store_id,
     aout(a) << ss.str();
     }
 
-class CloneActor : public cppa::sb_actor<CloneActor> {
-friend class cppa::sb_actor<CloneActor>;
+class CloneActor : public caf::sb_actor<CloneActor> {
+friend class caf::sb_actor<CloneActor>;
 
 public:
 
-	CloneActor(cppa::actor endpoint, std::string topic)
+	CloneActor(caf::actor endpoint, std::string topic)
 		{
 		using namespace std;
-		using namespace cppa;
+		using namespace caf;
 
+		// TODO: expose this retry interval to user API
 		auto sync_retry_interval = chrono::seconds(5);
 		SnapshotRequest snap_req{{SubscriptionType::DATA_REQUEST, topic}, this};
-		auto any_topic = val<SubscriptionTopic>;
+		SubscriptionTopic update_topic{SubscriptionType::DATA_UPDATE, topic};
 
-		partial_function requests {
-		on_arg_match >> [=](LookupRequest r) -> any_tuple
+		message_handler requests {
+		on_arg_match >> [=](LookupRequest r) -> message
 			{
 			auto val = store.Lookup(r.key);
 
 			if ( ! val )
-				return make_cow_tuple(atom("null"));
+				return make_message(atom("null"));
 			else
-				return make_cow_tuple(move(*val));
+				return make_message(move(*val));
 			},
 		on_arg_match >> [=](HasKeyRequest r)
 			{
-			return make_cow_tuple(store.HasKey(r.key));
+			return store.HasKey(r.key);
 			},
 		on<KeysRequest>() >> [=]
 			{
-			return make_cow_tuple(store.Keys());
+			return store.Keys();
 			},
 		on<SizeRequest>() >> [=]
 			{
-			return make_cow_tuple(store.Size());
+			return store.Size();
 			}
 		};
 
-		partial_function updates {
-		on(any_topic, atom("insert"), val<Key>, val<Val>) >> [=]
+		message_handler updates {
+		on(update_topic, atom("insert"), val<Key>, val<Val>) >> [=]
 			{
 			if ( master ) forward_to(master);
 			},
@@ -86,7 +88,7 @@ public:
 				get_snapshot(endpoint, snap_req, sync_retry_interval);
 				}
 			},
-		on(any_topic, atom("erase"), val<Key>) >> [=]
+		on(update_topic, atom("erase"), val<Key>) >> [=]
 			{
 			if ( master ) forward_to(master);
 			},
@@ -105,7 +107,7 @@ public:
 				get_snapshot(endpoint, snap_req, sync_retry_interval);
 				}
 			},
-		on(any_topic, atom("clear")) >> [=]
+		on(update_topic, atom("clear")) >> [=]
 			{
 			if ( master ) forward_to(master);
 			},
@@ -157,11 +159,11 @@ private:
 		aout(this) << "ERROR: clone '" << topic << "' out of sync" << std::endl;
 		}
 
-	void get_snapshot(const cppa::actor& endpoint, const SnapshotRequest& req,
+	void get_snapshot(const caf::actor& endpoint, const SnapshotRequest& req,
 	                  std::chrono::duration<double> retry)
 		{
 		using namespace std;
-		using namespace cppa;
+		using namespace caf;
 		sync_send(endpoint, req).then(
 			on(atom("dne")) >> [=]
 				{
@@ -181,10 +183,10 @@ private:
 		}
 
 	InMemoryStore store;
-	cppa::actor master = cppa::invalid_actor;
-	cppa::behavior initializing;
-	cppa::behavior active;
-	cppa::behavior& init_state = initializing;
+	caf::actor master = caf::invalid_actor;
+	caf::behavior initializing;
+	caf::behavior active;
+	caf::behavior& init_state = initializing;
 };
 
 } // namespace data

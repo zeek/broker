@@ -3,14 +3,14 @@
 
 #include "broker/data/Clone.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 namespace broker { namespace data {
 
 class Clone::Impl {
 public:
 
-	cppa::actor clone;
+	caf::actor clone;
 };
 
 } // namespace data

@@ -1,21 +1,22 @@
 #ifndef BROKER_ENDPOINTACTOR_HH
 #define BROKER_ENDPOINTACTOR_HH
 
-#include <cppa/cppa.hpp>
-
 #include "Subscription.hh"
 #include "data/RequestMsgs.hh"
 
+#include <caf/sb_actor.hpp>
+#include <caf/all.hpp>
+
 namespace broker {
 
-class EndpointActor : public cppa::sb_actor<EndpointActor> {
-friend class cppa::sb_actor<EndpointActor>;
+class EndpointActor : public caf::sb_actor<EndpointActor> {
+friend class caf::sb_actor<EndpointActor>;
 
 public:
 
 	EndpointActor()
 		{
-		using namespace cppa;
+		using namespace caf;
 		using namespace std;
 		using namespace broker::data;
 
@@ -60,26 +61,26 @@ public:
 			return {};
 			};
 
-		partial_function data_requests {
+		message_handler data_requests {
 		on(handle_snapshot) >> [=](bool)
 			{
-			return make_cow_tuple(atom("dne"));
+			return make_message(atom("dne"));
 			}, on_arg_match >> [](const SnapshotRequest&) {},
 		on(handle_lookup) >> [=](bool)
 			{
-			return make_cow_tuple(atom("dne"));
+			return make_message(atom("dne"));
 			}, on_arg_match >> [](const LookupRequest&) {},
 		on(handle_haskey) >> [=](bool)
 			{
-			return make_cow_tuple(atom("dne"));
+			return make_message(atom("dne"));
 			}, on_arg_match >> [](const HasKeyRequest&) {},
 		on(handle_keys) >> [=](bool)
 			{
-			return make_cow_tuple(atom("dne"));
+			return make_message(atom("dne"));
 			}, on_arg_match >> [](const KeysRequest&) {},
 		on(handle_size) >> [=](bool)
 			{
-			return make_cow_tuple(atom("dne"));
+			return make_message(atom("dne"));
 			}, on_arg_match >> [](const SizeRequest&) {}
 		};
 
@@ -110,7 +111,7 @@ public:
 			monitor(peer);
 			peers[peer.address()] = peer;
 			peer_subs.AddSubscriber(Subscriber{move(t), move(peer)});
-			return make_cow_tuple(local_subs.Topics());
+			return make_message(local_subs.Topics());
 			},
 		on(atom("unpeer"), arg_match) >> [=](actor peer)
 			{
@@ -160,7 +161,7 @@ public:
 
 private:
 
-	cppa::actor FindMaster(const SubscriptionTopic& t)
+	caf::actor FindMaster(const SubscriptionTopic& t)
 		{
 		auto m = local_subs.Match(t);
 
@@ -168,7 +169,7 @@ private:
 			m = peer_subs.Match(t);
 
 		if ( m.empty() )
-			return cppa::invalid_actor;
+			return caf::invalid_actor;
 
 		return *m.begin();
 		}
@@ -187,8 +188,8 @@ private:
 			send_tuple(a, last_dequeued());
 		}
 
-	cppa::behavior active;
-	cppa::behavior& init_state = active;
+	caf::behavior active;
+	caf::behavior& init_state = active;
 
 	ActorMap peers;
 	SubscriberBase local_subs;

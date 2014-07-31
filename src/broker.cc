@@ -3,31 +3,29 @@
 #include "Subscription.hh"
 #include "data/RequestMsgs.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/announce.hpp>
+#include <caf/shutdown.hpp>
 
 #include <cstdio>
 
 int broker::init(int flags)
 	{
-	cppa::announce<SubscriptionType>();
-	cppa::announce<SubscriptionTopic>(
-	            std::make_pair(&SubscriptionTopic::get_type,
-	                           &SubscriptionTopic::set_type),
-	            &SubscriptionTopic::topic);
-	cppa::announce(typeid(Subscriptions),
-	     std::unique_ptr<cppa::uniform_type_info>{new Subscriptions_type_info});
-	cppa::announce<Subscriber>(&Subscriber::first, &Subscriber::second);
-	cppa::announce<data::SequenceNum>(&data::SequenceNum::sequence);
-	cppa::announce<data::StoreSnapshot>(&data::StoreSnapshot::store,
-	                              &data::StoreSnapshot::sn);
-	cppa::announce<data::SnapshotRequest>(&data::SnapshotRequest::st,
-	                                      &data::SnapshotRequest::clone);
-	cppa::announce<data::LookupRequest>(&data::LookupRequest::st,
-	                                    &data::LookupRequest::key);
-	cppa::announce<data::HasKeyRequest>(&data::HasKeyRequest::st,
-	                                    &data::HasKeyRequest::key);
-	cppa::announce<data::KeysRequest>(&data::KeysRequest::st);
-	cppa::announce<data::SizeRequest>(&data::SizeRequest::st);
+	using namespace caf;
+	using namespace std;
+	using namespace broker::data;
+	announce<SubscriptionType>();
+	announce<SubscriptionTopic>(&SubscriptionTopic::type,
+	                            &SubscriptionTopic::topic);
+	announce(typeid(Subscriptions),
+	         unique_ptr<uniform_type_info>(new Subscriptions_type_info));
+	announce<Subscriber>(&Subscriber::first, &Subscriber::second);
+	announce<SequenceNum>(&SequenceNum::sequence);
+	announce<StoreSnapshot>(&StoreSnapshot::store, &StoreSnapshot::sn);
+	announce<SnapshotRequest>(&SnapshotRequest::st, &SnapshotRequest::clone);
+	announce<LookupRequest>(&LookupRequest::st, &LookupRequest::key);
+	announce<HasKeyRequest>(&HasKeyRequest::st, &HasKeyRequest::key);
+	announce<KeysRequest>(&KeysRequest::st);
+	announce<SizeRequest>(&SizeRequest::st);
 	return 0;
 	}
 
@@ -38,7 +36,7 @@ int broker_init(int flags)
 
 void broker::done()
 	{
-	cppa::shutdown();
+	caf::shutdown();
 	}
 
 void broker_done()

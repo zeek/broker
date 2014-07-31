@@ -3,19 +3,22 @@
 #include "PrintSubscriberActor.hh"
 #include "Subscription.hh"
 
+#include <caf/spawn.hpp>
+#include <caf/send.hpp>
+
 broker::PrintHandler::PrintHandler(const Endpoint& e, std::string topic,
                                    Callback cb, void *cookie)
     : p(new Impl{topic,
-                 cppa::spawn<broker::PrintSubscriberActor>(topic, cb, cookie)})
+                 caf::spawn<broker::PrintSubscriberActor>(topic, cb, cookie)})
 	{
-	cppa::anon_send(e.p->endpoint, cppa::atom("sub"),
-	                SubscriptionTopic{SubscriptionType::PRINT, topic},
-	                p->subscriber);
+	caf::anon_send(e.p->endpoint, caf::atom("sub"),
+	               SubscriptionTopic{SubscriptionType::PRINT, topic},
+	               p->subscriber);
 	}
 
 broker::PrintHandler::~PrintHandler()
 	{
-	cppa::anon_send(p->subscriber, cppa::atom("quit"));
+	caf::anon_send(p->subscriber, caf::atom("quit"));
 	}
 
 const std::string& broker::PrintHandler::Topic() const

@@ -1,7 +1,8 @@
 #ifndef BROKER_ENDPOINTPROXYACTOR_HH
 #define BROKER_ENDPOINTPROXYACTOR_HH
 
-#include <cppa/cppa.hpp>
+#include <caf/sb_actor.hpp>
+#include <caf/io/remote_actor.hpp>
 
 namespace broker {
 
@@ -9,15 +10,15 @@ namespace broker {
  * Manages connection to a remote EndpointActor including auto-reconnection
  * and associated peer/unpeer messages.
  */
-class EndpointProxyActor : public cppa::sb_actor<EndpointProxyActor> {
-friend class cppa::sb_actor<EndpointProxyActor>;
+class EndpointProxyActor : public caf::sb_actor<EndpointProxyActor> {
+friend class caf::sb_actor<EndpointProxyActor>;
 
 public:
 
-	EndpointProxyActor(cppa::actor local, std::string addr, uint16_t port,
+	EndpointProxyActor(caf::actor local, std::string addr, uint16_t port,
 	                   std::chrono::duration<double> retry_freq)
 		{
-		using namespace cppa;
+		using namespace caf;
 		using namespace std;
 
 		bootstrap = (
@@ -66,14 +67,14 @@ public:
 private:
 
 	bool try_connect(const std::string& addr, uint16_t port,
-	                 const cppa::actor& local)
+	                 const caf::actor& local)
 		{
-		using namespace cppa;
+		using namespace caf;
 		using namespace std;
 
 		try
 			{
-			remote = remote_actor(addr, port);
+			remote = io::remote_actor(addr, port);
 			}
 		catch ( const exception& e )
 			{
@@ -94,11 +95,11 @@ private:
 		return true;
 		}
 
-	cppa::actor remote = cppa::invalid_actor;
-	cppa::behavior bootstrap;
-	cppa::behavior disconnected;
-	cppa::behavior connected;
-	cppa::behavior& init_state = bootstrap;
+	caf::actor remote = caf::invalid_actor;
+	caf::behavior bootstrap;
+	caf::behavior disconnected;
+	caf::behavior connected;
+	caf::behavior& init_state = bootstrap;
 };
 
 } // namespace broker

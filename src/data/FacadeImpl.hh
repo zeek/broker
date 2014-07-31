@@ -4,7 +4,7 @@
 #include "broker/data/Facade.hh"
 #include "../Subscription.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 namespace broker { namespace data {
 
@@ -12,7 +12,7 @@ class Facade::Impl {
 public:
 
 	std::string topic;
-	cppa::actor endpoint;
+	caf::actor endpoint;
 	SubscriptionTopic request_topic;
 	SubscriptionTopic data_topic;
 };

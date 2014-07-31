@@ -36,7 +36,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-static-only   only build static libraries, not shared
 
   Required Packages in Non-Standard Locations:
-    --with-libcppa=PATH    path to bison executable
+    --with-libcaf=PATH     path to C++ Actor Framework installation
 
   Influential Environment Variables (only on first invocation
   per build directory):
@@ -100,8 +100,8 @@ while [ $# -ne 0 ]; do
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
-        --with-libcppa=*)
-            append_cache_entry LIBCPPA_ROOT_DIR PATH $optarg
+        --with-libcaf=*)
+            append_cache_entry LIBCAF_ROOT_DIR      PATH   $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."

@@ -3,7 +3,7 @@
 
 #include "broker/Peer.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 #include <utility>
 #include <string>
@@ -14,7 +14,7 @@ namespace broker {
 class Peer::Impl {
 public:
 
-	cppa::actor endpoint = cppa::invalid_actor;
+	caf::actor endpoint = caf::invalid_actor;
 	bool remote = false;
 	std::pair<std::string, uint16_t> remote_tuple;
 };

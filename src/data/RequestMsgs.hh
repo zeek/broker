@@ -4,13 +4,13 @@
 #include "broker/data/types.hh"
 #include "../Subscription.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 namespace broker { namespace data {
 
 struct SnapshotRequest {
 	SubscriptionTopic st;
-	cppa::actor clone;
+	caf::actor clone;
 };
 
 inline bool operator==(const SnapshotRequest& lhs, const SnapshotRequest& rhs)

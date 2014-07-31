@@ -3,7 +3,7 @@
 
 #include "broker/Endpoint.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 #include <unordered_map>
 #include <string>
@@ -14,8 +14,8 @@ class Endpoint::Impl {
 public:
 
 	std::string name;
-	cppa::actor endpoint;
-	std::unordered_map<cppa::actor, Peer> peers;
+	caf::actor endpoint;
+	std::unordered_map<caf::actor, Peer> peers;
 	int last_errno;
 	std::string last_error;
 };

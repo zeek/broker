@@ -2,9 +2,14 @@
 #include "../EndpointImpl.hh"
 #include "RequestMsgs.hh"
 
-static inline cppa::actor* handle_to_actor(void* backend)
+#include <caf/scoped_actor.hpp>
+#include <caf/send.hpp>
+#include <caf/sb_actor.hpp>
+#include <caf/spawn.hpp>
+
+static inline caf::actor* handle_to_actor(void* backend)
 	{
-	return static_cast<cppa::actor*>(backend);
+	return static_cast<caf::actor*>(backend);
 	}
 
 broker::data::Facade::Facade(const Endpoint &e, std::string topic)
@@ -23,31 +28,31 @@ const std::string& broker::data::Facade::Topic() const
 
 void broker::data::Facade::Insert(Key k, Val v) const
 	{
-	cppa::anon_send(*handle_to_actor(GetBackendHandle()),
-	                p->data_topic, cppa::atom("insert"),
-	                std::move(k), std::move(v));
+	caf::anon_send(*handle_to_actor(GetBackendHandle()),
+	               p->data_topic, caf::atom("insert"),
+	               std::move(k), std::move(v));
 	}
 
 void broker::data::Facade::Erase(Key k) const
 	{
-	cppa::anon_send(*handle_to_actor(GetBackendHandle()),
-	                p->data_topic, cppa::atom("erase"),
-	                std::move(k));
+	caf::anon_send(*handle_to_actor(GetBackendHandle()),
+	               p->data_topic, caf::atom("erase"),
+	               std::move(k));
 	}
 
 void broker::data::Facade::Clear() const
 	{
-	cppa::anon_send(*handle_to_actor(GetBackendHandle()),
-	                p->data_topic, cppa::atom("clear"));
+	caf::anon_send(*handle_to_actor(GetBackendHandle()),
+	               p->data_topic, caf::atom("clear"));
 	}
 
 std::unique_ptr<broker::data::Val> broker::data::Facade::Lookup(Key k) const
 	{
 	std::unique_ptr<Val> rval;
-	cppa::scoped_actor self;
+	caf::scoped_actor self;
 	self->sync_send(*handle_to_actor(GetBackendHandle()),
 	                LookupRequest{p->request_topic, std::move(k)}).await(
-		cppa::on_arg_match >> [&rval](Val v)
+		caf::on_arg_match >> [&rval](Val v)
 			{
 			rval.reset(new Val(move(v)));
 			}
@@ -58,10 +63,10 @@ std::unique_ptr<broker::data::Val> broker::data::Facade::Lookup(Key k) const
 bool broker::data::Facade::HasKey(Key k) const
 	{
 	bool rval = false;
-	cppa::scoped_actor self;
+	caf::scoped_actor self;
 	self->sync_send(*handle_to_actor(GetBackendHandle()),
 	                HasKeyRequest{p->request_topic, std::move(k)}).await(
-		cppa::on_arg_match >> [&rval](bool hasit)
+		caf::on_arg_match >> [&rval](bool hasit)
 			{
 			rval = hasit;
 			}
@@ -72,10 +77,10 @@ bool broker::data::Facade::HasKey(Key k) const
 std::unordered_set<broker::data::Key> broker::data::Facade::Keys() const
 	{
 	std::unordered_set<Key> rval;
-	cppa::scoped_actor self;
+	caf::scoped_actor self;
 	self->sync_send(*handle_to_actor(GetBackendHandle()),
 	                KeysRequest{p->request_topic}).await(
-		cppa::on_arg_match >> [&rval](std::unordered_set<Key> ks)
+		caf::on_arg_match >> [&rval](std::unordered_set<Key> ks)
 			{
 			rval = std::move(ks);
 			}
@@ -86,10 +91,10 @@ std::unordered_set<broker::data::Key> broker::data::Facade::Keys() const
 uint64_t broker::data::Facade::Size() const
 	{
 	uint64_t rval = 0;
-	cppa::scoped_actor self;
+	caf::scoped_actor self;
 	self->sync_send(*handle_to_actor(GetBackendHandle()),
 	                SizeRequest{p->request_topic}).await(
-		cppa::on_arg_match >> [&rval](uint64_t sz)
+		caf::on_arg_match >> [&rval](uint64_t sz)
 			{
 			rval = sz;
 			}
@@ -97,21 +102,21 @@ uint64_t broker::data::Facade::Size() const
 	return rval;
 	}
 
-class async_lookup : public cppa::sb_actor<async_lookup> {
-friend class cppa::sb_actor<async_lookup>;
+class async_lookup : public caf::sb_actor<async_lookup> {
+friend class caf::sb_actor<async_lookup>;
 
 public:
 
-	async_lookup(cppa::actor backend, broker::data::LookupRequest req,
+	async_lookup(caf::actor backend, broker::data::LookupRequest req,
 	             broker::data::LookupCallback cb, void* cookie)
 		: request(std::move(req))
 		{
 		query = (
-		cppa::after(std::chrono::seconds::zero()) >> [=]
+		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			std::unique_ptr<broker::data::Val> rval;
 			sync_send(backend, request).then(
-				cppa::on_arg_match >> [&rval](broker::data::Val v)
+				caf::on_arg_match >> [&rval](broker::data::Val v)
 					{
 					rval.reset(new broker::data::Val(std::move(v)));
 					}
@@ -125,32 +130,32 @@ public:
 private:
 
 	broker::data::LookupRequest request;
-	cppa::behavior query;
-	cppa::behavior& init_state = query;
+	caf::behavior query;
+	caf::behavior& init_state = query;
 };
 
 void broker::data::Facade::Lookup(Key k, LookupCallback cb, void* cookie) const
 	{
-	cppa::spawn<async_lookup>(*handle_to_actor(GetBackendHandle()),
-	                          LookupRequest{p->request_topic, std::move(k)},
-	                          cb, cookie);
+	caf::spawn<async_lookup>(*handle_to_actor(GetBackendHandle()),
+	                         LookupRequest{p->request_topic, std::move(k)},
+	                         cb, cookie);
 	}
 
-class async_haskey : public cppa::sb_actor<async_haskey> {
-friend class cppa::sb_actor<async_haskey>;
+class async_haskey : public caf::sb_actor<async_haskey> {
+friend class caf::sb_actor<async_haskey>;
 
 public:
 
-	async_haskey(cppa::actor backend, broker::data::HasKeyRequest req,
+	async_haskey(caf::actor backend, broker::data::HasKeyRequest req,
 	             broker::data::HasKeyCallback cb, void* cookie)
 		: request(std::move(req))
 		{
 		query = (
-		cppa::after(std::chrono::seconds::zero()) >> [=]
+		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			bool rval = false;
 			sync_send(backend, request).then(
-				cppa::on_arg_match >> [&rval](bool hasit)
+				caf::on_arg_match >> [&rval](bool hasit)
 					{
 					rval = hasit;
 					}
@@ -164,33 +169,33 @@ public:
 private:
 
 	broker::data::HasKeyRequest request;
-	cppa::behavior query;
-	cppa::behavior& init_state = query;
+	caf::behavior query;
+	caf::behavior& init_state = query;
 };
 
 void broker::data::Facade::HasKey(Key k, HasKeyCallback cb, void* cookie) const
 	{
-	cppa::spawn<async_haskey>(*handle_to_actor(GetBackendHandle()),
-	                          HasKeyRequest{p->request_topic, std::move(k)},
-	                          cb, cookie);
+	caf::spawn<async_haskey>(*handle_to_actor(GetBackendHandle()),
+	                         HasKeyRequest{p->request_topic, std::move(k)},
+	                         cb, cookie);
 	}
 
-class async_keys : public cppa::sb_actor<async_keys> {
-friend class cppa::sb_actor<async_keys>;
+class async_keys : public caf::sb_actor<async_keys> {
+friend class caf::sb_actor<async_keys>;
 
 public:
 
-	async_keys(cppa::actor backend, broker::data::KeysRequest req,
+	async_keys(caf::actor backend, broker::data::KeysRequest req,
 	           broker::data::KeysCallback cb, void* cookie)
 		: request(std::move(req))
 		{
 		query = (
-		cppa::after(std::chrono::seconds::zero()) >> [=]
+		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			using keyset = std::unordered_set<broker::data::Key>;
 			keyset rval;
 			sync_send(backend, request).then(
-				cppa::on_arg_match >> [&rval](keyset keys)
+				caf::on_arg_match >> [&rval](keyset keys)
 					{
 					rval = std::move(keys);
 					}
@@ -204,31 +209,31 @@ public:
 private:
 
 	broker::data::KeysRequest request;
-	cppa::behavior query;
-	cppa::behavior& init_state = query;
+	caf::behavior query;
+	caf::behavior& init_state = query;
 };
 
 void broker::data::Facade::Keys(KeysCallback cb, void* cookie) const
 	{
-	cppa::spawn<async_keys>(*handle_to_actor(GetBackendHandle()),
+	caf::spawn<async_keys>(*handle_to_actor(GetBackendHandle()),
 	                        KeysRequest{p->request_topic}, cb, cookie);
 	}
 
-class async_size : public cppa::sb_actor<async_size> {
-friend class cppa::sb_actor<async_size>;
+class async_size : public caf::sb_actor<async_size> {
+friend class caf::sb_actor<async_size>;
 
 public:
 
-	async_size(cppa::actor backend, broker::data::SizeRequest req,
+	async_size(caf::actor backend, broker::data::SizeRequest req,
 	           broker::data::SizeCallback cb, void* cookie)
 		: request(std::move(req))
 		{
 		query = (
-		cppa::after(std::chrono::seconds::zero()) >> [=]
+		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			uint64_t rval = 0;
 			sync_send(backend, request).then(
-				cppa::on_arg_match >> [&rval](uint64_t sz)
+				caf::on_arg_match >> [&rval](uint64_t sz)
 					{
 					rval = sz;
 					}
@@ -242,14 +247,14 @@ public:
 private:
 
 	broker::data::SizeRequest request;
-	cppa::behavior query;
-	cppa::behavior& init_state = query;
+	caf::behavior query;
+	caf::behavior& init_state = query;
 };
 
 void broker::data::Facade::Size(SizeCallback cb, void* cookie) const
 	{
-	cppa::spawn<async_size>(*handle_to_actor(GetBackendHandle()),
-	                        SizeRequest{p->request_topic}, cb, cookie);
+	caf::spawn<async_size>(*handle_to_actor(GetBackendHandle()),
+	                       SizeRequest{p->request_topic}, cb, cookie);
 	}
 
 void* broker::data::Facade::GetBackendHandle() const

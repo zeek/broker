@@ -1,8 +1,10 @@
 #ifndef BROKER_SUBSCRIPTION_HH
 #define BROKER_SUBSCRIPTION_HH
 
-#include <cppa/cppa.hpp>
-#include <cppa/util/abstract_uniform_type_info.hpp>
+#include <caf/actor.hpp>
+#include <caf/detail/abstract_uniform_type_info.hpp>
+#include <caf/serializer.hpp>
+#include <caf/deserializer.hpp>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -24,15 +26,11 @@ constexpr std::underlying_type<SubscriptionType>::type
 operator+(SubscriptionType val)
 	{ return static_cast<std::underlying_type<SubscriptionType>::type>(val); }
 
-using ActorMap = std::unordered_map<cppa::actor_addr, cppa::actor>;
+using ActorMap = std::unordered_map<caf::actor_addr, caf::actor>;
 
 struct SubscriptionTopic {
 	SubscriptionType type;
 	std::string topic;
-
-	// TODO: workaround for libcppa bug in announcing enum members directly
-	const SubscriptionType& get_type() const { return type; }
-	void set_type(SubscriptionType val) { type = std::move(val); }
 };
 
 inline bool operator==(const SubscriptionTopic& lhs,
@@ -67,10 +65,11 @@ using Subscriptions = std::array<std::unordered_set<std::string>,
 using SubscriptionsMap = std::array<std::unordered_map<std::string, ActorMap>,
                                     +SubscriptionType::NUM_TYPES>;
 
-class Subscriptions_type_info : public cppa::util::abstract_uniform_type_info<Subscriptions> {
+class Subscriptions_type_info
+        : public caf::detail::abstract_uniform_type_info<Subscriptions> {
 private:
 
-	void serialize(const void* ptr, cppa::serializer* sink) const override
+	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto subs_ptr = reinterpret_cast<const Subscriptions*>(ptr);
 		sink->begin_sequence(subs_ptr->size());
@@ -89,7 +88,7 @@ private:
 		sink->end_sequence();
 		}
 
-    void deserialize(void* ptr, cppa::deserializer* source) const override
+    void deserialize(void* ptr, caf::deserializer* source) const override
 		{
 		auto subs_ptr = reinterpret_cast<Subscriptions*>(ptr);
 		auto num_indices = source->begin_sequence();
@@ -112,8 +111,8 @@ private:
 
 using SubscriptionSet = std::set<SubscriptionTopic>;
 
-using Subscriber = std::pair<Subscriptions, cppa::actor>;
-using SubscriberMap = std::unordered_map<cppa::actor_addr, Subscriber>;
+using Subscriber = std::pair<Subscriptions, caf::actor>;
+using SubscriberMap = std::unordered_map<caf::actor_addr, Subscriber>;
 
 class SubscriberBase {
 public:
@@ -121,7 +120,7 @@ public:
 	bool AddSubscriber(Subscriber s)
 		{
 		Subscriptions& topic_set = s.first;
-		cppa::actor& a = s.second;
+		caf::actor& a = s.second;
 		auto it = subscribers.find(a.address());
 		bool rval = it == subscribers.end();
 
@@ -139,7 +138,7 @@ public:
 		return rval;
 		}
 
-	bool AddSubscription(SubscriptionTopic t, cppa::actor a)
+	bool AddSubscription(SubscriptionTopic t, caf::actor a)
 		{
 		topics[+t.type].insert(t.topic);
 		subscriptions[+t.type][t.topic][a.address()] = a;
@@ -148,7 +147,7 @@ public:
 		return s.first[+t.type].insert(std::move(t.topic)).second;
 		}
 
-	Subscriptions RemSubscriber(const cppa::actor_addr& a)
+	Subscriptions RemSubscriber(const caf::actor_addr& a)
 		{
 		auto it = subscribers.find(a);
 
@@ -180,7 +179,7 @@ public:
 		return rval;
 		}
 
-	bool RemSubscriptions(const Subscriptions& ss, const cppa::actor_addr& a)
+	bool RemSubscriptions(const Subscriptions& ss, const caf::actor_addr& a)
 		{
 		auto it = subscribers.find(a);
 
@@ -217,10 +216,10 @@ public:
 		return topics;
 		}
 
-	std::unordered_set<cppa::actor> Match(const SubscriptionTopic& topic)
+	std::unordered_set<caf::actor> Match(const SubscriptionTopic& topic)
 		{
 		// TODO: wildcard topics
-		std::unordered_set<cppa::actor> rval;
+		std::unordered_set<caf::actor> rval;
 		auto it = subscriptions[+topic.type].find(topic.topic);
 
 		if ( it == subscriptions[+topic.type].end() )

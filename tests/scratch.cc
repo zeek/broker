@@ -1,11 +1,11 @@
-#include <cppa/cppa.hpp>
+#include <caf/all.hpp>
 #include <cstdio>
 #include <iostream>
 #include <cstdint>
 #include <string>
 
 using namespace std;
-using namespace cppa;
+using namespace caf;
 
 behavior server(event_based_actor* self)
 	{
@@ -13,7 +13,7 @@ behavior server(event_based_actor* self)
 		on_arg_match >> [=](string val)
 			{
 			aout(self) << "server got msg: " << val << endl;
-			return make_cow_tuple("delivered '" + val + "'");
+			return make_message("delivered '" + val + "'");
 			}
 	};
 	}
@@ -52,7 +52,7 @@ public:
 		active = (
 		on(intercept_request) >> [=](bool b)
 			{
-			return make_cow_tuple("intercepted");
+			return make_message("intercepted");
 			},
 		/*
 		on(forward_request) >> [=](bool b)
@@ -69,7 +69,7 @@ public:
 
 private:
 
-	cppa::actor middle;
+	caf::actor middle;
 	behavior active;
 	behavior& init_state = active;
 };

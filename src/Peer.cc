@@ -1,5 +1,7 @@
 #include "PeerImpl.hh"
 
+#include <caf/scoped_actor.hpp>
+
 broker::Peer::Peer()
     : p(new Impl{})
 	{
@@ -22,7 +24,7 @@ broker::Peer::~Peer() = default;
 
 bool broker::Peer::Valid() const
 	{
-	return p->endpoint != cppa::invalid_actor;
+	return p->endpoint != caf::invalid_actor;
 	}
 
 bool broker::Peer::Remote() const
@@ -41,9 +43,9 @@ bool broker::Peer::BlockUntilConnected(std::chrono::duration<double> to) const
 		return true;
 
 	bool rval = false;
-	cppa::scoped_actor self;
-	self->timed_sync_send(p->endpoint, to, cppa::atom("connwait")).await(
-		on(cppa::atom("ok")) >> [&rval] { rval = true; }
+	caf::scoped_actor self;
+	self->timed_sync_send(p->endpoint, to, caf::atom("connwait")).await(
+		on(caf::atom("ok")) >> [&rval] { rval = true; }
 	);
 	return rval;
 	}
@@ -53,8 +55,8 @@ void broker::Peer::BlockUntilConnected() const
 	if ( ! Valid() || ! p->remote )
 		return;
 
-	cppa::scoped_actor self;
-	self->sync_send(p->endpoint, cppa::atom("connwait")).await(
-		on(cppa::atom("ok")) >> [] {}
+	caf::scoped_actor self;
+	self->sync_send(p->endpoint, caf::atom("connwait")).await(
+		on(caf::atom("ok")) >> [] {}
 	);
 	}

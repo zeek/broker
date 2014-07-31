@@ -3,7 +3,7 @@
 
 #include "broker/PrintHandler.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 namespace broker {
 
@@ -11,7 +11,7 @@ class PrintHandler::Impl {
 public:
 
 	std::string topic;
-	cppa::actor subscriber;
+	caf::actor subscriber;
 };
 
 } // namespace broker

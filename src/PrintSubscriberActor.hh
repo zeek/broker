@@ -1,22 +1,22 @@
 #ifndef BROKER_PRINTSUBSCRIBERACTOR_HH
 #define BROKER_PRINTSUBSCRIBERACTOR_HH
 
-#include <cppa/cppa.hpp>
-
 #include "broker/PrintHandler.hh"
 #include "Subscription.hh"
 
+#include <caf/sb_actor.hpp>
+
 namespace broker {
 
-class PrintSubscriberActor : public cppa::sb_actor<PrintSubscriberActor> {
-friend class cppa::sb_actor<PrintSubscriberActor>;
+class PrintSubscriberActor : public caf::sb_actor<PrintSubscriberActor> {
+friend class caf::sb_actor<PrintSubscriberActor>;
 
 public:
 
 	PrintSubscriberActor(std::string topic, broker::PrintHandler::Callback cb,
 	                     void* cookie)
 		{
-		using namespace cppa;
+		using namespace caf;
 		using namespace std;
 
 		active = (
@@ -37,8 +37,8 @@ public:
 
 private:
 
-	cppa::behavior active;
-	cppa::behavior& init_state = active;
+	caf::behavior active;
+	caf::behavior& init_state = active;
 };
 
 } // namespace broker

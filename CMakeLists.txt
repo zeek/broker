@@ -2,8 +2,8 @@ project(broker C CXX)
 cmake_minimum_required(VERSION 2.8.12)
 include(cmake/CommonCMakeConfig.cmake)
 
-find_package(libcppa REQUIRED)
-include_directories(BEFORE ${LIBCPPA_INCLUDE_DIR})
+find_package(Libcaf COMPONENTS core io REQUIRED)
+include_directories(BEFORE ${LIBCAF_INCLUDE_DIRS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION LIMIT_COUNT 1)
 string(REPLACE "." " " _version_numbers ${VERSION})
@@ -88,14 +88,14 @@ if ( ENABLE_SHARED )
                           VERSION ${BROKER_VERSION}
                           MACOSX_RPATH true
                           OUTPUT_NAME broker)
-    target_link_libraries(broker ${LIBCPPA_LIBRARY})
+    target_link_libraries(broker ${LIBCAF_LIBRARIES})
     install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
 if ( ENABLE_STATIC )
     add_library(brokerStatic STATIC $<TARGET_OBJECTS:broker_objs>)
     set_target_properties(brokerStatic PROPERTIES OUTPUT_NAME broker)
-    target_link_libraries(brokerStatic ${LIBCPPA_LIBRARY})
+    target_link_libraries(brokerStatic ${LIBCAF_LIBRARIES})
     install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 

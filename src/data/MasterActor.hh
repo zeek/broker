@@ -5,11 +5,12 @@
 #include "RequestMsgs.hh"
 #include "../Subscription.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/sb_actor.hpp>
+#include <caf/actor_ostream.hpp>
 
 namespace broker { namespace data {
 
-static void dbg_dump(const cppa::actor& a, const std::string& store_id,
+static void dbg_dump(const caf::actor& a, const std::string& store_id,
                      const Store& store)
     {
 	// TODO: remove or put this in a preprocessor macro
@@ -27,20 +28,20 @@ static void dbg_dump(const cppa::actor& a, const std::string& store_id,
     aout(a) << ss.str();
     }
 
-class MasterActor : public cppa::sb_actor<MasterActor> {
-friend class cppa::sb_actor<MasterActor>;
+class MasterActor : public caf::sb_actor<MasterActor> {
+friend class caf::sb_actor<MasterActor>;
 
 public:
 
 	MasterActor(std::unique_ptr<Store> s, std::string topic)
 		: store(std::move(s))
 		{
-		using namespace cppa;
+		using namespace caf;
 		using namespace std;
 
-		auto any_topic = val<SubscriptionTopic>;
+		SubscriptionTopic update_topic{SubscriptionType::DATA_UPDATE, topic};
 
-		partial_function requests {
+		message_handler requests {
 		on_arg_match >> [=](SnapshotRequest r)
 			{
 			if ( clones.find(r.clone.address()) == clones.end() )
@@ -49,57 +50,57 @@ public:
 				clones[r.clone.address()] = r.clone;
 				}
 
-			return make_cow_tuple(this, store->Snapshot());
+			return make_message(this, store->Snapshot());
 			},
-		on_arg_match >> [=](LookupRequest r) -> any_tuple
+		on_arg_match >> [=](LookupRequest r) -> message
 			{
 			auto val = store->Lookup(r.key);
 
 			if ( ! val )
-				return make_cow_tuple(atom("null"));
+				return make_message(atom("null"));
 			else
-				return make_cow_tuple(move(*val));
+				return make_message(move(*val));
 			},
 		on_arg_match >> [=](HasKeyRequest r)
 			{
-			return make_cow_tuple(store->HasKey(r.key));
+			return store->HasKey(r.key);
 			},
 		on<KeysRequest>() >> [=]
 			{
-			return make_cow_tuple(store->Keys());
+			return store->Keys();
 			},
 		on<SizeRequest>() >> [=]
 			{
-			return make_cow_tuple(store->Size());
+			return store->Size();
 			}
 		};
 
-		partial_function updates {
-		on(any_topic, atom("insert"), arg_match) >> [=](Key key, Val val)
+		message_handler updates {
+		on(update_topic, atom("insert"), arg_match) >> [=](Key key, Val val)
 			{
 			store->Insert(key, val);
 			dbg_dump(this, topic, *store);
 
 			if ( ! clones.empty() )
-				publish(make_cow_tuple(atom("insert"), store->GetSequenceNum(),
-				                       move(key), move(val)));
+				publish(make_message(atom("insert"), store->GetSequenceNum(),
+				                     move(key), move(val)));
 			},
-		on(any_topic, atom("erase"), arg_match) >> [=](Key key)
+		on(update_topic, atom("erase"), arg_match) >> [=](Key key)
 			{
 			store->Erase(key);
 			dbg_dump(this, topic, *store);
 
 			if ( ! clones.empty() )
-				publish(make_cow_tuple(atom("erase"), store->GetSequenceNum(),
-				                       move(key)));
+				publish(make_message(atom("erase"), store->GetSequenceNum(),
+				                     move(key)));
 			},
-		on(any_topic, atom("clear"), arg_match) >> [=]
+		on(update_topic, atom("clear"), arg_match) >> [=]
 			{
 			store->Clear();
 			dbg_dump(this, topic, *store);
 
 			if (! clones.empty() )
-				publish(make_cow_tuple(atom("clear"), store->GetSequenceNum()));
+				publish(make_message(atom("clear"), store->GetSequenceNum()));
 			}
 		};
 
@@ -118,15 +119,15 @@ public:
 
 private:
 
-	void publish(const cppa::any_tuple& msg)
+	void publish(const caf::message& msg)
 		{
 		for ( const auto& c : clones ) send_tuple(c.second, msg);
 		}
 
 	std::unique_ptr<Store> store;
-	std::unordered_map<cppa::actor_addr, cppa::actor> clones;
-	cppa::behavior serving;
-	cppa::behavior& init_state = serving;
+	std::unordered_map<caf::actor_addr, caf::actor> clones;
+	caf::behavior serving;
+	caf::behavior& init_state = serving;
 };
 
 } // namespace data

@@ -3,14 +3,14 @@
 
 #include "broker/data/Master.hh"
 
-#include <cppa/cppa.hpp>
+#include <caf/actor.hpp>
 
 namespace broker { namespace data {
 
 class Master::Impl {
 public:
 
-	cppa::actor master;
+	caf::actor master;
 };
 
 } // namespace data
