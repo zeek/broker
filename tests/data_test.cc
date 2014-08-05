@@ -18,31 +18,66 @@
 
 using namespace std;
 
+int cb_result_to_int(broker::data::CallbackResult res)
+	{
+	return static_cast<int>(res);
+	}
+
 void lookup_cb(broker::data::Key key, unique_ptr<broker::data::Val> val,
-               void* cookie)
+               void* cookie, broker::data::CallbackResult res)
 	{
 	lock_guard<mutex> lock(*static_cast<mutex*>(cookie));
+
+	if ( res != broker::data::CallbackResult::success )
+		{
+		printf("lookup_cb failed: %d\n", cb_result_to_int(res));
+		return;
+		}
+
 	printf("lookup_cb: %s -> %s\n", key.c_str(), val ? val.get()->c_str()
 	                                                 : "null");
 	}
 
-void haskey_cb(broker::data::Key key, bool exists, void* cookie)
+void haskey_cb(broker::data::Key key, bool exists, void* cookie,
+               broker::data::CallbackResult res)
 	{
 	lock_guard<mutex> lock(*static_cast<mutex*>(cookie));
+
+	if ( res != broker::data::CallbackResult::success )
+		{
+		printf("haskey_cb failed: %d\n", cb_result_to_int(res));
+		return;
+		}
+
 	printf("haskey_cb: %s -- %s\n", key.c_str(), exists ? "yes" : "no");
 	}
 
-void keys_cb(std::unordered_set<broker::data::Key> keys, void* cookie)
+void keys_cb(std::unordered_set<broker::data::Key> keys, void* cookie,
+             broker::data::CallbackResult res)
 	{
 	lock_guard<mutex> lock(*static_cast<mutex*>(cookie));
+
+	if ( res != broker::data::CallbackResult::success )
+		{
+		printf("keys_cb failed: %d\n", cb_result_to_int(res));
+		return;
+		}
+
 	printf("keys_cb:\n");
 	for ( const auto& k : keys )
 		printf("\t%s\n", k.c_str());
 	}
 
-void size_cb(uint64_t size, void* cookie)
+void size_cb(uint64_t size, void* cookie, broker::data::CallbackResult res)
 	{
 	lock_guard<mutex> lock(*static_cast<mutex*>(cookie));
+
+	if ( res != broker::data::CallbackResult::success )
+		{
+		printf("size_cb failed: %d\n", cb_result_to_int(res));
+		return;
+		}
+
 	printf("size_cb: %" PRIu64 "\n", size);
 	}
 
@@ -71,6 +106,7 @@ int main(int argc, char** argv)
 	{
 	broker::init();
 	mutex mtx;
+	auto timeout = chrono::seconds(10);
 
 	if ( argc == 1 )
 		{
@@ -111,10 +147,10 @@ int main(int argc, char** argv)
 			d1.Insert("key0", "abc");  // also applied to remote master.
 
 			auto val = d0.Lookup("key0"); // get from local clone.
-			d1.Lookup("key0", lookup_cb, &mtx);  // queries remote store
+			d1.Lookup("key0", timeout, lookup_cb, &mtx);// queries remote store
 
 			auto exists = d0.HasKey("key0"); // get from local clone.
-			d1.HasKey("key0", haskey_cb, &mtx);  // queries remote store
+			d1.HasKey("key0", timeout, haskey_cb, &mtx);// queries remote store
 
 			d0.Erase("key0"); // applied to remote master.
 			d1.Erase("key0"); // applied to remote master.
@@ -123,10 +159,10 @@ int main(int argc, char** argv)
 			d1.Clear(); // applied to remote master.
 
 			auto keys = d0.Keys(); // get from local clone.
-			d1.Keys(keys_cb, &mtx); // queries remote store
+			d1.Keys(timeout, keys_cb, &mtx); // queries remote store
 
 			auto sz = d0.Size(); // determined from local clone
-			d1.Size(size_cb, &mtx); // queries remote store
+			d1.Size(timeout, size_cb, &mtx); // queries remote store
 			}
 
 		for ( auto i = 0; ; ++i )
@@ -139,8 +175,8 @@ int main(int argc, char** argv)
 			printf("size: %" PRIu64 "\n", sz);
 			sz = d1.Size();
 			printf("size: %" PRIu64 "\n", sz);
-			d0.Size(size_cb, &mtx);
-			d1.Size(size_cb, &mtx);
+			d0.Size(timeout, size_cb, &mtx);
+			d1.Size(timeout, size_cb, &mtx);
 
 			auto exists = d0.HasKey(node.Name());
 			printf("key '%s' exists: %s\n", node.Name().c_str(),
@@ -150,8 +186,8 @@ int main(int argc, char** argv)
 			       exists ? "yes" : "no");
 			exists = d1.HasKey("nope");
 			printf("key '%s' exists: %s\n", "nope", exists ? "yes" : "no");
-			d0.HasKey("nope", haskey_cb, &mtx);
-			d1.HasKey(node.Name(), haskey_cb, &mtx);
+			d0.HasKey("nope", timeout, haskey_cb, &mtx);
+			d1.HasKey(node.Name(), timeout, haskey_cb, &mtx);
 
 			auto val = d0.Lookup(node.Name());
 			printf("lookup: %s -> %s\n", node.Name().c_str(),
@@ -159,8 +195,11 @@ int main(int argc, char** argv)
 			val = d1.Lookup(node.Name());
 			printf("lookup: %s -> %s\n", node.Name().c_str(),
 			       val ? val.get()->c_str() : "null");
-			d0.Lookup("nope", lookup_cb, &mtx);
-			d1.Lookup(node.Name(), lookup_cb, &mtx);
+			d0.Lookup("nope", timeout, lookup_cb, &mtx);
+			d1.Lookup(node.Name(), timeout, lookup_cb, &mtx);
+
+			d1.Keys(timeout, keys_cb, &mtx);
+			d1.Keys(chrono::seconds(0), keys_cb, &mtx);
 
 			sleep(1);
 			dump_store_contents(d0);

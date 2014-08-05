@@ -112,6 +112,7 @@ friend class caf::sb_actor<async_lookup>;
 public:
 
 	async_lookup(caf::actor backend, broker::data::LookupRequest req,
+	             std::chrono::duration<double> timeout,
 	             broker::data::LookupCallback cb, void* cookie)
 		: request(std::move(req))
 		{
@@ -123,18 +124,32 @@ public:
 				caf::on_arg_match >> [=](broker::data::Val v)
 					{
 					cb(std::move(request.key),
-					   val_ptr(new broker::data::Val(std::move(v))), cookie);
+					   val_ptr(new broker::data::Val(std::move(v))), cookie,
+					   broker::data::CallbackResult::success);
 					quit();
 					},
 				caf::on(caf::atom("null")) >> [=]
 					{
-					cb(std::move(request.key), val_ptr(), cookie);
+					cb(std::move(request.key), val_ptr(), cookie,
+					   broker::data::CallbackResult::success);
+					quit();
+					},
+				caf::on(caf::atom("dne")) >> [=]
+					{
+					cb(std::move(request.key), val_ptr(), cookie,
+					   broker::data::CallbackResult::nonexistent);
 					quit();
 					},
 				caf::others() >> [=]
 					{
-					aout(this) << "ERROR: unknown query response: " <<
-					              caf::to_string(last_dequeued()) << std::endl;
+					cb(std::move(request.key), val_ptr(), cookie,
+					   broker::data::CallbackResult::unknown_failure);
+					quit();
+					},
+				caf::after(timeout) >> [=]
+					{
+					cb(std::move(request.key), val_ptr(), cookie,
+					   broker::data::CallbackResult::timeout);
 					quit();
 					}
 			);
@@ -149,11 +164,12 @@ private:
 	caf::behavior& init_state = query;
 };
 
-void broker::data::Facade::Lookup(Key k, LookupCallback cb, void* cookie) const
+void broker::data::Facade::Lookup(Key k, std::chrono::duration<double> timeout,
+                                  LookupCallback cb, void* cookie) const
 	{
 	caf::spawn<async_lookup>(*handle_to_actor(GetBackendHandle()),
 	                         LookupRequest{p->request_topic, std::move(k)},
-	                         cb, cookie);
+	                         timeout, cb, cookie);
 	}
 
 class async_haskey : public caf::sb_actor<async_haskey> {
@@ -162,6 +178,7 @@ friend class caf::sb_actor<async_haskey>;
 public:
 
 	async_haskey(caf::actor backend, broker::data::HasKeyRequest req,
+	             std::chrono::duration<double> timeout,
 	             broker::data::HasKeyCallback cb, void* cookie)
 		: request(std::move(req))
 		{
@@ -169,15 +186,28 @@ public:
 		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			sync_send(backend, request).then(
-				caf::on_arg_match >> [=](bool hasit)
+				caf::on_arg_match >> [=](bool exists)
 					{
-					cb(std::move(request.key), hasit, cookie);
+					cb(std::move(request.key), exists, cookie,
+					   broker::data::CallbackResult::success);
+					quit();
+					},
+				caf::on(caf::atom("dne")) >> [=]
+					{
+					cb(std::move(request.key), false, cookie,
+					   broker::data::CallbackResult::nonexistent);
 					quit();
 					},
 				caf::others() >> [=]
 					{
-					aout(this) << "ERROR: unknown query response: " <<
-					              caf::to_string(last_dequeued()) << std::endl;
+					cb(std::move(request.key), false, cookie,
+					   broker::data::CallbackResult::unknown_failure);
+					quit();
+					},
+				caf::after(timeout) >> [=]
+					{
+					cb(std::move(request.key), false, cookie,
+					   broker::data::CallbackResult::timeout);
 					quit();
 					}
 			);
@@ -192,11 +222,12 @@ private:
 	caf::behavior& init_state = query;
 };
 
-void broker::data::Facade::HasKey(Key k, HasKeyCallback cb, void* cookie) const
+void broker::data::Facade::HasKey(Key k, std::chrono::duration<double> timeout,
+                                  HasKeyCallback cb, void* cookie) const
 	{
 	caf::spawn<async_haskey>(*handle_to_actor(GetBackendHandle()),
 	                         HasKeyRequest{p->request_topic, std::move(k)},
-	                         cb, cookie);
+	                         timeout, cb, cookie);
 	}
 
 class async_keys : public caf::sb_actor<async_keys> {
@@ -205,6 +236,7 @@ friend class caf::sb_actor<async_keys>;
 public:
 
 	async_keys(caf::actor backend, broker::data::KeysRequest req,
+	           std::chrono::duration<double> timeout,
 	           broker::data::KeysCallback cb, void* cookie)
 		: request(std::move(req))
 		{
@@ -215,13 +247,24 @@ public:
 			sync_send(backend, request).then(
 				caf::on_arg_match >> [=](keyset keys)
 					{
-					cb(std::move(keys), cookie);
+					cb(std::move(keys), cookie,
+					   broker::data::CallbackResult::success);
+					quit();
+					},
+				caf::on(caf::atom("dne")) >> [=]
+					{
+					cb({}, cookie, broker::data::CallbackResult::nonexistent);
 					quit();
 					},
 				caf::others() >> [=]
 					{
-					aout(this) << "ERROR: unknown query response: " <<
-					              caf::to_string(last_dequeued()) << std::endl;
+					cb({}, cookie,
+					   broker::data::CallbackResult::unknown_failure);
+					quit();
+					},
+				caf::after(timeout) >> [=]
+					{
+					cb({}, cookie, broker::data::CallbackResult::timeout);
 					quit();
 					}
 			);
@@ -236,10 +279,11 @@ private:
 	caf::behavior& init_state = query;
 };
 
-void broker::data::Facade::Keys(KeysCallback cb, void* cookie) const
+void broker::data::Facade::Keys(std::chrono::duration<double> timeout,
+                                KeysCallback cb, void* cookie) const
 	{
 	caf::spawn<async_keys>(*handle_to_actor(GetBackendHandle()),
-	                        KeysRequest{p->request_topic}, cb, cookie);
+	                       KeysRequest{p->request_topic}, timeout, cb, cookie);
 	}
 
 class async_size : public caf::sb_actor<async_size> {
@@ -248,6 +292,7 @@ friend class caf::sb_actor<async_size>;
 public:
 
 	async_size(caf::actor backend, broker::data::SizeRequest req,
+	           std::chrono::duration<double> timeout,
 	           broker::data::SizeCallback cb, void* cookie)
 		: request(std::move(req))
 		{
@@ -257,13 +302,23 @@ public:
 			sync_send(backend, request).then(
 				caf::on_arg_match >> [=](uint64_t sz)
 					{
-					cb(sz, cookie);
+					cb(sz, cookie, broker::data::CallbackResult::success);
+					quit();
+					},
+				caf::on(caf::atom("dne")) >> [=]
+					{
+					cb(0, cookie, broker::data::CallbackResult::nonexistent);
 					quit();
 					},
 				caf::others() >> [=]
 					{
-					aout(this) << "ERROR: unknown query response: " <<
-					              caf::to_string(last_dequeued()) << std::endl;
+					cb(0, cookie,
+					   broker::data::CallbackResult::unknown_failure);
+					quit();
+					},
+				caf::after(timeout) >> [=]
+					{
+					cb(0, cookie, broker::data::CallbackResult::timeout);
 					quit();
 					}
 			);
@@ -278,10 +333,11 @@ private:
 	caf::behavior& init_state = query;
 };
 
-void broker::data::Facade::Size(SizeCallback cb, void* cookie) const
+void broker::data::Facade::Size(std::chrono::duration<double> timeout,
+                                SizeCallback cb, void* cookie) const
 	{
 	caf::spawn<async_size>(*handle_to_actor(GetBackendHandle()),
-	                       SizeRequest{p->request_topic}, cb, cookie);
+	                       SizeRequest{p->request_topic}, timeout, cb, cookie);
 	}
 
 void* broker::data::Facade::GetBackendHandle() const

@@ -5,6 +5,7 @@
 #include <broker/Endpoint.hh>
 
 #include <string>
+#include <chrono>
 
 namespace broker { namespace data {
 
@@ -47,14 +48,17 @@ public:
 	 * Query Interface - non-blocking.
 	 */
 
-	// TODO: timeout parameters
-	void Lookup(Key k, LookupCallback cb, void* cookie = nullptr) const;
+	void Lookup(Key k, std::chrono::duration<double> timeout,
+	            LookupCallback cb, void* cookie = nullptr) const;
 
-	void HasKey(Key k, HasKeyCallback cb, void* cookie = nullptr) const;
+	void HasKey(Key k, std::chrono::duration<double> timeout,
+	            HasKeyCallback cb, void* cookie = nullptr) const;
 
-	void Keys(KeysCallback cb, void* cookie = nullptr) const;
+	void Keys(std::chrono::duration<double> timeout,
+	          KeysCallback cb, void* cookie = nullptr) const;
 
-	void Size(SizeCallback cb, void* cookie = nullptr) const;
+	void Size(std::chrono::duration<double> timeout,
+	          SizeCallback cb, void* cookie = nullptr) const;
 
 private:
 
