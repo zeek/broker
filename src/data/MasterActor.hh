@@ -79,7 +79,6 @@ public:
 		on(update_topic, atom("insert"), arg_match) >> [=](Key key, Val val)
 			{
 			store->Insert(key, val);
-			dbg_dump(this, topic, *store);
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("insert"), store->GetSequenceNum(),
@@ -88,7 +87,6 @@ public:
 		on(update_topic, atom("erase"), arg_match) >> [=](Key key)
 			{
 			store->Erase(key);
-			dbg_dump(this, topic, *store);
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("erase"), store->GetSequenceNum(),
@@ -97,7 +95,6 @@ public:
 		on(update_topic, atom("clear"), arg_match) >> [=]
 			{
 			store->Clear();
-			dbg_dump(this, topic, *store);
 
 			if (! clones.empty() )
 				publish(make_message(atom("clear"), store->GetSequenceNum()));

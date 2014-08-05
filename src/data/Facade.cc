@@ -55,6 +55,10 @@ std::unique_ptr<broker::data::Val> broker::data::Facade::Lookup(Key k) const
 		caf::on_arg_match >> [&rval](Val v)
 			{
 			rval.reset(new Val(move(v)));
+			},
+		caf::on(caf::atom("null")) >> []
+			{
+			// Ok.  Return null pointer.
 			}
 	);
 	return rval;
@@ -114,15 +118,26 @@ public:
 		query = (
 		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
-			std::unique_ptr<broker::data::Val> rval;
+			using val_ptr = std::unique_ptr<broker::data::Val>;
 			sync_send(backend, request).then(
-				caf::on_arg_match >> [&rval](broker::data::Val v)
+				caf::on_arg_match >> [=](broker::data::Val v)
 					{
-					rval.reset(new broker::data::Val(std::move(v)));
+					cb(std::move(request.key),
+					   val_ptr(new broker::data::Val(std::move(v))), cookie);
+					quit();
+					},
+				caf::on(caf::atom("null")) >> [=]
+					{
+					cb(std::move(request.key), val_ptr(), cookie);
+					quit();
+					},
+				caf::others() >> [=]
+					{
+					aout(this) << "ERROR: unknown query response: " <<
+					              caf::to_string(last_dequeued()) << std::endl;
+					quit();
 					}
 			);
-			cb(std::move(request.key), std::move(rval), cookie);
-			quit();
 			}
 		);
 		}
@@ -153,15 +168,19 @@ public:
 		query = (
 		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
-			bool rval = false;
 			sync_send(backend, request).then(
-				caf::on_arg_match >> [&rval](bool hasit)
+				caf::on_arg_match >> [=](bool hasit)
 					{
-					rval = hasit;
+					cb(std::move(request.key), hasit, cookie);
+					quit();
+					},
+				caf::others() >> [=]
+					{
+					aout(this) << "ERROR: unknown query response: " <<
+					              caf::to_string(last_dequeued()) << std::endl;
+					quit();
 					}
 			);
-			cb(std::move(request.key), rval, cookie);
-			quit();
 			}
 		);
 		}
@@ -193,15 +212,19 @@ public:
 		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
 			using keyset = std::unordered_set<broker::data::Key>;
-			keyset rval;
 			sync_send(backend, request).then(
-				caf::on_arg_match >> [&rval](keyset keys)
+				caf::on_arg_match >> [=](keyset keys)
 					{
-					rval = std::move(keys);
+					cb(std::move(keys), cookie);
+					quit();
+					},
+				caf::others() >> [=]
+					{
+					aout(this) << "ERROR: unknown query response: " <<
+					              caf::to_string(last_dequeued()) << std::endl;
+					quit();
 					}
 			);
-			cb(std::move(rval), cookie);
-			quit();
 			}
 		);
 		}
@@ -231,15 +254,19 @@ public:
 		query = (
 		caf::after(std::chrono::seconds::zero()) >> [=]
 			{
-			uint64_t rval = 0;
 			sync_send(backend, request).then(
-				caf::on_arg_match >> [&rval](uint64_t sz)
+				caf::on_arg_match >> [=](uint64_t sz)
 					{
-					rval = sz;
+					cb(sz, cookie);
+					quit();
+					},
+				caf::others() >> [=]
+					{
+					aout(this) << "ERROR: unknown query response: " <<
+					              caf::to_string(last_dequeued()) << std::endl;
+					quit();
 					}
 			);
-			cb(rval, cookie);
-			quit();
 			}
 		);
 		}

@@ -26,6 +26,10 @@ int broker::init(int flags)
 	announce<HasKeyRequest>(&HasKeyRequest::st, &HasKeyRequest::key);
 	announce<KeysRequest>(&KeysRequest::st);
 	announce<SizeRequest>(&SizeRequest::st);
+
+	// TODO: not sure why the following needs an announce(), but libcaf
+	//       produces an error when sending key sets for me.
+	announce<std::unordered_set<broker::data::Key>>();
 	return 0;
 	}
 

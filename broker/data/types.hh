@@ -13,6 +13,7 @@ namespace broker { namespace data {
 using Key = std::string;
 using Val = std::string;
 
+// TODO: response status params (e.g. timeout or DNE)
 using LookupCallback = std::function<void (Key key,
                                            std::unique_ptr<Val> val,
                                            void* cookie)>;

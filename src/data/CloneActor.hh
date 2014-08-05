@@ -78,10 +78,7 @@ public:
 			auto next = store.GetSequenceNum().Next();
 
 			if ( sn == next )
-				{
 				store.Insert(move(key), move(val));
-				dbg_dump(this, topic, store);
-				}
 			else if ( sn > next )
 				{
 				sync_error(topic);
@@ -97,10 +94,7 @@ public:
 			auto next = store.GetSequenceNum().Next();
 
 			if ( sn == next )
-				{
 				store.Erase(key);
-				dbg_dump(this, topic, store);
-				}
 			else if ( sn > next )
 				{
 				sync_error(topic);
@@ -116,10 +110,7 @@ public:
 			auto next = store.GetSequenceNum().Next();
 
 			if ( sn == next )
-				{
 				store.Clear();
-				dbg_dump(this, topic, store);
-				}
 			else if ( sn > next )
 				{
 				sync_error(topic);
@@ -177,7 +168,6 @@ private:
 				monitor(master);
 				store = InMemoryStore{move(sss)};
 				become(active);
-				dbg_dump(this, req.st.topic, store);
 				}
 		);
 		}
