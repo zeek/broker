@@ -40,46 +40,22 @@ install(DIRECTORY broker DESTINATION include)
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Just a convienience to add non-compiled files to IDEs - CMake currently does
-# not add such files unless they appear either add_executable or add_library.
-set(BROKER_HDR
-    broker/broker.h
-    broker/broker.hh
-    broker/Endpoint.hh
-    broker/Peer.hh
-    broker/PrintHandler.hh
-    broker/data/types.hh
-    broker/data/Store.hh
-    broker/data/InMemoryStore.hh
-    broker/data/Facade.hh
-    broker/data/Master.hh
-    broker/data/Clone.hh
-    broker/data/SequenceNum.hh
-    src/EndpointImpl.hh
-    src/PeerImpl.hh
-    src/PrintHandlerImpl.hh
-    src/PrintSubscriberActor.hh
-    src/EndpointActor.hh
-    src/EndpointProxyActor.hh
-    src/Subscription.hh
-    src/data/FacadeImpl.hh
-    src/data/MasterImpl.hh
-    src/data/CloneImpl.hh
-    src/data/MasterActor.hh
-    src/data/CloneActor.hh
-    src/data/RequestMsgs.hh)
+# A convienience to add non-compiled files to IDEs - CMake doesn't add
+# such files unless they appear in either add_executable or add_library.
+file(GLOB_RECURSE BROKER_HDR *.h *.hh)
 
 set(BROKER_SRC
     src/broker.cc
-    src/Endpoint.cc
-    src/Peer.cc
-    src/PrintHandler.cc
-    src/data/Facade.cc
-    src/data/Master.cc
-    src/data/Clone.cc
-    src/data/SequenceNum.cc)
+    src/endpoint.cc
+    src/peering.cc
+    src/print_queue.cc
+    src/data/clone.cc
+    src/data/frontend.cc
+    src/data/master.cc
+    src/data/sequence_num.cc
+    ${BROKER_HDR})
 
-add_library(broker_objs OBJECT ${BROKER_SRC} ${BROKER_HDR})
+add_library(broker_objs OBJECT ${BROKER_SRC})
 
 if ( ENABLE_SHARED )
     add_library(broker SHARED $<TARGET_OBJECTS:broker_objs>)
@@ -99,6 +75,7 @@ if ( ENABLE_STATIC )
     install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
+enable_testing()
 add_subdirectory(tests)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)

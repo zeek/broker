@@ -4,17 +4,12 @@ else ()
     set(libbroker brokerStatic)
 endif ()
 
-add_executable(scratch scratch.c)
-target_link_libraries(scratch ${libbroker})
+macro(unit_test name)
+    add_executable(${name} ${name}.cc)
+    target_link_libraries(${name} ${libbroker})
+    add_test(NAME ${name} COMMAND ${name})
+endmacro()
 
-add_executable(scratch++ scratch.cc)
-target_link_libraries(scratch++ ${libbroker})
-
-add_executable(endpoint_test endpoint_test.cc)
-target_link_libraries(endpoint_test ${libbroker})
-
-add_executable(print_test print_test.cc)
-target_link_libraries(print_test ${libbroker})
-
-add_executable(data_test data_test.cc)
-target_link_libraries(data_test ${libbroker})
+unit_test(test_printing)
+unit_test(test_remote_printing)
+unit_test(test_data)

@@ -1,7 +1,8 @@
 #include "broker/broker.hh"
-#include "broker/data/Store.hh"
-#include "Subscription.hh"
-#include "data/RequestMsgs.hh"
+#include "broker/data/store.hh"
+#include "broker/print_queue.hh"
+#include "subscription.hh"
+#include "data/query_types.hh"
 
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
@@ -10,26 +11,24 @@
 
 int broker::init(int flags)
 	{
+	// TODO: need a better, more organized way to announce types.
 	using namespace caf;
 	using namespace std;
 	using namespace broker::data;
-	announce<SubscriptionType>();
-	announce<SubscriptionTopic>(&SubscriptionTopic::type,
-	                            &SubscriptionTopic::topic);
-	announce(typeid(Subscriptions),
-	         unique_ptr<uniform_type_info>(new Subscriptions_type_info));
-	announce<Subscriber>(&Subscriber::first, &Subscriber::second);
-	announce<SequenceNum>(&SequenceNum::sequence);
-	announce<StoreSnapshot>(&StoreSnapshot::store, &StoreSnapshot::sn);
-	announce<SnapshotRequest>(&SnapshotRequest::st, &SnapshotRequest::clone);
-	announce<LookupRequest>(&LookupRequest::st, &LookupRequest::key);
-	announce<HasKeyRequest>(&HasKeyRequest::st, &HasKeyRequest::key);
-	announce<KeysRequest>(&KeysRequest::st);
-	announce<SizeRequest>(&SizeRequest::st);
-
-	// TODO: not sure why the following needs an announce(), but libcaf
-	//       produces an error when sending key sets for me.
-	announce<std::unordered_set<broker::data::Key>>();
+	announce<subscription_type>();
+	announce<subscription>(&subscription::type, &subscription::topic);
+	announce(typeid(subscriptions),
+	         unique_ptr<uniform_type_info>(new subscriptions_type_info));
+	announce<subscriber>(&subscriber::first, &subscriber::second);
+	announce<sequence_num>(&sequence_num::sequence);
+	announce<store_snapshot>(&store_snapshot::datastore, &store_snapshot::sn);
+	announce<snapshot_request>(&snapshot_request::st, &snapshot_request::clone);
+	announce<lookup_request>(&lookup_request::st, &lookup_request::key);
+	announce<has_key_request>(&has_key_request::st, &has_key_request::key);
+	announce<keys_request>(&keys_request::st);
+	announce<size_request>(&size_request::st);
+	announce<std::unordered_set<broker::data::key>>();
+	announce<std::deque<std::string>>();
 	return 0;
 	}
 
