@@ -32,30 +32,32 @@ public:
 			{
 			quit();
 			},
-		on(atom("peer"), arg_match) >> [=](actor p)
+		on(atom("peer"), arg_match) >> [=](actor& p)
 			{
 			sync_send(p, atom("peer"), this, local_subs.topics()).then(
-				on_arg_match >> [=](sync_exited_msg m) { },
-				on_arg_match >> [=](subscriptions topics)
+				on_arg_match >> [=](const sync_exited_msg& m)
+					{
+					},
+				on_arg_match >> [=](subscriptions& topics)
 					{
 					demonitor(p);
 					monitor(p);
 					peers[p.address()] = p;
 					peer_subs.add_subscriber(subscriber{move(topics), p});
-					check_pending_handshakes(p);
+					check_pending_handshakes(move(p));
 					}
 			);
 			},
-		on(atom("peer"), arg_match) >> [=](actor p, subscriptions t)
+		on(atom("peer"), arg_match) >> [=](actor& p, subscriptions& t)
 			{
 			demonitor(p);
 			monitor(p);
 			peers[p.address()] = p;
 			peer_subs.add_subscriber(subscriber{move(t), p});
-			check_pending_handshakes(p);
+			check_pending_handshakes(move(p));
 			return make_message(local_subs.topics());
 			},
-		on(atom("handshake"), arg_match) >> [=](actor p, actor observer)
+		on(atom("handshake"), arg_match) >> [=](actor& p, actor& observer)
 			{
 			if ( peers.find(p.address()) != peers.end() )
 				{
@@ -66,9 +68,9 @@ public:
 			demonitor(observer);
 			monitor(observer);
 			hs_observers[observer.address()] = observer;
-			hs_pending[p].insert(observer);
+			hs_pending[move(p)].insert(move(observer));
 			},
-		on(atom("unpeer"), arg_match) >> [=](actor p)
+		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
 			demonitor(p);
 			peers.erase(p.address());
@@ -77,7 +79,7 @@ public:
 			if ( p.address() != last_sender() )
 				send(p, atom("unpeer"), this);
 			},
-		on_arg_match >> [=](down_msg d)
+		on_arg_match >> [=](const down_msg& d)
 			{
 			if ( remove_observer(d.source) )
 				return;
@@ -90,22 +92,23 @@ public:
 			for ( const auto& p : peers )
 				send(p.second, atom("unsub"), unsubs, this);
 			},
-		on(atom("unsub"), arg_match) >> [=](subscriptions topics, actor p)
+		on(atom("unsub"), arg_match) >> [=](const subscriptions& topics,
+		                                    const actor& p)
 			{
 			peer_subs.rem_subscriptions(topics, p.address());
 			},
-		on(atom("sub"), arg_match) >> [=](subscription t, actor subscriber)
+		on(atom("sub"), arg_match) >> [=](subscription& t, actor& a)
 			{
-			demonitor(subscriber);
-			monitor(subscriber);
-			local_subs.add_subscription(t, move(subscriber));
+			demonitor(a);
+			monitor(a);
+			local_subs.add_subscription(t, move(a));
 
 			for ( const auto& p : peers )
 				send(p.second, atom("subpeer"), t, this);
 			},
-		on(atom("subpeer"), arg_match) >> [=](subscription t, actor p)
+		on(atom("subpeer"), arg_match) >> [=](subscription& t, actor& p)
 			{
-			peer_subs.add_subscription(move(t), p);
+			peer_subs.add_subscription(move(t), move(p));
 			},
 		on_arg_match >> [=](const subscription& s, const query& q,
 		                    const actor& requester)
@@ -117,7 +120,7 @@ public:
 			else
 				forward_to(master);
 			},
-		on<subscription, anything>() >> [=](subscription t)
+		on<subscription, anything>() >> [=](const subscription& t)
 			{
 			publish_current_msg(t);
 			}
@@ -146,7 +149,7 @@ private:
 		return true;
 		}
 
-	void check_pending_handshakes(const caf::actor& p)
+	void check_pending_handshakes(caf::actor p)
 		{
 		auto it = hs_pending.find(p);
 
@@ -243,7 +246,7 @@ public:
 			{
 			forward_to(remote);
 			},
-		on_arg_match >> [=](down_msg d)
+		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(remote);
 			remote = invalid_actor;

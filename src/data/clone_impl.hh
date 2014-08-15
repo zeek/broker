@@ -25,7 +25,6 @@ public:
 
 		// TODO: expose this retry interval to user API
 		auto sync_retry_interval = chrono::seconds(5);
-		subscription update_topic{subscription_type::data_update, topic};
 		subscription snap_topic{subscription_type::data_query, topic};
 
 		message_handler requests {
@@ -37,11 +36,12 @@ public:
 		};
 
 		message_handler updates {
-		on(update_topic, atom("insert"), val<key>, val<value>) >> [=]
+		on(val<subscription>, atom("insert"), val<key>, val<value>) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("insert"), arg_match) >> [=](sequence_num sn, key k, value v)
+		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
+		                                     key& k, value& v)
 			{
 			auto next = datastore.sequence().next();
 
@@ -50,11 +50,12 @@ public:
 			else if ( sn > next )
 				sequence_error(snap_topic, endpoint);
 			},
-		on(update_topic, atom("erase"), val<key>) >> [=]
+		on(val<subscription>, atom("erase"), val<key>) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("erase"), arg_match) >> [=](sequence_num sn, key k)
+		on(atom("erase"), arg_match) >> [=](const sequence_num& sn,
+		                                    const key& k)
 			{
 			auto next = datastore.sequence().next();
 
@@ -63,11 +64,11 @@ public:
 			else if ( sn > next )
 				sequence_error(snap_topic, endpoint);
 			},
-		on(update_topic, atom("clear")) >> [=]
+		on(val<subscription>, atom("clear")) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("clear"), arg_match) >> [=](sequence_num sn)
+		on(atom("clear"), arg_match) >> [=](const sequence_num& sn)
 			{
 			auto next = datastore.sequence().next();
 
@@ -98,7 +99,7 @@ public:
 			else
 				{
 				demonitor(master);
-				master = responder;
+				master = move(responder);
 				monitor(master);
 				datastore = mem_store(move(r.snap));
 				}
@@ -110,7 +111,7 @@ public:
 		initializing = handle_snapshot;
 
 		active = requests.or_else(updates).or_else(handle_snapshot).or_else(
-		on_arg_match >> [=](down_msg d)
+		on_arg_match >> [=](const down_msg& d)
 			{
 			if ( d.source == master.address() )
 				{

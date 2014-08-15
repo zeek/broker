@@ -23,8 +23,6 @@ public:
 		using namespace caf;
 		using namespace std;
 
-		subscription update_topic{subscription_type::data_update, topic};
-
 		message_handler requests {
 		on(val<subscription>, arg_match) >> [=](const query& q, const actor& r)
 			{
@@ -40,7 +38,8 @@ public:
 		};
 
 		message_handler updates {
-		on(update_topic, atom("insert"), arg_match) >> [=](key k, value v)
+		on(val<subscription>, atom("insert"), arg_match) >> [=](key& k,
+		                                                        value& v)
 			{
 			datastore->insert(k, v);
 
@@ -48,7 +47,7 @@ public:
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v)));
 			},
-		on(update_topic, atom("erase"), arg_match) >> [=](key k)
+		on(val<subscription>, atom("erase"), arg_match) >> [=](key& k)
 			{
 			datastore->erase(k);
 
@@ -56,7 +55,7 @@ public:
 				publish(make_message(atom("erase"), datastore->sequence(),
 				                     move(k)));
 			},
-		on(update_topic, atom("clear"), arg_match) >> [=]
+		on(val<subscription>, atom("clear"), arg_match) >> [=]
 			{
 			datastore->clear();
 
@@ -70,7 +69,7 @@ public:
 			{
 			quit();
 			},
-		on_arg_match >> [=](down_msg d)
+		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(d.source);
 			clones.erase(d.source);
@@ -80,9 +79,9 @@ public:
 
 private:
 
-	void publish(const caf::message& msg)
+	void publish(caf::message msg)
 		{
-		for ( const auto& c : clones ) send_tuple(c.second, msg);
+		for ( const auto& c : clones ) send_tuple(c.second, std::move(msg));
 		}
 
 	std::unique_ptr<store> datastore;

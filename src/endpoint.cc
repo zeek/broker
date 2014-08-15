@@ -95,8 +95,9 @@ bool broker::endpoint::unpeer(broker::peering p)
 
 void broker::endpoint::print(std::string topic, std::string msg) const
 	{
-	subscription st{subscription_type::print, std::move(topic)};
-	caf::anon_send(pimpl->actor, std::move(st), std::move(msg));
+	caf::anon_send(pimpl->actor,
+	               subscription{subscription_type::print, std::move(topic)},
+	               std::move(msg));
 	}
 
 void* broker::endpoint::handle() const
