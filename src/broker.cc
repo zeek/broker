@@ -1,12 +1,11 @@
 #include "broker/broker.hh"
 #include "broker/data/store.hh"
 #include "broker/print_queue.hh"
+#include "broker/data/response_queue.hh"
+#include "data/result_type_info.hh"
 #include "subscription.hh"
-#include "data/query_types.hh"
-
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
-
 #include <cstdio>
 
 int broker::init(int flags)
@@ -21,14 +20,17 @@ int broker::init(int flags)
 	         unique_ptr<uniform_type_info>(new subscriptions_type_info));
 	announce<subscriber>(&subscriber::first, &subscriber::second);
 	announce<sequence_num>(&sequence_num::sequence);
-	announce<store_snapshot>(&store_snapshot::datastore, &store_snapshot::sn);
-	announce<snapshot_request>(&snapshot_request::st, &snapshot_request::clone);
-	announce<lookup_request>(&lookup_request::st, &lookup_request::key);
-	announce<has_key_request>(&has_key_request::st, &has_key_request::key);
-	announce<keys_request>(&keys_request::st);
-	announce<size_request>(&size_request::st);
+	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
 	announce<std::unordered_set<broker::data::key>>();
 	announce<std::deque<std::string>>();
+	announce<result::type>();
+	announce<result::status>();
+	announce(typeid(result),
+	         unique_ptr<uniform_type_info>(new result_type_info));
+	announce<query::type>();
+	announce<query>(&query::tag, &query::k);
+	announce<response>(&response::request, &response::reply, &response::cookie);
+	announce<std::deque<response>>();
 	return 0;
 	}
 

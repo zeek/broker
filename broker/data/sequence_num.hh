@@ -9,13 +9,17 @@ namespace broker { namespace data {
 class sequence_num {
 public:
 
+	sequence_num(std::vector<uint64_t> s = {0})
+		: sequence(std::move(s))
+		{ }
+
     sequence_num next() const;
 
     sequence_num& operator++();
 
     sequence_num operator++(int);
 
-    std::vector<uint64_t> sequence = { 0 };
+    std::vector<uint64_t> sequence;
 };
 
 inline bool operator==(const sequence_num& lhs, const sequence_num& rhs)

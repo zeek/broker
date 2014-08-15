@@ -3,8 +3,9 @@
 
 #include "broker/endpoint.hh"
 #include "subscription.hh"
-#include "data/query_types.hh"
 #include "peering_impl.hh"
+#include "broker/data/store.hh"
+#include "broker/data/query.hh"
 #include <caf/actor.hpp>
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -26,84 +27,17 @@ public:
 		using namespace std;
 		using namespace broker::data;
 
-		// TODO: more generic way to intercept requests?
-		auto handle_snapshot = [=](const snapshot_request& r) -> optional<bool>
-			{
-			auto master = find_master(r.st);
-			if ( ! master ) return true;
-			forward_to(master);
-			return {};
-			};
-
-		auto handle_lookup = [=](const lookup_request& r) -> optional<bool>
-			{
-			auto master = find_master(r.st);
-			if ( ! master ) return true;
-			forward_to(master);
-			return {};
-			};
-
-		auto handle_haskey = [=](const has_key_request& r) -> optional<bool>
-			{
-			auto master = find_master(r.st);
-			if ( ! master ) return true;
-			forward_to(master);
-			return {};
-			};
-
-		auto handle_keys = [=](const keys_request& r) -> optional<bool>
-			{
-			auto master = find_master(r.st);
-			if ( ! master ) return true;
-			forward_to(master);
-			return {};
-			};
-
-		auto handle_size = [=](const size_request& r) -> optional<bool>
-			{
-			auto master = find_master(r.st);
-			if ( ! master ) return true;
-			forward_to(master);
-			return {};
-			};
-
-		message_handler data_requests {
-		on(handle_snapshot) >> [=](bool)
-			{
-			return make_message(atom("dne"));
-			}, on_arg_match >> [](const snapshot_request&) {},
-		on(handle_lookup) >> [=](bool)
-			{
-			return make_message(atom("dne"));
-			}, on_arg_match >> [](const lookup_request&) {},
-		on(handle_haskey) >> [=](bool)
-			{
-			return make_message(atom("dne"));
-			}, on_arg_match >> [](const has_key_request&) {},
-		on(handle_keys) >> [=](bool)
-			{
-			return make_message(atom("dne"));
-			}, on_arg_match >> [](const keys_request&) {},
-		on(handle_size) >> [=](bool)
-			{
-			return make_message(atom("dne"));
-			}, on_arg_match >> [](const size_request&) {}
-		};
-
-		active = data_requests.or_else(
+		active = (
 		on(atom("quit")) >> [=]
 			{
-			//aout(this) << "quit" << endl;
 			quit();
 			},
 		on(atom("peer"), arg_match) >> [=](actor p)
 			{
-			//aout(this) << "peer" << endl;
 			sync_send(p, atom("peer"), this, local_subs.topics()).then(
 				on_arg_match >> [=](sync_exited_msg m) { },
 				on_arg_match >> [=](subscriptions topics)
 					{
-					//aout(this) << "got peer response" << endl;
 					demonitor(p);
 					monitor(p);
 					peers[p.address()] = p;
@@ -136,7 +70,6 @@ public:
 			},
 		on(atom("unpeer"), arg_match) >> [=](actor p)
 			{
-			//aout(this) << "unpeer" << endl;
 			demonitor(p);
 			peers.erase(p.address());
 			peer_subs.rem_subscriber(p.address());
@@ -146,7 +79,6 @@ public:
 			},
 		on_arg_match >> [=](down_msg d)
 			{
-			//aout(this) << "down" << endl;
 			if ( remove_observer(d.source) )
 				return;
 
@@ -175,9 +107,18 @@ public:
 			{
 			peer_subs.add_subscription(move(t), p);
 			},
+		on_arg_match >> [=](const subscription& s, const query& q,
+		                    const actor& requester)
+			{
+			auto master = find_master(s);
+
+			if ( ! master )
+				send(requester, this, result(result::status::failure));
+			else
+				forward_to(master);
+			},
 		on<subscription, anything>() >> [=](subscription t)
 			{
-			//aout(this) << "publish: " << to_string(last_dequeued()) << endl;
 			publish_current_msg(t);
 			}
 		);

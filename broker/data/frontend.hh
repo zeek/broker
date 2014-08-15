@@ -2,6 +2,7 @@
 #define BROKER_FRONTEND_HH
 
 #include <broker/data/types.hh>
+#include <broker/data/response_queue.hh>
 #include <broker/endpoint.hh>
 #include <string>
 #include <chrono>
@@ -16,6 +17,8 @@ public:
 	virtual ~frontend();
 
 	const std::string& topic() const;
+
+	response_queue responses() const;
 
 	/*
 	 * Update Interface - non-blocking.
@@ -35,29 +38,42 @@ public:
 	 * May have high latency.
 	 */
 
-	std::unique_ptr<value> lookup(key k) const;
+	result request(query q) const;
 
-	bool has_key(key k) const;
+	result lookup(key k) const
+		{ return request(query(query::type::lookup, std::move(k))); }
 
-	std::unordered_set<key> keys() const;
+	result exists(key k) const
+		{ return request(query(query::type::exists, std::move(k))); }
 
-	uint64_t size() const;
+	result keys() const
+		{ return request(query(query::type::keys)); }
+
+	result size() const
+		{ return request(query(query::type::size)); }
 
 	/*
 	 * Query Interface - non-blocking.
 	 */
 
-	void lookup(key k, std::chrono::duration<double> timeout,
-	            LookupCallback cb, void* cookie = nullptr) const;
+	void request(query q, std::chrono::duration<double> timeout,
+	             void* cookie = nullptr) const;
 
-	void has_key(key k, std::chrono::duration<double> timeout,
-	             HasKeyCallback cb, void* cookie = nullptr) const;
+	void lookup(key k, std::chrono::duration<double> timeout,
+	            void* cookie = nullptr) const
+		{ request(query(query::type::lookup, std::move(k)), timeout, cookie); }
+
+	void exists(key k, std::chrono::duration<double> timeout,
+	             void* cookie = nullptr) const
+		{ request(query(query::type::exists, std::move(k)), timeout, cookie); }
 
 	void keys(std::chrono::duration<double> timeout,
-	          KeysCallback cb, void* cookie = nullptr) const;
+	          void* cookie = nullptr) const
+		{ request(query(query::type::keys), timeout, cookie); }
 
 	void size(std::chrono::duration<double> timeout,
-	          SizeCallback cb, void* cookie = nullptr) const;
+	          void* cookie = nullptr) const
+		{ request(query(query::type::size), timeout, cookie); }
 
 private:
 
@@ -66,6 +82,53 @@ private:
 	class impl;
 	std::shared_ptr<impl> pimpl;
 };
+
+template <typename T>
+std::unique_ptr<value> lookup(const T& f, key k)
+	{
+	result r = f.lookup(std::move(k));
+
+	if ( r.stat != result::status::success )
+		return {};
+
+	if ( r.tag != result::type::value_val )
+		return {};
+
+	return std::unique_ptr<value>(new value(std::move(r.val)));
+	}
+
+template <typename T>
+bool exists(const T& f, key k)
+	{
+	result r = f.exists(std::move(k));
+
+	if ( r.stat != result::status::success )
+		return false;
+
+	return r.exists;
+	}
+
+template <typename T>
+std::unordered_set<key> keys(const T& f)
+	{
+	result r = f.keys();
+
+	if ( r.stat != result::status::success )
+		return {};
+
+	return std::move(r.keys);
+	}
+
+template <typename T>
+uint64_t size(const T& f)
+	{
+	result r = f.size();
+
+	if ( r.stat != result::status::success )
+		return 0;
+
+	return r.size;
+	}
 
 } // namespace data
 } // namespace broker

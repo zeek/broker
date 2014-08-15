@@ -52,6 +52,7 @@ set(BROKER_SRC
     src/data/clone.cc
     src/data/frontend.cc
     src/data/master.cc
+    src/data/response_queue.cc
     src/data/sequence_num.cc
     ${BROKER_HDR})
 

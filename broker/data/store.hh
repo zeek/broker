@@ -3,19 +3,11 @@
 
 #include <broker/data/types.hh>
 #include <broker/data/sequence_num.hh>
+#include <broker/data/snapshot.hh>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace broker { namespace data {
-
-class store_snapshot {
-public:
-
-	std::unordered_map<key, value> datastore;
-	sequence_num sn;
-};
-
-inline bool operator==(const store_snapshot& lhs, const store_snapshot& rhs)
-    { return lhs.sn == rhs.sn && lhs.datastore == rhs.datastore; }
 
 class store {
 public:
@@ -41,8 +33,8 @@ public:
 	std::unique_ptr<value> lookup(const key& k) const
 		{ return do_lookup(k); }
 
-	bool has_key(const key& k) const
-		{ return do_has_key(k); }
+	bool exists(const key& k) const
+		{ return do_exists(k); }
 
 	std::unordered_set<key> keys() const
 		{ return do_keys(); }
@@ -50,8 +42,8 @@ public:
 	uint64_t size() const
 		{ return do_size(); }
 
-	store_snapshot snapshot() const
-		{ return do_snapshot(); }
+	snapshot snap() const
+		{ return do_snap(); }
 
 private:
 
@@ -63,13 +55,13 @@ private:
 
 	virtual std::unique_ptr<value> do_lookup(const key& k) const = 0;
 
-	virtual bool do_has_key(const key& k) const = 0;
+	virtual bool do_exists(const key& k) const = 0;
 
 	virtual std::unordered_set<key> do_keys() const = 0;
 
 	virtual uint64_t do_size() const = 0;
 
-	virtual store_snapshot do_snapshot() const = 0;
+	virtual snapshot do_snap() const = 0;
 
 	sequence_num sn;
 };

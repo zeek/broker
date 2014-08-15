@@ -8,7 +8,7 @@ namespace broker { namespace data {
 class mem_store : public store {
 public:
 
-	mem_store(store_snapshot sss = {})
+	mem_store(snapshot sss = {})
 	    : store(std::move(sss.sn)), datastore(std::move(sss.datastore))
 		{ }
 
@@ -29,7 +29,7 @@ private:
 		catch ( const std::out_of_range& ) { return {}; }
 		}
 
-	bool do_has_key(const key& k) const override
+	bool do_exists(const key& k) const override
 		{
 		if ( datastore.find(k) == datastore.end() ) return false;
 		else return true;
@@ -45,7 +45,7 @@ private:
 	uint64_t do_size() const override
 		{ return datastore.size(); }
 
-	store_snapshot do_snapshot() const override
+	snapshot do_snap() const override
 		{ return {datastore, sequence()}; }
 
 	std::unordered_map<key, value> datastore;

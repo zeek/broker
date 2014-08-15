@@ -4,7 +4,6 @@
 #include "broker/data/clone.hh"
 #include "broker/data/store.hh"
 #include "broker/data/mem_store.hh"
-#include "query_types.hh"
 #include "../subscription.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -26,37 +25,21 @@ public:
 
 		// TODO: expose this retry interval to user API
 		auto sync_retry_interval = chrono::seconds(5);
-		snapshot_request snap_req{{subscription_type::data_query, topic}, this};
 		subscription update_topic{subscription_type::data_update, topic};
+		subscription snap_topic{subscription_type::data_query, topic};
 
 		message_handler requests {
-		on_arg_match >> [=](lookup_request r) -> message
+		on_arg_match >> [=](const subscription& s, const query& q,
+		                    const actor& requester)
 			{
-			auto v = datastore.lookup(r.key);
-
-			if ( ! v )
-				return make_message(atom("null"));
-			else
-				return make_message(move(*v));
-			},
-		on_arg_match >> [=](has_key_request r)
-			{
-			return datastore.has_key(r.key);
-			},
-		on<keys_request>() >> [=]
-			{
-			return datastore.keys();
-			},
-		on<size_request>() >> [=]
-			{
-			return datastore.size();
+			send(requester, this, q.process(datastore));
 			}
 		};
 
 		message_handler updates {
 		on(update_topic, atom("insert"), val<key>, val<value>) >> [=]
 			{
-			if ( master ) forward_to(master);
+			forward_to(master);
 			},
 		on(atom("insert"), arg_match) >> [=](sequence_num sn, key k, value v)
 			{
@@ -65,14 +48,11 @@ public:
 			if ( sn == next )
 				datastore.insert(move(k), move(v));
 			else if ( sn > next )
-				{
-				sync_error(topic);
-				get_snapshot(endpoint, snap_req, sync_retry_interval);
-				}
+				sequence_error(snap_topic, endpoint);
 			},
 		on(update_topic, atom("erase"), val<key>) >> [=]
 			{
-			if ( master ) forward_to(master);
+			forward_to(master);
 			},
 		on(atom("erase"), arg_match) >> [=](sequence_num sn, key k)
 			{
@@ -81,14 +61,11 @@ public:
 			if ( sn == next )
 				datastore.erase(k);
 			else if ( sn > next )
-				{
-				sync_error(topic);
-				get_snapshot(endpoint, snap_req, sync_retry_interval);
-				}
+				sequence_error(snap_topic, endpoint);
 			},
 		on(update_topic, atom("clear")) >> [=]
 			{
-			if ( master ) forward_to(master);
+			forward_to(master);
 			},
 		on(atom("clear"), arg_match) >> [=](sequence_num sn)
 			{
@@ -97,32 +74,49 @@ public:
 			if ( sn == next )
 				datastore.clear();
 			else if ( sn > next )
-				{
-				sync_error(topic);
-				get_snapshot(endpoint, snap_req, sync_retry_interval);
-				}
+				sequence_error(snap_topic, endpoint);
 			}
 		};
 
-		initializing = (
-		after(chrono::seconds(0)) >> [=]
+		bootstrap = (
+		after(chrono::seconds::zero()) >> [=]
 			{
-			get_snapshot(endpoint, snap_req, sync_retry_interval);
+			send(endpoint, snap_topic, query(query::type::snapshot), this);
+			become(initializing);
 			}
 		);
 
-		active = requests.or_else(updates).or_else(
-		on(atom("sync")) >> [=]
+		message_handler handle_snapshot{
+		on_arg_match >> [=](caf::actor& responder, result& r)
 			{
-			get_snapshot(endpoint, snap_req, sync_retry_interval);
-			},
+			if ( r.tag != result::type::snapshot_val )
+				return;
+
+			if ( r.stat != result::status::success )
+				delayed_send(endpoint, sync_retry_interval, snap_topic,
+				             query(query::type::snapshot), this);
+			else
+				{
+				demonitor(master);
+				master = responder;
+				monitor(master);
+				datastore = mem_store(move(r.snap));
+				}
+
+			become(active);
+			}
+		};
+
+		initializing = handle_snapshot;
+
+		active = requests.or_else(updates).or_else(handle_snapshot).or_else(
 		on_arg_match >> [=](down_msg d)
 			{
 			if ( d.source == master.address() )
 				{
 				demonitor(master);
 				master = invalid_actor;
-				get_snapshot(endpoint, snap_req, sync_retry_interval);
+				send(endpoint, snap_topic, query(query::type::snapshot), this);
 				}
 			}
 		);
@@ -130,38 +124,18 @@ public:
 
 private:
 
-	void sync_error(const std::string& topic)
+	void sequence_error(const subscription& sub, const caf::actor& endpoint)
 		{
-		aout(this) << "ERROR: clone '" << topic << "' out of sync" << std::endl;
-		}
-
-	void get_snapshot(const caf::actor& endpoint, const snapshot_request& req,
-	                  std::chrono::duration<double> retry)
-		{
-		using namespace std;
-		using namespace caf;
-		sync_send(endpoint, req).then(
-			on(atom("dne")) >> [=]
-				{
-				delayed_send(this, retry, atom("sync"));
-				become(active);
-				},
-			on_arg_match >> [=](actor mstr, store_snapshot sss)
-				{
-				demonitor(master);
-				master = mstr;
-				monitor(master);
-				datastore = mem_store{move(sss)};
-				become(active);
-				}
-		);
+		aout(this) << "ERROR: clone '" << sub.topic << "' desync" << std::endl;
+		send(endpoint, sub, query(query::type::snapshot), this);
 		}
 
 	mem_store datastore;
-	caf::actor master = caf::invalid_actor;
+	caf::actor master;
+	caf::behavior bootstrap;
 	caf::behavior initializing;
 	caf::behavior active;
-	caf::behavior& init_state = initializing;
+	caf::behavior& init_state = bootstrap;
 };
 
 

@@ -1,5 +1,5 @@
-#ifndef BROKER_FLARE_HH
-#define BROKER_FLARE_HH
+#ifndef BROKER_UTIL_FLARE_HH
+#define BROKER_UTIL_FLARE_HH
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -100,4 +100,4 @@ private:
 
 } // namespace broker
 
-#endif // BROKER_FLARE_HH
+#endif // BROKER_UTIL_FLARE_HH

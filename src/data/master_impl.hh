@@ -3,7 +3,6 @@
 
 #include "broker/data/master.hh"
 #include "broker/data/store.hh"
-#include "query_types.hh"
 #include "../subscription.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
@@ -27,37 +26,17 @@ public:
 		subscription update_topic{subscription_type::data_update, topic};
 
 		message_handler requests {
-		on_arg_match >> [=](snapshot_request r)
+		on(val<subscription>, arg_match) >> [=](const query& q, const actor& r)
 			{
-			if ( clones.find(r.clone.address()) == clones.end() )
+			if ( q.tag == query::type::snapshot &&
+			     clones.find(r.address()) == clones.end() )
 				{
-				monitor(r.clone);
-				clones[r.clone.address()] = r.clone;
+				monitor(r);
+				clones[r.address()] = r;
 				}
 
-			return make_message(this, datastore->snapshot());
+			send(r, this, q.process(*datastore.get()));
 			},
-		on_arg_match >> [=](lookup_request r) -> message
-			{
-			auto val = datastore->lookup(r.key);
-
-			if ( ! val )
-				return make_message(atom("null"));
-			else
-				return make_message(move(*val));
-			},
-		on_arg_match >> [=](has_key_request r)
-			{
-			return datastore->has_key(r.key);
-			},
-		on<keys_request>() >> [=]
-			{
-			return datastore->keys();
-			},
-		on<size_request>() >> [=]
-			{
-			return datastore->size();
-			}
 		};
 
 		message_handler updates {

@@ -12,4 +12,6 @@ endmacro()
 
 unit_test(test_printing)
 unit_test(test_remote_printing)
-unit_test(test_data)
+unit_test(test_data_master)
+unit_test(test_data_clone)
+unit_test(test_data_frontend)
