@@ -8,7 +8,9 @@ namespace broker { namespace data {
 class clone : public frontend {
 public:
 
-	clone(const endpoint& e, std::string topic);
+	clone(const endpoint& e, std::string topic,
+	      std::chrono::duration<double> resync_interval =
+	                                        std::chrono::seconds(1));
 
 private:
 

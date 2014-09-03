@@ -88,7 +88,7 @@ public:
 		if ( ! fired ) return;
 
 		char tmp;
-		read(p.write_fd(), &tmp, 1);
+		read(p.read_fd(), &tmp, 1);
 		fired = false;
 		}
 

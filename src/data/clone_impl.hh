@@ -18,13 +18,12 @@ friend class caf::sb_actor<clone_actor>;
 
 public:
 
-	clone_actor(const caf::actor& endpoint, std::string topic)
+	clone_actor(const caf::actor& endpoint, std::string topic,
+	            std::chrono::duration<double> resync_interval)
 		{
 		using namespace std;
 		using namespace caf;
 
-		// TODO: expose this retry interval to user API
-		auto sync_retry_interval = chrono::seconds(5);
 		subscription snap_topic{subscription_type::data_query, topic};
 
 		message_handler requests {
@@ -90,21 +89,17 @@ public:
 		message_handler handle_snapshot{
 		on_arg_match >> [=](caf::actor& responder, result& r)
 			{
-			if ( r.tag != result::type::snapshot_val )
-				return;
-
 			if ( r.stat != result::status::success )
-				delayed_send(endpoint, sync_retry_interval, snap_topic,
+				delayed_send(endpoint, resync_interval, snap_topic,
 				             query(query::type::snapshot), this);
-			else
+			else if ( r.tag == result::type::snapshot_val )
 				{
 				demonitor(master);
 				master = move(responder);
 				monitor(master);
 				datastore = mem_store(move(r.snap));
+				become(active);
 				}
-
-			become(active);
 			}
 		};
 
@@ -143,8 +138,10 @@ private:
 class clone::impl {
 public:
 
-	impl(const caf::actor& endpoint, std::string topic)
-		: actor(caf::spawn<clone_actor>(endpoint, std::move(topic)))
+	impl(const caf::actor& endpoint, std::string topic,
+	     std::chrono::duration<double> resync_interval)
+		: actor(caf::spawn<clone_actor>(endpoint, std::move(topic),
+	                                    std::move(resync_interval)))
 		{ }
 
 	~impl()

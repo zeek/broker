@@ -11,6 +11,8 @@ namespace broker { namespace data {
 class result {
 public:
 
+	// This tag indicates which value of the union is currently valid.
+	// For statuses other than success, it's arbitrarily tagged w/ exists_val.
 	enum class type: uint8_t {
 		exists_val,
 		size_val,
