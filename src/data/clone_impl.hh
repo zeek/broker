@@ -140,15 +140,14 @@ public:
 
 	impl(const caf::actor& endpoint, std::string topic,
 	     std::chrono::duration<double> resync_interval)
-		: actor(caf::spawn<clone_actor>(endpoint, std::move(topic),
-	                                    std::move(resync_interval)))
-		{ }
-
-	~impl()
+		: self(), actor(caf::spawn<clone_actor>(endpoint, std::move(topic),
+	                                            std::move(resync_interval)))
 		{
-		caf::anon_send(actor, caf::atom("quit"));
+		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor->link_to(self);
 		}
 
+	caf::scoped_actor self;
 	caf::actor actor;
 };
 

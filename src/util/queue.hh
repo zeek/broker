@@ -20,8 +20,6 @@ public:
 		using namespace caf;
 		message_handler common
 			{
-			on(atom("quit")) >> [=]
-				{ this->quit(); },
 			on(atom("want")) >> [=]
 				{ return pop(); },
 			Pattern() >> [=](Message& msg)

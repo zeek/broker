@@ -56,6 +56,7 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 			return peer;
 
 	auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, addr, port, retry);
+	a->link_to(pimpl->self);
 	peering rval(std::unique_ptr<peering::impl>(
 	                 new peering::impl(pimpl->actor, std::move(a),
 	                                   true, port_addr)));

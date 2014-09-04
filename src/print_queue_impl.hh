@@ -23,18 +23,16 @@ public:
 		using std::string;
 		using qt = queue<decltype(caf::on<subscription, string>()), string>;
 		actor = caf::spawn<qt>(std::move(f));
+		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor->link_to(self);
 
 		caf::anon_send(*static_cast<caf::actor*>(e.handle()), caf::atom("sub"),
 		               subscription{subscription_type::print, topic}, actor);
 		}
 
-	~impl()
-		{
-		caf::anon_send(actor, caf::atom("quit"));
-		}
-
 	int fd;
 	std::string topic;
+	caf::scoped_actor self;
 	caf::actor actor;
 };
 

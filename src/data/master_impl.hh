@@ -65,10 +65,6 @@ public:
 		};
 
 		serving = requests.or_else(updates).or_else(
-		on(atom("quit")) >> [=]
-			{
-			quit();
-			},
 		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(d.source);
@@ -95,8 +91,10 @@ public:
 
 	impl(const caf::actor& endpoint, std::string topic,
 	     std::unique_ptr<store> s)
-		: actor(caf::spawn<master_actor>(std::move(s), topic))
+		: self(), actor(caf::spawn<master_actor>(std::move(s), topic))
 		{
+		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor->link_to(self);
 		caf::anon_send(endpoint, caf::atom("sub"),
 		               subscription{subscription_type::data_query, topic},
 		               actor);
@@ -105,11 +103,7 @@ public:
 		               actor);
 		}
 
-	~impl()
-		{
-		caf::anon_send(actor, caf::atom("quit"));
-		}
-
+	caf::scoped_actor self;
 	caf::actor actor;
 };
 

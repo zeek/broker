@@ -18,14 +18,12 @@ public:
 		fd = f.fd();
 		actor = caf::spawn<broker::queue<decltype(caf::on<response>()),
 		                                 response>>(std::move(f));
-		}
-
-	~impl()
-		{
-		caf::anon_send(actor, caf::atom("quit"));
+		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor->link_to(self);
 		}
 
 	int fd;
+	caf::scoped_actor self;
 	caf::actor actor;
 };
 

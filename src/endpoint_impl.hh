@@ -28,10 +28,6 @@ public:
 		using namespace broker::data;
 
 		active = (
-		on(atom("quit")) >> [=]
-			{
-			quit();
-			},
 		on(atom("peer"), arg_match) >> [=](actor& p)
 			{
 			sync_send(p, atom("peer"), this, local_subs.topics()).then(
@@ -218,6 +214,8 @@ public:
 		using namespace caf;
 		using namespace std;
 
+		trap_exit(true);
+
 		bootstrap = (
 		after(chrono::seconds(0)) >> [=]
 			{
@@ -226,6 +224,10 @@ public:
 		);
 
 		disconnected = (
+		on_arg_match >> [=](const exit_msg& e)
+			{
+			quit();
+			},
 		on(atom("quit")) >> [=]
 			{
 			quit();
@@ -237,6 +239,11 @@ public:
 		);
 
 		connected = (
+		on_arg_match >> [=](const exit_msg& e)
+			{
+			send(local, atom("unpeer"), remote);
+			quit();
+			},
 		on(atom("quit")) >> [=]
 			{
 			send(local, atom("unpeer"), remote);
@@ -304,18 +311,13 @@ public:
 
 	impl(std::string n)
 		: name(std::move(n)), actor(caf::spawn<broker::endpoint_actor>())
-		{ }
-
-	~impl()
 		{
-		caf::anon_send(actor, caf::atom("quit"));
-
-		for ( const auto& p : peers )
-			if ( p.remote() )
-				caf::anon_send(p.pimpl->peer_actor, caf::atom("quit"));
+		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor->link_to(self);
 		}
 
 	std::string name;
+	caf::scoped_actor self;
 	caf::actor actor;
 	std::unordered_set<peering> peers;
 	int last_errno;
