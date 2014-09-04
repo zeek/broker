@@ -7,9 +7,10 @@
 
 using namespace std;
 
-static void check_contents(broker::print_queue& pq, set<string> expected)
+static void check_contents(broker::print_queue& pq,
+                           set<broker::print_msg> expected)
 	{
-	set<string> actual;
+	set<broker::print_msg> actual;
 
 	while ( actual.size() < expected.size() )
 		for ( auto& msg : pq.need_pop() )
@@ -38,16 +39,19 @@ int main(int argc, char** argv)
 
 	node1.peer("127.0.0.1", 9999).handshake();
 
-	node0.print("topic_a", "hi");
-	node0.print("topic_c", "greetings");
-	node1.print("topic_b", "hello");
-	node1.print("topic_c", "well met");
-	node0.print("topic_b", "bye");
+	node0.print("topic_a", {"0a", "hi"});
+	node0.print("topic_c", {"0c", "greetings"});
+	node1.print("topic_b", {"1b", "hello"});
+	node1.print("topic_c", {"1c", "well met"});
+	node0.print("topic_b", {"0b", "bye"});
 
-	check_contents(pq0a, { "hi" });
-	check_contents(pq0c, { "greetings", "well met" });
-	check_contents(pq1b, { "hello", "bye" });
-	check_contents(pq1c, { "greetings", "well met" });
+	check_contents(pq0a, { broker::print_msg{"0a", "hi"} });
+	check_contents(pq0c, { broker::print_msg{"0c", "greetings"},
+	                       broker::print_msg{"1c", "well met" } });
+	check_contents(pq1b, { broker::print_msg{"1b", "hello"},
+	                       broker::print_msg{"0b", "bye" } });
+	check_contents(pq1c, { broker::print_msg{"0c", "greetings"},
+	                       broker::print_msg{"1c", "well met"} });
 
 	broker::done();
 	return BROKER_TEST_RESULT();

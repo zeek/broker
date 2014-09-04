@@ -1,5 +1,6 @@
 #include "broker/broker.hh"
 #include "broker/data/store.hh"
+#include "broker/print_msg.hh"
 #include "broker/print_queue.hh"
 #include "broker/data/response_queue.hh"
 #include "data/result_type_info.hh"
@@ -31,6 +32,8 @@ int broker::init(int flags)
 	announce<query>(&query::tag, &query::k);
 	announce<response>(&response::request, &response::reply, &response::cookie);
 	announce<std::deque<response>>();
+	announce<print_msg>(&print_msg::path, &print_msg::data);
+	announce<std::deque<print_msg>>();
 	return 0;
 	}
 

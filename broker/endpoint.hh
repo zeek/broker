@@ -2,6 +2,7 @@
 #define BROKER_ENDPOINT_HH
 
 #include <broker/peering.hh>
+#include <broker/print_msg.hh>
 #include <memory>
 #include <string>
 #include <cstdint>
@@ -107,9 +108,9 @@ public:
 	 * Sends a message string to all print_queue's for a given topic that are
 	 * connected to this endpoint directly or indirectly through peer endpoints.
 	 * @param topic the topic associated with the message.
-	 * @param msg a string to send all handlers for the topic.
+	 * @param msg a message to send all queues subscribed for the topic.
 	 */
-	void print(std::string topic, std::string msg) const;
+	void print(std::string topic, print_msg msg) const;
 
 	// TODO: event() is similar to print but w/ fancier arguments.
 	// TODO: log() is similar to print but w/ fancier arguments.

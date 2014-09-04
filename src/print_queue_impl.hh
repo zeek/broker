@@ -20,9 +20,8 @@ public:
 		flare f;
 		fd = f.fd();
 		topic = std::move(t);
-		using std::string;
-		using qt = queue<decltype(caf::on<subscription, string>()), string>;
-		actor = caf::spawn<qt>(std::move(f));
+		actor = caf::spawn<queue<decltype(caf::on<subscription, print_msg>()),
+		                         print_msg>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 

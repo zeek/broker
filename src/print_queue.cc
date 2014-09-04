@@ -28,12 +28,12 @@ const std::string& broker::print_queue::topic() const
 	return pimpl->topic;
 	}
 
-std::deque<std::string> broker::print_queue::want_pop() const
+std::deque<broker::print_msg> broker::print_queue::want_pop() const
 	{
-	return queue_pop<std::string>(pimpl->actor, caf::atom("want"));
+	return queue_pop<print_msg>(pimpl->actor, caf::atom("want"));
 	}
 
-std::deque<std::string> broker::print_queue::need_pop() const
+std::deque<broker::print_msg> broker::print_queue::need_pop() const
 	{
-	return queue_pop<std::string>(pimpl->actor, caf::atom("need"));
+	return queue_pop<print_msg>(pimpl->actor, caf::atom("need"));
 	}

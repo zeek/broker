@@ -2,6 +2,7 @@
 #define BROKER_PRINT_QUEUE_HH
 
 #include <broker/endpoint.hh>
+#include <broker/print_msg.hh>
 #include <string>
 #include <memory>
 #include <deque>
@@ -58,12 +59,12 @@ public:
 	/**
 	 * @return Any print messages that are available at the time of the call.
 	 */
-	std::deque<std::string> want_pop() const;
+	std::deque<print_msg> want_pop() const;
 
 	/**
 	 * @return At least one print message.  The call blocks if it must.
 	 */
-	std::deque<std::string> need_pop() const;
+	std::deque<print_msg> need_pop() const;
 
 	/**
 	 * @return the topic associated with the queue.

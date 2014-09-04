@@ -100,7 +100,7 @@ bool broker::endpoint::unpeer(broker::peering p)
 	return true;
 	}
 
-void broker::endpoint::print(std::string topic, std::string msg) const
+void broker::endpoint::print(std::string topic, print_msg msg) const
 	{
 	caf::anon_send(pimpl->actor,
 	               subscription{subscription_type::print, std::move(topic)},
