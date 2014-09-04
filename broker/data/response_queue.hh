@@ -15,9 +15,34 @@ friend class frontend;
 public:
 
 	/**
-	 * Create an uninitialized response queue.
+	 * Construct response queue.
 	 */
 	response_queue();
+
+	/**
+	  * Destruct response queue.
+	  */
+	~response_queue();
+
+	/**
+	 * Copying a response queue disallowed.
+	 */
+	response_queue(const response_queue& other) = delete;
+
+	/**
+	 * Steal a response queue.
+	 */
+	response_queue(response_queue&& other);
+
+	/**
+	 * Copying a response queue disallowed.
+	 */
+	response_queue& operator=(const response_queue& other) = delete;
+
+	/**
+	 * Replace queue by stealing another.
+	 */
+	response_queue& operator=(response_queue&& other);
 
 	/**
 	 * @return a file descriptor that is ready for reading when the queue is
@@ -28,19 +53,19 @@ public:
 	/**
 	 * @return Any print messages that are available at the time of the call.
 	 */
-	std::deque<response> want_pop();
+	std::deque<response> want_pop() const;
 
 	/**
 	 * @return At least one print message.  The call blocks if it must.
 	 */
-	std::deque<response> need_pop();
+	std::deque<response> need_pop() const;
 
 private:
 
 	void* handle() const;
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace data

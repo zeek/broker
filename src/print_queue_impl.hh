@@ -16,11 +16,14 @@ public:
 	impl() = default;
 
 	impl(std::string t, const endpoint& e)
-		: ready_flare(), topic(std::move(t)),
-	      actor(caf::spawn<broker::queue<
-	            decltype(caf::on<subscription, std::string>()),
-	            std::string>>(ready_flare))
 		{
+		flare f;
+		fd = f.fd();
+		topic = std::move(t);
+		using std::string;
+		using qt = queue<decltype(caf::on<subscription, string>()), string>;
+		actor = caf::spawn<qt>(std::move(f));
+
 		caf::anon_send(*static_cast<caf::actor*>(e.handle()), caf::atom("sub"),
 		               subscription{subscription_type::print, topic}, actor);
 		}
@@ -30,7 +33,7 @@ public:
 		caf::anon_send(actor, caf::atom("quit"));
 		}
 
-	const flare ready_flare;
+	int fd;
 	std::string topic;
 	caf::actor actor;
 };

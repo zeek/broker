@@ -5,11 +5,15 @@
 #include <caf/send.hpp>
 
 broker::endpoint::endpoint(std::string name, int flags)
-    : pimpl(std::make_shared<impl>(std::move(name)))
+    : pimpl(new impl(std::move(name)))
 	{
 	}
 
 broker::endpoint::~endpoint() = default;
+
+broker::endpoint::endpoint(endpoint&& other) = default;
+
+broker::endpoint& broker::endpoint::operator=(endpoint&& other) = default;
 
 const std::string& broker::endpoint::name() const
 	{
@@ -52,8 +56,9 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 			return peer;
 
 	auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, addr, port, retry);
-	peering rval(std::make_shared<peering::impl>(pimpl->actor, std::move(a),
-	                                             true, port_addr));
+	peering rval(std::unique_ptr<peering::impl>(
+	                 new peering::impl(pimpl->actor, std::move(a),
+	                                   true, port_addr)));
 	pimpl->peers.insert(rval);
 	// The proxy actor will initiate peer requests once connected.
 	return rval;
@@ -64,7 +69,8 @@ broker::peering broker::endpoint::peer(const endpoint& e)
 	if ( this == &e )
 		return {};
 
-	peering p(std::make_shared<peering::impl>(pimpl->actor, e.pimpl->actor));
+	peering p(std::unique_ptr<peering::impl>(
+	              new peering::impl(pimpl->actor, e.pimpl->actor)));
 
 	if ( pimpl->peers.insert(p).second )
 		caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor);

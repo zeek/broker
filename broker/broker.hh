@@ -23,7 +23,13 @@ void done();
 /**
  * @return a textual representation of a broker error code.
  */
-const char* strerror(int errno);
+const char* strerror(int broker_errno);
+
+/**
+ * Reentrant version of broker::strerror.
+ * @return a return value from ::strerror_r.
+ */
+int strerror_r(int broker_errno, char* buf, size_t len);
 
 } // namespace broker
 

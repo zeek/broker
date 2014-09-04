@@ -16,9 +16,17 @@ public:
 
 	virtual ~frontend();
 
+	frontend(const frontend& other) = delete;
+
+	frontend(frontend&& other);
+
+	frontend& operator=(const frontend& other) = delete;
+
+	frontend& operator=(frontend&& other);
+
 	const std::string& topic() const;
 
-	response_queue responses() const;
+	const response_queue& responses() const;
 
 	/*
 	 * Update Interface - non-blocking.
@@ -80,7 +88,7 @@ private:
 	virtual void* handle() const;
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 template <typename T>

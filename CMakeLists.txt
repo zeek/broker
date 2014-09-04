@@ -54,6 +54,8 @@ set(BROKER_SRC
     src/data/master.cc
     src/data/response_queue.cc
     src/data/sequence_num.cc
+    src/util/pipe.cc
+    src/util/flare.cc
     ${BROKER_HDR})
 
 add_library(broker_objs OBJECT ${BROKER_SRC})

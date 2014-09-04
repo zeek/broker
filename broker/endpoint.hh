@@ -9,6 +9,9 @@
 
 namespace broker {
 
+/**
+ * A local broker endpoint, the main entry point for communicating with peer.
+ */
 class endpoint {
 public:
 
@@ -25,6 +28,26 @@ public:
 	~endpoint();
 
 	/**
+	 * Copying endpoint objects is disallowed.
+	 */
+	endpoint(const endpoint& other) = delete;
+
+	/**
+	 * Steal another endpoint.
+	 */
+	endpoint(endpoint&& other);
+
+	/**
+	 * Copying endpoint objects is disallowed.
+	 */
+	endpoint& operator=(const endpoint& other) = delete;
+
+	/**
+	 * Replace endpoint by stealing another.
+	 */
+	endpoint& operator=(endpoint&& other);
+
+	/**
 	 * @return the descriptive name for this endpoint (as given to ctor).
 	 */
 	const std::string& name() const;
@@ -36,7 +59,7 @@ public:
 	int last_errno() const;
 
 	/**
-	 * @return descriptive error text associated with the last failed enpoint
+	 * @return descriptive error text associated with the last failed endpoint
 	 * operation.
 	 */
 	const std::string& last_error() const;
@@ -74,22 +97,22 @@ public:
 
 	/**
 	 * Remove a connection to a peer endpoint.
-	 * @param peerno a peer object previously returned by peer().
+	 * @param peerno a peer object previously returned by endpoint::peer.
 	 * @return false if no such peer associated exists, else true (and the
 	 *         peering is no more).
 	 */
 	bool unpeer(peering p);
 
 	/**
-	 * Sends a message string to all PrintHandler's for a given topic that are
+	 * Sends a message string to all print_queue's for a given topic that are
 	 * connected to this endpoint directly or indirectly through peer endpoints.
 	 * @param topic the topic associated with the message.
 	 * @param msg a string to send all handlers for the topic.
 	 */
 	void print(std::string topic, std::string msg) const;
 
-	// TODO: event() is similar to Print but w/ fancier arguments.
-	// TODO: log() is similar to Print but w/ fancier arguments.
+	// TODO: event() is similar to print but w/ fancier arguments.
+	// TODO: log() is similar to print but w/ fancier arguments.
 
 	/**
 	 * @return a unique handle for the endpoint.
@@ -99,7 +122,7 @@ public:
 private:
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace broker

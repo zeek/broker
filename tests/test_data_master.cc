@@ -34,7 +34,7 @@ int main()
 	                make_pair("b", "bravo"),
 	                make_pair("c", "charlie") };
 
-	auto populate = [](broker::data::master m, const dataset& ds)
+	auto populate = [](const broker::data::master& m, const dataset& ds)
 		{
 		for ( const auto& p : ds ) m.insert(p.first, p.second);
 		};

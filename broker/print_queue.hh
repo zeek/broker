@@ -17,6 +17,31 @@ public:
 	print_queue();
 
 	/**
+	  * Destruct print queue.
+	  */
+	~print_queue();
+
+	/**
+	 * Copying a print queue is disallowed.
+	 */
+	print_queue(const print_queue& other) = delete;
+
+	/**
+	 * Steal a print queue.
+	 */
+	print_queue(print_queue&& other);
+
+	/**
+	 * Copying a print queue is disallowed.
+	 */
+	print_queue& operator=(const print_queue& other) = delete;
+
+	/**
+	 * Replace print queue by stealing another.
+	 */
+	print_queue& operator=(print_queue&& other);
+
+	/**
 	 * Create a print queue that will receive print messages directly from an
 	 * endpoint or via one if its peers.
 	 * @param e a local endpoint.
@@ -33,12 +58,12 @@ public:
 	/**
 	 * @return Any print messages that are available at the time of the call.
 	 */
-	std::deque<std::string> want_pop();
+	std::deque<std::string> want_pop() const;
 
 	/**
 	 * @return At least one print message.  The call blocks if it must.
 	 */
-	std::deque<std::string> need_pop();
+	std::deque<std::string> need_pop() const;
 
 	/**
 	 * @return the topic associated with the queue.
@@ -48,7 +73,7 @@ public:
 private:
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace broker

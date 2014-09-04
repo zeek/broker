@@ -12,12 +12,22 @@ public:
 	      std::chrono::duration<double> resync_interval =
 	                                        std::chrono::seconds(1));
 
+	~clone();
+
+	clone(const clone& other) = delete;
+
+	clone(clone&& other);
+
+	clone& operator=(const clone& other) = delete;
+
+	clone& operator=(clone&& other);
+
 private:
 
 	void* handle() const override;
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace data

@@ -2,16 +2,31 @@
 #include <caf/scoped_actor.hpp>
 
 broker::peering::peering()
-    : pimpl(std::make_shared<impl>())
+    : pimpl(new impl)
 	{
 	}
 
-broker::peering::peering(std::shared_ptr<impl> p)
+broker::peering::peering(std::unique_ptr<impl> p)
 	: pimpl(std::move(p))
 	{
 	}
 
 broker::peering::~peering() = default;
+
+broker::peering::peering(const peering& other)
+	: pimpl(new impl(*other.pimpl.get()))
+	{
+	}
+
+broker::peering::peering(peering&& other) = default;
+
+broker::peering& broker::peering::operator=(const peering& other)
+	{
+	pimpl.reset(new impl(*other.pimpl.get()));
+	return *this;
+	}
+
+broker::peering& broker::peering::operator=(peering&& other) = default;
 
 broker::peering::operator bool() const
 	{

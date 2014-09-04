@@ -13,12 +13,22 @@ public:
 	master(const endpoint& e, std::string topic, std::unique_ptr<store> s =
 	                            std::unique_ptr<store>{new mem_store});
 
+	~master();
+
+	master(const master& other) = delete;
+
+	master(master&& other);
+
+	master& operator=(const master& other) = delete;
+
+	master& operator=(master&& other);
+
 private:
 
 	void* handle() const override;
 
 	class impl;
-	std::shared_ptr<impl> pimpl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace data

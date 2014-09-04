@@ -2,18 +2,25 @@
 #include "broker/Endpoint.hh"
 
 broker::print_queue::print_queue()
-    : pimpl(std::make_shared<impl>())
+    : pimpl(new impl)
 	{
 	}
 
+broker::print_queue::~print_queue() = default;
+
+broker::print_queue::print_queue(print_queue&& other) = default;
+
+broker::print_queue&
+broker::print_queue::operator=(print_queue&& other) = default;
+
 broker::print_queue::print_queue(std::string topic, const endpoint& e)
-    : pimpl(std::make_shared<impl>(std::move(topic), e))
+    : pimpl(new impl(std::move(topic), e))
 	{
 	}
 
 int broker::print_queue::fd() const
 	{
-	return pimpl->ready_flare.fd();
+	return pimpl->fd;
 	}
 
 const std::string& broker::print_queue::topic() const
@@ -21,12 +28,12 @@ const std::string& broker::print_queue::topic() const
 	return pimpl->topic;
 	}
 
-std::deque<std::string> broker::print_queue::want_pop()
+std::deque<std::string> broker::print_queue::want_pop() const
 	{
 	return queue_pop<std::string>(pimpl->actor, caf::atom("want"));
 	}
 
-std::deque<std::string> broker::print_queue::need_pop()
+std::deque<std::string> broker::print_queue::need_pop() const
 	{
 	return queue_pop<std::string>(pimpl->actor, caf::atom("need"));
 	}

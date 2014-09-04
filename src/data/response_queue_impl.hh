@@ -13,17 +13,19 @@ class response_queue::impl {
 public:
 
 	impl()
-		: ready_flare(),
-	      actor(caf::spawn<broker::queue<decltype(caf::on<response>()),
-	                                     response>>(ready_flare))
-		{ }
+		{
+		flare f;
+		fd = f.fd();
+		actor = caf::spawn<broker::queue<decltype(caf::on<response>()),
+		                                 response>>(std::move(f));
+		}
 
 	~impl()
 		{
 		caf::anon_send(actor, caf::atom("quit"));
 		}
 
-	const flare ready_flare;
+	int fd;
 	caf::actor actor;
 };
 

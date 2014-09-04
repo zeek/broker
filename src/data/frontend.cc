@@ -11,19 +11,23 @@ static inline caf::actor& handle_to_actor(void* h)
 	}
 
 broker::data::frontend::frontend(const endpoint& e, std::string topic)
-    : pimpl(std::make_shared<impl>(std::move(topic),
-                                   handle_to_actor(e.handle())))
+    : pimpl(new impl(std::move(topic), handle_to_actor(e.handle())))
 	{
 	}
 
 broker::data::frontend::~frontend() = default;
+
+broker::data::frontend::frontend(frontend&& other) = default;
+
+broker::data::frontend&
+broker::data::frontend::operator=(frontend&& other) = default;
 
 const std::string& broker::data::frontend::topic() const
 	{
 	return pimpl->topic;
 	}
 
-broker::data::response_queue broker::data::frontend::responses() const
+const broker::data::response_queue& broker::data::frontend::responses() const
 	{
 	return pimpl->responses;
 	}

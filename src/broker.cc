@@ -49,15 +49,28 @@ void broker_done()
 	return broker::done();
 	}
 
-const char* broker::strerror(int arg_errno)
+const char* broker::strerror(int broker_errno)
 	{
-	switch ( arg_errno ) {
+	switch ( broker_errno ) {
 	default:
-		return ::strerror(arg_errno);
-	};
+		return ::strerror(broker_errno);
+	}
 	}
 
 const char* broker_strerror(int arg_errno)
 	{
 	return broker::strerror(arg_errno);
+	}
+
+int broker::strerror_r(int broker_errno, char* buf, size_t len)
+	{
+	switch ( broker_errno ) {
+	default:
+		return ::strerror_r(broker_errno, buf, len);
+	}
+	}
+
+int broker_strerror_r(int broker_errno, char* buf, size_t buflen)
+	{
+	return broker::strerror_r(broker_errno, buf, buflen);
 	}

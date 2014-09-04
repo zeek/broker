@@ -1,100 +1,42 @@
 #ifndef BROKER_UTIL_FLARE_HH
 #define BROKER_UTIL_FLARE_HH
 
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <cstdlib>
-#include <cstdio>
-#include <utility>
-#include <memory>
+#include "pipe.hh"
 
 namespace broker {
-
-class pipe {
-public:
-
-	pipe()
-	    : fds(std::make_shared<file_descriptors>())
-		{ }
-
-	int read_fd() const
-		{ return (*fds)[0]; }
-
-	int write_fd() const
-		{ return (*fds)[1]; }
-
-private:
-
-	class file_descriptors {
-	public:
-
-		file_descriptors()
-			{
-			// TODO: pipe2 too newish, but can atomically set cloexec
-			if ( ::pipe(fds) ) fail();
-			fcntl(fds[0], F_SETFD, fcntl(fds[0], F_GETFD) | FD_CLOEXEC);
-			fcntl(fds[1], F_SETFD, fcntl(fds[1], F_GETFD) | FD_CLOEXEC);
-			}
-
-		~file_descriptors()
-			{
-			close(fds[0]);
-			close(fds[1]);
-			}
-
-		const int& operator[] (const int idx) const
-			{ return fds[idx]; }
-
-	private:
-
-		void fail()
-			{
-			char tmp[256];
-			strerror_r(errno, tmp, sizeof(tmp));
-			fprintf(stderr, "pipe falure: %s\n", tmp);
-			abort();
-			}
-
-		int fds[2];
-	};
-
-	std::shared_ptr<file_descriptors> fds;
-};
 
 class flare {
 public:
 
-	flare()
-	    : fired(false), p({})
-		{ }
+	/**
+	 * Create a flare object that can be used to signal a "ready" status via
+	 * a file descriptor that may be integrated with select(), poll(), etc.
+	 * Though it may be used to signal availability of a resource across
+	 * threads, both access to that resource and the use of the fire/extinguish
+	 * functions must be performed in a thread-safe manner in order for that
+	 * to work correctly.
+	 */
+	flare();
 
+	/**
+	 * @return a file descriptor that will become ready if the flare has been
+	 *         fire()'d and not yet extinguished()'d.
+	 */
 	int fd() const
-		{
-		return p.read_fd();
-		}
+		{ return p.read_fd(); }
 
-	void fire()
-		{
-		if ( fired ) return;
+	/**
+	 * Put the object in the "ready" state.
+	 */
+	void fire();
 
-		char tmp;
-		write(p.write_fd(), &tmp, 1);
-		fired = true;
-		}
-
-	void extinguish()
-		{
-		if ( ! fired ) return;
-
-		char tmp;
-		read(p.read_fd(), &tmp, 1);
-		fired = false;
-		}
+	/**
+	 * Take the object out of the "ready" state.
+	 */
+	void extinguish();
 
 private:
 
-	bool fired;
 	pipe p;
 };
 

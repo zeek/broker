@@ -25,7 +25,8 @@ bool compare_contents(const broker::data::frontend& store, const dataset& ds)
 	return actual == ds;
 	}
 
-void wait_for(broker::data::frontend f, broker::data::key k, bool exists = true)
+void wait_for(const broker::data::frontend& f, broker::data::key k,
+              bool exists = true)
 	{
 	while ( broker::data::exists(f, k) != exists ) usleep(1000);
 	}
