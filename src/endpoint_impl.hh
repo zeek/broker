@@ -36,21 +36,13 @@ public:
 					},
 				on_arg_match >> [=](subscriptions& topics)
 					{
-					demonitor(p);
-					monitor(p);
-					peers[p.address()] = p;
-					peer_subs.add_subscriber(subscriber{move(topics), p});
-					check_pending_handshakes(move(p));
+					add_peer(move(p), move(topics));
 					}
 			);
 			},
 		on(atom("peer"), arg_match) >> [=](actor& p, subscriptions& t)
 			{
-			demonitor(p);
-			monitor(p);
-			peers[p.address()] = p;
-			peer_subs.add_subscriber(subscriber{move(t), p});
-			check_pending_handshakes(move(p));
+			add_peer(move(p), move(t));
 			return make_message(local_subs.topics());
 			},
 		on(atom("handshake"), arg_match) >> [=](actor& p, actor& observer)
@@ -124,6 +116,15 @@ public:
 		}
 
 private:
+
+	void add_peer(caf::actor p, subscriptions t)
+		{
+		demonitor(p);
+		monitor(p);
+		peers[p.address()] = p;
+		peer_subs.add_subscriber(subscriber{std::move(t), p});
+		check_pending_handshakes(std::move(p));
+		}
 
 	bool remove_observer(const caf::actor_addr& o)
 		{
