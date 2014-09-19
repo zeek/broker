@@ -1,8 +1,8 @@
-#ifndef BROKER_DATA_MASTER_IMPL_HH
-#define BROKER_DATA_MASTER_IMPL_HH
+#ifndef BROKER_STORE_MASTER_IMPL_HH
+#define BROKER_STORE_MASTER_IMPL_HH
 
-#include "broker/data/master.hh"
-#include "broker/data/store.hh"
+#include "broker/store/master.hh"
+#include "broker/store/store.hh"
 #include "../subscription.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
@@ -10,7 +10,7 @@
 #include <caf/sb_actor.hpp>
 #include <caf/actor_ostream.hpp>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class master_actor : public caf::sb_actor<master_actor> {
 friend class caf::sb_actor<master_actor>;
@@ -96,10 +96,10 @@ public:
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		caf::anon_send(endpoint, caf::atom("sub"),
-		               subscription{subscription_type::data_query, topic},
+		               subscription{subscription_type::store_query, topic},
 		               actor);
 		caf::anon_send(endpoint, caf::atom("sub"),
-		               subscription{subscription_type::data_update, topic},
+		               subscription{subscription_type::store_update, topic},
 		               actor);
 		}
 
@@ -107,7 +107,7 @@ public:
 	caf::actor actor;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_MASTER_IMPL_HH
+#endif // BROKER_STORE_MASTER_IMPL_HH

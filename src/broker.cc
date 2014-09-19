@@ -1,9 +1,9 @@
 #include "broker/broker.hh"
-#include "broker/data/store.hh"
+#include "broker/store/store.hh"
 #include "broker/print_msg.hh"
 #include "broker/print_queue.hh"
-#include "broker/data/response_queue.hh"
-#include "data/result_type_info.hh"
+#include "broker/store/response_queue.hh"
+#include "store/result_type_info.hh"
 #include "subscription.hh"
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
@@ -14,7 +14,7 @@ int broker::init(int flags)
 	// TODO: need a better, more organized way to announce types.
 	using namespace caf;
 	using namespace std;
-	using namespace broker::data;
+	using namespace broker::store;
 	announce<subscription_type>();
 	announce<subscription>(&subscription::type, &subscription::topic);
 	announce(typeid(subscriptions),
@@ -22,7 +22,7 @@ int broker::init(int flags)
 	announce<subscriber>(&subscriber::first, &subscriber::second);
 	announce<sequence_num>(&sequence_num::sequence);
 	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
-	announce<std::unordered_set<broker::data::key>>();
+	announce<std::unordered_set<broker::store::key>>();
 	announce<std::deque<std::string>>();
 	announce<result::type>();
 	announce<result::status>();

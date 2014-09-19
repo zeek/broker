@@ -1,12 +1,12 @@
-#ifndef BROKER_DATA_RESULT_HH
-#define BROKER_DATA_RESULT_HH
+#ifndef BROKER_STORE_RESULT_HH
+#define BROKER_STORE_RESULT_HH
 
-#include <broker/data/types.hh>
-#include <broker/data/snapshot.hh>
+#include <broker/store/types.hh>
+#include <broker/store/snapshot.hh>
 #include <cstdint>
 #include <unordered_set>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class result {
 public:
@@ -187,7 +187,7 @@ inline bool operator==(const result& lhs, const result& rhs)
 	}
 	}
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_RESULT_HH
+#endif // BROKER_STORE_RESULT_HH

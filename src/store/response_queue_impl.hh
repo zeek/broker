@@ -1,13 +1,13 @@
-#ifndef BROKER_DATA_RESPONSE_QUEUE_IMPL_HH
-#define BROKER_DATA_RESPONSE_QUEUE_IMPL_HH
+#ifndef BROKER_STORE_RESPONSE_QUEUE_IMPL_HH
+#define BROKER_STORE_RESPONSE_QUEUE_IMPL_HH
 
-#include "broker/data/response_queue.hh"
+#include "broker/store/response_queue.hh"
 #include "../util/flare.hh"
 #include "../util/queue.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class response_queue::impl {
 public:
@@ -27,7 +27,7 @@ public:
 	caf::actor actor;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_RESPONSE_QUEUE_IMPL_HH
+#endif // BROKER_STORE_RESPONSE_QUEUE_IMPL_HH

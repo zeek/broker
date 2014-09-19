@@ -1,10 +1,10 @@
-#ifndef BROKER_DATA_SEQUENCE_NUM_HH
-#define BROKER_DATA_SEQUENCE_NUM_HH
+#ifndef BROKER_STORE_SEQUENCE_NUM_HH
+#define BROKER_STORE_SEQUENCE_NUM_HH
 
 #include <vector>
 #include <cstdint>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class sequence_num {
 public:
@@ -39,7 +39,7 @@ inline bool operator<=(const sequence_num& lhs, const sequence_num& rhs)
 inline bool operator>=(const sequence_num& lhs, const sequence_num& rhs)
     { return ! operator<(lhs,rhs); }
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_SEQUENCE_NUM_HH
+#endif // BROKER_STORE_SEQUENCE_NUM_HH

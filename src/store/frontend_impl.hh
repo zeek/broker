@@ -1,12 +1,12 @@
-#ifndef BROKER_DATA_FRONTEND_IMPL_HH
-#define BROKER_DATA_FRONTEND_IMPL_HH
+#ifndef BROKER_STORE_FRONTEND_IMPL_HH
+#define BROKER_STORE_FRONTEND_IMPL_HH
 
-#include "broker/data/frontend.hh"
+#include "broker/store/frontend.hh"
 #include "../subscription.hh"
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class requester : public caf::sb_actor<requester> {
 friend class caf::sb_actor<requester>;
@@ -56,19 +56,19 @@ public:
 
 	impl(std::string t, caf::actor e)
 		: topic(std::move(t)), endpoint(std::move(e)),
-	      request_topic(subscription{subscription_type::data_query, topic}),
-	      data_topic(subscription{subscription_type::data_update, topic}),
+	      request_topic(subscription{subscription_type::store_query, topic}),
+	      update_topic(subscription{subscription_type::store_update, topic}),
 	      responses()
 		{ }
 
 	std::string topic;
 	caf::actor endpoint;
 	subscription request_topic;
-	subscription data_topic;
+	subscription update_topic;
 	response_queue responses;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_FRONTEND_IMPL_HH
+#endif // BROKER_STORE_FRONTEND_IMPL_HH

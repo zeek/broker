@@ -1,13 +1,13 @@
-#ifndef BROKER_FRONTEND_HH
-#define BROKER_FRONTEND_HH
+#ifndef BROKER_STORE_FRONTEND_HH
+#define BROKER_STORE_FRONTEND_HH
 
-#include <broker/data/types.hh>
-#include <broker/data/response_queue.hh>
+#include <broker/store/types.hh>
+#include <broker/store/response_queue.hh>
 #include <broker/endpoint.hh>
 #include <string>
 #include <chrono>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class frontend {
 public:
@@ -138,7 +138,7 @@ uint64_t size(const T& f)
 	return r.size;
 	}
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_FRONTEND_HH
+#endif // BROKER_STORE_FRONTEND_HH

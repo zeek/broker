@@ -1,9 +1,9 @@
-#ifndef BROKER_DATA_MEM_STORE_HH
-#define BROKER_DATA_MEM_STORE_HH
+#ifndef BROKER_STORE_MEM_STORE_HH
+#define BROKER_STORE_MEM_STORE_HH
 
-#include <broker/data/store.hh>
+#include <broker/store/store.hh>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class mem_store : public store {
 public:
@@ -51,7 +51,7 @@ private:
 	std::unordered_map<key, value> datastore;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_MEM_STORE_HH
+#endif // BROKER_STORE_MEM_STORE_HH

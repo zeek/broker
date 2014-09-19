@@ -1,11 +1,11 @@
-#ifndef BROKER_DATA_RESPONSE_QUEUE_HH
-#define BROKER_DATA_RESPONSE_QUEUE_HH
+#ifndef BROKER_STORE_RESPONSE_QUEUE_HH
+#define BROKER_STORE_RESPONSE_QUEUE_HH
 
-#include <broker/data/response.hh>
+#include <broker/store/response.hh>
 #include <memory>
 #include <deque>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class frontend;
 
@@ -68,7 +68,7 @@ private:
 	std::unique_ptr<impl> pimpl;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_RESPONSE_QUEUE_HH
+#endif // BROKER_STORE_RESPONSE_QUEUE_HH

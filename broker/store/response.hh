@@ -1,10 +1,10 @@
-#ifndef BROKER_DATA_RESPONSE_HH
-#define BROKER_DATA_RESPONSE_HH
+#ifndef BROKER_STORE_RESPONSE_HH
+#define BROKER_STORE_RESPONSE_HH
 
-#include <broker/data/query.hh>
-#include <broker/data/result.hh>
+#include <broker/store/query.hh>
+#include <broker/store/result.hh>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 struct response {
 	query request;
@@ -19,7 +19,7 @@ inline bool operator==(const response& lhs, const response& rhs)
 	       lhs.cookie == rhs.cookie;
 	}
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_RESPONSE_HH
+#endif // BROKER_STORE_RESPONSE_HH

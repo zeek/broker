@@ -1,5 +1,5 @@
 #include "frontend_impl.hh"
-#include <broker/data/store.hh>
+#include <broker/store/store.hh>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/sb_actor.hpp>
@@ -10,49 +10,49 @@ static inline caf::actor& handle_to_actor(void* h)
 	return *static_cast<caf::actor*>(h);
 	}
 
-broker::data::frontend::frontend(const endpoint& e, std::string topic)
+broker::store::frontend::frontend(const endpoint& e, std::string topic)
     : pimpl(new impl(std::move(topic), handle_to_actor(e.handle())))
 	{
 	}
 
-broker::data::frontend::~frontend() = default;
+broker::store::frontend::~frontend() = default;
 
-broker::data::frontend::frontend(frontend&& other) = default;
+broker::store::frontend::frontend(frontend&& other) = default;
 
-broker::data::frontend&
-broker::data::frontend::operator=(frontend&& other) = default;
+broker::store::frontend&
+broker::store::frontend::operator=(frontend&& other) = default;
 
-const std::string& broker::data::frontend::topic() const
+const std::string& broker::store::frontend::topic() const
 	{
 	return pimpl->topic;
 	}
 
-const broker::data::response_queue& broker::data::frontend::responses() const
+const broker::store::response_queue& broker::store::frontend::responses() const
 	{
 	return pimpl->responses;
 	}
 
-void broker::data::frontend::insert(key k, value v) const
+void broker::store::frontend::insert(key k, value v) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->data_topic, caf::atom("insert"),
+	               pimpl->update_topic, caf::atom("insert"),
 	               std::move(k), std::move(v));
 	}
 
-void broker::data::frontend::erase(key k) const
+void broker::store::frontend::erase(key k) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->data_topic, caf::atom("erase"),
+	               pimpl->update_topic, caf::atom("erase"),
 	               std::move(k));
 	}
 
-void broker::data::frontend::clear() const
+void broker::store::frontend::clear() const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->data_topic, caf::atom("clear"));
+	               pimpl->update_topic, caf::atom("clear"));
 	}
 
-broker::data::result broker::data::frontend::request(query q) const
+broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;
 	caf::scoped_actor self;
@@ -67,9 +67,9 @@ broker::data::result broker::data::frontend::request(query q) const
 	return rval;
 	}
 
-void broker::data::frontend::request(query q,
-                                     std::chrono::duration<double> timeout,
-                                     void* cookie) const
+void broker::store::frontend::request(query q,
+                                      std::chrono::duration<double> timeout,
+                                      void* cookie) const
 	{
 	caf::spawn<requester>(handle_to_actor(handle()),
 	           pimpl->request_topic, std::move(q),
@@ -77,7 +77,7 @@ void broker::data::frontend::request(query q,
 	           timeout, cookie);
 	}
 
-void* broker::data::frontend::handle() const
+void* broker::store::frontend::handle() const
 	{
 	return &pimpl->endpoint;
 	}

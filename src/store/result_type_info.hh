@@ -1,12 +1,12 @@
-#ifndef BROKER_DATA_RESULT_TYPE_INFO_HH
-#define BROKER_DATA_RESULT_TYPE_INFO_HH
+#ifndef BROKER_STORE_RESULT_TYPE_INFO_HH
+#define BROKER_STORE_RESULT_TYPE_INFO_HH
 
-#include "broker/data/result.hh"
+#include "broker/store/result.hh"
 #include <caf/detail/abstract_uniform_type_info.hpp>
 #include <caf/serializer.hpp>
 #include <caf/deserializer.hpp>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class result_type_info
         : public caf::detail::abstract_uniform_type_info<result> {
@@ -116,7 +116,7 @@ class result_type_info
 		}
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_RESULT_TYPE_INFO_HH
+#endif // BROKER_STORE_RESULT_TYPE_INFO_HH

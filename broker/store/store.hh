@@ -1,13 +1,13 @@
-#ifndef BROKER_DATA_STORE_HH
-#define BROKER_DATA_STORE_HH
+#ifndef BROKER_STORE_STORE_HH
+#define BROKER_STORE_STORE_HH
 
-#include <broker/data/types.hh>
-#include <broker/data/sequence_num.hh>
-#include <broker/data/snapshot.hh>
+#include <broker/store/types.hh>
+#include <broker/store/sequence_num.hh>
+#include <broker/store/snapshot.hh>
 #include <unordered_map>
 #include <unordered_set>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class store {
 public:
@@ -66,7 +66,7 @@ private:
 	sequence_num sn;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_STORE_HH
+#endif // BROKER_STORE_STORE_HH

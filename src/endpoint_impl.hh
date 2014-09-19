@@ -4,8 +4,8 @@
 #include "broker/endpoint.hh"
 #include "subscription.hh"
 #include "peering_impl.hh"
-#include "broker/data/store.hh"
-#include "broker/data/query.hh"
+#include "broker/store/store.hh"
+#include "broker/store/query.hh"
 #include <caf/actor.hpp>
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -25,7 +25,7 @@ public:
 		{
 		using namespace caf;
 		using namespace std;
-		using namespace broker::data;
+		using namespace broker::store;
 
 		active = (
 		on(atom("peer"), arg_match) >> [=](actor& p)

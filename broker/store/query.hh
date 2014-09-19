@@ -1,12 +1,12 @@
-#ifndef BROKER_DATA_QUERY_HH
-#define BROKER_DATA_QUERY_HH
+#ifndef BROKER_STORE_QUERY_HH
+#define BROKER_STORE_QUERY_HH
 
-#include <broker/data/types.hh>
-#include <broker/data/result.hh>
-#include <broker/data/store.hh>
+#include <broker/store/types.hh>
+#include <broker/store/result.hh>
+#include <broker/store/store.hh>
 #include <cstdint>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class query {
 public:
@@ -45,7 +45,7 @@ public:
 inline bool operator==(const query& lhs, const query& rhs)
     { return lhs.tag == rhs.tag && lhs.k == rhs.k; }
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_QUERY_HH
+#endif // BROKER_STORE_QUERY_HH

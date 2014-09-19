@@ -18,8 +18,8 @@ enum class subscription_type : uint16_t {
 	print,
 	event,
 	log,
-	data_query,       // Used by master data stores to handle requests.
-	data_update,      // Used by master data stores to receive updates.
+	store_query,      // Used by master data stores to handle requests.
+	store_update,     // Used by master data stores to receive updates.
 	num_types         // Sentinel for last enum value.
 };
 

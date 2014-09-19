@@ -1,4 +1,4 @@
-#include "broker/data/sequence_num.hh"
+#include "broker/store/sequence_num.hh"
 
 static void increase_sequence(std::vector<uint64_t>& s)
 	{
@@ -14,20 +14,20 @@ static void increase_sequence(std::vector<uint64_t>& s)
         }
 	}
 
-broker::data::sequence_num broker::data::sequence_num::next() const
+broker::store::sequence_num broker::store::sequence_num::next() const
 	{
 	sequence_num rval = *this;
 	increase_sequence(rval.sequence);
 	return rval;
 	}
 
-broker::data::sequence_num& broker::data::sequence_num::operator++()
+broker::store::sequence_num& broker::store::sequence_num::operator++()
 	{
 	increase_sequence(sequence);
 	return *this;
 	}
 
-broker::data::sequence_num broker::data::sequence_num::operator++(int)
+broker::store::sequence_num broker::store::sequence_num::operator++(int)
 	{
 	sequence_num tmp = *this;
 	operator++();

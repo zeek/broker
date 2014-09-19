@@ -1,9 +1,9 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
-#include "broker/data/master.hh"
-#include "broker/data/clone.hh"
-#include "broker/data/frontend.hh"
-#include "broker/data/response_queue.hh"
+#include "broker/store/master.hh"
+#include "broker/store/clone.hh"
+#include "broker/store/frontend.hh"
+#include "broker/store/response_queue.hh"
 #include "testsuite.hh"
 #include <iostream>
 #include <map>
@@ -12,43 +12,43 @@
 #include <poll.h>
 
 using namespace std;
-using dataset = map<broker::data::key, broker::data::value>;
+using dataset = map<broker::store::key, broker::store::value>;
 
-dataset get_contents(const broker::data::frontend& store)
+dataset get_contents(const broker::store::frontend& store)
 	{
 	dataset rval;
 
-	for ( const auto& key : broker::data::keys(store) )
+	for ( const auto& key : broker::store::keys(store) )
 		{
-		auto val = broker::data::lookup(store, key);
+		auto val = broker::store::lookup(store, key);
 		if ( val ) rval.insert(make_pair(key, *val.get()));
 		}
 
 	return rval;
 	}
 
-bool compare_contents(const broker::data::frontend& store, const dataset& ds)
+bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	{
 	return get_contents(store) == ds;
 	}
 
-bool compare_contents(const broker::data::frontend& a,
-                      const broker::data::frontend& b)
+bool compare_contents(const broker::store::frontend& a,
+                      const broker::store::frontend& b)
 	{
 	return get_contents(a) == get_contents(b);
 	}
 
-void wait_for(const broker::data::frontend& f, broker::data::key k,
+void wait_for(const broker::store::frontend& f, broker::store::key k,
               bool exists = true)
 	{
-	while ( broker::data::exists(f, k) != exists ) usleep(1000);
+	while ( broker::store::exists(f, k) != exists ) usleep(1000);
 	}
 
 int main(int argc, char** argv)
 	{
 	broker::init();
 	broker::endpoint server("server");
-	broker::data::master master(server, "mystore");
+	broker::store::master master(server, "mystore");
 
 	dataset ds0 = { make_pair("1", "one"),
 	                make_pair("2", "two"),
@@ -65,8 +65,8 @@ int main(int argc, char** argv)
 		}
 
 	broker::endpoint client("client");
-	broker::data::frontend frontend(client, "mystore");
-	broker::data::clone clone(client, "mystore",
+	broker::store::frontend frontend(client, "mystore");
+	broker::store::clone clone(client, "mystore",
 	                          std::chrono::duration<double>(0.25));
 
 	client.peer("127.0.0.1", 9999).handshake();
@@ -75,12 +75,12 @@ int main(int argc, char** argv)
 	BROKER_TEST(compare_contents(clone, ds0));
 
 	master.insert("5", "five");
-	BROKER_TEST(*broker::data::lookup(master, "5") == "five");
+	BROKER_TEST(*broker::store::lookup(master, "5") == "five");
 	BROKER_TEST(compare_contents(frontend, master));
 	BROKER_TEST(compare_contents(clone, master));
 
 	master.erase("5");
-	BROKER_TEST(!broker::data::exists(master, "5"));
+	BROKER_TEST(!broker::store::exists(master, "5"));
 	BROKER_TEST(compare_contents(frontend, master));
 	BROKER_TEST(compare_contents(clone, master));
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
 	BROKER_TEST(compare_contents(clone, master));
 
 	master.clear();
-	BROKER_TEST(broker::data::size(master) == 0);
+	BROKER_TEST(broker::store::size(master) == 0);
 	BROKER_TEST(compare_contents(frontend, master));
 	BROKER_TEST(compare_contents(clone, master));
 

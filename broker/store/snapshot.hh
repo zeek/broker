@@ -1,11 +1,11 @@
-#ifndef BROKER_DATA_SNAPSHOT_HH
-#define BROKER_DATA_SNAPSHOT_HH
+#ifndef BROKER_STORE_SNAPSHOT_HH
+#define BROKER_STORE_SNAPSHOT_HH
 
-#include <broker/data/types.hh>
-#include <broker/data/sequence_num.hh>
+#include <broker/store/types.hh>
+#include <broker/store/sequence_num.hh>
 #include <unordered_map>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 struct snapshot {
 	std::unordered_map<key, value> datastore;
@@ -15,7 +15,7 @@ struct snapshot {
 inline bool operator==(const snapshot& lhs, const snapshot& rhs)
     { return lhs.sn == rhs.sn && lhs.datastore == rhs.datastore; }
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_SNAPSHOT_HH
+#endif // BROKER_STORE_SNAPSHOT_HH

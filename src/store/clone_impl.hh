@@ -1,9 +1,9 @@
-#ifndef BROKER_DATA_CLONE_IMPL_HH
-#define BROKER_DATA_CLONE_IMPL_HH
+#ifndef BROKER_STORE_CLONE_IMPL_HH
+#define BROKER_STORE_CLONE_IMPL_HH
 
-#include "broker/data/clone.hh"
-#include "broker/data/store.hh"
-#include "broker/data/mem_store.hh"
+#include "broker/store/clone.hh"
+#include "broker/store/store.hh"
+#include "broker/store/mem_store.hh"
 #include "../subscription.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -11,7 +11,7 @@
 #include <caf/sb_actor.hpp>
 #include <caf/actor_ostream.hpp>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class clone_actor : public caf::sb_actor<clone_actor> {
 friend class caf::sb_actor<clone_actor>;
@@ -24,7 +24,7 @@ public:
 		using namespace std;
 		using namespace caf;
 
-		subscription snap_topic{subscription_type::data_query, topic};
+		subscription snap_topic{subscription_type::store_query, topic};
 
 		message_handler requests {
 		on_arg_match >> [=](const subscription& s, const query& q,
@@ -151,7 +151,7 @@ public:
 	caf::actor actor;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_CLONE_IMPL_HH
+#endif // BROKER_STORE_CLONE_IMPL_HH

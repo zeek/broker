@@ -1,9 +1,9 @@
-#ifndef BROKER_DATA_CLONE_HH
-#define BROKER_DATA_CLONE_HH
+#ifndef BROKER_STORE_CLONE_HH
+#define BROKER_STORE_CLONE_HH
 
-#include <broker/data/frontend.hh>
+#include <broker/store/frontend.hh>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class clone : public frontend {
 public:
@@ -30,7 +30,7 @@ private:
 	std::unique_ptr<impl> pimpl;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_CLONE_HH
+#endif // BROKER_STORE_CLONE_HH

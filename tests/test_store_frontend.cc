@@ -1,8 +1,8 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
-#include "broker/data/master.hh"
-#include "broker/data/frontend.hh"
-#include "broker/data/response_queue.hh"
+#include "broker/store/master.hh"
+#include "broker/store/frontend.hh"
+#include "broker/store/response_queue.hh"
 #include "testsuite.hh"
 #include <map>
 #include <vector>
@@ -10,39 +10,39 @@
 #include <poll.h>
 
 using namespace std;
-using dataset = map<broker::data::key, broker::data::value>;
+using dataset = map<broker::store::key, broker::store::value>;
 
-bool compare_contents(const broker::data::frontend& store, const dataset& ds)
+bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	{
 	dataset actual;
 
-	for ( const auto& key : broker::data::keys(store) )
+	for ( const auto& key : broker::store::keys(store) )
 		{
-		auto val = broker::data::lookup(store, key);
+		auto val = broker::store::lookup(store, key);
 		if ( val ) actual.insert(make_pair(key, *val.get()));
 		}
 
 	return actual == ds;
 	}
 
-void wait_for(const broker::data::frontend& f, broker::data::key k,
+void wait_for(const broker::store::frontend& f, broker::store::key k,
               bool exists = true)
 	{
-	while ( broker::data::exists(f, k) != exists ) usleep(1000);
+	while ( broker::store::exists(f, k) != exists ) usleep(1000);
 	}
 
 int main()
 	{
 	broker::init();
 	broker::endpoint node("node0");
-	broker::data::master m(node, "mystore");
+	broker::store::master m(node, "mystore");
 
 	dataset ds0 = { make_pair("1", "one"),
 	                make_pair("2", "two"),
 	                make_pair("3", "three") };
 	for ( const auto& p : ds0 ) m.insert(p.first, p.second);
 
-	broker::data::frontend f(node, "mystore");
+	broker::store::frontend f(node, "mystore");
 	f.insert("4", "four");
 	wait_for(f, "4");
 
@@ -58,8 +58,8 @@ int main()
 	wait_for(f, "5", false);
 	ds0.erase("5");
 	BROKER_TEST(compare_contents(f, ds0));
-	BROKER_TEST(broker::data::size(f) == ds0.size());
-	BROKER_TEST(*broker::data::lookup(f, "3") == "three");
+	BROKER_TEST(broker::store::size(f) == ds0.size());
+	BROKER_TEST(*broker::store::lookup(f, "3") == "three");
 
 	pollfd pfd{f.responses().fd(), POLLIN, 0};
 	vector<string> cookies { "exists", "lookup", "size", "timeout", "keys" };
@@ -68,7 +68,7 @@ int main()
 	f.size(chrono::seconds(10), &cookies[2]);
 	f.size(chrono::seconds(0), &cookies[3]);
 	f.keys(chrono::seconds(10), &cookies[4]);
-	vector<broker::data::response> responses;
+	vector<broker::store::response> responses;
 
 	while ( responses.size() < cookies.size() )
 		{
@@ -80,7 +80,7 @@ int main()
 
 	for ( const auto& msg : responses )
 		{
-		using broker::data::result;
+		using broker::store::result;
 		if ( msg.cookie == &cookies[3] )
 			{
 			BROKER_TEST(msg.reply.stat == result::status::timeout);
@@ -97,7 +97,7 @@ int main()
 			BROKER_TEST(msg.reply.size == ds0.size());
 		else if ( msg.cookie == &cookies[4] )
 			{
-			unordered_set<broker::data::key> expected;
+			unordered_set<broker::store::key> expected;
 			for ( const auto& p : ds0 ) expected.insert(p.first);
 			BROKER_TEST(msg.reply.keys == expected);
 			}
@@ -105,7 +105,7 @@ int main()
 
 	f.clear();
 	wait_for(f, "1", false);
-	BROKER_TEST(broker::data::size(f) == 0);
+	BROKER_TEST(broker::store::size(f) == 0);
 
 	return BROKER_TEST_RESULT();
 	}

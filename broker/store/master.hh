@@ -1,11 +1,11 @@
-#ifndef BROKER_DATA_MASTER_HH
-#define BROKER_DATA_MASTER_HH
+#ifndef BROKER_STORE_MASTER_HH
+#define BROKER_STORE_MASTER_HH
 
-#include <broker/data/frontend.hh>
-#include <broker/data/store.hh>
-#include <broker/data/mem_store.hh>
+#include <broker/store/frontend.hh>
+#include <broker/store/store.hh>
+#include <broker/store/mem_store.hh>
 
-namespace broker { namespace data {
+namespace broker { namespace store {
 
 class master : public frontend {
 public:
@@ -31,7 +31,7 @@ private:
 	std::unique_ptr<impl> pimpl;
 };
 
-} // namespace data
+} // namespace store
 } // namespace broker
 
-#endif // BROKER_DATA_MASTER_HH
+#endif // BROKER_STORE_MASTER_HH
