@@ -26,13 +26,13 @@ class result_type_info
 			sink->write_value(p->size);
 			break;
 		case result::type::value_val:
-			sink->write_value(p->val);
+			*sink << p->val;
 			break;
 		case result::type::keys_val:
 			sink->begin_sequence(p->keys.size());
 
 			for ( const auto& k : p->keys )
-				sink->write_value(k);
+				*sink << k;
 
 			sink->end_sequence();
 			break;
@@ -41,8 +41,8 @@ class result_type_info
 
 			for ( const auto& elem : p->snap.datastore )
 				{
-				sink->write_value(elem.first);
-				sink->write_value(elem.second);
+				*sink << elem.first;
+				*sink << elem.second;
 				}
 
 			sink->end_sequence();
@@ -63,6 +63,7 @@ class result_type_info
 		using status_type = std::underlying_type<result::status>::type;
 		auto tag = static_cast<result::type>(source->read<tag_type>());
 		auto stat = static_cast<result::status>(source->read<status_type>());
+		auto uti = caf::uniform_type_info::from(typeid(data));
 
 		if ( stat != result::status::success )
 			{
@@ -78,15 +79,15 @@ class result_type_info
 			*p = result(source->read<uint64_t>());
 			break;
 		case result::type::value_val:
-			*p = result(source->read<value>());
+			*p = result(source->read<data>(uti));
 			break;
 		case result::type::keys_val:
 			{
 			auto num = source->begin_sequence();
-			std::unordered_set<key> keys;
+			std::unordered_set<data> keys;
 
 			for ( size_t i = 0; i < num; ++i )
-				keys.insert(source->read<key>());
+				keys.insert(source->read<data>(uti));
 
 			source->end_sequence();
 			*p = result(std::move(keys));
@@ -95,11 +96,11 @@ class result_type_info
 		case result::type::snapshot_val:
 			{
 			auto num = source->begin_sequence();
-			std::unordered_map<key, value> dstore;
+			std::unordered_map<data, data> dstore;
 
 			for ( size_t i = 0; i < num; ++i )
-				dstore.insert(std::make_pair(source->read<key>(),
-				                             source->read<value>()));
+				dstore.insert(std::make_pair(source->read<data>(uti),
+				                             source->read<data>(uti)));
 
 			source->end_sequence();
 			num = source->begin_sequence();

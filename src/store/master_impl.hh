@@ -38,8 +38,8 @@ public:
 		};
 
 		message_handler updates {
-		on(val<subscription>, atom("insert"), arg_match) >> [=](key& k,
-		                                                        value& v)
+		on(val<subscription>, atom("insert"), arg_match) >> [=](data& k,
+		                                                        data& v)
 			{
 			datastore->insert(k, v);
 
@@ -47,7 +47,7 @@ public:
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v)));
 			},
-		on(val<subscription>, atom("erase"), arg_match) >> [=](key& k)
+		on(val<subscription>, atom("erase"), arg_match) >> [=](data& k)
 			{
 			datastore->erase(k);
 

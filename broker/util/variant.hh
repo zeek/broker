@@ -32,6 +32,7 @@ do so, all subject to the following:
 #include <cassert>
 #include <type_traits>
 #include <memory>
+#include <functional>
 #include <broker/util/operators.hh>
 #include <broker/util/meta.hh>
 
@@ -50,6 +51,14 @@ struct getter {
 	template <typename U>
 	result_type operator()(const U& u) const
 		{ return nullptr; }
+};
+
+struct hasher {
+	using result_type = size_t;
+
+	template <typename T>
+	result_type operator()(const T& x) const
+		{ return std::hash<T>{}(x); }
 };
 
 template <typename Visitor>
@@ -685,5 +694,13 @@ bool is(const Visitable& v)
 
 } // namespace util
 } // namespace broker
+
+namespace std {
+template <typename Tag, typename... Ts>
+struct hash<broker::util::variant<Tag, Ts...>> {
+	size_t operator()(const broker::util::variant<Tag, Ts...>& v) const
+		{ return broker::util::visit(broker::util::detail::hasher{}, v); }
+};
+}
 
 #endif // BROKER_UTIL_VARIANT_HH

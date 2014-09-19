@@ -1,7 +1,7 @@
 #ifndef BROKER_STORE_FRONTEND_HH
 #define BROKER_STORE_FRONTEND_HH
 
-#include <broker/store/types.hh>
+#include <broker/data.hh>
 #include <broker/store/response_queue.hh>
 #include <broker/endpoint.hh>
 #include <string>
@@ -33,9 +33,9 @@ public:
 	 * Changes may not be immediately visible.
 	 */
 
-	void insert(key k, value v) const;
+	void insert(data k, data v) const;
 
-	void erase(key k) const;
+	void erase(data k) const;
 
 	void clear() const;
 
@@ -48,10 +48,10 @@ public:
 
 	result request(query q) const;
 
-	result lookup(key k) const
+	result lookup(data k) const
 		{ return request(query(query::type::lookup, std::move(k))); }
 
-	result exists(key k) const
+	result exists(data k) const
 		{ return request(query(query::type::exists, std::move(k))); }
 
 	result keys() const
@@ -67,11 +67,11 @@ public:
 	void request(query q, std::chrono::duration<double> timeout,
 	             void* cookie = nullptr) const;
 
-	void lookup(key k, std::chrono::duration<double> timeout,
+	void lookup(data k, std::chrono::duration<double> timeout,
 	            void* cookie = nullptr) const
 		{ request(query(query::type::lookup, std::move(k)), timeout, cookie); }
 
-	void exists(key k, std::chrono::duration<double> timeout,
+	void exists(data k, std::chrono::duration<double> timeout,
 	             void* cookie = nullptr) const
 		{ request(query(query::type::exists, std::move(k)), timeout, cookie); }
 
@@ -92,7 +92,7 @@ private:
 };
 
 template <typename T>
-std::unique_ptr<value> lookup(const T& f, key k)
+std::unique_ptr<data> lookup(const T& f, data k)
 	{
 	result r = f.lookup(std::move(k));
 
@@ -102,11 +102,11 @@ std::unique_ptr<value> lookup(const T& f, key k)
 	if ( r.tag != result::type::value_val )
 		return {};
 
-	return std::unique_ptr<value>(new value(std::move(r.val)));
+	return std::unique_ptr<data>(new data(std::move(r.val)));
 	}
 
 template <typename T>
-bool exists(const T& f, key k)
+bool exists(const T& f, data k)
 	{
 	result r = f.exists(std::move(k));
 
@@ -117,7 +117,7 @@ bool exists(const T& f, key k)
 	}
 
 template <typename T>
-std::unordered_set<key> keys(const T& f)
+std::unordered_set<data> keys(const T& f)
 	{
 	result r = f.keys();
 

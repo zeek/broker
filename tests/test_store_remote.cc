@@ -12,7 +12,7 @@
 #include <poll.h>
 
 using namespace std;
-using dataset = map<broker::store::key, broker::store::value>;
+using dataset = map<broker::data, broker::data>;
 
 dataset get_contents(const broker::store::frontend& store)
 	{
@@ -38,7 +38,7 @@ bool compare_contents(const broker::store::frontend& a,
 	return get_contents(a) == get_contents(b);
 	}
 
-void wait_for(const broker::store::frontend& f, broker::store::key k,
+void wait_for(const broker::store::frontend& f, broker::data k,
               bool exists = true)
 	{
 	while ( broker::store::exists(f, k) != exists ) usleep(1000);

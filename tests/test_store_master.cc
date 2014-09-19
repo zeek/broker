@@ -5,7 +5,7 @@
 #include <map>
 
 using namespace std;
-using dataset = map<broker::store::key, broker::store::value>;
+using dataset = map<broker::data, broker::data>;
 
 bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	{

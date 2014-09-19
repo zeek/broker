@@ -1,7 +1,7 @@
 #ifndef BROKER_STORE_QUERY_HH
 #define BROKER_STORE_QUERY_HH
 
-#include <broker/store/types.hh>
+#include <broker/data.hh>
 #include <broker/store/result.hh>
 #include <broker/store/store.hh>
 #include <cstdint>
@@ -19,9 +19,9 @@ public:
 		snapshot
 	} tag;
 
-	key k;
+	data k;
 
-	query(type t = type::lookup, key arg_k = {})
+	query(type t = type::lookup, data arg_k = {})
 		: tag(t), k(arg_k)
 		{ }
 

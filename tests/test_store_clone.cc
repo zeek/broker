@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 using namespace std;
-using dataset = map<broker::store::key, broker::store::value>;
+using dataset = map<broker::data, broker::data>;
 
 bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	{
@@ -22,7 +22,7 @@ bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	return actual == ds;
 	}
 
-void wait_for(const broker::store::clone& c, broker::store::key k,
+void wait_for(const broker::store::clone& c, broker::data k,
               bool exists = true)
 	{
 	while ( broker::store::exists(c, k) != exists ) usleep(1000);

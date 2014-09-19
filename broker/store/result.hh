@@ -1,7 +1,7 @@
 #ifndef BROKER_STORE_RESULT_HH
 #define BROKER_STORE_RESULT_HH
 
-#include <broker/store/types.hh>
+#include <broker/data.hh>
 #include <broker/store/snapshot.hh>
 #include <cstdint>
 #include <unordered_set>
@@ -30,8 +30,8 @@ public:
 	union {
 		bool exists;
 		uint64_t size;
-		value val;
-		std::unordered_set<key> keys;
+		data val;
+		std::unordered_set<data> keys;
 		snapshot snap;
 	};
 
@@ -51,20 +51,20 @@ public:
 		: tag(type::size_val), stat(status::success), size(sz)
 		{ }
 
-	explicit result(value v)
+	explicit result(data v)
 		: tag(type::value_val), stat(status::success), val(std::move(v))
 		{ }
 
-	explicit result(std::unique_ptr<value> v)
+	explicit result(std::unique_ptr<data> v)
 		: tag(v ? type::value_val : type::exists_val), stat(status::success)
 		{
 		if ( tag == type::value_val )
-			new (&val) value(std::move(*v.get()));
+			new (&val) data(std::move(*v.get()));
 		else
 			new (&exists) bool(false);
 		}
 
-	explicit result(std::unordered_set<key> ks)
+	explicit result(std::unordered_set<data> ks)
 		: tag(type::keys_val), stat(status::success), keys(std::move(ks))
 		{ }
 
@@ -110,10 +110,10 @@ private:
 		using namespace std;
 		switch ( tag ) {
 		case result::type::value_val:
-			val.~value();
+			val.~data();
 			break;
 		case result::type::keys_val:
-			keys.~unordered_set<key>();
+			keys.~unordered_set<data>();
 			break;
 		case result::type::snapshot_val:
 			snap.~snapshot();
@@ -134,10 +134,10 @@ private:
 			new (&size) uint64_t(other.size);
 			break;
 		case result::type::value_val:
-			new (&val) value(other.val);
+			new (&val) data(other.val);
 			break;
 		case result::type::keys_val:
-			new (&keys) std::unordered_set<key>(other.keys);
+			new (&keys) std::unordered_set<data>(other.keys);
 			break;
 		case result::type::snapshot_val:
 			new (&snap) snapshot(other.snap);
@@ -157,10 +157,10 @@ private:
 			new (&size) uint64_t(other.size);
 			break;
 		case result::type::value_val:
-			new (&val) value(std::move(other.val));
+			new (&val) data(std::move(other.val));
 			break;
 		case result::type::keys_val:
-			new (&keys) std::unordered_set<key>(std::move(other.keys));
+			new (&keys) std::unordered_set<data>(std::move(other.keys));
 			break;
 		case result::type::snapshot_val:
 			new (&snap) snapshot(std::move(other.snap));

@@ -1,14 +1,14 @@
 #ifndef BROKER_STORE_SNAPSHOT_HH
 #define BROKER_STORE_SNAPSHOT_HH
 
-#include <broker/store/types.hh>
+#include <broker/data.hh>
 #include <broker/store/sequence_num.hh>
 #include <unordered_map>
 
 namespace broker { namespace store {
 
 struct snapshot {
-	std::unordered_map<key, value> datastore;
+	std::unordered_map<data, data> datastore;
 	sequence_num sn;
 };
 

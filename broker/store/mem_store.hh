@@ -14,30 +14,30 @@ public:
 
 private:
 
-	void do_insert(key k, value v) override
+	void do_insert(data k, data v) override
 		{ datastore[std::move(k)] = std::move(v); }
 
-	void do_erase(const key& k) override
+	void do_erase(const data& k) override
 		{ datastore.erase(k); }
 
 	void do_clear() override
 		{ datastore.clear(); }
 
-	std::unique_ptr<value> do_lookup(const key& k) const override
+	std::unique_ptr<data> do_lookup(const data& k) const override
 		{
-		try { return std::unique_ptr<value>(new value(datastore.at(k))); }
+		try { return std::unique_ptr<data>(new data(datastore.at(k))); }
 		catch ( const std::out_of_range& ) { return {}; }
 		}
 
-	bool do_exists(const key& k) const override
+	bool do_exists(const data& k) const override
 		{
 		if ( datastore.find(k) == datastore.end() ) return false;
 		else return true;
 		}
 
-	std::unordered_set<key> do_keys() const override
+	std::unordered_set<data> do_keys() const override
 		{
-		std::unordered_set<key> rval;
+		std::unordered_set<data> rval;
 		for ( const auto& kv : datastore ) rval.insert(kv.first);
 		return rval;
 		}
@@ -48,7 +48,7 @@ private:
 	snapshot do_snap() const override
 		{ return {datastore, sequence()}; }
 
-	std::unordered_map<key, value> datastore;
+	std::unordered_map<data, data> datastore;
 };
 
 } // namespace store

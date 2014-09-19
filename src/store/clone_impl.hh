@@ -35,12 +35,12 @@ public:
 		};
 
 		message_handler updates {
-		on(val<subscription>, atom("insert"), val<key>, val<value>) >> [=]
+		on(val<subscription>, atom("insert"), val<data>, val<data>) >> [=]
 			{
 			forward_to(master);
 			},
 		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
-		                                     key& k, value& v)
+		                                     data& k, data& v)
 			{
 			auto next = datastore.sequence().next();
 
@@ -49,12 +49,12 @@ public:
 			else if ( sn > next )
 				sequence_error(snap_topic, endpoint);
 			},
-		on(val<subscription>, atom("erase"), val<key>) >> [=]
+		on(val<subscription>, atom("erase"), val<data>) >> [=]
 			{
 			forward_to(master);
 			},
 		on(atom("erase"), arg_match) >> [=](const sequence_num& sn,
-		                                    const key& k)
+		                                    const data& k)
 			{
 			auto next = datastore.sequence().next();
 

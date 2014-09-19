@@ -32,14 +32,14 @@ const broker::store::response_queue& broker::store::frontend::responses() const
 	return pimpl->responses;
 	}
 
-void broker::store::frontend::insert(key k, value v) const
+void broker::store::frontend::insert(data k, data v) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
 	               pimpl->update_topic, caf::atom("insert"),
 	               std::move(k), std::move(v));
 	}
 
-void broker::store::frontend::erase(key k) const
+void broker::store::frontend::erase(data k) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
 	               pimpl->update_topic, caf::atom("erase"),
