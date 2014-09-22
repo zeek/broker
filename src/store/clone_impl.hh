@@ -92,12 +92,12 @@ public:
 			if ( r.stat != result::status::success )
 				delayed_send(endpoint, resync_interval, snap_topic,
 				             query(query::type::snapshot), this);
-			else if ( r.tag == result::type::snapshot_val )
+			else if ( r.value.which() == result::type::snapshot_result )
 				{
 				demonitor(master);
 				master = move(responder);
 				monitor(master);
-				datastore = mem_store(move(r.snap));
+				datastore = mem_store(move(*get<snapshot>(r.value)));
 				become(active);
 				}
 			}

@@ -24,7 +24,7 @@ class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
 
 		template <typename T>
 		result_type operator()(T& m) const
-			{ m = source->read<T>(); }
+			{ caf::uniform_typeid<T>()->deserialize(&m, source); }
 
 		caf::deserializer* source;
 	};

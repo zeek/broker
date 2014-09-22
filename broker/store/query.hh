@@ -29,7 +29,13 @@ public:
 		{
 		switch ( tag ) {
 		case type::lookup:
-			return result(s.lookup(k));
+			{
+			auto r = s.lookup(k);
+			if ( r )
+				return result(std::move(*r.get()));
+			else
+				return result(false);
+			}
 		case type::exists:
 			return result(s.exists(k));
 		case type::keys:

@@ -8,18 +8,18 @@
 
 namespace broker { namespace store {
 
-class result {
+class result : util::equality_comparable<result> {
 public:
 
-	// This tag indicates which value of the union is currently valid.
-	// For statuses other than success, it's arbitrarily tagged w/ exists_val.
+	// This tag indicates which value of the variant is currently valid.
+	// For status other than success, it's arbitrarily tagged w/ exists_result.
 	enum class type: uint8_t {
-		exists_val,
-		size_val,
-		value_val,
-		keys_val,
-		snapshot_val
-	} tag;
+		exists_result,
+		size_result,
+		lookup_result,
+		keys_result,
+		snapshot_result,
+	};
 
 	enum class status : uint8_t {
 		success,
@@ -27,165 +27,26 @@ public:
 		timeout
 	} stat;
 
-	union {
-		bool exists;
-		uint64_t size;
-		data val;
-		std::unordered_set<data> keys;
-		snapshot snap;
-	};
+	using result_data = util::variant<type, bool, uint64_t, data,
+	                                  std::unordered_set<data>, snapshot>;
+
+	result_data value;
 
 	result()
-	    : tag(type::exists_val), stat(status::failure), exists()
+		: stat(status::failure), value()
 		{ }
 
 	result(status s)
-		: tag(type::exists_val), stat(s), exists()
+		: stat(s), value()
 		{ }
 
-	explicit result(bool bval)
-	    : tag(type::exists_val), stat(status::success), exists(bval)
+	result(result_data rd)
+		: stat(status::success), value(std::move(rd))
 		{ }
-
-	explicit result(uint64_t sz)
-		: tag(type::size_val), stat(status::success), size(sz)
-		{ }
-
-	explicit result(data v)
-		: tag(type::value_val), stat(status::success), val(std::move(v))
-		{ }
-
-	explicit result(std::unique_ptr<data> v)
-		: tag(v ? type::value_val : type::exists_val), stat(status::success)
-		{
-		if ( tag == type::value_val )
-			new (&val) data(std::move(*v.get()));
-		else
-			new (&exists) bool(false);
-		}
-
-	explicit result(std::unordered_set<data> ks)
-		: tag(type::keys_val), stat(status::success), keys(std::move(ks))
-		{ }
-
-	explicit result(snapshot sss)
-		: tag(type::snapshot_val), stat(status::success),
-	      snap(std::move(sss))
-		{ }
-
-	result(const result& other)
-		{
-		copy(other);
-		}
-
-	result(result&& other)
-		{
-		steal(std::move(other));
-		}
-
-	result& operator=(const result& other)
-		{
-		if ( this == &other ) return *this;
-		clear();
-		copy(other);
-		return *this;
-		}
-
-	result& operator=(result&& other)
-		{
-		clear();
-		steal(std::move(other));
-		return *this;
-		}
-
-	~result()
-		{
-		clear();
-		}
-
-private:
-
-	void clear()
-		{
-		using namespace std;
-		switch ( tag ) {
-		case result::type::value_val:
-			val.~data();
-			break;
-		case result::type::keys_val:
-			keys.~unordered_set<data>();
-			break;
-		case result::type::snapshot_val:
-			snap.~snapshot();
-		default:
-			break;
-		}
-		}
-
-	void copy(const result& other)
-		{
-		tag = other.tag;
-		stat = other.stat;
-		switch ( tag ) {
-		case result::type::exists_val:
-			new (&exists) bool(other.exists);
-			break;
-		case result::type::size_val:
-			new (&size) uint64_t(other.size);
-			break;
-		case result::type::value_val:
-			new (&val) data(other.val);
-			break;
-		case result::type::keys_val:
-			new (&keys) std::unordered_set<data>(other.keys);
-			break;
-		case result::type::snapshot_val:
-			new (&snap) snapshot(other.snap);
-			break;
-		}
-		}
-
-	void steal(result&& other)
-		{
-		tag = other.tag;
-		stat = other.stat;
-		switch ( tag ) {
-		case result::type::exists_val:
-			new (&exists) bool(other.exists);
-			break;
-		case result::type::size_val:
-			new (&size) uint64_t(other.size);
-			break;
-		case result::type::value_val:
-			new (&val) data(std::move(other.val));
-			break;
-		case result::type::keys_val:
-			new (&keys) std::unordered_set<data>(std::move(other.keys));
-			break;
-		case result::type::snapshot_val:
-			new (&snap) snapshot(std::move(other.snap));
-			break;
-		}
-		}
 };
 
 inline bool operator==(const result& lhs, const result& rhs)
-    {
-	if ( lhs.tag != rhs.tag ) return false;
-	if ( lhs.stat != rhs.stat ) return false;
-	switch ( lhs.tag ) {
-	case result::type::value_val:
-		return lhs.val == rhs.val;
-	case result::type::exists_val:
-		return lhs.exists == rhs.exists;
-	case result::type::keys_val:
-		return lhs.keys == rhs.keys;
-	case result::type::size_val:
-		return lhs.size == rhs.size;
-	case result::type::snapshot_val:
-		return lhs.snap == rhs.snap;
-	}
-	}
+    { return lhs.stat == rhs.stat && lhs.value == rhs.value; }
 
 } // namespace store
 } // namespace broker

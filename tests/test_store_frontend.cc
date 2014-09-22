@@ -81,6 +81,7 @@ int main()
 	for ( const auto& msg : responses )
 		{
 		using broker::store::result;
+		using broker::util::get;
 		if ( msg.cookie == &cookies[3] )
 			{
 			BROKER_TEST(msg.reply.stat == result::status::timeout);
@@ -90,16 +91,16 @@ int main()
 		BROKER_TEST(msg.reply.stat == result::status::success);
 
 		if ( msg.cookie == &cookies[0] )
-			BROKER_TEST(msg.reply.exists == true);
+			BROKER_TEST(msg.reply.value == true);
 		else if ( msg.cookie == &cookies[1] )
-			BROKER_TEST(msg.reply.val == "two");
+			BROKER_TEST(*get<broker::data>(msg.reply.value) == "two");
 		else if ( msg.cookie == &cookies[2] )
-			BROKER_TEST(msg.reply.size == ds0.size());
+			BROKER_TEST(msg.reply.value == static_cast<uint64_t>(ds0.size()));
 		else if ( msg.cookie == &cookies[4] )
 			{
 			unordered_set<broker::data> expected;
 			for ( const auto& p : ds0 ) expected.insert(p.first);
-			BROKER_TEST(msg.reply.keys == expected);
+			BROKER_TEST(msg.reply.value == expected);
 			}
 		}
 

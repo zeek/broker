@@ -10,50 +10,40 @@ namespace broker { namespace store {
 
 class result_type_info
         : public caf::detail::abstract_uniform_type_info<result> {
+	struct serializer {
+		using result_type = void;
+
+		template <typename T>
+		result_type operator()(const T& m) const
+			{ *sink << m; }
+
+		caf::serializer* sink;
+	};
+
+	struct deserializer {
+		using result_type = void;
+
+		template <typename T>
+		result_type operator()(T& m) const
+			{ caf::uniform_typeid<T>()->deserialize(&m, source); }
+
+		caf::deserializer* source;
+	};
+
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const result*>(ptr);
-		sink->write_value(
-		      static_cast<std::underlying_type<result::type>::type>(p->tag));
-		sink->write_value(
-		      static_cast<std::underlying_type<result::status>::type>(p->stat));
 
-		switch ( p->tag ) {
-		case result::type::exists_val:
-			sink->write_value(p->exists);
-			break;
-		case result::type::size_val:
-			sink->write_value(p->size);
-			break;
-		case result::type::value_val:
-			*sink << p->val;
-			break;
-		case result::type::keys_val:
-			sink->begin_sequence(p->keys.size());
+		*sink <<
+		      static_cast<std::underlying_type<result::status>::type>(p->stat);
 
-			for ( const auto& k : p->keys )
-				*sink << k;
+		if ( p->stat != result::status::success )
+			return;
 
-			sink->end_sequence();
-			break;
-		case result::type::snapshot_val:
-			sink->begin_sequence(p->snap.datastore.size());
+		*sink << static_cast<std::underlying_type<result::type>::type>(
+		             p->value.which());
 
-			for ( const auto& elem : p->snap.datastore )
-				{
-				*sink << elem.first;
-				*sink << elem.second;
-				}
-
-			sink->end_sequence();
-			sink->begin_sequence(p->snap.sn.sequence.size());
-
-			for ( size_t i = 0; i < p->snap.sn.sequence.size(); ++i )
-				sink->write_value(p->snap.sn.sequence[i]);
-
-			sink->end_sequence();
-			break;
-		}
+		visit(serializer{sink}, p->value);
 		}
 
 	void deserialize(void* ptr, caf::deserializer* source) const override
@@ -61,9 +51,7 @@ class result_type_info
 		auto p = reinterpret_cast<result*>(ptr);
 		using tag_type = std::underlying_type<result::type>::type;
 		using status_type = std::underlying_type<result::status>::type;
-		auto tag = static_cast<result::type>(source->read<tag_type>());
 		auto stat = static_cast<result::status>(source->read<status_type>());
-		auto uti = caf::uniform_type_info::from(typeid(data));
 
 		if ( stat != result::status::success )
 			{
@@ -71,49 +59,10 @@ class result_type_info
 			return;
 			}
 
-		switch ( tag ) {
-		case result::type::exists_val:
-			*p = result(source->read<bool>());
-			break;
-		case result::type::size_val:
-			*p = result(source->read<uint64_t>());
-			break;
-		case result::type::value_val:
-			*p = result(source->read<data>(uti));
-			break;
-		case result::type::keys_val:
-			{
-			auto num = source->begin_sequence();
-			std::unordered_set<data> keys;
-
-			for ( size_t i = 0; i < num; ++i )
-				keys.insert(source->read<data>(uti));
-
-			source->end_sequence();
-			*p = result(std::move(keys));
-			break;
-			}
-		case result::type::snapshot_val:
-			{
-			auto num = source->begin_sequence();
-			std::unordered_map<data, data> dstore;
-
-			for ( size_t i = 0; i < num; ++i )
-				dstore.insert(std::make_pair(source->read<data>(uti),
-				                             source->read<data>(uti)));
-
-			source->end_sequence();
-			num = source->begin_sequence();
-			std::vector<uint64_t> sn;
-
-			for ( size_t i = 0; i < num; ++i )
-				sn.push_back(source->read<uint64_t>());
-
-			*p = result(snapshot{std::move(dstore),
-			                     sequence_num(std::move(sn))});
-			break;
-			}
-		}
+		auto tag = static_cast<result::type>(source->read<tag_type>());
+		auto rd = result::result_data::make(tag);
+		visit(deserializer{source}, rd);
+		*p = result(std::move(rd));
 		}
 };
 

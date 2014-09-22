@@ -99,10 +99,12 @@ std::unique_ptr<data> lookup(const T& f, data k)
 	if ( r.stat != result::status::success )
 		return {};
 
-	if ( r.tag != result::type::value_val )
-		return {};
+	auto p = util::get<data>(r.value);
 
-	return std::unique_ptr<data>(new data(std::move(r.val)));
+	if ( p )
+		return std::unique_ptr<data>(new data(std::move(*p)));
+
+	return {};
 	}
 
 template <typename T>
@@ -113,7 +115,7 @@ bool exists(const T& f, data k)
 	if ( r.stat != result::status::success )
 		return false;
 
-	return r.exists;
+	return *util::get<bool>(r.value);
 	}
 
 template <typename T>
@@ -124,7 +126,7 @@ std::unordered_set<data> keys(const T& f)
 	if ( r.stat != result::status::success )
 		return {};
 
-	return std::move(r.keys);
+	return *util::get<std::unordered_set<data>>(r.value);
 	}
 
 template <typename T>
@@ -135,7 +137,7 @@ uint64_t size(const T& f)
 	if ( r.stat != result::status::success )
 		return 0;
 
-	return r.size;
+	return *util::get<uint64_t>(r.value);
 	}
 
 } // namespace store
