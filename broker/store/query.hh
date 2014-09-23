@@ -30,11 +30,9 @@ public:
 		switch ( tag ) {
 		case type::lookup:
 			{
-			auto r = s.lookup(k);
-			if ( r )
-				return result(std::move(*r.get()));
-			else
-				return result(false);
+			if ( auto r = s.lookup(k) )
+				return result(std::move(*r));
+			return result(false);
 			}
 		case type::exists:
 			return result(s.exists(k));

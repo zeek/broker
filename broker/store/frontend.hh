@@ -3,6 +3,7 @@
 
 #include <broker/data.hh>
 #include <broker/store/response_queue.hh>
+#include <broker/util/optional.hh>
 #include <broker/endpoint.hh>
 #include <string>
 #include <chrono>
@@ -92,7 +93,7 @@ private:
 };
 
 template <typename T>
-std::unique_ptr<data> lookup(const T& f, data k)
+util::optional<data> lookup(const T& f, data k)
 	{
 	result r = f.lookup(std::move(k));
 
@@ -102,7 +103,7 @@ std::unique_ptr<data> lookup(const T& f, data k)
 	auto p = util::get<data>(r.value);
 
 	if ( p )
-		return std::unique_ptr<data>(new data(std::move(*p)));
+		return std::move(*p);
 
 	return {};
 	}

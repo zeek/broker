@@ -4,6 +4,7 @@
 #include <broker/data.hh>
 #include <broker/store/sequence_num.hh>
 #include <broker/store/snapshot.hh>
+#include <broker/util/optional.hh>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -30,7 +31,7 @@ public:
 	void clear()
 		{ ++sn; do_clear(); }
 
-	std::unique_ptr<data> lookup(const data& k) const
+	util::optional<data> lookup(const data& k) const
 		{ return do_lookup(k); }
 
 	bool exists(const data& k) const
@@ -53,7 +54,7 @@ private:
 
 	virtual void do_clear() = 0;
 
-	virtual std::unique_ptr<data> do_lookup(const data& k) const = 0;
+	virtual util::optional<data> do_lookup(const data& k) const = 0;
 
 	virtual bool do_exists(const data& k) const = 0;
 

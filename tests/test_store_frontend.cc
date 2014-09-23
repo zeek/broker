@@ -19,7 +19,7 @@ bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	for ( const auto& key : broker::store::keys(store) )
 		{
 		auto val = broker::store::lookup(store, key);
-		if ( val ) actual.insert(make_pair(key, *val.get()));
+		if ( val ) actual.insert(make_pair(key, move(*val)));
 		}
 
 	return actual == ds;

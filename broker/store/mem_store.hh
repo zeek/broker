@@ -23,9 +23,9 @@ private:
 	void do_clear() override
 		{ datastore.clear(); }
 
-	std::unique_ptr<data> do_lookup(const data& k) const override
+	util::optional<data> do_lookup(const data& k) const override
 		{
-		try { return std::unique_ptr<data>(new data(datastore.at(k))); }
+		try { return datastore.at(k); }
 		catch ( const std::out_of_range& ) { return {}; }
 		}
 
