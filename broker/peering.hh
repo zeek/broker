@@ -64,19 +64,28 @@ public:
 	const std::pair<std::string, uint16_t>& remote_tuple() const;
 
 	/**
+	 * A possible return value from @see peering::handshake().
+	 */
+	enum class handshake_status: uint8_t {
+		success,
+		timeout,
+		invalid, // incompatible peer
+	};
+
+	/**
 	 * Blocks until a handshake between the two peer endpoints completes.
 	 * The handshake involves the endpoints exchanging the topics to which
 	 * they are currently subscribed.  If a handshake is not performed, a
 	 * message sent to a local endpoint may not be forwarded to a peer that has
 	 * just connected because the subscriptions have not yet been exchanged.
 	 */
-	void handshake() const;
+	handshake_status handshake() const;
 
 	/**
 	 * Waits until a handshake between the two peer endpoints complete or
 	 * a given timeout duration has been reached.  @see peering::handshake().
 	 */
-	bool handshake(std::chrono::duration<double> timeout) const;
+	handshake_status handshake(std::chrono::duration<double> timeout) const;
 
 	/**
 	 * False if the peering is not yet initialized, else true.

@@ -74,7 +74,8 @@ broker::peering broker::endpoint::peer(const endpoint& e)
 	              new peering::impl(pimpl->actor, e.pimpl->actor)));
 
 	if ( pimpl->peers.insert(p).second )
-		caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor);
+		caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor,
+		               BROKER_PROTOCOL_VERSION);
 
 	return p;
 	}
@@ -95,7 +96,10 @@ bool broker::endpoint::unpeer(broker::peering p)
 		// The proxy actor initiates unpeer messages.
 		caf::anon_send(p.pimpl->peer_actor, caf::atom("quit"));
 	else
+		{
 		caf::anon_send(pimpl->actor, caf::atom("unpeer"), p.pimpl->peer_actor);
+		caf::anon_send(p.pimpl->peer_actor, caf::atom("unpeer"), pimpl->actor);
+		}
 
 	return true;
 	}

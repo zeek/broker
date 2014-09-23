@@ -12,6 +12,12 @@ extern "C" {
 #define BROKER_VERSION_MINOR 1
 #define BROKER_VERSION_PATCH 0
 
+/**
+ * The version of the broker messaging protocol.  Endpoints can only
+ * exchange messages if they use the same version.
+ */
+const int BROKER_PROTOCOL_VERSION = 0;
+
 int broker_init(int flags);
 
 void broker_done();

@@ -16,6 +16,11 @@
 
 namespace broker {
 
+struct incompatible_endpoint {
+	caf::actor actor;
+	int version;
+};
+
 class endpoint_actor : public caf::sb_actor<endpoint_actor> {
 friend class caf::sb_actor<endpoint_actor>;
 
@@ -28,8 +33,15 @@ public:
 		using namespace broker::store;
 
 		active = (
-		on(atom("peer"), arg_match) >> [=](actor& p)
+		on(atom("peer"), arg_match) >> [=](actor& p, int protocol_version)
 			{
+			if ( protocol_version != BROKER_PROTOCOL_VERSION )
+				{
+				send(p, atom("peer"), this, BROKER_PROTOCOL_VERSION);
+				add_incompatible_peer(move(p), protocol_version);
+				return;
+				}
+
 			sync_send(p, atom("peer"), this, local_subs.topics()).then(
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
@@ -49,7 +61,13 @@ public:
 			{
 			if ( peers.find(p.address()) != peers.end() )
 				{
-				send(observer, atom("done"));
+				send(observer, true, BROKER_PROTOCOL_VERSION);
+				return;
+				}
+
+			if ( incompatible.find(p.address()) != incompatible.end() )
+				{
+				send(observer, false, incompatible[p.address()].version);
 				return;
 				}
 
@@ -61,18 +79,23 @@ public:
 		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
 			demonitor(p);
+
+			if ( incompatible.erase(p.address()) )
+				return;
+
 			peers.erase(p.address());
 			peer_subs.rem_subscriber(p.address());
-
-			if ( p.address() != last_sender() )
-				send(p, atom("unpeer"), this);
 			},
 		on_arg_match >> [=](const down_msg& d)
 			{
+			demonitor(d.source);
+
 			if ( remove_observer(d.source) )
 				return;
 
-			demonitor(d.source);
+			if ( incompatible.erase(d.source) )
+				return;
+
 			peers.erase(d.source);
 			peer_subs.rem_subscriber(d.source);
 			subscriptions unsubs = local_subs.rem_subscriber(d.source);
@@ -117,13 +140,23 @@ public:
 
 private:
 
+	void add_incompatible_peer(caf::actor p, int protocol_version)
+		{
+		demonitor(p);
+		monitor(p);
+		incompatible[p.address()] = incompatible_endpoint{p, protocol_version};
+		auto msg =caf::make_message(false, protocol_version);
+		check_pending_handshakes(std::move(p), std::move(msg));
+		}
+
 	void add_peer(caf::actor p, subscriptions t)
 		{
 		demonitor(p);
 		monitor(p);
 		peers[p.address()] = p;
 		peer_subs.add_subscriber(subscriber{std::move(t), p});
-		check_pending_handshakes(std::move(p));
+		auto msg = caf::make_message(true, BROKER_PROTOCOL_VERSION);
+		check_pending_handshakes(std::move(p), std::move(msg));
 		}
 
 	bool remove_observer(const caf::actor_addr& o)
@@ -146,7 +179,7 @@ private:
 		return true;
 		}
 
-	void check_pending_handshakes(caf::actor p)
+	void check_pending_handshakes(caf::actor p, caf::message msg)
 		{
 		auto it = hs_pending.find(p);
 
@@ -154,7 +187,7 @@ private:
 			{
 			for ( auto& o : it->second )
 				{
-				send(o, caf::atom("done"));
+				send_tuple(o, msg);
 				demonitor(o);
 				hs_observers.erase(o.address());
 				}
@@ -194,6 +227,7 @@ private:
 	caf::behavior& init_state = active;
 
 	actor_map peers;
+	std::unordered_map<caf::actor_addr, incompatible_endpoint> incompatible;
 	actor_map hs_observers;
 	std::unordered_map<caf::actor, std::unordered_set<caf::actor>> hs_pending;
 	subscriber_base local_subs;
@@ -242,11 +276,13 @@ public:
 		connected = (
 		on_arg_match >> [=](const exit_msg& e)
 			{
+			send(remote, atom("unpeer"), local);
 			send(local, atom("unpeer"), remote);
 			quit();
 			},
 		on(atom("quit")) >> [=]
 			{
+			send(remote, atom("unpeer"), local);
 			send(local, atom("unpeer"), remote);
 			quit();
 			},
@@ -296,7 +332,7 @@ private:
 
 		monitor(remote);
 		become(connected);
-		send(local, atom("peer"), remote);
+		send(remote, atom("peer"), local, BROKER_PROTOCOL_VERSION);
 		return true;
 		}
 
