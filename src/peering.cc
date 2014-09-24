@@ -1,4 +1,5 @@
 #include "peering_impl.hh"
+#include "broker/util/hash.hh"
 #include <caf/scoped_actor.hpp>
 
 broker::peering::peering()
@@ -92,14 +93,10 @@ broker::peering::handshake(std::chrono::duration<double> timeout) const
 bool broker::peering::operator==(const peering& rhs) const
 	{ return pimpl == rhs.pimpl; }
 
-template <typename T>
-static inline void hash_combine(size_t& seed, const T& v)
-	{ seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed<<6) + (seed>>2); }
-
 size_t std::hash<broker::peering>::operator()(const broker::peering& p) const
 	{
 	size_t rval = 0;
-	hash_combine(rval, p.pimpl->endpoint_actor);
-	hash_combine(rval, p.pimpl->peer_actor);
+	broker::util::hash_combine(rval, p.pimpl->endpoint_actor);
+	broker::util::hash_combine(rval, p.pimpl->peer_actor);
 	return rval;
 	}

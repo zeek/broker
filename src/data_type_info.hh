@@ -32,17 +32,15 @@ class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const data*>(ptr);
-		sink->write_value(
-		      static_cast<std::underlying_type<data::tag>::type>(p->which()));
+		*sink << which(*p);
 		visit(serializer{sink}, *p);
 		}
 
 	void deserialize(void* ptr, caf::deserializer* source) const override
 		{
 		auto p = reinterpret_cast<data*>(ptr);
-		using tag_type = std::underlying_type<data::tag>::type;
-		auto tag = static_cast<data::tag>(source->read<tag_type>());
-		*p = data::make(tag);
+		auto tag = source->read<data::tag>(caf::uniform_typeid<data::tag>());
+		p->value = data::value_type::make(tag);
 		visit(deserializer{source}, *p);
 		}
 };

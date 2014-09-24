@@ -10,6 +10,10 @@ namespace util {
 template <bool B, class T = void>
 using enable_if_t = typename std::enable_if<B, T>::type;
 
+// std::conditional_t shortcut from C++14.
+template <bool B, class T, class F>
+using conditional_t = typename std::conditional<B, T, F>::type;
+
 // std::remove_reference_t shortcut from C++14.
 template <class T>
 using remove_reference_t = typename std::remove_reference<T>::type;

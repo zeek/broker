@@ -652,6 +652,25 @@ apply_visitor(Visitor&& visitor, V&& v, Vs&&... vs)
 	}
 
 /**
+ * Allows variants to conform to the variant concept.  Other data types that
+ * provide an extended interface around a variant member may provide overloads
+ * of the const and non-const version of this expose function that return the
+ * variant member in order to enable @see broker::util::visit(),
+ * @see broker::util::get(), @see broker::util::is(), and
+ * @see broker::util::which().
+ */
+template <typename Tag, typename... Ts>
+variant<Tag, Ts...>& expose(variant<Tag, Ts...>& v)
+	{ return v; }
+
+/**
+ * const version of @see broker::util::expose().
+ */
+template <typename Tag, typename... Ts>
+const variant<Tag, Ts...>& expose(const variant<Tag, Ts...>& v)
+	{ return v; }
+
+/**
  * Applies an operation to active member of a variant by calling approprate
  * version of apply_visitor().
  * @return the result of applying the visitation operation to the active member
@@ -660,7 +679,7 @@ apply_visitor(Visitor&& visitor, V&& v, Vs&&... vs)
 template <typename Visitor, typename... Vs>
 typename remove_reference_t<Visitor>::result_type
 visit(Visitor&& v, Vs&&... vs)
-	{ return apply_visitor(std::forward<Visitor>(v), vs...); }
+	{ return apply_visitor(std::forward<Visitor>(v), expose(vs)...); }
 
 /**
  * @tparam T a type within the variant to retrieve.
@@ -670,17 +689,14 @@ visit(Visitor&& v, Vs&&... vs)
  */
 template <typename T, typename Visitable>
 T* get(Visitable& v)
-	{ return apply_visitor(detail::getter<T>{}, v); }
+	{ return apply_visitor(detail::getter<T>{}, expose(v)); }
 
 /**
- * @tparam T a type within the variant to retrieve.
- * @param v a variant from which to retrieve an active member.
- * @return a pointer to the variant member of type T if it is the active type
- * of the variant, else a null pointer.
+ * const version of @see broker::util::get()
  */
 template <typename T, typename Visitable>
 const T* get(const Visitable& v)
-	{ return apply_visitor(detail::getter<const T>{}, v); }
+	{ return apply_visitor(detail::getter<const T>{}, expose(v)); }
 
 /**
  * @tparam T a type within the variant to check for active status.
@@ -692,13 +708,28 @@ template <typename T, typename Visitable>
 bool is(const Visitable& v)
 	{ return get<T>(v) != nullptr; }
 
+/**
+ * @param v a variant to query for its active tag.
+ * @return the tag of the currently active member of the variant.
+ */
+template <typename V>
+typename V::tag which(const V& v)
+	{ return expose(v).which(); }
+
 } // namespace util
+
+// Use these via ADL in broker namespace.
+using util::visit;
+using util::get;
+using util::is;
+using util::which;
+
 } // namespace broker
 
 namespace std {
 template <typename Tag, typename... Ts>
 struct hash<broker::util::variant<Tag, Ts...>> {
-	size_t operator()(const broker::util::variant<Tag, Ts...>& v) const
+	inline size_t operator()(const broker::util::variant<Tag, Ts...>& v) const
 		{ return broker::util::visit(broker::util::detail::hasher{}, v); }
 };
 }

@@ -37,9 +37,12 @@ int main()
 	broker::endpoint node("node0");
 	broker::store::master m(node, "mystore");
 
-	dataset ds0 = { make_pair("1", "one"),
-	                make_pair("2", "two"),
-	                make_pair(3, "three") };
+	broker::table blue_pill{make_pair("1", "one"),
+	                        make_pair("2", "two"),
+	                        make_pair(3, "three")};
+	dataset ds0;
+	for ( const auto& p : blue_pill ) ds0.insert(p);
+	ds0.insert(make_pair(blue_pill, "why?"));
 	for ( const auto& p : ds0 ) m.insert(p.first, p.second);
 
 	broker::store::frontend f(node, "mystore");
@@ -60,6 +63,7 @@ int main()
 	BROKER_TEST(compare_contents(f, ds0));
 	BROKER_TEST(broker::store::size(f) == ds0.size());
 	BROKER_TEST(*broker::store::lookup(f, 3) == "three");
+	BROKER_TEST(*broker::store::lookup(f, blue_pill) == "why?");
 
 	pollfd pfd{f.responses().fd(), POLLIN, 0};
 	vector<string> cookies { "exists", "lookup", "size", "timeout", "keys" };

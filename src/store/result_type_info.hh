@@ -33,25 +33,20 @@ class result_type_info
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const result*>(ptr);
-
-		*sink <<
-		      static_cast<std::underlying_type<result::status>::type>(p->stat);
+		*sink << p->stat;
 
 		if ( p->stat != result::status::success )
 			return;
 
-		*sink << static_cast<std::underlying_type<result::type>::type>(
-		             p->value.which());
-
+		*sink << p->value.which();
 		visit(serializer{sink}, p->value);
 		}
 
 	void deserialize(void* ptr, caf::deserializer* source) const override
 		{
 		auto p = reinterpret_cast<result*>(ptr);
-		using tag_type = std::underlying_type<result::type>::type;
-		using status_type = std::underlying_type<result::status>::type;
-		auto stat = static_cast<result::status>(source->read<status_type>());
+		auto stat = source->read<result::status>(
+		                caf::uniform_typeid<result::status>());
 
 		if ( stat != result::status::success )
 			{
@@ -59,7 +54,8 @@ class result_type_info
 			return;
 			}
 
-		auto tag = static_cast<result::type>(source->read<tag_type>());
+		auto tag = source->read<result::type>(
+		               caf::uniform_typeid<result::type>());
 		auto rd = result::result_data::make(tag);
 		visit(deserializer{source}, rd);
 		*p = result(std::move(rd));

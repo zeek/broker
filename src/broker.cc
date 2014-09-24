@@ -16,7 +16,6 @@ int broker::init(int flags)
 	using caf::announce;
 	using namespace std;
 	using namespace broker::store;
-	announce<data_type>();
 	announce<subscription_type>();
 	announce<subscription>(&subscription::type, &subscription::topic);
 	announce(typeid(subscriptions),
@@ -24,6 +23,7 @@ int broker::init(int flags)
 	announce<subscriber>(&subscriber::first, &subscriber::second);
 	announce<sequence_num>(&sequence_num::sequence);
 	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
+	announce<data::tag>();
 	announce(typeid(data),
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
 	announce<std::unordered_set<data>>();
