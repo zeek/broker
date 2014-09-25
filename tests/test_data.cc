@@ -1,6 +1,5 @@
 #include "broker/data.hh"
 #include "testsuite.hh"
-#include <iostream>
 
 using namespace std;
 using namespace broker;
@@ -35,13 +34,13 @@ int main()
 
 	BROKER_TEST(protip == "to defeat the cyberdemon shoot at it until it dies");
 
-	field f0("f0", data(1.1));
-	field f1("f1");
-	field f2("f2", data(3));
-	field f1_dup("f1");
-	field f1_diff("f1", data("hi"));
-	field f2_dup("f2", data(3));
-	field f2_diff("f2", data(false));
+	record::field f0(1.1);
+	record::field f1;
+	record::field f2(3);
+	record::field f1_dup = f1;
+	record::field f1_diff("hi");
+	record::field f2_dup = f2;
+	record::field f2_diff(false);
 
 	BROKER_TEST(f0 != f1);
 	BROKER_TEST(f0 != f2);
@@ -49,26 +48,22 @@ int main()
 	BROKER_TEST(f1 != f1_diff);
 	BROKER_TEST(f2 == f2_dup);
 	BROKER_TEST(f2 != f2_diff);
-	BROKER_TEST(f1.name == "f1");
-	BROKER_TEST(! f1.val);
-	BROKER_TEST(f2.name == "f2");
-	BROKER_TEST(f2.val && *f2.val == 3);
+	BROKER_TEST(! f1);
 
-	broker::record r1({field("a", data("ddd")), field("b", data(333))});
-	BROKER_TEST(r1.size() == 2);
+	broker::record r1({record::field(data("ddd")),
+	                   record::field(),
+	                   record::field(data(333))});
+	BROKER_TEST(r1.size() == 3);
 	broker::record r2 = r1;
-	BROKER_TEST(r1.size() == r2.size() && r1.size() == 2);
+	BROKER_TEST(r1.size() == r2.size() && r1.size() == 3);
 	BROKER_TEST(r1 == r2);
 	r2 = broker::record({f0, f1, f2});
 	BROKER_TEST(r2.size() == 3);
 	BROKER_TEST(r1 != r2);
 	broker::record r3({f0, f1, f2_dup});
 	BROKER_TEST(r2 == r3);
-	BROKER_TEST(r3.at(1)->name == "f1");
-	BROKER_TEST(! r3.at(1)->val);
-	BROKER_TEST(! r3.at("f1")->val);
-	BROKER_TEST(r3.at(2)->val && *r3.at(2)->val == 3);
-	BROKER_TEST(r3.at("f2") && *r3.at("f2")->val == 3);
+	BROKER_TEST(! r3.get(1));
+	BROKER_TEST(r3.get(2) && *r3.get(2) == 3);
 
 	return BROKER_TEST_RESULT();
 	}

@@ -17,40 +17,35 @@ using set = std::set<data>;
 using vector = std::vector<data>;
 using table = std::map<data, data>;
 
-class field;
-
 class record : util::totally_ordered<record> {
 public:
+
+	using field = util::optional<data>;
 
 	/**
 	 * Default construct an empty record.
 	 */
-	record() : fields() {}
+	record();
 
 	/**
 	 * Construct a record from a list of fields.
 	 */
-	record(std::vector<field> arg_fields) : fields(std::move(arg_fields)) {}
+	record(std::vector<field> arg_fields);
 
 	/**
 	 * @return the number of fields in the record.
 	 */
-	size_t size() const
-		{ return fields.size(); }
+	size_t size() const;
 
 	/**
-	 * @return a reference to first field with a given name, if it exists.
+	 * @return a const reference to a field at a given offset, if it exists.
 	 */
-	util::optional<field&> at(const std::string& name);
+	util::optional<const data&> get(size_t index) const;
 
 	/**
 	 * @return a reference to a field at a given offset, if it exists.
 	 */
-	util::optional<field&> at(size_t index)
-		{
-		if ( index >= fields.size() ) return {};
-		return fields[index];
-		}
+	util::optional<data&> get(size_t index);
 
 	std::vector<field> fields;
 };
@@ -145,25 +140,29 @@ public:
 	value_type value;
 };
 
-class field : util::totally_ordered<field> {
-public:
+inline record::record()
+	: fields()
+	{}
 
-	field()
-		: name(), val()
-		{}
+inline record::record(std::vector<field> arg_fields)
+	: fields(std::move(arg_fields))
+	{}
 
-	field(std::string arg_name, util::optional<data> arg_val = {})
-		: name(std::move(arg_name)), val(std::move(arg_val))
-		{}
+inline size_t record::size() const
+	{ return fields.size(); }
 
-	std::string name;
-	util::optional<data> val;
-};
-
-inline util::optional<field&> record::at(const std::string& name)
+inline util::optional<const data&> record::get(size_t index) const
 	{
-	for ( auto& f : fields ) if ( f.name == name ) return f;
-	return {};
+	if ( index >= fields.size() ) return {};
+	if ( ! fields[index] ) return {};
+	return *fields[index];
+	}
+
+inline util::optional<data&> record::get(size_t index)
+	{
+	if ( index >= fields.size() ) return {};
+	if ( ! fields[index] ) return {};
+	return *fields[index];
 	}
 
 inline bool operator==(const record& lhs, const record& rhs)
@@ -183,13 +182,6 @@ inline bool operator==(const data& lhs, const data& rhs)
 
 inline bool operator<(const data& lhs, const data& rhs)
 	{ return lhs.value < rhs.value; }
-
-inline bool operator==(const field& lhs, const field& rhs)
-	{ return lhs.name == rhs.name && lhs.val == rhs.val; }
-
-inline bool operator<(const field& lhs, const field& rhs)
-	{ return lhs.name < rhs.name || ( ! (rhs.name < lhs.name) &&
-	                                  lhs.val < rhs.val ); }
 
 } // namespace broker
 
@@ -218,17 +210,6 @@ template <> struct hash<broker::table::value_type> {
 };
 template <> struct hash<broker::table> :
                    broker::util::container_hasher<broker::table> { };
-template <> struct hash<broker::field> {
-	using result_type = size_t;
-	using argument_type = broker::field;
-	inline result_type operator()(const argument_type& d) const
-		{
-		result_type rval{};
-		broker::util::hash_combine<decltype(d.name)>(rval, d.name);
-		broker::util::hash_combine<decltype(d.val)>(rval, d.val);
-		return rval;
-		}
-};
 template <> struct hash<broker::record> {
 	using result_type =
 	      typename broker::util::container_hasher<

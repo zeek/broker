@@ -24,10 +24,9 @@ int broker::init(int flags)
 	announce<sequence_num>(&sequence_num::sequence);
 	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
 	announce<data::tag>();
+	announce<record>(&record::fields);
 	announce(typeid(util::optional<data>),
 	         unique_ptr<caf::uniform_type_info>(new optional_data_type_info));
-	announce<field>(&field::name, &field::val);
-	announce<record>(&record::fields);
 	announce(typeid(data),
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
 	announce<std::unordered_set<data>>();

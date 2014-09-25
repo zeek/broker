@@ -50,13 +50,13 @@ int main(int argc, char** argv)
 	broker::endpoint server("server");
 	broker::store::master master(server, "mystore");
 
-	broker::record myrecord({broker::field("a", broker::data("ddd")),
-	                         broker::field("b"),
-	                         broker::field("c", broker::data(333))});
+	broker::record myrecord({broker::record::field(broker::data("ddd")),
+	                         broker::record::field(),
+	                         broker::record::field(broker::data(333))});
 	broker::table blue_pill{make_pair("1", "one"),
 	                        make_pair("2", "two"),
 	                        make_pair(3, "three"),
-		                    make_pair("myrecord", myrecord)};
+	                        make_pair("myrecord", myrecord)};
 	dataset ds0;
 	for ( const auto& p : blue_pill ) ds0.insert(p);
 	ds0.insert(make_pair(blue_pill, "why?"));
