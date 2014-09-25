@@ -9,6 +9,7 @@
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/actor_ostream.hpp>
 
 namespace broker { namespace store {

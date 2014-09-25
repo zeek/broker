@@ -10,6 +10,7 @@
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 #include <caf/sb_actor.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/io/remote_actor.hpp>
 #include <unordered_set>
 #include <string>
