@@ -729,7 +729,10 @@ using util::which;
 namespace std {
 template <typename Tag, typename... Ts>
 struct hash<broker::util::variant<Tag, Ts...>> {
-	inline size_t operator()(const broker::util::variant<Tag, Ts...>& v) const
+	using result_type = broker::util::detail::hasher::result_type;
+	using argument_type = broker::util::variant<Tag, Ts...>;
+
+	inline result_type operator()(const argument_type& v) const
 		{ return broker::util::visit(broker::util::detail::hasher{}, v); }
 };
 }

@@ -50,9 +50,17 @@ int main(int argc, char** argv)
 	broker::endpoint server("server");
 	broker::store::master master(server, "mystore");
 
-	dataset ds0 = { make_pair("1", "one"),
-	                make_pair("2", "two"),
-	                make_pair("3", "three") };
+	broker::record myrecord({broker::field("a", broker::data("ddd")),
+	                         broker::field("b"),
+	                         broker::field("c", broker::data(333))});
+	broker::table blue_pill{make_pair("1", "one"),
+	                        make_pair("2", "two"),
+	                        make_pair(3, "three"),
+		                    make_pair("myrecord", myrecord)};
+	dataset ds0;
+	for ( const auto& p : blue_pill ) ds0.insert(p);
+	ds0.insert(make_pair(blue_pill, "why?"));
+	ds0.insert(make_pair("myrecord", myrecord));
 	for ( const auto& p : ds0 ) master.insert(p.first, p.second);
 
 	BROKER_TEST(compare_contents(master, ds0));
@@ -76,6 +84,9 @@ int main(int argc, char** argv)
 
 	master.insert("5", "five");
 	BROKER_TEST(*broker::store::lookup(master, "5") == "five");
+	BROKER_TEST(*broker::store::lookup(frontend, blue_pill) == "why?");
+	auto myrec = *broker::store::lookup(frontend, "myrecord");
+	BROKER_TEST(myrec == myrecord);
 	BROKER_TEST(compare_contents(frontend, master));
 	BROKER_TEST(compare_contents(clone, master));
 

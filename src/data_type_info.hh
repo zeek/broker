@@ -9,6 +9,8 @@
 namespace broker {
 
 class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
+public:
+
 	struct serializer {
 		using result_type = void;
 
@@ -42,6 +44,33 @@ class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
 		auto tag = source->read<data::tag>(caf::uniform_typeid<data::tag>());
 		p->value = data::value_type::make(tag);
 		visit(deserializer{source}, *p);
+		}
+};
+
+class optional_data_type_info :
+      public caf::detail::abstract_uniform_type_info<util::optional<data>> {
+
+	void serialize(const void* ptr, caf::serializer* sink) const override
+		{
+		auto p = reinterpret_cast<const util::optional<data>*>(ptr);
+		*sink << p->valid();
+
+		if ( p->valid() )
+			*sink << p->get();
+		}
+
+	void deserialize(void* ptr, caf::deserializer* source) const override
+		{
+		auto p = reinterpret_cast<util::optional<data>*>(ptr);
+		auto have = source->read<bool>();
+
+		if ( have )
+			{
+			*p = data{};
+			caf::uniform_typeid<data>()->deserialize(&p->get(), source);
+			}
+		else
+			*p = util::none;
 		}
 };
 

@@ -34,7 +34,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <new>
 #include <utility>
 #include <cassert>
+#include <functional>
 #include <broker/util/none.hh>
+#include <broker/util/operators.hh>
 
 namespace broker {
 namespace util {
@@ -43,7 +45,16 @@ namespace util {
  * Represents an optional value of `T`.
  */
 template <class T>
-class optional {
+class optional : totally_ordered<optional<T>>,
+                 totally_ordered<optional<T>, none_type>,
+                 totally_ordered<none_type, optional<T>>,
+                 totally_ordered<optional<T>, T>,
+                 totally_ordered<T, optional<T>>,
+                 totally_ordered<optional<T&>, T>,
+                 totally_ordered<T, optional<T&>>,
+                 totally_ordered<optional<const T&>, T>,
+                 totally_ordered<T, optional<const T&>>
+{
 public:
 
 	/**
@@ -59,7 +70,7 @@ public:
 		{ }
 
 	/**
-	  * Creates an valid instance from `value`.
+	  * Creates an valid instance from `arg_value`.
 	  */
 	optional(T arg_value)
 		: is_valid(false)
@@ -312,63 +323,102 @@ private:
 	T* value;
 };
 
-/** @relates optional */
-template <class T, typename U>
-bool operator==(const optional<T>& lhs, const optional<U>& rhs)
-	{
-	if ( (lhs) && (rhs) ) return *lhs == *rhs;
-	return false;
-	}
+// Relational operators
+template <typename T>
+constexpr bool operator==(const optional<T>& x, const optional<T>& y)
+	{ return bool(x) != bool(y) ? false : bool(x) == false ? true : *x == *y; }
 
-/** @relates optional */
-template <class T, typename U>
-bool operator==(const optional<T>& lhs, const U& rhs)
-	{
-	if ( lhs ) return *lhs == rhs;
-	return false;
-	}
+template <typename T>
+constexpr bool operator<(const optional<T>& x, const optional<T>& y)
+	{ return (!y) ? false : (!x) ? true : *x < *y; }
 
-/** @relates optional */
-template <class T, typename U>
-bool operator==(const T& lhs, const optional<U>& rhs)
-	{ return rhs == lhs; }
-
-/** @relates optional */
-template <class T, typename U>
-bool operator!=(const optional<T>& lhs, const optional<U>& rhs)
-	{ return ! (lhs == rhs); }
-
-/** @relates optional */
-template <class T, typename U>
-bool operator!=(const optional<T>& lhs, const U& rhs)
-	{ return ! (lhs == rhs); }
-
-/** @relates optional */
-template <class T, typename U>
-bool operator!=(const T& lhs, const optional<U>& rhs)
-	{ return ! (lhs == rhs); }
-
-/** @relates optional */
+// Comparison with none
 template <class T>
-bool operator==(const optional<T>& val, const none_type&)
-	{ return val.valid(); }
-
-/** @relates optional */
+constexpr bool operator==(const optional<T>& x, const none_type&) noexcept
+	{ return (!x); }
 template <class T>
-bool operator==(const none_type&, const optional<T>& val)
-	{ return val.valid(); }
+constexpr bool operator==(const none_type&, const optional<T>& x) noexcept
+	{ return (!x); }
 
-/** @relates optional */
 template <class T>
-bool operator!=(const optional<T>& val, const none_type&)
-	{ return ! val.valid(); }
+constexpr bool operator<(const optional<T>&, const none_type&) noexcept
+	{ return false; }
+template <class T>
+constexpr bool operator<(const none_type&, const optional<T>& x) noexcept
+	{ return bool(x); }
 
-/** @relates optional */
+// Comparison with T
 template <class T>
-bool operator!=(const none_type&, const optional<T>& val)
-	{ return ! val.valid(); }
+constexpr bool operator==(const optional<T>& x, const T& v)
+	{ return bool(x) ? *x == v : false; }
+template <class T>
+constexpr bool operator==(const T& v, const optional<T>& x)
+	{ return bool(x) ? v == *x : false; }
+
+template <class T>
+constexpr bool operator<(const optional<T>& x, const T& v)
+	{ return bool(x) ? *x < v : true; }
+template <class T>
+constexpr bool operator<(const T& v, const optional<T>& x)
+	{ return bool(x) ? v < *x : false; }
+
+// Comparison of optional<T&> with T
+template <class T>
+constexpr bool operator==(const optional<T&>& x, const T& v)
+	{ return bool(x) ? *x == v : false; }
+template <class T>
+constexpr bool operator==(const T& v, const optional<T&>& x)
+	{ return bool(x) ? v == *x : false; }
+
+template <class T>
+constexpr bool operator<(const optional<T&>& x, const T& v)
+	{ return bool(x) ? *x < v : true; }
+template <class T>
+constexpr bool operator<(const T& v, const optional<T&>& x)
+	{ return bool(x) ? v < *x : false; }
+
+// Comparison of optional<const T&> with T
+template <class T>
+constexpr bool operator==(const optional<const T&>& x, const T& v)
+	{ return bool(x) ? *x == v : false; }
+template <class T>
+constexpr bool operator==(const T& v, const optional<const T&>& x)
+	{ return bool(x) ? v == *x : false; }
+
+template <class T>
+constexpr bool operator<(const optional<const T&>& x, const T& v)
+	{ return bool(x) ? *x < v : true; }
+template <class T>
+constexpr bool operator<(const T& v, const optional<const T&>& x)
+	{ return bool(x) ? v < *x : false; }
 
 } // namespace util
 } // namespace broker
+
+namespace std {
+template <typename T>
+struct hash<broker::util::optional<T>> {
+	using result_type = typename hash<T>::result_type;
+	using argument_type = broker::util::optional<T>;
+
+	inline result_type operator()(const argument_type& arg) const
+		{
+		if ( arg ) return std::hash<T>{}(*arg);
+		return result_type{};
+		}
+};
+
+template <typename T>
+struct hash<broker::util::optional<T&>> {
+	using result_type = typename hash<T>::result_type;
+	using argument_type = broker::util::optional<T&>;
+
+	inline result_type operator()(const argument_type& arg) const
+		{
+		if ( arg ) return std::hash<T>{}(*arg);
+		return result_type{};
+		}
+};
+}
 
 #endif // BROKER_UTIL_OPTIONAL_HH

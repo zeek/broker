@@ -12,11 +12,13 @@ static inline void hash_combine(size_t& seed, const T& v)
 
 template <typename C>
 struct container_hasher {
-	typedef typename C::value_type value_type;
+	using value_type = typename C::value_type;
+	using result_type = typename std::hash<value_type>::result_type;
+	using argument_type = C;
 
-	inline size_t operator()(const C& c) const
+	inline result_type operator()(const argument_type& c) const
 		{
-		size_t rval = 0;
+		result_type rval{};
 		for ( const auto& e : c )
 			hash_combine<value_type>(rval, e);
 		return rval;
