@@ -6,30 +6,15 @@
 namespace broker {
 
 /**
- * Initialize the broker library.  This should be called once before using
- * anything else that's provided by the library.
- * @param flags tune behavior of the library.  No flags exist yet.
- * @return 0 if library is initialized, else an error code that can
- *         be supplied to broker::strerror().
+ * @see broker_init().
  */
 int init(int flags = 0);
 
-/**
- * Shutdown the broker library.  No functionality provided by the library
- * is guaranteed to work after the call.
- */
-void done();
+const auto done = broker_done;
 
-/**
- * @return a textual representation of a broker error code.
- */
-const char* strerror(int broker_errno);
+const auto strerror = broker_strerror;
 
-/**
- * Reentrant version of broker::strerror.
- * @return a return value from ::strerror_r.
- */
-int strerror_r(int broker_errno, char* buf, size_t len);
+const auto strerror_r = broker_strerror_r;
 
 } // namespace broker
 

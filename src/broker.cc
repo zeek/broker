@@ -10,11 +10,12 @@
 #include <caf/shutdown.hpp>
 #include <cstdio>
 
-int broker::init(int flags)
+int broker_init(int flags)
 	{
 	// TODO: need a better, more organized way to announce types.
 	using caf::announce;
 	using namespace std;
+	using namespace broker;
 	using namespace broker::store;
 	announce<subscription_type>();
 	announce<subscription>(&subscription::type, &subscription::topic);
@@ -44,22 +45,13 @@ int broker::init(int flags)
 	return 0;
 	}
 
-int broker_init(int flags)
-	{
-	return broker::init(flags);
-	}
-
-void broker::done()
-	{
-	caf::shutdown();
-	}
+int broker::init(int flags)
+	{ return broker_init(flags); }
 
 void broker_done()
-	{
-	return broker::done();
-	}
+	{ caf::shutdown(); }
 
-const char* broker::strerror(int broker_errno)
+const char* broker_strerror(int broker_errno)
 	{
 	switch ( broker_errno ) {
 	default:
@@ -67,20 +59,10 @@ const char* broker::strerror(int broker_errno)
 	}
 	}
 
-const char* broker_strerror(int arg_errno)
-	{
-	return broker::strerror(arg_errno);
-	}
-
-int broker::strerror_r(int broker_errno, char* buf, size_t len)
+int broker_strerror_r(int broker_errno, char* buf, size_t len)
 	{
 	switch ( broker_errno ) {
 	default:
 		return ::strerror_r(broker_errno, buf, len);
 	}
-	}
-
-int broker_strerror_r(int broker_errno, char* buf, size_t buflen)
-	{
-	return broker::strerror_r(broker_errno, buf, buflen);
 	}
