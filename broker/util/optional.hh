@@ -325,71 +325,71 @@ private:
 
 // Relational operators
 template <typename T>
-constexpr bool operator==(const optional<T>& x, const optional<T>& y)
+inline bool operator==(const optional<T>& x, const optional<T>& y)
 	{ return bool(x) != bool(y) ? false : bool(x) == false ? true : *x == *y; }
 
 template <typename T>
-constexpr bool operator<(const optional<T>& x, const optional<T>& y)
+inline bool operator<(const optional<T>& x, const optional<T>& y)
 	{ return (!y) ? false : (!x) ? true : *x < *y; }
 
 // Comparison with none
 template <class T>
-constexpr bool operator==(const optional<T>& x, const none_type&) noexcept
+inline bool operator==(const optional<T>& x, const none_type&) noexcept
 	{ return (!x); }
 template <class T>
-constexpr bool operator==(const none_type&, const optional<T>& x) noexcept
+inline bool operator==(const none_type&, const optional<T>& x) noexcept
 	{ return (!x); }
 
 template <class T>
-constexpr bool operator<(const optional<T>&, const none_type&) noexcept
+inline bool operator<(const optional<T>&, const none_type&) noexcept
 	{ return false; }
 template <class T>
-constexpr bool operator<(const none_type&, const optional<T>& x) noexcept
+inline bool operator<(const none_type&, const optional<T>& x) noexcept
 	{ return bool(x); }
 
 // Comparison with T
 template <class T>
-constexpr bool operator==(const optional<T>& x, const T& v)
+inline bool operator==(const optional<T>& x, const T& v)
 	{ return bool(x) ? *x == v : false; }
 template <class T>
-constexpr bool operator==(const T& v, const optional<T>& x)
+inline bool operator==(const T& v, const optional<T>& x)
 	{ return bool(x) ? v == *x : false; }
 
 template <class T>
-constexpr bool operator<(const optional<T>& x, const T& v)
+inline bool operator<(const optional<T>& x, const T& v)
 	{ return bool(x) ? *x < v : true; }
 template <class T>
-constexpr bool operator<(const T& v, const optional<T>& x)
+inline bool operator<(const T& v, const optional<T>& x)
 	{ return bool(x) ? v < *x : false; }
 
 // Comparison of optional<T&> with T
 template <class T>
-constexpr bool operator==(const optional<T&>& x, const T& v)
+inline bool operator==(const optional<T&>& x, const T& v)
 	{ return bool(x) ? *x == v : false; }
 template <class T>
-constexpr bool operator==(const T& v, const optional<T&>& x)
+inline bool operator==(const T& v, const optional<T&>& x)
 	{ return bool(x) ? v == *x : false; }
 
 template <class T>
-constexpr bool operator<(const optional<T&>& x, const T& v)
+inline bool operator<(const optional<T&>& x, const T& v)
 	{ return bool(x) ? *x < v : true; }
 template <class T>
-constexpr bool operator<(const T& v, const optional<T&>& x)
+inline bool operator<(const T& v, const optional<T&>& x)
 	{ return bool(x) ? v < *x : false; }
 
 // Comparison of optional<const T&> with T
 template <class T>
-constexpr bool operator==(const optional<const T&>& x, const T& v)
+inline bool operator==(const optional<const T&>& x, const T& v)
 	{ return bool(x) ? *x == v : false; }
 template <class T>
-constexpr bool operator==(const T& v, const optional<const T&>& x)
+inline bool operator==(const T& v, const optional<const T&>& x)
 	{ return bool(x) ? v == *x : false; }
 
 template <class T>
-constexpr bool operator<(const optional<const T&>& x, const T& v)
+inline bool operator<(const optional<const T&>& x, const T& v)
 	{ return bool(x) ? *x < v : true; }
 template <class T>
-constexpr bool operator<(const T& v, const optional<const T&>& x)
+inline bool operator<(const T& v, const optional<const T&>& x)
 	{ return bool(x) ? v < *x : false; }
 
 } // namespace util
