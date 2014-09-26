@@ -11,16 +11,17 @@ separate_arguments(_version_numbers)
 list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
 list(GET _version_numbers 1 BROKER_VERSION_MINOR)
 list(LENGTH _version_numbers _version_length)
-set(BROKER_VERSION
-    ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}.${BROKER_VERSION_PATCH})
-# The SO number shall increase only if binary interface changes.
-set(BROKER_SOVERSION 0)
 
 if ( _version_length LESS 3 )
     set(BROKER_VERSION_PATCH 0)
 else ()
     list(GET _version_numbers 2 BROKER_VERSION_PATCH)
 endif ()
+
+set(BROKER_VERSION
+    ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}.${BROKER_VERSION_PATCH})
+# The SO number shall increase only if binary interface changes.
+set(BROKER_SOVERSION 0)
 
 if ( ENABLE_STATIC_ONLY )
     set(ENABLE_SHARED false)
@@ -85,6 +86,8 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
 message(
     "\n==================|  broker Config Summary  |===================="
+    "\nVersion:         ${BROKER_VERSION}"
+    "\nSO version:      ${BROKER_SOVERSION}"
     "\nBuild Type:      ${CMAKE_BUILD_TYPE}"
     "\nInstall prefix:  ${CMAKE_INSTALL_PREFIX}"
     "\nLibrary prefix:  ${INSTALL_LIB_DIR}"
