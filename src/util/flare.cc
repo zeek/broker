@@ -3,12 +3,12 @@
 #include <errno.h>
 #include <fcntl.h>
 
-broker::flare::flare()
+broker::util::flare::flare()
     : p(FD_CLOEXEC, FD_CLOEXEC, O_NONBLOCK, O_NONBLOCK)
     {
     }
 
-void broker::flare::fire()
+void broker::util::flare::fire()
     {
     char tmp;
 
@@ -28,7 +28,7 @@ void broker::flare::fire()
         }
     }
 
-void broker::flare::extinguish()
+void broker::util::flare::extinguish()
     {
     char tmp[256];
 

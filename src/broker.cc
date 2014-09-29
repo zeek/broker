@@ -1,14 +1,17 @@
 #include "broker/broker.hh"
 #include "broker/store/store.hh"
 #include "broker/print_msg.hh"
-#include "broker/print_queue.hh"
-#include "broker/store/response_queue.hh"
+#include "broker/log_msg.hh"
+#include "broker/event_msg.hh"
+#include "broker/store/query.hh"
+#include "broker/store/response.hh"
 #include "store/result_type_info.hh"
 #include "data_type_info.hh"
 #include "subscription.hh"
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
 #include <cstdio>
+#include <deque>
 
 int broker_init(int flags)
 	{
@@ -41,7 +44,11 @@ int broker_init(int flags)
 	announce<response>(&response::request, &response::reply, &response::cookie);
 	announce<std::deque<response>>();
 	announce<print_msg>(&print_msg::path, &print_msg::data);
+	announce<log_msg>(&log_msg::stream, &log_msg::fields);
+	announce<event_msg>(&event_msg::name, &event_msg::args);
 	announce<std::deque<print_msg>>();
+	announce<std::deque<log_msg>>();
+	announce<std::deque<event_msg>>();
 	return 0;
 	}
 

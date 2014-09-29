@@ -7,6 +7,7 @@
 #include <deque>
 
 namespace broker {
+namespace util {
 
 template <typename Pattern, typename Message>
 class queue : public caf::sb_actor<queue<Pattern, Message>> {
@@ -70,6 +71,7 @@ queue_pop(const caf::actor& actor, caf::atom_value request_type)
 	return rval;
 	}
 
+} // namespace util
 } // namespace broker
 
 #endif // BROKER_UTIL_QUEUE_HH

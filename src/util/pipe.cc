@@ -39,7 +39,8 @@ static int dup_or_fail(int fd, int flags)
 	return rval;
 	}
 
-broker::pipe::pipe(int flags0, int flags1, int status_flags0, int status_flags1)
+broker::util::pipe::pipe(int flags0, int flags1,
+                         int status_flags0, int status_flags1)
 	{
 	// pipe2 can set flags atomically, but not yet available everywhere.
 	if ( ::pipe(fds) )
@@ -54,22 +55,22 @@ broker::pipe::pipe(int flags0, int flags1, int status_flags0, int status_flags1)
 	set_status_flags(fds[1], status_flags1);
 	}
 
-broker::pipe::~pipe()
+broker::util::pipe::~pipe()
 	{
 	close();
 	}
 
-broker::pipe::pipe(const pipe& other)
+broker::util::pipe::pipe(const pipe& other)
 	{
 	copy(other);
 	}
 
-broker::pipe::pipe(pipe&& other)
+broker::util::pipe::pipe(pipe&& other)
 	{
 	steal(std::move(other));
 	}
 
-broker::pipe& broker::pipe::operator=(const pipe& other)
+broker::util::pipe& broker::util::pipe::operator=(const pipe& other)
 	{
 	if ( this == &other )
 		return *this;
@@ -79,20 +80,20 @@ broker::pipe& broker::pipe::operator=(const pipe& other)
 	return *this;
 	}
 
-broker::pipe& broker::pipe::operator=(pipe&& other)
+broker::util::pipe& broker::util::pipe::operator=(pipe&& other)
 	{
 	close();
 	steal(std::move(other));
 	return *this;
 	}
 
-void broker::pipe::close()
+void broker::util::pipe::close()
 	{
 	if ( fds[0] != -1 ) ::close(fds[0]);
 	if ( fds[1] != -1 ) ::close(fds[1]);
 	}
 
-void broker::pipe::copy(const pipe& other)
+void broker::util::pipe::copy(const pipe& other)
 	{
 	fds[0] = dup_or_fail(other.fds[0], other.flags[0]);
 	fds[1] = dup_or_fail(other.fds[1], other.flags[1]);
@@ -100,7 +101,7 @@ void broker::pipe::copy(const pipe& other)
 	flags[1] = other.flags[1];
 	}
 
-void broker::pipe::steal(pipe&& other)
+void broker::util::pipe::steal(pipe&& other)
 	{
 	fds[0] = other.fds[0];
 	fds[1] = other.fds[1];

@@ -25,11 +25,11 @@ void* broker::store::response_queue::handle() const
 std::deque<broker::store::response>
 broker::store::response_queue::want_pop() const
 	{
-	return queue_pop<response>(pimpl->actor, caf::atom("want"));
+	return util::queue_pop<response>(pimpl->actor, caf::atom("want"));
 	}
 
 std::deque<broker::store::response>
 broker::store::response_queue::need_pop() const
 	{
-	return queue_pop<response>(pimpl->actor, caf::atom("need"));
+	return util::queue_pop<response>(pimpl->actor, caf::atom("need"));
 	}

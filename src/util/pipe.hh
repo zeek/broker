@@ -2,6 +2,7 @@
 #define BROKER_UTIL_PIPE_HH
 
 namespace broker {
+namespace util {
 
 class pipe {
 public:
@@ -65,6 +66,7 @@ private:
 	int flags[2];
 };
 
-}
+} // namespace util
+} // namespace broker
 
 #endif // BROKER_UTIL_PIPE_HH

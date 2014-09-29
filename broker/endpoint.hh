@@ -3,6 +3,8 @@
 
 #include <broker/peering.hh>
 #include <broker/print_msg.hh>
+#include <broker/log_msg.hh>
+#include <broker/event_msg.hh>
 #include <memory>
 #include <string>
 #include <cstdint>
@@ -112,8 +114,21 @@ public:
 	 */
 	void print(std::string topic, print_msg msg) const;
 
-	// TODO: event() is similar to print but w/ fancier arguments.
-	// TODO: log() is similar to print but w/ fancier arguments.
+	/**
+	 * Sends a log to all log_queue's for a given topic that are connected to
+	 * this endpoint directly or indirectly through peer endpoints.
+	 * @param topic the topic associated with the log.
+	 * @param msg a logging message to send all queues subscribed for the topic.
+	 */
+	void log(std::string topic, log_msg msg) const;
+
+	/**
+	 * Sends an event to all event_queue's for a given topic that are connected
+	 * to this endpoint directly or indirectly through peer endpoings.
+	 * @param topic the topic associated with the event.
+	 * @param msg an event to send all queues subscribed for the topic.
+	 */
+	void event(std::string topic, event_msg msg) const;
 
 	/**
 	 * @return a unique handle for the endpoint.

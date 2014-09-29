@@ -30,10 +30,10 @@ const std::string& broker::print_queue::topic() const
 
 std::deque<broker::print_msg> broker::print_queue::want_pop() const
 	{
-	return queue_pop<print_msg>(pimpl->actor, caf::atom("want"));
+	return util::queue_pop<print_msg>(pimpl->actor, caf::atom("want"));
 	}
 
 std::deque<broker::print_msg> broker::print_queue::need_pop() const
 	{
-	return queue_pop<print_msg>(pimpl->actor, caf::atom("need"));
+	return util::queue_pop<print_msg>(pimpl->actor, caf::atom("need"));
 	}

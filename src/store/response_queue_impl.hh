@@ -14,10 +14,10 @@ public:
 
 	impl()
 		{
-		flare f;
+		util::flare f;
 		fd = f.fd();
-		actor = caf::spawn<broker::queue<decltype(caf::on<response>()),
-		                                 response>>(std::move(f));
+		actor = caf::spawn<broker::util::queue<decltype(caf::on<response>()),
+		                                       response>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		}

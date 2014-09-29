@@ -4,6 +4,7 @@
 #include "pipe.hh"
 
 namespace broker {
+namespace util {
 
 class flare {
 public:
@@ -40,6 +41,7 @@ private:
 	pipe p;
 };
 
+} // namespace util
 } // namespace broker
 
 #endif // BROKER_UTIL_FLARE_HH

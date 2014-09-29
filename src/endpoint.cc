@@ -111,6 +111,20 @@ void broker::endpoint::print(std::string topic, print_msg msg) const
 	               std::move(msg));
 	}
 
+void broker::endpoint::log(std::string topic, log_msg msg) const
+	{
+	caf::anon_send(pimpl->actor,
+	               subscription{subscription_type::log, std::move(topic)},
+	               std::move(msg));
+	}
+
+void broker::endpoint::event(std::string topic, event_msg msg) const
+	{
+	caf::anon_send(pimpl->actor,
+	               subscription{subscription_type::event, std::move(topic)},
+	               std::move(msg));
+	}
+
 void* broker::endpoint::handle() const
 	{
 	return &pimpl->actor;
