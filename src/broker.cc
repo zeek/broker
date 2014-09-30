@@ -24,7 +24,8 @@ int broker_init(int flags)
 	using namespace broker;
 	using namespace broker::store;
 	announce<peer_status::type>();
-	announce<peer_status>(&peer_status::relation, &peer_status::status);
+	announce<peer_status>(&peer_status::relation, &peer_status::status,
+	                      &peer_status::peer_name);
 	announce(typeid(peering),
 	         unique_ptr<caf::uniform_type_info>(new peering_type_info));
 	announce<peering::impl>(&peering::impl::endpoint_actor,

@@ -30,12 +30,16 @@ int main(int argc, char** argv)
 	else
 		node1.peer(node0);
 
-	if ( node1.peer_status().need_pop().front().status !=
-	     peer_status::type::established)
+	auto ps = node1.peer_status().need_pop().front();
+
+	if ( ps.status != peer_status::type::established)
 		{
 		BROKER_TEST(false);
 		return 1;
 		}
+
+	BROKER_TEST(ps.peer_name == node0.name());
+	BROKER_TEST(node0.name() == "node0");
 
 	std::vector<log_msg> pings;
 	std::vector<log_msg> pongs;

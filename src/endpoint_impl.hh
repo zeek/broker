@@ -19,10 +19,10 @@
 namespace broker {
 
 static void do_peer_status(const caf::actor q, peering::impl pi,
-                           peer_status::type t)
+                           peer_status::type t, std::string pname = "")
 	{
 	peering p{std::unique_ptr<peering::impl>(new peering::impl(std::move(pi)))};
-	caf::anon_send(q, peer_status{std::move(p), t});
+	caf::anon_send(q, peer_status{std::move(p), t, std::move(pname)});
 	}
 
 class endpoint_actor : public caf::sb_actor<endpoint_actor> {
@@ -30,7 +30,7 @@ friend class caf::sb_actor<endpoint_actor>;
 
 public:
 
-	endpoint_actor(caf::actor peer_status_q)
+	endpoint_actor(std::string name, caf::actor peer_status_q)
 		{
 		using namespace caf;
 		using namespace std;
@@ -44,10 +44,12 @@ public:
 			},
 		on(atom("peer"), arg_match) >> [=](actor& p, peering::impl& pi)
 			{
-			if ( peers.find(p.address()) != peers.end() )
+			auto it = peers.find(p.address());
+
+			if ( it != peers.end() )
 				{
 				do_peer_status(peer_status_q, move(pi),
-				               peer_status::type::established);
+				               peer_status::type::established, it->second.name);
 				return;
 				}
 
@@ -63,18 +65,20 @@ public:
 						do_peer_status(peer_status_q, move(pi),
 						               peer_status::type::incompatible);
 					else
-						sync_send(p, atom("peer"), this,
+						sync_send(p, atom("peer"), this, name,
 						          local_subs.topics()).then(
 							on_arg_match >> [=](const sync_exited_msg& m)
 								{
 								do_peer_status(peer_status_q, move(pi),
 								               peer_status::type::disconnected);
 								},
-							on_arg_match >> [=](subscriptions& topics)
+							on_arg_match >> [=](std::string& pname,
+							                    subscriptions& topics)
 								{
-								add_peer(move(p), move(topics));
+								add_peer(move(p), pname, move(topics));
 								do_peer_status(peer_status_q, move(pi),
-								               peer_status::type::established);
+								               peer_status::type::established,
+								               move(pname));
 								}
 						);
 					},
@@ -85,10 +89,11 @@ public:
 					}
 			);
 			},
-		on(atom("peer"), arg_match) >> [=](actor& p, subscriptions& t)
+		on(atom("peer"), arg_match) >> [=](actor& p, std::string& pname,
+		                                   subscriptions& t)
 			{
-			add_peer(move(p), move(t));
-			return make_message(local_subs.topics());
+			add_peer(move(p), move(pname), move(t));
+			return make_message(name, local_subs.topics());
 			},
 		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
@@ -104,7 +109,7 @@ public:
 			subscriptions unsubs = local_subs.rem_subscriber(d.source);
 
 			for ( const auto& p : peers )
-				send(p.second, atom("unsub"), unsubs, this);
+				send(p.second.ep, atom("unsub"), unsubs, this);
 			},
 		on(atom("unsub"), arg_match) >> [=](const subscriptions& topics,
 		                                    const actor& p)
@@ -118,7 +123,7 @@ public:
 			local_subs.add_subscription(t, move(a));
 
 			for ( const auto& p : peers )
-				send(p.second, atom("subpeer"), t, this);
+				send(p.second.ep, atom("subpeer"), t, this);
 			},
 		on(atom("subpeer"), arg_match) >> [=](subscription& t, actor& p)
 			{
@@ -143,11 +148,11 @@ public:
 
 private:
 
-	void add_peer(caf::actor p, subscriptions t)
+	void add_peer(caf::actor p, std::string name, subscriptions t)
 		{
 		demonitor(p);
 		monitor(p);
-		peers[p.address()] = p;
+		peers[p.address()] = {p, std::move(name)};
 		peer_subs.add_subscriber(subscriber{std::move(t), p});
 		}
 
@@ -178,10 +183,17 @@ private:
 			send_tuple(a, last_dequeued());
 		}
 
+	struct peer_endpoint {
+		caf::actor ep;
+		std::string name;
+	};
+
+	using peer_map = std::unordered_map<caf::actor_addr, peer_endpoint>;
+
 	caf::behavior active;
 	caf::behavior& init_state = active;
 
-	actor_map peers;
+	peer_map peers;
 	subscriber_base local_subs;
 	subscriber_base peer_subs;
 };
@@ -312,7 +324,7 @@ public:
 
 	impl(std::string n)
 		: name(std::move(n)), self(), peer_status(),
-		  actor(caf::spawn<broker::endpoint_actor>(
+		  actor(caf::spawn<broker::endpoint_actor>(name,
 		                   handle_to_actor(peer_status.handle()))),
 		  peers(), last_errno(), last_error()
 		{

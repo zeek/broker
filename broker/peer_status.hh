@@ -2,6 +2,7 @@
 #define BROKER_PEER_STATUS_HH
 
 #include <broker/peering.hh>
+#include <string>
 
 namespace broker {
 
@@ -28,6 +29,11 @@ struct peer_status {
 	 * A notification regarding the latest known status of the peering.
 	 */
 	type status;
+
+	/**
+	 * When status is established, contains a name the peer chose for itself.
+	 */
+	std::string peer_name;
 };
 
 inline bool operator==(const peer_status& lhs, const peer_status& rhs)
