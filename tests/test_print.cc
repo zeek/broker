@@ -70,8 +70,11 @@ int main(int argc, char** argv)
 	broker::print_queue pq_a1("topic_a", node1);
 	broker::print_queue pq_b1("topic_b", node1);
 	broker::print_queue pq_a2("topic_a", node2);
-	node0.peer(node1).handshake();
-	node0.peer(node2).handshake();
+	node0.peer(node1);
+	node0.peer(node2);
+
+	if ( node0.peer_status().need_pop().size() < 2 )
+		node0.peer_status().need_pop();
 
 	node0.print("topic_a", {"0a", node0.name() + " says: hi"}); // to 0, 1, 2
 	node0.print("topic_a", {"0a", node0.name() + " says: hello"}); // to 0, 1, 2

@@ -13,12 +13,14 @@ namespace std { template<> struct std::hash<broker::peering>; }
 namespace broker {
 
 class endpoint;
+class peering_type_info;
 
 /**
  * Contains information about a peering between two endpoints.
  */
 class peering {
 friend class endpoint;
+friend class peering_type_info;
 friend struct std::hash<peering>;
 
 public:
@@ -64,30 +66,6 @@ public:
 	const std::pair<std::string, uint16_t>& remote_tuple() const;
 
 	/**
-	 * A possible return value from @see peering::handshake().
-	 */
-	enum class handshake_status: uint8_t {
-		success,
-		timeout,
-		invalid, // incompatible peer
-	};
-
-	/**
-	 * Blocks until a handshake between the two peer endpoints completes.
-	 * The handshake involves the endpoints exchanging the topics to which
-	 * they are currently subscribed.  If a handshake is not performed, a
-	 * message sent to a local endpoint may not be forwarded to a peer that has
-	 * just connected because the subscriptions have not yet been exchanged.
-	 */
-	handshake_status handshake() const;
-
-	/**
-	 * Waits until a handshake between the two peer endpoints complete or
-	 * a given timeout duration has been reached.  @see peering::handshake().
-	 */
-	handshake_status handshake(std::chrono::duration<double> timeout) const;
-
-	/**
 	 * False if the peering is not yet initialized, else true.
 	 */
 	explicit operator bool() const;
@@ -97,11 +75,11 @@ public:
 	 */
 	bool operator==(const peering& rhs) const;
 
-private:
-
 	class impl;
 
 	peering(std::unique_ptr<impl> p);
+
+private:
 
 	std::unique_ptr<impl> pimpl;
 };

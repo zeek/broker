@@ -2,10 +2,11 @@
 #define BROKER_ENDPOINT_IMPL_HH
 
 #include "broker/endpoint.hh"
-#include "subscription.hh"
-#include "peering_impl.hh"
+#include "broker/peer_status.hh"
 #include "broker/store/store.hh"
 #include "broker/store/query.hh"
+#include "subscription.hh"
+#include "peering_impl.hh"
 #include <caf/actor.hpp>
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -17,39 +18,70 @@
 
 namespace broker {
 
-struct incompatible_endpoint {
-	caf::actor actor;
-	int version;
-};
+static void do_peer_status(const caf::actor q, peering::impl pi,
+                           peer_status::type t)
+	{
+	peering p{std::unique_ptr<peering::impl>(new peering::impl(std::move(pi)))};
+	caf::anon_send(q, peer_status{std::move(p), t});
+	}
 
 class endpoint_actor : public caf::sb_actor<endpoint_actor> {
 friend class caf::sb_actor<endpoint_actor>;
 
 public:
 
-	endpoint_actor()
+	endpoint_actor(caf::actor peer_status_q)
 		{
 		using namespace caf;
 		using namespace std;
 		using namespace broker::store;
 
 		active = (
-		on(atom("peer"), arg_match) >> [=](actor& p, int protocol_version)
+		on_arg_match >> [=](int version)
 			{
-			if ( protocol_version != BROKER_PROTOCOL_VERSION )
+			return make_message(BROKER_PROTOCOL_VERSION == version,
+			                    BROKER_PROTOCOL_VERSION);
+			},
+		on(atom("peer"), arg_match) >> [=](actor& p, peering::impl& pi)
+			{
+			if ( peers.find(p.address()) != peers.end() )
 				{
-				send(p, atom("peer"), this, BROKER_PROTOCOL_VERSION);
-				add_incompatible_peer(move(p), protocol_version);
+				do_peer_status(peer_status_q, move(pi),
+				               peer_status::type::established);
 				return;
 				}
 
-			sync_send(p, atom("peer"), this, local_subs.topics()).then(
+			sync_send(p, BROKER_PROTOCOL_VERSION).then(
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
+					do_peer_status(peer_status_q, move(pi),
+					               peer_status::type::disconnected);
 					},
-				on_arg_match >> [=](subscriptions& topics)
+			    on_arg_match >> [=](bool compat, int their_version)
 					{
-					add_peer(move(p), move(topics));
+					if ( ! compat )
+						do_peer_status(peer_status_q, move(pi),
+						               peer_status::type::incompatible);
+					else
+						sync_send(p, atom("peer"), this,
+						          local_subs.topics()).then(
+							on_arg_match >> [=](const sync_exited_msg& m)
+								{
+								do_peer_status(peer_status_q, move(pi),
+								               peer_status::type::disconnected);
+								},
+							on_arg_match >> [=](subscriptions& topics)
+								{
+								add_peer(move(p), move(topics));
+								do_peer_status(peer_status_q, move(pi),
+								               peer_status::type::established);
+								}
+						);
+					},
+				others() >> [=]
+					{
+					do_peer_status(peer_status_q, move(pi),
+					               peer_status::type::incompatible);
 					}
 			);
 			},
@@ -58,45 +90,15 @@ public:
 			add_peer(move(p), move(t));
 			return make_message(local_subs.topics());
 			},
-		on(atom("handshake"), arg_match) >> [=](actor& p, actor& observer)
-			{
-			if ( peers.find(p.address()) != peers.end() )
-				{
-				send(observer, true, BROKER_PROTOCOL_VERSION);
-				return;
-				}
-
-			if ( incompatible.find(p.address()) != incompatible.end() )
-				{
-				send(observer, false, incompatible[p.address()].version);
-				return;
-				}
-
-			demonitor(observer);
-			monitor(observer);
-			hs_observers[observer.address()] = observer;
-			hs_pending[move(p)].insert(move(observer));
-			},
 		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
 			demonitor(p);
-
-			if ( incompatible.erase(p.address()) )
-				return;
-
 			peers.erase(p.address());
 			peer_subs.rem_subscriber(p.address());
 			},
 		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(d.source);
-
-			if ( remove_observer(d.source) )
-				return;
-
-			if ( incompatible.erase(d.source) )
-				return;
-
 			peers.erase(d.source);
 			peer_subs.rem_subscriber(d.source);
 			subscriptions unsubs = local_subs.rem_subscriber(d.source);
@@ -141,60 +143,12 @@ public:
 
 private:
 
-	void add_incompatible_peer(caf::actor p, int protocol_version)
-		{
-		demonitor(p);
-		monitor(p);
-		incompatible[p.address()] = incompatible_endpoint{p, protocol_version};
-		auto msg =caf::make_message(false, protocol_version);
-		check_pending_handshakes(std::move(p), std::move(msg));
-		}
-
 	void add_peer(caf::actor p, subscriptions t)
 		{
 		demonitor(p);
 		monitor(p);
 		peers[p.address()] = p;
 		peer_subs.add_subscriber(subscriber{std::move(t), p});
-		auto msg = caf::make_message(true, BROKER_PROTOCOL_VERSION);
-		check_pending_handshakes(std::move(p), std::move(msg));
-		}
-
-	bool remove_observer(const caf::actor_addr& o)
-		{
-		auto it = hs_observers.find(o);
-
-		if ( it == hs_observers.end() )
-			return false;
-
-		for ( auto& p : hs_pending )
-			if ( p.second.erase(it->second) )
-				{
-				if ( p.second.empty() )
-					hs_pending.erase(p.first);
-
-				break;
-				}
-
-		hs_observers.erase(it);
-		return true;
-		}
-
-	void check_pending_handshakes(caf::actor p, caf::message msg)
-		{
-		auto it = hs_pending.find(p);
-
-		if ( it != hs_pending.end() )
-			{
-			for ( auto& o : it->second )
-				{
-				send_tuple(o, msg);
-				demonitor(o);
-				hs_observers.erase(o.address());
-				}
-
-			hs_pending.erase(it);
-			}
 		}
 
 	caf::actor find_master(const subscription& t)
@@ -228,9 +182,6 @@ private:
 	caf::behavior& init_state = active;
 
 	actor_map peers;
-	std::unordered_map<caf::actor_addr, incompatible_endpoint> incompatible;
-	actor_map hs_observers;
-	std::unordered_map<caf::actor, std::unordered_set<caf::actor>> hs_pending;
 	subscriber_base local_subs;
 	subscriber_base peer_subs;
 };
@@ -245,21 +196,27 @@ friend class caf::sb_actor<endpoint_proxy_actor>;
 public:
 
 	endpoint_proxy_actor(caf::actor local, std::string addr, uint16_t port,
-	                     std::chrono::duration<double> retry_freq)
+	                     std::chrono::duration<double> retry_freq,
+	                     caf::actor peer_status_q)
 		{
 		using namespace caf;
 		using namespace std;
+		peering::impl pi(local, this, true, make_pair(addr, port));
 
 		trap_exit(true);
 
 		bootstrap = (
 		after(chrono::seconds(0)) >> [=]
 			{
-			try_connect(addr, port, local);
+			try_connect(pi);
 			}
 		);
 
 		disconnected = (
+		on(atom("peerstat")) >> [=]
+			{
+			do_peer_status(peer_status_q, pi, peer_status::type::disconnected);
+			},
 		on_arg_match >> [=](const exit_msg& e)
 			{
 			quit();
@@ -270,11 +227,15 @@ public:
 			},
 		after(retry_freq) >> [=]
 			{
-			try_connect(addr, port, local);
+			try_connect(pi);
 			}
 		);
 
 		connected = (
+		on(atom("peerstat")) >> [=]
+			{
+			send(local, atom("peer"), remote, pi);
+			},
 		on_arg_match >> [=](const exit_msg& e)
 			{
 			send(remote, atom("unpeer"), local);
@@ -287,15 +248,12 @@ public:
 			send(local, atom("unpeer"), remote);
 			quit();
 			},
-		on(atom("handshake"), any_vals) >> [=]
-			{
-			forward_to(remote);
-			},
 		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(remote);
 			remote = invalid_actor;
 			become(disconnected);
+			do_peer_status(peer_status_q, pi, peer_status::type::disconnected);
 			},
 		others() >> [=]
 			{
@@ -308,11 +266,13 @@ public:
 
 private:
 
-	bool try_connect(const std::string& addr, uint16_t port,
-	                 const caf::actor& local)
+	bool try_connect(const peering::impl& pi)
 		{
 		using namespace caf;
 		using namespace std;
+		const std::string& addr = pi.remote_tuple.first;
+		const uint16_t& port = pi.remote_tuple.second;
+		const caf::actor& local = pi.endpoint_actor;
 
 		try
 			{
@@ -333,7 +293,7 @@ private:
 
 		monitor(remote);
 		become(connected);
-		send(remote, atom("peer"), local, BROKER_PROTOCOL_VERSION);
+		send(local, atom("peer"), remote, pi);
 		return true;
 		}
 
@@ -344,11 +304,17 @@ private:
 	caf::behavior& init_state = bootstrap;
 };
 
+static inline caf::actor& handle_to_actor(void* h)
+	{ return *static_cast<caf::actor*>(h); }
+
 class endpoint::impl {
 public:
 
 	impl(std::string n)
-		: name(std::move(n)), actor(caf::spawn<broker::endpoint_actor>())
+		: name(std::move(n)), self(), peer_status(),
+		  actor(caf::spawn<broker::endpoint_actor>(
+		                   handle_to_actor(peer_status.handle()))),
+		  peers(), last_errno(), last_error()
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
@@ -356,6 +322,7 @@ public:
 
 	std::string name;
 	caf::scoped_actor self;
+	peer_status_queue peer_status;
 	caf::actor actor;
 	std::unordered_set<peering> peers;
 	int last_errno;

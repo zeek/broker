@@ -26,16 +26,16 @@ int main(int argc, char** argv)
 	log_queue q1("b", node1);
 
 	if ( remote )
-		{
-		if ( node1.peer("127.0.0.1", 9999).handshake() !=
-		     peering::handshake_status::success )
-			{
-			BROKER_TEST(false);
-			return 1;
-			}
-		}
+		node1.peer("127.0.0.1", 9999);
 	else
-		node0.peer(node1).handshake();
+		node1.peer(node0);
+
+	if ( node1.peer_status().need_pop().front().status !=
+	     peer_status::type::established)
+		{
+		BROKER_TEST(false);
+		return 1;
+		}
 
 	std::vector<log_msg> pings;
 	std::vector<log_msg> pongs;

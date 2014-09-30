@@ -51,6 +51,7 @@ set(BROKER_SRC
     src/event_queue.cc
     src/log_queue.cc
     src/peering.cc
+    src/peer_status_queue.cc
     src/print_queue.cc
     src/store/clone.cc
     src/store/frontend.cc

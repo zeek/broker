@@ -1,12 +1,15 @@
 #include "broker/broker.hh"
-#include "broker/store/store.hh"
+#include "broker/peer_status.hh"
 #include "broker/print_msg.hh"
 #include "broker/log_msg.hh"
 #include "broker/event_msg.hh"
+#include "broker/store/store.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
 #include "store/result_type_info.hh"
 #include "data_type_info.hh"
+#include "peering_impl.hh"
+#include "peering_type_info.hh"
 #include "subscription.hh"
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
@@ -20,6 +23,13 @@ int broker_init(int flags)
 	using namespace std;
 	using namespace broker;
 	using namespace broker::store;
+	announce<peer_status::type>();
+	announce<peer_status>(&peer_status::relation, &peer_status::status);
+	announce(typeid(peering),
+	         unique_ptr<caf::uniform_type_info>(new peering_type_info));
+	announce<peering::impl>(&peering::impl::endpoint_actor,
+	                        &peering::impl::peer_actor, &peering::impl::remote,
+	                        &peering::impl::remote_tuple);
 	announce<subscription_type>();
 	announce<subscription>(&subscription::type, &subscription::topic);
 	announce(typeid(subscriptions),
@@ -49,6 +59,7 @@ int broker_init(int flags)
 	announce<std::deque<print_msg>>();
 	announce<std::deque<log_msg>>();
 	announce<std::deque<event_msg>>();
+	announce<std::deque<peer_status>>();
 	return 0;
 	}
 

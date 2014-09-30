@@ -37,8 +37,14 @@ int main(int argc, char** argv)
 	broker::print_queue pq1b("topic_b", node1);
 	broker::print_queue pq1c("topic_c", node1);
 
-	BROKER_TEST(node1.peer("127.0.0.1", 9999).handshake() ==
-	            broker::peering::handshake_status::success);
+	node1.peer("127.0.0.1", 9999);
+
+	if ( node1.peer_status().need_pop().front().status !=
+	     broker::peer_status::type::established)
+		{
+		BROKER_TEST(false);
+		return 1;
+		}
 
 	node0.print("topic_a", {"0a", "hi"});
 	node0.print("topic_c", {"0c", "greetings"});

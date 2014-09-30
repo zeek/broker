@@ -4,6 +4,9 @@
 #include <caf/io/publish.hpp>
 #include <caf/send.hpp>
 
+static inline caf::actor& handle_to_actor(void* h)
+	{ return *static_cast<caf::actor*>(h); }
+
 broker::endpoint::endpoint(std::string name, int flags)
     : pimpl(new impl(std::move(name)))
 	{
@@ -50,18 +53,29 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
                                        std::chrono::duration<double> retry)
 	{
 	auto port_addr = std::pair<std::string, uint16_t>(addr, port);
+	peering rval;
 
 	for ( const auto& peer : pimpl->peers )
 		if ( peer.remote() && port_addr == peer.remote_tuple() )
-			return peer;
+			{
+			rval = peer;
+			break;
+			}
 
-	auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, addr, port, retry);
-	a->link_to(pimpl->self);
-	peering rval(std::unique_ptr<peering::impl>(
-	                 new peering::impl(pimpl->actor, std::move(a),
-	                                   true, port_addr)));
-	pimpl->peers.insert(rval);
-	// The proxy actor will initiate peer requests once connected.
+	if ( rval )
+		caf::anon_send(rval.pimpl->peer_actor, caf::atom("peerstat"));
+	else
+		{
+		auto psa = handle_to_actor(pimpl->peer_status.handle());
+		auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, addr, port,
+		                                          retry, psa);
+		a->link_to(pimpl->self);
+		rval = peering(std::unique_ptr<peering::impl>(
+	                   new peering::impl(pimpl->actor, std::move(a),
+	                                     true, port_addr)));
+		pimpl->peers.insert(rval);
+		}
+
 	return rval;
 	}
 
@@ -72,11 +86,9 @@ broker::peering broker::endpoint::peer(const endpoint& e)
 
 	peering p(std::unique_ptr<peering::impl>(
 	              new peering::impl(pimpl->actor, e.pimpl->actor)));
-
-	if ( pimpl->peers.insert(p).second )
-		caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor,
-		               BROKER_PROTOCOL_VERSION);
-
+	pimpl->peers.insert(p);
+	caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor,
+	               *p.pimpl.get());
 	return p;
 	}
 
@@ -102,6 +114,11 @@ bool broker::endpoint::unpeer(broker::peering p)
 		}
 
 	return true;
+	}
+
+const broker::peer_status_queue& broker::endpoint::peer_status() const
+	{
+	return pimpl->peer_status;
 	}
 
 void broker::endpoint::print(std::string topic, print_msg msg) const

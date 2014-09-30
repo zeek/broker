@@ -5,6 +5,7 @@
 #include <broker/print_msg.hh>
 #include <broker/log_msg.hh>
 #include <broker/event_msg.hh>
+#include <broker/peer_status_queue.hh>
 #include <memory>
 #include <string>
 #include <cstdint>
@@ -105,6 +106,16 @@ public:
 	 *         peering is no more).
 	 */
 	bool unpeer(peering p);
+
+	/**
+	 * @return a queue that may be used to inspect the results of a peering
+	 * attempt. e.g. established, disconnected, incompatible, etc.  Until
+	 * one checks the queue for a result that indicates the peering is
+	 * established, messages sent using endpoint::print(), endpoint::log(),
+	 * or endpoint::event() are not guaranteed to be delivered to the peer
+	 * as it may still be in the process of registering its subscriptions.
+	 */
+	const peer_status_queue& peer_status() const;
 
 	/**
 	 * Sends a message string to all print_queue's for a given topic that are

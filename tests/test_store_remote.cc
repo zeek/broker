@@ -77,7 +77,14 @@ int main(int argc, char** argv)
 	broker::store::clone clone(client, "mystore",
 	                          std::chrono::duration<double>(0.25));
 
-	client.peer("127.0.0.1", 9999).handshake();
+	client.peer("127.0.0.1", 9999);
+
+	if ( client.peer_status().need_pop().front().status !=
+	     broker::peer_status::type::established)
+		{
+		BROKER_TEST(false);
+		return 1;
+		}
 
 	BROKER_TEST(compare_contents(frontend, ds0));
 	BROKER_TEST(compare_contents(clone, ds0));
