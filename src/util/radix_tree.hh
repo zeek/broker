@@ -300,6 +300,9 @@ private:
 	node* root;
 };
 
+static inline const unsigned char* as_key_data(const std::string& key)
+	{ return reinterpret_cast<const unsigned char*>(key.data()); }
+
 static uint32_t longest_common_prefix(const std::string& k1,
                                       const std::string& k2,
                                       uint32_t depth)
@@ -308,8 +311,8 @@ static uint32_t longest_common_prefix(const std::string& k1,
 	auto n = std::min(k1.size() + 1, k2.size() + 1) - depth;
 	uint32_t i;
 
-	const char* k1_data = k1.data();
-	const char* k2_data = k2.data();
+	auto k1_data = as_key_data(k1);
+	auto k2_data = as_key_data(k2);
 
 	for ( i = 0; i < n; ++i )
 		if ( k1_data[depth + i] != k2_data[depth + i] )
@@ -607,7 +610,7 @@ radix_tree<T, N>::find_child(node* n, unsigned char c)
 template <typename T, std::size_t N>
 size_t radix_tree<T, N>::prefix_shared(node* n, const key_type& key, int depth)
 	{
-	const char* key_data = key.data();
+	auto key_data = as_key_data(key);
 	// Null-terminator is part of the key.
 	auto max_cmp = std::min(std::min(N, static_cast<size_t>(n->partial_len)),
 	                        key.size() + 1 - depth);
@@ -624,7 +627,7 @@ template <typename T, std::size_t N>
 size_t radix_tree<T, N>::prefix_mismatch(node* n, const key_type& key,
                                          int depth)
 	{
-	const char* key_data = key.data();
+	auto key_data = as_key_data(key);
 	// Null-terminator is part of the key.
 	auto max_cmp = std::min(std::min(N, static_cast<size_t>(n->partial_len)),
 	                        key.size() + 1 - depth);
@@ -639,7 +642,7 @@ size_t radix_tree<T, N>::prefix_mismatch(node* n, const key_type& key,
 		// Need to find a leaf to determine.
 		const auto l = minimum(n);
 		max_cmp = std::min(l->key().size() + 1, key.size() + 1) - depth;
-		const char* leaf_key_data = l->key().data();
+		auto leaf_key_data = as_key_data(l->key());
 
 		for ( ; idx < max_cmp; ++idx )
 			if ( leaf_key_data[idx + depth] != key_data[idx + depth] )

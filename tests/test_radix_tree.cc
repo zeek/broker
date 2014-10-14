@@ -184,7 +184,7 @@ static void test_many_keys()
 		{
 		stringstream ss;
 		ss << i;
-		keys.push_back(move(ss.str()));
+		keys.push_back(ss.str());
 		values.push_back(i);
 		BROKER_TEST(t.insert(make_pair(keys[i], values[i])).second);
 		}
@@ -253,6 +253,54 @@ static void test_many_keys()
 	BROKER_TEST(num_matched == 1 + 10 + 100);
 	t.clear();
 	BROKER_TEST(t.size() == 0);
+	}
+
+static void test_dense_nodes()
+	{
+	my_radix_tree t;
+	auto idx = 0;
+
+	for ( auto i = 0; i < 256; ++i )
+		for ( auto j = 0; j < 256; ++j )
+			for ( auto k = 0; k < 10; ++k )
+				{
+				stringstream ss;
+				ss.put(i).put(j);
+				ss << k;
+				BROKER_TEST(t.insert(make_pair(ss.str(), idx)).second);
+				++idx;
+				}
+
+	BROKER_TEST(t.size() == 256 * 256 * 10);
+	BROKER_TEST(t.match_prefix("a").size() == 256 * 10);
+	BROKER_TEST(t.find("az5")->second == 'a' * 256 * 10 + 'z' * 10 + 5);
+
+	for ( auto i = 0; i < 256; ++i )
+		for ( auto j = 0; j < 256; ++j )
+			for ( auto k = 0; k < 10; ++k )
+				{
+				stringstream ss;
+				ss.put(i).put(j);
+				ss << k;
+				string s = ss.str();
+
+				BROKER_TEST(t.find(s)->second == i * 256 * 10 + j * 10 + k);
+				if ( i == 'b' && j == 'r' ) continue;
+				BROKER_TEST(t.erase(s));
+				}
+
+	BROKER_TEST(t.size() == 10);
+
+	for ( auto i = 0; i < 10; ++i )
+		{
+		stringstream ss;
+		ss << "br" << i;
+		BROKER_TEST(t.find(ss.str())->second == 'b' * 256 * 10 + 'r' * 10 + i);
+		}
+
+	BROKER_TEST(t.match_prefix("b").size() == 10);
+	BROKER_TEST(t.match_prefix("br").size() == 10);
+	BROKER_TEST(t.match_prefix("br0").size() == 1);
 	}
 
 int main()
@@ -423,6 +471,7 @@ ord$ air$ |    \  ary$ d$  |   \
 	test_insert_very_long();
 	test_prefix_match();
 	test_many_keys();
+	test_dense_nodes();
 
 	return BROKER_TEST_RESULT();
 	}
