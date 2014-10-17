@@ -2,6 +2,7 @@
 #include "broker/peer_status.hh"
 #include "broker/print_msg.hh"
 #include "broker/log_msg.hh"
+#include "broker/topic.hh"
 #include "broker/event_msg.hh"
 #include "broker/store/store.hh"
 #include "broker/store/query.hh"
@@ -23,6 +24,10 @@ int broker_init(int flags)
 	using namespace std;
 	using namespace broker;
 	using namespace broker::store;
+	announce<topic::tag>();
+	announce<topic>(&topic::name, &topic::type);
+	announce(typeid(topic_set),
+	         unique_ptr<caf::uniform_type_info>(new topic_set_type_info));
 	announce<peer_status::type>();
 	announce<peer_status>(&peer_status::relation, &peer_status::status,
 	                      &peer_status::peer_name);
@@ -31,11 +36,6 @@ int broker_init(int flags)
 	announce<peering::impl>(&peering::impl::endpoint_actor,
 	                        &peering::impl::peer_actor, &peering::impl::remote,
 	                        &peering::impl::remote_tuple);
-	announce<subscription_type>();
-	announce<subscription>(&subscription::type, &subscription::topic);
-	announce(typeid(subscriptions),
-	         unique_ptr<caf::uniform_type_info>(new subscriptions_type_info));
-	announce<subscriber>(&subscriber::first, &subscriber::second);
 	announce<sequence_num>(&sequence_num::sequence);
 	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
 	announce<data::tag>();

@@ -8,7 +8,7 @@
 
 using namespace std;
 
-static void check_contents_poll(broker::print_queue& pq,
+static bool check_contents_poll(broker::print_queue& pq,
                                 set<broker::print_msg> expected)
 	{
 	set<broker::print_msg> actual;
@@ -22,10 +22,10 @@ static void check_contents_poll(broker::print_queue& pq,
 			actual.insert(move(msg));
 		}
 
-	BROKER_TEST(actual == expected);
+	return actual == expected;
 	}
 
-static void check_contents(broker::print_queue& pq,
+static bool check_contents(broker::print_queue& pq,
                            set<broker::print_msg> expected)
 	{
 	set<broker::print_msg> actual;
@@ -34,7 +34,7 @@ static void check_contents(broker::print_queue& pq,
 		for ( auto& msg : pq.need_pop() )
 			actual.insert(move(msg));
 
-	BROKER_TEST(actual == expected);
+	return actual == expected;
 	}
 
 int main(int argc, char** argv)
@@ -90,6 +90,7 @@ int main(int argc, char** argv)
 	node2.print("topic_a", {"2a", node2.name() + " says: bye"}); // to 0, 2
 	node2.print("topic_b", {"2b", node2.name() + " says: bbye"}); // to 0
 
+	BROKER_TEST(
 	check_contents_poll(pq_a0, {
 	                   broker::print_msg{"0a", "node0 says: hi"},
 	                   broker::print_msg{"0a", "node0 says: hello"},
@@ -97,34 +98,43 @@ int main(int argc, char** argv)
 	                   broker::print_msg{"1a", "node1 says: bye"},
 	                   broker::print_msg{"2a", "node2 says: hi"},
 	                   broker::print_msg{"2a", "node2 says: bye"}
-	               });
+	               })
+	);
 
+	BROKER_TEST(
 	check_contents(pq_b0, {
 	                   broker::print_msg{"0b", "node0 says: bye"},
 	                   broker::print_msg{"0b", "node0 says: goodbye"},
 	                   broker::print_msg{"1b", "node1 says: bbye"},
 	                   broker::print_msg{"2b", "node2 says: bbye"}
-	               });
+	               })
+	);
 
+	BROKER_TEST(
 	check_contents_poll(pq_a1, {
 	                   broker::print_msg{"0a", "node0 says: hi"},
 	                   broker::print_msg{"0a", "node0 says: hello"},
 	                   broker::print_msg{"1a", "node1 says: hi"},
 	                   broker::print_msg{"1a", "node1 says: bye"}
-	               });
+	               })
+	);
 
+	BROKER_TEST(
 	check_contents(pq_b1, {
 	                   broker::print_msg{"0b", "node0 says: bye"},
 	                   broker::print_msg{"0b", "node0 says: goodbye"},
 	                   broker::print_msg{"1b", "node1 says: bbye"}
-	               });
+	               })
+	);
 
+	BROKER_TEST(
 	check_contents_poll(pq_a2, {
 	                   broker::print_msg{"0a", "node0 says: hi"},
 	                   broker::print_msg{"0a", "node0 says: hello"},
 	                   broker::print_msg{"2a", "node2 says: hi"},
 	                   broker::print_msg{"2a", "node2 says: bye"}
-	               });
+	               })
+	);
 
 	broker::done();
 	return BROKER_TEST_RESULT();

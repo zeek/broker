@@ -3,7 +3,7 @@
 
 #include "broker/store/master.hh"
 #include "broker/store/store.hh"
-#include "../subscription.hh"
+#include "broker/topic.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
 #include <caf/actor.hpp>
@@ -18,14 +18,14 @@ friend class caf::sb_actor<master_actor>;
 
 public:
 
-	master_actor(std::unique_ptr<store> s, std::string topic)
+	master_actor(std::unique_ptr<store> s, std::string topic_name)
 		: datastore(std::move(s))
 		{
 		using namespace caf;
 		using namespace std;
 
 		message_handler requests {
-		on(val<subscription>, arg_match) >> [=](const query& q, const actor& r)
+		on(val<topic>, arg_match) >> [=](const query& q, const actor& r)
 			{
 			if ( q.tag == query::type::snapshot &&
 			     clones.find(r.address()) == clones.end() )
@@ -39,8 +39,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<subscription>, atom("insert"), arg_match) >> [=](data& k,
-		                                                        data& v)
+		on(val<topic>, atom("insert"), arg_match) >> [=](data& k, data& v)
 			{
 			datastore->insert(k, v);
 
@@ -48,7 +47,7 @@ public:
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v)));
 			},
-		on(val<subscription>, atom("erase"), arg_match) >> [=](data& k)
+		on(val<topic>, atom("erase"), arg_match) >> [=](data& k)
 			{
 			datastore->erase(k);
 
@@ -56,7 +55,7 @@ public:
 				publish(make_message(atom("erase"), datastore->sequence(),
 				                     move(k)));
 			},
-		on(val<subscription>, atom("clear"), arg_match) >> [=]
+		on(val<topic>, atom("clear"), arg_match) >> [=]
 			{
 			datastore->clear();
 
@@ -90,17 +89,17 @@ private:
 class master::impl {
 public:
 
-	impl(const caf::actor& endpoint, std::string topic,
+	impl(const caf::actor& endpoint, std::string topic_name,
 	     std::unique_ptr<store> s)
-		: self(), actor(caf::spawn<master_actor>(std::move(s), topic))
+		: self(), actor(caf::spawn<master_actor>(std::move(s), topic_name))
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		caf::anon_send(endpoint, caf::atom("sub"),
-		               subscription{subscription_type::store_query, topic},
+		               topic{topic_name, topic::tag::store_query},
 		               actor);
 		caf::anon_send(endpoint, caf::atom("sub"),
-		               subscription{subscription_type::store_update, topic},
+		               topic{topic_name, topic::tag::store_update},
 		               actor);
 		}
 

@@ -53,6 +53,7 @@ set(BROKER_SRC
     src/peering.cc
     src/peer_status_queue.cc
     src/print_queue.cc
+    src/subscription.cc
     src/store/clone.cc
     src/store/frontend.cc
     src/store/master.cc

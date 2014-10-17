@@ -2,7 +2,7 @@
 #define BROKER_STORE_FRONTEND_IMPL_HH
 
 #include "broker/store/frontend.hh"
-#include "../subscription.hh"
+#include "broker/topic.hh"
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 
@@ -13,7 +13,7 @@ friend class caf::sb_actor<requester>;
 
 public:
 
-	requester(caf::actor backend, subscription topic, query q, caf::actor queue,
+	requester(caf::actor backend, topic t, query q, caf::actor queue,
 	          std::chrono::duration<double> timeout, void* cookie)
 		: request(std::move(q))
 		{
@@ -23,7 +23,7 @@ public:
 		bootstrap = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			send(backend, std::move(topic), request, this);
+			send(backend, std::move(t), request, this);
 			become(awaiting_response);
 			}
 		);
@@ -55,16 +55,16 @@ class frontend::impl {
 public:
 
 	impl(std::string t, caf::actor e)
-		: topic(std::move(t)), endpoint(std::move(e)),
-	      request_topic(subscription{subscription_type::store_query, topic}),
-	      update_topic(subscription{subscription_type::store_update, topic}),
+		: topic_name(std::move(t)), endpoint(std::move(e)),
+	      request_topic(topic{topic_name, topic::tag::store_query}),
+	      update_topic(topic{topic_name, topic::tag::store_update}),
 	      responses()
 		{ }
 
-	std::string topic;
+	std::string topic_name;
 	caf::actor endpoint;
-	subscription request_topic;
-	subscription update_topic;
+	topic request_topic;
+	topic update_topic;
 	response_queue responses;
 };
 

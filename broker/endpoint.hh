@@ -1,6 +1,7 @@
 #ifndef BROKER_ENDPOINT_HH
 #define BROKER_ENDPOINT_HH
 
+#include <broker/topic.hh>
 #include <broker/peering.hh>
 #include <broker/print_msg.hh>
 #include <broker/log_msg.hh>
@@ -13,6 +14,36 @@
 
 namespace broker {
 
+// Endpoint options.
+
+/**
+ * Don't restrict message topics that the endpoint publishes to peers.
+ */
+constexpr int AUTO_PUBLISH = 0x01;
+
+/**
+ * Don't restrict message topics that the endpoint accepts from peers.
+ */
+constexpr int AUTO_SUBSCRIBE = 0x02;
+
+// Messaging modes.
+
+/**
+ * Send only to subscribers (e.g. a print queue) attached directly to endpoint.
+ */
+constexpr int SELF = 0x01;
+
+/**
+ * Send only to peers of the endpoint that advertise interest in the topic.
+ */
+constexpr int PEERS = 0x02;
+
+/**
+ * Send to peers of the endpoint even if they don't advertise interest in the
+ * topic.  This leaves it up to the peer to decide if it can handle the message.
+ */
+constexpr int UNSOLICITED = 0x04;
+
 /**
  * A local broker endpoint, the main entry point for communicating with peer.
  */
@@ -22,9 +53,9 @@ public:
 	/**
 	 * Create a local broker endpoint.
 	 * @param name a descriptive name for this endpoint.
-	 * @param flags tune the behavior of the endpoint.  No flags exist yet.
+	 * @param flags tune the behavior of the endpoint.
 	 */
-	endpoint(std::string name, int flags = 0);
+	endpoint(std::string name, int flags = AUTO_PUBLISH | AUTO_SUBSCRIBE);
 
 	/**
 	 * Shutdown the local broker endpoint and disconnect from peers.
@@ -55,6 +86,16 @@ public:
 	 * @return the descriptive name for this endpoint (as given to ctor).
 	 */
 	const std::string& name() const;
+
+	/**
+	 * @return the current option flags used by the endpoint.
+	 */
+	int flags() const;
+
+	/**
+	 * Changes the option flags used by the endpoint.
+	 */
+	void set_flags(int flags);
 
 	/**
 	 * @return an error code associated with the last failed endpoint operation.
@@ -120,26 +161,56 @@ public:
 	/**
 	 * Sends a message string to all print_queue's for a given topic that are
 	 * connected to this endpoint directly or indirectly through peer endpoints.
-	 * @param topic the topic associated with the message.
+	 * @param topic_name the topic name associated with the message.
 	 * @param msg a message to send all queues subscribed for the topic.
+	 * @param flags tunes the messaging mode behavior.
 	 */
-	void print(std::string topic, print_msg msg) const;
+	void print(std::string topic_name, print_msg msg,
+	           int flags = SELF | PEERS) const;
 
 	/**
 	 * Sends a log to all log_queue's for a given topic that are connected to
 	 * this endpoint directly or indirectly through peer endpoints.
-	 * @param topic the topic associated with the log.
+	 * @param topic_name the topic name associated with the log.
 	 * @param msg a logging message to send all queues subscribed for the topic.
+	 * @param flags tunes the messaging mode behavior.
 	 */
-	void log(std::string topic, log_msg msg) const;
+	void log(std::string topic_name, log_msg msg,
+	         int flags = SELF | PEERS) const;
 
 	/**
 	 * Sends an event to all event_queue's for a given topic that are connected
 	 * to this endpoint directly or indirectly through peer endpoings.
-	 * @param topic the topic associated with the event.
+	 * @param topic_name the topic name associated with the event.
 	 * @param msg an event to send all queues subscribed for the topic.
+	 * @param flags tunes the messaging mode behavior.
 	 */
-	void event(std::string topic, event_msg msg) const;
+	void event(std::string topic_name, event_msg msg,
+	           int flags = SELF | PEERS) const;
+
+	/**
+	 * Allow the endpoint to publish messages with the given topic to peers.
+	 * No effect while the endpoint uses the AUTO_PUBLISH flag.
+	 */
+	void publish(topic t);
+
+	/**
+	 * Stop allowing the endpoint to publish messages with the given topic to
+	 * peers.  No effect while the endpoint uses the AUTO_PUBLISH flag.
+	 */
+	void unpublish(topic t);
+
+	/**
+	 * Accept messages from peers with the given topic.  No effect while the
+	 * endpoint uses the AUTO_SUBSCRIBE flag.
+	 */
+	void subscribe(topic t);
+
+	/**
+	 * Stop accept messages from peers with the given topic.  No effect while
+	 * the endpoint uses the AUTO_SUBSCRIBE flag.
+	 */
+	void unsubscribe(topic t);
 
 	/**
 	 * @return a unique handle for the endpoint.

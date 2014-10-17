@@ -13,7 +13,7 @@ namespace broker { namespace store {
 class frontend {
 public:
 
-	frontend(const endpoint& e, std::string topic);
+	frontend(const endpoint& e, std::string topic_name);
 
 	virtual ~frontend();
 
@@ -25,7 +25,7 @@ public:
 
 	frontend& operator=(frontend&& other);
 
-	const std::string& topic() const;
+	const std::string& topic_name() const;
 
 	const response_queue& responses() const;
 

@@ -45,10 +45,10 @@ public:
 	/**
 	 * Create a log queue that will receive log messages directly from an
 	 * endpoint or via one if its peers.
+	 * @param topic_name only log messages that match this string are received.
 	 * @param e a local endpoint.
-	 * @param topic only log messages that match this string are received.
 	 */
-	log_queue(std::string topic, const endpoint& e);
+	log_queue(std::string topic_name, const endpoint& e);
 
 	/**
 	 * @return a file descriptor that is ready for reading when the queue is
@@ -67,9 +67,9 @@ public:
 	std::deque<log_msg> need_pop() const;
 
 	/**
-	 * @return the topic associated with the queue.
+	 * @return the topic name associated with the queue.
 	 */
-	const std::string& topic() const;
+	const std::string& topic_name() const;
 
 private:
 

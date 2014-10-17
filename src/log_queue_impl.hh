@@ -2,7 +2,7 @@
 #define BROKER_LOG_QUEUE_IMPL_HH
 
 #include "broker/log_queue.hh"
-#include "subscription.hh"
+#include "broker/topic.hh"
 #include "util/flare.hh"
 #include "util/queue.hh"
 #include <caf/spawn.hpp>
@@ -20,18 +20,18 @@ public:
 		using broker::util::queue;
 		util::flare f;
 		fd = f.fd();
-		topic = std::move(t);
-		actor = caf::spawn<queue<decltype(caf::on<subscription, log_msg>()),
+		topic_name = std::move(t);
+		actor = caf::spawn<queue<decltype(caf::on<topic, log_msg>()),
 		                         log_msg>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 
 		caf::anon_send(*static_cast<caf::actor*>(e.handle()), caf::atom("sub"),
-		               subscription{subscription_type::log, topic}, actor);
+		               topic{topic_name, topic::tag::log}, actor);
 		}
 
 	int fd;
-	std::string topic;
+	std::string topic_name;
 	caf::scoped_actor self;
 	caf::actor actor;
 };

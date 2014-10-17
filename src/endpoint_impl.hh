@@ -7,6 +7,7 @@
 #include "broker/store/query.hh"
 #include "subscription.hh"
 #include "peering_impl.hh"
+#include "util/radix_tree.hh"
 #include <caf/actor.hpp>
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -14,7 +15,6 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/io/remote_actor.hpp>
 #include <unordered_set>
-#include <string>
 
 namespace broker {
 
@@ -30,7 +30,8 @@ friend class caf::sb_actor<endpoint_actor>;
 
 public:
 
-	endpoint_actor(std::string name, caf::actor peer_status_q)
+	endpoint_actor(std::string name, int flags, caf::actor peer_status_q)
+		: behavior_flags(flags)
 		{
 		using namespace caf;
 		using namespace std;
@@ -66,14 +67,14 @@ public:
 						               peer_status::type::incompatible);
 					else
 						sync_send(p, atom("peer"), this, name,
-						          local_subs.topics()).then(
+						          local_subscriptions.topics()).then(
 							on_arg_match >> [=](const sync_exited_msg& m)
 								{
 								do_peer_status(peer_status_q, move(pi),
 								               peer_status::type::disconnected);
 								},
 							on_arg_match >> [=](std::string& pname,
-							                    subscriptions& topics)
+							                    topic_set& topics)
 								{
 								add_peer(move(p), pname, move(topics));
 								do_peer_status(peer_status_q, move(pi),
@@ -90,46 +91,55 @@ public:
 			);
 			},
 		on(atom("peer"), arg_match) >> [=](actor& p, std::string& pname,
-		                                   subscriptions& t)
+		                                   topic_set& t)
 			{
 			add_peer(move(p), move(pname), move(t));
-			return make_message(name, local_subs.topics());
+			return make_message(name, local_subscriptions.topics());
 			},
 		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
 			demonitor(p);
 			peers.erase(p.address());
-			peer_subs.rem_subscriber(p.address());
+			peer_subscriptions.erase(p.address());
 			},
 		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(d.source);
-			peers.erase(d.source);
-			peer_subs.rem_subscriber(d.source);
-			subscriptions unsubs = local_subs.rem_subscriber(d.source);
+
+			if ( peers.erase(d.source) )
+				{
+				peer_subscriptions.erase(d.source);
+				return;
+				}
+
+			auto s = local_subscriptions.erase(d.source);
+
+			if ( ! s )
+				return;
 
 			for ( const auto& p : peers )
-				send(p.second.ep, atom("unsub"), unsubs, this);
+				send(p.second.ep,
+				     atom("unsub"), std::move(s->subscriptions), this);
 			},
-		on(atom("unsub"), arg_match) >> [=](const subscriptions& topics,
+		on(atom("unsub"), arg_match) >> [=](const topic_set& topics,
 		                                    const actor& p)
 			{
-			peer_subs.rem_subscriptions(topics, p.address());
+			peer_subscriptions.unregister_topics(topics, p.address());
 			},
-		on(atom("sub"), arg_match) >> [=](subscription& t, actor& a)
+		on(atom("sub"), arg_match) >> [=](topic& t, actor& a)
 			{
 			demonitor(a);
 			monitor(a);
-			local_subs.add_subscription(t, move(a));
+			local_subscriptions.register_topic(t, move(a));
 
 			for ( const auto& p : peers )
 				send(p.second.ep, atom("subpeer"), t, this);
 			},
-		on(atom("subpeer"), arg_match) >> [=](subscription& t, actor& p)
+		on(atom("subpeer"), arg_match) >> [=](topic& t, actor& p)
 			{
-			peer_subs.add_subscription(move(t), move(p));
+			peer_subscriptions.register_topic(move(t), move(p));
 			},
-		on_arg_match >> [=](const subscription& s, const query& q,
+		on_arg_match >> [=](const topic& s, const query& q,
 		                    const actor& requester)
 			{
 			auto master = find_master(s);
@@ -139,48 +149,70 @@ public:
 			else
 				forward_to(master);
 			},
-		on<subscription, anything>() >> [=](const subscription& t)
+		on<topic, anything>() >> [=](const topic& t)
 			{
 			publish_current_msg(t);
+			},
+		on(atom("flags"), arg_match) >> [=](int flags)
+			{
+			behavior_flags = flags;
+			},
+		on(caf::atom("acl pub"), arg_match) >>[=](topic& t)
+			{
+			pub_acls[+t.type].insert(make_pair(std::move(t.name), true));
+			},
+		on(caf::atom("acl unpub"), arg_match) >>[=](const topic& t)
+			{
+			pub_acls[+t.type].erase(t.name);
+			},
+		on(caf::atom("acl sub"), arg_match) >>[=](topic& t)
+			{
+			sub_acls[+t.type].insert(make_pair(std::move(t.name), true));
+			},
+		on(caf::atom("acl unsub"), arg_match) >>[=](const topic& t)
+			{
+			sub_acls[+t.type].erase(t.name);
 			}
 		);
 		}
 
 private:
 
-	void add_peer(caf::actor p, std::string name, subscriptions t)
+	void add_peer(caf::actor p, std::string name, topic_set ts)
 		{
 		demonitor(p);
 		monitor(p);
 		peers[p.address()] = {p, std::move(name)};
-		peer_subs.add_subscriber(subscriber{std::move(t), p});
+		peer_subscriptions.insert(subscriber{std::move(p), std::move(ts)});
 		}
 
-	caf::actor find_master(const subscription& t)
+	caf::actor find_master(const topic& t)
 		{
-		auto m = local_subs.match(t);
+		auto m = local_subscriptions.match_exact(t);
 
-		if ( m.empty() )
-			m = peer_subs.match(t);
+		if ( ! m )
+			m = peer_subscriptions.match_exact(t);
 
-		if ( m.empty() )
+		if ( ! m )
 			return caf::invalid_actor;
 
-		return *m.begin();
+		return *m->begin();
 		}
 
-	void publish_current_msg(const subscription& topic)
+	void publish_current_msg(const topic& t)
 		{
-		for ( const auto& a : local_subs.match(topic) )
-			forward_to(a);
+		for ( const auto& match : local_subscriptions.match_prefix(t) )
+			for ( const auto& a : match->second )
+				forward_to(a);
 
 		if ( peers.find(last_sender()) != peers.end() )
 			// Don't re-publish messages published by a peer (they go one hop).
 			return;
 
-		for ( const auto& a : peer_subs.match(topic) )
-			// Use send_tuple instead of forward_to for above re-publish check.
-			send_tuple(a, last_dequeued());
+		for ( const auto& match : peer_subscriptions.match_prefix(t) )
+			for ( const auto& a : match->second )
+				// send_tuple instead of forward_to for above re-publish check.
+				send_tuple(a, last_dequeued());
 		}
 
 	struct peer_endpoint {
@@ -188,14 +220,16 @@ private:
 		std::string name;
 	};
 
-	using peer_map = std::unordered_map<caf::actor_addr, peer_endpoint>;
-
 	caf::behavior active;
 	caf::behavior& init_state = active;
 
-	peer_map peers;
-	subscriber_base local_subs;
-	subscriber_base peer_subs;
+	int behavior_flags;
+	topic_set pub_acls;
+	topic_set sub_acls;
+
+	std::unordered_map<caf::actor_addr, peer_endpoint> peers;
+	subscription_registry local_subscriptions;
+	subscription_registry peer_subscriptions;
 };
 
 /**
@@ -322,9 +356,9 @@ static inline caf::actor& handle_to_actor(void* h)
 class endpoint::impl {
 public:
 
-	impl(std::string n)
-		: name(std::move(n)), self(), peer_status(),
-		  actor(caf::spawn<broker::endpoint_actor>(name,
+	impl(std::string n, int arg_flags)
+		: name(std::move(n)), flags(arg_flags), self(), peer_status(),
+		  actor(caf::spawn<broker::endpoint_actor>(name, flags,
 		                   handle_to_actor(peer_status.handle()))),
 		  peers(), last_errno(), last_error()
 		{
@@ -333,6 +367,7 @@ public:
 		}
 
 	std::string name;
+	int flags;
 	caf::scoped_actor self;
 	peer_status_queue peer_status;
 	caf::actor actor;

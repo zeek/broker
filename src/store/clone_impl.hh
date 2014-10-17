@@ -4,7 +4,7 @@
 #include "broker/store/clone.hh"
 #include "broker/store/store.hh"
 #include "broker/store/mem_store.hh"
-#include "../subscription.hh"
+#include "broker/topic.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
@@ -19,16 +19,16 @@ friend class caf::sb_actor<clone_actor>;
 
 public:
 
-	clone_actor(const caf::actor& endpoint, std::string topic,
+	clone_actor(const caf::actor& endpoint, std::string topic_name,
 	            std::chrono::duration<double> resync_interval)
 		{
 		using namespace std;
 		using namespace caf;
 
-		subscription snap_topic{subscription_type::store_query, topic};
+		topic snapshot_topic{topic_name, topic::tag::store_query};
 
 		message_handler requests {
-		on_arg_match >> [=](const subscription& s, const query& q,
+		on_arg_match >> [=](const topic& s, const query& q,
 		                    const actor& requester)
 			{
 			send(requester, this, q.process(datastore));
@@ -36,7 +36,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<subscription>, atom("insert"), val<data>, val<data>) >> [=]
+		on(val<topic>, atom("insert"), val<data>, val<data>) >> [=]
 			{
 			forward_to(master);
 			},
@@ -48,9 +48,9 @@ public:
 			if ( sn == next )
 				datastore.insert(move(k), move(v));
 			else if ( sn > next )
-				sequence_error(snap_topic, endpoint);
+				sequence_error(snapshot_topic, endpoint);
 			},
-		on(val<subscription>, atom("erase"), val<data>) >> [=]
+		on(val<topic>, atom("erase"), val<data>) >> [=]
 			{
 			forward_to(master);
 			},
@@ -62,9 +62,9 @@ public:
 			if ( sn == next )
 				datastore.erase(k);
 			else if ( sn > next )
-				sequence_error(snap_topic, endpoint);
+				sequence_error(snapshot_topic, endpoint);
 			},
-		on(val<subscription>, atom("clear")) >> [=]
+		on(val<topic>, atom("clear")) >> [=]
 			{
 			forward_to(master);
 			},
@@ -75,14 +75,14 @@ public:
 			if ( sn == next )
 				datastore.clear();
 			else if ( sn > next )
-				sequence_error(snap_topic, endpoint);
+				sequence_error(snapshot_topic, endpoint);
 			}
 		};
 
 		bootstrap = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			send(endpoint, snap_topic, query(query::type::snapshot), this);
+			send(endpoint, snapshot_topic, query(query::type::snapshot), this);
 			become(initializing);
 			}
 		);
@@ -91,7 +91,7 @@ public:
 		on_arg_match >> [=](caf::actor& responder, result& r)
 			{
 			if ( r.stat != result::status::success )
-				delayed_send(endpoint, resync_interval, snap_topic,
+				delayed_send(endpoint, resync_interval, snapshot_topic,
 				             query(query::type::snapshot), this);
 			else if ( r.value.which() == result::type::snapshot_result )
 				{
@@ -113,7 +113,8 @@ public:
 				{
 				demonitor(master);
 				master = invalid_actor;
-				send(endpoint, snap_topic, query(query::type::snapshot), this);
+				send(endpoint, snapshot_topic,
+				     query(query::type::snapshot), this);
 				}
 			}
 		);
@@ -121,10 +122,10 @@ public:
 
 private:
 
-	void sequence_error(const subscription& sub, const caf::actor& endpoint)
+	void sequence_error(const topic& t, const caf::actor& endpoint)
 		{
-		aout(this) << "ERROR: clone '" << sub.topic << "' desync" << std::endl;
-		send(endpoint, sub, query(query::type::snapshot), this);
+		aout(this) << "ERROR: clone '" << t.name << "' desync" << std::endl;
+		send(endpoint, t, query(query::type::snapshot), this);
 		}
 
 	mem_store datastore;

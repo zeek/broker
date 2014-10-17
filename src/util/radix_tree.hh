@@ -39,9 +39,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iterator>
 #include <array>
 #include <algorithm>
-#include <functional>
 #include <deque>
 #include <memory>
+#include <initializer_list>
 #include <emmintrin.h>
 
 namespace broker {
@@ -109,7 +109,7 @@ public:
 		std::unique_ptr<std::deque<node_visit>> visited;
 	};
 
-	radix_tree()
+	explicit radix_tree()
 		: num_entries(0), root(nullptr)
 		{}
 
@@ -121,6 +121,8 @@ public:
 	radix_tree(radix_tree&& other)
 		: radix_tree()
 		{ swap(*this, other); }
+
+	radix_tree(std::initializer_list<value_type> l);
 
 	radix_tree& operator=(radix_tree other)
 		{ swap(*this, other); return *this; }
@@ -156,9 +158,17 @@ public:
 		return 1;
 		}
 
-	mapped_type& operator[](const key_type& lhs);
+	mapped_type& operator[](key_type lhs);
 
-	std::deque<iterator> match_prefix(const key_type& prefix) const;
+	/**
+	 * @return all entries that have a key prefixed by the argument.
+	 */
+	std::deque<iterator> prefixed_by(const key_type& prefix) const;
+
+	/**
+	 * @return all entries that have a key that are a prefix of the argument.
+	 */
+	std::deque<iterator> prefix_of(const key_type& data) const;
 
 	bool operator==(const radix_tree& rhs) const;
 
@@ -296,6 +306,10 @@ private:
 
 	static void recursive_clear(node* n);
 
+	void recursive_add_leaves(node* n, std::deque<iterator>& leaves) const;
+
+	node* add_prefix_leaf(node* n, std::deque<iterator>& leaves) const;
+
 	size_type num_entries;
 	node* root;
 };
@@ -384,65 +398,23 @@ typename radix_tree<T, N>::iterator radix_tree<T, N>::end() const
 
 template <typename T, std::size_t N>
 typename radix_tree<T, N>::mapped_type&
-radix_tree<T, N>::operator[](const key_type& lhs)
+radix_tree<T, N>::operator[](key_type lhs)
 	{
 	iterator it = find(lhs);
 
 	if ( it != end() )
 		return it->second;
 
-	return insert({lhs, {}}).first->second;
+	return insert(value_type(std::move(lhs), mapped_type{})).first->second;
 	}
 
 template <typename T, std::size_t N>
 std::deque<typename radix_tree<T, N>::iterator>
-radix_tree<T, N>::match_prefix(const key_type& prefix) const
+radix_tree<T, N>::prefixed_by(const key_type& prefix) const
 	{
 	node* n = root;
 	int depth = 0;
 	std::deque<iterator> rval;
-	std::function<void(node*)> add_leaves = [&rval, &add_leaves, this](node* n)
-		{
-		switch ( n->type ) {
-		case node::tag::leaf:
-			rval.push_back({root, n});
-			break;
-		case node::tag::node4:
-			{
-			auto p = reinterpret_cast<node4*>(n);
-			for ( int i = 0; i < n->num_children; ++i )
-				add_leaves(p->children[i]);
-			}
-			break;
-		case node::tag::node16:
-			{
-			auto p = reinterpret_cast<node16*>(n);
-			for ( int i = 0; i < n->num_children; ++i )
-				add_leaves(p->children[i]);
-			}
-			break;
-		case node::tag::node48:
-			{
-			auto p = reinterpret_cast<node48*>(n);
-			for ( int i = 0; i < 256; ++i )
-				{
-				auto idx = p->keys[i];
-				if ( ! idx ) continue;
-				add_leaves(p->children[idx - 1]);
-				}
-			}
-			break;
-		case node::tag::node256:
-			{
-			auto p = reinterpret_cast<node256*>(n);
-			for ( int i = 0; i < 256; ++i )
-				if ( p->children[i] ) add_leaves(p->children[i]);
-			}
-			break;
-		default:
-			abort();
-		}
-		};
 
 	while ( n )
 		{
@@ -460,7 +432,7 @@ radix_tree<T, N>::match_prefix(const key_type& prefix) const
 
 			if ( prefix_matches(l->key(), prefix) )
 				{
-				add_leaves(n);
+				recursive_add_leaves(n, rval);
 				return rval;
 				}
 
@@ -476,7 +448,7 @@ radix_tree<T, N>::match_prefix(const key_type& prefix) const
 
 			if ( depth + prefix_len == prefix.size() )
 				{
-				add_leaves(n);
+				recursive_add_leaves(n, rval);
 				return rval;
 				}
 
@@ -490,6 +462,54 @@ radix_tree<T, N>::match_prefix(const key_type& prefix) const
 			n = *child;
 		else
 			n = nullptr;
+
+		++depth;
+		}
+
+	return rval;
+	}
+
+template <typename T, std::size_t N>
+std::deque<typename radix_tree<T, N>::iterator>
+radix_tree<T, N>::prefix_of(const key_type& data) const
+	{
+	node* n = root;
+	node* last = root;
+	std::deque<iterator> rval;
+	int depth = 0;
+
+	while ( n )
+		{
+		if ( n->type == node::tag::leaf )
+			{
+			if ( prefix_matches(data, reinterpret_cast<leaf*>(n)->key()) )
+				rval.push_back({root, n});
+
+			return rval;
+			}
+
+		if ( n->partial_len )
+			{
+			auto prefix_len = prefix_shared(n, data, depth);
+
+			if ( prefix_len != std::min(N, static_cast<size_t>(n->partial_len)) )
+				// Prefix mismatch.
+				return rval;
+
+			depth += n->partial_len;
+			}
+
+		auto leaf = add_prefix_leaf(n, rval);
+
+		auto child = find_child(n, data[depth]).first;
+
+		if ( child )
+			n = *child;
+		else
+			n = nullptr;
+
+		if ( n == leaf )
+			break;
 
 		++depth;
 		}
@@ -517,6 +537,14 @@ radix_tree<T, N>::radix_tree(const radix_tree& other)
 	{
 	// Maybe this could probably be better optimized?
 	for ( const auto& p : other ) insert(p);
+	}
+
+template <typename T, std::size_t N>
+radix_tree<T, N>::radix_tree(std::initializer_list<value_type> l)
+	: radix_tree()
+	{
+	for ( const auto& e : l )
+		insert(e);
 	}
 
 template <typename T, std::size_t N>
@@ -872,7 +900,109 @@ void radix_tree<T, N>::recursive_clear(node* n)
 		return;
 	default:
 		abort();
+		}
 	}
+
+template <typename T, std::size_t N>
+void radix_tree<T, N>::recursive_add_leaves(node* n,
+                                            std::deque<iterator>& leaves) const
+	{
+	switch ( n->type ) {
+	case node::tag::leaf:
+		leaves.push_back({root, n});
+		break;
+	case node::tag::node4:
+		{
+		auto p = reinterpret_cast<node4*>(n);
+		for ( int i = 0; i < n->num_children; ++i )
+			recursive_add_leaves(p->children[i], leaves);
+		}
+		break;
+	case node::tag::node16:
+		{
+		auto p = reinterpret_cast<node16*>(n);
+		for ( int i = 0; i < n->num_children; ++i )
+			recursive_add_leaves(p->children[i], leaves);
+		}
+		break;
+	case node::tag::node48:
+		{
+		auto p = reinterpret_cast<node48*>(n);
+		for ( int i = 0; i < 256; ++i )
+			{
+			auto idx = p->keys[i];
+			if ( ! idx ) continue;
+			recursive_add_leaves(p->children[idx - 1], leaves);
+			}
+		}
+		break;
+	case node::tag::node256:
+		{
+		auto p = reinterpret_cast<node256*>(n);
+		for ( int i = 0; i < 256; ++i )
+			if ( p->children[i] ) recursive_add_leaves(p->children[i], leaves);
+		}
+		break;
+	default:
+		abort();
+		}
+	}
+
+template <typename T, std::size_t N>
+typename radix_tree<T, N>::node* radix_tree<T, N>::add_prefix_leaf(
+            node* n, std::deque<iterator>& leaves) const
+	{
+	switch ( n->type ) {
+	case node::tag::leaf:
+		return nullptr;
+	case node::tag::node4:
+		{
+		auto p = reinterpret_cast<node4*>(n);
+		if ( n->num_children && p->keys[0] == 0 &&
+		     p->children[0]->type == node::tag::leaf )
+			{
+			leaves.push_back({root, p->children[0]});
+			return p->children[0];
+			}
+		}
+		break;
+	case node::tag::node16:
+		{
+		auto p = reinterpret_cast<node16*>(n);
+		if ( n->num_children && p->keys[0] == 0 &&
+		     p->children[0]->type == node::tag::leaf )
+			{
+			leaves.push_back({root, p->children[0]});
+			return p->children[0];
+			}
+		}
+		break;
+	case node::tag::node48:
+		{
+		auto p = reinterpret_cast<node48*>(n);
+		if ( p->keys[0] &&
+		     p->children[p->keys[0] - 1]->type == node::tag::leaf )
+			{
+			leaves.push_back({root, p->children[p->keys[0] - 1]});
+			return p->children[p->keys[0] - 1];
+			}
+		}
+		break;
+	case node::tag::node256:
+		{
+		auto p = reinterpret_cast<node256*>(n);
+		if ( p->children[0] && p->children[0]->type == node::tag::leaf )
+			{
+			leaves.push_back({root, p->children[0]});
+			return p->children[0];
+			}
+		}
+		break;
+	default:
+		abort();
+		}
+
+	return nullptr;
 	}
 
 template <typename T, std::size_t N>

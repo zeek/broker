@@ -13,8 +13,8 @@ broker::log_queue::log_queue(log_queue&& other) = default;
 broker::log_queue&
 broker::log_queue::operator=(log_queue&& other) = default;
 
-broker::log_queue::log_queue(std::string topic, const endpoint& e)
-    : pimpl(new impl(std::move(topic), e))
+broker::log_queue::log_queue(std::string topic_name, const endpoint& e)
+    : pimpl(new impl(std::move(topic_name), e))
 	{
 	}
 
@@ -23,9 +23,9 @@ int broker::log_queue::fd() const
 	return pimpl->fd;
 	}
 
-const std::string& broker::log_queue::topic() const
+const std::string& broker::log_queue::topic_name() const
 	{
-	return pimpl->topic;
+	return pimpl->topic_name;
 	}
 
 std::deque<broker::log_msg> broker::log_queue::want_pop() const

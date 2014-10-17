@@ -45,10 +45,11 @@ public:
 	/**
 	 * Create a print queue that will receive print messages directly from an
 	 * endpoint or via one if its peers.
+	 * @param topic_name only print messages that match this string are
+	 *                   received.
 	 * @param e a local endpoint.
-	 * @param topic only print messages that match this string are received.
 	 */
-	print_queue(std::string topic, const endpoint& e);
+	print_queue(std::string topic_name, const endpoint& e);
 
 	/**
 	 * @return a file descriptor that is ready for reading when the queue is
@@ -67,9 +68,9 @@ public:
 	std::deque<print_msg> need_pop() const;
 
 	/**
-	 * @return the topic associated with the queue.
+	 * @return the topic name associated with the queue.
 	 */
-	const std::string& topic() const;
+	const std::string& topic_name() const;
 
 private:
 

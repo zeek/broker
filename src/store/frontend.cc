@@ -10,8 +10,8 @@ static inline caf::actor& handle_to_actor(void* h)
 	return *static_cast<caf::actor*>(h);
 	}
 
-broker::store::frontend::frontend(const endpoint& e, std::string topic)
-    : pimpl(new impl(std::move(topic), handle_to_actor(e.handle())))
+broker::store::frontend::frontend(const endpoint& e, std::string topic_name)
+    : pimpl(new impl(std::move(topic_name), handle_to_actor(e.handle())))
 	{
 	}
 
@@ -22,9 +22,9 @@ broker::store::frontend::frontend(frontend&& other) = default;
 broker::store::frontend&
 broker::store::frontend::operator=(frontend&& other) = default;
 
-const std::string& broker::store::frontend::topic() const
+const std::string& broker::store::frontend::topic_name() const
 	{
-	return pimpl->topic;
+	return pimpl->topic_name;
 	}
 
 const broker::store::response_queue& broker::store::frontend::responses() const

@@ -15,9 +15,16 @@ static bool check_match(deque<my_radix_tree::iterator> matches,
 	if ( matches.size() != expected.size() )
 		return false;
 
-	for ( const auto& m : matches )
-		if ( expected.find(*m) == expected.end() )
+	for ( auto it = expected.begin(); it != expected.end(); ++it )
+		{
+		auto i = distance(expected.begin(), it);
+
+		if ( matches[i]->first != it->first )
 			return false;
+
+		if ( matches[i]->second != it->second )
+			return false;
+		}
 
 	return true;
 	}
@@ -83,22 +90,13 @@ static void test_insert_very_long()
 
 static void test_long_prefix()
 	{
-	my_radix_tree t;
+	my_radix_tree t{
+		{"this:key:has:a:long:prefix:3", 3},
+		{"this:key:has:a:long:common:prefix:2", 2},
+		{"this:key:has:a:long:common:prefix:1", 1},
+	};
 
-	int v;
 	const char *s;
-
-	s = "this:key:has:a:long:prefix:3";
-	v = 3;
-	BROKER_TEST(t.insert(make_pair(s, v)).second);
-
-	s = "this:key:has:a:long:common:prefix:2";
-	v = 2;
-	BROKER_TEST(t.insert(make_pair(s, v)).second);
-
-	s = "this:key:has:a:long:common:prefix:1";
-	v = 1;
-	BROKER_TEST(t.insert(make_pair(s, v)).second);
 
 	s = "this:key:has:a:long:common:prefix:1";
 	BROKER_TEST(t.find(s)->second == 1);
@@ -109,30 +107,222 @@ static void test_long_prefix()
 	s = "this:key:has:a:long:prefix:3";
 	BROKER_TEST(t.find(s)->second == 3);
 
-	BROKER_TEST(check_match(t.match_prefix("this:key:has"), {
+	BROKER_TEST(check_match(t.prefixed_by("this:key:has"), {
 	                        make_pair("this:key:has:a:long:common:prefix:1", 1),
 	                        make_pair("this:key:has:a:long:common:prefix:2", 2),
 	                        make_pair("this:key:has:a:long:prefix:3", 3)}));
+
+	BROKER_TEST(check_match(t.prefix_of("this:key:has:a:long:prefix:321"), {
+	                        make_pair("this:key:has:a:long:prefix:3", 3)
+	                        }));
+	BROKER_TEST(t.prefix_of("this:key:has:a:long:common:prefix:3").empty());
+	BROKER_TEST(check_match(t.prefix_of("this:key:has:a:long:common:prefix:1"),
+	                        {
+	                        make_pair("this:key:has:a:long:common:prefix:1", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("this:key:has:a:long:common:prefix:2"),
+	                        {
+	                        make_pair("this:key:has:a:long:common:prefix:2", 2),
+	                        }));
+	}
+
+static void test_prefix_of()
+	{
+	my_radix_tree t{make_pair("one", 1)};
+
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1)
+	                        }));
+	t["one-hundred"] = 100;
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	t["one-hundred-thousand"] = 100000;
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-thousand"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        make_pair("one-hundred-thousand", 100000)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-two"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        }));
+	t["two"] = 2;
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-thousand"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        make_pair("one-hundred-thousand", 100000)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-two"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        }));
+	t["two-fifty"] = 250;
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-thousand"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        make_pair("one-hundred-thousand", 100000)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-two"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("two-fifty-five"),
+	                        {
+	                        make_pair("two", 2),
+	                        make_pair("two-fifty", 250),
+	                        }));
+	t["zero"] = 0;
+	BROKER_TEST(t.prefix_of("").empty());
+	BROKER_TEST(t.prefix_of("nope").empty());
+	BROKER_TEST(t.prefix_of("on").empty());
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-thousand"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        make_pair("one-hundred-thousand", 100000)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-two"),
+	                        {
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("two-fifty-five"),
+	                        {
+	                        make_pair("two", 2),
+	                        make_pair("two-fifty", 250),
+	                        }));
+	t[""] = -1;
+	BROKER_TEST(check_match(t.prefix_of(""),
+	                        {
+	                        make_pair("", -1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("nope"),
+	                        {
+	                        make_pair("", -1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("on"),
+	                        {
+	                        make_pair("", -1),
+	                        }));
+
+	BROKER_TEST(check_match(t.prefix_of("one"),
+	                        {
+	                        make_pair("", -1),
+	                        make_pair("one", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred"),
+	                        {
+	                        make_pair("", -1),
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-thousand"),
+	                        {
+	                        make_pair("", -1),
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        make_pair("one-hundred-thousand", 100000)
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("one-hundred-two"),
+	                        {
+	                        make_pair("", -1),
+	                        make_pair("one", 1),
+	                        make_pair("one-hundred", 100),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("two-fifty-five"),
+	                        {
+	                        make_pair("", -1),
+	                        make_pair("two", 2),
+	                        make_pair("two-fifty", 250),
+	                        }));
 	}
 
 static void test_prefix_match()
 	{
-	my_radix_tree t;
+	my_radix_tree t{
+		{"api.foo.bar", 1},
+		{"api.foo.baz", 2},
+		{"api.foe.fum", 3},
+		{"abc.123.456", 4},
+		{"api.foo", 5},
+		{"api", 6},
+	};
 
-	const char *s = "api.foo.bar";
-	BROKER_TEST(t.insert(make_pair(s, 1)).second);
-	s = "api.foo.baz";
-	BROKER_TEST(t.insert(make_pair(s, 2)).second);
-	s = "api.foe.fum";
-	BROKER_TEST(t.insert(make_pair(s, 3)).second);
-	s = "abc.123.456";
-	BROKER_TEST(t.insert(make_pair(s, 4)).second);
-	s = "api.foo";
-	BROKER_TEST(t.insert(make_pair(s, 5)).second);
-	s = "api";
-	BROKER_TEST(t.insert(make_pair(s, 6)).second);
-
-	BROKER_TEST(check_match(t.match_prefix("api"), {
+	BROKER_TEST(check_match(t.prefixed_by("api"), {
 	                        make_pair("api", 6),
 	                        make_pair("api.foe.fum", 3),
 	                        make_pair("api.foo", 5),
@@ -140,7 +330,7 @@ static void test_prefix_match()
 	                        make_pair("api.foo.baz", 2),
 	                        }));
 
-	BROKER_TEST(check_match(t.match_prefix("a"), {
+	BROKER_TEST(check_match(t.prefixed_by("a"), {
 	                        make_pair("abc.123.456", 4),
 	                        make_pair("api", 6),
 	                        make_pair("api.foe.fum", 3),
@@ -149,22 +339,22 @@ static void test_prefix_match()
 	                        make_pair("api.foo.baz", 2),
 	                        }));
 
-	BROKER_TEST(t.match_prefix("b").empty());
+	BROKER_TEST(t.prefixed_by("b").empty());
 
-	BROKER_TEST(check_match(t.match_prefix("api."), {
+	BROKER_TEST(check_match(t.prefixed_by("api."), {
 	                        make_pair("api.foe.fum", 3),
 	                        make_pair("api.foo", 5),
 	                        make_pair("api.foo.bar", 1),
 	                        make_pair("api.foo.baz", 2),
 	                        }));
 
-	BROKER_TEST(check_match(t.match_prefix("api.foo.bar"), {
+	BROKER_TEST(check_match(t.prefixed_by("api.foo.bar"), {
 	                        make_pair("api.foo.bar", 1),
 	                        }));
 
-	BROKER_TEST(t.match_prefix("api.end").empty());
+	BROKER_TEST(t.prefixed_by("api.end").empty());
 
-	BROKER_TEST(check_match(t.match_prefix(""), {
+	BROKER_TEST(check_match(t.prefixed_by(""), {
 	                        make_pair("abc.123.456", 4),
 	                        make_pair("api", 6),
 	                        make_pair("api.foe.fum", 3),
@@ -172,6 +362,17 @@ static void test_prefix_match()
 	                        make_pair("api.foo.bar", 1),
 	                        make_pair("api.foo.baz", 2),
 	                        }));
+
+	BROKER_TEST(check_match(t.prefix_of("api.foo.bar.baz"), {
+	                        make_pair("api", 6),
+	                        make_pair("api.foo", 5),
+	                        make_pair("api.foo.bar", 1),
+	                        }));
+	BROKER_TEST(check_match(t.prefix_of("api.foo.fum"), {
+	                        make_pair("api", 6),
+	                        make_pair("api.foo", 5),
+	                        }));
+	BROKER_TEST(t.prefix_of("").empty());
 	}
 
 static void test_many_keys()
@@ -194,14 +395,24 @@ static void test_many_keys()
 	for ( const auto& i : values )
 		BROKER_TEST(t.find(keys[i])->second == i);
 
-	int num_matched = 0;
-	for ( const auto& p : t.match_prefix("1") )
-		{
-		++num_matched;
+	auto matches = t.prefixed_by("1");
+	BROKER_TEST(matches.size() == 1 + 10 + 100);
+	for ( const auto& p : matches )
 		BROKER_TEST(p->first[0] == '1');
-		}
 
-	BROKER_TEST(num_matched == 1 + 10 + 100);
+	matches = t.prefix_of("109876");
+	BROKER_TEST(check_match(matches, {
+	                        make_pair("109", 109),
+	                        make_pair("10", 10),
+	                        make_pair("1", 1),
+	                        }));
+
+	matches = t.prefix_of("54321");
+	BROKER_TEST(check_match(matches, {
+	                        make_pair("543", 543),
+	                        make_pair("54", 54),
+	                        make_pair("5", 5),
+	                        }));
 
 	for ( int i = 0; i < 500; ++i )
 		{
@@ -243,14 +454,18 @@ static void test_many_keys()
 
 	BROKER_TEST(t.size() == 1000);
 
-	num_matched = 0;
-	for ( const auto& p : t.match_prefix("9") )
-		{
-		++num_matched;
+	matches = t.prefixed_by("9");
+	BROKER_TEST(matches.size() == 1 + 10 + 100);
+	for ( const auto& p : matches )
 		BROKER_TEST(p->first[0] == '9');
-		}
 
-	BROKER_TEST(num_matched == 1 + 10 + 100);
+	matches = t.prefix_of("54321");
+	BROKER_TEST(check_match(matches, {
+	                        make_pair("543", 543),
+	                        make_pair("54", 54),
+	                        make_pair("5", 5),
+	                        }));
+
 	t.clear();
 	BROKER_TEST(t.size() == 0);
 	}
@@ -272,7 +487,8 @@ static void test_dense_nodes()
 				}
 
 	BROKER_TEST(t.size() == 256 * 256 * 10);
-	BROKER_TEST(t.match_prefix("a").size() == 256 * 10);
+	BROKER_TEST(t.prefixed_by("a").size() == 256 * 10);
+	BROKER_TEST(t.prefix_of("ab0123").size() == 1);
 	BROKER_TEST(t.find("az5")->second == 'a' * 256 * 10 + 'z' * 10 + 5);
 
 	for ( auto i = 0; i < 256; ++i )
@@ -298,9 +514,10 @@ static void test_dense_nodes()
 		BROKER_TEST(t.find(ss.str())->second == 'b' * 256 * 10 + 'r' * 10 + i);
 		}
 
-	BROKER_TEST(t.match_prefix("b").size() == 10);
-	BROKER_TEST(t.match_prefix("br").size() == 10);
-	BROKER_TEST(t.match_prefix("br0").size() == 1);
+	BROKER_TEST(t.prefixed_by("b").size() == 10);
+	BROKER_TEST(t.prefixed_by("br").size() == 10);
+	BROKER_TEST(t.prefixed_by("br0").size() == 1);
+	BROKER_TEST(t.prefix_of("br0").size() == 1);
 	}
 
 int main()
@@ -351,25 +568,25 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree != other_copy);
 	BROKER_TEST(copy == other_copy);
 
-	auto matches = tree.match_prefix("nothing");
+	auto matches = tree.prefixed_by("nothing");
 	BROKER_TEST(matches.empty());
 
-	matches = tree.match_prefix("aff");
+	matches = tree.prefixed_by("aff");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("affair", 3),
 	                         make_pair("afford", 1)}));
-	matches = tree.match_prefix("bi");
+	matches = tree.prefixed_by("bi");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("binary", 5),
 	                         make_pair("bind", 6)}));
-	matches = tree.match_prefix("a");
+	matches = tree.prefixed_by("a");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("apache", 0),
 	                         make_pair("afford", 1),
 	                         make_pair("available", 2),
 	                         make_pair("affair", 3),
 	                         make_pair("avenger", 4)}));
-	matches = tree.match_prefix("");
+	matches = tree.prefixed_by("");
 	BROKER_TEST(tree.size() == 10);
 	BROKER_TEST(matches.size() == tree.size());
 
@@ -398,7 +615,7 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree.insert(make_pair("bro", 42)).second == true);
 	BROKER_TEST(tree.size() == 12);
 
-	matches = tree.match_prefix("b");
+	matches = tree.prefixed_by("b");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("bind", 6),
 	                         make_pair("binary", 5),
@@ -413,7 +630,7 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree.erase("bro") == 1);
 	BROKER_TEST(tree.size() == 11);
 
-	matches = tree.match_prefix("b");
+	matches = tree.prefixed_by("b");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("bind", 6),
 	                         make_pair("binary", 5),
@@ -425,7 +642,7 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree.size() == 12);
 	BROKER_TEST(tree.erase("brother") == 1);
 
-	matches = tree.match_prefix("b");
+	matches = tree.prefixed_by("b");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("bind", 6),
 	                         make_pair("binary", 5),
@@ -446,11 +663,23 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree.insert(make_pair("brother", 2)).second == true);
 	BROKER_TEST(tree.size() == 3);
 
-	matches = tree.match_prefix("bro");
+	matches = tree.prefixed_by("bro");
 	BROKER_TEST(check_match(matches,
 	                        {make_pair("bro", 42),
 	                         make_pair("bros", 1),
 	                         make_pair("brother", 2)}));
+
+	matches = tree.prefix_of("bros");
+	BROKER_TEST(check_match(matches,
+	                        {make_pair("bro", 42),
+	                         make_pair("bros", 1),
+	                        }));
+
+	matches = tree.prefix_of("brothers");
+	BROKER_TEST(check_match(matches,
+	                        {make_pair("bro", 42),
+	                         make_pair("brother", 2),
+	                        }));
 
 	BROKER_TEST(tree.erase("brother") == 1);
 	BROKER_TEST(tree.erase("bros") == 1);
@@ -460,16 +689,17 @@ ord$ air$ |    \  ary$ d$  |   \
 	BROKER_TEST(tree.find("bro")->first == "bro");
 	BROKER_TEST(tree.find("bro")->second == 42);
 
-	matches = tree.match_prefix("bro");
+	matches = tree.prefixed_by("bro");
 	BROKER_TEST(check_match(matches, {make_pair("bro", 42)}));
 
 	BROKER_TEST(tree.erase("bro") == 1);
-	matches = tree.match_prefix("");
+	matches = tree.prefixed_by("");
 	BROKER_TEST(matches.empty());
 
 	test_long_prefix();
 	test_insert_very_long();
 	test_prefix_match();
+	test_prefix_of();
 	test_many_keys();
 	test_dense_nodes();
 

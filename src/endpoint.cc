@@ -1,6 +1,5 @@
 #include "broker/broker.hh"
 #include "endpoint_impl.hh"
-#include "subscription.hh"
 #include <caf/io/publish.hpp>
 #include <caf/send.hpp>
 
@@ -8,7 +7,7 @@ static inline caf::actor& handle_to_actor(void* h)
 	{ return *static_cast<caf::actor*>(h); }
 
 broker::endpoint::endpoint(std::string name, int flags)
-    : pimpl(new impl(std::move(name)))
+    : pimpl(new impl(std::move(name), flags))
 	{
 	}
 
@@ -21,6 +20,17 @@ broker::endpoint& broker::endpoint::operator=(endpoint&& other) = default;
 const std::string& broker::endpoint::name() const
 	{
 	return pimpl->name;
+	}
+
+int broker::endpoint::flags() const
+	{
+	return pimpl->flags;
+	}
+
+void broker::endpoint::set_flags(int flags)
+	{
+	pimpl->flags = flags;
+	caf::anon_send(pimpl->actor, caf::atom("flags"), flags);
 	}
 
 int broker::endpoint::last_errno() const
@@ -121,25 +131,50 @@ const broker::peer_status_queue& broker::endpoint::peer_status() const
 	return pimpl->peer_status;
 	}
 
-void broker::endpoint::print(std::string topic, print_msg msg) const
+void broker::endpoint::print(std::string topic_name, print_msg msg,
+                             int flags) const
 	{
+	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               subscription{subscription_type::print, std::move(topic)},
+	               topic{std::move(topic_name), topic::tag::print},
 	               std::move(msg));
 	}
 
-void broker::endpoint::log(std::string topic, log_msg msg) const
+void broker::endpoint::log(std::string topic_name, log_msg msg, int flags) const
 	{
+	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               subscription{subscription_type::log, std::move(topic)},
+	               topic{std::move(topic_name), topic::tag::log},
 	               std::move(msg));
 	}
 
-void broker::endpoint::event(std::string topic, event_msg msg) const
+void broker::endpoint::event(std::string topic_name, event_msg msg,
+                             int flags) const
 	{
+	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               subscription{subscription_type::event, std::move(topic)},
+	               topic{std::move(topic_name), topic::tag::event},
 	               std::move(msg));
+	}
+
+void broker::endpoint::publish(topic t)
+	{
+	caf::anon_send(pimpl->actor, caf::atom("acl pub"), t);
+	}
+
+void broker::endpoint::unpublish(topic t)
+	{
+	caf::anon_send(pimpl->actor, caf::atom("acl unpub"), t);
+	}
+
+void broker::endpoint::subscribe(topic t)
+	{
+	caf::anon_send(pimpl->actor, caf::atom("acl sub"), t);
+	}
+
+void broker::endpoint::unsubscribe(topic t)
+	{
+	caf::anon_send(pimpl->actor, caf::atom("acl unsub"), t);
 	}
 
 void* broker::endpoint::handle() const

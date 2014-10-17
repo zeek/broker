@@ -1,232 +1,109 @@
 #ifndef BROKER_SUBSCRIPTION_HH
 #define BROKER_SUBSCRIPTION_HH
 
+#include "broker/topic.hh"
+#include "broker/util/optional.hh"
+#include "util/radix_tree.hh"
 #include <caf/actor.hpp>
 #include <caf/detail/abstract_uniform_type_info.hpp>
 #include <caf/serializer.hpp>
 #include <caf/deserializer.hpp>
 #include <unordered_map>
-#include <unordered_set>
 #include <array>
 #include <cstdint>
+#include <deque>
+#include <functional>
 
 namespace broker {
 
-// TODO: subscription data structures needs some work... e.g. trie more optimal?
+using actor_set = std::set<caf::actor>;
+using topic_set = std::array<util::radix_tree<bool>, +topic::tag::last>;
 
-enum class subscription_type : uint16_t {
-	print,
-	event,
-	log,
-	store_query,      // Used by master data stores to handle requests.
-	store_update,     // Used by master data stores to receive updates.
-	num_types         // Sentinel for last enum value.
-};
-
-constexpr std::underlying_type<subscription_type>::type
-operator+(subscription_type val)
-	{ return static_cast<std::underlying_type<subscription_type>::type>(val); }
-
-using actor_map = std::unordered_map<caf::actor_addr, caf::actor>;
-
-struct subscription {
-	subscription_type type;
-	std::string topic;
-};
-
-inline bool operator==(const subscription& lhs, const subscription& rhs)
-    { return lhs.type == rhs.type && lhs.topic == rhs.topic; }
-
-inline bool operator!=(const subscription& lhs, const subscription& rhs)
-    { return ! operator==(lhs,rhs); }
-
-inline bool operator<(const subscription& lhs, const subscription& rhs)
-	{ return lhs.type < rhs.type || ( ! (rhs.type < lhs.type) &&
-	                                  lhs.topic < rhs.topic ); }
-
-inline bool operator>(const subscription& lhs, const subscription& rhs)
-    { return operator<(rhs,lhs); }
-
-inline bool operator<=(const subscription& lhs, const subscription& rhs)
-    { return ! operator>(lhs,rhs); }
-
-inline bool operator>=(const subscription& lhs, const subscription& rhs)
-    { return ! operator<(lhs,rhs); }
-
-using subscriptions = std::array<std::unordered_set<std::string>,
-                                 +subscription_type::num_types>;
-using subscription_map = std::array<std::unordered_map<std::string, actor_map>,
-                                    +subscription_type::num_types>;
-
-class subscriptions_type_info
-        : public caf::detail::abstract_uniform_type_info<subscriptions> {
+class topic_set_type_info
+        : public caf::detail::abstract_uniform_type_info<topic_set> {
 private:
 
-	void serialize(const void* ptr, caf::serializer* sink) const override
-		{
-		auto subs_ptr = reinterpret_cast<const subscriptions*>(ptr);
-		sink->begin_sequence(subs_ptr->size());
-
-		for ( size_t i = 0; i < subs_ptr->size(); ++i )
-			{
-			const auto& topic_strings = (*subs_ptr)[i];
-			sink->begin_sequence(topic_strings.size());
-
-			for ( const auto& ts : topic_strings )
-				sink->write_value(ts);
-
-			sink->end_sequence();
-			}
-
-		sink->end_sequence();
-		}
-
-    void deserialize(void* ptr, caf::deserializer* source) const override
-		{
-		auto subs_ptr = reinterpret_cast<subscriptions*>(ptr);
-		auto num_indices = source->begin_sequence();
-
-		for ( size_t i = 0; i < num_indices; ++i )
-			{
-			auto& topic_strings = (*subs_ptr)[i];
-			topic_strings.clear();
-			auto num_topic_strings = source->begin_sequence();
-
-			for ( size_t j = 0; j < num_topic_strings; ++j )
-				topic_strings.insert(source->read<std::string>());
-
-			source->end_sequence();
-			}
-
-		source->end_sequence();
-		}
+	void serialize(const void* ptr, caf::serializer* sink) const override;
+	void deserialize(void* ptr, caf::deserializer* source) const override;
 };
 
-using subscriber = std::pair<subscriptions, caf::actor>;
-using subscriber_map = std::unordered_map<caf::actor_addr, subscriber>;
-
-class subscriber_base {
+class subscriber {
 public:
 
-	bool add_subscriber(subscriber s)
-		{
-		subscriptions& topic_set = s.first;
-		caf::actor& a = s.second;
-		auto it = subscribers.find(a.address());
-		bool rval = it == subscribers.end();
+	subscriber() = default;
 
-		if ( ! rval )
-			rem_subscriber(a.address());
+	subscriber(caf::actor a, topic_set ts)
+		: who(std::move(a)), subscriptions(std::move(ts))
+		{}
 
-		for ( size_t i = 0; i < topic_set.size(); ++i )
-			for ( const auto& t : topic_set[i] )
-				{
-				subs[i][t][a.address()] = a;
-				sub_topics[i].insert(t);
-				}
+	caf::actor who = caf::invalid_actor;
+	topic_set subscriptions;
+};
 
-		subscribers[a.address()] = std::move(s);
-		return rval;
-		}
+class subscription_registry {
+public:
 
-	bool add_subscription(subscription t, caf::actor a)
-		{
-		sub_topics[+t.type].insert(t.topic);
-		subs[+t.type][t.topic][a.address()] = a;
-		subscriber& s = subscribers[a.address()];
-		s.second = std::move(a);
-		return s.first[+t.type].insert(std::move(t.topic)).second;
-		}
+	/**
+	 * Insert subscriber into container, overwriting any existing data
+	 * associated with the subscriber's actor.
+	 * @return false if it had to overwrite existing data.
+	 */
+	bool insert(subscriber s);
 
-	subscriptions rem_subscriber(const caf::actor_addr& a)
-		{
-		auto it = subscribers.find(a);
+	/**
+	 * Remove a subscriber from the container and return it if it exists.
+	 * @param a the actor address associated with the subscriber.
+	 * @return the associated subscriber if it was in the container.
+	 */
+	util::optional<subscriber> erase(const caf::actor_addr& a);
 
-		if ( it == subscribers.end() )
-			return subscriptions{};
+	/**
+	 * Register a subscription topic to a subscriber.
+	 * @param t the topic of the subscription to register.
+	 * @param a the actor associated with the subscriber.
+	 * @return false if the subscriber was already registered for the topic.
+	 */
+	bool register_topic(topic t, caf::actor a);
 
-		subscriber& s = it->second;
-		subscriptions rval = s.first;
+	/**
+	 * Unregister a set of topics from a subscriber.
+	 * @param ts a set of topics to unregister.
+	 * @param a the actor address associated with the subscriber
+	 * @return false if an associated subscriber doesn't exist.
+	 */
+	bool unregister_topics(const topic_set& ts, const caf::actor_addr a);
 
-		for ( size_t i = 0; i < rval.size(); ++i )
-			for ( const auto& t : rval[i] )
-				{
-				auto it2 = subs[i].find(t);
+	/**
+	 * @return All actors that have registered subscriptions with topic names
+	 * that are a prefix of the given topic name.
+	 */
+	std::deque<util::radix_tree<actor_set>::iterator>
+	match_prefix(const topic& t) const;
 
-				if ( it2 == subs[i].end() )
-					continue;
+	/**
+	 * @return All actors that have registered subscriptions with topic names
+	 * exactly matching the given topic name.
+	 */
+	util::optional<const actor_set&> match_exact(const topic& t) const;
 
-				actor_map& am = it2->second;
-				am.erase(a);
+	/**
+	 * @return All subscription topics currently registered.
+	 */
+	const topic_set& topics() const
+		{ return all_topics; }
 
-				if ( am.empty() )
-					{
-					sub_topics[i].erase(it2->first);
-					subs[i].erase(it2);
-					}
-				}
-
-		subscribers.erase(it);
-		return rval;
-		}
-
-	bool rem_subscriptions(const subscriptions& ss, const caf::actor_addr& a)
-		{
-		auto it = subscribers.find(a);
-
-		if ( it == subscribers.end() )
-			return false;
-
-		subscriber& s = it->second;
-
-		for ( size_t i = 0; i < ss.size(); ++i )
-			for ( const auto& t : ss[i] )
-				{
-				s.first[i].erase(t);
-
-				auto it2 = subs[i].find(t);
-
-				if ( it2 == subs[i].end() )
-					continue;
-
-				actor_map& am = it2->second;
-				am.erase(a);
-
-				if ( am.empty() )
-					{
-					sub_topics[i].erase(it2->first);
-					subs[i].erase(it2);
-					}
-				}
-
-		return true;
-		}
-
-	const subscriptions& topics() const
-		{
-		return sub_topics;
-		}
-
-	std::unordered_set<caf::actor> match(const subscription& topic)
-		{
-		// TODO: wildcard topics
-		std::unordered_set<caf::actor> rval;
-		auto it = subs[+topic.type].find(topic.topic);
-
-		if ( it == subs[+topic.type].end() )
-			return rval;
-
-		for ( const auto& aa : it->second )
-			rval.insert(aa.second);
-
-		return rval;
-		}
+	/**
+	 * @return true if a subscriber associated with the actor address is
+	 * registered.
+	 */
+	bool have_subscriber(const caf::actor_addr& a)
+		{ return subs_by_actor.find(a) != subs_by_actor.end(); }
 
 private:
 
-	subscriber_map subscribers;
-	subscription_map subs;
-	subscriptions sub_topics;
+	std::array<util::radix_tree<actor_set>, +topic::tag::last> subs_by_topic;
+	std::unordered_map<caf::actor_addr, subscriber> subs_by_actor;
+	topic_set all_topics;
 };
 
 } // namespace broker
