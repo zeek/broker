@@ -9,6 +9,11 @@
 namespace broker {
 namespace util {
 
+/**
+ * Provides a generic queuing mechanism implemented as an actor combined with
+ * a flare which signals when the queue is non-empty.  This makes it simple
+ * to integrate in to traditional event loops.
+ */
 template <typename Pattern, typename Message>
 class queue : public caf::sb_actor<queue<Pattern, Message>> {
 friend class caf::sb_actor<queue<Pattern, Message>>;

@@ -6,10 +6,16 @@
 namespace broker {
 namespace util {
 
+/**
+ * Calculate hash for an object and combine with a provided hash.
+ */
 template <typename T>
 static inline void hash_combine(size_t& seed, const T& v)
 	{ seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed<<6) + (seed>>2); }
 
+/**
+ * Allows hashing composite types.
+ */
 template <typename C>
 struct container_hasher {
 	using value_type = typename C::value_type;

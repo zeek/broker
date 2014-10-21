@@ -109,39 +109,89 @@ public:
 		std::unique_ptr<std::deque<node_visit>> visited;
 	};
 
+	/**
+	 * Default construct an empty container.
+	 */
 	explicit radix_tree()
 		: num_entries(0), root(nullptr)
 		{}
 
+	/**
+	 * Destructor.
+	 */
 	~radix_tree()
 		{ recursive_clear(root); }
 
+	/**
+	 * Copy construct.
+	 */
 	radix_tree(const radix_tree& other);
 
+	/**
+	 * Move construct.
+	 */
 	radix_tree(radix_tree&& other)
 		: radix_tree()
 		{ swap(*this, other); }
 
+	/**
+	 * List construct.
+	 */
 	radix_tree(std::initializer_list<value_type> l);
 
+	/**
+	 * Assignment operator.
+	 */
 	radix_tree& operator=(radix_tree other)
 		{ swap(*this, other); return *this; }
 
+	/**
+	 * @return the number of entries in the container.
+	 */
 	size_type size() const
 		{ return num_entries; }
 
+	/**
+	 * @return true if the container has no entries.
+	 */
 	bool empty() const
 		{ return num_entries == 0; }
 
+	/**
+	 * Remove all entries from the container.
+	 */
 	void clear()
 		{ recursive_clear(root); root = nullptr; num_entries = 0; }
 
+	/**
+	 * Locate a key in the container.
+	 * @param key the key to locate.
+	 * @return an iterator to the key-value pair entry if found, else an
+	 * iterator equal to end().
+	 */
 	iterator find(const key_type& key) const;
 
+	/**
+	 * @return an iterator to the first entry in the container, or an iterator
+	 * equal to end() if the container is empty.
+	 */
 	iterator begin() const;
 
+	/**
+	 * @return an iterator that does not point to any entry in the container,
+	 * or can be thought of as "past-the-end".
+	 */
 	iterator end() const;
 
+	/**
+	 * Insert a key-value pair if there exists no conflicting key already
+	 * in the container.
+	 * @param kv the key-value pair to insert.
+	 * @return a pair whose first element is an iterator to the newly
+	 * inserted key-value pair or the old key-value pair if it existed
+	 * at the same key.  The second element of the returned pair is true
+	 * if no conflicting key existed.
+	 */
 	std::pair<iterator, bool> insert(value_type kv)
 		{
 		auto rval = recursive_insert(root, &root, std::move(kv), 0);
@@ -149,6 +199,11 @@ public:
 		return rval;
 		}
 
+	/**
+	 * Remove an entry from the container if it exists.
+	 * @param key the key corresponding to the entry to remove.
+	 * @return the number of entries removed (either 1 or 0).
+	 */
 	size_type erase(const key_type& key)
 		{
 		auto l = recursive_erase(root, &root, key, 0);
@@ -158,6 +213,12 @@ public:
 		return 1;
 		}
 
+	/**
+	 * Access a key-value pair via its key.
+	 * @param lhs the key of the key-value pair to access.
+	 * @return the key-value pair corresponding to the key which may be
+	 * newly-created if it did not yet exist in the container.
+	 */
 	mapped_type& operator[](key_type lhs);
 
 	/**

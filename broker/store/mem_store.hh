@@ -5,9 +5,15 @@
 
 namespace broker { namespace store {
 
+/**
+ * An in-memory implementation of a storage backend.
+ */
 class mem_store : public store {
 public:
 
+	/**
+	 * Construct the in-memory storage from a data store snapshot.
+	 */
 	mem_store(snapshot sss = {})
 	    : store(std::move(sss.sn)), datastore(std::move(sss.datastore))
 		{ }

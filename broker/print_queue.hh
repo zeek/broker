@@ -9,6 +9,9 @@
 
 namespace broker {
 
+/**
+ * Stores print_msg's awaiting retrieval/processing.
+ */
 class print_queue {
 public:
 

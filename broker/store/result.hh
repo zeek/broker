@@ -8,11 +8,17 @@
 
 namespace broker { namespace store {
 
+/**
+ * The corresponding "answer" to a data store query.
+ */
 class result : util::equality_comparable<result> {
 public:
 
-	// This tag indicates which value of the variant is currently valid.
-	// For status other than success, it's arbitrarily tagged w/ exists_result.
+	/**
+	 * A tag indicating which value of the variant is currently valid.
+	 * For status other than success, it's arbitrarily tagged with
+	 * exists_result.
+	 */
 	enum class type: uint8_t {
 		exists_result,
 		size_result,
@@ -21,6 +27,10 @@ public:
 		snapshot_result,
 	};
 
+	/**
+	 * The status of the query result -- whether it is valid or not as
+	 * well as some indication as to why.
+	 */
 	enum class status : uint8_t {
 		success,
 		failure,  // Query could not be fulfilled.
@@ -32,14 +42,23 @@ public:
 
 	result_data value;
 
+	/**
+	 * Default construct a result in a failed state.
+	 */
 	result()
 		: stat(status::failure), value()
 		{ }
 
+	/**
+	 * Construct a result in a given state.
+	 */
 	result(status s)
 		: stat(s), value()
 		{ }
 
+	/**
+	 * Construct a successful result from given result data.
+	 */
 	result(result_data rd)
 		: stat(status::success), value(std::move(rd))
 		{ }

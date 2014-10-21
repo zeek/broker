@@ -7,20 +7,49 @@
 
 namespace broker { namespace store {
 
+/**
+ * A master data store.  This type of store is "authoritative" over all its
+ * contents meaning that if a clone makes an update, it sends it to the master
+ * so that it can make all updates and rebroadcast them to all other clones
+ * in a canonical order.
+ */
 class master : public frontend {
 public:
 
+	/**
+	 * Construct a master data store.
+	 * @param e the broker endpoint to attach the master.
+	 * @param topic the exact, unique topic name associated with the master
+	 * store.  A frontend/clone of the master must also use this name and
+	 * connect via the same endpoint or via one of its peers.
+	 * @param s the storage backend implementation to use.
+	 */
 	master(const endpoint& e, std::string topic, std::unique_ptr<store> s =
 	                            std::unique_ptr<store>{new mem_store});
 
+	/**
+	 * Destructor.
+	 */
 	~master();
 
+	/**
+	 * Copying a master store is not allowed.
+	 */
 	master(const master& other) = delete;
 
+	/**
+	 * Construct a master store by stealing another.
+	 */
 	master(master&& other);
 
+	/**
+	 * Copying a master store is not allowed.
+	 */
 	master& operator=(const master& other) = delete;
 
+	/**
+	 * Construct a master store by stealing another.
+	 */
 	master& operator=(master&& other);
 
 private:

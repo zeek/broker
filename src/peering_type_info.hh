@@ -8,6 +8,9 @@
 
 namespace broker {
 
+/**
+ * (de)serialization logic for type "peering".
+ */
 class peering_type_info
       : public caf::detail::abstract_uniform_type_info<peering> {
 public:

@@ -13,10 +13,26 @@
 namespace broker {
 
 class data;
-using set = std::set<data>;
+
+/**
+ * A container of sequential data.
+ */
 using vector = std::vector<data>;
+
+/**
+ * An associative, ordered container of unique keys.
+ */
+using set = std::set<data>;
+
+/**
+ * An associative, ordered container that maps unique keys other values.
+ */
 using table = std::map<data, data>;
 
+/**
+ * A container of sequential, optional data.  That is, the value at any given
+ * index either exists or does not.
+ */
 class record : util::totally_ordered<record> {
 public:
 
@@ -50,6 +66,10 @@ public:
 	std::vector<field> fields;
 };
 
+/**
+ * A variant-like class that may store the data associated with one of several
+ * different primitive or compound types.
+ */
 class data : util::totally_ordered<data> {
 public:
 

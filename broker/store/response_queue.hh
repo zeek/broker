@@ -9,6 +9,9 @@ namespace broker { namespace store {
 
 class frontend;
 
+/**
+ * Stores data store responses to queries awaiting retrieval/processing.
+ */
 class response_queue {
 friend class frontend;
 

@@ -6,6 +6,10 @@
 
 namespace broker { namespace store {
 
+/**
+ * A full response to a data store query contains the original query, the
+ * result of that query, and an associated cookie provided by the requester.
+ */
 struct response {
 	query request;
 	result reply;

@@ -9,6 +9,9 @@
 
 namespace broker {
 
+/**
+ * Stores log_msg's awaiting retrieval/processing.
+ */
 class log_queue {
 public:
 

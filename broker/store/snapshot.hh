@@ -7,6 +7,10 @@
 
 namespace broker { namespace store {
 
+/**
+ * A snapshot of a data store's contents along with the sequence number
+ * that corresponds to it.
+ */
 struct snapshot {
 	std::unordered_map<data, data> datastore;
 	sequence_num sn;

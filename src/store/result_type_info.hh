@@ -8,6 +8,9 @@
 
 namespace broker { namespace store {
 
+/**
+ * (de)serialization logic for type "result".
+ */
 class result_type_info
         : public caf::detail::abstract_uniform_type_info<result> {
 	struct serializer {

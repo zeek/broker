@@ -8,9 +8,15 @@
 
 namespace broker { namespace store {
 
+/**
+ * A generic data store query.
+ */
 class query {
 public:
 
+	/**
+	 * Distinguishes particular types of queries.
+	 */
 	enum class type : uint8_t {
 		lookup,
 		exists,
@@ -21,10 +27,20 @@ public:
 
 	data k;
 
+	/**
+	 * Construct a query.
+	 * @param t the type of query.
+	 * @param arg_k additional data if needed by the query type.
+	 */
 	query(type t = type::lookup, data arg_k = {})
 		: tag(t), k(arg_k)
 		{ }
 
+	/**
+	 * Obtain an answer to a query.
+	 * @param s a storage backend to query against.
+	 * @return the result of the query.
+	 */
 	result process(const store& s) const
 		{
 		switch ( tag ) {

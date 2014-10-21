@@ -6,19 +6,39 @@
 
 namespace broker { namespace store {
 
+/**
+ * A number that may be incremented by one without limit (well, technically
+ * constrained by memory, but you will be counting for a long time before
+ * reaching that limit).
+ */
 class sequence_num {
 public:
 
+	/**
+	 * Construct a sequence number, optionally starting at a given number.
+	 */
 	sequence_num(std::vector<uint64_t> s = {0})
 		: sequence(std::move(s))
 		{ }
 
+	/**
+	 * @return the next number in the sequence.
+	 */
     sequence_num next() const;
 
+	/**
+	 * Pre-increment the sequence number.
+	 * @return reference of the sequence number after incrementing.
+	 */
     sequence_num& operator++();
 
+	/**
+	 * Post-increment the sequence number.
+	 * @return copy of the sequence number before incrementing.
+	 */
     sequence_num operator++(int);
 
+	// Stored with most-significant part at index 0.
     std::vector<uint64_t> sequence;
 };
 

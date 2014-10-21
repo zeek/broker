@@ -13,13 +13,15 @@
 #include <array>
 #include <cstdint>
 #include <deque>
-#include <functional>
 
 namespace broker {
 
 using actor_set = std::unordered_set<caf::actor>;
 using topic_set = std::array<util::radix_tree<bool>, +topic::tag::last>;
 
+/**
+ * (de)serialization logic for type "topic_set".
+ */
 class topic_set_type_info
         : public caf::detail::abstract_uniform_type_info<topic_set> {
 private:
@@ -28,11 +30,20 @@ private:
 	void deserialize(void* ptr, caf::deserializer* source) const override;
 };
 
+/**
+ * An actor with the associated topics in which it claims interest.
+ */
 class subscriber {
 public:
 
+	/**
+	  * Default constructor.
+	  */
 	subscriber() = default;
 
+	/**
+	  * Construct from given actor and topic set.
+	  */
 	subscriber(caf::actor a, topic_set ts)
 		: who(std::move(a)), subscriptions(std::move(ts))
 		{}
@@ -41,6 +52,9 @@ public:
 	topic_set subscriptions;
 };
 
+/**
+ * Manages a collection of subscribers and their subscriptions.
+ */
 class subscription_registry {
 public:
 

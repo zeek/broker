@@ -9,6 +9,9 @@
 
 namespace broker {
 
+/**
+ * Stores event_msg's awaiting retrieval/processing.
+ */
 class event_queue {
 public:
 

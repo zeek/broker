@@ -8,6 +8,9 @@
 
 namespace broker {
 
+/**
+ * (de)serialization logic for type "data".
+ */
 class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
 public:
 
@@ -47,6 +50,9 @@ public:
 		}
 };
 
+/**
+ * (de)serialization logic for type "optional<data>".
+ */
 class optional_data_type_info :
       public caf::detail::abstract_uniform_type_info<util::optional<data>> {
 

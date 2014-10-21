@@ -9,6 +9,9 @@ namespace broker {
 
 class endpoint;
 
+/**
+ * Stores peer_status notifications awaiting retrieval/processing.
+ */
 class peer_status_queue {
 friend class endpoint;
 
