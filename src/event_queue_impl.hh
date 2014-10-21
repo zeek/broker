@@ -21,12 +21,13 @@ public:
 		util::flare f;
 		fd = f.fd();
 		topic_name = std::move(t);
-		actor = caf::spawn<queue<decltype(caf::on<topic, event_msg>()),
+		actor = caf::spawn<queue<decltype(caf::on<topic, int, event_msg>()),
 		                         event_msg>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 
-		caf::anon_send(*static_cast<caf::actor*>(e.handle()), caf::atom("sub"),
+		caf::anon_send(*static_cast<caf::actor*>(e.handle()),
+		               caf::atom("local sub"),
 		               topic{topic_name, topic::tag::event}, actor);
 		}
 

@@ -22,7 +22,8 @@ namespace broker {
 constexpr int AUTO_PUBLISH = 0x01;
 
 /**
- * Don't restrict message topics that the endpoint accepts from peers.
+ * Don't restrict message topics that the endpoint advertises to peers
+ * as topics it will accepts.
  */
 constexpr int AUTO_SUBSCRIBE = 0x02;
 
@@ -207,7 +208,7 @@ public:
 	void subscribe(topic t);
 
 	/**
-	 * Stop accept messages from peers with the given topic.  No effect while
+	 * Stop accepting messages from peers with the given topic.  No effect while
 	 * the endpoint uses the AUTO_SUBSCRIBE flag.
 	 */
 	void unsubscribe(topic t);

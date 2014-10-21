@@ -134,26 +134,23 @@ const broker::peer_status_queue& broker::endpoint::peer_status() const
 void broker::endpoint::print(std::string topic_name, print_msg msg,
                              int flags) const
 	{
-	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::print},
+	               topic{std::move(topic_name), topic::tag::print}, flags,
 	               std::move(msg));
 	}
 
 void broker::endpoint::log(std::string topic_name, log_msg msg, int flags) const
 	{
-	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::log},
+	               topic{std::move(topic_name), topic::tag::log}, flags,
 	               std::move(msg));
 	}
 
 void broker::endpoint::event(std::string topic_name, event_msg msg,
                              int flags) const
 	{
-	// TODO: send flags
 	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::event},
+	               topic{std::move(topic_name), topic::tag::event}, flags,
 	               std::move(msg));
 	}
 

@@ -76,8 +76,8 @@ bool broker::subscription_registry::register_topic(topic t, caf::actor a)
 	return true;
 	}
 
-bool broker::subscription_registry::unregister_topics(const topic_set& ts,
-                                                      const caf::actor_addr a)
+bool broker::subscription_registry::unregister_topic(const topic& t,
+                                                     const caf::actor_addr a)
 	{
 	auto it = subs_by_actor.find(a);
 
@@ -85,38 +85,45 @@ bool broker::subscription_registry::unregister_topics(const topic_set& ts,
 		return false;
 
 	subscriber& s = it->second;
+	s.subscriptions[+t.type].erase(t.name);
+	auto it2 = subs_by_topic[+t.type].find(t.name);
 
-	for ( size_t tag = 0; tag < ts.size(); ++tag )
-		for ( const auto& p : ts[tag] )
-			{
-			const std::string& topic_name = p.first;
-			s.subscriptions[tag].erase(topic_name);
-			auto it2 = subs_by_topic[tag].find(topic_name);
+	if ( it2 == subs_by_topic[+t.type].end() )
+		return true;
 
-			if ( it2 == subs_by_topic[tag].end() )
-				continue;
+	actor_set& as = it2->second;
+	as.erase(s.who);
 
-			actor_set& as = it2->second;
-			as.erase(s.who);
-
-			if ( as.empty() )
-				{
-				all_topics[tag].erase(topic_name);
-				subs_by_topic[tag].erase(topic_name);
-				}
-			}
+	if ( as.empty() )
+		{
+		all_topics[+t.type].erase(t.name);
+		subs_by_topic[+t.type].erase(t.name);
+		}
 
 	return true;
 	}
 
 std::deque<broker::util::radix_tree<broker::actor_set>::iterator>
-broker::subscription_registry::match_prefix(const topic& t) const
+broker::subscription_registry::prefix_matches(const topic& t) const
 	{
 	return subs_by_topic[+t.type].prefix_of(t.name);
 	}
 
+broker::actor_set
+broker::subscription_registry::unique_prefix_matches(const topic& t) const
+	{
+	auto matches = subs_by_topic[+t.type].prefix_of(t.name);
+	actor_set rval;
+
+	for ( const auto& m : matches )
+		for ( const auto& a : m->second )
+			rval.insert(a);
+
+	return rval;
+	}
+
 broker::util::optional<const broker::actor_set&>
-broker::subscription_registry::match_exact(const topic& t) const
+broker::subscription_registry::exact_match(const topic& t) const
 	{
 	auto it = subs_by_topic[+t.type].find(t.name);
 

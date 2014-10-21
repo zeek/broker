@@ -77,7 +77,7 @@ private:
 
 	void publish(caf::message msg)
 		{
-		for ( const auto& c : clones ) send_tuple(c.second, std::move(msg));
+		for ( const auto& c : clones ) send_tuple(c.second, msg);
 		}
 
 	std::unique_ptr<store> datastore;
@@ -95,10 +95,10 @@ public:
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
-		caf::anon_send(endpoint, caf::atom("sub"),
+		caf::anon_send(endpoint, caf::atom("local sub"),
 		               topic{topic_name, topic::tag::store_query},
 		               actor);
-		caf::anon_send(endpoint, caf::atom("sub"),
+		caf::anon_send(endpoint, caf::atom("local sub"),
 		               topic{topic_name, topic::tag::store_update},
 		               actor);
 		}

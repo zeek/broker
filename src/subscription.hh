@@ -9,6 +9,7 @@
 #include <caf/serializer.hpp>
 #include <caf/deserializer.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -16,7 +17,7 @@
 
 namespace broker {
 
-using actor_set = std::set<caf::actor>;
+using actor_set = std::unordered_set<caf::actor>;
 using topic_set = std::array<util::radix_tree<bool>, +topic::tag::last>;
 
 class topic_set_type_info
@@ -66,25 +67,33 @@ public:
 	bool register_topic(topic t, caf::actor a);
 
 	/**
-	 * Unregister a set of topics from a subscriber.
-	 * @param ts a set of topics to unregister.
+	 * Unregister a topics from a subscriber.
+	 * @param ts a topic to unregister.
 	 * @param a the actor address associated with the subscriber
 	 * @return false if an associated subscriber doesn't exist.
 	 */
-	bool unregister_topics(const topic_set& ts, const caf::actor_addr a);
+	bool unregister_topic(const topic& t, const caf::actor_addr a);
+
+	/**
+	 * @return All actors that have registered subscriptions with topic names
+	 * that are a prefix of the given topic name.  Note that an actor may
+	 * appear more than once if they registered multiple subscriptions that
+	 * match the given topic name.
+	 */
+	std::deque<util::radix_tree<actor_set>::iterator>
+	prefix_matches(const topic& t) const;
 
 	/**
 	 * @return All actors that have registered subscriptions with topic names
 	 * that are a prefix of the given topic name.
 	 */
-	std::deque<util::radix_tree<actor_set>::iterator>
-	match_prefix(const topic& t) const;
+	actor_set unique_prefix_matches(const topic& t) const;
 
 	/**
 	 * @return All actors that have registered subscriptions with topic names
 	 * exactly matching the given topic name.
 	 */
-	util::optional<const actor_set&> match_exact(const topic& t) const;
+	util::optional<const actor_set&> exact_match(const topic& t) const;
 
 	/**
 	 * @return All subscription topics currently registered.
