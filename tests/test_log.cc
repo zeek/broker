@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
 	auto ps = node1.peer_status().need_pop().front();
 
-	if ( ps.status != peer_status::type::established)
+	if ( ps.status != peer_status::tag::established)
 		{
 		BROKER_TEST(false);
 		return 1;

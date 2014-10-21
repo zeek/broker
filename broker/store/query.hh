@@ -17,13 +17,13 @@ public:
 	/**
 	 * Distinguishes particular types of queries.
 	 */
-	enum class type : uint8_t {
+	enum class tag : uint8_t {
 		lookup,
 		exists,
 		keys,
 		size,
 		snapshot
-	} tag;
+	} type;
 
 	data k;
 
@@ -32,8 +32,8 @@ public:
 	 * @param t the type of query.
 	 * @param arg_k additional data if needed by the query type.
 	 */
-	query(type t = type::lookup, data arg_k = {})
-		: tag(t), k(arg_k)
+	query(tag t = tag::lookup, data arg_k = {})
+		: type(t), k(arg_k)
 		{ }
 
 	/**
@@ -43,27 +43,27 @@ public:
 	 */
 	result process(const store& s) const
 		{
-		switch ( tag ) {
-		case type::lookup:
+		switch ( type ) {
+		case tag::lookup:
 			{
 			if ( auto r = s.lookup(k) )
 				return result(std::move(*r));
 			return result(false);
 			}
-		case type::exists:
+		case tag::exists:
 			return result(s.exists(k));
-		case type::keys:
+		case tag::keys:
 			return result(s.keys());
-		case type::size:
+		case tag::size:
 			return result(s.size());
-		case type::snapshot:
+		case tag::snapshot:
 			return result(s.snap());
 		}
 		}
 };
 
 inline bool operator==(const query& lhs, const query& rhs)
-    { return lhs.tag == rhs.tag && lhs.k == rhs.k; }
+    { return lhs.type == rhs.type && lhs.k == rhs.k; }
 
 } // namespace store
 } // namespace broker

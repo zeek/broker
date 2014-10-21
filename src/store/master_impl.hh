@@ -27,7 +27,7 @@ public:
 		message_handler requests {
 		on(val<topic>, arg_match) >> [=](const query& q, const actor& r)
 			{
-			if ( q.tag == query::type::snapshot &&
+			if ( q.type == query::tag::snapshot &&
 			     clones.find(r.address()) == clones.end() )
 				{
 				monitor(r);

@@ -28,7 +28,7 @@ int broker_init(int flags)
 	announce<topic>(&topic::name, &topic::type);
 	announce(typeid(topic_set),
 	         unique_ptr<caf::uniform_type_info>(new topic_set_type_info));
-	announce<peer_status::type>();
+	announce<peer_status::tag>();
 	announce<peer_status>(&peer_status::relation, &peer_status::status,
 	                      &peer_status::peer_name);
 	announce(typeid(peering),
@@ -46,12 +46,12 @@ int broker_init(int flags)
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
 	announce<std::unordered_set<data>>();
 	announce<std::deque<std::string>>();
-	announce<result::type>();
+	announce<result::tag>();
 	announce<result::status>();
 	announce(typeid(result),
 	         unique_ptr<caf::uniform_type_info>(new result_type_info));
-	announce<query::type>();
-	announce<query>(&query::tag, &query::k);
+	announce<query::tag>();
+	announce<query>(&query::type, &query::k);
 	announce<response>(&response::request, &response::reply, &response::cookie);
 	announce<std::deque<response>>();
 	announce<print_msg>(&print_msg::path, &print_msg::data);

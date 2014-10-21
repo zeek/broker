@@ -40,7 +40,7 @@ int main(int argc, char** argv)
 	node1.peer("127.0.0.1", 9999);
 
 	if ( node1.peer_status().need_pop().front().status !=
-	     broker::peer_status::type::established)
+	     broker::peer_status::tag::established)
 		{
 		BROKER_TEST(false);
 		return 1;

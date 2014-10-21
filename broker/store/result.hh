@@ -19,7 +19,7 @@ public:
 	 * For status other than success, it's arbitrarily tagged with
 	 * exists_result.
 	 */
-	enum class type: uint8_t {
+	enum class tag: uint8_t {
 		exists_result,
 		size_result,
 		lookup_result,
@@ -37,7 +37,7 @@ public:
 		timeout
 	} stat;
 
-	using result_data = util::variant<type, bool, uint64_t, data,
+	using result_data = util::variant<tag, bool, uint64_t, data,
 	                                  std::unordered_set<data>, snapshot>;
 
 	result_data value;

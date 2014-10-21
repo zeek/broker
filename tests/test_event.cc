@@ -31,7 +31,7 @@ int main(int argc, char** argv)
 		node1.peer(node0);
 
 	if ( node1.peer_status().need_pop().front().status !=
-	     peer_status::type::established)
+	     peer_status::tag::established)
 		{
 		BROKER_TEST(false);
 		return 1;

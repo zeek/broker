@@ -57,8 +57,8 @@ class result_type_info
 			return;
 			}
 
-		auto tag = source->read<result::type>(
-		               caf::uniform_typeid<result::type>());
+		auto tag = source->read<result::tag>(
+		               caf::uniform_typeid<result::tag>());
 		auto rd = result::result_data::make(tag);
 		visit(deserializer{source}, rd);
 		*p = result(std::move(rd));

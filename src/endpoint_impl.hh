@@ -19,7 +19,7 @@
 namespace broker {
 
 static void do_peer_status(const caf::actor q, peering::impl pi,
-                           peer_status::type t, std::string pname = "")
+                           peer_status::tag t, std::string pname = "")
 	{
 	peering p{std::unique_ptr<peering::impl>(new peering::impl(std::move(pi)))};
 	caf::anon_send(q, peer_status{std::move(p), t, std::move(pname)});
@@ -50,7 +50,7 @@ public:
 			if ( it != peers.end() )
 				{
 				do_peer_status(peer_status_q, move(pi),
-				               peer_status::type::established, it->second.name);
+				               peer_status::tag::established, it->second.name);
 				return;
 				}
 
@@ -58,26 +58,26 @@ public:
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
 					do_peer_status(peer_status_q, move(pi),
-					               peer_status::type::disconnected);
+					               peer_status::tag::disconnected);
 					},
-			    on_arg_match >> [=](bool compat, int their_version)
+				on_arg_match >> [=](bool compat, int their_version)
 					{
 					if ( ! compat )
 						do_peer_status(peer_status_q, move(pi),
-						               peer_status::type::incompatible);
+						               peer_status::tag::incompatible);
 					else
 						sync_send(p, atom("peer"), this, name,
 						          advertised_subscriptions).then(
 							on_arg_match >> [=](const sync_exited_msg& m)
 								{
 								do_peer_status(peer_status_q, move(pi),
-								               peer_status::type::disconnected);
+								               peer_status::tag::disconnected);
 								},
 							on_arg_match >> [=](string& pname, topic_set& ts)
 								{
 								add_peer(move(p), pname, move(ts));
 								do_peer_status(peer_status_q, move(pi),
-								               peer_status::type::established,
+								               peer_status::tag::established,
 								               move(pname));
 								}
 						);
@@ -85,7 +85,7 @@ public:
 				others() >> [=]
 					{
 					do_peer_status(peer_status_q, move(pi),
-					               peer_status::type::incompatible);
+					               peer_status::tag::incompatible);
 					}
 			);
 			},
@@ -352,7 +352,7 @@ public:
 		disconnected = (
 		on(atom("peerstat")) >> [=]
 			{
-			do_peer_status(peer_status_q, pi, peer_status::type::disconnected);
+			do_peer_status(peer_status_q, pi, peer_status::tag::disconnected);
 			},
 		on_arg_match >> [=](const exit_msg& e)
 			{
@@ -390,7 +390,7 @@ public:
 			demonitor(remote);
 			remote = invalid_actor;
 			become(disconnected);
-			do_peer_status(peer_status_q, pi, peer_status::type::disconnected);
+			do_peer_status(peer_status_q, pi, peer_status::tag::disconnected);
 			},
 		others() >> [=]
 			{

@@ -14,7 +14,7 @@ struct peer_status {
 	/**
 	 * The type of status notification.
 	 */
-	enum class type : uint8_t {
+	enum class tag : uint8_t {
 		established,
 		disconnected,
 		incompatible,
@@ -28,7 +28,7 @@ struct peer_status {
 	/**
 	 * A notification regarding the latest known status of the peering.
 	 */
-	type status;
+	tag status;
 
 	/**
 	 * When status is established, contains a name the peer chose for itself.

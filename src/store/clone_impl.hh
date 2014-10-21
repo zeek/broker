@@ -82,7 +82,7 @@ public:
 		bootstrap = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			send(endpoint, snapshot_topic, query(query::type::snapshot), this);
+			send(endpoint, snapshot_topic, query(query::tag::snapshot), this);
 			become(initializing);
 			}
 		);
@@ -92,8 +92,8 @@ public:
 			{
 			if ( r.stat != result::status::success )
 				delayed_send(endpoint, resync_interval, snapshot_topic,
-				             query(query::type::snapshot), this);
-			else if ( r.value.which() == result::type::snapshot_result )
+				             query(query::tag::snapshot), this);
+			else if ( r.value.which() == result::tag::snapshot_result )
 				{
 				demonitor(master);
 				master = move(responder);
@@ -114,7 +114,7 @@ public:
 				demonitor(master);
 				master = invalid_actor;
 				send(endpoint, snapshot_topic,
-				     query(query::type::snapshot), this);
+				     query(query::tag::snapshot), this);
 				}
 			}
 		);
@@ -125,7 +125,7 @@ private:
 	void sequence_error(const topic& t, const caf::actor& endpoint)
 		{
 		aout(this) << "ERROR: clone '" << t.name << "' desync" << std::endl;
-		send(endpoint, t, query(query::type::snapshot), this);
+		send(endpoint, t, query(query::tag::snapshot), this);
 		}
 
 	mem_store datastore;

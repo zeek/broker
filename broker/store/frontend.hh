@@ -109,7 +109,7 @@ public:
 	 * @return the result of the query.
 	 */
 	result lookup(data k) const
-		{ return request(query(query::type::lookup, std::move(k))); }
+		{ return request(query(query::tag::lookup, std::move(k))); }
 
 	/**
 	 * Make a query and block until response is received.
@@ -118,7 +118,7 @@ public:
 	 * @return the result of the query.
 	 */
 	result exists(data k) const
-		{ return request(query(query::type::exists, std::move(k))); }
+		{ return request(query(query::tag::exists, std::move(k))); }
 
 	/**
 	 * Make a query and block until response is received.
@@ -126,7 +126,7 @@ public:
 	 * @return the result of the query -- all keys in the data store.
 	 */
 	result keys() const
-		{ return request(query(query::type::keys)); }
+		{ return request(query(query::tag::keys)); }
 
 	/**
 	 * Make a query and block until response is received.
@@ -135,7 +135,7 @@ public:
 	 * data store.
 	 */
 	result size() const
-		{ return request(query(query::type::size)); }
+		{ return request(query(query::tag::size)); }
 
 	/*
 	 * Query Interface - non-blocking.
@@ -160,7 +160,7 @@ public:
 	 */
 	void lookup(data k, std::chrono::duration<double> timeout,
 	            void* cookie = nullptr) const
-		{ request(query(query::type::lookup, std::move(k)), timeout, cookie); }
+		{ request(query(query::tag::lookup, std::move(k)), timeout, cookie); }
 
 	/**
 	 * Make a non-blocking query to check for a key's existence..
@@ -171,7 +171,7 @@ public:
 	 */
 	void exists(data k, std::chrono::duration<double> timeout,
 	             void* cookie = nullptr) const
-		{ request(query(query::type::exists, std::move(k)), timeout, cookie); }
+		{ request(query(query::tag::exists, std::move(k)), timeout, cookie); }
 
 	/**
 	 * Make a non-blocking query to obtain all keys in the store.
@@ -181,7 +181,7 @@ public:
 	 */
 	void keys(std::chrono::duration<double> timeout,
 	          void* cookie = nullptr) const
-		{ request(query(query::type::keys), timeout, cookie); }
+		{ request(query(query::tag::keys), timeout, cookie); }
 
 	/**
 	 * Make a non-blocking query to obtain the number of key-value pairs in the
@@ -192,7 +192,7 @@ public:
 	 */
 	void size(std::chrono::duration<double> timeout,
 	          void* cookie = nullptr) const
-		{ request(query(query::type::size), timeout, cookie); }
+		{ request(query(query::tag::size), timeout, cookie); }
 
 private:
 
