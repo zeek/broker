@@ -56,9 +56,21 @@ broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;
 	caf::scoped_actor self;
-	self->send(handle_to_actor(handle()), pimpl->request_topic, std::move(q),
-	           self);
-	self->receive(
+	caf::actor store_actor = caf::invalid_actor;
+
+	self->sync_send(handle_to_actor(handle()), caf::atom("storeactor"),
+	                pimpl->request_topic).await(
+		caf::on_arg_match >> [&store_actor](caf::actor& sa)
+			{
+			store_actor = std::move(sa);
+			}
+	);
+
+	if ( ! store_actor )
+		return rval;
+
+	self->sync_send(store_actor, pimpl->request_topic, std::move(q),
+	                self).await(
 		caf::on_arg_match >> [&rval](const caf::actor&, result& r)
 			{
 			rval = std::move(r);

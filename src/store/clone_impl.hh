@@ -31,7 +31,7 @@ public:
 		on_arg_match >> [=](const topic& s, const query& q,
 		                    const actor& requester)
 			{
-			send(requester, this, q.process(datastore));
+			return make_message(this, q.process(datastore));
 			}
 		};
 
@@ -48,7 +48,7 @@ public:
 			if ( sn == next )
 				datastore.insert(move(k), move(v));
 			else if ( sn > next )
-				sequence_error(snapshot_topic, endpoint);
+				sequence_error(snapshot_topic, resync_interval);
 			},
 		on(val<topic>, atom("erase"), val<data>) >> [=]
 			{
@@ -62,7 +62,7 @@ public:
 			if ( sn == next )
 				datastore.erase(k);
 			else if ( sn > next )
-				sequence_error(snapshot_topic, endpoint);
+				sequence_error(snapshot_topic, resync_interval);
 			},
 		on(val<topic>, atom("clear")) >> [=]
 			{
@@ -75,63 +75,113 @@ public:
 			if ( sn == next )
 				datastore.clear();
 			else if ( sn > next )
-				sequence_error(snapshot_topic, endpoint);
+				sequence_error(snapshot_topic, resync_interval);
 			}
 		};
 
 		bootstrap = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			send(endpoint, snapshot_topic, query(query::tag::snapshot), this);
-			become(initializing);
+			send(this, atom("findmaster"));
+			get_snapshot(chrono::seconds::zero());
+			become(synchronizing);
 			}
 		);
 
-		message_handler handle_snapshot{
-		on_arg_match >> [=](caf::actor& responder, result& r)
+		message_handler give_actor{
+		on(atom("storeactor"), arg_match) >> [=](const topic& t) -> actor
 			{
-			if ( r.stat != result::status::success )
-				delayed_send(endpoint, resync_interval, snapshot_topic,
-				             query(query::tag::snapshot), this);
-			else if ( r.value.which() == result::tag::snapshot_result )
-				{
-				demonitor(master);
-				master = move(responder);
-				monitor(master);
-				datastore = mem_store(move(*get<snapshot>(r.value)));
-				become(active);
-				}
+			return this;
 			}
 		};
 
-		initializing = handle_snapshot;
-
-		active = requests.or_else(updates).or_else(handle_snapshot).or_else(
+		message_handler find_master{
+		on(atom("findmaster")) >> [=]
+			{
+			sync_send(endpoint, atom("storeactor"), snapshot_topic).then(
+				on_arg_match >> [=](actor& m)
+					{
+					if ( m )
+						{
+						demonitor(master);
+						master = move(m);
+						monitor(master);
+						}
+					else
+						delayed_send(this, resync_interval, atom("findmaster"));
+					}
+			);
+			},
 		on_arg_match >> [=](const down_msg& d)
 			{
 			if ( d.source == master.address() )
 				{
-				demonitor(master);
-				master = invalid_actor;
-				send(endpoint, snapshot_topic,
-				     query(query::tag::snapshot), this);
+				send(this, atom("findmaster"));
+				get_snapshot(resync_interval);
 				}
 			}
-		);
+		};
+
+		message_handler get_snap{
+		on(atom("getsnap")) >> [=]
+			{
+			pending_getsnap = false;
+
+			if ( ! master )
+				{
+				get_snapshot(resync_interval);
+				return;
+				}
+
+			sync_send(master, snapshot_topic, query(query::tag::snapshot),
+			          this).then(
+				on_arg_match >> [=](const sync_exited_msg& m)
+					{
+					get_snapshot(resync_interval);
+					},
+				on_arg_match >> [=](actor& responder, result& r)
+					{
+					if ( r.stat != result::status::success ||
+					     r.value.which() != result::tag::snapshot_result )
+						get_snapshot(resync_interval);
+					else
+						{
+						datastore = mem_store(move(*get<snapshot>(r.value)));
+						become(active);
+						}
+					}
+			);
+			}
+		};
+
+		auto handlesync = find_master.or_else(get_snap).or_else(give_actor);
+		synchronizing = handlesync;
+		active = requests.or_else(updates).or_else(handlesync);
 		}
 
 private:
 
-	void sequence_error(const topic& t, const caf::actor& endpoint)
+	void get_snapshot(const std::chrono::duration<double>& resync_interval)
 		{
-		aout(this) << "ERROR: clone '" << t.name << "' desync" << std::endl;
-		send(endpoint, t, query(query::tag::snapshot), this);
+		if ( pending_getsnap )
+			return;
+
+		delayed_send(this, resync_interval, caf::atom("getsnap"));
+		pending_getsnap = true;
 		}
 
+	void sequence_error(const topic& t,
+	                    const std::chrono::duration<double>& resync_interval)
+		{
+		aout(this) << "ERROR: clone '" << t.name << "' desync" << std::endl;
+		get_snapshot(resync_interval);
+		}
+
+	bool pending_getsnap = false;
 	mem_store datastore;
 	caf::actor master;
 	caf::behavior bootstrap;
-	caf::behavior initializing;
+	caf::behavior synchronizing;
 	caf::behavior active;
 	caf::behavior& init_state = bootstrap;
 };

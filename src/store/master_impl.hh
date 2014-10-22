@@ -24,6 +24,13 @@ public:
 		using namespace caf;
 		using namespace std;
 
+		message_handler give_actor{
+		on(atom("storeactor"), arg_match) >> [=](const topic& t) -> actor
+			{
+			return this;
+			}
+		};
+
 		message_handler requests {
 		on(val<topic>, arg_match) >> [=](const query& q, const actor& r)
 			{
@@ -34,7 +41,7 @@ public:
 				clones[r.address()] = r;
 				}
 
-			send(r, this, q.process(*datastore.get()));
+			return make_message(this, q.process(*datastore.get()));
 			},
 		};
 
@@ -64,7 +71,7 @@ public:
 			}
 		};
 
-		serving = requests.or_else(updates).or_else(
+		serving = requests.or_else(updates).or_else(give_actor).or_else(
 		on_arg_match >> [=](const down_msg& d)
 			{
 			demonitor(d.source);

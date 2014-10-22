@@ -152,6 +152,10 @@ public:
 
 			publish_current_msg_to_peers(t, flags);
 			},
+		on(atom("storeactor"), arg_match) >> [=](const topic& t)
+			{
+			return find_master(t);
+			},
 		on_arg_match >> [=](const topic& t, const query& q,
 		                    const actor& requester)
 			{
