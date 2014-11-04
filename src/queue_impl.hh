@@ -1,7 +1,7 @@
-#ifndef BROKER_PEER_STATUS_QUEUE_IMPL_HH
-#define BROKER_PEER_STATUS_QUEUE_IMPL_HH
+#ifndef BROKER_QUEUE_IMPL_HH
+#define BROKER_QUEUE_IMPL_HH
 
-#include "broker/peer_status_queue.hh"
+#include "broker/queue.hh"
 #include "util/flare.hh"
 #include "util/queue.hh"
 #include <caf/spawn.hpp>
@@ -9,16 +9,16 @@
 
 namespace broker {
 
-class peer_status_queue::impl {
+template <class T>
+class queue<T>::impl {
 public:
 
 	impl()
 		{
-		using broker::util::queue;
 		util::flare f;
 		fd = f.fd();
-		actor = caf::spawn<queue<decltype(caf::on<peer_status>()),
-		                         peer_status>>(std::move(f));
+		actor = caf::spawn<broker::util::queue<decltype(caf::on<T>()),
+		                                       T>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		}
@@ -30,4 +30,4 @@ public:
 
 } // namespace broker
 
-#endif // BROKER_PEER_STATUS_QUEUE_IMPL_HH
+#endif // BROKER_QUEUE_IMPL_HH

@@ -2,14 +2,17 @@
 #define BROKER_STORE_FRONTEND_HH
 
 #include <broker/data.hh>
+#include <broker/queue.hh>
+#include <broker/store/response.hh>
 #include <broker/store/identifier.hh>
-#include <broker/store/response_queue.hh>
 #include <broker/util/optional.hh>
 #include <broker/endpoint.hh>
 #include <string>
 #include <chrono>
 
 namespace broker { namespace store {
+
+using response_queue = broker::queue<broker::store::response>;
 
 /**
  * A frontend interface of a data store (either a master or clone)

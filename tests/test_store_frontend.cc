@@ -2,7 +2,6 @@
 #include "broker/endpoint.hh"
 #include "broker/store/master.hh"
 #include "broker/store/frontend.hh"
-#include "broker/store/response_queue.hh"
 #include "testsuite.hh"
 #include <map>
 #include <vector>

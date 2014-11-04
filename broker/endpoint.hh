@@ -4,13 +4,16 @@
 #include <broker/topic.hh>
 #include <broker/peering.hh>
 #include <broker/message.hh>
-#include <broker/peer_status_queue.hh>
+#include <broker/peer_status.hh>
+#include <broker/queue.hh>
 #include <memory>
 #include <string>
 #include <cstdint>
 #include <chrono>
 
 namespace broker {
+
+using peer_status_queue = broker::queue<broker::peer_status>;
 
 // Endpoint options.
 

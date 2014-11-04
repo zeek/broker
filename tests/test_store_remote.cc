@@ -3,7 +3,6 @@
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
 #include "broker/store/frontend.hh"
-#include "broker/store/response_queue.hh"
 #include "testsuite.hh"
 #include <iostream>
 #include <map>

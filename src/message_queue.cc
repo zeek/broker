@@ -1,39 +1,27 @@
-#include "message_queue_impl.hh"
-#include "broker/endpoint.hh"
+#include "broker/message_queue.hh"
+#include <caf/send.hpp>
 
-broker::message_queue::message_queue()
-    : pimpl(new impl)
-	{
-	}
+class broker::message_queue::impl {
+public:
+
+	broker::topic subscription_prefix;
+};
 
 broker::message_queue::~message_queue() = default;
 
-broker::message_queue::message_queue(message_queue&& other) = default;
+broker::message_queue::message_queue(message_queue&&) = default;
 
 broker::message_queue&
-broker::message_queue::operator=(message_queue&& other) = default;
+broker::message_queue::operator=(message_queue&&) = default;
 
-broker::message_queue::message_queue(topic t, const endpoint& e)
-    : pimpl(new impl(std::move(t), e))
+broker::message_queue::message_queue(topic prefix, const endpoint& e)
+	: broker::queue<broker::message>(),
+      pimpl(new impl{std::move(prefix)})
 	{
+	caf::anon_send(*static_cast<caf::actor*>(e.handle()),
+	               caf::atom("local sub"), pimpl->subscription_prefix,
+	               *static_cast<caf::actor*>(this->handle()));
 	}
 
-int broker::message_queue::fd() const
-	{
-	return pimpl->fd;
-	}
-
-const broker::topic& broker::message_queue::get_topic() const
-	{
-	return pimpl->subscription;
-	}
-
-std::deque<broker::message> broker::message_queue::want_pop() const
-	{
-	return util::queue_pop<message>(pimpl->actor, caf::atom("want"));
-	}
-
-std::deque<broker::message> broker::message_queue::need_pop() const
-	{
-	return util::queue_pop<message>(pimpl->actor, caf::atom("need"));
-	}
+const broker::topic& broker::message_queue::get_topic_prefix() const
+	{ return pimpl->subscription_prefix; }

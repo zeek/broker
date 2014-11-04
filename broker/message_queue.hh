@@ -2,78 +2,58 @@
 #define BROKER_MESSAGE_QUEUE_HH
 
 #include <broker/endpoint.hh>
-#include <broker/topic.hh>
 #include <broker/message.hh>
-#include <string>
+#include <broker/queue.hh>
+#include <broker/topic.hh>
 #include <memory>
-#include <deque>
 
 namespace broker {
 
 /**
- * Stores message's awaiting retrieval/processing.
+ * Requests messages from a broker::endpoint or its peers that match a topic
+ * prefix.
  */
-class message_queue {
+class message_queue : public queue<broker::message> {
 public:
 
 	/**
-	 * Create an uninitialized message queue.  It will never contain any messages.
+	 * Destruct message_queue.
 	 */
-	message_queue();
-
-	/**
-	  * Destruct message queue.
-	  */
 	~message_queue();
 
 	/**
-	 * Copying a message queue is disallowed.
+	 * Copying a message_queue is not allowed.
 	 */
-	message_queue(const message_queue& other) = delete;
+	message_queue(const message_queue&) = delete;
 
 	/**
-	 * Steal a message queue.
+	 * Construct a message_queue by stealing another.
 	 */
-	message_queue(message_queue&& other);
+	message_queue(message_queue&&);
 
 	/**
-	 * Copying a message queue is disallowed.
+	 * Copying a message_queue is not allowed.
 	 */
-	message_queue& operator=(const message_queue& other) = delete;
+	message_queue& operator=(const message_queue&) = delete;
 
 	/**
-	 * Replace message queue by stealing another.
+	 * Replace message_queue by stealing another.
 	 */
-	message_queue& operator=(message_queue&& other);
+	message_queue& operator=(message_queue&&);
 
 	/**
-	 * Create a message queue that will receive message messages directly from an
-	 * endpoint or via one if its peers.
-	 * @param t only message messages that match this topic are received.
-	 * @param e a local endpoint.
+	 * Attach a message_queue to an endpoint.
+	 * @param prefix the subscription topic to use.  All messages sent via
+	 * endpoint \a e or one of its peers that use a topic prefixed by \a prefix
+	 * will be copied in to this queue.
+	 * @param e the endpoint to attach the message_queue.
 	 */
-	message_queue(topic t, const endpoint& e);
+	message_queue(topic prefix, const endpoint& e);
 
 	/**
-	 * @return a file descriptor that is ready for reading when the queue is
-	 *         non-empty, suitable for use with poll, select, etc.
+	 * @return the subscription topic prefix of the queue.
 	 */
-	int fd() const;
-
-	/**
-	 * @return Any message messages that are available at the time of the call.
-	 */
-	std::deque<message> want_pop() const;
-
-	/**
-	 * @return At least one message message.  The call blocks if it must.
-	 */
-	std::deque<message> need_pop() const;
-
-	/**
-	 * @return the topic associated with the queue.
-	 */
-	const topic& get_topic() const;
+	const topic& get_topic_prefix() const;
 
 private:
 

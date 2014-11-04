@@ -50,12 +50,11 @@ set(BROKER_SRC
     src/endpoint.cc
     src/message_queue.cc
     src/peering.cc
-    src/peer_status_queue.cc
     src/subscription.cc
+    src/queue.cc
     src/store/clone.cc
     src/store/frontend.cc
     src/store/master.cc
-    src/store/response_queue.cc
     src/store/sequence_num.cc
     src/util/pipe.cc
     src/util/flare.cc
