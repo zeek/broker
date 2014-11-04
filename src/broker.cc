@@ -1,9 +1,6 @@
 #include "broker/broker.hh"
 #include "broker/peer_status.hh"
-#include "broker/print_msg.hh"
-#include "broker/log_msg.hh"
-#include "broker/topic.hh"
-#include "broker/event_msg.hh"
+#include "broker/message.hh"
 #include "broker/store/store.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
@@ -24,8 +21,6 @@ int broker_init(int flags)
 	using namespace std;
 	using namespace broker;
 	using namespace broker::store;
-	announce<topic::tag>();
-	announce<topic>(&topic::name, &topic::type);
 	announce(typeid(topic_set),
 	         unique_ptr<caf::uniform_type_info>(new topic_set_type_info));
 	announce<peer_status::tag>();
@@ -54,12 +49,8 @@ int broker_init(int flags)
 	announce<query>(&query::type, &query::k);
 	announce<response>(&response::request, &response::reply, &response::cookie);
 	announce<std::deque<response>>();
-	announce<print_msg>(&print_msg::path, &print_msg::data);
-	announce<log_msg>(&log_msg::stream, &log_msg::fields);
-	announce<event_msg>(&event_msg::name, &event_msg::args);
-	announce<std::deque<print_msg>>();
-	announce<std::deque<log_msg>>();
-	announce<std::deque<event_msg>>();
+	announce<message>();
+	announce<std::deque<message>>();
 	announce<std::deque<peer_status>>();
 	return 0;
 	}

@@ -8,13 +8,11 @@ bool broker::subscription_registry::insert(subscriber s)
 	if ( ! rval )
 		erase(s.who.address());
 
-	for ( size_t tag = 0; tag < s.subscriptions.size(); ++tag )
-		for ( const auto& p : s.subscriptions[tag] )
+		for ( const auto& p : s.subscriptions )
 			{
 			const std::string& topic_name = p.first;
-			util::radix_tree<actor_set>& rt = subs_by_topic[tag];
-			rt[topic_name].insert(s.who);
-			all_topics[tag][topic_name] = true;
+			subs_by_topic[topic_name].insert(s.who);
+			all_topics[topic_name] = true;
 			}
 
 	subs_by_actor[s.who.address()] = std::move(s);
@@ -32,24 +30,23 @@ broker::subscription_registry::erase(const caf::actor_addr& a)
 	subscriber rval = std::move(it->second);
 	subs_by_actor.erase(it);
 
-	for ( size_t tag = 0; tag < rval.subscriptions.size(); ++tag )
-		for ( const auto& p : rval.subscriptions[tag] )
+	for ( const auto& p : rval.subscriptions )
+		{
+		const std::string& topic_name = p.first;
+		auto it2 = subs_by_topic.find(topic_name);
+
+		if ( it2 == subs_by_topic.end() )
+			continue;
+
+		actor_set& as = it2->second;
+		as.erase(rval.who);
+
+		if ( as.empty() )
 			{
-			const std::string& topic_name = p.first;
-			auto it2 = subs_by_topic[tag].find(topic_name);
-
-			if ( it2 == subs_by_topic[tag].end() )
-				continue;
-
-			actor_set& as = it2->second;
-			as.erase(rval.who);
-
-			if ( as.empty() )
-				{
-				subs_by_topic[tag].erase(topic_name);
-				all_topics[tag].erase(topic_name);
-				}
+			subs_by_topic.erase(topic_name);
+			all_topics.erase(topic_name);
 			}
+		}
 
 	return std::move(rval);
 	}
@@ -61,9 +58,7 @@ bool broker::subscription_registry::register_topic(topic t, caf::actor a)
 	if ( ! s.who )
 		s.who = std::move(a);
 
-	util::radix_tree<bool>& their_topics = s.subscriptions[+t.type];
-
-	auto p = their_topics.insert({std::move(t.name), true});
+	auto p = s.subscriptions.insert({std::move(t), true});
 
 	if ( ! p.second )
 		// We already know the actor is interested in this topic.
@@ -71,8 +66,8 @@ bool broker::subscription_registry::register_topic(topic t, caf::actor a)
 
 	const std::string& topic_name = p.first->first;
 
-	all_topics[+t.type][topic_name] = true;
-	subs_by_topic[+t.type][topic_name].insert(s.who);
+	all_topics[topic_name] = true;
+	subs_by_topic[topic_name].insert(s.who);
 	return true;
 	}
 
@@ -85,10 +80,10 @@ bool broker::subscription_registry::unregister_topic(const topic& t,
 		return false;
 
 	subscriber& s = it->second;
-	s.subscriptions[+t.type].erase(t.name);
-	auto it2 = subs_by_topic[+t.type].find(t.name);
+	s.subscriptions.erase(t);
+	auto it2 = subs_by_topic.find(t);
 
-	if ( it2 == subs_by_topic[+t.type].end() )
+	if ( it2 == subs_by_topic.end() )
 		return true;
 
 	actor_set& as = it2->second;
@@ -96,8 +91,8 @@ bool broker::subscription_registry::unregister_topic(const topic& t,
 
 	if ( as.empty() )
 		{
-		all_topics[+t.type].erase(t.name);
-		subs_by_topic[+t.type].erase(t.name);
+		all_topics.erase(t);
+		subs_by_topic.erase(t);
 		}
 
 	return true;
@@ -106,13 +101,13 @@ bool broker::subscription_registry::unregister_topic(const topic& t,
 std::deque<broker::util::radix_tree<broker::actor_set>::iterator>
 broker::subscription_registry::prefix_matches(const topic& t) const
 	{
-	return subs_by_topic[+t.type].prefix_of(t.name);
+	return subs_by_topic.prefix_of(t);
 	}
 
 broker::actor_set
 broker::subscription_registry::unique_prefix_matches(const topic& t) const
 	{
-	auto matches = subs_by_topic[+t.type].prefix_of(t.name);
+	auto matches = subs_by_topic.prefix_of(t);
 	actor_set rval;
 
 	for ( const auto& m : matches )
@@ -125,9 +120,9 @@ broker::subscription_registry::unique_prefix_matches(const topic& t) const
 broker::util::optional<const broker::actor_set&>
 broker::subscription_registry::exact_match(const topic& t) const
 	{
-	auto it = subs_by_topic[+t.type].find(t.name);
+	auto it = subs_by_topic.find(t);
 
-	if ( it == subs_by_topic[+t.type].end() )
+	if ( it == subs_by_topic.end() )
 		return {};
 
 	return it->second;
@@ -139,16 +134,8 @@ void broker::topic_set_type_info::serialize(const void* ptr,
 	auto topic_set_ptr = reinterpret_cast<const topic_set*>(ptr);
 	sink->begin_sequence(topic_set_ptr->size());
 
-	for ( size_t i = 0; i < topic_set_ptr->size(); ++i )
-		{
-		const auto& topic_strings = (*topic_set_ptr)[i];
-		sink->begin_sequence(topic_strings.size());
-
-		for ( const auto& ts : topic_strings )
-			sink->write_value(ts.first);
-
-		sink->end_sequence();
-		}
+	for ( const auto& ts : *topic_set_ptr )
+		sink->write_value(ts.first);
 
 	sink->end_sequence();
 	}
@@ -157,19 +144,10 @@ void broker::topic_set_type_info::deserialize(void* ptr,
                                               caf::deserializer* source) const
 	{
 	auto topic_set_ptr = reinterpret_cast<topic_set*>(ptr);
-	auto num_indices = source->begin_sequence();
+	auto num_topic_strings = source->begin_sequence();
 
-	for ( size_t i = 0; i < num_indices; ++i )
-		{
-		auto& topic_strings = (*topic_set_ptr)[i];
-		topic_strings.clear();
-		auto num_topic_strings = source->begin_sequence();
-
-		for ( size_t j = 0; j < num_topic_strings; ++j )
-			topic_strings.insert({source->read<std::string>(), true});
-
-		source->end_sequence();
-		}
+	for ( size_t j = 0; j < num_topic_strings; ++j )
+		topic_set_ptr->insert({source->read<std::string>(), true});
 
 	source->end_sequence();
 	}

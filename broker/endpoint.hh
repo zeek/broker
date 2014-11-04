@@ -3,9 +3,7 @@
 
 #include <broker/topic.hh>
 #include <broker/peering.hh>
-#include <broker/print_msg.hh>
-#include <broker/log_msg.hh>
-#include <broker/event_msg.hh>
+#include <broker/message.hh>
 #include <broker/peer_status_queue.hh>
 #include <memory>
 #include <string>
@@ -22,15 +20,15 @@ namespace broker {
 constexpr int AUTO_PUBLISH = 0x01;
 
 /**
- * Don't restrict message topics that the endpoint advertises to peers
- * as topics it will accepts.
+ * Don't restrict what queue topics and store identifiers that the endpoint
+ * advertises to peers.
  */
-constexpr int AUTO_SUBSCRIBE = 0x02;
+constexpr int AUTO_ADVERTISE = 0x02;
 
 // Messaging modes.
 
 /**
- * Send only to subscribers (e.g. a print queue) attached directly to endpoint.
+ * Send only to subscribers (e.g. message queue) attached directly to endpoint.
  */
 constexpr int SELF = 0x01;
 
@@ -56,7 +54,7 @@ public:
 	 * @param name a descriptive name for this endpoint.
 	 * @param flags tune the behavior of the endpoint.
 	 */
-	endpoint(std::string name, int flags = AUTO_PUBLISH | AUTO_SUBSCRIBE);
+	endpoint(std::string name, int flags = AUTO_PUBLISH | AUTO_ADVERTISE);
 
 	/**
 	 * Shutdown the local broker endpoint and disconnect from peers.
@@ -153,41 +151,21 @@ public:
 	 * @return a queue that may be used to inspect the results of a peering
 	 * attempt. e.g. established, disconnected, incompatible, etc.  Until
 	 * one checks the queue for a result that indicates the peering is
-	 * established, messages sent using endpoint::print(), endpoint::log(),
-	 * or endpoint::event() are not guaranteed to be delivered to the peer
-	 * as it may still be in the process of registering its subscriptions.
+	 * established, messages sent using endpoint::send(), are not guaranteed
+	 * to be delivered to the peer as it may still be in the process of
+	 * registering its subscriptions.
 	 */
 	const peer_status_queue& peer_status() const;
 
 	/**
-	 * Sends a message string to all print_queue's for a given topic that are
-	 * connected to this endpoint directly or indirectly through peer endpoints.
-	 * @param topic_name the topic name associated with the message.
+	 * Sends a message to all message_queue's that are registed for a given
+	 * topic and either connected to this endpoint directly or indirectly
+	 * through peer endpoints.
+	 * @param t the topic name associated with the message.
 	 * @param msg a message to send all queues subscribed for the topic.
 	 * @param flags tunes the messaging mode behavior.
 	 */
-	void print(std::string topic_name, print_msg msg,
-	           int flags = SELF | PEERS) const;
-
-	/**
-	 * Sends a log to all log_queue's for a given topic that are connected to
-	 * this endpoint directly or indirectly through peer endpoints.
-	 * @param topic_name the topic name associated with the log.
-	 * @param msg a logging message to send all queues subscribed for the topic.
-	 * @param flags tunes the messaging mode behavior.
-	 */
-	void log(std::string topic_name, log_msg msg,
-	         int flags = SELF | PEERS) const;
-
-	/**
-	 * Sends an event to all event_queue's for a given topic that are connected
-	 * to this endpoint directly or indirectly through peer endpoings.
-	 * @param topic_name the topic name associated with the event.
-	 * @param msg an event to send all queues subscribed for the topic.
-	 * @param flags tunes the messaging mode behavior.
-	 */
-	void event(std::string topic_name, event_msg msg,
-	           int flags = SELF | PEERS) const;
+	void send(topic t, message msg, int flags = SELF | PEERS) const;
 
 	/**
 	 * Allow the endpoint to publish messages with the given topic to peers.
@@ -202,16 +180,16 @@ public:
 	void unpublish(topic t);
 
 	/**
-	 * Accept messages from peers with the given topic.  No effect while the
-	 * endpoint uses the AUTO_SUBSCRIBE flag.
+	 * Allow advertising a given queue topic or store identifier to peers.
+	 * No effect while the endpoint uses the AUTO_ADVERTISE flag.
 	 */
-	void subscribe(topic t);
+	void advertise(std::string t);
 
 	/**
-	 * Stop accepting messages from peers with the given topic.  No effect while
-	 * the endpoint uses the AUTO_SUBSCRIBE flag.
+	 * Don't allow advertising a given queue topic or store identifier to peers.
+	 * No effect while the endpoint uses the AUTO_ADVERTISE flag.
 	 */
-	void unsubscribe(topic t);
+	void unadvertise(std::string t);
 
 	/**
 	 * @return a unique handle for the endpoint.

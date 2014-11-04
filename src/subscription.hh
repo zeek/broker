@@ -10,14 +10,13 @@
 #include <caf/deserializer.hpp>
 #include <unordered_map>
 #include <unordered_set>
-#include <array>
 #include <cstdint>
 #include <deque>
 
 namespace broker {
 
 using actor_set = std::unordered_set<caf::actor>;
-using topic_set = std::array<util::radix_tree<bool>, +topic::tag::last>;
+using topic_set = util::radix_tree<bool>;
 
 /**
  * (de)serialization logic for type "topic_set".
@@ -124,7 +123,7 @@ public:
 
 private:
 
-	std::array<util::radix_tree<actor_set>, +topic::tag::last> subs_by_topic;
+	util::radix_tree<actor_set> subs_by_topic;
 	std::unordered_map<caf::actor_addr, subscriber> subs_by_actor;
 	topic_set all_topics;
 };

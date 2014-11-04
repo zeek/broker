@@ -1,9 +1,12 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
-#include "broker/event_queue.hh"
+#include "broker/message_queue.hh"
 #include "testsuite.hh"
 #include <vector>
 #include <string>
+
+// A test of "event" style messages -- vectors of data w/ first element
+// being the event name.
 
 using namespace broker;
 
@@ -12,7 +15,7 @@ int main(int argc, char** argv)
 	init();
 
 	endpoint node0("node0");
-	event_queue q0("a", node0);
+	message_queue q0("a", node0);
 
 	auto remote = argc > 1 && std::string(argv[1]) == "remote";
 
@@ -23,7 +26,7 @@ int main(int argc, char** argv)
 		}
 
 	endpoint node1("node1");
-	event_queue q1("b", node1);
+	message_queue q1("b", node1);
 
 	if ( remote )
 		node1.peer("127.0.0.1", 9999);
@@ -37,26 +40,26 @@ int main(int argc, char** argv)
 		return 1;
 		}
 
-	std::vector<event_msg> pings;
-	std::vector<event_msg> pongs;
+	std::vector<message> pings;
+	std::vector<message> pongs;
 
 	for ( int i = 0; i < 4; ++i )
 		{
-		pings.push_back({"ping", {i, "yo"}});
-		node1.event("a", pings[i]);
+		pings.push_back(message{"ping", vector{i, "yo"}});
+		node1.send("a", pings[i]);
 		}
 
 	while ( pongs.size() != 4 )
 		{
 		for ( auto& msg : q0.need_pop() )
 			{
-			msg.name = "pong";
-			node0.event("b", msg);
+			msg[0] = "pong";
+			node0.send("b", msg);
 			pongs.push_back(std::move(msg));
 			}
 		}
 
-	std::vector<event_msg> returned;
+	std::vector<message> returned;
 
 	while ( returned.size() != 4 )
 		for ( auto& msg : q1.need_pop() )
@@ -67,9 +70,10 @@ int main(int argc, char** argv)
 
 	for ( int i = 0; i < returned.size(); ++i )
 		{
-		BROKER_TEST(returned[i].name == "pong");
-		BROKER_TEST(returned[i].args[0] == i);
-		BROKER_TEST(returned[i].args[1] == "yo");
+		BROKER_TEST(returned[i][0] == "pong");
+		const auto& v = *get<vector>(returned[i][1]);
+		BROKER_TEST(v[0] == i);
+		BROKER_TEST(v[1] == "yo");
 		}
 
 	done();

@@ -1,9 +1,12 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
-#include "broker/log_queue.hh"
+#include "broker/message_queue.hh"
 #include "testsuite.hh"
 #include <vector>
 #include <string>
+
+// A test of "log" style messages -- a sequence of {stream name, data record}
+// where some elements of the record may be uninitialized.
 
 using namespace broker;
 
@@ -12,7 +15,7 @@ int main(int argc, char** argv)
 	init();
 
 	endpoint node0("node0");
-	log_queue q0("a", node0);
+	message_queue q0("a", node0);
 
 	auto remote = argc > 1 && std::string(argv[1]) == "remote";
 
@@ -23,7 +26,7 @@ int main(int argc, char** argv)
 		}
 
 	endpoint node1("node1");
-	log_queue q1("b", node1);
+	message_queue q1("b", node1);
 
 	if ( remote )
 		node1.peer("127.0.0.1", 9999);
@@ -41,27 +44,27 @@ int main(int argc, char** argv)
 	BROKER_TEST(ps.peer_name == node0.name());
 	BROKER_TEST(node0.name() == "node0");
 
-	std::vector<log_msg> pings;
-	std::vector<log_msg> pongs;
+	std::vector<message> pings;
+	std::vector<message> pongs;
 
 	for ( int i = 0; i < 4; ++i )
 		{
 		record r = {{data(i), data("yo"), {}}};
-		pings.push_back({"ping", std::move(r)});
-		node1.log("a", pings[i]);
+		pings.push_back(message{"ping", std::move(r)});
+		node1.send("a", pings[i]);
 		}
 
 	while ( pongs.size() != 4 )
 		{
 		for ( auto& msg : q0.need_pop() )
 			{
-			msg.stream = "pong";
-			node0.log("b", msg);
+			msg[0] = "pong";
+			node0.send("b", msg);
 			pongs.push_back(std::move(msg));
 			}
 		}
 
-	std::vector<log_msg> returned;
+	std::vector<message> returned;
 
 	while ( returned.size() != 4 )
 		for ( auto& msg : q1.need_pop() )
@@ -72,10 +75,11 @@ int main(int argc, char** argv)
 
 	for ( int i = 0; i < returned.size(); ++i )
 		{
-		BROKER_TEST(returned[i].stream == "pong");
-		BROKER_TEST(returned[i].fields.get(0) == data(i));
-		BROKER_TEST(returned[i].fields.get(1) == data("yo"));
-		BROKER_TEST(! returned[i].fields.get(2));
+		BROKER_TEST(returned[i][0] == "pong");
+		const auto r = get<record>(returned[i][1]);
+		BROKER_TEST(r->get(0) == data(i));
+		BROKER_TEST(r->get(1) == data("yo"));
+		BROKER_TEST(! r->get(2));
 		}
 
 	done();

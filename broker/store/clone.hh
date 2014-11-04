@@ -17,10 +17,10 @@ public:
 	/**
 	 * Construct a data store clone.
 	 * @param e the broker endpoint to attach the clone.
-	 * @param topic the exact topic name that the master data store is using.
+	 * @param name the exact name that the master data store is using.
 	 * The master store must be attached either directly to the same endpoint as
 	 * the to one of its peers.  If attached to a peer, the endpoint must
-	 * allow advertising interest in this topic name.
+	 * allow advertising interest in this name.
 	 * @param resync_interval the interval at which to re-attempt synchronizing
 	 * with the master store should the connection be lost.  If the
 	 * clone has not yet synchronized for the first time, updates and queries
@@ -29,7 +29,7 @@ public:
 	 * clone's version of the store, but updates will be lost until the master
 	 * is once again available.
 	 */
-	clone(const endpoint& e, std::string topic,
+	clone(const endpoint& e, identifier master_name,
 	      std::chrono::duration<double> resync_interval =
 	                                        std::chrono::seconds(1));
 

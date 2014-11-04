@@ -1,10 +1,10 @@
 #include "clone_impl.hh"
 
-broker::store::clone::clone(const endpoint& e, std::string topic,
+broker::store::clone::clone(const endpoint& e, identifier master_name,
                             std::chrono::duration<double> resync_interval)
-	: broker::store::frontend(e, topic),
+	: broker::store::frontend(e, master_name),
       pimpl(new impl(*static_cast<caf::actor*>(e.handle()),
-                     std::move(topic), std::move(resync_interval)))
+                     std::move(master_name), std::move(resync_interval)))
 	{
 	}
 

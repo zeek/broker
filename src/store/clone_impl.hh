@@ -4,7 +4,6 @@
 #include "broker/store/clone.hh"
 #include "broker/store/store.hh"
 #include "broker/store/mem_store.hh"
-#include "broker/topic.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
@@ -19,16 +18,14 @@ friend class caf::sb_actor<clone_actor>;
 
 public:
 
-	clone_actor(const caf::actor& endpoint, std::string topic_name,
+	clone_actor(const caf::actor& endpoint, identifier master_name,
 	            std::chrono::duration<double> resync_interval)
 		{
 		using namespace std;
 		using namespace caf;
 
-		topic snapshot_topic{topic_name, topic::tag::store_query};
-
 		message_handler requests {
-		on_arg_match >> [=](const topic& s, const query& q,
+		on_arg_match >> [=](const identifier& n, const query& q,
 		                    const actor& requester)
 			{
 			return make_message(this, q.process(datastore));
@@ -36,7 +33,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<topic>, atom("insert"), val<data>, val<data>) >> [=]
+		on(val<identifier>, atom("insert"), val<data>, val<data>) >> [=]
 			{
 			forward_to(master);
 			},
@@ -48,9 +45,9 @@ public:
 			if ( sn == next )
 				datastore.insert(move(k), move(v));
 			else if ( sn > next )
-				sequence_error(snapshot_topic, resync_interval);
+				sequence_error(master_name, resync_interval);
 			},
-		on(val<topic>, atom("erase"), val<data>) >> [=]
+		on(val<identifier>, atom("erase"), val<data>) >> [=]
 			{
 			forward_to(master);
 			},
@@ -62,9 +59,9 @@ public:
 			if ( sn == next )
 				datastore.erase(k);
 			else if ( sn > next )
-				sequence_error(snapshot_topic, resync_interval);
+				sequence_error(master_name, resync_interval);
 			},
-		on(val<topic>, atom("clear")) >> [=]
+		on(val<identifier>, atom("clear")) >> [=]
 			{
 			forward_to(master);
 			},
@@ -75,7 +72,7 @@ public:
 			if ( sn == next )
 				datastore.clear();
 			else if ( sn > next )
-				sequence_error(snapshot_topic, resync_interval);
+				sequence_error(master_name, resync_interval);
 			}
 		};
 
@@ -89,7 +86,7 @@ public:
 		);
 
 		message_handler give_actor{
-		on(atom("storeactor"), arg_match) >> [=](const topic& t) -> actor
+		on(atom("storeactor"), arg_match) >> [=](const identifier& n) -> actor
 			{
 			return this;
 			}
@@ -98,7 +95,7 @@ public:
 		message_handler find_master{
 		on(atom("findmaster")) >> [=]
 			{
-			sync_send(endpoint, atom("storeactor"), snapshot_topic).then(
+			sync_send(endpoint, atom("storeactor"), master_name).then(
 				on_arg_match >> [=](actor& m)
 					{
 					if ( m )
@@ -133,7 +130,7 @@ public:
 				return;
 				}
 
-			sync_send(master, snapshot_topic, query(query::tag::snapshot),
+			sync_send(master, master_name, query(query::tag::snapshot),
 			          this).then(
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
@@ -170,10 +167,10 @@ private:
 		pending_getsnap = true;
 		}
 
-	void sequence_error(const topic& t,
+	void sequence_error(const identifier& id,
 	                    const std::chrono::duration<double>& resync_interval)
 		{
-		aout(this) << "ERROR: clone '" << t.name << "' desync" << std::endl;
+		aout(this) << "ERROR: clone '" << id << "' desync" << std::endl;
 		get_snapshot(resync_interval);
 		}
 
@@ -190,9 +187,10 @@ private:
 class clone::impl {
 public:
 
-	impl(const caf::actor& endpoint, std::string topic,
+	impl(const caf::actor& endpoint, identifier master_name,
 	     std::chrono::duration<double> resync_interval)
-		: self(), actor(caf::spawn<clone_actor>(endpoint, std::move(topic),
+		: self(), actor(caf::spawn<clone_actor>(endpoint,
+	                                            std::move(master_name),
 	                                            std::move(resync_interval)))
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);

@@ -3,7 +3,6 @@
 
 #include "broker/store/master.hh"
 #include "broker/store/store.hh"
-#include "broker/topic.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
 #include <caf/actor.hpp>
@@ -18,21 +17,21 @@ friend class caf::sb_actor<master_actor>;
 
 public:
 
-	master_actor(std::unique_ptr<store> s, std::string topic_name)
+	master_actor(std::unique_ptr<store> s, identifier name)
 		: datastore(std::move(s))
 		{
 		using namespace caf;
 		using namespace std;
 
 		message_handler give_actor{
-		on(atom("storeactor"), arg_match) >> [=](const topic& t) -> actor
+		on(atom("storeactor"), arg_match) >> [=](const identifier& n) -> actor
 			{
 			return this;
 			}
 		};
 
 		message_handler requests {
-		on(val<topic>, arg_match) >> [=](const query& q, const actor& r)
+		on(val<identifier>, arg_match) >> [=](const query& q, const actor& r)
 			{
 			if ( q.type == query::tag::snapshot &&
 			     clones.find(r.address()) == clones.end() )
@@ -46,7 +45,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<topic>, atom("insert"), arg_match) >> [=](data& k, data& v)
+		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v)
 			{
 			datastore->insert(k, v);
 
@@ -54,7 +53,7 @@ public:
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v)));
 			},
-		on(val<topic>, atom("erase"), arg_match) >> [=](data& k)
+		on(val<identifier>, atom("erase"), arg_match) >> [=](data& k)
 			{
 			datastore->erase(k);
 
@@ -62,7 +61,7 @@ public:
 				publish(make_message(atom("erase"), datastore->sequence(),
 				                     move(k)));
 			},
-		on(val<topic>, atom("clear"), arg_match) >> [=]
+		on(val<identifier>, atom("clear"), arg_match) >> [=]
 			{
 			datastore->clear();
 
@@ -96,18 +95,13 @@ private:
 class master::impl {
 public:
 
-	impl(const caf::actor& endpoint, std::string topic_name,
+	impl(const caf::actor& endpoint, identifier name,
 	     std::unique_ptr<store> s)
-		: self(), actor(caf::spawn<master_actor>(std::move(s), topic_name))
+		: self(), actor(caf::spawn<master_actor>(std::move(s), name))
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
-		caf::anon_send(endpoint, caf::atom("local sub"),
-		               topic{topic_name, topic::tag::store_query},
-		               actor);
-		caf::anon_send(endpoint, caf::atom("local sub"),
-		               topic{topic_name, topic::tag::store_update},
-		               actor);
+		caf::anon_send(endpoint, caf::atom("master"), std::move(name), actor);
 		}
 
 	caf::scoped_actor self;

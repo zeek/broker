@@ -1,10 +1,10 @@
 #include "master_impl.hh"
 
-broker::store::master::master(const endpoint& e, std::string topic,
+broker::store::master::master(const endpoint& e, identifier name,
                               std::unique_ptr<store> s)
-    : broker::store::frontend(e, topic),
+    : broker::store::frontend(e, name),
       pimpl(new impl(*static_cast<caf::actor*>(e.handle()),
-                     std::move(topic), std::move(s)))
+                     std::move(name), std::move(s)))
 	{
 	}
 

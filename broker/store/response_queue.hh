@@ -54,12 +54,12 @@ public:
 	int fd() const;
 
 	/**
-	 * @return Any print messages that are available at the time of the call.
+	 * @return Any responses that are available at the time of the call.
 	 */
 	std::deque<response> want_pop() const;
 
 	/**
-	 * @return At least one print message.  The call blocks if it must.
+	 * @return At least one response.  The call blocks if it must.
 	 */
 	std::deque<response> need_pop() const;
 

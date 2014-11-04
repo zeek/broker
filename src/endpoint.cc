@@ -131,27 +131,9 @@ const broker::peer_status_queue& broker::endpoint::peer_status() const
 	return pimpl->peer_status;
 	}
 
-void broker::endpoint::print(std::string topic_name, print_msg msg,
-                             int flags) const
+void broker::endpoint::send(topic t, message msg, int flags) const
 	{
-	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::print}, flags,
-	               std::move(msg));
-	}
-
-void broker::endpoint::log(std::string topic_name, log_msg msg, int flags) const
-	{
-	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::log}, flags,
-	               std::move(msg));
-	}
-
-void broker::endpoint::event(std::string topic_name, event_msg msg,
-                             int flags) const
-	{
-	caf::anon_send(pimpl->actor,
-	               topic{std::move(topic_name), topic::tag::event}, flags,
-	               std::move(msg));
+	caf::anon_send(pimpl->actor, std::move(t), std::move(msg), flags);
 	}
 
 void broker::endpoint::publish(topic t)
@@ -164,14 +146,14 @@ void broker::endpoint::unpublish(topic t)
 	caf::anon_send(pimpl->actor, caf::atom("acl unpub"), t);
 	}
 
-void broker::endpoint::subscribe(topic t)
+void broker::endpoint::advertise(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("acl sub"), t);
+	caf::anon_send(pimpl->actor, caf::atom("advert"), t);
 	}
 
-void broker::endpoint::unsubscribe(topic t)
+void broker::endpoint::unadvertise(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("acl unsub"), t);
+	caf::anon_send(pimpl->actor, caf::atom("unadvert"), t);
 	}
 
 void* broker::endpoint::handle() const

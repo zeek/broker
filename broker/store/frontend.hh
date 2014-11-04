@@ -2,6 +2,7 @@
 #define BROKER_STORE_FRONTEND_HH
 
 #include <broker/data.hh>
+#include <broker/store/identifier.hh>
 #include <broker/store/response_queue.hh>
 #include <broker/util/optional.hh>
 #include <broker/endpoint.hh>
@@ -20,12 +21,12 @@ public:
 	/**
 	 * Construct a data store frontend to a master data store.
 	 * @param e the broker endpoint to attach the frontend.
-	 * @param topic_name the exact topic name that a master data store is using.
+	 * @param name the exact name that a master data store is using.
 	 * The master store must be attached either directly to the same endpoint as
 	 * the to one of its peers.  If attached to a peer, the endpoint must
-	 * allow advertising interest in this topic name.
+	 * allow advertising interest in this name.
 	 */
-	frontend(const endpoint& e, std::string topic_name);
+	frontend(const endpoint& e, identifier master_name);
 
 	/**
 	 * Destructor.
@@ -53,9 +54,9 @@ public:
 	frontend& operator=(frontend&& other);
 
 	/**
-	 * @return the topic name of the data store.
+	 * @return the name of the associated master data store.
 	 */
-	const std::string& topic_name() const;
+	const identifier& id() const;
 
 	/**
 	 * @return a queue that contains responses to queries that await processing.

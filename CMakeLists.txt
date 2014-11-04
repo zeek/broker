@@ -48,11 +48,9 @@ file(GLOB_RECURSE BROKER_HDR *.h *.hh)
 set(BROKER_SRC
     src/broker.cc
     src/endpoint.cc
-    src/event_queue.cc
-    src/log_queue.cc
+    src/message_queue.cc
     src/peering.cc
     src/peer_status_queue.cc
-    src/print_queue.cc
     src/subscription.cc
     src/store/clone.cc
     src/store/frontend.cc

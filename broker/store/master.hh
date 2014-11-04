@@ -1,6 +1,7 @@
 #ifndef BROKER_STORE_MASTER_HH
 #define BROKER_STORE_MASTER_HH
 
+#include <broker/store/identifier.hh>
 #include <broker/store/frontend.hh>
 #include <broker/store/store.hh>
 #include <broker/store/mem_store.hh>
@@ -19,13 +20,13 @@ public:
 	/**
 	 * Construct a master data store.
 	 * @param e the broker endpoint to attach the master.
-	 * @param topic the exact, unique topic name associated with the master
-	 * store.  A frontend/clone of the master must also use this name and
-	 * connect via the same endpoint or via one of its peers.
+	 * @param name a unique name associated with the master store.
+	 * A frontend/clone of the master must also use this name and connect via
+	 * the same endpoint or via one of its peers.
 	 * @param s the storage backend implementation to use.
 	 */
-	master(const endpoint& e, std::string topic, std::unique_ptr<store> s =
-	                            std::unique_ptr<store>{new mem_store});
+	master(const endpoint& e, identifier name,
+	       std::unique_ptr<store> s = std::unique_ptr<store>{new mem_store});
 
 	/**
 	 * Destructor.

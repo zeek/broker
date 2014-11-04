@@ -3,7 +3,7 @@
 
 #include "broker/endpoint.hh"
 #include "broker/peer_status.hh"
-#include "broker/store/store.hh"
+#include "broker/store/identifier.hh"
 #include "broker/store/query.hh"
 #include "subscription.hh"
 #include "peering_impl.hh"
@@ -35,7 +35,6 @@ public:
 		{
 		using namespace caf;
 		using namespace std;
-		using namespace broker::store;
 
 		active = (
 		on_arg_match >> [=](int version)
@@ -116,12 +115,8 @@ public:
 			if ( ! s )
 				return;
 
-			for ( auto i = 0; i < s->subscriptions.size(); ++i )
-				for ( auto& sub : s->subscriptions[i] )
-					if ( advertised_subscriptions[i].find(sub.first) !=
-					     advertised_subscriptions[i].end() )
-						unadvertise_subscription({move(sub.first),
-						                         static_cast<topic::tag>(i)});
+			for ( auto& sub : s->subscriptions )
+				unadvertise_subscription(topic{move(sub.first)});
 			},
 		on(atom("unsub"), arg_match) >> [=](const topic& t, const actor& p)
 			{
@@ -131,45 +126,55 @@ public:
 			{
 			peer_subscriptions.register_topic(move(t), move(p));
 			},
+		on(atom("master"), arg_match) >> [=](store::identifier& id, actor& a)
+			{
+			if ( local_subscriptions.exact_match(id) )
+				{
+				// TODO: error message about conflicting master store identifier
+				return;
+				}
+
+			attach(move(id), move(a));
+			},
 		on(atom("local sub"), arg_match) >> [=](topic& t, actor& a)
 			{
-			demonitor(a);
-			monitor(a);
-			local_subscriptions.register_topic(t, move(a));
-
-			if ( (behavior_flags & AUTO_SUBSCRIBE) ||
-			     sub_acls[+t.type].find(t.name) != sub_acls[+t.type].end() )
-				advertise_subscription(move(t));
+			attach(move(t), move(a));
 			},
-		on<topic, int, anything>() >> [=](const topic& t, int flags)
+		on_arg_match >> [=](const topic& t, broker::message& msg,
+		                    int flags)
 			{
 			bool from_peer = peers.find(last_sender()) != peers.end();
-			publish_current_msg_locally(t, flags, from_peer);
 
 			if ( from_peer )
+				{
+				publish_locally(t, std::move(msg), flags, from_peer);
 				// Don't re-publish messages sent by a peer (they go one hop).
-				return;
-
-			publish_current_msg_to_peers(t, flags);
+				}
+			else
+				{
+				publish_locally(t, msg, flags, from_peer);
+				publish_current_msg_to_peers(t, flags);
+				}
 			},
-		on(atom("storeactor"), arg_match) >> [=](const topic& t)
+		on(atom("storeactor"), arg_match) >> [=](const store::identifier& n)
 			{
-			return find_master(t);
+			return find_master(n);
 			},
-		on_arg_match >> [=](const topic& t, const query& q,
+		on_arg_match >> [=](const store::identifier& n, const store::query& q,
 		                    const actor& requester)
 			{
-			auto master = find_master(t);
+			auto master = find_master(n);
 
 			if ( master )
 				forward_to(master);
 			else
-				send(requester, this, result(result::status::failure));
+				send(requester, this,
+				     store::result(store::result::status::failure));
 			},
-		on<topic, anything>() >> [=](const topic& t)
+		on<store::identifier, anything>() >> [=](const store::identifier& n)
 			{
 			// This message should be a store update operation.
-			auto master = find_master(t);
+			auto master = find_master(n);
 
 			if ( master )
 				forward_to(master);
@@ -177,9 +182,9 @@ public:
 			},
 		on(atom("flags"), arg_match) >> [=](int flags)
 			{
-			bool auto_sub_before = (behavior_flags & AUTO_SUBSCRIBE);
+			bool auto_sub_before = (behavior_flags & AUTO_ADVERTISE);
 			behavior_flags = flags;
-			bool auto_sub_after = (behavior_flags & AUTO_SUBSCRIBE);
+			bool auto_sub_after = (behavior_flags & AUTO_ADVERTISE);
 
 			if ( auto_sub_before == auto_sub_after )
 				return;
@@ -188,44 +193,37 @@ public:
 				{
 				topic_set to_remove;
 
-				for ( auto i = 0; i < advertised_subscriptions.size(); ++i )
-					for ( const auto& t : advertised_subscriptions[i] )
-						if ( sub_acls[i].find(t.first) == sub_acls[i].end() )
-							to_remove[i].insert({t.first, true});
+				for ( const auto& t : advertised_subscriptions )
+					if ( advert_acls.find(t.first) == advert_acls.end() )
+						to_remove.insert({t.first, true});
 
-				for ( auto i = 0; i < to_remove.size(); ++i )
-					for ( const auto& t : to_remove[i] )
-						unadvertise_subscription({t.first,
-						                          static_cast<topic::tag>(i)});
+				for ( const auto& t : to_remove )
+					unadvertise_subscription(topic{t.first});
+
 				return;
 				}
 
-			for ( auto i = 0; i < local_subscriptions.topics().size(); ++i )
-				for ( const auto& t : local_subscriptions.topics()[i] )
-					if ( advertised_subscriptions[i].find(t.first) ==
-					     advertised_subscriptions[i].end() )
-					advertise_subscription({t.first,
-					                        static_cast<topic::tag>(i)});
+			for ( const auto& t : local_subscriptions.topics() )
+				advertise_subscription(topic{t.first});
 			},
 		on(caf::atom("acl pub"), arg_match) >>[=](topic& t)
 			{
-			pub_acls[+t.type].insert({move(t.name), true});
+			pub_acls.insert({move(t), true});
 			},
 		on(caf::atom("acl unpub"), arg_match) >>[=](const topic& t)
 			{
-			pub_acls[+t.type].erase(t.name);
+			pub_acls.erase(t);
 			},
-		on(caf::atom("acl sub"), arg_match) >>[=](topic& t)
+		on(caf::atom("advert"), arg_match) >>[=](string& t)
 			{
-			if ( sub_acls[+t.type].insert({t.name, true}).second &&
+			if ( advert_acls.insert({t, true}).second &&
 			     local_subscriptions.exact_match(t) )
 				// Now permitted to advertise an existing subscription.
 				advertise_subscription(move(t));
 			},
-		on(caf::atom("acl unsub"), arg_match) >>[=](topic& t)
+		on(caf::atom("unadvert"), arg_match) >>[=](string& t)
 			{
-			if ( sub_acls[+t.type].erase(t.name) &&
-			     local_subscriptions.exact_match(t) )
+			if ( advert_acls.erase(t) && local_subscriptions.exact_match(t) )
 				// No longer permitted to advertise an existing subscription.
 				unadvertise_subscription(move(t));
 			}
@@ -242,12 +240,23 @@ private:
 		peer_subscriptions.insert(subscriber{std::move(p), std::move(ts)});
 		}
 
-	caf::actor find_master(const topic& t)
+	void attach(std::string topic_or_id, caf::actor a)
 		{
-		auto m = local_subscriptions.exact_match(t);
+		demonitor(a);
+		monitor(a);
+		local_subscriptions.register_topic(topic_or_id, std::move(a));
+
+		if ( (behavior_flags & AUTO_ADVERTISE) ||
+		     advert_acls.find(topic_or_id) != advert_acls.end() )
+			advertise_subscription(std::move(topic_or_id));
+		}
+
+	caf::actor find_master(const store::identifier& id)
+		{
+		auto m = local_subscriptions.exact_match(id);
 
 		if ( ! m )
-			m = peer_subscriptions.exact_match(t);
+			m = peer_subscriptions.exact_match(id);
 
 		if ( ! m )
 			return caf::invalid_actor;
@@ -257,13 +266,13 @@ private:
 
 	void advertise_subscription(topic t)
 		{
-		if ( advertised_subscriptions[+t.type].insert({t.name, true}).second )
+		if ( advertised_subscriptions.insert({t, true}).second )
 			publish_subscription_operation(std::move(t), caf::atom("sub"));
 		}
 
 	void unadvertise_subscription(topic t)
 		{
-		if ( advertised_subscriptions[+t.type].erase(t.name) )
+		if ( advertised_subscriptions.erase(t) )
 			publish_subscription_operation(std::move(t), caf::atom("unsub"));
 		}
 
@@ -278,15 +287,22 @@ private:
 			send_tuple(p.second.ep, msg);
 		}
 
-	void publish_current_msg_locally(const topic& t, int flags,
-	                                 bool from_peer)
+	void publish_locally(const topic& t, broker::message msg, int flags,
+	                     bool from_peer)
 		{
 		if ( ! from_peer && ! (flags & SELF) )
 			return;
 
-		for ( const auto& match : local_subscriptions.prefix_matches(t) )
+		auto matches = local_subscriptions.prefix_matches(t);
+
+		if ( matches.empty() )
+			return;
+
+		auto caf_msg = caf::make_message(std::move(msg));
+
+		for ( const auto& match : matches )
 			for ( const auto& a : match->second )
-				forward_to(a);
+				send_tuple(a, caf_msg);
 		}
 
 	void publish_current_msg_to_peers(const topic& t, int flags)
@@ -295,7 +311,7 @@ private:
 			return;
 
 		if ( ! (behavior_flags & AUTO_PUBLISH) &&
-		     pub_acls[+t.type].find(t.name) == pub_acls[+t.type].end() )
+		     pub_acls.find(t) == pub_acls.end() )
 			// Not allowed to publish this topic to peers.
 			return;
 
@@ -319,12 +335,12 @@ private:
 
 	int behavior_flags;
 	topic_set pub_acls;
-	topic_set sub_acls;
-	topic_set advertised_subscriptions;
+	topic_set advert_acls;
 
 	std::unordered_map<caf::actor_addr, peer_endpoint> peers;
 	subscription_registry local_subscriptions;
 	subscription_registry peer_subscriptions;
+	topic_set advertised_subscriptions;
 };
 
 /**
