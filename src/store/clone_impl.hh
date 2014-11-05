@@ -19,7 +19,9 @@ friend class caf::sb_actor<clone_actor>;
 public:
 
 	clone_actor(const caf::actor& endpoint, identifier master_name,
-	            std::chrono::duration<double> resync_interval)
+	            std::chrono::duration<double> resync_interval,
+	            std::unique_ptr<backend> b)
+		: datastore(std::move(b))
 		{
 		using namespace std;
 		using namespace caf;
@@ -28,7 +30,7 @@ public:
 		on_arg_match >> [=](const identifier& n, const query& q,
 		                    const actor& requester)
 			{
-			return make_message(this, q.process(datastore));
+			return make_message(this, q.process(*datastore));
 			}
 		};
 
@@ -40,10 +42,10 @@ public:
 		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
 		                                     data& k, data& v)
 			{
-			auto next = datastore.sequence().next();
+			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore.insert(move(k), move(v));
+				datastore->insert(move(k), move(v));
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -51,10 +53,10 @@ public:
 		                                     data& k, data& v,
 		                                     expiration_time t)
 			{
-			auto next = datastore.sequence().next();
+			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore.insert(move(k), move(v), t);
+				datastore->insert(move(k), move(v), t);
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -65,10 +67,10 @@ public:
 		on(atom("erase"), arg_match) >> [=](const sequence_num& sn,
 		                                    const data& k)
 			{
-			auto next = datastore.sequence().next();
+			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore.erase(k);
+				datastore->erase(k);
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -78,10 +80,10 @@ public:
 			},
 		on(atom("clear"), arg_match) >> [=](const sequence_num& sn)
 			{
-			auto next = datastore.sequence().next();
+			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore.clear();
+				datastore->clear();
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			}
@@ -154,7 +156,7 @@ public:
 						get_snapshot(resync_interval);
 					else
 						{
-						datastore = {move(*get<snapshot>(r.value))};
+						datastore->init(move(*get<snapshot>(r.value)));
 						become(active);
 						}
 					}
@@ -186,7 +188,7 @@ private:
 		}
 
 	bool pending_getsnap = false;
-	memory_backend datastore;
+	std::unique_ptr<backend> datastore;
 	caf::actor master;
 	caf::behavior bootstrap;
 	caf::behavior synchronizing;
@@ -199,10 +201,12 @@ class clone::impl {
 public:
 
 	impl(const caf::actor& endpoint, identifier master_name,
-	     std::chrono::duration<double> resync_interval)
+	     std::chrono::duration<double> resync_interval,
+	     std::unique_ptr<backend> b)
 		: self(), actor(caf::spawn<clone_actor>(endpoint,
 	                                            std::move(master_name),
-	                                            std::move(resync_interval)))
+	                                            std::move(resync_interval),
+	                                            std::move(b)))
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);

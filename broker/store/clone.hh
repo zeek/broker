@@ -2,6 +2,7 @@
 #define BROKER_STORE_CLONE_HH
 
 #include <broker/store/frontend.hh>
+#include <broker/store/memory_backend.hh>
 
 namespace broker { namespace store {
 
@@ -21,6 +22,7 @@ public:
 	 * The master store must be attached either directly to the same endpoint as
 	 * the to one of its peers.  If attached to a peer, the endpoint must
 	 * allow advertising interest in this name.
+	 * @param b a backend storage implementation for the clone to use.
 	 * @param resync_interval the interval at which to re-attempt synchronizing
 	 * with the master store should the connection be lost.  If the
 	 * clone has not yet synchronized for the first time, updates and queries
@@ -31,7 +33,10 @@ public:
 	 */
 	clone(const endpoint& e, identifier master_name,
 	      std::chrono::duration<double> resync_interval =
-	                                        std::chrono::seconds(1));
+	                               std::chrono::seconds(1),
+	      std::unique_ptr<backend> b =
+	                               std::unique_ptr<backend>(new memory_backend)
+	      );
 
 	/**
 	 * Destructor.

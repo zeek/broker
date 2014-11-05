@@ -20,6 +20,9 @@ public:
 
 private:
 
+	void do_init(std::unordered_map<data, value> arg) override
+		{ datastore = std::move(arg); }
+
 	void do_insert(data k, data v, util::optional<expiration_time> t) override
 		{ datastore[std::move(k)] = value{std::move(v), std::move(t)}; }
 

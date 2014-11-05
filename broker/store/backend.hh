@@ -19,9 +19,21 @@ class backend {
 public:
 
 	/**
-	 * Contruct the store, optionally specifying the starting sequence number.
+	 * Construct the storage backend, optionally specifying the starting
+	 * sequence number.
 	 */
-	backend(sequence_num arg_sn = {}) : sn(std::move(arg_sn)) { }
+	backend(sequence_num arg_sn = {})
+		: sn(std::move(arg_sn))
+		{}
+
+	/**
+	 * (Re-)Initialize storage backend from a snapshot of the desired contents.
+	 */
+	void init(snapshot sss)
+		{
+		sn = std::move(sss.sn);
+		do_init(std::move(sss.datastore));
+		}
 
 	/**
 	 * Destructor.
@@ -98,6 +110,8 @@ public:
 		{ return do_expiries(); }
 
 private:
+
+	virtual void do_init(std::unordered_map<data, value> datastore) = 0;
 
 	virtual void do_insert(data k, data v,
 	                       util::optional<expiration_time> t) = 0;
