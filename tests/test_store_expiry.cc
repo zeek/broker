@@ -47,7 +47,7 @@ int main()
 	store::expiration_time mod_expire = {2};
 	store::value pre_existing = {data("myval"), abs_expire};
 	store::snapshot sss = {{{data("pre"), pre_existing}}, {}};
-	unique_ptr<store::store> backing(new store::mem_store{sss});
+	unique_ptr<store::backend> backing(new store::memory_backend{sss});
 	broker::store::master m(node, "mystore", move(backing));
 
 	dataset ds0 = {

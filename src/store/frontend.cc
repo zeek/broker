@@ -1,5 +1,4 @@
 #include "frontend_impl.hh"
-#include <broker/store/store.hh>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/sb_actor.hpp>

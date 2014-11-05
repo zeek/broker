@@ -1,7 +1,7 @@
 #include "master_impl.hh"
 
 broker::store::master::master(const endpoint& e, identifier name,
-                              std::unique_ptr<store> s)
+                              std::unique_ptr<backend> s)
     : broker::store::frontend(e, name),
       pimpl(new impl(*static_cast<caf::actor*>(e.handle()),
                      std::move(name), std::move(s)))

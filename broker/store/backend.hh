@@ -1,5 +1,5 @@
-#ifndef BROKER_STORE_STORE_HH
-#define BROKER_STORE_STORE_HH
+#ifndef BROKER_STORE_BACKEND_HH
+#define BROKER_STORE_BACKEND_HH
 
 #include <broker/data.hh>
 #include <broker/store/sequence_num.hh>
@@ -13,20 +13,20 @@
 namespace broker { namespace store {
 
 /**
- * Abstract base class for a key-value storage "backend".
+ * Abstract base class for a key-value storage backend.
  */
-class store {
+class backend {
 public:
 
 	/**
 	 * Contruct the store, optionally specifying the starting sequence number.
 	 */
-	store(sequence_num arg_sn = {}) : sn(std::move(arg_sn)) { }
+	backend(sequence_num arg_sn = {}) : sn(std::move(arg_sn)) { }
 
 	/**
 	 * Destructor.
 	 */
-	virtual ~store() { }
+	virtual ~backend() { }
 
 	/**
 	 * @return a number indicating the current version of the store.
@@ -124,4 +124,4 @@ private:
 } // namespace store
 } // namespace broker
 
-#endif // BROKER_STORE_STORE_HH
+#endif // BROKER_STORE_BACKEND_HH

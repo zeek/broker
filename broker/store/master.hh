@@ -3,8 +3,8 @@
 
 #include <broker/store/identifier.hh>
 #include <broker/store/frontend.hh>
-#include <broker/store/store.hh>
-#include <broker/store/mem_store.hh>
+#include <broker/store/backend.hh>
+#include <broker/store/memory_backend.hh>
 
 namespace broker { namespace store {
 
@@ -26,7 +26,8 @@ public:
 	 * @param s the storage backend implementation to use.
 	 */
 	master(const endpoint& e, identifier name,
-	       std::unique_ptr<store> s = std::unique_ptr<store>{new mem_store});
+	       std::unique_ptr<backend> s =
+	       std::unique_ptr<backend>{new memory_backend});
 
 	/**
 	 * Destructor.

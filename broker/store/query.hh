@@ -3,7 +3,7 @@
 
 #include <broker/data.hh>
 #include <broker/store/result.hh>
-#include <broker/store/store.hh>
+#include <broker/store/backend.hh>
 #include <cstdint>
 
 namespace broker { namespace store {
@@ -41,7 +41,7 @@ public:
 	 * @param s a storage backend to query against.
 	 * @return the result of the query.
 	 */
-	result process(const store& s) const
+	result process(const backend& s) const
 		{
 		switch ( type ) {
 		case tag::lookup:

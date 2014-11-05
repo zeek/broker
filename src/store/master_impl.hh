@@ -2,7 +2,6 @@
 #define BROKER_STORE_MASTER_IMPL_HH
 
 #include "broker/store/master.hh"
-#include "broker/store/store.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
 #include <caf/actor.hpp>
@@ -90,7 +89,7 @@ friend class caf::sb_actor<master_actor>;
 
 public:
 
-	master_actor(std::unique_ptr<store> s, identifier name)
+	master_actor(std::unique_ptr<backend> s, identifier name)
 		: datastore(std::move(s))
 		{
 		using namespace caf;
@@ -202,7 +201,7 @@ private:
 		for ( const auto& c : clones ) send_tuple(c.second, msg);
 		}
 
-	std::unique_ptr<store> datastore;
+	std::unique_ptr<backend> datastore;
 	std::unordered_map<data, timer> timers;
 	std::unordered_map<caf::actor_addr, caf::actor> clones;
 	caf::behavior serving;
@@ -214,7 +213,7 @@ class master::impl {
 public:
 
 	impl(const caf::actor& endpoint, identifier name,
-	     std::unique_ptr<store> s)
+	     std::unique_ptr<backend> s)
 		: self(), actor(caf::spawn<master_actor>(std::move(s), name))
 		{
 		self->planned_exit_reason(caf::exit_reason::user_defined);

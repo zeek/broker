@@ -2,8 +2,8 @@
 #define BROKER_STORE_CLONE_IMPL_HH
 
 #include "broker/store/clone.hh"
-#include "broker/store/store.hh"
-#include "broker/store/mem_store.hh"
+#include "broker/store/backend.hh"
+#include "broker/store/memory_backend.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
@@ -154,7 +154,7 @@ public:
 						get_snapshot(resync_interval);
 					else
 						{
-						datastore = mem_store(move(*get<snapshot>(r.value)));
+						datastore = {move(*get<snapshot>(r.value))};
 						become(active);
 						}
 					}
@@ -186,7 +186,7 @@ private:
 		}
 
 	bool pending_getsnap = false;
-	mem_store datastore;
+	memory_backend datastore;
 	caf::actor master;
 	caf::behavior bootstrap;
 	caf::behavior synchronizing;

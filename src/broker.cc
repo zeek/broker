@@ -1,7 +1,7 @@
 #include "broker/broker.hh"
 #include "broker/peer_status.hh"
 #include "broker/message.hh"
-#include "broker/store/store.hh"
+#include "broker/store/backend.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
 #include "broker/store/expiration_time.hh"

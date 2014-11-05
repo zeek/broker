@@ -1,21 +1,21 @@
-#ifndef BROKER_STORE_MEM_STORE_HH
-#define BROKER_STORE_MEM_STORE_HH
+#ifndef BROKER_STORE_MEMORY_BACKEND_HH
+#define BROKER_STORE_MEMORY_BACKEND_HH
 
-#include <broker/store/store.hh>
+#include <broker/store/backend.hh>
 
 namespace broker { namespace store {
 
 /**
  * An in-memory implementation of a storage backend.
  */
-class mem_store : public store {
+class memory_backend : public backend {
 public:
 
 	/**
 	 * Construct the in-memory storage from a data store snapshot.
 	 */
-	mem_store(snapshot sss = {})
-	    : store(std::move(sss.sn)), datastore(std::move(sss.datastore))
+	memory_backend(snapshot sss = {})
+	    : backend(std::move(sss.sn)), datastore(std::move(sss.datastore))
 		{ }
 
 private:
@@ -71,4 +71,4 @@ private:
 } // namespace store
 } // namespace broker
 
-#endif // BROKER_STORE_MEM_STORE_HH
+#endif // BROKER_STORE_MEMORY_BACKEND_HH
