@@ -4,6 +4,7 @@
 #include "broker/store/store.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
+#include "broker/store/expiration_time.hh"
 #include "store/result_type_info.hh"
 #include "data_type_info.hh"
 #include "peering_impl.hh"
@@ -40,7 +41,8 @@ int broker_init(int flags)
 	announce(typeid(data),
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
 	announce<std::unordered_set<data>>();
-	announce<std::deque<std::string>>();
+	announce<expiration_time::tag>();
+	announce<expiration_time>(&expiration_time::type, &expiration_time::time);
 	announce<result::tag>();
 	announce<result::status>();
 	announce(typeid(result),

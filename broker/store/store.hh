@@ -3,10 +3,12 @@
 
 #include <broker/data.hh>
 #include <broker/store/sequence_num.hh>
+#include <broker/store/expiration_time.hh>
 #include <broker/store/snapshot.hh>
 #include <broker/util/optional.hh>
 #include <unordered_map>
 #include <unordered_set>
+#include <deque>
 
 namespace broker { namespace store {
 
@@ -37,9 +39,10 @@ public:
 	 * Insert a key-value pair in to the store.
 	 * @param k the key to use.
 	 * @param v the value associated with the key.
+	 * @param t an expiration time for the entry.
 	 */
-	void insert(data k, data v)
-		{ ++sn; do_insert(std::move(k), std::move(v)); }
+	void insert(data k, data v, util::optional<expiration_time> t = {})
+		{ ++sn; do_insert(std::move(k), std::move(v), std::move(t)); }
 
 	// TODO: increment/decrement
 
@@ -91,9 +94,13 @@ public:
 	snapshot snap() const
 		{ return do_snap(); }
 
+	std::deque<expirable> expiries() const
+		{ return do_expiries(); }
+
 private:
 
-	virtual void do_insert(data k, data v) = 0;
+	virtual void do_insert(data k, data v,
+	                       util::optional<expiration_time> t) = 0;
 
 	virtual void do_erase(const data& k) = 0;
 
@@ -108,6 +115,8 @@ private:
 	virtual uint64_t do_size() const = 0;
 
 	virtual snapshot do_snap() const = 0;
+
+	virtual std::deque<expirable> do_expiries() const = 0;
 
 	sequence_num sn;
 };

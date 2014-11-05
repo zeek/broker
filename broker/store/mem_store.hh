@@ -20,8 +20,8 @@ public:
 
 private:
 
-	void do_insert(data k, data v) override
-		{ datastore[std::move(k)] = std::move(v); }
+	void do_insert(data k, data v, util::optional<expiration_time> t) override
+		{ datastore[std::move(k)] = value{std::move(v), std::move(t)}; }
 
 	void do_erase(const data& k) override
 		{ datastore.erase(k); }
@@ -31,7 +31,7 @@ private:
 
 	util::optional<data> do_lookup(const data& k) const override
 		{
-		try { return datastore.at(k); }
+		try { return datastore.at(k).item; }
 		catch ( const std::out_of_range& ) { return {}; }
 		}
 
@@ -54,7 +54,18 @@ private:
 	snapshot do_snap() const override
 		{ return {datastore, sequence()}; }
 
-	std::unordered_map<data, data> datastore;
+	std::deque<expirable> do_expiries() const override
+		{
+		std::deque<expirable> rval;
+
+		for ( const auto& entry : datastore )
+			if ( entry.second.expiry )
+				rval.push_back({entry.first, *entry.second.expiry});
+
+		return rval;
+		}
+
+	std::unordered_map<data, value> datastore;
 };
 
 } // namespace store

@@ -33,7 +33,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<identifier>, atom("insert"), val<data>, val<data>) >> [=]
+		on(val<identifier>, atom("insert"), any_vals) >> [=]
 			{
 			forward_to(master);
 			},
@@ -44,6 +44,17 @@ public:
 
 			if ( sn == next )
 				datastore.insert(move(k), move(v));
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
+		                                     data& k, data& v,
+		                                     expiration_time t)
+			{
+			auto next = datastore.sequence().next();
+
+			if ( sn == next )
+				datastore.insert(move(k), move(v), t);
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},

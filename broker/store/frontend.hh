@@ -5,6 +5,7 @@
 #include <broker/queue.hh>
 #include <broker/store/response.hh>
 #include <broker/store/identifier.hh>
+#include <broker/store/expiration_time.hh>
 #include <broker/util/optional.hh>
 #include <broker/endpoint.hh>
 #include <string>
@@ -76,8 +77,9 @@ public:
 	 * The change may not be immediately visible.
 	 * @param k the key to use.
 	 * @param v the value associated with the key.
+	 * @param t an expiration time for the entry.
 	 */
-	void insert(data k, data v) const;
+	void insert(data k, data v, util::optional<expiration_time> t = {}) const;
 
 	/**
 	 * Non-blocking removal of a key and associated value, if it exists.
