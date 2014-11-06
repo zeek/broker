@@ -94,7 +94,28 @@ public:
 	 */
 	void clear() const;
 
-	// TODO: increment/decrement
+	/**
+	 * Increment an integral value by a certain amount.
+	 * @param k the key associated with an integral value to increment.  If
+	 * the value associated with the key is not integral, no operation takes
+	 * place and an error message is generated.  If the key does not exist, it
+	 * is implicitly created with a value of zero.
+	 * @param by the size of the increment to take.
+	 */
+	void increment(data k, int64_t by) const;
+
+	/**
+	 * Decrement an integral value by a certain amount.
+	 * @param k the key associated with an integral value to increment.  If
+	 * the value associated with the key is not integral, no operation takes
+	 * place and an error message is generated.  If the key does not exist, it
+	 * is implicitly created with a value of zero.
+	 * @param by the size of the decrement to take.
+	 */
+	void decrement(data k, int64_t by) const;
+
+	// TODO: set_add
+	// TODO: set_remove
 
 	/*
 	 * Query Interface - blocking.

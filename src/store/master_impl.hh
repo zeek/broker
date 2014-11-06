@@ -27,14 +27,15 @@ public:
 	timer_actor(data key, expiration_time t, caf::actor master)
 		{
 		using namespace caf;
+		using namespace std::chrono;
 
-		double wait_time = 0.0;
+		microseconds wait(0);
 		double n = now();
 
 		if ( t.type == expiration_time::tag::absolute && t.time > n )
-			wait_time = t.time - n;
+			wait = duration_cast<microseconds>(duration<double>(t.time - n));
 		else
-			wait_time = t.time;
+			wait = duration_cast<microseconds>(duration<double>(t.time));
 
 		timing = (
 		on(atom("quit")) >> [=]
@@ -43,8 +44,9 @@ public:
 			},
 		on(atom("refresh")) >> [=]
 			{
+			// Cause after() handler to wait another full timeout period.
 			},
-		after(std::chrono::duration<double>(wait_time)) >> [=]
+		after(wait) >> [=]
 			{
 			send(master, atom("expire"), std::move(key));
 			quit();
@@ -136,6 +138,22 @@ public:
 				publish(make_message(atom("erase"), datastore->sequence(),
 				                     move(k)));
 			},
+		on(val<identifier>, atom("increment"), arg_match) >> [=](data& k,
+		                                                         int64_t by)
+			{
+			if ( ! datastore->increment(k, by) )
+				{
+				// TODO: generate an error
+				aout(this) << "invalid increment operation" << endl;
+				return;
+				}
+
+			refresh_modification_time(k);
+
+			if ( ! clones.empty() )
+				publish(make_message(atom("increment"), datastore->sequence(),
+				                     move(k), by));
+			},
 		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v)
 			{
 			timers.erase(k);
@@ -195,6 +213,19 @@ public:
 		}
 
 private:
+
+	void refresh_modification_time(const data& key)
+		{
+		auto it = timers.find(key);
+
+		if ( it == timers.end() )
+			return;
+
+		const timer& t = it->second;
+
+		if ( t.expiry.type == expiration_time::tag::since_last_modification )
+			caf::anon_send(t.actor, caf::atom("refresh"));
+		}
 
 	void publish(caf::message msg)
 		{

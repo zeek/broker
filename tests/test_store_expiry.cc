@@ -48,32 +48,31 @@ int main()
 	store::value pre_existing = {data("myval"), abs_expire};
 	store::snapshot sss = {{{data("pre"), pre_existing}}, {}};
 	unique_ptr<store::backend> backing(new store::memory_backend{sss});
-	broker::store::master m(node, "mystore", move(backing));
+	store::master m(node, "mystore", move(backing));
 
 	dataset ds0 = {
 	                make_pair("pre",       "myval"),
 	                make_pair("noexpire",  "one"),
 	                make_pair("absexpire", "two"),
-	                make_pair("refresh",   "three"),
+	                make_pair("refresh",   3),
 	                make_pair("norefresh", "four"),
 	              };
 
 	m.insert("noexpire",  "one");
 	m.insert("absexpire", "two",   abs_expire);
-	m.insert("refresh",   "three", mod_expire);
+	m.insert("refresh",   3, mod_expire);
 	m.insert("norefresh", "four",  mod_expire);
-	broker::store::clone c(node, "mystore");
+	store::clone c(node, "mystore");
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
 
 	sleep(1);
-	// TODO: change this to an in-place modification once those are implemented.
-	m.insert("refresh",   "three", mod_expire);
+	c.increment("refresh", 5);
 	sleep(1);
-	// TODO: change this to an in-place modification once those are implemented.
-	m.insert("refresh",   "three", mod_expire);
+	m.decrement("refresh", 2);
 	ds0.erase("norefresh");
+	ds0["refresh"] = 6;
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));

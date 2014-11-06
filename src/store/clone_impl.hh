@@ -19,7 +19,7 @@ friend class caf::sb_actor<clone_actor>;
 public:
 
 	clone_actor(const caf::actor& endpoint, identifier master_name,
-	            std::chrono::duration<double> resync_interval,
+	            std::chrono::microseconds resync_interval,
 	            std::unique_ptr<backend> b)
 		: datastore(std::move(b))
 		{
@@ -35,6 +35,20 @@ public:
 		};
 
 		message_handler updates {
+		on(val<identifier>, atom("increment"), any_vals) >> [=]
+			{
+			forward_to(master);
+			},
+		on(atom("increment"), arg_match) >> [=](const sequence_num& sn,
+		                                        const data& k, int64_t by)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				datastore->increment(k, by);
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
 		on(val<identifier>, atom("insert"), any_vals) >> [=]
 			{
 			forward_to(master);
@@ -171,7 +185,7 @@ public:
 
 private:
 
-	void get_snapshot(const std::chrono::duration<double>& resync_interval)
+	void get_snapshot(const std::chrono::microseconds& resync_interval)
 		{
 		if ( pending_getsnap )
 			return;
@@ -181,7 +195,7 @@ private:
 		}
 
 	void sequence_error(const identifier& id,
-	                    const std::chrono::duration<double>& resync_interval)
+	                    const std::chrono::microseconds& resync_interval)
 		{
 		aout(this) << "ERROR: clone '" << id << "' desync" << std::endl;
 		get_snapshot(resync_interval);
@@ -201,7 +215,7 @@ class clone::impl {
 public:
 
 	impl(const caf::actor& endpoint, identifier master_name,
-	     std::chrono::duration<double> resync_interval,
+	     std::chrono::microseconds resync_interval,
 	     std::unique_ptr<backend> b)
 		: self(), actor(caf::spawn<clone_actor>(endpoint,
 	                                            std::move(master_name),

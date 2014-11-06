@@ -34,7 +34,7 @@ public:
 			send(queue, response{std::move(request), std::move(r), cookie});
 			quit();
 			},
-		after(timeout) >> [=]
+		after(chrono::duration_cast<chrono::microseconds>(timeout)) >> [=]
 			{
 			send(queue, response{std::move(request),
 			                     result(result::status::timeout), cookie});

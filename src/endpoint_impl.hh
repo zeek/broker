@@ -382,7 +382,7 @@ public:
 			{
 			quit();
 			},
-		after(retry_freq) >> [=]
+		after(chrono::duration_cast<chrono::microseconds>(retry_freq)) >> [=]
 			{
 			try_connect(pi);
 			}

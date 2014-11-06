@@ -26,6 +26,19 @@ private:
 	void do_insert(data k, data v, util::optional<expiration_time> t) override
 		{ datastore[std::move(k)] = value{std::move(v), std::move(t)}; }
 
+	bool do_increment(const data& k, int64_t by) override
+		{
+		auto it = datastore.find(k);
+
+		if ( it == datastore.end() )
+			{
+			datastore[k] = value{by, {}};
+			return true;
+			}
+
+		return visit(detail::increment_visitor{by}, it->second.item);
+		}
+
 	void do_erase(const data& k) override
 		{ datastore.erase(k); }
 

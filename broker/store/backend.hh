@@ -56,7 +56,24 @@ public:
 	void insert(data k, data v, util::optional<expiration_time> t = {})
 		{ ++sn; do_insert(std::move(k), std::move(v), std::move(t)); }
 
-	// TODO: increment/decrement
+	/**
+	 * Increment an integral value by a certain amount.
+	 * @param k the key associated with an integral value to increment.
+	 * @param by the size of the increment to take.
+	 * @return false if the value associated with the key was not a type that
+	 * can be incremented, else true.
+	 */
+	bool increment(const data& k, int64_t by)
+		{
+		auto old_sn = sn;
+		++sn;
+
+		if ( do_increment(k, by) )
+			return true;
+
+		sn = old_sn;
+		return false;
+		}
 
 	/**
 	 * Remove a key and its associated value from the store, if it exists.
@@ -115,6 +132,8 @@ private:
 
 	virtual void do_insert(data k, data v,
 	                       util::optional<expiration_time> t) = 0;
+
+	virtual bool do_increment(const data& k, int64_t by) = 0;
 
 	virtual void do_erase(const data& k) = 0;
 

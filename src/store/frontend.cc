@@ -57,6 +57,18 @@ void broker::store::frontend::clear() const
 	               pimpl->master_name, caf::atom("clear"));
 	}
 
+void broker::store::frontend::increment(data k, int64_t by) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, caf::atom("increment"),
+	               std::move(k), by);
+	}
+
+void broker::store::frontend::decrement(data k, int64_t by) const
+	{
+	increment(std::move(k), -by);
+	}
+
 broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;
