@@ -154,6 +154,36 @@ public:
 				publish(make_message(atom("increment"), datastore->sequence(),
 				                     move(k), by));
 			},
+		on(val<identifier>, atom("set_add"), arg_match) >> [=](data& k, data& e)
+			{
+			if ( ! datastore->add_to_set(k, clones.empty() ? move(e) : e) )
+				{
+				// TODO: generate an error
+				aout(this) << "invalid set operation" << endl;
+				return;
+				}
+
+			refresh_modification_time(k);
+
+			if ( ! clones.empty() )
+				publish(make_message(atom("set_add"), datastore->sequence(),
+				                     move(k), move(e)));
+			},
+		on(val<identifier>, atom("set_rem"), arg_match) >> [=](data& k, data& e)
+			{
+			if ( ! datastore->remove_from_set(k, e) )
+				{
+				// TODO: generate an error
+				aout(this) << "invalid set operation" << endl;
+				return;
+				}
+
+			refresh_modification_time(k);
+
+			if ( ! clones.empty() )
+				publish(make_message(atom("set_rem"), datastore->sequence(),
+				                     move(k), move(e)));
+			},
 		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v)
 			{
 			timers.erase(k);

@@ -69,6 +69,20 @@ void broker::store::frontend::decrement(data k, int64_t by) const
 	increment(std::move(k), -by);
 	}
 
+void broker::store::frontend::add_to_set(data k, data element) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, caf::atom("set_add"),
+	               std::move(k), std::move(element));
+	}
+
+void broker::store::frontend::remove_from_set(data k, data element) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, caf::atom("set_rem"),
+	               std::move(k), std::move(element));
+	}
+
 broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;

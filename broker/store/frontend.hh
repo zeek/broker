@@ -114,8 +114,25 @@ public:
 	 */
 	void decrement(data k, int64_t by = 1) const;
 
-	// TODO: set_add
-	// TODO: set_remove
+	/**
+	 * Add a new element to a set.
+	 * @param k the key associated with the set to modify.  If the value
+	 * associated with the key is not a set, no operation takes place and an
+	 * error message is generated.  If the key does not exist, it is implicitly
+	 * created as an empty set.
+	 * @param element the new element to add to the set (if not already in it).
+	 */
+	void add_to_set(data k, data element) const;
+
+	/**
+	 * Remove an element from a set.
+	 * @param k the key associated with the set to modify.  If the value
+	 * associated with the key is not a set, no operation takes place and an
+	 * error message is generated.  If the key does not exist, it is implicitly
+	 * created as an empty set.
+	 * @param element the element to remove from the set (if it is in it).
+	 */
+	void remove_from_set(data k, data element) const;
 
 	/*
 	 * Query Interface - blocking.

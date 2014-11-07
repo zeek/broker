@@ -71,7 +71,45 @@ public:
 		if ( do_increment(k, by) )
 			return true;
 
-		sn = old_sn;
+		sn = std::move(old_sn);
+		return false;
+		}
+
+	/**
+	 * Add an element to a set.
+	 * @param k the key associated with the set to modify.
+	 * @param element the element to add to the set.
+	 * @return false if the value associated with the key was not a set type,
+	 * else true.
+	 */
+	bool add_to_set(const data& k, data element)
+		{
+		auto old_sn = sn;
+		++sn;
+
+		if ( do_add_to_set(k, std::move(element)) )
+			return true;
+
+		sn = std::move(old_sn);
+		return false;
+		}
+
+	/**
+	 * Remove an element from a set.
+	 * @param k the key associated with the set to modify.
+	 * @param element the element to remove from the set.
+	 * @return false if the value associated with the key was not a set type,
+	 * else true.
+	 */
+	bool remove_from_set(const data& k, const data& element)
+		{
+		auto old_sn = sn;
+		++sn;
+
+		if ( do_remove_from_set(k, element) )
+			return true;
+
+		sn = std::move(old_sn);
 		return false;
 		}
 
@@ -134,6 +172,10 @@ private:
 	                       util::optional<expiration_time> t) = 0;
 
 	virtual bool do_increment(const data& k, int64_t by) = 0;
+
+	virtual bool do_add_to_set(const data& k, data element) = 0;
+
+	virtual bool do_remove_from_set(const data& k, const data& element) = 0;
 
 	virtual void do_erase(const data& k) = 0;
 

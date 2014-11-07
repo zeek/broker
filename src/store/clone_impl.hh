@@ -49,6 +49,34 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
+		on(val<identifier>, atom("set_add"), any_vals) >> [=]
+			{
+			forward_to(master);
+			},
+		on(atom("set_add"), arg_match) >> [=](const sequence_num& sn,
+		                                      const data& k, data& e)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				datastore->add_to_set(k, std::move(e));
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(val<identifier>, atom("set_rem"), any_vals) >> [=]
+			{
+			forward_to(master);
+			},
+		on(atom("set_rem"), arg_match) >> [=](const sequence_num& sn,
+		                                      const data& k, const data& e)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				datastore->remove_from_set(k, e);
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
 		on(val<identifier>, atom("insert"), any_vals) >> [=]
 			{
 			forward_to(master);

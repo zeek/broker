@@ -55,12 +55,14 @@ int main()
 	                make_pair("noexpire",  "one"),
 	                make_pair("absexpire", "two"),
 	                make_pair("refresh",   3),
+	                make_pair("morerefresh", broker::set{2, 4, 6, 8}),
 	                make_pair("norefresh", "four"),
 	              };
 
 	m.insert("noexpire",  "one");
 	m.insert("absexpire", "two",   abs_expire);
 	m.insert("refresh",   3, mod_expire);
+	m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
 	m.insert("norefresh", "four",  mod_expire);
 	store::clone c(node, "mystore");
 
@@ -69,10 +71,14 @@ int main()
 
 	sleep(1);
 	c.increment("refresh", 5);
+	c.add_to_set("morerefresh", 0);
 	sleep(1);
 	m.decrement("refresh", 2);
+	m.remove_from_set("morerefresh", 6);
+
 	ds0.erase("norefresh");
 	ds0["refresh"] = 6;
+	ds0["morerefresh"] = broker::set{0, 2, 4, 8};
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));

@@ -39,6 +39,44 @@ private:
 		return visit(detail::increment_visitor{by}, it->second.item);
 		}
 
+	bool do_add_to_set(const data& k, data element) override
+		{
+		auto it = datastore.find(k);
+
+		if ( it == datastore.end() )
+			{
+			datastore[k] = value{set{std::move(element)}, {}};
+			return true;
+			}
+
+		broker::set* v = get<broker::set>(it->second.item);
+
+		if ( ! v )
+			return false;
+
+		v->insert(std::move(element));
+		return true;
+		}
+
+	bool do_remove_from_set(const data& k, const data& element) override
+		{
+		auto it = datastore.find(k);
+
+		if ( it == datastore.end() )
+			{
+			datastore[k] = value{set{}, {}};
+			return true;
+			}
+
+		broker::set* v = get<broker::set>(it->second.item);
+
+		if ( ! v )
+			return false;
+
+		v->erase(element);
+		return true;
+		}
+
 	void do_erase(const data& k) override
 		{ datastore.erase(k); }
 
