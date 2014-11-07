@@ -102,7 +102,7 @@ public:
 	 * is implicitly created with a value of zero.
 	 * @param by the size of the increment to take.
 	 */
-	void increment(data k, int64_t by) const;
+	void increment(data k, int64_t by = 1) const;
 
 	/**
 	 * Decrement an integral value by a certain amount.
@@ -112,7 +112,7 @@ public:
 	 * is implicitly created with a value of zero.
 	 * @param by the size of the decrement to take.
 	 */
-	void decrement(data k, int64_t by) const;
+	void decrement(data k, int64_t by = 1) const;
 
 	// TODO: set_add
 	// TODO: set_remove
