@@ -2,13 +2,16 @@
 #include "broker/endpoint.hh"
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
+#include "broker/store/sqlite_backend.hh"
 #include "testsuite.hh"
 #include <map>
 #include <unistd.h>
 #include <sys/time.h>
 
 using namespace std;
-using dataset = map<broker::data, broker::data>;
+using namespace broker;
+using namespace broker::store;
+using dataset = map<data, data>;
 
 static double now()
 	{
@@ -17,38 +20,58 @@ static double now()
 	return tv.tv_sec + (tv.tv_usec / 1000000.0);
 	}
 
-bool compare_contents(const broker::store::frontend& store, const dataset& ds)
+bool compare_contents(const frontend& store, const dataset& ds)
 	{
 	dataset actual;
 
-	for ( const auto& key : broker::store::keys(store) )
+	for ( const auto& key : keys(store) )
 		{
-		auto val = broker::store::lookup(store, key);
+		auto val = lookup(store, key);
 		if ( val ) actual.insert(make_pair(key, move(*val)));
 		}
 
 	return actual == ds;
 	}
 
-void wait_for(const broker::store::clone& c, broker::data k,
-              bool exists = true)
+void wait_for(const clone& c, data k, bool want_existence = true)
 	{
-	while ( broker::store::exists(c, k) != exists ) usleep(1000);
+	while ( exists(c, k) != want_existence ) usleep(1000);
 	}
 
-int main()
+static bool open_db(const char* file, backend* b)
 	{
-	using namespace broker;
+	unlink(file);
+	return ((sqlite_backend*)b)->open(file);
+	}
+
+int main(int argc, char** argv)
+	{
+	auto use_sqlite = argc > 1 && std::string(argv[1]) == "sqlite";
 
 	broker::init();
 	endpoint node("node0");
-	store::expiration_time abs_expire = {now() + 5,
-	                                     store::expiration_time::tag::absolute};
-	store::expiration_time mod_expire = {2};
-	store::value pre_existing = {data("myval"), abs_expire};
-	store::snapshot sss = {{{data("pre"), pre_existing}}, {}};
-	unique_ptr<store::backend> backing(new store::memory_backend{sss});
-	store::master m(node, "mystore", move(backing));
+	expiration_time abs_expire = {now() + 5, expiration_time::tag::absolute};
+	expiration_time mod_expire = {2};
+	value pre_existing = {data("myval"), abs_expire};
+	snapshot sss = {{{data("pre"), pre_existing}}, {}};
+	unique_ptr<backend> mbacking;
+	unique_ptr<backend> cbacking;
+
+	if ( use_sqlite )
+		{
+		mbacking.reset(new sqlite_backend);
+		cbacking.reset(new sqlite_backend);
+		BROKER_TEST(open_db("expiry_test_master_db.tmp", mbacking.get()));
+		BROKER_TEST(open_db("expiry_test_clone_db.tmp", cbacking.get()));
+		}
+	else
+		{
+		mbacking.reset(new memory_backend);
+		cbacking.reset(new memory_backend);
+		}
+
+	mbacking->init(sss);
+	master m(node, "mystore", move(mbacking));
 
 	dataset ds0 = {
 	                make_pair("pre",       "myval"),
@@ -64,7 +87,7 @@ int main()
 	m.insert("refresh",   3, mod_expire);
 	m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
 	m.insert("norefresh", "four",  mod_expire);
-	store::clone c(node, "mystore");
+	clone c(node, "mystore", chrono::duration<double>(0.25), move(cbacking));
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
@@ -79,6 +102,8 @@ int main()
 	ds0.erase("norefresh");
 	ds0["refresh"] = 6;
 	ds0["morerefresh"] = broker::set{0, 2, 4, 8};
+
+	wait_for(c, "norefresh", false);
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));

@@ -2,6 +2,7 @@
 #define BROKER_STORE_MEMORY_BACKEND_HH
 
 #include <broker/store/backend.hh>
+#include <memory>
 
 namespace broker { namespace store {
 
@@ -14,112 +15,66 @@ public:
 	/**
 	 * Construct the in-memory storage from a data store snapshot.
 	 */
-	memory_backend(snapshot sss = {})
-	    : backend(std::move(sss.sn)), datastore(std::move(sss.datastore))
-		{ }
+	memory_backend();
+
+	/**
+	 * Destructor.
+	 */
+	~memory_backend();
+
+	/**
+	 * Construct in-memory backend from a copy of another.
+	 */
+	memory_backend(memory_backend&);
+
+	/**
+	 * Construct in-memory backend by stealing another.
+	 */
+	memory_backend(memory_backend&&);
+
+	/**
+	 * Assign a replacement in-memory backend.
+	 */
+	memory_backend& operator=(memory_backend);
 
 private:
 
-	void do_init(std::unordered_map<data, value> arg) override
-		{ datastore = std::move(arg); }
+	void do_increase_sequence() override;
 
-	void do_insert(data k, data v, util::optional<expiration_time> t) override
-		{ datastore[std::move(k)] = value{std::move(v), std::move(t)}; }
+	std::string do_last_error() const override;
 
-	bool do_increment(const data& k, int64_t by) override
-		{
-		auto it = datastore.find(k);
+	bool do_init(snapshot sss) override;
 
-		if ( it == datastore.end() )
-			{
-			datastore[k] = value{by, {}};
-			return true;
-			}
+	const sequence_num& do_sequence() const override;
 
-		return visit(detail::increment_visitor{by}, it->second.item);
-		}
+	bool do_insert(data k, data v, util::optional<expiration_time> t) override;
 
-	bool do_add_to_set(const data& k, data element) override
-		{
-		auto it = datastore.find(k);
+	bool do_increment(const data& k, int64_t by) override;
 
-		if ( it == datastore.end() )
-			{
-			datastore[k] = value{set{std::move(element)}, {}};
-			return true;
-			}
+	bool do_add_to_set(const data& k, data element) override;
 
-		broker::set* v = get<broker::set>(it->second.item);
+	bool do_remove_from_set(const data& k, const data& element) override;
 
-		if ( ! v )
-			return false;
+	bool do_erase(const data& k) override;
 
-		v->insert(std::move(element));
-		return true;
-		}
+	bool do_clear() override;
 
-	bool do_remove_from_set(const data& k, const data& element) override
-		{
-		auto it = datastore.find(k);
+	util::optional<util::optional<data>> do_lookup(const data& k) const override;
 
-		if ( it == datastore.end() )
-			{
-			datastore[k] = value{set{}, {}};
-			return true;
-			}
+	util::optional<bool> do_exists(const data& k) const override;
 
-		broker::set* v = get<broker::set>(it->second.item);
+	util::optional<std::unordered_set<data>> do_keys() const override;
 
-		if ( ! v )
-			return false;
+	util::optional<uint64_t> do_size() const override;
 
-		v->erase(element);
-		return true;
-		}
+	util::optional<snapshot> do_snap() const override;
 
-	void do_erase(const data& k) override
-		{ datastore.erase(k); }
+	util::optional<std::deque<expirable>> do_expiries() const override;
 
-	void do_clear() override
-		{ datastore.clear(); }
+private:
 
-	util::optional<data> do_lookup(const data& k) const override
-		{
-		try { return datastore.at(k).item; }
-		catch ( const std::out_of_range& ) { return {}; }
-		}
-
-	bool do_exists(const data& k) const override
-		{
-		if ( datastore.find(k) == datastore.end() ) return false;
-		else return true;
-		}
-
-	std::unordered_set<data> do_keys() const override
-		{
-		std::unordered_set<data> rval;
-		for ( const auto& kv : datastore ) rval.insert(kv.first);
-		return rval;
-		}
-
-	uint64_t do_size() const override
-		{ return datastore.size(); }
-
-	snapshot do_snap() const override
-		{ return {datastore, sequence()}; }
-
-	std::deque<expirable> do_expiries() const override
-		{
-		std::deque<expirable> rval;
-
-		for ( const auto& entry : datastore )
-			if ( entry.second.expiry )
-				rval.push_back({entry.first, *entry.second.expiry});
-
-		return rval;
-		}
-
-	std::unordered_map<data, value> datastore;
+	class impl;
+	std::unique_ptr<impl> pimpl;
 };
 
 } // namespace store

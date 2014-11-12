@@ -47,17 +47,41 @@ public:
 		case tag::lookup:
 			{
 			if ( auto r = s.lookup(k) )
-				return result(std::move(*r));
-			return result(false);
+				{
+				if ( *r )
+					return result(std::move(**r));
+				else
+					// Key doesn't exist.
+					return result(false);
+				}
+			return result(result::status::failure);
 			}
 		case tag::exists:
-			return result(s.exists(k));
+			{
+			if ( auto r = s.exists(k) )
+				return result(std::move(*r));
+			return result(result::status::failure);
+			}
 		case tag::keys:
-			return result(s.keys());
+			{
+			if ( auto r = s.keys() )
+				return result(std::move(*r));
+			return result(result::status::failure);
+			}
 		case tag::size:
-			return result(s.size());
+			{
+			if ( auto r = s.size() )
+				return result(std::move(*r));
+			return result(result::status::failure);
+			}
 		case tag::snapshot:
-			return result(s.snap());
+			{
+			if ( auto r = s.snap() )
+				return result(std::move(*r));
+			return result(result::status::failure);
+			}
+		default:
+			assert(false);
 		}
 		}
 };

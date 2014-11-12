@@ -19,156 +19,126 @@ class backend {
 public:
 
 	/**
-	 * Construct the storage backend, optionally specifying the starting
-	 * sequence number.
+	 * Destructor.
 	 */
-	backend(sequence_num arg_sn = {})
-		: sn(std::move(arg_sn))
-		{}
+	virtual ~backend();
+
+	/**
+	 * @return a description of the last error/failure that occurred, which
+	 * may be undefined if no method call ever failed or a method was successful
+	 * between the time of the last failure and call to this method.
+	 */
+	std::string last_error() const;
 
 	/**
 	 * (Re-)Initialize storage backend from a snapshot of the desired contents.
+	 * @return true on success.
 	 */
-	void init(snapshot sss)
-		{
-		sn = std::move(sss.sn);
-		do_init(std::move(sss.datastore));
-		}
-
-	/**
-	 * Destructor.
-	 */
-	virtual ~backend() { }
+	bool init(snapshot sss);
 
 	/**
 	 * @return a number indicating the current version of the store.
 	 * Calls to the non-const methods of this class will increment this number.
 	 */
-	const sequence_num& sequence() const
-		{ return sn; }
+	const sequence_num& sequence() const;
 
 	/**
 	 * Insert a key-value pair in to the store.
 	 * @param k the key to use.
 	 * @param v the value associated with the key.
 	 * @param t an expiration time for the entry.
+	 * @return true on success.
 	 */
-	void insert(data k, data v, util::optional<expiration_time> t = {})
-		{ ++sn; do_insert(std::move(k), std::move(v), std::move(t)); }
+	bool insert(data k, data v, util::optional<expiration_time> t = {});
 
 	/**
 	 * Increment an integral value by a certain amount.
 	 * @param k the key associated with an integral value to increment.
 	 * @param by the size of the increment to take.
-	 * @return false if the value associated with the key was not a type that
-	 * can be incremented, else true.
+	 * @return true on success.
 	 */
-	bool increment(const data& k, int64_t by)
-		{
-		auto old_sn = sn;
-		++sn;
-
-		if ( do_increment(k, by) )
-			return true;
-
-		sn = std::move(old_sn);
-		return false;
-		}
+	bool increment(const data& k, int64_t by);
 
 	/**
 	 * Add an element to a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to add to the set.
-	 * @return false if the value associated with the key was not a set type,
-	 * else true.
+	 * @return true on success.
 	 */
-	bool add_to_set(const data& k, data element)
-		{
-		auto old_sn = sn;
-		++sn;
-
-		if ( do_add_to_set(k, std::move(element)) )
-			return true;
-
-		sn = std::move(old_sn);
-		return false;
-		}
+	bool add_to_set(const data& k, data element);
 
 	/**
 	 * Remove an element from a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to remove from the set.
-	 * @return false if the value associated with the key was not a set type,
-	 * else true.
+	 * @return true on success.
 	 */
-	bool remove_from_set(const data& k, const data& element)
-		{
-		auto old_sn = sn;
-		++sn;
-
-		if ( do_remove_from_set(k, element) )
-			return true;
-
-		sn = std::move(old_sn);
-		return false;
-		}
+	bool remove_from_set(const data& k, const data& element);
 
 	/**
 	 * Remove a key and its associated value from the store, if it exists.
 	 * @param k the key to use.
+	 * @return true on success.
 	 */
-	void erase(const data& k)
-		{ ++sn; do_erase(k); }
+	bool erase(const data& k);
 
 	/**
 	 * Remove all key-value pairs from the store.
+	 * @return true on success.
 	 */
-	void clear()
-		{ ++sn; do_clear(); }
+	bool clear();
 
 	/**
 	 * Lookup the value associated with a given key.
 	 * @param k the key to use
-	 * @return the value if the provided key exists.
+	 * @return the value if the provided key exists or nil on failing to perform
+	 * the query.
 	 */
-	util::optional<data> lookup(const data& k) const
-		{ return do_lookup(k); }
+	util::optional<util::optional<data>> lookup(const data& k) const;
 
 	/**
 	 * Check if a given key exists.
 	 * @param k the key to use.
-	 * @return true if the provided key exists.
+	 * @return true if the provided key exists or nil on failing to perform
+	 * the query.
 	 */
-	bool exists(const data& k) const
-		{ return do_exists(k); }
+	util::optional<bool> exists(const data& k) const;
 
 	/**
-	 * @return all keys in the store.
+	 * @return all keys in the store or nil on failing to perform the query.
 	 */
-	std::unordered_set<data> keys() const
-		{ return do_keys(); }
+	util::optional<std::unordered_set<data>> keys() const;
 
 	/**
-	 * @return the number of key-value pairs in the store.
+	 * @return the number of key-value pairs in the store or nil on failing
+	 * to perform the query.
 	 */
-	uint64_t size() const
-		{ return do_size(); }
+	util::optional<uint64_t> size() const;
 
 	/**
 	 * @return a snapshot of the store that includes its content as well as
-	 * the sequence number associated with this snapshot of the content.
+	 * the sequence number associated with this snapshot of the content or
+	 * nil on failing to perform the query.
 	 */
-	snapshot snap() const
-		{ return do_snap(); }
+	util::optional<snapshot> snap() const;
 
-	std::deque<expirable> expiries() const
-		{ return do_expiries(); }
+	/**
+	 * @return all the keys in the datastore that have an expiration time or
+	 * nil on failing to perform the query.
+	 */
+	util::optional<std::deque<expirable>> expiries() const;
 
 private:
 
-	virtual void do_init(std::unordered_map<data, value> datastore) = 0;
+	virtual void do_increase_sequence() = 0;
 
-	virtual void do_insert(data k, data v,
+	virtual std::string do_last_error() const = 0;
+
+	virtual bool do_init(snapshot sss) = 0;
+
+	virtual const sequence_num& do_sequence() const = 0;
+
+	virtual bool do_insert(data k, data v,
 	                       util::optional<expiration_time> t) = 0;
 
 	virtual bool do_increment(const data& k, int64_t by) = 0;
@@ -177,23 +147,22 @@ private:
 
 	virtual bool do_remove_from_set(const data& k, const data& element) = 0;
 
-	virtual void do_erase(const data& k) = 0;
+	virtual bool do_erase(const data& k) = 0;
 
-	virtual void do_clear() = 0;
+	virtual bool do_clear() = 0;
 
-	virtual util::optional<data> do_lookup(const data& k) const = 0;
+	virtual util::optional<util::optional<data>>
+	do_lookup(const data& k) const = 0;
 
-	virtual bool do_exists(const data& k) const = 0;
+	virtual util::optional<bool> do_exists(const data& k) const = 0;
 
-	virtual std::unordered_set<data> do_keys() const = 0;
+	virtual util::optional<std::unordered_set<data>> do_keys() const = 0;
 
-	virtual uint64_t do_size() const = 0;
+	virtual util::optional<uint64_t> do_size() const = 0;
 
-	virtual snapshot do_snap() const = 0;
+	virtual util::optional<snapshot> do_snap() const = 0;
 
-	virtual std::deque<expirable> do_expiries() const = 0;
-
-	sequence_num sn;
+	virtual util::optional<std::deque<expirable>> do_expiries() const = 0;
 };
 
 } // namespace store

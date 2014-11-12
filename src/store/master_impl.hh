@@ -100,8 +100,12 @@ public:
 		init_timers = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			for ( auto& entry : datastore->expiries() )
-				timers[entry.key] = timer(move(entry.key), entry.expiry, this);
+			if ( auto es = datastore->expiries() )
+				for ( auto& entry : *es )
+					timers[entry.key] = timer(move(entry.key), entry.expiry,
+					                          this);
+			else
+				error(name, "expiries", datastore->last_error());
 
 			become(serving);
 			}
@@ -117,21 +121,38 @@ public:
 		message_handler requests {
 		on(val<identifier>, arg_match) >> [=](const query& q, const actor& r)
 			{
-			if ( q.type == query::tag::snapshot &&
-			     clones.find(r.address()) == clones.end() )
+			auto res = q.process(*datastore);
+
+			if ( res.stat == result::status::failure )
 				{
-				monitor(r);
-				clones[r.address()] = r;
+				char tmp[64];
+				snprintf(tmp, sizeof(tmp), "process query (tag=%d)",
+				         static_cast<int>(q.type));
+				error(name, tmp, datastore->last_error());
+				}
+			else
+				{
+				if ( q.type == query::tag::snapshot &&
+				     clones.find(r.address()) == clones.end() )
+					{
+					monitor(r);
+					clones[r.address()] = r;
+					}
 				}
 
-			return make_message(this, q.process(*datastore.get()));
+			return make_message(this, move(res));
 			},
 		};
 
 		message_handler updates {
 		on(atom("expire"), arg_match) >> [=](const data& k)
 			{
-			datastore->erase(k);
+			if ( ! datastore->erase(k) )
+				{
+				error(name, "expire/erase", datastore->last_error());
+				return;
+				}
+
 			timers.erase(k);
 
 			if ( ! clones.empty() )
@@ -143,8 +164,7 @@ public:
 			{
 			if ( ! datastore->increment(k, by) )
 				{
-				// TODO: generate an error
-				aout(this) << "invalid increment operation" << endl;
+				error(name, "increment", datastore->last_error());
 				return;
 				}
 
@@ -158,8 +178,7 @@ public:
 			{
 			if ( ! datastore->add_to_set(k, clones.empty() ? move(e) : e) )
 				{
-				// TODO: generate an error
-				aout(this) << "invalid set operation" << endl;
+				error(name, "add_to_set", datastore->last_error());
 				return;
 				}
 
@@ -173,8 +192,7 @@ public:
 			{
 			if ( ! datastore->remove_from_set(k, e) )
 				{
-				// TODO: generate an error
-				aout(this) << "invalid set operation" << endl;
+				error(name, "remove_from_set", datastore->last_error());
 				return;
 				}
 
@@ -188,14 +206,16 @@ public:
 			{
 			timers.erase(k);
 
-			if ( clones.empty() )
-				datastore->insert(move(k), move(v));
-			else
+			if ( ! datastore->insert(clones.empty() ? move(k) : k,
+			                         clones.empty() ? move(v) : v) )
 				{
-				datastore->insert(k, v);
+				error(name, "insert", datastore->last_error());
+				return;
+				}
+
+			if ( ! clones.empty() )
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v)));
-				}
 			},
 		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v,
 		                                                      expiration_time t)
@@ -205,18 +225,25 @@ public:
 
 			timers[k] = timer(k, t, this);
 
-			if ( clones.empty() )
-				datastore->insert(move(k), move(v), t);
-			else
+			if ( ! datastore->insert(clones.empty() ? move(k) : k,
+			                         clones.empty() ? move(v) : v) )
 				{
-				datastore->insert(k, v, t);
+				error(name, "insert_with_expiry", datastore->last_error());
+				return;
+				}
+
+			if ( ! clones.empty() )
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v), t));
-				}
 			},
 		on(val<identifier>, atom("erase"), arg_match) >> [=](data& k)
 			{
-			datastore->erase(k);
+			if ( ! datastore->erase(k) )
+				{
+				error(name, "erase", datastore->last_error());
+				return;
+				}
+
 			timers.erase(k);
 
 			if ( ! clones.empty() )
@@ -225,10 +252,15 @@ public:
 			},
 		on(val<identifier>, atom("clear"), arg_match) >> [=]
 			{
-			datastore->clear();
+			if ( ! datastore->clear() )
+				{
+				error(name, "clear", datastore->last_error());
+				return;
+				}
+
 			timers.clear();
 
-			if (! clones.empty() )
+			if ( ! clones.empty() )
 				publish(make_message(atom("clear"), datastore->sequence()));
 			}
 		};
@@ -260,6 +292,14 @@ private:
 	void publish(caf::message msg)
 		{
 		for ( const auto& c : clones ) send_tuple(c.second, msg);
+		}
+
+	void error(std::string master_name, std::string method_name,
+	           std::string err_msg)
+		{
+		// TODO: actually generate real error message for non-fatal errors.
+		std::cerr << "Master '" << master_name << "' failed to "
+		          << method_name << ": " << err_msg << std::endl;
 		}
 
 	std::unique_ptr<backend> datastore;

@@ -35,12 +35,15 @@ int broker_init(int flags)
 	announce<sequence_num>(&sequence_num::sequence);
 	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
 	announce<data::tag>();
-	announce<record>(&record::fields);
-	announce(typeid(util::optional<data>),
-	         unique_ptr<caf::uniform_type_info>(new optional_data_type_info));
 	announce(typeid(data),
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
+	announce(typeid(util::optional<data>),
+	         unique_ptr<caf::uniform_type_info>(new optional_data_type_info));
+	announce<record>(&record::fields);
 	announce<std::unordered_set<data>>();
+	announce<broker::set>();
+	announce<broker::table>();
+	announce<broker::vector>();
 	announce<expiration_time::tag>();
 	announce<expiration_time>(&expiration_time::type, &expiration_time::time);
 	announce<result::tag>();

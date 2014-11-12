@@ -30,7 +30,12 @@ public:
 		on_arg_match >> [=](const identifier& n, const query& q,
 		                    const actor& requester)
 			{
-			return make_message(this, q.process(*datastore));
+			auto r = q.process(*datastore);
+
+			if ( r.stat == result::status::failure )
+				error(master_name, "process query", datastore->last_error());
+
+			return make_message(this, move(r));
 			}
 		};
 
@@ -45,7 +50,11 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->increment(k, by);
+				{
+				if ( ! datastore->increment(k, by) )
+					fatal_error(master_name, "increment",
+					            datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -59,7 +68,11 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->add_to_set(k, std::move(e));
+				{
+				if ( ! datastore->add_to_set(k, std::move(e)) )
+					fatal_error(master_name, "add_to_set",
+					            datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -73,7 +86,11 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->remove_from_set(k, e);
+				{
+				if ( ! datastore->remove_from_set(k, e) )
+					fatal_error(master_name, "remove_from_set",
+					            datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -87,7 +104,10 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->insert(move(k), move(v));
+				{
+				if ( ! datastore->insert(move(k), move(v)) )
+					fatal_error(master_name, "insert", datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -98,7 +118,11 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->insert(move(k), move(v), t);
+				{
+				if ( ! datastore->insert(move(k), move(v), t) )
+					fatal_error(master_name, "insert_with_expiry",
+					            datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -112,7 +136,10 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->erase(k);
+				{
+				if ( ! datastore->erase(k) )
+					fatal_error(master_name, "erase", datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
@@ -125,7 +152,10 @@ public:
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
-				datastore->clear();
+				{
+				if ( ! datastore->clear() )
+					fatal_error(master_name, "clear", datastore->last_error());
+				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			}
@@ -198,8 +228,11 @@ public:
 						get_snapshot(resync_interval);
 					else
 						{
-						datastore->init(move(*get<snapshot>(r.value)));
-						become(active);
+						if ( datastore->init(move(*get<snapshot>(r.value))) )
+							become(active);
+						else
+							fatal_error(master_name, "init",
+							            datastore->last_error());
 						}
 					}
 			);
@@ -212,6 +245,22 @@ public:
 		}
 
 private:
+
+	void error(std::string master_name, std::string method_name,
+	           std::string err_msg)
+		{
+		// TODO: actually generate real error message for non-fatal errors.
+		std::cerr << "Clone of '" << master_name << "' failed to "
+		          << method_name << ": " << err_msg << std::endl;
+		}
+
+	void fatal_error(std::string master_name, std::string method_name,
+	                 std::string err_msg)
+		{
+		error(master_name, method_name, err_msg);
+		// TODO: can any of these actually be handled more gracefully?
+		abort();
+		}
 
 	void get_snapshot(const std::chrono::microseconds& resync_interval)
 		{

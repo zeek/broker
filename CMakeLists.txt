@@ -52,10 +52,14 @@ set(BROKER_SRC
     src/peering.cc
     src/subscription.cc
     src/queue.cc
+    src/store/backend.cc
     src/store/clone.cc
     src/store/frontend.cc
     src/store/master.cc
+    src/store/memory_backend.cc
     src/store/sequence_num.cc
+    src/store/sqlite3.c
+    src/store/sqlite_backend.cc
     src/util/pipe.cc
     src/util/flare.cc
     ${BROKER_HDR})
