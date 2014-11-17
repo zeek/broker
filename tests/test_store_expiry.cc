@@ -66,8 +66,8 @@ int main(int argc, char** argv)
 	string db_name = "backend_test." + backend_name  + ".tmp";
 	broker::init();
 	endpoint node("node0");
-	expiration_time abs_expire = {now() + 5, expiration_time::tag::absolute};
-	expiration_time mod_expire = {2};
+	expiration_time abs_expire = {now() + 0.5, expiration_time::tag::absolute};
+	expiration_time mod_expire = {0.2};
 	value pre_existing = {data("myval"), abs_expire};
 	snapshot sss = {{{data("pre"), pre_existing}}, {}};
 	unique_ptr<backend> mbacking;
@@ -120,10 +120,10 @@ int main(int argc, char** argv)
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
 
-	sleep(1);
+	usleep(100000);
 	c.increment("refresh", 5);
 	c.add_to_set("morerefresh", 0);
-	sleep(1);
+	usleep(100000);
 	m.decrement("refresh", 2);
 	m.remove_from_set("morerefresh", 6);
 
@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
 
-	sleep(3);
+	usleep(300000);
 	ds0.clear();
 	ds0["noexpire"] = "one";
 
