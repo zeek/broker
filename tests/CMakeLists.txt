@@ -23,6 +23,7 @@ set(backends memory;sqlite)
 if ( ROCKSDB_FOUND )
     add_definitions(-DHAVE_ROCKSDB)
     set(backends ${backends} rocksdb)
+    set(backends ${backends} rocksdb_merge)
 endif ()
 
 unit_test(test_print)

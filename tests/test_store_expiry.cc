@@ -51,11 +51,15 @@ static bool open_sqlite(string file, backend* b)
 	}
 
 #ifdef HAVE_ROCKSDB
-static bool open_rocksdb(string file, backend* b)
+static bool open_rocksdb(string file, backend* b, bool use_merge_op)
 	{
 	rocksdb::DestroyDB(file, {});
 	rocksdb::Options options;
 	options.create_if_missing = true;
+
+	if ( use_merge_op )
+		options.merge_operator.reset(new rocksdb_merge_operator);
+
 	return ((rocksdb_backend*)b)->open(file, options).ok();
 	}
 #endif
@@ -74,12 +78,15 @@ int main(int argc, char** argv)
 	unique_ptr<backend> cbacking;
 
 #ifdef HAVE_ROCKSDB
-	if ( backend_name == "rocksdb" )
+	if ( backend_name == "rocksdb" || backend_name == "rocksdb_merge" )
 		{
 		mbacking.reset(new rocksdb_backend);
 		cbacking.reset(new rocksdb_backend);
-		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
-		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
+		bool use_merge_op = backend_name == "rocksdb_merge";
+		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get(),
+		                         use_merge_op));
+		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get(),
+		                         use_merge_op));
 		}
 	else
 #endif

@@ -2,6 +2,7 @@
 #include "broker/broker.h"
 #include <caf/binary_serializer.hpp>
 #include <caf/binary_deserializer.hpp>
+#include <rocksdb/env.h>
 
 static std::string version_string()
 	{
@@ -145,7 +146,17 @@ broker::store::rocksdb_backend::do_insert(data k, data v,
 
 int broker::store::rocksdb_backend::do_increment(const data& k, int64_t by)
 	{
-	// TODO: merge operator
+	if ( pimpl->options.merge_operator )
+		{
+		auto kserial = to_serial(k, 'a');
+		auto vserial = to_serial(by, '+');
+
+		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
+			return 0;
+
+		return -1;
+		}
+
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
@@ -179,7 +190,17 @@ int broker::store::rocksdb_backend::do_increment(const data& k, int64_t by)
 
 int broker::store::rocksdb_backend::do_add_to_set(const data& k, data element)
 	{
-	// TODO: merge operator
+	if ( pimpl->options.merge_operator )
+		{
+		auto kserial = to_serial(k, 'a');
+		auto vserial = to_serial(element, 'a');
+
+		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
+			return 0;
+
+		return -1;
+		}
+
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
@@ -219,7 +240,17 @@ int broker::store::rocksdb_backend::do_add_to_set(const data& k, data element)
 int broker::store::rocksdb_backend::do_remove_from_set(const data& k,
                                                        const data& element)
 	{
-	// TODO: merge operator
+	if ( pimpl->options.merge_operator )
+		{
+		auto kserial = to_serial(k, 'a');
+		auto vserial = to_serial(element, 'r');
+
+		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
+			return 0;
+
+		return -1;
+		}
+
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
@@ -345,7 +376,7 @@ broker::store::rocksdb_backend::do_keys() const
 	std::unique_ptr<rocksdb::Iterator> it(pimpl->db->NewIterator(options));
 	std::unordered_set<data> rval;
 
-	for ( it->Seek("a"); it->Valid() && it->key().starts_with("a"); it->Next() )
+	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
 		{
 		auto s = it->key();
 		s.remove_prefix(1);
@@ -374,7 +405,7 @@ broker::util::optional<uint64_t> broker::store::rocksdb_backend::do_size() const
 	std::unique_ptr<rocksdb::Iterator> it(pimpl->db->NewIterator(options));
 	rval = 0;
 
-	for ( it->Seek("a"); it->Valid() && it->key().starts_with("a"); it->Next() )
+	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
 		++rval;
 
 	if ( pimpl->require_ok(it->status()) )
@@ -395,7 +426,7 @@ broker::store::rocksdb_backend::do_snap() const
 	snapshot rval;
 	rval.sn = pimpl->sn;
 
-	for ( it->Seek("a"); it->Valid() && it->key().starts_with("a"); it->Next() )
+	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
 		{
 		auto ks = it->key();
 		auto vs = it->value();
@@ -407,7 +438,7 @@ broker::store::rocksdb_backend::do_snap() const
 	if ( ! pimpl->require_ok(it->status()) )
 		return {};
 
-	for ( it->Seek("e"); it->Valid() && it->key().starts_with("e"); it->Next() )
+	for ( it->Seek("e"); it->Valid() && it->key()[0] == 'e'; it->Next() )
 		{
 		auto ks = it->key();
 		auto vs = it->value();
@@ -433,7 +464,7 @@ broker::store::rocksdb_backend::do_expiries() const
 	std::unique_ptr<rocksdb::Iterator> it(pimpl->db->NewIterator(options));
 	std::deque<expirable> rval;
 
-	for ( it->Seek("e"); it->Valid() && it->key().starts_with("e"); it->Next() )
+	for ( it->Seek("e"); it->Valid() && it->key()[0] == 'e'; it->Next() )
 		{
 		auto ks = it->key();
 		auto vs = it->value();
@@ -493,3 +524,140 @@ broker::store::rocksdb_backend::lookup_with_expiry(const data& k) const
 	rval.expiry = from_serial<expiration_time>(vserial);
 	return {rval};
 	}
+
+bool broker::store::rocksdb_merge_operator::FullMerge(
+        const rocksdb::Slice& key,
+        const rocksdb::Slice* existing_value,
+        const std::deque<std::string>& operand_list,
+        std::string* new_value,
+        rocksdb::Logger* logger) const
+	{
+	util::optional<data> new_data;
+
+	if ( existing_value )
+		new_data = from_serial<data>(*existing_value);
+
+	for ( const auto& op : operand_list )
+		{
+		if ( op.empty() ) continue;
+
+		switch ( op[0] ) {
+		case '+':
+			{
+			auto by = from_serial<int64_t>(op.data() + 1, op.size() - 1);
+
+			if ( new_data )
+				{
+				if ( ! visit(detail::increment_visitor{by}, *new_data) )
+					rocksdb::Log(logger, "increment of non-integral tag %d",
+					             static_cast<int>(which(*new_data)));
+				}
+			else
+				new_data = data{by};
+			}
+			break;
+		case 'a':
+			{
+			auto element = from_serial<data>(op.data() + 1, op.size() - 1);
+
+			if ( new_data )
+				{
+				broker::set* s = get<broker::set>(*new_data);
+
+				if ( s )
+					s->emplace(std::move(element));
+				else
+					rocksdb::Log(logger, "add to non-set tag %d",
+					             static_cast<int>(which(*new_data)));
+				}
+			else
+				new_data = data{broker::set{std::move(element)}};
+			}
+			break;
+		case 'r':
+			{
+			if ( new_data )
+				{
+				auto element = from_serial<data>(op.data() + 1, op.size() - 1);
+				broker::set* s = get<broker::set>(*new_data);
+
+				if ( s )
+					s->erase(element);
+				else
+					rocksdb::Log(logger, "remove from non-set tag %d",
+					             static_cast<int>(which(*new_data)));
+				}
+			else
+				new_data = data{broker::set{}};
+			}
+			break;
+		default:
+			rocksdb::Log(logger, "invalid operand: %d", op[0]);
+			break;
+		}
+		}
+
+	if ( new_data )
+		new_value->assign(to_serial(*new_data));
+
+	return true;
+	}
+
+bool broker::store::rocksdb_merge_operator::PartialMerge(
+        const rocksdb::Slice& key,
+        const rocksdb::Slice& left_operand,
+        const rocksdb::Slice& right_operand,
+        std::string* new_value,
+        rocksdb::Logger* logger) const
+	{
+	if ( left_operand[0] != right_operand[0] )
+		return false;
+
+	rocksdb::Slice lslice(left_operand.data() + 1, left_operand.size() - 1);
+	rocksdb::Slice rslice(right_operand.data() + 1, right_operand.size() - 1);
+
+	if ( left_operand[0] == '+' )
+		{
+		auto lop = from_serial<int64_t>(lslice);
+		auto rop = from_serial<int64_t>(rslice);
+		auto new_op = lop + rop;
+		new_value->assign(to_serial(new_op, '+'));
+		return true;
+		}
+
+	if ( lslice != rslice )
+		return false;
+
+	if ( left_operand[0] == 'a' )
+		{
+		if ( right_operand[0] == 'a' )
+			{
+			new_value->assign(left_operand.data(), left_operand.size());
+			return true;
+			}
+		else if ( right_operand[0] == 'r' )
+			{
+			new_value->assign("");
+			return true;
+			}
+		}
+	else if ( left_operand[0] == 'r' )
+		{
+		if ( right_operand[0] == 'a' )
+			{
+			new_value->assign(right_operand.data(), right_operand.size());
+			return true;
+			}
+		else if ( right_operand[0] == 'r' )
+			{
+			new_value->assign(left_operand.data(), left_operand.size());
+			return true;
+			}
+		}
+
+	rocksdb::Log(logger, "invalid merge operand(s)");
+	return false;
+	}
+
+const char* broker::store::rocksdb_merge_operator::Name() const
+	{ return "broker_merge_op"; }
