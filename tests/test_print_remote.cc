@@ -62,6 +62,5 @@ int main(int argc, char** argv)
 	check_contents(pq1c, { broker::message{"0c", "greetings"},
 	                       broker::message{"1c", "well met"} });
 
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

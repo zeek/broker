@@ -138,6 +138,5 @@ int main(int argc, char** argv)
 	               })
 	);
 
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

@@ -776,6 +776,5 @@ int main(int argc, char** argv)
 	test_send_self_only();
 	test_send_peers_only();
 	test_send_unsolicited();
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

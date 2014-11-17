@@ -29,7 +29,9 @@ int broker_init(int flags);
 
 /**
  * Shutdown the broker library.  No functionality provided by the library
- * is guaranteed to work after the call.
+ * is guaranteed to work after the call, not even destructors of broker-related
+ * objects on the stack, so be careful of that.  Note that it's not required
+ * to call this at all if the application just intends to exit.
  */
 void broker_done();
 

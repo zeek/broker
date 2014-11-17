@@ -116,6 +116,5 @@ int main(int argc, char** argv)
 	BROKER_TEST(db->clear());
 	BROKER_TEST(*db->size() == 0);
 
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

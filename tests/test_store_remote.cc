@@ -126,6 +126,5 @@ int main(int argc, char** argv)
 	BROKER_TEST(compare_contents(frontend, master));
 	BROKER_TEST(compare_contents(clone, master));
 
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

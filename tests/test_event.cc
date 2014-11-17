@@ -76,6 +76,5 @@ int main(int argc, char** argv)
 		BROKER_TEST(v[1] == "yo");
 		}
 
-	done();
 	return BROKER_TEST_RESULT();
 	}

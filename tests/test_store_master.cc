@@ -58,6 +58,5 @@ int main()
 	BROKER_TEST(compare_contents(data1, ds1));
 	BROKER_TEST(broker::store::size(data1) == 0);
 
-	broker::done();
 	return BROKER_TEST_RESULT();
 	}

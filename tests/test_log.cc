@@ -82,6 +82,5 @@ int main(int argc, char** argv)
 		BROKER_TEST(! r->get(2));
 		}
 
-	done();
 	return BROKER_TEST_RESULT();
 	}
