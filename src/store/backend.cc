@@ -21,31 +21,34 @@ bool broker::store::backend::insert(data k, data v,
 	return true;
 	}
 
-bool broker::store::backend::increment(const data& k, int64_t by)
+int broker::store::backend::increment(const data& k, int64_t by)
 	{
-	if ( ! do_increment(k, by) )
-		return false;
+	auto rc = do_increment(k, by);
 
-	do_increase_sequence();
-	return true;
+	if ( rc >= 0 )
+		do_increase_sequence();
+
+	return rc;
 	}
 
-bool broker::store::backend::add_to_set(const data& k, data element)
+int broker::store::backend::add_to_set(const data& k, data element)
 	{
-	if ( ! do_add_to_set(k, std::move(element)) )
-		return false;
+	auto rc = do_add_to_set(k, std::move(element));
 
-	do_increase_sequence();
-	return true;
+	if ( rc >= 0 )
+		do_increase_sequence();
+
+	return rc;
 	}
 
-bool broker::store::backend::remove_from_set(const data& k, const data& element)
+int broker::store::backend::remove_from_set(const data& k, const data& element)
 	{
-	if ( ! do_remove_from_set(k, element) )
-		return false;
+	auto rc = do_remove_from_set(k, element);
 
-	do_increase_sequence();
-	return true;
+	if ( rc >= 0 )
+		do_increase_sequence();
+
+	return rc;
 	}
 
 bool broker::store::backend::erase(const data& k)

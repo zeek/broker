@@ -51,9 +51,11 @@ public:
 
 			if ( sn == next )
 				{
-				if ( ! datastore->increment(k, by) )
-					fatal_error(master_name, "increment",
-					            datastore->last_error());
+				int rc;
+
+				if ( (rc = datastore->increment(k, by)) != 0 )
+					error(master_name, "increment", datastore->last_error(),
+					      rc < 0);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -69,9 +71,11 @@ public:
 
 			if ( sn == next )
 				{
-				if ( ! datastore->add_to_set(k, std::move(e)) )
-					fatal_error(master_name, "add_to_set",
-					            datastore->last_error());
+				int rc;
+
+				if ( (rc = datastore->add_to_set(k, std::move(e))) != 0 )
+					error(master_name, "add_to_set", datastore->last_error(),
+					      rc < 0);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -87,9 +91,11 @@ public:
 
 			if ( sn == next )
 				{
-				if ( ! datastore->remove_from_set(k, e) )
-					fatal_error(master_name, "remove_from_set",
-					            datastore->last_error());
+				int rc;
+
+				if ( (rc = datastore->remove_from_set(k, e)) != 0 )
+					error(master_name, "remove_from_set",
+					      datastore->last_error(), rc < 0);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -247,19 +253,21 @@ public:
 private:
 
 	void error(std::string master_name, std::string method_name,
-	           std::string err_msg)
+	           std::string err_msg, bool fatal = false)
 		{
 		// TODO: actually generate real error message for non-fatal errors.
 		std::cerr << "Clone of '" << master_name << "' failed to "
 		          << method_name << ": " << err_msg << std::endl;
+
+		if ( fatal )
+			// TODO: can any of these actually be handled more gracefully?
+			abort();
 		}
 
 	void fatal_error(std::string master_name, std::string method_name,
 	                 std::string err_msg)
 		{
-		error(master_name, method_name, err_msg);
-		// TODO: can any of these actually be handled more gracefully?
-		abort();
+		error(master_name, method_name, err_msg, true);
 		}
 
 	void get_snapshot(const std::chrono::microseconds& resync_interval)

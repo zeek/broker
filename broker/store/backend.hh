@@ -55,25 +55,34 @@ public:
 	 * Increment an integral value by a certain amount.
 	 * @param k the key associated with an integral value to increment.
 	 * @param by the size of the increment to take.
-	 * @return true on success.
+	 * @return zero on success, a negative value on hard failure (fundamental
+	 * issue with the backend prevented the operation from completing),
+	 * or positive value for a soft failure (the operation was invalid,
+	 * so the backend is left unchanged).
 	 */
-	bool increment(const data& k, int64_t by);
+	int increment(const data& k, int64_t by);
 
 	/**
 	 * Add an element to a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to add to the set.
-	 * @return true on success.
+	 * @return zero on success, a negative value on hard failure (fundamental
+	 * issue with the backend prevented the operation from completing),
+	 * or positive value for a soft failure (the operation was invalid,
+	 * so the backend is left unchanged).
 	 */
-	bool add_to_set(const data& k, data element);
+	int add_to_set(const data& k, data element);
 
 	/**
 	 * Remove an element from a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to remove from the set.
-	 * @return true on success.
+	 * @return zero on success, a negative value on hard failure (fundamental
+	 * issue with the backend prevented the operation from completing),
+	 * or positive value for a soft failure (the operation was invalid,
+	 * so the backend is left unchanged).
 	 */
-	bool remove_from_set(const data& k, const data& element);
+	int remove_from_set(const data& k, const data& element);
 
 	/**
 	 * Remove a key and its associated value from the store, if it exists.
@@ -111,7 +120,8 @@ public:
 
 	/**
 	 * @return the number of key-value pairs in the store or nil on failing
-	 * to perform the query.
+	 * to perform the query.  Depending on the choice of storage backend,
+	 * this may be an approximation.
 	 */
 	util::optional<uint64_t> size() const;
 
@@ -141,11 +151,11 @@ private:
 	virtual bool do_insert(data k, data v,
 	                       util::optional<expiration_time> t) = 0;
 
-	virtual bool do_increment(const data& k, int64_t by) = 0;
+	virtual int do_increment(const data& k, int64_t by) = 0;
 
-	virtual bool do_add_to_set(const data& k, data element) = 0;
+	virtual int do_add_to_set(const data& k, data element) = 0;
 
-	virtual bool do_remove_from_set(const data& k, const data& element) = 0;
+	virtual int do_remove_from_set(const data& k, const data& element) = 0;
 
 	virtual bool do_erase(const data& k) = 0;
 

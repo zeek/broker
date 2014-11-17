@@ -34,6 +34,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-debug         compile in debugging mode (like --build-type=Debug)
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
+    --with-rocksdb=PATH    path to RocksDB installation
 
   Required Packages in Non-Standard Locations:
     --with-libcaf=PATH     path to C++ Actor Framework installation
@@ -62,7 +63,6 @@ builddir=build
 prefix=/usr/local
 CMakeCacheEntries=""
 append_cache_entry CMAKE_INSTALL_PREFIX PATH     $prefix
-append_cache_entry INSTALL_LIB_DIR      PATH     $prefix/lib
 
 # parse arguments
 while [ $# -ne 0 ]; do
@@ -102,6 +102,9 @@ while [ $# -ne 0 ]; do
             ;;
         --with-libcaf=*)
             append_cache_entry LIBCAF_ROOT_DIR      PATH   $optarg
+            ;;
+        --with-rocksdb=*)
+            append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."

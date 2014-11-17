@@ -162,10 +162,12 @@ public:
 		on(val<identifier>, atom("increment"), arg_match) >> [=](data& k,
 		                                                         int64_t by)
 			{
-			if ( ! datastore->increment(k, by) )
+			int rc;
+
+			if ( (rc = datastore->increment(k, by)) != 0 )
 				{
 				error(name, "increment", datastore->last_error());
-				return;
+				if ( rc < 0 ) return;
 				}
 
 			refresh_modification_time(k);
@@ -176,10 +178,13 @@ public:
 			},
 		on(val<identifier>, atom("set_add"), arg_match) >> [=](data& k, data& e)
 			{
-			if ( ! datastore->add_to_set(k, clones.empty() ? move(e) : e) )
+			int rc;
+
+			if ( (rc = datastore->add_to_set(k, clones.empty() ? move(e)
+			                                                   : e)) != 0 )
 				{
 				error(name, "add_to_set", datastore->last_error());
-				return;
+				if ( rc < 0 ) return;
 				}
 
 			refresh_modification_time(k);
@@ -190,10 +195,12 @@ public:
 			},
 		on(val<identifier>, atom("set_rem"), arg_match) >> [=](data& k, data& e)
 			{
-			if ( ! datastore->remove_from_set(k, e) )
+			int rc;
+
+			if ( (rc = datastore->remove_from_set(k, e)) != 0 )
 				{
 				error(name, "remove_from_set", datastore->last_error());
-				return;
+				if ( rc < 0 ) return;
 				}
 
 			refresh_modification_time(k);

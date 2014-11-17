@@ -79,11 +79,11 @@ private:
 
 	bool do_insert(data k, data v, util::optional<expiration_time> t) override;
 
-	bool do_increment(const data& k, int64_t by) override;
+	int do_increment(const data& k, int64_t by) override;
 
-	bool do_add_to_set(const data& k, data element) override;
+	int do_add_to_set(const data& k, data element) override;
 
-	bool do_remove_from_set(const data& k, const data& element) override;
+	int do_remove_from_set(const data& k, const data& element) override;
 
 	bool do_erase(const data& k) override;
 

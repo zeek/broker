@@ -3,6 +3,12 @@
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
 #include "broker/store/sqlite_backend.hh"
+
+#ifdef HAVE_ROCKSDB
+#include "broker/store/rocksdb_backend.hh"
+#include <rocksdb/db.h>
+#endif
+
 #include "testsuite.hh"
 #include <map>
 #include <unistd.h>
@@ -38,16 +44,26 @@ void wait_for(const clone& c, data k, bool want_existence = true)
 	while ( exists(c, k) != want_existence ) usleep(1000);
 	}
 
-static bool open_db(const char* file, backend* b)
+static bool open_sqlite(string file, backend* b)
 	{
-	unlink(file);
+	unlink(file.c_str());
 	return ((sqlite_backend*)b)->open(file);
 	}
 
+#ifdef HAVE_ROCKSDB
+static bool open_rocksdb(string file, backend* b)
+	{
+	rocksdb::DestroyDB(file, {});
+	rocksdb::Options options;
+	options.create_if_missing = true;
+	return ((rocksdb_backend*)b)->open(file, options).ok();
+	}
+#endif
+
 int main(int argc, char** argv)
 	{
-	auto use_sqlite = argc > 1 && std::string(argv[1]) == "sqlite";
-
+	std::string backend_name = argv[1];
+	string db_name = "backend_test." + backend_name  + ".tmp";
 	broker::init();
 	endpoint node("node0");
 	expiration_time abs_expire = {now() + 5, expiration_time::tag::absolute};
@@ -57,18 +73,30 @@ int main(int argc, char** argv)
 	unique_ptr<backend> mbacking;
 	unique_ptr<backend> cbacking;
 
-	if ( use_sqlite )
+#ifdef HAVE_ROCKSDB
+	if ( backend_name == "rocksdb" )
+		{
+		mbacking.reset(new rocksdb_backend);
+		cbacking.reset(new rocksdb_backend);
+		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
+		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
+		}
+	else
+#endif
+	if ( backend_name == "sqlite" )
 		{
 		mbacking.reset(new sqlite_backend);
 		cbacking.reset(new sqlite_backend);
-		BROKER_TEST(open_db("expiry_test_master_db.tmp", mbacking.get()));
-		BROKER_TEST(open_db("expiry_test_clone_db.tmp", cbacking.get()));
+		BROKER_TEST(open_sqlite(string("master.") + db_name, mbacking.get()));
+		BROKER_TEST(open_sqlite(string("clone.") + db_name, cbacking.get()));
 		}
-	else
+	else if ( backend_name == "memory" )
 		{
 		mbacking.reset(new memory_backend);
 		cbacking.reset(new memory_backend);
 		}
+	else
+		return 1;
 
 	mbacking->init(sss);
 	master m(node, "mystore", move(mbacking));

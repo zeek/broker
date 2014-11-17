@@ -48,14 +48,14 @@ bool broker::store::memory_backend::do_insert(data k, data v,
 	return true;
 	}
 
-bool broker::store::memory_backend::do_increment(const data& k, int64_t by)
+int broker::store::memory_backend::do_increment(const data& k, int64_t by)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{by, {}};
-		return true;
+		return 0;
 		}
 
 	if ( ! visit(detail::increment_visitor{by}, it->second.item) )
@@ -64,20 +64,20 @@ bool broker::store::memory_backend::do_increment(const data& k, int64_t by)
 		snprintf(tmp, sizeof(tmp), "attempt to increment non-integral tag %d",
 		         static_cast<int>(which(it->second.item)));
 		pimpl->last_error = tmp;
-		return false;
+		return 1;
 		}
 
-	return true;
+	return 0;
 	}
 
-bool broker::store::memory_backend::do_add_to_set(const data& k, data element)
+int broker::store::memory_backend::do_add_to_set(const data& k, data element)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{set{std::move(element)}, {}};
-		return true;
+		return 0;
 		}
 
 	broker::set* v = get<broker::set>(it->second.item);
@@ -88,22 +88,22 @@ bool broker::store::memory_backend::do_add_to_set(const data& k, data element)
 		snprintf(tmp, sizeof(tmp), "attempt to add to non-set tag %d",
 		         static_cast<int>(which(it->second.item)));
 		pimpl->last_error = tmp;
-		return false;
+		return 1;
 		}
 
 	v->emplace(std::move(element));
-	return true;
+	return 0;
 	}
 
-bool broker::store::memory_backend::do_remove_from_set(const data& k,
-                                                       const data& element)
+int broker::store::memory_backend::do_remove_from_set(const data& k,
+                                                      const data& element)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{set{}, {}};
-		return true;
+		return 0;
 		}
 
 	broker::set* v = get<broker::set>(it->second.item);
@@ -114,11 +114,11 @@ bool broker::store::memory_backend::do_remove_from_set(const data& k,
 		snprintf(tmp, sizeof(tmp), "attempt to remove from non-set tag %d",
 		         static_cast<int>(which(it->second.item)));
 		pimpl->last_error = tmp;
-		return false;
+		return 1;
 		}
 
 	v->erase(element);
-	return true;
+	return 0;
 	}
 
 bool broker::store::memory_backend::do_erase(const data& k)

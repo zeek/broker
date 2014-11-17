@@ -178,14 +178,14 @@ bool broker::store::sqlite_backend::do_insert(data k, data v,
 	return true;
 	}
 
-bool broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
+int broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
 	{
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
 		{
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	auto val = *r;
@@ -193,10 +193,10 @@ bool broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
 	if ( ! val )
 		{
 		if ( ::insert(pimpl->insert, k, data{by}, {}) )
-			return true;
+			return 0;
 
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	if ( ! visit(detail::increment_visitor{by}, val->item) )
@@ -206,24 +206,24 @@ bool broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
 		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
 		pimpl->our_last_error = tmp;
-		return false;
+		return 1;
 		}
 
 	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
-		return true;
+		return 0;
 
 	pimpl->last_rc = 0;
-	return false;
+	return -1;
 	}
 
-bool broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
+int broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
 	{
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
 		{
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	auto val = *r;
@@ -231,10 +231,10 @@ bool broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
 	if ( ! val )
 		{
 		if ( ::insert(pimpl->insert, k, set{std::move(element)}, {}) )
-			return true;
+			return 0;
 
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	broker::set* s = get<broker::set>(val->item);
@@ -246,27 +246,27 @@ bool broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
 		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
 		pimpl->our_last_error = tmp;
-		return false;
+		return 1;
 		}
 
 	s->emplace(std::move(element));
 
 	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
-		return true;
+		return 0;
 
 	pimpl->last_rc = 0;
-	return false;
+	return -1;
 	}
 
-bool broker::store::sqlite_backend::do_remove_from_set(const data& k,
-                                                       const data& element)
+int broker::store::sqlite_backend::do_remove_from_set(const data& k,
+                                                      const data& element)
 	{
 	auto r = lookup_with_expiry(k);
 
 	if ( ! r )
 		{
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	auto val = *r;
@@ -274,10 +274,10 @@ bool broker::store::sqlite_backend::do_remove_from_set(const data& k,
 	if ( ! val )
 		{
 		if ( ::insert(pimpl->insert, k, set{}, {}) )
-			return true;
+			return 0;
 
 		pimpl->last_rc = 0;
-		return false;
+		return -1;
 		}
 
 	broker::set* s = get<broker::set>(val->item);
@@ -289,16 +289,16 @@ bool broker::store::sqlite_backend::do_remove_from_set(const data& k,
 		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
 		pimpl->our_last_error = tmp;
-		return false;
+		return 1;
 		}
 
 	s->erase(element);
 
 	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
-		return true;
+		return 0;
 
 	pimpl->last_rc = 0;
-	return false;
+	return -1;
 	}
 
 bool broker::store::sqlite_backend::do_erase(const data& k)

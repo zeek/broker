@@ -4,6 +4,15 @@ include(cmake/CommonCMakeConfig.cmake)
 
 find_package(Libcaf COMPONENTS core io REQUIRED)
 include_directories(BEFORE ${LIBCAF_INCLUDE_DIRS})
+set(LINK_LIBS ${LINK_LIBS} ${LIBCAF_LIBRARIES})
+
+find_package(RocksDB)
+
+if ( ROCKSDB_FOUND )
+    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
+    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
+    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/store/rocksdb_backend.cc)
+endif ()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION LIMIT_COUNT 1)
 string(REPLACE "." " " _version_numbers ${VERSION})
@@ -62,9 +71,14 @@ set(BROKER_SRC
     src/store/sqlite_backend.cc
     src/util/pipe.cc
     src/util/flare.cc
+    ${OPTIONAL_SRC}
     ${BROKER_HDR})
 
 add_library(broker_objs OBJECT ${BROKER_SRC})
+
+if ( NOT INSTALL_LIB_DIR )
+    set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
+endif ()
 
 if ( ENABLE_SHARED )
     add_library(broker SHARED $<TARGET_OBJECTS:broker_objs>)
@@ -73,14 +87,14 @@ if ( ENABLE_SHARED )
                           VERSION ${BROKER_VERSION}
                           MACOSX_RPATH true
                           OUTPUT_NAME broker)
-    target_link_libraries(broker ${LIBCAF_LIBRARIES})
+    target_link_libraries(broker ${LINK_LIBS})
     install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
 if ( ENABLE_STATIC )
     add_library(brokerStatic STATIC $<TARGET_OBJECTS:broker_objs>)
     set_target_properties(brokerStatic PROPERTIES OUTPUT_NAME broker)
-    target_link_libraries(brokerStatic ${LIBCAF_LIBRARIES})
+    target_link_libraries(brokerStatic ${LINK_LIBS})
     install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
@@ -98,6 +112,7 @@ message(
     "\nLibrary prefix:  ${INSTALL_LIB_DIR}"
     "\nShared libs:     ${ENABLE_SHARED}"
     "\nStatic libs:     ${ENABLE_STATIC}"
+    "\nEnable RocksDB:  ${ROCKSDB_FOUND}"
     "\n"
     "\nCC:              ${CMAKE_C_COMPILER}"
     "\nCFLAGS:          ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${BuildType}}"
