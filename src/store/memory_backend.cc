@@ -1,4 +1,5 @@
 #include "memory_backend_impl.hh"
+#include "../util/misc.hh"
 
 broker::store::memory_backend::memory_backend()
     : pimpl(new impl)
@@ -58,16 +59,10 @@ int broker::store::memory_backend::do_increment(const data& k, int64_t by)
 		return 0;
 		}
 
-	if ( ! visit(detail::increment_visitor{by}, it->second.item) )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to increment non-integral tag %d",
-		         static_cast<int>(which(it->second.item)));
-		pimpl->last_error = tmp;
-		return 1;
-		}
+	if ( util::increment_data(it->second.item, by, &pimpl->last_error) )
+		return 0;
 
-	return 0;
+	return 1;
 	}
 
 int broker::store::memory_backend::do_add_to_set(const data& k, data element)
@@ -80,19 +75,11 @@ int broker::store::memory_backend::do_add_to_set(const data& k, data element)
 		return 0;
 		}
 
-	broker::set* v = get<broker::set>(it->second.item);
+	if ( util::add_data_to_set(it->second.item, std::move(element),
+	                           &pimpl->last_error) )
+		return 0;
 
-	if ( ! v )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to add to non-set tag %d",
-		         static_cast<int>(which(it->second.item)));
-		pimpl->last_error = tmp;
-		return 1;
-		}
-
-	v->emplace(std::move(element));
-	return 0;
+	return 1;
 	}
 
 int broker::store::memory_backend::do_remove_from_set(const data& k,
@@ -106,19 +93,11 @@ int broker::store::memory_backend::do_remove_from_set(const data& k,
 		return 0;
 		}
 
-	broker::set* v = get<broker::set>(it->second.item);
+	if ( util::remove_data_from_set(it->second.item, element,
+	                                &pimpl->last_error) )
+		return 0;
 
-	if ( ! v )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to remove from non-set tag %d",
-		         static_cast<int>(which(it->second.item)));
-		pimpl->last_error = tmp;
-		return 1;
-		}
-
-	v->erase(element);
-	return 0;
+	return 1;
 	}
 
 bool broker::store::memory_backend::do_erase(const data& k)

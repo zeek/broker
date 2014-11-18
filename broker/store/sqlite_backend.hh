@@ -102,9 +102,6 @@ private:
 
 	util::optional<std::deque<expirable>> do_expiries() const override;
 
-	util::optional<util::optional<value>>
-	lookup_with_expiry(const data& k) const;
-
 	class impl;
 	std::unique_ptr<impl> pimpl;
 };

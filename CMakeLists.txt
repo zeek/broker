@@ -69,6 +69,7 @@ set(BROKER_SRC
     src/store/sequence_num.cc
     src/store/sqlite3.c
     src/store/sqlite_backend.cc
+    src/util/misc.cc
     src/util/pipe.cc
     src/util/flare.cc
     ${OPTIONAL_SRC}

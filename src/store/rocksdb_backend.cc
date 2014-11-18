@@ -1,5 +1,6 @@
 #include "rocksdb_backend_impl.hh"
 #include "broker/broker.h"
+#include "../util/misc.hh"
 #include <caf/binary_serializer.hpp>
 #include <caf/binary_deserializer.hpp>
 #include <rocksdb/env.h>
@@ -50,7 +51,7 @@ static T from_serial(const C& bytes)
 
 static rocksdb::Status
 insert(rocksdb::DB* db, const broker::data& k, const broker::data& v,
-       const broker::util::optional<broker::store::expiration_time>& e)
+       const broker::util::optional<broker::store::expiration_time>& e = {})
 	{
 	auto kserial = to_serial(k, 'a');
 	auto vserial = to_serial(v);
@@ -157,32 +158,19 @@ int broker::store::rocksdb_backend::do_increment(const data& k, int64_t by)
 		return -1;
 		}
 
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		return -1;
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
-		{
-		if ( pimpl->require_ok(::insert(pimpl->db.get(), k, data{by}, {})) )
-			return 0;
-
-		return -1;
-		}
-
-	if ( ! visit(detail::increment_visitor{by}, val->item) )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to increment non-integral tag %d",
-		         static_cast<int>(which(val->item)));
-		pimpl->last_error = tmp;
+	if ( ! util::increment_data(ov, by, &pimpl->last_error) )
 		return 1;
-		}
 
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, val->item,
-	                                val->expiry)) )
+	const auto& v = *ov;
+
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
 		return 0;
 
 	return -1;
@@ -201,37 +189,19 @@ int broker::store::rocksdb_backend::do_add_to_set(const data& k, data element)
 		return -1;
 		}
 
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		return -1;
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
-		{
-		if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
-		                                set{std::move(element)}, {})) )
-			return 0;
-
-		return -1;
-		}
-
-	broker::set* s = get<broker::set>(val->item);
-
-	if ( ! s )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to add to non-set tag %d",
-		         static_cast<int>(which(val->item)));
-		pimpl->last_error = tmp;
+	if ( ! util::add_data_to_set(ov, std::move(element), &pimpl->last_error) )
 		return 1;
-		}
 
-	s->emplace(std::move(element));
+	const auto& v = *ov;
 
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, val->item,
-	                                val->expiry)) )
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
 		return 0;
 
 	return -1;
@@ -251,36 +221,19 @@ int broker::store::rocksdb_backend::do_remove_from_set(const data& k,
 		return -1;
 		}
 
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		return -1;
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
-		{
-		if ( pimpl->require_ok(::insert(pimpl->db.get(), k, set{}, {})) )
-			return 0;
-
-		return -1;
-		}
-
-	broker::set* s = get<broker::set>(val->item);
-
-	if ( ! s )
-		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to remove from non-set tag %d",
-		         static_cast<int>(which(val->item)));
-		pimpl->last_error = tmp;
+	if ( ! util::remove_data_from_set(ov, element, &pimpl->last_error) )
 		return 1;
-		}
 
-	s->erase(element);
+	const auto& v = *ov;
 
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, val->item,
-	                                val->expiry)) )
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
 		return 0;
 
 	return -1;
@@ -480,51 +433,6 @@ broker::store::rocksdb_backend::do_expiries() const
 	return rval;
 	}
 
-broker::util::optional<broker::util::optional<broker::store::value>>
-broker::store::rocksdb_backend::lookup_with_expiry(const data& k) const
-	{
-	if ( ! pimpl->require_db() )
-		return {};
-
-	auto kserial = to_serial(k, 'a');
-	std::string vserial;
-	bool value_found;
-
-	if ( ! pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found) )
-		return util::optional<value>{};
-
-	if ( ! value_found )
-		{
-		auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
-
-		if ( stat.IsNotFound() )
-			return util::optional<value>{};
-
-		if ( ! pimpl->require_ok(stat) )
-			return {};
-		}
-
-	kserial[0] = 'e';
-	value rval{from_serial<data>(vserial)};
-
-	if ( ! pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found) )
-		return {rval};
-
-	if ( ! value_found )
-		{
-		auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
-
-		if ( stat.IsNotFound() )
-			return {rval};
-
-		if ( ! pimpl->require_ok(stat) )
-			return {};
-		}
-
-	rval.expiry = from_serial<expiration_time>(vserial);
-	return {rval};
-	}
-
 bool broker::store::rocksdb_merge_operator::FullMerge(
         const rocksdb::Slice& key,
         const rocksdb::Slice* existing_value,
@@ -532,6 +440,7 @@ bool broker::store::rocksdb_merge_operator::FullMerge(
         std::string* new_value,
         rocksdb::Logger* logger) const
 	{
+	static std::string error;
 	util::optional<data> new_data;
 
 	if ( existing_value )
@@ -546,49 +455,24 @@ bool broker::store::rocksdb_merge_operator::FullMerge(
 			{
 			auto by = from_serial<int64_t>(op.data() + 1, op.size() - 1);
 
-			if ( new_data )
-				{
-				if ( ! visit(detail::increment_visitor{by}, *new_data) )
-					rocksdb::Log(logger, "increment of non-integral tag %d",
-					             static_cast<int>(which(*new_data)));
-				}
-			else
-				new_data = data{by};
+			if ( ! util::increment_data(new_data, by, &error) )
+				rocksdb::Log(logger, "%s", error.data());
 			}
 			break;
 		case 'a':
 			{
 			auto element = from_serial<data>(op.data() + 1, op.size() - 1);
 
-			if ( new_data )
-				{
-				broker::set* s = get<broker::set>(*new_data);
-
-				if ( s )
-					s->emplace(std::move(element));
-				else
-					rocksdb::Log(logger, "add to non-set tag %d",
-					             static_cast<int>(which(*new_data)));
-				}
-			else
-				new_data = data{broker::set{std::move(element)}};
+			if ( ! util::add_data_to_set(new_data, std::move(element), &error) )
+				rocksdb::Log(logger, "%s", error.data());
 			}
 			break;
 		case 'r':
 			{
-			if ( new_data )
-				{
-				auto element = from_serial<data>(op.data() + 1, op.size() - 1);
-				broker::set* s = get<broker::set>(*new_data);
+			auto element = from_serial<data>(op.data() + 1, op.size() - 1);
 
-				if ( s )
-					s->erase(element);
-				else
-					rocksdb::Log(logger, "remove from non-set tag %d",
-					             static_cast<int>(which(*new_data)));
-				}
-			else
-				new_data = data{broker::set{}};
+			if ( ! util::remove_data_from_set(new_data, element, &error) )
+				rocksdb::Log(logger, "%s", error.data());
 			}
 			break;
 		default:

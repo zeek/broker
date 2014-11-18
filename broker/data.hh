@@ -203,26 +203,6 @@ inline bool operator==(const data& lhs, const data& rhs)
 inline bool operator<(const data& lhs, const data& rhs)
 	{ return lhs.value < rhs.value; }
 
-namespace detail {
-
-struct increment_visitor {
-	using result_type = bool;
-
-	int64_t by;
-
-	result_type operator()(uint64_t& val) const
-		{ val += by; return true; }
-
-	result_type operator()(int64_t& val) const
-		{ val += by; return true; }
-
-	template <typename T>
-	result_type operator()(const T&) const
-		{ return false; }
-};
-
-} // namespace detail
-
 } // namespace broker
 
 namespace std {

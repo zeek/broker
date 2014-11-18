@@ -9,10 +9,10 @@ namespace broker {
 namespace store {
 
 #define STMT_INSERT "replace into store(k, v, expiry) values(?, ?, ?);"
+#define STMT_UPDATE "update store set v = ? where k = ?;"
 #define STMT_ERASE "delete from store where k = ?;"
 #define STMT_CLEAR "delete from store;"
 #define STMT_LOOKUP "select v from store where k = ?;"
-#define STMT_LOOKUP_WITH_EXPIRY "select v, expiry from store where k = ?;"
 #define STMT_EXISTS "select 1 from store where k = ?;"
 #define STMT_KEYS "select k from store;"
 #define STMT_SIZE "select count(*) from store;"
@@ -104,8 +104,8 @@ public:
 	sqlite_stmt insert = {STMT_INSERT, &statements};
 	sqlite_stmt erase = {STMT_ERASE, &statements};
 	sqlite_stmt clear = {STMT_CLEAR, &statements};
+	sqlite_stmt update = {STMT_UPDATE, &statements};
 	sqlite_stmt lookup = {STMT_LOOKUP, &statements};
-	sqlite_stmt lookup_with_expiry = {STMT_LOOKUP_WITH_EXPIRY, &statements};
 	sqlite_stmt exists = {STMT_EXISTS, &statements};
 	sqlite_stmt keys = {STMT_KEYS, &statements};
 	sqlite_stmt size = {STMT_SIZE, &statements};

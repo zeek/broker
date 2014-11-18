@@ -1,5 +1,6 @@
 #include "sqlite_backend_impl.hh"
 #include "broker/broker.h"
+#include "../util/misc.hh"
 #include <cstdio>
 #include <caf/binary_serializer.hpp>
 #include <caf/binary_deserializer.hpp>
@@ -50,7 +51,7 @@ static bool initialize(sqlite3* db)
 static bool
 insert(const broker::store::sqlite_stmt& stmt,
        const broker::data& k, const broker::data& v,
-       const broker::util::optional<broker::store::expiration_time>& e)
+       const broker::util::optional<broker::store::expiration_time>& e = {})
 	{
 	auto g = stmt.guard(sqlite3_reset);
 	auto kblob = to_blob(k);
@@ -74,6 +75,26 @@ insert(const broker::store::sqlite_stmt& stmt,
 		if ( sqlite3_bind_null(stmt, 3) != SQLITE_OK )
 			return false;
 		}
+
+	if ( sqlite3_step(stmt) != SQLITE_DONE )
+		return false;
+
+	return true;
+	}
+
+static bool
+update(const broker::store::sqlite_stmt& stmt,
+       const broker::data& k, const broker::data& v)
+	{
+	auto g = stmt.guard(sqlite3_reset);
+	auto kblob = to_blob(k);
+	auto vblob = to_blob(v);
+
+	if ( sqlite3_bind_blob64(stmt, 1, vblob.data(), vblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK ||
+	     sqlite3_bind_blob64(stmt, 2, kblob.data(), kblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK )
+		return false;
 
 	if ( sqlite3_step(stmt) != SQLITE_DONE )
 		return false;
@@ -180,36 +201,34 @@ bool broker::store::sqlite_backend::do_insert(data k, data v,
 
 int broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
 	{
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		{
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
+	if ( ! ov )
 		{
-		if ( ::insert(pimpl->insert, k, data{by}, {}) )
+		if ( ::insert(pimpl->insert, k, data{by}) )
 			return 0;
 
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	if ( ! visit(detail::increment_visitor{by}, val->item) )
+	auto& v = *ov;
+
+	if ( ! util::increment_data(v, by, &pimpl->our_last_error) )
 		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to increment non-integral tag %d",
-		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
-		pimpl->our_last_error = tmp;
 		return 1;
 		}
 
-	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
+	if ( ::update(pimpl->update, k, v) )
 		return 0;
 
 	pimpl->last_rc = 0;
@@ -218,40 +237,35 @@ int broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
 
 int broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
 	{
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		{
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
+	if ( ! ov )
 		{
-		if ( ::insert(pimpl->insert, k, set{std::move(element)}, {}) )
+		if ( ::insert(pimpl->insert, k, set{std::move(element)}) )
 			return 0;
 
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	broker::set* s = get<broker::set>(val->item);
+	auto& v = *ov;
 
-	if ( ! s )
+	if ( ! util::add_data_to_set(v, std::move(element),
+	                             &pimpl->our_last_error) )
 		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to add to non-set tag %d",
-		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
-		pimpl->our_last_error = tmp;
 		return 1;
 		}
 
-	s->emplace(std::move(element));
-
-	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
+	if ( ::update(pimpl->update, k, v) )
 		return 0;
 
 	pimpl->last_rc = 0;
@@ -261,40 +275,34 @@ int broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
 int broker::store::sqlite_backend::do_remove_from_set(const data& k,
                                                       const data& element)
 	{
-	auto r = lookup_with_expiry(k);
+	auto oov = do_lookup(k);
 
-	if ( ! r )
+	if ( ! oov )
 		{
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	auto val = *r;
+	auto& ov = *oov;
 
-	if ( ! val )
+	if ( ! ov )
 		{
-		if ( ::insert(pimpl->insert, k, set{}, {}) )
+		if ( ::insert(pimpl->insert, k, set{}) )
 			return 0;
 
 		pimpl->last_rc = 0;
 		return -1;
 		}
 
-	broker::set* s = get<broker::set>(val->item);
+	auto& v = *ov;
 
-	if ( ! s )
+	if ( ! util::remove_data_from_set(v, element, &pimpl->our_last_error) )
 		{
-		char tmp[64];
-		snprintf(tmp, sizeof(tmp), "attempt to remove from non-set tag %d",
-		         static_cast<int>(which(val->item)));
 		pimpl->last_rc = -1;
-		pimpl->our_last_error = tmp;
 		return 1;
 		}
 
-	s->erase(element);
-
-	if ( ::insert(pimpl->insert, k, val->item, val->expiry) )
+	if ( ::update(pimpl->update, k, v) )
 		return 0;
 
 	pimpl->last_rc = 0;
@@ -485,41 +493,4 @@ broker::store::sqlite_backend::do_expiries() const
 
 	pimpl->last_rc = 0;
 	return {};
-	}
-
-broker::util::optional<broker::util::optional<broker::store::value>>
-broker::store::sqlite_backend::lookup_with_expiry(const data& k) const
-	{
-	const auto& stmt = pimpl->lookup_with_expiry;
-	auto g = stmt.guard(sqlite3_reset);
-	auto kblob = to_blob(k);
-
-	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
-	                         SQLITE_STATIC) != SQLITE_OK )
-		{
-		pimpl->last_rc = 0;
-		return {};
-		}
-
-	auto rc = sqlite3_step(stmt);
-
-	if ( rc == SQLITE_DONE )
-		return util::optional<value>{};
-
-	if ( rc != SQLITE_ROW )
-		{
-		pimpl->last_rc = 0;
-		return {};
-		}
-
-	auto v = from_blob<data>(sqlite3_column_blob(stmt, 0),
-	                         sqlite3_column_bytes(stmt, 0));
-
-	util::optional<expiration_time> e;
-
-	if ( sqlite3_column_type(stmt, 1) != SQLITE_NULL )
-		e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 1),
-		                               sqlite3_column_bytes(stmt, 1));
-
-	return {value{std::move(v), std::move(e)}};
 	}
