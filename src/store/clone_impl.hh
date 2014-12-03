@@ -249,6 +249,7 @@ public:
 		auto handlesync = find_master.or_else(get_snap).or_else(give_actor);
 		synchronizing = handlesync;
 		active = requests.or_else(updates).or_else(handlesync);
+		dead = requests.or_else(give_actor).or_else(others() >> []{});
 		}
 
 private:
@@ -262,8 +263,7 @@ private:
 		report::error("data.clone." + master_name, msg.str());
 
 		if ( fatal )
-			// TODO: can any of these actually be handled more gracefully?
-			abort();
+			become(dead);
 		}
 
 	void fatal_error(std::string master_name, std::string method_name,
@@ -296,6 +296,7 @@ private:
 	caf::behavior bootstrap;
 	caf::behavior synchronizing;
 	caf::behavior active;
+	caf::behavior dead;
 	caf::behavior& init_state = bootstrap;
 };
 
