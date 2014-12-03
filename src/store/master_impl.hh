@@ -2,13 +2,14 @@
 #define BROKER_STORE_MASTER_IMPL_HH
 
 #include "broker/store/master.hh"
+#include "broker/report.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
-#include <caf/actor_ostream.hpp>
 #include <sys/time.h>
+#include <sstream>
 
 namespace broker { namespace store {
 
@@ -304,9 +305,9 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg)
 		{
-		// TODO: actually generate real error message for non-fatal errors.
-		std::cerr << "Master '" << master_name << "' failed to "
-		          << method_name << ": " << err_msg << std::endl;
+		std::ostringstream msg;
+		msg << "Master '" << master_name << "' failed to "
+		    << method_name << ": " << err_msg;
 		}
 
 	std::unique_ptr<backend> datastore;

@@ -1,6 +1,5 @@
 #include "broker/broker.hh"
-#include "broker/peer_status.hh"
-#include "broker/message.hh"
+#include "broker/report.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
@@ -15,6 +14,11 @@
 #include <cstdio>
 #include <deque>
 
+namespace broker { namespace report {
+std::unique_ptr<broker::endpoint> manager;
+std::unique_ptr<broker::message_queue> default_queue;
+}}
+
 int broker_init(int flags)
 	{
 	// TODO: need a better, more organized way to announce types.
@@ -22,6 +26,7 @@ int broker_init(int flags)
 	using namespace std;
 	using namespace broker;
 	using namespace broker::store;
+
 	announce(typeid(topic_set),
 	         unique_ptr<caf::uniform_type_info>(new topic_set_type_info));
 	announce<peer_status::tag>();
@@ -57,6 +62,14 @@ int broker_init(int flags)
 	announce<message>();
 	announce<std::deque<message>>();
 	announce<std::deque<peer_status>>();
+
+	report::manager = std::unique_ptr<endpoint>(new endpoint("broker.reports"));
+
+	if ( (flags & BROKER_INIT_DEFAULT_REPORT_QUEUE) )
+		report::default_queue = std::unique_ptr<message_queue>(
+	        new message_queue("broker.report.", *report::manager));
+
+	BROKER_DEBUG("library", "successful initialization");
 	return 0;
 	}
 
@@ -64,7 +77,11 @@ int broker::init(int flags)
 	{ return broker_init(flags); }
 
 void broker_done()
-	{ caf::shutdown(); }
+	{
+	broker::report::manager.reset();
+	broker::report::default_queue.reset();
+	caf::shutdown();
+	}
 
 const char* broker_strerror(int broker_errno)
 	{

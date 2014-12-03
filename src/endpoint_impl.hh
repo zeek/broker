@@ -3,6 +3,7 @@
 
 #include "broker/endpoint.hh"
 #include "broker/peer_status.hh"
+#include "broker/report.hh"
 #include "broker/store/identifier.hh"
 #include "broker/store/query.hh"
 #include "subscription.hh"
@@ -15,6 +16,7 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/io/remote_actor.hpp>
 #include <unordered_set>
+#include <sstream>
 
 namespace broker {
 
@@ -130,7 +132,11 @@ public:
 			{
 			if ( local_subscriptions.exact_match(id) )
 				{
-				// TODO: error message about conflicting master store identifier
+				ostringstream msg;
+				msg << "Failed to register master data store with id '" << id
+				    << "' because a master already exists with that id.";
+				report::error("endpoint." + name + ".data.master." + id,
+				              msg.str());
 				return;
 				}
 
@@ -171,14 +177,21 @@ public:
 				send(requester, this,
 				     store::result(store::result::status::failure));
 			},
-		on<store::identifier, anything>() >> [=](const store::identifier& n)
+		on<store::identifier, anything>() >> [=](const store::identifier& id)
 			{
 			// This message should be a store update operation.
-			auto master = find_master(n);
+			auto master = find_master(id);
 
 			if ( master )
 				forward_to(master);
-			// TODO: else emit an error
+			else
+				{
+				ostringstream msg;
+				msg << "Data store update dropped due to no existing master"
+				    << "with id '" << id << "'";
+				report::warn("endpoint." + name + ".data.master." + id,
+				             msg.str());
+				}
 			},
 		on(atom("flags"), arg_match) >> [=](int flags)
 			{
@@ -352,7 +365,8 @@ friend class caf::sb_actor<endpoint_proxy_actor>;
 
 public:
 
-	endpoint_proxy_actor(caf::actor local, std::string addr, uint16_t port,
+	endpoint_proxy_actor(caf::actor local, std::string endpoint_name,
+	                     std::string addr, uint16_t port,
 	                     std::chrono::duration<double> retry_freq,
 	                     caf::actor peer_status_q)
 		{
@@ -365,7 +379,7 @@ public:
 		bootstrap = (
 		after(chrono::seconds(0)) >> [=]
 			{
-			try_connect(pi);
+			try_connect(pi, endpoint_name);
 			}
 		);
 
@@ -384,7 +398,7 @@ public:
 			},
 		after(chrono::duration_cast<chrono::microseconds>(retry_freq)) >> [=]
 			{
-			try_connect(pi);
+			try_connect(pi, endpoint_name);
 			}
 		);
 
@@ -414,16 +428,20 @@ public:
 			},
 		others() >> [=]
 			{
-			// Proxy just maintains the peering relationship between
-			// two endpoints, shouldn't be getting any messages itself.
-			aout(this) << "ERROR, proxy got msg: " << last_dequeued() << endl;
+			ostringstream st;
+			st << "endpoint." << endpoint_name << ".remote_proxy." << addr
+			   << ":" << port;
+			ostringstream msg;
+			msg << "Remote endpoint proxy got msg: "
+			    << caf::to_string(last_dequeued());
+			report::warn(st.str(), msg.str());
 			}
 		);
 		}
 
 private:
 
-	bool try_connect(const peering::impl& pi)
+	bool try_connect(const peering::impl& pi, const std::string& endpoint_name)
 		{
 		using namespace caf;
 		using namespace std;
@@ -437,9 +455,12 @@ private:
 			}
 		catch ( const exception& e )
 			{
-			// TODO: need better debug logging facilities
-			//aout(this) << "Failed to connect to remote endpoint (" << addr
-			//           << ", " << port << ")" << endl;
+			ostringstream st;
+			st << "endpoint." << endpoint_name << ".remote_proxy." << addr
+			   << ":" << port;
+			ostringstream msg;
+			msg << "Failed to connect to remote endpoint: " << e.what();
+			report::warn(st.str(), msg.str());
 			}
 
 		if ( ! remote )

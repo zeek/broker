@@ -4,12 +4,13 @@
 #include "broker/store/clone.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/memory_backend.hh"
+#include "broker/report.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
-#include <caf/actor_ostream.hpp>
+#include <sstream>
 
 namespace broker { namespace store {
 
@@ -255,9 +256,10 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg, bool fatal = false)
 		{
-		// TODO: actually generate real error message for non-fatal errors.
-		std::cerr << "Clone of '" << master_name << "' failed to "
-		          << method_name << ": " << err_msg << std::endl;
+		std::ostringstream msg;
+		msg << "Clone of '" << master_name << "' failed to "
+		    << method_name << ": " << err_msg;
+		report::error("data.clone." + master_name, msg.str());
 
 		if ( fatal )
 			// TODO: can any of these actually be handled more gracefully?
@@ -279,10 +281,12 @@ private:
 		pending_getsnap = true;
 		}
 
-	void sequence_error(const identifier& id,
+	void sequence_error(const identifier& master_name,
 	                    const std::chrono::microseconds& resync_interval)
 		{
-		aout(this) << "ERROR: clone '" << id << "' desync" << std::endl;
+		std::ostringstream msg;
+		msg << "Clone of '" << master_name << "' got desynchronized.";
+		report::error("data.clone." + master_name, msg.str());
 		get_snapshot(resync_interval);
 		}
 

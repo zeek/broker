@@ -161,7 +161,7 @@ public:
 	const peer_status_queue& peer_status() const;
 
 	/**
-	 * Sends a message to all message_queue's that are registed for a given
+	 * Sends a message to all message_queue's that are registered for a given
 	 * topic and either connected to this endpoint directly or indirectly
 	 * through peer endpoints.
 	 * @param t the topic name associated with the message.

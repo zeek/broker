@@ -11,7 +11,6 @@ static void pipe_fail(int eno)
 	{
 	char tmp[256];
 	strerror_r(eno, tmp, sizeof(tmp));
-	// TODO: better error/message handling.
 	fprintf(stderr, "pipe failure: %s\n", tmp);
 	abort();
 	}

@@ -19,9 +19,17 @@ extern "C" {
 const int BROKER_PROTOCOL_VERSION = 0;
 
 /**
+ * Whether to collect library diagnostic messages in
+ * broker::report::default_queue by default.  If this is supplied to the
+ * flags for broker_init(), then the application should periodically drain
+ * the queue (or even call reset() on it if reports are no longer wanted).
+ */
+const int BROKER_INIT_DEFAULT_REPORT_QUEUE = 0x01;
+
+/**
  * Initialize the broker library.  This should be called once before using
  * anything else that's provided by the library.
- * @param flags tune behavior of the library.  No flags exist yet.
+ * @param flags tune behavior of the library.
  * @return 0 if library is initialized, else an error code that can
  *         be supplied to broker_strerror().
  */
