@@ -1,5 +1,12 @@
 #include "broker/report.hh"
 #include <sys/time.h>
+#include <mutex>
+
+namespace broker { namespace report {
+extern std::mutex* mtx;
+endpoint* manager;
+message_queue* default_queue;
+}}
 
 static double now()
 	{
@@ -26,8 +33,32 @@ static std::string to_string(broker::report::level lvl)
 	}
 	}
 
+void broker::report::init(bool with_default_queue)
+	{
+	std::unique_lock<std::mutex> guard{*mtx};
+
+	manager = new endpoint("broker.reports");
+
+	if ( with_default_queue )
+		default_queue = new message_queue("broker.report.", *manager);
+	}
+
+void broker::report::done()
+	{
+	std::unique_lock<std::mutex> guard{*mtx};
+	delete manager;
+	manager = nullptr;
+	delete default_queue;
+	default_queue = nullptr;
+	}
+
 void broker::report::send(level lvl, topic subtopic, std::string msg)
 	{
+	std::unique_lock<std::mutex> guard{*mtx};
+
+	if ( ! manager )
+		return;
+
 	topic full_topic = "broker.report." + ::to_string(lvl) + "." + subtopic;
 	message full_message{now(), +lvl, std::move(subtopic), std::move(msg)};
 	manager->send(std::move(full_topic), std::move(full_message));

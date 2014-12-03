@@ -118,8 +118,14 @@ public:
 	 * @return true if a subscriber associated with the actor address is
 	 * registered.
 	 */
-	bool have_subscriber(const caf::actor_addr& a)
+	bool have_subscriber(const caf::actor_addr& a) const
 		{ return subs_by_actor.find(a) != subs_by_actor.end(); }
+
+	/**
+	 * @return true if a subscriber is registered for the exact topic argument.
+	 */
+	bool have_subscriber_for(const topic& t) const
+		{ return exact_match(t).valid(); }
 
 private:
 

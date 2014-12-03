@@ -10,7 +10,6 @@
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
-#include <sstream>
 
 namespace broker { namespace store {
 
@@ -192,12 +191,18 @@ public:
 					{
 					if ( m )
 						{
+						BROKER_DEBUG("data.clone." + master_name,
+						             "Located master");
 						demonitor(master);
 						master = move(m);
 						monitor(master);
 						}
 					else
+						{
+						BROKER_DEBUG("data.clone." + master_name,
+						             "Failed to locate master, will retry...");
 						delayed_send(this, resync_interval, atom("findmaster"));
+						}
 					}
 			);
 			},
@@ -205,6 +210,8 @@ public:
 			{
 			if ( d.source == master.address() )
 				{
+				BROKER_DEBUG("data.clone." + master_name,
+				             "master went down, trying to relocate...");
 				send(this, atom("findmaster"));
 				get_snapshot(resync_interval);
 				}
@@ -226,17 +233,28 @@ public:
 			          this).then(
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
+					BROKER_DEBUG("data.clone." + master_name,
+					             "master went down while requesting snapshot,"
+					             " will retry...");
 					get_snapshot(resync_interval);
 					},
 				on_arg_match >> [=](actor& responder, result& r)
 					{
 					if ( r.stat != result::status::success ||
 					     r.value.which() != result::tag::snapshot_result )
+						{
+						BROKER_DEBUG("data.clone." + master_name,
+						             "got invalid snapshot response, retry...");
 						get_snapshot(resync_interval);
+						}
 					else
 						{
 						if ( datastore->init(move(*get<snapshot>(r.value))) )
+							{
+							BROKER_DEBUG("data.clone." + master_name,
+							             "successful init from snapshot");
 							become(active);
+							}
 						else
 							fatal_error(master_name, "init",
 							            datastore->last_error());
@@ -257,10 +275,8 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg, bool fatal = false)
 		{
-		std::ostringstream msg;
-		msg << "Clone of '" << master_name << "' failed to "
-		    << method_name << ": " << err_msg;
-		report::error("data.clone." + master_name, msg.str());
+		report::error("data.clone." + master_name, "failed to " + method_name
+		              + ": " + err_msg);
 
 		if ( fatal )
 			become(dead);
@@ -284,9 +300,7 @@ private:
 	void sequence_error(const identifier& master_name,
 	                    const std::chrono::microseconds& resync_interval)
 		{
-		std::ostringstream msg;
-		msg << "Clone of '" << master_name << "' got desynchronized.";
-		report::error("data.clone." + master_name, msg.str());
+		report::error("data.clone." + master_name, "got desynchronized");
 		get_snapshot(resync_interval);
 		}
 

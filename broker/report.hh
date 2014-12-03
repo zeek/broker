@@ -4,7 +4,6 @@
 #include <broker/endpoint.hh>
 #include <broker/message_queue.hh>
 #include <type_traits>
-#include <memory>
 #include <string>
 
 namespace broker {
@@ -17,17 +16,16 @@ namespace report {
  * "debug", "info", "warn", or "error".  The endpoint is created by calling
  * broker::init().
  */
-extern std::unique_ptr<endpoint> manager;
+extern endpoint* manager;
 
 /**
  * A default queue to which broker library diagnostic messages accumulate.
- * The queue is optionally created by calling broker::init() with
- * BROKER_INIT_DEFAULT_REPORT_QUEUE flag set. The application should either
- * drain this queue periodically or, if it no longer wants to process
- * messages it can call reset() on it at anytime. Messages are a sequence of:
+ * The queue is optionally created by calling broker::report::init(true).
+ * The application should then drain the queue periodically.
+ * Messages are a sequence of:
  * [timestamp (real), level (count), subtopic (string), contents (string)].
  */
-extern std::unique_ptr<message_queue> default_queue;
+extern message_queue* default_queue;
 
 /**
  * A level indicating the criticality of an associated message.
@@ -50,6 +48,20 @@ enum class level : uint8_t {
  */
 constexpr std::underlying_type<level>::type operator+(level v)
 	{ return static_cast<std::underlying_type<level>::type>(v); }
+
+/**
+ * Initialize the broker library diagnostic reporting framework.  Unless this
+ * is called, no report messages are ever generated.
+ * @param with_default_queue whether to also initialize
+ * broker::report::default_queue to automatically receive report messages.
+ */
+void init(bool with_default_queue = false);
+
+/**
+ * Releases resources associated with the broker library diagnostic reporting
+ * framework.  For convenience, it gets automatically called in broker::done().
+ */
+void done();
 
 /**
  * Send a report message.

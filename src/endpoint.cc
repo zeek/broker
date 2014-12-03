@@ -7,7 +7,7 @@ static inline caf::actor& handle_to_actor(void* h)
 	{ return *static_cast<caf::actor*>(h); }
 
 broker::endpoint::endpoint(std::string name, int flags)
-    : pimpl(new impl(std::move(name), flags))
+    : pimpl(new impl(this, std::move(name), flags))
 	{
 	}
 

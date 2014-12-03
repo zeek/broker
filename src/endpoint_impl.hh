@@ -18,7 +18,37 @@
 #include <unordered_set>
 #include <sstream>
 
+#ifdef DEBUG
+// So that we don't have a recursive expansion from sending messages via the
+// report::manager endpoint.
+#define BROKER_ENDPOINT_DEBUG(endpoint_pointer, subtopic, msg) \
+	if ( endpoint_pointer != broker::report::manager ) \
+		broker::report::send(broker::report::level::debug, subtopic, msg)
+#else
+#define BROKER_ENDPOINT_DEBUG(endpoint_pointer, subtopic, msg)
+#endif
+
 namespace broker {
+
+static std::string to_string(const topic_set& ts)
+	{
+	std::string rval{"{"};
+
+	bool first = true;
+
+	for ( const auto& e : ts )
+		{
+		if ( first )
+			first = false;
+		else
+			rval += ", ";
+
+		rval += e.first;
+		}
+
+	rval += "}";
+	return rval;
+	}
 
 static void do_peer_status(const caf::actor q, peering::impl pi,
                            peer_status::tag t, std::string pname = "")
@@ -32,8 +62,9 @@ friend class caf::sb_actor<endpoint_actor>;
 
 public:
 
-	endpoint_actor(std::string name, int flags, caf::actor peer_status_q)
-		: behavior_flags(flags)
+	endpoint_actor(const endpoint* ep, std::string arg_name, int flags,
+	               caf::actor peer_status_q)
+		: name(std::move(arg_name)), behavior_flags(flags)
 		{
 		using namespace caf;
 		using namespace std;
@@ -98,6 +129,8 @@ public:
 			},
 		on(atom("unpeer"), arg_match) >> [=](const actor& p)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Unpeered with: '" + get_peer_name(p) + "'");
 			demonitor(p);
 			peers.erase(p.address());
 			peer_subscriptions.erase(p.address());
@@ -106,8 +139,13 @@ public:
 			{
 			demonitor(d.source);
 
-			if ( peers.erase(d.source) )
+			auto itp = peers.find(d.source);
+
+			if ( itp != peers.end() )
 				{
+				BROKER_DEBUG("endpoint." + name,
+				             "Peer down: '" + itp->second.name + "'");
+				peers.erase(itp);
 				peer_subscriptions.erase(d.source);
 				return;
 				}
@@ -117,33 +155,47 @@ public:
 			if ( ! s )
 				return;
 
+			BROKER_DEBUG("endpoint." + name,
+			             "Local subscriber down with subscriptions: "
+			             + to_string(s->subscriptions));
+
 			for ( auto& sub : s->subscriptions )
-				unadvertise_subscription(topic{move(sub.first)});
+				if ( ! local_subscriptions.have_subscriber_for(sub.first) )
+					unadvertise_subscription(topic{move(sub.first)});
 			},
 		on(atom("unsub"), arg_match) >> [=](const topic& t, const actor& p)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Peer '" + get_peer_name(p) + "' unsubscribed to '"
+			             + t + "'");
 			peer_subscriptions.unregister_topic(t, p.address());
 			},
 		on(atom("sub"), arg_match) >> [=](topic& t, actor& p)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Peer '" + get_peer_name(p) + "' subscribed to '"
+			             + t + "'");
 			peer_subscriptions.register_topic(move(t), move(p));
 			},
 		on(atom("master"), arg_match) >> [=](store::identifier& id, actor& a)
 			{
 			if ( local_subscriptions.exact_match(id) )
 				{
-				ostringstream msg;
-				msg << "Failed to register master data store with id '" << id
-				    << "' because a master already exists with that id.";
 				report::error("endpoint." + name + ".data.master." + id,
-				              msg.str());
+				              "Failed to register master data store with id '"
+				              + id + "' because a master already exists with"
+				                     " that id.");
 				return;
 				}
 
+			BROKER_DEBUG("endpoint." + name,
+			             "Attached master data store named '" + id + "'");
 			attach(move(id), move(a));
 			},
 		on(atom("local sub"), arg_match) >> [=](topic& t, actor& a)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Attached local queue for topic '" + t + "'");
 			attach(move(t), move(a));
 			},
 		on_arg_match >> [=](const topic& t, broker::message& msg,
@@ -153,11 +205,19 @@ public:
 
 			if ( from_peer )
 				{
+				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
+				                      "Got remote message from peer '"
+				                      + get_peer_name(last_sender())
+				                      + "', topic '" + t + "': "
+				                      + to_string(msg));
 				publish_locally(t, std::move(msg), flags, from_peer);
 				// Don't re-publish messages sent by a peer (they go one hop).
 				}
 			else
 				{
+				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
+				                      "Publish local message with topic '" + t
+				                      + "': " + to_string(msg));
 				publish_locally(t, msg, flags, from_peer);
 				publish_current_msg_to_peers(t, flags);
 				}
@@ -172,10 +232,19 @@ public:
 			auto master = find_master(n);
 
 			if ( master )
+				{
+				BROKER_DEBUG("endpoint." + name, "Forwarded data store query: "
+				             + caf::to_string(last_dequeued()));
 				forward_to(master);
+				}
 			else
+				{
+				BROKER_DEBUG("endpoint." + name,
+				             "Failed to forward data store query: "
+				             + caf::to_string(last_dequeued()));
 				send(requester, this,
 				     store::result(store::result::status::failure));
+				}
 			},
 		on<store::identifier, anything>() >> [=](const store::identifier& id)
 			{
@@ -183,26 +252,26 @@ public:
 			auto master = find_master(id);
 
 			if ( master )
-				forward_to(master);
-			else
 				{
-				ostringstream msg;
-				msg << "Data store update dropped due to no existing master"
-				    << "with id '" << id << "'";
-				report::warn("endpoint." + name + ".data.master." + id,
-				             msg.str());
+				BROKER_DEBUG("endpoint." + name, "Forwarded data store update: "
+				             + caf::to_string(last_dequeued()));
+				forward_to(master);
 				}
+			else
+				report::warn("endpoint." + name + ".data.master." + id,
+				             "Data store update dropped due to nonexistent "
+				             " master with id '" + id + "'");
 			},
 		on(atom("flags"), arg_match) >> [=](int flags)
 			{
-			bool auto_sub_before = (behavior_flags & AUTO_ADVERTISE);
+			bool auto_before = (behavior_flags & AUTO_ADVERTISE);
 			behavior_flags = flags;
-			bool auto_sub_after = (behavior_flags & AUTO_ADVERTISE);
+			bool auto_after = (behavior_flags & AUTO_ADVERTISE);
 
-			if ( auto_sub_before == auto_sub_after )
+			if ( auto_before == auto_after )
 				return;
 
-			if ( auto_sub_before )
+			if ( auto_before )
 				{
 				topic_set to_remove;
 
@@ -210,46 +279,80 @@ public:
 					if ( advert_acls.find(t.first) == advert_acls.end() )
 						to_remove.insert({t.first, true});
 
+				BROKER_DEBUG("endpoint." + name, "Toggled AUTO_ADVERTISE off,"
+				                                 " no longer advertising: "
+				             + to_string(to_remove));
+
 				for ( const auto& t : to_remove )
 					unadvertise_subscription(topic{t.first});
 
 				return;
 				}
 
+			BROKER_DEBUG("endpoint." + name, "Toggled AUTO_ADVERTISE on");
+
 			for ( const auto& t : local_subscriptions.topics() )
 				advertise_subscription(topic{t.first});
 			},
-		on(caf::atom("acl pub"), arg_match) >>[=](topic& t)
+		on(caf::atom("acl pub"), arg_match) >> [=](topic& t)
 			{
+			BROKER_DEBUG("endpoint." + name, "Allow publishing topic: " + t);
 			pub_acls.insert({move(t), true});
 			},
-		on(caf::atom("acl unpub"), arg_match) >>[=](const topic& t)
+		on(caf::atom("acl unpub"), arg_match) >> [=](const topic& t)
 			{
+			BROKER_DEBUG("endpoint." + name, "Disallow publishing topic: " + t);
 			pub_acls.erase(t);
 			},
-		on(caf::atom("advert"), arg_match) >>[=](string& t)
+		on(caf::atom("advert"), arg_match) >> [=](string& t)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Allow advertising subscription: " + t);
+
 			if ( advert_acls.insert({t, true}).second &&
 			     local_subscriptions.exact_match(t) )
 				// Now permitted to advertise an existing subscription.
 				advertise_subscription(move(t));
 			},
-		on(caf::atom("unadvert"), arg_match) >>[=](string& t)
+		on(caf::atom("unadvert"), arg_match) >> [=](string& t)
 			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Disallow advertising subscription: " + t);
+
 			if ( advert_acls.erase(t) && local_subscriptions.exact_match(t) )
 				// No longer permitted to advertise an existing subscription.
 				unadvertise_subscription(move(t));
+			},
+		others() >> [=]
+			{
+			report::warn("endpoint." + name, "Got unexpected message: "
+			             + caf::to_string(last_dequeued()));
 			}
 		);
 		}
 
 private:
 
-	void add_peer(caf::actor p, std::string name, topic_set ts)
+	std::string get_peer_name(const caf::actor_addr& a) const
 		{
+		auto it = peers.find(a);
+
+		if ( it == peers.end() )
+			return "<unknown>";
+
+		return it->second.name;
+		}
+
+	std::string get_peer_name(const caf::actor& p) const
+		{ return get_peer_name(p.address()); }
+
+	void add_peer(caf::actor p, std::string peer_name, topic_set ts)
+		{
+		BROKER_DEBUG("endpoint." + name, "Peered with: '" + peer_name
+		             + "', subscriptions: " + to_string(ts));
 		demonitor(p);
 		monitor(p);
-		peers[p.address()] = {p, std::move(name)};
+		peers[p.address()] = {p, std::move(peer_name)};
 		peer_subscriptions.insert(subscriber{std::move(p), std::move(ts)});
 		}
 
@@ -280,13 +383,19 @@ private:
 	void advertise_subscription(topic t)
 		{
 		if ( advertised_subscriptions.insert({t, true}).second )
+			{
+			BROKER_DEBUG("endpoint." + name,"Advertise new subscription: " + t);
 			publish_subscription_operation(std::move(t), caf::atom("sub"));
+			}
 		}
 
 	void unadvertise_subscription(topic t)
 		{
 		if ( advertised_subscriptions.erase(t) )
+			{
+			BROKER_DEBUG("endpoint." + name, "Unadvertise subscription: " + t);
 			publish_subscription_operation(std::move(t), caf::atom("unsub"));
+			}
 		}
 
 	void publish_subscription_operation(topic t, caf::atom_value op)
@@ -346,6 +455,7 @@ private:
 	caf::behavior active;
 	caf::behavior& init_state = active;
 
+	std::string name;
 	int behavior_flags;
 	topic_set pub_acls;
 	topic_set advert_acls;
@@ -421,6 +531,8 @@ public:
 			},
 		on_arg_match >> [=](const down_msg& d)
 			{
+			BROKER_DEBUG(report_subtopic(endpoint_name, addr, port),
+			             "Disconnected from peer");
 			demonitor(remote);
 			remote = invalid_actor;
 			become(disconnected);
@@ -428,18 +540,23 @@ public:
 			},
 		others() >> [=]
 			{
-			ostringstream st;
-			st << "endpoint." << endpoint_name << ".remote_proxy." << addr
-			   << ":" << port;
-			ostringstream msg;
-			msg << "Remote endpoint proxy got msg: "
-			    << caf::to_string(last_dequeued());
-			report::warn(st.str(), msg.str());
+			report::warn(report_subtopic(endpoint_name, addr, port),
+			             "Remote endpoint proxy got unexpected message: "
+			             + caf::to_string(last_dequeued()));
 			}
 		);
 		}
 
 private:
+
+	std::string report_subtopic(const std::string& endpoint_name,
+	                            const std::string& addr, uint16_t port) const
+		{
+		std::ostringstream st;
+		st << "endpoint." << endpoint_name << ".remote_proxy." << addr
+		   << ":" << port;
+		return st.str();
+		}
 
 	bool try_connect(const peering::impl& pi, const std::string& endpoint_name)
 		{
@@ -455,12 +572,8 @@ private:
 			}
 		catch ( const exception& e )
 			{
-			ostringstream st;
-			st << "endpoint." << endpoint_name << ".remote_proxy." << addr
-			   << ":" << port;
-			ostringstream msg;
-			msg << "Failed to connect to remote endpoint: " << e.what();
-			report::warn(st.str(), msg.str());
+			report::warn(report_subtopic(endpoint_name, addr, port),
+			             string("Failed to connect: ") + e.what());
 			}
 
 		if ( ! remote )
@@ -469,6 +582,7 @@ private:
 			return false;
 			}
 
+		BROKER_DEBUG(report_subtopic(endpoint_name, addr, port), "Connected");
 		monitor(remote);
 		become(connected);
 		send(local, atom("peer"), remote, pi);
@@ -488,9 +602,9 @@ static inline caf::actor& handle_to_actor(void* h)
 class endpoint::impl {
 public:
 
-	impl(std::string n, int arg_flags)
+	impl(const endpoint* ep, std::string n, int arg_flags)
 		: name(std::move(n)), flags(arg_flags), self(), peer_status(),
-		  actor(caf::spawn<broker::endpoint_actor>(name, flags,
+		  actor(caf::spawn<broker::endpoint_actor>(ep, name, flags,
 		                   handle_to_actor(peer_status.handle()))),
 		  peers(), last_errno(), last_error()
 		{

@@ -9,7 +9,6 @@
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
 #include <sys/time.h>
-#include <sstream>
 
 namespace broker { namespace store {
 
@@ -154,6 +153,7 @@ public:
 				return;
 				}
 
+			BROKER_DEBUG("data.master." + name, "Expire key: " + to_string(k));
 			timers.erase(k);
 
 			if ( ! clones.empty() )
@@ -305,9 +305,8 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg)
 		{
-		std::ostringstream msg;
-		msg << "Master '" << master_name << "' failed to "
-		    << method_name << ": " << err_msg;
+		report::error("data.master." + master_name, "failed to " + method_name
+		              + ": " + err_msg);
 		}
 
 	std::unique_ptr<backend> datastore;
