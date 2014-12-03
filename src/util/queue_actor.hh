@@ -1,5 +1,5 @@
-#ifndef BROKER_UTIL_QUEUE_HH
-#define BROKER_UTIL_QUEUE_HH
+#ifndef BROKER_UTIL_QUEUE_ACTOR_HH
+#define BROKER_UTIL_QUEUE_ACTOR_HH
 
 #include "flare.hh"
 #include <caf/sb_actor.hpp>
@@ -15,12 +15,12 @@ namespace util {
  * to integrate in to traditional event loops.
  */
 template <typename Pattern, typename Message>
-class queue : public caf::sb_actor<queue<Pattern, Message>> {
-friend class caf::sb_actor<queue<Pattern, Message>>;
+class queue_actor : public caf::sb_actor<queue_actor<Pattern, Message>> {
+friend class caf::sb_actor<queue_actor<Pattern, Message>>;
 
 public:
 
-	queue(flare f)
+	queue_actor(flare f)
 		: ready_flare(std::move(f))
 		{
 		using namespace caf;
@@ -79,4 +79,4 @@ queue_pop(const caf::actor& actor, caf::atom_value request_type)
 } // namespace util
 } // namespace broker
 
-#endif // BROKER_UTIL_QUEUE_HH
+#endif // BROKER_UTIL_QUEUE_ACTOR_HH

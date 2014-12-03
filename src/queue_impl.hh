@@ -3,7 +3,7 @@
 
 #include "broker/queue.hh"
 #include "util/flare.hh"
-#include "util/queue.hh"
+#include "util/queue_actor.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
 
@@ -17,8 +17,8 @@ public:
 		{
 		util::flare f;
 		fd = f.fd();
-		actor = caf::spawn<broker::util::queue<decltype(caf::on<T>()),
-		                                       T>>(std::move(f));
+		actor = caf::spawn<broker::util::queue_actor<decltype(caf::on<T>()),
+		                                             T>>(std::move(f));
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		}
