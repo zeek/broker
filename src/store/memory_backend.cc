@@ -34,7 +34,10 @@ std::string broker::store::memory_backend::do_last_error() const
 bool broker::store::memory_backend::do_init(snapshot sss)
 	{
 	pimpl->sn = std::move(sss.sn);
-	pimpl->datastore = std::move(sss.datastore);
+
+	for ( auto& e : sss.entries )
+		pimpl->datastore.emplace(std::move(e));
+
 	return true;
 	}
 
@@ -134,12 +137,12 @@ broker::store::memory_backend::do_exists(const data& k) const
 		return true;
 	}
 
-broker::util::optional<std::unordered_set<broker::data>>
+broker::util::optional<std::vector<broker::data>>
 broker::store::memory_backend::do_keys() const
 	{
-	std::unordered_set<data> rval;
+	std::vector<data> rval;
 	for ( const auto& kv : pimpl->datastore )
-		rval.emplace(kv.first);
+		rval.emplace_back(kv.first);
 	return rval;
 	}
 
@@ -148,7 +151,15 @@ broker::util::optional<uint64_t> broker::store::memory_backend::do_size() const
 
 broker::util::optional<broker::store::snapshot>
 broker::store::memory_backend::do_snap() const
-	{ return snapshot{pimpl->datastore, pimpl->sn}; }
+	{
+	snapshot rval;
+	rval.sn = pimpl->sn;
+
+	for ( const auto& e : pimpl->datastore )
+		rval.entries.emplace_back(e);
+
+	return rval;
+	}
 
 broker::util::optional<std::deque<broker::store::expirable>>
 broker::store::memory_backend::do_expiries() const

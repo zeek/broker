@@ -45,7 +45,7 @@ public:
 		{
 		auto p = reinterpret_cast<data*>(ptr);
 		auto tag = source->read<data::tag>(caf::uniform_typeid<data::tag>());
-		p->value = data::value_type::make(tag);
+		p->value = data::types::make(tag);
 		visit(deserializer{source}, *p);
 		}
 };

@@ -2,6 +2,7 @@
 #include "testsuite.hh"
 #include <string>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 using namespace broker::util;
@@ -177,7 +178,7 @@ int main()
 	doubles.emplace_back(1337);
 	doubles.emplace_back(4.2);
 	doubles.emplace_back(42);
-	std::for_each(doubles.begin(), doubles.end(), apply_visitor(s));
+	std::for_each(doubles.begin(), doubles.end(), apply_visitor(std::ref(s)));
 	BROKER_TEST(s.state == 3);
 	std::for_each(doubles.begin(), doubles.end(), apply_visitor(doppler{}));
 	BROKER_TEST(*get<int>(doubles[2]) == 84);

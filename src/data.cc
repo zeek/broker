@@ -117,7 +117,10 @@ std::string broker::to_string(const broker::record& d)
 	{ return data_to_string(d); }
 
 std::ostream& operator<<(std::ostream& out, const broker::data& rhs)
-	{ return stream_data{out}(rhs); }
+	{
+	out << broker::to_string(rhs);
+	return out;
+	}
 
 std::ostream& operator<<(std::ostream& out, const broker::vector& rhs)
 	{ return stream_data{out}(rhs); }

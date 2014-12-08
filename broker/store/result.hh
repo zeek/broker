@@ -4,7 +4,7 @@
 #include <broker/data.hh>
 #include <broker/store/snapshot.hh>
 #include <cstdint>
-#include <unordered_set>
+#include <vector>
 
 namespace broker { namespace store {
 
@@ -37,10 +37,11 @@ public:
 		timeout
 	} stat;
 
-	using result_data = util::variant<tag, bool, uint64_t, data,
-	                                  std::unordered_set<data>, snapshot>;
+	// NIT: maybe deque instead of vector for keys/snapshot results.
+	using type = util::variant<tag, bool, uint64_t, data,
+	                           std::vector<data>, snapshot>;
 
-	result_data value;
+	type value;
 
 	/**
 	 * Default construct a result in a failed state.
@@ -59,7 +60,7 @@ public:
 	/**
 	 * Construct a successful result from given result data.
 	 */
-	result(result_data rd)
+	result(type rd)
 		: stat(status::success), value(std::move(rd))
 		{ }
 };

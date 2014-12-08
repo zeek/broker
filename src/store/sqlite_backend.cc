@@ -169,7 +169,7 @@ bool broker::store::sqlite_backend::do_init(snapshot sss)
 	if ( ! clear() )
 		return false;
 
-	for ( const auto& e : sss.datastore )
+	for ( const auto& e : sss.entries )
 		{
 		if ( ! ::insert(pimpl->insert, e.first, e.second.item,
 		                e.second.expiry) )
@@ -400,17 +400,17 @@ broker::store::sqlite_backend::do_exists(const data& k) const
 	return {};
 	}
 
-broker::util::optional<std::unordered_set<broker::data>>
+broker::util::optional<std::vector<broker::data>>
 broker::store::sqlite_backend::do_keys() const
 	{
 	const auto& stmt = pimpl->keys;
 	auto g = stmt.guard(sqlite3_reset);
-	std::unordered_set<data> rval;
+	std::vector<data> rval;
 	int rc;
 
 	while ( (rc = sqlite3_step(stmt)) == SQLITE_ROW )
-		rval.emplace(from_blob<data>(sqlite3_column_blob(stmt, 0),
-		                             sqlite3_column_bytes(stmt, 0)));
+		rval.emplace_back(from_blob<data>(sqlite3_column_blob(stmt, 0),
+		                                  sqlite3_column_bytes(stmt, 0)));
 
 	if ( rc == SQLITE_DONE )
 		return rval;
@@ -446,7 +446,8 @@ broker::store::sqlite_backend::do_snap() const
 	{
 	const auto& stmt = pimpl->snap;
 	auto g = stmt.guard(sqlite3_reset);
-	snapshot rval{{}, pimpl->sn};
+	snapshot rval;
+	rval.sn = pimpl->sn;
 	int rc;
 
 	while ( (rc = sqlite3_step(stmt)) == SQLITE_ROW )
@@ -461,7 +462,9 @@ broker::store::sqlite_backend::do_snap() const
 			e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 2),
 			                               sqlite3_column_bytes(stmt, 2));
 
-		rval.datastore.emplace(std::move(k), value{std::move(v), std::move(e)});
+		auto entry = std::make_pair(std::move(k),
+		                            value{std::move(v), std::move(e)});
+		rval.entries.emplace_back(std::move(entry));
 		}
 
 	if ( rc == SQLITE_DONE )

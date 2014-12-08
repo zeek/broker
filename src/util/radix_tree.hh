@@ -87,7 +87,15 @@ public:
 		bool operator!=(const iterator& other) const;
 		const iterator& operator++();
 		iterator operator++(int);
-		friend void swap(iterator& a, iterator& b);
+
+		friend void swap(iterator& a, iterator& b)
+			{
+			using std::swap;
+			swap(a.root, b.root);
+			swap(a.node_ptr, b.node_ptr);
+			swap(a.ready_to_iterate, b.ready_to_iterate);
+			swap(a.visited, b.visited);
+			}
 
 	private:
 
@@ -131,7 +139,7 @@ public:
 	 * Move construct.
 	 */
 	radix_tree(radix_tree&& other)
-		: radix_tree()
+		: num_entries(0), root(nullptr)
 		{ swap(*this, other); }
 
 	/**
@@ -594,7 +602,7 @@ bool radix_tree<T, N>::operator==(const radix_tree& rhs) const
 
 template <typename T, std::size_t N>
 radix_tree<T, N>::radix_tree(const radix_tree& other)
-	: radix_tree()
+	: num_entries(0), root(nullptr)
 	{
 	// Maybe this could probably be better optimized?
 	for ( const auto& p : other ) insert(p);
@@ -602,7 +610,7 @@ radix_tree<T, N>::radix_tree(const radix_tree& other)
 
 template <typename T, std::size_t N>
 radix_tree<T, N>::radix_tree(std::initializer_list<value_type> l)
-	: radix_tree()
+	: num_entries(0), root(nullptr)
 	{
 	for ( const auto& e : l )
 		insert(e);

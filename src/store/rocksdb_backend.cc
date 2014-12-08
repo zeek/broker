@@ -113,7 +113,7 @@ bool broker::store::rocksdb_backend::do_init(snapshot sss)
 
 	rocksdb::WriteBatch batch;
 
-	for ( const auto& kv : sss.datastore )
+	for ( const auto& kv : sss.entries )
 		{
 		auto kserial = to_serial(kv.first, 'a');
 		auto vserial = to_serial(kv.second.item);
@@ -318,7 +318,7 @@ broker::store::rocksdb_backend::do_exists(const data& k) const
 	return true;
 	}
 
-broker::util::optional<std::unordered_set<broker::data>>
+broker::util::optional<std::vector<broker::data>>
 broker::store::rocksdb_backend::do_keys() const
 	{
 	if ( ! pimpl->require_db() )
@@ -327,13 +327,13 @@ broker::store::rocksdb_backend::do_keys() const
 	rocksdb::ReadOptions options;
 	options.fill_cache = false;
 	std::unique_ptr<rocksdb::Iterator> it(pimpl->db->NewIterator(options));
-	std::unordered_set<data> rval;
+	std::vector<data> rval;
 
 	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
 		{
 		auto s = it->key();
 		s.remove_prefix(1);
-		rval.emplace(from_serial<data>(s));
+		rval.emplace_back(from_serial<data>(s));
 		}
 
 	if ( ! pimpl->require_ok(it->status()) )
@@ -379,17 +379,7 @@ broker::store::rocksdb_backend::do_snap() const
 	snapshot rval;
 	rval.sn = pimpl->sn;
 
-	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
-		{
-		auto ks = it->key();
-		auto vs = it->value();
-		ks.remove_prefix(1);
-		rval.datastore.emplace(from_serial<data>(ks),
-		                       value{from_serial<data>(vs)});
-		}
-
-	if ( ! pimpl->require_ok(it->status()) )
-		return {};
+	std::unordered_map<data, expiration_time> expiries;
 
 	for ( it->Seek("e"); it->Valid() && it->key()[0] == 'e'; it->Next() )
 		{
@@ -397,7 +387,25 @@ broker::store::rocksdb_backend::do_snap() const
 		auto vs = it->value();
 		ks.remove_prefix(1);
 		auto key = from_serial<data>(ks);
-		rval.datastore[key].expiry = from_serial<expiration_time>(vs);
+		expiries[std::move(key)] = from_serial<expiration_time>(vs);
+		}
+
+	if ( ! pimpl->require_ok(it->status()) )
+		return {};
+
+	for ( it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next() )
+		{
+		auto ks = it->key();
+		auto vs = it->value();
+		ks.remove_prefix(1);
+		auto entry = std::make_pair(from_serial<data>(ks),
+		                            value{from_serial<data>(vs)});
+		auto eit = expiries.find(entry.first);
+
+		if ( eit != expiries.end() )
+			entry.second.expiry = std::move(eit->second);
+
+		rval.entries.emplace_back(std::move(entry));
 		}
 
 	if ( ! pimpl->require_ok(it->status()) )

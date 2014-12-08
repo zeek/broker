@@ -101,9 +101,15 @@ int main()
 			BROKER_TEST(msg.reply.value == static_cast<uint64_t>(ds0.size()));
 		else if ( msg.cookie == &cookies[4] )
 			{
-			unordered_set<broker::data> expected;
+			set<broker::data> expected;
 			for ( const auto& p : ds0 ) expected.insert(p.first);
-			BROKER_TEST(msg.reply.value == expected);
+
+			auto actual = *get<broker::vector>(msg.reply.value);
+
+			for ( const auto& entry : actual )
+				BROKER_TEST(expected.find(entry) != expected.end());
+
+			BROKER_TEST(expected.size() == actual.size());
 			}
 		}
 

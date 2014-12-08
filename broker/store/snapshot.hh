@@ -4,7 +4,8 @@
 #include <broker/data.hh>
 #include <broker/store/expiration_time.hh>
 #include <broker/store/sequence_num.hh>
-#include <unordered_map>
+#include <vector>
+#include <utility>
 
 namespace broker { namespace store {
 
@@ -13,12 +14,12 @@ namespace broker { namespace store {
  * that corresponds to it.
  */
 struct snapshot {
-	std::unordered_map<data, value> datastore;
+	std::vector<std::pair<data, value>> entries;
 	sequence_num sn;
 };
 
 inline bool operator==(const snapshot& lhs, const snapshot& rhs)
-    { return lhs.sn == rhs.sn && lhs.datastore == rhs.datastore; }
+    { return lhs.sn == rhs.sn && lhs.entries == rhs.entries; }
 
 } // namespace store
 } // namespace broker

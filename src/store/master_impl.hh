@@ -9,6 +9,7 @@
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
 #include <sys/time.h>
+#include <unordered_map>
 
 namespace broker { namespace store {
 
@@ -26,7 +27,6 @@ public:
 
 	timer_actor(data key, expiration_time t, caf::actor master)
 		{
-		using namespace caf;
 		using namespace std::chrono;
 
 		microseconds wait(0);
@@ -38,17 +38,17 @@ public:
 			wait = duration_cast<microseconds>(duration<double>(t.time));
 
 		timing = (
-		on(atom("quit")) >> [=]
+		caf::on(caf::atom("quit")) >> [=]
 			{
 			quit();
 			},
-		on(atom("refresh")) >> [=]
+		caf::on(caf::atom("refresh")) >> [=]
 			{
 			// Cause after() handler to wait another full timeout period.
 			},
-		after(wait) >> [=]
+		caf::after(wait) >> [=]
 			{
-			send(master, atom("expire"), std::move(key));
+			send(master, caf::atom("expire"), std::move(key));
 			quit();
 			}
 		);

@@ -44,7 +44,8 @@ else ()
     set(ENABLE_STATIC false)
 endif ()
 
-set(CMAKE_CXX_FLAGS       "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -std=c++11")
 
 install(DIRECTORY broker DESTINATION include)
 
@@ -53,6 +54,9 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 # A convienience to add non-compiled files to IDEs - CMake doesn't add
 # such files unless they appear in either add_executable or add_library.
 file(GLOB_RECURSE BROKER_HDR *.h *.hh)
+
+set_source_files_properties(src/store/sqlite3.c PROPERTIES COMPILE_FLAGS
+                            -DSQLITE_OMIT_LOAD_EXTENSION)
 
 set(BROKER_SRC
     src/broker.cc

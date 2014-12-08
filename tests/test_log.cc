@@ -73,7 +73,7 @@ int main(int argc, char** argv)
 	BROKER_TEST(returned.size() == 4);
 	BROKER_TEST(returned == pongs);
 
-	for ( int i = 0; i < returned.size(); ++i )
+	for ( int i = 0; i < (int)returned.size(); ++i )
 		{
 		BROKER_TEST(returned[i][0] == "pong");
 		const auto r = get<record>(returned[i][1]);

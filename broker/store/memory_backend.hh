@@ -63,7 +63,7 @@ private:
 
 	util::optional<bool> do_exists(const data& k) const override;
 
-	util::optional<std::unordered_set<data>> do_keys() const override;
+	util::optional<std::vector<data>> do_keys() const override;
 
 	util::optional<uint64_t> do_size() const override;
 

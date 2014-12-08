@@ -36,6 +36,11 @@ do so, all subject to the following:
 #include <broker/util/operators.hh>
 #include <broker/util/meta.hh>
 
+// These includes just for "whitelisting" some static_asserts.
+#include <string>
+#include <set>
+#include <map>
+
 namespace broker {
 namespace util {
 
@@ -324,7 +329,14 @@ public:
 
 private:
 
-	aligned_union_t<0, Ts...> storage;
+	template <typename T>
+	struct Sizeof { static constexpr auto value = sizeof(T); };
+
+	template <typename T>
+	struct Alignof { static constexpr auto value = alignof(T); };
+
+	// Could use std::aligned_union, but GCC doesn't have it.
+	aligned_storage_t<max<Sizeof, Ts...>(), max<Alignof, Ts...>()> storage;
 	tag active;
 
 	struct default_ctor {
@@ -395,6 +407,26 @@ private:
 		tag rhs_active;
 	};
 
+	template <typename T>
+	struct container_uses_default_allocator {
+		static const bool value = false;
+	};
+
+	template <typename CharT, typename Traits>
+	struct container_uses_default_allocator<std::basic_string<CharT, Traits>> {
+		static const bool value = true;
+	};
+
+	template <typename T, typename Compare>
+	struct container_uses_default_allocator<std::set<T, Compare>> {
+		static const bool value = true;
+	};
+
+	template <typename Key, typename T, typename Compare>
+	struct container_uses_default_allocator<std::map<Key, T, Compare>> {
+		static const bool value = true;
+	};
+
 	struct move_assigner {
 		using result_type = void;
 
@@ -407,7 +439,13 @@ private:
 			using rhs_type = typename std::remove_const<Rhs>::type;
 			static_assert(std::is_nothrow_destructible<rhs_type>{},
 			              "T must not throw in destructor");
-			static_assert(std::is_nothrow_move_assignable<rhs_type>{},
+			static_assert(std::is_nothrow_move_assignable<rhs_type>{} ||
+			              // TODO: should be true that these containers only
+			              // throw if allocators differ when move assigning?
+			              // So for completeness, the static assert should
+			              // really be comparing allocator type of this
+			              // versus rhs.
+			              container_uses_default_allocator<rhs_type>::value,
 			              "T must not throw in move assignment");
 			static_assert(std::is_nothrow_move_constructible<rhs_type>{},
 			              "T must not throw in move constructor");
@@ -534,11 +572,9 @@ private:
 	void construct(T&& x) noexcept(std::is_rvalue_reference<decltype(x)>{})
 		{
 		using type = typename std::remove_reference<T>::type;
-		// FIXME: Somehow the compiler doesn't generate nothrow move ctors
-		// for some of our custom types, even though they are annotated as such.
-		// Needs investigation.
-		//static_assert(std::is_nothrow_move_constructible<type>{},
-		//              "move constructor of T must not throw");
+		static_assert(std::is_nothrow_move_constructible<type>{} ||
+		              ! std::is_rvalue_reference<decltype(x)>{},
+		              "move constructor of T must not throw");
 		new (&storage) type(std::forward<T>(x));
 		}
 

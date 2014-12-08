@@ -9,9 +9,9 @@ using namespace std;
 using namespace broker;
 
 static bool check_contents_ordered(const message_queue& pq,
-                           vector<message> expected)
+                                   broker::vector expected)
 	{
-	vector<message> actual;
+	broker::vector actual;
 
 	while ( actual.size() < expected.size() )
 		for ( auto& msg : pq.need_pop() )

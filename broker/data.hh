@@ -95,7 +95,7 @@ public:
 		record
 	};
 
-	using value_type = util::variant<
+	using types = util::variant<
 	    tag,
 	    bool,
 	    uint64_t,
@@ -158,7 +158,7 @@ public:
 	    : value(type<T>(std::forward<T>(x)))
 		{}
 
-	value_type value;
+	types value;
 };
 
 inline record::record()
@@ -192,10 +192,10 @@ inline bool operator==(const record& lhs, const record& rhs)
 inline bool operator<(const record& lhs, const record& rhs)
 	{ return lhs.fields < rhs.fields; }
 
-inline data::value_type& expose(data& d)
+inline data::types& expose(data& d)
 	{ return d.value; }
 
-inline const data::value_type& expose(const data& d)
+inline const data::types& expose(const data& d)
 	{ return d.value; }
 
 inline bool operator==(const data& lhs, const data& rhs)
@@ -220,7 +220,7 @@ std::ostream& operator<<(std::ostream&, const broker::record&);
 
 namespace std {
 template <> struct hash<broker::data> {
-	using value_type = broker::data::value_type;
+	using value_type = broker::data::types;
 	using result_type = typename std::hash<value_type>::result_type;
 	using argument_type = broker::data;
 	inline result_type operator()(const argument_type& d) const

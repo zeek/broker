@@ -36,12 +36,31 @@ bool compare_contents(const frontend& store, const dataset& ds)
 		if ( val ) actual.insert(make_pair(key, move(*val)));
 		}
 
-	return actual == ds;
+	if ( actual == ds )
+		return true;
+
+	cerr << "============= actual"  << endl;
+	for ( const auto& p : actual )
+		cerr << p.first << " -> " << p.second << endl;
+	cerr << "============= expected" << endl;
+	for ( const auto& p : ds )
+		cerr << p.first << " -> " << p.second << endl;
+	return false;
 	}
 
-void wait_for(const clone& c, data k, bool want_existence = true)
+void wait_for(const store::clone& c, data k, bool want_existence = true)
 	{
 	while ( exists(c, k) != want_existence ) usleep(1000);
+	}
+
+void wait_for(const store::clone& c, data k, data v)
+	{
+	for ( ; ; )
+		{
+		auto actual = lookup(c, k);
+		if ( actual && v == actual ) break;
+		usleep(1000);
+		}
 	}
 
 static bool open_sqlite(string file, backend* b)
@@ -70,8 +89,14 @@ int main(int argc, char** argv)
 	string db_name = "backend_test." + backend_name  + ".tmp";
 	broker::init();
 	endpoint node("node0");
-	expiration_time abs_expire = {now() + 0.5, expiration_time::tag::absolute};
-	expiration_time mod_expire = {0.2};
+
+	// Can fiddle with these if test starts failing ocassionally due to timing.
+	double abs_time = 0.7;
+	double mod_time = abs_time * 0.4;
+
+	expiration_time abs_expire = {now() + abs_time,
+	                              expiration_time::tag::absolute};
+	expiration_time mod_expire = {mod_time};
 	value pre_existing = {data("myval"), abs_expire};
 	snapshot sss = {{{data("pre"), pre_existing}}, {}};
 	unique_ptr<backend> mbacking;
@@ -122,15 +147,16 @@ int main(int argc, char** argv)
 	m.insert("refresh",   3, mod_expire);
 	m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
 	m.insert("norefresh", "four",  mod_expire);
-	clone c(node, "mystore", chrono::duration<double>(0.25), move(cbacking));
+	store::clone c(node, "mystore", chrono::duration<double>(0.25),
+	               move(cbacking));
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
 
-	usleep(100000);
+	usleep(mod_time / 2.0 * 1000000);
 	c.increment("refresh", 5);
 	c.add_to_set("morerefresh", 0);
-	usleep(100000);
+	usleep(mod_time / 2.0 * 1000000);
 	m.decrement("refresh", 2);
 	m.remove_from_set("morerefresh", 6);
 
@@ -138,12 +164,14 @@ int main(int argc, char** argv)
 	ds0["refresh"] = 6;
 	ds0["morerefresh"] = broker::set{0, 2, 4, 8};
 
+	wait_for(c, "refresh", 6);
+	wait_for(c, "morerefresh", broker::set{0, 2, 4, 8});
 	wait_for(c, "norefresh", false);
 
 	BROKER_TEST(compare_contents(c, ds0));
 	BROKER_TEST(compare_contents(m, ds0));
 
-	usleep(300000);
+	usleep(mod_time * 1.5 * 1000000);
 	ds0.clear();
 	ds0["noexpire"] = "one";
 

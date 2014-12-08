@@ -76,7 +76,7 @@ broker::store::backend::lookup(const data& k) const
 broker::util::optional<bool> broker::store::backend::exists(const data& k) const
 	{ return do_exists(k); }
 
-broker::util::optional<std::unordered_set<broker::data>>
+broker::util::optional<std::vector<broker::data>>
 broker::store::backend::keys() const
 	{ return do_keys(); }
 

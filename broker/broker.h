@@ -42,9 +42,8 @@ const char* broker_strerror(int broker_errno);
 
 /**
  * Reentrant version of broker::strerror().
- * @return a return value from ::strerror_r().
  */
-int broker_strerror_r(int broker_errno, char* buf, size_t buflen);
+void broker_strerror_r(int broker_errno, char* buf, size_t buflen);
 
 // TODO: add wrappers for more of the C++ API
 

@@ -15,11 +15,18 @@ class sequence_num {
 public:
 
 	/**
-	 * Construct a sequence number, optionally starting at a given number.
+	 * Construct a sequence number initialized to zero.
 	 */
-	sequence_num(std::vector<uint64_t> s = {0})
+	sequence_num()
+		: sequence({0})
+		{}
+
+	/**
+	 * Construct a sequence number, starting at a given number.
+	 */
+	sequence_num(std::vector<uint64_t> s)
 		: sequence(std::move(s))
-		{ }
+		{ if ( sequence.empty() ) sequence = {0};  }
 
 	/**
 	 * @return the next number in the sequence.

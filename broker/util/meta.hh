@@ -18,9 +18,9 @@ using conditional_t = typename std::conditional<B, T, F>::type;
 template <class T>
 using remove_reference_t = typename std::remove_reference<T>::type;
 
-// std::aligned_union_t shortcut from C++14.
-template <std::size_t Len, class... Types>
-using aligned_union_t = typename std::aligned_union<Len, Types...>::type;
+// std::aligned_storage_t shortcut from C++14.
+template <std::size_t Len, std::size_t Align>
+using aligned_storage_t = typename std::aligned_storage<Len, Align>::type;
 
 template <bool B, typename T = void>
 using disable_if = std::enable_if<! B, T>;
@@ -37,6 +37,19 @@ using disable_if_same_or_derived = disable_if<is_same_or_derived<A, B>::value>;
 template <typename A, typename B>
 using disable_if_same_or_derived_t =
   typename disable_if_same_or_derived<A, B>::type;
+
+template <template <typename> class F, typename Head>
+constexpr decltype(F<Head>::value) max()
+	{ return F<Head>::value; }
+
+template <template <typename> class F, typename Head, typename Next,
+          typename... Tail>
+constexpr decltype(F<Head>::value) max()
+	{
+	return max<F, Head>() > max<F, Next, Tail...>()
+	       ? max<F, Head>()
+	       : max<F, Next, Tail...>();
+	}
 
 } // namespace util
 } // namespace broker

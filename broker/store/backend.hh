@@ -6,9 +6,8 @@
 #include <broker/store/expiration_time.hh>
 #include <broker/store/snapshot.hh>
 #include <broker/util/optional.hh>
-#include <unordered_map>
-#include <unordered_set>
 #include <deque>
+#include <vector>
 
 namespace broker { namespace store {
 
@@ -116,7 +115,7 @@ public:
 	/**
 	 * @return all keys in the store or nil on failing to perform the query.
 	 */
-	util::optional<std::unordered_set<data>> keys() const;
+	util::optional<std::vector<data>> keys() const;
 
 	/**
 	 * @return the number of key-value pairs in the store or nil on failing
@@ -166,7 +165,7 @@ private:
 
 	virtual util::optional<bool> do_exists(const data& k) const = 0;
 
-	virtual util::optional<std::unordered_set<data>> do_keys() const = 0;
+	virtual util::optional<std::vector<data>> do_keys() const = 0;
 
 	virtual util::optional<uint64_t> do_size() const = 0;
 

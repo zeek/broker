@@ -294,14 +294,14 @@ bool exists(const T& f, data k)
  * @return all keys in the data store.
  */
 template <typename T>
-std::unordered_set<data> keys(const T& f)
+std::vector<data> keys(const T& f)
 	{
 	result r = f.keys();
 
 	if ( r.stat != result::status::success )
 		return {};
 
-	return *util::get<std::unordered_set<data>>(r.value);
+	return *util::get<std::vector<data>>(r.value);
 	}
 
 /**

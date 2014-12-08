@@ -2,6 +2,7 @@
 #define BROKER_STORE_MEMORY_BACKEND_IMPL_HH
 
 #include "broker/store/memory_backend.hh"
+#include <unordered_map>
 
 namespace broker {
 namespace store {

@@ -20,6 +20,9 @@ bool compare_contents(const broker::store::frontend& store, const dataset& ds)
 	return actual == ds;
 	}
 
+void populate(const broker::store::master& m, const dataset& ds)
+	{ for ( const auto& p : ds ) m.insert(p.first, p.second); }
+
 int main()
 	{
 	broker::init();
@@ -33,11 +36,6 @@ int main()
 	dataset ds1 = { make_pair("a", "alpha"),
 	                make_pair("b", "bravo"),
 	                make_pair("c", "charlie") };
-
-	auto populate = [](const broker::store::master& m, const dataset& ds)
-		{
-		for ( const auto& p : ds ) m.insert(p.first, p.second);
-		};
 
 	populate(data0, ds0);
 	populate(data1, ds1);

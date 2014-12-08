@@ -11,7 +11,9 @@
 #include "subscription.hh"
 #include <caf/announce.hpp>
 #include <caf/shutdown.hpp>
+#include <type_traits>
 #include <cstdio>
+#include <cstring>
 #include <deque>
 #include <mutex>
 
@@ -39,7 +41,7 @@ int broker_init(int flags)
 	                        &peering::impl::peer_actor, &peering::impl::remote,
 	                        &peering::impl::remote_tuple);
 	announce<sequence_num>(&sequence_num::sequence);
-	announce<snapshot>(&snapshot::datastore, &snapshot::sn);
+	announce<snapshot>(&snapshot::entries, &snapshot::sn);
 	announce<data::tag>();
 	announce(typeid(data),
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
@@ -84,10 +86,29 @@ const char* broker_strerror(int broker_errno)
 	}
 	}
 
-int broker_strerror_r(int broker_errno, char* buf, size_t len)
+static void strerror_r_helper(char* result, char* buf, size_t buflen)
+	{
+	// Seems the GNU flavor of strerror_r may return a pointer to a static
+	// string.  So try to copy as much as possible in to desire buffer.
+	auto len = strlen(result);
+	strncpy(buf, result, buflen);
+
+	if ( len >= buflen )
+		buf[buflen - 1] = 0;
+	}
+
+static void strerror_r_helper(int result, char* buf, size_t buflen)
+	{ /* XSI flavor of strerror_r, no-op. */ }
+
+void broker_strerror_r(int broker_errno, char* buf, size_t buflen)
 	{
 	switch ( broker_errno ) {
 	default:
-		return ::strerror_r(broker_errno, buf, len);
+		{
+		auto res = ::strerror_r(broker_errno, buf, buflen);
+		// GNU vs. XSI flavors make it harder to use strerror_r.
+		strerror_r_helper(res, buf, buflen);
+		}
+		break;
 	}
 	}
