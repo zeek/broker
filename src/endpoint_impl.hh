@@ -181,7 +181,7 @@ public:
 			{
 			if ( local_subscriptions.exact_match(id) )
 				{
-				report::error("endpoint." + name + ".data.master." + id,
+				report::error("endpoint." + name + ".store.master." + id,
 				              "Failed to register master data store with id '"
 				              + id + "' because a master already exists with"
 				                     " that id.");
@@ -258,7 +258,7 @@ public:
 				forward_to(master);
 				}
 			else
-				report::warn("endpoint." + name + ".data.master." + id,
+				report::warn("endpoint." + name + ".store.master." + id,
 				             "Data store update dropped due to nonexistent "
 				             " master with id '" + id + "'");
 			},

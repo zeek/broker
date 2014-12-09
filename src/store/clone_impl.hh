@@ -191,7 +191,7 @@ public:
 					{
 					if ( m )
 						{
-						BROKER_DEBUG("data.clone." + master_name,
+						BROKER_DEBUG("store.clone." + master_name,
 						             "Located master");
 						demonitor(master);
 						master = move(m);
@@ -199,7 +199,7 @@ public:
 						}
 					else
 						{
-						BROKER_DEBUG("data.clone." + master_name,
+						BROKER_DEBUG("store.clone." + master_name,
 						             "Failed to locate master, will retry...");
 						delayed_send(this, resync_interval, atom("findmaster"));
 						}
@@ -210,7 +210,7 @@ public:
 			{
 			if ( d.source == master.address() )
 				{
-				BROKER_DEBUG("data.clone." + master_name,
+				BROKER_DEBUG("store.clone." + master_name,
 				             "master went down, trying to relocate...");
 				send(this, atom("findmaster"));
 				get_snapshot(resync_interval);
@@ -233,7 +233,7 @@ public:
 			          this).then(
 				on_arg_match >> [=](const sync_exited_msg& m)
 					{
-					BROKER_DEBUG("data.clone." + master_name,
+					BROKER_DEBUG("store.clone." + master_name,
 					             "master went down while requesting snapshot,"
 					             " will retry...");
 					get_snapshot(resync_interval);
@@ -243,7 +243,7 @@ public:
 					if ( r.stat != result::status::success ||
 					     r.value.which() != result::tag::snapshot_result )
 						{
-						BROKER_DEBUG("data.clone." + master_name,
+						BROKER_DEBUG("store.clone." + master_name,
 						             "got invalid snapshot response, retry...");
 						get_snapshot(resync_interval);
 						}
@@ -251,7 +251,7 @@ public:
 						{
 						if ( datastore->init(move(*get<snapshot>(r.value))) )
 							{
-							BROKER_DEBUG("data.clone." + master_name,
+							BROKER_DEBUG("store.clone." + master_name,
 							             "successful init from snapshot");
 							become(active);
 							}
@@ -275,7 +275,7 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg, bool fatal = false)
 		{
-		report::error("data.clone." + master_name, "failed to " + method_name
+		report::error("store.clone." + master_name, "failed to " + method_name
 		              + ": " + err_msg);
 
 		if ( fatal )
@@ -300,7 +300,7 @@ private:
 	void sequence_error(const identifier& master_name,
 	                    const std::chrono::microseconds& resync_interval)
 		{
-		report::error("data.clone." + master_name, "got desynchronized");
+		report::error("store.clone." + master_name, "got desynchronized");
 		get_snapshot(resync_interval);
 		}
 

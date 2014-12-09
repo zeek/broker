@@ -153,7 +153,7 @@ public:
 				return;
 				}
 
-			BROKER_DEBUG("data.master." + name, "Expire key: " + to_string(k));
+			BROKER_DEBUG("store.master." + name, "Expire key: " + to_string(k));
 			timers.erase(k);
 
 			if ( ! clones.empty() )
@@ -305,7 +305,7 @@ private:
 	void error(std::string master_name, std::string method_name,
 	           std::string err_msg)
 		{
-		report::error("data.master." + master_name, "failed to " + method_name
+		report::error("store.master." + master_name, "failed to " + method_name
 		              + ": " + err_msg);
 		}
 
