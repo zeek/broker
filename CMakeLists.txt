@@ -59,12 +59,15 @@ set_source_files_properties(src/store/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
 set(BROKER_SRC
+    src/address.cc
     src/broker.cc
     src/data.cc
     src/endpoint.cc
     src/message_queue.cc
     src/peering.cc
+    src/port.cc
     src/report.cc
+    src/subnet.cc
     src/subscription.cc
     src/queue.cc
     src/store/backend.cc

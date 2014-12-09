@@ -4,6 +4,9 @@
 #include <broker/util/variant.hh>
 #include <broker/util/optional.hh>
 #include <broker/util/hash.hh>
+#include <broker/address.hh>
+#include <broker/subnet.hh>
+#include <broker/port.hh>
 #include <cstdint>
 #include <string>
 #include <set>
@@ -81,12 +84,12 @@ public:
 		count,    // uint64_t
 		real,     // double
 		string,   // std::string
+		address,  // broker::address
+		subnet,   // broker::subnet
+		port,     // broker::port
 		// TODO: time
 		// TODO: interval
 		// TODO: enumeration
-		// TODO: port
-		// TODO: address
-		// TODO: subnet
 
 		// Compound types
 		set,
@@ -102,6 +105,9 @@ public:
 	    int64_t,
 	    double,
 	    std::string,
+	    address,
+	    subnet,
+	    port,
 	    set,
 	    table,
 	    vector,
@@ -125,6 +131,9 @@ public:
                 std::is_convertible<T, std::string>::value,
                 std::string,
                 util::conditional_t<
+	                 std::is_same<T, address>::value ||
+	                 std::is_same<T, subnet>::value ||
+	                 std::is_same<T, port>::value ||
 	                 std::is_same<T, set>::value ||
 	                 std::is_same<T, table>::value ||
 	                 std::is_same<T, vector>::value ||
@@ -219,20 +228,26 @@ std::ostream& operator<<(std::ostream&, const broker::table&);
 std::ostream& operator<<(std::ostream&, const broker::record&);
 
 namespace std {
+
 template <> struct hash<broker::data> {
 	using value_type = broker::data::types;
 	using result_type = typename std::hash<value_type>::result_type;
 	using argument_type = broker::data;
+
 	inline result_type operator()(const argument_type& d) const
 		{ return std::hash<value_type>{}(d.value); }
 };
+
 template <> struct hash<broker::set> :
                    broker::util::container_hasher<broker::set> { };
+
 template <> struct hash<broker::vector> :
                    broker::util::container_hasher<broker::vector> { };
+
 template <> struct hash<broker::table::value_type> {
 	using result_type = typename std::hash<broker::data>::result_type;
 	using argument_type = broker::table::value_type;
+
 	inline result_type operator()(const argument_type& d) const
 		{
 		result_type rval{};
@@ -241,13 +256,16 @@ template <> struct hash<broker::table::value_type> {
 		return rval;
 		}
 };
+
 template <> struct hash<broker::table> :
                    broker::util::container_hasher<broker::table> { };
+
 template <> struct hash<broker::record> {
 	using result_type =
 	      typename broker::util::container_hasher<
 	               decltype(broker::record::fields)>::result_type;
 	using argument_type = broker::record;
+
 	inline result_type operator()(const argument_type& d) const
 		{
 		return broker::util::container_hasher<

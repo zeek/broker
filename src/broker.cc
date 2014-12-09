@@ -6,6 +6,9 @@
 #include "broker/store/expiration_time.hh"
 #include "store/result_type_info.hh"
 #include "data_type_info.hh"
+#include "address_type_info.hh"
+#include "subnet_type_info.hh"
+#include "port_type_info.hh"
 #include "peering_impl.hh"
 #include "peering_type_info.hh"
 #include "subscription.hh"
@@ -47,6 +50,12 @@ int broker_init(int flags)
 	         unique_ptr<caf::uniform_type_info>(new data_type_info));
 	announce(typeid(util::optional<data>),
 	         unique_ptr<caf::uniform_type_info>(new optional_data_type_info));
+	announce(typeid(address),
+	         unique_ptr<caf::uniform_type_info>(new address_type_info));
+	announce(typeid(subnet),
+	         unique_ptr<caf::uniform_type_info>(new subnet_type_info));
+	announce(typeid(port),
+	         unique_ptr<caf::uniform_type_info>(new port_type_info));
 	announce<record>(&record::fields);
 	announce<std::unordered_set<data>>();
 	announce<broker::set>();
