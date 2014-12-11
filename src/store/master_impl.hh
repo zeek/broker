@@ -3,22 +3,18 @@
 
 #include "broker/store/master.hh"
 #include "broker/report.hh"
+#include "broker/time_point.hh"
 #include <caf/send.hpp>
 #include <caf/spawn.hpp>
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
-#include <sys/time.h>
 #include <unordered_map>
 
 namespace broker { namespace store {
 
-static double now()
-	{
-	struct timeval tv;
-	gettimeofday(&tv, 0);
-	return tv.tv_sec + (tv.tv_usec / 1000000.0);
-	}
+static inline double now()
+	{ return broker::time_point::now().value; }
 
 class timer_actor : public caf::sb_actor<timer_actor> {
 friend class caf::sb_actor<timer_actor>;

@@ -7,6 +7,9 @@
 #include <broker/address.hh>
 #include <broker/subnet.hh>
 #include <broker/port.hh>
+#include <broker/time_duration.hh>
+#include <broker/time_point.hh>
+#include <broker/enum_value.hh>
 #include <cstdint>
 #include <string>
 #include <set>
@@ -79,18 +82,17 @@ public:
 
 	enum class tag : uint8_t {
 		// Primitive types
-		boolean,  // bool
-		integer,  // int64_t
-		count,    // uint64_t
-		real,     // double
-		string,   // std::string
-		address,  // broker::address
-		subnet,   // broker::subnet
-		port,     // broker::port
-		// TODO: time
-		// TODO: interval
-		// TODO: enumeration
-
+		boolean,     // bool
+		integer,     // int64_t
+		count,       // uint64_t
+		real,        // double
+		string,      // std::string
+		address,     // broker::address
+		subnet,      // broker::subnet
+		port,        // broker::port
+		time,        // broker::time_point
+		duration,    // broker::time_duration
+		enum_value,  // broker::enum_value
 		// Compound types
 		set,
 		table,
@@ -108,6 +110,9 @@ public:
 	    address,
 	    subnet,
 	    port,
+	    time_point,
+	    time_duration,
+	    enum_value,
 	    set,
 	    table,
 	    vector,
@@ -134,6 +139,9 @@ public:
 	                 std::is_same<T, address>::value ||
 	                 std::is_same<T, subnet>::value ||
 	                 std::is_same<T, port>::value ||
+	                 std::is_same<T, time_point>::value ||
+	                 std::is_same<T, time_duration>::value ||
+	                 std::is_same<T, enum_value>::value ||
 	                 std::is_same<T, set>::value ||
 	                 std::is_same<T, table>::value ||
 	                 std::is_same<T, vector>::value ||

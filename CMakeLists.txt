@@ -69,6 +69,7 @@ set(BROKER_SRC
     src/report.cc
     src/subnet.cc
     src/subscription.cc
+    src/time_point.cc
     src/queue.cc
     src/store/backend.cc
     src/store/clone.cc

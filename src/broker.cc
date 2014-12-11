@@ -1,5 +1,7 @@
 #include "broker/broker.hh"
 #include "broker/report.hh"
+#include "broker/time_duration.hh"
+#include "broker/time_point.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
@@ -56,6 +58,9 @@ int broker_init(int flags)
 	         unique_ptr<caf::uniform_type_info>(new subnet_type_info));
 	announce(typeid(port),
 	         unique_ptr<caf::uniform_type_info>(new port_type_info));
+	announce<time_duration>(&time_duration::value);
+	announce<time_point>(&time_point::value);
+	announce<enum_value>(&enum_value::name);
 	announce<record>(&record::fields);
 	announce<std::unordered_set<data>>();
 	announce<broker::set>();

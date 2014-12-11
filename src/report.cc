@@ -1,5 +1,5 @@
 #include "broker/report.hh"
-#include <sys/time.h>
+#include "broker/time_point.hh"
 #include <mutex>
 
 namespace broker { namespace report {
@@ -8,12 +8,8 @@ endpoint* manager;
 message_queue* default_queue;
 }}
 
-static double now()
-	{
-	struct timeval tv;
-	gettimeofday(&tv, 0);
-	return tv.tv_sec + (tv.tv_usec / 1000000.0);
-	}
+static inline double now()
+	{ return broker::time_point::now().value; }
 
 static std::string to_string(broker::report::level lvl)
 	{
