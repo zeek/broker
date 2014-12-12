@@ -115,6 +115,62 @@ bool broker::store::memory_backend::do_clear()
 	return true;
 	}
 
+int broker::store::memory_backend::do_push_left(const data& k, vector items)
+	{
+	auto it = pimpl->datastore.find(k);
+
+	if ( it == pimpl->datastore.end() )
+		{
+		pimpl->datastore[k] = value{std::move(items), {}};
+		return 0;
+		}
+
+	if ( util::push_left(it->second.item, std::move(items),
+	                     &pimpl->last_error) )
+		return 0;
+
+	return 1;
+	}
+
+int broker::store::memory_backend::do_push_right(const data& k, vector items)
+	{
+	auto it = pimpl->datastore.find(k);
+
+	if ( it == pimpl->datastore.end() )
+		{
+		pimpl->datastore[k] = value{std::move(items), {}};
+		return 0;
+		}
+
+	if ( util::push_right(it->second.item, std::move(items),
+	                      &pimpl->last_error) )
+		return 0;
+
+	return 1;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::memory_backend::do_pop_left(const data& k)
+	{
+	auto it = pimpl->datastore.find(k);
+
+	if ( it == pimpl->datastore.end() )
+		return {util::optional<data>{}};
+
+	return util::pop_left(it->second.item, &pimpl->last_error, true);
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::memory_backend::do_pop_right(const data& k)
+	{
+	auto it = pimpl->datastore.find(k);
+
+	if ( it == pimpl->datastore.end() )
+		return {util::optional<data>{}};
+
+	return util::pop_right(it->second.item, &pimpl->last_error, true);
+	}
+
 broker::util::optional<broker::util::optional<broker::data>>
 broker::store::memory_backend::do_lookup(const data& k) const
 	{

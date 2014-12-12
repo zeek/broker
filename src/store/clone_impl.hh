@@ -51,11 +51,9 @@ public:
 
 			if ( sn == next )
 				{
-				int rc;
-
-				if ( (rc = datastore->increment(k, by)) != 0 )
+				if ( datastore->increment(k, by) != 0 )
 					error(master_name, "increment", datastore->last_error(),
-					      rc < 0);
+					      true);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -71,11 +69,9 @@ public:
 
 			if ( sn == next )
 				{
-				int rc;
-
-				if ( (rc = datastore->add_to_set(k, std::move(e))) != 0 )
+				if ( datastore->add_to_set(k, std::move(e)) != 0 )
 					error(master_name, "add_to_set", datastore->last_error(),
-					      rc < 0);
+					      true);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -91,11 +87,9 @@ public:
 
 			if ( sn == next )
 				{
-				int rc;
-
-				if ( (rc = datastore->remove_from_set(k, e)) != 0 )
+				if ( datastore->remove_from_set(k, e) != 0 )
 					error(master_name, "remove_from_set",
-					      datastore->last_error(), rc < 0);
+					      datastore->last_error(), true);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
@@ -161,6 +155,70 @@ public:
 				{
 				if ( ! datastore->clear() )
 					fatal_error(master_name, "clear", datastore->last_error());
+				}
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(val<identifier>, atom("lpush"), any_vals) >> [=]
+			{
+			forward_to(master);
+			},
+		on(atom("lpush"), arg_match) >> [=](const sequence_num& sn,
+		                                    const data& k, broker::vector& i)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				{
+				if ( datastore->push_left(k, std::move(i)) != 0 )
+					error(master_name, "push_left",
+					      datastore->last_error(), true);
+				}
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(val<identifier>, atom("rpush"), any_vals) >> [=]
+			{
+			forward_to(master);
+			},
+		on(atom("rpush"), arg_match) >> [=](const sequence_num& sn,
+		                                    const data& k, broker::vector& i)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				{
+				if ( datastore->push_right(k, std::move(i)) != 0 )
+					error(master_name, "push_right",
+					      datastore->last_error(), true);
+				}
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(atom("lpop"), arg_match) >> [=](const sequence_num& sn,
+		                                   const data& k)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				{
+				if ( ! datastore->pop_left(k) )
+					error(master_name, "pop_left", datastore->last_error(),
+					      true);
+				}
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
+		on(atom("rpop"), arg_match) >> [=](const sequence_num& sn,
+		                                   const data& k)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				{
+				if ( ! datastore->pop_right(k) )
+					error(master_name, "pop_right", datastore->last_error(),
+					      true);
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);

@@ -65,6 +65,31 @@ int main(int argc, char** argv)
 		return 1;
 
 	BROKER_TEST(*db->size() == 0);
+
+	BROKER_TEST(! *db->pop_left("ingredients"));
+	BROKER_TEST(! *db->pop_right("ingredients"));
+	BROKER_TEST(db->push_left("ingredients", {"bacon"}) == 0);
+	BROKER_TEST(db->push_right("ingredients", {"eggs"}) == 0);
+	BROKER_TEST(db->push_left("ingredients", {"carrot", "potato"}) == 0);
+	BROKER_TEST(db->push_left("ingredients", {"cabbage", "beet"}) == 0);
+	BROKER_TEST(db->push_right("ingredients", {"beef", "pork"}) == 0);
+	BROKER_TEST(db->push_right("ingredients", {"chicken", "turkey"}) == 0);
+
+	BROKER_TEST(**db->pop_left("ingredients") == "cabbage");
+	BROKER_TEST(**db->pop_right("ingredients") == "turkey");
+	BROKER_TEST(**db->pop_right("ingredients") == "chicken");
+	BROKER_TEST(**db->pop_left("ingredients") == "beet");
+	BROKER_TEST(**db->pop_left("ingredients") == "carrot");
+	BROKER_TEST(**db->pop_right("ingredients") == "pork");
+	BROKER_TEST(**db->pop_right("ingredients") == "beef");
+	BROKER_TEST(**db->pop_right("ingredients") == "eggs");
+	BROKER_TEST(**db->pop_right("ingredients") == "bacon");
+	BROKER_TEST(**db->pop_left("ingredients") == "potato");
+	BROKER_TEST(! *db->pop_left("ingredients"));
+	BROKER_TEST(! *db->pop_right("ingredients"));
+
+	BROKER_TEST(db->erase("ingredients"));
+
 	BROKER_TEST(db->insert("too many cooks", "too many cooks"));
 	BROKER_TEST(*db->size() == 1);
 	BROKER_TEST(*db->exists("too many cooks"));

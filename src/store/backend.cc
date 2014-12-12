@@ -25,7 +25,7 @@ int broker::store::backend::increment(const data& k, int64_t by)
 	{
 	auto rc = do_increment(k, by);
 
-	if ( rc >= 0 )
+	if ( rc == 0 )
 		do_increase_sequence();
 
 	return rc;
@@ -35,7 +35,7 @@ int broker::store::backend::add_to_set(const data& k, data element)
 	{
 	auto rc = do_add_to_set(k, std::move(element));
 
-	if ( rc >= 0 )
+	if ( rc == 0 )
 		do_increase_sequence();
 
 	return rc;
@@ -45,7 +45,7 @@ int broker::store::backend::remove_from_set(const data& k, const data& element)
 	{
 	auto rc = do_remove_from_set(k, element);
 
-	if ( rc >= 0 )
+	if ( rc == 0 )
 		do_increase_sequence();
 
 	return rc;
@@ -67,6 +67,48 @@ bool broker::store::backend::clear()
 
 	do_increase_sequence();
 	return true;
+	}
+
+int broker::store::backend::push_left(const data& k, vector items)
+	{
+	auto rc = do_push_left(k, std::move(items));
+
+	if ( rc == 0 )
+		do_increase_sequence();
+
+	return rc;
+	}
+
+int broker::store::backend::push_right(const data& k, vector items)
+	{
+	auto rc = do_push_right(k, std::move(items));
+
+	if ( rc == 0 )
+		do_increase_sequence();
+
+	return rc;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::backend::pop_left(const data& k)
+	{
+	auto rval = do_pop_left(k);
+
+	if ( rval && *rval )
+		do_increase_sequence();
+
+	return rval;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::backend::pop_right(const data& k)
+	{
+	auto rval = do_pop_right(k);
+
+	if ( rval && *rval )
+		do_increase_sequence();
+
+	return rval;
 	}
 
 broker::util::optional<broker::util::optional<broker::data>>

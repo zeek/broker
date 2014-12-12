@@ -97,6 +97,44 @@ public:
 	bool clear();
 
 	/**
+	 * Push items to the head of a vector.
+	 * @param k the key associated with the vector to modify.
+	 * @param items the items to add to the vector.
+	 * @return zero on success, a negative value on hard failure (fundamental
+	 * issue with the backend prevented the operation from completing),
+	 * or positive value for a soft failure (the operation was invalid,
+	 * so the backend is left unchanged).
+	 */
+	int push_left(const data& k, vector items);
+
+	/**
+	 * Push items to the tail of a vector.
+	 * @param k the key associated with the vector to modify.
+	 * @param items the items to add to the vector.
+	 * @return zero on success, a negative value on hard failure (fundamental
+	 * issue with the backend prevented the operation from completing),
+	 * or positive value for a soft failure (the operation was invalid,
+	 * so the backend is left unchanged).
+	 */
+	int push_right(const data& k, vector items);
+
+	/**
+	 * Retrieve item at the head of a vector value associated with a given key.
+	 * @param k the key to use
+	 * @return the item if the provided key exists or nil on failing to perform
+	 * the query.
+	 */
+	util::optional<util::optional<data>> pop_left(const data& k);
+
+	/**
+	 * Retrieve item at the tail of a vector value associated with a given key.
+	 * @param k the key to use
+	 * @return the item if the provided key exists or nil on failing to perform
+	 * the query.
+	 */
+	util::optional<util::optional<data>> pop_right(const data& k);
+
+	/**
 	 * Lookup the value associated with a given key.
 	 * @param k the key to use
 	 * @return the value if the provided key exists or nil on failing to perform
@@ -159,6 +197,16 @@ private:
 	virtual bool do_erase(const data& k) = 0;
 
 	virtual bool do_clear() = 0;
+
+	virtual int do_push_left(const data& k, vector items) = 0;
+
+	virtual int do_push_right(const data& k, vector items) = 0;
+
+	virtual util::optional<util::optional<data>>
+	do_pop_left(const data& k) = 0;
+
+	virtual util::optional<util::optional<data>>
+	do_pop_right(const data& k) = 0;
 
 	virtual util::optional<util::optional<data>>
 	do_lookup(const data& k) const = 0;

@@ -68,6 +68,66 @@ bool remove_data_from_set(optional<data>& s, const data& element,
  */
 bool remove_data_from_set(data& s, const data& element, std::string* error_msg);
 
+/**
+ * Push an item to the head of a vector.
+ * @param v the vector to modify.
+ * @param items the elements to add to the vector
+ * @param error_msg an optional location to put an error message.
+ * @return false on failure (i.e. the data type is not a vector).
+ */
+bool push_left(optional<data>& v, vector items, std::string* error_msg);
+
+/**
+ * @see push_left
+ */
+bool push_left(data& v, vector items, std::string* error_msg);
+
+/**
+ * Push an item to the tail of a vector.
+ * @param v the vector to modify.
+ * @param items the elements to add to the vector
+ * @param error_msg an optional location to put an error message.
+ * @return false on failure (i.e. the data type is not a vector).
+ */
+bool push_right(optional<data>& v, vector items, std::string* error_msg);
+
+/**
+ * @see push_right
+ */
+bool push_right(data& v, vector items, std::string* error_msg);
+
+/**
+ * Pop the first item in a vector.
+ * @param v the vector to modify
+ * @param error_msg an optional location to put an error message.
+ * @param shrink whether to consider shrinking the capacity of \a v
+ * @return false on failure (i.e. the data type is not a vector).
+ */
+optional<optional<data>> pop_left(optional<data>& v, std::string* error_msg,
+                                  bool shrink = false);
+
+/**
+ * @see pop_left
+ */
+optional<optional<data>> pop_left(data& v, std::string* error_msg,
+                                  bool shrink = false);
+
+/**
+ * Pop the last item in a vector.
+ * @param v the vector to modify
+ * @param error_msg an optional location to put an error message.
+ * @param shrink whether to consider shrinking the capacity of \a v
+ * @return false on failure (i.e. the data type is not a vector).
+ */
+optional<optional<data>> pop_right(optional<data>& v, std::string* error_msg,
+                                   bool shrink = false);
+
+/**
+ * @see pop_right
+ */
+optional<optional<data>> pop_right(data& v, std::string* error_msg,
+                                   bool shrink = false);
+
 } // namespace util
 } // namespace broker
 

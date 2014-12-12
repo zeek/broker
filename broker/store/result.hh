@@ -20,9 +20,11 @@ public:
 	 * exists_result.
 	 */
 	enum class tag: uint8_t {
+		// "Exists" is also used as lookup result when key doesn't exist or
+		// when popping an empty list.
 		exists_result,
 		size_result,
-		lookup_result,
+		lookup_or_pop_result,
 		keys_result,
 		snapshot_result,
 	};

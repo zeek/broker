@@ -18,6 +18,8 @@ public:
 	 * Distinguishes particular types of queries.
 	 */
 	enum class tag : uint8_t {
+		pop_left,
+		pop_right,
 		lookup,
 		exists,
 		keys,
@@ -41,9 +43,31 @@ public:
 	 * @param s a storage backend to query against.
 	 * @return the result of the query.
 	 */
-	result process(const backend& s) const
+	result process(backend& s) const
 		{
 		switch ( type ) {
+		case tag::pop_left:
+			{
+			if ( auto r = s.pop_left(k) )
+				{
+				if ( *r )
+					return result(std::move(**r));
+				else
+					return result(false);
+				}
+			return result(result::status::failure);
+			}
+		case tag::pop_right:
+			{
+			if ( auto r = s.pop_right(k) )
+				{
+				if ( *r )
+					return result(std::move(**r));
+				else
+					return result(false);
+				}
+			return result(result::status::failure);
+			}
 		case tag::lookup:
 			{
 			if ( auto r = s.lookup(k) )

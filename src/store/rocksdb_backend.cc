@@ -268,6 +268,130 @@ bool broker::store::rocksdb_backend::do_clear()
 	return pimpl->require_ok(open(std::move(db_path), pimpl->options));
 	}
 
+int broker::store::rocksdb_backend::do_push_left(const data& k, vector items)
+	{
+	if ( pimpl->options.merge_operator )
+		{
+		auto kserial = to_serial(k, 'a');
+		auto vserial = to_serial(data{std::move(items)}, 'h');
+
+		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
+			return 0;
+
+		return -1;
+		}
+
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		return -1;
+
+	auto& ov = *oov;
+
+	if ( ! util::push_left(ov, std::move(items), &pimpl->last_error) )
+		return 1;
+
+	const auto& v = *ov;
+
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
+		return 0;
+
+	return -1;
+	}
+
+int broker::store::rocksdb_backend::do_push_right(const data& k, vector items)
+	{
+	if ( pimpl->options.merge_operator )
+		{
+		auto kserial = to_serial(k, 'a');
+		auto vserial = to_serial(data{std::move(items)}, 't');
+
+		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
+			return 0;
+
+		return -1;
+		}
+
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		return -1;
+
+	auto& ov = *oov;
+
+	if ( ! util::push_right(ov, std::move(items), &pimpl->last_error) )
+		return 1;
+
+	const auto& v = *ov;
+
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
+		return 0;
+
+	return -1;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::rocksdb_backend::do_pop_left(const data& k)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		return {};
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		// Fine, key didn't exist.
+		return util::optional<data>{};
+
+	auto& v = *ov;
+
+	auto rval = util::pop_left(v, &pimpl->last_error);
+
+	if ( ! rval )
+		return rval;
+
+	if ( ! *rval )
+		// Fine, popped an empty list.
+		return rval;
+
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
+		return rval;
+
+	return {};
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::rocksdb_backend::do_pop_right(const data& k)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		return {};
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		// Fine, key didn't exist.
+		return util::optional<data>{};
+
+	auto& v = *ov;
+
+	auto rval = util::pop_right(v, &pimpl->last_error);
+
+	if ( ! rval )
+		return rval;
+
+	if ( ! *rval )
+		// Fine, popped an empty list.
+		return rval;
+
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
+		return rval;
+
+	return {};
+	}
+
 broker::util::optional<broker::util::optional<broker::data>>
 broker::store::rocksdb_backend::do_lookup(const data& k) const
 	{
@@ -483,6 +607,24 @@ bool broker::store::rocksdb_merge_operator::FullMerge(
 				rocksdb::Log(logger, "%s", error.data());
 			}
 			break;
+		case 'h':
+			{
+			auto d = from_serial<data>(op.data() + 1, op.size() - 1);
+			auto items = *get<vector>(d);
+
+			if ( ! util::push_left(new_data, std::move(items), &error) )
+				rocksdb::Log(logger, "%s", error.data());
+			}
+			break;
+		case 't':
+			{
+			auto d = from_serial<data>(op.data() + 1, op.size() - 1);
+			auto items = *get<vector>(d);
+
+			if ( ! util::push_right(new_data, std::move(items), &error) )
+				rocksdb::Log(logger, "%s", error.data());
+			}
+			break;
 		default:
 			rocksdb::Log(logger, "invalid operand: %d", op[0]);
 			break;
@@ -502,49 +644,86 @@ bool broker::store::rocksdb_merge_operator::PartialMerge(
         std::string* new_value,
         rocksdb::Logger* logger) const
 	{
-	if ( left_operand[0] != right_operand[0] )
-		return false;
-
+	auto lop = left_operand[0];
+	auto rop = right_operand[0];
 	rocksdb::Slice lslice(left_operand.data() + 1, left_operand.size() - 1);
 	rocksdb::Slice rslice(right_operand.data() + 1, right_operand.size() - 1);
 
-	if ( left_operand[0] == '+' )
+	if ( lop == '+' || rop == '+' )
 		{
-		auto lop = from_serial<int64_t>(lslice);
-		auto rop = from_serial<int64_t>(rslice);
-		auto new_op = lop + rop;
-		new_value->assign(to_serial(new_op, '+'));
+		if ( lop != rop )
+			return false;
+
+		auto lv = from_serial<int64_t>(lslice);
+		auto rv = from_serial<int64_t>(rslice);
+		auto nv = lv + rv;
+		new_value->assign(to_serial(nv, '+'));
 		return true;
+		}
+
+	if ( lop == 'h' )
+		{
+		if ( rop != 'h' )
+			return false;
+
+		auto ld = from_serial<data>(lslice);
+		auto rd = from_serial<data>(rslice);
+		auto lv = *get<vector>(ld);
+		auto rv = *get<vector>(rd);
+
+		for ( auto& e : lv )
+			rv.emplace_back(std::move(e));
+
+		new_value->assign(to_serial(rv, 'h'));
+		}
+	else if ( lop == 't' )
+		{
+		if ( rop != 't' )
+			return false;
+
+		auto ld = from_serial<data>(lslice);
+		auto rd = from_serial<data>(rslice);
+		auto lv = *get<vector>(ld);
+		auto rv = *get<vector>(rd);
+
+		for ( auto& e : rv )
+			lv.emplace_back(std::move(e));
+
+		new_value->assign(to_serial(lv, 't'));
 		}
 
 	if ( lslice != rslice )
 		return false;
 
-	if ( left_operand[0] == 'a' )
+	if ( lop == 'a' )
 		{
-		if ( right_operand[0] == 'a' )
+		if ( rop == 'a' )
 			{
 			new_value->assign(left_operand.data(), left_operand.size());
 			return true;
 			}
-		else if ( right_operand[0] == 'r' )
+		else if ( rop == 'r' )
 			{
 			new_value->assign("");
 			return true;
 			}
+		else
+			return false;
 		}
-	else if ( left_operand[0] == 'r' )
+	else if ( lop == 'r' )
 		{
-		if ( right_operand[0] == 'a' )
+		if ( rop == 'a' )
 			{
 			new_value->assign(right_operand.data(), right_operand.size());
 			return true;
 			}
-		else if ( right_operand[0] == 'r' )
+		else if ( rop == 'r' )
 			{
 			new_value->assign(left_operand.data(), left_operand.size());
 			return true;
 			}
+		else
+			return false;
 		}
 
 	rocksdb::Log(logger, "invalid merge operand(s)");

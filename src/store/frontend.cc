@@ -83,14 +83,31 @@ void broker::store::frontend::remove_from_set(data k, data element) const
 	               std::move(k), std::move(element));
 	}
 
+void broker::store::frontend::push_left(data k, vector item) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, caf::atom("lpush"),
+	               std::move(k), std::move(item));
+	}
+
+void broker::store::frontend::push_right(data k, vector item) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, caf::atom("rpush"),
+	               std::move(k), std::move(item));
+	}
+
 broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;
 	caf::scoped_actor self;
 	caf::actor store_actor = caf::invalid_actor;
+	bool need_master = q.type == query::tag::pop_left ||
+	                   q.type == query::tag::pop_right;
+	caf::actor& where = need_master ? pimpl->endpoint
+	                                : handle_to_actor(handle());
 
-	self->sync_send(handle_to_actor(handle()), caf::atom("storeactor"),
-	                pimpl->master_name).await(
+	self->sync_send(where, caf::atom("storeactor"), pimpl->master_name).await(
 		caf::on_arg_match >> [&store_actor](caf::actor& sa)
 			{
 			store_actor = std::move(sa);
@@ -113,7 +130,12 @@ void broker::store::frontend::request(query q,
                                       std::chrono::duration<double> timeout,
                                       void* cookie) const
 	{
-	caf::spawn<requester>(handle_to_actor(handle()),
+	bool need_master = q.type == query::tag::pop_left ||
+	                   q.type == query::tag::pop_right;
+	caf::actor& where = need_master ? pimpl->endpoint
+	                                : handle_to_actor(handle());
+
+	caf::spawn<requester>(where,
 	           pimpl->master_name, std::move(q),
 	           handle_to_actor(pimpl->responses.handle()),
 	           timeout, cookie);

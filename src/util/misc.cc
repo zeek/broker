@@ -90,3 +90,163 @@ bool broker::util::remove_data_from_set(data& s, const data& element,
 
 	return false;
 	}
+
+bool broker::util::push_left(optional<data>& v, vector items,
+                             std::string* error_msg)
+	{
+	if ( v )
+		return push_left(*v, std::move(items), error_msg);
+
+	v = data{std::move(items)};
+	return true;
+	}
+
+bool broker::util::push_left(data& v, vector items, std::string* error_msg)
+	{
+	broker::vector* vv = get<broker::vector>(v);
+
+	if ( vv )
+		{
+		items.reserve(items.size() + vv->size());
+
+		for ( auto& i : *vv )
+			items.emplace_back(std::move(i));
+
+		using std::swap;
+		swap(items, *vv);
+		return true;
+		}
+
+	if ( error_msg )
+		{
+		char tmp[64];
+		snprintf(tmp, sizeof(tmp), "attempt to push to a non-vector tag %d",
+		         static_cast<int>(which(v)));
+		*error_msg = tmp;
+		}
+
+	return false;
+	}
+
+bool broker::util::push_right(optional<data>& v, vector items,
+                              std::string* error_msg)
+	{
+	if ( v )
+		return push_right(*v, std::move(items), error_msg);
+
+	v = data{std::move(items)};
+	return true;
+	}
+
+bool broker::util::push_right(data& v, vector items, std::string* error_msg)
+	{
+	broker::vector* vv = get<broker::vector>(v);
+
+	if ( vv )
+		{
+		vv->reserve(items.size() + vv->size());
+
+		for ( auto& i : items )
+			vv->emplace_back(std::move(i));
+
+		return true;
+		}
+
+	if ( error_msg )
+		{
+		char tmp[64];
+		snprintf(tmp, sizeof(tmp), "attempt to push to a non-vector tag %d",
+		         static_cast<int>(which(v)));
+		*error_msg = tmp;
+		}
+
+	return false;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::util::pop_left(broker::util::optional<broker::data>& v,
+                       std::string* error_msg, bool shrink)
+	{
+	if ( v )
+		return pop_left(*v, error_msg, shrink);
+
+	return {optional<data>{}};
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::util::pop_left(broker::data& v, std::string* error_msg, bool shrink)
+	{
+	broker::vector* vv = get<broker::vector>(v);
+
+	if ( vv )
+		{
+		if ( vv->empty() )
+			return {optional<data>{}};
+
+		auto rval = std::move(vv->front());
+		// NIT: removing front of std::vector is slow, but can't do much else
+		// other than change broker::vector to use std::deque.  That is worth
+		// consideration; the only thing stopping that at the moment is
+		// std::deque<T> won't work for incomplete type T's (broker::data in
+		// this case).  Technically, all STL containers claim undefined
+		// behavior for incomplete types, but compilers still work for some
+		// (e.g. vector, set, map).
+		vv->erase(vv->begin());
+
+		if ( shrink && vv->capacity() > vv->size() * 8 )
+			vv->shrink_to_fit();
+
+		return {std::move(rval)};
+		}
+
+	if ( error_msg )
+		{
+		char tmp[64];
+		snprintf(tmp, sizeof(tmp), "attempt to pop from a non-vector tag %d",
+		         static_cast<int>(which(v)));
+		*error_msg = tmp;
+		}
+
+	return {};
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::util::pop_right(broker::util::optional<broker::data>& v,
+                        std::string* error_msg, bool shrink)
+	{
+	if ( v )
+		return pop_right(*v, error_msg, shrink);
+
+	return {optional<data>{}};
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::util::pop_right(broker::data& v, std::string* error_msg, bool shrink)
+	{
+	broker::vector* vv = get<broker::vector>(v);
+
+	if ( vv )
+		{
+		if ( vv->empty() )
+			return {optional<data>{}};
+
+		auto rval = std::move(vv->back());
+		vv->pop_back();
+
+		if ( shrink && vv->capacity() > vv->size() * 8 )
+			vv->shrink_to_fit();
+
+		vv->shrink_to_fit();
+		return {std::move(rval)};
+		}
+
+	if ( error_msg )
+		{
+		char tmp[64];
+		snprintf(tmp, sizeof(tmp), "attempt to pop from a non-vector tag %d",
+		         static_cast<int>(which(v)));
+		*error_msg = tmp;
+		}
+
+	return {};
+	}

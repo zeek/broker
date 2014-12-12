@@ -134,6 +134,26 @@ public:
 	 */
 	void remove_from_set(data k, data element) const;
 
+	/**
+	 * Add a new item to the head of a vector.
+	 * @param k the key associated with the vector to modify.  If the value
+	 * associated with the key is not a vector, no operation takes place and an
+	 * error message is generated.  If the key does not exist, it is first
+	 * implicitly created as an empty vector.
+	 * @param items the new items to prepend to the vector.
+	 */
+	void push_left(data k, vector items) const;
+
+	/**
+	 * Add a new item to the tail of a vector.
+	 * @param k the key associated with the vector to modify.  If the value
+	 * associated with the key is not a vector, no operation takes place and an
+	 * error message is generated.  If the key does not exist, it is first
+	 * implicitly created as an empty vector.
+	 * @param items the new items to append to the vector.
+	 */
+	void push_right(data k, vector items) const;
+
 	/*
 	 * Query Interface - blocking.
 	 * May have high latency if data is non-local.
@@ -145,6 +165,31 @@ public:
 	 * @return the result of the query.
 	 */
 	result request(query q) const;
+
+	/**
+	 * Make a query and block until response is received.
+	 * This must always be processed by the master data store since it involves
+	 * modifying the value at the given key.  The result may contain a false
+	 * existence value if the vector was empty at the time of popping.
+	 * @param k the key associated with a vector to pop the head from.
+	 * @return the result of the query.
+	 */
+	result pop_left(data k) const
+		{ return request(query(query::tag::pop_left, std::move(k))); }
+
+	/**
+	 * Make a query and block until response is received.
+	 * This must always be processed by the master data store since it involves
+	 * modifying the value at the given key.  the result may contain a false
+	 * existence value if the vector was empty at the time of popping.
+	 * @param k the key associated with a vector to pop the tail from.
+	 * @return the result of the query.
+	 */
+	result pop_right(data k) const
+		{ return request(query(query::tag::pop_right, std::move(k))); }
+
+	// TODO: there could also be blocking forms of pop_{left,right}
+	// where it does not return until there was actually something to pop.
 
 	/**
 	 * Make a query and block until response is received.
@@ -194,6 +239,40 @@ public:
 	 */
 	void request(query q, std::chrono::duration<double> timeout,
 	             void* cookie = nullptr) const;
+
+	/**
+	 * Make a non-blocking query for the head of a vector value.
+	 * This must always be processed by the master data store since it involves
+	 * modifying the value at the given key.  The result may contain a false
+	 * existence value if the vector was empty at the time of popping.
+	 * @param k the key associated with a vector to pop the head from.
+	 * @param timeout the amount of time after which the query times out.
+	 * @param cookie a pointer value to make available in the result/response
+	 * when it is available.
+	 */
+	void pop_left(data k, std::chrono::duration<double> timeout,
+	              void* cookie = nullptr) const
+		{
+		return request(query(query::tag::pop_left, std::move(k)),
+		               timeout, cookie);
+		}
+
+	/**
+	 * Make a non-blocking query for the tail of a vector value.
+	 * This must always be processed by the master data store since it involves
+	 * modifying the value at the given key.  The result may contain a false
+	 * existence value if the vector was empty at the time of popping.
+	 * @param k the key associated with a vector to pop the tail from.
+	 * @param timeout the amount of time after which the query times out.
+	 * @param cookie a pointer value to make available in the result/response
+	 * when it is available.
+	 */
+	void pop_right(data k, std::chrono::duration<double> timeout,
+	               void* cookie = nullptr) const
+		{
+		return request(query(query::tag::pop_right, std::move(k)),
+		               timeout, cookie);
+		}
 
 	/**
 	 * Make a non-blocking query for the value associated with a key.
@@ -257,6 +336,56 @@ template <typename T>
 util::optional<data> lookup(const T& f, data k)
 	{
 	result r = f.lookup(std::move(k));
+
+	if ( r.stat != result::status::success )
+		return {};
+
+	auto p = util::get<data>(r.value);
+
+	if ( p )
+		return std::move(*p);
+
+	return {};
+	}
+
+/**
+ * Blocking pop of the first item in a data store vector value.
+ * This blocks on receiving a result, not on their being an item available
+ * to pop off the vector.
+ * @tparam T a class that supports the frontend interface.
+ * @param f the frontend to use.
+ * @param k the key associated with a vector to pop.
+ * @return the popped value if the key existed and the vector was not empty.
+ */
+template <typename T>
+util::optional<data> pop_left(const T& f, data k)
+	{
+	result r = f.pop_left(std::move(k));
+
+	if ( r.stat != result::status::success )
+		return {};
+
+	auto p = util::get<data>(r.value);
+
+	if ( p )
+		return std::move(*p);
+
+	return {};
+	}
+
+/**
+ * Blocking pop of the last item in a data store vector value.
+ * This blocks on receiving a result, not on their being an item available
+ * to pop off the vector.
+ * @tparam T a class that supports the frontend interface.
+ * @param f the frontend to use.
+ * @param k the key associated with a vector to pop.
+ * @return the popped value if the key existed and the vector was not empty.
+ */
+template <typename T>
+util::optional<data> pop_right(const T& f, data k)
+	{
+	result r = f.pop_right(std::move(k));
 
 	if ( r.stat != result::status::success )
 		return {};

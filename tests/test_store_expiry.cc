@@ -139,6 +139,7 @@ int main(int argc, char** argv)
 	                make_pair("absexpire", "two"),
 	                make_pair("refresh",   3),
 	                make_pair("morerefresh", broker::set{2, 4, 6, 8}),
+	                make_pair("vrefresh", broker::vector{"m"}),
 	                make_pair("norefresh", "four"),
 	              };
 
@@ -146,6 +147,7 @@ int main(int argc, char** argv)
 	m.insert("absexpire", "two",   abs_expire);
 	m.insert("refresh",   3, mod_expire);
 	m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
+	m.insert("vrefresh", broker::vector{"m"}, mod_expire);
 	m.insert("norefresh", "four",  mod_expire);
 	store::clone c(node, "mystore", chrono::duration<double>(0.25),
 	               move(cbacking));
@@ -156,16 +158,22 @@ int main(int argc, char** argv)
 	usleep(mod_time / 2.0 * 1000000);
 	c.increment("refresh", 5);
 	c.add_to_set("morerefresh", 0);
+	c.push_left("vrefresh", {"l"});
+	c.push_right("vrefresh", {"r"});
 	usleep(mod_time / 2.0 * 1000000);
 	m.decrement("refresh", 2);
 	m.remove_from_set("morerefresh", 6);
+	BROKER_TEST(*pop_left(m, "vrefresh") == "l");
+	BROKER_TEST(*pop_right(m, "vrefresh") == "r");
 
 	ds0.erase("norefresh");
 	ds0["refresh"] = 6;
 	ds0["morerefresh"] = broker::set{0, 2, 4, 8};
+	ds0["vrefresh"] = broker::vector{"m"};
 
 	wait_for(c, "refresh", 6);
 	wait_for(c, "morerefresh", broker::set{0, 2, 4, 8});
+	wait_for(c, "vrefresh", broker::vector{"m"});
 	wait_for(c, "norefresh", false);
 
 	BROKER_TEST(compare_contents(c, ds0));

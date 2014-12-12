@@ -89,6 +89,16 @@ private:
 
 	bool do_clear() override;
 
+	int do_push_left(const data& k, vector items) override;
+
+	int do_push_right(const data& k, vector items) override;
+
+	util::optional<util::optional<data>>
+	do_pop_left(const data& k) override;
+
+	util::optional<util::optional<data>>
+	do_pop_right(const data& k) override;
+
 	util::optional<util::optional<data>>
 	do_lookup(const data& k) const override;
 

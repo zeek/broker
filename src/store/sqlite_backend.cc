@@ -345,6 +345,154 @@ bool broker::store::sqlite_backend::do_clear()
 	return true;
 	}
 
+int broker::store::sqlite_backend::do_push_left(const data& k, vector items)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		{
+		pimpl->last_rc = 0;
+		return -1;
+		}
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		{
+		if ( ::insert(pimpl->insert, k, std::move(items)) )
+			return 0;
+
+		pimpl->last_rc = 0;
+		return -1;
+		}
+
+	auto& v = *ov;
+
+	if ( ! util::push_left(v, std::move(items), &pimpl->our_last_error) )
+		{
+		pimpl->last_rc = -1;
+		return 1;
+		}
+
+	if ( ::update(pimpl->update, k, v) )
+		return 0;
+
+	pimpl->last_rc = 0;
+	return -1;
+	}
+
+int broker::store::sqlite_backend::do_push_right(const data& k, vector items)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		{
+		pimpl->last_rc = 0;
+		return -1;
+		}
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		{
+		if ( ::insert(pimpl->insert, k, std::move(items)) )
+			return 0;
+
+		pimpl->last_rc = 0;
+		return -1;
+		}
+
+	auto& v = *ov;
+
+	if ( ! util::push_right(v, std::move(items), &pimpl->our_last_error) )
+		{
+		pimpl->last_rc = -1;
+		return 1;
+		}
+
+	if ( ::update(pimpl->update, k, v) )
+		return 0;
+
+	pimpl->last_rc = 0;
+	return -1;
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::sqlite_backend::do_pop_left(const data& k)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		{
+		pimpl->last_rc = 0;
+		return {};
+		}
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		// Fine, key didn't exist.
+		return util::optional<data>{};
+
+	auto& v = *ov;
+
+	auto rval = util::pop_left(v, &pimpl->our_last_error);
+
+	if ( ! rval )
+		{
+		pimpl->last_rc = -1;
+		return rval;
+		}
+
+	if ( ! *rval )
+		// Fine, popped an empty list.
+		return rval;
+
+	if ( ::update(pimpl->update, k, v) )
+		return rval;
+
+	pimpl->last_rc = 0;
+	return {};
+	}
+
+broker::util::optional<broker::util::optional<broker::data>>
+broker::store::sqlite_backend::do_pop_right(const data& k)
+	{
+	auto oov = do_lookup(k);
+
+	if ( ! oov )
+		{
+		pimpl->last_rc = 0;
+		return {};
+		}
+
+	auto& ov = *oov;
+
+	if ( ! ov )
+		// Fine, key didn't exist.
+		return util::optional<data>{};
+
+	auto& v = *ov;
+
+	auto rval = util::pop_right(v, &pimpl->our_last_error);
+
+	if ( ! rval )
+		{
+		pimpl->last_rc = -1;
+		return rval;
+		}
+
+	if ( ! *rval )
+		// Fine, popped an empty list.
+		return rval;
+
+	if ( ::update(pimpl->update, k, v) )
+		return rval;
+
+	pimpl->last_rc = 0;
+	return {};
+	}
+
 broker::util::optional<broker::util::optional<broker::data>>
 broker::store::sqlite_backend::do_lookup(const data& k) const
 	{

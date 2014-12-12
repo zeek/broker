@@ -128,12 +128,32 @@ public:
 				}
 			else
 				{
-				if ( q.type == query::tag::snapshot &&
-				     clones.find(r.address()) == clones.end() )
-					{
-					monitor(r);
-					clones[r.address()] = r;
-					}
+				switch ( q.type ) {
+				case query::tag::snapshot:
+				    if ( clones.find(r.address()) == clones.end() )
+						{
+						monitor(r);
+						clones[r.address()] = r;
+						}
+					break;
+				case query::tag::pop_left:
+					// fallthrough
+				case query::tag::pop_right:
+					if ( which(res.value) == result::tag::lookup_or_pop_result )
+						{
+						refresh_modification_time(q.k);
+
+						if ( clones.empty() )
+							break;
+
+						auto op = q.type == query::tag::pop_left ? atom("lpop")
+						                                         : atom("rpop");
+						publish(make_message(op, datastore->sequence(), q.k));
+						}
+					break;
+				default:
+					break;
+				}
 				}
 
 			return make_message(this, move(res));
@@ -159,12 +179,10 @@ public:
 		on(val<identifier>, atom("increment"), arg_match) >> [=](data& k,
 		                                                         int64_t by)
 			{
-			int rc;
-
-			if ( (rc = datastore->increment(k, by)) != 0 )
+			if ( datastore->increment(k, by) != 0 )
 				{
 				error(name, "increment", datastore->last_error());
-				if ( rc < 0 ) return;
+				return;
 				}
 
 			refresh_modification_time(k);
@@ -175,13 +193,10 @@ public:
 			},
 		on(val<identifier>, atom("set_add"), arg_match) >> [=](data& k, data& e)
 			{
-			int rc;
-
-			if ( (rc = datastore->add_to_set(k, clones.empty() ? move(e)
-			                                                   : e)) != 0 )
+			if ( datastore->add_to_set(k, clones.empty() ? move(e) : e) != 0 )
 				{
 				error(name, "add_to_set", datastore->last_error());
-				if ( rc < 0 ) return;
+				return;
 				}
 
 			refresh_modification_time(k);
@@ -192,12 +207,10 @@ public:
 			},
 		on(val<identifier>, atom("set_rem"), arg_match) >> [=](data& k, data& e)
 			{
-			int rc;
-
-			if ( (rc = datastore->remove_from_set(k, e)) != 0 )
+			if ( datastore->remove_from_set(k, e) != 0 )
 				{
 				error(name, "remove_from_set", datastore->last_error());
-				if ( rc < 0 ) return;
+				return;
 				}
 
 			refresh_modification_time(k);
@@ -266,6 +279,34 @@ public:
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("clear"), datastore->sequence()));
+			},
+		on(val<identifier>, atom("lpush"), arg_match) >> [=](data& k, vector& i)
+			{
+			if ( datastore->push_left(k, clones.empty() ? move(i) : i) != 0 )
+				{
+				error(name, "push_left", datastore->last_error());
+				return;
+				}
+
+			refresh_modification_time(k);
+
+			if ( ! clones.empty() )
+				publish(make_message(atom("lpush"), datastore->sequence(),
+				                     move(k), move(i)));
+			},
+		on(val<identifier>, atom("rpush"), arg_match) >> [=](data& k, vector& i)
+			{
+			if ( datastore->push_right(k, clones.empty() ? move(i) : i) != 0 )
+				{
+				error(name, "push_right", datastore->last_error());
+				return;
+				}
+
+			refresh_modification_time(k);
+
+			if ( ! clones.empty() )
+				publish(make_message(atom("rpush"), datastore->sequence(),
+				                     move(k), move(i)));
 			}
 		};
 
