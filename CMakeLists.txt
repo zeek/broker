@@ -1,5 +1,5 @@
 project(broker C CXX)
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 2.8.8)
 include(cmake/CommonCMakeConfig.cmake)
 
 find_package(Libcaf COMPONENTS core io REQUIRED)
@@ -97,6 +97,10 @@ if ( ENABLE_SHARED )
                           SOVERSION ${BROKER_SOVERSION}
                           VERSION ${BROKER_VERSION}
                           MACOSX_RPATH true
+                          # INSTALL_NAME_DIR can be removed when
+                          # CMake 2.8.12 is required (redundant with
+                          # MACOSX_RPATH).
+                          INSTALL_NAME_DIR "@rpath"
                           OUTPUT_NAME broker)
     target_link_libraries(broker ${LINK_LIBS})
     install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
