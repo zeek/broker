@@ -15,6 +15,10 @@ class subnet_type_info
       : public caf::detail::abstract_uniform_type_info<subnet> {
 public :
 
+	subnet_type_info()
+		: caf::detail::abstract_uniform_type_info<subnet>("broker::subnet")
+		{}
+
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const subnet*>(ptr);

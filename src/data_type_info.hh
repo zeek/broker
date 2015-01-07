@@ -14,6 +14,10 @@ namespace broker {
 class data_type_info : public caf::detail::abstract_uniform_type_info<data> {
 public:
 
+	data_type_info()
+		: caf::detail::abstract_uniform_type_info<data>("broker::data")
+		{}
+
 	struct serializer {
 		using result_type = void;
 
@@ -55,6 +59,12 @@ public:
  */
 class optional_data_type_info :
       public caf::detail::abstract_uniform_type_info<util::optional<data>> {
+public:
+
+	optional_data_type_info()
+		: caf::detail::abstract_uniform_type_info<util::optional<data>>(
+	          "broker::util::optional<data>")
+		{}
 
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{

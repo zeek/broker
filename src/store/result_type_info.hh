@@ -13,6 +13,13 @@ namespace broker { namespace store {
  */
 class result_type_info
         : public caf::detail::abstract_uniform_type_info<result> {
+public:
+
+	result_type_info()
+		: caf::detail::abstract_uniform_type_info<result>(
+	          "broker::store::result")
+		{}
+
 	struct serializer {
 		using result_type = void;
 

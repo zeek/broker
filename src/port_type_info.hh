@@ -16,6 +16,10 @@ class port_type_info
       : public caf::detail::abstract_uniform_type_info<port> {
 public :
 
+	port_type_info()
+		: caf::detail::abstract_uniform_type_info<port>("broker::port")
+		{}
+
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		using ut = std::underlying_type<port::protocol>::type;

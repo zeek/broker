@@ -15,6 +15,10 @@ class peering_type_info
       : public caf::detail::abstract_uniform_type_info<peering> {
 public:
 
+	peering_type_info()
+		: caf::detail::abstract_uniform_type_info<peering>("broker::peering")
+		{}
+
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const peering*>(ptr);

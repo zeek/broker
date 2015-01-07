@@ -15,6 +15,10 @@ class address_type_info
       : public caf::detail::abstract_uniform_type_info<address> {
 public :
 
+	address_type_info()
+		: caf::detail::abstract_uniform_type_info<address>("broker::address")
+		{}
+
 	void serialize(const void* ptr, caf::serializer* sink) const override
 		{
 		auto p = reinterpret_cast<const address*>(ptr);

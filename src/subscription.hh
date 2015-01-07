@@ -23,7 +23,12 @@ using topic_set = util::radix_tree<bool>;
  */
 class topic_set_type_info
         : public caf::detail::abstract_uniform_type_info<topic_set> {
-private:
+public:
+
+	topic_set_type_info()
+		: caf::detail::abstract_uniform_type_info<topic_set>(
+	          "broker::topic_set")
+		{}
 
 	void serialize(const void* ptr, caf::serializer* sink) const override;
 	void deserialize(void* ptr, caf::deserializer* source) const override;
