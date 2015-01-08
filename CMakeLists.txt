@@ -1,5 +1,5 @@
 project(broker C CXX)
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8)
 include(cmake/CommonCMakeConfig.cmake)
 
 find_package(Libcaf COMPONENTS core io REQUIRED)
@@ -31,21 +31,14 @@ set(BROKER_VERSION
     ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}.${BROKER_VERSION_PATCH})
 # The SO number shall increase only if binary interface changes.
 set(BROKER_SOVERSION 0)
+set(ENABLE_SHARED true)
 
 if ( ENABLE_STATIC_ONLY )
-    set(ENABLE_SHARED false)
-else ()
-    set(ENABLE_SHARED true)
-endif ()
-
-if ( ENABLE_STATIC )
     set(ENABLE_STATIC true)
-else ()
-    set(ENABLE_STATIC false)
+    set(ENABLE_SHARED false)
 endif ()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 install(DIRECTORY broker DESTINATION include)
 
@@ -85,14 +78,12 @@ set(BROKER_SRC
     ${OPTIONAL_SRC}
     ${BROKER_HDR})
 
-add_library(broker_objs OBJECT ${BROKER_SRC})
-
 if ( NOT INSTALL_LIB_DIR )
     set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 endif ()
 
 if ( ENABLE_SHARED )
-    add_library(broker SHARED $<TARGET_OBJECTS:broker_objs>)
+    add_library(broker SHARED ${BROKER_SRC})
     set_target_properties(broker PROPERTIES
                           SOVERSION ${BROKER_SOVERSION}
                           VERSION ${BROKER_VERSION}
@@ -107,7 +98,7 @@ if ( ENABLE_SHARED )
 endif ()
 
 if ( ENABLE_STATIC )
-    add_library(brokerStatic STATIC $<TARGET_OBJECTS:broker_objs>)
+    add_library(brokerStatic STATIC ${BROKER_SRC})
     set_target_properties(brokerStatic PROPERTIES OUTPUT_NAME broker)
     target_link_libraries(brokerStatic ${LINK_LIBS})
     install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
