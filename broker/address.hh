@@ -97,6 +97,11 @@ private:
 	std::array<uint8_t, 16> addr; // Always in network order.
 };
 
+std::string to_string(const address& a);
+std::ostream& operator<<(std::ostream& out, const address& a);
+bool operator==(const address& lhs, const address& rhs);
+bool operator<(const address& lhs, const address& rhs);
+
 } // namespace broker
 
 namespace std {

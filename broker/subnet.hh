@@ -57,6 +57,11 @@ private:
 	uint8_t len;
 };
 
+std::string to_string(const subnet& s);
+std::ostream& operator<<(std::ostream& out, const subnet& s);
+bool operator==(const subnet& lhs, const subnet& rhs);
+bool operator<(const subnet& lhs, const subnet& rhs);
+
 } // namespace broker
 
 namespace std {

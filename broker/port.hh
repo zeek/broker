@@ -62,6 +62,11 @@ private:
 	protocol proto;
 };
 
+std::string to_string(const port& p);
+std::ostream& operator<<(std::ostream& out, const port& p);
+bool operator==(const port& lhs, const port& rhs);
+bool operator<(const port& lhs, const port& rhs);
+
 } // namespace broker
 
 namespace std {

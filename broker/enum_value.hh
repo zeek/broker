@@ -20,6 +20,32 @@ struct enum_value : util::totally_ordered<enum_value> {
 		{}
 
 	/**
+	 * Copy constructor.
+	 */
+	enum_value(const enum_value&) = default;
+
+	/**
+	 * Move constructor.
+	 */
+	enum_value(enum_value&&) = default;
+
+	/**
+	 * Copy assignment.
+	 */
+	enum_value& operator=(const enum_value&) = default;
+
+	/**
+	 * Move assignment.  (explicitly implemented here since GCC may not
+	 * have a noexcept version of std::string's move assignment, but
+	 * it really should be ok when strings use same allocator)
+	 */
+	enum_value& operator=(enum_value&& rhs) noexcept
+		{
+		name = std::move(rhs.name);
+		return *this;
+		}
+
+	/**
 	 * Construct enum value from a string.
 	 */
 	enum_value(std::string arg_name)
