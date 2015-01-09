@@ -117,8 +117,8 @@ public:
 	 * @param addr an address to accept on, e.g. "127.0.0.1".
 	 *             A nullptr refers to @p INADDR_ANY.
 	 * @return true if the endpoint is now listening, else false.  For the
-	 *         later case, LastError() contains descriptive error text and
-	 *         LastErrno(), if non-zero, is an error code set by @p bind(2).
+	 *         later case, last_error() contains descriptive error text and
+	 *         last_errno(), if non-zero, is an error code set by @p bind(2).
 	 */
 	bool listen(uint16_t port, const char* addr = nullptr);
 
