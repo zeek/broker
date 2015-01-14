@@ -7,6 +7,8 @@ public:
 	broker::topic subscription_prefix;
 };
 
+broker::message_queue::message_queue() = default;
+
 broker::message_queue::~message_queue() = default;
 
 broker::message_queue::message_queue(message_queue&&) = default;
@@ -25,3 +27,6 @@ broker::message_queue::message_queue(topic prefix, const endpoint& e)
 
 const broker::topic& broker::message_queue::get_topic_prefix() const
 	{ return pimpl->subscription_prefix; }
+
+broker::message_queue::operator bool() const
+	{ return pimpl != nullptr; }

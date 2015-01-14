@@ -17,6 +17,11 @@ class message_queue : public queue<broker::message> {
 public:
 
 	/**
+	 * Create an unitialized message queue.
+	 */
+	message_queue();
+
+	/**
 	 * Destruct message_queue.
 	 */
 	~message_queue();
@@ -54,6 +59,11 @@ public:
 	 * @return the subscription topic prefix of the queue.
 	 */
 	const topic& get_topic_prefix() const;
+
+	/**
+	 * True if the message_queue is initialized for use, else false.
+	 */
+	explicit operator bool() const;
 
 private:
 
