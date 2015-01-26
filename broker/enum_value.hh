@@ -4,6 +4,7 @@
 #include <broker/util/operators.hh>
 #include <string>
 #include <functional>
+#include <ostream>
 
 namespace broker {
 
@@ -48,7 +49,7 @@ struct enum_value : util::totally_ordered<enum_value> {
 	/**
 	 * Construct enum value from a string.
 	 */
-	enum_value(std::string arg_name)
+	explicit enum_value(std::string arg_name)
 		: name(arg_name)
 		{}
 
@@ -60,6 +61,9 @@ inline bool operator==(const enum_value& lhs, const enum_value& rhs)
 
 inline bool operator<(const enum_value& lhs, const enum_value& rhs)
 	{ return lhs.name < rhs.name; }
+
+inline std::ostream& operator<<(std::ostream& out, const enum_value& e)
+	{ return out << e.name; }
 
 } // namespace broker
 

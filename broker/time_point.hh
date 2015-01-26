@@ -4,6 +4,7 @@
 #include <broker/util/operators.hh>
 #include <broker/time_duration.hh>
 #include <functional>
+#include <ostream>
 
 namespace broker {
 
@@ -23,7 +24,7 @@ struct time_point : util::totally_ordered<time_point> {
 	 * Construct a point in time that is some number of seconds away from the
 	 * Unix epoch.
 	 */
-	time_point(double seconds_from_epoch)
+	explicit time_point(double seconds_from_epoch)
 		: value(seconds_from_epoch)
 		{}
 
@@ -56,13 +57,16 @@ inline bool operator<(const time_point& lhs, const time_point& rhs)
 	{ return lhs.value < rhs.value; }
 
 inline time_point operator+(const time_point& lhs, const time_duration& rhs)
-	{ return lhs.value + rhs.value; }
+	{ return time_point{lhs.value + rhs.value}; }
 
 inline time_point operator+(const time_duration& lhs, const time_point& rhs)
-	{ return lhs.value + rhs.value; }
+	{ return time_point{lhs.value + rhs.value}; }
 
 inline time_point operator-(const time_point& lhs, const time_duration& rhs)
-	{ return lhs.value - rhs.value; }
+	{ return time_point{lhs.value - rhs.value}; }
+
+inline std::ostream& operator<<(std::ostream& out, const time_point& d)
+	{ return out << d.value; }
 
 } // namespace broker
 

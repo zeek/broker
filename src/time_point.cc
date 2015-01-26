@@ -5,5 +5,5 @@ broker::time_point broker::time_point::now()
 	{
 	using namespace std::chrono;
 	auto d = system_clock::now().time_since_epoch();
-	return duration_cast<duration<double>>(d).count();
+	return time_point{duration_cast<duration<double>>(d).count()};
 	}

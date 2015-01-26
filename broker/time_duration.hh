@@ -3,6 +3,7 @@
 
 #include <broker/util/operators.hh>
 #include <functional>
+#include <ostream>
 
 namespace broker {
 
@@ -21,7 +22,7 @@ struct time_duration : util::totally_ordered<time_duration> {
 	/**
 	 * Construct a duration from a given number of seconds.
 	 */
-	time_duration(double seconds)
+	explicit time_duration(double seconds)
 		: value(seconds)
 		{}
 
@@ -48,17 +49,20 @@ inline bool operator<(const time_duration& lhs, const time_duration& rhs)
 
 inline time_duration operator+(const time_duration& lhs,
                                const time_duration& rhs)
-	{ return lhs.value + rhs.value; }
+	{ return time_duration{lhs.value + rhs.value}; }
 
 inline time_duration operator-(const time_duration& lhs,
                                const time_duration& rhs)
-	{ return lhs.value - rhs.value; }
+	{ return time_duration{lhs.value - rhs.value}; }
 
 inline time_duration operator*(const time_duration& lhs, double rhs)
-	{ return lhs.value * rhs; }
+	{ return time_duration{lhs.value * rhs}; }
 
 inline time_duration operator/(const time_duration& lhs, double rhs)
-	{ return lhs.value / rhs; }
+	{ return time_duration{lhs.value / rhs}; }
+
+inline std::ostream& operator<<(std::ostream& out, const time_duration& d)
+	{ return out << d.value; }
 
 } // namespace broker
 
