@@ -43,11 +43,11 @@ const std::string& broker::endpoint::last_error() const
 	return pimpl->last_error;
 	}
 
-bool broker::endpoint::listen(uint16_t port, const char* addr)
+bool broker::endpoint::listen(uint16_t port, const char* addr, bool reuse_addr)
 	{
 	try
 		{
-		caf::io::publish(pimpl->actor, port, addr);
+		caf::io::publish(pimpl->actor, port, addr, reuse_addr);
 		}
 	catch ( const std::exception& e )
 		{
