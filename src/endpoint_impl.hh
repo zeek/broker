@@ -406,7 +406,7 @@ private:
 		auto msg = caf::make_message(std::move(op), std::move(t), this);
 
 		for ( const auto& p : peers )
-			send_tuple(p.second.ep, msg);
+			send(p.second.ep, msg);
 		}
 
 	void publish_locally(const topic& t, broker::message msg, int flags,
@@ -424,7 +424,7 @@ private:
 
 		for ( const auto& match : matches )
 			for ( const auto& a : match->second )
-				send_tuple(a, caf_msg);
+				send(a, caf_msg);
 		}
 
 	void publish_current_msg_to_peers(const topic& t, int flags)
@@ -437,14 +437,14 @@ private:
 			// Not allowed to publish this topic to peers.
 			return;
 
-        // send_tuple instead of forward_to so peer can use
+        // send instead of forward_to so peer can use
         // last_sender() to check if msg comes from a peer.
         if ( (flags & UNSOLICITED) )
             for ( const auto& p : peers )
-                send_tuple(p.second.ep, last_dequeued());
+                send(p.second.ep, last_dequeued());
         else
             for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
-                send_tuple(a, last_dequeued());
+                send(a, last_dequeued());
 		}
 
 	struct peer_endpoint {

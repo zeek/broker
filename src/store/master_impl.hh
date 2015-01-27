@@ -336,7 +336,7 @@ private:
 
 	void publish(caf::message msg)
 		{
-		for ( const auto& c : clones ) send_tuple(c.second, msg);
+		for ( const auto& c : clones ) send(c.second, msg);
 		}
 
 	void error(std::string master_name, std::string method_name,
