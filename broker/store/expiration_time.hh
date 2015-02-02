@@ -44,17 +44,6 @@ inline bool operator==(const expiration_time& lhs, const expiration_time& rhs)
     { return lhs.type == rhs.type && lhs.time == rhs.time; }
 
 /**
- * The "value" part of a key/value entry pairing.
- */
-struct value {
-	data item;
-	util::optional<expiration_time> expiry;
-};
-
-inline bool operator==(const value& lhs, const value& rhs)
-    { return lhs.item == rhs.item && lhs.expiry == rhs.expiry; }
-
-/**
  * A key in a data store which has a given expiration.
  */
 struct expirable {

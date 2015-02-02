@@ -7,6 +7,7 @@
 #include "broker/store/response.hh"
 #include "broker/store/expiration_time.hh"
 #include "store/result_type_info.hh"
+#include "store/value_type_info.hh"
 #include "data_type_info.hh"
 #include "address_type_info.hh"
 #include "subnet_type_info.hh"
@@ -86,6 +87,9 @@ int broker_init(int flags)
 	announce<broker::store::expiration_time>("broker::store::expiration_time",
 	                                  &broker::store::expiration_time::type,
 	                                  &broker::store::expiration_time::time);
+	announce(typeid(broker::store::value),
+	         std::unique_ptr<caf::uniform_type_info>(
+	             new broker::store::value_type_info));
 	announce<broker::store::result::tag>("broker::store::result::tag");
 	announce<broker::store::result::status>("broker::store::result::status");
 	announce(typeid(broker::store::result),
