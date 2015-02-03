@@ -14,7 +14,7 @@ namespace report {
  * This is an endpoint like any other broker endpoint, reports sent to it
  * use a topic prefixed with "broker.report.<level>." where "<level>" is
  * "debug", "info", "warn", or "error".  The endpoint is created by calling
- * broker::init().
+ * broker::report::init().
  */
 extern endpoint* manager;
 
@@ -54,8 +54,10 @@ constexpr std::underlying_type<level>::type operator+(level v)
  * is called, no report messages are ever generated.
  * @param with_default_queue whether to also initialize
  * broker::report::default_queue to automatically receive report messages.
+ * @return 0 if reporting framework is initialized, else an error code that can
+ *         be supplied to broker_strerror().
  */
-void init(bool with_default_queue = false);
+int init(bool with_default_queue = false);
 
 /**
  * Releases resources associated with the broker library diagnostic reporting

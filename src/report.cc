@@ -29,7 +29,7 @@ static std::string to_string(broker::report::level lvl)
 	}
 	}
 
-void broker::report::init(bool with_default_queue)
+int broker::report::init(bool with_default_queue)
 	{
 	std::unique_lock<std::mutex> guard{*mtx};
 
@@ -37,6 +37,8 @@ void broker::report::init(bool with_default_queue)
 
 	if ( with_default_queue )
 		default_queue = new message_queue("broker.report.", *manager);
+
+	return 0;
 	}
 
 void broker::report::done()
