@@ -52,60 +52,83 @@ bool broker::store::memory_backend::do_insert(data k, data v,
 	return true;
 	}
 
-int broker::store::memory_backend::do_increment(const data& k, int64_t by)
+broker::store::modification_result
+broker::store::memory_backend::do_increment(const data& k, int64_t by,
+                                            double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{by, {}};
-		return 0;
+		return {modification_result::status::success, {}};
 		}
 
 	if ( util::increment_data(it->second.item, by, &pimpl->last_error) )
-		return 0;
+		return {modification_result::status::success,
+			    util::update_last_modification(it->second.expiry, mod_time)};
 
-	return 1;
+	return {modification_result::status::invalid, {}};
 	}
 
-int broker::store::memory_backend::do_add_to_set(const data& k, data element)
+broker::store::modification_result
+broker::store::memory_backend::do_add_to_set(const data& k, data element,
+                                             double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{set{std::move(element)}, {}};
-		return 0;
+		return {modification_result::status::success, {}};
 		}
 
 	if ( util::add_data_to_set(it->second.item, std::move(element),
 	                           &pimpl->last_error) )
-		return 0;
+		return {modification_result::status::success,
+			    util::update_last_modification(it->second.expiry, mod_time)};
 
-	return 1;
+	return {modification_result::status::invalid, {}};
 	}
 
-int broker::store::memory_backend::do_remove_from_set(const data& k,
-                                                      const data& element)
+broker::store::modification_result
+broker::store::memory_backend::do_remove_from_set(const data& k,
+                                                  const data& element,
+                                                  double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{set{}, {}};
-		return 0;
+		return {modification_result::status::success, {}};
 		}
 
 	if ( util::remove_data_from_set(it->second.item, element,
 	                                &pimpl->last_error) )
-		return 0;
+		return {modification_result::status::success,
+			    util::update_last_modification(it->second.expiry, mod_time)};
 
-	return 1;
+	return {modification_result::status::invalid, {}};
 	}
 
 bool broker::store::memory_backend::do_erase(const data& k)
 	{
 	pimpl->datastore.erase(k);
+	return true;
+	}
+
+bool broker::store::memory_backend::do_expire(const data& k,
+                                              const expiration_time& expiration)
+	{
+	auto it = pimpl->datastore.find(k);
+
+	if ( it == pimpl->datastore.end() )
+		return true;
+
+	if ( it->second.expiry == expiration )
+		pimpl->datastore.erase(it);
+
 	return true;
 	}
 
@@ -115,60 +138,82 @@ bool broker::store::memory_backend::do_clear()
 	return true;
 	}
 
-int broker::store::memory_backend::do_push_left(const data& k, vector items)
+broker::store::modification_result
+broker::store::memory_backend::do_push_left(const data& k, vector items,
+                                            double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{std::move(items), {}};
-		return 0;
+		return {modification_result::status::success, {}};
 		}
 
 	if ( util::push_left(it->second.item, std::move(items),
 	                     &pimpl->last_error) )
-		return 0;
+		return {modification_result::status::success,
+			    util::update_last_modification(it->second.expiry, mod_time)};
 
-	return 1;
+	return {modification_result::status::invalid, {}};
 	}
 
-int broker::store::memory_backend::do_push_right(const data& k, vector items)
+broker::store::modification_result
+broker::store::memory_backend::do_push_right(const data& k, vector items,
+                                             double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
 		{
 		pimpl->datastore[k] = value{std::move(items), {}};
-		return 0;
+		return {modification_result::status::success, {}};
 		}
 
 	if ( util::push_right(it->second.item, std::move(items),
 	                      &pimpl->last_error) )
-		return 0;
+		return {modification_result::status::success,
+			    util::update_last_modification(it->second.expiry, mod_time)};
 
-	return 1;
+	return {modification_result::status::invalid, {}};
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::memory_backend::do_pop_left(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::memory_backend::do_pop_left(const data& k, double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
-		return {util::optional<data>{}};
+		return {{modification_result::status::success, {}}, {}};
 
-	return util::pop_left(it->second.item, &pimpl->last_error, true);
+	auto ood = util::pop_left(it->second.item, &pimpl->last_error, true);
+
+	if ( ! ood )
+		return {{modification_result::status::invalid, {}}, {}};
+
+	return {{modification_result::status::success,
+		     util::update_last_modification(it->second.expiry, mod_time)},
+		    std::move(*ood)};
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::memory_backend::do_pop_right(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::memory_backend::do_pop_right(const data& k, double mod_time)
 	{
 	auto it = pimpl->datastore.find(k);
 
 	if ( it == pimpl->datastore.end() )
-		return {util::optional<data>{}};
+		return {{modification_result::status::success, {}}, {}};
 
-	return util::pop_right(it->second.item, &pimpl->last_error, true);
+	auto ood = util::pop_right(it->second.item, &pimpl->last_error, true);
+
+	if ( ! ood )
+		return {{modification_result::status::invalid, {}}, {}};
+
+	return {{modification_result::status::success,
+		     util::update_last_modification(it->second.expiry, mod_time)},
+		    std::move(*ood)};
 	}
 
 broker::util::optional<broker::util::optional<broker::data>>

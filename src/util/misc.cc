@@ -1,6 +1,20 @@
 #include "misc.hh"
 #include <cstdio>
 
+broker::util::optional<broker::store::expiration_time>
+broker::util::update_last_modification(optional<store::expiration_time>& et,
+                                       double mod_time)
+	{
+	if ( ! et )
+		return {};
+
+	if ( et->type == store::expiration_time::tag::absolute )
+		return {};
+
+	et->modification_time = mod_time;
+	return et;
+	}
+
 bool broker::util::increment_data(optional<data>& d, int64_t by,
                                   std::string* error_msg)
 	{

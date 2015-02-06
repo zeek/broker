@@ -11,6 +11,23 @@
 
 namespace broker { namespace store {
 
+class modification_result {
+public:
+
+	enum class status : uint8_t {
+		// Everything worked.
+		success,
+		// Fundamental issue w/ the backend prevented operation from completing.
+		failure,
+		// The operation was invalid (e.g. trying to apply a set operation to
+		// an integer) and the backend is left unchanged.
+		invalid,
+	} stat;
+
+	// New expiration parameters, if modifying the entry changed them.
+	util::optional<expiration_time> new_expiration;
+};
+
 /**
  * Abstract base class for a key-value storage backend.
  */
@@ -54,41 +71,48 @@ public:
 	 * Increment an integral value by a certain amount.
 	 * @param k the key associated with an integral value to increment.
 	 * @param by the size of the increment to take.
-	 * @return zero on success, a negative value on hard failure (fundamental
-	 * issue with the backend prevented the operation from completing),
-	 * or positive value for a soft failure (the operation was invalid,
-	 * so the backend is left unchanged).
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification.
 	 */
-	int increment(const data& k, int64_t by);
+	modification_result
+	increment(const data& k, int64_t by, double mod_time);
 
 	/**
 	 * Add an element to a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to add to the set.
-	 * @return zero on success, a negative value on hard failure (fundamental
-	 * issue with the backend prevented the operation from completing),
-	 * or positive value for a soft failure (the operation was invalid,
-	 * so the backend is left unchanged).
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification.
 	 */
-	int add_to_set(const data& k, data element);
+	modification_result
+	add_to_set(const data& k, data element, double mod_time);
 
 	/**
 	 * Remove an element from a set.
 	 * @param k the key associated with the set to modify.
 	 * @param element the element to remove from the set.
-	 * @return zero on success, a negative value on hard failure (fundamental
-	 * issue with the backend prevented the operation from completing),
-	 * or positive value for a soft failure (the operation was invalid,
-	 * so the backend is left unchanged).
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification.
 	 */
-	int remove_from_set(const data& k, const data& element);
+	modification_result
+	remove_from_set(const data& k, const data& element, double mod_time);
 
 	/**
 	 * Remove a key and its associated value from the store, if it exists.
 	 * @param k the key to use.
-	 * @return true on success.
+	 * @return true if the key didn't exist or was removed successfully.
 	 */
 	bool erase(const data& k);
+
+	/**
+	 * Remove a key and its associated value from the store, if it exists and
+	 * the expiration value is the same.
+	 * @param k the key to use.
+	 * @param expiration the expiration value which must still match, otherwise
+	 * this expiry operation is ignored.
+	 * @return true if the key didn't exist or was removed successfully.
+	 */
+	bool expire(const data& k, const expiration_time& expiration);
 
 	/**
 	 * Remove all key-value pairs from the store.
@@ -100,39 +124,41 @@ public:
 	 * Push items to the head of a vector.
 	 * @param k the key associated with the vector to modify.
 	 * @param items the items to add to the vector.
-	 * @return zero on success, a negative value on hard failure (fundamental
-	 * issue with the backend prevented the operation from completing),
-	 * or positive value for a soft failure (the operation was invalid,
-	 * so the backend is left unchanged).
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification.
 	 */
-	int push_left(const data& k, vector items);
+	modification_result
+	push_left(const data& k, vector items, double mod_time);
 
 	/**
 	 * Push items to the tail of a vector.
 	 * @param k the key associated with the vector to modify.
 	 * @param items the items to add to the vector.
-	 * @return zero on success, a negative value on hard failure (fundamental
-	 * issue with the backend prevented the operation from completing),
-	 * or positive value for a soft failure (the operation was invalid,
-	 * so the backend is left unchanged).
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return The result of the modification.
 	 */
-	int push_right(const data& k, vector items);
+	modification_result
+	push_right(const data& k, vector items, double mod_time);
 
 	/**
 	 * Retrieve item at the head of a vector value associated with a given key.
 	 * @param k the key to use
-	 * @return the item if the provided key exists or nil on failing to perform
-	 * the query.
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification along with the item if the
+	 * provided key exists or nil on failing to perform the query.
 	 */
-	util::optional<util::optional<data>> pop_left(const data& k);
+	std::pair<modification_result, util::optional<data>>
+	pop_left(const data& k, double mod_time);
 
 	/**
 	 * Retrieve item at the tail of a vector value associated with a given key.
 	 * @param k the key to use
-	 * @return the item if the provided key exists or nil on failing to perform
-	 * the query.
+	 * @param mod_time the epoch time this modification is taking place.
+	 * @return the result of the modification along with the item if the
+	 * provided key exists or nil on failing to perform the query.
 	 */
-	util::optional<util::optional<data>> pop_right(const data& k);
+	std::pair<modification_result, util::optional<data>>
+	pop_right(const data& k, double mod_time);
 
 	/**
 	 * Lookup the value associated with a given key.
@@ -188,25 +214,33 @@ private:
 	virtual bool do_insert(data k, data v,
 	                       util::optional<expiration_time> t) = 0;
 
-	virtual int do_increment(const data& k, int64_t by) = 0;
+	virtual modification_result
+	do_increment(const data& k, int64_t by, double mod_time) = 0;
 
-	virtual int do_add_to_set(const data& k, data element) = 0;
+	virtual modification_result
+	do_add_to_set(const data& k, data element, double mod_time) = 0;
 
-	virtual int do_remove_from_set(const data& k, const data& element) = 0;
+	virtual modification_result
+	do_remove_from_set(const data& k, const data& element, double mod_time) = 0;
 
 	virtual bool do_erase(const data& k) = 0;
 
+	virtual bool
+	do_expire(const data& k, const expiration_time& expiration) = 0;
+
 	virtual bool do_clear() = 0;
 
-	virtual int do_push_left(const data& k, vector items) = 0;
+	virtual modification_result
+	do_push_left(const data& k, vector items, double mod_time) = 0;
 
-	virtual int do_push_right(const data& k, vector items) = 0;
+	virtual modification_result
+	do_push_right(const data& k, vector items, double mod_time) = 0;
 
-	virtual util::optional<util::optional<data>>
-	do_pop_left(const data& k) = 0;
+	virtual std::pair<modification_result, util::optional<data>>
+	do_pop_left(const data& k, double mod_time) = 0;
 
-	virtual util::optional<util::optional<data>>
-	do_pop_right(const data& k) = 0;
+	virtual std::pair<modification_result, util::optional<data>>
+	do_pop_right(const data& k, double mod_time) = 0;
 
 	virtual util::optional<util::optional<data>>
 	do_lookup(const data& k) const = 0;

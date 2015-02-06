@@ -15,6 +15,9 @@ using namespace broker::store;
 
 using dataset = map<data, data>;
 
+static inline double now()
+	{ return broker::time_point::now().value; }
+
 bool compare_contents(backend* db, const dataset& ds)
 	{
 	dataset actual;
@@ -39,16 +42,12 @@ int main(int argc, char** argv)
 	backend* db;
 
 #ifdef HAVE_ROCKSDB
-	if ( backend_name == "rocksdb" || backend_name == "rocksdb_merge" )
+	if ( backend_name == "rocksdb" )
 		{
 		rocksdb::DestroyDB(db_name, {});
 		db = new rocksdb_backend;
 		rocksdb::Options options;
 		options.create_if_missing = true;
-
-		if ( backend_name == "rocksdb_merge" )
-			options.merge_operator.reset(new rocksdb_merge_operator);
-
 		BROKER_TEST(((rocksdb_backend*)db)->open(db_name, options).ok());
 		}
 	else
@@ -66,27 +65,29 @@ int main(int argc, char** argv)
 
 	BROKER_TEST(*db->size() == 0);
 
-	BROKER_TEST(! *db->pop_left("ingredients"));
-	BROKER_TEST(! *db->pop_right("ingredients"));
-	BROKER_TEST(db->push_left("ingredients", {"bacon"}) == 0);
-	BROKER_TEST(db->push_right("ingredients", {"eggs"}) == 0);
-	BROKER_TEST(db->push_left("ingredients", {"carrot", "potato"}) == 0);
-	BROKER_TEST(db->push_left("ingredients", {"cabbage", "beet"}) == 0);
-	BROKER_TEST(db->push_right("ingredients", {"beef", "pork"}) == 0);
-	BROKER_TEST(db->push_right("ingredients", {"chicken", "turkey"}) == 0);
+	auto ok = broker::store::modification_result::status::success;
 
-	BROKER_TEST(**db->pop_left("ingredients") == "cabbage");
-	BROKER_TEST(**db->pop_right("ingredients") == "turkey");
-	BROKER_TEST(**db->pop_right("ingredients") == "chicken");
-	BROKER_TEST(**db->pop_left("ingredients") == "beet");
-	BROKER_TEST(**db->pop_left("ingredients") == "carrot");
-	BROKER_TEST(**db->pop_right("ingredients") == "pork");
-	BROKER_TEST(**db->pop_right("ingredients") == "beef");
-	BROKER_TEST(**db->pop_right("ingredients") == "eggs");
-	BROKER_TEST(**db->pop_right("ingredients") == "bacon");
-	BROKER_TEST(**db->pop_left("ingredients") == "potato");
-	BROKER_TEST(! *db->pop_left("ingredients"));
-	BROKER_TEST(! *db->pop_right("ingredients"));
+	BROKER_TEST(! db->pop_left("ingredients", now()).second);
+	BROKER_TEST(! db->pop_right("ingredients", now()).second);
+	BROKER_TEST(db->push_left("ingredients", {"bacon"}, now()).stat == ok);
+	BROKER_TEST(db->push_right("ingredients", {"eggs"}, now()).stat == ok);
+	BROKER_TEST(db->push_left("ingredients", {"carrot", "potato"}, now()).stat == ok);
+	BROKER_TEST(db->push_left("ingredients", {"cabbage", "beet"}, now()).stat == ok);
+	BROKER_TEST(db->push_right("ingredients", {"beef", "pork"}, now()).stat == ok);
+	BROKER_TEST(db->push_right("ingredients", {"chicken", "turkey"}, now()).stat == ok);
+
+	BROKER_TEST(*db->pop_left("ingredients", now()).second == "cabbage");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "turkey");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "chicken");
+	BROKER_TEST(*db->pop_left("ingredients", now()).second == "beet");
+	BROKER_TEST(*db->pop_left("ingredients", now()).second == "carrot");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "pork");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "beef");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "eggs");
+	BROKER_TEST(*db->pop_right("ingredients", now()).second == "bacon");
+	BROKER_TEST(*db->pop_left("ingredients", now()).second == "potato");
+	BROKER_TEST(! db->pop_left("ingredients", now()).second);
+	BROKER_TEST(! db->pop_right("ingredients", now()).second);
 
 	BROKER_TEST(db->erase("ingredients"));
 
@@ -110,30 +111,30 @@ int main(int argc, char** argv)
 
 	BROKER_TEST(db->insert("how many?", 954));
 	BROKER_TEST(*db->size() == 4);
-	BROKER_TEST(db->increment("how many?", 5) == 0);
-	BROKER_TEST(db->increment("how many?", -1) == 0);
-	BROKER_TEST(db->increment("how many?", -3) == 0);
-	BROKER_TEST(db->increment("how many?", 6) == 0);
+	BROKER_TEST(db->increment("how many?", 5, now()).stat == ok);
+	BROKER_TEST(db->increment("how many?", -1, now()).stat == ok);
+	BROKER_TEST(db->increment("how many?", -3, now()).stat == ok);
+	BROKER_TEST(db->increment("how many?", 6, now()).stat == ok);
 	BROKER_TEST(**db->lookup("how many?") == 961);
-	BROKER_TEST(db->increment("c", 5) == 0);
-	BROKER_TEST(db->increment("c", 9) == 0);
-	BROKER_TEST(db->increment("c", 10) == 0);
-	BROKER_TEST(db->increment("c", -3) == 0);
+	BROKER_TEST(db->increment("c", 5, now()).stat == ok);
+	BROKER_TEST(db->increment("c", 9, now()).stat == ok);
+	BROKER_TEST(db->increment("c", 10, now()).stat == ok);
+	BROKER_TEST(db->increment("c", -3, now()).stat == ok);
 	BROKER_TEST(**db->lookup("c") == 21);
 	BROKER_TEST(*db->size() == 5);
 
-	BROKER_TEST(db->add_to_set("cook names", "Ken DeLozier") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Tara Ochs") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Tara Ochs") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Katelyn Nacon") == 0);
-	BROKER_TEST(db->remove_from_set("cook names", "Katelyn Nacon") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Justin Scott") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Morgan Burch") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Linda Miller") == 0);
-	BROKER_TEST(db->remove_from_set("cook names", "Layla Neal") == 0);
-	BROKER_TEST(db->add_to_set("cook names", "Layla Neal") == 0);
-	BROKER_TEST(db->remove_from_set("cook names", "Lila Neal") == 0);
-	BROKER_TEST(db->remove_from_set("cook names", "Lila Neal") == 0);
+	BROKER_TEST(db->add_to_set("cook names", "Ken DeLozier", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Tara Ochs", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Tara Ochs", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Katelyn Nacon", now()).stat == ok);
+	BROKER_TEST(db->remove_from_set("cook names", "Katelyn Nacon", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Justin Scott", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Morgan Burch", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Linda Miller", now()).stat == ok);
+	BROKER_TEST(db->remove_from_set("cook names", "Layla Neal", now()).stat == ok);
+	BROKER_TEST(db->add_to_set("cook names", "Layla Neal", now()).stat == ok);
+	BROKER_TEST(db->remove_from_set("cook names", "Lila Neal", now()).stat == ok);
+	BROKER_TEST(db->remove_from_set("cook names", "Lila Neal", now()).stat == ok);
 
 	broker::set cook_names{
 	"Ken DeLozier",
@@ -155,13 +156,13 @@ int main(int argc, char** argv)
 	};
 
 	BROKER_TEST(db->insert("more cook names", more_cook_names));
-	BROKER_TEST(db->add_to_set("more cook names", "Kayte Giralt") == 0);
-	BROKER_TEST(db->remove_from_set("more cook names", "Truman Orr") == 0);
+	BROKER_TEST(db->add_to_set("more cook names", "Kayte Giralt", now()).stat == ok);
+	BROKER_TEST(db->remove_from_set("more cook names", "Truman Orr", now()).stat == ok);
 	more_cook_names.erase("Truman Orr");
-	BROKER_TEST(db->add_to_set("more cook names", "Zack Shires") == 0);
+	BROKER_TEST(db->add_to_set("more cook names", "Zack Shires", now()).stat == ok);
 	more_cook_names.emplace("Zack Shires");
 	BROKER_TEST(db->remove_from_set("more cook names",
-	                                "Gwydion Lashlee-Walton") == 0);
+	                                "Gwydion Lashlee-Walton", now()).stat == ok);
 
 	BROKER_TEST(**db->lookup("more cook names") == more_cook_names);
 	BROKER_TEST(*db->size() == 7);
@@ -169,14 +170,10 @@ int main(int argc, char** argv)
 	delete db;
 
 #ifdef HAVE_ROCKSDB
-	if ( backend_name == "rocksdb" || backend_name == "rocksdb_merge" )
+	if ( backend_name == "rocksdb" )
 		{
 		db = new rocksdb_backend;
 		rocksdb::Options options;
-
-		if ( backend_name == "rocksdb_merge" )
-			options.merge_operator.reset(new rocksdb_merge_operator);
-
 		BROKER_TEST(((rocksdb_backend*)db)->open(db_name, options).ok());
 		}
 	else

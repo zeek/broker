@@ -14,9 +14,15 @@ class expiration_time {
 public:
 
 	/**
-	 * A time or interval measured in seconds.
+	 * A time or interval measured in seconds, depending on which type of expiry
+	 * method is used.
 	 */
-	double time;
+	double expiry_time;
+
+	/**
+	 * A last-modified time, not used by the absolute time expiry method.
+	 */
+	double modification_time;
 
 	/**
 	 * Differentiates different styles of expiration.
@@ -33,15 +39,33 @@ public:
 
 	/**
 	 * Construct expiration relative to a last modification time.
+	 * @param arg_expiry_time interval from the last modification time at
+	 * which to expire.
+	 * @param arg_modification_time the last modification time.
 	 */
-	expiration_time(double arg_time,
-	                tag arg_type = tag::since_last_modification)
-		: time(arg_time), type(arg_type)
+	expiration_time(double arg_expiry_time, double arg_modification_time)
+		: expiry_time(arg_expiry_time),
+	      modification_time(arg_modification_time),
+	      type(tag::since_last_modification)
+		{}
+
+	/**
+	 * Construct expiration at an absolute point in time.
+	 * @param arg_expiry_time an absolute time (seconds from epoch) at which
+	 * to expire.
+	 */
+	expiration_time(double arg_expiry_time)
+		: expiry_time(arg_expiry_time),
+	      modification_time(),
+	      type(tag::absolute)
 		{}
 };
 
 inline bool operator==(const expiration_time& lhs, const expiration_time& rhs)
-    { return lhs.type == rhs.type && lhs.time == rhs.time; }
+    {
+	return lhs.type == rhs.type && lhs.expiry_time == rhs.expiry_time &&
+	       lhs.modification_time == rhs.modification_time;
+	}
 
 /**
  * A key in a data store which has a given expiration.

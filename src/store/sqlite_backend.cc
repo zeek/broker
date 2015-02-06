@@ -56,6 +56,7 @@ insert(const broker::store::sqlite_stmt& stmt,
 	auto g = stmt.guard(sqlite3_reset);
 	auto kblob = to_blob(k);
 	auto vblob = to_blob(v);
+	// Need the expiry blob data to stay in scope until query is done.
 	auto eblob = e ? to_blob(*e) : std::vector<unsigned char>{};
 
 	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
@@ -101,6 +102,55 @@ update(const broker::store::sqlite_stmt& stmt,
 
 	return true;
 	}
+
+static bool
+update_expiry(const broker::store::sqlite_stmt& stmt,
+              const broker::data& k, const broker::data& v,
+              const broker::store::expiration_time& e)
+	{
+	auto g = stmt.guard(sqlite3_reset);
+	auto kblob = to_blob(k);
+	auto vblob = to_blob(v);
+	auto eblob = to_blob(e);
+
+	if ( sqlite3_bind_blob64(stmt, 1, vblob.data(), vblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK ||
+	     sqlite3_bind_blob64(stmt, 2, eblob.data(), eblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK ||
+	     sqlite3_bind_blob64(stmt, 3, kblob.data(), kblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK )
+		return false;
+
+	if ( sqlite3_step(stmt) != SQLITE_DONE )
+		return false;
+
+	return true;
+	}
+
+static inline broker::store::modification_result
+update_entry(const broker::store::sqlite_stmt& update_stmt,
+             const broker::store::sqlite_stmt& update_expiry_stmt,
+             const broker::data& k, const broker::data& v,
+             broker::util::optional<broker::store::expiration_time> e,
+             int& last_rc)
+	{
+	using broker::store::modification_result;
+
+	if ( e )
+		{
+		if ( ::update_expiry(update_expiry_stmt, k, v, *e) )
+			return {modification_result::status::success, e};
+		}
+	else
+		{
+		if ( ::update(update_stmt, k, v) )
+			return {modification_result::status::success, {}};
+		}
+
+	last_rc = 0;
+	return {modification_result::status::failure, {}};
+	}
+
 
 broker::store::sqlite_backend::sqlite_backend()
     : backend(), pimpl(new impl)
@@ -199,114 +249,108 @@ bool broker::store::sqlite_backend::do_insert(data k, data v,
 	return true;
 	}
 
-int broker::store::sqlite_backend::do_increment(const data& k, int64_t by)
+broker::store::modification_result
+broker::store::sqlite_backend::do_increment(const data& k, int64_t by,
+                                            double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		{
 		if ( ::insert(pimpl->insert, k, data{by}) )
-			return 0;
+			return {modification_result::status::success, {}};
 
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	if ( ! util::increment_data(v, by, &pimpl->our_last_error) )
 		{
 		pimpl->last_rc = -1;
-		return 1;
+		return {modification_result::status::invalid, {}};
 		}
 
-	if ( ::update(pimpl->update, k, v) )
-		return 0;
-
-	pimpl->last_rc = 0;
-	return -1;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return ::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                      std::move(new_expiry), pimpl->last_rc);
 	}
 
-int broker::store::sqlite_backend::do_add_to_set(const data& k, data element)
+broker::store::modification_result
+broker::store::sqlite_backend::do_add_to_set(const data& k, data element,
+                                             double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		{
 		if ( ::insert(pimpl->insert, k, set{std::move(element)}) )
-			return 0;
+			return {modification_result::status::success, {}};
 
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	if ( ! util::add_data_to_set(v, std::move(element),
 	                             &pimpl->our_last_error) )
 		{
 		pimpl->last_rc = -1;
-		return 1;
+		return {modification_result::status::invalid, {}};
 		}
 
-	if ( ::update(pimpl->update, k, v) )
-		return 0;
-
-	pimpl->last_rc = 0;
-	return -1;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return ::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                      std::move(new_expiry), pimpl->last_rc);
 	}
 
-int broker::store::sqlite_backend::do_remove_from_set(const data& k,
-                                                      const data& element)
+broker::store::modification_result
+broker::store::sqlite_backend::do_remove_from_set(const data& k,
+                                                  const data& element,
+                                                  double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		{
 		if ( ::insert(pimpl->insert, k, set{}) )
-			return 0;
+			return {modification_result::status::success, {}};
 
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	if ( ! util::remove_data_from_set(v, element, &pimpl->our_last_error) )
 		{
 		pimpl->last_rc = -1;
-		return 1;
+		return {modification_result::status::invalid, {}};
 		}
 
-	if ( ::update(pimpl->update, k, v) )
-		return 0;
-
-	pimpl->last_rc = 0;
-	return -1;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return ::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                      std::move(new_expiry), pimpl->last_rc);
 	}
 
 bool broker::store::sqlite_backend::do_erase(const data& k)
@@ -316,6 +360,32 @@ bool broker::store::sqlite_backend::do_erase(const data& k)
 	auto kblob = to_blob(k);
 
 	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK )
+		{
+		pimpl->last_rc = 0;
+		return false;
+		}
+
+	if ( sqlite3_step(stmt) != SQLITE_DONE )
+		{
+		pimpl->last_rc = 0;
+		return false;
+		}
+
+	return true;
+	}
+
+bool broker::store::sqlite_backend::do_expire(const data& k,
+                                              const expiration_time& expiration)
+	{
+	const auto& stmt = pimpl->expire;
+	auto g = stmt.guard(sqlite3_reset);
+	auto kblob = to_blob(k);
+	auto eblob = to_blob(expiration);
+
+	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK ||
+	     sqlite3_bind_blob64(stmt, 2, eblob.data(), eblob.size(),
 	                         SQLITE_STATIC) != SQLITE_OK )
 		{
 		pimpl->last_rc = 0;
@@ -345,152 +415,144 @@ bool broker::store::sqlite_backend::do_clear()
 	return true;
 	}
 
-int broker::store::sqlite_backend::do_push_left(const data& k, vector items)
+broker::store::modification_result
+broker::store::sqlite_backend::do_push_left(const data& k, vector items,
+                                            double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		{
 		if ( ::insert(pimpl->insert, k, std::move(items)) )
-			return 0;
+			return {modification_result::status::success, {}};
 
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	if ( ! util::push_left(v, std::move(items), &pimpl->our_last_error) )
 		{
 		pimpl->last_rc = -1;
-		return 1;
+		return {modification_result::status::invalid, {}};
 		}
 
-	if ( ::update(pimpl->update, k, v) )
-		return 0;
-
-	pimpl->last_rc = 0;
-	return -1;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return ::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                      std::move(new_expiry), pimpl->last_rc);
 	}
 
-int broker::store::sqlite_backend::do_push_right(const data& k, vector items)
+broker::store::modification_result
+broker::store::sqlite_backend::do_push_right(const data& k, vector items,
+                                             double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		{
 		if ( ::insert(pimpl->insert, k, std::move(items)) )
-			return 0;
+			return {modification_result::status::success, {}};
 
 		pimpl->last_rc = 0;
-		return -1;
+		return {modification_result::status::failure, {}};
 		}
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	if ( ! util::push_right(v, std::move(items), &pimpl->our_last_error) )
 		{
 		pimpl->last_rc = -1;
-		return 1;
+		return {modification_result::status::invalid, {}};
 		}
 
-	if ( ::update(pimpl->update, k, v) )
-		return 0;
-
-	pimpl->last_rc = 0;
-	return -1;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return ::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                      std::move(new_expiry), pimpl->last_rc);
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::sqlite_backend::do_pop_left(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::sqlite_backend::do_pop_left(const data& k, double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return {};
+		return {{modification_result::status::failure, {}}, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		// Fine, key didn't exist.
-		return util::optional<data>{};
+		return {{modification_result::status::success, {}}, {}};
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	auto rval = util::pop_left(v, &pimpl->our_last_error);
 
 	if ( ! rval )
 		{
 		pimpl->last_rc = -1;
-		return rval;
+		return {{modification_result::status::invalid, {}}, {}};
 		}
 
 	if ( ! *rval )
 		// Fine, popped an empty list.
-		return rval;
+		return {{modification_result::status::success, {}}, {}};
 
-	if ( ::update(pimpl->update, k, v) )
-		return rval;
-
-	pimpl->last_rc = 0;
-	return {};
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return {::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                       std::move(new_expiry), pimpl->last_rc),
+		    std::move(*rval)};
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::sqlite_backend::do_pop_right(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::sqlite_backend::do_pop_right(const data& k, double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
+	if ( ! op )
 		{
 		pimpl->last_rc = 0;
-		return {};
+		return {{modification_result::status::failure, {}}, {}};
 		}
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		// Fine, key didn't exist.
-		return util::optional<data>{};
+		return {{modification_result::status::success, {}}, {}};
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	auto rval = util::pop_right(v, &pimpl->our_last_error);
 
 	if ( ! rval )
 		{
 		pimpl->last_rc = -1;
-		return rval;
+		return {{modification_result::status::invalid, {}}, {}};
 		}
 
 	if ( ! *rval )
 		// Fine, popped an empty list.
-		return rval;
+		return {{modification_result::status::success, {}}, {}};
 
-	if ( ::update(pimpl->update, k, v) )
-		return rval;
-
-	pimpl->last_rc = 0;
-	return {};
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
+	return {::update_entry(pimpl->update, pimpl->update_expiry, k, v,
+	                       std::move(new_expiry), pimpl->last_rc),
+		    std::move(*rval)};
 	}
 
 broker::util::optional<broker::util::optional<broker::data>>
@@ -520,6 +582,45 @@ broker::store::sqlite_backend::do_lookup(const data& k) const
 
 	return {from_blob<data>(sqlite3_column_blob(stmt, 0),
 	                        sqlite3_column_bytes(stmt, 0))};
+	}
+
+broker::util::optional<std::pair<broker::util::optional<broker::data>,
+                       broker::util::optional<broker::store::expiration_time>>>
+broker::store::sqlite_backend::do_lookup_expiry(const data& k) const
+	{
+	const auto& stmt = pimpl->lookup_expiry;
+	auto g = stmt.guard(sqlite3_reset);
+	auto kblob = to_blob(k);
+
+	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
+	                         SQLITE_STATIC) != SQLITE_OK )
+		{
+		pimpl->last_rc = 0;
+		return {};
+		}
+
+	auto rc = sqlite3_step(stmt);
+
+	if ( rc == SQLITE_DONE )
+		return {std::make_pair(util::optional<data>{},
+			                   util::optional<expiration_time>{})};
+
+	if ( rc != SQLITE_ROW )
+		{
+		pimpl->last_rc = 0;
+		return {};
+		}
+
+	auto val = from_blob<data>(sqlite3_column_blob(stmt, 0),
+	                           sqlite3_column_bytes(stmt, 0));
+
+	util::optional<expiration_time> e;
+
+	if ( sqlite3_column_type(stmt, 1) != SQLITE_NULL )
+		e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 1),
+		                               sqlite3_column_bytes(stmt, 1));
+
+	return {std::make_pair(std::move(val), std::move(e))};
 	}
 
 broker::util::optional<bool>

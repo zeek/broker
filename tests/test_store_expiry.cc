@@ -1,4 +1,5 @@
 #include "broker/broker.hh"
+#include "broker/report.hh"
 #include "broker/endpoint.hh"
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
@@ -12,19 +13,14 @@
 #include "testsuite.hh"
 #include <map>
 #include <unistd.h>
-#include <sys/time.h>
 
 using namespace std;
 using namespace broker;
 using namespace broker::store;
 using dataset = map<data, data>;
 
-static double now()
-	{
-	struct timeval tv;
-	gettimeofday(&tv, 0);
-	return tv.tv_sec + (tv.tv_usec / 1000000.0);
-	}
+static inline double now()
+	{ return broker::time_point::now().value; }
 
 bool compare_contents(const frontend& store, const dataset& ds)
 	{
@@ -50,7 +46,10 @@ bool compare_contents(const frontend& store, const dataset& ds)
 
 void wait_for(const store::clone& c, data k, bool want_existence = true)
 	{
-	while ( exists(c, k) != want_existence ) usleep(1000);
+	while ( exists(c, k) != want_existence )
+		{
+		usleep(1000);
+		}
 	}
 
 void wait_for(const store::clone& c, data k, data v)
@@ -70,15 +69,11 @@ static bool open_sqlite(string file, backend* b)
 	}
 
 #ifdef HAVE_ROCKSDB
-static bool open_rocksdb(string file, backend* b, bool use_merge_op)
+static bool open_rocksdb(string file, backend* b)
 	{
 	rocksdb::DestroyDB(file, {});
 	rocksdb::Options options;
 	options.create_if_missing = true;
-
-	if ( use_merge_op )
-		options.merge_operator.reset(new rocksdb_merge_operator);
-
 	return ((rocksdb_backend*)b)->open(file, options).ok();
 	}
 #endif
@@ -88,30 +83,28 @@ int main(int argc, char** argv)
 	std::string backend_name = argv[1];
 	string db_name = "backend_test." + backend_name  + ".tmp";
 	broker::init();
+	broker::report::init(true);
 	endpoint node("node0");
 
 	// Can fiddle with these if test starts failing ocassionally due to timing.
 	double abs_time = 0.7;
 	double mod_time = abs_time * 0.4;
 
-	expiration_time abs_expire = {now() + abs_time,
-	                              expiration_time::tag::absolute};
-	expiration_time mod_expire = {mod_time};
+	auto pre_expire = now() + abs_time;
+	expiration_time abs_expire(pre_expire);
+	expiration_time mod_expire(mod_time, now());
 	value pre_existing = {data("myval"), abs_expire};
 	snapshot sss = {{{data("pre"), pre_existing}}, {}};
 	unique_ptr<backend> mbacking;
 	unique_ptr<backend> cbacking;
 
 #ifdef HAVE_ROCKSDB
-	if ( backend_name == "rocksdb" || backend_name == "rocksdb_merge" )
+	if ( backend_name == "rocksdb" )
 		{
 		mbacking.reset(new rocksdb_backend);
 		cbacking.reset(new rocksdb_backend);
-		bool use_merge_op = backend_name == "rocksdb_merge";
-		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get(),
-		                         use_merge_op));
-		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get(),
-		                         use_merge_op));
+		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
+		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
 		}
 	else
 #endif
@@ -163,6 +156,7 @@ int main(int argc, char** argv)
 	usleep(mod_time / 2.0 * 1000000);
 	m.decrement("refresh", 2);
 	m.remove_from_set("morerefresh", 6);
+
 	BROKER_TEST(*pop_left(m, "vrefresh") == "l");
 	BROKER_TEST(*pop_right(m, "vrefresh") == "r");
 

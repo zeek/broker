@@ -85,8 +85,9 @@ int broker_init(int flags)
 	announce<broker::store::expiration_time::tag>(
 	            "broker::store::expiration_time::tag");
 	announce<broker::store::expiration_time>("broker::store::expiration_time",
-	                                  &broker::store::expiration_time::type,
-	                                  &broker::store::expiration_time::time);
+	                        &broker::store::expiration_time::expiry_time,
+	                        &broker::store::expiration_time::modification_time,
+	                        &broker::store::expiration_time::type);
 	announce(typeid(broker::store::value),
 	         std::unique_ptr<caf::uniform_type_info>(
 	             new broker::store::value_type_info));

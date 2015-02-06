@@ -30,7 +30,8 @@ public:
 		on_arg_match >> [=](const identifier& n, const query& q,
 		                    const actor& requester)
 			{
-			auto r = q.process(*datastore);
+			auto r = q.process(*datastore,
+			                   broker::time_point::now().value).first;
 
 			if ( r.stat == result::status::failure )
 				error(master_name, "process query", datastore->last_error());
@@ -45,13 +46,15 @@ public:
 			forward_to(master);
 			},
 		on(atom("increment"), arg_match) >> [=](const sequence_num& sn,
-		                                        const data& k, int64_t by)
+		                                        const data& k, int64_t by,
+		                                        double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( datastore->increment(k, by) != 0 )
+				if ( datastore->increment(k, by, mod_time).stat !=
+				     modification_result::status::success )
 					error(master_name, "increment", datastore->last_error(),
 					      true);
 				}
@@ -63,13 +66,15 @@ public:
 			forward_to(master);
 			},
 		on(atom("set_add"), arg_match) >> [=](const sequence_num& sn,
-		                                      const data& k, data& e)
+		                                      const data& k, data& e,
+		                                      double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( datastore->add_to_set(k, std::move(e)) != 0 )
+				if ( datastore->add_to_set(k, std::move(e), mod_time).stat !=
+				     modification_result::status::success )
 					error(master_name, "add_to_set", datastore->last_error(),
 					      true);
 				}
@@ -81,13 +86,15 @@ public:
 			forward_to(master);
 			},
 		on(atom("set_rem"), arg_match) >> [=](const sequence_num& sn,
-		                                      const data& k, const data& e)
+		                                      const data& k, const data& e,
+		                                      double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( datastore->remove_from_set(k, e) != 0 )
+				if ( datastore->remove_from_set(k, e, mod_time).stat !=
+				     modification_result::status::success )
 					error(master_name, "remove_from_set",
 					      datastore->last_error(), true);
 				}
@@ -143,6 +150,20 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
+		on(atom("expire"), arg_match) >> [=](const sequence_num& sn,
+		                                     const data& k,
+		                                     const expiration_time& expiry)
+			{
+			auto next = datastore->sequence().next();
+
+			if ( sn == next )
+				{
+				if ( ! datastore->expire(k, expiry) )
+					fatal_error(master_name, "expire", datastore->last_error());
+				}
+			else if ( sn > next )
+				sequence_error(master_name, resync_interval);
+			},
 		on(val<identifier>, atom("clear")) >> [=]
 			{
 			forward_to(master);
@@ -164,13 +185,15 @@ public:
 			forward_to(master);
 			},
 		on(atom("lpush"), arg_match) >> [=](const sequence_num& sn,
-		                                    const data& k, broker::vector& i)
+		                                    const data& k, broker::vector& i,
+		                                    double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( datastore->push_left(k, std::move(i)) != 0 )
+				if ( datastore->push_left(k, std::move(i), mod_time).stat !=
+				     modification_result::status::success )
 					error(master_name, "push_left",
 					      datastore->last_error(), true);
 				}
@@ -182,13 +205,15 @@ public:
 			forward_to(master);
 			},
 		on(atom("rpush"), arg_match) >> [=](const sequence_num& sn,
-		                                    const data& k, broker::vector& i)
+		                                    const data& k, broker::vector& i,
+		                                    double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( datastore->push_right(k, std::move(i)) != 0 )
+				if ( datastore->push_right(k, std::move(i), mod_time).stat !=
+				     modification_result::status::success )
 					error(master_name, "push_right",
 					      datastore->last_error(), true);
 				}
@@ -196,13 +221,14 @@ public:
 				sequence_error(master_name, resync_interval);
 			},
 		on(atom("lpop"), arg_match) >> [=](const sequence_num& sn,
-		                                   const data& k)
+		                                   const data& k, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( ! datastore->pop_left(k) )
+				if ( datastore->pop_left(k, mod_time).first.stat !=
+				     modification_result::status::success )
 					error(master_name, "pop_left", datastore->last_error(),
 					      true);
 				}
@@ -210,13 +236,14 @@ public:
 				sequence_error(master_name, resync_interval);
 			},
 		on(atom("rpop"), arg_match) >> [=](const sequence_num& sn,
-		                                   const data& k)
+		                                   const data& k, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
 			if ( sn == next )
 				{
-				if ( ! datastore->pop_right(k) )
+				if ( datastore->pop_right(k, mod_time).first.stat !=
+				     modification_result::status::success )
 					error(master_name, "pop_right", datastore->last_error(),
 					      true);
 				}

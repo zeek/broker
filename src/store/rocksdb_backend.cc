@@ -51,19 +51,23 @@ static T from_serial(const C& bytes)
 
 static rocksdb::Status
 insert(rocksdb::DB* db, const broker::data& k, const broker::data& v,
+       bool delete_expiry_if_nil,
        const broker::util::optional<broker::store::expiration_time>& e = {})
 	{
 	auto kserial = to_serial(k, 'a');
 	auto vserial = to_serial(v);
-
-	if ( ! e )
-		return db->Put({}, kserial, vserial);
-
-	auto evserial = to_serial(*e);
 	rocksdb::WriteBatch batch;
 	batch.Put(kserial, vserial);
 	kserial[0] = 'e';
-	batch.Put(kserial, evserial);
+
+	if ( e )
+		{
+		auto evserial = to_serial(*e);
+		batch.Put(kserial, evserial);
+		}
+	else if ( delete_expiry_if_nil )
+		batch.Delete(kserial);
+
 	return db->Write({}, &batch);
 	}
 
@@ -142,101 +146,72 @@ broker::store::rocksdb_backend::do_insert(data k, data v,
 	if ( ! pimpl->require_db() )
 		return false;
 
-	return pimpl->require_ok(::insert(pimpl->db.get(), k, v, e));
+	return pimpl->require_ok(::insert(pimpl->db.get(), k, v, true, e));
 	}
 
-int broker::store::rocksdb_backend::do_increment(const data& k, int64_t by)
+broker::store::modification_result
+broker::store::rocksdb_backend::do_increment(const data& k, int64_t by,
+                                             double mod_time)
 	{
-	if ( pimpl->options.merge_operator )
-		{
-		auto kserial = to_serial(k, 'a');
-		auto vserial = to_serial(by, '+');
+	auto op = do_lookup_expiry(k);
 
-		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
-			return 0;
+	if ( ! op )
+		return {modification_result::status::failure, {}};
 
-		return -1;
-		}
+	if ( ! util::increment_data(op->first, by, &pimpl->last_error) )
+		return {modification_result::status::invalid, {}};
 
-	auto oov = do_lookup(k);
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	if ( ! oov )
-		return -1;
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
+	                                *op->first, false, new_expiry)) )
+		return {modification_result::status::success, std::move(new_expiry)};
 
-	auto& ov = *oov;
-
-	if ( ! util::increment_data(ov, by, &pimpl->last_error) )
-		return 1;
-
-	const auto& v = *ov;
-
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return 0;
-
-	return -1;
+	return {modification_result::status::failure, {}};
 	}
 
-int broker::store::rocksdb_backend::do_add_to_set(const data& k, data element)
+broker::store::modification_result
+broker::store::rocksdb_backend::do_add_to_set(const data& k, data element,
+                                              double mod_time)
 	{
-	if ( pimpl->options.merge_operator )
-		{
-		auto kserial = to_serial(k, 'a');
-		auto vserial = to_serial(element, 'a');
+	auto op = do_lookup_expiry(k);
 
-		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
-			return 0;
+	if ( ! op )
+		return {modification_result::status::failure, {}};
 
-		return -1;
-		}
+	if ( ! util::add_data_to_set(op->first, std::move(element),
+	                             &pimpl->last_error) )
+		return {modification_result::status::invalid, {}};
 
-	auto oov = do_lookup(k);
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	if ( ! oov )
-		return -1;
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
+	                                *op->first, false, new_expiry)) )
+		return {modification_result::status::success, std::move(new_expiry)};
 
-	auto& ov = *oov;
-
-	if ( ! util::add_data_to_set(ov, std::move(element), &pimpl->last_error) )
-		return 1;
-
-	const auto& v = *ov;
-
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return 0;
-
-	return -1;
+	return {modification_result::status::failure, {}};
 	}
 
-int broker::store::rocksdb_backend::do_remove_from_set(const data& k,
-                                                       const data& element)
+broker::store::modification_result
+broker::store::rocksdb_backend::do_remove_from_set(const data& k,
+                                                   const data& element,
+                                                   double mod_time)
 	{
-	if ( pimpl->options.merge_operator )
-		{
-		auto kserial = to_serial(k, 'a');
-		auto vserial = to_serial(element, 'r');
+	auto op = do_lookup_expiry(k);
 
-		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
-			return 0;
+	if ( ! op )
+		return {modification_result::status::failure, {}};
 
-		return -1;
-		}
+	if ( ! util::remove_data_from_set(op->first, element, &pimpl->last_error) )
+		return {modification_result::status::invalid, {}};
 
-	auto oov = do_lookup(k);
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	if ( ! oov )
-		return -1;
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
+	                                *op->first, false, new_expiry)) )
+		return {modification_result::status::success, std::move(new_expiry)};
 
-	auto& ov = *oov;
-
-	if ( ! util::remove_data_from_set(ov, element, &pimpl->last_error) )
-		return 1;
-
-	const auto& v = *ov;
-
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return 0;
-
-	return -1;
+	return {modification_result::status::failure, {}};
 	}
 
 bool broker::store::rocksdb_backend::do_erase(const data& k)
@@ -251,6 +226,60 @@ bool broker::store::rocksdb_backend::do_erase(const data& k)
 
 	kserial[0] = 'e';
 	return pimpl->require_ok(pimpl->db->Delete({}, kserial));
+	}
+
+bool broker::store::rocksdb_backend::do_erase(std::string kserial)
+	{
+	if ( ! pimpl->require_db() )
+		return false;
+
+	kserial[0] = 'a';
+
+	if ( ! pimpl->require_ok(pimpl->db->Delete({}, kserial)) )
+		return false;
+
+	kserial[0] = 'e';
+	return pimpl->require_ok(pimpl->db->Delete({}, kserial));
+	}
+
+bool
+broker::store::rocksdb_backend::do_expire(const data& k,
+                                          const expiration_time& expiration)
+	{
+	if ( ! pimpl->require_db() )
+		return false;
+
+	auto kserial = to_serial(k, 'e');
+	std::string vserial;
+	bool value_found;
+
+	if ( ! pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found) )
+		return true;
+
+	if ( value_found )
+		{
+		auto stored_expiration = from_serial<expiration_time>(vserial);
+
+		if ( stored_expiration == expiration )
+			return do_erase(std::move(kserial));
+		else
+			return true;
+		}
+
+	auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
+
+	if ( stat.IsNotFound() )
+		return true;
+
+	if ( ! pimpl->require_ok(stat) )
+		return false;
+
+	auto stored_expiration = from_serial<expiration_time>(vserial);
+
+	if ( stored_expiration == expiration )
+		return do_erase(std::move(kserial));
+	else
+		return true;
 	}
 
 bool broker::store::rocksdb_backend::do_clear()
@@ -268,128 +297,112 @@ bool broker::store::rocksdb_backend::do_clear()
 	return pimpl->require_ok(open(std::move(db_path), pimpl->options));
 	}
 
-int broker::store::rocksdb_backend::do_push_left(const data& k, vector items)
+broker::store::modification_result
+broker::store::rocksdb_backend::do_push_left(const data& k, vector items,
+                                             double mod_time)
 	{
-	if ( pimpl->options.merge_operator )
-		{
-		auto kserial = to_serial(k, 'a');
-		auto vserial = to_serial(data{std::move(items)}, 'h');
+	auto op = do_lookup_expiry(k);
 
-		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
-			return 0;
+	if ( ! op )
+		return {modification_result::status::failure, {}};
 
-		return -1;
-		}
+	if ( ! util::push_left(op->first, std::move(items), &pimpl->last_error) )
+		return {modification_result::status::invalid, {}};
 
-	auto oov = do_lookup(k);
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	if ( ! oov )
-		return -1;
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
+	                                *op->first, false, new_expiry)) )
+		return {modification_result::status::success, std::move(new_expiry)};
 
-	auto& ov = *oov;
-
-	if ( ! util::push_left(ov, std::move(items), &pimpl->last_error) )
-		return 1;
-
-	const auto& v = *ov;
-
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return 0;
-
-	return -1;
+	return {modification_result::status::failure, {}};
 	}
 
-int broker::store::rocksdb_backend::do_push_right(const data& k, vector items)
+broker::store::modification_result
+broker::store::rocksdb_backend::do_push_right(const data& k, vector items,
+                                              double mod_time)
 	{
-	if ( pimpl->options.merge_operator )
-		{
-		auto kserial = to_serial(k, 'a');
-		auto vserial = to_serial(data{std::move(items)}, 't');
+	auto op = do_lookup_expiry(k);
 
-		if ( pimpl->require_ok(pimpl->db->Merge({}, kserial, vserial)) )
-			return 0;
+	if ( ! op )
+		return {modification_result::status::failure, {}};
 
-		return -1;
-		}
+	if ( ! util::push_right(op->first, std::move(items), &pimpl->last_error) )
+		return {modification_result::status::invalid, {}};
 
-	auto oov = do_lookup(k);
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	if ( ! oov )
-		return -1;
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k,
+	                                *op->first, false, new_expiry)) )
+		return {modification_result::status::success, std::move(new_expiry)};
 
-	auto& ov = *oov;
-
-	if ( ! util::push_right(ov, std::move(items), &pimpl->last_error) )
-		return 1;
-
-	const auto& v = *ov;
-
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return 0;
-
-	return -1;
+	return {modification_result::status::failure, {}};
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::rocksdb_backend::do_pop_left(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::rocksdb_backend::do_pop_left(const data& k, double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
-		return {};
+	if ( ! op )
+		return {{modification_result::status::failure, {}}, {}};
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		// Fine, key didn't exist.
-		return util::optional<data>{};
+		return {{modification_result::status::success, {}}, {}};
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	auto rval = util::pop_left(v, &pimpl->last_error);
 
 	if ( ! rval )
-		return rval;
+		return {{modification_result::status::invalid, {}}, {}};
 
 	if ( ! *rval )
 		// Fine, popped an empty list.
-		return rval;
+		return {{modification_result::status::success, {}}, {}};
 
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return rval;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	return {};
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v, false, new_expiry)) )
+		return {{modification_result::status::success, std::move(new_expiry)},
+			    std::move(*rval)};
+
+	return {{modification_result::status::failure, {}}, {}};
 	}
 
-broker::util::optional<broker::util::optional<broker::data>>
-broker::store::rocksdb_backend::do_pop_right(const data& k)
+std::pair<broker::store::modification_result,
+          broker::util::optional<broker::data>>
+broker::store::rocksdb_backend::do_pop_right(const data& k, double mod_time)
 	{
-	auto oov = do_lookup(k);
+	auto op = do_lookup_expiry(k);
 
-	if ( ! oov )
-		return {};
+	if ( ! op )
+		return {{modification_result::status::failure, {}}, {}};
 
-	auto& ov = *oov;
-
-	if ( ! ov )
+	if ( ! op->first )
 		// Fine, key didn't exist.
-		return util::optional<data>{};
+		return {{modification_result::status::success, {}}, {}};
 
-	auto& v = *ov;
+	auto& v = *op->first;
 
 	auto rval = util::pop_right(v, &pimpl->last_error);
 
 	if ( ! rval )
-		return rval;
+		return {{modification_result::status::invalid, {}}, {}};
 
 	if ( ! *rval )
 		// Fine, popped an empty list.
-		return rval;
+		return {{modification_result::status::success, {}}, {}};
 
-	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v)) )
-		return rval;
+	auto new_expiry = util::update_last_modification(op->second, mod_time);
 
-	return {};
+	if ( pimpl->require_ok(::insert(pimpl->db.get(), k, v, false, new_expiry)) )
+		return {{modification_result::status::success, std::move(new_expiry)},
+			    std::move(*rval)};
+
+	return {{modification_result::status::failure, {}}, {}};
 	}
 
 broker::util::optional<broker::util::optional<broker::data>>
@@ -417,6 +430,67 @@ broker::store::rocksdb_backend::do_lookup(const data& k) const
 		return {};
 
 	return {from_serial<data>(vserial)};
+	}
+
+broker::util::optional<std::pair<broker::util::optional<broker::data>,
+	                   broker::util::optional<broker::store::expiration_time>>>
+broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const
+	{
+	if ( ! pimpl->require_db() )
+		return {};
+
+	auto kserial = to_serial(k, 'a');
+	std::string vserial;
+	bool value_found;
+
+	if ( ! pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found) )
+		return {std::make_pair(util::optional<data>{},
+			                   util::optional<expiration_time>{})};
+
+	data value;
+
+	if ( value_found )
+		value = from_serial<data>(vserial);
+	else
+		{
+		auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
+
+		if ( stat.IsNotFound() )
+			return {std::make_pair(util::optional<data>{},
+				                   util::optional<expiration_time>{})};
+
+		if ( ! pimpl->require_ok(stat) )
+			return {};
+
+		value = from_serial<data>(vserial);
+		}
+
+	kserial[0] = 'e';
+	value_found = false;
+
+	if ( ! pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found) )
+		return {std::make_pair(std::move(value),
+			                   util::optional<expiration_time>{})};
+
+	expiration_time expiry;
+
+	if ( value_found )
+		expiry = from_serial<expiration_time>(vserial);
+	else
+		{
+		auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
+
+		if ( stat.IsNotFound() )
+			return {std::make_pair(std::move(value),
+				                   util::optional<expiration_time>{})};
+
+		if ( ! pimpl->require_ok(stat) )
+			return {};
+
+		expiry = from_serial<expiration_time>(vserial);
+		}
+
+	return {std::make_pair(std::move(value), std::move(expiry))};
 	}
 
 broker::util::optional<bool>
@@ -564,171 +638,3 @@ broker::store::rocksdb_backend::do_expiries() const
 
 	return rval;
 	}
-
-bool broker::store::rocksdb_merge_operator::FullMerge(
-        const rocksdb::Slice& key,
-        const rocksdb::Slice* existing_value,
-        const std::deque<std::string>& operand_list,
-        std::string* new_value,
-        rocksdb::Logger* logger) const
-	{
-	static std::string error;
-	util::optional<data> new_data;
-
-	if ( existing_value )
-		new_data = from_serial<data>(*existing_value);
-
-	for ( const auto& op : operand_list )
-		{
-		if ( op.empty() ) continue;
-
-		switch ( op[0] ) {
-		case '+':
-			{
-			auto by = from_serial<int64_t>(op.data() + 1, op.size() - 1);
-
-			if ( ! util::increment_data(new_data, by, &error) )
-				rocksdb::Log(logger, "%s", error.data());
-			}
-			break;
-		case 'a':
-			{
-			auto element = from_serial<data>(op.data() + 1, op.size() - 1);
-
-			if ( ! util::add_data_to_set(new_data, std::move(element), &error) )
-				rocksdb::Log(logger, "%s", error.data());
-			}
-			break;
-		case 'r':
-			{
-			auto element = from_serial<data>(op.data() + 1, op.size() - 1);
-
-			if ( ! util::remove_data_from_set(new_data, element, &error) )
-				rocksdb::Log(logger, "%s", error.data());
-			}
-			break;
-		case 'h':
-			{
-			auto d = from_serial<data>(op.data() + 1, op.size() - 1);
-			auto items = *get<vector>(d);
-
-			if ( ! util::push_left(new_data, std::move(items), &error) )
-				rocksdb::Log(logger, "%s", error.data());
-			}
-			break;
-		case 't':
-			{
-			auto d = from_serial<data>(op.data() + 1, op.size() - 1);
-			auto items = *get<vector>(d);
-
-			if ( ! util::push_right(new_data, std::move(items), &error) )
-				rocksdb::Log(logger, "%s", error.data());
-			}
-			break;
-		default:
-			rocksdb::Log(logger, "invalid operand: %d", op[0]);
-			break;
-		}
-		}
-
-	if ( new_data )
-		new_value->assign(to_serial(*new_data));
-
-	return true;
-	}
-
-bool broker::store::rocksdb_merge_operator::PartialMerge(
-        const rocksdb::Slice& key,
-        const rocksdb::Slice& left_operand,
-        const rocksdb::Slice& right_operand,
-        std::string* new_value,
-        rocksdb::Logger* logger) const
-	{
-	auto lop = left_operand[0];
-	auto rop = right_operand[0];
-	rocksdb::Slice lslice(left_operand.data() + 1, left_operand.size() - 1);
-	rocksdb::Slice rslice(right_operand.data() + 1, right_operand.size() - 1);
-
-	if ( lop == '+' || rop == '+' )
-		{
-		if ( lop != rop )
-			return false;
-
-		auto lv = from_serial<int64_t>(lslice);
-		auto rv = from_serial<int64_t>(rslice);
-		auto nv = lv + rv;
-		new_value->assign(to_serial(nv, '+'));
-		return true;
-		}
-
-	if ( lop == 'h' )
-		{
-		if ( rop != 'h' )
-			return false;
-
-		auto ld = from_serial<data>(lslice);
-		auto rd = from_serial<data>(rslice);
-		auto lv = *get<vector>(ld);
-		auto rv = *get<vector>(rd);
-
-		for ( auto& e : lv )
-			rv.emplace_back(std::move(e));
-
-		new_value->assign(to_serial(rv, 'h'));
-		}
-	else if ( lop == 't' )
-		{
-		if ( rop != 't' )
-			return false;
-
-		auto ld = from_serial<data>(lslice);
-		auto rd = from_serial<data>(rslice);
-		auto lv = *get<vector>(ld);
-		auto rv = *get<vector>(rd);
-
-		for ( auto& e : rv )
-			lv.emplace_back(std::move(e));
-
-		new_value->assign(to_serial(lv, 't'));
-		}
-
-	if ( lslice != rslice )
-		return false;
-
-	if ( lop == 'a' )
-		{
-		if ( rop == 'a' )
-			{
-			new_value->assign(left_operand.data(), left_operand.size());
-			return true;
-			}
-		else if ( rop == 'r' )
-			{
-			new_value->assign("");
-			return true;
-			}
-		else
-			return false;
-		}
-	else if ( lop == 'r' )
-		{
-		if ( rop == 'a' )
-			{
-			new_value->assign(right_operand.data(), right_operand.size());
-			return true;
-			}
-		else if ( rop == 'r' )
-			{
-			new_value->assign(left_operand.data(), left_operand.size());
-			return true;
-			}
-		else
-			return false;
-		}
-
-	rocksdb::Log(logger, "invalid merge operand(s)");
-	return false;
-	}
-
-const char* broker::store::rocksdb_merge_operator::Name() const
-	{ return "broker_merge_op"; }

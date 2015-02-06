@@ -43,69 +43,76 @@ public:
 	 * @param s a storage backend to query against.
 	 * @return the result of the query.
 	 */
-	result process(backend& s) const
+	std::pair<result, util::optional<modification_result>>
+	process(backend& s, double current_time) const
 		{
 		switch ( type ) {
 		case tag::pop_left:
 			{
-			if ( auto r = s.pop_left(k) )
+			auto r = s.pop_left(k, current_time);
+
+			if ( r.first.stat == modification_result::status::success )
 				{
-				if ( *r )
-					return result(std::move(**r));
+				if ( r.second )
+					return {result(std::move(*r.second)), std::move(r.first)};
 				else
-					return result(false);
+					// Key doesn't exist.
+					return {result(false), {}};
 				}
-			return result(result::status::failure);
+			return {result(result::status::failure), {}};
 			}
 		case tag::pop_right:
 			{
-			if ( auto r = s.pop_right(k) )
+			auto r = s.pop_right(k, current_time);
+
+			if ( r.first.stat == modification_result::status::success )
 				{
-				if ( *r )
-					return result(std::move(**r));
+				if ( r.second )
+					return {result(std::move(*r.second)), std::move(r.first)};
 				else
-					return result(false);
+					// Key doesn't exist.
+					return {result(false), {}};
 				}
-			return result(result::status::failure);
+			return {result(result::status::failure), {}};
 			}
 		case tag::lookup:
 			{
 			if ( auto r = s.lookup(k) )
 				{
 				if ( *r )
-					return result(std::move(**r));
+					return {result(std::move(**r)), {}};
 				else
 					// Key doesn't exist.
-					return result(false);
+					return {result(false), {}};
 				}
-			return result(result::status::failure);
+			return {result(result::status::failure), {}};
 			}
 		case tag::exists:
 			{
 			if ( auto r = s.exists(k) )
-				return result(std::move(*r));
-			return result(result::status::failure);
+				return {result(std::move(*r)), {}};
+			return {result(result::status::failure), {}};
 			}
 		case tag::keys:
 			{
 			if ( auto r = s.keys() )
-				return result(std::move(*r));
-			return result(result::status::failure);
+				return {result(std::move(*r)), {}};
+			return {result(result::status::failure), {}};
 			}
 		case tag::size:
 			{
 			if ( auto r = s.size() )
-				return result(std::move(*r));
-			return result(result::status::failure);
+				return {result(std::move(*r)), {}};
+			return {result(result::status::failure), {}};
 			}
 		case tag::snapshot:
 			{
 			if ( auto r = s.snap() )
-				return result(std::move(*r));
-			return result(result::status::failure);
+				return {result(std::move(*r)), {}};
+			return {result(result::status::failure), {}};
 			}
 		default:
-			assert(false);
+			assert(! "bad query type");
 		}
 		}
 };

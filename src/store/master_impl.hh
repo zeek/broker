@@ -16,72 +16,6 @@ namespace broker { namespace store {
 static inline double now()
 	{ return broker::time_point::now().value; }
 
-class timer_actor : public caf::sb_actor<timer_actor> {
-friend class caf::sb_actor<timer_actor>;
-
-public:
-
-	timer_actor(data key, expiration_time t, caf::actor master)
-		{
-		using namespace std::chrono;
-
-		microseconds wait(0);
-		double n = now();
-
-		if ( t.type == expiration_time::tag::absolute && t.time > n )
-			wait = duration_cast<microseconds>(duration<double>(t.time - n));
-		else
-			wait = duration_cast<microseconds>(duration<double>(t.time));
-
-		timing = (
-		caf::on(caf::atom("quit")) >> [=]
-			{
-			quit();
-			},
-		caf::on(caf::atom("refresh")) >> [=]
-			{
-			// Cause after() handler to wait another full timeout period.
-			},
-		caf::after(wait) >> [=]
-			{
-			send(master, caf::atom("expire"), std::move(key));
-			quit();
-			}
-		);
-		}
-
-private:
-
-	caf::behavior timing;
-	caf::behavior& init_state = timing;
-};
-
-class timer {
-public:
-
-	timer() = default;
-
-	timer(timer&&) = default;
-
-	timer(const timer&) = delete;
-
-	timer& operator=(timer&&) = default;
-
-	timer& operator=(const timer&) = delete;
-
-	timer(data key, expiration_time t, caf::actor master)
-		: expiry(t),
-		  actor(caf::spawn<timer_actor>(std::move(key), std::move(t),
-		                                std::move(master)))
-		{}
-
-	~timer()
-		{ caf::anon_send(actor, caf::atom("quit")); }
-
-	expiration_time expiry;
-	caf::actor actor;
-};
-
 class master_actor : public caf::sb_actor<master_actor> {
 friend class caf::sb_actor<master_actor>;
 
@@ -93,13 +27,12 @@ public:
 		using namespace caf;
 		using namespace std;
 
-		init_timers = (
+		init_existing_expiry_reminders = (
 		after(chrono::seconds::zero()) >> [=]
 			{
 			if ( auto es = datastore->expiries() )
 				for ( auto& entry : *es )
-					timers[entry.key] = timer(move(entry.key), entry.expiry,
-					                          this);
+					expiry_reminder(name, move(entry.key), move(entry.expiry));
 			else
 				error(name, "expiries", datastore->last_error());
 
@@ -117,9 +50,10 @@ public:
 		message_handler requests {
 		on(val<identifier>, arg_match) >> [=](const query& q, const actor& r)
 			{
-			auto res = q.process(*datastore);
+			auto current_time = now();
+			auto res = q.process(*datastore, current_time);
 
-			if ( res.stat == result::status::failure )
+			if ( res.first.stat == result::status::failure )
 				{
 				char tmp[64];
 				snprintf(tmp, sizeof(tmp), "process query (tag=%d)",
@@ -139,16 +73,20 @@ public:
 				case query::tag::pop_left:
 					// fallthrough
 				case query::tag::pop_right:
-					if ( which(res.value) == result::tag::lookup_or_pop_result )
+					if ( which(res.first.value) ==
+					     result::tag::lookup_or_pop_result )
 						{
-						refresh_modification_time(q.k);
+						if ( res.second && res.second->new_expiration )
+							expiry_reminder(name, q.k,
+							                move(*res.second->new_expiration));
 
 						if ( clones.empty() )
 							break;
 
 						auto op = q.type == query::tag::pop_left ? atom("lpop")
 						                                         : atom("rpop");
-						publish(make_message(op, datastore->sequence(), q.k));
+						publish(make_message(op, datastore->sequence(), q.k,
+						                     current_time));
 						}
 					break;
 				default:
@@ -156,73 +94,83 @@ public:
 				}
 				}
 
-			return make_message(this, move(res));
+			return make_message(this, move(res.first));
 			},
 		};
 
 		message_handler updates {
-		on(atom("expire"), arg_match) >> [=](const data& k)
+		on(atom("expire"), arg_match) >> [=](data& k, expiration_time& expiry)
 			{
-			if ( ! datastore->erase(k) )
+			if ( ! datastore->expire(k, expiry) )
 				{
-				error(name, "expire/erase", datastore->last_error());
+				error(name, "expire", datastore->last_error());
 				return;
 				}
 
 			BROKER_DEBUG("store.master." + name, "Expire key: " + to_string(k));
-			timers.erase(k);
 
 			if ( ! clones.empty() )
-				publish(make_message(atom("erase"), datastore->sequence(),
-				                     move(k)));
+				publish(make_message(atom("expire"), datastore->sequence(),
+				                     move(k), move(expiry)));
 			},
 		on(val<identifier>, atom("increment"), arg_match) >> [=](data& k,
 		                                                         int64_t by)
 			{
-			if ( datastore->increment(k, by) != 0 )
+			auto mod_time = now();
+			auto res = datastore->increment(k, by, mod_time);
+
+			if ( res.stat != modification_result::status::success )
 				{
 				error(name, "increment", datastore->last_error());
 				return;
 				}
 
-			refresh_modification_time(k);
+			if ( res.new_expiration )
+				expiry_reminder(name, k, move(*res.new_expiration));
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("increment"), datastore->sequence(),
-				                     move(k), by));
+				                     move(k), by, mod_time));
 			},
 		on(val<identifier>, atom("set_add"), arg_match) >> [=](data& k, data& e)
 			{
-			if ( datastore->add_to_set(k, clones.empty() ? move(e) : e) != 0 )
+			auto mod_time = now();
+			auto res = datastore->add_to_set(k, clones.empty() ? move(e) : e,
+			                                 mod_time);
+
+			if ( res.stat != modification_result::status::success )
 				{
 				error(name, "add_to_set", datastore->last_error());
 				return;
 				}
 
-			refresh_modification_time(k);
+			if ( res.new_expiration )
+				expiry_reminder(name, k, move(*res.new_expiration));
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("set_add"), datastore->sequence(),
-				                     move(k), move(e)));
+				                     move(k), move(e), mod_time));
 			},
 		on(val<identifier>, atom("set_rem"), arg_match) >> [=](data& k, data& e)
 			{
-			if ( datastore->remove_from_set(k, e) != 0 )
+			auto mod_time = now();
+			auto res = datastore->remove_from_set(k, e, mod_time);
+
+			if ( res.stat != modification_result::status::success )
 				{
 				error(name, "remove_from_set", datastore->last_error());
 				return;
 				}
 
-			refresh_modification_time(k);
+			if ( res.new_expiration )
+				expiry_reminder(name, k, move(*res.new_expiration));
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("set_rem"), datastore->sequence(),
-				                     move(k), move(e)));
+				                     move(k), move(e), mod_time));
 			},
 		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v)
 			{
-			timers.erase(k);
-
 			if ( ! datastore->insert(clones.empty() ? move(k) : k,
 			                         clones.empty() ? move(v) : v) )
 				{
@@ -237,21 +185,24 @@ public:
 		on(val<identifier>, atom("insert"), arg_match) >> [=](data& k, data& v,
 		                                                      expiration_time t)
 			{
-			if ( t.type == expiration_time::tag::absolute && t.time <= now() )
+			if ( t.type == expiration_time::tag::absolute &&
+			     t.expiry_time <= now() )
 				return;
 
-			timers[k] = timer(k, t, this);
-
-			if ( ! datastore->insert(clones.empty() ? move(k) : k,
-			                         clones.empty() ? move(v) : v) )
+			if ( ! datastore->insert(k, clones.empty() ? move(v) : v, t) )
 				{
 				error(name, "insert_with_expiry", datastore->last_error());
 				return;
 				}
 
-			if ( ! clones.empty() )
+			if ( clones.empty() )
+				expiry_reminder(name, move(k), t);
+			else
+				{
+				expiry_reminder(name, k, t);
 				publish(make_message(atom("insert"), datastore->sequence(),
 				                     move(k), move(v), t));
+				}
 			},
 		on(val<identifier>, atom("erase"), arg_match) >> [=](data& k)
 			{
@@ -260,8 +211,6 @@ public:
 				error(name, "erase", datastore->last_error());
 				return;
 				}
-
-			timers.erase(k);
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("erase"), datastore->sequence(),
@@ -275,38 +224,46 @@ public:
 				return;
 				}
 
-			timers.clear();
-
 			if ( ! clones.empty() )
 				publish(make_message(atom("clear"), datastore->sequence()));
 			},
 		on(val<identifier>, atom("lpush"), arg_match) >> [=](data& k, vector& i)
 			{
-			if ( datastore->push_left(k, clones.empty() ? move(i) : i) != 0 )
+			auto mod_time = now();
+			auto res = datastore->push_left(k, clones.empty() ? move(i) : i,
+			                                mod_time);
+
+			if ( res.stat != modification_result::status::success )
 				{
 				error(name, "push_left", datastore->last_error());
 				return;
 				}
 
-			refresh_modification_time(k);
+			if ( res.new_expiration )
+				expiry_reminder(name, k, move(*res.new_expiration));
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("lpush"), datastore->sequence(),
-				                     move(k), move(i)));
+				                     move(k), move(i), mod_time));
 			},
 		on(val<identifier>, atom("rpush"), arg_match) >> [=](data& k, vector& i)
 			{
-			if ( datastore->push_right(k, clones.empty() ? move(i) : i) != 0 )
+			auto mod_time = now();
+			auto res = datastore->push_right(k, clones.empty() ? move(i) : i,
+			                                 mod_time);
+
+			if ( res.stat != modification_result::status::success )
 				{
 				error(name, "push_right", datastore->last_error());
 				return;
 				}
 
-			refresh_modification_time(k);
+			if ( res.new_expiration )
+				expiry_reminder(name, k, move(*res.new_expiration));
 
 			if ( ! clones.empty() )
 				publish(make_message(atom("rpush"), datastore->sequence(),
-				                     move(k), move(i)));
+				                     move(k), move(i), mod_time));
 			}
 		};
 
@@ -321,17 +278,30 @@ public:
 
 private:
 
-	void refresh_modification_time(const data& key)
+	void expiry_reminder(const identifier& name, data key,
+	                     expiration_time expiry)
 		{
-		auto it = timers.find(key);
+		using namespace std::chrono;
+		double abs_expire_time;
 
-		if ( it == timers.end() )
-			return;
+		switch ( expiry.type ) {
+		case expiration_time::tag::absolute:
+			abs_expire_time = expiry.expiry_time;
+			break;
+		case expiration_time::tag::since_last_modification:
+			abs_expire_time = expiry.expiry_time + expiry.modification_time;
+			break;
+		default:
+			assert(! "bad expiry type");
+		}
 
-		const timer& t = it->second;
-
-		if ( t.expiry.type == expiration_time::tag::since_last_modification )
-			caf::anon_send(t.actor, caf::atom("refresh"));
+		double wait_secs = std::max(0.0, abs_expire_time - now());
+		BROKER_DEBUG("store.master." + name,
+		             "Send reminder to expire key: " + to_string(key) + " in " +
+		             to_string(data{wait_secs}) + " seconds");
+		delayed_send(this,
+		             duration_cast<microseconds>(duration<double>(wait_secs)),
+		             caf::atom("expire"), std::move(key), std::move(expiry));
 		}
 
 	void publish(caf::message msg)
@@ -347,11 +317,10 @@ private:
 		}
 
 	std::unique_ptr<backend> datastore;
-	std::unordered_map<data, timer> timers;
 	std::unordered_map<caf::actor_addr, caf::actor> clones;
 	caf::behavior serving;
-	caf::behavior init_timers;
-	caf::behavior& init_state = init_timers;
+	caf::behavior init_existing_expiry_reminders;
+	caf::behavior& init_state = init_existing_expiry_reminders;
 };
 
 class master::impl {

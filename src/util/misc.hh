@@ -2,6 +2,7 @@
 #define BROKER_UTIL_MISC_HH
 
 #include "broker/data.hh"
+#include "broker/store/expiration_time.hh"
 
 namespace broker {
 namespace util {
@@ -24,6 +25,15 @@ struct increment_visitor {
 	result_type operator()(const T&) const
 		{ return false; }
 };
+
+/**
+ * Update the last modification time of an expiration value.
+ * @param et an existing expiration time to update
+ * @param mod_time the new last-modified time.
+ * @return the new expiration value (if it needed to be updated).
+ */
+optional<store::expiration_time>
+update_last_modification(optional<store::expiration_time>& et, double mod_time);
 
 /**
  * Increment integral data by a given amount.
@@ -101,7 +111,8 @@ bool push_right(data& v, vector items, std::string* error_msg);
  * @param v the vector to modify
  * @param error_msg an optional location to put an error message.
  * @param shrink whether to consider shrinking the capacity of \a v
- * @return false on failure (i.e. the data type is not a vector).
+ * @return nil on failure (i.e. the data type is not a vector), or first item
+ * if one was available.
  */
 optional<optional<data>> pop_left(optional<data>& v, std::string* error_msg,
                                   bool shrink = false);
@@ -117,7 +128,8 @@ optional<optional<data>> pop_left(data& v, std::string* error_msg,
  * @param v the vector to modify
  * @param error_msg an optional location to put an error message.
  * @param shrink whether to consider shrinking the capacity of \a v
- * @return false on failure (i.e. the data type is not a vector).
+ * @return nil on failure (i.e. the data type is not a vector), or last item
+ * if one was available.
  */
 optional<optional<data>> pop_right(optional<data>& v, std::string* error_msg,
                                    bool shrink = false);

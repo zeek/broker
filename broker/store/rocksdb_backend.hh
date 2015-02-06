@@ -4,38 +4,8 @@
 #include <broker/store/backend.hh>
 #include <rocksdb/options.h>
 #include <rocksdb/status.h>
-#include <rocksdb/merge_operator.h>
 
 namespace broker { namespace store {
-
-/**
- * An operator which, when supplied as a "merge_operator" field of
- * rocksdb::Options and passed to rocksdb_backend::open(), can "merge"
- * the various forms of in-place data store value modifications (like
- * increment, add_to_set, remove_from_set) so that a read-modify-write
- * is not needed for each operation.  While this may be faster, the tradeoff
- * is that RocksDB has to perform these modifications "lazily", so Broker
- * may not report errors from operations like backend::increment() directly,
- * but RocksDB may log an error when it actually tries to apply the operation
- * and can't (e.g. due to invalid data types).
- */
-class rocksdb_merge_operator : public rocksdb::MergeOperator {
-private:
-
-	virtual bool FullMerge(const rocksdb::Slice& key,
-	                       const rocksdb::Slice* existing_value,
-	                       const std::deque<std::string>& operand_list,
-	                       std::string* new_value,
-	                       rocksdb::Logger* logger) const override;
-
-	virtual bool PartialMerge(const rocksdb::Slice& key,
-	                          const rocksdb::Slice& left_operand,
-	                          const rocksdb::Slice& right_operand,
-	                          std::string* new_value,
-	                          rocksdb::Logger* logger) const override;
-
-	virtual const char* Name() const override;
-};
 
 /**
  * A RocksDB implementation of a storage backend.  The results of
@@ -98,28 +68,42 @@ private:
 
 	bool do_insert(data k, data v, util::optional<expiration_time> t) override;
 
-	int do_increment(const data& k, int64_t by) override;
+	modification_result
+	do_increment(const data& k, int64_t by, double time) override;
 
-	int do_add_to_set(const data& k, data element) override;
+	modification_result
+	do_add_to_set(const data& k, data element, double time) override;
 
-	int do_remove_from_set(const data& k, const data& element) override;
+	modification_result
+	do_remove_from_set(const data& k, const data& element,
+	                   double time) override;
 
 	bool do_erase(const data& k) override;
 
+	bool do_erase(std::string kserial);
+
+	bool do_expire(const data& k, const expiration_time& expiration) override;
+
 	bool do_clear() override;
 
-	int do_push_left(const data& k, vector items) override;
+	modification_result
+	do_push_left(const data& k, vector items, double time) override;
 
-	int do_push_right(const data& k, vector items) override;
+	modification_result
+	do_push_right(const data& k, vector items, double time) override;
 
-	util::optional<util::optional<data>>
-	do_pop_left(const data& k) override;
+	std::pair<modification_result, util::optional<data>>
+	do_pop_left(const data& k, double time) override;
 
-	util::optional<util::optional<data>>
-	do_pop_right(const data& k) override;
+	std::pair<modification_result, util::optional<data>>
+	do_pop_right(const data& k, double time) override;
 
 	util::optional<util::optional<data>>
 	do_lookup(const data& k) const override;
+
+	util::optional<std::pair<util::optional<data>,
+	               util::optional<expiration_time>>>
+	do_lookup_expiry(const data& k) const;
 
 	util::optional<bool> do_exists(const data& k) const override;
 
