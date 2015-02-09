@@ -1,4 +1,5 @@
 #include "broker/message_queue.hh"
+#include "atoms.hh"
 #include <caf/send.hpp>
 
 class broker::message_queue::impl {
@@ -21,7 +22,7 @@ broker::message_queue::message_queue(topic prefix, const endpoint& e)
       pimpl(new impl{std::move(prefix)})
 	{
 	caf::anon_send(*static_cast<caf::actor*>(e.handle()),
-	               caf::atom("local sub"), pimpl->subscription_prefix,
+	               local_sub_atom::value, pimpl->subscription_prefix,
 	               *static_cast<caf::actor*>(this->handle()));
 	}
 

@@ -1,6 +1,7 @@
 #ifndef BROKER_STORE_CLONE_IMPL_HH
 #define BROKER_STORE_CLONE_IMPL_HH
 
+#include "../atoms.hh"
 #include "broker/store/clone.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/memory_backend.hh"
@@ -41,13 +42,12 @@ public:
 		};
 
 		message_handler updates {
-		on(val<identifier>, atom("increment"), any_vals) >> [=]
+		on(val<identifier>, increment_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("increment"), arg_match) >> [=](const sequence_num& sn,
-		                                        const data& k, int64_t by,
-		                                        double mod_time)
+		[=](increment_atom, const sequence_num& sn, const data& k, int64_t by,
+		    double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -61,13 +61,12 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("set_add"), any_vals) >> [=]
+		on(val<identifier>, set_add_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("set_add"), arg_match) >> [=](const sequence_num& sn,
-		                                      const data& k, data& e,
-		                                      double mod_time)
+		[=](set_add_atom, const sequence_num& sn, const data& k, data& e,
+		    double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -81,13 +80,12 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("set_rem"), any_vals) >> [=]
+		on(val<identifier>, set_rem_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("set_rem"), arg_match) >> [=](const sequence_num& sn,
-		                                      const data& k, const data& e,
-		                                      double mod_time)
+		[=](set_rem_atom, const sequence_num& sn, const data& k, const data& e,
+		    double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -101,12 +99,11 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("insert"), any_vals) >> [=]
+		on(val<identifier>, insert_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
-		                                     data& k, data& v)
+		[=](insert_atom, const sequence_num& sn, data& k, data& v)
 			{
 			auto next = datastore->sequence().next();
 
@@ -118,9 +115,8 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(atom("insert"), arg_match) >> [=](const sequence_num& sn,
-		                                     data& k, data& v,
-		                                     expiration_time t)
+		[=](insert_atom, const sequence_num& sn, data& k, data& v,
+		    expiration_time t)
 			{
 			auto next = datastore->sequence().next();
 
@@ -133,12 +129,11 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("erase"), val<data>) >> [=]
+		on(val<identifier>, erase_atom::value, val<data>) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("erase"), arg_match) >> [=](const sequence_num& sn,
-		                                    const data& k)
+		[=](erase_atom, const sequence_num& sn, const data& k)
 			{
 			auto next = datastore->sequence().next();
 
@@ -150,9 +145,8 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(atom("expire"), arg_match) >> [=](const sequence_num& sn,
-		                                     const data& k,
-		                                     const expiration_time& expiry)
+		[=](expire_atom, const sequence_num& sn, const data& k,
+		    const expiration_time& expiry)
 			{
 			auto next = datastore->sequence().next();
 
@@ -164,11 +158,11 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("clear")) >> [=]
+		on(val<identifier>, clear_atom::value) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("clear"), arg_match) >> [=](const sequence_num& sn)
+		 [=](clear_atom, const sequence_num& sn)
 			{
 			auto next = datastore->sequence().next();
 
@@ -180,13 +174,12 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("lpush"), any_vals) >> [=]
+		on(val<identifier>, lpush_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("lpush"), arg_match) >> [=](const sequence_num& sn,
-		                                    const data& k, broker::vector& i,
-		                                    double mod_time)
+		[=](lpush_atom, const sequence_num& sn, const data& k,
+		    broker::vector& i, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -200,13 +193,12 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, atom("rpush"), any_vals) >> [=]
+		on(val<identifier>, rpush_atom::value, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
-		on(atom("rpush"), arg_match) >> [=](const sequence_num& sn,
-		                                    const data& k, broker::vector& i,
-		                                    double mod_time)
+		[=](rpush_atom, const sequence_num& sn, const data& k,
+		    broker::vector& i, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -220,8 +212,7 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(atom("lpop"), arg_match) >> [=](const sequence_num& sn,
-		                                   const data& k, double mod_time)
+		 [=](lpop_atom, const sequence_num& sn, const data& k, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -235,8 +226,7 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(atom("rpop"), arg_match) >> [=](const sequence_num& sn,
-		                                   const data& k, double mod_time)
+		[=](rpop_atom, const sequence_num& sn, const data& k, double mod_time)
 			{
 			auto next = datastore->sequence().next();
 
@@ -255,23 +245,23 @@ public:
 		bootstrap = (
 		after(chrono::seconds::zero()) >> [=]
 			{
-			send(this, atom("findmaster"));
+			send(this, find_master_atom::value);
 			get_snapshot(chrono::seconds::zero());
 			become(synchronizing);
 			}
 		);
 
 		message_handler give_actor{
-		on(atom("storeactor"), arg_match) >> [=](const identifier& n) -> actor
+		[=](store_actor_atom, const identifier& n) -> actor
 			{
 			return this;
 			}
 		};
 
 		message_handler find_master{
-		on(atom("findmaster")) >> [=]
+		[=](find_master_atom)
 			{
-			sync_send(endpoint, atom("storeactor"), master_name).then(
+			sync_send(endpoint, store_actor_atom::value, master_name).then(
 				on_arg_match >> [=](actor& m)
 					{
 					if ( m )
@@ -286,7 +276,8 @@ public:
 						{
 						BROKER_DEBUG("store.clone." + master_name,
 						             "Failed to locate master, will retry...");
-						delayed_send(this, resync_interval, atom("findmaster"));
+						delayed_send(this, resync_interval,
+						             find_master_atom::value);
 						}
 					}
 			);
@@ -297,14 +288,14 @@ public:
 				{
 				BROKER_DEBUG("store.clone." + master_name,
 				             "master went down, trying to relocate...");
-				send(this, atom("findmaster"));
+				send(this, find_master_atom::value);
 				get_snapshot(resync_interval);
 				}
 			}
 		};
 
 		message_handler get_snap{
-		on(atom("getsnap")) >> [=]
+		[=](get_snap_atom)
 			{
 			pending_getsnap = false;
 
@@ -378,7 +369,7 @@ private:
 		if ( pending_getsnap )
 			return;
 
-		delayed_send(this, resync_interval, caf::atom("getsnap"));
+		delayed_send(this, resync_interval, get_snap_atom::value);
 		pending_getsnap = true;
 		}
 

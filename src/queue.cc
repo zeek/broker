@@ -1,4 +1,5 @@
 #include "queue_impl.hh"
+#include "atoms.hh"
 
 template <class T>
 broker::queue<T>::queue()
@@ -24,11 +25,11 @@ void* broker::queue<T>::handle() const
 
 template <class T>
 std::deque<T> broker::queue<T>::want_pop() const
-	{ return util::queue_pop<T>(pimpl->actor, caf::atom("want")); }
+	{ return util::queue_pop<T>(pimpl->actor, want_atom::value); }
 
 template <class T>
 std::deque<T> broker::queue<T>::need_pop() const
-	{ return util::queue_pop<T>(pimpl->actor, caf::atom("need")); }
+	{ return util::queue_pop<T>(pimpl->actor, need_atom::value); }
 
 // Explicit template instantiations.  We need to do this if using the
 // Pimpl idiom to separate/hide the implementation details.  Else, we would

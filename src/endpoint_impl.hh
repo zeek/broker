@@ -9,6 +9,7 @@
 #include "subscription.hh"
 #include "peering_impl.hh"
 #include "util/radix_tree.hh"
+#include "atoms.hh"
 #include <caf/actor.hpp>
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -75,7 +76,7 @@ public:
 			return make_message(BROKER_PROTOCOL_VERSION == version,
 			                    BROKER_PROTOCOL_VERSION);
 			},
-		on(atom("peer"), arg_match) >> [=](actor& p, peering::impl& pi)
+		[=](peer_atom, actor& p, peering::impl& pi)
 			{
 			auto it = peers.find(p.address());
 
@@ -98,7 +99,7 @@ public:
 						do_peer_status(peer_status_q, move(pi),
 						               peer_status::tag::incompatible);
 					else
-						sync_send(p, atom("peer"), this, name,
+						sync_send(p, peer_atom::value, this, name,
 						          advertised_subscriptions).then(
 							on_arg_match >> [=](const sync_exited_msg& m)
 								{
@@ -121,13 +122,12 @@ public:
 					}
 			);
 			},
-		on(atom("peer"), arg_match) >> [=](actor& p, string& pname,
-		                                   topic_set& ts)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts)
 			{
 			add_peer(move(p), move(pname), move(ts));
 			return make_message(name, advertised_subscriptions);
 			},
-		on(atom("unpeer"), arg_match) >> [=](const actor& p)
+		[=](unpeer_atom, const actor& p)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Unpeered with: '" + get_peer_name(p) + "'");
@@ -163,21 +163,21 @@ public:
 				if ( ! local_subscriptions.have_subscriber_for(sub.first) )
 					unadvertise_subscription(topic{move(sub.first)});
 			},
-		on(atom("unsub"), arg_match) >> [=](const topic& t, const actor& p)
+		[=](unsub_atom, const topic& t, const actor& p)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' unsubscribed to '"
 			             + t + "'");
 			peer_subscriptions.unregister_topic(t, p.address());
 			},
-		on(atom("sub"), arg_match) >> [=](topic& t, actor& p)
+		[=](sub_atom, topic& t, actor& p)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' subscribed to '"
 			             + t + "'");
 			peer_subscriptions.register_topic(move(t), move(p));
 			},
-		on(atom("master"), arg_match) >> [=](store::identifier& id, actor& a)
+		[=](master_atom, store::identifier& id, actor& a)
 			{
 			if ( local_subscriptions.exact_match(id) )
 				{
@@ -192,7 +192,7 @@ public:
 			             "Attached master data store named '" + id + "'");
 			attach(move(id), move(a));
 			},
-		on(atom("local sub"), arg_match) >> [=](topic& t, actor& a)
+		[=](local_sub_atom, topic& t, actor& a)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Attached local queue for topic '" + t + "'");
@@ -222,7 +222,7 @@ public:
 				publish_current_msg_to_peers(t, flags);
 				}
 			},
-		on(atom("storeactor"), arg_match) >> [=](const store::identifier& n)
+		[=](store_actor_atom, const store::identifier& n)
 			{
 			return find_master(n);
 			},
@@ -262,7 +262,7 @@ public:
 				             "Data store update dropped due to nonexistent "
 				             " master with id '" + id + "'");
 			},
-		on(atom("flags"), arg_match) >> [=](int flags)
+		[=](flags_atom, int flags)
 			{
 			bool auto_before = (behavior_flags & AUTO_ADVERTISE);
 			behavior_flags = flags;
@@ -294,17 +294,17 @@ public:
 			for ( const auto& t : local_subscriptions.topics() )
 				advertise_subscription(topic{t.first});
 			},
-		on(caf::atom("acl pub"), arg_match) >> [=](topic& t)
+		[=](acl_pub_atom, topic& t)
 			{
 			BROKER_DEBUG("endpoint." + name, "Allow publishing topic: " + t);
 			pub_acls.insert({move(t), true});
 			},
-		on(caf::atom("acl unpub"), arg_match) >> [=](const topic& t)
+		[=](acl_unpub_atom, const topic& t)
 			{
 			BROKER_DEBUG("endpoint." + name, "Disallow publishing topic: " + t);
 			pub_acls.erase(t);
 			},
-		on(caf::atom("advert"), arg_match) >> [=](string& t)
+		[=](advert_atom, string& t)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Allow advertising subscription: " + t);
@@ -314,7 +314,7 @@ public:
 				// Now permitted to advertise an existing subscription.
 				advertise_subscription(move(t));
 			},
-		on(caf::atom("unadvert"), arg_match) >> [=](string& t)
+		[=](unadvert_atom, string& t)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Disallow advertising subscription: " + t);
@@ -385,7 +385,7 @@ private:
 		if ( advertised_subscriptions.insert({t, true}).second )
 			{
 			BROKER_DEBUG("endpoint." + name,"Advertise new subscription: " + t);
-			publish_subscription_operation(std::move(t), caf::atom("sub"));
+			publish_subscription_operation(std::move(t), sub_atom::value);
 			}
 		}
 
@@ -394,7 +394,7 @@ private:
 		if ( advertised_subscriptions.erase(t) )
 			{
 			BROKER_DEBUG("endpoint." + name, "Unadvertise subscription: " + t);
-			publish_subscription_operation(std::move(t), caf::atom("unsub"));
+			publish_subscription_operation(std::move(t), unsub_atom::value);
 			}
 		}
 
@@ -494,7 +494,7 @@ public:
 		);
 
 		disconnected = (
-		on(atom("peerstat")) >> [=]
+		[=](peerstat_atom)
 			{
 			do_peer_status(peer_status_q, pi, peer_status::tag::disconnected);
 			},
@@ -502,7 +502,7 @@ public:
 			{
 			quit();
 			},
-		on(atom("quit")) >> [=]
+		[=](quit_atom)
 			{
 			quit();
 			},
@@ -513,20 +513,20 @@ public:
 		);
 
 		connected = (
-		on(atom("peerstat")) >> [=]
+		[=](peerstat_atom)
 			{
-			send(local, atom("peer"), remote, pi);
+			send(local, peer_atom::value, remote, pi);
 			},
 		on_arg_match >> [=](const exit_msg& e)
 			{
-			send(remote, atom("unpeer"), local);
-			send(local, atom("unpeer"), remote);
+			send(remote, unpeer_atom::value, local);
+			send(local, unpeer_atom::value, remote);
 			quit();
 			},
-		on(atom("quit")) >> [=]
+		[=](quit_atom)
 			{
-			send(remote, atom("unpeer"), local);
-			send(local, atom("unpeer"), remote);
+			send(remote, unpeer_atom::value, local);
+			send(local, unpeer_atom::value, remote);
 			quit();
 			},
 		on_arg_match >> [=](const down_msg& d)
@@ -585,7 +585,7 @@ private:
 		BROKER_DEBUG(report_subtopic(endpoint_name, addr, port), "Connected");
 		monitor(remote);
 		become(connected);
-		send(local, atom("peer"), remote, pi);
+		send(local, peer_atom::value, remote, pi);
 		return true;
 		}
 

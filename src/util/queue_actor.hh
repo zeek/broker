@@ -1,6 +1,7 @@
 #ifndef BROKER_UTIL_QUEUE_ACTOR_HH
 #define BROKER_UTIL_QUEUE_ACTOR_HH
 
+#include "../atoms.hh"
 #include "flare.hh"
 #include <caf/sb_actor.hpp>
 #include <caf/scoped_actor.hpp>
@@ -26,7 +27,7 @@ public:
 		using namespace caf;
 		message_handler common
 			{
-			on(atom("want")) >> [=]
+			[=](want_atom)
 				{ return pop(); },
 			Pattern() >> [=](Message& msg)
 				{
@@ -38,7 +39,7 @@ public:
 
 		empty = common;
 		filled = common.or_else(
-			on(atom("need")) >> [=]
+			[=](need_atom)
 				{ return pop(); }
 		);
 		}

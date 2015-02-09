@@ -30,7 +30,7 @@ int broker::endpoint::flags() const
 void broker::endpoint::set_flags(int flags)
 	{
 	pimpl->flags = flags;
-	caf::anon_send(pimpl->actor, caf::atom("flags"), flags);
+	caf::anon_send(pimpl->actor, flags_atom::value, flags);
 	}
 
 int broker::endpoint::last_errno() const
@@ -73,7 +73,7 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 			}
 
 	if ( rval )
-		caf::anon_send(rval.pimpl->peer_actor, caf::atom("peerstat"));
+		caf::anon_send(rval.pimpl->peer_actor, peerstat_atom::value);
 	else
 		{
 		auto h = handle_to_actor(pimpl->peer_status.handle());
@@ -97,7 +97,7 @@ broker::peering broker::endpoint::peer(const endpoint& e)
 	peering p(std::unique_ptr<peering::impl>(
 	              new peering::impl(pimpl->actor, e.pimpl->actor)));
 	pimpl->peers.insert(p);
-	caf::anon_send(pimpl->actor, caf::atom("peer"), e.pimpl->actor,
+	caf::anon_send(pimpl->actor, peer_atom::value, e.pimpl->actor,
 	               *p.pimpl.get());
 	return p;
 	}
@@ -116,11 +116,11 @@ bool broker::endpoint::unpeer(broker::peering p)
 
 	if ( p.remote() )
 		// The proxy actor initiates unpeer messages.
-		caf::anon_send(p.pimpl->peer_actor, caf::atom("quit"));
+		caf::anon_send(p.pimpl->peer_actor, quit_atom::value);
 	else
 		{
-		caf::anon_send(pimpl->actor, caf::atom("unpeer"), p.pimpl->peer_actor);
-		caf::anon_send(p.pimpl->peer_actor, caf::atom("unpeer"), pimpl->actor);
+		caf::anon_send(pimpl->actor, unpeer_atom::value, p.pimpl->peer_actor);
+		caf::anon_send(p.pimpl->peer_actor, unpeer_atom::value, pimpl->actor);
 		}
 
 	return true;
@@ -138,22 +138,22 @@ void broker::endpoint::send(topic t, message msg, int flags) const
 
 void broker::endpoint::publish(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("acl pub"), t);
+	caf::anon_send(pimpl->actor, acl_pub_atom::value, t);
 	}
 
 void broker::endpoint::unpublish(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("acl unpub"), t);
+	caf::anon_send(pimpl->actor, acl_unpub_atom::value, t);
 	}
 
 void broker::endpoint::advertise(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("advert"), t);
+	caf::anon_send(pimpl->actor, advert_atom::value, t);
 	}
 
 void broker::endpoint::unadvertise(topic t)
 	{
-	caf::anon_send(pimpl->actor, caf::atom("unadvert"), t);
+	caf::anon_send(pimpl->actor, unadvert_atom::value, t);
 	}
 
 void* broker::endpoint::handle() const

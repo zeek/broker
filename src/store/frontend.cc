@@ -1,4 +1,5 @@
 #include "frontend_impl.hh"
+#include "../atoms.hh"
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/sb_actor.hpp>
@@ -36,31 +37,31 @@ void broker::store::frontend::insert(data k, data v,
 	{
 	if ( t )
 		caf::anon_send(handle_to_actor(handle()),
-		               pimpl->master_name, caf::atom("insert"),
+		               pimpl->master_name, insert_atom::value,
 		               std::move(k), std::move(v), *t);
 	else
 		caf::anon_send(handle_to_actor(handle()),
-		               pimpl->master_name, caf::atom("insert"),
+		               pimpl->master_name, insert_atom::value,
 		               std::move(k), std::move(v));
 	}
 
 void broker::store::frontend::erase(data k) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("erase"),
+	               pimpl->master_name, erase_atom::value,
 	               std::move(k));
 	}
 
 void broker::store::frontend::clear() const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("clear"));
+	               pimpl->master_name, clear_atom::value);
 	}
 
 void broker::store::frontend::increment(data k, int64_t by) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("increment"),
+	               pimpl->master_name, increment_atom::value,
 	               std::move(k), by);
 	}
 
@@ -72,28 +73,28 @@ void broker::store::frontend::decrement(data k, int64_t by) const
 void broker::store::frontend::add_to_set(data k, data element) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("set_add"),
+	               pimpl->master_name, set_add_atom::value,
 	               std::move(k), std::move(element));
 	}
 
 void broker::store::frontend::remove_from_set(data k, data element) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("set_rem"),
+	               pimpl->master_name, set_rem_atom::value,
 	               std::move(k), std::move(element));
 	}
 
 void broker::store::frontend::push_left(data k, vector item) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("lpush"),
+	               pimpl->master_name, lpush_atom::value,
 	               std::move(k), std::move(item));
 	}
 
 void broker::store::frontend::push_right(data k, vector item) const
 	{
 	caf::anon_send(handle_to_actor(handle()),
-	               pimpl->master_name, caf::atom("rpush"),
+	               pimpl->master_name, rpush_atom::value,
 	               std::move(k), std::move(item));
 	}
 
@@ -107,7 +108,7 @@ broker::store::result broker::store::frontend::request(query q) const
 	caf::actor& where = need_master ? pimpl->endpoint
 	                                : handle_to_actor(handle());
 
-	self->sync_send(where, caf::atom("storeactor"), pimpl->master_name).await(
+	self->sync_send(where, store_actor_atom::value, pimpl->master_name).await(
 		caf::on_arg_match >> [&store_actor](caf::actor& sa)
 			{
 			store_actor = std::move(sa);
