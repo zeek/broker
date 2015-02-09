@@ -28,8 +28,7 @@ public:
 		using namespace caf;
 
 		message_handler requests {
-		on_arg_match >> [=](const identifier& n, const query& q,
-		                    const actor& requester)
+		[=](const identifier& n, const query& q, const actor& requester)
 			{
 			auto r = q.process(*datastore,
 			                   broker::time_point::now().value).first;
@@ -262,7 +261,7 @@ public:
 		[=](find_master_atom)
 			{
 			sync_send(endpoint, store_actor_atom::value, master_name).then(
-				on_arg_match >> [=](actor& m)
+				[=](actor& m)
 					{
 					if ( m )
 						{
@@ -282,7 +281,7 @@ public:
 					}
 			);
 			},
-		on_arg_match >> [=](const down_msg& d)
+		[=](const down_msg& d)
 			{
 			if ( d.source == master.address() )
 				{
@@ -307,14 +306,14 @@ public:
 
 			sync_send(master, master_name, query(query::tag::snapshot),
 			          this).then(
-				on_arg_match >> [=](const sync_exited_msg& m)
+				[=](const sync_exited_msg& m)
 					{
 					BROKER_DEBUG("store.clone." + master_name,
 					             "master went down while requesting snapshot,"
 					             " will retry...");
 					get_snapshot(resync_interval);
 					},
-				on_arg_match >> [=](actor& responder, result& r)
+				[=](actor& responder, result& r)
 					{
 					if ( r.stat != result::status::success ||
 					     r.value.which() != result::tag::snapshot_result )

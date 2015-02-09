@@ -269,7 +269,7 @@ public:
 		};
 
 		serving = requests.or_else(updates).or_else(give_actor).or_else(
-		on_arg_match >> [=](const down_msg& d)
+		[=](const down_msg& d)
 			{
 			demonitor(d.source);
 			clones.erase(d.source);

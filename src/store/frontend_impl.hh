@@ -29,7 +29,7 @@ public:
 		);
 
 		awaiting_response = (
-		on_arg_match >> [=](const actor&, result& r)
+		[=](const actor&, result& r)
 			{
 			send(queue, response{std::move(request), std::move(r), cookie});
 			quit();

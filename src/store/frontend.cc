@@ -109,7 +109,7 @@ broker::store::result broker::store::frontend::request(query q) const
 	                                : handle_to_actor(handle());
 
 	self->sync_send(where, store_actor_atom::value, pimpl->master_name).await(
-		caf::on_arg_match >> [&store_actor](caf::actor& sa)
+		[&store_actor](caf::actor& sa)
 			{
 			store_actor = std::move(sa);
 			}
@@ -119,7 +119,7 @@ broker::store::result broker::store::frontend::request(query q) const
 		return rval;
 
 	self->sync_send(store_actor, pimpl->master_name, std::move(q), self).await(
-		caf::on_arg_match >> [&rval](const caf::actor&, result& r)
+		[&rval](const caf::actor&, result& r)
 			{
 			rval = std::move(r);
 			}

@@ -71,7 +71,7 @@ public:
 		using namespace std;
 
 		active = (
-		on_arg_match >> [=](int version)
+		[=](int version)
 			{
 			return make_message(BROKER_PROTOCOL_VERSION == version,
 			                    BROKER_PROTOCOL_VERSION);
@@ -88,12 +88,12 @@ public:
 				}
 
 			sync_send(p, BROKER_PROTOCOL_VERSION).then(
-				on_arg_match >> [=](const sync_exited_msg& m)
+				[=](const sync_exited_msg& m)
 					{
 					do_peer_status(peer_status_q, move(pi),
 					               peer_status::tag::disconnected);
 					},
-				on_arg_match >> [=](bool compat, int their_version)
+				[=](bool compat, int their_version)
 					{
 					if ( ! compat )
 						do_peer_status(peer_status_q, move(pi),
@@ -101,12 +101,12 @@ public:
 					else
 						sync_send(p, peer_atom::value, this, name,
 						          advertised_subscriptions).then(
-							on_arg_match >> [=](const sync_exited_msg& m)
+							[=](const sync_exited_msg& m)
 								{
 								do_peer_status(peer_status_q, move(pi),
 								               peer_status::tag::disconnected);
 								},
-							on_arg_match >> [=](string& pname, topic_set& ts)
+							[=](string& pname, topic_set& ts)
 								{
 								add_peer(move(p), pname, move(ts));
 								do_peer_status(peer_status_q, move(pi),
@@ -135,7 +135,7 @@ public:
 			peers.erase(p.address());
 			peer_subscriptions.erase(p.address());
 			},
-		on_arg_match >> [=](const down_msg& d)
+		[=](const down_msg& d)
 			{
 			demonitor(d.source);
 
@@ -198,8 +198,7 @@ public:
 			             "Attached local queue for topic '" + t + "'");
 			attach(move(t), move(a));
 			},
-		on_arg_match >> [=](const topic& t, broker::message& msg,
-		                    int flags)
+		[=](const topic& t, broker::message& msg, int flags)
 			{
 			bool from_peer = peers.find(last_sender()) != peers.end();
 
@@ -226,8 +225,8 @@ public:
 			{
 			return find_master(n);
 			},
-		on_arg_match >> [=](const store::identifier& n, const store::query& q,
-		                    const actor& requester)
+		[=](const store::identifier& n, const store::query& q,
+		    const actor& requester)
 			{
 			auto master = find_master(n);
 
@@ -498,7 +497,7 @@ public:
 			{
 			do_peer_status(peer_status_q, pi, peer_status::tag::disconnected);
 			},
-		on_arg_match >> [=](const exit_msg& e)
+		[=](const exit_msg& e)
 			{
 			quit();
 			},
@@ -517,7 +516,7 @@ public:
 			{
 			send(local, peer_atom::value, remote, pi);
 			},
-		on_arg_match >> [=](const exit_msg& e)
+		[=](const exit_msg& e)
 			{
 			send(remote, unpeer_atom::value, local);
 			send(local, unpeer_atom::value, remote);
@@ -529,7 +528,7 @@ public:
 			send(local, unpeer_atom::value, remote);
 			quit();
 			},
-		on_arg_match >> [=](const down_msg& d)
+		[=](const down_msg& d)
 			{
 			BROKER_DEBUG(report_subtopic(endpoint_name, addr, port),
 			             "Disconnected from peer");
