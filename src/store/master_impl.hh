@@ -49,7 +49,7 @@ public:
 		};
 
 		message_handler requests {
-		on(val<identifier>, arg_match) >> [=](const query& q, const actor& r)
+		[=](const identifier&, const query& q, const actor& r)
 			{
 			auto current_time = now();
 			auto res = q.process(*datastore, current_time);
@@ -114,8 +114,7 @@ public:
 				publish(make_message(expire_atom::value, datastore->sequence(),
 				                     move(k), move(expiry)));
 			},
-		on(val<identifier>, arg_match) >> [=](increment_atom, data& k,
-		                                      int64_t by)
+		[=](const identifier&, increment_atom, data& k, int64_t by)
 			{
 			auto mod_time = now();
 			auto res = datastore->increment(k, by, mod_time);
@@ -133,7 +132,7 @@ public:
 				publish(make_message(increment_atom::value, datastore->sequence(),
 				                     move(k), by, mod_time));
 			},
-		on(val<identifier>, arg_match) >> [=](set_add_atom, data& k, data& e)
+		[=](const identifier&, set_add_atom, data& k, data& e)
 			{
 			auto mod_time = now();
 			auto res = datastore->add_to_set(k, clones.empty() ? move(e) : e,
@@ -152,7 +151,7 @@ public:
 				publish(make_message(set_add_atom::value, datastore->sequence(),
 				                     move(k), move(e), mod_time));
 			},
-		on(val<identifier>, arg_match) >> [=](set_rem_atom, data& k, data& e)
+		[=](const identifier&, set_rem_atom, data& k, data& e)
 			{
 			auto mod_time = now();
 			auto res = datastore->remove_from_set(k, e, mod_time);
@@ -170,7 +169,7 @@ public:
 				publish(make_message(set_rem_atom::value, datastore->sequence(),
 				                     move(k), move(e), mod_time));
 			},
-		on(val<identifier>, arg_match) >> [=](insert_atom, data& k, data& v)
+		[=](const identifier&, insert_atom, data& k, data& v)
 			{
 			if ( ! datastore->insert(clones.empty() ? move(k) : k,
 			                         clones.empty() ? move(v) : v) )
@@ -183,8 +182,7 @@ public:
 				publish(make_message(insert_atom::value, datastore->sequence(),
 				                     move(k), move(v)));
 			},
-		on(val<identifier>, arg_match) >> [=](insert_atom, data& k, data& v,
-		                                      expiration_time t)
+		[=](const identifier&, insert_atom, data& k, data& v, expiration_time t)
 			{
 			if ( t.type == expiration_time::tag::absolute &&
 			     t.expiry_time <= now() )
@@ -205,7 +203,7 @@ public:
 				                     move(k), move(v), t));
 				}
 			},
-		on(val<identifier>, arg_match) >> [=](erase_atom, data& k)
+		[=](const identifier&, erase_atom, data& k)
 			{
 			if ( ! datastore->erase(k) )
 				{
@@ -217,7 +215,7 @@ public:
 				publish(make_message(erase_atom::value, datastore->sequence(),
 				                     move(k)));
 			},
-		on(val<identifier>, arg_match) >> [=](clear_atom)
+		[=](const identifier&, clear_atom)
 			{
 			if ( ! datastore->clear() )
 				{
@@ -228,7 +226,7 @@ public:
 			if ( ! clones.empty() )
 				publish(make_message(clear_atom::value, datastore->sequence()));
 			},
-		on(val<identifier>, arg_match) >> [=](lpush_atom, data& k, vector& i)
+		[=](const identifier&, lpush_atom, data& k, vector& i)
 			{
 			auto mod_time = now();
 			auto res = datastore->push_left(k, clones.empty() ? move(i) : i,
@@ -247,7 +245,7 @@ public:
 				publish(make_message(lpush_atom::value, datastore->sequence(),
 				                     move(k), move(i), mod_time));
 			},
-		on(val<identifier>, arg_match) >> [=](rpush_atom, data& k, vector& i)
+		[=](const identifier&, rpush_atom, data& k, vector& i)
 			{
 			auto mod_time = now();
 			auto res = datastore->push_right(k, clones.empty() ? move(i) : i,

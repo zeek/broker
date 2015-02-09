@@ -41,7 +41,7 @@ public:
 		};
 
 		message_handler updates {
-		on(val<identifier>, increment_atom::value, any_vals) >> [=]
+		on(val<identifier>, any_vals) >> [=]
 			{
 			forward_to(master);
 			},
@@ -60,10 +60,6 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, set_add_atom::value, any_vals) >> [=]
-			{
-			forward_to(master);
-			},
 		[=](set_add_atom, const sequence_num& sn, const data& k, data& e,
 		    double mod_time)
 			{
@@ -79,10 +75,6 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, set_rem_atom::value, any_vals) >> [=]
-			{
-			forward_to(master);
-			},
 		[=](set_rem_atom, const sequence_num& sn, const data& k, const data& e,
 		    double mod_time)
 			{
@@ -97,10 +89,6 @@ public:
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
-			},
-		on(val<identifier>, insert_atom::value, any_vals) >> [=]
-			{
-			forward_to(master);
 			},
 		[=](insert_atom, const sequence_num& sn, data& k, data& v)
 			{
@@ -128,10 +116,6 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, erase_atom::value, val<data>) >> [=]
-			{
-			forward_to(master);
-			},
 		[=](erase_atom, const sequence_num& sn, const data& k)
 			{
 			auto next = datastore->sequence().next();
@@ -157,10 +141,6 @@ public:
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
 			},
-		on(val<identifier>, clear_atom::value) >> [=]
-			{
-			forward_to(master);
-			},
 		 [=](clear_atom, const sequence_num& sn)
 			{
 			auto next = datastore->sequence().next();
@@ -172,10 +152,6 @@ public:
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
-			},
-		on(val<identifier>, lpush_atom::value, any_vals) >> [=]
-			{
-			forward_to(master);
 			},
 		[=](lpush_atom, const sequence_num& sn, const data& k,
 		    broker::vector& i, double mod_time)
@@ -191,10 +167,6 @@ public:
 				}
 			else if ( sn > next )
 				sequence_error(master_name, resync_interval);
-			},
-		on(val<identifier>, rpush_atom::value, any_vals) >> [=]
-			{
-			forward_to(master);
 			},
 		[=](rpush_atom, const sequence_num& sn, const data& k,
 		    broker::vector& i, double mod_time)
