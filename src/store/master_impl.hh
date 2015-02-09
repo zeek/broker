@@ -28,7 +28,7 @@ public:
 		using namespace caf;
 		using namespace std;
 
-		init_existing_expiry_reminders = (
+		init_existing_expiry_reminders = {
 		after(chrono::seconds::zero()) >> [=]
 			{
 			if ( auto es = datastore->expiries() )
@@ -39,7 +39,7 @@ public:
 
 			become(serving);
 			}
-		);
+		};
 
 		message_handler give_actor{
 		[=](store_actor_atom, const identifier& n) -> actor

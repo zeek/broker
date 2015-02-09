@@ -70,7 +70,7 @@ public:
 		using namespace caf;
 		using namespace std;
 
-		active = (
+		active = {
 		[=](int version)
 			{
 			return make_message(BROKER_PROTOCOL_VERSION == version,
@@ -327,7 +327,7 @@ public:
 			report::warn("endpoint." + name, "Got unexpected message: "
 			             + caf::to_string(last_dequeued()));
 			}
-		);
+		};
 		}
 
 private:
@@ -485,14 +485,14 @@ public:
 
 		trap_exit(true);
 
-		bootstrap = (
+		bootstrap = {
 		after(chrono::seconds(0)) >> [=]
 			{
 			try_connect(pi, endpoint_name);
 			}
-		);
+		};
 
-		disconnected = (
+		disconnected = {
 		[=](peerstat_atom)
 			{
 			do_peer_status(peer_status_q, pi, peer_status::tag::disconnected);
@@ -509,9 +509,9 @@ public:
 			{
 			try_connect(pi, endpoint_name);
 			}
-		);
+		};
 
-		connected = (
+		connected = {
 		[=](peerstat_atom)
 			{
 			send(local, peer_atom::value, remote, pi);
@@ -543,7 +543,7 @@ public:
 			             "Remote endpoint proxy got unexpected message: "
 			             + caf::to_string(last_dequeued()));
 			}
-		);
+		};
 		}
 
 private:

@@ -20,15 +20,15 @@ public:
 		using namespace std;
 		using namespace caf;
 
-		bootstrap = (
+		bootstrap = {
 		after(chrono::seconds::zero()) >> [=]
 			{
 			send(backend, std::move(master_name), request, this);
 			become(awaiting_response);
 			}
-		);
+		};
 
-		awaiting_response = (
+		awaiting_response = {
 		[=](const actor&, result& r)
 			{
 			send(queue, response{std::move(request), std::move(r), cookie});
@@ -40,7 +40,7 @@ public:
 			                     result(result::status::timeout), cookie});
 			quit();
 			}
-		);
+		};
 		}
 
 private:

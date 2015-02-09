@@ -241,14 +241,14 @@ public:
 			}
 		};
 
-		bootstrap = (
+		bootstrap = {
 		after(chrono::seconds::zero()) >> [=]
 			{
 			send(this, find_master_atom::value);
 			get_snapshot(chrono::seconds::zero());
 			become(synchronizing);
 			}
-		);
+		};
 
 		message_handler give_actor{
 		[=](store_actor_atom, const identifier& n) -> actor
