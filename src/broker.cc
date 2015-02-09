@@ -36,11 +36,19 @@ int broker_init(int flags)
 	announce(typeid(broker::topic_set),
 	         std::unique_ptr<caf::uniform_type_info>(
 	             new broker::topic_set_type_info));
-	announce<broker::peer_status::tag>("broker::peer_status::tag");
-	announce<broker::peer_status>("broker::peer_status",
-	                              &broker::peer_status::relation,
-	                              &broker::peer_status::status,
-	                              &broker::peer_status::peer_name);
+	announce<broker::outgoing_connection_status::tag>(
+	            "broker::outgoing_connection_status::tag");
+	announce<broker::outgoing_connection_status>(
+	            "broker::outgoing_connection_status",
+	            &broker::outgoing_connection_status::relation,
+	            &broker::outgoing_connection_status::status,
+	            &broker::outgoing_connection_status::peer_name);
+	announce<broker::incoming_connection_status::tag>(
+	            "broker::incoming_connection_status::tag");
+	announce<broker::incoming_connection_status>(
+	            "broker::incoming_connection_status",
+	            &broker::incoming_connection_status::status,
+	            &broker::incoming_connection_status::peer_name);
 	announce(typeid(broker::peering),
 	         std::unique_ptr<caf::uniform_type_info>(
 	             new broker::peering_type_info));
@@ -108,8 +116,10 @@ int broker_init(int flags)
 	            "std::deque<broker::store::response>");
 	announce<broker::message>("broker::message");
 	announce<std::deque<broker::message>>("std::deque<broker::message>");
-	announce<std::deque<broker::peer_status>>(
-	            "std::deque<broker::peer_status>");
+	announce<std::deque<broker::outgoing_connection_status>>(
+	            "std::deque<broker::outgoing_connection_status>");
+	announce<std::deque<broker::incoming_connection_status>>(
+	            "std::deque<broker::incoming_connection_status>");
 	return 0;
 	}
 

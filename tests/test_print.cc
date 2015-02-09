@@ -75,8 +75,8 @@ int main(int argc, char** argv)
 	node0.peer(node1);
 	node0.peer(node2);
 
-	if ( node0.peer_status().need_pop().size() < 2 )
-		node0.peer_status().need_pop();
+	if ( node0.outgoing_connection_status().need_pop().size() < 2 )
+		node0.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0a", node0.name() + " says: hi"}); // to 0, 1, 2
 	node0.send("topic_a", {"0a", node0.name() + " says: hello"}); // to 0, 1, 2

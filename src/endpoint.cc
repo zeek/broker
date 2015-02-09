@@ -76,7 +76,7 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 		caf::anon_send(rval.pimpl->peer_actor, peerstat_atom::value);
 	else
 		{
-		auto h = handle_to_actor(pimpl->peer_status.handle());
+		auto h = handle_to_actor(pimpl->outgoing_conns.handle());
 		auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, pimpl->name,
 		                                          addr, port, retry, h);
 		a->link_to(pimpl->self);
@@ -126,9 +126,16 @@ bool broker::endpoint::unpeer(broker::peering p)
 	return true;
 	}
 
-const broker::peer_status_queue& broker::endpoint::peer_status() const
+const broker::outgoing_connection_status_queue&
+broker::endpoint::outgoing_connection_status() const
 	{
-	return pimpl->peer_status;
+	return pimpl->outgoing_conns;
+	}
+
+const broker::incoming_connection_status_queue&
+broker::endpoint::incoming_connection_status() const
+	{
+	return pimpl->incoming_conns;
 	}
 
 void broker::endpoint::send(topic t, message msg, int flags) const

@@ -102,8 +102,8 @@ static void test_without_access_control()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
@@ -219,8 +219,8 @@ static void test_restricted_publish()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
@@ -326,8 +326,8 @@ static void test_restricted_subscribe()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
@@ -437,8 +437,8 @@ static void test_send_self_only()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
@@ -538,8 +538,8 @@ static void test_send_peers_only()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
@@ -648,8 +648,8 @@ static void test_send_unsolicited()
 	node0.peer(node1);
 	node1.peer(node2);
 
-	node0.peer_status().need_pop();
-	node1.peer_status().need_pop();
+	node0.outgoing_connection_status().need_pop();
+	node1.outgoing_connection_status().need_pop();
 
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});

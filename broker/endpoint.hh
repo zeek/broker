@@ -4,7 +4,8 @@
 #include <broker/topic.hh>
 #include <broker/peering.hh>
 #include <broker/message.hh>
-#include <broker/peer_status.hh>
+#include <broker/outgoing_connection_status.hh>
+#include <broker/incoming_connection_status.hh>
 #include <broker/queue.hh>
 #include <memory>
 #include <string>
@@ -13,7 +14,11 @@
 
 namespace broker {
 
-using peer_status_queue = broker::queue<broker::peer_status>;
+using outgoing_connection_status_queue =
+broker::queue<broker::outgoing_connection_status>;
+
+using incoming_connection_status_queue =
+broker::queue<broker::incoming_connection_status>;
 
 // Endpoint options.
 
@@ -154,13 +159,19 @@ public:
 
 	/**
 	 * @return a queue that may be used to inspect the results of a peering
-	 * attempt. e.g. established, disconnected, incompatible, etc.  Until
-	 * one checks the queue for a result that indicates the peering is
+	 * connection attempt. e.g. established, disconnected, incompatible, etc.
+	 * Until one checks the queue for a result that indicates the peering is
 	 * established, messages sent using endpoint::send(), are not guaranteed
 	 * to be delivered to the peer as it may still be in the process of
 	 * registering its subscriptions.
 	 */
-	const peer_status_queue& peer_status() const;
+	const outgoing_connection_status_queue& outgoing_connection_status() const;
+
+	/**
+	 * @return a queue that may be used to inspect the status of an incoming
+	 * peer connection. e.g. established, disconnected.
+	 */
+	const incoming_connection_status_queue& incoming_connection_status() const;
 
 	/**
 	 * Sends a message to all message_queue's that are registered for a given

@@ -38,8 +38,11 @@ std::deque<T> broker::queue<T>::need_pop() const
 #include "broker/message.hh"
 template class broker::queue<broker::message>;
 
-#include "broker/peer_status.hh"
-template class broker::queue<broker::peer_status>;
+#include "broker/outgoing_connection_status.hh"
+template class broker::queue<broker::outgoing_connection_status>;
+
+#include "broker/incoming_connection_status.hh"
+template class broker::queue<broker::incoming_connection_status>;
 
 #include "broker/store/response.hh"
 template class broker::queue<broker::store::response>;
