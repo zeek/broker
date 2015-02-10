@@ -38,7 +38,7 @@ if ( ENABLE_STATIC_ONLY )
     set(ENABLE_SHARED false)
 endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+include(RequireCXX11)
 
 install(DIRECTORY broker DESTINATION include)
 
