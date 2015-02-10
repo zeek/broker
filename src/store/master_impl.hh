@@ -84,10 +84,14 @@ public:
 						if ( clones.empty() )
 							break;
 
-						auto op = q.type == query::tag::pop_left ?
-						                    lpop_atom::value : rpop_atom::value;
-						publish(make_message(op, datastore->sequence(), q.k,
-						                     current_time));
+						if ( q.type == query::tag::pop_left )
+							publish(make_message(lpop_atom::value,
+							                     datastore->sequence(), q.k,
+							                     current_time));
+						else
+							publish(make_message(rpop_atom::value,
+							                     datastore->sequence(), q.k,
+							                     current_time));
 						}
 					break;
 				default:
