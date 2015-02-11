@@ -495,7 +495,7 @@ radix_tree<T, N>::prefixed_by(const key_type& prefix) const
 			return rval;
 			}
 
-		if ( depth == prefix.size() )
+		if ( static_cast<size_t>(depth) == prefix.size() )
 			{
 			auto l = minimum(n);
 
