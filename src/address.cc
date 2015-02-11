@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 
 const std::array<uint8_t, 12> broker::address::v4_mapped_prefix =
