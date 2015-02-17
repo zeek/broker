@@ -10,7 +10,7 @@ The Broker library implements Bro's high-level communication patterns:
     - distributed data stores
 
 Logging, printing, and events all follow a pub/sub communication model
-between Broker endpoints that are directly peered with each other or an
+between Broker endpoints that are directly peered with each other.  An
 endpoint also has the option of subscribing to its own messages.
 Subscriptions are matched prefix-wise and endpoints have the capability
 of fine-tuning the subscription topic strings they wish to advertise to
@@ -19,7 +19,10 @@ peers as well as the messages they wish to send to them.
 The distributed data store functionality allows a master data store
 associated with one Broker endpoint to be cloned at peer endpoints which
 may then perform lightweight, local queries against the clone, which
-automatically stays synchronized with the master store.
+automatically stays synchronized with the master store.  Clones
+cannot modify their content directly, instead they send modifications
+to the centralized master store which applies them and then broadcasts
+them to all clones.
 
 Applications which integrate the Broker library may communicate with
 each other using the above-mentioned patterns which are common to Bro.
@@ -52,3 +55,9 @@ To compile and install in to ``/usr/local``::
     make install
 
 See ``./configure --help`` for more advanced configuration options.
+
+Documentation
+-------------
+
+Please see the `Broker User Manual <./broker-manual.html>`_ for more
+documentation and examples of how to use the library.
