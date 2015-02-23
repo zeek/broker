@@ -209,13 +209,13 @@ public:
 			},
 		[=](const topic& t, broker::message& msg, int flags)
 			{
-			bool from_peer = peers.find(last_sender()) != peers.end();
+			bool from_peer = peers.find(current_sender()) != peers.end();
 
 			if ( from_peer )
 				{
 				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
 				                      "Got remote message from peer '"
-				                      + get_peer_name(last_sender())
+				                      + get_peer_name(current_sender())
 				                      + "', topic '" + t + "': "
 				                      + to_string(msg));
 				publish_locally(t, std::move(msg), flags, from_peer);
@@ -242,14 +242,14 @@ public:
 			if ( master )
 				{
 				BROKER_DEBUG("endpoint." + name, "Forwarded data store query: "
-				             + caf::to_string(last_dequeued()));
+				             + caf::to_string(current_message()));
 				forward_to(master);
 				}
 			else
 				{
 				BROKER_DEBUG("endpoint." + name,
 				             "Failed to forward data store query: "
-				             + caf::to_string(last_dequeued()));
+				             + caf::to_string(current_message()));
 				send(requester, this,
 				     store::result(store::result::status::failure));
 				}
@@ -262,7 +262,7 @@ public:
 			if ( master )
 				{
 				BROKER_DEBUG("endpoint." + name, "Forwarded data store update: "
-				             + caf::to_string(last_dequeued()));
+				             + caf::to_string(current_message()));
 				forward_to(master);
 				}
 			else
@@ -334,7 +334,7 @@ public:
 		others() >> [=]
 			{
 			report::warn("endpoint." + name, "Got unexpected message: "
-			             + caf::to_string(last_dequeued()));
+			             + caf::to_string(current_message()));
 			}
 		};
 		}
@@ -447,13 +447,13 @@ private:
 			return;
 
         // send instead of forward_to so peer can use
-        // last_sender() to check if msg comes from a peer.
+        // current_sender() to check if msg comes from a peer.
         if ( (flags & UNSOLICITED) )
             for ( const auto& p : peers )
-                send(p.second.ep, last_dequeued());
+                send(p.second.ep, current_message());
         else
             for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
-                send(a, last_dequeued());
+                send(a, current_message());
 		}
 
 	struct peer_endpoint {
@@ -554,7 +554,7 @@ public:
 			{
 			report::warn(report_subtopic(endpoint_name, addr, port),
 			             "Remote endpoint proxy got unexpected message: "
-			             + caf::to_string(last_dequeued()));
+			             + caf::to_string(current_message()));
 			}
 		};
 		}
