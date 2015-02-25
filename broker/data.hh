@@ -83,8 +83,8 @@ public:
 	enum class tag : uint8_t {
 		// Primitive types
 		boolean,     // bool
-		integer,     // int64_t
 		count,       // uint64_t
+		integer,     // int64_t
 		real,        // double
 		string,      // std::string
 		address,     // broker::address

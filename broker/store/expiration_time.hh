@@ -63,8 +63,16 @@ public:
 
 inline bool operator==(const expiration_time& lhs, const expiration_time& rhs)
     {
-	return lhs.type == rhs.type && lhs.expiry_time == rhs.expiry_time &&
-	       lhs.modification_time == rhs.modification_time;
+	if ( lhs.type != rhs.type )
+		return false;
+
+	if ( lhs.expiry_time != rhs.expiry_time )
+		return false;
+
+	if ( lhs.type == expiration_time::tag::since_last_modification )
+		return lhs.modification_time == rhs.modification_time;
+
+	return true;
 	}
 
 /**
