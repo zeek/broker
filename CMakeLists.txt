@@ -58,6 +58,7 @@ set(BROKER_SRC
     src/endpoint.cc
     src/message_queue.cc
     src/peering.cc
+    src/persistables.cc
     src/port.cc
     src/report.cc
     src/subnet.cc
@@ -73,10 +74,19 @@ set(BROKER_SRC
     src/store/sqlite3.c
     src/store/sqlite_backend.cc
     src/util/misc.cc
+    src/util/persist.cc
     src/util/pipe.cc
     src/util/flare.cc
     ${OPTIONAL_SRC}
     ${BROKER_HDR})
+
+include(TestBigEndian)
+test_big_endian(BROKER_BIG_ENDIAN)
+
+if ( BROKER_BIG_ENDIAN )
+    set_source_files_properties(src/util/persist.c PROPERTIES COMPILE_FLAGS
+                                -DBROKER_BIG_ENDIAN)
+endif ()
 
 if ( NOT INSTALL_LIB_DIR )
     set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)

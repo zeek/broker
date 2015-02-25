@@ -1,8 +1,7 @@
 #include "rocksdb_backend_impl.hh"
 #include "broker/broker.h"
+#include "../persistables.hh"
 #include "../util/misc.hh"
-#include <caf/binary_serializer.hpp>
-#include <caf/binary_deserializer.hpp>
 #include <rocksdb/env.h>
 
 static std::string version_string()
@@ -16,8 +15,9 @@ static std::string version_string()
 template <class T>
 static void to_serial(const T& obj, std::string& rval)
 	{
-	caf::binary_serializer bs(std::back_inserter(rval));
-	bs << obj;
+	broker::util::persist::save_archive saver(std::move(rval));
+	save(saver, obj);
+	rval = saver.get();
 	}
 
 template <class T>
@@ -40,8 +40,8 @@ template <class T>
 static T from_serial(const char* blob, size_t num_bytes)
 	{
 	T rval;
-	caf::binary_deserializer bd(blob, num_bytes);
-	caf::uniform_typeid<T>()->deserialize(&rval, &bd);
+	broker::util::persist::load_archive loader(blob, num_bytes);
+	load(loader, &rval);
 	return rval;
 	}
 

@@ -1,25 +1,23 @@
 #include "sqlite_backend_impl.hh"
 #include "broker/broker.h"
+#include "../persistables.hh"
 #include "../util/misc.hh"
 #include <cstdio>
-#include <caf/binary_serializer.hpp>
-#include <caf/binary_deserializer.hpp>
 
 template <class T>
-static std::vector<unsigned char> to_blob(const T& obj)
+static std::string to_blob(const T& obj)
 	{
-	std::vector<unsigned char> rval;
-	caf::binary_serializer bs(std::back_inserter(rval));
-	bs << obj;
-	return rval;
+	broker::util::persist::save_archive saver;
+	save(saver, obj);
+	return saver.get();
 	}
 
 template <class T>
 static T from_blob(const void* blob, size_t num_bytes)
 	{
 	T rval;
-	caf::binary_deserializer bd(blob, num_bytes);
-	caf::uniform_typeid<T>()->deserialize(&rval, &bd);
+	broker::util::persist::load_archive loader(blob, num_bytes);
+	load(loader, &rval);
 	return rval;
 	}
 
@@ -57,7 +55,7 @@ insert(const broker::store::sqlite_stmt& stmt,
 	auto kblob = to_blob(k);
 	auto vblob = to_blob(v);
 	// Need the expiry blob data to stay in scope until query is done.
-	auto eblob = e ? to_blob(*e) : std::vector<unsigned char>{};
+	auto eblob = e ? to_blob(*e) : std::string{};
 
 	if ( sqlite3_bind_blob64(stmt, 1, kblob.data(), kblob.size(),
 	                         SQLITE_STATIC) != SQLITE_OK ||
