@@ -114,6 +114,8 @@ if ( ENABLE_STATIC )
     install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
+add_subdirectory(bindings)
+
 enable_testing()
 add_subdirectory(tests)
 

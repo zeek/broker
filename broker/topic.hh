@@ -10,7 +10,7 @@ namespace broker {
  * Messaging has a pub/sub communication pattern where subscribers advertise
  * interest in all topics that match a given prefix.
  */
-using topic = std::string;
+typedef std::string topic;
 
 } // namespace broker
 

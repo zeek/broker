@@ -10,11 +10,20 @@ namespace broker {
  */
 int init(int flags = 0);
 
-const auto done = broker_done;
+/**
+ * @see broker_done().
+ */
+void done();
 
-const auto strerror = broker_strerror;
+/**
+ * @see broker_strerror
+ */
+const char* strerror(int broker_errno);
 
-const auto strerror_r = broker_strerror_r;
+/**
+ * @see broker_strerror_r
+ */
+void strerror_r(int broker_errno, char* buf, size_t buflen);
 
 } // namespace broker
 

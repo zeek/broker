@@ -14,11 +14,11 @@
 
 namespace broker {
 
-using outgoing_connection_status_queue =
-broker::queue<broker::outgoing_connection_status>;
+typedef broker::queue<broker::outgoing_connection_status>
+outgoing_connection_status_queue;
 
-using incoming_connection_status_queue =
-broker::queue<broker::incoming_connection_status>;
+typedef broker::queue<broker::incoming_connection_status>
+incoming_connection_status_queue;
 
 // Endpoint options.
 
