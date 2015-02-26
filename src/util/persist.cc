@@ -1,4 +1,5 @@
 #include "persist.hh"
+#include <algorithm>
 #include <typeindex>
 #include <cassert>
 
@@ -15,11 +16,13 @@ namespace broker {
 namespace util {
 namespace persist {
 
+using version_map_type = std::unordered_map<std::type_index, uint32_t>;
+
 class save_archive::impl {
 public:
 
 	std::string serial;
-	std::unordered_map<std::type_index, uint32_t> version_map;
+	version_map_type version_map;
 };
 
 save_archive::save_archive()
@@ -41,7 +44,7 @@ save_archive& save_archive::operator=(save_archive other)
 	}
 
 save_archive::save_archive(std::string arg_serial)
-	: pimpl(new impl{arg_serial, {}})
+	: pimpl(new impl{arg_serial, version_map_type{}})
 	{}
 
 void save_archive::reset(std::string arg_serial)
@@ -137,7 +140,7 @@ load_archive& load_archive::operator=(load_archive other)
 	}
 
 load_archive::load_archive(const void* bytes, size_t num_bytes)
-	: pimpl(new impl{bytes, num_bytes, 0, {}})
+	: pimpl(new impl{bytes, num_bytes, 0, version_map_type{}})
 	{}
 
 void load_archive::reset(const void* bytes, size_t num_bytes)

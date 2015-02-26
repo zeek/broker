@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <typeinfo>
 #include <type_traits>
+#include <limits>
 
 namespace broker {
 namespace util {

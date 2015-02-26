@@ -143,7 +143,7 @@ struct data_loader {
 		{
 		auto num_items = load_sequence(ar);
 
-		for ( auto i = 0; i < num_items; ++i )
+		for ( auto i = 0u; i < num_items; ++i )
 			{
 			data item;
 			load(ar, item, version);
@@ -155,7 +155,7 @@ struct data_loader {
 		{
 		auto num_items = load_sequence(ar);
 
-		for ( auto i = 0; i < num_items; ++i )
+		for ( auto i = 0u; i < num_items; ++i )
 			{
 			data key;
 			data val;
@@ -170,7 +170,7 @@ struct data_loader {
 		auto num_items = load_sequence(ar);
 		b.reserve(num_items);
 
-		for ( auto i = 0; i < num_items; ++i )
+		for ( auto i = 0u; i < num_items; ++i )
 			{
 			data item;
 			load(ar, item, version);
@@ -183,7 +183,7 @@ struct data_loader {
 		auto num_items = load_sequence(ar);
 		b.fields.reserve(num_items);
 
-		for ( auto i = 0; i < num_items; ++i )
+		for ( auto i = 0u; i < num_items; ++i )
 			{
 			bool exists;
 			load(ar, &exists);
