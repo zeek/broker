@@ -4,15 +4,20 @@ else ()
     set(libbroker brokerStatic)
 endif ()
 
+set(BROKER_TEST_TIMEOUT 10)
+
 macro(unit_test name)
     add_executable(${name} ${name}.cc)
     target_link_libraries(${name} ${libbroker})
 
     if ( ${ARGC} EQUAL 1 )
         add_test(NAME ${name} COMMAND ${name})
+        set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     else ()
         foreach ( _arg ${ARGN} )
             add_test(NAME ${name}_${_arg} COMMAND ${name} ${_arg})
+            set_tests_properties(${name}_${_arg} PROPERTIES TIMEOUT
+                                 ${BROKER_TEST_TIMEOUT})
         endforeach ()
     endif ()
 
