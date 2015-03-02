@@ -16,7 +16,7 @@ friend class port_type_info;
 
 public:
 
-	using number_type = uint16_t;
+	typedef uint16_t number_type;
 
 	enum class protocol : uint8_t {
 		unknown,
