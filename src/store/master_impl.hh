@@ -285,7 +285,7 @@ private:
 	                     expiration_time expiry)
 		{
 		using namespace std::chrono;
-		double abs_expire_time;
+		double abs_expire_time = 0;
 
 		switch ( expiry.type ) {
 		case expiration_time::tag::absolute:

@@ -114,6 +114,10 @@ public:
 		default:
 			assert(! "bad query type");
 		}
+
+		// Cannot be reached, but make compiler happy.
+		assert(false);
+		return {result(result::status::failure), {}};
 		}
 };
 
