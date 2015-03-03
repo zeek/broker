@@ -48,6 +48,14 @@ static inline void set_swig_exception(const char* e)
                   reinterpret_cast<const char*>($1->data()), $1->size());
 }
 
+%typemap(in) std::chrono::duration<double> {
+    $1 = std::chrono::duration<double>(PyFloat_AsDouble($input));
+}
+
+%typecheck(SWIG_TYPECHECK_DOUBLE) std::chrono::duration<double> {
+    $1 = (PyFloat_Check($input) || PyInt_Check($input) || PyLong_Check($input)) ? 1 : 0;
+}
+
 %ignore broker::address::from_string;
 %ignore broker::to_string(const address&);
 %ignore operator<(const address&, const address&);
