@@ -27,7 +27,7 @@ public:
 	 */
 	master(const endpoint& e, identifier name,
 	       std::unique_ptr<backend> s =
-	       std::unique_ptr<backend>{new memory_backend});
+	       std::unique_ptr<backend>(new memory_backend));
 
 	/**
 	 * Destructor.

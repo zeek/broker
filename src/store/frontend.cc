@@ -32,17 +32,18 @@ const broker::store::response_queue& broker::store::frontend::responses() const
 	return pimpl->responses;
 	}
 
-void broker::store::frontend::insert(data k, data v,
-                                     util::optional<expiration_time> t) const
+void broker::store::frontend::insert(data k, data v) const
 	{
-	if ( t )
-		caf::anon_send(handle_to_actor(handle()),
-		               pimpl->master_name, insert_atom::value,
-		               std::move(k), std::move(v), *t);
-	else
-		caf::anon_send(handle_to_actor(handle()),
-		               pimpl->master_name, insert_atom::value,
-		               std::move(k), std::move(v));
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, insert_atom::value,
+	               std::move(k), std::move(v));
+	}
+
+void broker::store::frontend::insert(data k, data v, expiration_time t) const
+	{
+	caf::anon_send(handle_to_actor(handle()),
+	               pimpl->master_name, insert_atom::value,
+	               std::move(k), std::move(v), std::move(t));
 	}
 
 void broker::store::frontend::erase(data k) const

@@ -34,6 +34,11 @@ else ()
     set(libbroker brokerStatic)
 endif ()
 
+if ( ROCKSDB_FOUND )
+    set(CMAKE_SWIG_FLAGS -DHAVE_ROCKSDB)
+    add_definitions(-DHAVE_ROCKSDB)
+endif ()
+
 include(UseSWIG)
 set_property(SOURCE pybroker.i PROPERTY CPLUSPLUS ON)
 swig_add_module(pybroker python pybroker.i)

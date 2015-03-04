@@ -40,8 +40,9 @@ public:
 	} stat;
 
 	// NIT: maybe deque instead of vector for keys/snapshot results.
-	using type = util::variant<tag, bool, uint64_t, data,
-	                           std::vector<data>, snapshot>;
+	typedef util::variant<tag,
+	                      bool, uint64_t, data, std::vector<data>, snapshot>
+	        type;
 
 	type value;
 

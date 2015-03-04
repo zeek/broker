@@ -5,6 +5,15 @@
 #include "broker/report.hh"
 #include "broker/endpoint.hh"
 #include "broker/data.hh"
+#include "broker/store/memory_backend.hh"
+#include "broker/store/sqlite_backend.hh"
+
+#ifdef HAVE_ROCKSDB
+#include "broker/store/rocksdb_backend.hh"
+#endif
+
+#include "broker/store/master.hh"
+#include "broker/store/clone.hh"
 
 static std::string swig_exception;
 
@@ -141,7 +150,7 @@ public:
 };
 
 %{
-// Kind of hacky...
+// NIT: Kind of hacky... working around SWIG lack of support for nested classes
 typedef broker::record::field field;
 %}
 
@@ -169,6 +178,7 @@ public:
         { return $self->fields; }
 }
 
+// TODO: need an interface to translate back to python data types
 class data {
 public:
 
@@ -219,6 +229,7 @@ message = vector_of_data
 %ignore broker::queue::operator=;
 %include "broker/queue.hh"
 
+%template(deque_of_string) std::deque<std::string>;
 %template(deque_of_message) std::deque<broker::message>;
 %template(message_queue_base) broker::queue<broker::message>;
 %ignore broker::message_queue::operator=;
@@ -250,3 +261,217 @@ message = vector_of_data
 %rename(report_error) broker::report::error;
 
 %include "broker/report.hh"
+
+%include "broker/store/identifier.hh"
+
+%ignore broker::store::operator==(const expiration_time&,
+                                  const expiration_time&);
+%ignore broker::store::operator==(const expirable&, const expirable&);
+%include "broker/store/expiration_time.hh"
+%extend broker::store::expiration_time {
+    bool __eq__(const broker::store::expiration_time& other)
+        { return *$self == other; }
+}
+%extend broker::store::expirable {
+    bool __eq__(const broker::store::expirable& other)
+        { return *$self == other; }
+}
+
+%ignore broker::store::modification_result;
+%ignore broker::store::backend::init;
+%ignore broker::store::backend::sequence;
+%ignore broker::store::backend::insert;
+%ignore broker::store::backend::increment;
+%ignore broker::store::backend::add_to_set;
+%ignore broker::store::backend::remove_from_set;
+%ignore broker::store::backend::erase;
+%ignore broker::store::backend::expire;
+%ignore broker::store::backend::clear;
+%ignore broker::store::backend::push_left;
+%ignore broker::store::backend::push_right;
+%ignore broker::store::backend::pop_left;
+%ignore broker::store::backend::pop_right;
+%ignore broker::store::backend::lookup;
+%ignore broker::store::backend::exists;
+%ignore broker::store::backend::keys;
+%ignore broker::store::backend::size;
+%ignore broker::store::backend::snap;
+%ignore broker::store::backend::expiries;
+%include "broker/store/backend.hh"
+
+%ignore broker::store::memory_backend::memory_backend(memory_backend&&);
+%ignore broker::store::memory_backend::operator=;
+%include "broker/store/memory_backend.hh"
+
+%ignore broker::store::sqlite_backend::operator=;
+%include "broker/store/sqlite_backend.hh"
+
+#ifdef HAVE_ROCKSDB
+%ignore broker::store::rocksdb_backend::operator=;
+%ignore broker::store::rocksdb_backend::open;
+%include "broker/store/rocksdb_backend.hh"
+%extend broker::store::rocksdb_backend {
+    %rename(open) wrap_open;
+    bool wrap_open(std::string db_path)
+        {
+        rocksdb::Options options;
+        options.create_if_missing = true;
+        return $self->open(std::move(db_path), options).ok();
+        }
+}
+#endif
+
+%ignore broker::store::query::process;
+%ignore broker::store::operator==(const query&, const query&);
+%include "broker/store/query.hh"
+%extend broker::store::query {
+    bool __eq__(const broker::store::query& other)
+        { return *$self == other; }
+}
+
+namespace broker { namespace store {
+class result {
+public:
+
+    enum class tag: uint8_t {
+        exists_result,
+        size_result,
+        lookup_or_pop_result,
+        keys_result,
+        snapshot_result,
+    };
+
+    enum class status : uint8_t {
+        success,
+        failure,
+        timeout
+    } stat;
+};
+
+%extend result {
+    bool __eq__(const broker::store::result& other)
+        { return *$self == other; }
+    result::tag which()
+        { return broker::which($self->value); }
+    bool exists()
+        {
+        if ( broker::which($self->value) !=
+             broker::store::result::tag::exists_result )
+            {
+            set_swig_exception("access to wrong store result variant");
+            return {};
+            }
+
+        return *broker::get<bool>($self->value);
+        }
+    uint64_t size()
+        {
+        if ( broker::which($self->value) !=
+             broker::store::result::tag::size_result )
+            {
+            set_swig_exception("access to wrong store result variant");
+            return {};
+            }
+
+        return *broker::get<uint64_t>($self->value);
+        }
+    broker::data data()
+        {
+        if ( broker::which($self->value) !=
+             broker::store::result::tag::lookup_or_pop_result )
+            {
+            set_swig_exception("access to wrong store result variant");
+            return {};
+            }
+
+        return *broker::get<broker::data>($self->value);
+        }
+    std::vector<broker::data> keys()
+        {
+        if ( broker::which($self->value) !=
+             broker::store::result::tag::keys_result )
+            {
+            set_swig_exception("access to wrong store result variant");
+            return {};
+            }
+
+        return *broker::get<std::vector<broker::data>>($self->value);
+        }
+}
+}}
+
+%ignore broker::store::operator==(const response&, const response&);
+%include "broker/store/response.hh"
+%extend broker::store::response {
+    bool __eq__(const broker::store::response& other)
+        { return *$self == other; }
+}
+
+%template(deque_of_response) std::deque<broker::store::response>;
+%template(response_queue) broker::queue<broker::store::response>;
+
+%ignore broker::store::frontend::operator=;
+%include "broker/store/frontend.hh"
+
+%ignore broker::store::master::operator=;
+%ignore broker::store::master::master;
+%include "broker/store/master.hh"
+%extend broker::store::master {
+    static master* create(const endpoint& e, identifier name,
+                          backend* b = nullptr)
+        // NIT: a bit hacky... working around SWIG lack of unique_ptr support
+        {
+        using namespace std;
+        using namespace broker::store;
+
+        if ( ! b )
+            b = new memory_backend();
+        else if ( dynamic_cast<memory_backend*>(b) )
+            b = new memory_backend(move(*dynamic_cast<memory_backend*>(b)));
+        else if ( dynamic_cast<sqlite_backend*>(b) )
+            b = new sqlite_backend(move(*dynamic_cast<sqlite_backend*>(b)));
+#ifdef HAVE_ROCKSDB
+        else if ( dynamic_cast<rocksdb_backend*>(b) )
+            b = new rocksdb_backend(move(*dynamic_cast<rocksdb_backend*>(b)));
+#endif
+        else
+            {
+            set_swig_exception("unsupported data store backend");
+            return nullptr;
+            }
+
+        return new master(e, move(name), unique_ptr<backend>(b));
+        }
+}
+
+%ignore broker::store::clone::clone;
+%include "broker/store/clone.hh"
+%extend broker::store::clone {
+    static clone* create(const endpoint& e, identifier master_name,
+                         std::chrono::duration<double> resync_interval,
+                         backend* b = nullptr)
+        // NIT: a bit hacky... working around SWIG lack of unique_ptr support
+        {
+        using namespace std;
+        using namespace broker::store;
+
+        if ( ! b )
+            b = new memory_backend();
+        else if ( dynamic_cast<memory_backend*>(b) )
+            b = new memory_backend(move(*dynamic_cast<memory_backend*>(b)));
+        else if ( dynamic_cast<sqlite_backend*>(b) )
+            b = new sqlite_backend(move(*dynamic_cast<sqlite_backend*>(b)));
+#ifdef HAVE_ROCKSDB
+        else if ( dynamic_cast<rocksdb_backend*>(b) )
+            b = new rocksdb_backend(move(*dynamic_cast<rocksdb_backend*>(b)));
+#endif
+        else
+            {
+            set_swig_exception("unsupported data store backend");
+            return nullptr;
+            }
+
+        return new clone(e, move(master_name), resync_interval,
+                         unique_ptr<backend>(b));
+        }
+}

@@ -9,7 +9,7 @@ namespace store {
 /**
  * A string which uniquely identifies a master data store.
  */
-using identifier = std::string;
+typedef std::string identifier;
 
 } // namespace store
 } // namespace broker
