@@ -178,9 +178,28 @@ public:
         { return $self->fields; }
 }
 
-// TODO: need an interface to translate back to python data types
 class data {
 public:
+
+    enum class tag : uint8_t {
+        // Primitive types
+        boolean,     // bool
+        count,       // uint64_t
+        integer,     // int64_t
+        real,        // double
+        string,      // std::string
+        address,     // broker::address
+        subnet,      // broker::subnet
+        port,        // broker::port
+        time,        // broker::time_point
+        duration,    // broker::time_duration
+        enum_value,  // broker::enum_value
+        // Compound types
+        set,
+        table,
+        vector,
+        record
+    };
 
     data() {}
     data(broker::data arg);
@@ -208,6 +227,173 @@ public:
         { return *$self == other; }
     bool __lt__(const broker::data& other)
         { return *$self < other; }
+    data::tag which()
+        { return broker::which($self->value); }
+    bool as_bool()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::boolean )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<bool>($self->value);
+        }
+    uint64_t as_count()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::count )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<uint64_t>($self->value);
+        }
+    int64_t as_int()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::integer )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<int64_t>($self->value);
+        }
+    double as_real()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::real )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<double>($self->value);
+        }
+    std::string as_string()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::string )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<std::string>($self->value);
+        }
+    broker::address as_address()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::address )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::address>($self->value);
+        }
+    broker::subnet as_subnet()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::subnet )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::subnet>($self->value);
+        }
+    broker::port as_port()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::port )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::port>($self->value);
+        }
+    broker::time_point as_time()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::time )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::time_point>($self->value);
+        }
+    broker::time_duration as_duration()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::duration )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::time_duration>($self->value);
+        }
+    broker::enum_value as_enum()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::enum_value )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::enum_value>($self->value);
+        }
+    std::set<broker::data> as_set()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::set )
+            {
+            set_swig_exception("access to wrong data variant");
+            return broker::set{};
+            }
+
+        return *broker::get<broker::set>($self->value);
+        }
+    std::map<broker::data, broker::data> as_table()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::table )
+            {
+            set_swig_exception("access to wrong data variant");
+            return broker::table{};
+            }
+
+        return *broker::get<broker::table>($self->value);
+        }
+    std::vector<broker::data> as_vector()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::vector )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::vector>($self->value);
+        }
+    broker::record as_record()
+        {
+        if ( broker::which($self->value) !=
+             broker::data::tag::record )
+            {
+            set_swig_exception("access to wrong data variant");
+            return {};
+            }
+
+        return *broker::get<broker::record>($self->value);
+        }
 }
 
 typedef std::vector<broker::data> message;
