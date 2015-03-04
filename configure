@@ -30,6 +30,11 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --prefix=PREFIX        installation directory [/usr/local]
     --libdir=DIR           installation directory for static and dynamic
                            libraries [PREFIX/lib]
+    --python-home=PATH     explicit installation method for optional Python
+                           bindings [PATH/lib/python], the path tracks
+                           --prefix if that option is used.
+    --python-prefix=PATH   explicit install directory for Python bindings
+                           [PATH/lib/python<Python Version>/site-packages]
 
   Optional Features:
     --enable-debug         compile in debugging mode (like --build-type=Debug)
@@ -84,13 +89,18 @@ while [ $# -ne 0 ]; do
             builddir=$optarg
             ;;
         --prefix=*)
-            prefix=$optarg
             append_cache_entry CMAKE_INSTALL_PREFIX PATH   $optarg
             append_cache_entry INSTALL_LIB_DIR      PATH   $optarg/lib
+            append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
             ;;
         --libdir=*)
-            libdir=$optarg
             append_cache_entry INSTALL_LIB_DIR      PATH   $optarg
+            ;;
+        --python-home=*)
+            append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
+            ;;
+        --python-prefix=*)
+            append_cache_entry BROKER_PYTHON_PREFIX PATH   $optarg
             ;;
         --build-type=*)
             append_cache_entry CMAKE_BUILD_TYPE     STRING $optarg

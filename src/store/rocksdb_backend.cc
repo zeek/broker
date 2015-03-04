@@ -92,12 +92,13 @@ broker::store::rocksdb_backend::open(std::string db_path,
 	options.create_if_missing = true;
 	pimpl->options = options;
 
-	if ( rval.ok() )
+	if ( pimpl->require_ok(rval) )
 		{
 		auto ver = version_string();
 		// Use key-space prefix 'm' to store metadata, 'a' for application
 		// data, and 'e' for expiration values.
 		rval = pimpl->db->Put({}, "mbroker_version", ver);
+		pimpl->require_ok(rval);
 		return rval;
 		}
 

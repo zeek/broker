@@ -13,7 +13,7 @@
 
 namespace broker { namespace store {
 
-using response_queue = broker::queue<broker::store::response>;
+typedef broker::queue<broker::store::response> response_queue;
 
 /**
  * A frontend interface of a data store (either a master or clone)
@@ -73,13 +73,21 @@ public:
 	 */
 
 	/**
-	 * Non-blocking key-value pair insertion.
+	 * Non-blocking key-value pair insertion with no expiration time.
+	 * The change may not be immediately visible.
+	 * @param k the key to use.
+	 * @param v the value associated with the key.
+	 */
+	void insert(data k, data v) const;
+
+	/**
+	 * Non-blocking key-value pair insertion with an expiration time.
 	 * The change may not be immediately visible.
 	 * @param k the key to use.
 	 * @param v the value associated with the key.
 	 * @param t an expiration time for the entry.
 	 */
-	void insert(data k, data v, util::optional<expiration_time> t = {}) const;
+	void insert(data k, data v, expiration_time t) const;
 
 	/**
 	 * Non-blocking removal of a key and associated value, if it exists.
@@ -142,7 +150,7 @@ public:
 	 * implicitly created as an empty vector.
 	 * @param items the new items to prepend to the vector.
 	 */
-	void push_left(data k, vector items) const;
+	void push_left(data k, broker::vector items) const;
 
 	/**
 	 * Add a new item to the tail of a vector.
@@ -152,7 +160,7 @@ public:
 	 * implicitly created as an empty vector.
 	 * @param items the new items to append to the vector.
 	 */
-	void push_right(data k, vector items) const;
+	void push_right(data k, broker::vector items) const;
 
 	/*
 	 * Query Interface - blocking.

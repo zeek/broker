@@ -126,12 +126,18 @@ int broker_init(int flags)
 int broker::init(int flags)
 	{ return broker_init(flags); }
 
+void broker::done()
+	{ return broker_done(); }
+
 void broker_done()
 	{
 	caf::shutdown();
 	broker::report::done();
 	delete broker::report::mtx;
 	}
+
+const char* broker::strerror(int broker_errno)
+	{ return broker_strerror(broker_errno); }
 
 const char* broker_strerror(int broker_errno)
 	{
@@ -154,6 +160,9 @@ static void strerror_r_helper(char* result, char* buf, size_t buflen)
 
 static void strerror_r_helper(int result, char* buf, size_t buflen)
 	{ /* XSI flavor of strerror_r, no-op. */ }
+
+void broker::strerror_r(int broker_errno, char* buf, size_t buflen)
+	{ return broker_strerror_r(broker_errno, buf, buflen); }
 
 void broker_strerror_r(int broker_errno, char* buf, size_t buflen)
 	{

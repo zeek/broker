@@ -13,7 +13,7 @@ class memory_backend : public backend {
 public:
 
 	/**
-	 * Construct the in-memory storage from a data store snapshot.
+	 * Construct the in-memory storage.
 	 */
 	memory_backend();
 
