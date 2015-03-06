@@ -41,6 +41,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
     --with-rocksdb=PATH    path to RocksDB installation
+    --with-swig=PATH       path to SWIG executable (builds python bindings)
 
   Required Packages in Non-Standard Locations:
     --with-libcaf=PATH     path to C++ Actor Framework installation
@@ -119,6 +120,9 @@ while [ $# -ne 0 ]; do
             ;;
         --with-rocksdb=*)
             append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
+            ;;
+        --with-swig=*)
+            append_cache_entry SWIG_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."

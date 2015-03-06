@@ -33,9 +33,9 @@ Dependencies
 Compiling Broker requires the following libraries/tools to already be
 installed:
 
-    A C++11 capable compiler
+    A C++11 capable compiler (GCC 4.8+ or Clang 3.3+)
 
-    CAF (C++ Actor Framework)
+    CAF (C++ Actor Framework), 'develop' git branch
         https://github.com/actor-framework/actor-framework
 
     CMake 2.8.12+
@@ -44,6 +44,11 @@ installed:
         information regarding CMake and the installation steps below
         for how to use it to build this distribution.  CMake generates
         native Makefiles that depend on GNU Make by default.
+
+And optionally:
+
+    SWIG 3.0.3+, http://www.swig.org/
+        SWIG is used to optionally build Python bindings for Broker.
 
 Compiling/Installing
 --------------------

@@ -7,6 +7,14 @@ if ( NOT SWIG_FOUND )
     return()
 endif ()
 
+set(required_swig_version 3.0.3)
+
+if ( SWIG_VERSION VERSION_LESS ${required_swig_version} )
+    message(WARNING "Skip Python bindings: require SWIG "
+                    "${required_swig_version}, but only have ${SWIG_VERSION}")
+    return()
+endif ()
+
 if ( NOT PYTHONINTERP_FOUND )
     message(WARNING "Skip Python bindings: Python interpreter not found")
     return()

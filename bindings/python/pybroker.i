@@ -657,7 +657,7 @@ public:
             return nullptr;
             }
 
-        return new clone(e, move(master_name), resync_interval,
-                         unique_ptr<backend>(b));
+        return new broker::store::clone(e, move(master_name), resync_interval,
+                                        unique_ptr<backend>(b));
         }
 }
