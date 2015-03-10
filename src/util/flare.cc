@@ -10,7 +10,7 @@ broker::util::flare::flare()
 
 void broker::util::flare::fire()
     {
-    char tmp;
+    char tmp = 0;
 
     for ( ; ; )
         {
