@@ -1,6 +1,5 @@
 #include "frontend_impl.hh"
 #include "../atoms.hh"
-#include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/sb_actor.hpp>
 #include <caf/spawn.hpp>
@@ -102,14 +101,14 @@ void broker::store::frontend::push_right(data k, vector item) const
 broker::store::result broker::store::frontend::request(query q) const
 	{
 	result rval;
-	caf::scoped_actor self;
 	caf::actor store_actor = caf::invalid_actor;
 	bool need_master = q.type == query::tag::pop_left ||
 	                   q.type == query::tag::pop_right;
 	caf::actor& where = need_master ? pimpl->endpoint
 	                                : handle_to_actor(handle());
 
-	self->sync_send(where, store_actor_atom::value, pimpl->master_name).await(
+	pimpl->self->sync_send(where, store_actor_atom::value,
+	                       pimpl->master_name).await(
 		[&store_actor](caf::actor& sa)
 			{
 			store_actor = std::move(sa);
@@ -119,7 +118,8 @@ broker::store::result broker::store::frontend::request(query q) const
 	if ( ! store_actor )
 		return rval;
 
-	self->sync_send(store_actor, pimpl->master_name, std::move(q), self).await(
+	pimpl->self->sync_send(store_actor, pimpl->master_name,
+	                       std::move(q), pimpl->self).await(
 		[&rval](const caf::actor&, result& r)
 			{
 			rval = std::move(r);

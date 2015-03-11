@@ -4,6 +4,7 @@
 #include "broker/store/frontend.hh"
 #include <caf/actor.hpp>
 #include <caf/sb_actor.hpp>
+#include <caf/scoped_actor.hpp>
 
 namespace broker { namespace store {
 
@@ -56,12 +57,13 @@ public:
 
 	impl(identifier mn, caf::actor e)
 		: master_name(std::move(mn)), endpoint(std::move(e)),
-	      responses()
+		  responses(), self()
 		{ }
 
 	std::string master_name;
 	caf::actor endpoint;
 	response_queue responses;
+	caf::scoped_actor self;
 };
 
 } // namespace store
