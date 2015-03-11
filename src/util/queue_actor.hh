@@ -64,10 +64,10 @@ private:
 
 template <typename Message>
 std::deque<Message>
-queue_pop(const caf::actor& actor, caf::atom_value request_type)
+queue_pop(const caf::scoped_actor& self, const caf::actor& actor,
+          caf::atom_value request_type)
 	{
 	std::deque<Message> rval;
-	caf::scoped_actor self;
 	self->sync_send(actor, request_type).await(
 		[&rval](std::deque<Message>& msgs)
 			{
