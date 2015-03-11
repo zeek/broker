@@ -12,12 +12,14 @@ namespace broker {
 class peering::impl {
 public:
 
-	impl() = default;
+	impl()
+		: endpoint_actor(), peer_actor(), remote(), remote_tuple()
+		{ }
 
 	impl(caf::actor ea, caf::actor pa, bool r = false,
 	     std::pair<std::string, uint16_t> rt = std::make_pair("", 0))
 		: endpoint_actor(std::move(ea)), peer_actor(std::move(pa)),
-	      remote(r), remote_tuple(std::move(rt))
+		  remote(r), remote_tuple(std::move(rt))
 		{ }
 
 	bool operator==(const peering::impl& other) const;
