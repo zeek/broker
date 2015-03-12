@@ -71,5 +71,5 @@ message(STATUS "Python bindings will be built and installed to: "
 
 install(TARGETS ${SWIG_MODULE_pybroker_REAL_NAME}
         DESTINATION ${PY_MOD_INSTALL_DIR})
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker.py
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pybroker.py
         DESTINATION ${PY_MOD_INSTALL_DIR})
