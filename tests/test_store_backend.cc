@@ -1,5 +1,5 @@
 #include "broker/broker.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <unistd.h>
 #include "broker/store/memory_backend.hh"
 #include "broker/store/sqlite_backend.hh"

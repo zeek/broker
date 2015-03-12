@@ -1,5 +1,5 @@
 #include "broker/data.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 
 using namespace std;
 using namespace broker;

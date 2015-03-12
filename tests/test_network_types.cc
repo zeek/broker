@@ -1,7 +1,7 @@
 #include "broker/address.hh"
 #include "broker/subnet.hh"
 #include "broker/port.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 
 using namespace std;
 using namespace broker;

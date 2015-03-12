@@ -1,9 +1,10 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/message_queue.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <vector>
 #include <string>
+#include <iostream>
 
 // A test of "log" style messages -- a sequence of {stream name, data record}
 // where some elements of the record may be uninitialized.

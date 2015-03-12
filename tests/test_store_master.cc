@@ -1,7 +1,7 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/store/master.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <map>
 
 using namespace std;

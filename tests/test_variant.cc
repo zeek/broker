@@ -1,5 +1,5 @@
 #include "broker/util/variant.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <string>
 #include <vector>
 #include <algorithm>

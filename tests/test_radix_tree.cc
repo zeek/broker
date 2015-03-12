@@ -1,4 +1,4 @@
-#include "testsuite.hh"
+#include "testsuite.h"
 #include "../src/util/radix_tree.hh"
 #include <string>
 #include <deque>

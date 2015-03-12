@@ -10,8 +10,9 @@
 #include <rocksdb/db.h>
 #endif
 
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <map>
+#include <iostream>
 #include <unistd.h>
 
 using namespace std;

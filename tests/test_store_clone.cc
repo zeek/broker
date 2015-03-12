@@ -2,7 +2,7 @@
 #include "broker/endpoint.hh"
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <map>
 #include <unistd.h>
 

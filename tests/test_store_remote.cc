@@ -3,7 +3,7 @@
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
 #include "broker/store/frontend.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <iostream>
 #include <map>
 #include <vector>

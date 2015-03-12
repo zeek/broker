@@ -7,7 +7,12 @@ endif ()
 set(BROKER_TEST_TIMEOUT 10)
 
 macro(unit_test name)
-    add_executable(${name} ${name}.cc)
+    if ( BROKER_TEST_C_API )
+        add_executable(${name} ${name}.c)
+    else ()
+        add_executable(${name} ${name}.cc)
+    endif ()
+
     target_link_libraries(${name} ${libbroker})
 
     if ( ${ARGC} EQUAL 1 )
@@ -20,7 +25,6 @@ macro(unit_test name)
                                  ${BROKER_TEST_TIMEOUT})
         endforeach ()
     endif ()
-
 endmacro()
 
 set(backends memory;sqlite)
@@ -46,3 +50,7 @@ unit_test(test_optional)
 unit_test(test_data)
 unit_test(test_network_types)
 unit_test(test_radix_tree)
+
+set(BROKER_TEST_C_API true)
+
+unit_test(test_print_c)

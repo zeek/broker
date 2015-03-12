@@ -1,7 +1,7 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/message_queue.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <iostream>
 #include <set>
 

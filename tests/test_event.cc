@@ -1,9 +1,10 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/message_queue.hh"
-#include "testsuite.hh"
+#include "testsuite.h"
 #include <vector>
 #include <string>
+#include <iostream>
 
 // A test of "event" style messages -- vectors of data w/ first element
 // being the event name.
