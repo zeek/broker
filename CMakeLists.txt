@@ -3,6 +3,25 @@ cmake_minimum_required(VERSION 2.8)
 include(cmake/CommonCMakeConfig.cmake)
 
 find_package(Libcaf COMPONENTS core io REQUIRED)
+
+# Check for required CAF version.
+set(CAF_VERSION_REQUIRED 0.13)
+file(READ "${LIBCAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
+string(REGEX MATCH "#define CAF_VERSION [0-9]+"
+       caf_version_line "${caf_config_hpp}")
+string(REGEX MATCH "[0-9]+" caf_version_int "${caf_version_line}")
+math(EXPR caf_version_major "${caf_version_int} / 10000")
+math(EXPR caf_version_minor "( ${caf_version_int} / 100) % 100")
+math(EXPR caf_version_patch "${caf_version_int} % 100")
+set(CAF_VERSION
+    "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
+
+if ( CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED} )
+    message(FATAL_ERROR "Broker requires at least CAF version"
+            " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
+endif ()
+
+message(STATUS "Found CAF version: ${CAF_VERSION}")
 include_directories(BEFORE ${LIBCAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${LIBCAF_LIBRARIES})
 

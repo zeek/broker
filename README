@@ -35,7 +35,7 @@ installed:
 
     A C++11 capable compiler (GCC 4.8+ or Clang 3.3+)
 
-    CAF (C++ Actor Framework), 'develop' git branch
+    CAF (C++ Actor Framework) version 0.13+
         https://github.com/actor-framework/actor-framework
 
     CMake 2.8.12+
