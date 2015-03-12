@@ -3,6 +3,7 @@
 
 #include "../atoms.hh"
 #include "broker/store/master.hh"
+#include "broker/store/sqlite_backend.hh"
 #include "broker/report.hh"
 #include "broker/time_point.hh"
 #include <caf/send.hpp>
@@ -331,8 +332,14 @@ public:
 
 	impl(const caf::actor& endpoint, identifier name,
 	     std::unique_ptr<backend> s)
-		: self(), actor(caf::spawn<master_actor>(std::move(s), name))
 		{
+		// TODO: rocksdb backend should also be detached, but why does
+		// rocksdb::~DB then crash?
+		if ( dynamic_cast<sqlite_backend*>(s.get()) )
+			actor = caf::spawn<master_actor, caf::detached>(std::move(s), name);
+		else
+			actor = caf::spawn<master_actor>(std::move(s), name);
+
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		caf::anon_send(endpoint, master_atom::value, std::move(name), actor);

@@ -87,7 +87,7 @@ int main(int argc, char** argv)
 	endpoint node("node0");
 
 	// Can fiddle with these if test starts failing ocassionally due to timing.
-	double abs_time = 1.0;
+	double abs_time = 3.0;
 	double mod_time = abs_time * 0.4;
 
 	auto pre_expire = now() + abs_time;

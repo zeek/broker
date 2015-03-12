@@ -5,6 +5,7 @@
 #include "broker/store/clone.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/memory_backend.hh"
+#include "broker/store/sqlite_backend.hh"
 #include "broker/report.hh"
 #include <caf/spawn.hpp>
 #include <caf/send.hpp>
@@ -368,11 +369,18 @@ public:
 	impl(const caf::actor& endpoint, identifier master_name,
 	     std::chrono::microseconds resync_interval,
 	     std::unique_ptr<backend> b)
-		: self(), actor(caf::spawn<clone_actor>(endpoint,
-	                                            std::move(master_name),
-	                                            std::move(resync_interval),
-	                                            std::move(b)))
 		{
+		// TODO: rocksdb backend should also be detached, but why does
+		// rocksdb::~DB then crash?
+		if ( dynamic_cast<sqlite_backend*>(b.get()) )
+			actor = caf::spawn<clone_actor, caf::detached>(
+			  endpoint, std::move(master_name), std::move(resync_interval),
+			  std::move(b));
+		else
+			actor = caf::spawn<clone_actor>(
+			  endpoint, std::move(master_name), std::move(resync_interval),
+			  std::move(b));
+
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
 		}
