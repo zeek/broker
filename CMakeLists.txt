@@ -75,15 +75,23 @@ set(BROKER_SRC
     src/broker.cc
     src/data.cc
     src/endpoint.cc
+    src/enum_value.cc
     src/message_queue.cc
     src/peering.cc
     src/persistables.cc
     src/port.cc
+    src/queue.cc
+    src/record.cc
     src/report.cc
+    src/set.cc
+    src/string.cc
     src/subnet.cc
     src/subscription.cc
+    src/table.cc
+    src/time_duration.cc
     src/time_point.cc
-    src/queue.cc
+    src/vector.cc
+
     src/store/backend.cc
     src/store/clone.cc
     src/store/frontend.cc
@@ -92,10 +100,12 @@ set(BROKER_SRC
     src/store/sequence_num.cc
     src/store/sqlite3.c
     src/store/sqlite_backend.cc
+
     src/util/misc.cc
     src/util/persist.cc
     src/util/pipe.cc
     src/util/flare.cc
+
     ${OPTIONAL_SRC}
     ${BROKER_HDR})
 

@@ -91,9 +91,10 @@ public:
 
 	friend bool operator<(const address& lhs, const address& rhs);
 
+	static const std::array<uint8_t, 12> v4_mapped_prefix;
+
 private:
 
-	static const std::array<uint8_t, 12> v4_mapped_prefix;
 	std::array<uint8_t, 16> addr; // Always in network order.
 };
 

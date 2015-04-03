@@ -53,4 +53,6 @@ unit_test(test_radix_tree)
 
 set(BROKER_TEST_C_API true)
 
+unit_test(test_data_c)
 unit_test(test_print_c)
+unit_test(test_network_types_c)

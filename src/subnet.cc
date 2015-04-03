@@ -69,3 +69,85 @@ size_t std::hash<broker::subnet>::operator()(const broker::subnet& v) const
 	broker::util::hash_combine(rval, v.length());
 	return rval;
 	}
+
+// Begin C API
+#include "broker/broker.h"
+using std::nothrow;
+
+broker_subnet* broker_subnet_create()
+	{ return reinterpret_cast<broker_subnet*>(new (nothrow) broker::subnet()); }
+
+void broker_subnet_delete(broker_subnet* s)
+	{ delete reinterpret_cast<broker::subnet*>(s); }
+
+broker_subnet* broker_subnet_copy(const broker_subnet* s)
+	{
+	auto ss = reinterpret_cast<const broker::subnet*>(s);
+	return reinterpret_cast<broker_subnet*>(new (nothrow) broker::subnet(*ss));
+	}
+
+broker_subnet* broker_subnet_from(const broker_address* a, uint8_t len)
+	{
+	auto aa = reinterpret_cast<const broker::address*>(a);
+	return reinterpret_cast<broker_subnet*>(
+	            new (nothrow) broker::subnet(*aa, len));
+	}
+
+void broker_subnet_set(broker_subnet* dst, broker_subnet* src)
+	{
+	auto d = reinterpret_cast<broker::subnet*>(dst);
+	auto s = reinterpret_cast<broker::subnet*>(src);
+	*d = *s;
+	}
+
+int broker_subnet_contains(const broker_subnet* s, const broker_address* a)
+	{
+	auto aa = reinterpret_cast<const broker::address*>(a);
+	return reinterpret_cast<const broker::subnet*>(s)->contains(*aa);
+	}
+
+const broker_address* broker_subnet_network(const broker_subnet* s)
+	{
+	auto ss = reinterpret_cast<const broker::subnet*>(s);
+	return reinterpret_cast<const broker_address*>(&ss->network());
+	}
+
+uint8_t broker_subnet_length(const broker_subnet* s)
+	{
+	auto ss = reinterpret_cast<const broker::subnet*>(s);
+	return ss->length();
+	}
+
+broker_string* broker_subnet_to_string(const broker_subnet* s)
+	{
+	auto ss = reinterpret_cast<const broker::subnet*>(s);
+
+	try
+		{
+		auto rval = broker::to_string(*ss);
+		return reinterpret_cast<broker_string*>(
+		             new std::string(std::move(rval)));
+		}
+	catch ( std::bad_alloc& )
+		{ return nullptr; }
+	}
+
+int broker_subnet_eq(const broker_subnet* a, const broker_subnet* b)
+	{
+	auto aa = reinterpret_cast<const broker::subnet*>(a);
+	auto bb = reinterpret_cast<const broker::subnet*>(b);
+	return *aa == *bb;
+	}
+
+int broker_subnet_lt(const broker_subnet* a, const broker_subnet* b)
+	{
+	auto aa = reinterpret_cast<const broker::subnet*>(a);
+	auto bb = reinterpret_cast<const broker::subnet*>(b);
+	return *aa < *bb;
+	}
+
+size_t broker_subnet_hash(const broker_subnet* s)
+	{
+	auto ss = reinterpret_cast<const broker::subnet*>(s);
+	return std::hash<broker::subnet>{}(*ss);
+	}
