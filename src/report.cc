@@ -70,3 +70,45 @@ void broker::report::warn(topic subtopic, std::string msg)
 
 void broker::report::error(topic subtopic, std::string msg)
 	{ send(level::error, std::move(subtopic), std::move(msg)); }
+
+// Begin C API
+#include "broker/broker.h"
+
+broker_endpoint* broker_report_manager()
+	{
+	return reinterpret_cast<broker_endpoint*>(broker::report::manager);
+	}
+
+broker_message_queue* broker_report_default_queue()
+	{
+	return reinterpret_cast<broker_message_queue*>(broker::report::default_queue);
+	}
+
+int broker_report_init(int with_default_queue)
+	{
+	return broker::report::init(with_default_queue);
+	}
+
+void broker_report_done()
+	{
+	broker::report::done();
+	}
+
+int broker_report_send(broker_report_level lvl, const broker_string* subtopic,
+                       const broker_string* msg)
+	{
+	auto tt = reinterpret_cast<const std::string*>(subtopic);
+	auto mm = reinterpret_cast<const std::string*>(msg);
+
+	try
+		{
+		auto l = static_cast<broker::report::level>(lvl);
+		broker::topic t(*tt);
+		std::string m(*mm);
+		broker::report::send(l, std::move(t), std::move(m));
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}

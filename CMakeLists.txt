@@ -76,7 +76,9 @@ set(BROKER_SRC
     src/data.cc
     src/endpoint.cc
     src/enum_value.cc
+    src/incoming_connection_status.cc
     src/message_queue.cc
+    src/outgoing_connection_status.cc
     src/peering.cc
     src/persistables.cc
     src/port.cc
@@ -94,9 +96,13 @@ set(BROKER_SRC
 
     src/store/backend.cc
     src/store/clone.cc
+    src/store/expiration_time.cc
     src/store/frontend.cc
     src/store/master.cc
     src/store/memory_backend.cc
+    src/store/query.cc
+    src/store/response.cc
+    src/store/result.cc
     src/store/sequence_num.cc
     src/store/sqlite3.c
     src/store/sqlite_backend.cc

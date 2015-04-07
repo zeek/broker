@@ -744,3 +744,46 @@ broker::store::sqlite_backend::do_expiries() const
 	pimpl->last_rc = 0;
 	return {};
 	}
+
+// Begin C API
+#include "broker/broker.h"
+using std::nothrow;
+
+broker_store_sqlite_backend* broker_store_sqlite_backend_create()
+	{
+	auto rval = new (nothrow) broker::store::sqlite_backend();
+	return reinterpret_cast<broker_store_sqlite_backend*>(rval);
+	}
+
+void broker_store_sqlite_backend_delete(broker_store_sqlite_backend* b)
+	{
+	delete reinterpret_cast<broker::store::sqlite_backend*>(b);
+	}
+
+int broker_store_sqlite_backend_open(broker_store_sqlite_backend* b,
+                                     const char* path)
+	{
+	auto bb = reinterpret_cast<broker::store::sqlite_backend*>(b);
+	return bb->open(path);
+	}
+
+int broker_store_sqlite_backend_pragma(broker_store_sqlite_backend* b,
+                                       const char* pragma)
+	{
+	auto bb = reinterpret_cast<broker::store::sqlite_backend*>(b);
+	return bb->pragma(pragma);
+	}
+
+int broker_store_sqlite_backend_last_error_code(
+        const broker_store_sqlite_backend* b)
+	{
+	auto bb = reinterpret_cast<const broker::store::sqlite_backend*>(b);
+	return bb->last_error_code();
+	}
+
+const char* broker_store_sqlite_backend_last_error(
+        const broker_store_sqlite_backend* b)
+	{
+	auto bb = reinterpret_cast<const broker::store::sqlite_backend*>(b);
+	return bb->last_error().data();
+	}

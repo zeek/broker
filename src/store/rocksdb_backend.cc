@@ -639,3 +639,34 @@ broker::store::rocksdb_backend::do_expiries() const
 
 	return rval;
 	}
+
+// Begin C API
+#include "broker/broker.h"
+using std::nothrow;
+
+broker_store_rocksdb_backend* broker_store_rocksdb_backend_create()
+	{
+	auto rval = new (nothrow) broker::store::rocksdb_backend();
+	return reinterpret_cast<broker_store_rocksdb_backend*>(rval);
+	}
+
+void broker_store_rocksdb_backend_delete(broker_store_rocksdb_backend* b)
+	{
+	delete reinterpret_cast<broker::store::rocksdb_backend*>(b);
+	}
+
+int broker_store_rocksdb_backend_open(broker_store_rocksdb_backend* b,
+                                      const char* path, int create_if_missing)
+	{
+	auto bb = reinterpret_cast<broker::store::rocksdb_backend*>(b);
+	rocksdb::Options options = {};
+	options.create_if_missing = create_if_missing;
+	return bb->open(path, options).ok();
+	}
+
+const char* broker_store_rocksdb_backend_last_error(
+        const broker_store_rocksdb_backend* b)
+	{
+	auto bb = reinterpret_cast<const broker::store::rocksdb_backend*>(b);
+	return bb->last_error().data();
+	}

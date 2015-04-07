@@ -167,3 +167,355 @@ void* broker::endpoint::handle() const
 	{
 	return &pimpl->actor;
 	}
+
+// Begin C API
+#include "broker/broker.h"
+using std::nothrow;
+
+void broker_deque_of_incoming_connection_status_delete(
+        broker_deque_of_incoming_connection_status* d)
+	{
+	delete reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
+	}
+
+size_t broker_deque_of_incoming_connection_status_size(
+        const broker_deque_of_incoming_connection_status* d)
+	{
+	auto dd = reinterpret_cast<const std::deque<broker::incoming_connection_status>*>(d);
+	return dd->size();
+	}
+
+broker_incoming_connection_status*
+broker_deque_of_incoming_connection_status_at(
+        broker_deque_of_incoming_connection_status* d, size_t idx)
+	{
+	auto dd = reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
+	return reinterpret_cast<broker_incoming_connection_status*>(&(*dd)[idx]);
+	}
+
+void broker_deque_of_incoming_connection_status_erase(
+        broker_deque_of_incoming_connection_status* d, size_t idx)
+	{
+	auto dd = reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
+	dd->erase(dd->begin() + idx);
+	}
+
+int broker_incoming_connection_status_queue_fd(
+        const broker_incoming_connection_status_queue* q)
+	{
+	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
+	return qq->fd();
+	}
+
+broker_deque_of_incoming_connection_status*
+broker_incoming_connection_status_queue_want_pop(
+        const broker_incoming_connection_status_queue* q)
+	{
+	auto rval = new (nothrow) std::deque<broker::incoming_connection_status>;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
+	*rval = qq->want_pop();
+	return reinterpret_cast<broker_deque_of_incoming_connection_status*>(rval);
+	}
+
+broker_deque_of_incoming_connection_status*
+broker_incoming_connection_status_queue_need_pop(
+        const broker_incoming_connection_status_queue* q)
+	{
+	auto rval = new (nothrow) std::deque<broker::incoming_connection_status>;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
+	*rval = qq->need_pop();
+	return reinterpret_cast<broker_deque_of_incoming_connection_status*>(rval);
+	}
+
+void broker_deque_of_outgoing_connection_status_delete(
+        broker_deque_of_outgoing_connection_status* d)
+	{
+	delete reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
+	}
+
+size_t broker_deque_of_outgoing_connection_status_size(
+        const broker_deque_of_outgoing_connection_status* d)
+	{
+	auto dd = reinterpret_cast<const std::deque<broker::outgoing_connection_status>*>(d);
+	return dd->size();
+	}
+
+broker_outgoing_connection_status*
+broker_deque_of_outgoing_connection_status_at(
+        broker_deque_of_outgoing_connection_status* d, size_t idx)
+	{
+	auto dd = reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
+	return reinterpret_cast<broker_outgoing_connection_status*>(&(*dd)[idx]);
+	}
+
+void broker_deque_of_outgoing_connection_status_erase(
+        broker_deque_of_outgoing_connection_status* d, size_t idx)
+	{
+	auto dd = reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
+	dd->erase(dd->begin() + idx);
+	}
+
+int broker_outgoing_connection_status_queue_fd(
+        const broker_outgoing_connection_status_queue* q)
+	{
+	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
+	return qq->fd();
+	}
+
+broker_deque_of_outgoing_connection_status*
+broker_outgoing_connection_status_queue_want_pop(
+        const broker_outgoing_connection_status_queue* q)
+	{
+	auto rval = new (nothrow) std::deque<broker::outgoing_connection_status>;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
+	*rval = qq->want_pop();
+	return reinterpret_cast<broker_deque_of_outgoing_connection_status*>(rval);
+	}
+
+broker_deque_of_outgoing_connection_status*
+broker_outgoing_connection_status_queue_need_pop(
+        const broker_outgoing_connection_status_queue* q)
+	{
+	auto rval = new (nothrow) std::deque<broker::outgoing_connection_status>;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
+	*rval = qq->need_pop();
+	return reinterpret_cast<broker_deque_of_outgoing_connection_status*>(rval);
+	}
+
+broker_endpoint* broker_endpoint_create(const char* name)
+	{
+	try
+		{
+		auto rval = new broker::endpoint(name);
+		return reinterpret_cast<broker_endpoint*>(rval);
+		}
+	catch ( std::bad_alloc& )
+		{ return nullptr; }
+	}
+
+broker_endpoint* broker_endpoint_create_with_flags(const char* name, int flags)
+	{
+	try
+		{
+		auto rval = new broker::endpoint(name, flags);
+		return reinterpret_cast<broker_endpoint*>(rval);
+		}
+	catch ( std::bad_alloc& )
+		{ return nullptr; }
+	}
+
+void broker_endpoint_delete(broker_endpoint* e)
+	{
+	delete reinterpret_cast<broker::endpoint*>(e);
+	}
+
+const char* broker_endpoint_name(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return ee->name().data();
+	}
+
+int broker_endpoint_flags(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return ee->flags();
+	}
+
+void broker_endpoint_set_flags(broker_endpoint* e, int flags)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	return ee->set_flags(flags);
+	}
+
+int broker_endpoint_last_errno(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return ee->last_errno();
+	}
+
+const char* broker_endpoint_last_error(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return ee->last_error().data();
+	}
+
+int broker_endpoint_listen(broker_endpoint* e, uint16_t port, const char* addr,
+                           int reuse_addr)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	return ee->listen(port, addr, reuse_addr);
+	}
+
+broker_peering* broker_endpoint_peer_remotely(broker_endpoint* e,
+                                              const char* addr, uint16_t port,
+                                              double retry_interval)
+	{
+	auto rval = new (nothrow) broker::peering;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto retry = std::chrono::duration<double>(retry_interval);
+
+	try
+		{
+		*rval = ee->peer(addr, port, retry);
+		}
+	catch ( std::bad_alloc& )
+		{
+		delete rval;
+		return nullptr;
+		}
+
+	return reinterpret_cast<broker_peering*>(rval);
+	}
+
+broker_peering* broker_endpoint_peer_locally(broker_endpoint* self,
+                                             const broker_endpoint* other)
+	{
+	auto rval = new (nothrow) broker::peering;
+
+	if ( ! rval )
+		return nullptr;
+
+	auto s = reinterpret_cast<broker::endpoint*>(self);
+	auto o = reinterpret_cast<const broker::endpoint*>(other);
+	*rval = s->peer(*o);
+	return reinterpret_cast<broker_peering*>(rval);
+	}
+
+int broker_endpoint_unpeer(broker_endpoint* e, const broker_peering* p)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	return ee->unpeer(*pp);
+	}
+
+const broker_outgoing_connection_status_queue*
+broker_endpoint_outgoing_connection_status(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return reinterpret_cast<const broker_outgoing_connection_status_queue*>(
+	            &ee->outgoing_connection_status());
+	}
+
+const broker_incoming_connection_status_queue*
+broker_endpoint_incoming_connection_status(const broker_endpoint* e)
+	{
+	auto ee = reinterpret_cast<const broker::endpoint*>(e);
+	return reinterpret_cast<const broker_incoming_connection_status_queue*>(
+	            &ee->incoming_connection_status());
+	}
+
+int broker_endpoint_send(broker_endpoint* e, const broker_string* topic,
+                         const broker_message* msg)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+	auto mm = reinterpret_cast<const broker::message*>(msg);
+
+	try
+		{
+		ee->send(*tt, *mm);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}
+
+int broker_endpoint_send_with_flags(broker_endpoint* e,
+                                    const broker_string* topic,
+                                    const broker_message* msg, int flags)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+	auto mm = reinterpret_cast<const broker::message*>(msg);
+
+	try
+		{
+		ee->send(*tt, *mm, flags);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}
+
+int broker_endpoint_publish(broker_endpoint* e, const broker_string* topic)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+
+	try
+		{
+		ee->publish(*tt);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}
+
+int broker_endpoint_unpublish(broker_endpoint* e, const broker_string* topic)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+
+	try
+		{
+		ee->unpublish(*tt);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}
+
+int broker_endpoint_advertise(broker_endpoint* e, const broker_string* topic)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+
+	try
+		{
+		ee->advertise(*tt);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}
+
+int broker_endpoint_unadvertise(broker_endpoint* e,
+                                const broker_string* topic)
+	{
+	auto ee = reinterpret_cast<broker::endpoint*>(e);
+	auto tt = reinterpret_cast<const std::string*>(topic);
+
+	try
+		{
+		ee->unadvertise(*tt);
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+
+	return 1;
+	}

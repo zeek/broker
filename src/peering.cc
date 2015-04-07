@@ -54,3 +54,60 @@ size_t std::hash<broker::peering>::operator()(const broker::peering& p) const
 	broker::util::hash_combine(rval, p.pimpl->peer_actor);
 	return rval;
 	}
+
+// Begin C API
+#include "broker/broker.h"
+using std::nothrow;
+
+broker_peering* broker_peering_create()
+	{
+	return reinterpret_cast<broker_peering*>(new (nothrow) broker::peering());
+	}
+
+void broker_peering_delete(broker_peering* p)
+	{ delete reinterpret_cast<broker::peering*>(p); }
+
+broker_peering* broker_peering_copy(const broker_peering* p)
+	{
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	auto rval = new (nothrow) broker::peering(*pp);
+	return reinterpret_cast<broker_peering*>(rval);
+	}
+
+int broker_peering_is_remote(const broker_peering* p)
+	{
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	return pp->remote();
+	}
+
+const char* broker_peering_remote_host(const broker_peering* p)
+	{
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	return pp->remote_tuple().first.data();
+	}
+
+uint16_t broker_peering_remote_port(const broker_peering* p)
+	{
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	return pp->remote_tuple().second;
+	}
+
+int broker_peering_is_initialized(const broker_peering* p)
+	{
+	auto pp = reinterpret_cast<const broker::peering*>(p);
+	bool rval(*pp);
+	return rval;
+	}
+
+int broker_peering_eq(const broker_peering* a, const broker_peering* b)
+	{
+	auto aa = reinterpret_cast<const broker::peering*>(a);
+	auto bb = reinterpret_cast<const broker::peering*>(b);
+	return *aa == *bb;
+	}
+
+size_t broker_peering_hash(const broker_peering* a)
+	{
+	auto aa = reinterpret_cast<const broker::peering*>(a);
+	return std::hash<broker::peering>{}(*aa);
+	}

@@ -313,6 +313,7 @@ void broker_vector_delete(broker_vector* v);
 broker_vector* broker_vector_copy(const broker_vector* v);
 void broker_vector_clear(broker_vector* v);
 size_t broker_vector_size(const broker_vector* v);
+int broker_vector_reserve(broker_vector* v, size_t size);
 int broker_vector_insert(broker_vector* v, const broker_data* d, size_t idx);
 int broker_vector_replace(broker_vector* v, const broker_data* d, size_t idx);
 int broker_vector_remove(broker_vector* v, size_t idx);
@@ -338,9 +339,386 @@ int broker_record_lt(const broker_record* a, const broker_record* b);
 size_t broker_record_hash(const broker_record* a);
 broker_record_iterator* broker_record_iterator_create(broker_record* r);
 void broker_record_iterator_delete(broker_record_iterator* it);
-int broker_record_iterator_at_last(broker_record* r, broker_record_iterator* it);
+int broker_record_iterator_at_last(broker_record* r,
+                                   broker_record_iterator* it);
 int broker_record_iterator_next(broker_record* r, broker_record_iterator* it);
 broker_data* broker_record_iterator_value(broker_record_iterator* it);
+
+typedef broker_vector broker_message;
+
+struct broker_peering;
+typedef struct broker_peering broker_peering;
+
+broker_peering* broker_peering_create();
+void broker_peering_delete(broker_peering* p);
+broker_peering* broker_peering_copy(const broker_peering* p);
+int broker_peering_is_remote(const broker_peering* p);
+const char* broker_peering_remote_host(const broker_peering* p);
+uint16_t broker_peering_remote_port(const broker_peering* p);
+int broker_peering_is_initialized(const broker_peering* p);
+int broker_peering_eq(const broker_peering* a, const broker_peering* b);
+size_t broker_peering_hash(const broker_peering* a);
+
+struct broker_outgoing_connection_status;
+typedef struct broker_outgoing_connection_status
+        broker_outgoing_connection_status;
+
+typedef enum {
+	broker_outgoing_connection_status_tag_established,
+	broker_outgoing_connection_status_tag_disconnected,
+	broker_outgoing_connection_status_tag_incompatible,
+} broker_outgoing_connection_status_tag;
+
+const broker_peering*
+broker_outgoing_connection_status_peering(broker_outgoing_connection_status*);
+broker_outgoing_connection_status_tag
+broker_outgoing_connection_status_get(broker_outgoing_connection_status*);
+const char*
+broker_outgoing_connection_status_peer_name(broker_outgoing_connection_status*);
+
+struct broker_incoming_connection_status;
+typedef struct broker_incoming_connection_status
+        broker_incoming_connection_status;
+
+typedef enum {
+	broker_incoming_connection_status_tag_established,
+	broker_incoming_connection_status_tag_disconnected,
+} broker_incoming_connection_status_tag;
+
+broker_incoming_connection_status_tag
+broker_incoming_connection_status_get(broker_incoming_connection_status*);
+const char*
+broker_incoming_connection_status_peer_name(broker_incoming_connection_status*);
+
+struct broker_deque_of_message;
+typedef struct broker_deque_of_message broker_deque_of_message;
+
+void broker_deque_of_message_delete(broker_deque_of_message* d);
+size_t broker_deque_of_message_size(const broker_deque_of_message* d);
+// Message still owned by deque.
+broker_message*
+broker_deque_of_message_at(broker_deque_of_message* d, size_t idx);
+void broker_deque_of_message_erase(broker_deque_of_message* d, size_t idx);
+
+struct broker_endpoint;
+typedef struct broker_endpoint broker_endpoint;
+
+struct broker_message_queue;
+typedef struct broker_message_queue broker_message_queue;
+
+broker_message_queue*
+broker_message_queue_create(const broker_string* topic_prefix,
+                            const broker_endpoint* e);
+const broker_string*
+broker_message_queue_topic_prefix(const broker_message_queue* q);
+int broker_message_queue_fd(const broker_message_queue* q);
+broker_deque_of_message*
+broker_message_queue_want_pop(const broker_message_queue* q);
+broker_deque_of_message*
+broker_message_queue_need_pop(const broker_message_queue* q);
+
+struct broker_deque_of_incoming_connection_status;
+typedef struct broker_deque_of_incoming_connection_status
+        broker_deque_of_incoming_connection_status;
+
+void broker_deque_of_incoming_connection_status_delete(
+        broker_deque_of_incoming_connection_status* d);
+size_t broker_deque_of_incoming_connection_status_size(
+        const broker_deque_of_incoming_connection_status* d);
+// Status still owned by deque.
+broker_incoming_connection_status*
+broker_deque_of_incoming_connection_status_at(
+        broker_deque_of_incoming_connection_status* d, size_t idx);
+void broker_deque_of_incoming_connection_status_erase(
+        broker_deque_of_incoming_connection_status* d, size_t idx);
+
+struct broker_incoming_connection_status_queue;
+typedef struct broker_incoming_connection_status_queue
+        broker_incoming_connection_status_queue;
+
+int broker_incoming_connection_status_queue_fd(
+        const broker_incoming_connection_status_queue* q);
+broker_deque_of_incoming_connection_status*
+broker_incoming_connection_status_queue_want_pop(
+        const broker_incoming_connection_status_queue* q);
+broker_deque_of_incoming_connection_status*
+broker_incoming_connection_status_queue_need_pop(
+        const broker_incoming_connection_status_queue* q);
+
+struct broker_deque_of_outgoing_connection_status;
+typedef struct broker_deque_of_outgoing_connection_status
+        broker_deque_of_outgoing_connection_status;
+
+void broker_deque_of_outgoing_connection_status_delete(
+        broker_deque_of_outgoing_connection_status* d);
+size_t broker_deque_of_outgoing_connection_status_size(
+        const broker_deque_of_outgoing_connection_status* d);
+// Status still owned by deque.
+broker_outgoing_connection_status*
+broker_deque_of_outgoing_connection_status_at(
+        broker_deque_of_outgoing_connection_status* d, size_t idx);
+void broker_deque_of_outgoing_connection_status_erase(
+        broker_deque_of_outgoing_connection_status* d, size_t idx);
+
+struct broker_outgoing_connection_status_queue;
+typedef struct broker_outgoing_connection_status_queue
+        broker_outgoing_connection_status_queue;
+
+int broker_outgoing_connection_status_queue_fd(
+        const broker_outgoing_connection_status_queue* q);
+broker_deque_of_outgoing_connection_status*
+broker_outgoing_connection_status_queue_want_pop(
+        const broker_outgoing_connection_status_queue* q);
+broker_deque_of_outgoing_connection_status*
+broker_outgoing_connection_status_queue_need_pop(
+        const broker_outgoing_connection_status_queue* q);
+
+const int BROKER_AUTO_PUBLISH = 0x01;
+const int BROKER_AUTO_ADVERTISE = 0x02;
+
+const int BROKER_SELF = 0x01;
+const int BROKER_PEERS = 0x02;
+const int BROKER_UNSOLICITED = 0x04;
+
+broker_endpoint* broker_endpoint_create(const char* name);
+broker_endpoint* broker_endpoint_create_with_flags(const char* name, int flags);
+void broker_endpoint_delete(broker_endpoint* e);
+const char* broker_endpoint_name(const broker_endpoint* e);
+int broker_endpoint_flags(const broker_endpoint* e);
+void broker_endpoint_set_flags(broker_endpoint* e, int flags);
+int broker_endpoint_last_errno(const broker_endpoint* e);
+const char* broker_endpoint_last_error(const broker_endpoint* e);
+int broker_endpoint_listen(broker_endpoint* e, uint16_t port, const char* addr,
+                           int reuse_addr);
+broker_peering* broker_endpoint_peer_remotely(broker_endpoint* e,
+                                              const char* addr, uint16_t port,
+                                              double retry_interval);
+broker_peering* broker_endpoint_peer_locally(broker_endpoint* self,
+                                             const broker_endpoint* other);
+int broker_endpoint_unpeer(broker_endpoint* e, const broker_peering* p);
+const broker_outgoing_connection_status_queue*
+broker_endpoint_outgoing_connection_status(const broker_endpoint* e);
+const broker_incoming_connection_status_queue*
+broker_endpoint_incoming_connection_status(const broker_endpoint* e);
+int broker_endpoint_send(broker_endpoint* e, const broker_string* topic,
+                         const broker_message* msg);
+int broker_endpoint_send_with_flags(broker_endpoint* e,
+                                    const broker_string* topic,
+                                    const broker_message* msg, int flags);
+int broker_endpoint_publish(broker_endpoint* e, const broker_string* topic);
+int broker_endpoint_unpublish(broker_endpoint* e, const broker_string* topic);
+int broker_endpoint_advertise(broker_endpoint* e, const broker_string* topic);
+int broker_endpoint_unadvertise(broker_endpoint* e,
+                                const broker_string* topic);
+
+typedef enum {
+	broker_report_level_debug,
+	broker_report_level_info,
+	broker_report_level_warn,
+	broker_report_level_error,
+} broker_report_level;
+
+broker_endpoint* broker_report_manager();
+broker_message_queue* broker_report_default_queue();
+int broker_report_init(int with_default_queue);
+void broker_report_done();
+int broker_report_send(broker_report_level lvl, const broker_string* subtopic,
+                       const broker_string* msg);
+
+struct broker_store_expiration_time;
+typedef struct broker_store_expiration_time broker_store_expiration_time;
+
+typedef enum {
+	broker_store_expiration_time_tag_since_last_modification,
+	broker_store_expiration_time_tag_absolute,
+} broker_store_expiration_time_tag;
+
+broker_store_expiration_time*
+broker_store_expiration_time_create_relative(double interval, double time);
+broker_store_expiration_time*
+broker_store_expiration_time_create_absolute(double time);
+void broker_store_expiration_time_delete(broker_store_expiration_time* t);
+broker_store_expiration_time_tag
+broker_store_expiration_time_get_tag(const broker_store_expiration_time* t);
+double* broker_store_expiration_time_get(broker_store_expiration_time* t);
+double* broker_store_expiration_time_last_mod(broker_store_expiration_time* t);
+int broker_store_expiration_time_eq(const broker_store_expiration_time* a,
+                                    const broker_store_expiration_time* b);
+
+typedef enum {
+	broker_store_query_tag_pop_left,
+	broker_store_query_tag_pop_right,
+	broker_store_query_tag_lookup,
+	broker_store_query_tag_exists,
+	broker_store_query_tag_keys,
+	broker_store_query_tag_size,
+	broker_store_query_tag_snapshot,
+} broker_store_query_tag;
+
+struct broker_store_query;
+typedef struct broker_store_query broker_store_query;
+
+broker_store_query* broker_store_query_create(broker_store_query_tag tag,
+                                              const broker_data* key);
+void broker_store_query_delete(broker_store_query* q);
+broker_store_query_tag broker_store_query_get_tag(const broker_store_query* q);
+broker_data* broker_store_query_key(broker_store_query* q);
+
+struct broker_store_result;
+typedef struct broker_store_result broker_store_result;
+
+typedef enum {
+	// "Exists" is also used as lookup result when key doesn't exist or
+	// when popping an empty list.
+	broker_store_result_tag_exists, // bool
+	broker_store_result_tag_size, // count
+	broker_store_result_tag_lookup_or_pop, // data
+	broker_store_result_tag_keys, // vector
+	broker_store_result_tag_snapshot,
+} broker_store_result_tag;
+
+typedef enum {
+	broker_store_result_status_success,
+	broker_store_result_status_failure,
+	broker_store_result_status_timeout,
+} broker_store_result_status;
+
+broker_store_result_status
+broker_store_result_get_status(const broker_store_result* r);
+broker_store_result_tag
+broker_store_result_which(const broker_store_result* r);
+int broker_store_result_bool(const broker_store_result* r);
+uint64_t broker_store_result_count(const broker_store_result* r);
+const broker_data* broker_store_result_data(const broker_store_result* r);
+const broker_vector* broker_store_result_vector(const broker_store_result* r);
+
+struct broker_store_response;
+typedef struct broker_store_response broker_store_response;
+
+broker_store_query*
+broker_store_response_get_query(broker_store_response* r);
+broker_store_result*
+broker_store_response_get_result(broker_store_response* r);
+void* broker_store_response_get_cookie(broker_store_response* r);
+
+struct broker_deque_of_store_response;
+typedef struct broker_deque_of_store_response broker_deque_of_store_response;
+
+void broker_deque_of_store_response_delete(broker_deque_of_store_response* d);
+size_t
+broker_deque_of_store_response_size(const broker_deque_of_store_response* d);
+// Response still owned by deque.
+broker_store_response*
+broker_deque_of_store_response_at(broker_deque_of_store_response* d,
+                                  size_t idx);
+void broker_deque_of_store_response_erase(broker_deque_of_store_response* d,
+                                          size_t idx);
+
+struct broker_store_response_queue;
+typedef struct broker_store_response_queue broker_store_response_queue;
+
+int broker_store_response_queue_fd(const broker_store_response_queue* q);
+broker_deque_of_store_response*
+broker_store_response_queue_want_pop(const broker_store_response_queue* q);
+broker_deque_of_store_response*
+broker_store_response_queue_need_pop(const broker_store_response_queue* q);
+
+struct broker_store_frontend;
+typedef struct broker_store_frontend broker_store_frontend;
+
+broker_store_frontend*
+broker_store_frontend_create(const broker_endpoint* e,
+                             const broker_string* master_name);
+void broker_store_frontend_delete(broker_store_frontend* f);
+const broker_string* broker_store_frontend_id(const broker_store_frontend* f);
+const broker_store_response_queue*
+broker_store_frontend_responses(const broker_store_frontend* f);
+int broker_store_frontend_insert(const broker_store_frontend* f,
+                                 const broker_data* k,
+                                 const broker_data* v);
+int
+broker_store_frontend_insert_with_expiry(const broker_store_frontend* f,
+                                         const broker_data* k,
+                                         const broker_data* v,
+                                         const broker_store_expiration_time* e);
+int broker_store_frontend_erase(const broker_store_frontend* f,
+                                const broker_data* k);
+void broker_store_frontend_clear(const broker_store_frontend* f);
+int broker_store_frontend_increment(const broker_store_frontend* f,
+                                    const broker_data* k, int64_t by);
+int broker_store_frontend_add_to_set(const broker_store_frontend* f,
+                                     const broker_data* k,
+                                     const broker_data* element);
+int broker_store_frontend_remove_from_set(const broker_store_frontend* f,
+                                          const broker_data* k,
+                                          const broker_data* element);
+int broker_store_frontend_push_left(const broker_store_frontend* f,
+                                    const broker_data* k,
+                                    const broker_vector* items);
+int broker_store_frontend_push_right(const broker_store_frontend* f,
+                                     const broker_data* k,
+                                     const broker_vector* items);
+broker_store_result*
+broker_store_frontend_request_blocking(const broker_store_frontend* f,
+                                       const broker_store_query* q);
+int broker_store_frontend_request_nonblocking(const broker_store_frontend* f,
+                                              const broker_store_query* q,
+                                              double timeout, void* cookie);
+
+struct broker_store_sqlite_backend;
+typedef struct broker_store_sqlite_backend broker_store_sqlite_backend;
+
+broker_store_sqlite_backend* broker_store_sqlite_backend_create();
+void broker_store_sqlite_backend_delete(broker_store_sqlite_backend* b);
+int broker_store_sqlite_backend_open(broker_store_sqlite_backend* b,
+                                     const char* path);
+int broker_store_sqlite_backend_pragma(broker_store_sqlite_backend* b,
+                                       const char* pragma);
+int broker_store_sqlite_backend_last_error_code(
+        const broker_store_sqlite_backend* b);
+const char* broker_store_sqlite_backend_last_error(
+        const broker_store_sqlite_backend* b);
+
+struct broker_store_rocksdb_backend;
+typedef struct broker_store_rocksdb_backend broker_store_rocksdb_backend;
+
+broker_store_rocksdb_backend* broker_store_rocksdb_backend_create();
+void broker_store_rocksdb_backend_delete(broker_store_rocksdb_backend* b);
+int broker_store_rocksdb_backend_open(broker_store_rocksdb_backend* b,
+                                     const char* path, int create_if_missing);
+const char* broker_store_rocksdb_backend_last_error(
+        const broker_store_rocksdb_backend* b);
+
+broker_store_frontend*
+broker_store_master_create_memory(const broker_endpoint* e,
+                                  const broker_string* name);
+// Takes ownership of backend.
+broker_store_frontend*
+broker_store_master_create_sqlite(const broker_endpoint* e,
+                                  const broker_string* name,
+                                  broker_store_sqlite_backend* b);
+// Takes ownership of backend.
+broker_store_frontend*
+broker_store_master_create_rocksdb(const broker_endpoint* e,
+                                   const broker_string* name,
+                                   broker_store_rocksdb_backend* b);
+
+broker_store_frontend*
+broker_store_clone_create_memory(const broker_endpoint* e,
+                                 const broker_string* name,
+                                 double resync_interval);
+// Takes ownership of backend.
+broker_store_frontend*
+broker_store_clone_create_sqlite(const broker_endpoint* e,
+                                 const broker_string* name,
+                                 double resync_interval,
+                                 broker_store_sqlite_backend* b);
+// Takes ownership of backend.
+broker_store_frontend*
+broker_store_clone_create_rocksdb(const broker_endpoint* e,
+                                  const broker_string* name,
+                                  double resync_interval,
+                                  broker_store_rocksdb_backend* b);
 
 #ifdef __cplusplus
 } // extern "C"

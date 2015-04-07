@@ -31,6 +31,19 @@ size_t broker_vector_size(const broker_vector* v)
 	return vv->size();
 	}
 
+int broker_vector_reserve(broker_vector* v, size_t size)
+	{
+	auto vv = reinterpret_cast<broker::vector*>(v);
+
+	try
+		{
+		vv->reserve(size);
+		return 1;
+		}
+	catch ( std::bad_alloc& )
+		{ return 0; }
+	}
+
 int broker_vector_insert(broker_vector* v, const broker_data* d, size_t idx)
 	{
 	auto vv = reinterpret_cast<broker::vector*>(v);
