@@ -2,6 +2,11 @@
 // Begin C API
 #include "broker/broker.h"
 
+void broker_store_result_delete(broker_store_result* r)
+	{
+	delete reinterpret_cast<broker::store::result*>(r);
+	}
+
 broker_store_result_status
 broker_store_result_get_status(const broker_store_result* r)
 	{

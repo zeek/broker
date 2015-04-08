@@ -262,9 +262,9 @@ broker_data* broker_data_from_enum(const broker_enum_value* i)
 		{ return nullptr; }
 	}
 
-broker_data* broker_data_from_set(broker_set* i)
+broker_data* broker_data_from_set(const broker_set* i)
 	{
-	auto ii = reinterpret_cast<broker::set*>(i);
+	auto ii = reinterpret_cast<const broker::set*>(i);
 
 	try
 		{ return reinterpret_cast<broker_data*>(new broker::data(*ii)); }
@@ -272,9 +272,9 @@ broker_data* broker_data_from_set(broker_set* i)
 		{ return nullptr; }
 	}
 
-broker_data* broker_data_from_table(broker_table* i)
+broker_data* broker_data_from_table(const broker_table* i)
 	{
-	auto ii = reinterpret_cast<broker::table*>(i);
+	auto ii = reinterpret_cast<const broker::table*>(i);
 
 	try
 		{ return reinterpret_cast<broker_data*>(new broker::data(*ii)); }
@@ -282,9 +282,9 @@ broker_data* broker_data_from_table(broker_table* i)
 		{ return nullptr; }
 	}
 
-broker_data* broker_data_from_vector(broker_vector* i)
+broker_data* broker_data_from_vector(const broker_vector* i)
 	{
-	auto ii = reinterpret_cast<broker::vector*>(i);
+	auto ii = reinterpret_cast<const broker::vector*>(i);
 
 	try
 		{ return reinterpret_cast<broker_data*>(new broker::data(*ii)); }
@@ -292,9 +292,9 @@ broker_data* broker_data_from_vector(broker_vector* i)
 		{ return nullptr; }
 	}
 
-broker_data* broker_data_from_record(broker_record* i)
+broker_data* broker_data_from_record(const broker_record* i)
 	{
-	auto ii = reinterpret_cast<broker::record*>(i);
+	auto ii = reinterpret_cast<const broker::record*>(i);
 
 	try
 		{ return reinterpret_cast<broker_data*>(new broker::data(*ii)); }

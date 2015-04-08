@@ -127,3 +127,40 @@ broker_table_entry broker_table_iterator_value(broker_table_iterator* it)
 	auto v = reinterpret_cast<broker_data*>(&(*ii)->second);
 	return {k, v};
 	}
+
+broker_table_const_iterator*
+broker_table_const_iterator_create(const broker_table* t)
+	{
+	auto tt = reinterpret_cast<const broker::table*>(t);
+	auto rval = new (nothrow) broker::table::const_iterator(tt->begin());
+	return reinterpret_cast<broker_table_const_iterator*>(rval);
+	}
+
+void broker_table_const_iterator_delete(broker_table_const_iterator* it)
+	{ delete reinterpret_cast<broker::table::const_iterator*>(it); }
+
+int broker_table_const_iterator_at_last(const broker_table* t,
+                                        broker_table_const_iterator* it)
+	{
+	auto tt = reinterpret_cast<const broker::table*>(t);
+	auto ii = reinterpret_cast<broker::table::const_iterator*>(it);
+	return *ii == tt->end();
+	}
+
+int broker_table_const_iterator_next(const broker_table* t,
+                                     broker_table_const_iterator* it)
+	{
+	auto tt = reinterpret_cast<const broker::table*>(t);
+	auto ii = reinterpret_cast<broker::table::const_iterator*>(it);
+	++(*ii);
+	return *ii == tt->end();
+	}
+
+broker_const_table_entry
+broker_table_const_iterator_value(broker_table_const_iterator* it)
+	{
+	auto ii = reinterpret_cast<broker::table::const_iterator*>(it);
+	auto k = reinterpret_cast<const broker_data*>(&(*ii)->first);
+	auto v = reinterpret_cast<const broker_data*>(&(*ii)->second);
+	return {k, v};
+	}

@@ -79,6 +79,7 @@ size_t broker_record_hash(const broker_record* a)
 	}
 
 using record_iterator = std::vector<broker::record::field>::iterator;
+using record_const_iterator = std::vector<broker::record::field>::const_iterator;
 
 broker_record_iterator* broker_record_iterator_create(broker_record* r)
 	{
@@ -112,6 +113,46 @@ broker_data* broker_record_iterator_value(broker_record_iterator* it)
 
 	if ( f )
 		return reinterpret_cast<broker_data*>(&*f);
+
+	return 0;
+	}
+
+broker_record_const_iterator*
+broker_record_const_iterator_create(const broker_record* r)
+	{
+	auto rr = reinterpret_cast<const broker::record*>(r);
+	auto rval = new (nothrow) record_const_iterator(rr->fields.begin());
+	return reinterpret_cast<broker_record_const_iterator*>(rval);
+	}
+
+void broker_record_const_iterator_delete(broker_record_const_iterator* it)
+	{ delete reinterpret_cast<record_const_iterator*>(it); }
+
+int broker_record_const_iterator_at_last(const broker_record* r,
+                                         broker_record_const_iterator* it)
+	{
+	auto rr = reinterpret_cast<const broker::record*>(r);
+	auto ii = reinterpret_cast<record_const_iterator*>(it);
+	return *ii == rr->fields.end();
+	}
+
+int broker_record_const_iterator_next(const broker_record* r,
+                                      broker_record_const_iterator* it)
+	{
+	auto rr = reinterpret_cast<const broker::record*>(r);
+	auto ii = reinterpret_cast<record_const_iterator*>(it);
+	++(*ii);
+	return *ii == rr->fields.end();
+	}
+
+const broker_data*
+broker_record_const_iterator_value(broker_record_const_iterator* it)
+	{
+	auto ii = reinterpret_cast<record_const_iterator*>(it);
+	const broker::record::field& f = **ii;
+
+	if ( f )
+		return reinterpret_cast<const broker_data*>(&*f);
 
 	return 0;
 	}

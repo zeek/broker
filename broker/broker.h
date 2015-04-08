@@ -101,26 +101,39 @@ struct broker_set;
 typedef struct broker_set broker_set;
 struct broker_set_iterator;
 typedef struct broker_set_iterator broker_set_iterator;
+struct broker_set_const_iterator;
+typedef struct broker_set_const_iterator broker_set_const_iterator;
 
 struct broker_table;
 typedef struct broker_table broker_table;
 struct broker_table_iterator;
 typedef struct broker_table_iterator broker_table_iterator;
+struct broker_table_const_iterator;
+typedef struct broker_table_const_iterator broker_table_const_iterator;
 
 typedef struct {
 	const broker_data* key;
 	broker_data* val;
 } broker_table_entry;
 
+typedef struct {
+	const broker_data* key;
+	const broker_data* val;
+} broker_const_table_entry;
+
 struct broker_vector;
 typedef struct broker_vector broker_vector;
 struct broker_vector_iterator;
 typedef struct broker_vector_iterator broker_vector_iterator;
+struct broker_vector_const_iterator;
+typedef struct broker_vector_const_iterator broker_vector_const_iterator;
 
 struct broker_record;
 typedef struct broker_record broker_record;
 struct broker_record_iterator;
 typedef struct broker_record_iterator broker_record_iterator;
+struct broker_record_const_iterator;
+typedef struct broker_record_const_iterator broker_record_const_iterator;
 
 struct broker_bool;
 typedef struct broker_bool broker_bool;
@@ -288,6 +301,15 @@ void broker_set_iterator_delete(broker_set_iterator* it);
 int broker_set_iterator_at_last(broker_set* s, broker_set_iterator* it);
 int broker_set_iterator_next(broker_set* s, broker_set_iterator* it);
 const broker_data* broker_set_iterator_value(broker_set_iterator* it);
+broker_set_const_iterator*
+broker_set_const_iterator_create(const broker_set* s);
+void broker_set_const_iterator_delete(broker_set_const_iterator* it);
+int broker_set_const_iterator_at_last(const broker_set* s,
+                                      broker_set_const_iterator* it);
+int broker_set_const_iterator_next(const broker_set* s,
+                                   broker_set_const_iterator* it);
+const broker_data*
+broker_set_const_iterator_value(broker_set_const_iterator* it);
 
 broker_table* broker_table_create();
 void broker_table_delete(broker_table* t);
@@ -307,6 +329,15 @@ void broker_table_iterator_delete(broker_table_iterator* it);
 int broker_table_iterator_at_last(broker_table* t, broker_table_iterator* it);
 int broker_table_iterator_next(broker_table* t, broker_table_iterator* it);
 broker_table_entry broker_table_iterator_value(broker_table_iterator* it);
+broker_table_const_iterator*
+broker_table_const_iterator_create(const broker_table* t);
+void broker_table_const_iterator_delete(broker_table_const_iterator* it);
+int broker_table_const_iterator_at_last(const broker_table* t,
+                                        broker_table_const_iterator* it);
+int broker_table_const_iterator_next(const broker_table* t,
+                                     broker_table_const_iterator* it);
+broker_const_table_entry
+broker_table_const_iterator_value(broker_table_const_iterator* it);
 
 broker_vector* broker_vector_create();
 void broker_vector_delete(broker_vector* v);
@@ -327,6 +358,15 @@ int broker_vector_iterator_at_last(broker_vector* v,
                                    broker_vector_iterator* it);
 int broker_vector_iterator_next(broker_vector* v, broker_vector_iterator* it);
 broker_data* broker_vector_iterator_value(broker_vector_iterator* it);
+broker_vector_const_iterator*
+broker_vector_const_iterator_create(const broker_vector* v);
+void broker_vector_const_iterator_delete(broker_vector_const_iterator* it);
+int broker_vector_const_iterator_at_last(const broker_vector* v,
+                                   broker_vector_const_iterator* it);
+int broker_vector_const_iterator_next(const broker_vector* v,
+                                      broker_vector_const_iterator* it);
+const broker_data*
+broker_vector_const_iterator_value(broker_vector_const_iterator* it);
 
 broker_record* broker_record_create(size_t size);
 void broker_record_delete(broker_record* r);
@@ -343,6 +383,15 @@ int broker_record_iterator_at_last(broker_record* r,
                                    broker_record_iterator* it);
 int broker_record_iterator_next(broker_record* r, broker_record_iterator* it);
 broker_data* broker_record_iterator_value(broker_record_iterator* it);
+broker_record_const_iterator*
+broker_record_const_iterator_create(const broker_record* r);
+void broker_record_const_iterator_delete(broker_record_const_iterator* it);
+int broker_record_const_iterator_at_last(const broker_record* r,
+                                         broker_record_const_iterator* it);
+int broker_record_const_iterator_next(const broker_record* r,
+                                      broker_record_const_iterator* it);
+const broker_data*
+broker_record_const_iterator_value(broker_record_const_iterator* it);
 
 typedef broker_vector broker_message;
 
@@ -370,11 +419,11 @@ typedef enum {
 } broker_outgoing_connection_status_tag;
 
 const broker_peering*
-broker_outgoing_connection_status_peering(broker_outgoing_connection_status*);
+broker_outgoing_connection_status_peering(const broker_outgoing_connection_status*);
 broker_outgoing_connection_status_tag
-broker_outgoing_connection_status_get(broker_outgoing_connection_status*);
+broker_outgoing_connection_status_get(const broker_outgoing_connection_status*);
 const char*
-broker_outgoing_connection_status_peer_name(broker_outgoing_connection_status*);
+broker_outgoing_connection_status_peer_name(const broker_outgoing_connection_status*);
 
 struct broker_incoming_connection_status;
 typedef struct broker_incoming_connection_status
@@ -386,9 +435,9 @@ typedef enum {
 } broker_incoming_connection_status_tag;
 
 broker_incoming_connection_status_tag
-broker_incoming_connection_status_get(broker_incoming_connection_status*);
+broker_incoming_connection_status_get(const broker_incoming_connection_status*);
 const char*
-broker_incoming_connection_status_peer_name(broker_incoming_connection_status*);
+broker_incoming_connection_status_peer_name(const broker_incoming_connection_status*);
 
 struct broker_deque_of_message;
 typedef struct broker_deque_of_message broker_deque_of_message;
@@ -583,6 +632,7 @@ typedef enum {
 	broker_store_result_status_timeout,
 } broker_store_result_status;
 
+void broker_store_result_delete(broker_store_result* r);
 broker_store_result_status
 broker_store_result_get_status(const broker_store_result* r);
 broker_store_result_tag
