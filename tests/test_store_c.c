@@ -91,8 +91,9 @@ int main()
 	entries[4].val = broker_data_from_string(broker_string_create("five"));
 
 	broker_table* dataset = broker_table_create();
+	int i;
 
-	for ( int i = 0; i < 3; ++i )
+	for ( i = 0; i < 3; ++i )
 		{
 		BROKER_TEST(broker_table_insert(dataset, entries[i].key, entries[i].val));
 		BROKER_TEST(broker_store_frontend_insert(m, entries[i].key, entries[i].val));

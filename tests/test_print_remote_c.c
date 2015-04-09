@@ -35,8 +35,9 @@ int check_contents_poll(broker_message_queue* q, broker_set* expected)
 
 		broker_deque_of_message* msgs = broker_message_queue_need_pop(q);
 		int n = broker_deque_of_message_size(msgs);
+		int i;
 
-		for ( int i = 0; i < n; ++i )
+		for ( i = 0; i < n; ++i )
 			{
 			broker_message* m = broker_deque_of_message_at(msgs, i);
 			broker_data* a = broker_data_from_vector(m);
@@ -111,8 +112,9 @@ int main()
 	BROKER_TEST(broker_set_insert(pq1c_expected, msg_data));
 	msg_data = make_test_msg(node0, "0b", "bye", topic_b, msg, msgs + off++);
 	BROKER_TEST(broker_set_insert(pq1b_expected, msg_data));
+	int i;
 
-	for ( int i = 0; i < sizeof(msgs) / sizeof(test_message); ++i )
+	for ( i = 0; i < sizeof(msgs) / sizeof(test_message); ++i )
 		BROKER_TEST(broker_endpoint_send(msgs[i].node, msgs[i].topic, msgs[i].msg));
 
 	BROKER_TEST(check_contents_poll(pq0a, pq0a_expected));
