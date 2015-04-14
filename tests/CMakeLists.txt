@@ -27,6 +27,16 @@ macro(unit_test name)
     endif ()
 endmacro()
 
+macro(unit_test_python script)
+    if ( BROKER_PYTHON_BINDINGS )
+        add_test(NAME ${script} COMMAND ${PYTHON_EXECUTABLE}
+                                        ${CMAKE_CURRENT_SOURCE_DIR}/${script})
+        set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+        set_tests_properties(${script} PROPERTIES ENVIRONMENT
+                 "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/../bindings/python")
+    endif ()
+endmacro()
+
 set(backends memory;sqlite)
 
 if ( ROCKSDB_FOUND )
@@ -50,6 +60,9 @@ unit_test(test_optional)
 unit_test(test_data)
 unit_test(test_network_types)
 unit_test(test_radix_tree)
+
+unit_test_python(test_messages.py)
+unit_test_python(test_store.py)
 
 set(BROKER_TEST_C_API true)
 

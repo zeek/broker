@@ -397,7 +397,8 @@ public:
 }
 
 typedef std::vector<broker::data> message;
-}
+typedef std::vector<broker::data> vector;
+} // namespace broker
 
 %template(vector_of_data) std::vector<broker::data>;
 
@@ -595,6 +596,19 @@ public:
 
 %template(deque_of_response) std::deque<broker::store::response>;
 %template(response_queue) broker::queue<broker::store::response>;
+
+%typemap(in) void* {
+    if ( PyLong_Check($input) )
+        $1 = (void*)(PyLong_AsSsize_t($input));
+    else
+        $1 = (void*)(PyInt_AsSsize_t($input));
+}
+
+%typecheck(SWIG_TYPECHECK_INTEGER) void* {
+    $1 = (PyInt_Check($input) || PyLong_Check($input)) ? 1 : 0;
+}
+
+%typemap(out) void* { $result = PyLong_FromSize_t((size_t)$1); }
 
 %ignore broker::store::frontend::operator=;
 %include "broker/store/frontend.hh"

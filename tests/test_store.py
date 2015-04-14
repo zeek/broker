@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+from pybroker import *
+from select import select
+
+ep = endpoint("endpoint")
+m = master_create(ep, "mystore")
+m.insert(data("one"), data(1))
+m.insert(data("two"), data(2))
+m.insert(data("three"), data(2))
+s = set_of_data()
+s.add(data("a"))
+s.add(data("b"))
+s.add(data("c"))
+m.insert(data("myset"), data(s))
+v = vector_of_data()
+v.push_back(data("this"))
+v.push_back(data("is"))
+v.push_back(data("a test"))
+m.insert(data("myvec"), data(v))
+
+assert(m.id() == "mystore")
+assert(m.lookup(data("one")).data() == data(1))
+assert(m.size().size() == 5)
+assert(m.exists(data("three")).exists())
+assert(not m.exists(data("nope")).exists())
+m.erase(data("three"))
+assert(not m.exists(data("three")).exists())
+m.increment(data("one"))
+assert(m.lookup(data("one")).data() == data(2))
+assert(data("z") not in m.lookup(data("myset")).data().as_set())
+m.add_to_set(data("myset"), data("z"))
+s = m.lookup(data("myset")).data().as_set()
+assert(data("a") in s)
+assert(data("b") in s)
+assert(data("c") in s)
+assert(data("z") in s)
+m.remove_from_set(data("myset"), data("a"))
+s = m.lookup(data("myset")).data().as_set()
+assert(data("a") not in s)
+assert(data("b") in s)
+assert(data("c") in s)
+assert(data("z") in s)
+
+m.push_left(data("myvec"), vector_of_data([data("hi"), data("there")]))
+m.push_right(data("myvec"), vector_of_data([data("bye"), data("now")]))
+v = m.lookup(data("myvec")).data().as_vector()
+assert(v[0] == data("hi"))
+assert(v[1] == data("there"))
+assert(v[2] == data("this"))
+assert(v[3] == data("is"))
+assert(v[4] == data("a test"))
+assert(v[5] == data("bye"))
+assert(v[6] == data("now"))
+assert(m.pop_left(data("myvec")).data() == data("hi"))
+assert(m.pop_right(data("myvec")).data() == data("now"))
+
+q = query(query.tag_lookup, data("two"))
+m.request(q, 99, 42)
+
+select([m.responses().fd()], [], [])
+results = m.responses().want_pop()
+assert(len(results) == 1)
+
+for r in results:
+    assert(r.cookie == 42)
+    assert(r.reply.data() == data(2))
+
+c = clone_create(ep, "mystore", 1)
+assert(c.lookup(data("two")).data() == data(2))
+
+f = frontend(ep, "mystore")
+assert(f.lookup(data("two")).data() == data(2))

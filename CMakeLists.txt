@@ -166,6 +166,7 @@ message(
     "\nShared libs:     ${ENABLE_SHARED}"
     "\nStatic libs:     ${ENABLE_STATIC}"
     "\nEnable RocksDB:  ${ROCKSDB_FOUND}"
+    "\nPython bindings: ${BROKER_PYTHON_BINDINGS}"
     "\n"
     "\nCC:              ${CMAKE_C_COMPILER}"
     "\nCFLAGS:          ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${BuildType}}"
