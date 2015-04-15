@@ -133,10 +133,20 @@ public:
 			},
 		[=](unpeer_atom, const actor& p)
 			{
+			auto itp = peers.find(p.address());
+
+			if ( itp == peers.end() )
+			    return;
+
 			BROKER_DEBUG("endpoint." + name,
-			             "Unpeered with: '" + get_peer_name(p) + "'");
+			             "Unpeered with: '" + itp->second.name + "'");
+
+			if ( itp->second.incoming )
+				ics_update(ics_queue, itp->second.name,
+				           incoming_connection_status::tag::disconnected);
+
 			demonitor(p);
-			peers.erase(p.address());
+			peers.erase(itp);
 			peer_subscriptions.erase(p.address());
 			},
 		[=](const down_msg& d)
