@@ -68,7 +68,8 @@ queue_pop(const caf::scoped_actor& self, const caf::actor& actor,
           caf::atom_value request_type)
 	{
 	std::deque<Message> rval;
-	self->sync_send(actor, request_type).await(
+	self->send(caf::message_priority::high, actor, request_type);
+	self->receive(
 		[&rval](std::deque<Message>& msgs)
 			{
 			rval = std::move(msgs);
