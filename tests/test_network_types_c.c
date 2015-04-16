@@ -37,7 +37,7 @@ void test_address_ipv4()
 	BROKER_TEST(! broker_address_is_v6(a));
 	broker_string_delete(s);
 
-	broker_address* localhost;
+	broker_address* localhost = 0;
 	BROKER_TEST(broker_address_from_string(&localhost, "127.0.0.1"));
 	BROKER_TEST(broker_address_lt(localhost, a));
 

@@ -715,7 +715,8 @@ broker_address* broker_address_copy(const broker_address* a);
  * Sets the value of an address object based on a human-readable string form
  * of an IP address (dotted decimal for IPv4 or colon-delimited-hexadecimal
  * for IPv6).
- * @param dst the address to modify.
+ * @param dst the address to modify, if passing the address of a null
+ * pointer, a new address will be allocated and the pointer set to it.
  * @param s the string form of an IP address.
  * @return not-zero on success or zero if the call failed and didn't modify
  * the address (e.g. invalid IP string format).
