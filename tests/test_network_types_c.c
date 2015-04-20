@@ -19,6 +19,8 @@ void test_port()
 	BROKER_TEST(broker_port_eq(p, p));
 	BROKER_TEST(! broker_port_eq(p, q));
 	BROKER_TEST(broker_port_lt(p, q));
+	broker_port_delete(p);
+	broker_port_delete(q);
 	}
 
 void test_address_ipv4()
@@ -103,19 +105,19 @@ void test_address_ipv6()
 	BROKER_TEST(broker_address_eq(a, am));
 
 	BROKER_TEST(broker_address_mask(a, 100));
-	broker_address_from_string(&am, "2001:db8::202:b3ff:f000:0");
+	BROKER_TEST(broker_address_from_string(&am, "2001:db8::202:b3ff:f000:0"));
 	BROKER_TEST(broker_address_eq(a, am));
 
 	BROKER_TEST(broker_address_mask(a, 64));
-	broker_address_from_string(&am, "2001:db8::");
+	BROKER_TEST(broker_address_from_string(&am, "2001:db8::"));
 	BROKER_TEST(broker_address_eq(a, am));
 
 	BROKER_TEST(broker_address_mask(a, 3));
-	broker_address_from_string(&am, "2000::");
+	BROKER_TEST(broker_address_from_string(&am, "2000::"));
 	BROKER_TEST(broker_address_eq(a, am));
 
 	BROKER_TEST(broker_address_mask(a, 0));
-	broker_address_from_string(&am, "::");
+	BROKER_TEST(broker_address_from_string(&am, "::"));
 	BROKER_TEST(broker_address_eq(a, am));
 	broker_address_delete(a);
 	broker_address_delete(b);
@@ -124,6 +126,8 @@ void test_address_ipv6()
 	broker_address_delete(e);
 	broker_address_delete(f);
 	broker_address_delete(am);
+	broker_address_delete(unspec1);
+	broker_address_delete(unspec2);
 	}
 
 void test_subnet()

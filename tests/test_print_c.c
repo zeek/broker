@@ -1,6 +1,10 @@
 #include "broker/broker.h"
 #include "testsuite.h"
 #include <poll.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
+#include <stdio.h>
 
 typedef struct test_message {
 	broker_endpoint* node;
@@ -31,7 +35,13 @@ int check_contents_poll(broker_message_queue* q, broker_set* expected)
 
 	while ( broker_set_size(actual) < broker_set_size(expected) )
 		{
-		poll(&pfd, 1, -1);
+		int rc = poll(&pfd, 1, -1);
+
+		if ( rc < 0 )
+			{
+			fprintf(stderr, "poll() failure: %s\n", strerror(errno));
+			exit(1);
+			}
 
 		broker_deque_of_message* msgs = broker_message_queue_need_pop(q);
 		int n = broker_deque_of_message_size(msgs);
