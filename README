@@ -38,7 +38,7 @@ installed:
     CAF (C++ Actor Framework) version 0.13+
         https://github.com/actor-framework/actor-framework
 
-    CMake 2.8.12+
+    CMake 2.8+
         CMake is a cross-platform, open-source build system, typically
         not installed by default.  See http://www.cmake.org for more
         information regarding CMake and the installation steps below
