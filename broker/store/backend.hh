@@ -142,7 +142,7 @@ public:
 
 	/**
 	 * Retrieve item at the head of a vector value associated with a given key.
-	 * @param k the key to use
+	 * @param k the key to use.
 	 * @param mod_time the epoch time this modification is taking place.
 	 * @return the result of the modification along with the item if the
 	 * provided key exists or nil on failing to perform the query.
@@ -152,7 +152,7 @@ public:
 
 	/**
 	 * Retrieve item at the tail of a vector value associated with a given key.
-	 * @param k the key to use
+	 * @param k the key to use.
 	 * @param mod_time the epoch time this modification is taking place.
 	 * @return the result of the modification along with the item if the
 	 * provided key exists or nil on failing to perform the query.
@@ -162,7 +162,7 @@ public:
 
 	/**
 	 * Lookup the value associated with a given key.
-	 * @param k the key to use
+	 * @param k the key to use.
 	 * @return the value if the provided key exists or nil on failing to perform
 	 * the query.
 	 */

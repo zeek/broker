@@ -41,6 +41,7 @@ public:
 	/**
 	 * Obtain an answer to a query.
 	 * @param s a storage backend to query against.
+	 * @param current_time the current time.
 	 * @return the result of the query.
 	 */
 	std::pair<result, util::optional<modification_result>>

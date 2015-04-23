@@ -25,9 +25,9 @@ public:
 	/**
 	 * Construct a data store frontend to a master data store.
 	 * @param e the broker endpoint to attach the frontend.
-	 * @param name the exact name that a master data store is using.
-	 * The master store must be attached either directly to the same endpoint as
-	 * the to one of its peers.  If attached to a peer, the endpoint must
+	 * @param master_name the exact name that a master data store is using.
+	 * The master store must be attached either directly to the same endpoint
+	 * or to one of its peers.  If attached to a peer, the endpoint must
 	 * allow advertising interest in this name.
 	 */
 	frontend(const endpoint& e, identifier master_name);
@@ -92,7 +92,7 @@ public:
 	/**
 	 * Non-blocking removal of a key and associated value, if it exists.
 	 * The change may not be immediately visible.
-	 * @param k
+	 * @param k the key to use.
 	 */
 	void erase(data k) const;
 
@@ -114,7 +114,7 @@ public:
 
 	/**
 	 * Decrement an integral value by a certain amount.
-	 * @param k the key associated with an integral value to increment.  If
+	 * @param k the key associated with an integral value to decrement.  If
 	 * the value associated with the key is not integral, no operation takes
 	 * place and an error message is generated.  If the key does not exist, it
 	 * is implicitly created with a value of zero.
@@ -170,6 +170,7 @@ public:
 	/**
 	 * Make a query and block until response is received.
 	 * May have high latency if data is non-local.
+	 * @param q the query.
 	 * @return the result of the query.
 	 */
 	result request(query q) const;
@@ -188,7 +189,7 @@ public:
 	/**
 	 * Make a query and block until response is received.
 	 * This must always be processed by the master data store since it involves
-	 * modifying the value at the given key.  the result may contain a false
+	 * modifying the value at the given key.  The result may contain a false
 	 * existence value if the vector was empty at the time of popping.
 	 * @param k the key associated with a vector to pop the tail from.
 	 * @return the result of the query.
@@ -294,7 +295,7 @@ public:
 		{ request(query(query::tag::lookup, std::move(k)), timeout, cookie); }
 
 	/**
-	 * Make a non-blocking query to check for a key's existence..
+	 * Make a non-blocking query to check for a key's existence.
 	 * @param k the key to check for existence.
 	 * @param timeout the amount of time after which the query times out.
 	 * @param cookie a pointer value to make available in the result/response
@@ -358,7 +359,7 @@ util::optional<data> lookup(const T& f, data k)
 
 /**
  * Blocking pop of the first item in a data store vector value.
- * This blocks on receiving a result, not on their being an item available
+ * This blocks on receiving a result, not on there being an item available
  * to pop off the vector.
  * @tparam T a class that supports the frontend interface.
  * @param f the frontend to use.
@@ -383,7 +384,7 @@ util::optional<data> pop_left(const T& f, data k)
 
 /**
  * Blocking pop of the last item in a data store vector value.
- * This blocks on receiving a result, not on their being an item available
+ * This blocks on receiving a result, not on there being an item available
  * to pop off the vector.
  * @tparam T a class that supports the frontend interface.
  * @param f the frontend to use.
