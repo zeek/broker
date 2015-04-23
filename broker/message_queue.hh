@@ -17,7 +17,7 @@ class message_queue : public queue<broker::message> {
 public:
 
 	/**
-	 * Create an unitialized message queue.
+	 * Create an uninitialized message queue.
 	 */
 	message_queue();
 

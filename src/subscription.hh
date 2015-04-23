@@ -85,9 +85,9 @@ public:
 	bool register_topic(topic t, caf::actor a);
 
 	/**
-	 * Unregister a topics from a subscriber.
-	 * @param ts a topic to unregister.
-	 * @param a the actor address associated with the subscriber
+	 * Unregister a topic from a subscriber.
+	 * @param t a topic to unregister.
+	 * @param a the actor address associated with the subscriber.
 	 * @return false if an associated subscriber doesn't exist.
 	 */
 	bool unregister_topic(const topic& t, const caf::actor_addr a);

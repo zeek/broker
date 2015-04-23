@@ -48,7 +48,7 @@ public:
 	 * Construct an address from raw bytes.
 	 * @param bytes A pointer to the raw representation.  This must point
 	 * to 4 bytes if \a fam is family::ipv4 and 16 bytes for family::ipv6.
-	 * @param fam The type of address
+	 * @param fam The type of address.
 	 * @param order The byte order in which \a bytes is stored.
 	 */
 	address(const uint32_t* bytes, family fam, byte_order order);
@@ -70,7 +70,7 @@ public:
 	bool is_v4() const;
 
 	/**
-	 * @return true if the address if IPv6.
+	 * @return true if the address is IPv6.
 	 */
 	bool is_v6() const;
 

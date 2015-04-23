@@ -123,7 +123,7 @@ public:
 	 *             A nullptr refers to @p INADDR_ANY.
 	 * @param reuse_addr equivalent to behavior of SO_REUSEADDR.
 	 * @return true if the endpoint is now listening, else false.  For the
-	 *         later case, last_error() contains descriptive error text and
+	 *         latter case, last_error() contains descriptive error text and
 	 *         last_errno(), if non-zero, is an error code set by @p bind(2).
 	 */
 	bool listen(uint16_t port, const char* addr = nullptr,
@@ -151,8 +151,8 @@ public:
 
 	/**
 	 * Remove a connection to a peer endpoint.
-	 * @param peerno a peer object previously returned by endpoint::peer.
-	 * @return false if no such peer associated exists, else true (and the
+	 * @param p a peer object previously returned by endpoint::peer.
+	 * @return false if no such associated peer exists, else true (and the
 	 *         peering is no more).
 	 */
 	bool unpeer(peering p);

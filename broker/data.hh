@@ -163,9 +163,9 @@ public:
 		{}
 
 	/**
-	  * Constructs data.
-	  * @param x The instance to construct data from.
-	  */
+	 * Constructs data.
+	 * @param x The instance to construct data from.
+	 */
 	template <typename T,
 	          typename = util::disable_if_t<
 	              util::is_same_or_derived<data, T>::value ||

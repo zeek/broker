@@ -31,13 +31,13 @@ public:
 	peering();
 
 	/**
-	  * Destruct a peering object (not the actual connection between endpoints).
-	  */
+	 * Destruct a peering object (not the actual connection between endpoints).
+	 */
 	~peering();
 
 	/**
-	  * Copy a peering object.
-	  */
+	 * Copy a peering object.
+	 */
 	peering(const peering& other);
 
 	/**

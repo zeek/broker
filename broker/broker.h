@@ -233,7 +233,7 @@ int broker_bool_true(const broker_bool* b);
 
 /**
  * Modify a boolean data's value to be either true or false.
- * @param b the boolean data value to moify
+ * @param b the boolean data value to modify.
  * @param true_or_false pass in zero to set \a b to false, or not-zero to set
  * it to true.
  */
@@ -242,13 +242,13 @@ void broker_bool_set(broker_bool* b, int true_or_false);
 /**
  * Create a new data value.
  * @return a new data value whose memory the caller must manage (e.g.
- * call @see broker_data_delete on to reclaim).  Or null if sufficient
+ * call @see broker_data_delete to reclaim).  Or null if sufficient
  * memory could not be allocated.
  */
 broker_data* broker_data_create();
 
 /**
- * Reclaim the memory allocate to a data value.
+ * Reclaim the memory allocated to a data value.
  * @param d the data value to reclaim.
  */
 void broker_data_delete(broker_data* d);
@@ -257,7 +257,7 @@ void broker_data_delete(broker_data* d);
  * Make a copy of a data value.
  * @param d the data value to copy.
  * @return a new data value whose memory the caller must manage (e.g.
- * call @see broker_data_delete on to reclaim).
+ * call @see broker_data_delete to reclaim).
  * Or null if sufficient memory could not be allocated.
  */
 broker_data* broker_data_copy(const broker_data* d);
@@ -415,7 +415,7 @@ broker_data* broker_data_from_record(const broker_record*);
  * "Cast" a data value to a bool.
  * @return the argument as a boolean object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_bool* broker_data_as_bool(broker_data*);
 
@@ -423,7 +423,7 @@ broker_bool* broker_data_as_bool(broker_data*);
  * "Cast" a data value to a count.
  * @return the argument as a count object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 uint64_t* broker_data_as_count(broker_data*);
 
@@ -431,7 +431,7 @@ uint64_t* broker_data_as_count(broker_data*);
  * "Cast" a data value to an integer.
  * @return the argument as an integer object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 int64_t* broker_data_as_integer(broker_data*);
 
@@ -439,7 +439,7 @@ int64_t* broker_data_as_integer(broker_data*);
  * "Cast" a data value to a real number.
  * @return the argument as a real number object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 double* broker_data_as_real(broker_data*);
 
@@ -447,7 +447,7 @@ double* broker_data_as_real(broker_data*);
  * "Cast" a data value to a string.
  * @return the argument as a string object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_string* broker_data_as_string(broker_data*);
 
@@ -455,23 +455,23 @@ broker_string* broker_data_as_string(broker_data*);
  * "Cast" a data value to an address.
  * @return the argument as an address object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_address* broker_data_as_address(broker_data*);
 
 /**
- * "Cast" a data value to an subnet.
- * @return the argument as an subnet object.  No memory management required
+ * "Cast" a data value to a subnet.
+ * @return the argument as a subnet object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_subnet* broker_data_as_subnet(broker_data*);
 
 /**
  * "Cast" a data value to a port.
- * @return the argument as an port object.  No memory management required
+ * @return the argument as a port object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_port* broker_data_as_port(broker_data*);
 
@@ -479,7 +479,7 @@ broker_port* broker_data_as_port(broker_data*);
  * "Cast" a data value to a time point.
  * @return the argument as a time point object.  No memory management required
  * by caller, the returned value is valid for the same lifetime as data supplied
- * as the input argument an may be used to modify the value of the data.
+ * as the input argument and may be used to modify the value of the data.
  */
 broker_time_point* broker_data_as_time(broker_data*);
 
@@ -487,7 +487,7 @@ broker_time_point* broker_data_as_time(broker_data*);
  * "Cast" a data value to a time duration.
  * @return the argument as a time duration object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_time_duration* broker_data_as_duration(broker_data*);
@@ -496,7 +496,7 @@ broker_time_duration* broker_data_as_duration(broker_data*);
  * "Cast" a data value to an enum.
  * @return the argument as an enum object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_enum_value* broker_data_as_enum(broker_data*);
@@ -505,7 +505,7 @@ broker_enum_value* broker_data_as_enum(broker_data*);
  * "Cast" a data value to a set.
  * @return the argument as a set object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_set* broker_data_as_set(broker_data*);
@@ -514,7 +514,7 @@ broker_set* broker_data_as_set(broker_data*);
  * "Cast" a data value to a table.
  * @return the argument as a table object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_table* broker_data_as_table(broker_data*);
@@ -523,7 +523,7 @@ broker_table* broker_data_as_table(broker_data*);
  * "Cast" a data value to a vector.
  * @return the argument as a vector object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_vector* broker_data_as_vector(broker_data*);
@@ -532,7 +532,7 @@ broker_vector* broker_data_as_vector(broker_data*);
  * "Cast" a data value to a record.
  * @return the argument as a record object.  No memory management
  * required by caller, the returned value is valid for the same lifetime as data
- * supplied as the input argument an may be used to modify the value of the
+ * supplied as the input argument and may be used to modify the value of the
  * data.
  */
 broker_record* broker_data_as_record(broker_data*);
@@ -1160,7 +1160,7 @@ size_t broker_set_size(const broker_set* s);
  * Check if a set contains an equivalent data object.
  * @param s the set which to check for key existence.
  * @param key a data object to check for existence within the set.
- * @return not-zero if the it's in the set, else zero.
+ * @return not-zero if it's in the set, else zero.
  */
 int broker_set_contains(const broker_set* s, const broker_data* key);
 
@@ -1188,7 +1188,7 @@ int broker_set_remove(broker_set* s, const broker_data* key);
 int broker_set_eq(const broker_set* a, const broker_set* b);
 
 /**
- * @return not-zero if the first argument is less than the seconds, else zero.
+ * @return not-zero if the first argument is less than the second, else zero.
  */
 int broker_set_lt(const broker_set* a, const broker_set* b);
 
@@ -1198,7 +1198,7 @@ int broker_set_lt(const broker_set* a, const broker_set* b);
 size_t broker_set_hash(const broker_set* a);
 
 /**
- * @return an set iterator object for the caller to manage.
+ * @return a set iterator object for the caller to manage.
  * Or returns null if sufficient memory could not be allocated.
  */
 broker_set_iterator* broker_set_iterator_create(broker_set* s);
@@ -1356,7 +1356,7 @@ void broker_table_iterator_delete(broker_table_iterator* it);
 
 /**
  * Check if an iterator is at the end and cannot be incremented further.
- * @param s the container used to create the iterator.
+ * @param t the container used to create the iterator.
  * @param it the iterator to check.
  * @return not-zero if the iterator is at the end of iteration, else zero.
  */
@@ -1364,7 +1364,7 @@ int broker_table_iterator_at_last(broker_table* t, broker_table_iterator* it);
 
 /**
  * Move the iterator to the next element.
- * @param s the container used to create the iterator.
+ * @param t the container used to create the iterator.
  * @param it the iterator to move.
  * @return not-zero if, after moving, the iterator is at the end of iteration,
  * else zero.
@@ -1450,8 +1450,8 @@ int broker_vector_reserve(broker_vector* v, size_t size);
  * Insert an element into a vector.
  * @param v the vector to modify.
  * @param d the element to insert into the vector (by copying it).
- * @param idx the index to insert the element at.  Must be between 0 and
- * the current number of elements in the vector.  The vector is automatically
+ * @param idx the index to insert the element at.  Must be in the range from 0
+ * to the current number of elements in the vector.  The vector is automatically
  * resized to fit the new element and other contents are shifted right.
  * @return not-zero if the call succeeds, or zero if sufficient memory could
  * not be allocated.
@@ -1485,7 +1485,7 @@ int broker_vector_remove(broker_vector* v, size_t idx);
 broker_data* broker_vector_lookup(broker_vector* v, size_t idx);
 
 /**
- * @return not-zero if the two vector are equal, else zero.
+ * @return not-zero if the two vectors are equal, else zero.
  */
 int broker_vector_eq(const broker_vector* a, const broker_vector* b);
 
@@ -1512,7 +1512,7 @@ void broker_vector_iterator_delete(broker_vector_iterator* it);
 
 /**
  * Check if an iterator is at the end and cannot be incremented further.
- * @param s the container used to create the iterator.
+ * @param v the container used to create the iterator.
  * @param it the iterator to check.
  * @return not-zero if the iterator is at the end of iteration, else zero.
  */
@@ -1521,7 +1521,7 @@ int broker_vector_iterator_at_last(broker_vector* v,
 
 /**
  * Move the iterator to the next element.
- * @param s the container used to create the iterator.
+ * @param v the container used to create the iterator.
  * @param it the iterator to move.
  * @return not-zero if, after moving, the iterator is at the end of iteration,
  * else zero.
@@ -1614,7 +1614,7 @@ broker_data* broker_record_lookup(broker_record* r, size_t idx);
 int broker_record_eq(const broker_record* a, const broker_record* b);
 
 /**
- * @return not-zero if the first argument is less than the seconds, else zero.
+ * @return not-zero if the first argument is less than the second, else zero.
  */
 int broker_record_lt(const broker_record* a, const broker_record* b);
 
@@ -1636,7 +1636,7 @@ void broker_record_iterator_delete(broker_record_iterator* it);
 
 /**
  * Check if an iterator is at the end and cannot be incremented further.
- * @param s the container used to create the iterator.
+ * @param r the container used to create the iterator.
  * @param it the iterator to check.
  * @return not-zero if the iterator is at the end of iteration, else zero.
  */
@@ -1645,7 +1645,7 @@ int broker_record_iterator_at_last(broker_record* r,
 
 /**
  * Move the iterator to the next element.
- * @param s the container used to create the iterator.
+ * @param r the container used to create the iterator.
  * @param it the iterator to move.
  * @return not-zero if, after moving, the iterator is at the end of iteration,
  * else zero.
@@ -1699,7 +1699,7 @@ struct broker_peering;
 typedef struct broker_peering broker_peering;
 
 /**
- * Create a uninitialized peering object.
+ * Create an uninitialized peering object.
  * @return a new peering object for the caller to manage.
  * Or returns null if sufficient memory could not be allocated.
  */
@@ -1802,7 +1802,7 @@ typedef enum {
 } broker_incoming_connection_status_tag;
 
 /**
- * @return the status of a incoming connection.
+ * @return the status of an incoming connection.
  */
 broker_incoming_connection_status_tag
 broker_incoming_connection_status_get(const broker_incoming_connection_status*);
@@ -1862,7 +1862,7 @@ typedef struct broker_message_queue broker_message_queue;
 
 /**
  * Create a new message queue.
- * @param topic_prefix the subscription topic to use.  All message sent via
+ * @param topic_prefix the subscription topic to use.  All messages sent via
  * endpoint \a e or one of its peers that use a topic prefixed by this will
  * be copied in to this queue.
  * @param e the endpoint to attach the message queue.
@@ -2111,7 +2111,7 @@ int broker_endpoint_listen(broker_endpoint* e, uint16_t port, const char* addr,
                            int reuse_addr);
 
 /**
- * @see broker::endpont::peer(std::string, uint16_t, std::chrono::duration<double>)
+ * @see broker::endpoint::peer(std::string, uint16_t, std::chrono::duration<double>)
  * @return a new peering object.
  */
 broker_peering* broker_endpoint_peer_remotely(broker_endpoint* e,
@@ -2216,7 +2216,7 @@ broker_endpoint* broker_report_manager();
 
 /**
  * @see broker::report::default_queue
- * @return a pointer to the singleton report queuest that receives all
+ * @return a pointer to the singleton report queue that receives all
  * report messages.
  */
 broker_message_queue* broker_report_default_queue();
@@ -2297,7 +2297,7 @@ double* broker_store_expiration_time_get(broker_store_expiration_time* t);
 double* broker_store_expiration_time_last_mod(broker_store_expiration_time* t);
 
 /**
- * @return not-zero if the two expiration times are equal, else zeor.
+ * @return not-zero if the two expiration times are equal, else zero.
  */
 int broker_store_expiration_time_eq(const broker_store_expiration_time* a,
                                     const broker_store_expiration_time* b);
@@ -2563,7 +2563,7 @@ broker_store_frontend_insert_with_expiry(const broker_store_frontend* f,
 
 /**
  * @see broker::frontend::erase
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key.
  */
 int broker_store_frontend_erase(const broker_store_frontend* f,
@@ -2576,7 +2576,7 @@ void broker_store_frontend_clear(const broker_store_frontend* f);
 
 /**
  * @see broker::frontend::increment
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key.
  */
 int broker_store_frontend_increment(const broker_store_frontend* f,
@@ -2584,7 +2584,7 @@ int broker_store_frontend_increment(const broker_store_frontend* f,
 
 /**
  * @see broker::frontend::add_to_set
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key/element.
  */
 int broker_store_frontend_add_to_set(const broker_store_frontend* f,
@@ -2593,7 +2593,7 @@ int broker_store_frontend_add_to_set(const broker_store_frontend* f,
 
 /**
  * @see broker::frontend::remove_from_set
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key/element.
  */
 int broker_store_frontend_remove_from_set(const broker_store_frontend* f,
@@ -2602,7 +2602,7 @@ int broker_store_frontend_remove_from_set(const broker_store_frontend* f,
 
 /**
  * @see broker::frontend::push_left
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key/element.
  */
 int broker_store_frontend_push_left(const broker_store_frontend* f,
@@ -2611,7 +2611,7 @@ int broker_store_frontend_push_left(const broker_store_frontend* f,
 
 /**
  * @see broker::frontend::push_right
- * @return not-zero on success, or zero if memory could not be allocate to
+ * @return not-zero on success, or zero if memory could not be allocated to
  * copy the key/element.
  */
 int broker_store_frontend_push_right(const broker_store_frontend* f,
@@ -2704,7 +2704,7 @@ void broker_store_rocksdb_backend_delete(broker_store_rocksdb_backend* b);
  * Open the rocksdb database.
  * @param b the rocksdb backend to open.
  * @param path the path to supply for persistent rocksdb storage.
- * @param create_if_missing set to 0 if the data base should not be created
+ * @param create_if_missing set to 0 if the database should not be created
  * if it doesn't yet exist.
  * @return same as @see broker::store::rocksdb_backend::open
  */
