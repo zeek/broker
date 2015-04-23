@@ -73,7 +73,7 @@ data/messages see the data API reference.
 
 The third paramenter to the ``send()`` method are flags which tune the
 behavior of how the message is to be sent.  By default, messages are
-allowed to be sent to to the sending endpoint itself or to peer
+allowed to be sent to the sending endpoint itself or to peer
 endpoints if they advertise interest in any prefix of the message's
 topic string.  There's another flag, ``UNSOLICITED`` that can be used to
 send messages to peers even if they have not advertised interest in any
@@ -159,11 +159,11 @@ endpoints.  These settings take precedence over the per-message
 ``PEERS`` flag supplied to ``send()``.
 
 If not using the ``AUTO_ADVERTISE`` flag, one can use an endpoint's
-``advertise()`` and ``unadvertise()`` to manupulate the set of topic
+``advertise()`` and ``unadvertise()`` to manipulate the set of topic
 prefixes that are allowed to be advertised to peers.  If an endpoint
-does not advertise a topic prefix, the only way a peers can send
+does not advertise a topic prefix, then the only way peers can send
 messages to it is via the ``UNSOLICITED`` flag to ``send()`` and
-choosing a topic which a matching prefix (i.e. full topic may be longer
+choosing a topic with a matching prefix (i.e. full topic may be longer
 than receivers prefix, just the prefix needs to match).
 
 Distributed Data Stores
@@ -178,7 +178,7 @@ specific type of frontend, but a standalone frontend can also exist to
 e.g. query and modify the contents of a remote master store without
 actually "owning" any of the contents itself.
 
-A master data store attached with one Broker endpoint can be be cloned
+A master data store attached with one Broker endpoint can be cloned
 at peer endpoints which may then perform lightweight, local queries
 against the clone, which automatically stays synchronized with the
 master store.  Clones cannot modify their content directly, instead they
