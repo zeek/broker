@@ -4,14 +4,6 @@
 #include "../util/misc.hh"
 #include <rocksdb/env.h>
 
-static std::string version_string()
-	{
-	char tmp[32];
-	snprintf(tmp, sizeof(tmp), "%d.%d.%d",
-	         BROKER_VERSION_MAJOR, BROKER_VERSION_MINOR, BROKER_VERSION_PATCH);
-	return tmp;
-	}
-
 template <class T>
 static void to_serial(const T& obj, std::string& rval)
 	{
@@ -94,10 +86,9 @@ broker::store::rocksdb_backend::open(std::string db_path,
 
 	if ( pimpl->require_ok(rval) )
 		{
-		auto ver = version_string();
 		// Use key-space prefix 'm' to store metadata, 'a' for application
 		// data, and 'e' for expiration values.
-		rval = pimpl->db->Put({}, "mbroker_version", ver);
+		rval = pimpl->db->Put({}, "mbroker_version", BROKER_VERSION);
 		pimpl->require_ok(rval);
 		return rval;
 		}

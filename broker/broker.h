@@ -8,10 +8,7 @@
 extern "C" {
 #endif
 
-// TODO: automate how version levels are set here.
-#define BROKER_VERSION_MAJOR 0
-#define BROKER_VERSION_MINOR 1
-#define BROKER_VERSION_PATCH 0
+#define BROKER_VERSION "0.2"
 
 /**
  * The version of the broker messaging protocol.  Endpoints can only

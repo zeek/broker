@@ -37,8 +37,8 @@ static bool initialize(sqlite3* db)
 
 	char tmp[128];
 	snprintf(tmp, sizeof(tmp),
-	         "replace into meta(k, v) values('broker_version', '%d.%d.%d');",
-	         BROKER_VERSION_MAJOR, BROKER_VERSION_MINOR, BROKER_VERSION_PATCH);
+	         "replace into meta(k, v) values('broker_version', '%s');",
+	         BROKER_VERSION);
 
 	if ( sqlite3_exec(db, tmp, nullptr, nullptr, nullptr) != SQLITE_OK )
 		return false;
