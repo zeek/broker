@@ -1,4 +1,9 @@
 
+0.3-1 | 2015-05-20 12:55:33 -0500
+
+  * pybroker: change record's fields() method to return by value
+    (Jon Siwek)
+
 0.3 | 2015-05-07 20:28:31 -0700
 
   * Release 0.3.

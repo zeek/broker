@@ -174,7 +174,7 @@ public:
         { return *$self == other; }
     bool __lt__(const broker::record& other)
         { return *$self < other; }
-    std::vector<field>& fields()
+    std::vector<field> fields()
         { return $self->fields; }
 }
 
