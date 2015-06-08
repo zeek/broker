@@ -1,4 +1,8 @@
 
+0.4 | 2015-05-20 12:58:23 -0500
+
+  * Release 0.4.
+
 0.3-1 | 2015-05-20 12:55:33 -0500
 
   * pybroker: change record's fields() method to return by value
