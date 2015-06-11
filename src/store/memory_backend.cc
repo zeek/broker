@@ -33,6 +33,7 @@ std::string broker::store::memory_backend::do_last_error() const
 
 bool broker::store::memory_backend::do_init(snapshot sss)
 	{
+	*pimpl = {};
 	pimpl->sn = std::move(sss.sn);
 
 	for ( auto& e : sss.entries )

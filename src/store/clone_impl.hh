@@ -258,6 +258,8 @@ public:
 			{
 			if ( d.source == master.address() )
 				{
+				demonitor(master);
+				master = caf::invalid_actor;
 				BROKER_DEBUG("store.clone." + master_name,
 				             "master went down, trying to relocate...");
 				send(this, find_master_atom::value);
