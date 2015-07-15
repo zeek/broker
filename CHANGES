@@ -1,4 +1,12 @@
 
+0.4-2 | 2015-07-14 21:52:47 -0700
+
+  * Require CAF 0.14. (Matthias Vallentin)
+
+  * Remove use of deprecated sb_actor. (Matthias Vallentin)
+
+  * Minor compile fixes on Mac OSX. (Matthias Vallentin)
+
 0.4-1 | 2015-06-11 12:12:12 -0500
 
   * Fix data store clone (re)synchronization bugs. (Jon Siwek)
