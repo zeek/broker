@@ -1,6 +1,7 @@
 #include "peering_impl.hh"
 #include "broker/util/hash.hh"
 #include <caf/scoped_actor.hpp>
+#include <iostream>
 
 broker::peering::peering()
     : pimpl(new impl)
@@ -45,7 +46,7 @@ const std::pair<std::string, uint16_t>& broker::peering::remote_tuple() const
 	}
 
 bool broker::peering::operator==(const peering& rhs) const
-	{ return pimpl == rhs.pimpl; }
+	{ return *pimpl == *rhs.pimpl; }
 
 size_t std::hash<broker::peering>::operator()(const broker::peering& p) const
 	{
