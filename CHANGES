@@ -1,4 +1,9 @@
 
+0.4-5 | 2015-08-20 14:11:30 -0700
+
+  * Fix bug that prevented peers from being disconnected. (Mathias
+    Fischer)
+
 0.4-2 | 2015-07-14 21:52:47 -0700
 
   * Require CAF 0.14. (Matthias Vallentin)
