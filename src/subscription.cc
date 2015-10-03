@@ -128,6 +128,13 @@ broker::subscription_registry::exact_match(const topic& t) const
 	return it->second;
 	}
 
+broker::topic_set broker::subscription_registry::topics_of_actor(const caf::actor_addr a)
+	{
+	if(!have_subscriber(a))
+		return topic_set();
+	return subs_by_actor[a].subscriptions;
+	}
+
 void broker::topic_set_type_info::serialize(const void* ptr,
                                             caf::serializer* sink) const
 	{
@@ -151,3 +158,4 @@ void broker::topic_set_type_info::deserialize(void* ptr,
 
 	source->end_sequence();
 	}
+	

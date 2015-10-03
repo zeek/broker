@@ -103,19 +103,35 @@ public:
 					if ( ! compat )
 						ocs_update(ocs_queue, move(pi), ocs_incompat);
 					else
+						{
+
+						//FIXME currently not the most efficient way 
+						topic_set subscr = advertised_subscriptions;
+						for(auto&peer: peers)
+							{
+							if(peer.second.ep == p)
+								continue;
+							topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
+							for(auto& t: ts2)
+								subscr.insert(t);
+							}
+
+						//sync_send(p, peer_atom::value, this, name,
+						//          advertised_subscriptions).then(
 						sync_send(p, peer_atom::value, this, name,
-						          advertised_subscriptions).then(
+						          subscr).then(
 							[=](const sync_exited_msg& m)
 								{
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
 							[=](string& pname, topic_set& ts)
 								{
-								add_peer(move(p), pname, move(ts), false);
+                add_peer(move(p), pname, move(ts), false);
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
 								}
 						);
+						}
 					},
 				others() >> [=]
 					{
@@ -125,10 +141,33 @@ public:
 			},
 		[=](peer_atom, actor& p, string& pname, topic_set& ts)
 			{
+			std::cout << "peer_atom received at " << name  << ": " << to_string(ts) 
+								<<  ", current_sender " << get_peer_name(current_sender()) << ", " 
+								<< caf::to_string(current_message()) << std::endl;
+
 			ics_update(ics_queue, pname,
 			           incoming_connection_status::tag::established);
+
+			//FIXME currently not the most efficient way 
+			topic_set subscr = advertised_subscriptions;
+			for(auto&peer: peers)
+					{
+					if(peer.second.ep == p)
+						continue;
+					topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
+					for(auto& t: ts2)
+						subscr.insert(t);
+					}
+
+			for(auto t: ts)
+				{
+				publish_subscription_operation(t.first, p, sub_atom::value);
+				}
+
 			add_peer(move(p), move(pname), move(ts), true);
-			return make_message(name, advertised_subscriptions);
+
+			//return make_message(name, advertised_subscriptions);
+			return make_message(name, subscr);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -193,7 +232,13 @@ public:
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' subscribed to '"
 			             + t + "'");
-			peer_subscriptions.register_topic(move(t), move(p));
+      std::cout << "endpoint."  << name <<  ", Peer "  << get_peer_name(p) << " subscribed to " << t << std::endl;
+
+			if(!peer_subscriptions.contains(p.address(), t))
+				{
+				peer_subscriptions.register_topic(t, p);
+				publish_subscription_operation(t, p,sub_atom::value);
+				}
 			},
 		[=](master_atom, store::identifier& id, actor& a)
 			{
@@ -218,27 +263,38 @@ public:
 			},
 		[=](const topic& t, broker::message& msg, int flags)
 			{
-			bool from_peer = peers.find(current_sender()) != peers.end();
-
-			if ( from_peer )
+			//bool from_peer = peers.find(current_sender()) != peers.end();
+			
+			// we are the initial sender
+			if(!current_sender()) 
+				{
+				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
+				                      "Publish local message with topic '" + t
+				                      + "': " + to_string(msg));
+				std::cout<< ep << " endpoint." << name << " Publish local message with topic '" << t
+				               << "': " << to_string(msg) << " and flags " << to_string(flags) << std::endl;
+				publish_locally(t, msg, flags, false);
+				}
+			// we received the message from a neighbor
+			else
 				{
 				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
 				                      "Got remote message from peer '"
 				                      + get_peer_name(current_sender())
 				                      + "', topic '" + t + "': "
 				                      + to_string(msg));
-				publish_locally(t, std::move(msg), flags, from_peer);
-				// Don't re-publish messages sent by a peer (they go one hop).
+				std::cout<< ep << " endpoint."  << name << " Got remote message from peer '"
+				               << get_peer_name(current_sender()) << "', topic '" << t << "': "
+	                     << to_string(msg) << " and flags " << to_string(flags) << std::endl;
+				publish_locally(t, msg, flags, true);
+				//publish_current_msg_to_peers(t, flags);
 				}
-			else
-				{
-				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
-				                      "Publish local message with topic '" + t
-				                      + "': " + to_string(msg));
-				publish_locally(t, msg, flags, from_peer);
-				publish_current_msg_to_peers(t, flags);
-				}
-			},
+
+			// forward to all peers except the last one!
+      //publish_current_msg_to_peers(t, PEERS | AUTO_PUBLISH | UNSOLICITED);
+     	publish_current_msg_to_peers(t, flags);
+
+    	},
 		[=](store_actor_atom, const store::identifier& n)
 			{
 			return find_master(n);
@@ -373,11 +429,16 @@ private:
 		{
 		BROKER_DEBUG("endpoint." + name, "Peered with: '" + peer_name
 		             + "', subscriptions: " + to_string(ts));
-		demonitor(p);
+
+    std::cout << "endpoint."  <<  name  <<  " Peered with: '"  <<  peer_name
+                      <<  "', subscriptions: "  << to_string(ts)  << std::endl;
+
+    demonitor(p);
 		monitor(p);
-		peers[p.address()] = {p, std::move(peer_name), incoming};
-		peer_subscriptions.insert(subscriber{std::move(p), std::move(ts)});
-		}
+
+    peers[p.address()] = {p, peer_name, incoming};
+    peer_subscriptions.insert(subscriber{p, ts});
+   }
 
 	void attach(std::string topic_or_id, caf::actor a)
 		{
@@ -426,10 +487,27 @@ private:
 		if ( peers.empty() )
 			return;
 
-		auto msg = caf::make_message(std::move(op), std::move(t), this);
-
+    auto msg = caf::make_message(std::move(op), t, this);
 		for ( const auto& p : peers )
-			send(p.second.ep, msg);
+            {
+        		std::cout << " publish subscription operation for topic " << t  << ", peer " << p.second.name  << std::endl;
+            send(p.second.ep, msg);
+            }
+		}
+
+	void publish_subscription_operation(topic t, const caf::actor& skip, caf::atom_value op)
+		{
+		if ( peers.empty() )
+			return;
+
+    auto msg = caf::make_message(std::move(op), t, this);
+		for ( const auto& p : peers )
+            {
+						if(p.second.ep == skip)
+							continue;
+        		std::cout << " publish subscription operation for topic " << t  << ", peer " << p.second.name  << std::endl;
+            send(p.second.ep, msg);
+            }
 		}
 
 	void publish_locally(const topic& t, broker::message msg, int flags,
@@ -453,22 +531,38 @@ private:
 	void publish_current_msg_to_peers(const topic& t, int flags)
 		{
 		if ( ! (flags & PEERS) )
+			{
 			return;
+			}
 
 		if ( ! (behavior_flags & AUTO_PUBLISH) &&
-		     pub_acls.find(t) == pub_acls.end() )
+		     pub_acls.find(t) == pub_acls.end() ) {
 			// Not allowed to publish this topic to peers.
 			return;
-
-        // send instead of forward_to so peer can use
-        // current_sender() to check if msg comes from a peer.
-        if ( (flags & UNSOLICITED) )
-            for ( const auto& p : peers )
-                send(p.second.ep, current_message());
-        else
-            for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
-                send(a, current_message());
 		}
+
+    // send instead of forward_to so peer can use
+    // current_sender() to check if msg comes from a peer.
+    if ( (flags & UNSOLICITED) )
+        {
+        for ( const auto& p : peers ) 
+            {
+            if(current_sender() == p.first)
+                continue;
+            send(p.second.ep, current_message());
+            }
+        }
+    else
+        {
+        for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
+            {
+						if(current_sender() == a)
+							continue;
+						std::cout << name << ": --- send msg to " << get_peer_name(a) << std::endl;
+            send(a, current_message());
+            }
+        }
+    }
 
 	struct peer_endpoint {
 		caf::actor ep;

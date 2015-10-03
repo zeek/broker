@@ -107,6 +107,7 @@ public:
 	 */
 	actor_set unique_prefix_matches(const topic& t) const;
 
+	broker::topic_set topics_of_actor(const caf::actor_addr a);
 	/**
 	 * @return All actors that have registered subscriptions with topic names
 	 * exactly matching the given topic name.
@@ -131,6 +132,9 @@ public:
 	 */
 	bool have_subscriber_for(const topic& t) const
 		{ return exact_match(t).valid(); }
+
+	bool contains(const caf::actor_addr& a, const topic& t )
+		{ return ( have_subscriber(a) && subs_by_actor[a].subscriptions.find(t) != subs_by_actor[a].subscriptions.end());}
 
 private:
 
