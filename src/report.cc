@@ -2,6 +2,7 @@
 #include "broker/time_point.hh"
 #include <mutex>
 
+using namespace std;
 namespace broker { namespace report {
 extern std::mutex* mtx;
 endpoint* manager;

@@ -17,11 +17,11 @@ int main(int argc, char** argv)
 	init();
 
 	/* Overlay configuration
-	 * n0: sub a
+	 * n0 [a]
 	 * |
-	 * n1: sub b
-	 * |  \
-	 * n2  n3: sub c
+	 * n1 [b]
+	 * |  
+	 * n2 [c]
 	 */
 
 	// Node 0
@@ -54,32 +54,6 @@ int main(int argc, char** argv)
 		return 1;
 		}
 
-	// Node 3
-	endpoint node3("node3");
-	message_queue q3("b", node3);
-	// connecting
-	node3.peer(node1);
-
-	if ( node3.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
-		{
-		BROKER_TEST(false);
-		return 1;
-		}
-
-	// Node 4
-	endpoint node4("node4");
-	message_queue q4("d", node4);
-	// connecting
-	node4.peer(node3);
-
-	if ( node4.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
-		{
-		BROKER_TEST(false);
-		return 1;
-		}
-
 	// Sending and receiving
 	std::vector<message> pings;
 	std::vector<message> pongs;
@@ -98,7 +72,7 @@ int main(int argc, char** argv)
 			{
 			std::cout << "node0: ping received, msg size " << msg.size() << std::endl;
 			msg[0] = "pong";
-			node0.send("d", msg, 0x02);
+			node0.send("c", msg, 0x02);
 			pongs.push_back(std::move(msg));
 			}
 		}
@@ -107,9 +81,9 @@ int main(int argc, char** argv)
 
 	// node2 receives pongs
 	while ( returned.size() != 4 )
-		for ( auto& msg : q4.need_pop() )
+		for ( auto& msg : q2.need_pop() )
 			{
-			std::cout << "node4: pong received" << std::endl;
+			std::cout << "node2: pong received" << std::endl;
 			returned.push_back(std::move(msg));
 			}
 

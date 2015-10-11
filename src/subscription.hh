@@ -19,6 +19,15 @@ namespace broker {
 using actor_set = std::unordered_set<caf::actor>;
 using topic_set = util::radix_tree<bool>;
 
+using topic_actor_pair = std::pair<topic, caf::actor_addr>;
+using topic_actor_set = std::set<topic_actor_pair>;
+
+//                                    (topic, origin)              via      TTL
+using topic_actor_mapping = std::map<topic_actor_pair, std::map<caf::actor, int>>;
+
+// 																			via 				set_of(topic, origin)
+using routing_information = std::map<caf::actor_addr, topic_actor_set>;
+
 /**
  * (de)serialization logic for type "topic_set".
  */

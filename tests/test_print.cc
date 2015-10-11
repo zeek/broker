@@ -34,7 +34,9 @@ static bool check_contents(broker::message_queue& pq,
 
 	while ( actual.size() < expected.size() )
 		for ( auto& msg : pq.need_pop() )
+			{
 			actual.insert(move(msg));
+			}
 
 	return actual == expected;
 	}
@@ -117,7 +119,9 @@ int main(int argc, char** argv)
 	                   broker::message{"0a", "node0 says: hi"},
 	                   broker::message{"0a", "node0 says: hello"},
 	                   broker::message{"1a", "node1 says: hi"},
-	                   broker::message{"1a", "node1 says: bye"}
+	                   broker::message{"1a", "node1 says: bye"},
+	                   broker::message{"2a", "node2 says: hi"},
+	                   broker::message{"2a", "node2 says: bye"}
 	               })
 	);
 
@@ -125,7 +129,8 @@ int main(int argc, char** argv)
 	check_contents(pq_b1, {
 	                   broker::message{"0b", "node0 says: bye"},
 	                   broker::message{"0b", "node0 says: goodbye"},
-	                   broker::message{"1b", "node1 says: bbye"}
+	                   broker::message{"1b", "node1 says: bbye"},
+	                   broker::message{"2b", "node2 says: bbye"}
 	               })
 	);
 
@@ -133,6 +138,8 @@ int main(int argc, char** argv)
 	check_contents_poll(pq_a2, {
 	                   broker::message{"0a", "node0 says: hi"},
 	                   broker::message{"0a", "node0 says: hello"},
+	                   broker::message{"1a", "node1 says: hi"},
+	                   broker::message{"1a", "node1 says: bye"},
 	                   broker::message{"2a", "node2 says: hi"},
 	                   broker::message{"2a", "node2 says: bye"}
 	               })

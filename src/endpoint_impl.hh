@@ -17,6 +17,8 @@
 #include <caf/io/remote_actor.hpp>
 #include <unordered_set>
 #include <sstream>
+#include <assert.h>
+
 
 #ifdef DEBUG
 // So that we don't have a recursive expansion from sending messages via the
@@ -104,29 +106,18 @@ public:
 						ocs_update(ocs_queue, move(pi), ocs_incompat);
 					else
 						{
+						topic_set subscr = get_all_subscriptions();
+						std::cout << name << " initiate peering with " << get_peer_name(p) << std::endl;
 
-						//FIXME currently not the most efficient way 
-						topic_set subscr = advertised_subscriptions;
-						for(auto&peer: peers)
-							{
-							if(peer.second.ep == p)
-								continue;
-							topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
-							for(auto& t: ts2)
-								subscr.insert(t);
-							}
-
-						//sync_send(p, peer_atom::value, this, name,
-						//          advertised_subscriptions).then(
-						sync_send(p, peer_atom::value, this, name,
-						          subscr).then(
+						//sync_send(p, peer_atom::value, this, name, advertised_subscriptions).then(
+						sync_send(p, peer_atom::value, this, name, subscr, sub_topic_actor).then(
 							[=](const sync_exited_msg& m)
 								{
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
-							[=](string& pname, topic_set& ts)
+							[=](string& pname, topic_set& ts, topic_actor_set& sub_id_list)
 								{
-                add_peer(move(p), pname, move(ts), false);
+                add_peer(move(p), pname, move(ts), false, sub_id_list);
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
 								}
@@ -139,35 +130,24 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_actor_set & sub_id_list)
 			{
-			std::cout << "peer_atom received at " << name  << ": " << to_string(ts) 
+			std::cout <<  name  << " received peer_atom: " << to_string(ts) 
 								<<  ", current_sender " << get_peer_name(current_sender()) << ", " 
 								<< caf::to_string(current_message()) << std::endl;
 
 			ics_update(ics_queue, pname,
 			           incoming_connection_status::tag::established);
 
-			//FIXME currently not the most efficient way 
-			topic_set subscr = advertised_subscriptions;
-			for(auto&peer: peers)
-					{
-					if(peer.second.ep == p)
-						continue;
-					topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
-					for(auto& t: ts2)
-						subscr.insert(t);
-					}
+			// Propagate the own subscriptions + the ones of all other neighbors
+			topic_set subscr = get_all_subscriptions();
 
-			for(auto t: ts)
-				{
-				publish_subscription_operation(t.first, p, sub_atom::value);
-				}
+			for(auto& t: ts)
+				publish_subscription_operation(t.first, p, sub_atom::value, p.address());
 
-			add_peer(move(p), move(pname), move(ts), true);
+			add_peer(move(p), move(pname), move(ts), true, sub_id_list);
 
-			//return make_message(name, advertised_subscriptions);
-			return make_message(name, subscr);
+			return make_message(name, subscr, sub_topic_actor);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -179,9 +159,14 @@ public:
 			BROKER_DEBUG("endpoint." + name,
 			             "Unpeered with: '" + itp->second.name + "'");
 
+			std::cout << name << " unpeered with " << itp->second.name << std::endl; 
+
 			if ( itp->second.incoming )
 				ics_update(ics_queue, itp->second.name,
 				           incoming_connection_status::tag::disconnected);
+
+			// update routing information after p left
+			update_routing_information(p);
 
 			demonitor(p);
 			peers.erase(itp);
@@ -220,25 +205,40 @@ public:
 				if ( ! local_subscriptions.have_subscriber_for(sub.first) )
 					unadvertise_subscription(topic{move(sub.first)});
 			},
-		[=](unsub_atom, const topic& t, const actor& p)
+		[=](unsub_atom, const topic& t, const actor& p, caf::actor_addr sub_id)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' unsubscribed to '"
 			             + t + "'");
+			std::cout << name  << " received unsubscribe msg for topic (" << t << ", " <<  caf::to_string(sub_id) << ") from actor "  << get_peer_name(p) << std::endl;
+
+			// update routing information
+			topic_actor_pair tp = make_pair(t, sub_id);
+			update_routing_information_topic(p, tp);
+			if(routing_info.find(p.address()) != routing_info.end())
+				routing_info[p.address()].erase(tp);
+
 			peer_subscriptions.unregister_topic(t, p.address());
 			},
-		[=](sub_atom, topic& t, actor& p)
+		[=](sub_atom, topic& t, actor& p, caf::actor_addr sub_id)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' subscribed to '"
 			             + t + "'");
-      std::cout << "endpoint."  << name <<  ", Peer "  << get_peer_name(p) << " subscribed to " << t << std::endl;
+      std::cout << name <<  ", received sub from "  << get_peer_name(p) << " for " << t << std::endl;
 
-			if(!peer_subscriptions.contains(p.address(), t))
+			// check if subscription is present already for originating node
+			topic_actor_pair tp = std::make_pair(t, sub_id);
+			if(!peer_subscriptions.contains(p.address(), t) 
+				&& sub_topic_actor.find(tp) == sub_topic_actor.end())
 				{
 				peer_subscriptions.register_topic(t, p);
-				publish_subscription_operation(t, p,sub_atom::value);
+				publish_subscription_operation(t, p, sub_atom::value, sub_id);
+				sub_topic_actor.insert(tp);
+				routing_info[p.address()].insert(tp);
 				}
+
+			sub_mapping[tp][p] = 42;
 			},
 		[=](master_atom, store::identifier& id, actor& a)
 			{
@@ -263,15 +263,13 @@ public:
 			},
 		[=](const topic& t, broker::message& msg, int flags)
 			{
-			//bool from_peer = peers.find(current_sender()) != peers.end();
-			
 			// we are the initial sender
 			if(!current_sender()) 
 				{
 				BROKER_ENDPOINT_DEBUG(ep, "endpoint." + name,
 				                      "Publish local message with topic '" + t
 				                      + "': " + to_string(msg));
-				std::cout<< ep << " endpoint." << name << " Publish local message with topic '" << t
+				std::cout << name << " Publish local message with topic '" << t
 				               << "': " << to_string(msg) << " and flags " << to_string(flags) << std::endl;
 				publish_locally(t, msg, flags, false);
 				}
@@ -283,15 +281,12 @@ public:
 				                      + get_peer_name(current_sender())
 				                      + "', topic '" + t + "': "
 				                      + to_string(msg));
-				std::cout<< ep << " endpoint."  << name << " Got remote message from peer '"
+				std::cout<< name << " Got remote message from peer '"
 				               << get_peer_name(current_sender()) << "', topic '" << t << "': "
 	                     << to_string(msg) << " and flags " << to_string(flags) << std::endl;
 				publish_locally(t, msg, flags, true);
-				//publish_current_msg_to_peers(t, flags);
 				}
 
-			// forward to all peers except the last one!
-      //publish_current_msg_to_peers(t, PEERS | AUTO_PUBLISH | UNSOLICITED);
      	publish_current_msg_to_peers(t, flags);
 
     	},
@@ -425,25 +420,53 @@ private:
 		{ return get_peer_name(p.address()); }
 
 	void add_peer(caf::actor p, std::string peer_name, topic_set ts,
-	              bool incoming)
+								bool incoming, topic_actor_set peer_sub_id_list)
 		{
 		BROKER_DEBUG("endpoint." + name, "Peered with: '" + peer_name
-		             + "', subscriptions: " + to_string(ts));
+								 + "', subscriptions: " + to_string(ts));
 
-    std::cout << "endpoint."  <<  name  <<  " Peered with: '"  <<  peer_name
-                      <<  "', subscriptions: "  << to_string(ts)  << std::endl;
+		std::cout << name  <<  " adding peer '"  <<  peer_name
+											<<  "', subscriptions: "  << to_string(ts)  << std::endl;
 
-    demonitor(p);
+		demonitor(p);
 		monitor(p);
 
-    peers[p.address()] = {p, peer_name, incoming};
-    peer_subscriptions.insert(subscriber{p, ts});
-   }
+		peers[p.address()] = {p, peer_name, incoming};
+		routing_info[p.address()] = peer_sub_id_list;
+
+		/*std::cout << " sub_topic_actor: " << std::endl;
+		for(auto&t: sub_topic_actor)
+			std::cout  << "   - "  << t.first << ", " << caf::to_string(t.second) << std::endl;
+
+		std::cout << " peer_sub_id_list: " << std::endl;
+		for(auto&t: peer_sub_id_list)
+			std::cout  << "   - "  << t.first << ", " << caf::to_string(t.second) << std::endl;*/
+
+		// iterate over the topic knowledge of new peer
+		for(auto& tp: peer_sub_id_list)
+			{
+				if(sub_topic_actor.find(tp) == sub_topic_actor.end())	
+					{
+					sub_topic_actor.insert(tp);
+					peer_subscriptions.register_topic(tp.first, p);
+					std::cout << name << " adding topic " << tp.first << " via " << peer_name << std::endl;
+					}
+
+				sub_mapping[tp][p] = 42;
+			}
+		//peer_subscriptions.insert(subscriber{p, ts});
+	 }
 
 	void attach(std::string topic_or_id, caf::actor a)
 		{
+    std::cout << name  <<  " recvd local sub for topic "  
+					<< topic_or_id  << " from " << this->id() << std::endl;
 		demonitor(a);
 		monitor(a);
+
+		topic_actor_pair tp = std::make_pair(topic_or_id, this->address());
+		sub_topic_actor.insert(tp);
+
 		local_subscriptions.register_topic(topic_or_id, std::move(a));
 
 		if ( (behavior_flags & AUTO_ADVERTISE) ||
@@ -466,48 +489,52 @@ private:
 
 	void advertise_subscription(topic t)
 		{
+		advertise_subscription(t, this->address());
+		}
+
+	void advertise_subscription(topic t, caf::actor_addr a)
+		{
 		if ( advertised_subscriptions.insert({t, true}).second )
 			{
 			BROKER_DEBUG("endpoint." + name,"Advertise new subscription: " + t);
-			publish_subscription_operation(std::move(t), sub_atom::value);
+			publish_subscription_operation(std::move(t), sub_atom::value, a);
 			}
 		}
 
 	void unadvertise_subscription(topic t)
 		{
+		unadvertise_subscription(t, this->address());
+		}
+
+	void unadvertise_subscription(topic t, caf::actor_addr a)
+		{
 		if ( advertised_subscriptions.erase(t) )
 			{
 			BROKER_DEBUG("endpoint." + name, "Unadvertise subscription: " + t);
-			publish_subscription_operation(std::move(t), unsub_atom::value);
+			publish_subscription_operation(std::move(t), unsub_atom::value, a);
 			}
 		}
 
-	void publish_subscription_operation(topic t, caf::atom_value op)
+	void publish_subscription_operation(topic t, caf::atom_value op, caf::actor_addr sub_id)
 		{
-		if ( peers.empty() )
-			return;
-
-    auto msg = caf::make_message(std::move(op), t, this);
-		for ( const auto& p : peers )
-            {
-        		std::cout << " publish subscription operation for topic " << t  << ", peer " << p.second.name  << std::endl;
-            send(p.second.ep, msg);
-            }
+		publish_subscription_operation(t, caf::actor(), op, sub_id);
 		}
 
-	void publish_subscription_operation(topic t, const caf::actor& skip, caf::atom_value op)
+	void publish_subscription_operation(topic t, const caf::actor& skip, caf::atom_value op, caf::actor_addr sub_id)
 		{
 		if ( peers.empty() )
 			return;
 
-    auto msg = caf::make_message(std::move(op), t, this);
+    auto msg = caf::make_message(std::move(op), t, this, sub_id);
 		for ( const auto& p : peers )
-            {
-						if(p.second.ep == skip)
-							continue;
-        		std::cout << " publish subscription operation for topic " << t  << ", peer " << p.second.name  << std::endl;
-            send(p.second.ep, msg);
-            }
+    	{
+			if(p.second.ep == skip)
+				continue;
+     	std::cout << name  << ": " << caf::to_string(op) << " for topic (" 
+								<< t << "," << caf::to_string(sub_id) << ")" << ", forward to peer " 
+								<< p.second.name  << std::endl;
+      send(p.second.ep, msg);
+      }
 		}
 
 	void publish_locally(const topic& t, broker::message msg, int flags,
@@ -520,6 +547,8 @@ private:
 
 		if ( matches.empty() )
 			return;
+
+		std::cout << name << " msg for topic " <<  t << " published locally" << std::endl;
 
 		auto caf_msg = caf::make_message(std::move(msg));
 
@@ -554,15 +583,85 @@ private:
         }
     else
         {
+				if(peer_subscriptions.unique_prefix_matches(t).empty())
+					std::cout << name << " no routing information for forwarding topic " << t << std::endl;
+
         for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
             {
 						if(current_sender() == a)
 							continue;
-						std::cout << name << ": --- send msg to " << get_peer_name(a) << std::endl;
+						std::cout  <<  name << ": --- send msg to " << get_peer_name(a) << std::endl;
             send(a, current_message());
             }
         }
     }
+
+	//FIXME currently not the most efficient way 
+	// radix_tree +operator required
+	topic_set get_all_subscriptions()
+		{
+		topic_set subscr = advertised_subscriptions;
+		for(auto& peer: peers)
+			{
+			topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
+			for(auto& t: ts2)
+				subscr.insert(t);
+			}
+		return subscr;
+		}
+
+	/**
+	 * update the routing information for topics
+	 * when actor p unpeers from us
+	 */
+	void update_routing_information(const caf::actor& p)
+		{
+		std::cout << name  << " update routing information after unpeering of peer " << get_peer_name(p) << std::endl;
+		if(routing_info.find(p.address()) == routing_info.end())
+			return;
+
+		// update routing information for peer_subscriptions
+		for(auto& tp: routing_info[p.address()])
+			update_routing_information_topic(p, tp);
+
+		routing_info.erase(p.address());
+		}
+
+	void update_routing_information_topic(const caf::actor& p, topic_actor_pair tp)
+		{
+		std::cout << "   - " << name << "  check entry for topic (" << tp.first << ", " << caf::to_string(tp.second) << ")" << std::endl;
+		if(tp.second != this->address() && sub_mapping.find(tp) != sub_mapping.end() && sub_mapping[tp].find(p) != sub_mapping[tp].end())
+			{
+			std::cout << name  << ": delete peer " <<  get_peer_name(p) << " from sub_mapping" << std::endl;
+			sub_mapping[tp].erase(p);
+			if(sub_mapping[tp].empty())
+				{
+				std::cout << "  - " <<  name  << ": delete entry (" << tp.first << ", " << caf::to_string(tp.second) << ")" << std::endl;
+				sub_mapping.erase(tp);
+				sub_topic_actor.erase(tp);
+				// There is no other peer left for this topic, thus unsubscribe!
+				publish_subscription_operation(tp.first, p, unsub_atom::value, tp.second);
+				}
+			else
+				{
+				caf::actor a;
+				int ttl = 424242;
+				for(auto& p: sub_mapping[tp])
+					{
+					if(p.second < ttl)	
+						{
+						ttl = p.second;
+						a = p.first;
+						}
+					}
+				assert(a.id() != 0);
+				// Another peer has registered for the same topic
+				peer_subscriptions.register_topic(tp.first, a);
+				std::cout << name << " found alternative source for topic " << tp.first << caf::to_string(a) << std::endl; 
+				}
+			} 
+		}
+
 
 	struct peer_endpoint {
 		caf::actor ep;
@@ -581,6 +680,10 @@ private:
 	subscription_registry local_subscriptions;
 	subscription_registry peer_subscriptions;
 	topic_set advertised_subscriptions;
+
+	topic_actor_set sub_topic_actor;
+	topic_actor_mapping sub_mapping;
+	routing_information routing_info;
 };
 
 /**

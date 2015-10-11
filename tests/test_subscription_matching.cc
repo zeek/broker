@@ -5,6 +5,13 @@
 #include <vector>
 #include <set>
 
+#include <caf/actor.hpp>
+#include <caf/spawn.hpp>
+#include <caf/send.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/io/remote_actor.hpp>
+
 using namespace std;
 using namespace broker;
 
@@ -127,11 +134,13 @@ static void test_without_access_control()
 	check_contents_unordered(pq_topic_a0, {
 	               message{"0", "hi"},
 	               message{"1", "can't think of anything"},
+	               message{"2", "goodbye"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b0, {
 	               message{"0", "bye"},
 	               message{"1", "still can't think of anything"},
+	               message{"2", "hello"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_0, {
@@ -141,6 +150,9 @@ static void test_without_access_control()
 	               message{"1", "can't think of anything"},
 	               message{"1", "still can't think of anything"},
 	               message{"1", "topicmsg"},
+	               message{"2", "goodbye"},
+	               message{"2", "hello"},
+	               message{"2", "topicmsg"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_all_0, {
@@ -154,6 +166,11 @@ static void test_without_access_control()
 	               message{"1", "tmsg"},
 	               message{"1", "topicmsg"},
 	               message{"1", "My mind is going."},
+	               message{"2", "goodbye"},
+	               message{"2", "hello"},
+	               message{"2", "tmsg"},
+	               message{"2", "topicmsg"},
+	               message{"2", "I can feel it."}
 	               }));
 
 	BROKER_TEST(
@@ -172,7 +189,7 @@ static void test_without_access_control()
 	               message{"1", "topicmsg"},
 	               message{"2", "goodbye"},
 	               message{"2", "hello"},
-	               message{"2", "topicmsg"},
+	               message{"2", "topicmsg"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_hal_1, {
@@ -183,18 +200,23 @@ static void test_without_access_control()
 
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b2, {
+	               message{"0", "bye"},
 	               message{"1", "still can't think of anything"},
-	               message{"2", "hello"},
+	               message{"2", "hello"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_2, {
+	               message{"0", "hi"},
+	               message{"0", "bye"},
+	               message{"0", "topicmsg"},
 	               message{"1", "can't think of anything"},
 	               message{"1", "still can't think of anything"},
 	               message{"1", "topicmsg"},
 	               message{"2", "goodbye"},
 	               message{"2", "hello"},
-	               message{"2", "topicmsg"},
+	               message{"2", "topicmsg"}
 	               }));
+
 	}
 
 static void test_restricted_publish()
@@ -222,6 +244,8 @@ static void test_restricted_publish()
 	node0.outgoing_connection_status().need_pop();
 	node1.outgoing_connection_status().need_pop();
 
+	std::cout << " *************** DONE with sending" << std::endl;
+
 	node0.send("topic_a", {"0", "hi"});
 	node0.send("topic_b", {"0", "bye"});
 	node0.send("t", {"0", "tmsg"});
@@ -244,26 +268,26 @@ static void test_restricted_publish()
 	check_contents_unordered(pq_topic_a0, {
 	               message{"0", "hi"},
 	               }));
+
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b0, {
 	               message{"0", "bye"},
 	               }));
+
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_0, {
 	               message{"0", "hi"},
 	               message{"0", "bye"},
-	               message{"0", "topicmsg"},
-	               message{"1", "topicmsg"},
+	               message{"0", "topicmsg"}
 	               }));
+
 	BROKER_TEST(
 	check_contents_unordered(pq_all_0, {
 	               message{"0", "hi"},
 	               message{"0", "bye"},
 	               message{"0", "tmsg"},
 	               message{"0", "topicmsg"},
-	               message{"0", "What are you doing, Dave?"},
-	               message{"1", "topicmsg"},
-	               message{"1", "My mind is going."},
+	               message{"0", "What are you doing, Dave?"}
 	               }));
 
 	BROKER_TEST(
@@ -302,6 +326,7 @@ static void test_restricted_publish()
 	               message{"2", "hello"},
 	               message{"2", "topicmsg"},
 	               }));
+
 	}
 
 static void test_restricted_subscribe()
@@ -366,6 +391,8 @@ static void test_restricted_subscribe()
 	               message{"1", "still can't think of anything"},
 	               message{"1", "topicmsg"},
 	               }));
+
+	std::cout << " ************** test" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_all_0, {
 	               message{"0", "hi"},
@@ -379,6 +406,7 @@ static void test_restricted_subscribe()
 	               message{"1", "topicmsg"},
 	               message{"1", "My mind is going."},
 	               }));
+	std::cout << " ************** DONE with test" << std::endl;
 
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_a1, {
@@ -461,17 +489,25 @@ static void test_send_self_only()
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_a0, {
 	               message{"0", "hi"},
+	               message{"1", "can't think of anything"},
+	               message{"2", "goodbye"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b0, {
 	               message{"0", "bye"},
+	               message{"1", "still can't think of anything"},
+	               message{"2", "hello"}
 	               }));
+
+	std::cout << "check pq_topic_0" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_0, {
 	               message{"0", "hi"},
 	               message{"0", "bye"},
 	               message{"0", "topicmsg"},
 	               }));
+	
+	std::cout << "check pq_all_0" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_all_0, {
 	               message{"0", "hi"},
@@ -481,12 +517,15 @@ static void test_send_self_only()
 	               message{"0", "What are you doing, Dave?"},
 	               }));
 
+	std::cout << "check pq_a1" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_a1, {
 	               message{"0", "hi"},
 	               message{"1", "can't think of anything"},
 	               message{"2", "goodbye"},
 	               }));
+
+	std::cout << "check pq_topic_1" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_1, {
 	               message{"0", "hi"},
@@ -499,6 +538,8 @@ static void test_send_self_only()
 	               message{"2", "hello"},
 	               message{"2", "topicmsg"},
 	               }));
+
+	std::cout << "check pq_hal_1" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_hal_1, {
 	               message{"0", "What are you doing, Dave?"},
@@ -506,10 +547,13 @@ static void test_send_self_only()
 	               message{"2", "I can feel it."},
 	               }));
 
+	std::cout << "check pq_topic_b2" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b2, {
 	               message{"2", "hello"},
 	               }));
+
+	std::cout << "check pq_topic_2" << std::endl;
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_2, {
 	               message{"2", "goodbye"},
@@ -740,7 +784,7 @@ static void test_send_unsolicited()
 	               message{"1u", "topicmsg"},
 	               message{"2", "goodbye"},
 	               message{"2", "hello"},
-	               message{"2", "topicmsg"},
+	               message{"2", "topicmsg"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_hal_1, {
@@ -757,12 +801,18 @@ static void test_send_unsolicited()
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_2, {
+	               message{"0", "hi"},
+	               message{"0", "bye"},
+	               message{"0", "topicmsg"},
+	               message{"1", "can't think of anything"},
+	               message{"1", "still can't think of anything"},
+	               message{"1", "topicmsg"},
 	               message{"1u", "can't think of anything"},
 	               message{"1u", "still can't think of anything"},
 	               message{"1u", "topicmsg"},
 	               message{"2", "goodbye"},
 	               message{"2", "hello"},
-	               message{"2", "topicmsg"},
+	               message{"2", "topicmsg"}
 	               }));
 	}
 
