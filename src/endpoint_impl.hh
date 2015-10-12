@@ -110,14 +110,14 @@ public:
 						std::cout << name << " initiate peering with " << get_peer_name(p) << std::endl;
 
 						//sync_send(p, peer_atom::value, this, name, advertised_subscriptions).then(
-						sync_send(p, peer_atom::value, this, name, subscr, sub_topic_actor).then(
+						sync_send(p, peer_atom::value, this, name, subscr, all_subcriptions).then(
 							[=](const sync_exited_msg& m)
 								{
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
-							[=](string& pname, topic_set& ts, topic_actor_set& sub_id_list)
+							[=](string& pname, topic_set& ts, topic_map& sub_id_map)
 								{
-                add_peer(move(p), pname, move(ts), false, sub_id_list);
+                add_peer(move(p), pname, move(ts), false, sub_id_map);
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
 								}
@@ -130,7 +130,7 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_actor_set & sub_id_list)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_map &sub_id_map)
 			{
 			std::cout <<  name  << " received peer_atom: " << to_string(ts) 
 								<<  ", current_sender " << get_peer_name(current_sender()) << ", " 
@@ -142,12 +142,9 @@ public:
 			// Propagate the own subscriptions + the ones of all other neighbors
 			topic_set subscr = get_all_subscriptions();
 
-			for(auto& t: ts)
-				publish_subscription_operation(t.first, p, sub_atom::value, p.address());
+			add_peer(move(p), move(pname), move(ts), true, sub_id_map);
 
-			add_peer(move(p), move(pname), move(ts), true, sub_id_list);
-
-			return make_message(name, subscr, sub_topic_actor);
+			return make_message(name, subscr, all_subcriptions);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -205,22 +202,22 @@ public:
 				if ( ! local_subscriptions.have_subscriber_for(sub.first) )
 					unadvertise_subscription(topic{move(sub.first)});
 			},
-		[=](unsub_atom, const topic& t, const actor& p, caf::actor_addr sub_id)
+		[=](unsub_atom, const topic& t, const actor& p, caf::actor_addr origin_id)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' unsubscribed to '"
 			             + t + "'");
-			std::cout << name  << " received unsubscribe msg for topic (" << t << ", " <<  caf::to_string(sub_id) << ") from actor "  << get_peer_name(p) << std::endl;
+			std::cout << name  << " received unsubscribe msg for topic (" << t << ", " <<  caf::to_string(origin_id) << ") from actor "  << get_peer_name(p) << std::endl;
 
 			// update routing information
-			topic_actor_pair tp = make_pair(t, sub_id);
+			sub_id tp = make_pair(t, origin_id);
 			update_routing_information_topic(p, tp);
 			if(routing_info.find(p.address()) != routing_info.end())
 				routing_info[p.address()].erase(tp);
 
 			peer_subscriptions.unregister_topic(t, p.address());
 			},
-		[=](sub_atom, topic& t, actor& p, caf::actor_addr sub_id)
+		[=](sub_atom, topic& t, actor& p, caf::actor_addr origin_id)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Peer '" + get_peer_name(p) + "' subscribed to '"
@@ -228,14 +225,34 @@ public:
       std::cout << name <<  ", received sub from "  << get_peer_name(p) << " for " << t << std::endl;
 
 			// check if subscription is present already for originating node
-			topic_actor_pair tp = std::make_pair(t, sub_id);
+			sub_id tp = std::make_pair(t, origin_id);
 			if(!peer_subscriptions.contains(p.address(), t) 
-				&& sub_topic_actor.find(tp) == sub_topic_actor.end())
+				&& all_subcriptions.find(tp) == all_subcriptions.end())
 				{
 				peer_subscriptions.register_topic(t, p);
-				publish_subscription_operation(t, p, sub_atom::value, sub_id);
-				sub_topic_actor.insert(tp);
-				routing_info[p.address()].insert(tp);
+				publish_subscription_operation(t, p, sub_atom::value, origin_id);
+				all_subcriptions[tp] = 42;
+				routing_info[p.address()][tp] = 42;
+				}
+
+			sub_mapping[tp][p] = 42;
+			},
+		[=](sub_atom, topic& t, actor& p, caf::actor_addr origin_id, int ttl)
+			{
+			BROKER_DEBUG("endpoint." + name,
+			             "Peer '" + get_peer_name(p) + "' subscribed to '"
+			             + t + "'");
+      std::cout << name <<  ", received sub from "  << get_peer_name(p) << " for " << t << std::endl;
+
+			// check if subscription is present already for originating node
+			sub_id tp = std::make_pair(t, origin_id);
+			if(!peer_subscriptions.contains(p.address(), t) 
+				&& all_subcriptions.find(tp) == all_subcriptions.end())
+				{
+				peer_subscriptions.register_topic(t, p);
+				publish_subscription_operation(t, p, sub_atom::value, origin_id);
+				all_subcriptions[tp] = ttl + 1;
+				routing_info[p.address()][tp] = ttl + 1;
 				}
 
 			sub_mapping[tp][p] = 42;
@@ -420,7 +437,7 @@ private:
 		{ return get_peer_name(p.address()); }
 
 	void add_peer(caf::actor p, std::string peer_name, topic_set ts,
-								bool incoming, topic_actor_set peer_sub_id_list)
+								bool incoming, topic_map peer_sub_ids)
 		{
 		BROKER_DEBUG("endpoint." + name, "Peered with: '" + peer_name
 								 + "', subscriptions: " + to_string(ts));
@@ -432,29 +449,31 @@ private:
 		monitor(p);
 
 		peers[p.address()] = {p, peer_name, incoming};
-		routing_info[p.address()] = peer_sub_id_list;
+		routing_info[p.address()] = peer_sub_ids;
 
-		/*std::cout << " sub_topic_actor: " << std::endl;
-		for(auto&t: sub_topic_actor)
+		/*std::cout << " all_subcriptions: " << std::endl;
+		for(auto&t: all_subcriptions)
 			std::cout  << "   - "  << t.first << ", " << caf::to_string(t.second) << std::endl;
 
-		std::cout << " peer_sub_id_list: " << std::endl;
-		for(auto&t: peer_sub_id_list)
+		std::cout << " peer_sub_ids: " << std::endl;
+		for(auto&t: peer_sub_ids)
 			std::cout  << "   - "  << t.first << ", " << caf::to_string(t.second) << std::endl;*/
 
-		// iterate over the topic knowledge of new peer
-		for(auto& tp: peer_sub_id_list)
+		// iterate over the topic knowledge of the new peer
+		for(auto& i: peer_sub_ids)
 			{
-				if(sub_topic_actor.find(tp) == sub_topic_actor.end())	
+				if(all_subcriptions.find(i.first) == all_subcriptions.end())	
 					{
-					sub_topic_actor.insert(tp);
-					peer_subscriptions.register_topic(tp.first, p);
-					std::cout << name << " adding topic " << tp.first << " via " << peer_name << std::endl;
+					std::cout << name << " adding topic " << i.first.first << " via " << peer_name << std::endl;
+					all_subcriptions[i.first] = i.second + 1;
+					peer_subscriptions.register_topic(i.first.first, p);
+
+					// publish subscription operation for all unknown sub_ids
+					publish_subscription_operation(i.first.first, p, sub_atom::value, i.first.second);
 					}
 
-				sub_mapping[tp][p] = 42;
+				sub_mapping[i.first][p] = i.second + 1;
 			}
-		//peer_subscriptions.insert(subscriber{p, ts});
 	 }
 
 	void attach(std::string topic_or_id, caf::actor a)
@@ -464,8 +483,8 @@ private:
 		demonitor(a);
 		monitor(a);
 
-		topic_actor_pair tp = std::make_pair(topic_or_id, this->address());
-		sub_topic_actor.insert(tp);
+		sub_id tp = std::make_pair(topic_or_id, this->address());
+		all_subcriptions[tp] = 0;
 
 		local_subscriptions.register_topic(topic_or_id, std::move(a));
 
@@ -515,23 +534,32 @@ private:
 			}
 		}
 
-	void publish_subscription_operation(topic t, caf::atom_value op, caf::actor_addr sub_id)
+	void publish_subscription_operation(topic t, caf::atom_value op, caf::actor_addr origin_id)
 		{
-		publish_subscription_operation(t, caf::actor(), op, sub_id);
+		publish_subscription_operation(t, caf::actor(), op, origin_id);
 		}
 
-	void publish_subscription_operation(topic t, const caf::actor& skip, caf::atom_value op, caf::actor_addr sub_id)
+	void publish_subscription_operation(topic t, const caf::actor& skip, caf::atom_value op, caf::actor_addr origin_id)
 		{
 		if ( peers.empty() )
 			return;
 
-    auto msg = caf::make_message(std::move(op), t, this, sub_id);
+		sub_id tp = make_pair(t, origin_id);
+
+		// Build the msg
+		caf::message msg;
+		if(op == sub_atom::value)
+	 		msg	= caf::make_message(std::move(op), t, this, origin_id, all_subcriptions[tp]);
+		else 
+	 		msg	= caf::make_message(std::move(op), t, this, origin_id);
+
+		// Send the msg out
 		for ( const auto& p : peers )
     	{
 			if(p.second.ep == skip)
 				continue;
      	std::cout << name  << ": " << caf::to_string(op) << " for topic (" 
-								<< t << "," << caf::to_string(sub_id) << ")" << ", forward to peer " 
+								<< t << "," << caf::to_string(origin_id) << ")" << ", forward to peer " 
 								<< p.second.name  << std::endl;
       send(p.second.ep, msg);
       }
@@ -583,9 +611,6 @@ private:
         }
     else
         {
-				if(peer_subscriptions.unique_prefix_matches(t).empty())
-					std::cout << name << " no routing information for forwarding topic " << t << std::endl;
-
         for ( const auto& a : peer_subscriptions.unique_prefix_matches(t) )
             {
 						if(current_sender() == a)
@@ -621,24 +646,31 @@ private:
 			return;
 
 		// update routing information for peer_subscriptions
-		for(auto& tp: routing_info[p.address()])
-			update_routing_information_topic(p, tp);
+		for(auto& i: routing_info[p.address()])
+			update_routing_information_topic(p, i.first);
 
 		routing_info.erase(p.address());
 		}
 
-	void update_routing_information_topic(const caf::actor& p, topic_actor_pair tp)
+	void update_routing_information_topic(const caf::actor& p, sub_id tp)
 		{
-		std::cout << "   - " << name << "  check entry for topic (" << tp.first << ", " << caf::to_string(tp.second) << ")" << std::endl;
-		if(tp.second != this->address() && sub_mapping.find(tp) != sub_mapping.end() && sub_mapping[tp].find(p) != sub_mapping[tp].end())
+		std::cout << " - " << name << "  check entry for topic (" 
+							<< tp.first << ", " << caf::to_string(tp.second) 
+							<< ")" << std::endl;
+
+		if(	tp.second != this->address() 
+				&& sub_mapping.find(tp) != sub_mapping.end() 
+				&& sub_mapping[tp].find(p) != sub_mapping[tp].end())
 			{
-			std::cout << name  << ": delete peer " <<  get_peer_name(p) << " from sub_mapping" << std::endl;
+			std::cout <<  " - " << name  << ": delete peer " <<  get_peer_name(p) << " from sub_mapping" << std::endl;
+
 			sub_mapping[tp].erase(p);
+
 			if(sub_mapping[tp].empty())
 				{
-				std::cout << "  - " <<  name  << ": delete entry (" << tp.first << ", " << caf::to_string(tp.second) << ")" << std::endl;
+				std::cout << " - " <<  name  << ": delete entry (" << tp.first << ", " << caf::to_string(tp.second) << ")" << std::endl;
 				sub_mapping.erase(tp);
-				sub_topic_actor.erase(tp);
+				all_subcriptions.erase(tp);
 				// There is no other peer left for this topic, thus unsubscribe!
 				publish_subscription_operation(tp.first, p, unsub_atom::value, tp.second);
 				}
@@ -650,8 +682,8 @@ private:
 					{
 					if(p.second < ttl)	
 						{
-						ttl = p.second;
 						a = p.first;
+						ttl = p.second;
 						}
 					}
 				assert(a.id() != 0);
@@ -661,7 +693,6 @@ private:
 				}
 			} 
 		}
-
 
 	struct peer_endpoint {
 		caf::actor ep;
@@ -681,8 +712,8 @@ private:
 	subscription_registry peer_subscriptions;
 	topic_set advertised_subscriptions;
 
-	topic_actor_set sub_topic_actor;
-	topic_actor_mapping sub_mapping;
+	topic_map all_subcriptions;
+	topic_actor_map sub_mapping;
 	routing_information routing_info;
 };
 

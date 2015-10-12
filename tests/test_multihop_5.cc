@@ -158,19 +158,14 @@ int main(int argc, char** argv)
 			returned.push_back(std::move(msg));
 			}
 
+	BROKER_TEST(returned.size() == 4);
+	BROKER_TEST(returned == pongs);
+
 	returned.clear();
 	pongs.clear();
 
 	// Unpeer from node3 to node1
 	node3.unpeer(n3n1);
-	std::cout << "unpeered!" << std::endl;
-
-	/*if ( node4.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::disconnected)
-		{
-		BROKER_TEST(false);
-		return 1;
-		}*/
 
 	// node0 sends ping messages
 	for ( int i = 0; i < 4; ++i )
@@ -191,13 +186,6 @@ int main(int argc, char** argv)
 			}
 		}
 
-	// node0 sends ping messages to node5
-	for ( int i = 0; i < 4; ++i )
-		{
-		pings.push_back(message{"ping", vector{i, "yo"}});
-		node0.send("e", pings[i], 0x02);
-		}
-
 	// node0 receives pongs 
 	while ( returned.size() != 4 )
 		for ( auto& msg : q0.need_pop() )
@@ -206,10 +194,15 @@ int main(int argc, char** argv)
 			returned.push_back(std::move(msg));
 			}
 
-
-	//std::cout << " returned " << returned.size() << ", pongs " << pongs.size() << std::endl;
 	BROKER_TEST(returned.size() == 4);
 	BROKER_TEST(returned == pongs);
+
+	// node0 sends ping messages to node5
+	for ( int i = 0; i < 4; ++i )
+		{
+		pings.push_back(message{"ping", vector{i, "yo"}});
+		node0.send("e", pings[i], 0x02);
+		}
 
 	for ( int i = 0; i < (int)returned.size(); ++i )
 		{
