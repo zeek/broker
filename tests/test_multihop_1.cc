@@ -24,6 +24,9 @@ int main(int argc, char** argv)
 	 * n2 [c]
 	 */
 
+	// init debugging/reporting 
+	broker::report::init();
+
 	// Node 0
 	endpoint node0("node0");
 	message_queue q0("a", node0);
