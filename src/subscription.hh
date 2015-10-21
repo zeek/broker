@@ -27,6 +27,8 @@ using topic_map = std::map<sub_id, int>;
 using topic_actor_map = std::map<sub_id, std::map<caf::actor, int>>;
 // Stores topic_map per neighbor:			via 				set_of(topic, origin)
 using routing_information = std::map<caf::actor_addr, topic_map>;
+// 
+using forwarding_path = std::map<sub_id, caf::actor_addr>;
 
 
 /**
