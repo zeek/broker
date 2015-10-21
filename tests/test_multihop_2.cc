@@ -94,7 +94,6 @@ int main(int argc, char** argv)
 		{
 		for ( auto& msg : q0.need_pop() )
 			{
-			std::cout << "node0: ping received, msg size " << msg.size() << std::endl;
 			msg[0] = "pong";
 			node0.send("d", msg, 0x02);
 			pongs.push_back(std::move(msg));
@@ -107,7 +106,6 @@ int main(int argc, char** argv)
 	while ( returned.size() != 4 )
 		for ( auto& msg : q4.need_pop() )
 			{
-			std::cout << "node4: pong received" << std::endl;
 			returned.push_back(std::move(msg));
 			}
 

@@ -124,7 +124,6 @@ int main(int argc, char** argv)
 		{
 		for ( auto& msg : q3.need_pop() )
 			{
-			std::cout << "node3: ping-1 received, msg size " << msg.size() << std::endl;
 			msg[0] = "pong";
 			node3.send("a", msg, 0x02);
 			pongs.push_back(std::move(msg));
@@ -137,14 +136,12 @@ int main(int argc, char** argv)
 	while ( returned.size() != 4 )
 		for ( auto& msg : q0.need_pop() )
 			{
-			std::cout << "node0: pong-1 received" << std::endl;
 			returned.push_back(std::move(msg));
 			}
 
 	returned.clear();
 	pings.clear();
 	pongs.clear();
-
 
 	// Sending n0 - n5 - n0
 	// node0 sends pings again to node5
@@ -159,20 +156,10 @@ int main(int argc, char** argv)
 		{
 		for ( auto& msg : q5.need_pop() )
 			{
-			std::cout << "node3: ping-2 received, msg size " << msg.size() << std::endl;
-			msg[0] = "pong-2";
-			node5.send("a", msg, 0x02);
-			pongs.push_back(std::move(msg));
-			}
-		}
-
-	// node0 receives pongs 
-	while ( returned.size() != 4 )
-		for ( auto& msg : q0.need_pop() )
-			{
-			std::cout << "node0: pong-2 received" << std::endl;
+			pongs.push_back(msg);
 			returned.push_back(std::move(msg));
 			}
+		}
 
 	BROKER_TEST(returned.size() == 4);
 	BROKER_TEST(returned == pongs);
@@ -201,7 +188,6 @@ int main(int argc, char** argv)
 				msg[0] = "pong-3";
 				node1.send("a", msg, 0x02);
 				pongs.push_back(std::move(msg));
-				std::cout << " size " << pongs.size() << std::endl;
 				}
 			}
 		}
@@ -212,7 +198,6 @@ int main(int argc, char** argv)
 	while ( returned.size() != 4 )
 		for ( auto& msg : q0.need_pop() )
 			{
-			std::cout << "node0: pong-3 received" << std::endl;
 			returned.push_back(std::move(msg));
 			}
 
@@ -235,7 +220,6 @@ int main(int argc, char** argv)
 		{
 		for ( auto& msg : q5.need_pop() )
 			{
-			std::cout << "node5: final-ping received, msg size " << msg.size() << std::endl;
 			msg[0] = "final-pong";
 			node5.send("a", msg, 0x02);
 			pongs.push_back(std::move(msg));
@@ -246,7 +230,6 @@ int main(int argc, char** argv)
 	while ( returned.size() != 4 )
 		for ( auto& msg : q0.need_pop() )
 			{
-			std::cout << "node0: final-pong received" << std::endl;
 			returned.push_back(std::move(msg));
 			}
 
