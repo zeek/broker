@@ -543,12 +543,18 @@ private:
 									bool from_peer)
 		{
 		if ( ! from_peer && ! (flags & SELF) )
+			{	
+			BROKER_DEBUG(name, "publish_locally, return (! from_peer && ! (flags & SELF)) ");
 			return;
+			}
 
 		auto matches = local_subscriptions.prefix_matches(t);
 
 		if ( matches.empty() )
+			{
+			BROKER_DEBUG(name, "publish_locally, return (matches.empty()) ");
 			return;
+			}
 
 		auto caf_msg = caf::make_message(std::move(msg));
 
