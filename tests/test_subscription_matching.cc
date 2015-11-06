@@ -59,7 +59,7 @@ static void test_prefix_matching()
 	               }));
 	BROKER_TEST(
 	check_contents_ordered(pq_topic_b0, {
-	               message{"bbb", "bye"},
+	               broker::vector{{message{"bbb", "bye"}}},
 	               }));
 	BROKER_TEST(
 	check_contents_ordered(pq_topic_0, {
