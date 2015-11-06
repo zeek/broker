@@ -95,6 +95,7 @@ public:
 				return;
 				}
 
+			BROKER_DEBUG(name, " protocol version is " + BROKER_PROTOCOL_VERSION)
 			sync_send(p, BROKER_PROTOCOL_VERSION).then(
 				[=](const sync_exited_msg& m)
 					{
@@ -109,7 +110,6 @@ public:
 						topic_set subscr = get_all_subscriptions();
 						BROKER_DEBUG(name, " initiate peering with " + get_peer_name(p));
 
-						//sync_send(p, peer_atom::value, this, name, advertised_subscriptions).then(
 						sync_send(p, peer_atom::value, this, name, subscr, all_subscriptions).then(
 							[=](const sync_exited_msg& m)
 								{

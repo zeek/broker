@@ -27,8 +27,9 @@ int main(int argc, char** argv)
 	 */
 
 	// init debugging/reporting 
-	broker::report::init();
+	//broker::report::init();
 
+	std::cout << "we are here"<< std::endl;
 	// Node 0
 	endpoint node0("node0");
 	node0.listen(9990, "127.0.0.1");
@@ -100,6 +101,10 @@ int main(int argc, char** argv)
 			counter++;
 			}
 		}
+
+	node0.unlisten(0);
+	node1.unlisten(0);
+	node2.unlisten(0);
 
 	BROKER_TEST(counter == 3);
 

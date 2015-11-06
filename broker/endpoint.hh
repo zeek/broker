@@ -130,6 +130,12 @@ public:
 	            bool reuse_addr = true);
 
 	/**
+	 * Disconnec the local broker endpoint from this port
+	 * if port is 0 the broker endpoint will disconnect all ports
+	 * @param port the TCP port to disconnect.
+	 */
+	bool unlisten(uint16_t port);
+	/**
 	 * Connect to a remote endpoint.
 	 * @param addr an address to connect to, e.g. "localhost" or "127.0.0.1".
 	 * @param port the TCP port on which the remote is listening.

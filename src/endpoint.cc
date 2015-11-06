@@ -1,6 +1,7 @@
 #include "broker/broker.hh"
 #include "endpoint_impl.hh"
 #include <caf/io/publish.hpp>
+#include <caf/io/unpublish.hpp>
 #include <caf/send.hpp>
 
 static inline caf::actor& handle_to_actor(void* h)
@@ -48,6 +49,22 @@ bool broker::endpoint::listen(uint16_t port, const char* addr, bool reuse_addr)
 	try
 		{
 		caf::io::publish(pimpl->actor, port, addr, reuse_addr);
+		}
+	catch ( const std::exception& e )
+		{
+		pimpl->last_errno = 0;
+		pimpl->last_error = e.what();
+		return false;
+		}
+
+	return true;
+	}
+
+bool broker::endpoint::unlisten(uint16_t port)
+	{
+	try
+		{
+		caf::io::unpublish(pimpl->actor, port);
 		}
 	catch ( const std::exception& e )
 		{
