@@ -86,7 +86,9 @@ int broker_init(int flags)
 	                             &broker::enum_value::name);
 	announce<broker::record>("broker::record", &broker::record::fields);
 	announce<std::unordered_set<broker::data>>(
-	            "std::unordered_set<broker::data>");
+	            "std::unordered_set<broker::data>"); 
+	announce<std::map<std::pair<broker::topic, caf::actor_addr>, int>>(
+				"std::map<std::pair<topic, caf::actor_addr>");
 	announce<broker::set>("broker::set");
 	announce<broker::table>("broker::table");
 	announce<broker::vector>("broker::vector");

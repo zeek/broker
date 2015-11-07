@@ -95,16 +95,20 @@ public:
 				return;
 				}
 
-			BROKER_DEBUG(name, " protocol version is " + BROKER_PROTOCOL_VERSION)
+			BROKER_DEBUG(name, " protocol version is " + to_string(BROKER_PROTOCOL_VERSION));
 			sync_send(p, BROKER_PROTOCOL_VERSION).then(
 				[=](const sync_exited_msg& m)
 					{
+					BROKER_DEBUG(name, "received sync exit (1)");
 					ocs_update(ocs_queue, move(pi), ocs_disconnect);
 					},
 				[=](bool compat, int their_version)
 					{
 					if ( ! compat )
+						{
+						BROKER_DEBUG(name, " broker version not compatible with peer");
 						ocs_update(ocs_queue, move(pi), ocs_incompat);
+						}
 					else
 						{
 						topic_set subscr = get_all_subscriptions();
@@ -113,11 +117,13 @@ public:
 						sync_send(p, peer_atom::value, this, name, subscr, all_subscriptions).then(
 							[=](const sync_exited_msg& m)
 								{
+								BROKER_DEBUG(name, "received sync exit (2)");
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
 							[=](string& pname, topic_set& ts, topic_map& sub_id_map)
 								{
-                add_peer(move(p), pname, move(ts), false, sub_id_map);
+								BROKER_DEBUG(name, "response received, adding peer");
+								add_peer(move(p), pname, move(ts), false, sub_id_map);
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
 								}
@@ -130,7 +136,7 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_map &sub_id_map)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_map& sub_id_map)
 			{
 			BROKER_DEBUG(name, " received peer_atom: " + to_string(ts) +  ", current_sender " 
 									 + get_peer_name(current_sender()) + ", " + caf::to_string(current_message()));
@@ -172,8 +178,7 @@ public:
 
 			if ( itp != peers.end() )
 				{
-				BROKER_DEBUG(name,
-										 "Peer down: '" + itp->second.name + "'");
+				BROKER_DEBUG(name, "Peer down: '" + itp->second.name + "'");
 
 				if ( itp->second.incoming )
 					ics_update(ics_queue, itp->second.name,
