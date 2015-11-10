@@ -42,7 +42,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <deque>
 #include <memory>
 #include <initializer_list>
+
+#ifdef BROKER_USE_SSE2
 #include <emmintrin.h>
+#endif
 
 namespace broker {
 namespace util {
@@ -665,6 +668,7 @@ radix_tree<T, N>::find_child(node* n, unsigned char c)
 	case node::tag::node16:
 		{
 		auto p = reinterpret_cast<node16*>(n);
+#ifdef BROKER_USE_SSE2
 		// Compare the key to all 16 stored keys
 		__m128i cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
 		                             _mm_loadu_si128((__m128i*)p->keys.data()));
@@ -678,6 +682,10 @@ radix_tree<T, N>::find_child(node* n, unsigned char c)
 			auto i = __builtin_ctz(bitfield);
 			return {&p->children[i], i};
 			}
+#else
+		for ( int i = 0; i < n->num_children; ++i )
+			if ( p->keys[i] == c ) return {&p->children[i], i};
+#endif
 		}
 		break;
 	case node::tag::node48:
@@ -1112,6 +1120,7 @@ void radix_tree<T, N>::node16::add_child(node** ref, unsigned char c,
 	{
 	if( n.num_children < 16 )
 		{
+#ifdef BROKER_USE_SSE2
 		// Compare the key to all 16 stored keys
 		__m128i cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
 		                             _mm_loadu_si128((__m128i*)keys.data()));
@@ -1134,6 +1143,18 @@ void radix_tree<T, N>::node16::add_child(node** ref, unsigned char c,
 			                   children.begin() + n.num_children,
 			                   children.begin() + n.num_children + 1);
 			}
+#else
+		int idx;
+		for ( idx = 0; idx < n.num_children; ++idx )
+			if ( c < keys[idx] ) break;
+
+		// Shift right.
+		std::copy_backward(keys.begin() + idx, keys.begin() + n.num_children,
+		                   keys.begin() + n.num_children + 1);
+		std::copy_backward(children.begin() + idx,
+		                   children.begin() + n.num_children,
+		                   children.begin() + n.num_children + 1);
+#endif
 
 		keys[idx] = c;
 		children[idx] = child;

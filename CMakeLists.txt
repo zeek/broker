@@ -118,6 +118,15 @@ set(BROKER_SRC
 include(TestBigEndian)
 test_big_endian(BROKER_BIG_ENDIAN)
 
+include(CheckIncludeFiles)
+set(CMAKE_REQUIRED_FLAGS -msse2)
+check_include_files(emmintrin.h HAVE_SSE2)
+set(CMAKE_REQUIRED_FLAGS)
+
+if ( HAVE_SSE2 )
+    add_definitions(-DBROKER_USE_SSE2 -msse2)
+endif ()
+
 if ( BROKER_BIG_ENDIAN )
     set_source_files_properties(src/util/persist.c PROPERTIES COMPILE_FLAGS
                                 -DBROKER_BIG_ENDIAN)
