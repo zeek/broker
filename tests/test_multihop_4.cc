@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 	init();
 
 	// init debugging/reporting 
-	broker::report::init();
+	//broker::report::init();
 
 	/* Overlay configuration
 	 *       n0 [a]
