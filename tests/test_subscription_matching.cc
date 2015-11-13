@@ -16,9 +16,9 @@ using namespace std;
 using namespace broker;
 
 static bool check_contents_ordered(const message_queue& pq,
-                                   broker::vector expected)
+                                   std::vector<message> expected)
 	{
-	broker::vector actual;
+	std::vector<message> actual;
 
 	while ( actual.size() < expected.size() )
 		for ( auto& msg : pq.need_pop() )
@@ -64,10 +64,11 @@ static void test_prefix_matching()
 	               message{"/", "goodbye"},
 	               message{"aaa", "hi"},
 	               }));
+	message msg = {"bbb", "bye"};
+	std::vector<message> expect;
+	expect.emplace_back(msg);
 	BROKER_TEST(
-	check_contents_ordered(pq_topic_b0, {
-	               message{"bbb", "bye"},
-	               }));
+	check_contents_ordered(pq_topic_b0, expect));
 	BROKER_TEST(
 	check_contents_ordered(pq_topic_0, {
 	               message{"/", "hello"},

@@ -1,4 +1,16 @@
 
+0.4-14 | 2015-11-11 09:19:15 -0600
+
+  * Another fix for a unit test's vector-in-vector confusion.
+    (Jon Siwek)
+
+0.4-13 | 2015-11-10 13:20:01 -0800
+
+  * Add checks for SSE2 intrinsic availability. (Jon Siwek)
+
+  * Fix unit test ambiguity: vector copy/move ctor vs list
+    initialization. (Jon Siwek)
+
 0.4-9 | 2015-09-29 09:45:08 -0700
 
   * Add configure option to not build python bindings. (Daniel Thayer)
