@@ -138,8 +138,9 @@ public:
 			},
 		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_map& sub_id_map)
 			{
-			BROKER_DEBUG(name, " received peer_atom: " + to_string(ts) +  ", current_sender " 
-									 + get_peer_name(current_sender()) + ", " + caf::to_string(current_message()));
+			BROKER_DEBUG(name, " received peer_atom: " + to_string(ts) +  ", current_sender "
+									 + caf::to_string(p) + " - " + pname + ", "
+									 + caf::to_string(current_message()));
 
 			ics_update(ics_queue, pname,
 			           incoming_connection_status::tag::established);
@@ -161,7 +162,8 @@ public:
 			    return;
 
 			BROKER_DEBUG(name,
-			             "Unpeered with: '" + itp->second.name + "'" + caf::to_string(itp->second.ep.address()));
+			             "Unpeered with: '" + itp->second.name + "'"
+									 + caf::to_string(itp->second.ep.address()));
 
 			if ( itp->second.incoming )
 				ics_update(ics_queue, itp->second.name,
@@ -175,6 +177,7 @@ public:
 			demonitor(d.source);
 
 			auto itp = peers.find(d.source);
+		  BROKER_DEBUG(name, " (4) own subscriptions are " + to_string(local_subscriptions.topics()) + " d.source " + get_peer_name(d.source));
 
 			if ( itp != peers.end() )
 				{
@@ -192,6 +195,7 @@ public:
 				}
 
 			auto s = local_subscriptions.erase(d.source);
+		  BROKER_DEBUG(name, " (5) own subscriptions are " + to_string(local_subscriptions.topics()));
 
 			if ( ! s )
 				return;
@@ -211,7 +215,7 @@ public:
 									 + t + "' via " + get_peer_name(p) + + ", " + caf::to_string(origin_id) + ")");
 
 			sub_id si = make_pair(t, origin_id);
-			if(peers.find(p.address()) != peers.end() 
+			if(peers.find(p.address()) != peers.end()
 				 && all_subscriptions.find(si) != all_subscriptions.end())
 				{
 				unregister_subscription(si, p, true);
@@ -223,8 +227,8 @@ public:
 			{
 			BROKER_DEBUG(name,
 									 "Peer '" + get_peer_name(p) + "' subscribed to '"
-									 + t + "' via " + get_peer_name(p) + " with ttl " + to_string(ttl+1));
-			
+									 + t + " with ttl " + to_string(ttl+1));
+
 			assert(origin_id != this->address());
 			sub_id si = std::make_pair(t, origin_id);
 			register_subscription(si, p, ttl + 1, false);
@@ -261,7 +265,7 @@ public:
 				}
 
 			// we are the initial sender
-			if(!current_sender()) 
+			if(!current_sender())
 				{
 				BROKER_DEBUG(name,
 				             "Publish local message with topic '" + t
@@ -417,7 +421,7 @@ private:
 
 		peers[p.address()] = {p, peer_name, incoming};
 
-		// store all routing information of the connecting peer 
+		// store all routing information of the connecting peer
 		routing_info[p.address()] = peer_sub_ids;
 
 		// iterate over the topic knowledge of the new peer
@@ -425,7 +429,7 @@ private:
 			{
 			if(i.first.second == this->address())
 				continue;
-			// increment ttl counter for this peer 
+			// increment ttl counter for this peer
 			i.second++;
 			register_subscription(i.first, p, i.second, false);
 			}
@@ -465,7 +469,7 @@ private:
 		if ( (behavior_flags & AUTO_ADVERTISE) ||
 					advert_acls.find(topic_or_id) != advert_acls.end() )
 			advertise_subscription(std::move(topic_or_id));
-	 } 
+	 }
 
 	caf::actor find_master(const store::identifier& id)
 		{
@@ -527,8 +531,8 @@ private:
 		 assert(all_subscriptions.find(si) != all_subscriptions.end());
 		 msg	= caf::make_message(std::move(op), t, this, origin_id, all_subscriptions[si]);
 		}
-	 else 
-	  msg	= caf::make_message(std::move(op), t, this, origin_id);
+	 else
+	 	msg	= caf::make_message(std::move(op), t, this, origin_id);
 
 	 // Send the msg out
 	 for ( const auto& p : peers )
@@ -537,8 +541,8 @@ private:
 	  	continue;
 		if(sub_mapping[si].find(p.second.ep) != sub_mapping[si].end())
 	  	continue;
-		BROKER_DEBUG(name, caf::to_string(op) + " for topic (" + t + "," 
-								+ caf::to_string(origin_id) + ")" + ", forward to peer " 
+		BROKER_DEBUG(name, caf::to_string(op) + " for topic (" + t + ","
+								+ caf::to_string(origin_id) + ")" + ", forward to peer "
 								+ p.second.name);
 		send(p.second.ep, msg);
 		}
@@ -548,7 +552,7 @@ private:
 									bool from_peer)
 		{
 		if ( ! from_peer && ! (flags & SELF) )
-			{	
+			{
 			BROKER_DEBUG(name, "publish_locally, return (! from_peer && ! (flags & SELF)) ");
 			return;
 			}
@@ -558,6 +562,7 @@ private:
 		if ( matches.empty() )
 			{
 			BROKER_DEBUG(name, "publish_locally, return (matches.empty()) ");
+			BROKER_DEBUG(name, " - " + to_string(local_subscriptions.topics()));
 			return;
 			}
 
@@ -571,18 +576,28 @@ private:
 	void publish_current_msg_to_peers(const topic& t, int flags)
 		{
 		if ( ! (flags & PEERS) )
+			{
+			BROKER_DEBUG(name, "   - return: ! (flags & PEERS)");
 			return;
+			}
 
+		// FIXME evil things are happening here...
 		if ( ! (behavior_flags & AUTO_PUBLISH) &&
-						pub_acls.find(t) == pub_acls.end() ) 
+						pub_acls.find(t) == pub_acls.end() )
+			{
+			BROKER_DEBUG(name, "   - return: ! (behavior_flags & AUTO_PUBLISH) && pub_acls.find(t) == pub_acls.end():"
+										+ to_string(behavior_flags) + ", " + to_string(AUTO_PUBLISH) + ", "
+										+ to_string(behavior_flags & AUTO_PUBLISH)
+									  + ", " + to_string((pub_acls.find(t) == pub_acls.end())) + " for topic " + t);
 			// Not allowed to publish this topic to peers.
 			return;
+			}
 
 		// send instead of forward_to so peer can use
 		// current_sender() to check if msg comes from a peer.
 		if ( (flags & UNSOLICITED) )
 			{
-			for ( const auto& p : peers ) 
+			for ( const auto& p : peers )
 				{
 				if(current_sender() == p.first)
 					continue;
@@ -602,7 +617,7 @@ private:
 			}
 		}
 
-	//FIXME currently not the most efficient way 
+	//FIXME currently not the most efficient way
 	topic_set get_all_subscriptions()
 	 {
 		topic_set subscr = advertised_subscriptions;
@@ -613,7 +628,7 @@ private:
 				subscr.insert(t);
 			}
 		return subscr;
-	 } 
+	 }
 
 	void register_subscription(const sub_id& si, caf::actor a, int ttl, bool overwrite=false)
 		{
@@ -622,7 +637,8 @@ private:
 		if(all_subscriptions.find(si) == all_subscriptions.end() || overwrite)
 			{
 			BROKER_DEBUG(name, " add subscription for new topic (" +  si.first
-										+ ", " + caf::to_string(si.second) + ") via " + get_peer_name(a));
+										+ ", " + caf::to_string(si.second) + ") via "
+										+ get_peer_name(a) + ", ttl " + to_string(ttl));
 
 			all_subscriptions[si] = ttl;
 			forw_path[si] = a.address();
@@ -648,12 +664,12 @@ private:
 		{
 		auto it = peers.find(addr);
 		assert(it != peers.end());
-		
+
 		if(si.second == this->address()
 			|| sub_mapping[si].find(it->second.ep) == sub_mapping[si].end())
 			return true;
 
-		BROKER_DEBUG(name, " unsub HERE for topic (" + si.first + ", "
+		BROKER_DEBUG(name, " unsub for topic (" + si.first + ", "
 									+ caf::to_string(si.second) + ") via " + to_string(addr));
 
 		// sanity checks
@@ -667,7 +683,7 @@ private:
 				forw_path.erase(si);
 
 			BROKER_DEBUG(name, " removed entry for topic " + si.first + " via peer "
-										+ caf::to_string(it->first) + "; sub_mapping.size " 
+										+ caf::to_string(it->first) + "; sub_mapping.size "
 										+ to_string(sub_mapping[si].size()));
 
 			if(si.second != this->address())
@@ -730,12 +746,12 @@ private:
 
 	void update_routing_information(sub_id si)
 		{
-		BROKER_DEBUG(name, "  update routing information for sub_id (" 
+		BROKER_DEBUG(name, "  update routing information for sub_id ("
 									+ si.first + ", " + caf::to_string(si.second) + ")");
 
 		if(si.second == this->address())
 			return;
-		
+
 		if(sub_mapping.find(si) != sub_mapping.end())
 			{
 			assert(!sub_mapping[si].empty());
@@ -745,7 +761,7 @@ private:
 			// and choose the closest one
 			for(auto& i: sub_mapping[si])
 				{
-				if(i.second < ttl)	
+				if(i.second < ttl)
 					{
 					a = i.first;
 					ttl = i.second;
@@ -755,18 +771,20 @@ private:
 
 			if(forw_path.find(si) == forw_path.end())
 				{
-				BROKER_DEBUG(name, "    - switches forwarding path to " + get_peer_name(a) + " for topic (" + si.first + ")");
+				BROKER_DEBUG(name, "    - switches forwarding path to " + get_peer_name(a)
+											+ " for topic (" + si.first + ")");
 				register_subscription(si, a, sub_mapping[si][a], true);
 				}
 			else if(forw_path[si] != a)
 				{
-				BROKER_DEBUG(name, "    - switches forwarding path via " + get_peer_name(forw_path[si]) + " with peer " + get_peer_name(a) + " for topic (" + si.first + ")");
+				BROKER_DEBUG(name, "    - switches forwarding path via " + get_peer_name(forw_path[si])
+											+ " with peer " + get_peer_name(a) + " for topic (" + si.first + ")");
 				unregister_subscription(si, forw_path[si], false);
 				register_subscription(si, a, sub_mapping[si][a], true);
 				}
 			else
 				BROKER_DEBUG(name, "    - keeps " + get_peer_name(forw_path[si]) + " for topic (" + si.first + ")");
-			} 
+			}
 		}
 
 	struct peer_endpoint {
