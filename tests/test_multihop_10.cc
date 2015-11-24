@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 		}
 
 	for ( auto& msg : q2a.need_pop() )
-        {
+ {
 		std::cout << "node2 received msg " << msg[0] << std::endl;
 		}
 
@@ -97,7 +97,7 @@ int main(int argc, char** argv)
 	int counter = 0;
     while(counter < 2)
 		{
-        for ( auto& msg : q0a.need_pop() )
+      for ( auto& msg : q0a.need_pop() )
 			{
 			std::cout << "node0 received msg " << msg[0] << std::endl;
 			counter++;

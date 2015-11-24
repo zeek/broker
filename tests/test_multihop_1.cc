@@ -25,7 +25,7 @@ int main(int argc, char** argv)
 	 */
 
 	// init debugging/reporting 
-	//broker::report::init();
+	broker::report::init();
 
 	// Node 0
 	endpoint node0("node0");

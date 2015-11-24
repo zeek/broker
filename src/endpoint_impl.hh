@@ -111,19 +111,19 @@ public:
 						}
 					else
 						{
-						topic_set subscr = get_all_subscriptions();
 						BROKER_DEBUG(name, " initiate peering with " + get_peer_name(p));
 
-						sync_send(p, peer_atom::value, this, name, subscr, all_subscriptions).then(
+						sync_send(p, peer_atom::value, this, name, all_subscriptions).then(
 							[=](const sync_exited_msg& m)
 								{
 								BROKER_DEBUG(name, "received sync exit (2)");
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
-							[=](string& pname, topic_set& ts, topic_map& sub_id_map)
+							[=](string& pname, topic_map& sub_id_map)
 								{
-								BROKER_DEBUG(name, "response received, adding peer");
-								add_peer(move(p), pname, move(ts), false, sub_id_map);
+								BROKER_DEBUG(name, "received peer_atom response by sender " 
+															+ caf::to_string(p) + " - " + pname);
+								add_peer(move(p), pname, false, move(sub_id_map));
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
 								}
@@ -136,23 +136,22 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts, topic_map& sub_id_map)
+		[=](peer_atom, actor& p, string& pname, topic_map& sub_id_map)
 			{
-			BROKER_DEBUG(name, " received peer_atom: " + to_string(ts) +  ", current_sender "
-									 + caf::to_string(p) + " - " + pname + ", "
-									 + caf::to_string(current_message()));
+			BROKER_DEBUG(name, " received peer_atom from sender "
+									 + caf::to_string(p) + " - " + pname);
 
 			ics_update(ics_queue, pname,
 			           incoming_connection_status::tag::established);
 
-			// Propagate the own subscriptions + the ones of all other neighbors
-			topic_set subscr = get_all_subscriptions();
-			topic_map tm = all_subscriptions;
+			// Create a map containing all our subscriptions 
+			// before we add the ones from the new neighbor!
+			topic_map tm = get_loop_free_map(all_subscriptions, sub_id_map);
 
-			add_peer(move(p), move(pname), move(ts), true, sub_id_map);
+			add_peer(move(p), move(pname), true, move(sub_id_map));
 
 			// send back the message
-			return make_message(name, subscr, tm);
+			return make_message(name, tm);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -410,12 +409,14 @@ private:
 	std::string get_peer_name(const caf::actor& p) const
 	{ return get_peer_name(p.address()); }
 
-	void add_peer(caf::actor p, std::string peer_name, topic_set ts,
+	void add_peer(caf::actor p, std::string peer_name,
 									bool incoming, topic_map peer_sub_ids)
 		{
 		BROKER_DEBUG(name, " Peered with: '" + peer_name
-										+ "', subscriptions: " + to_string(ts));
+									+ "', subscriptions: \n" + get_string_map(peer_sub_ids));
 
+		BROKER_DEBUG(name, " own subscriptions stored so far:\n"
+											+ get_string_map(all_subscriptions));
 		demonitor(p);
 		monitor(p);
 
@@ -424,8 +425,10 @@ private:
 		// store all routing information of the connecting peer
 		routing_info[p.address()] = peer_sub_ids;
 
+		topic_map tm = get_loop_free_map(peer_sub_ids, all_subscriptions);
 		// iterate over the topic knowledge of the new peer
-		for(auto& i: peer_sub_ids)
+		//for(auto& i: peer_sub_ids)
+		for(auto& i: tm)
 			{
 			if(i.first.second == this->address())
 				continue;
@@ -581,13 +584,17 @@ private:
 			return;
 			}
 
+		BROKER_DEBUG(name, " publish_current_msg_to_peers "
+										+ to_string(behavior_flags) + ", " + to_string(AUTO_PUBLISH) + ", "
+										+ to_string((behavior_flags & AUTO_PUBLISH))
+									  + ", " + to_string((pub_acls.find(t) == pub_acls.end())) + " for topic " + t);
 		// FIXME evil things are happening here...
 		if ( ! (behavior_flags & AUTO_PUBLISH) &&
 						pub_acls.find(t) == pub_acls.end() )
 			{
 			BROKER_DEBUG(name, "   - return: ! (behavior_flags & AUTO_PUBLISH) && pub_acls.find(t) == pub_acls.end():"
 										+ to_string(behavior_flags) + ", " + to_string(AUTO_PUBLISH) + ", "
-										+ to_string(behavior_flags & AUTO_PUBLISH)
+										+ to_string((behavior_flags & AUTO_PUBLISH))
 									  + ", " + to_string((pub_acls.find(t) == pub_acls.end())) + " for topic " + t);
 			// Not allowed to publish this topic to peers.
 			return;
@@ -616,19 +623,6 @@ private:
 				}
 			}
 		}
-
-	//FIXME currently not the most efficient way
-	topic_set get_all_subscriptions()
-	 {
-		topic_set subscr = advertised_subscriptions;
-		for(auto& peer: peers)
-			{
-			topic_set ts2 = peer_subscriptions.topics_of_actor(peer.second.ep.address());
-			for(auto& t: ts2)
-				subscr.insert(t);
-			}
-		return subscr;
-	 }
 
 	void register_subscription(const sub_id& si, caf::actor a, int ttl, bool overwrite=false)
 		{
@@ -785,6 +779,27 @@ private:
 			else
 				BROKER_DEBUG(name, "    - keeps " + get_peer_name(forw_path[si]) + " for topic (" + si.first + ")");
 			}
+		}
+
+	std::string get_string_map(topic_map& peer_sub_ids)
+		{	
+		std::string s = ""; 
+		for (auto& p: peer_sub_ids)
+			{
+			s += "    - (" + p.first.first + ", " 
+						+ caf::to_string(p.first.second) 
+						+  ")" + " = " + get_peer_name(p.first.second)  
+						+ " in " + to_string(p.second) + " hops\n";
+			}
+		return s;	
+		}
+
+	topic_map get_loop_free_map(topic_map m1, topic_map m2)
+		{
+		for (auto& t: m2)	
+			if(m1.find(t.first) != m1.end())
+				m1.erase(t.first);
+		return m1;
 		}
 
 	struct peer_endpoint {
