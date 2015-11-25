@@ -146,12 +146,12 @@ public:
 
 			// Create a map containing all our subscriptions 
 			// before we add the ones from the new neighbor!
-			topic_map tm = get_loop_free_map(all_subscriptions, sub_id_map);
+			//topic_map tm = get_loop_free_map(all_subscriptions, sub_id_map);
 
 			add_peer(move(p), move(pname), true, move(sub_id_map));
 
 			// send back the message
-			return make_message(name, tm);
+			return make_message(name, all_subscriptions);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -230,6 +230,7 @@ public:
 
 			assert(origin_id != this->address());
 			sub_id si = std::make_pair(t, origin_id);
+			
 			register_subscription(si, p, ttl + 1, false);
 			routing_info[p.address()][si] = ttl + 1;
 			},
@@ -415,8 +416,6 @@ private:
 		BROKER_DEBUG(name, " Peered with: '" + peer_name
 									+ "', subscriptions: \n" + get_string_map(peer_sub_ids));
 
-		BROKER_DEBUG(name, " own subscriptions stored so far:\n"
-											+ get_string_map(all_subscriptions));
 		demonitor(p);
 		monitor(p);
 
@@ -425,9 +424,12 @@ private:
 		// store all routing information of the connecting peer
 		routing_info[p.address()] = peer_sub_ids;
 
+		BROKER_DEBUG(name, " own subscriptions stored so far:\n"
+											+ get_string_map(all_subscriptions));
+
+		// create a loop free version of the peer_sub_ids  map provided by the peer
 		topic_map tm = get_loop_free_map(peer_sub_ids, all_subscriptions);
 		// iterate over the topic knowledge of the new peer
-		//for(auto& i: peer_sub_ids)
 		for(auto& i: tm)
 			{
 			if(i.first.second == this->address())
@@ -584,11 +586,6 @@ private:
 			return;
 			}
 
-		BROKER_DEBUG(name, " publish_current_msg_to_peers "
-										+ to_string(behavior_flags) + ", " + to_string(AUTO_PUBLISH) + ", "
-										+ to_string((behavior_flags & AUTO_PUBLISH))
-									  + ", " + to_string((pub_acls.find(t) == pub_acls.end())) + " for topic " + t);
-		// FIXME evil things are happening here...
 		if ( ! (behavior_flags & AUTO_PUBLISH) &&
 						pub_acls.find(t) == pub_acls.end() )
 			{
@@ -640,12 +637,11 @@ private:
 			if(!overwrite)
 				publish_subscription_operation(si.first, a, sub_atom::value, si.second);
 			}
-		else
+		else // we do nothing as we already know this topic and have a path to it 
 			{
 			BROKER_DEBUG(name, " add subscription for topic (" +  si.first
 							+ ", " + caf::to_string(si.second) + ") via "
 							+ get_peer_name(a));
-			update_routing_information(si);
 			}
 		}
 
@@ -769,13 +765,13 @@ private:
 											+ " for topic (" + si.first + ")");
 				register_subscription(si, a, sub_mapping[si][a], true);
 				}
-			else if(forw_path[si] != a)
+			/*else if(forw_path[si] != a)
 				{
 				BROKER_DEBUG(name, "    - switches forwarding path via " + get_peer_name(forw_path[si])
 											+ " with peer " + get_peer_name(a) + " for topic (" + si.first + ")");
 				unregister_subscription(si, forw_path[si], false);
 				register_subscription(si, a, sub_mapping[si][a], true);
-				}
+				}*/
 			else
 				BROKER_DEBUG(name, "    - keeps " + get_peer_name(forw_path[si]) + " for topic (" + si.first + ")");
 			}
@@ -794,9 +790,14 @@ private:
 		return s;	
 		}
 
-	topic_map get_loop_free_map(topic_map m1, topic_map m2)
+	/**
+	 * Takes the intersection of two maps 
+	 * and subtracts it from the first one 
+	 * and returns the result
+	 */
+	topic_map get_loop_free_map(topic_map m1, topic_map& m2)
 		{
-		for (auto& t: m2)	
+		for (const auto& t: m2)	
 			if(m1.find(t.first) != m1.end())
 				m1.erase(t.first);
 		return m1;
