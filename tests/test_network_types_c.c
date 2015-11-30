@@ -43,7 +43,7 @@ void test_address_ipv4()
 	BROKER_TEST(broker_address_from_string(&localhost, "127.0.0.1"));
 	BROKER_TEST(broker_address_lt(localhost, a));
 
-	uint32_t n = 3232235691;
+	uint32_t n = 3232235691u;
 	broker_address* b = broker_address_from_v4_host_bytes(&n);
 	s = broker_address_to_string(b);
 	BROKER_TEST(! strcmp(broker_string_data(s), "192.168.0.171"));
