@@ -17,8 +17,11 @@ using acl_unpub_atom = caf::atom_constant<caf::atom("acl unpub")>;
 using advert_atom = caf::atom_constant<caf::atom("advert")>;
 using unadvert_atom = caf::atom_constant<caf::atom("unadvert")>;
 using sub_atom = caf::atom_constant<caf::atom("sub")>;
+using msub_atom = caf::atom_constant<caf::atom("msub")>;
 using local_sub_atom = caf::atom_constant<caf::atom("local sub")>;
+using local_msub_atom = caf::atom_constant<caf::atom("local msub")>;
 using unsub_atom = caf::atom_constant<caf::atom("unsub")>;
+using munsub_atom = caf::atom_constant<caf::atom("munsub")>;
 using master_atom = caf::atom_constant<caf::atom("master")>;
 using store_actor_atom = caf::atom_constant<caf::atom("storeactor")>;
 

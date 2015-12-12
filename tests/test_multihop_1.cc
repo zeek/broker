@@ -29,11 +29,11 @@ int main(int argc, char** argv)
 
 	// Node 0
 	endpoint node0("node0");
-	message_queue q0("a", node0);
+	message_queue q0("a", node0, MULTI_HOP);
 
 	// Node 1
 	endpoint node1("node1");
-	message_queue q1("b", node1);
+	message_queue q1("b", node1, MULTI_HOP);
 	// connecting
 	node1.peer(node0);
 
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 
 	// Node 2
 	endpoint node2("node2");
-	message_queue q2("c", node2);
+	message_queue q2("c", node2, MULTI_HOP);
 	// connecting
 	node2.peer(node1);
 

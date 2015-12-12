@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 	init();
 
 	// init debugging/reporting 
-	//broker::report::init();
+	broker::report::init();
 
 	/* Overlay configuration
 	 *       n0 [a]
@@ -33,19 +33,19 @@ int main(int argc, char** argv)
 
 	// Node 0
 	endpoint node0("node0");
-	message_queue q0("a", node0);
+	message_queue q0("a", node0, MULTI_HOP);
 	// Node 1
 	endpoint node1("node1");
-	message_queue q1("b", node1);
+	message_queue q1("b", node1, MULTI_HOP);
 	// Node 2
 	endpoint node2("node2");
-	message_queue q2("c", node2);
+	message_queue q2("c", node2, MULTI_HOP);
 	// Node 3
 	endpoint node3("node3");
-	message_queue q3("b", node3);
+	message_queue q3("b", node3, MULTI_HOP);
 	// Node 4
 	endpoint node4("node4");
-	message_queue q4("d", node4);
+	message_queue q4("d", node4, MULTI_HOP);
 
 	// Connections
 	peering n1n0 = node1.peer(node0);
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 		node0.send("b", pings[i], 0x02);
 		}
 
-	// node0 receives pings and sends pongs
+	// node3 receives pings and sends pongs
 	while ( pongs.size() != 4 )
 		{
 		for ( auto& msg : q3.need_pop() )
@@ -135,7 +135,7 @@ int main(int argc, char** argv)
 			}
 		}
 
-	// node4 receives pongs
+	// node0 receives pongs
 	while ( returned.size() != 4 )
 		for ( auto& msg : q0.need_pop() )
 			{

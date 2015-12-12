@@ -10,6 +10,16 @@
 namespace broker {
 
 /**
+ * Message queue is for single-hop communication only
+ */
+constexpr int SINGLE_HOP = 0x01;
+
+/**
+ * Message queue is announced globally
+ */
+constexpr int MULTI_HOP = 0x02;
+
+/**
  * Requests messages from a broker::endpoint or its peers that match a topic
  * prefix.
  */
@@ -53,7 +63,18 @@ public:
 	 * will be copied in to this queue.
 	 * @param e the endpoint to attach the message_queue.
 	 */
-	message_queue(topic prefix, const endpoint& e);
+	//message_queue(topic prefix, const endpoint& e);
+
+	/**
+	 * Attach a message_queue to an endpoint.
+	 * @param prefix the subscription topic to use.  All messages sent via
+	 * endpoint \a e or one of its peers that use a topic prefixed by \a prefix
+	 * will be copied in to this queue.
+	 * @param e the endpoint to attach the message_queue.
+	 * @param multi-hop distinguishes if topic is propagated beyond the 
+	 * direct neighbors or not
+	 */
+	message_queue(topic prefix, const endpoint& e, int flags = SINGLE_HOP);
 
 	/**
 	 * @return the subscription topic prefix of the queue.

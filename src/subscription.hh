@@ -19,18 +19,6 @@ namespace broker {
 using actor_set = std::unordered_set<caf::actor>;
 using topic_set = util::radix_tree<bool>;
 
-// id for  subscription 		(topic, origin)
-using sub_id = std::pair<topic, caf::actor_addr>;
-// map of sub_ids and their ttls
-using topic_map = std::map<sub_id, int>;
-//                             (topic, origin)            via     TTL
-using topic_actor_map = std::map<sub_id, std::map<caf::actor, int>>;
-// Stores topic_map per neighbor:			via 				set_of(topic, origin)
-using routing_information = std::map<caf::actor_addr, topic_map>;
-// 
-using forwarding_path = std::map<sub_id, caf::actor_addr>;
-
-
 /**
  * (de)serialization logic for type "topic_set".
  */
