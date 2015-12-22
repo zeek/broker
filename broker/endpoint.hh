@@ -52,6 +52,12 @@ constexpr int PEERS = 0x02;
 constexpr int UNSOLICITED = 0x04;
 
 /**
+ * Maximum hop count for multi-hop messages
+ * If this value is exceeded, broker will be stopped
+ */
+const int MAX_TTL_COUNT = 32;
+
+/**
  * A local broker endpoint, the main entry point for communicating with peer.
  */
 class endpoint {
@@ -186,8 +192,9 @@ public:
 	 * @param t the topic name associated with the message.
 	 * @param msg a message to send all queues subscribed for the topic.
 	 * @param flags tunes the messaging mode behavior.
+	 * @param ttl determines the maximum allowed hop count for multi-hop messages
 	 */
-	void send(topic t, message msg, int flags = SELF | PEERS) const;
+	void send(topic t, message msg, int flags = SELF | PEERS, int ttl = MAX_TTL_COUNT) const;
 
 	/**
 	 * Allow the endpoint to publish messages with the given topic to peers.

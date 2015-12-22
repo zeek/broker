@@ -197,26 +197,21 @@ int main()
 	msg_data = make_test_msg(node1, "1a", "node1 says: hi", topic_a, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_a0_expected, msg_data));
 	BROKER_TEST(broker_set_insert(pq_a1_expected, msg_data));
-	BROKER_TEST(broker_set_insert(pq_a2_expected, msg_data));
 	msg_data = make_test_msg(node1, "1a", "node1 says: bye", topic_a, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_a0_expected, msg_data));
 	BROKER_TEST(broker_set_insert(pq_a1_expected, msg_data));
-	BROKER_TEST(broker_set_insert(pq_a2_expected, msg_data));
 	msg_data = make_test_msg(node1, "1b", "node1 says: bbye", topic_b, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_b0_expected, msg_data));
 	BROKER_TEST(broker_set_insert(pq_b1_expected, msg_data));
 
 	msg_data = make_test_msg(node2, "2a", "node2 says: hi", topic_a, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_a0_expected, msg_data));
-	BROKER_TEST(broker_set_insert(pq_a1_expected, msg_data));
 	BROKER_TEST(broker_set_insert(pq_a2_expected, msg_data));
 	msg_data = make_test_msg(node2, "2a", "node2 says: bye", topic_a, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_a0_expected, msg_data));
-	BROKER_TEST(broker_set_insert(pq_a1_expected, msg_data));
 	BROKER_TEST(broker_set_insert(pq_a2_expected, msg_data));
 	msg_data = make_test_msg(node2, "2b", "node2 says: bbye", topic_b, msg, msgs_to_send + off++);
 	BROKER_TEST(broker_set_insert(pq_b0_expected, msg_data));
-	BROKER_TEST(broker_set_insert(pq_b1_expected, msg_data));
 	int i;
 
 	for ( i = 0; i < sizeof(msgs_to_send) / sizeof(test_message); ++i )

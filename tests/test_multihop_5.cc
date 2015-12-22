@@ -20,43 +20,25 @@ int main(int argc, char** argv)
 	//broker::report::init();
 
 	/* Overlay configuration
-	 *       n0 [a]
-	 *       |
- 	 *       n1 [b]
-	 *      /  \
-	 * [c] n2  n3 [b]
-	 *         |
-	 *         n4 [d]
-	 *         |
-	 *         n5 [e]
-	 * 
-	 * 1. n0 sends to n5
-	 * 2. n5 replies to n0 and n2
-	 * 3. n3 unpeers from n1, which partitions overlay
-	 * 4. n0 publishes e, which has no subscriber in first overlay
+	 * n0 [a,b]
+	 * |
+	 * n1 [a,b]
+	 * |  
+	 * n2 [a,b]
 	 */
 
 	// Node 0
 	endpoint node0("node0");
-	message_queue q0("a", node0);
+	message_queue q0a("a", node0, MULTI_HOP);
+	message_queue q0b("b", node0, MULTI_HOP);
+
 	// Node 1
 	endpoint node1("node1");
-	message_queue q1("b", node1);
-	// Node 2
-	endpoint node2("node2");
-	message_queue q2("c", node2);
-	// Node 3
-	endpoint node3("node3");
-	message_queue q3("b", node3);
-	// Node 4
-	endpoint node4("node4");
-	message_queue q4("d", node4);
-	// Node 5
-	endpoint node5("node5");
-	message_queue q5("e", node5);
+	message_queue q1a("a", node1, MULTI_HOP);
+	message_queue q1b("b", node1, MULTI_HOP);
+	// connecting
+	node1.peer(node0);
 
-	// Connections
-	peering n1n0 = node1.peer(node0);
 	if ( node1.outgoing_connection_status().need_pop().front().status !=
 	     outgoing_connection_status::tag::established)
 		{
@@ -64,7 +46,13 @@ int main(int argc, char** argv)
 		return 1;
 		}
 
-	peering n2n1 = node2.peer(node1);
+	// Node 2
+	endpoint node2("node2");
+	message_queue q2a("a", node2, MULTI_HOP);
+	message_queue q2b("b", node2, MULTI_HOP);
+	// connecting
+	node2.peer(node1);
+
 	if ( node2.outgoing_connection_status().need_pop().front().status !=
 	     outgoing_connection_status::tag::established)
 		{
@@ -72,142 +60,45 @@ int main(int argc, char** argv)
 		return 1;
 		}
 
-	peering n3n1 = node3.peer(node1);
-	if ( node3.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
+
+	std::vector<message> msg_a;
+	msg_a.push_back(message{"command", "yo"});
+	// sending request
+	node0.send("a", msg_a[0], 0x02);
+
+	int counter = 0;
+	for ( auto& msg : q1a.need_pop() )
 		{
-		BROKER_TEST(false);
-		return 1;
+		counter++;
+		//std::cout << "node1 received msg " << msg[0] << std::endl;
 		}
 
-	peering n4n3 = node4.peer(node3);
-	if ( node4.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
+	for ( auto& msg : q2a.need_pop() )
 		{
-		BROKER_TEST(false);
-		return 1;
+		counter++;
+		//std::cout << "node2 received msg " << msg[0] << std::endl;
 		}
 
-	peering n5n4 = node5.peer(node4);
-	if ( node5.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
+	//BROKER_TEST(msg_1a == msg_2a);
+
+	//sending reply
+	std::vector<message> msg_b;
+	msg_b.push_back(message{"result", "yo"});
+	node2.send("b", msg_b[0], 0x02);
+
+	for ( auto& msg : q1b.need_pop() )
 		{
-		BROKER_TEST(false);
-		return 1;
+		counter++;
+		//std::cout << "node1 received msg " << msg[0] << std::endl;
 		}
 
-	// Sending and receiving
-	std::vector<message> pings;
-	std::vector<message> pongs;
-
-	// Sending n0 - n3 - n0
-	// node0 sends ping messages
-	for ( int i = 0; i < 4; ++i )
+	for ( auto& msg : q0b.need_pop() )
 		{
-		pings.push_back(message{"ping", vector{i, "yo"}});
-		node0.send("b", pings[i], 0x02);
+		counter++;
+		//std::cout << "node0 received msg " << msg[0] << std::endl;
 		}
 
-	// node3 receives pings and sends pongs
-	while ( pongs.size() != 4 )
-		{
-		for ( auto& msg : q3.need_pop() )
-			{
-			msg[0] = "pong";
-			node3.send("a", msg, 0x02);
-			pongs.push_back(std::move(msg));
-			}
-		}
-
-	std::vector<message> returned;
-
-	// node0 receives pongs 
-	while ( returned.size() != 4 )
-		for ( auto& msg : q0.need_pop() )
-			{
-			returned.push_back(std::move(msg));
-			}
-
-	returned.clear();
-	pongs.clear();
-
-	// Sending n0 - n5 - n0
-	// node0 sends pings again to node5
-	for ( int i = 0; i < 4; ++i )
-		{
-		pings.push_back(message{"ping", vector{i, "yo"}});
-		node0.send("e", pings[i], 0x02);
-		}
-
-	// node5 receives pings and sends pongs
-	while ( pongs.size() != 4 )
-		{
-		for ( auto& msg : q5.need_pop() )
-			{
-			msg[0] = "pong";
-			node5.send("a", msg, 0x02);
-			pongs.push_back(std::move(msg));
-			}
-		}
-
-	// node0 receives pongs 
-	while ( returned.size() != 4 )
-		for ( auto& msg : q0.need_pop() )
-			{
-			returned.push_back(std::move(msg));
-			}
-
-	BROKER_TEST(returned.size() == 4);
-	BROKER_TEST(returned == pongs);
-
-	returned.clear();
-	pongs.clear();
-
-	// Unpeer from node3 to node1
-	node3.unpeer(n3n1);
-
-	// node0 sends ping messages
-	for ( int i = 0; i < 4; ++i )
-		{
-		pings.push_back(message{"ping", vector{i, "yo"}});
-		node0.send("b", pings[i], 0x02);
-		}
-
-	// node1 receives pings and sends pongs
-	while ( pongs.size() != 4 )
-		{
-		for ( auto& msg : q1.need_pop() )
-			{
-			msg[0] = "pong";
-			node1.send("a", msg, 0x02);
-			pongs.push_back(std::move(msg));
-			}
-		}
-
-	// node0 receives pongs 
-	while ( returned.size() != 4 )
-		for ( auto& msg : q0.need_pop() )
-			{
-			returned.push_back(std::move(msg));
-			}
-
-	BROKER_TEST(returned.size() == 4);
-	BROKER_TEST(returned == pongs);
-
-	// node0 sends ping messages to node5
-	for ( int i = 0; i < 4; ++i )
-		{
-		pings.push_back(message{"ping", vector{i, "yo"}});
-		node0.send("e", pings[i], 0x02);
-		}
-
-	for ( int i = 0; i < (int)returned.size(); ++i )
-		{
-		BROKER_TEST(returned[i][0] == "pong");
-		const auto& v = *get<vector>(returned[i][1]);
-		BROKER_TEST(v[0] == i);
-		BROKER_TEST(v[1] == "yo");
-		}
+	BROKER_TEST(counter == 4);
 
 	return BROKER_TEST_RESULT();
 	}

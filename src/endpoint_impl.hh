@@ -18,6 +18,7 @@
 #include <unordered_set>
 #include <sstream>
 #include <assert.h>
+#include <exception>
 
 
 #ifdef DEBUG
@@ -115,7 +116,7 @@ public:
 
 						sync_send(p, peer_atom::value, this, name,
 						          advertised_subscriptions_single, 
-											advertised_subscriptions_multi).then(
+											get_all_subscriptions()).then(
 							[=](const sync_exited_msg& m)
 								{
 								BROKER_DEBUG(name, "received sync exit (2)");
@@ -277,9 +278,14 @@ public:
 			// reporting node gives all debugging output
 			if(t.find("broker.report.") != std::string::npos )
 				{
+				msg.pop_back();
 				std::cout << t << ": " << to_string(msg) << std::endl;
 				return;
 				}
+
+			// get ttl value and remove it from message
+			int ttl = std::stoi(to_string(msg.back()));
+			msg.pop_back();
 
 			// we are the initial sender
 			if(!current_sender())
@@ -292,14 +298,36 @@ public:
 			// we received the message from a neighbor
 			else
 				{
+				// decrement ttl
+				ttl--;
 				BROKER_DEBUG(name,
 										 "Got remote message from peer '"
 										 + get_peer_name(current_sender())
 										 + "', topic '" + t + "': "
-										 + to_string(msg));
+										 + to_string(msg)
+										 + " with ttl " + to_string(ttl));
+
+				if (ttl == 0)
+					{
+					report::error(name, "endpoint_impl, ttl counter reached 0. The topology contains a loop! msg from "
+												+	get_peer_name(current_sender())
+										    + "', topic '" + t + "': "
+												+ to_string(msg)
+												+ " with ttl " + to_string(ttl));
+					std::cout << "ERROR loop detected at " << name << " that received a message from peer '" 
+										 << get_peer_name(current_sender())
+										 << "', topic '" << t << "': "
+										 << to_string(msg)
+										 << " with ttl " << to_string(ttl)
+										 << std::endl;
+					}
+				assert(ttl != 0);
+
 				publish_locally(t, msg, flags, true);
 				}
 
+			// and add new ttl value
+			msg.push_back(std::move(ttl));
 			publish_current_msg_to_peers(t, flags);
 			},
 		[=](store_actor_atom, const store::identifier& n)
@@ -586,8 +614,9 @@ private:
 
 		if ( matches_single.empty() && matches_multi.empty() )
 			{
-			BROKER_DEBUG(name, "publish_locally, return (matches.empty()) ");
-			BROKER_DEBUG(name, " - " + to_string(local_subscriptions_single.topics()));
+			BROKER_DEBUG(name, "publish_locally, return (matches.empty()): single"
+												+ to_string(local_subscriptions_single.topics())
+												+ ", multi" + to_string(local_subscriptions_multi.topics()));
 			return;
 			}
 
@@ -632,17 +661,18 @@ private:
 				send(p.second.ep, current_message());
 				}
 			}
-		else
+		else 
 			{
-			BROKER_DEBUG(name, " -------------------> we are publishing for topic "
-									+ t + ",\n"
-									+ " single subs " + to_string(peer_subscriptions_single.topics())
-									+ " multi subs " + to_string(peer_subscriptions_multi.topics()));
-			// publish msgs for single-hop subscriptions
-			for ( const auto& a : peer_subscriptions_single.unique_prefix_matches(t) )
+
+			// msgs for single-hop subscriptions are only forwarded when we are the publisher 
+			if (!current_sender())
 				{
-				BROKER_DEBUG( name, " ------------> publish msg for topic " + t + " to " + get_peer_name(a));
-				send(a, current_message());
+				// publish msgs for single-hop subscriptions
+				for ( const auto& a : peer_subscriptions_single.unique_prefix_matches(t) )
+					{
+					BROKER_DEBUG( name, " ------------> publish msg for topic " + t + " to " + get_peer_name(a));
+					send(a, current_message());
+					}
 				}
 
 			// publish msgs for multi-hop subscriptions
@@ -737,11 +767,6 @@ private:
 
 	topic_set advertised_subscriptions_single;
 	topic_set advertised_subscriptions_multi;
-
-	//topic_map all_subscriptions;
-	//topic_actor_map sub_mapping;
-	//routing_information routing_info;
-	//forwarding_path forw_path;
 };
 
 /**

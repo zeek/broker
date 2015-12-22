@@ -1,6 +1,7 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/message_queue.hh"
+#include "broker/report.hh"
 #include "testsuite.h"
 #include <vector>
 #include <set>
@@ -34,7 +35,9 @@ static bool check_contents(broker::message_queue& pq,
 
 	while ( actual.size() < expected.size() )
 		for ( auto& msg : pq.need_pop() )
+			{
 			actual.insert(move(msg));
+			}
 
 	return actual == expected;
 	}
@@ -42,9 +45,11 @@ static bool check_contents(broker::message_queue& pq,
 int main(int argc, char** argv)
 	{
 	broker::init();
+	// init debugging/reporting 
+	//broker::report::init();
 
 	broker::endpoint node0("node0");
-	broker::message_queue pq_a0("topic_a", node0);
+	broker::message_queue pq_a0("topic_a", node0, broker::MULTI_HOP);
 
 	node0.send("topic_a", {"/", "hello"});
 	node0.send("nobody", {"/", "pointless"});
@@ -59,7 +64,7 @@ int main(int argc, char** argv)
 	BROKER_TEST((node0_msgs[0] == broker::message{"/", "hello"}));
 	BROKER_TEST((node0_msgs[1] == broker::message{"/", "goodbye"}));
 
-	broker::message_queue pq_b0("topic_b", node0);
+	broker::message_queue pq_b0("topic_b", node0, broker::MULTI_HOP);
 	node0.send("topic_a", {"aaa", "hi"});
 	node0.send("nobody", {"", "pointless"});
 	node0.send("topic_b", {"bbb", "bye"});
@@ -69,9 +74,9 @@ int main(int argc, char** argv)
 
 	broker::endpoint node1("node1");
 	broker::endpoint node2("node2");
-	broker::message_queue pq_a1("topic_a", node1);
-	broker::message_queue pq_b1("topic_b", node1);
-	broker::message_queue pq_a2("topic_a", node2);
+	broker::message_queue pq_a1("topic_a", node1, broker::MULTI_HOP);
+	broker::message_queue pq_b1("topic_b", node1, broker::MULTI_HOP);
+	broker::message_queue pq_a2("topic_a", node2, broker::MULTI_HOP);
 	node0.peer(node1);
 	node0.peer(node2);
 
@@ -117,7 +122,9 @@ int main(int argc, char** argv)
 	                   broker::message{"0a", "node0 says: hi"},
 	                   broker::message{"0a", "node0 says: hello"},
 	                   broker::message{"1a", "node1 says: hi"},
-	                   broker::message{"1a", "node1 says: bye"}
+	                   broker::message{"1a", "node1 says: bye"},
+	                   broker::message{"2a", "node2 says: hi"},
+	                   broker::message{"2a", "node2 says: bye"}
 	               })
 	);
 
@@ -125,7 +132,8 @@ int main(int argc, char** argv)
 	check_contents(pq_b1, {
 	                   broker::message{"0b", "node0 says: bye"},
 	                   broker::message{"0b", "node0 says: goodbye"},
-	                   broker::message{"1b", "node1 says: bbye"}
+	                   broker::message{"1b", "node1 says: bbye"},
+	                   broker::message{"2b", "node2 says: bbye"}
 	               })
 	);
 
@@ -133,6 +141,8 @@ int main(int argc, char** argv)
 	check_contents_poll(pq_a2, {
 	                   broker::message{"0a", "node0 says: hi"},
 	                   broker::message{"0a", "node0 says: hello"},
+	                   broker::message{"1a", "node1 says: hi"},
+	                   broker::message{"1a", "node1 says: bye"},
 	                   broker::message{"2a", "node2 says: hi"},
 	                   broker::message{"2a", "node2 says: bye"}
 	               })

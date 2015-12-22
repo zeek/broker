@@ -155,8 +155,9 @@ broker::endpoint::incoming_connection_status() const
 	return pimpl->incoming_conns;
 	}
 
-void broker::endpoint::send(topic t, message msg, int flags) const
+void broker::endpoint::send(topic t, message msg, int flags, int ttl) const
 	{
+	msg.push_back(ttl);
 	caf::anon_send(pimpl->actor, std::move(t), std::move(msg), flags);
 	}
 
