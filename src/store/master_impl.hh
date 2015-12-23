@@ -333,8 +333,8 @@ private:
 class master::impl {
 public:
 
-	impl(const caf::actor& endpoint, identifier name,
-	     std::unique_ptr<backend> s)
+	impl(const caf::actor& endpoint, identifier name, 
+			 std::unique_ptr<backend> s, int flags)
 		{
 		// TODO: rocksdb backend should also be detached, but why does
 		// rocksdb::~DB then crash?
@@ -345,7 +345,10 @@ public:
 
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
-		caf::anon_send(endpoint, master_atom::value, std::move(name), actor);
+		if(flags == SINGLE_HOP)
+			caf::anon_send(endpoint, master_atom::value, std::move(name), actor);
+		else
+			caf::anon_send(endpoint, mmaster_atom::value, std::move(name), actor);
 		}
 
 	caf::scoped_actor self;

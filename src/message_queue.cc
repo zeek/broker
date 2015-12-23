@@ -17,16 +17,6 @@ broker::message_queue::message_queue(message_queue&&) = default;
 broker::message_queue&
 broker::message_queue::operator=(message_queue&&) = default;
 
-/*broker::message_queue::message_queue(topic prefix, const endpoint& e)
-	: broker::queue<broker::message>(),
-      pimpl(new impl{std::move(prefix)})
-	{
-	caf::anon_send(*static_cast<caf::actor*>(e.handle()),
-	               local_sub_atom::value, pimpl->subscription_prefix,
-	               *static_cast<caf::actor*>(this->handle()));
-	}*/
-
-// TODO multihop subscription
 broker::message_queue::message_queue(topic prefix, const endpoint& e, int flags)
 	: broker::queue<broker::message>(),
       pimpl(new impl{std::move(prefix)})

@@ -249,39 +249,55 @@ public:
 			if ( local_subscriptions_single.exact_match(id) )
 				{
 				report::error(name + ".store.master." + id,
-				              "Failed to register master data store with id '"
+				              "Failed to register single-hop master data store with id '"
 				              + id + "' because a master already exists with"
 				                     " that id.");
 				return;
 				}
 
 			BROKER_DEBUG(name,
-			             "Attached master data store named '" + id + "'");
+			             "Attached single-hop master data store named '" + id + "'");
 			attach(move(id), move(a));
 			},
+
+		[=](mmaster_atom, store::identifier& id, actor& a)
+		{
+			if ( local_subscriptions_multi.exact_match(id) )
+			{
+				report::error(name + ".store.master." + id,
+						"Failed to register multi-hop master data store with id '"
+						+ id + "' because a master already exists with"
+						" that id.");
+				return;
+			}
+
+			BROKER_DEBUG(name,
+					"Attached multi-hop master data store named '" + id + "'");
+			attach(move(id), move(a), true);
+		},
 		[=](local_sub_atom, topic& t, actor& a)
-			{
+		{
 			BROKER_DEBUG(name,
-			             caf::to_string(this->address()) 
-									 + " attached local queue for topic '" + t + "'");
+					caf::to_string(this->address()) 
+					+ " attached local queue for topic '" + t + "'");
 			attach(move(t), move(a));
-			},
+		},
 		[=](local_msub_atom, topic& t, actor& a)
-			{
+		{
 			BROKER_DEBUG(name,
-			             caf::to_string(this->address()) 
-									 + " attached local queue for new multi-hop topic '" + t + "'");
+					caf::to_string(this->address()) 
+					+ " attached local queue for new multi-hop topic '" + t + "'");
 			attach(move(t), move(a), true);
-			},
+		},
 		[=](const topic& t, broker::message& msg, int flags)
-			{
+		{
 			// reporting node gives all debugging output
 			if(t.find("broker.report.") != std::string::npos )
-				{
+			{
 				msg.pop_back();
 				std::cout << t << ": " << to_string(msg) << std::endl;
 				return;
-				}
+			}
 
 			// get ttl value and remove it from message
 			int ttl = std::stoi(to_string(msg.back()));
@@ -289,91 +305,91 @@ public:
 
 			// we are the initial sender
 			if(!current_sender())
-				{
+			{
 				BROKER_DEBUG(name,
-				             "Publish local message with topic '" 
-										 + t + "': " + to_string(msg));
+						"Publish local message with topic '" 
+						+ t + "': " + to_string(msg));
 				publish_locally(t, msg, flags, false);
-				}
+			}
 			// we received the message from a neighbor
 			else
-				{
+			{
 				// decrement ttl
 				ttl--;
 				BROKER_DEBUG(name,
-										 "Got remote message from peer '"
-										 + get_peer_name(current_sender())
-										 + "', topic '" + t + "': "
-										 + to_string(msg)
-										 + " with ttl " + to_string(ttl));
+						"Got remote message from peer '"
+						+ get_peer_name(current_sender())
+						+ "', topic '" + t + "': "
+						+ to_string(msg)
+						+ " with ttl " + to_string(ttl));
 
 				if (ttl == 0)
-					{
+				{
 					report::error(name, "endpoint_impl, ttl counter reached 0. The topology contains a loop! msg from "
-												+	get_peer_name(current_sender())
-										    + "', topic '" + t + "': "
-												+ to_string(msg)
-												+ " with ttl " + to_string(ttl));
+							+	get_peer_name(current_sender())
+							+ "', topic '" + t + "': "
+							+ to_string(msg)
+							+ " with ttl " + to_string(ttl));
 					std::cout << "ERROR loop detected at " << name << " that received a message from peer '" 
-										 << get_peer_name(current_sender())
-										 << "', topic '" << t << "': "
-										 << to_string(msg)
-										 << " with ttl " << to_string(ttl)
-										 << std::endl;
-					}
+						<< get_peer_name(current_sender())
+						<< "', topic '" << t << "': "
+						<< to_string(msg)
+						<< " with ttl " << to_string(ttl)
+						<< std::endl;
+				}
 				assert(ttl != 0);
 
 				publish_locally(t, msg, flags, true);
-				}
+			}
 
 			// and add new ttl value
 			msg.push_back(std::move(ttl));
 			publish_current_msg_to_peers(t, flags);
-			},
+		},
 		[=](store_actor_atom, const store::identifier& n)
-			{
+		{
 			return find_master(n);
-			},
+		},
 		[=](const store::identifier& n, const store::query& q,
-										const actor& requester)
-			{
+				const actor& requester)
+		{
 			auto master = find_master(n);
 
 			if ( master )
-				{
-				BROKER_DEBUG(name, "Forwarded data store query: "
-										 + caf::to_string(current_message()));
-				forward_to(master);
-				}
-			else
-				{
-				BROKER_DEBUG(name,
-										 "Failed to forward data store query: "
-										 + caf::to_string(current_message()));
-				send(requester, this,
-												store::result(store::result::status::failure));
-				}
-			},
-		on<store::identifier, anything>() >> [=](const store::identifier& id)
 			{
+				BROKER_DEBUG(name, "Forwarded data store query: "
+						+ caf::to_string(current_message()));
+				forward_to(master);
+			}
+			else
+			{
+				BROKER_DEBUG(name,
+						"Failed to forward data store query: "
+						+ caf::to_string(current_message()));
+				send(requester, this,
+						store::result(store::result::status::failure));
+			}
+		},
+		on<store::identifier, anything>() >> [=](const store::identifier& id)
+		{
 			// This message should be a store update operation.
 			auto master = find_master(id);
 
 			if ( master )
-				{
-				BROKER_DEBUG(name, "Forwarded data store update: "
-										 + caf::to_string(current_message()));
-				forward_to(master);
-				}
-			else
-				{
-				report::warn(name + ".store.master." + id,
-														"Data store update dropped due to nonexistent "
-														" master with id '" + id + "'");
-				}
-			},
-		[=](flags_atom, int flags)
 			{
+				BROKER_DEBUG(name, "Forwarded data store update: "
+						+ caf::to_string(current_message()));
+				forward_to(master);
+			}
+			else
+			{
+				report::warn(name + ".store.master." + id,
+						"Data store update dropped due to nonexistent "
+						" master with id '" + id + "'");
+			}
+		},
+		[=](flags_atom, int flags)
+		{
 			bool auto_before = (behavior_flags & AUTO_ADVERTISE);
 			behavior_flags = flags;
 			bool auto_after = (behavior_flags & AUTO_ADVERTISE);
@@ -382,92 +398,92 @@ public:
 				return;
 
 			if ( auto_before )
-				{
+			{
 				topic_set to_remove;
 
 				for ( const auto& t : advertised_subscriptions_single )
-								if ( advert_acls.find(t.first) == advert_acls.end() )
-												to_remove.insert({t.first, true});
+					if ( advert_acls.find(t.first) == advert_acls.end() )
+						to_remove.insert({t.first, true});
 
 				BROKER_DEBUG(name, "Toggled AUTO_ADVERTISE off,"
-											" no longer advertising: "
-											+ to_string(to_remove));
+						" no longer advertising: "
+						+ to_string(to_remove));
 
 				for ( const auto& t : to_remove )
-								unadvertise_subscription(topic{t.first});
+					unadvertise_subscription(topic{t.first});
 
 				return;
-				}
+			}
 
 			BROKER_DEBUG(name, "Toggled AUTO_ADVERTISE on");
 
 			for ( const auto& t : local_subscriptions_single.topics() )
 				advertise_subscription(topic{t.first});
-			},
+		},
 		[=](acl_pub_atom, topic& t)
-			{
+		{
 			BROKER_DEBUG(name, "Allow publishing topic: " + t);
 			pub_acls.insert({move(t), true});
-			},
+		},
 		[=](acl_unpub_atom, const topic& t)
-			{
+		{
 			BROKER_DEBUG(name, "Disallow publishing topic: " + t);
 			pub_acls.erase(t);
-			},
+		},
 		// TODO single and multi-hop subscriptions
 		[=](advert_atom, string& t)
-			{
+		{
 			BROKER_DEBUG(name, "Allow advertising subscription: " + t);
 			if ( advert_acls.insert({t, true}).second &&
-						local_subscriptions_single.exact_match(t) )
+					local_subscriptions_single.exact_match(t) )
 				// Now permitted to advertise an existing subscription.
 				advertise_subscription(move(t));
-			},
+		},
 		[=](unadvert_atom, string& t)
-			{
+		{
 			BROKER_DEBUG(name, "Disallow advertising subscription: " + t);
 			if ( advert_acls.erase(t) && local_subscriptions_single.exact_match(t) )
 				// No longer permitted to advertise an existing subscription.
 				unadvertise_subscription(move(t));
-			},
+		},
 		others() >> [=]
-			{
+		{
 			report::warn(name, "Got unexpected message: "
-										+ caf::to_string(current_message()));
-			}
+					+ caf::to_string(current_message()));
+		}
 		};
-	}
+		}
 
 private:
 
 	caf::behavior make_behavior() override
-		{
+	{
 		return active;
-		}
+	}
 
 	std::string get_peer_name(const caf::actor_addr& a) const
-		{
+	{
 		auto it = peers.find(a);
 
 		if ( it == peers.end() )
 			return "<unknown>";
 
 		return it->second.name;
-		}
+	}
 
 	std::string get_peer_name(const caf::actor& p) const
 	{ return get_peer_name(p.address()); }
 
 	void add_peer(caf::actor p, std::string peer_name, bool incoming, 
-								topic_set ts_single, topic_set ts_multi)
-		{
+			topic_set ts_single, topic_set ts_multi)
+	{
 		BROKER_DEBUG(name, " Peered with: '" + peer_name
-									+ "\n" + peer_name + " subscriptions:" 
-									+ "single "  + to_string(ts_single)
-									+ ", multi "  + to_string(ts_multi)
-									+ "\nown subscriptions:  "
-									+ "single "  + to_string(local_subscriptions_single.topics())
-									+ ", multi "  + to_string(local_subscriptions_multi.topics()));
+				+ "\n" + peer_name + " subscriptions:" 
+				+ "single "  + to_string(ts_single)
+				+ ", multi "  + to_string(ts_multi)
+				+ "\nown subscriptions:  "
+				+ "single "  + to_string(local_subscriptions_single.topics())
+				+ ", multi "  + to_string(local_subscriptions_multi.topics()));
 		demonitor(p);
 		monitor(p);
 		peers[p.address()] = {p, peer_name, incoming};
@@ -475,16 +491,16 @@ private:
 
 		// TODO iterate over the topic knowledge of the new peer
 		for(auto& s: ts_multi)
-			{
+		{
 			if(local_subscriptions_multi.unique_prefix_matches(s.first).empty())
 				register_subscription(s.first, p, true);
-			}
-
-		peer_subscriptions_multi.insert(subscriber{std::move(p), std::move(ts_multi)});
 		}
 
+		peer_subscriptions_multi.insert(subscriber{std::move(p), std::move(ts_multi)});
+	}
+
 	void remove_peer(const caf::actor& a)
-		{
+	{
 		BROKER_DEBUG(name, " remove peer " + get_peer_name(a));
 
 		auto remove_set = peer_subscriptions_multi.topics_of_actor(a.address());
@@ -497,15 +513,15 @@ private:
 		// or if we can delete and unsubscribe them at our neighbors
 		for (const auto& s: remove_set)
 			unregister_subscription(s.first, a, true);
-		}
+	}
 
 	void attach(std::string topic_or_id, caf::actor a)
-		{
+	{
 		attach(topic_or_id, a, false);
-		}
+	}
 
 	void attach(std::string topic_or_id, caf::actor a, bool multi_hop)
-	 	{
+	{
 		demonitor(a);
 		monitor(a);
 
@@ -522,6 +538,9 @@ private:
 	caf::actor find_master(const store::identifier& id)
 		{
 		auto m = local_subscriptions_single.exact_match(id);
+
+		if ( !m )
+			m = local_subscriptions_multi.exact_match(id);
 
 		if ( ! m )
 			m = peer_subscriptions_single.exact_match(id);

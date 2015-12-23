@@ -1,10 +1,13 @@
 #include "master_impl.hh"
 
-broker::store::master::master(const endpoint& e, identifier name,
-                              std::unique_ptr<backend> s)
+broker::store::master::master(const endpoint& e, identifier name, 
+                              std::unique_ptr<backend> s,
+															int flags)
     : broker::store::frontend(e, name),
       pimpl(new impl(*static_cast<caf::actor*>(e.handle()),
-                     std::move(name), std::move(s)))
+                     std::move(name),
+										 std::move(s), 
+										 std::move(flags)))
 	{
 	}
 
@@ -42,7 +45,9 @@ broker_store_master_create_memory(const broker_endpoint* e,
 broker_store_frontend*
 broker_store_master_create_sqlite(const broker_endpoint* e,
                                   const broker_string* name,
-                                  broker_store_sqlite_backend* b)
+                                  broker_store_sqlite_backend* b
+																	)
+																	
 	{
 	auto ee = reinterpret_cast<const broker::endpoint*>(e);
 	auto nn = reinterpret_cast<const std::string*>(name);

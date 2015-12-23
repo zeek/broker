@@ -62,15 +62,6 @@ public:
 	 * endpoint \a e or one of its peers that use a topic prefixed by \a prefix
 	 * will be copied in to this queue.
 	 * @param e the endpoint to attach the message_queue.
-	 */
-	//message_queue(topic prefix, const endpoint& e);
-
-	/**
-	 * Attach a message_queue to an endpoint.
-	 * @param prefix the subscription topic to use.  All messages sent via
-	 * endpoint \a e or one of its peers that use a topic prefixed by \a prefix
-	 * will be copied in to this queue.
-	 * @param e the endpoint to attach the message_queue.
 	 * @param multi-hop distinguishes if topic is propagated beyond the 
 	 * direct neighbors or not
 	 */

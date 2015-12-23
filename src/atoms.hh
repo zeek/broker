@@ -23,6 +23,7 @@ using local_msub_atom = caf::atom_constant<caf::atom("local msub")>;
 using unsub_atom = caf::atom_constant<caf::atom("unsub")>;
 using munsub_atom = caf::atom_constant<caf::atom("munsub")>;
 using master_atom = caf::atom_constant<caf::atom("master")>;
+using mmaster_atom = caf::atom_constant<caf::atom("mmaster")>;
 using store_actor_atom = caf::atom_constant<caf::atom("storeactor")>;
 
 namespace store {
