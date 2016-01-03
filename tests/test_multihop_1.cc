@@ -27,12 +27,13 @@ int main(int argc, char** argv)
 	// init debugging/reporting 
 	//broker::report::init();
 
+	int flags = AUTO_PUBLISH | AUTO_ADVERTISE | AUTO_ROUTING;
 	// Node 0
-	endpoint node0("node0");
+	endpoint node0("node0", flags);
 	message_queue q0("a", node0, MULTI_HOP);
 
 	// Node 1
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	message_queue q1("b", node1, MULTI_HOP);
 	// connecting
 	node1.peer(node0);

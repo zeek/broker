@@ -829,18 +829,19 @@ static void test_prefix_matching_multi()
 
 static void test_without_access_control_multi()
 	{
-	endpoint node0("node0");
+	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node0("node0", flags);
 	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
 	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
 	message_queue pq_topic_0("topic", node0, MULTI_HOP);
 	message_queue pq_all_0("", node0, MULTI_HOP);
 
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
 	message_queue pq_topic_1("topic", node1, MULTI_HOP);
 	message_queue pq_hal_1("hal", node1, MULTI_HOP);
 
-	endpoint node2("node2");
+	endpoint node2("node2", flags);
 	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
 	message_queue pq_topic_2("topic", node2, MULTI_HOP);
 
@@ -959,20 +960,23 @@ static void test_without_access_control_multi()
 
 static void test_restricted_publish_multi()
 	{
-	endpoint node0("node0");
+	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node0("node0", flags);
 	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
 	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
 	message_queue pq_topic_0("topic", node0, MULTI_HOP);
 	message_queue pq_all_0("", node0, MULTI_HOP);
 
-	endpoint node1("node1", AUTO_ADVERTISE);
+	flags = broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node1("node1", flags);
 	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
 	message_queue pq_topic_1("topic", node1, MULTI_HOP);
 	message_queue pq_hal_1("hal", node1, MULTI_HOP);
 	node1.publish("topic");
 	node1.publish("hal9000");
 
-	endpoint node2("node2");
+	flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node2("node2", flags);
 	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
 	message_queue pq_topic_2("topic", node2, MULTI_HOP);
 
@@ -1076,21 +1080,23 @@ static void test_restricted_publish_multi()
 
 static void test_restricted_subscribe_multi()
 	{
-
-	endpoint node0("node0");
+	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node0("node0", flags);
 	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
 	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
 	message_queue pq_topic_0("topic", node0, MULTI_HOP);
 	message_queue pq_all_0("", node0, MULTI_HOP);
 
-	endpoint node1("node1", AUTO_PUBLISH);
+	flags = broker::AUTO_PUBLISH | broker::AUTO_ROUTING;
+	endpoint node1("node1", flags);
 	node1.advertise("topic_a");
 	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
 	message_queue pq_topic_1("topic", node1, MULTI_HOP);
 	message_queue pq_hal_1("hal", node1, MULTI_HOP);
 	node1.advertise("hal");
 
-	endpoint node2("node2");
+	flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	endpoint node2("node2", flags);
 	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
 	message_queue pq_topic_2("topic", node2, MULTI_HOP);
 

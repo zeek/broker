@@ -48,7 +48,8 @@ int main(int argc, char** argv)
 	// init debugging/reporting 
 	//broker::report::init();
 
-	broker::endpoint node0("node0");
+	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
+	broker::endpoint node0("node0", flags);
 	broker::message_queue pq_a0("topic_a", node0, broker::MULTI_HOP);
 
 	node0.send("topic_a", {"/", "hello"});
@@ -72,8 +73,8 @@ int main(int argc, char** argv)
 	BROKER_TEST((pq_b0.need_pop().front() == broker::message{"bbb", "bye"}));
 	BROKER_TEST((pq_a0.need_pop().front() == broker::message{"aaa", "hi"}));
 
-	broker::endpoint node1("node1");
-	broker::endpoint node2("node2");
+	broker::endpoint node1("node1", flags);
+	broker::endpoint node2("node2", flags);
 	broker::message_queue pq_a1("topic_a", node1, broker::MULTI_HOP);
 	broker::message_queue pq_b1("topic_b", node1, broker::MULTI_HOP);
 	broker::message_queue pq_a2("topic_a", node2, broker::MULTI_HOP);

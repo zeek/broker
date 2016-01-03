@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 	init();
 
 	// init debugging/reporting 
-	broker::report::init();
+	//broker::report::init();
 
 	/* Overlay configuration
 	 *       n0 [a]
@@ -29,20 +29,21 @@ int main(int argc, char** argv)
 	 *         n4 [d]
 	 */
 
+	int flags = AUTO_PUBLISH | AUTO_ADVERTISE | AUTO_ROUTING;
 	// Node 0
-	endpoint node0("node0");
+	endpoint node0("node0", flags);
 	message_queue q0("a", node0, MULTI_HOP);
 	// Node 1
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	message_queue q1("b", node1, MULTI_HOP);
 	// Node 2
-	endpoint node2("node2");
+	endpoint node2("node2", flags);
 	message_queue q2("c", node2, MULTI_HOP);
 	// Node 3
-	endpoint node3("node3");
+	endpoint node3("node3", flags);
 	message_queue q3("b", node3, MULTI_HOP);
 	// Node 4
-	endpoint node4("node4");
+	endpoint node4("node4", flags);
 	message_queue q4("d", node4, MULTI_HOP);
 
 	// Connections

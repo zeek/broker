@@ -42,20 +42,21 @@ int main(int argc, char** argv)
 	 *  single-hop subscriptions only!
 	 */
 
+	int flags = AUTO_PUBLISH | AUTO_ADVERTISE;
 	// Node 0
-	endpoint node0("node0");
+	endpoint node0("node0", flags);
 	message_queue q0("b", node0);
 	// Node 1
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	message_queue q1("a", node1);
 	// Node 2
-	endpoint node2("node2");
+	endpoint node2("node2", flags);
 	message_queue q2("a", node2);
 	// Node 3
-	endpoint node3("node3");
+	endpoint node3("node3", flags);
 	message_queue q3("a", node3);
 	// Node 4
-	endpoint node4("node4");
+	endpoint node4("node4", flags);
 	message_queue q4("a", node4);
 
 	// Connections 

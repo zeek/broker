@@ -33,6 +33,15 @@ constexpr int AUTO_PUBLISH = 0x01;
  */
 constexpr int AUTO_ADVERTISE = 0x02;
 
+/**
+ * Endpoint routes message topics
+ * Multi-hop topics are only stored and propagated if this flag is set
+ * If an auto-routing endpoint is coupled with an ordinary endpoint only
+ * the auto-routing endpoint will forward messages on behalf of the other 
+ * endpoint
+ */
+constexpr int AUTO_ROUTING = 0x04;
+
 // Messaging modes.
 
 /**

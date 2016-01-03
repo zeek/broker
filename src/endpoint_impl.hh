@@ -112,24 +112,28 @@ public:
 						}
 					else
 						{
-						BROKER_DEBUG(name, " initiate peering with " + get_peer_name(p));
+						bool self_routable = (behavior_flags & AUTO_ROUTING);
+						BROKER_DEBUG(name, " initiate peering with " + get_peer_name(p) 
+													+ ", we are routable " + to_string(self_routable));
 
 						sync_send(p, peer_atom::value, this, name,
 						          advertised_subscriptions_single, 
-											get_all_subscriptions()).then(
+											get_all_subscriptions(),
+											self_routable).then(
 							[=](const sync_exited_msg& m)
 								{
 								BROKER_DEBUG(name, "received sync exit (2)");
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								},
-							[=](string& pname, topic_set& ts_single, topic_set& ts_multi)
+							[=](string& pname, topic_set& ts_single, topic_set& ts_multi, bool routable)
 								{
 								BROKER_DEBUG(name, "received peer_atom response by sender " 
 															+ caf::to_string(p) + " - " + pname 
 															+ " with topics single" + to_string(ts_single)
-															+ " and multi" + to_string(ts_multi));
+															+ " and multi" + to_string(ts_multi)
+															+ ", is routable " + to_string(routable));
 
-								add_peer(move(p), pname, false, move(ts_single), move(ts_multi));
+								add_peer(move(p), pname, false, move(ts_single), move(ts_multi), routable);
 								ocs_update(ocs_queue, move(pi), ocs_established, move(pname));
 								}
 						);
@@ -141,20 +145,25 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts_single, topic_set& ts_multi)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts_single, topic_set& ts_multi, bool routable)
 			{
 			BROKER_DEBUG(name, " received peer_atom from sender "
 										+ caf::to_string(p) + " - " + pname
 										+ " with topics single" + to_string(ts_single)
-										+ " and multi " + to_string(ts_multi));
+										+ " and multi " + to_string(ts_multi)
+										+ ", is routable " + to_string(routable));
 
 			ics_update(ics_queue, pname,
 			           incoming_connection_status::tag::established);
 
-			add_peer(move(p), move(pname), true, move(ts_single), move(ts_multi));
+			add_peer(move(p), move(pname), true, move(ts_single), move(ts_multi), routable);
 
+			bool self_routable = (behavior_flags & AUTO_ROUTING);
 			// send back the message
-			return make_message(name, advertised_subscriptions_single, get_all_subscriptions());
+			return make_message(name, 
+													advertised_subscriptions_single, 
+													get_all_subscriptions(), 
+													self_routable);
 			},
 		[=](unpeer_atom, const actor& p)
 			{
@@ -475,7 +484,7 @@ private:
 	{ return get_peer_name(p.address()); }
 
 	void add_peer(caf::actor p, std::string peer_name, bool incoming, 
-			topic_set ts_single, topic_set ts_multi)
+			topic_set ts_single, topic_set ts_multi, bool routable)
 	{
 		BROKER_DEBUG(name, " Peered with: '" + peer_name
 				+ "\n" + peer_name + " subscriptions:" 
@@ -486,17 +495,21 @@ private:
 				+ ", multi "  + to_string(local_subscriptions_multi.topics()));
 		demonitor(p);
 		monitor(p);
-		peers[p.address()] = {p, peer_name, incoming};
+		peers[p.address()] = {p, peer_name, incoming, routable};
 		peer_subscriptions_single.insert(subscriber{p, std::move(ts_single)});
 
-		// TODO iterate over the topic knowledge of the new peer
-		for(auto& s: ts_multi)
-		{
-			if(local_subscriptions_multi.unique_prefix_matches(s.first).empty())
-				register_subscription(s.first, p, true);
-		}
+		bool self_routable = (behavior_flags & AUTO_ROUTING);
+		if(routable || self_routable)
+			{
+			BROKER_DEBUG(name, " -> add multi-hop subscriptions");
+			for(auto& s: ts_multi)
+			{
+				if(local_subscriptions_multi.unique_prefix_matches(s.first).empty())
+					register_subscription(s.first, p, true);
+			}
 
-		peer_subscriptions_multi.insert(subscriber{std::move(p), std::move(ts_multi)});
+			peer_subscriptions_multi.insert(subscriber{std::move(p), std::move(ts_multi)});
+			}
 	}
 
 	void remove_peer(const caf::actor& a)
@@ -611,7 +624,8 @@ private:
 	 // Send the msg out
 	 for ( const auto& p : peers )
 		{
-		if(p.second.ep == skip)
+		if(	p.second.ep == skip 
+				|| (!(behavior_flags & AUTO_ROUTING) && !p.second.routable))
 	  	continue;
 		BROKER_DEBUG(name, caf::to_string(op) + ", forward topic " + t 
 								+ " to peer " + p.second.name);
@@ -724,9 +738,11 @@ private:
 			{
 			BROKER_DEBUG(name, " add multi-hop subscription for topic " 
 												+ t + " via " + get_peer_name(a));
-			if(multi_hop && peer_subscriptions_multi.register_topic(t, a))
-				{
-				BROKER_DEBUG(name, + "multi subscriptions now: "  + to_string(peer_subscriptions_multi.topics()));
+			if(multi_hop 
+				 && peer_subscriptions_multi.register_topic(t, a))
+			{
+				BROKER_DEBUG(name, + "multi subscriptions now: "  
+											+ to_string(peer_subscriptions_multi.topics()));
 				publish_subscription_operation(t, msub_atom::value, a);
 				}
 			}
@@ -767,6 +783,7 @@ private:
 		caf::actor ep;
 		std::string name;
 		bool incoming;
+		bool routable;
 	};
 
 	caf::behavior active;

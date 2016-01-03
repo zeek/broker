@@ -27,13 +27,14 @@ int main(int argc, char** argv)
 	 * n2 [a,b]
 	 */
 
+	int flags = AUTO_PUBLISH | AUTO_ADVERTISE | AUTO_ROUTING;
 	// Node 0
-	endpoint node0("node0");
+	endpoint node0("node0", flags);
 	message_queue q0a("a", node0, MULTI_HOP);
 	message_queue q0b("b", node0, MULTI_HOP);
 
 	// Node 1
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	message_queue q1a("a", node1, MULTI_HOP);
 	message_queue q1b("b", node1, MULTI_HOP);
 	// connecting
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
 		}
 
 	// Node 2
-	endpoint node2("node2");
+	endpoint node2("node2", flags);
 	message_queue q2a("a", node2, MULTI_HOP);
 	message_queue q2b("b", node2, MULTI_HOP);
 	// connecting

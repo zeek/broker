@@ -47,9 +47,10 @@ int main()
 	                make_pair("3", "three") };
 	for ( const auto& p : ds0 ) m.insert(p.first, p.second);
 
+	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	// more peers
-	broker::endpoint node1("node1");
-	broker::endpoint node2("node2");
+	broker::endpoint node1("node1", flags);
+	broker::endpoint node2("node2", flags);
 
 	node1.peer(node0);
 	if ( node1.outgoing_connection_status().need_pop().front().status !=

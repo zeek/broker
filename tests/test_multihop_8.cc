@@ -36,34 +36,35 @@ int main(int argc, char** argv)
 	 * n2 sends message with topic a
 	 */
 
+	int flags = AUTO_PUBLISH | AUTO_ADVERTISE | AUTO_ROUTING;
 	// Node 0
-	endpoint node0("node0");
+	endpoint node0("node0", flags);
 	node0.listen(9990, "127.0.0.1");
 	message_queue q0a("a", node0, MULTI_HOP);
 
 	// Node 1
-	endpoint node1("node1");
+	endpoint node1("node1", flags);
 	node1.listen(9991, "127.0.0.1");;
 	message_queue q1a("a", node1, MULTI_HOP);
-    //message_queue q1b("b", node1);
+	//message_queue q1b("b", node1);
 
-    // Node 2
-    endpoint node2("node2");
-    node1.listen(9992, "127.0.0.1");;
-    message_queue q2a("a", node2, MULTI_HOP);
-
-	// connecting
-    auto n0n1 = node0.peer("127.0.0.1", 9991);
-
-    if ( node0.outgoing_connection_status().need_pop().front().status !=
-	     outgoing_connection_status::tag::established)
-		{
-		BROKER_TEST(false);
-		return 1;
-		}
+	// Node 2
+	endpoint node2("node2", flags);
+	node1.listen(9992, "127.0.0.1");;
+	message_queue q2a("a", node2, MULTI_HOP);
 
 	// connecting
-    auto n1n2 = node2.peer("127.0.0.1", 9991);
+	auto n0n1 = node0.peer("127.0.0.1", 9991);
+
+	if ( node0.outgoing_connection_status().need_pop().front().status !=
+		 outgoing_connection_status::tag::established)
+	{
+	BROKER_TEST(false);
+	return 1;
+	}
+
+	// connecting
+	auto n1n2 = node2.peer("127.0.0.1", 9991);
 
 	if ( node2.outgoing_connection_status().need_pop().front().status !=
 	     outgoing_connection_status::tag::established)
