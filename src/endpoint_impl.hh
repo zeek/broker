@@ -58,9 +58,13 @@ static void ocs_update(const caf::actor& q, peering::impl pi,
 	                                             std::move(name)});
 	}
 
-static void ics_update(const caf::actor& q, std::string name,
-                       incoming_connection_status::tag t)
-	{ caf::anon_send(q, incoming_connection_status{t, std::move(name)}); }
+static void ics_update(const caf::actor& q, peering::impl pi,
+                       incoming_connection_status::tag t, std::string name = "")
+	{
+	peering p{std::unique_ptr<peering::impl>(new peering::impl(std::move(pi)))};
+	caf::anon_send(q, incoming_connection_status{std::move(p), t,
+		                                     std::move(name)});
+	}
 
 class endpoint_actor : public caf::event_based_actor {
 
@@ -104,7 +108,7 @@ public:
 						ocs_update(ocs_queue, move(pi), ocs_incompat);
 					else
 						sync_send(p, peer_atom::value, this, name,
-						          advertised_subscriptions).then(
+						          advertised_subscriptions, pi).then(
 							[=](const sync_exited_msg& m)
 								{
 								ocs_update(ocs_queue, move(pi), ocs_disconnect);
@@ -123,14 +127,14 @@ public:
 					}
 			);
 			},
-		[=](peer_atom, actor& p, string& pname, topic_set& ts)
+		[=](peer_atom, actor& p, string& pname, topic_set& ts, peering::impl& pi)
 			{
-			ics_update(ics_queue, pname,
-			           incoming_connection_status::tag::established);
-			add_peer(move(p), move(pname), move(ts), true);
+			add_peer(move(p), pname, move(ts), true);
+			ics_update(ics_queue, pi,
+			           incoming_connection_status::tag::established, pname);
 			return make_message(name, advertised_subscriptions);
 			},
-		[=](unpeer_atom, const actor& p)
+		[=](unpeer_atom, const actor& p, peering::impl& pi)
 			{
 			auto itp = peers.find(p.address());
 
@@ -141,14 +145,14 @@ public:
 			             "Unpeered with: '" + itp->second.name + "'");
 
 			if ( itp->second.incoming )
-				ics_update(ics_queue, itp->second.name,
-				           incoming_connection_status::tag::disconnected);
+				ics_update(ics_queue, pi,
+				           incoming_connection_status::tag::disconnected, itp->second.name);
 
 			demonitor(p);
 			peers.erase(itp);
 			peer_subscriptions.erase(p.address());
 			},
-		[=](const down_msg& d)
+		[=](const down_msg& d, peering::impl& pi)
 			{
 			demonitor(d.source);
 
@@ -160,8 +164,8 @@ public:
 				             "Peer down: '" + itp->second.name + "'");
 
 				if ( itp->second.incoming )
-					ics_update(ics_queue, itp->second.name,
-					           incoming_connection_status::tag::disconnected);
+					ics_update(ics_queue, pi,
+					           incoming_connection_status::tag::disconnected, itp->second.name);
 
 				peers.erase(itp);
 				peer_subscriptions.erase(d.source);
@@ -504,7 +508,7 @@ public:
 		{
 		using namespace caf;
 		using namespace std;
-		peering::impl pi(local, this, true, make_pair(addr, port));
+		peering::impl pi(local, this, true);
 
 		trap_exit(true);
 
@@ -542,14 +546,14 @@ public:
 			},
 		[=](const exit_msg& e)
 			{
-			send(remote, unpeer_atom::value, local);
-			send(local, unpeer_atom::value, remote);
+			send(remote, unpeer_atom::value, local, pi);
+			send(local, unpeer_atom::value, remote, pi);
 			quit();
 			},
 		[=](quit_atom)
 			{
-			send(remote, unpeer_atom::value, local);
-			send(local, unpeer_atom::value, remote);
+			send(remote, unpeer_atom::value, local, pi);
+			send(local, unpeer_atom::value, remote, pi);
 			quit();
 			},
 		[=](const down_msg& d)

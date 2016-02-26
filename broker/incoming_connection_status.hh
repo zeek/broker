@@ -21,6 +21,11 @@ struct incoming_connection_status {
 	};
 
 	/**
+	 * The identity of a peering relationship between two endpoints.
+	 */
+	peering relation;
+
+	/**
 	 * A notification regarding the latest known status of the peering.
 	 */
 	tag status;
@@ -33,7 +38,10 @@ struct incoming_connection_status {
 
 inline bool operator==(const incoming_connection_status& lhs,
                        const incoming_connection_status& rhs)
-	{ return lhs.status == rhs.status && lhs.peer_name == rhs.peer_name; }
+	{
+	return lhs.status == rhs.status && lhs.relation == rhs.relation &&
+	       lhs.peer_name == rhs.peer_name;
+	}
 
 } // namespace broker
 

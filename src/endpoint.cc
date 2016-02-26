@@ -82,7 +82,7 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 		a->link_to(pimpl->self);
 		rval = peering(std::unique_ptr<peering::impl>(
 	                   new peering::impl(pimpl->actor, std::move(a),
-	                                     true, port_addr)));
+	                                     true)));
 		pimpl->peers.insert(rval);
 		}
 
@@ -119,8 +119,10 @@ bool broker::endpoint::unpeer(broker::peering p)
 		caf::anon_send(p.pimpl->peer_actor, quit_atom::value);
 	else
 		{
-		caf::anon_send(pimpl->actor, unpeer_atom::value, p.pimpl->peer_actor);
-		caf::anon_send(p.pimpl->peer_actor, unpeer_atom::value, pimpl->actor);
+		caf::anon_send(pimpl->actor, unpeer_atom::value, p.pimpl->peer_actor,
+			       *p.pimpl.get());
+		caf::anon_send(p.pimpl->peer_actor, unpeer_atom::value, pimpl->actor,
+			       *p.pimpl.get());
 		}
 
 	return true;

@@ -47,6 +47,7 @@ int broker_init(int flags)
 	            "broker::incoming_connection_status::tag");
 	announce<broker::incoming_connection_status>(
 	            "broker::incoming_connection_status",
+	            &broker::outgoing_connection_status::relation,
 	            &broker::incoming_connection_status::status,
 	            &broker::incoming_connection_status::peer_name);
 	announce(typeid(broker::peering),
