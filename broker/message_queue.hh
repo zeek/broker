@@ -12,12 +12,12 @@ namespace broker {
 /**
  * Message queue is for single-hop communication only
  */
-constexpr int SINGLE_HOP = 0x01;
+constexpr int SINGLE_HOP = 0x00;
 
 /**
  * Message queue is announced globally
  */
-constexpr int MULTI_HOP = 0x02;
+constexpr int MULTI_HOP = 0x01;
 
 /**
  * Requests messages from a broker::endpoint or its peers that match a topic
