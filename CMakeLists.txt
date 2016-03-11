@@ -21,7 +21,6 @@ if ( CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED} )
             " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
 endif ()
 
-message(STATUS "Found CAF version: ${CAF_VERSION}")
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
@@ -165,22 +164,52 @@ add_subdirectory(tests)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
+#------------------------------------------------------------------------------
+#                                Build Summary
+#------------------------------------------------------------------------------
+
+macro(display test desc summary)
+    if ( ${test} )
+        set(${summary} ${desc})
+    else ()
+        set(${summary} no)
+    endif()
+endmacro()
+
+set(caf_dir ${CAF_LIBRARY_CORE})
+
+get_filename_component(caf_dir ${caf_dir} PATH)
+if ( EXISTS "${caf_dir}/../libcaf_core" )
+    get_filename_component(caf_dir ${caf_dir} PATH)
+else ()
+    set(caf_dir ${CAF_INCLUDE_DIR_CORE})
+endif ()
+
+display(ENABLE_SHARED yes shared_summary)
+display(ENABLE_STATIC yes static_summary)
+display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
+display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
+display(BROKER_PYTHON_BINDINGS ${BROKER_PYTHON_BINDINGS} pybindings_summary)
+
 message(
     "\n==================|  broker Config Summary  |===================="
     "\nVersion:         ${BROKER_VERSION}"
     "\nSO version:      ${BROKER_SOVERSION}"
+    "\n"
     "\nBuild Type:      ${CMAKE_BUILD_TYPE}"
     "\nInstall prefix:  ${CMAKE_INSTALL_PREFIX}"
     "\nLibrary prefix:  ${INSTALL_LIB_DIR}"
-    "\nShared libs:     ${ENABLE_SHARED}"
-    "\nStatic libs:     ${ENABLE_STATIC}"
-    "\nEnable RocksDB:  ${ROCKSDB_FOUND}"
-    "\nPython bindings: ${BROKER_PYTHON_BINDINGS}"
+    "\nShared libs:     ${shared_summary}"
+    "\nStatic libs:     ${static_summary}"
     "\n"
     "\nCC:              ${CMAKE_C_COMPILER}"
     "\nCFLAGS:          ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${BuildType}}"
     "\nCXX:             ${CMAKE_CXX_COMPILER}"
     "\nCXXFLAGS:        ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${BuildType}}"
+    "\n"
+    "\nCAF:             ${caf_summary}"
+    "\nRocksDB:         ${rocksdb_summary}"
+    "\nPython bindings: ${pybindings_summary}"
     "\n=================================================================")
 
 include(UserChangedWarning)
