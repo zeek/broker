@@ -85,101 +85,109 @@ int main(int argc, char** argv)
 	string db_name = "backend_test." + backend_name  + ".tmp";
 	broker::init();
 	broker::report::init(true);
-	endpoint node("node0");
 
-	// Can fiddle with these if test starts failing ocassionally due to timing.
-	double abs_time = 5.0;
-	double mod_time = abs_time * 0.4;
+	// FIXME: we current use this additional scope to ensure that all broker have
+	// released their state before calling broker::done() at the very end.
+	// Ideally, the created objects should clean up after themselves.
+  {
+    endpoint node("node0");
 
-	auto pre_expire = now() + abs_time;
-	expiration_time abs_expire(pre_expire);
-	expiration_time mod_expire(mod_time, now());
-	value pre_existing = {data("myval"), abs_expire};
-	snapshot sss = {{{data("pre"), pre_existing}}, {}};
-	unique_ptr<backend> mbacking;
-	unique_ptr<backend> cbacking;
+    // Can fiddle with these if test starts failing ocassionally due to timing.
+    double abs_time = 5.0;
+    double mod_time = abs_time * 0.4;
+
+    auto pre_expire = now() + abs_time;
+    expiration_time abs_expire(pre_expire);
+    expiration_time mod_expire(mod_time, now());
+    value pre_existing = {data("myval"), abs_expire};
+    snapshot sss = {{{data("pre"), pre_existing}}, {}};
+    unique_ptr<backend> mbacking;
+    unique_ptr<backend> cbacking;
 
 #ifdef HAVE_ROCKSDB
-	if ( backend_name == "rocksdb" )
-		{
-		mbacking.reset(new rocksdb_backend);
-		cbacking.reset(new rocksdb_backend);
-		BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
-		BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
-		}
-	else
+    if ( backend_name == "rocksdb" )
+      {
+      mbacking.reset(new rocksdb_backend);
+      cbacking.reset(new rocksdb_backend);
+      BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
+      BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
+      }
+    else
 #endif
-	if ( backend_name == "sqlite" )
-		{
-		mbacking.reset(new sqlite_backend);
-		cbacking.reset(new sqlite_backend);
-		BROKER_TEST(open_sqlite(string("master.") + db_name, mbacking.get()));
-		BROKER_TEST(open_sqlite(string("clone.") + db_name, cbacking.get()));
-		}
-	else if ( backend_name == "memory" )
-		{
-		mbacking.reset(new memory_backend);
-		cbacking.reset(new memory_backend);
-		}
-	else
-		return 1;
+    if ( backend_name == "sqlite" )
+      {
+      mbacking.reset(new sqlite_backend);
+      cbacking.reset(new sqlite_backend);
+      BROKER_TEST(open_sqlite(string("master.") + db_name, mbacking.get()));
+      BROKER_TEST(open_sqlite(string("clone.") + db_name, cbacking.get()));
+      }
+    else if ( backend_name == "memory" )
+      {
+      mbacking.reset(new memory_backend);
+      cbacking.reset(new memory_backend);
+      }
+    else
+      return 1;
 
-	mbacking->init(sss);
-	master m(node, "mystore", move(mbacking));
+    mbacking->init(sss);
+    master m(node, "mystore", move(mbacking));
 
-	dataset ds0 = {
-	                make_pair("pre",       "myval"),
-	                make_pair("noexpire",  "one"),
-	                make_pair("absexpire", "two"),
-	                make_pair("refresh",   3),
-	                make_pair("morerefresh", broker::set{2, 4, 6, 8}),
-	                make_pair("vrefresh", broker::vector{"m"}),
-	                make_pair("norefresh", "four"),
-	              };
+    dataset ds0 = {
+                    make_pair("pre",       "myval"),
+                    make_pair("noexpire",  "one"),
+                    make_pair("absexpire", "two"),
+                    make_pair("refresh",   3),
+                    make_pair("morerefresh", broker::set{2, 4, 6, 8}),
+                    make_pair("vrefresh", broker::vector{"m"}),
+                    make_pair("norefresh", "four"),
+                  };
 
-	m.insert("noexpire",  "one");
-	m.insert("absexpire", "two",   abs_expire);
-	m.insert("refresh",   3, mod_expire);
-	m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
-	m.insert("vrefresh", broker::vector{"m"}, mod_expire);
-	m.insert("norefresh", "four",  mod_expire);
-	store::clone c(node, "mystore", chrono::duration<double>(0.25),
-	               move(cbacking));
+    m.insert("noexpire",  "one");
+    m.insert("absexpire", "two",   abs_expire);
+    m.insert("refresh",   3, mod_expire);
+    m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
+    m.insert("vrefresh", broker::vector{"m"}, mod_expire);
+    m.insert("norefresh", "four",  mod_expire);
+    store::clone c(node, "mystore", chrono::duration<double>(0.25),
+                   move(cbacking));
 
-	BROKER_TEST(compare_contents(c, ds0));
-	BROKER_TEST(compare_contents(m, ds0));
+    BROKER_TEST(compare_contents(c, ds0));
+    BROKER_TEST(compare_contents(m, ds0));
 
-	usleep(mod_time / 2.0 * 1000000);
-	c.increment("refresh", 5);
-	c.add_to_set("morerefresh", 0);
-	c.push_left("vrefresh", {"l"});
-	c.push_right("vrefresh", {"r"});
-	usleep(mod_time / 2.0 * 1000000);
-	m.decrement("refresh", 2);
-	m.remove_from_set("morerefresh", 6);
+    usleep(mod_time / 2.0 * 1000000);
+    c.increment("refresh", 5);
+    c.add_to_set("morerefresh", 0);
+    c.push_left("vrefresh", {"l"});
+    c.push_right("vrefresh", {"r"});
+    usleep(mod_time / 2.0 * 1000000);
+    m.decrement("refresh", 2);
+    m.remove_from_set("morerefresh", 6);
 
-	BROKER_TEST(*pop_left(m, "vrefresh") == "l");
-	BROKER_TEST(*pop_right(m, "vrefresh") == "r");
+    BROKER_TEST(*pop_left(m, "vrefresh") == "l");
+    BROKER_TEST(*pop_right(m, "vrefresh") == "r");
 
-	ds0.erase("norefresh");
-	ds0["refresh"] = 6;
-	ds0["morerefresh"] = broker::set{0, 2, 4, 8};
-	ds0["vrefresh"] = broker::vector{"m"};
+    ds0.erase("norefresh");
+    ds0["refresh"] = 6;
+    ds0["morerefresh"] = broker::set{0, 2, 4, 8};
+    ds0["vrefresh"] = broker::vector{"m"};
 
-	wait_for(c, "refresh", 6);
-	wait_for(c, "morerefresh", broker::set{0, 2, 4, 8});
-	wait_for(c, "vrefresh", broker::vector{"m"});
-	wait_for(c, "norefresh", false);
+    wait_for(c, "refresh", 6);
+    wait_for(c, "morerefresh", broker::set{0, 2, 4, 8});
+    wait_for(c, "vrefresh", broker::vector{"m"});
+    wait_for(c, "norefresh", false);
 
-	BROKER_TEST(compare_contents(c, ds0));
-	BROKER_TEST(compare_contents(m, ds0));
+    BROKER_TEST(compare_contents(c, ds0));
+    BROKER_TEST(compare_contents(m, ds0));
 
-	usleep(mod_time * 1.5 * 1000000);
-	ds0.clear();
-	ds0["noexpire"] = "one";
+    usleep(mod_time * 1.5 * 1000000);
+    ds0.clear();
+    ds0["noexpire"] = "one";
 
-	BROKER_TEST(compare_contents(c, ds0));
-	BROKER_TEST(compare_contents(m, ds0));
+    BROKER_TEST(compare_contents(c, ds0));
+    BROKER_TEST(compare_contents(m, ds0));
+  }
+
+  broker::done(); // TODO: use RAII guard instead.
 
 	return BROKER_TEST_RESULT();
 	}

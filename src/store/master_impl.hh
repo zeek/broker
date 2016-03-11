@@ -1,19 +1,25 @@
 #ifndef BROKER_STORE_MASTER_IMPL_HH
 #define BROKER_STORE_MASTER_IMPL_HH
 
-#include "../atoms.hh"
+#include <unordered_map>
+
+#include <caf/send.hpp>
+#include <caf/actor.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+
 #include "broker/store/master.hh"
 #include "broker/store/sqlite_backend.hh"
 #include "broker/report.hh"
 #include "broker/time_point.hh"
-#include <caf/send.hpp>
-#include <caf/spawn.hpp>
-#include <caf/actor.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/scoped_actor.hpp>
-#include <unordered_map>
 
-namespace broker { namespace store {
+#include "../atoms.hh"
+
+namespace broker {
+
+extern std::unique_ptr<caf::actor_system> broker_system;
+
+namespace store {
 
 static inline double now()
 	{ return broker::time_point::now().value; }
@@ -22,8 +28,10 @@ class master_actor : public caf::event_based_actor {
 
 public:
 
-	master_actor(std::unique_ptr<backend> s, identifier name)
-		: datastore(std::move(s))
+  master_actor(caf::actor_config& cfg, std::unique_ptr<backend> s,
+               identifier name)
+		: caf::event_based_actor{cfg},
+		  datastore(std::move(s))
 		{
 		using namespace caf;
 		using namespace std;
@@ -335,17 +343,19 @@ public:
 
 	impl(const caf::actor& endpoint, identifier name,
 	     std::unique_ptr<backend> s)
+	    : self{*broker_system}
 		{
 		// TODO: rocksdb backend should also be detached, but why does
 		// rocksdb::~DB then crash?
 		if ( dynamic_cast<sqlite_backend*>(s.get()) )
-			actor = caf::spawn<master_actor, caf::detached>(std::move(s), name);
+      actor = broker_system->spawn<master_actor, caf::detached>(std::move(s),
+                                                                name);
 		else
-			actor = caf::spawn<master_actor>(std::move(s), name);
+			actor = broker_system->spawn<master_actor>(std::move(s), name);
 
-		self->planned_exit_reason(caf::exit_reason::user_defined);
+		self->planned_exit_reason(caf::exit_reason::unknown);
 		actor->link_to(self);
-		caf::anon_send(endpoint, master_atom::value, std::move(name), actor);
+    caf::anon_send(endpoint, master_atom::value, std::move(name), actor);
 		}
 
 	caf::scoped_actor self;

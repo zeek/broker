@@ -16,12 +16,21 @@ struct response {
 	void* cookie;
 };
 
+// FIXME: use equality_comparable mixin for symmetric operator injection.
 inline bool operator==(const response& lhs, const response& rhs)
 	{
 	return lhs.request == rhs.request &&
 	       lhs.reply == rhs.reply &&
 	       lhs.cookie == rhs.cookie;
 	}
+
+template <class Processor>
+void serialize(Processor& proc, response& r, const unsigned)
+  {
+  proc & r.request;
+  proc & r.reply;
+  // FIXME: what are we going to do with the cookie?
+  }
 
 } // namespace store
 } // namespace broker

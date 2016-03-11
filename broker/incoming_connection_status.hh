@@ -35,6 +35,13 @@ inline bool operator==(const incoming_connection_status& lhs,
                        const incoming_connection_status& rhs)
 	{ return lhs.status == rhs.status && lhs.peer_name == rhs.peer_name; }
 
+template <class Processor>
+void serialize(Processor& proc, incoming_connection_status& ics, const unsigned)
+  {
+  proc & ics.status;
+  proc & ics.peer_name;
+  }
+
 } // namespace broker
 
 #endif // BROKER_INCOMING_CONNECTION_STATUS_HH

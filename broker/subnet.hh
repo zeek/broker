@@ -9,7 +9,8 @@ namespace broker {
  * Stores an IPv4 or IPv6 subnet (an address prefix).
  */
 class subnet : util::totally_ordered<subnet> {
-friend class subnet_type_info;
+  template <class Processor>
+  friend void serialize(Processor& proc, subnet& sn, const unsigned int);
 
 public:
 
@@ -61,6 +62,13 @@ std::string to_string(const subnet& s);
 std::ostream& operator<<(std::ostream& out, const subnet& s);
 bool operator==(const subnet& lhs, const subnet& rhs);
 bool operator<(const subnet& lhs, const subnet& rhs);
+
+template <class Processor>
+void serialize(Processor& proc, subnet& sn, const unsigned)
+  {
+  proc & sn.net;
+  proc & sn.len;
+  }
 
 } // namespace broker
 

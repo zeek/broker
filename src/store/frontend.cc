@@ -1,7 +1,7 @@
-#include "frontend_impl.hh"
-#include "../atoms.hh"
 #include <caf/send.hpp>
-#include <caf/spawn.hpp>
+
+#include "../atoms.hh"
+#include "frontend_impl.hh"
 
 static inline caf::actor& handle_to_actor(void* h)
 	{
@@ -106,8 +106,8 @@ broker::store::result broker::store::frontend::request(query q) const
 	caf::actor& where = need_master ? pimpl->endpoint
 	                                : handle_to_actor(handle());
 
-	pimpl->self->sync_send(where, store_actor_atom::value,
-	                       pimpl->master_name).await(
+	pimpl->self->request(where, store_actor_atom::value,
+                       pimpl->master_name).receive(
 		[&store_actor](caf::actor& sa)
 			{
 			store_actor = std::move(sa);
@@ -117,8 +117,8 @@ broker::store::result broker::store::frontend::request(query q) const
 	if ( ! store_actor )
 		return rval;
 
-	pimpl->self->sync_send(store_actor, pimpl->master_name,
-	                       std::move(q), pimpl->self).await(
+	pimpl->self->request(store_actor, pimpl->master_name,
+                       std::move(q), pimpl->self).receive(
 		[&rval](const caf::actor&, result& r)
 			{
 			rval = std::move(r);
@@ -136,10 +136,9 @@ void broker::store::frontend::request(query q,
 	caf::actor& where = need_master ? pimpl->endpoint
 	                                : handle_to_actor(handle());
 
-	caf::spawn<requester>(where,
-	           pimpl->master_name, std::move(q),
-	           handle_to_actor(pimpl->responses.handle()),
-	           timeout, cookie);
+  broker_system->spawn<requester>(where, pimpl->master_name, std::move(q),
+                                  handle_to_actor(pimpl->responses.handle()),
+                                  timeout, cookie);
 	}
 
 void* broker::store::frontend::handle() const

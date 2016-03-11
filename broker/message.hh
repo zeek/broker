@@ -9,7 +9,7 @@ namespace broker {
  * A message containing a sequence of items.  The meaning/usage of these is
  * left entirely up to the application to decide.
  */
-typedef broker::vector message;
+using message = broker::vector;
 
 } // namespace broker
 

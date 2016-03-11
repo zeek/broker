@@ -1,3 +1,4 @@
+#include "peering_impl.hh"
 #include "queue_impl.hh"
 #include "atoms.hh"
 

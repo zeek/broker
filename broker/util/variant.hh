@@ -33,13 +33,17 @@ do so, all subject to the following:
 #include <type_traits>
 #include <memory>
 #include <functional>
-#include <broker/util/operators.hh>
-#include <broker/util/meta.hh>
 
 // These includes just for "whitelisting" some static_asserts.
 #include <string>
 #include <set>
 #include <map>
+
+#include <caf/deserializer.hpp>
+#include <caf/serializer.hpp>
+
+#include <broker/util/operators.hh>
+#include <broker/util/meta.hh>
 
 namespace broker {
 namespace util {
@@ -751,6 +755,50 @@ bool is(const Visitable& v)
 template <typename V>
 typename V::tag which(const V& v)
 	{ return expose(v).which(); }
+
+namespace detail {
+
+struct serializer {
+  using result_type = void;
+
+  template <class T>
+  result_type operator()(const T& x) const
+    {
+    sink << x;
+    }
+
+  caf::serializer& sink;
+};
+
+struct deserializer {
+  using result_type = void;
+
+  template <class T>
+  result_type operator()(T& x) const
+    {
+    source >> x;
+    }
+
+  caf::deserializer& source;
+};
+
+} // namespace detail
+
+template <class... Ts>
+void serialize(caf::serializer& sink, const variant<Ts...>& v, const unsigned)
+  {
+  sink << v.which();
+  visit(detail::serializer{sink}, v);
+  }
+
+template <class... Ts>
+void serialize(caf::deserializer& source, variant<Ts...>& v, const unsigned)
+  {
+  typename variant<Ts...>::tag t;
+  source >> t;
+  v = variant<Ts...>::make(t);
+  visit(detail::deserializer{source}, v);
+  }
 
 } // namespace util
 

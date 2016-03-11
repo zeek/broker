@@ -13,15 +13,16 @@ namespace std { template<> struct std::hash<broker::peering>; }
 namespace broker {
 
 class endpoint;
-class peering_type_info;
 
 /**
  * Contains information about a peering between two endpoints.
  */
 class peering {
 friend class endpoint;
-friend class peering_type_info;
 friend struct std::hash<peering>;
+
+template <class Processor>
+friend void serialize(Processor&, peering&, const unsigned);
 
 public:
 

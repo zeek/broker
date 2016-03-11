@@ -12,8 +12,9 @@ typedef struct test_message {
 	broker_message* msg;
 } test_message;
 
-broker_data* make_test_msg(broker_endpoint* node, const char* path, const char* str,
-                   broker_string* topic, broker_vector* msg, test_message* tmsg)
+broker_data* make_test_msg(broker_endpoint* node, const char* path, 
+                           const char* str, broker_string* topic,
+                           broker_vector* msg, test_message* tmsg)
 	{
 	BROKER_TEST(broker_string_set_cstring(
 	            broker_data_as_string(broker_vector_lookup(msg, 0)),
@@ -222,6 +223,8 @@ int main()
 	BROKER_TEST(check_contents_poll(pq_a2, pq_a2_expected));
 	BROKER_TEST(check_contents_poll(pq_b0, pq_b0_expected));
 	BROKER_TEST(check_contents_poll(pq_b1, pq_b1_expected));
+	
+	broker_done();
 
 	return BROKER_TEST_RESULT();
 	}

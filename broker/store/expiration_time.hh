@@ -75,6 +75,14 @@ inline bool operator==(const expiration_time& lhs, const expiration_time& rhs)
 	return true;
 	}
 
+template <class Processor>
+void serialize(Processor& proc, expiration_time& e, const unsigned)
+  {
+  proc & e.expiry_time;
+  proc & e.modification_time;
+  proc & e.type;
+  }
+
 /**
  * A key in a data store which has a given expiration.
  */

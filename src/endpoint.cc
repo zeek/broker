@@ -1,7 +1,10 @@
-#include "broker/broker.hh"
-#include "endpoint_impl.hh"
-#include <caf/io/publish.hpp>
+#include <caf/actor_system.hpp>
 #include <caf/send.hpp>
+#include <caf/io/middleman.hpp>
+
+#include "broker/broker.hh"
+
+#include "endpoint_impl.hh"
 
 static inline caf::actor& handle_to_actor(void* h)
 	{ return *static_cast<caf::actor*>(h); }
@@ -47,7 +50,7 @@ bool broker::endpoint::listen(uint16_t port, const char* addr, bool reuse_addr)
 	{
 	try
 		{
-		caf::io::publish(pimpl->actor, port, addr, reuse_addr);
+		broker_system->middleman().publish(pimpl->actor, port, addr, reuse_addr);
 		}
 	catch ( const std::exception& e )
 		{
@@ -77,8 +80,8 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
 	else
 		{
 		auto h = handle_to_actor(pimpl->outgoing_conns.handle());
-		auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, pimpl->name,
-		                                          addr, port, retry, h);
+		auto a = broker_system->spawn<endpoint_proxy_actor>(
+      pimpl->actor, pimpl->name, addr, port, retry, h);
 		a->link_to(pimpl->self);
 		rval = peering(std::unique_ptr<peering::impl>(
 	                   new peering::impl(pimpl->actor, std::move(a),

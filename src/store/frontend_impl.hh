@@ -1,21 +1,29 @@
 #ifndef BROKER_STORE_FRONTEND_IMPL_HH
 #define BROKER_STORE_FRONTEND_IMPL_HH
 
-#include "broker/store/frontend.hh"
 #include <caf/actor.hpp>
+#include <caf/actor_system.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/scoped_actor.hpp>
 
-namespace broker { namespace store {
+#include "broker/store/frontend.hh"
+#include "broker/store/response.hh"
+
+namespace broker { 
+
+extern std::unique_ptr<caf::actor_system> broker_system;
+
+namespace store {
 
 class requester : public caf::event_based_actor {
 
 public:
 
-	requester(caf::actor backend, identifier master_name, query q,
-	          caf::actor queue, std::chrono::duration<double> timeout,
+  requester(caf::actor_config& cfg, caf::actor backend, identifier master_name,
+            query q, caf::actor queue, std::chrono::duration<double> timeout,
 	          void* cookie)
-		: request(std::move(q))
+		: caf::event_based_actor{cfg},
+		  request(std::move(q))
 		{
 		using namespace std;
 		using namespace caf;
@@ -31,13 +39,13 @@ public:
 		awaiting_response = {
 		[=](const actor&, result& r)
 			{
-			send(queue, response{std::move(request), std::move(r), cookie});
+			send(queue, store::response{std::move(request), std::move(r), cookie});
 			quit();
 			},
 		after(chrono::duration_cast<chrono::microseconds>(timeout)) >> [=]
 			{
-			send(queue, response{std::move(request),
-			                     result(result::status::timeout), cookie});
+      send(queue, store::response{std::move(request),
+                                  result(result::status::timeout), cookie});
 			quit();
 			}
 		};
@@ -60,7 +68,7 @@ public:
 
 	impl(identifier mn, caf::actor e)
 		: master_name(std::move(mn)), endpoint(std::move(e)),
-		  responses(), self()
+		  self{*broker_system}
 		{ }
 
 	std::string master_name;

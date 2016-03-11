@@ -14,8 +14,6 @@ namespace broker {
  * Stores an IPv4 or IPv6 address.
  */
 class address : util::totally_ordered<address> {
-friend class address_type_info;
-
 public:
 
 	/**
@@ -90,6 +88,12 @@ public:
 	friend bool operator==(const address& lhs, const address& rhs);
 
 	friend bool operator<(const address& lhs, const address& rhs);
+
+  template <class Processor>
+  friend void serialize(Processor& proc, address& a, const unsigned int)
+    {
+    proc & a.addr;
+    }
 
 	static const std::array<uint8_t, 12> v4_mapped_prefix;
 

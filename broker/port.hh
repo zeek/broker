@@ -12,7 +12,8 @@ namespace broker {
  * A transport-layer port.
  */
 class port : util::totally_ordered<port> {
-friend class port_type_info;
+  template <class Processor>
+  friend void serialize(Processor& proc, port& p, const unsigned int);
 
 public:
 
@@ -66,6 +67,13 @@ std::string to_string(const port& p);
 std::ostream& operator<<(std::ostream& out, const port& p);
 bool operator==(const port& lhs, const port& rhs);
 bool operator<(const port& lhs, const port& rhs);
+
+template <class Processor>
+void serialize(Processor& proc, port& p, const unsigned)
+  {
+  proc & p.num;
+  proc & p.proto;
+  }
 
 } // namespace broker
 

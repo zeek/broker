@@ -68,6 +68,12 @@ inline time_point operator-(const time_point& lhs, const time_duration& rhs)
 inline std::ostream& operator<<(std::ostream& out, const time_point& d)
 	{ return out << d.value; }
 
+template <class Processor>
+void serialize(Processor& proc, time_point& tp, const unsigned)
+  {
+  proc & tp.value;
+  }
+
 } // namespace broker
 
 namespace std {

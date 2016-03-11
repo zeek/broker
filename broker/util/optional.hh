@@ -35,8 +35,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <utility>
 #include <cassert>
 #include <functional>
-#include <broker/util/none.hh>
-#include <broker/util/operators.hh>
+
+#include <caf/serializer.hpp>
+#include <caf/deserializer.hpp>
+
+#include "broker/util/none.hh"
+#include "broker/util/operators.hh"
 
 namespace broker {
 namespace util {
@@ -391,6 +395,26 @@ inline bool operator<(const optional<const T&>& x, const T& v)
 template <class T>
 inline bool operator<(const T& v, const optional<const T&>& x)
 	{ return bool(x) ? v < *x : false; }
+
+template <class T>
+void serialize(caf::serializer& sink, const optional<T>& o, const unsigned)
+  {
+  sink << o.valid();
+  if ( o.valid() )
+    sink << *o;
+  }
+
+template <class T>
+void serialize(caf::deserializer& source, optional<T>& o, const unsigned)
+  {
+  bool valid;
+  source >> valid;
+  if ( valid )
+    {
+    o = T{};
+    source >> *o;
+    }
+  }
 
 } // namespace util
 } // namespace broker

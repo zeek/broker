@@ -1,22 +1,24 @@
 #ifndef BROKER_ENDPOINT_IMPL_HH
 #define BROKER_ENDPOINT_IMPL_HH
 
+#include <unordered_set>
+#include <sstream>
+
+#include <caf/actor.hpp>
+#include <caf/send.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/io/middleman.hpp>
+
 #include "broker/endpoint.hh"
 #include "broker/report.hh"
 #include "broker/store/identifier.hh"
 #include "broker/store/query.hh"
-#include "subscription.hh"
-#include "peering_impl.hh"
-#include "util/radix_tree.hh"
+
 #include "atoms.hh"
-#include <caf/actor.hpp>
-#include <caf/spawn.hpp>
-#include <caf/send.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/scoped_actor.hpp>
-#include <caf/io/remote_actor.hpp>
-#include <unordered_set>
-#include <sstream>
+#include "peering_impl.hh"
+#include "subscription.hh"
+#include "util/radix_tree.hh"
 
 #ifdef DEBUG
 // So that we don't have a recursive expansion from sending messages via the
@@ -29,6 +31,8 @@
 #endif
 
 namespace broker {
+
+extern std::unique_ptr<caf::actor_system> broker_system;
 
 static std::string to_string(const topic_set& ts)
 	{
@@ -66,9 +70,12 @@ class endpoint_actor : public caf::event_based_actor {
 
 public:
 
-	endpoint_actor(const endpoint* ep, std::string arg_name, int flags,
-	               caf::actor ocs_queue, caf::actor ics_queue)
-		: name(std::move(arg_name)), behavior_flags(flags)
+  endpoint_actor(caf::actor_config& cfg, const endpoint* ep, std::string
+                 arg_name, int flags, caf::actor ocs_queue,
+                 caf::actor ics_queue)
+		: caf::event_based_actor{cfg},
+		  name(std::move(arg_name)),
+		  behavior_flags(flags)
 		{
 		using namespace caf;
 		using namespace std;
@@ -93,33 +100,34 @@ public:
 				return;
 				}
 
-			sync_send(p, BROKER_PROTOCOL_VERSION).then(
-				[=](const sync_exited_msg& m)
-					{
-					ocs_update(ocs_queue, move(pi), ocs_disconnect);
-					},
+			request(p, BROKER_PROTOCOL_VERSION).then(
 				[=](bool compat, int their_version)
 					{
 					if ( ! compat )
 						ocs_update(ocs_queue, move(pi), ocs_incompat);
 					else
-						sync_send(p, peer_atom::value, this, name,
-						          advertised_subscriptions).then(
-							[=](const sync_exited_msg& m)
-								{
-								ocs_update(ocs_queue, move(pi), ocs_disconnect);
-								},
+            request(p, peer_atom::value, this, name,
+                    advertised_subscriptions).then(
 							[=](string& pname, topic_set& ts)
 								{
 								add_peer(move(p), pname, move(ts), false);
 								ocs_update(ocs_queue, move(pi), ocs_established,
 								           move(pname));
+								},
+							[=](const caf::error&)
+								{
+								ocs_update(ocs_queue, move(pi), ocs_disconnect);
 								}
 						);
 					},
-				others() >> [=]
+				[=](const caf::error& e)
 					{
-					ocs_update(ocs_queue, move(pi), ocs_incompat);
+					if ( e == sec::unexpected_message )
+            ocs_update(ocs_queue, move(pi), ocs_incompat);
+          else if ( e == sec::request_receiver_down )
+            ocs_update(ocs_queue, move(pi), ocs_disconnect);
+          else
+            assert(! "unhandled request error");
 					}
 			);
 			},
@@ -208,13 +216,13 @@ public:
 
 			BROKER_DEBUG("endpoint." + name,
 			             "Attached master data store named '" + id + "'");
-			attach(move(id), move(a));
+			add(move(id), move(a));
 			},
 		[=](local_sub_atom, topic& t, actor& a)
 			{
 			BROKER_DEBUG("endpoint." + name,
 			             "Attached local queue for topic '" + t + "'");
-			attach(move(t), move(a));
+			add(move(t), move(a));
 			},
 		[=](const topic& t, broker::message& msg, int flags)
 			{
@@ -379,7 +387,7 @@ private:
 		peer_subscriptions.insert(subscriber{std::move(p), std::move(ts)});
 		}
 
-	void attach(std::string topic_or_id, caf::actor a)
+	void add(std::string topic_or_id, caf::actor a)
 		{
 		demonitor(a);
 		monitor(a);
@@ -497,10 +505,11 @@ class endpoint_proxy_actor : public caf::event_based_actor {
 
 public:
 
-	endpoint_proxy_actor(caf::actor local, std::string endpoint_name,
-	                     std::string addr, uint16_t port,
+  endpoint_proxy_actor(caf::actor_config& cfg, caf::actor local, std::string
+                       endpoint_name, std::string addr, uint16_t port,
 	                     std::chrono::duration<double> retry_freq,
 	                     caf::actor ocs_queue)
+	    : caf::event_based_actor{cfg}
 		{
 		using namespace caf;
 		using namespace std;
@@ -597,7 +606,7 @@ private:
 
 		try
 			{
-			remote = io::remote_actor(addr, port);
+			remote = broker_system->middleman().remote_actor(addr, port);
 			}
 		catch ( const exception& e )
 			{
@@ -630,15 +639,14 @@ static inline caf::actor& handle_to_actor(void* h)
 class endpoint::impl {
 public:
 
-	impl(const endpoint* ep, std::string n, int arg_flags)
-		: name(std::move(n)), flags(arg_flags), self(),
-		  outgoing_conns(), incoming_conns(),
-		  actor(caf::spawn<broker::endpoint_actor>(ep, name, flags,
-		                   handle_to_actor(outgoing_conns.handle()),
-		                   handle_to_actor(incoming_conns.handle()))),
-		  peers(), last_errno(), last_error()
+  impl(const endpoint* ep, std::string n, int arg_flags)
+    : name(std::move(n)), flags(arg_flags), self{*broker_system},
+      actor(broker_system->spawn<broker::endpoint_actor>(
+            ep, name, flags, handle_to_actor(outgoing_conns.handle()),
+            handle_to_actor(incoming_conns.handle())))
 		{
-		self->planned_exit_reason(caf::exit_reason::user_defined);
+		// FIXME: do not rely on private API
+		self->planned_exit_reason(caf::exit_reason::unknown);
 		actor->link_to(self);
 		}
 
@@ -652,6 +660,7 @@ public:
 	int last_errno;
 	std::string last_error;
 };
+
 } // namespace broker
 
 #endif // BROKER_ENDPOINT_IMPL_HH

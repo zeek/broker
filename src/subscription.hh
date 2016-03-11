@@ -6,9 +6,6 @@
 #include "util/radix_tree.hh"
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
-#include <caf/abstract_uniform_type_info.hpp>
-#include <caf/serializer.hpp>
-#include <caf/deserializer.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <cstdint>
@@ -18,21 +15,6 @@ namespace broker {
 
 using actor_set = std::unordered_set<caf::actor>;
 using topic_set = util::radix_tree<bool>;
-
-/**
- * (de)serialization logic for type "topic_set".
- */
-class topic_set_type_info
-        : public caf::abstract_uniform_type_info<topic_set> {
-public:
-
-	topic_set_type_info()
-		: caf::abstract_uniform_type_info<topic_set>("broker::topic_set")
-		{}
-
-	void serialize(const void* ptr, caf::serializer* sink) const override;
-	void deserialize(void* ptr, caf::deserializer* source) const override;
-};
 
 /**
  * An actor with the associated topics in which it claims interest.

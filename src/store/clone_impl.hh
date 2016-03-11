@@ -1,28 +1,35 @@
 #ifndef BROKER_STORE_CLONE_IMPL_HH
 #define BROKER_STORE_CLONE_IMPL_HH
 
-#include "../atoms.hh"
-#include "broker/store/clone.hh"
-#include "broker/store/backend.hh"
-#include "broker/store/memory_backend.hh"
-#include "broker/store/sqlite_backend.hh"
-#include "broker/report.hh"
-#include <caf/spawn.hpp>
+#include <caf/actor_system.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/scoped_actor.hpp>
 
-namespace broker { namespace store {
+#include "broker/report.hh"
+#include "broker/store/backend.hh"
+#include "broker/store/clone.hh"
+#include "broker/store/memory_backend.hh"
+#include "broker/store/sqlite_backend.hh"
+
+#include "../atoms.hh"
+
+namespace broker { 
+
+extern std::unique_ptr<caf::actor_system> broker_system;
+
+namespace store {
 
 class clone_actor : public caf::event_based_actor {
 
 public:
 
-	clone_actor(const caf::actor& endpoint, identifier master_name,
-	            std::chrono::microseconds resync_interval,
+  clone_actor(caf::actor_config& cfg, const caf::actor& endpoint,
+              identifier master_name, std::chrono::microseconds resync_interval,
 	            std::unique_ptr<backend> b)
-		: datastore(std::move(b))
+		: caf::event_based_actor{cfg},
+		  datastore(std::move(b))
 		{
 		using namespace std;
 		using namespace caf;
@@ -232,7 +239,7 @@ public:
 		message_handler find_master{
 		[=](find_master_atom)
 			{
-			sync_send(endpoint, store_actor_atom::value, master_name).then(
+			request(endpoint, store_actor_atom::value, master_name).then(
 				[=](actor& m)
 					{
 					if ( m )
@@ -278,15 +285,8 @@ public:
 				return;
 				}
 
-			sync_send(master, master_name, query(query::tag::snapshot),
-			          this).then(
-				[=](const sync_exited_msg& m)
-					{
-					BROKER_DEBUG("store.clone." + master_name,
-					             "master went down while requesting snapshot,"
-					             " will retry...");
-					get_snapshot(resync_interval);
-					},
+			request(master, master_name, query(query::tag::snapshot),
+              this).then(
 				[=](actor& responder, result& r)
 					{
 					if ( r.stat != result::status::success ||
@@ -308,6 +308,20 @@ public:
 							fatal_error(master_name, "init",
 							            datastore->last_error());
 						}
+					},
+				[=](const caf::error& err)
+					{
+          if ( err == sec::request_receiver_down )
+            {
+            BROKER_DEBUG("store.clone." + master_name,
+                         "master went down while requesting snapshot,"
+                         " will retry...");
+            get_snapshot(resync_interval);
+            }
+          else
+            {
+            assert(! "unhandled request error");
+            }
 					}
 			);
 			}
@@ -374,19 +388,21 @@ public:
 	impl(const caf::actor& endpoint, identifier master_name,
 	     std::chrono::microseconds resync_interval,
 	     std::unique_ptr<backend> b)
+	  : self{*broker_system}
 		{
 		// TODO: rocksdb backend should also be detached, but why does
 		// rocksdb::~DB then crash?
 		if ( dynamic_cast<sqlite_backend*>(b.get()) )
-			actor = caf::spawn<clone_actor, caf::detached>(
+			actor = broker_system->spawn<clone_actor, caf::detached>(
 			  endpoint, std::move(master_name), std::move(resync_interval),
 			  std::move(b));
 		else
-			actor = caf::spawn<clone_actor>(
+			actor = broker_system->spawn<clone_actor>(
 			  endpoint, std::move(master_name), std::move(resync_interval),
 			  std::move(b));
 
-		self->planned_exit_reason(caf::exit_reason::user_defined);
+    // FIXME: do not rely on private API.
+		self->planned_exit_reason(caf::exit_reason::unknown);
 		actor->link_to(self);
 		}
 

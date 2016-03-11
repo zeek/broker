@@ -122,5 +122,7 @@ int main()
 	BROKER_TEST(check_contents_poll(pq1b, pq1b_expected));
 	BROKER_TEST(check_contents_poll(pq1c, pq1c_expected));
 
+	broker_done();
+
 	return BROKER_TEST_RESULT();
 	}

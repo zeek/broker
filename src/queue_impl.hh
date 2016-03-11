@@ -1,26 +1,33 @@
 #ifndef BROKER_QUEUE_IMPL_HH
 #define BROKER_QUEUE_IMPL_HH
 
-#include "broker/queue.hh"
-#include "util/flare.hh"
-#include "util/queue_actor.hh"
-#include <caf/spawn.hpp>
+#include <caf/actor_system.hpp>
 #include <caf/send.hpp>
 
+#include "broker/queue.hh"
+
+#include "util/flare.hh"
+#include "util/queue_actor.hh"
+
 namespace broker {
+
+extern std::unique_ptr<caf::actor_system> broker_system;
 
 template <class T>
 class queue<T>::impl {
 public:
 
 	impl()
+    : self{*broker_system}
 		{
 		util::flare f;
 		fd = f.fd();
-		actor = caf::spawn<
-		        broker::util::queue_actor<T>,
-		        caf::priority_aware>(std::move(f));
-		self->planned_exit_reason(caf::exit_reason::user_defined);
+		actor = broker_system->spawn<
+              util::queue_actor<T>,
+              caf::priority_aware
+            >(std::move(f));
+		// FIXME: do not rely on private API.
+		self->planned_exit_reason(caf::exit_reason::unknown);
 		actor->link_to(self);
 		}
 

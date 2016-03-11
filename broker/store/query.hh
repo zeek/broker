@@ -125,6 +125,13 @@ public:
 inline bool operator==(const query& lhs, const query& rhs)
     { return lhs.type == rhs.type && lhs.k == rhs.k; }
 
+template <class Processor>
+void serialize(Processor& proc, query& q, const unsigned)
+  {
+  proc & q.type;
+  proc & q.k;
+  }
+
 } // namespace store
 } // namespace broker
 

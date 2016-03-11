@@ -64,6 +64,12 @@ inline time_duration operator/(const time_duration& lhs, double rhs)
 inline std::ostream& operator<<(std::ostream& out, const time_duration& d)
 	{ return out << d.value; }
 
+template <class Processor>
+void serialize(Processor& proc, time_duration& td, const unsigned)
+  {
+  proc & td.value;
+  }
+
 } // namespace broker
 
 namespace std {

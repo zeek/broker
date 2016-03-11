@@ -62,6 +62,12 @@ inline bool operator==(const enum_value& lhs, const enum_value& rhs)
 inline bool operator<(const enum_value& lhs, const enum_value& rhs)
 	{ return lhs.name < rhs.name; }
 
+template <class Processor>
+void serialize(Processor& proc, enum_value& e, const unsigned)
+  {
+  proc & e.name;
+  }
+
 inline std::ostream& operator<<(std::ostream& out, const enum_value& e)
 	{ return out << e.name; }
 

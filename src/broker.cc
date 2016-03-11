@@ -1,3 +1,13 @@
+#include <type_traits>
+#include <cstdio>
+#include <cstring>
+#include <deque>
+#include <mutex>
+
+#include <caf/actor_system.hpp>
+#include <caf/actor_system_config.hpp>
+#include <caf/io/middleman.hpp>
+
 #include "broker/broker.hh"
 #include "broker/report.hh"
 #include "broker/time_duration.hh"
@@ -6,120 +16,74 @@
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
 #include "broker/store/expiration_time.hh"
-#include "store/result_type_info.hh"
-#include "store/value_type_info.hh"
-#include "data_type_info.hh"
-#include "address_type_info.hh"
-#include "subnet_type_info.hh"
-#include "port_type_info.hh"
-#include "peering_impl.hh"
-#include "peering_type_info.hh"
-#include "subscription.hh"
-#include <caf/announce.hpp>
-#include <caf/shutdown.hpp>
-#include <type_traits>
-#include <cstdio>
-#include <cstring>
-#include <deque>
-#include <mutex>
+#include "broker/util/make_unique.hh"
 
-namespace broker { namespace report {
+#include "peering_impl.hh"
+#include "queue_impl.hh"
+#include "subscription.hh"
+
+namespace broker {
+
+// TODO: This global state has to go with broker systems.
+namespace report {
 std::mutex* mtx;
-}}
+} // namespace report
+
+// The global actor system.
+// TODO: We only use one actor system during the migration to CAF 0.15. Later,
+// this global state will go away and broker_init will return a broker system
+// instead.
+std::unique_ptr<caf::actor_system> broker_system;
+
+} // namespace broker
+
 
 int broker_init(int flags)
 	{
-	// TODO: need a better, more organized way to announce types.
-	using caf::announce;
-
 	broker::report::mtx = new std::mutex{};
-	announce(typeid(broker::topic_set),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::topic_set_type_info));
-	announce<broker::outgoing_connection_status::tag>(
-	            "broker::outgoing_connection_status::tag");
-	announce<broker::outgoing_connection_status>(
-	            "broker::outgoing_connection_status",
-	            &broker::outgoing_connection_status::relation,
-	            &broker::outgoing_connection_status::status,
-	            &broker::outgoing_connection_status::peer_name);
-	announce<broker::incoming_connection_status::tag>(
-	            "broker::incoming_connection_status::tag");
-	announce<broker::incoming_connection_status>(
-	            "broker::incoming_connection_status",
-	            &broker::incoming_connection_status::status,
-	            &broker::incoming_connection_status::peer_name);
-	announce(typeid(broker::peering),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::peering_type_info));
-	announce<broker::peering::impl>("broker::peering::impl",
-	                                &broker::peering::impl::endpoint_actor,
-	                                &broker::peering::impl::peer_actor,
-	                                &broker::peering::impl::remote,
-	                                &broker::peering::impl::remote_tuple);
-	announce<broker::store::sequence_num>("broker::store::sequence_num",
-	                                    &broker::store::sequence_num::sequence);
-	announce<broker::store::snapshot>("broker::store::snapshot",
-	                                  &broker::store::snapshot::entries,
-	                                  &broker::store::snapshot::sn);
-	announce<broker::data::tag>("broker::data::tag");
-	announce(typeid(broker::data),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::data_type_info));
-	announce(typeid(broker::util::optional<broker::data>),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::optional_data_type_info));
-	announce(typeid(broker::address),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::address_type_info));
-	announce(typeid(broker::subnet),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::subnet_type_info));
-	announce(typeid(broker::port),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::port_type_info));
-	announce<broker::time_duration>("broker::time_duration",
-	                                &broker::time_duration::value);
-	announce<broker::time_point>("broker::time_point",
-	                             &broker::time_point::value);
-	announce<broker::enum_value>("broker::enum_value",
-	                             &broker::enum_value::name);
-	announce<broker::record>("broker::record", &broker::record::fields);
-	announce<std::unordered_set<broker::data>>(
-	            "std::unordered_set<broker::data>");
-	announce<broker::set>("broker::set");
-	announce<broker::table>("broker::table");
-	announce<broker::vector>("broker::vector");
-	announce<broker::store::expiration_time::tag>(
-	            "broker::store::expiration_time::tag");
-	announce<broker::store::expiration_time>("broker::store::expiration_time",
-	                        &broker::store::expiration_time::expiry_time,
-	                        &broker::store::expiration_time::modification_time,
-	                        &broker::store::expiration_time::type);
-	announce(typeid(broker::store::value),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::store::value_type_info));
-	announce<broker::store::result::tag>("broker::store::result::tag");
-	announce<broker::store::result::status>("broker::store::result::status");
-	announce(typeid(broker::store::result),
-	         std::unique_ptr<caf::uniform_type_info>(
-	             new broker::store::result_type_info));
-	announce<broker::store::query::tag>("broker::store::query::tag");
-	announce<broker::store::query>("broker::store::query",
-	                               &broker::store::query::type,
-	                               &broker::store::query::k);
-	announce<broker::store::response>("broker::store::response",
-	                                  &broker::store::response::request,
-	                                  &broker::store::response::reply,
-	                                  &broker::store::response::cookie);
-	announce<std::deque<broker::store::response>>(
-	            "std::deque<broker::store::response>");
-	announce<broker::message>("broker::message");
-	announce<std::deque<broker::message>>("std::deque<broker::message>");
-	announce<std::deque<broker::outgoing_connection_status>>(
-	            "std::deque<broker::outgoing_connection_status>");
-	announce<std::deque<broker::incoming_connection_status>>(
-	            "std::deque<broker::incoming_connection_status>");
+  caf::actor_system_config cfg;
+  cfg.load<caf::io::middleman>()
+     .add_message_type<broker::topic_set>("broker::topic_set")
+     .add_message_type<broker::outgoing_connection_status>(
+       "broker::outgoing_connection_status")
+     .add_message_type<broker::incoming_connection_status>(
+       "broker::incoming_connection_status")
+     .add_message_type<broker::peering>("broker::peering")
+     .add_message_type<broker::peering::impl>("broker::peering_impl")
+     .add_message_type<broker::store::sequence_num>(
+       "broker::store::sequence_num")
+     .add_message_type<broker::data>("broker::data")
+     .add_message_type<broker::address>("broker::address")
+     .add_message_type<broker::subnet>("broker::subnet")
+     .add_message_type<broker::port>("broker::port")
+     .add_message_type<broker::time_duration>("broker::time_duration")
+     .add_message_type<broker::time_point>("broker::time_point")
+     .add_message_type<broker::enum_value>("broker::enum_value")
+     .add_message_type<broker::vector>("broker::vector")
+     .add_message_type<broker::set>("broker::set")
+     .add_message_type<broker::table>("broker::table")
+     .add_message_type<broker::record>("broker::record")
+     .add_message_type<broker::message>("broker::message")
+     .add_message_type<broker::store::expiration_time>(
+       "broker::store::expiration_time")
+     .add_message_type<broker::store::query>("broker::store::query")
+     .add_message_type<broker::store::response>("broker::store::response")
+     .add_message_type<broker::store::result>("broker::store::result")
+     .add_message_type<broker::store::snapshot>("broker::store::snapshot")
+     .add_message_type<broker::store::value>("broker::store::value")
+     .add_message_type<broker::store::value>("broker::store::value")
+     .add_message_type<std::deque<broker::outgoing_connection_status>>(
+       "std::deque<broker::outgoing_connection_status>")
+     .add_message_type<std::deque<broker::incoming_connection_status>>(
+       "std::deque<broker::incoming_connection_status>")
+     .add_message_type<std::deque<broker::message>>(
+       "std::deque<broker::message>")
+     .add_message_type<std::deque<broker::store::response>>(
+       "std::deque<broker::store::response>")
+     .add_message_type<std::unordered_set<broker::data>>(
+       "std::unordered_set<broker::data>")
+	    ;
+  broker::broker_system = std::make_unique<caf::actor_system>(std::move(cfg));
 	return 0;
 	}
 
@@ -131,8 +95,9 @@ void broker::done()
 
 void broker_done()
 	{
-	caf::shutdown();
 	broker::report::done();
+  broker::broker_system->await_actors_before_shutdown(false);
+	broker::broker_system.reset();
 	delete broker::report::mtx;
 	}
 

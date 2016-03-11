@@ -158,5 +158,7 @@ int main()
 	            broker_store_result_status_success);
 	BROKER_TEST(broker_store_result_count(size_res) == 0);
 
+	broker_done();
+
 	return BROKER_TEST_RESULT();
 	}

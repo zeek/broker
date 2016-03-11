@@ -20,8 +20,9 @@ class queue_actor : public caf::event_based_actor {
 
 public:
 
-	queue_actor(flare f)
-		: ready_flare(std::move(f))
+	queue_actor(caf::actor_config& cfg, flare f)
+	  : caf::event_based_actor{cfg},
+		  ready_flare(std::move(f))
 		{
 		using namespace caf;
 		message_handler common

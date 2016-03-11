@@ -19,7 +19,14 @@ struct snapshot {
 };
 
 inline bool operator==(const snapshot& lhs, const snapshot& rhs)
-    { return lhs.sn == rhs.sn && lhs.entries == rhs.entries; }
+  { return lhs.sn == rhs.sn && lhs.entries == rhs.entries; }
+
+template <class Processor>
+void serialize(Processor& proc, snapshot& s, const unsigned)
+  {
+  proc & s.entries;
+  proc & s.sn;
+  }
 
 } // namespace store
 } // namespace broker

@@ -73,6 +73,12 @@ public:
 	std::vector<field> fields;
 };
 
+template <class Processor>
+void serialize(Processor& proc, record& r, const unsigned)
+  {
+  proc & r.fields;
+  }
+
 /**
  * A variant-like class that may store the data associated with one of several
  * different primitive or compound types.
@@ -220,6 +226,12 @@ inline bool operator==(const data& lhs, const data& rhs)
 
 inline bool operator<(const data& lhs, const data& rhs)
 	{ return lhs.value < rhs.value; }
+
+template <class Processor>
+void serialize(Processor& proc, data& d, const unsigned)
+  {
+  proc & d.value;
+  }
 
 std::string to_string(const data&);
 std::string to_string(const vector&);

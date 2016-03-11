@@ -71,6 +71,12 @@ public:
 inline bool operator==(const result& lhs, const result& rhs)
     { return lhs.stat == rhs.stat && lhs.value == rhs.value; }
 
+template <class Processor>
+void serialize(Processor& proc, result& r, const unsigned)
+  {
+  proc & r.value;
+  }
+
 } // namespace store
 } // namespace broker
 

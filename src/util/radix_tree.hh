@@ -47,6 +47,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <emmintrin.h>
 #endif
 
+#include <caf/serializer.hpp>
+#include <caf/deserializer.hpp>
+
 namespace broker {
 namespace util {
 
@@ -1520,6 +1523,32 @@ radix_tree<T, N>::iterator::operator=(iterator rhs)
 	swap(*this, rhs);
 	return *this;
 	}
+
+template <class T, size_t N>
+void serialize(caf::serializer& sink, const radix_tree<T, N>& rt,
+               const unsigned)
+  {
+  auto n = rt.size();
+  sink.begin_sequence(n);
+	for ( auto& ts : rt )
+		sink << ts.first;
+	sink.end_sequence();
+  }
+
+template <class T, size_t N>
+void serialize(caf::deserializer& source, radix_tree<T, N>& rt,
+               const unsigned)
+  {
+  size_t n = 0;
+	source.begin_sequence(n);
+	for ( size_t i = 0; i < n; ++i )
+    {
+    std::string str;
+    source >> str;
+		rt.insert({std::move(str), true});
+    }
+	source.end_sequence();
+  }
 
 } // namespace util
 } // namespace broker

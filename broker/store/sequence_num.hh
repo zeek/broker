@@ -66,6 +66,12 @@ inline bool operator<=(const sequence_num& lhs, const sequence_num& rhs)
 inline bool operator>=(const sequence_num& lhs, const sequence_num& rhs)
     { return ! operator<(lhs,rhs); }
 
+template <class Processor>
+void serialize(Processor& proc, sequence_num& n, const unsigned)
+  {
+  proc & n.sequence;
+  }
+
 } // namespace store
 } // namespace broker
 

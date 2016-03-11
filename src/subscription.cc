@@ -127,27 +127,3 @@ broker::subscription_registry::exact_match(const topic& t) const
 
 	return it->second;
 	}
-
-void broker::topic_set_type_info::serialize(const void* ptr,
-                                            caf::serializer* sink) const
-	{
-	auto topic_set_ptr = reinterpret_cast<const topic_set*>(ptr);
-	sink->begin_sequence(topic_set_ptr->size());
-
-	for ( const auto& ts : *topic_set_ptr )
-		sink->write_value(ts.first);
-
-	sink->end_sequence();
-	}
-
-void broker::topic_set_type_info::deserialize(void* ptr,
-                                              caf::deserializer* source) const
-	{
-	auto topic_set_ptr = reinterpret_cast<topic_set*>(ptr);
-	auto num_topic_strings = source->begin_sequence();
-
-	for ( size_t j = 0; j < num_topic_strings; ++j )
-		topic_set_ptr->insert({source->read<std::string>(), true});
-
-	source->end_sequence();
-	}
