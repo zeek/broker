@@ -45,7 +45,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-swig=PATH       path to SWIG executable (builds python bindings)
 
   Required Packages in Non-Standard Locations:
-    --with-libcaf=PATH     path to C++ Actor Framework installation
+    --with-caf=PATH        path to C++ Actor Framework installation
 
   Influential Environment Variables (only on first invocation
   per build directory):
@@ -120,8 +120,12 @@ while [ $# -ne 0 ]; do
         --disable-pybroker)
             append_cache_entry DISABLE_PYBROKER     BOOL   true
             ;;
+        --with-caf=*)
+            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
+            ;;
         --with-libcaf=*)
-            append_cache_entry LIBCAF_ROOT_DIR      PATH   $optarg
+            echo "warning: --with-libcaf deprecated, use --with-caf instead"
+            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
             ;;
         --with-rocksdb=*)
             append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg

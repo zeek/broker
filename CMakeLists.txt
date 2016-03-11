@@ -2,11 +2,11 @@ project(broker C CXX)
 cmake_minimum_required(VERSION 2.8)
 include(cmake/CommonCMakeConfig.cmake)
 
-find_package(Libcaf COMPONENTS core io REQUIRED)
+find_package(CAF COMPONENTS core io REQUIRED)
 
 # Check for required CAF version.
 set(CAF_VERSION_REQUIRED 0.14)
-file(READ "${LIBCAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
+file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
 string(REGEX MATCH "[0-9]+" caf_version_int "${caf_version_line}")
@@ -22,8 +22,8 @@ if ( CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED} )
 endif ()
 
 message(STATUS "Found CAF version: ${CAF_VERSION}")
-include_directories(BEFORE ${LIBCAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${LIBCAF_LIBRARIES})
+include_directories(BEFORE ${CAF_INCLUDE_DIRS})
+set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 find_package(RocksDB)
 
