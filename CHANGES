@@ -1,3 +1,7 @@
+0.4-24 | 2016-03-11 15:35:55 -0800
+
+  * Fix broken link to manual (Matthias Vallentin)
+
 0.4-23 | 2016-03-11 10:28:41 -0800
 
   * Show more details in build summary (Matthias Vallentin)
@@ -7,7 +11,6 @@
   * Add README.rst symlink (Johanna Amann)
 
   * Fix warning about potentially signed literal. (Matthias Vallentin)
-
 
 0.4-14 | 2015-11-11 09:19:15 -0600
 

@@ -64,5 +64,5 @@ See ``./configure --help`` for more advanced configuration options.
 Documentation
 -------------
 
-Please see the `Broker User Manual <./broker-manual.html>`_ for more
+Please see the `Broker User Manual <./broker-manual.rst>`_ for more
 documentation and examples of how to use the library.
