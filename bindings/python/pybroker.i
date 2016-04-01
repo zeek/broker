@@ -1,6 +1,7 @@
 %module pybroker
 
 %{
+#include <stdlib.h>
 #include "broker/broker.hh"
 #include "broker/report.hh"
 #include "broker/endpoint.hh"
@@ -34,6 +35,7 @@ static inline void set_swig_exception(const char* e) {
 
 %init %{
   broker::init();
+  atexit(broker::done);
 %}
 
 %include "stdint.i"
