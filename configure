@@ -163,6 +163,18 @@ else
     cmake $CMakeCacheEntries $sourcedir
 fi
 
-echo "# This is the command used to configure this build" > config.status
-echo $command >> config.status
+printf "#!/bin/sh\n\n" > config.status
+printf "# Switch to the source of this build directory.\n" >> config.status
+printf "cd \"$sourcedir\"\n\n" >> config.status
+printf "# Invoke the command to configure this build.\n" >> config.status
+if [ -n "$CC" ]; then
+  printf 'CC="%s" ' "$CC" >> config.status
+fi
+if [ -n "$CXX" ]; then
+  printf 'CXX="%s" ' "$CXX" >> config.status
+fi
+if [ -n "$CXXFLAGS" ]; then
+  printf 'CXXFLAGS="%s" ' "$CXXFLAGS" >> config.status
+fi
+printf "$command\n" $@ >> config.status
 chmod u+x config.status
