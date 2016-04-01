@@ -13,7 +13,7 @@
 const std::array<uint8_t, 12> broker::address::v4_mapped_prefix
   = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};
 
-broker::util::optional<broker::address>
+broker::maybe<broker::address>
 broker::address::from_string(const std::string& s) {
   address rval;
   if (s.find(':') == std::string::npos) { // IPv4. 
@@ -30,11 +30,11 @@ broker::address::from_string(const std::string& s) {
     uint32_t addr = (a[0] << 24) | (a[1] << 16) | (a[2] << 8) | a[3];
     auto p = reinterpret_cast<uint32_t*>(&rval.addr[12]);
     *p = htonl(addr);
-    return std::move(rval);
+    return rval;
   }
   if (inet_pton(AF_INET6, s.c_str(), &rval.addr) <= 0)
     return {};
-  return std::move(rval);
+  return rval;
 }
 
 broker::address::address() {

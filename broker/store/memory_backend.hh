@@ -35,7 +35,7 @@ private:
 
   const sequence_num& do_sequence() const override;
 
-  bool do_insert(data k, data v, util::optional<expiration_time> t) override;
+  bool do_insert(data k, data v, maybe<expiration_time> t) override;
 
   modification_result do_increment(const data& k, int64_t by,
                                    double mod_time) override;
@@ -58,23 +58,23 @@ private:
   modification_result do_push_right(const data& k, vector items,
                                     double mod_time) override;
 
-  std::pair<modification_result, util::optional<data>>
+  std::pair<modification_result, maybe<data>>
   do_pop_left(const data& k, double mod_time) override;
 
-  std::pair<modification_result, util::optional<data>>
+  std::pair<modification_result, maybe<data>>
   do_pop_right(const data& k, double mod_time) override;
 
-  util::optional<util::optional<data>> do_lookup(const data& k) const override;
+  maybe<maybe<data>> do_lookup(const data& k) const override;
 
-  util::optional<bool> do_exists(const data& k) const override;
+  maybe<bool> do_exists(const data& k) const override;
 
-  util::optional<std::vector<data>> do_keys() const override;
+  maybe<std::vector<data>> do_keys() const override;
 
-  util::optional<uint64_t> do_size() const override;
+  maybe<uint64_t> do_size() const override;
 
-  util::optional<snapshot> do_snap() const override;
+  maybe<snapshot> do_snap() const override;
 
-  util::optional<std::deque<expirable>> do_expiries() const override;
+  maybe<std::deque<expirable>> do_expiries() const override;
 
 private:
   class impl;

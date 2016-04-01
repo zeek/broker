@@ -14,7 +14,7 @@ bool broker::subscription_registry::insert(subscriber s) {
   return rval;
 }
 
-broker::util::optional<broker::subscriber>
+broker::maybe<broker::subscriber>
 broker::subscription_registry::erase(const caf::actor_addr& a) {
   auto it = subs_by_actor.find(a);
   if (it == subs_by_actor.end())
@@ -84,7 +84,7 @@ broker::subscription_registry::unique_prefix_matches(const topic& t) const {
   return rval;
 }
 
-broker::util::optional<const broker::actor_set&>
+broker::maybe<const broker::actor_set&>
 broker::subscription_registry::exact_match(const topic& t) const {
   auto it = subs_by_topic.find(t);
   if (it == subs_by_topic.end())

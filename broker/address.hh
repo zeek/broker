@@ -6,8 +6,8 @@
 #include <ostream>
 #include <string>
 
+#include <broker/maybe.hh>
 #include <broker/util/operators.hh>
-#include <broker/util/optional.hh>
 
 namespace broker {
 
@@ -27,7 +27,7 @@ public:
   };
 
   /// @return an address, if one could be made from the string argument.
-  static util::optional<address> from_string(const std::string& s);
+  static maybe<address> from_string(const std::string& s);
 
   /// Default construct an invalid address.
   address();

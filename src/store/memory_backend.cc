@@ -43,7 +43,7 @@ broker::store::memory_backend::do_sequence() const {
 }
 
 bool broker::store::memory_backend::do_insert(
-  data k, data v, util::optional<expiration_time> t) {
+  data k, data v, maybe<expiration_time> t) {
   pimpl->datastore[std::move(k)] = value{std::move(v), std::move(t)};
   return true;
 }
@@ -140,8 +140,7 @@ broker::store::memory_backend::do_push_right(const data& k, vector items,
   return {modification_result::status::invalid, {}};
 }
 
-std::pair<broker::store::modification_result,
-          broker::util::optional<broker::data>>
+std::pair<broker::store::modification_result, broker::maybe<broker::data>>
 broker::store::memory_backend::do_pop_left(const data& k, double mod_time) {
   auto it = pimpl->datastore.find(k);
   if (it == pimpl->datastore.end())
@@ -154,8 +153,7 @@ broker::store::memory_backend::do_pop_left(const data& k, double mod_time) {
           std::move(*ood)};
 }
 
-std::pair<broker::store::modification_result,
-          broker::util::optional<broker::data>>
+std::pair<broker::store::modification_result, broker::maybe<broker::data>>
 broker::store::memory_backend::do_pop_right(const data& k, double mod_time) {
   auto it = pimpl->datastore.find(k);
   if (it == pimpl->datastore.end())
@@ -168,16 +166,16 @@ broker::store::memory_backend::do_pop_right(const data& k, double mod_time) {
           std::move(*ood)};
 }
 
-broker::util::optional<broker::util::optional<broker::data>>
+broker::maybe<broker::maybe<broker::data>>
 broker::store::memory_backend::do_lookup(const data& k) const {
   try {
     return {pimpl->datastore.at(k).item};
   } catch (const std::out_of_range&) {
-    return {util::optional<data>{}};
+    return {maybe<data>{}};
   }
 }
 
-broker::util::optional<bool>
+broker::maybe<bool>
 broker::store::memory_backend::do_exists(const data& k) const {
   if (pimpl->datastore.find(k) == pimpl->datastore.end())
     return false;
@@ -185,7 +183,7 @@ broker::store::memory_backend::do_exists(const data& k) const {
     return true;
 }
 
-broker::util::optional<std::vector<broker::data>>
+broker::maybe<std::vector<broker::data>>
 broker::store::memory_backend::do_keys() const {
   std::vector<data> rval;
   for (const auto& kv : pimpl->datastore)
@@ -193,12 +191,12 @@ broker::store::memory_backend::do_keys() const {
   return rval;
 }
 
-broker::util::optional<uint64_t>
+broker::maybe<uint64_t>
 broker::store::memory_backend::do_size() const {
   return pimpl->datastore.size();
 }
 
-broker::util::optional<broker::store::snapshot>
+broker::maybe<broker::store::snapshot>
 broker::store::memory_backend::do_snap() const {
   snapshot rval;
   rval.sn = pimpl->sn;
@@ -207,7 +205,7 @@ broker::store::memory_backend::do_snap() const {
   return rval;
 }
 
-broker::util::optional<std::deque<broker::store::expirable>>
+broker::maybe<std::deque<broker::store::expirable>>
 broker::store::memory_backend::do_expiries() const {
   std::deque<expirable> rval;
   for (const auto& entry : pimpl->datastore)

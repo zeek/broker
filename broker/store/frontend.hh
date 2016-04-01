@@ -5,11 +5,11 @@
 #include <string>
 
 #include "broker/data.hh"
+#include "broker/maybe.hh"
 #include "broker/queue.hh"
 #include "broker/store/response.hh"
 #include "broker/store/identifier.hh"
 #include "broker/store/expiration_time.hh"
-#include "broker/util/optional.hh"
 #include "broker/endpoint.hh"
 
 namespace broker {
@@ -274,7 +274,7 @@ private:
 /// @param k the key to lookup.
 /// @return the associated value if the key existed.
 template <class T>
-util::optional<data> lookup(const T& f, data k) {
+maybe<data> lookup(const T& f, data k) {
   result r = f.lookup(std::move(k));
   if (r.stat != result::status::success)
     return {};
@@ -292,7 +292,7 @@ util::optional<data> lookup(const T& f, data k) {
 /// @param k the key associated with a vector to pop.
 /// @return the popped value if the key existed and the vector was not empty.
 template <class T>
-util::optional<data> pop_left(const T& f, data k) {
+maybe<data> pop_left(const T& f, data k) {
   result r = f.pop_left(std::move(k));
   if (r.stat != result::status::success)
     return {};
@@ -310,7 +310,7 @@ util::optional<data> pop_left(const T& f, data k) {
 /// @param k the key associated with a vector to pop.
 /// @return the popped value if the key existed and the vector was not empty.
 template <class T>
-util::optional<data> pop_right(const T& f, data k) {
+maybe<data> pop_right(const T& f, data k) {
   result r = f.pop_right(std::move(k));
   if (r.stat != result::status::success)
     return {};

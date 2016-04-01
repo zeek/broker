@@ -1,6 +1,7 @@
 #ifndef BROKER_STORE_VALUE_HH
 #define BROKER_STORE_VALUE_HH
 
+#include "broker/maybe.hh"
 #include "broker/store/expiration_time.hh"
 
 namespace broker {
@@ -9,7 +10,7 @@ namespace store {
 /// The "value" part of a key/value entry pairing.
 struct value {
   data item;
-  util::optional<expiration_time> expiry;
+  maybe<expiration_time> expiry;
 };
 
 inline bool operator==(const value& lhs, const value& rhs) {

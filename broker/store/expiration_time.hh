@@ -2,7 +2,6 @@
 #define BROKER_STORE_EXPIRATION_TIME_HH
 
 #include "broker/data.hh"
-#include "broker/util/optional.hh"
 
 namespace broker {
 namespace store {

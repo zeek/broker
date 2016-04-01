@@ -40,15 +40,15 @@ inline bool peering::impl::operator==(const peering::impl& other) const {
 
 template <class Processor>
 void serialize(Processor& proc, peering::impl& impl, const unsigned) {
-  proc& impl.endpoint_actor;
-  proc& impl.peer_actor;
-  proc& impl.remote;
-  proc& impl.remote_tuple;
+  proc & impl.endpoint_actor;
+  proc & impl.peer_actor;
+  proc & impl.remote;
+  proc & impl.remote_tuple;
 }
 
 template <class Processor>
 void serialize(Processor& proc, peering& p, const unsigned) {
-  proc&* p.pimpl;
+  proc &* p.pimpl;
 }
 
 } // namespace broker

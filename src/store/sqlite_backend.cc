@@ -46,7 +46,7 @@ static bool initialize(sqlite3* db) {
 static bool
 insert(const broker::store::sqlite_stmt& stmt, const broker::data& k,
        const broker::data& v,
-       const broker::util::optional<broker::store::expiration_time>& e = {}) {
+       const broker::maybe<broker::store::expiration_time>& e = {}) {
   auto g = stmt.guard(sqlite3_reset);
   auto kblob = to_blob(k);
   auto vblob = to_blob(v);
@@ -108,7 +108,7 @@ static inline broker::store::modification_result
 update_entry(const broker::store::sqlite_stmt& update_stmt,
              const broker::store::sqlite_stmt& update_expiry_stmt,
              const broker::data& k, const broker::data& v,
-             broker::util::optional<broker::store::expiration_time> e,
+             broker::maybe<broker::store::expiration_time> e,
              int& last_rc) {
   using broker::store::modification_result;
   if (e) {
@@ -191,7 +191,7 @@ broker::store::sqlite_backend::do_sequence() const {
 }
 
 bool broker::store::sqlite_backend::do_insert(
-  data k, data v, util::optional<expiration_time> e) {
+  data k, data v, maybe<expiration_time> e) {
   if (!::insert(pimpl->insert, k, v, e)) {
     pimpl->last_rc = 0;
     return false;
@@ -368,7 +368,7 @@ broker::store::sqlite_backend::do_push_right(const data& k, vector items,
 
 std::pair<
   broker::store::modification_result,
-  broker::util::optional<broker::data>
+  broker::maybe<broker::data>
 >
 broker::store::sqlite_backend::do_pop_left(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
@@ -396,7 +396,7 @@ broker::store::sqlite_backend::do_pop_left(const data& k, double mod_time) {
 
 std::pair<
   broker::store::modification_result,
-  broker::util::optional<broker::data>
+  broker::maybe<broker::data>
 >
 broker::store::sqlite_backend::do_pop_right(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
@@ -422,7 +422,7 @@ broker::store::sqlite_backend::do_pop_right(const data& k, double mod_time) {
           std::move(*rval)};
 }
 
-broker::util::optional<broker::util::optional<broker::data>>
+broker::maybe<broker::maybe<broker::data>>
 broker::store::sqlite_backend::do_lookup(const data& k) const {
   const auto& stmt = pimpl->lookup;
   auto g = stmt.guard(sqlite3_reset);
@@ -434,7 +434,7 @@ broker::store::sqlite_backend::do_lookup(const data& k) const {
   }
   auto rc = sqlite3_step(stmt);
   if (rc == SQLITE_DONE)
-    return util::optional<data>{};
+    return maybe<data>{};
   if (rc != SQLITE_ROW) {
     pimpl->last_rc = 0;
     return {};
@@ -443,10 +443,10 @@ broker::store::sqlite_backend::do_lookup(const data& k) const {
                           sqlite3_column_bytes(stmt, 0))};
 }
 
-broker::util::optional<
+broker::maybe<
   std::pair<
-    broker::util::optional<broker::data>,
-    broker::util::optional<broker::store::expiration_time>
+    broker::maybe<broker::data>,
+    broker::maybe<broker::store::expiration_time>
   >
 >
 broker::store::sqlite_backend::do_lookup_expiry(const data& k) const {
@@ -460,22 +460,22 @@ broker::store::sqlite_backend::do_lookup_expiry(const data& k) const {
   }
   auto rc = sqlite3_step(stmt);
   if (rc == SQLITE_DONE)
-    return {std::make_pair(util::optional<data>{},
-                           util::optional<expiration_time>{})};
+    return {std::make_pair(maybe<data>{},
+                           maybe<expiration_time>{})};
   if (rc != SQLITE_ROW) {
     pimpl->last_rc = 0;
     return {};
   }
   auto val = from_blob<data>(sqlite3_column_blob(stmt, 0),
                              sqlite3_column_bytes(stmt, 0));
-  util::optional<expiration_time> e;
+  maybe<expiration_time> e;
   if (sqlite3_column_type(stmt, 1) != SQLITE_NULL)
     e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 1),
                                    sqlite3_column_bytes(stmt, 1));
   return {std::make_pair(std::move(val), std::move(e))};
 }
 
-broker::util::optional<bool>
+broker::maybe<bool>
 broker::store::sqlite_backend::do_exists(const data& k) const {
   const auto& stmt = pimpl->exists;
   auto g = stmt.guard(sqlite3_reset);
@@ -494,7 +494,7 @@ broker::store::sqlite_backend::do_exists(const data& k) const {
   return {};
 }
 
-broker::util::optional<std::vector<broker::data>>
+broker::maybe<std::vector<broker::data>>
 broker::store::sqlite_backend::do_keys() const {
   const auto& stmt = pimpl->keys;
   auto g = stmt.guard(sqlite3_reset);
@@ -509,7 +509,7 @@ broker::store::sqlite_backend::do_keys() const {
   return {};
 }
 
-broker::util::optional<uint64_t>
+broker::maybe<uint64_t>
 broker::store::sqlite_backend::do_size() const {
   const auto& stmt = pimpl->size;
   auto g = stmt.guard(sqlite3_reset);
@@ -526,7 +526,7 @@ broker::store::sqlite_backend::do_size() const {
   return sqlite3_column_int(stmt, 0);
 }
 
-broker::util::optional<broker::store::snapshot>
+broker::maybe<broker::store::snapshot>
 broker::store::sqlite_backend::do_snap() const {
   const auto& stmt = pimpl->snap;
   auto g = stmt.guard(sqlite3_reset);
@@ -538,7 +538,7 @@ broker::store::sqlite_backend::do_snap() const {
                              sqlite3_column_bytes(stmt, 0));
     auto v = from_blob<data>(sqlite3_column_blob(stmt, 1),
                              sqlite3_column_bytes(stmt, 1));
-    util::optional<expiration_time> e;
+    maybe<expiration_time> e;
     if (sqlite3_column_type(stmt, 2) != SQLITE_NULL)
       e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 2),
                                      sqlite3_column_bytes(stmt, 2));
@@ -552,7 +552,7 @@ broker::store::sqlite_backend::do_snap() const {
   return {};
 }
 
-broker::util::optional<std::deque<broker::store::expirable>>
+broker::maybe<std::deque<broker::store::expirable>>
 broker::store::sqlite_backend::do_expiries() const {
   const auto& stmt = pimpl->expiries;
   auto g = stmt.guard(sqlite3_reset);

@@ -14,8 +14,7 @@ const broker::store::sequence_num& broker::store::backend::sequence() const {
   return do_sequence();
 }
 
-bool broker::store::backend::insert(data k, data v,
-                                    util::optional<expiration_time> t) {
+bool broker::store::backend::insert(data k, data v, maybe<expiration_time> t) {
   if (!do_insert(std::move(k), std::move(v), std::move(t)))
     return false;
 
@@ -89,8 +88,7 @@ broker::store::backend::push_right(const data& k, vector items,
   return rc;
 }
 
-std::pair<broker::store::modification_result,
-          broker::util::optional<broker::data>>
+std::pair<broker::store::modification_result, broker::maybe<broker::data>>
 broker::store::backend::pop_left(const data& k, double mod_time) {
   auto rc = do_pop_left(k, mod_time);
   if (rc.first.stat == modification_result::status::success && rc.second)
@@ -98,8 +96,7 @@ broker::store::backend::pop_left(const data& k, double mod_time) {
   return rc;
 }
 
-std::pair<broker::store::modification_result,
-          broker::util::optional<broker::data>>
+std::pair<broker::store::modification_result, broker::maybe<broker::data>>
 broker::store::backend::pop_right(const data& k, double mod_time) {
   auto rc = do_pop_right(k, mod_time);
   if (rc.first.stat == modification_result::status::success && rc.second)
@@ -107,31 +104,31 @@ broker::store::backend::pop_right(const data& k, double mod_time) {
   return rc;
 }
 
-broker::util::optional<broker::util::optional<broker::data>>
+broker::maybe<broker::maybe<broker::data>>
 broker::store::backend::lookup(const data& k) const {
   return do_lookup(k);
 }
 
-broker::util::optional<bool>
+broker::maybe<bool>
 broker::store::backend::exists(const data& k) const {
   return do_exists(k);
 }
 
-broker::util::optional<std::vector<broker::data>>
+broker::maybe<std::vector<broker::data>>
 broker::store::backend::keys() const {
   return do_keys();
 }
 
-broker::util::optional<uint64_t> broker::store::backend::size() const {
+broker::maybe<uint64_t> broker::store::backend::size() const {
   return do_size();
 }
 
-broker::util::optional<broker::store::snapshot>
+broker::maybe<broker::store::snapshot>
 broker::store::backend::snap() const {
   return do_snap();
 }
 
-broker::util::optional<std::deque<broker::store::expirable>>
+broker::maybe<std::deque<broker::store::expirable>>
 broker::store::backend::expiries() const {
   return do_expiries();
 }

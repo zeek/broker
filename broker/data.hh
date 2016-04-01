@@ -9,14 +9,14 @@
 #include <vector>
 
 #include "broker/util/variant.hh"
-#include "broker/util/optional.hh"
 #include "broker/util/hash.hh"
 #include "broker/address.hh"
-#include "broker/subnet.hh"
+#include "broker/enum_value.hh"
+#include "broker/maybe.hh"
 #include "broker/port.hh"
+#include "broker/subnet.hh"
 #include "broker/time_duration.hh"
 #include "broker/time_point.hh"
-#include "broker/enum_value.hh"
 
 namespace broker {
 
@@ -35,10 +35,10 @@ using table = std::map<data, data>;
 /// index either exists or does not.
 class record : util::totally_ordered<record> {
 public:
-  using field = util::optional<data>;
+  using field = maybe<data>;
 
   /// Default construct an empty record.
-  record();
+  record() = default;
 
   /// Construct a record from a list of fields.
   record(std::vector<field> arg_fields);
@@ -47,17 +47,17 @@ public:
   size_t size() const;
 
   /// @return a const reference to a field at a given offset, if it exists.
-  util::optional<const data&> get(size_t index) const;
+  maybe<const data&> get(size_t index) const;
 
   /// @return a reference to a field at a given offset, if it exists.
-  util::optional<data&> get(size_t index);
+  maybe<data&> get(size_t index);
 
   std::vector<field> fields;
 };
 
 template <class Processor>
 void serialize(Processor& proc, record& r, const unsigned) {
-  proc& r.fields;
+  proc & r.fields;
 }
 
 /// A variant-like class that may store the data associated with one of several
@@ -161,9 +161,6 @@ public:
   types value;
 };
 
-inline record::record() : fields() {
-}
-
 inline record::record(std::vector<field> arg_fields)
   : fields(std::move(arg_fields)) {
 }
@@ -172,7 +169,7 @@ inline size_t record::size() const {
   return fields.size();
 }
 
-inline util::optional<const data&> record::get(size_t index) const {
+inline maybe<const data&> record::get(size_t index) const {
   if (index >= fields.size())
     return {};
   if (!fields[index])
@@ -180,7 +177,7 @@ inline util::optional<const data&> record::get(size_t index) const {
   return *fields[index];
 }
 
-inline util::optional<data&> record::get(size_t index) {
+inline maybe<data&> record::get(size_t index) {
   if (index >= fields.size())
     return {};
   if (!fields[index])
