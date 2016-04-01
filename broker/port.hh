@@ -15,7 +15,8 @@ class port : util::totally_ordered<port> {
   friend void serialize(Processor& proc, port& p, const unsigned int);
 
 public:
-  using number_type = uint16_t;
+  // Not using "using" because SWIG doesn't support it yet.
+  typedef uint16_t number_type;
 
   enum class protocol : uint8_t {
     unknown,

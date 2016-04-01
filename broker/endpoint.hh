@@ -6,20 +6,21 @@
 #include <memory>
 #include <string>
 
-#include "broker/outgoing_connection_status.hh"
 #include "broker/incoming_connection_status.hh"
 #include "broker/message.hh"
+#include "broker/outgoing_connection_status.hh"
 #include "broker/peering.hh"
 #include "broker/queue.hh"
 #include "broker/topic.hh"
 
 namespace broker {
 
-using outgoing_connection_status_queue =
-  broker::queue<broker::outgoing_connection_status>;
+// Not using "using" because SWIG doesn't support it yet.
+typedef broker::queue<broker::outgoing_connection_status>
+  outgoing_connection_status_queue;
 
-using = incoming_connection_status_queue
-  broker::queue<broker::incoming_connection_status>;
+typedef broker::queue<broker::incoming_connection_status>
+  incoming_connection_status_queue;
 
 // Endpoint options.
 
