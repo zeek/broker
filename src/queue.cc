@@ -4,8 +4,8 @@
 
 template <class T>
 broker::queue<T>::queue()
-	: pimpl(new impl)
-	{}
+  : pimpl(new impl) {
+}
 
 template <class T>
 broker::queue<T>::~queue() = default;
@@ -17,20 +17,24 @@ template <class T>
 broker::queue<T>& broker::queue<T>::operator=(queue<T>&&) = default;
 
 template <class T>
-int broker::queue<T>::fd() const
-	{ return pimpl->fd; }
+int broker::queue<T>::fd() const {
+  return pimpl->fd;
+}
 
 template <class T>
-void* broker::queue<T>::handle() const
-	{ return &pimpl->actor; }
+void* broker::queue<T>::handle() const {
+  return &pimpl->actor;
+}
 
 template <class T>
-std::deque<T> broker::queue<T>::want_pop() const
-	{ return util::queue_pop<T>(pimpl->self, pimpl->actor, want_atom::value); }
+std::deque<T> broker::queue<T>::want_pop() const {
+  return util::queue_pop<T>(pimpl->self, pimpl->actor, want_atom::value);
+}
 
 template <class T>
-std::deque<T> broker::queue<T>::need_pop() const
-	{ return util::queue_pop<T>(pimpl->self, pimpl->actor, need_atom::value); }
+std::deque<T> broker::queue<T>::need_pop() const {
+  return util::queue_pop<T>(pimpl->self, pimpl->actor, need_atom::value);
+}
 
 // Explicit template instantiations.  We need to do this if using the
 // Pimpl idiom to separate/hide the implementation details.  Else, we would

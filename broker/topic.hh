@@ -5,11 +5,9 @@
 
 namespace broker {
 
-/**
- * A topic string used for broker's supported communication patterns.
- * Messaging has a pub/sub communication pattern where subscribers advertise
- * interest in all topics that match a given prefix.
- */
+/// A topic string used for broker's supported communication patterns.
+/// Messaging has a pub/sub communication pattern where subscribers advertise
+/// interest in all topics that match a given prefix.
 typedef std::string topic;
 
 } // namespace broker

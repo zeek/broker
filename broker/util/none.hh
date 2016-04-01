@@ -4,17 +4,14 @@
 namespace broker {
 namespace util {
 
-/**
- *  A type representing a null value.
- */
+///  A type representing a null value.
 struct none_type {
-	inline explicit operator bool() const
-		{ return false; }
+  inline explicit operator bool() const {
+    return false;
+  }
 };
 
-/**
- * Instance of none_type.
- */
+/// Instance of none_type.
 static constexpr none_type none = none_type{};
 
 } // namespace util

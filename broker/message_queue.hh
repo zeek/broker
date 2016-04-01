@@ -9,66 +9,44 @@
 
 namespace broker {
 
-/**
- * Requests messages from a broker::endpoint or its peers that match a topic
- * prefix.
- */
+/// Requests messages from a broker::endpoint or its peers that match a topic
+/// prefix.
 class message_queue : public queue<broker::message> {
 public:
+  /// Create an uninitialized message queue.
+  message_queue();
 
-	/**
-	 * Create an uninitialized message queue.
-	 */
-	message_queue();
+  /// Destruct message_queue.
+  ~message_queue();
 
-	/**
-	 * Destruct message_queue.
-	 */
-	~message_queue();
+  /// Copying a message_queue is not allowed.
+  message_queue(const message_queue&) = delete;
 
-	/**
-	 * Copying a message_queue is not allowed.
-	 */
-	message_queue(const message_queue&) = delete;
+  /// Construct a message_queue by stealing another.
+  message_queue(message_queue&&);
 
-	/**
-	 * Construct a message_queue by stealing another.
-	 */
-	message_queue(message_queue&&);
+  /// Copying a message_queue is not allowed.
+  message_queue& operator=(const message_queue&) = delete;
 
-	/**
-	 * Copying a message_queue is not allowed.
-	 */
-	message_queue& operator=(const message_queue&) = delete;
+  /// Replace message_queue by stealing another.
+  message_queue& operator=(message_queue&&);
 
-	/**
-	 * Replace message_queue by stealing another.
-	 */
-	message_queue& operator=(message_queue&&);
+  /// Attach a message_queue to an endpoint.
+  /// @param prefix the subscription topic to use.  All messages sent via
+  /// endpoint *e* or one of its peers that use a topic prefixed by *prefix*
+  /// will be copied in to this queue.
+  /// @param e the endpoint to attach the message_queue.
+  message_queue(topic prefix, const endpoint& e);
 
-	/**
-	 * Attach a message_queue to an endpoint.
-	 * @param prefix the subscription topic to use.  All messages sent via
-	 * endpoint \a e or one of its peers that use a topic prefixed by \a prefix
-	 * will be copied in to this queue.
-	 * @param e the endpoint to attach the message_queue.
-	 */
-	message_queue(topic prefix, const endpoint& e);
+  /// @return the subscription topic prefix of the queue.
+  const topic& get_topic_prefix() const;
 
-	/**
-	 * @return the subscription topic prefix of the queue.
-	 */
-	const topic& get_topic_prefix() const;
-
-	/**
-	 * True if the message_queue is initialized for use, else false.
-	 */
-	explicit operator bool() const;
+  /// True if the message_queue is initialized for use, else false.
+  explicit operator bool() const;
 
 private:
-
-	class impl;
-	std::unique_ptr<impl> pimpl;
+  class impl;
+  std::unique_ptr<impl> pimpl;
 };
 
 } // namespace broker

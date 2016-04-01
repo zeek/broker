@@ -5,24 +5,16 @@
 
 namespace broker {
 
-/**
- * @see broker_init().
- */
+/// @see broker_init().
 int init(int flags = 0);
 
-/**
- * @see broker_done().
- */
+/// @see broker_done().
 void done();
 
-/**
- * @see broker_strerror
- */
+/// @see broker_strerror
 const char* strerror(int broker_errno);
 
-/**
- * @see broker_strerror_r
- */
+/// @see broker_strerror_r
 void strerror_r(int broker_errno, char* buf, size_t buflen);
 
 } // namespace broker

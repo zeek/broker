@@ -6,23 +6,21 @@
 namespace broker {
 namespace store {
 
-/**
- * The "value" part of a key/value entry pairing.
- */
+/// The "value" part of a key/value entry pairing.
 struct value {
-	data item;
-	util::optional<expiration_time> expiry;
+  data item;
+  util::optional<expiration_time> expiry;
 };
 
-inline bool operator==(const value& lhs, const value& rhs)
-    { return lhs.item == rhs.item && lhs.expiry == rhs.expiry; }
+inline bool operator==(const value& lhs, const value& rhs) {
+  return lhs.item == rhs.item && lhs.expiry == rhs.expiry;
+}
 
 template <class Processor>
-void serialize(Processor& proc, value& v, const unsigned)
-  {
-  proc & v.item;
-  proc & v.expiry;
-  }
+void serialize(Processor& proc, value& v, const unsigned) {
+  proc& v.item;
+  proc& v.expiry;
+}
 
 } // namespace store
 } // namespace broker

@@ -20,75 +20,69 @@ using namespace broker;
 using namespace broker::store;
 using dataset = map<data, data>;
 
-static inline double now()
-	{ return broker::time_point::now().value; }
+static inline double now() {
+  return broker::time_point::now().value;
+}
 
-bool compare_contents(const frontend& store, const dataset& ds)
-	{
-	dataset actual;
+bool compare_contents(const frontend& store, const dataset& ds) {
+  dataset actual;
 
-	for ( const auto& key : keys(store) )
-		{
-		auto val = lookup(store, key);
-		if ( val ) actual.insert(make_pair(key, move(*val)));
-		}
+  for (const auto& key : keys(store)) {
+    auto val = lookup(store, key);
+    if (val)
+      actual.insert(make_pair(key, move(*val)));
+  }
 
-	if ( actual == ds )
-		return true;
+  if (actual == ds)
+    return true;
 
-	cerr << "============= actual"  << endl;
-	for ( const auto& p : actual )
-		cerr << p.first << " -> " << p.second << endl;
-	cerr << "============= expected" << endl;
-	for ( const auto& p : ds )
-		cerr << p.first << " -> " << p.second << endl;
-	return false;
-	}
+  cerr << "============= actual" << endl;
+  for (const auto& p : actual)
+    cerr << p.first << " -> " << p.second << endl;
+  cerr << "============= expected" << endl;
+  for (const auto& p : ds)
+    cerr << p.first << " -> " << p.second << endl;
+  return false;
+}
 
-void wait_for(const store::clone& c, data k, bool want_existence = true)
-	{
-	while ( exists(c, k) != want_existence )
-		{
-		usleep(1000);
-		}
-	}
+void wait_for(const store::clone& c, data k, bool want_existence = true) {
+  while (exists(c, k) != want_existence) {
+    usleep(1000);
+  }
+}
 
-void wait_for(const store::clone& c, data k, data v)
-	{
-	for ( ; ; )
-		{
-		auto actual = lookup(c, k);
-		if ( actual && v == actual ) break;
-		usleep(1000);
-		}
-	}
+void wait_for(const store::clone& c, data k, data v) {
+  for (;;) {
+    auto actual = lookup(c, k);
+    if (actual && v == actual)
+      break;
+    usleep(1000);
+  }
+}
 
-static bool open_sqlite(string file, backend* b)
-	{
-	unlink(file.c_str());
-	return ((sqlite_backend*)b)->open(file);
-	}
+static bool open_sqlite(string file, backend* b) {
+  unlink(file.c_str());
+  return ((sqlite_backend*)b)->open(file);
+}
 
 #ifdef HAVE_ROCKSDB
-static bool open_rocksdb(string file, backend* b)
-	{
-	rocksdb::DestroyDB(file, {});
-	rocksdb::Options options;
-	options.create_if_missing = true;
-	return ((rocksdb_backend*)b)->open(file, options).ok();
-	}
+static bool open_rocksdb(string file, backend* b) {
+  rocksdb::DestroyDB(file, {});
+  rocksdb::Options options;
+  options.create_if_missing = true;
+  return ((rocksdb_backend*)b)->open(file, options).ok();
+}
 #endif
 
-int main(int argc, char** argv)
-	{
-	std::string backend_name = argv[1];
-	string db_name = "backend_test." + backend_name  + ".tmp";
-	broker::init();
-	broker::report::init(true);
+int main(int argc, char** argv) {
+  std::string backend_name = argv[1];
+  string db_name = "backend_test." + backend_name + ".tmp";
+  broker::init();
+  broker::report::init(true);
 
-	// FIXME: we current use this additional scope to ensure that all broker have
-	// released their state before calling broker::done() at the very end.
-	// Ideally, the created objects should clean up after themselves.
+  // FIXME: we current use this additional scope to ensure that all broker have
+  // released their state before calling broker::done() at the very end.
+  // Ideally, the created objects should clean up after themselves.
   {
     endpoint node("node0");
 
@@ -105,49 +99,43 @@ int main(int argc, char** argv)
     unique_ptr<backend> cbacking;
 
 #ifdef HAVE_ROCKSDB
-    if ( backend_name == "rocksdb" )
-      {
+    if (backend_name == "rocksdb") {
       mbacking.reset(new rocksdb_backend);
       cbacking.reset(new rocksdb_backend);
       BROKER_TEST(open_rocksdb(string("master.") + db_name, mbacking.get()));
       BROKER_TEST(open_rocksdb(string("clone.") + db_name, cbacking.get()));
-      }
-    else
+    } else
 #endif
-    if ( backend_name == "sqlite" )
-      {
+      if (backend_name == "sqlite") {
       mbacking.reset(new sqlite_backend);
       cbacking.reset(new sqlite_backend);
       BROKER_TEST(open_sqlite(string("master.") + db_name, mbacking.get()));
       BROKER_TEST(open_sqlite(string("clone.") + db_name, cbacking.get()));
-      }
-    else if ( backend_name == "memory" )
-      {
+    } else if (backend_name == "memory") {
       mbacking.reset(new memory_backend);
       cbacking.reset(new memory_backend);
-      }
-    else
+    } else
       return 1;
 
     mbacking->init(sss);
     master m(node, "mystore", move(mbacking));
 
     dataset ds0 = {
-                    make_pair("pre",       "myval"),
-                    make_pair("noexpire",  "one"),
-                    make_pair("absexpire", "two"),
-                    make_pair("refresh",   3),
-                    make_pair("morerefresh", broker::set{2, 4, 6, 8}),
-                    make_pair("vrefresh", broker::vector{"m"}),
-                    make_pair("norefresh", "four"),
-                  };
+      make_pair("pre", "myval"),
+      make_pair("noexpire", "one"),
+      make_pair("absexpire", "two"),
+      make_pair("refresh", 3),
+      make_pair("morerefresh", broker::set{2, 4, 6, 8}),
+      make_pair("vrefresh", broker::vector{"m"}),
+      make_pair("norefresh", "four"),
+    };
 
-    m.insert("noexpire",  "one");
-    m.insert("absexpire", "two",   abs_expire);
-    m.insert("refresh",   3, mod_expire);
+    m.insert("noexpire", "one");
+    m.insert("absexpire", "two", abs_expire);
+    m.insert("refresh", 3, mod_expire);
     m.insert("morerefresh", broker::set{2, 4, 6, 8}, mod_expire);
     m.insert("vrefresh", broker::vector{"m"}, mod_expire);
-    m.insert("norefresh", "four",  mod_expire);
+    m.insert("norefresh", "four", mod_expire);
     store::clone c(node, "mystore", chrono::duration<double>(0.25),
                    move(cbacking));
 
@@ -189,5 +177,5 @@ int main(int argc, char** argv)
 
   broker::done(); // TODO: use RAII guard instead.
 
-	return BROKER_TEST_RESULT();
-	}
+  return BROKER_TEST_RESULT();
+}

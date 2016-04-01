@@ -4,33 +4,29 @@
 #include <broker/store/query.hh>
 #include <broker/store/result.hh>
 
-namespace broker { namespace store {
+namespace broker {
+namespace store {
 
-/**
- * A full response to a data store query contains the original query, the
- * result of that query, and an associated cookie provided by the requester.
- */
+/// A full response to a data store query contains the original query, the
+/// result of that query, and an associated cookie provided by the requester.
 struct response {
-	query request;
-	result reply;
-	void* cookie;
+  query request;
+  result reply;
+  void* cookie;
 };
 
 // FIXME: use equality_comparable mixin for symmetric operator injection.
-inline bool operator==(const response& lhs, const response& rhs)
-	{
-	return lhs.request == rhs.request &&
-	       lhs.reply == rhs.reply &&
-	       lhs.cookie == rhs.cookie;
-	}
+inline bool operator==(const response& lhs, const response& rhs) {
+  return lhs.request == rhs.request && lhs.reply == rhs.reply
+         && lhs.cookie == rhs.cookie;
+}
 
 template <class Processor>
-void serialize(Processor& proc, response& r, const unsigned)
-  {
-  proc & r.request;
-  proc & r.reply;
+void serialize(Processor& proc, response& r, const unsigned) {
+  proc& r.request;
+  proc& r.reply;
   // FIXME: what are we going to do with the cookie?
-  }
+}
 
 } // namespace store
 } // namespace broker

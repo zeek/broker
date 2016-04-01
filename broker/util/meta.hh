@@ -22,34 +22,32 @@ using remove_reference_t = typename std::remove_reference<T>::type;
 template <std::size_t Len, std::size_t Align>
 using aligned_storage_t = typename std::aligned_storage<Len, Align>::type;
 
-template <bool B, typename T = void>
-using disable_if = std::enable_if<! B, T>;
+template <bool B, class T = void>
+using disable_if = std::enable_if<!B, T>;
 
-template <bool B, typename T = void>
+template <bool B, class T = void>
 using disable_if_t = typename disable_if<B, T>::type;
 
-template <typename A, typename B>
+template <class A, class B>
 using is_same_or_derived = std::is_base_of<A, remove_reference_t<B>>;
 
-template <typename A, typename B>
+template <class A, class B>
 using disable_if_same_or_derived = disable_if<is_same_or_derived<A, B>::value>;
 
-template <typename A, typename B>
+template <class A, class B>
 using disable_if_same_or_derived_t =
   typename disable_if_same_or_derived<A, B>::type;
 
-template <template <typename> class F, typename Head>
-constexpr decltype(F<Head>::value) max()
-	{ return F<Head>::value; }
+template <template <class> class F, class Head>
+constexpr decltype(F<Head>::value) max() {
+  return F<Head>::value;
+}
 
-template <template <typename> class F, typename Head, typename Next,
-          typename... Tail>
-constexpr decltype(F<Head>::value) max()
-	{
-	return max<F, Head>() > max<F, Next, Tail...>()
-	       ? max<F, Head>()
-	       : max<F, Next, Tail...>();
-	}
+template <template <class> class F, class Head, class Next, class... Tail>
+constexpr decltype(F<Head>::value) max() {
+  return max<F, Head>() > max<F, Next, Tail...>() ? max<F, Head>() :
+                                                    max<F, Next, Tail...>();
+}
 
 } // namespace util
 } // namespace broker

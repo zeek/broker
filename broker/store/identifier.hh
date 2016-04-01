@@ -6,9 +6,7 @@
 namespace broker {
 namespace store {
 
-/**
- * A string which uniquely identifies a master data store.
- */
+/// A string which uniquely identifies a master data store.
 typedef std::string identifier;
 
 } // namespace store

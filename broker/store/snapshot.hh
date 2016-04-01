@@ -7,26 +7,25 @@
 #include <vector>
 #include <utility>
 
-namespace broker { namespace store {
+namespace broker {
+namespace store {
 
-/**
- * A snapshot of a data store's contents along with the sequence number
- * that corresponds to it.
- */
+/// A snapshot of a data store's contents along with the sequence number
+/// that corresponds to it.
 struct snapshot {
-	std::vector<std::pair<data, value>> entries;
-	sequence_num sn;
+  std::vector<std::pair<data, value>> entries;
+  sequence_num sn;
 };
 
-inline bool operator==(const snapshot& lhs, const snapshot& rhs)
-  { return lhs.sn == rhs.sn && lhs.entries == rhs.entries; }
+inline bool operator==(const snapshot& lhs, const snapshot& rhs) {
+  return lhs.sn == rhs.sn && lhs.entries == rhs.entries;
+}
 
 template <class Processor>
-void serialize(Processor& proc, snapshot& s, const unsigned)
-  {
-  proc & s.entries;
-  proc & s.sn;
-  }
+void serialize(Processor& proc, snapshot& s, const unsigned) {
+  proc& s.entries;
+  proc& s.sn;
+}
 
 } // namespace store
 } // namespace broker

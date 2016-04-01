@@ -5,57 +5,41 @@
 
 namespace broker {
 
-/**
- * Stores an IPv4 or IPv6 subnet (an address prefix).
- */
+/// Stores an IPv4 or IPv6 subnet (an address prefix).
 class subnet : util::totally_ordered<subnet> {
   template <class Processor>
   friend void serialize(Processor& proc, subnet& sn, const unsigned int);
 
 public:
+  /// Default construct empty subnet ::/0.
+  subnet();
 
-	/**
-	 * Default construct empty subnet ::/0.
-	 */
-	subnet();
+  /// Construct subnet from an address and length.
+  subnet(address addr, uint8_t length);
 
-	/**
-	 * Construct subnet from an address and length.
-	 */
-	subnet(address addr, uint8_t length);
+  /// @return whether an address is contained within this subnet.
+  bool contains(const address& addr) const;
 
-	/**
-	 * @return whether an address is contained within this subnet.
-	 */
-	bool contains(const address& addr) const;
+  /// @return the network address of the subnet.
+  const address& network() const;
 
-	/**
-	 * @return the network address of the subnet.
-	 */
-	const address& network() const;
+  /// @return the prefix length of the subnet.
+  uint8_t length() const;
 
-	/**
-	 * @return the prefix length of the subnet.
-	 */
-	uint8_t length() const;
+  /// @return a string representation of the subnet argument.
+  friend std::string to_string(const subnet& s);
 
-	/**
-	 * @return a string representation of the subnet argument.
-	 */
-	friend std::string to_string(const subnet& s);
+  friend std::ostream& operator<<(std::ostream& out, const subnet& s);
 
-	friend std::ostream& operator<<(std::ostream& out, const subnet& s);
+  friend bool operator==(const subnet& lhs, const subnet& rhs);
 
-	friend bool operator==(const subnet& lhs, const subnet& rhs);
-
-	friend bool operator<(const subnet& lhs, const subnet& rhs);
+  friend bool operator<(const subnet& lhs, const subnet& rhs);
 
 private:
+  bool init();
 
-	bool init();
-
-	address net;
-	uint8_t len;
+  address net;
+  uint8_t len;
 };
 
 std::string to_string(const subnet& s);
@@ -64,17 +48,17 @@ bool operator==(const subnet& lhs, const subnet& rhs);
 bool operator<(const subnet& lhs, const subnet& rhs);
 
 template <class Processor>
-void serialize(Processor& proc, subnet& sn, const unsigned)
-  {
-  proc & sn.net;
-  proc & sn.len;
-  }
+void serialize(Processor& proc, subnet& sn, const unsigned) {
+  proc& sn.net;
+  proc& sn.len;
+}
 
 } // namespace broker
 
 namespace std {
-template <> struct hash<broker::subnet> {
-	size_t operator()(const broker::subnet&) const;
+template <>
+struct hash<broker::subnet> {
+  size_t operator()(const broker::subnet&) const;
 };
 } // namespace std;
 

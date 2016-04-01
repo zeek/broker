@@ -25,14 +25,13 @@ names and request they peer with each other.
     #include <broker/broker.hh>
     #include <broker/endpoint.hh>
 
-    int main()
-        {
-        broker::init();
-        broker::endpoint first_endpoint("1st endpoint");
-        broker::endpoint second_endpoint("2nd endpoint");
-        second_endpoint.peer(first_endpoint);
-        return 0;
-        }
+    int main() {
+      broker::init();
+      broker::endpoint first_endpoint("1st endpoint");
+      broker::endpoint second_endpoint("2nd endpoint");
+      second_endpoint.peer(first_endpoint);
+      return 0;
+    }
 
 Endpoints don't have to live in the same process, instead they can talk
 over TCP.
@@ -105,8 +104,8 @@ It can be used to integrate into event loops as usual.
     pollfd pfd{my_queue.fd(), POLLIN, 0};
     poll(&pfd, 1, -1);
 
-    for ( auto& msg : my_queue.want_pop() )
-        std::cout << broker::to_string(msg) << std::endl;
+    for (auto& msg : my_queue.want_pop())
+      std::cout << broker::to_string(msg) << std::endl;
 
 Alternatively, there is a ``need_pop()`` method which blocks until
 at least one item is available in the queue.  This is mostly for
@@ -129,16 +128,14 @@ monitored to check the status of connections with peer endpoints.
     node0.peer(node1);
     node0.peer(node2);
 
-    for ( ; ; )
-        {
-        auto conn_status = node0.outgoing_connection_status().need_pop();
-
-        for ( auto cs : conn_status )
-            if ( cs.status == broker::outgoing_connection_status::tag::established )
-                std::cout << "established connection to: " << cs.peer_name << std::endl;
-            else
-                std::cout << "connection error" << std::endl;
-        }
+    for (;;) {
+      auto conn_status = node0.outgoing_connection_status().need_pop();
+      for (auto cs : conn_status)
+        if (cs.status == broker::outgoing_connection_status::tag::established)
+          std::cout << "established connection to: " << cs.peer_name << std::endl;
+        else
+          std::cout << "connection error" << std::endl;
+      }
 
 Applications should periodically check connection status queues for
 updates.

@@ -7,89 +7,72 @@
 #include <string>
 #include <chrono>
 
-namespace broker { class peering; }
-namespace std { template<> struct std::hash<broker::peering>; }
+namespace broker {
+class peering;
+}
+
+namespace std {
+template <>
+struct std::hash<broker::peering>;
+}
 
 namespace broker {
 
 class endpoint;
 
-/**
- * Contains information about a peering between two endpoints.
- */
+/// Contains information about a peering between two endpoints.
 class peering {
-friend class endpoint;
-friend struct std::hash<peering>;
+  friend class endpoint;
+  friend struct std::hash<peering>;
 
-template <class Processor>
-friend void serialize(Processor&, peering&, const unsigned);
+  template <class Processor>
+  friend void serialize(Processor&, peering&, const unsigned);
 
 public:
+  /// Construct an uninitialized peering object.
+  peering();
 
-	/**
-	 * Construct an uninitialized peering object.
-	 */
-	peering();
+  /// Destruct a peering object (not the actual connection between endpoints).
+  ~peering();
 
-	/**
-	 * Destruct a peering object (not the actual connection between endpoints).
-	 */
-	~peering();
+  /// Copy a peering object.
+  peering(const peering& other);
 
-	/**
-	 * Copy a peering object.
-	 */
-	peering(const peering& other);
+  /// Steal a peering object.
+  peering(peering&& other);
 
-	/**
-	 * Steal a peering object.
-	 */
-	peering(peering&& other);
+  /// Replace a peering object with a copy of another.
+  peering& operator=(const peering& other);
 
-	/**
-	 * Replace a peering object with a copy of another.
-	 */
-	peering& operator=(const peering& other);
+  /// Replace a peering object by stealing another.
+  peering& operator=(peering&& other);
 
-	/**
-	 * Replace a peering object by stealing another.
-	 */
-	peering& operator=(peering&& other);
+  /// @return whether the peering is between a local and remote endpoint.
+  bool remote() const;
 
-	/**
-	 * @return whether the peering is between a local and remote endpoint.
-	 */
-	bool remote() const;
+  /// @return the host and port of a remote endpoint.
+  const std::pair<std::string, uint16_t>& remote_tuple() const;
 
-	/**
-	 * @return the host and port of a remote endpoint.
-	 */
-	const std::pair<std::string, uint16_t>& remote_tuple() const;
+  /// False if the peering is not yet initialized, else true.
+  explicit operator bool() const;
 
-	/**
-	 * False if the peering is not yet initialized, else true.
-	 */
-	explicit operator bool() const;
+  /// @return true if two peering objects are equal.
+  bool operator==(const peering& rhs) const;
 
-	/**
-	 * @return true if two peering objects are equal.
-	 */
-	bool operator==(const peering& rhs) const;
+  class impl;
 
-	class impl;
-
-	peering(std::unique_ptr<impl> p);
+  peering(std::unique_ptr<impl> p);
 
 private:
-
-	std::unique_ptr<impl> pimpl;
+  std::unique_ptr<impl> pimpl;
 };
 
 } // namespace broker
 
 namespace std {
-template <> struct hash<broker::peering> {
-	size_t operator()(const broker::peering& p) const;
+template <>
+struct hash<broker::peering> {
+  size_t operator()(const broker::peering& p) const;
 };
 }
 

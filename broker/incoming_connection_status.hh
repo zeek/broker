@@ -6,41 +6,33 @@
 
 namespace broker {
 
-/**
- * A notification regarding an incoming attempt to establish a peering
- * relationship between two endpoints.
- */
+/// A notification regarding an incoming attempt to establish a peering
+/// relationship between two endpoints.
 struct incoming_connection_status {
+  /// The type of status notification.
+  enum class tag : uint8_t {
+    established,
+    disconnected,
+  };
 
-	/**
-	 * The type of status notification.
-	 */
-	enum class tag : uint8_t {
-		established,
-		disconnected,
-	};
+  /// A notification regarding the latest known status of the peering.
+  tag status;
 
-	/**
-	 * A notification regarding the latest known status of the peering.
-	 */
-	tag status;
-
-	/**
-	 * Contains a name the peer chose for itself.
-	 */
-	std::string peer_name;
+  /// Contains a name the peer chose for itself.
+  std::string peer_name;
 };
 
 inline bool operator==(const incoming_connection_status& lhs,
-                       const incoming_connection_status& rhs)
-	{ return lhs.status == rhs.status && lhs.peer_name == rhs.peer_name; }
+                       const incoming_connection_status& rhs) {
+  return lhs.status == rhs.status && lhs.peer_name == rhs.peer_name;
+}
 
 template <class Processor>
-void serialize(Processor& proc, incoming_connection_status& ics, const unsigned)
-  {
-  proc & ics.status;
-  proc & ics.peer_name;
-  }
+void serialize(Processor& proc, incoming_connection_status& ics,
+               const unsigned) {
+  proc& ics.status;
+  proc& ics.peer_name;
+}
 
 } // namespace broker
 

@@ -1,9 +1,10 @@
 #ifndef BROKER_PERSISTABLES_HH
 #define BROKER_PERSISTABLES_HH
 
-#include "util/persist.hh"
 #include "broker/data.hh"
 #include "broker/store/expiration_time.hh"
+
+#include "util/persist.hh"
 
 namespace broker {
 
