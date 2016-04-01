@@ -83,14 +83,14 @@ broker::store::result broker::store::frontend::request(query q) const {
     q.type == query::tag::pop_left || q.type == query::tag::pop_right;
   caf::actor& where = need_master ? pimpl->endpoint : handle_to_actor(handle());
 
-  pimpl->self->request(where, store_actor_atom::value, pimpl->master_name)
-    .receive(
+  pimpl->self->request(where, caf::infinite, store_actor_atom::value,
+                       pimpl->master_name).receive(
     [&store_actor](caf::actor& sa) { store_actor = std::move(sa); }
   );
   if (!store_actor)
     return rval;
-  pimpl->self->request(store_actor, pimpl->master_name, std::move(q),
-                       pimpl->self).receive(
+  pimpl->self->request(store_actor, caf::infinite, pimpl->master_name,
+                       std::move(q), pimpl->self).receive(
     [&rval](const caf::actor&, result& r) { rval = std::move(r); }
   );
   return rval;

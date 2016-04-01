@@ -25,7 +25,7 @@
 // report::manager endpoint.
 #define BROKER_ENDPOINT_DEBUG(endpoint_pointer, subtopic, msg)                 \
   if (endpoint_pointer != broker::report::manager)                             \
-  broker::report::send(broker::report::level::debug, subtopic, msg)
+    broker::report::send(broker::report::level::debug, subtopic, msg)
 #else
 #define BROKER_ENDPOINT_DEBUG(endpoint_pointer, subtopic, msg)
 #endif
@@ -86,12 +86,12 @@ public:
           ocs_update(ocs_queue, move(pi), ocs_established, it->second.name);
           return;
         }
-        request(p, BROKER_PROTOCOL_VERSION).then(
+        request(p, infinite, BROKER_PROTOCOL_VERSION).then(
           [=](bool compat, int their_version) {
             if (!compat)
               ocs_update(ocs_queue, move(pi), ocs_incompat);
             else
-              request(p, peer_atom::value, this, name,
+              request(p, infinite, peer_atom::value, this, name,
                       advertised_subscriptions).then(
                 [=](string& pname, topic_set& ts) {
                   add_peer(move(p), pname, move(ts), false);

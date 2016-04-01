@@ -30,7 +30,6 @@ public:
     : caf::event_based_actor{cfg}, datastore(std::move(b)) {
     using namespace std;
     using namespace caf;
-
     message_handler requests{
       [=](const identifier& n, const query& q, const actor& requester) {
         auto r = q.process(*datastore, broker::time_point::now().value).first;
@@ -39,7 +38,6 @@ public:
         return make_message(this, move(r));
       }
     };
-
     message_handler updates{
       on(val<identifier>, any_vals) >> [=] {
         forward_to(master);
@@ -171,7 +169,7 @@ public:
     };
     message_handler find_master{
       [=](find_master_atom) {
-        request(endpoint, store_actor_atom::value, master_name).then(
+        request(endpoint, infinite, store_actor_atom::value, master_name).then(
           [=](actor& m) {
             if (m) {
               BROKER_DEBUG("store.clone." + master_name, "Located master");
@@ -203,7 +201,8 @@ public:
           get_snapshot(resync_interval);
           return;
         }
-        request(master, master_name, query(query::tag::snapshot), this).then(
+        request(master, infinite, master_name, query(query::tag::snapshot),
+                this).then(
           [=](actor& responder, result& r) {
             if (r.stat != result::status::success
                 || r.value.which() != result::tag::snapshot_result) {
