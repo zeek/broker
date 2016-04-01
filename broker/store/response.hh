@@ -1,8 +1,8 @@
 #ifndef BROKER_STORE_RESPONSE_HH
 #define BROKER_STORE_RESPONSE_HH
 
-#include <broker/store/query.hh>
-#include <broker/store/result.hh>
+#include "broker/store/query.hh"
+#include "broker/store/result.hh"
 
 namespace broker {
 namespace store {

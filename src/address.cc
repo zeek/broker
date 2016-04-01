@@ -1,12 +1,14 @@
-#include "broker/address.hh"
-#include "broker/util/hash.hh"
-#include <algorithm>
-#include <cstring>
-#include <cstdlib>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
 #include <arpa/inet.h>
+#include <algorithm>
+#include <cstring>
+#include <cstdlib>
+
+#include "broker/address.hh"
+#include "broker/util/hash.hh"
 
 const std::array<uint8_t, 12> broker::address::v4_mapped_prefix
   = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};

@@ -1,9 +1,10 @@
 #ifndef BROKER_TIME_DURATION_HH
 #define BROKER_TIME_DURATION_HH
 
-#include <broker/util/operators.hh>
 #include <functional>
 #include <ostream>
+
+#include "broker/util/operators.hh"
 
 namespace broker {
 

@@ -1,11 +1,11 @@
 #ifndef BROKER_PEERING_HH
 #define BROKER_PEERING_HH
 
-#include <memory>
-#include <utility>
-#include <cstdint>
-#include <string>
 #include <chrono>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace broker {
 class peering;

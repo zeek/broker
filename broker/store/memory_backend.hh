@@ -1,8 +1,9 @@
 #ifndef BROKER_STORE_MEMORY_BACKEND_HH
 #define BROKER_STORE_MEMORY_BACKEND_HH
 
-#include <broker/store/backend.hh>
 #include <memory>
+
+#include "broker/store/backend.hh"
 
 namespace broker {
 namespace store {

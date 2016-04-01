@@ -1,10 +1,11 @@
 #ifndef BROKER_PORT_HH
 #define BROKER_PORT_HH
 
-#include <broker/util/operators.hh>
-#include <string>
-#include <ostream>
 #include <cstdint>
+#include <ostream>
+#include <string>
+
+#include "broker/util/operators.hh"
 
 namespace broker {
 
@@ -14,7 +15,7 @@ class port : util::totally_ordered<port> {
   friend void serialize(Processor& proc, port& p, const unsigned int);
 
 public:
-  typedef uint16_t number_type;
+  using number_type = uint16_t;
 
   enum class protocol : uint8_t {
     unknown,

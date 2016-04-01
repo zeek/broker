@@ -1,12 +1,13 @@
 #ifndef BROKER_ADDRESS_HH
 #define BROKER_ADDRESS_HH
 
+#include <array>
+#include <cstdint>
+#include <ostream>
+#include <string>
+
 #include <broker/util/operators.hh>
 #include <broker/util/optional.hh>
-#include <array>
-#include <string>
-#include <ostream>
-#include <cstdint>
 
 namespace broker {
 

@@ -1,6 +1,7 @@
+#include <mutex>
+
 #include "broker/report.hh"
 #include "broker/time_point.hh"
-#include <mutex>
 
 namespace broker {
 namespace report {

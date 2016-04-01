@@ -1,6 +1,6 @@
+#include "atoms.hh"
 #include "peering_impl.hh"
 #include "queue_impl.hh"
-#include "atoms.hh"
 
 template <class T>
 broker::queue<T>::queue()

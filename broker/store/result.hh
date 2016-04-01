@@ -1,10 +1,11 @@
 #ifndef BROKER_STORE_RESULT_HH
 #define BROKER_STORE_RESULT_HH
 
-#include <broker/data.hh>
-#include <broker/store/snapshot.hh>
 #include <cstdint>
 #include <vector>
+
+#include "broker/data.hh"
+#include "broker/store/snapshot.hh"
 
 namespace broker {
 namespace store {

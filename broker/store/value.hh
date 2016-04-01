@@ -1,7 +1,7 @@
 #ifndef BROKER_STORE_VALUE_HH
 #define BROKER_STORE_VALUE_HH
 
-#include <broker/store/expiration_time.hh>
+#include "broker/store/expiration_time.hh"
 
 namespace broker {
 namespace store {

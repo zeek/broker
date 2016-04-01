@@ -1,8 +1,9 @@
 #ifndef BROKER_INCOMING_CONNECTION_STATUS_HH
 #define BROKER_INCOMING_CONNECTION_STATUS_HH
 
-#include <broker/peering.hh>
 #include <string>
+
+#include "broker/peering.hh"
 
 namespace broker {
 

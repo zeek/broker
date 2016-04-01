@@ -1,4 +1,5 @@
 #include "broker/incoming_connection_status.hh"
+
 // Begin C API
 #include "broker/broker.h"
 

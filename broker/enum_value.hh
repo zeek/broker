@@ -1,10 +1,11 @@
 #ifndef BROKER_ENUM_VALUE_HH
 #define BROKER_ENUM_VALUE_HH
 
-#include <broker/util/operators.hh>
-#include <string>
 #include <functional>
 #include <ostream>
+#include <string>
+
+#include <broker/util/operators.hh"
 
 namespace broker {
 
@@ -12,8 +13,7 @@ namespace broker {
 /// how to map the name to the actual value if it needs that information.
 struct enum_value : util::totally_ordered<enum_value> {
   /// Default construct empty enum value name.
-  enum_value() {
-  }
+  enum_value() { }
 
   /// Copy constructor.
   enum_value(const enum_value&) = default;
@@ -33,8 +33,7 @@ struct enum_value : util::totally_ordered<enum_value> {
   }
 
   /// Construct enum value from a string.
-  explicit enum_value(std::string arg_name) : name(arg_name) {
-  }
+  explicit enum_value(std::string arg_name) : name(arg_name) { }
 
   std::string name;
 };

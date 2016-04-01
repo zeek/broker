@@ -1,24 +1,25 @@
 #ifndef BROKER_ENDPOINT_HH
 #define BROKER_ENDPOINT_HH
 
-#include <broker/topic.hh>
-#include <broker/peering.hh>
-#include <broker/message.hh>
-#include <broker/outgoing_connection_status.hh>
-#include <broker/incoming_connection_status.hh>
-#include <broker/queue.hh>
+#include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <cstdint>
-#include <chrono>
+
+#include "broker/outgoing_connection_status.hh"
+#include "broker/incoming_connection_status.hh"
+#include "broker/message.hh"
+#include "broker/peering.hh"
+#include "broker/queue.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 
-typedef broker::queue<broker::outgoing_connection_status>
-  outgoing_connection_status_queue;
+using outgoing_connection_status_queue =
+  broker::queue<broker::outgoing_connection_status>;
 
-typedef broker::queue<broker::incoming_connection_status>
-  incoming_connection_status_queue;
+using = incoming_connection_status_queue
+  broker::queue<broker::incoming_connection_status>;
 
 // Endpoint options.
 

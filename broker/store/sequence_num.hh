@@ -1,8 +1,8 @@
 #ifndef BROKER_STORE_SEQUENCE_NUM_HH
 #define BROKER_STORE_SEQUENCE_NUM_HH
 
-#include <vector>
 #include <cstdint>
+#include <vector>
 
 namespace broker {
 namespace store {

@@ -1,11 +1,12 @@
 #ifndef BROKER_STORE_SNAPSHOT_HH
 #define BROKER_STORE_SNAPSHOT_HH
 
-#include <broker/data.hh>
-#include <broker/store/value.hh>
-#include <broker/store/sequence_num.hh>
 #include <vector>
 #include <utility>
+
+#include "broker/data.hh"
+#include "broker/store/value.hh"
+#include "broker/store/sequence_num.hh"
 
 namespace broker {
 namespace store {

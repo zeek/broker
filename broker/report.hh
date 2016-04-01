@@ -1,10 +1,11 @@
 #ifndef BROKER_REPORT_HH
 #define BROKER_REPORT_HH
 
-#include <broker/endpoint.hh>
-#include <broker/message_queue.hh>
-#include <type_traits>
 #include <string>
+#include <type_traits>
+
+#include "broker/endpoint.hh"
+#include "broker/message_queue.hh"
 
 namespace broker {
 namespace report {

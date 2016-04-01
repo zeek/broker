@@ -42,8 +42,8 @@
 #include <caf/deserializer.hpp>
 #include <caf/serializer.hpp>
 
-#include <broker/util/operators.hh>
-#include <broker/util/meta.hh>
+#include "broker/util/operators.hh"
+#include "broker/util/meta.hh"
 
 namespace broker {
 namespace util {

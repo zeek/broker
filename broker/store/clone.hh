@@ -1,8 +1,8 @@
 #ifndef BROKER_STORE_CLONE_HH
 #define BROKER_STORE_CLONE_HH
 
-#include <broker/store/frontend.hh>
-#include <broker/store/memory_backend.hh>
+#include "broker/store/frontend.hh"
+#include "broker/store/memory_backend.hh"
 
 namespace broker {
 namespace store {

@@ -1,23 +1,22 @@
 #ifndef BROKER_TIME_POINT_HH
 #define BROKER_TIME_POINT_HH
 
-#include <broker/util/operators.hh>
-#include <broker/time_duration.hh>
 #include <functional>
 #include <ostream>
+
+#include "broker/time_duration.hh"
+#include "broker/util/operators.hh"
 
 namespace broker {
 
 /// A point in time represented by a number of seconds from the Unix epoch.
 struct time_point : util::totally_ordered<time_point> {
   /// Construct a point in time equal to the Unix epoch (i.e. 0).
-  time_point() : value(0) {
-  }
+  time_point() : value(0) { }
 
   /// Construct a point in time that is some number of seconds away from the
   /// Unix epoch.
-  explicit time_point(double seconds_from_epoch) : value(seconds_from_epoch) {
-  }
+  explicit time_point(double seconds_from_epoch) : value(seconds_from_epoch) { }
 
   /// Construct a point in time that is some number of seconds away from the
   /// Unix epoch.

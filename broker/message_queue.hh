@@ -1,11 +1,12 @@
 #ifndef BROKER_MESSAGE_QUEUE_HH
 #define BROKER_MESSAGE_QUEUE_HH
 
-#include <broker/endpoint.hh>
-#include <broker/message.hh>
-#include <broker/queue.hh>
-#include <broker/topic.hh>
 #include <memory>
+
+#include "broker/endpoint.hh"
+#include "broker/message.hh"
+#include "broker/queue.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 

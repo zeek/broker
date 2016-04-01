@@ -1,7 +1,8 @@
-#include "persist.hh"
 #include <algorithm>
-#include <typeindex>
 #include <cassert>
+#include <typeindex>
+
+#include "persist.hh"
 
 static constexpr bool is_big_endian() {
 #ifdef BROKER_BIG_ENDIAN

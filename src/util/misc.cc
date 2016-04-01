@@ -1,5 +1,6 @@
-#include "misc.hh"
 #include <cstdio>
+
+#include "misc.hh"
 
 broker::util::optional<broker::store::expiration_time>
 broker::util::update_last_modification(optional<store::expiration_time>& et,

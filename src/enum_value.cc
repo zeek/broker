@@ -1,4 +1,5 @@
 #include "broker/enum_value.hh"
+
 // Begin C API
 #include "broker/broker.h"
 using std::nothrow;

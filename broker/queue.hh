@@ -1,8 +1,8 @@
 #ifndef BROKER_QUEUE_HH
 #define BROKER_QUEUE_HH
 
-#include <memory>
 #include <deque>
+#include <memory>
 
 namespace broker {
 

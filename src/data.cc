@@ -1,6 +1,7 @@
-#include "broker/data.hh"
 #include <sstream>
 #include <iomanip>
+
+#include "broker/data.hh"
 
 struct io_format_guard {
   io_format_guard(std::ios& arg_stream)

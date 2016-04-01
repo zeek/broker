@@ -1,7 +1,7 @@
 #ifndef BROKER_MESSAGE_HH
 #define BROKER_MESSAGE_HH
 
-#include <broker/data.hh>
+#include "broker/data.hh"
 
 namespace broker {
 

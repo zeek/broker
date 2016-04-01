@@ -1,21 +1,22 @@
 #ifndef BROKER_DATA_HH
 #define BROKER_DATA_HH
 
-#include <broker/util/variant.hh>
-#include <broker/util/optional.hh>
-#include <broker/util/hash.hh>
-#include <broker/address.hh>
-#include <broker/subnet.hh>
-#include <broker/port.hh>
-#include <broker/time_duration.hh>
-#include <broker/time_point.hh>
-#include <broker/enum_value.hh>
 #include <cstdint>
-#include <string>
-#include <set>
 #include <map>
-#include <vector>
 #include <ostream>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "broker/util/variant.hh"
+#include "broker/util/optional.hh"
+#include "broker/util/hash.hh"
+#include "broker/address.hh"
+#include "broker/subnet.hh"
+#include "broker/port.hh"
+#include "broker/time_duration.hh"
+#include "broker/time_point.hh"
+#include "broker/enum_value.hh"
 
 namespace broker {
 
