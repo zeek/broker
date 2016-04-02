@@ -1,5 +1,8 @@
 #include "broker/store/sequence_num.hh"
 
+namespace broker {
+namespace store {
+
 static void increase_sequence(std::vector<uint64_t>& s) {
   for (int i = s.size() - 1; i >= 0; --i) {
     ++s[i];
@@ -10,19 +13,22 @@ static void increase_sequence(std::vector<uint64_t>& s) {
   }
 }
 
-broker::store::sequence_num broker::store::sequence_num::next() const {
+sequence_num sequence_num::next() const {
   sequence_num rval = *this;
   increase_sequence(rval.sequence);
   return rval;
 }
 
-broker::store::sequence_num& broker::store::sequence_num::operator++() {
+sequence_num& sequence_num::operator++() {
   increase_sequence(sequence);
   return *this;
 }
 
-broker::store::sequence_num broker::store::sequence_num::operator++(int) {
+sequence_num sequence_num::operator++(int) {
   sequence_num tmp = *this;
   operator++();
   return tmp;
 }
+
+} // namespace store
+} // namespace broker

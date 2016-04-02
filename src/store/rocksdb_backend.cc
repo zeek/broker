@@ -6,9 +6,14 @@
 #include "../persistables.hh"
 #include "../util/misc.hh"
 
+namespace broker {
+namespace store {
+
+namespace detail {
+
 template <class T>
 static void to_serial(const T& obj, std::string& rval) {
-  broker::util::persist::save_archive saver(std::move(rval));
+  util::persist::save_archive saver(std::move(rval));
   save(saver, obj);
   rval = saver.get();
 }
@@ -30,7 +35,7 @@ static std::string to_serial(const T& obj, char keyspace) {
 template <class T>
 static T from_serial(const char* blob, size_t num_bytes) {
   T rval;
-  broker::util::persist::load_archive loader(blob, num_bytes);
+  util::persist::load_archive loader(blob, num_bytes);
   load(loader, &rval);
   return rval;
 }
@@ -41,9 +46,9 @@ static T from_serial(const C& bytes) {
 }
 
 static rocksdb::Status
-insert(rocksdb::DB* db, const broker::data& k, const broker::data& v,
+insert(rocksdb::DB* db, const data& k, const data& v,
        bool delete_expiry_if_nil,
-       const broker::maybe<broker::store::expiration_time>& e = {}) {
+       const maybe<expiration_time>& e = {}) {
   auto kserial = to_serial(k, 'a');
   auto vserial = to_serial(v);
   rocksdb::WriteBatch batch;
@@ -57,19 +62,20 @@ insert(rocksdb::DB* db, const broker::data& k, const broker::data& v,
   return db->Write({}, &batch);
 }
 
-broker::store::rocksdb_backend::rocksdb_backend(uint64_t exact_size_threshold)
+} // namespace detail
+
+rocksdb_backend::rocksdb_backend(uint64_t exact_size_threshold)
   : pimpl(new impl(exact_size_threshold)) {
 }
 
-broker::store::rocksdb_backend::~rocksdb_backend() = default;
+rocksdb_backend::~rocksdb_backend() = default;
 
-broker::store::rocksdb_backend::rocksdb_backend(rocksdb_backend&&) = default;
+rocksdb_backend::rocksdb_backend(rocksdb_backend&&) = default;
 
-broker::store::rocksdb_backend& 
-broker::store::rocksdb_backend::operator=(rocksdb_backend&&) = default;
+rocksdb_backend& rocksdb_backend::operator=(rocksdb_backend&&) = default;
 
-rocksdb::Status broker::store::rocksdb_backend::open(std::string db_path,
-                                                     rocksdb::Options options) {
+rocksdb::Status rocksdb_backend::open(std::string db_path,
+                                      rocksdb::Options options) {
   rocksdb::DB* db;
   auto rval = rocksdb::DB::Open(options, db_path, &db);
   pimpl->db.reset(db);
@@ -85,25 +91,25 @@ rocksdb::Status broker::store::rocksdb_backend::open(std::string db_path,
   return rval;
 }
 
-void broker::store::rocksdb_backend::do_increase_sequence() {
+void rocksdb_backend::do_increase_sequence() {
   ++pimpl->sn;
 }
 
-std::string broker::store::rocksdb_backend::do_last_error() const {
+std::string rocksdb_backend::do_last_error() const {
   return pimpl->last_error;
 }
 
-bool broker::store::rocksdb_backend::do_init(snapshot sss) {
+bool rocksdb_backend::do_init(snapshot sss) {
   if (!do_clear())
     return false;
   rocksdb::WriteBatch batch;
   for (const auto& kv : sss.entries) {
-    auto kserial = to_serial(kv.first, 'a');
-    auto vserial = to_serial(kv.second.item);
+    auto kserial = detail::to_serial(kv.first, 'a');
+    auto vserial = detail::to_serial(kv.second.item);
     batch.Put(kserial, vserial);
     if (kv.second.expiry) {
       kserial[0] = 'e';
-      auto evserial = to_serial(*kv.second.expiry);
+      auto evserial = detail::to_serial(*kv.second.expiry);
       batch.Put(kserial, evserial);
     }
   }
@@ -111,21 +117,19 @@ bool broker::store::rocksdb_backend::do_init(snapshot sss) {
   return pimpl->require_ok(pimpl->db->Write({}, &batch));
 }
 
-const broker::store::sequence_num&
-broker::store::rocksdb_backend::do_sequence() const {
+const sequence_num& rocksdb_backend::do_sequence() const {
   return pimpl->sn;
 }
 
-bool broker::store::rocksdb_backend::do_insert(
+bool rocksdb_backend::do_insert(
   data k, data v, maybe<expiration_time> e) {
   if (!pimpl->require_db())
     return false;
-  return pimpl->require_ok(::insert(pimpl->db.get(), k, v, true, e));
+  return pimpl->require_ok(detail::insert(pimpl->db.get(), k, v, true, e));
 }
 
-broker::store::modification_result
-broker::store::rocksdb_backend::do_increment(const data& k, int64_t by,
-                                             double mod_time) {
+modification_result rocksdb_backend::do_increment(const data& k, int64_t by,
+                                                  double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {modification_result::status::failure, {}};
@@ -133,14 +137,13 @@ broker::store::rocksdb_backend::do_increment(const data& k, int64_t by,
     return {modification_result::status::invalid, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
   if (pimpl->require_ok(
-        ::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
+        detail::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
     return {modification_result::status::success, std::move(new_expiry)};
   return {modification_result::status::failure, {}};
 }
 
-broker::store::modification_result
-broker::store::rocksdb_backend::do_add_to_set(const data& k, data element,
-                                              double mod_time) {
+modification_result rocksdb_backend::do_add_to_set(const data& k, data element,
+                                                   double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {modification_result::status::failure, {}};
@@ -148,15 +151,14 @@ broker::store::rocksdb_backend::do_add_to_set(const data& k, data element,
     return {modification_result::status::invalid, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
   if (pimpl->require_ok(
-        ::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
+        detail::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
     return {modification_result::status::success, std::move(new_expiry)};
   return {modification_result::status::failure, {}};
 }
 
-broker::store::modification_result
-broker::store::rocksdb_backend::do_remove_from_set(const data& k,
-                                                   const data& element,
-                                                   double mod_time) {
+modification_result rocksdb_backend::do_remove_from_set(const data& k, 
+                                                        const data& element,
+                                                        double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {modification_result::status::failure, {}};
@@ -164,22 +166,22 @@ broker::store::rocksdb_backend::do_remove_from_set(const data& k,
     return {modification_result::status::invalid, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
   if (pimpl->require_ok(
-        ::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
+        detail::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
     return {modification_result::status::success, std::move(new_expiry)};
   return {modification_result::status::failure, {}};
 }
 
-bool broker::store::rocksdb_backend::do_erase(const data& k) {
+bool rocksdb_backend::do_erase(const data& k) {
   if (!pimpl->require_db())
     return false;
-  auto kserial = to_serial(k, 'a');
+  auto kserial = detail::to_serial(k, 'a');
   if (!pimpl->require_ok(pimpl->db->Delete({}, kserial)))
     return false;
   kserial[0] = 'e';
   return pimpl->require_ok(pimpl->db->Delete({}, kserial));
 }
 
-bool broker::store::rocksdb_backend::do_erase(std::string kserial) {
+bool rocksdb_backend::do_erase(std::string kserial) {
   if (!pimpl->require_db())
     return false;
   kserial[0] = 'a';
@@ -189,17 +191,17 @@ bool broker::store::rocksdb_backend::do_erase(std::string kserial) {
   return pimpl->require_ok(pimpl->db->Delete({}, kserial));
 }
 
-bool broker::store::rocksdb_backend::do_expire(
-  const data& k, const expiration_time& expiration) {
+bool rocksdb_backend::do_expire(const data& k,
+                                const expiration_time& expiration) {
   if (!pimpl->require_db())
     return false;
-  auto kserial = to_serial(k, 'e');
+  auto kserial = detail::to_serial(k, 'e');
   std::string vserial;
   bool value_found;
   if (!pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found))
     return true;
   if (value_found) {
-    auto stored_expiration = from_serial<expiration_time>(vserial);
+    auto stored_expiration = detail::from_serial<expiration_time>(vserial);
     if (stored_expiration == expiration)
       return do_erase(std::move(kserial));
     else
@@ -210,14 +212,14 @@ bool broker::store::rocksdb_backend::do_expire(
     return true;
   if (!pimpl->require_ok(stat))
     return false;
-  auto stored_expiration = from_serial<expiration_time>(vserial);
+  auto stored_expiration = detail::from_serial<expiration_time>(vserial);
   if (stored_expiration == expiration)
     return do_erase(std::move(kserial));
   else
     return true;
 }
 
-bool broker::store::rocksdb_backend::do_clear() {
+bool rocksdb_backend::do_clear() {
   if (!pimpl->require_db())
     return false;
   std::string db_path = pimpl->db->GetName();
@@ -228,9 +230,8 @@ bool broker::store::rocksdb_backend::do_clear() {
   return pimpl->require_ok(open(std::move(db_path), pimpl->options));
 }
 
-broker::store::modification_result
-broker::store::rocksdb_backend::do_push_left(const data& k, vector items,
-                                             double mod_time) {
+modification_result rocksdb_backend::do_push_left(const data& k, vector items,
+                                                  double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {modification_result::status::failure, {}};
@@ -238,14 +239,13 @@ broker::store::rocksdb_backend::do_push_left(const data& k, vector items,
     return {modification_result::status::invalid, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
   if (pimpl->require_ok(
-        ::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
+        detail::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
     return {modification_result::status::success, std::move(new_expiry)};
   return {modification_result::status::failure, {}};
 }
 
-broker::store::modification_result
-broker::store::rocksdb_backend::do_push_right(const data& k, vector items,
-                                              double mod_time) {
+modification_result rocksdb_backend::do_push_right(const data& k, vector items,
+                                                   double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {modification_result::status::failure, {}};
@@ -253,14 +253,13 @@ broker::store::rocksdb_backend::do_push_right(const data& k, vector items,
     return {modification_result::status::invalid, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
   if (pimpl->require_ok(
-        ::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
+        detail::insert(pimpl->db.get(), k, *op->first, false, new_expiry)))
     return {modification_result::status::success, std::move(new_expiry)};
   return {modification_result::status::failure, {}};
 }
 
-std::pair<broker::store::modification_result,
-          broker::maybe<broker::data>>
-broker::store::rocksdb_backend::do_pop_left(const data& k, double mod_time) {
+std::pair<modification_result, maybe<data>>
+rocksdb_backend::do_pop_left(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {{modification_result::status::failure, {}}, {}};
@@ -275,15 +274,15 @@ broker::store::rocksdb_backend::do_pop_left(const data& k, double mod_time) {
     // Fine, popped an empty list.
     return {{modification_result::status::success, {}}, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
-  if (pimpl->require_ok(::insert(pimpl->db.get(), k, v, false, new_expiry)))
+  if (pimpl->require_ok(detail::insert(pimpl->db.get(), k, v, false,
+                                      new_expiry)))
     return {{modification_result::status::success, std::move(new_expiry)},
             std::move(*rval)};
   return {{modification_result::status::failure, {}}, {}};
 }
 
-std::pair<broker::store::modification_result,
-          broker::maybe<broker::data>>
-broker::store::rocksdb_backend::do_pop_right(const data& k, double mod_time) {
+std::pair<modification_result, maybe<data>>
+rocksdb_backend::do_pop_right(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
     return {{modification_result::status::failure, {}}, {}};
@@ -298,41 +297,37 @@ broker::store::rocksdb_backend::do_pop_right(const data& k, double mod_time) {
     // Fine, popped an empty list.
     return {{modification_result::status::success, {}}, {}};
   auto new_expiry = util::update_last_modification(op->second, mod_time);
-  if (pimpl->require_ok(::insert(pimpl->db.get(), k, v, false, new_expiry)))
+  if (pimpl->require_ok(detail::insert(pimpl->db.get(), k, v, false,
+                                      new_expiry)))
     return {{modification_result::status::success, std::move(new_expiry)},
             std::move(*rval)};
   return {{modification_result::status::failure, {}}, {}};
 }
 
-broker::maybe<broker::maybe<broker::data>>
-broker::store::rocksdb_backend::do_lookup(const data& k) const {
+maybe<maybe<data>>
+rocksdb_backend::do_lookup(const data& k) const {
   if (!pimpl->require_db())
     return {};
-  auto kserial = to_serial(k, 'a');
+  auto kserial = detail::to_serial(k, 'a');
   std::string vserial;
   bool value_found;
   if (!pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found))
     return maybe<data>{};
   if (value_found)
-    return {from_serial<data>(vserial)};
+    return {detail::from_serial<data>(vserial)};
   auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
   if (stat.IsNotFound())
     return maybe<data>{};
   if (!pimpl->require_ok(stat))
     return {};
-  return {from_serial<data>(vserial)};
+  return {detail::from_serial<data>(vserial)};
 }
 
-broker::maybe<
-  std::pair<
-    broker::maybe<broker::data>,
-    broker::maybe<broker::store::expiration_time>
-  >
->
-broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const {
+maybe<std::pair<maybe<data>, maybe<expiration_time>>>
+rocksdb_backend::do_lookup_expiry(const data& k) const {
   if (!pimpl->require_db())
     return {};
-  auto kserial = to_serial(k, 'a');
+  auto kserial = detail::to_serial(k, 'a');
   std::string vserial;
   bool value_found;
   if (!pimpl->db->KeyMayExist({}, kserial, &vserial, &value_found))
@@ -340,7 +335,7 @@ broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const {
                            maybe<expiration_time>{})};
   data value;
   if (value_found)
-    value = from_serial<data>(vserial);
+    value = detail::from_serial<data>(vserial);
   else {
     auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
     if (stat.IsNotFound())
@@ -348,7 +343,7 @@ broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const {
                              maybe<expiration_time>{})};
     if (!pimpl->require_ok(stat))
       return {};
-    value = from_serial<data>(vserial);
+    value = detail::from_serial<data>(vserial);
   }
   kserial[0] = 'e';
   value_found = false;
@@ -357,7 +352,7 @@ broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const {
       std::make_pair(std::move(value), maybe<expiration_time>{})};
   expiration_time expiry;
   if (value_found)
-    expiry = from_serial<expiration_time>(vserial);
+    expiry = detail::from_serial<expiration_time>(vserial);
   else {
     auto stat = pimpl->db->Get(rocksdb::ReadOptions{}, kserial, &vserial);
     if (stat.IsNotFound())
@@ -365,16 +360,15 @@ broker::store::rocksdb_backend::do_lookup_expiry(const data& k) const {
         std::make_pair(std::move(value), maybe<expiration_time>{})};
     if (!pimpl->require_ok(stat))
       return {};
-    expiry = from_serial<expiration_time>(vserial);
+    expiry = detail::from_serial<expiration_time>(vserial);
   }
   return {std::make_pair(std::move(value), std::move(expiry))};
 }
 
-broker::maybe<bool>
-broker::store::rocksdb_backend::do_exists(const data& k) const {
+maybe<bool> rocksdb_backend::do_exists(const data& k) const {
   if (!pimpl->require_db())
     return {};
-  auto kserial = to_serial(k, 'a');
+  auto kserial = detail::to_serial(k, 'a');
   std::string vserial;
   if (!pimpl->db->KeyMayExist(rocksdb::ReadOptions{}, kserial, &vserial))
     return false;
@@ -386,8 +380,7 @@ broker::store::rocksdb_backend::do_exists(const data& k) const {
   return true;
 }
 
-broker::maybe<std::vector<broker::data>>
-broker::store::rocksdb_backend::do_keys() const {
+maybe<std::vector<data>> rocksdb_backend::do_keys() const {
   if (!pimpl->require_db())
     return {};
   rocksdb::ReadOptions options;
@@ -397,15 +390,14 @@ broker::store::rocksdb_backend::do_keys() const {
   for (it->Seek("a"); it->Valid() && it->key()[0] == 'a'; it->Next()) {
     auto s = it->key();
     s.remove_prefix(1);
-    rval.emplace_back(from_serial<data>(s));
+    rval.emplace_back(detail::from_serial<data>(s));
   }
   if (!pimpl->require_ok(it->status()))
     return {};
   return rval;
 }
 
-broker::maybe<uint64_t>
-broker::store::rocksdb_backend::do_size() const {
+maybe<uint64_t> rocksdb_backend::do_size() const {
   if (!pimpl->require_db())
     return {};
   uint64_t rval;
@@ -423,8 +415,7 @@ broker::store::rocksdb_backend::do_size() const {
   return {};
 }
 
-broker::maybe<broker::store::snapshot>
-broker::store::rocksdb_backend::do_snap() const {
+maybe<snapshot> rocksdb_backend::do_snap() const {
   if (!pimpl->require_db())
     return {};
   rocksdb::ReadOptions options;
@@ -437,8 +428,8 @@ broker::store::rocksdb_backend::do_snap() const {
     auto ks = it->key();
     auto vs = it->value();
     ks.remove_prefix(1);
-    auto key = from_serial<data>(ks);
-    expiries[std::move(key)] = from_serial<expiration_time>(vs);
+    auto key = detail::from_serial<data>(ks);
+    expiries[std::move(key)] = detail::from_serial<expiration_time>(vs);
   }
   if (!pimpl->require_ok(it->status()))
     return {};
@@ -447,7 +438,8 @@ broker::store::rocksdb_backend::do_snap() const {
     auto vs = it->value();
     ks.remove_prefix(1);
     auto entry
-      = std::make_pair(from_serial<data>(ks), value{from_serial<data>(vs)});
+      = std::make_pair(detail::from_serial<data>(ks),
+                       value{detail::from_serial<data>(vs)});
     auto eit = expiries.find(entry.first);
     if (eit != expiries.end())
       entry.second.expiry = std::move(eit->second);
@@ -458,8 +450,7 @@ broker::store::rocksdb_backend::do_snap() const {
   return rval;
 }
 
-broker::maybe<std::deque<broker::store::expirable>>
-broker::store::rocksdb_backend::do_expiries() const {
+maybe<std::deque<expirable>> rocksdb_backend::do_expiries() const {
   if (!pimpl->require_db())
     return {};
   rocksdb::ReadOptions options;
@@ -470,14 +461,17 @@ broker::store::rocksdb_backend::do_expiries() const {
     auto ks = it->key();
     auto vs = it->value();
     ks.remove_prefix(1);
-    auto key = from_serial<data>(ks);
-    auto expiry = from_serial<expiration_time>(vs);
+    auto key = detail::from_serial<data>(ks);
+    auto expiry = detail::from_serial<expiration_time>(vs);
     rval.emplace_back(expirable{std::move(key), std::move(expiry)});
   }
   if (!pimpl->require_ok(it->status()))
     return {};
   return rval;
 }
+
+} // namespace store
+} // namespace broker
 
 // Begin C API
 #include "broker/broker.h"

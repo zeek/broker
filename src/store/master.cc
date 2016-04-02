@@ -1,22 +1,26 @@
 #include "master_impl.hh"
 
-broker::store::master::master(const endpoint& e, identifier name,
-                              std::unique_ptr<backend> s)
-  : broker::store::frontend(e, name),
+namespace broker {
+namespace store {
+
+master::master(const endpoint& e, identifier name, std::unique_ptr<backend> s)
+  : frontend(e, name),
     pimpl(new impl(*static_cast<caf::actor*>(e.handle()), std::move(name),
                    std::move(s))) {
 }
 
-broker::store::master::~master() = default;
+master::~master() = default;
 
-broker::store::master::master(master&& other) = default;
+master::master(master&& other) = default;
 
-broker::store::master& 
-broker::store::master::operator=(master&& other) = default;
+master& master::operator=(master&& other) = default;
 
-void* broker::store::master::handle() const {
+void* master::handle() const {
   return &pimpl->actor;
 }
+
+} // namespace store
+} // namespace broker
 
 // Begin C API
 #include "broker/broker.h"

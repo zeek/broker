@@ -10,11 +10,13 @@
 #include "broker/address.hh"
 #include "broker/util/hash.hh"
 
+namespace broker {
+
 const std::array<uint8_t, 12> broker::address::v4_mapped_prefix
   = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};
 
-broker::maybe<broker::address>
-broker::address::from_string(const std::string& s) {
+maybe<address>
+address::from_string(const std::string& s) {
   address rval;
   if (s.find(':') == std::string::npos) { // IPv4. 
     std::copy(v4_mapped_prefix.begin(), v4_mapped_prefix.end(),
@@ -37,11 +39,11 @@ broker::address::from_string(const std::string& s) {
   return rval;
 }
 
-broker::address::address() {
+address::address() {
   addr.fill(0);
 }
 
-broker::address::address(const uint32_t* bytes, family fam, byte_order order) {
+address::address(const uint32_t* bytes, family fam, byte_order order) {
   if (fam == family::ipv4) {
     std::copy(v4_mapped_prefix.begin(), v4_mapped_prefix.end(), addr.begin());
     auto p = reinterpret_cast<uint32_t*>(&addr[12]);
@@ -62,7 +64,7 @@ static uint32_t bit_mask32(int bottom_bits) {
   return (((uint32_t)1) << bottom_bits) - 1;
 }
 
-bool broker::address::mask(uint8_t top_bits_to_keep) {
+bool address::mask(uint8_t top_bits_to_keep) {
   if (top_bits_to_keep > 128)
     return false;
   uint32_t mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
@@ -77,19 +79,19 @@ bool broker::address::mask(uint8_t top_bits_to_keep) {
   return true;
 }
 
-bool broker::address::is_v4() const {
+bool address::is_v4() const {
   return memcmp(&addr, &v4_mapped_prefix, 12) == 0;
 }
 
-bool broker::address::is_v6() const {
+bool address::is_v6() const {
   return !is_v4();
 }
 
-const std::array<uint8_t, 16>& broker::address::bytes() const {
+const std::array<uint8_t, 16>& address::bytes() const {
   return addr;
 }
 
-std::string broker::to_string(const broker::address& a) {
+std::string to_string(const address& a) {
   char buf[INET6_ADDRSTRLEN];
   if (a.is_v4()) {
     if (!inet_ntop(AF_INET, &a.addr[12], buf, INET_ADDRSTRLEN))
@@ -101,18 +103,19 @@ std::string broker::to_string(const broker::address& a) {
   return buf;
 }
 
-std::ostream& broker::operator<<(std::ostream& out, const broker::address& a) {
+std::ostream& operator<<(std::ostream& out, const address& a) {
   return out << to_string(a);
 }
 
-bool broker::operator==(const broker::address& lhs,
-                        const broker::address& rhs) {
+bool operator==(const address& lhs, const address& rhs) {
   return lhs.addr == rhs.addr;
 }
 
-bool broker::operator<(const broker::address& lhs, const broker::address& rhs) {
+bool operator<(const address& lhs, const address& rhs) {
   return lhs.addr < rhs.addr;
 }
+
+} // namespace broker
 
 size_t std::hash<broker::address>::operator()(const broker::address& v) const {
   return broker::util::hash_range(v.bytes().begin(), v.bytes().end());

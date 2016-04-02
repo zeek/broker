@@ -220,13 +220,13 @@ std::string to_string(const set&);
 std::string to_string(const table&);
 std::string to_string(const record&);
 
-} // namespace broker
-
 std::ostream& operator<<(std::ostream&, const broker::data&);
 std::ostream& operator<<(std::ostream&, const broker::vector&);
 std::ostream& operator<<(std::ostream&, const broker::set&);
 std::ostream& operator<<(std::ostream&, const broker::table&);
 std::ostream& operator<<(std::ostream&, const broker::record&);
+
+} // namespace broker
 
 namespace std {
 

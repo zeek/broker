@@ -4,10 +4,12 @@
 #include "broker/subnet.hh"
 #include "broker/util/hash.hh"
 
-broker::subnet::subnet() : len(0) {
+namespace broker {
+
+subnet::subnet() : len(0) {
 }
 
-broker::subnet::subnet(address addr, uint8_t length)
+subnet::subnet(address addr, uint8_t length)
   : net(std::move(addr)), len(length) {
   if (init())
     return;
@@ -15,7 +17,7 @@ broker::subnet::subnet(address addr, uint8_t length)
   len = 0;
 }
 
-bool broker::subnet::init() {
+bool subnet::init() {
   if (net.is_v4()) {
     if (len > 32)
       return false;
@@ -27,37 +29,39 @@ bool broker::subnet::init() {
   return true;
 }
 
-bool broker::subnet::contains(const address& addr) const {
+bool subnet::contains(const address& addr) const {
   address p{addr};
   p.mask(len);
   return p == net;
 }
 
-const broker::address& broker::subnet::network() const {
+const address& subnet::network() const {
   return net;
 }
 
-uint8_t broker::subnet::length() const {
+uint8_t subnet::length() const {
   return net.is_v4() ? len - 96 : len;
 }
 
-std::string broker::to_string(const subnet& s) {
+std::string to_string(const subnet& s) {
   std::ostringstream oss;
   oss << s.net << "/" << (s.net.is_v4() ? s.len - 96 : s.len);
   return oss.str();
 }
 
-std::ostream& broker::operator<<(std::ostream& out, const broker::subnet& s) {
+std::ostream& operator<<(std::ostream& out, const subnet& s) {
   return out << to_string(s);
 }
 
-bool broker::operator==(const subnet& lhs, const subnet& rhs) {
+bool operator==(const subnet& lhs, const subnet& rhs) {
   return lhs.len == rhs.len && lhs.net == rhs.net;
 }
 
-bool broker::operator<(const subnet& lhs, const subnet& rhs) {
+bool operator<(const subnet& lhs, const subnet& rhs) {
   return std::tie(lhs.net, lhs.len) < std::tie(rhs.net, lhs.len);
 }
+
+} // namespace broker
 
 size_t std::hash<broker::subnet>::operator()(const broker::subnet& v) const {
   size_t rval = 0;

@@ -1,6 +1,8 @@
 #include "subscription.hh"
 
-bool broker::subscription_registry::insert(subscriber s) {
+namespace broker {
+
+bool subscription_registry::insert(subscriber s) {
   auto it = subs_by_actor.find(s.who.address());
   auto rval = (it == subs_by_actor.end());
   if (!rval)
@@ -14,8 +16,8 @@ bool broker::subscription_registry::insert(subscriber s) {
   return rval;
 }
 
-broker::maybe<broker::subscriber>
-broker::subscription_registry::erase(const caf::actor_addr& a) {
+maybe<subscriber>
+subscription_registry::erase(const caf::actor_addr& a) {
   auto it = subs_by_actor.find(a);
   if (it == subs_by_actor.end())
     return {};
@@ -36,7 +38,7 @@ broker::subscription_registry::erase(const caf::actor_addr& a) {
   return std::move(rval);
 }
 
-bool broker::subscription_registry::register_topic(topic t, caf::actor a) {
+bool subscription_registry::register_topic(topic t, caf::actor a) {
   subscriber& s = subs_by_actor[a.address()];
   if (!s.who)
     s.who = std::move(a);
@@ -50,8 +52,8 @@ bool broker::subscription_registry::register_topic(topic t, caf::actor a) {
   return true;
 }
 
-bool broker::subscription_registry::unregister_topic(const topic& t,
-                                                     const caf::actor_addr a) {
+bool subscription_registry::unregister_topic(const topic& t,
+                                             const caf::actor_addr a) {
   auto it = subs_by_actor.find(a);
   if (it == subs_by_actor.end())
     return false;
@@ -69,13 +71,13 @@ bool broker::subscription_registry::unregister_topic(const topic& t,
   return true;
 }
 
-std::deque<broker::util::radix_tree<broker::actor_set>::iterator>
-broker::subscription_registry::prefix_matches(const topic& t) const {
+std::deque<util::radix_tree<actor_set>::iterator>
+subscription_registry::prefix_matches(const topic& t) const {
   return subs_by_topic.prefix_of(t);
 }
 
-broker::actor_set
-broker::subscription_registry::unique_prefix_matches(const topic& t) const {
+actor_set
+subscription_registry::unique_prefix_matches(const topic& t) const {
   auto matches = subs_by_topic.prefix_of(t);
   actor_set rval;
   for (const auto& m : matches)
@@ -84,10 +86,12 @@ broker::subscription_registry::unique_prefix_matches(const topic& t) const {
   return rval;
 }
 
-broker::maybe<const broker::actor_set&>
-broker::subscription_registry::exact_match(const topic& t) const {
+maybe<const actor_set&>
+subscription_registry::exact_match(const topic& t) const {
   auto it = subs_by_topic.find(t);
   if (it == subs_by_topic.end())
     return {};
   return it->second;
 }
+
+} // namespace broker

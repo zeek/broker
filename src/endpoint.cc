@@ -6,43 +6,40 @@
 
 #include "endpoint_impl.hh"
 
-static inline caf::actor& handle_to_actor(void* h) {
-  return *static_cast<caf::actor*>(h);
-}
+namespace broker {
 
-broker::endpoint::endpoint(std::string name, int flags)
+endpoint::endpoint(std::string name, int flags)
   : pimpl(new impl(this, std::move(name), flags)) {
 }
 
-broker::endpoint::~endpoint() = default;
+endpoint::~endpoint() = default;
 
-broker::endpoint::endpoint(endpoint&& other) = default;
+endpoint::endpoint(endpoint&& other) = default;
 
-broker::endpoint& broker::endpoint::operator=(endpoint&& other) = default;
+endpoint& endpoint::operator=(endpoint&& other) = default;
 
-const std::string& broker::endpoint::name() const {
+const std::string& endpoint::name() const {
   return pimpl->name;
 }
 
-int broker::endpoint::flags() const {
+int endpoint::flags() const {
   return pimpl->flags;
 }
 
-void broker::endpoint::set_flags(int flags) {
+void endpoint::set_flags(int flags) {
   pimpl->flags = flags;
   caf::anon_send(pimpl->actor, flags_atom::value, flags);
 }
 
-int broker::endpoint::last_errno() const {
+int endpoint::last_errno() const {
   return pimpl->last_errno;
 }
 
-const std::string& broker::endpoint::last_error() const {
+const std::string& endpoint::last_error() const {
   return pimpl->last_error;
 }
 
-bool broker::endpoint::listen(uint16_t port, const char* addr,
-                              bool reuse_addr) {
+bool endpoint::listen(uint16_t port, const char* addr, bool reuse_addr) {
   try {
     broker_system->middleman().publish(pimpl->actor, port, addr, reuse_addr);
   } catch (const std::exception& e) {
@@ -53,8 +50,8 @@ bool broker::endpoint::listen(uint16_t port, const char* addr,
   return true;
 }
 
-broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
-                                       std::chrono::duration<double> retry) {
+peering endpoint::peer(std::string addr, uint16_t port,
+                       std::chrono::duration<double> retry) {
   auto port_addr = std::pair<std::string, uint16_t>(addr, port);
   peering rval;
   for (const auto& peer : pimpl->peers)
@@ -76,7 +73,7 @@ broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
   return rval;
 }
 
-broker::peering broker::endpoint::peer(const endpoint& e) {
+peering endpoint::peer(const endpoint& e) {
   if (this == &e)
     return {};
   peering p(std::unique_ptr<peering::impl>(
@@ -87,7 +84,7 @@ broker::peering broker::endpoint::peer(const endpoint& e) {
   return p;
 }
 
-bool broker::endpoint::unpeer(broker::peering p) {
+bool endpoint::unpeer(peering p) {
   if (!p)
     return false;
   auto it = pimpl->peers.find(p);
@@ -104,39 +101,41 @@ bool broker::endpoint::unpeer(broker::peering p) {
   return true;
 }
 
-const broker::outgoing_connection_status_queue&
-broker::endpoint::outgoing_connection_status() const {
+const outgoing_connection_status_queue&
+endpoint::outgoing_connection_status() const {
   return pimpl->outgoing_conns;
 }
 
-const broker::incoming_connection_status_queue&
-broker::endpoint::incoming_connection_status() const {
+const incoming_connection_status_queue&
+endpoint::incoming_connection_status() const {
   return pimpl->incoming_conns;
 }
 
-void broker::endpoint::send(topic t, message msg, int flags) const {
+void endpoint::send(topic t, message msg, int flags) const {
   caf::anon_send(pimpl->actor, std::move(t), std::move(msg), flags);
 }
 
-void broker::endpoint::publish(topic t) {
+void endpoint::publish(topic t) {
   caf::anon_send(pimpl->actor, acl_pub_atom::value, t);
 }
 
-void broker::endpoint::unpublish(topic t) {
+void endpoint::unpublish(topic t) {
   caf::anon_send(pimpl->actor, acl_unpub_atom::value, t);
 }
 
-void broker::endpoint::advertise(topic t) {
+void endpoint::advertise(topic t) {
   caf::anon_send(pimpl->actor, advert_atom::value, t);
 }
 
-void broker::endpoint::unadvertise(topic t) {
+void endpoint::unadvertise(topic t) {
   caf::anon_send(pimpl->actor, unadvert_atom::value, t);
 }
 
-void* broker::endpoint::handle() const {
+void* endpoint::handle() const {
   return &pimpl->actor;
 }
+
+} // namespace broker
 
 // Begin C API
 #include "broker/broker.h"

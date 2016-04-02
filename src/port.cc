@@ -5,21 +5,23 @@
 #include "broker/port.hh"
 #include "broker/util/hash.hh"
 
-broker::port::port() : num(0), proto(protocol::unknown) {
+namespace broker {
+
+port::port() : num(0), proto(protocol::unknown) {
 }
 
-broker::port::port(number_type n, protocol p) : num(n), proto(p) {
+port::port(number_type n, protocol p) : num(n), proto(p) {
 }
 
-broker::port::number_type broker::port::number() const {
+port::number_type port::number() const {
   return num;
 }
 
-broker::port::protocol broker::port::type() const {
+port::protocol port::type() const {
   return proto;
 }
 
-std::string broker::to_string(const port& p) {
+std::string to_string(const port& p) {
   std::ostringstream oss;
   oss << p.num;
   switch (p.proto) {
@@ -42,17 +44,19 @@ std::string broker::to_string(const port& p) {
   return oss.str();
 }
 
-std::ostream& broker::operator<<(std::ostream& out, const port& p) {
+std::ostream& operator<<(std::ostream& out, const port& p) {
   return out << to_string(p);
 }
 
-bool broker::operator==(const port& lhs, const port& rhs) {
+bool operator==(const port& lhs, const port& rhs) {
   return lhs.proto == rhs.proto && lhs.num == rhs.num;
 }
 
-bool broker::operator<(const port& lhs, const port& rhs) {
+bool operator<(const port& lhs, const port& rhs) {
   return std::tie(lhs.num, lhs.proto) < std::tie(rhs.num, rhs.proto);
 }
+
+} // namespace broker
 
 size_t std::hash<broker::port>::operator()(const broker::port& v) const {
   using broker::port;

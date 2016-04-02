@@ -3,6 +3,8 @@
 
 #include "broker/data.hh"
 
+namespace broker {
+
 struct io_format_guard {
   io_format_guard(std::ios& arg_stream)
     : stream(arg_stream),
@@ -28,23 +30,21 @@ struct stream_data {
 
   template <class T>
   static void stream_element(const T& e, std::ostream& out) {
-    broker::visit(stream_data{out}, e);
+    visit(stream_data{out}, e);
   }
 
-  static void stream_element(const broker::record::field& e,
-                             std::ostream& out) {
+  static void stream_element(const record::field& e, std::ostream& out) {
     if (e)
-      broker::visit(stream_data{out}, *e);
+      visit(stream_data{out}, *e);
     else
       out << "<nil>";
   }
 
-  static void stream_element(const broker::table::value_type& e,
-                             std::ostream& out) {
+  static void stream_element(const table::value_type& e, std::ostream& out) {
     out << "[";
-    broker::visit(stream_data{out}, e.first);
+    visit(stream_data{out}, e.first);
     out << "] = ";
-    broker::visit(stream_data{out}, e.second);
+    visit(stream_data{out}, e.second);
   }
 
   template <class T>
@@ -64,19 +64,19 @@ struct stream_data {
     return out;
   }
 
-  result_type operator()(const broker::set& d) {
+  result_type operator()(const set& d) {
     return stream_container(d, out, "{", "}");
   }
 
-  result_type operator()(const broker::table& d) {
+  result_type operator()(const table& d) {
     return stream_container(d, out, "{", "}");
   }
 
-  result_type operator()(const broker::vector& d) {
+  result_type operator()(const vector& d) {
     return stream_container(d, out, "[", "]");
   }
 
-  result_type operator()(const broker::record& d) {
+  result_type operator()(const record& d) {
     return stream_container(d.fields, out, "(", ")");
   }
 
@@ -96,50 +96,52 @@ struct stream_data {
 template <class T>
 static std::string data_to_string(const T& d) {
   std::ostringstream out;
-  broker::visit(stream_data{out}, d);
+  visit(stream_data{out}, d);
   return out.str();
 }
 
-std::string broker::to_string(const broker::data& d) {
+std::string to_string(const data& d) {
   return data_to_string(d);
 }
 
-std::string broker::to_string(const broker::vector& d) {
+std::string to_string(const vector& d) {
   return data_to_string(d);
 }
 
-std::string broker::to_string(const broker::set& d) {
+std::string to_string(const set& d) {
   return data_to_string(d);
 }
 
-std::string broker::to_string(const broker::table& d) {
+std::string to_string(const table& d) {
   return data_to_string(d);
 }
 
-std::string broker::to_string(const broker::record& d) {
+std::string to_string(const record& d) {
   return data_to_string(d);
 }
 
-std::ostream& operator<<(std::ostream& out, const broker::data& rhs) {
-  out << broker::to_string(rhs);
+std::ostream& operator<<(std::ostream& out, const data& rhs) {
+  out << to_string(rhs);
   return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const broker::vector& rhs) {
+std::ostream& operator<<(std::ostream& out, const vector& rhs) {
   return stream_data{out}(rhs);
 }
 
-std::ostream& operator<<(std::ostream& out, const broker::set& rhs) {
+std::ostream& operator<<(std::ostream& out, const set& rhs) {
   return stream_data{out}(rhs);
 }
 
-std::ostream& operator<<(std::ostream& out, const broker::table& rhs) {
+std::ostream& operator<<(std::ostream& out, const table& rhs) {
   return stream_data{out}(rhs);
 }
 
-std::ostream& operator<<(std::ostream& out, const broker::record& rhs) {
+std::ostream& operator<<(std::ostream& out, const record& rhs) {
   return stream_data{out}(rhs);
 }
+
+} // namespace broker
 
 // Begin A API
 #include "broker/broker.h"
