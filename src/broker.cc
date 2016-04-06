@@ -18,7 +18,6 @@
 #include "broker/store/expiration_time.hh"
 #include "broker/util/make_unique.hh"
 
-#include "peering_impl.hh"
 #include "queue_impl.hh"
 #include "subscription.hh"
 
@@ -45,7 +44,6 @@ int init(int flags) {
     .add_message_type<incoming_connection_status>(
       "broker::incoming_connection_status")
     .add_message_type<peering>("broker::peering")
-    .add_message_type<peering::impl>("broker::peering_impl")
     .add_message_type<store::sequence_num>("broker::store::sequence_num")
     .add_message_type<data>("broker::data")
     .add_message_type<address>("broker::address")
@@ -116,7 +114,7 @@ static void strerror_r_helper(char* result, char* buf, size_t buflen) {
     buf[buflen - 1] = 0;
 }
 
-static void strerror_r_helper(int result, char* buf, size_t buflen) { 
+static void strerror_r_helper(int result, char* buf, size_t buflen) {
   /* XSI flavor of strerror_r, no-op. */
 }
 

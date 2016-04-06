@@ -1,55 +1,52 @@
 #include <iostream>
 #include <caf/scoped_actor.hpp>
 
+#include "broker/peering.hh"
 #include "broker/util/hash.hh"
-
-#include "peering_impl.hh"
 
 namespace broker {
 
-peering::peering() : pimpl(new impl) {
+peering::peering(caf::actor ea, caf::actor pa, bool r,
+                 std::pair<std::string, uint16_t> rt)
+  : endpoint_actor_{std::move(ea)},
+    peer_actor_{std::move(pa)},
+    remote_{r},
+    remote_tuple_{std::move(rt)} {
 }
-
-peering::peering(std::unique_ptr<impl> p) : pimpl(std::move(p)) {
-}
-
-peering::~peering() = default;
-
-peering::peering(const peering& other)
-  : pimpl(new impl(*other.pimpl.get())) {
-}
-
-peering::peering(peering&& other) = default;
-
-peering& peering::operator=(const peering& other) {
-  pimpl.reset(new impl(*other.pimpl.get()));
-  return *this;
-}
-
-peering& peering::operator=(peering&& other) = default;
 
 peering::operator bool() const {
-  return pimpl->peer_actor;
+  return peer_actor_;
 }
 
 bool peering::remote() const {
-  return pimpl->remote;
+  return remote_;
+}
+
+const caf::actor& peering::endpoint_actor() const {
+  return endpoint_actor_;
+}
+
+const caf::actor& peering::peer_actor() const {
+  return peer_actor_;
 }
 
 const std::pair<std::string, uint16_t>& peering::remote_tuple() const {
-  return pimpl->remote_tuple;
+  return remote_tuple_;
 }
 
-bool peering::operator==(const peering& rhs) const {
-  return *pimpl == *rhs.pimpl;
+bool operator==(const peering& lhs, const peering& rhs) {
+  return lhs.endpoint_actor_ == rhs.endpoint_actor_
+      && lhs.peer_actor_ == rhs.peer_actor_
+      && lhs.remote_ == rhs.remote_
+      && lhs.remote_tuple_ == rhs.remote_tuple_;
 }
 
 } // namespace broker
 
 size_t std::hash<broker::peering>::operator()(const broker::peering& p) const {
   size_t rval = 0;
-  broker::util::hash_combine(rval, p.pimpl->endpoint_actor);
-  broker::util::hash_combine(rval, p.pimpl->peer_actor);
+  broker::util::hash_combine(rval, p.endpoint_actor());
+  broker::util::hash_combine(rval, p.peer_actor());
   return rval;
 }
 

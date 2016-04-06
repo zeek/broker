@@ -1,5 +1,4 @@
 #include "atoms.hh"
-#include "peering_impl.hh"
 #include "queue_impl.hh"
 
 namespace broker {

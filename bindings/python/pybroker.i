@@ -123,15 +123,15 @@ static inline void set_swig_exception(const char* e) {
 %ignore operator<<(std::ostream&, const port&);
 %include "broker/port.hh"
 %extend broker::port {
-    std::string __str__() {
-      return broker::to_string(*$self);
-    }
-    bool __eq__(const broker::port& other) {
-      return *$self == other;
-    }
-    bool __lt__(const broker::port& other) {
-      return *$self < other;
-    }
+  std::string __str__() {
+    return broker::to_string(*$self);
+  }
+  bool __eq__(const broker::port& other) {
+    return *$self == other;
+  }
+  bool __lt__(const broker::port& other) {
+    return *$self < other;
+  }
 }
 
 %ignore operator<<(std::ostream&, const time_duration&);
@@ -147,7 +147,7 @@ static inline void set_swig_exception(const char* e) {
 
 %ignore broker::peering::operator=;
 %ignore broker::peering::peering(peering&&);
-%ignore broker::peering::peering(std::unique_ptr<impl>);
+%ignore operator==(const peering&, const peering&);
 %include "broker/peering.hh"
 
 %include "broker/topic.hh"
