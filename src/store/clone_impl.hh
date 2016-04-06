@@ -7,13 +7,12 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/scoped_actor.hpp>
 
+#include "broker/atoms.hh"
 #include "broker/report.hh"
 #include "broker/store/backend.hh"
 #include "broker/store/clone.hh"
 #include "broker/store/memory_backend.hh"
 #include "broker/store/sqlite_backend.hh"
-
-#include "../atoms.hh"
 
 namespace broker {
 

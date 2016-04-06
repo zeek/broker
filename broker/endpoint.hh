@@ -140,21 +140,6 @@ public:
   /// @param flags tune the behavior of the endpoint.
   endpoint(std::string name, int flags = AUTO_PUBLISH | AUTO_ADVERTISE);
 
-  /// Shutdown the local broker endpoint and disconnect from peers.
-  ~endpoint();
-
-  /// Copying endpoint objects is disallowed.
-  endpoint(const endpoint& other) = delete;
-
-  /// Steal another endpoint.
-  endpoint(endpoint&& other);
-
-  /// Copying endpoint objects is disallowed.
-  endpoint& operator=(const endpoint& other) = delete;
-
-  /// Replace endpoint by stealing another.
-  endpoint& operator=(endpoint&& other);
-
   /// @return the descriptive name for this endpoint (as given to ctor).
   const std::string& name() const;
 

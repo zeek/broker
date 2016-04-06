@@ -1,6 +1,7 @@
 #include <caf/send.hpp>
 
-#include "../atoms.hh"
+#include "broker/atoms.hh"
+
 #include "frontend_impl.hh"
 
 namespace broker {

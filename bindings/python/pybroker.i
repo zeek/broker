@@ -391,6 +391,11 @@ message = vector_of_data
 %include "broker/outgoing_connection_status.hh"
 %include "broker/incoming_connection_status.hh"
 
+// TODO: eventually we want to support broker system in the Python API, but for
+// now we ignore it *right here* because queue.hh has an extern declaration.
+%ignore broker::broker_system;
+
+%ignore broker::queue::queue(const queue&);
 %ignore broker::queue::operator=;
 %include "broker/queue.hh"
 

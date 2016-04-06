@@ -18,7 +18,6 @@
 #include "broker/store/expiration_time.hh"
 #include "broker/util/make_unique.hh"
 
-#include "queue_impl.hh"
 #include "subscription.hh"
 
 namespace broker {

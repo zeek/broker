@@ -1,8 +1,8 @@
-#ifndef BROKER_UTIL_PIPE_HH
-#define BROKER_UTIL_PIPE_HH
+#ifndef BROKER_DETAIL_PIPE_HH
+#define BROKER_DETAIL_PIPE_HH
 
 namespace broker {
-namespace util {
+namespace detail {
 
 class pipe {
 public:
@@ -50,7 +50,7 @@ private:
   int flags[2];
 };
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_PIPE_HH
+#endif // BROKER_DETAIL_PIPE_HH

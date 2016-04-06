@@ -1,10 +1,10 @@
-#ifndef BROKER_UTIL_FLARE_HH
-#define BROKER_UTIL_FLARE_HH
+#ifndef BROKER_DETAIL_FLARE_HH
+#define BROKER_DETAIL_FLARE_HH
 
-#include "pipe.hh"
+#include "broker/detail/pipe.hh"
 
 namespace broker {
-namespace util {
+namespace detail {
 
 class flare {
 public:
@@ -32,7 +32,7 @@ private:
   pipe p;
 };
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_FLARE_HH
+#endif // BROKER_DETAIL_FLARE_HH

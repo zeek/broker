@@ -17,21 +17,6 @@ public:
   /// Create an uninitialized message queue.
   message_queue();
 
-  /// Destruct message_queue.
-  ~message_queue();
-
-  /// Copying a message_queue is not allowed.
-  message_queue(const message_queue&) = delete;
-
-  /// Construct a message_queue by stealing another.
-  message_queue(message_queue&&);
-
-  /// Copying a message_queue is not allowed.
-  message_queue& operator=(const message_queue&) = delete;
-
-  /// Replace message_queue by stealing another.
-  message_queue& operator=(message_queue&&);
-
   /// Attach a message_queue to an endpoint.
   /// @param prefix the subscription topic to use.  All messages sent via
   /// endpoint *e* or one of its peers that use a topic prefixed by *prefix*
@@ -42,12 +27,8 @@ public:
   /// @return the subscription topic prefix of the queue.
   const topic& get_topic_prefix() const;
 
-  /// True if the message_queue is initialized for use, else false.
-  explicit operator bool() const;
-
 private:
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  topic subscription_prefix_;
 };
 
 } // namespace broker

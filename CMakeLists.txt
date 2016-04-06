@@ -81,7 +81,6 @@ set(BROKER_SRC
     src/peering.cc
     src/persistables.cc
     src/port.cc
-    src/queue.cc
     src/record.cc
     src/report.cc
     src/set.cc
@@ -92,6 +91,9 @@ set(BROKER_SRC
     src/time_duration.cc
     src/time_point.cc
     src/vector.cc
+
+    src/detail/pipe.cc
+    src/detail/flare.cc
 
     src/store/backend.cc
     src/store/clone.cc
@@ -108,8 +110,6 @@ set(BROKER_SRC
 
     src/util/misc.cc
     src/util/persist.cc
-    src/util/pipe.cc
-    src/util/flare.cc
 
     ${OPTIONAL_SRC}
     ${BROKER_HDR})

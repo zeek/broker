@@ -8,12 +8,11 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/scoped_actor.hpp>
 
+#include "broker/atoms.hh"
 #include "broker/store/master.hh"
 #include "broker/store/sqlite_backend.hh"
 #include "broker/report.hh"
 #include "broker/time_point.hh"
-
-#include "../atoms.hh"
 
 namespace broker {
 

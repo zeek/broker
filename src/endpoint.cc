@@ -6,13 +6,13 @@
 #include <caf/send.hpp>
 #include <caf/io/middleman.hpp>
 
+#include "broker/atoms.hh"
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
 #include "broker/report.hh"
 #include "broker/store/query.hh"
 
 // FIXME: move from implementation to includes.
-#include "src/atoms.hh"
 #include "src/util/radix_tree.hh"
 
 #ifdef DEBUG
@@ -487,12 +487,6 @@ endpoint::endpoint(std::string name, int flags)
     self_->planned_exit_reason(caf::exit_reason::unknown);
     actor_->link_to(self_);
 }
-
-// SWIG doesn't support defaulted constructors/operators, that's why they
-// reside in the implementation.
-endpoint::~endpoint() = default;
-endpoint::endpoint(endpoint&& other) = default;
-endpoint& endpoint::operator=(endpoint&& other) = default;
 
 const std::string& endpoint::name() const {
   return name_;
