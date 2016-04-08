@@ -449,6 +449,7 @@ message = vector_of_data
   }
 }
 
+%ignore broker::store::detail::master_actor;
 %ignore broker::store::modification_result;
 %ignore broker::store::backend::init;
 %ignore broker::store::backend::sequence;
@@ -475,6 +476,8 @@ message = vector_of_data
 %ignore broker::store::memory_backend::operator=;
 %include "broker/store/memory_backend.hh"
 
+%ignore broker::store::sqlite_backend::stmt_guard;
+%ignore broker::store::sqlite_backend::statement;
 %ignore broker::store::sqlite_backend::operator=;
 %include "broker/store/sqlite_backend.hh"
 
@@ -589,6 +592,7 @@ public:
 
 %typemap(out) void* { $result = PyLong_FromSize_t((size_t)$1); }
 
+%ignore broker::store::frontend::frontend(const frontend&);
 %ignore broker::store::frontend::operator=;
 %include "broker/store/frontend.hh"
 
@@ -601,7 +605,6 @@ public:
       // NIT: a bit hacky... working around SWIG lack of unique_ptr support
     using namespace std;
     using namespace broker::store;
-
     if (! b)
         b = new memory_backend();
     else if (dynamic_cast<memory_backend*>(b))
@@ -620,6 +623,7 @@ public:
   }
 }
 
+%ignore broker::store::detail::clone_actor;
 %ignore broker::store::clone::clone;
 %include "broker/store/clone.hh"
 %extend broker::store::clone {

@@ -1,56 +1,89 @@
 #include <caf/send.hpp>
 
 #include "broker/atoms.hh"
-
-#include "frontend_impl.hh"
+#include "broker/store/frontend.hh"
 
 namespace broker {
-namespace store {
 
-static inline caf::actor& handle_to_actor(void* h) {
+extern std::unique_ptr<caf::actor_system> broker_system;
+
+static caf::actor& handle_to_actor(void* h) {
   return *static_cast<caf::actor*>(h);
 }
 
+namespace store {
+namespace detail {
+
+requester::requester(caf::actor_config& cfg, caf::actor backend, identifier
+                     master_name, query q, caf::actor queue,
+                     std::chrono::duration<double> timeout, void* cookie)
+    : caf::event_based_actor{cfg},
+      request_(std::move(q)) {
+    using namespace std;
+    using namespace caf;
+    bootstrap_ = {
+      after(chrono::seconds::zero()) >> [=] {
+        send(backend, std::move(master_name), request_, this);
+        become(awaiting_response_);
+      }
+    };
+    awaiting_response_ = {
+      [=](const actor&, result& r) {
+        send(queue, store::response{std::move(request_), std::move(r), cookie});
+        quit();
+      },
+      after(chrono::duration_cast<chrono::microseconds>(timeout)) >> [=] {
+        send(queue, store::response{std::move(request_),
+                                    result(result::status::timeout), cookie});
+        quit();
+      }
+    };
+  }
+
+caf::behavior requester::make_behavior() {
+  return bootstrap_;
+}
+
+} // namespace detail
+
 frontend::frontend(const endpoint& e, identifier master_name)
-  : pimpl(new impl(std::move(master_name), handle_to_actor(e.handle()))) {
+    : master_name_{std::move(master_name)},
+      endpoint_{handle_to_actor(e.handle())},
+      self_{*broker_system} {
 }
 
 frontend::~frontend() = default;
 
-frontend::frontend(frontend&& other) = default;
-
-frontend& frontend::operator=(frontend&& other) = default;
-
 const identifier& frontend::id() const {
-  return pimpl->master_name;
+  return master_name_;
 }
 
 const response_queue& frontend::responses() const {
-  return pimpl->responses;
+  return responses_;
 }
 
 void frontend::insert(data k, data v) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  insert_atom::value, std::move(k), std::move(v));
 }
 
 void frontend::insert(data k, data v, expiration_time t) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  insert_atom::value, std::move(k), std::move(v), std::move(t));
 }
 
 void frontend::erase(data k) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  erase_atom::value, std::move(k));
 }
 
 void frontend::clear() const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  clear_atom::value);
 }
 
 void frontend::increment(data k, int64_t by) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  increment_atom::value, std::move(k), by);
 }
 
@@ -59,57 +92,56 @@ void frontend::decrement(data k, int64_t by) const {
 }
 
 void frontend::add_to_set(data k, data element) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  set_add_atom::value, std::move(k), std::move(element));
 }
 
 void frontend::remove_from_set(data k, data element) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  set_rem_atom::value, std::move(k), std::move(element));
 }
 
 void frontend::push_left(data k, vector item) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  lpush_atom::value, std::move(k), std::move(item));
 }
 
 void frontend::push_right(data k, vector item) const {
-  caf::anon_send(handle_to_actor(handle()), pimpl->master_name,
+  caf::anon_send(handle_to_actor(handle()), master_name_,
                  rpush_atom::value, std::move(k), std::move(item));
 }
 
 result frontend::request(query q) const {
   result rval;
   caf::actor store_actor = caf::invalid_actor;
-  bool need_master = 
+  bool need_master =
     q.type == query::tag::pop_left || q.type == query::tag::pop_right;
-  caf::actor& where = need_master ? pimpl->endpoint : handle_to_actor(handle());
-
-  pimpl->self->request(where, caf::infinite, store_actor_atom::value,
-                       pimpl->master_name).receive(
+  auto& where = need_master ? endpoint_ : handle_to_actor(handle());
+  self_->request(where, caf::infinite, store_actor_atom::value,
+                 master_name_).receive(
     [&store_actor](caf::actor& sa) { store_actor = std::move(sa); }
   );
   if (!store_actor)
     return rval;
-  pimpl->self->request(store_actor, caf::infinite, pimpl->master_name,
-                       std::move(q), pimpl->self).receive(
+  self_->request(store_actor, caf::infinite, master_name_, std::move(q),
+                 self_).receive(
     [&rval](const caf::actor&, result& r) { rval = std::move(r); }
   );
   return rval;
 }
 
-void frontend::request(query q, std::chrono::duration<double> timeout, 
+void frontend::request(query q, std::chrono::duration<double> timeout,
                        void* cookie) const {
-  bool need_master = q.type == query::tag::pop_left 
+  bool need_master = q.type == query::tag::pop_left
                        || q.type == query::tag::pop_right;
-  caf::actor& where = need_master ? pimpl->endpoint : handle_to_actor(handle());
-  broker_system->spawn<requester>(where, pimpl->master_name, std::move(q),
-                                  handle_to_actor(pimpl->responses.handle()),
+  auto& where = need_master ? endpoint_ : handle_to_actor(handle());
+  broker_system->spawn<detail::requester>(where, master_name_, std::move(q),
+                                  handle_to_actor(responses_.handle()),
                                   timeout, cookie);
 }
 
 void* frontend::handle() const {
-  return &pimpl->endpoint;
+  return const_cast<caf::actor*>(&endpoint_);
 }
 
 } // namespace store

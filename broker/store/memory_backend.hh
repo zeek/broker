@@ -1,7 +1,10 @@
 #ifndef BROKER_STORE_MEMORY_BACKEND_HH
 #define BROKER_STORE_MEMORY_BACKEND_HH
 
+#include <deque>
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 #include "broker/store/backend.hh"
 
@@ -10,22 +13,6 @@ namespace store {
 
 /// An in-memory implementation of a storage backend.
 class memory_backend : public backend {
-public:
-  /// Construct the in-memory storage.
-  memory_backend();
-
-  /// Destructor.
-  ~memory_backend();
-
-  /// Construct in-memory backend from a copy of another.
-  memory_backend(memory_backend&);
-
-  /// Construct in-memory backend by stealing another.
-  memory_backend(memory_backend&&);
-
-  /// Assign a replacement in-memory backend.
-  memory_backend& operator=(memory_backend);
-
 private:
   void do_increase_sequence() override;
 
@@ -76,9 +63,9 @@ private:
 
   maybe<std::deque<expirable>> do_expiries() const override;
 
-private:
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  sequence_num sn_;
+  std::unordered_map<data, value> datastore_;
+  std::string last_error_;
 };
 
 } // namespace store

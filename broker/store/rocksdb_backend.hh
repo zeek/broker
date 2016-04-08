@@ -1,6 +1,7 @@
 #ifndef BROKER_STORE_ROCKSDB_BACKEND_HH
 #define BROKER_STORE_ROCKSDB_BACKEND_HH
 
+#include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <rocksdb/status.h>
 
@@ -19,21 +20,6 @@ public:
   /// the estimate is used as a return value to backend::size().  The estimate
   /// may double-count keys that have expiration times.
   rocksdb_backend(uint64_t exact_size_threshold = 1000);
-
-  /// Destructor.  Closes the database if open.
-  ~rocksdb_backend();
-
-  /// Construct rocksdb backend by stealing another.
-  rocksdb_backend(rocksdb_backend&&);
-
-  /// Copying a rocksdb backend is not allowed.
-  rocksdb_backend(rocksdb_backend&) = delete;
-
-  /// Replace rocksdb backend by stealing another.
-  rocksdb_backend& operator=(rocksdb_backend&&);
-
-  /// Copying a rocksdb backend is not allowed.
-  rocksdb_backend& operator=(rocksdb_backend&) = delete;
 
   /// Open a rocksdb database.
   /// @param db_path the file system directory to use for the database.
@@ -96,8 +82,15 @@ private:
 
   maybe<std::deque<expirable>> do_expiries() const override;
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  bool require_db() const;
+
+  bool require_ok(const rocksdb::Status& s) const;
+
+  sequence_num sn_;
+  std::string last_error_;
+  std::unique_ptr<rocksdb::DB> db_;
+  rocksdb::Options options_;
+  uint64_t exact_size_threshold_;
 };
 
 } // namespace store
