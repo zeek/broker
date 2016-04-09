@@ -1,6 +1,9 @@
 #ifndef BROKER_STORE_SQLITE_BACKEND_HH
 #define BROKER_STORE_SQLITE_BACKEND_HH
 
+#include <functional>
+
+#include "broker/detail/sqlite3.h"
 #include "broker/store/backend.hh"
 
 namespace broker {
@@ -9,31 +12,17 @@ namespace store {
 /// A sqlite implementation of a storage backend.
 class sqlite_backend : public backend {
 public:
-  /// Constructor.  To open/create a database use sqlite_backend::open.
-  sqlite_backend();
-
   /// Destructor.  Closes the database if open.
   ~sqlite_backend();
-
-  /// Construct sqlite backend by stealing another.
-  sqlite_backend(sqlite_backend&&);
-
-  /// Copying a sqlite backend is not allowed.
-  sqlite_backend(sqlite_backend&) = delete;
-
-  /// Replace sqlite backend by stealing another.
-  sqlite_backend& operator=(sqlite_backend&&);
-
-  /// Copying a sqlite backend is not allowed.
-  sqlite_backend& operator=(sqlite_backend&) = delete;
 
   /// Open a sqlite database.
   /// @param db_path the filesystem path of the database to create/open.
   /// @param pragmas pragma statements to execute upon opening the database.
   /// @return true if the call succeeded.  If false last_error_code() and
   /// backend::last_error() may be used to obtain more info.
-  bool open(std::string db_path, std::deque<std::string> pragmas
-                                 = {"pragma locking_mode = exclusive;"});
+  bool open(std::string db_path,
+            std::deque<std::string> pragmas =
+              {"pragma locking_mode = exclusive;"});
 
   /// Execute a pragma statement against the open database.
   /// @param p the pragma statement to execute.
@@ -86,8 +75,7 @@ private:
 
   maybe<maybe<data>> do_lookup(const data& k) const override;
 
-  maybe<std::pair<maybe<data>,
-                           maybe<expiration_time>>>
+  maybe<std::pair<maybe<data>, maybe<expiration_time>>>
   do_lookup_expiry(const data& k) const;
 
   maybe<bool> do_exists(const data& k) const override;
@@ -100,8 +88,62 @@ private:
 
   maybe<std::deque<expirable>> do_expiries() const override;
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+private:
+  struct stmt_guard {
+    stmt_guard() = default;
+    stmt_guard(sqlite3_stmt* arg_stmt, std::function<int(sqlite3_stmt*)> fun);
+
+    ~stmt_guard();
+
+    sqlite3_stmt* stmt = nullptr;
+    std::function<int(sqlite3_stmt*)> func;
+  };
+
+  struct statement {
+    statement(const char* arg_sql);
+
+    operator sqlite3_stmt*() const;
+
+    bool prepare(sqlite3* db);
+
+    stmt_guard guard(std::function<int(sqlite3_stmt*)> func) const;
+
+    sqlite3_stmt* stmt = nullptr;
+    std::string sql;
+    stmt_guard g;
+  };
+
+  static bool insert(const statement& stmt, const data& k, const data& v,
+                     const maybe<expiration_time>& e = {});
+
+  static bool update(const statement& stmt, const data& k, const data& v);
+
+  static bool update_expiry(const statement& stmt, const data& k,
+                            const data& v, const expiration_time& e);
+
+  static modification_result update_entry(const statement& update_stmt,
+                                          const statement& update_expiry_stmt,
+                                          const data& k, const data& v,
+                                          maybe<expiration_time> e,
+                                          int& last_rc);
+
+  sequence_num sn_;
+  int last_rc_ = 0;
+  std::string our_last_error_;
+  sqlite3* db_ = nullptr;
+  statement insert_{"replace into store(k, v, expiry) values(?, ?, ?);"};
+  statement erase_{"delete from store where k = ?;"};
+  statement expire_{"delete from store where k = ? and expiry = ?;"};
+  statement clear_{"delete from store;"};
+  statement update_{"update store set v = ? where k = ?;"};
+  statement update_expiry_{"update store set v = ?, expiry = ? where k = ?;"};
+  statement lookup_{"select v from store where k = ?;"};
+  statement lookup_expiry_{"select v, expiry from store where k = ?;"};
+  statement exists_{"select 1 from store where k = ?;"};
+  statement keys_{"select k from store;"};
+  statement size_{"select count(*) from store;"};
+  statement snap_{"select k, v, expiry from store;"};
+  statement expiries_{"select k, expiry from store where expiry is not null;"};
 };
 
 } // namespace store

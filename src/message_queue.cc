@@ -1,38 +1,21 @@
 #include <caf/send.hpp>
 
+#include "broker/atoms.hh"
 #include "broker/message_queue.hh"
-
-#include "atoms.hh"
 
 namespace broker {
 
-class message_queue::impl {
-public:
-  topic subscription_prefix;
-};
-
 message_queue::message_queue() = default;
 
-message_queue::~message_queue() = default;
-
-message_queue::message_queue(message_queue&&) = default;
-
-message_queue& 
-message_queue::operator=(message_queue&&) = default;
-
 message_queue::message_queue(topic prefix, const endpoint& e)
-  : queue<message>(), pimpl(new impl{std::move(prefix)}) {
-  caf::anon_send(*static_cast<caf::actor*>(e.handle()), local_sub_atom::value,
-                 pimpl->subscription_prefix,
+  : subscription_prefix_{std::move(prefix)} {
+  caf::anon_send(*static_cast<caf::actor*>(e.handle()),
+                 local_sub_atom::value, subscription_prefix_,
                  *static_cast<caf::actor*>(this->handle()));
 }
 
 const topic& message_queue::get_topic_prefix() const {
-  return pimpl->subscription_prefix;
-}
-
-message_queue::operator bool() const {
-  return pimpl != nullptr;
+  return subscription_prefix_;
 }
 
 } // namespace broker

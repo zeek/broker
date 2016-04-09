@@ -7,6 +7,10 @@
 #include <string>
 #include <utility>
 
+#include <caf/actor.hpp>
+
+#include "broker/util/operators.hh"
+
 namespace broker {
 class peering;
 }
@@ -20,51 +24,46 @@ namespace broker {
 
 class endpoint;
 
+// FIXME: this class will go away after PIMPL migration.
 /// Contains information about a peering between two endpoints.
-class peering {
+class peering : util::equality_comparable<peering> {
   friend class endpoint;
-  friend struct std::hash<peering>;
 
   template <class Processor>
-  friend void serialize(Processor&, peering&, const unsigned);
+  friend void serialize(Processor& proc, peering& p, const unsigned) {
+    proc & p.endpoint_actor_;
+    proc & p.peer_actor_;
+    proc & p.remote_;
+    proc & p.remote_tuple_;
+  }
+
+  friend bool operator==(const peering& lhs, const peering& rhs);
 
 public:
-  /// Construct an uninitialized peering object.
-  peering();
+  peering() = default;
 
-  /// Destruct a peering object (not the actual connection between endpoints).
-  ~peering();
-
-  /// Copy a peering object.
-  peering(const peering& other);
-
-  /// Steal a peering object.
-  peering(peering&& other);
-
-  /// Replace a peering object with a copy of another.
-  peering& operator=(const peering& other);
-
-  /// Replace a peering object by stealing another.
-  peering& operator=(peering&& other);
-
-  /// @return whether the peering is between a local and remote endpoint.
-  bool remote() const;
-
-  /// @return the host and port of a remote endpoint.
-  const std::pair<std::string, uint16_t>& remote_tuple() const;
+  peering(caf::actor endpoint_actor, caf::actor peer_actor, bool remote = false,
+          std::pair<std::string, uint16_t> remote_tuple
+            = std::make_pair("", 0));
 
   /// False if the peering is not yet initialized, else true.
   explicit operator bool() const;
 
-  /// @return true if two peering objects are equal.
-  bool operator==(const peering& rhs) const;
+  /// @return whether the peering is between a local and remote endpoint.
+  bool remote() const;
 
-  class impl;
+  const caf::actor& endpoint_actor() const;
 
-  peering(std::unique_ptr<impl> p);
+  const caf::actor& peer_actor() const;
+
+  /// @return the host and port of a remote endpoint.
+  const std::pair<std::string, uint16_t>& remote_tuple() const;
 
 private:
-  std::unique_ptr<impl> pimpl;
+  caf::actor endpoint_actor_;
+  caf::actor peer_actor_;
+  bool remote_;
+  std::pair<std::string, uint16_t> remote_tuple_;
 };
 
 } // namespace broker

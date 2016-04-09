@@ -5,8 +5,9 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <typeinfo>
 #include <type_traits>
+#include <typeindex>
+#include <typeinfo>
 #include <unordered_map>
 
 namespace broker {
@@ -24,6 +25,8 @@ struct version {
   static const uint32_t number;
 };
 
+using version_map_type = std::unordered_map<std::type_index, uint32_t>;
+
 /// Allows for versioned serialization of a user-defined class/struct.
 /// Use BROKER_PERSIST_VERSION to declare the current version of that type and
 /// then define free functions to serialize/deserialize instances of it:
@@ -35,15 +38,7 @@ struct version {
 /// handle cycles), that's up to user to work out.
 class save_archive {
 public:
-  save_archive();
-
-  ~save_archive();
-
-  save_archive(const save_archive& other);
-
-  save_archive(save_archive&& other);
-
-  save_archive& operator=(save_archive other);
+  save_archive() = default;
 
   /// Initialize archive with a buffer that contains bytes to serialize as-is.
   save_archive(std::string serial_bytes);
@@ -54,8 +49,6 @@ public:
   /// @return the serialized bytes and reset the archive.
   std::string get();
 
-  void swap(save_archive& other);
-
   /// Serialize some number of bytes.
   friend save_archive& save_binary(save_archive& ar, const void* bytes,
                                    size_t size);
@@ -63,14 +56,14 @@ public:
   /// Serialize a primitive data type.
   template <class T>
   friend
-    typename std::enable_if<std::is_arithmetic<T>::value, save_archive&>::type
-    save(save_archive& ar, const T& t);
+  typename std::enable_if<std::is_arithmetic<T>::value, save_archive&>::type
+  save(save_archive& ar, const T& t);
 
   /// Serialize a user-defined type.
   template <class T>
   friend
-    typename std::enable_if<!std::is_arithmetic<T>::value, save_archive&>::type
-    save(save_archive& ar, const T& t);
+  typename std::enable_if<!std::is_arithmetic<T>::value, save_archive&>::type
+  save(save_archive& ar, const T& t);
 
 private:
   void save_bytes(const uint8_t* bytes, size_t size);
@@ -81,8 +74,8 @@ private:
 
   uint32_t register_class(const std::type_info& ti, uint32_t current_version);
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  std::string serial_;
+  version_map_type version_map_;
 };
 
 /// Serialize a size which refers to a number of items in a sequence which
@@ -112,15 +105,7 @@ save(save_archive& ar, const T& t) {
 /// @see broker::util::persist::save_archive
 class load_archive {
 public:
-  load_archive();
-
-  ~load_archive();
-
-  load_archive(const load_archive& other);
-
-  load_archive(load_archive&& other);
-
-  load_archive& operator=(load_archive other);
+  load_archive() = default;
 
   /// Initialize the archive with some serialized data.  Memory must remain
   /// valid for any subsequent operations on the archive (a copy is not made).
@@ -128,8 +113,6 @@ public:
 
   /// Re-initialize the archive with some serialized data.
   void reset(const void* bytes, size_t num_bytes);
-
-  void swap(load_archive& other);
 
   /// Load some number of bytes from the archive
   friend load_archive& load_binary(load_archive& ar, std::string* rval);
@@ -158,8 +141,10 @@ private:
 
   uint32_t register_class(const std::type_info& ti);
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  const void* serial_bytes_;
+  size_t num_bytes_;
+  size_t position_ = 0;
+  std::unordered_map<std::type_index, uint32_t> version_map_;
 };
 
 /// Load a sequence size from the archive.

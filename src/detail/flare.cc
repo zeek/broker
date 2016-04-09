@@ -2,13 +2,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "flare.hh"
+#include "broker/detail/flare.hh"
 
-broker::util::flare::flare()
-  : p(FD_CLOEXEC, FD_CLOEXEC, O_NONBLOCK, O_NONBLOCK) {
+namespace broker {
+namespace detail {
+
+flare::flare()
+  : p{FD_CLOEXEC, FD_CLOEXEC, O_NONBLOCK, O_NONBLOCK} {
 }
 
-void broker::util::flare::fire() {
+void flare::fire() {
   char tmp = 0;
   for (;;) {
     int n = write(p.write_fd(), &tmp, 1);
@@ -22,10 +25,13 @@ void broker::util::flare::fire() {
   }
 }
 
-void broker::util::flare::extinguish() {
+void flare::extinguish() {
   char tmp[256];
   for (;;)
     if (read(p.read_fd(), &tmp, sizeof(tmp)) == -1 && errno == EAGAIN)
       // Pipe is now drained.
       break;
 }
+
+} // namespace detail
+} // namespace broker

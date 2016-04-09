@@ -1,11 +1,56 @@
 #ifndef BROKER_STORE_CLONE_HH
 #define BROKER_STORE_CLONE_HH
 
+#include <caf/actor_system.hpp>
+#include <caf/send.hpp>
+#include <caf/actor.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+
+#include "broker/atoms.hh"
+#include "broker/report.hh"
+#include "broker/store/backend.hh"
+#include "broker/store/clone.hh"
 #include "broker/store/frontend.hh"
 #include "broker/store/memory_backend.hh"
+#include "broker/store/sqlite_backend.hh"
 
 namespace broker {
 namespace store {
+
+namespace detail {
+
+class clone_actor : public caf::event_based_actor {
+
+public:
+  clone_actor(caf::actor_config& cfg, const caf::actor& endpoint, identifier
+              master_name, std::chrono::microseconds resync_interval,
+              std::unique_ptr<backend> b);
+
+private:
+  caf::behavior make_behavior() override;
+
+  void error(std::string master_name, std::string method_name,
+             std::string err_msg, bool fatal = false);
+
+  void fatal_error(std::string master_name, std::string method_name,
+                   std::string err_msg);
+
+  void get_snapshot(const std::chrono::microseconds& resync_interval);
+
+  void sequence_error(const identifier& master_name,
+                      const std::chrono::microseconds& resync_interval);
+
+  bool pending_getsnap_ = false;
+  std::unique_ptr<backend> datastore_;
+  caf::actor master;
+  caf::behavior bootstrap_;
+  caf::behavior synchronizing_;
+  caf::behavior active_;
+  caf::behavior dead_;
+};
+
+} // namespace detail
 
 /// A clone of a master data store.  The clone automatically synchronizes to
 /// the master version by receiving updates made to the master and applying them
@@ -32,26 +77,11 @@ public:
         std::unique_ptr<backend> b
         = std::unique_ptr<backend>(new memory_backend));
 
-  /// Destructor.
-  ~clone();
-
-  /// Copying a clone is not allowed.
-  clone(const clone& other) = delete;
-
-  /// Construct a data store clone by stealing another one.
-  clone(clone&& other);
-
-  /// Copying a clone is not allowed.
-  clone& operator=(const clone& other) = delete;
-
-  /// Assign to a data store clone by stealing another one.
-  clone& operator=(clone&& other);
-
 private:
   void* handle() const override;
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  caf::actor actor_;
+  caf::scoped_actor self_;
 };
 
 } // namespace store

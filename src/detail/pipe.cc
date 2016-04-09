@@ -7,7 +7,10 @@
 #include <cstdlib>
 #include <utility>
 
-#include "pipe.hh"
+#include "broker/detail/pipe.hh"
+
+namespace broker {
+namespace detail {
 
 static void pipe_fail(int eno) {
   char tmp[256];
@@ -34,7 +37,7 @@ static int dup_or_fail(int fd, int flags) {
   return rval;
 }
 
-broker::util::pipe::pipe(int flags0, int flags1, int status_flags0,
+pipe::pipe(int flags0, int flags1, int status_flags0,
                          int status_flags1) {
   // pipe2 can set flags atomically, but not yet available everywhere.
   if (::pipe(fds))
@@ -47,19 +50,19 @@ broker::util::pipe::pipe(int flags0, int flags1, int status_flags0,
   set_status_flags(fds[1], status_flags1);
 }
 
-broker::util::pipe::~pipe() {
+pipe::~pipe() {
   close();
 }
 
-broker::util::pipe::pipe(const pipe& other) {
+pipe::pipe(const pipe& other) {
   copy(other);
 }
 
-broker::util::pipe::pipe(pipe&& other) {
+pipe::pipe(pipe&& other) {
   steal(std::move(other));
 }
 
-broker::util::pipe& broker::util::pipe::operator=(const pipe& other) {
+pipe& pipe::operator=(const pipe& other) {
   if (this == &other)
     return *this;
   close();
@@ -67,30 +70,34 @@ broker::util::pipe& broker::util::pipe::operator=(const pipe& other) {
   return *this;
 }
 
-broker::util::pipe& broker::util::pipe::operator=(pipe&& other) {
+pipe& pipe::operator=(pipe&& other) {
   close();
   steal(std::move(other));
   return *this;
 }
 
-void broker::util::pipe::close() {
+void pipe::close() {
   if (fds[0] != -1)
     ::close(fds[0]);
   if (fds[1] != -1)
     ::close(fds[1]);
 }
 
-void broker::util::pipe::copy(const pipe& other) {
+void pipe::copy(const pipe& other) {
   fds[0] = dup_or_fail(other.fds[0], other.flags[0]);
   fds[1] = dup_or_fail(other.fds[1], other.flags[1]);
   flags[0] = other.flags[0];
   flags[1] = other.flags[1];
 }
 
-void broker::util::pipe::steal(pipe&& other) {
+void pipe::steal(pipe&& other) {
   fds[0] = other.fds[0];
   fds[1] = other.fds[1];
   flags[0] = other.flags[0];
   flags[1] = other.flags[1];
   other.fds[0] = other.fds[1] = -1;
 }
+
+} // namespace detail
+} // namespace broker
+

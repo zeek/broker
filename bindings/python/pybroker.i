@@ -123,15 +123,15 @@ static inline void set_swig_exception(const char* e) {
 %ignore operator<<(std::ostream&, const port&);
 %include "broker/port.hh"
 %extend broker::port {
-    std::string __str__() {
-      return broker::to_string(*$self);
-    }
-    bool __eq__(const broker::port& other) {
-      return *$self == other;
-    }
-    bool __lt__(const broker::port& other) {
-      return *$self < other;
-    }
+  std::string __str__() {
+    return broker::to_string(*$self);
+  }
+  bool __eq__(const broker::port& other) {
+    return *$self == other;
+  }
+  bool __lt__(const broker::port& other) {
+    return *$self < other;
+  }
 }
 
 %ignore operator<<(std::ostream&, const time_duration&);
@@ -147,7 +147,7 @@ static inline void set_swig_exception(const char* e) {
 
 %ignore broker::peering::operator=;
 %ignore broker::peering::peering(peering&&);
-%ignore broker::peering::peering(std::unique_ptr<impl>);
+%ignore operator==(const peering&, const peering&);
 %include "broker/peering.hh"
 
 %include "broker/topic.hh"
@@ -391,6 +391,11 @@ message = vector_of_data
 %include "broker/outgoing_connection_status.hh"
 %include "broker/incoming_connection_status.hh"
 
+// TODO: eventually we want to support broker system in the Python API, but for
+// now we ignore it *right here* because queue.hh has an extern declaration.
+%ignore broker::broker_system;
+
+%ignore broker::queue::queue(const queue&);
 %ignore broker::queue::operator=;
 %include "broker/queue.hh"
 
@@ -444,6 +449,7 @@ message = vector_of_data
   }
 }
 
+%ignore broker::store::detail::master_actor;
 %ignore broker::store::modification_result;
 %ignore broker::store::backend::init;
 %ignore broker::store::backend::sequence;
@@ -470,6 +476,8 @@ message = vector_of_data
 %ignore broker::store::memory_backend::operator=;
 %include "broker/store/memory_backend.hh"
 
+%ignore broker::store::sqlite_backend::stmt_guard;
+%ignore broker::store::sqlite_backend::statement;
 %ignore broker::store::sqlite_backend::operator=;
 %include "broker/store/sqlite_backend.hh"
 
@@ -584,6 +592,7 @@ public:
 
 %typemap(out) void* { $result = PyLong_FromSize_t((size_t)$1); }
 
+%ignore broker::store::frontend::frontend(const frontend&);
 %ignore broker::store::frontend::operator=;
 %include "broker/store/frontend.hh"
 
@@ -596,7 +605,6 @@ public:
       // NIT: a bit hacky... working around SWIG lack of unique_ptr support
     using namespace std;
     using namespace broker::store;
-
     if (! b)
         b = new memory_backend();
     else if (dynamic_cast<memory_backend*>(b))
@@ -615,6 +623,7 @@ public:
   }
 }
 
+%ignore broker::store::detail::clone_actor;
 %ignore broker::store::clone::clone;
 %include "broker/store/clone.hh"
 %extend broker::store::clone {

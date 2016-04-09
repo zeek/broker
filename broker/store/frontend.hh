@@ -4,6 +4,11 @@
 #include <chrono>
 #include <string>
 
+#include <caf/actor.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+
 #include "broker/data.hh"
 #include "broker/maybe.hh"
 #include "broker/queue.hh"
@@ -15,7 +20,26 @@
 namespace broker {
 namespace store {
 
+// Not using "using" because SWIG doesn't support it yet.
 typedef broker::queue<broker::store::response> response_queue;
+
+namespace detail {
+
+class requester : public caf::event_based_actor {
+public:
+  requester(caf::actor_config& cfg, caf::actor backend, identifier master_name,
+            query q, caf::actor queue, std::chrono::duration<double> timeout,
+            void* cookie);
+
+private:
+  caf::behavior make_behavior() override;
+
+  caf::behavior bootstrap_;
+  caf::behavior awaiting_response_;
+  query request_;
+};
+
+} // namespace detail
 
 /// A frontend interface of a data store (either a master or clone)
 /// that allows querying and updating contents.
@@ -29,20 +53,8 @@ public:
   /// allow advertising interest in this name.
   frontend(const endpoint& e, identifier master_name);
 
-  /// Destructor.
+  /// Destroys a frontend.
   virtual ~frontend();
-
-  /// Copying a frontend is not allowed.
-  frontend(const frontend& other) = delete;
-
-  /// Construct a frontend by stealing another.
-  frontend(frontend&& other);
-
-  /// Copying a frontend is not allowed.
-  frontend& operator=(const frontend& other) = delete;
-
-  /// Assign to a frontend by stealing another.
-  frontend& operator=(frontend&& other);
 
   /// @return the name of the associated master data store.
   const identifier& id() const;
@@ -264,8 +276,10 @@ public:
 private:
   virtual void* handle() const;
 
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  std::string master_name_;
+  caf::actor endpoint_;
+  caf::scoped_actor self_;
+  response_queue responses_;
 };
 
 /// Blocking lookup of a key in a data store.

@@ -6,14 +6,102 @@
 #include <memory>
 #include <string>
 
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+
 #include "broker/incoming_connection_status.hh"
 #include "broker/message.hh"
 #include "broker/outgoing_connection_status.hh"
 #include "broker/peering.hh"
 #include "broker/queue.hh"
 #include "broker/topic.hh"
+#include "broker/store/identifier.hh"
+
+// FIXME: remove after migrating peering away from PIMPL.
+#include "src/subscription.hh"
 
 namespace broker {
+
+class endpoint;
+
+namespace detail {
+
+class endpoint_actor : public caf::event_based_actor {
+
+  public:
+    endpoint_actor(caf::actor_config& cfg, const endpoint* ep,
+                   std::string arg_name, int flags, caf::actor ocs_queue,
+                   caf::actor ics_queue);
+
+  private:
+    caf::behavior make_behavior() override;
+
+    std::string get_peer_name(const caf::actor_addr& a) const;
+
+    std::string get_peer_name(const caf::actor& p) const;
+
+    void add_peer(caf::actor p, std::string peer_name, topic_set ts,
+                  bool incoming);
+
+    void add(std::string topic_or_id, caf::actor a);
+
+    caf::actor find_master(const store::identifier& id);
+
+    void advertise_subscription(topic t);
+
+    void unadvertise_subscription(topic t);
+
+    void publish_subscription_operation(topic t, caf::atom_value op);
+
+    void publish_locally(const topic& t, broker::message msg, int flags,
+                         bool from_peer);
+
+    void publish_current_msg_to_peers(const topic& t, int flags);
+
+    struct peer_endpoint {
+      caf::actor ep;
+      std::string name;
+      bool incoming;
+    };
+
+    caf::behavior active;
+
+    std::string name;
+    int behavior_flags;
+    topic_set pub_acls;
+    topic_set advert_acls;
+
+    std::unordered_map<caf::actor_addr, peer_endpoint> peers;
+    subscription_registry local_subscriptions;
+    subscription_registry peer_subscriptions;
+    topic_set advertised_subscriptions;
+};
+
+// Manages connection to a remote endpoint_actor including auto-reconnection
+// and associated peer/unpeer messages.
+class endpoint_proxy_actor : public caf::event_based_actor {
+
+public:
+  endpoint_proxy_actor(caf::actor_config& cfg, caf::actor local, std::string
+                       endpoint_name, std::string addr, uint16_t port,
+                       std::chrono::duration<double>
+                       retry_freq, caf::actor ocs_queue);
+
+private:
+  caf::behavior make_behavior() override;
+
+  std::string report_subtopic(const std::string& endpoint_name,
+                              const std::string& addr, uint16_t port) const;
+
+  bool try_connect(const peering& p, const std::string& endpoint_name);
+
+  caf::actor remote = caf::invalid_actor;
+  caf::behavior bootstrap;
+  caf::behavior disconnected;
+  caf::behavior connected;
+};
+
+} // namespace detail
 
 // Not using "using" because SWIG doesn't support it yet.
 typedef broker::queue<broker::outgoing_connection_status>
@@ -51,21 +139,6 @@ public:
   /// @param name a descriptive name for this endpoint.
   /// @param flags tune the behavior of the endpoint.
   endpoint(std::string name, int flags = AUTO_PUBLISH | AUTO_ADVERTISE);
-
-  /// Shutdown the local broker endpoint and disconnect from peers.
-  ~endpoint();
-
-  /// Copying endpoint objects is disallowed.
-  endpoint(const endpoint& other) = delete;
-
-  /// Steal another endpoint.
-  endpoint(endpoint&& other);
-
-  /// Copying endpoint objects is disallowed.
-  endpoint& operator=(const endpoint& other) = delete;
-
-  /// Replace endpoint by stealing another.
-  endpoint& operator=(endpoint&& other);
 
   /// @return the descriptive name for this endpoint (as given to ctor).
   const std::string& name() const;
@@ -157,8 +230,15 @@ public:
   void* handle() const;
 
 private:
-  class impl;
-  std::unique_ptr<impl> pimpl;
+  std::string name_;
+  int flags_;
+  caf::scoped_actor self_;
+  outgoing_connection_status_queue outgoing_conns_;
+  incoming_connection_status_queue incoming_conns_;
+  caf::actor actor_;
+  std::unordered_set<peering> peers_;
+  int last_errno_;
+  std::string last_error_;
 };
 
 } // namespace broker
