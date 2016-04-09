@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cassert>
-#include <typeindex>
 
 #include "persist.hh"
 
@@ -16,59 +15,29 @@ namespace broker {
 namespace util {
 namespace persist {
 
-using version_map_type = std::unordered_map<std::type_index, uint32_t>;
-
-class save_archive::impl {
-public:
-  std::string serial;
-  version_map_type version_map;
-};
-
-save_archive::save_archive() : pimpl(new impl) {
-}
-
-save_archive::~save_archive() = default;
-
-save_archive::save_archive(const save_archive& other)
-  : pimpl(new impl(*other.pimpl)) {
-}
-
-save_archive::save_archive(save_archive&& other) = default;
-
-save_archive& save_archive::operator=(save_archive other) {
-  swap(other);
-  return *this;
-}
-
 save_archive::save_archive(std::string arg_serial)
-  : pimpl(new impl{arg_serial, version_map_type{}}) {
+  : serial_{std::move(arg_serial)} {
 }
 
 void save_archive::reset(std::string arg_serial) {
-  pimpl->serial = std::move(arg_serial);
-  pimpl->version_map.clear();
+  serial_ = std::move(arg_serial);
+  version_map_.clear();
 }
 
 std::string save_archive::get() {
-  auto rval = std::move(pimpl->serial);
+  auto rval = std::move(serial_);
   reset();
   return rval;
 }
 
-void save_archive::swap(save_archive& other) {
-  using std::swap;
-  swap(pimpl->serial, other.pimpl->serial);
-  swap(pimpl->version_map, other.pimpl->version_map);
-}
-
 void save_archive::save_bytes(const uint8_t* bytes, size_t size) {
-  pimpl->serial.reserve(pimpl->serial.size() + size);
-  std::copy(bytes, bytes + size, std::back_inserter(pimpl->serial));
+  serial_.reserve(serial_.size() + size);
+  std::copy(bytes, bytes + size, std::back_inserter(serial_));
 }
 
 void save_archive::save_bytes_reverse(const uint8_t* bytes, size_t size) {
-  pimpl->serial.reserve(pimpl->serial.size() + size);
-  std::reverse_copy(bytes, bytes + size, std::back_inserter(pimpl->serial));
+  serial_.reserve(serial_.size() + size);
+  std::reverse_copy(bytes, bytes + size, std::back_inserter(serial_));
 }
 
 void save_archive::save_value(const uint8_t* bytes, size_t size) {
@@ -79,7 +48,7 @@ void save_archive::save_value(const uint8_t* bytes, size_t size) {
 }
 
 uint32_t save_archive::register_class(const std::type_info& ti, uint32_t ver) {
-  auto res = pimpl->version_map.emplace(std::type_index(ti), ver);
+  auto res = version_map_.emplace(std::type_index(ti), ver);
   if (res.second)
     save(*this, ver);
   return ver;
@@ -98,57 +67,27 @@ save_archive& save_sequence(save_archive& ar, size_t size) {
   return ar;
 }
 
-class load_archive::impl {
-public:
-  const void* serial_bytes;
-  size_t num_bytes;
-  size_t position;
-  std::unordered_map<std::type_index, uint32_t> version_map;
-};
-
-load_archive::load_archive() : pimpl(new impl) {
-}
-
-load_archive::~load_archive() = default;
-
-load_archive::load_archive(const load_archive& other)
-  : pimpl(new impl(*other.pimpl)) {
-}
-
-load_archive::load_archive(load_archive&& other) = default;
-
-load_archive& load_archive::operator=(load_archive other) {
-  swap(other);
-  return *this;
-}
 
 load_archive::load_archive(const void* bytes, size_t num_bytes)
-  : pimpl(new impl{bytes, num_bytes, 0, version_map_type{}}) {
+  : serial_bytes_{bytes},
+    num_bytes_{num_bytes} {
 }
 
 void load_archive::reset(const void* bytes, size_t num_bytes) {
-  pimpl->serial_bytes = bytes;
-  pimpl->num_bytes = num_bytes;
-  pimpl->position = 0;
-  pimpl->version_map.clear();
-}
-
-void load_archive::swap(load_archive& other) {
-  using std::swap;
-  swap(pimpl->serial_bytes, other.pimpl->serial_bytes);
-  swap(pimpl->num_bytes, other.pimpl->num_bytes);
-  swap(pimpl->position, other.pimpl->position);
-  swap(pimpl->version_map, other.pimpl->version_map);
+  serial_bytes_ = bytes;
+  num_bytes_ = num_bytes;
+  position_ = 0;
+  version_map_.clear();
 }
 
 load_archive& load_binary(load_archive& ar, std::string* rval) {
   auto size = ar.load_value<uint64_t>();
-  assert(ar.pimpl->position + size <= ar.pimpl->num_bytes);
+  assert(ar.position_ + size <= ar.num_bytes_);
   rval->reserve(rval->size() + size);
-  auto src = reinterpret_cast<const uint8_t*>(ar.pimpl->serial_bytes);
-  src += ar.pimpl->position;
+  auto src = reinterpret_cast<const uint8_t*>(ar.serial_bytes_);
+  src += ar.position_;
   std::copy(src, src + size, std::back_inserter(*rval));
-  ar.pimpl->position += size;
+  ar.position_ += size;
   return ar;
 }
 
@@ -159,22 +98,21 @@ uint64_t load_sequence(load_archive& ar) {
 }
 
 void load_archive::load_value(uint8_t* dst, size_t size) {
-  assert(pimpl->position + size <= pimpl->num_bytes);
-  auto src = reinterpret_cast<const uint8_t*>(pimpl->serial_bytes);
-  src += pimpl->position;
+  assert(position_ + size <= num_bytes_);
+  auto src = reinterpret_cast<const uint8_t*>(serial_bytes_);
+  src += position_;
   if (is_big_endian())
     std::reverse_copy(src, src + size, dst);
   else
     std::copy(src, src + size, dst);
-  pimpl->position += size;
+  position_ += size;
 }
 
 uint32_t load_archive::register_class(const std::type_info& ti) {
-  auto it = pimpl->version_map.find(std::type_index(ti));
-
-  if (it == pimpl->version_map.end()) {
+  auto it = version_map_.find(std::type_index(ti));
+  if (it == version_map_.end()) {
     auto rval = load_value<uint32_t>();
-    pimpl->version_map[std::type_index(ti)] = rval;
+    version_map_[std::type_index(ti)] = rval;
     return rval;
   } else
     return it->second;
