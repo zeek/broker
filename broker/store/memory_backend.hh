@@ -22,7 +22,7 @@ private:
 
   const sequence_num& do_sequence() const override;
 
-  bool do_insert(data k, data v, maybe<expiration_time> t) override;
+  bool do_insert(data k, data v, optional<expiration_time> t) override;
 
   modification_result do_increment(const data& k, int64_t by,
                                    double mod_time) override;
@@ -45,23 +45,23 @@ private:
   modification_result do_push_right(const data& k, vector items,
                                     double mod_time) override;
 
-  std::pair<modification_result, maybe<data>>
+  std::pair<modification_result, optional<data>>
   do_pop_left(const data& k, double mod_time) override;
 
-  std::pair<modification_result, maybe<data>>
+  std::pair<modification_result, optional<data>>
   do_pop_right(const data& k, double mod_time) override;
 
-  maybe<maybe<data>> do_lookup(const data& k) const override;
+  optional<optional<data>> do_lookup(const data& k) const override;
 
-  maybe<bool> do_exists(const data& k) const override;
+  optional<bool> do_exists(const data& k) const override;
 
-  maybe<std::vector<data>> do_keys() const override;
+  optional<std::vector<data>> do_keys() const override;
 
-  maybe<uint64_t> do_size() const override;
+  optional<uint64_t> do_size() const override;
 
-  maybe<snapshot> do_snap() const override;
+  optional<snapshot> do_snap() const override;
 
-  maybe<std::deque<expirable>> do_expiries() const override;
+  optional<std::deque<expirable>> do_expiries() const override;
 
   sequence_num sn_;
   std::unordered_map<data, value> datastore_;

@@ -1,4 +1,4 @@
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 
 #include "testsuite.h"
 
@@ -6,15 +6,15 @@ using namespace std;
 using namespace broker;
 
 int main() {
-  maybe<int> i0 = 11;
-  maybe<int> i1 = 55;
-  maybe<int> i2;
-  maybe<int> i3;
-  maybe<int> i4 = 11;
+  optional<int> i0 = 11;
+  optional<int> i1 = 55;
+  optional<int> i2;
+  optional<int> i3;
+  optional<int> i4 = 11;
 
-  BROKER_TEST(i0.valid());
+  BROKER_TEST(i0);
   BROKER_TEST(!i2);
-  BROKER_TEST(i2.empty());
+  BROKER_TEST(i2);
 
   BROKER_TEST(i0 != i1);
   BROKER_TEST(i1 != i0);

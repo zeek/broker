@@ -15,7 +15,7 @@ namespace broker {
 const std::array<uint8_t, 12> broker::address::v4_mapped_prefix
   = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};
 
-maybe<address>
+optional<address>
 address::from_string(const std::string& s) {
   address rval;
   if (s.find(':') == std::string::npos) { // IPv4. 

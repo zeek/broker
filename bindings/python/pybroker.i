@@ -156,8 +156,8 @@ class field {
 public:
   field() {}
   field(broker::data arg);
-  broker::data get();
-  bool valid() const;
+  //broker::data get();
+  //bool valid() const;
 };
 
 %{

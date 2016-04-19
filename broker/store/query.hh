@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include "broker/data.hh"
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 #include "broker/store/result.hh"
 #include "broker/store/backend.hh"
 
@@ -37,7 +37,7 @@ public:
   /// @param s a storage backend to query against.
   /// @param current_time the current time.
   /// @return the result of the query.
-  std::pair<result, maybe<modification_result>>
+  std::pair<result, optional<modification_result>>
   process(backend& s, double current_time) const {
     switch (type) {
       case tag::pop_left: {

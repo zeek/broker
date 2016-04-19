@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "broker/data.hh"
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 #include "broker/store/expiration_time.hh"
 #include "broker/store/sequence_num.hh"
 #include "broker/store/snapshot.hh"
@@ -26,7 +26,7 @@ public:
   } stat;
 
   // New expiration parameters, if modifying the entry changed them.
-  maybe<expiration_time> new_expiration;
+  optional<expiration_time> new_expiration;
 };
 
 /// Abstract base class for a key-value storage backend.
@@ -53,7 +53,7 @@ public:
   /// @param v the value associated with the key.
   /// @param t an expiration time for the entry.
   /// @return true on success.
-  bool insert(data k, data v, maybe<expiration_time> t = {});
+  bool insert(data k, data v, optional<expiration_time> t = {});
 
   /// Increment an integral value by a certain amount.
   /// @param k the key associated with an integral value to increment.
@@ -113,7 +113,7 @@ public:
   /// @param mod_time the epoch time this modification is taking place.
   /// @return the result of the modification along with the item if the
   /// provided key exists or nil on failing to perform the query.
-  std::pair<modification_result, maybe<data>>
+  std::pair<modification_result, optional<data>>
   pop_left(const data& k, double mod_time);
 
   /// Retrieve item at the tail of a vector value associated with a given key.
@@ -121,37 +121,37 @@ public:
   /// @param mod_time the epoch time this modification is taking place.
   /// @return the result of the modification along with the item if the
   /// provided key exists or nil on failing to perform the query.
-  std::pair<modification_result, maybe<data>>
+  std::pair<modification_result, optional<data>>
   pop_right(const data& k, double mod_time);
 
   /// Lookup the value associated with a given key.
   /// @param k the key to use.
   /// @return the value if the provided key exists or nil on failing to perform
   /// the query.
-  maybe<maybe<data>> lookup(const data& k) const;
+  optional<optional<data>> lookup(const data& k) const;
 
   /// Check if a given key exists.
   /// @param k the key to use.
   /// @return true if the provided key exists or nil on failing to perform
   /// the query.
-  maybe<bool> exists(const data& k) const;
+  optional<bool> exists(const data& k) const;
 
   /// @return all keys in the store or nil on failing to perform the query.
-  maybe<std::vector<data>> keys() const;
+  optional<std::vector<data>> keys() const;
 
   /// @return the number of key-value pairs in the store or nil on failing
   /// to perform the query.  Depending on the choice of storage backend,
   /// this may be an approximation.
-  maybe<uint64_t> size() const;
+  optional<uint64_t> size() const;
 
   /// @return a snapshot of the store that includes its content as well as
   /// the sequence number associated with this snapshot of the content or
   /// nil on failing to perform the query.
-  maybe<snapshot> snap() const;
+  optional<snapshot> snap() const;
 
   /// @return all the keys in the datastore that have an expiration time or
   /// nil on failing to perform the query.
-  maybe<std::deque<expirable>> expiries() const;
+  optional<std::deque<expirable>> expiries() const;
 
 private:
   virtual void do_increase_sequence() = 0;
@@ -162,7 +162,7 @@ private:
 
   virtual const sequence_num& do_sequence() const = 0;
 
-  virtual bool do_insert(data k, data v, maybe<expiration_time> t) = 0;
+  virtual bool do_insert(data k, data v, optional<expiration_time> t) = 0;
 
   virtual modification_result do_increment(const data& k, int64_t by,
                                            double mod_time) = 0;
@@ -185,24 +185,24 @@ private:
   virtual modification_result do_push_right(const data& k, vector items,
                                             double mod_time) = 0;
 
-  virtual std::pair<modification_result, maybe<data>>
+  virtual std::pair<modification_result, optional<data>>
   do_pop_left(const data& k, double mod_time) = 0;
 
-  virtual std::pair<modification_result, maybe<data>>
+  virtual std::pair<modification_result, optional<data>>
   do_pop_right(const data& k, double mod_time) = 0;
 
-  virtual maybe<maybe<data>>
+  virtual optional<optional<data>>
   do_lookup(const data& k) const = 0;
 
-  virtual maybe<bool> do_exists(const data& k) const = 0;
+  virtual optional<bool> do_exists(const data& k) const = 0;
 
-  virtual maybe<std::vector<data>> do_keys() const = 0;
+  virtual optional<std::vector<data>> do_keys() const = 0;
 
-  virtual maybe<uint64_t> do_size() const = 0;
+  virtual optional<uint64_t> do_size() const = 0;
 
-  virtual maybe<snapshot> do_snap() const = 0;
+  virtual optional<snapshot> do_snap() const = 0;
 
-  virtual maybe<std::deque<expirable>> do_expiries() const = 0;
+  virtual optional<std::deque<expirable>> do_expiries() const = 0;
 };
 
 } // namespace store

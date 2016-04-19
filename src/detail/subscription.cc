@@ -17,7 +17,7 @@ bool subscription_registry::insert(subscriber s) {
   return rval;
 }
 
-maybe<subscriber>
+optional<subscriber>
 subscription_registry::erase(const caf::actor_addr& a) {
   auto it = subs_by_actor.find(a);
   if (it == subs_by_actor.end())
@@ -87,7 +87,7 @@ subscription_registry::unique_prefix_matches(const topic& t) const {
   return rval;
 }
 
-maybe<const actor_set&>
+optional<const actor_set&>
 subscription_registry::exact_match(const topic& t) const {
   auto it = subs_by_topic.find(t);
   if (it == subs_by_topic.end())

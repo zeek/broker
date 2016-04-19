@@ -48,7 +48,7 @@ static T from_serial(const C& bytes) {
 static rocksdb::Status
 insert(rocksdb::DB* db, const data& k, const data& v,
        bool delete_expiry_if_nil,
-       const maybe<expiration_time>& e = {}) {
+       const optional<expiration_time>& e = {}) {
   auto kserial = to_serial(k, 'a');
   auto vserial = to_serial(v);
   rocksdb::WriteBatch batch;
@@ -116,7 +116,7 @@ const sequence_num& rocksdb_backend::do_sequence() const {
 }
 
 bool rocksdb_backend::do_insert(
-  data k, data v, maybe<expiration_time> e) {
+  data k, data v, optional<expiration_time> e) {
   if (!require_db())
     return false;
   return require_ok(detail::insert(db_.get(), k, v, true, e));
@@ -252,7 +252,7 @@ modification_result rocksdb_backend::do_push_right(const data& k, vector items,
   return {modification_result::status::failure, {}};
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 rocksdb_backend::do_pop_left(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
@@ -275,7 +275,7 @@ rocksdb_backend::do_pop_left(const data& k, double mod_time) {
   return {{modification_result::status::failure, {}}, {}};
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 rocksdb_backend::do_pop_right(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op)
@@ -298,7 +298,7 @@ rocksdb_backend::do_pop_right(const data& k, double mod_time) {
   return {{modification_result::status::failure, {}}, {}};
 }
 
-maybe<maybe<data>>
+optional<optional<data>>
 rocksdb_backend::do_lookup(const data& k) const {
   if (!require_db())
     return {};
@@ -306,18 +306,18 @@ rocksdb_backend::do_lookup(const data& k) const {
   std::string vserial;
   bool value_found;
   if (!db_->KeyMayExist({}, kserial, &vserial, &value_found))
-    return maybe<data>{};
+    return optional<data>{};
   if (value_found)
     return {detail::from_serial<data>(vserial)};
   auto stat = db_->Get(rocksdb::ReadOptions{}, kserial, &vserial);
   if (stat.IsNotFound())
-    return maybe<data>{};
+    return optional<data>{};
   if (!require_ok(stat))
     return {};
   return {detail::from_serial<data>(vserial)};
 }
 
-maybe<std::pair<maybe<data>, maybe<expiration_time>>>
+optional<std::pair<optional<data>, optional<expiration_time>>>
 rocksdb_backend::do_lookup_expiry(const data& k) const {
   if (!require_db())
     return {};
@@ -325,16 +325,16 @@ rocksdb_backend::do_lookup_expiry(const data& k) const {
   std::string vserial;
   bool value_found;
   if (!db_->KeyMayExist({}, kserial, &vserial, &value_found))
-    return {std::make_pair(maybe<data>{},
-                           maybe<expiration_time>{})};
+    return {std::make_pair(optional<data>{},
+                           optional<expiration_time>{})};
   data value;
   if (value_found)
     value = detail::from_serial<data>(vserial);
   else {
     auto stat = db_->Get(rocksdb::ReadOptions{}, kserial, &vserial);
     if (stat.IsNotFound())
-      return {std::make_pair(maybe<data>{},
-                             maybe<expiration_time>{})};
+      return {std::make_pair(optional<data>{},
+                             optional<expiration_time>{})};
     if (!require_ok(stat))
       return {};
     value = detail::from_serial<data>(vserial);
@@ -343,7 +343,7 @@ rocksdb_backend::do_lookup_expiry(const data& k) const {
   value_found = false;
   if (!db_->KeyMayExist({}, kserial, &vserial, &value_found))
     return {
-      std::make_pair(std::move(value), maybe<expiration_time>{})};
+      std::make_pair(std::move(value), optional<expiration_time>{})};
   expiration_time expiry;
   if (value_found)
     expiry = detail::from_serial<expiration_time>(vserial);
@@ -351,7 +351,7 @@ rocksdb_backend::do_lookup_expiry(const data& k) const {
     auto stat = db_->Get(rocksdb::ReadOptions{}, kserial, &vserial);
     if (stat.IsNotFound())
       return {
-        std::make_pair(std::move(value), maybe<expiration_time>{})};
+        std::make_pair(std::move(value), optional<expiration_time>{})};
     if (!require_ok(stat))
       return {};
     expiry = detail::from_serial<expiration_time>(vserial);
@@ -359,7 +359,7 @@ rocksdb_backend::do_lookup_expiry(const data& k) const {
   return {std::make_pair(std::move(value), std::move(expiry))};
 }
 
-maybe<bool> rocksdb_backend::do_exists(const data& k) const {
+optional<bool> rocksdb_backend::do_exists(const data& k) const {
   if (!require_db())
     return {};
   auto kserial = detail::to_serial(k, 'a');
@@ -374,7 +374,7 @@ maybe<bool> rocksdb_backend::do_exists(const data& k) const {
   return true;
 }
 
-maybe<std::vector<data>> rocksdb_backend::do_keys() const {
+optional<std::vector<data>> rocksdb_backend::do_keys() const {
   if (!require_db())
     return {};
   rocksdb::ReadOptions options;
@@ -391,7 +391,7 @@ maybe<std::vector<data>> rocksdb_backend::do_keys() const {
   return rval;
 }
 
-maybe<uint64_t> rocksdb_backend::do_size() const {
+optional<uint64_t> rocksdb_backend::do_size() const {
   if (!require_db())
     return {};
   uint64_t rval;
@@ -409,7 +409,7 @@ maybe<uint64_t> rocksdb_backend::do_size() const {
   return {};
 }
 
-maybe<snapshot> rocksdb_backend::do_snap() const {
+optional<snapshot> rocksdb_backend::do_snap() const {
   if (!require_db())
     return {};
   rocksdb::ReadOptions options;
@@ -443,7 +443,7 @@ maybe<snapshot> rocksdb_backend::do_snap() const {
   return rval;
 }
 
-maybe<std::deque<expirable>> rocksdb_backend::do_expiries() const {
+optional<std::deque<expirable>> rocksdb_backend::do_expiries() const {
   if (!require_db())
     return {};
   rocksdb::ReadOptions options;

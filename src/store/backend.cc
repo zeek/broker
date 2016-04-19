@@ -17,7 +17,7 @@ const sequence_num& backend::sequence() const {
   return do_sequence();
 }
 
-bool backend::insert(data k, data v, maybe<expiration_time> t) {
+bool backend::insert(data k, data v, optional<expiration_time> t) {
   if (!do_insert(std::move(k), std::move(v), std::move(t)))
     return false;
 
@@ -86,7 +86,7 @@ modification_result backend::push_right(const data& k, vector items,
   return rc;
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 backend::pop_left(const data& k, double mod_time) {
   auto rc = do_pop_left(k, mod_time);
   if (rc.first.stat == modification_result::status::success && rc.second)
@@ -94,7 +94,7 @@ backend::pop_left(const data& k, double mod_time) {
   return rc;
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 backend::pop_right(const data& k, double mod_time) {
   auto rc = do_pop_right(k, mod_time);
   if (rc.first.stat == modification_result::status::success && rc.second)
@@ -102,27 +102,27 @@ backend::pop_right(const data& k, double mod_time) {
   return rc;
 }
 
-maybe<maybe<data>> backend::lookup(const data& k) const {
+optional<optional<data>> backend::lookup(const data& k) const {
   return do_lookup(k);
 }
 
-maybe<bool> backend::exists(const data& k) const {
+optional<bool> backend::exists(const data& k) const {
   return do_exists(k);
 }
 
-maybe<std::vector<data>> backend::keys() const {
+optional<std::vector<data>> backend::keys() const {
   return do_keys();
 }
 
-maybe<uint64_t> backend::size() const {
+optional<uint64_t> backend::size() const {
   return do_size();
 }
 
-maybe<snapshot> backend::snap() const {
+optional<snapshot> backend::snap() const {
   return do_snap();
 }
 
-maybe<std::deque<expirable>> backend::expiries() const {
+optional<std::deque<expirable>> backend::expiries() const {
   return do_expiries();
 }
 

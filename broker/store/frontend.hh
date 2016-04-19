@@ -10,7 +10,7 @@
 #include <caf/scoped_actor.hpp>
 
 #include "broker/data.hh"
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 #include "broker/queue.hh"
 #include "broker/store/response.hh"
 #include "broker/store/identifier.hh"
@@ -288,7 +288,7 @@ private:
 /// @param k the key to lookup.
 /// @return the associated value if the key existed.
 template <class T>
-maybe<data> lookup(const T& f, data k) {
+optional<data> lookup(const T& f, data k) {
   result r = f.lookup(std::move(k));
   if (r.stat != result::status::success)
     return {};
@@ -306,7 +306,7 @@ maybe<data> lookup(const T& f, data k) {
 /// @param k the key associated with a vector to pop.
 /// @return the popped value if the key existed and the vector was not empty.
 template <class T>
-maybe<data> pop_left(const T& f, data k) {
+optional<data> pop_left(const T& f, data k) {
   result r = f.pop_left(std::move(k));
   if (r.stat != result::status::success)
     return {};
@@ -324,7 +324,7 @@ maybe<data> pop_left(const T& f, data k) {
 /// @param k the key associated with a vector to pop.
 /// @return the popped value if the key existed and the vector was not empty.
 template <class T>
-maybe<data> pop_right(const T& f, data k) {
+optional<data> pop_right(const T& f, data k) {
   result r = f.pop_right(std::move(k));
   if (r.stat != result::status::success)
     return {};

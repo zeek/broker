@@ -33,15 +33,15 @@ struct increment_visitor {
 /// @param et an existing expiration time to update
 /// @param mod_time the new last-modified time.
 /// @return the new expiration value (if it needed to be updated).
-maybe<store::expiration_time>
-update_last_modification(maybe<store::expiration_time>& et, double mod_time);
+optional<store::expiration_time>
+update_last_modification(optional<store::expiration_time>& et, double mod_time);
 
 /// Increment integral data by a given amount.
 /// @param d data to increment.  If disengaged, it is implicitly set to 0.
 /// @param by the amount to integrate by.
 /// @param error_msg an optional location to put an error message.
 /// @return false on failure (i.e. the data type is not an integral type).
-bool increment_data(maybe<data>& d, int64_t by, std::string* error_msg);
+bool increment_data(optional<data>& d, int64_t by, std::string* error_msg);
 
 /// @see increment_data
 bool increment_data(data& d, int64_t by, std::string* error_msg);
@@ -51,7 +51,7 @@ bool increment_data(data& d, int64_t by, std::string* error_msg);
 /// @param element The element to insert.
 /// @param error_msg an optional location to put an error message.
 /// @return false on failure (i.e. the data type is not a set).
-bool add_data_to_set(maybe<data>& s, data element, std::string* error_msg);
+bool add_data_to_set(optional<data>& s, data element, std::string* error_msg);
 
 /// @see add_data_to_set
 bool add_data_to_set(data& s, data element, std::string* error_msg);
@@ -61,7 +61,7 @@ bool add_data_to_set(data& s, data element, std::string* error_msg);
 /// @param element the element to remove.
 /// @param error_msg an optional location to put an error message.
 /// @return false on failure (i.e. the data type is not a set).
-bool remove_data_from_set(maybe<data>& s, const data& element,
+bool remove_data_from_set(optional<data>& s, const data& element,
                           std::string* error_msg);
 
 /// @see remove_data_from_set
@@ -72,7 +72,7 @@ bool remove_data_from_set(data& s, const data& element, std::string* error_msg);
 /// @param items the elements to add to the vector
 /// @param error_msg an optional location to put an error message.
 /// @return false on failure (i.e. the data type is not a vector).
-bool push_left(maybe<data>& v, vector items, std::string* error_msg);
+bool push_left(optional<data>& v, vector items, std::string* error_msg);
 
 /// @see push_left
 bool push_left(data& v, vector items, std::string* error_msg);
@@ -82,7 +82,7 @@ bool push_left(data& v, vector items, std::string* error_msg);
 /// @param items the elements to add to the vector
 /// @param error_msg an optional location to put an error message.
 /// @return false on failure (i.e. the data type is not a vector).
-bool push_right(maybe<data>& v, vector items, std::string* error_msg);
+bool push_right(optional<data>& v, vector items, std::string* error_msg);
 
 /// @see push_right
 bool push_right(data& v, vector items, std::string* error_msg);
@@ -93,11 +93,11 @@ bool push_right(data& v, vector items, std::string* error_msg);
 /// @param shrink whether to consider shrinking the capacity of \a v
 /// @return nil on failure (i.e. the data type is not a vector), or first item
 /// if one was available.
-maybe<maybe<data>> pop_left(maybe<data>& v, std::string* error_msg,
+optional<optional<data>> pop_left(optional<data>& v, std::string* error_msg,
                             bool shrink = false);
 
 /// @see pop_left
-maybe<maybe<data>> pop_left(data& v, std::string* error_msg,
+optional<optional<data>> pop_left(data& v, std::string* error_msg,
                             bool shrink = false);
 
 /// Pop the last item in a vector.
@@ -106,11 +106,11 @@ maybe<maybe<data>> pop_left(data& v, std::string* error_msg,
 /// @param shrink whether to consider shrinking the capacity of \a v
 /// @return nil on failure (i.e. the data type is not a vector), or last item
 /// if one was available.
-maybe<maybe<data>> pop_right(maybe<data>& v, std::string* error_msg,
+optional<optional<data>> pop_right(optional<data>& v, std::string* error_msg,
                              bool shrink = false);
 
 /// @see pop_right
-maybe<maybe<data>> pop_right(data& v, std::string* error_msg,
+optional<optional<data>> pop_right(data& v, std::string* error_msg,
                              bool shrink = false);
 
 } // namespace util

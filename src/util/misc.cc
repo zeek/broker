@@ -2,8 +2,8 @@
 
 #include "misc.hh"
 
-broker::maybe<broker::store::expiration_time>
-broker::util::update_last_modification(maybe<store::expiration_time>& et,
+broker::optional<broker::store::expiration_time>
+broker::util::update_last_modification(optional<store::expiration_time>& et,
                                        double mod_time) {
   if (!et)
     return {};
@@ -13,7 +13,7 @@ broker::util::update_last_modification(maybe<store::expiration_time>& et,
   return et;
 }
 
-bool broker::util::increment_data(maybe<data>& d, int64_t by,
+bool broker::util::increment_data(optional<data>& d, int64_t by,
                                   std::string* error_msg) {
   if (d)
     return increment_data(*d, by, error_msg);
@@ -33,7 +33,7 @@ bool broker::util::increment_data(data& d, int64_t by, std::string* error_msg) {
   return false;
 }
 
-bool broker::util::add_data_to_set(maybe<data>& s, data element,
+bool broker::util::add_data_to_set(optional<data>& s, data element,
                                    std::string* error_msg) {
   if (s)
     return add_data_to_set(*s, std::move(element), error_msg);
@@ -57,7 +57,7 @@ bool broker::util::add_data_to_set(data& s, data element,
   return false;
 }
 
-bool broker::util::remove_data_from_set(maybe<data>& s, const data& element,
+bool broker::util::remove_data_from_set(optional<data>& s, const data& element,
                                         std::string* error_msg) {
   if (s)
     return remove_data_from_set(*s, element, error_msg);
@@ -81,7 +81,7 @@ bool broker::util::remove_data_from_set(data& s, const data& element,
   return false;
 }
 
-bool broker::util::push_left(maybe<data>& v, vector items,
+bool broker::util::push_left(optional<data>& v, vector items,
                              std::string* error_msg) {
   if (v)
     return push_left(*v, std::move(items), error_msg);
@@ -108,7 +108,7 @@ bool broker::util::push_left(data& v, vector items, std::string* error_msg) {
   return false;
 }
 
-bool broker::util::push_right(maybe<data>& v, vector items,
+bool broker::util::push_right(optional<data>& v, vector items,
                               std::string* error_msg) {
   if (v)
     return push_right(*v, std::move(items), error_msg);
@@ -133,20 +133,20 @@ bool broker::util::push_right(data& v, vector items, std::string* error_msg) {
   return false;
 }
 
-broker::maybe<broker::maybe<broker::data>>
-broker::util::pop_left(broker::maybe<broker::data>& v,
+broker::optional<broker::optional<broker::data>>
+broker::util::pop_left(broker::optional<broker::data>& v,
                        std::string* error_msg, bool shrink) {
   if (v)
     return pop_left(*v, error_msg, shrink);
-  return {maybe<data>{}};
+  return {optional<data>{}};
 }
 
-broker::maybe<broker::maybe<broker::data>>
+broker::optional<broker::optional<broker::data>>
 broker::util::pop_left(broker::data& v, std::string* error_msg, bool shrink) {
   broker::vector* vv = get<broker::vector>(v);
   if (vv) {
     if (vv->empty())
-      return {maybe<data>{}};
+      return {optional<data>{}};
     auto rval = std::move(vv->front());
     // NIT: removing front of std::vector is slow, but can't do much else
     // other than change broker::vector to use std::deque.  That is worth
@@ -169,20 +169,20 @@ broker::util::pop_left(broker::data& v, std::string* error_msg, bool shrink) {
   return {};
 }
 
-broker::maybe<broker::maybe<broker::data>>
-broker::util::pop_right(broker::maybe<broker::data>& v,
+broker::optional<broker::optional<broker::data>>
+broker::util::pop_right(broker::optional<broker::data>& v,
                         std::string* error_msg, bool shrink) {
   if (v)
     return pop_right(*v, error_msg, shrink);
-  return {maybe<data>{}};
+  return {optional<data>{}};
 }
 
-broker::maybe<broker::maybe<broker::data>>
+broker::optional<broker::optional<broker::data>>
 broker::util::pop_right(broker::data& v, std::string* error_msg, bool shrink) {
   broker::vector* vv = get<broker::vector>(v);
   if (vv) {
     if (vv->empty())
-      return {maybe<data>{}};
+      return {optional<data>{}};
     auto rval = std::move(vv->back());
     vv->pop_back();
     if (shrink && vv->capacity() > vv->size() * 8)

@@ -10,7 +10,7 @@
 #include <caf/actor_addr.hpp>
 
 #include "broker/topic.hh"
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 
 #include "broker/detail/radix_tree.hh"
 
@@ -46,7 +46,7 @@ public:
   /// Remove a subscriber from the container and return it if it exists.
   /// @param a the actor address associated with the subscriber.
   /// @return the associated subscriber if it was in the container.
-  maybe<subscriber> erase(const caf::actor_addr& a);
+  optional<subscriber> erase(const caf::actor_addr& a);
 
   /// Register a subscription topic to a subscriber.
   /// @param t the topic of the subscription to register.
@@ -73,7 +73,7 @@ public:
 
   /// @return All actors that have registered subscriptions with topic names
   /// exactly matching the given topic name.
-  maybe<const actor_set&> exact_match(const topic& t) const;
+  optional<const actor_set&> exact_match(const topic& t) const;
 
   /// @return All subscription topics currently registered.
   const topic_set& topics() const {
@@ -88,7 +88,7 @@ public:
 
   /// @return true if a subscriber is registered for the exact topic argument.
   bool have_subscriber_for(const topic& t) const {
-    return exact_match(t).valid();
+    return static_cast<bool>(exact_match(t));
   }
 
 private:

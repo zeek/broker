@@ -10,7 +10,7 @@
 
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
-#include "broker/maybe.hh"
+#include "broker/optional.hh"
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time_duration.hh"
@@ -36,7 +36,7 @@ using table = std::map<data, data>;
 /// index either exists or does not.
 class record : detail::totally_ordered<record> {
 public:
-  using field = maybe<data>;
+  using field = optional<data>;
 
   /// Default construct an empty record.
   record() = default;
@@ -48,10 +48,10 @@ public:
   size_t size() const;
 
   /// @return a const reference to a field at a given offset, if it exists.
-  maybe<const data&> get(size_t index) const;
+  optional<const data&> get(size_t index) const;
 
   /// @return a reference to a field at a given offset, if it exists.
-  maybe<data&> get(size_t index);
+  optional<data&> get(size_t index);
 
   std::vector<field> fields;
 };
@@ -170,7 +170,7 @@ inline size_t record::size() const {
   return fields.size();
 }
 
-inline maybe<const data&> record::get(size_t index) const {
+inline optional<const data&> record::get(size_t index) const {
   if (index >= fields.size())
     return {};
   if (!fields[index])
@@ -178,7 +178,7 @@ inline maybe<const data&> record::get(size_t index) const {
   return *fields[index];
 }
 
-inline maybe<data&> record::get(size_t index) {
+inline optional<data&> record::get(size_t index) {
   if (index >= fields.size())
     return {};
   if (!fields[index])

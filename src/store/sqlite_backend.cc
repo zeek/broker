@@ -127,7 +127,7 @@ const sequence_num& sqlite_backend::do_sequence() const {
 }
 
 bool sqlite_backend::do_insert(
-  data k, data v, maybe<expiration_time> e) {
+  data k, data v, optional<expiration_time> e) {
   if (!insert(insert_, k, v, e)) {
     last_rc_ = 0;
     return false;
@@ -297,7 +297,7 @@ sqlite_backend::do_push_right(const data& k, vector items, double mod_time) {
                       std::move(new_expiry), last_rc_);
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 sqlite_backend::do_pop_left(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op) {
@@ -322,7 +322,7 @@ sqlite_backend::do_pop_left(const data& k, double mod_time) {
          std::move(*rval)};
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 sqlite_backend::do_pop_right(const data& k, double mod_time) {
   auto op = do_lookup_expiry(k);
   if (!op) {
@@ -347,7 +347,7 @@ sqlite_backend::do_pop_right(const data& k, double mod_time) {
           std::move(*rval)};
 }
 
-maybe<maybe<data>> sqlite_backend::do_lookup(const data& k) const {
+optional<optional<data>> sqlite_backend::do_lookup(const data& k) const {
   const auto& stmt = lookup_;
   auto g = stmt.guard(sqlite3_reset);
   auto kblob = to_blob(k);
@@ -358,7 +358,7 @@ maybe<maybe<data>> sqlite_backend::do_lookup(const data& k) const {
   }
   auto rc = sqlite3_step(stmt);
   if (rc == SQLITE_DONE)
-    return maybe<data>{};
+    return optional<data>{};
   if (rc != SQLITE_ROW) {
     const_cast<int&>(last_rc_) = 0; // FIXME: improve API
     return {};
@@ -367,7 +367,7 @@ maybe<maybe<data>> sqlite_backend::do_lookup(const data& k) const {
                           sqlite3_column_bytes(stmt, 0))};
 }
 
-maybe<std::pair<maybe<data>, maybe<expiration_time>>>
+optional<std::pair<optional<data>, optional<expiration_time>>>
 sqlite_backend::do_lookup_expiry(const data& k) const {
   const auto& stmt = lookup_expiry_;
   auto g = stmt.guard(sqlite3_reset);
@@ -379,22 +379,22 @@ sqlite_backend::do_lookup_expiry(const data& k) const {
   }
   auto rc = sqlite3_step(stmt);
   if (rc == SQLITE_DONE)
-    return {std::make_pair(maybe<data>{},
-                           maybe<expiration_time>{})};
+    return {std::make_pair(optional<data>{},
+                           optional<expiration_time>{})};
   if (rc != SQLITE_ROW) {
     const_cast<int&>(last_rc_) = 0; // FIXME: improve API
     return {};
   }
   auto val = from_blob<data>(sqlite3_column_blob(stmt, 0),
                              sqlite3_column_bytes(stmt, 0));
-  maybe<expiration_time> e;
+  optional<expiration_time> e;
   if (sqlite3_column_type(stmt, 1) != SQLITE_NULL)
     e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 1),
                                    sqlite3_column_bytes(stmt, 1));
   return {std::make_pair(std::move(val), std::move(e))};
 }
 
-maybe<bool> sqlite_backend::do_exists(const data& k) const {
+optional<bool> sqlite_backend::do_exists(const data& k) const {
   const auto& stmt = exists_;
   auto g = stmt.guard(sqlite3_reset);
   auto kblob = to_blob(k);
@@ -412,7 +412,7 @@ maybe<bool> sqlite_backend::do_exists(const data& k) const {
   return {};
 }
 
-maybe<std::vector<data>> sqlite_backend::do_keys() const {
+optional<std::vector<data>> sqlite_backend::do_keys() const {
   const auto& stmt = keys_;
   auto g = stmt.guard(sqlite3_reset);
   std::vector<data> rval;
@@ -426,7 +426,7 @@ maybe<std::vector<data>> sqlite_backend::do_keys() const {
   return {};
 }
 
-maybe<uint64_t> sqlite_backend::do_size() const {
+optional<uint64_t> sqlite_backend::do_size() const {
   const auto& stmt = size_;
   auto g = stmt.guard(sqlite3_reset);
   auto rc = sqlite3_step(stmt);
@@ -442,7 +442,7 @@ maybe<uint64_t> sqlite_backend::do_size() const {
   return sqlite3_column_int(stmt, 0);
 }
 
-maybe<snapshot> sqlite_backend::do_snap() const {
+optional<snapshot> sqlite_backend::do_snap() const {
   const auto& stmt = snap_;
   auto g = stmt.guard(sqlite3_reset);
   snapshot rval;
@@ -453,7 +453,7 @@ maybe<snapshot> sqlite_backend::do_snap() const {
                              sqlite3_column_bytes(stmt, 0));
     auto v = from_blob<data>(sqlite3_column_blob(stmt, 1),
                              sqlite3_column_bytes(stmt, 1));
-    maybe<expiration_time> e;
+    optional<expiration_time> e;
     if (sqlite3_column_type(stmt, 2) != SQLITE_NULL)
       e = from_blob<expiration_time>(sqlite3_column_blob(stmt, 2),
                                      sqlite3_column_bytes(stmt, 2));
@@ -467,7 +467,7 @@ maybe<snapshot> sqlite_backend::do_snap() const {
   return {};
 }
 
-maybe<std::deque<expirable>> sqlite_backend::do_expiries() const {
+optional<std::deque<expirable>> sqlite_backend::do_expiries() const {
   const auto& stmt = expiries_;
   auto g = stmt.guard(sqlite3_reset);
   std::deque<expirable> rval;
@@ -519,7 +519,7 @@ sqlite_backend::statement::guard(std::function<int(sqlite3_stmt*)> func) const {
 }
 
 bool sqlite_backend::insert(const statement& stmt, const data& k,
-                            const data& v, const maybe<expiration_time>& e) {
+                            const data& v, const optional<expiration_time>& e) {
   auto g = stmt.guard(sqlite3_reset);
   auto kblob = to_blob(k);
   auto vblob = to_blob(v);
@@ -581,7 +581,7 @@ modification_result
 sqlite_backend::update_entry(const statement& update_stmt,
                              const statement& update_expiry_stmt,
                              const data& k, const data& v,
-                             maybe<expiration_time> e,
+                             optional<expiration_time> e,
                              int& last_rc) {
   using store::modification_result;
   if (e) {

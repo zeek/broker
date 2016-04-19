@@ -27,7 +27,7 @@ const sequence_num& memory_backend::do_sequence() const {
 }
 
 bool memory_backend::do_insert(
-  data k, data v, maybe<expiration_time> t) {
+  data k, data v, optional<expiration_time> t) {
   datastore_[std::move(k)] = value{std::move(v), std::move(t)};
   return true;
 }
@@ -119,7 +119,7 @@ modification_result memory_backend::do_push_right(const data& k, vector items,
   return {modification_result::status::invalid, {}};
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 memory_backend::do_pop_left(const data& k, double mod_time) {
   auto it = datastore_.find(k);
   if (it == datastore_.end())
@@ -132,7 +132,7 @@ memory_backend::do_pop_left(const data& k, double mod_time) {
           std::move(*ood)};
 }
 
-std::pair<modification_result, maybe<data>>
+std::pair<modification_result, optional<data>>
 memory_backend::do_pop_right(const data& k, double mod_time) {
   auto it = datastore_.find(k);
   if (it == datastore_.end())
@@ -145,33 +145,33 @@ memory_backend::do_pop_right(const data& k, double mod_time) {
           std::move(*ood)};
 }
 
-maybe<maybe<data>> memory_backend::do_lookup(const data& k) const {
+optional<optional<data>> memory_backend::do_lookup(const data& k) const {
   try {
     return {datastore_.at(k).item};
   } catch (const std::out_of_range&) {
-    return {maybe<data>{}};
+    return {optional<data>{}};
   }
 }
 
-maybe<bool> memory_backend::do_exists(const data& k) const {
+optional<bool> memory_backend::do_exists(const data& k) const {
   if (datastore_.find(k) == datastore_.end())
     return false;
   else
     return true;
 }
 
-maybe<std::vector<data>> memory_backend::do_keys() const {
+optional<std::vector<data>> memory_backend::do_keys() const {
   std::vector<data> rval;
   for (const auto& kv : datastore_)
     rval.emplace_back(kv.first);
   return rval;
 }
 
-maybe<uint64_t> memory_backend::do_size() const {
+optional<uint64_t> memory_backend::do_size() const {
   return datastore_.size();
 }
 
-maybe<snapshot> memory_backend::do_snap() const {
+optional<snapshot> memory_backend::do_snap() const {
   snapshot rval;
   rval.sn = sn_;
   for (const auto& e : datastore_)
@@ -179,7 +179,7 @@ maybe<snapshot> memory_backend::do_snap() const {
   return rval;
 }
 
-maybe<std::deque<expirable>> memory_backend::do_expiries() const {
+optional<std::deque<expirable>> memory_backend::do_expiries() const {
   std::deque<expirable> rval;
   for (const auto& entry : datastore_)
     if (entry.second.expiry)
