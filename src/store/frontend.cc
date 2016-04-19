@@ -1,4 +1,4 @@
-#include <caf/send.hpp>
+#include <caf/all.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/store/frontend.hh"
@@ -14,8 +14,8 @@ static caf::actor& handle_to_actor(void* h) {
 namespace store {
 namespace detail {
 
-requester::requester(caf::actor_config& cfg, caf::actor backend, identifier
-                     master_name, query q, caf::actor queue,
+requester::requester(caf::actor_config& cfg, caf::actor backend,
+                     identifier master_name, query q, caf::actor queue,
                      std::chrono::duration<double> timeout, void* cookie)
     : caf::event_based_actor{cfg},
       request_(std::move(q)) {
@@ -64,27 +64,29 @@ const response_queue& frontend::responses() const {
 
 void frontend::insert(data k, data v) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 insert_atom::value, std::move(k), std::move(v));
+                 caf::make_message(insert_atom::value, std::move(k),
+                                   std::move(v)));
 }
 
 void frontend::insert(data k, data v, expiration_time t) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 insert_atom::value, std::move(k), std::move(v), std::move(t));
+                 caf::make_message(insert_atom::value, std::move(k),
+                                   std::move(v), std::move(t)));
 }
 
 void frontend::erase(data k) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 erase_atom::value, std::move(k));
+                 caf::make_message(erase_atom::value, std::move(k)));
 }
 
 void frontend::clear() const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 clear_atom::value);
+                 caf::make_message(clear_atom::value));
 }
 
 void frontend::increment(data k, int64_t by) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 increment_atom::value, std::move(k), by);
+                 caf::make_message(increment_atom::value, std::move(k), by));
 }
 
 void frontend::decrement(data k, int64_t by) const {
@@ -93,22 +95,26 @@ void frontend::decrement(data k, int64_t by) const {
 
 void frontend::add_to_set(data k, data element) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 set_add_atom::value, std::move(k), std::move(element));
+                 caf::make_message(set_add_atom::value, std::move(k),
+                                   std::move(element)));
 }
 
 void frontend::remove_from_set(data k, data element) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 set_rem_atom::value, std::move(k), std::move(element));
+                 caf::make_message(set_rem_atom::value, std::move(k),
+                                   std::move(element)));
 }
 
 void frontend::push_left(data k, vector item) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 lpush_atom::value, std::move(k), std::move(item));
+                 caf::make_message(lpush_atom::value, std::move(k),
+                                   std::move(item)));
 }
 
 void frontend::push_right(data k, vector item) const {
   caf::anon_send(handle_to_actor(handle()), master_name_,
-                 rpush_atom::value, std::move(k), std::move(item));
+                 caf::make_message(rpush_atom::value, std::move(k),
+                                   std::move(item)));
 }
 
 result frontend::request(query q) const {

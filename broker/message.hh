@@ -1,13 +1,15 @@
 #ifndef BROKER_MESSAGE_HH
 #define BROKER_MESSAGE_HH
 
-#include "broker/data.hh"
+#include <caf/message.hpp>
 
 namespace broker {
 
-/// A message containing a sequence of items.  The meaning/usage of these is
-/// left entirely up to the application to decide.
-using message = broker::vector;
+/// A container for data.
+using caf::message;
+
+/// Constructs a message.
+using caf::make_message;
 
 } // namespace broker
 

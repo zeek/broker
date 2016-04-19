@@ -1,3 +1,5 @@
+#include <caf/all.hpp>
+
 #include "broker/store/clone.hh"
 
 namespace broker {
@@ -15,7 +17,7 @@ clone_actor::clone_actor(caf::actor_config& cfg, const caf::actor& endpoint,
     datastore_(std::move(b)) {
   using namespace std;
   using namespace caf;
-  message_handler requests{
+  message_handler requests = {
     [=](const identifier& n, const query& q, const actor& requester) {
       auto r = q.process(*datastore_, broker::time_point::now().value).first;
       if (r.stat == result::status::failure)
@@ -23,10 +25,13 @@ clone_actor::clone_actor(caf::actor_config& cfg, const caf::actor& endpoint,
       return make_message(this, move(r));
     }
   };
-  message_handler updates{
-    on(val<identifier>, any_vals) >> [=] {
-      forward_to(master);
+  message_handler updates = {
+    // Clones forward messages beginning with an identifier to the master.
+    [=](identifier& id, caf::message& msg) {
+      // TODO: assert that that ID is indeed corresponding to the master?!
+      delegate(master, std::move(id), std::move(msg));
     },
+    // All other messages represent pushed out messages from the master.
     [=](increment_atom, const sequence_num& sn, const data& k, int64_t by,
         double mod_time) {
       auto next = datastore_->sequence().next();
@@ -218,7 +223,7 @@ clone_actor::clone_actor(caf::actor_config& cfg, const caf::actor& endpoint,
   auto handlesync = find_master.or_else(get_snap).or_else(give_actor);
   synchronizing_ = handlesync;
   active_ = requests.or_else(updates).or_else(handlesync);
-  dead_ = requests.or_else(give_actor).or_else(others() >> [] {});
+  dead_ = requests.or_else(give_actor);
 }
 
 caf::behavior clone_actor::make_behavior() {
@@ -229,8 +234,10 @@ void clone_actor::error(std::string master_name, std::string method_name,
            std::string err_msg, bool fatal) {
   report::error("store.clone." + master_name,
                 "failed to " + method_name + ": " + err_msg);
-  if (fatal)
+  if (fatal) {
     become(dead_);
+    set_unexpected_handler(caf::drop_unexpected);
+  }
 }
 
 void clone_actor::fatal_error(std::string master_name, std::string method_name,

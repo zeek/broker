@@ -1,4 +1,4 @@
-#include <caf/send.hpp>
+#include <caf/all.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/report.hh"
@@ -76,7 +76,7 @@ master_actor::master_actor(caf::actor_config& cfg, std::unique_ptr<backend> s,
       return make_message(this, move(res.first));
     }
   };
-  message_handler updates{
+  message_handler updates = {
     [=](expire_atom, data& k, expiration_time& expiry) {
       if (!datastore->expire(k, expiry)) {
         error(name, "expire", datastore->last_error());
@@ -87,115 +87,119 @@ master_actor::master_actor(caf::actor_config& cfg, std::unique_ptr<backend> s,
         publish(make_message(expire_atom::value, datastore->sequence(),
                              move(k), move(expiry)));
     },
-    [=](const identifier&, increment_atom, data& k, int64_t by) {
-      auto mod_time = now();
-      auto res = datastore->increment(k, by, mod_time);
-      if (res.stat != modification_result::status::success) {
-        error(name, "increment", datastore->last_error());
-        return;
-      }
-      if (res.new_expiration)
-        expiry_reminder(name, k, move(*res.new_expiration));
-      if (!clones.empty())
-        publish(make_message(increment_atom::value, datastore->sequence(),
-                             move(k), by, mod_time));
-    },
-    [=](const identifier&, set_add_atom, data& k, data& e) {
-      auto mod_time = now();
-      auto res = datastore->add_to_set(
-        k, clones.empty() ? move(e) : e, mod_time);
-      if (res.stat != modification_result::status::success) {
-        error(name, "add_to_set", datastore->last_error());
-        return;
-      }
-      if (res.new_expiration)
-        expiry_reminder(name, k, move(*res.new_expiration));
-      if (!clones.empty())
-        publish(make_message(set_add_atom::value, datastore->sequence(),
-                             move(k), move(e), mod_time));
-    },
-    [=](const identifier&, set_rem_atom, data& k, data& e) {
-      auto mod_time = now();
-      auto res = datastore->remove_from_set(k, e, mod_time);
-      if (res.stat != modification_result::status::success) {
-        error(name, "remove_from_set", datastore->last_error());
-        return;
-      }
-      if (res.new_expiration)
-        expiry_reminder(name, k, move(*res.new_expiration));
-      if (!clones.empty())
-        publish(make_message(set_rem_atom::value, datastore->sequence(),
-                             move(k), move(e), mod_time));
-    },
-    [=](const identifier&, insert_atom, data& k, data& v) {
-      if (!datastore->insert(clones.empty() ? move(k) : k,
-                             clones.empty() ? move(v) : v)) {
-        error(name, "insert", datastore->last_error());
-        return;
-      }
-      if (!clones.empty())
-        publish(make_message(insert_atom::value, datastore->sequence(),
-                             move(k), move(v)));
-    },
-    [=](const identifier&, insert_atom, data& k, data& v, expiration_time t) {
-      if (t.type == expiration_time::tag::absolute && t.expiry_time <= now())
-        return;
-      if (!datastore->insert(k, clones.empty() ? move(v) : v, t)) {
-        error(name, "insert_with_expiry", datastore->last_error());
-        return;
-      }
-      if (clones.empty())
-        expiry_reminder(name, move(k), t);
-      else {
-        expiry_reminder(name, k, t);
-        publish(make_message(insert_atom::value, datastore->sequence(),
-                             move(k), move(v), t));
-      }
-    },
-    [=](const identifier&, erase_atom, data& k) {
-      if (!datastore->erase(k)) {
-        error(name, "erase", datastore->last_error());
-        return;
-      }
-      if (!clones.empty())
-        publish(
-          make_message(erase_atom::value, datastore->sequence(), move(k)));
-    },
-    [=](const identifier&, clear_atom) {
-      if (!datastore->clear()) {
-        error(name, "clear", datastore->last_error());
-        return;
-      }
-      if (!clones.empty())
-        publish(make_message(clear_atom::value, datastore->sequence()));
-    },
-    [=](const identifier&, lpush_atom, data& k, vector& i) {
-      auto mod_time = now();
-      auto res
-        = datastore->push_left(k, clones.empty() ? move(i) : i, mod_time);
-      if (res.stat != modification_result::status::success) {
-        error(name, "push_left", datastore->last_error());
-        return;
-      }
-      if (res.new_expiration)
-        expiry_reminder(name, k, move(*res.new_expiration));
-      if (!clones.empty())
-        publish(make_message(lpush_atom::value, datastore->sequence(),
-                             move(k), move(i), mod_time));
-    },
-    [=](const identifier&, rpush_atom, data& k, vector& i) {
-      auto mod_time = now();
-      auto res
-        = datastore->push_right(k, clones.empty() ? move(i) : i, mod_time);
-      if (res.stat != modification_result::status::success) {
-        error(name, "push_right", datastore->last_error());
-        return;
-      }
-      if (res.new_expiration)
-        expiry_reminder(name, k, move(*res.new_expiration));
-      if (!clones.empty())
-        publish(make_message(rpush_atom::value, datastore->sequence(),
-                             move(k), move(i), mod_time));
+    [=](const identifier&, caf::message& msg) {
+      msg.apply({
+        [=](increment_atom, data& k, int64_t by) {
+          auto mod_time = now();
+          auto res = datastore->increment(k, by, mod_time);
+          if (res.stat != modification_result::status::success) {
+            error(name, "increment", datastore->last_error());
+            return;
+          }
+          if (res.new_expiration)
+            expiry_reminder(name, k, move(*res.new_expiration));
+          if (!clones.empty())
+            publish(make_message(increment_atom::value, datastore->sequence(),
+                                 move(k), by, mod_time));
+        },
+        [=](set_add_atom, data& k, data& e) {
+          auto mod_time = now();
+          auto res = datastore->add_to_set(
+            k, clones.empty() ? move(e) : e, mod_time);
+          if (res.stat != modification_result::status::success) {
+            error(name, "add_to_set", datastore->last_error());
+            return;
+          }
+          if (res.new_expiration)
+            expiry_reminder(name, k, move(*res.new_expiration));
+          if (!clones.empty())
+            publish(make_message(set_add_atom::value, datastore->sequence(),
+                                 move(k), move(e), mod_time));
+        },
+        [=](set_rem_atom, data& k, data& e) {
+          auto mod_time = now();
+          auto res = datastore->remove_from_set(k, e, mod_time);
+          if (res.stat != modification_result::status::success) {
+            error(name, "remove_from_set", datastore->last_error());
+            return;
+          }
+          if (res.new_expiration)
+            expiry_reminder(name, k, move(*res.new_expiration));
+          if (!clones.empty())
+            publish(make_message(set_rem_atom::value, datastore->sequence(),
+                                 move(k), move(e), mod_time));
+        },
+        [=](insert_atom, data& k, data& v) {
+          if (!datastore->insert(clones.empty() ? move(k) : k,
+                                 clones.empty() ? move(v) : v)) {
+            error(name, "insert", datastore->last_error());
+            return;
+          }
+          if (!clones.empty())
+            publish(make_message(insert_atom::value, datastore->sequence(),
+                                 move(k), move(v)));
+        },
+        [=](insert_atom, data& k, data& v, expiration_time t) {
+          if (t.type == expiration_time::tag::absolute && t.expiry_time <= now())
+            return;
+          if (!datastore->insert(k, clones.empty() ? move(v) : v, t)) {
+            error(name, "insert_with_expiry", datastore->last_error());
+            return;
+          }
+          if (clones.empty())
+            expiry_reminder(name, move(k), t);
+          else {
+            expiry_reminder(name, k, t);
+            publish(make_message(insert_atom::value, datastore->sequence(),
+                                 move(k), move(v), t));
+          }
+        },
+        [=](erase_atom, data& k) {
+          if (!datastore->erase(k)) {
+            error(name, "erase", datastore->last_error());
+            return;
+          }
+          if (!clones.empty())
+            publish(
+              make_message(erase_atom::value, datastore->sequence(), move(k)));
+        },
+        [=](clear_atom) {
+          if (!datastore->clear()) {
+            error(name, "clear", datastore->last_error());
+            return;
+          }
+          if (!clones.empty())
+            publish(make_message(clear_atom::value, datastore->sequence()));
+        },
+        [=](lpush_atom, data& k, vector& i) {
+          auto mod_time = now();
+          auto res
+            = datastore->push_left(k, clones.empty() ? move(i) : i, mod_time);
+          if (res.stat != modification_result::status::success) {
+            error(name, "push_left", datastore->last_error());
+            return;
+          }
+          if (res.new_expiration)
+            expiry_reminder(name, k, move(*res.new_expiration));
+          if (!clones.empty())
+            publish(make_message(lpush_atom::value, datastore->sequence(),
+                                 move(k), move(i), mod_time));
+        },
+        [=](rpush_atom, data& k, vector& i) {
+          auto mod_time = now();
+          auto res
+            = datastore->push_right(k, clones.empty() ? move(i) : i, mod_time);
+          if (res.stat != modification_result::status::success) {
+            error(name, "push_right", datastore->last_error());
+            return;
+          }
+          if (res.new_expiration)
+            expiry_reminder(name, k, move(*res.new_expiration));
+          if (!clones.empty())
+            publish(make_message(rpush_atom::value, datastore->sequence(),
+                                 move(k), move(i), mod_time));
+        }
+      });
     }
   };
   serving = requests.or_else(updates)

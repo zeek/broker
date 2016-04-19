@@ -37,7 +37,7 @@ public:
         ready_flare.fire();
       }
     };
-    empty = common;
+    empty = common.or_else([=](need_atom) { return skip_message(); });
     filled = common.or_else([=](need_atom) { return pop(); });
   }
 
