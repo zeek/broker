@@ -9,7 +9,7 @@
 
 #include <caf/actor.hpp>
 
-#include "broker/util/operators.hh"
+#include "broker/detail/operators.hh"
 
 namespace broker {
 class peering;
@@ -26,7 +26,7 @@ class endpoint;
 
 // FIXME: this class will go away after PIMPL migration.
 /// Contains information about a peering between two endpoints.
-class peering : util::equality_comparable<peering> {
+class peering : detail::equality_comparable<peering> {
   friend class endpoint;
 
   template <class Processor>

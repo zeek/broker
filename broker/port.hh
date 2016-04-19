@@ -5,12 +5,12 @@
 #include <ostream>
 #include <string>
 
-#include "broker/util/operators.hh"
+#include "broker/detail/operators.hh"
 
 namespace broker {
 
 /// A transport-layer port.
-class port : util::totally_ordered<port> {
+class port : detail::totally_ordered<port> {
   template <class Processor>
   friend void serialize(Processor& proc, port& p, const unsigned int);
 

@@ -8,7 +8,7 @@
 #include <cstdlib>
 
 #include "broker/address.hh"
-#include "broker/util/hash.hh"
+#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -118,7 +118,7 @@ bool operator<(const address& lhs, const address& rhs) {
 } // namespace broker
 
 size_t std::hash<broker::address>::operator()(const broker::address& v) const {
-  return broker::util::hash_range(v.bytes().begin(), v.bytes().end());
+  return broker::detail::hash_range(v.bytes().begin(), v.bytes().end());
 }
 
 // Begin C API

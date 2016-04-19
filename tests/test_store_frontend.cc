@@ -81,7 +81,7 @@ int main() {
 
   for (const auto& msg : responses) {
     using broker::store::result;
-    using broker::util::get;
+    using broker::get;
     if (msg.cookie == &cookies[3]) {
       BROKER_TEST(msg.reply.stat == result::status::timeout);
       continue;

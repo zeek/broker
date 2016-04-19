@@ -7,12 +7,12 @@
 #include <string>
 
 #include <broker/maybe.hh>
-#include <broker/util/operators.hh>
+#include <broker/detail/operators.hh>
 
 namespace broker {
 
 /// Stores an IPv4 or IPv6 address.
-class address : util::totally_ordered<address> {
+class address : detail::totally_ordered<address> {
 public:
   /// Distinguishes between address types.
   enum class family : uint8_t {

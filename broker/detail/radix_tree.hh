@@ -29,8 +29,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef BROKER_UTIL_RADIX_TREE_HH
-#define BROKER_UTIL_RADIX_TREE_HH
+#ifndef BROKER_DETAIL_RADIX_TREE_HH
+#define BROKER_DETAIL_RADIX_TREE_HH
 
 #include <cstdint>
 #include <cstdlib>
@@ -51,7 +51,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <caf/deserializer.hpp>
 
 namespace broker {
-namespace util {
+namespace detail {
 
 /**
  * A radix tree data structure that facilitates O(k) operations,
@@ -1452,7 +1452,7 @@ void serialize(caf::deserializer& source, radix_tree<T, N>& rt,
   source.end_sequence();
 }
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_RADIX_TREE_HH
+#endif // BROKER_DETAIL_RADIX_TREE_HH

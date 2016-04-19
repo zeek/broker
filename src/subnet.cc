@@ -2,7 +2,7 @@
 #include <tuple>
 
 #include "broker/subnet.hh"
-#include "broker/util/hash.hh"
+#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -65,8 +65,8 @@ bool operator<(const subnet& lhs, const subnet& rhs) {
 
 size_t std::hash<broker::subnet>::operator()(const broker::subnet& v) const {
   size_t rval = 0;
-  broker::util::hash_combine(rval, v.network());
-  broker::util::hash_combine(rval, v.length());
+  broker::detail::hash_combine(rval, v.network());
+  broker::detail::hash_combine(rval, v.length());
   return rval;
 }
 

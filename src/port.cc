@@ -3,7 +3,7 @@
 #include <type_traits>
 
 #include "broker/port.hh"
-#include "broker/util/hash.hh"
+#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -61,9 +61,9 @@ bool operator<(const port& lhs, const port& rhs) {
 size_t std::hash<broker::port>::operator()(const broker::port& v) const {
   using broker::port;
   size_t rval = 0;
-  broker::util::hash_combine(rval, v.number());
+  broker::detail::hash_combine(rval, v.number());
   auto p = static_cast<std::underlying_type<port::protocol>::type>(v.type());
-  broker::util::hash_combine(rval, p);
+  broker::detail::hash_combine(rval, p);
   return rval;
 }
 

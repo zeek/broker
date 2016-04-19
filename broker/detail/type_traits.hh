@@ -1,10 +1,10 @@
-#ifndef BROKER_UTIL_META_HH
-#define BROKER_UTIL_META_HH
+#ifndef BROKER_DETAIL_TYPE_TRAITS_HH
+#define BROKER_DETAIL_TYPE_TRAITS_HH
 
 #include <type_traits>
 
 namespace broker {
-namespace util {
+namespace detail {
 
 // std::enable_if_t shortcut from C++14.
 template <bool B, class T = void>
@@ -49,7 +49,7 @@ constexpr decltype(F<Head>::value) max() {
                                                     max<F, Next, Tail...>();
 }
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_META_HH
+#endif // BROKER_DETAIL_TYPE_TRAITS_HH

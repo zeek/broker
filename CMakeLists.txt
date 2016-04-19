@@ -86,7 +86,6 @@ set(BROKER_SRC
     src/set.cc
     src/string.cc
     src/subnet.cc
-    src/subscription.cc
     src/table.cc
     src/time_duration.cc
     src/time_point.cc
@@ -94,6 +93,7 @@ set(BROKER_SRC
 
     src/detail/pipe.cc
     src/detail/flare.cc
+    src/detail/subscription.cc
 
     src/store/backend.cc
     src/store/clone.cc

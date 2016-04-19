@@ -6,7 +6,7 @@
 namespace broker {
 
 /// Stores an IPv4 or IPv6 subnet (an address prefix).
-class subnet : util::totally_ordered<subnet> {
+class subnet : detail::totally_ordered<subnet> {
   template <class Processor>
   friend void serialize(Processor& proc, subnet& sn, const unsigned int);
 

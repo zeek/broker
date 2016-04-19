@@ -1,8 +1,8 @@
-#ifndef BROKER_UTIL_OPERATORS_HH
-#define BROKER_UTIL_OPERATORS_HH
+#ifndef BROKER_DETAIL_OPERATORS_HH
+#define BROKER_DETAIL_OPERATORS_HH
 
 namespace broker {
-namespace util {
+namespace detail {
 
 template <class T, class U = T>
 struct equality_comparable {
@@ -16,9 +16,11 @@ struct less_than_comparable {
   friend bool operator>(const T& x, const U& y) {
     return y < x;
   }
+
   friend bool operator<=(const T& x, const U& y) {
     return !(y < x);
   }
+
   friend bool operator>=(const T& x, const U& y) {
     return !(x < y);
   }
@@ -28,7 +30,7 @@ template <class T, class U = T>
 struct totally_ordered : equality_comparable<T, U>,
                          less_than_comparable<T, U> {};
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_OPERATORS_HH
+#endif // BROKER_DETAIL_OPERATORS_HH

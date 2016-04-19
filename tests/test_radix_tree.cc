@@ -1,13 +1,15 @@
-#include "testsuite.h"
-#include "../src/util/radix_tree.hh"
 #include <string>
 #include <deque>
 #include <set>
 #include <sstream>
 
+#include "broker/detail/radix_tree.hh"
+
+#include "testsuite.h"
+
 using namespace std;
 
-using my_radix_tree = broker::util::radix_tree<int>;
+using my_radix_tree = broker::detail::radix_tree<int>;
 
 static bool check_match(deque<my_radix_tree::iterator> matches,
                         set<pair<string, int>> expected) {
@@ -37,7 +39,7 @@ static bool find(deque<my_radix_tree::iterator> haystack,
 }
 
 static void test_insert_very_long() {
-  broker::util::radix_tree<void*> t;
+  broker::detail::radix_tree<void*> t;
 
   unsigned char key1[300] = {
     16,  0,   0,   0,   7,   10,  0,   0,   0,   2,   17,  10,  0,   0,   0,

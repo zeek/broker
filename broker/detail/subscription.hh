@@ -1,5 +1,5 @@
-#ifndef BROKER_SUBSCRIPTION_HH
-#define BROKER_SUBSCRIPTION_HH
+#ifndef BROKER_DETAIL_SUBSCRIPTION_HH
+#define BROKER_DETAIL_SUBSCRIPTION_HH
 
 #include <cstdint>
 #include <deque>
@@ -12,12 +12,13 @@
 #include "broker/topic.hh"
 #include "broker/maybe.hh"
 
-#include "util/radix_tree.hh"
+#include "broker/detail/radix_tree.hh"
 
 namespace broker {
+namespace detail {
 
 using actor_set = std::unordered_set<caf::actor>;
-using topic_set = util::radix_tree<bool>;
+using topic_set = radix_tree<bool>;
 
 /// An actor with the associated topics in which it claims interest.
 class subscriber {
@@ -63,7 +64,7 @@ public:
   /// that are a prefix of the given topic name.  Note that an actor may
   /// appear more than once if they registered multiple subscriptions that
   /// match the given topic name.
-  std::deque<util::radix_tree<actor_set>::iterator>
+  std::deque<radix_tree<actor_set>::iterator>
   prefix_matches(const topic& t) const;
 
   /// @return All actors that have registered subscriptions with topic names
@@ -91,11 +92,12 @@ public:
   }
 
 private:
-  util::radix_tree<actor_set> subs_by_topic;
+  radix_tree<actor_set> subs_by_topic;
   std::unordered_map<caf::actor_addr, subscriber> subs_by_actor;
   topic_set all_topics;
 };
 
+} // namespace detail
 } // namespace broker
 
-#endif // BROKER_SUBSCRIPTION_HH
+#endif // BROKER_DETAIL_SUBSCRIPTION_HH

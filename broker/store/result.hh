@@ -5,13 +5,16 @@
 #include <vector>
 
 #include "broker/data.hh"
+#include "broker/variant.hh"
 #include "broker/store/snapshot.hh"
+
+#include "broker/detail/operators.hh"
 
 namespace broker {
 namespace store {
 
 /// The corresponding "answer" to a data store query.
-class result : util::equality_comparable<result> {
+class result : detail::equality_comparable<result> {
 public:
   /// A tag indicating which value of the variant is currently valid.
   /// For status other than success, it's arbitrarily tagged with
@@ -35,7 +38,7 @@ public:
   } stat;
 
   // NIT: maybe deque instead of vector for keys/snapshot results.
-  using type = util::variant<
+  using type = variant<
     tag,
     bool,
     uint64_t,

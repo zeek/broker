@@ -1,11 +1,13 @@
-#include "broker/util/variant.hh"
-#include "testsuite.h"
 #include <string>
 #include <vector>
 #include <algorithm>
 
+#include "broker/variant.hh"
+
+#include "testsuite.h"
+
 using namespace std;
-using namespace broker::util;
+using namespace broker;
 
 enum class tt : int { zero = 0, one = 1, two = 2 };
 

@@ -1,6 +1,7 @@
-#include "subscription.hh"
+#include "broker/detail/subscription.hh"
 
 namespace broker {
+namespace detail {
 
 bool subscription_registry::insert(subscriber s) {
   auto it = subs_by_actor.find(s.who.address());
@@ -71,7 +72,7 @@ bool subscription_registry::unregister_topic(const topic& t,
   return true;
 }
 
-std::deque<util::radix_tree<actor_set>::iterator>
+std::deque<radix_tree<actor_set>::iterator>
 subscription_registry::prefix_matches(const topic& t) const {
   return subs_by_topic.prefix_of(t);
 }
@@ -94,4 +95,5 @@ subscription_registry::exact_match(const topic& t) const {
   return it->second;
 }
 
+} // namespace detail
 } // namespace broker

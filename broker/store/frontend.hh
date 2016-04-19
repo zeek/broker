@@ -292,7 +292,7 @@ maybe<data> lookup(const T& f, data k) {
   result r = f.lookup(std::move(k));
   if (r.stat != result::status::success)
     return {};
-  auto p = util::get<data>(r.value);
+  auto p = get<data>(r.value);
   if (p)
     return std::move(*p);
   return {};
@@ -310,7 +310,7 @@ maybe<data> pop_left(const T& f, data k) {
   result r = f.pop_left(std::move(k));
   if (r.stat != result::status::success)
     return {};
-  auto p = util::get<data>(r.value);
+  auto p = get<data>(r.value);
   if (p)
     return std::move(*p);
   return {};
@@ -328,7 +328,7 @@ maybe<data> pop_right(const T& f, data k) {
   result r = f.pop_right(std::move(k));
   if (r.stat != result::status::success)
     return {};
-  auto p = util::get<data>(r.value);
+  auto p = get<data>(r.value);
   if (p)
     return std::move(*p);
   return {};
@@ -344,7 +344,7 @@ bool exists(const T& f, data k) {
   result r = f.exists(std::move(k));
   if (r.stat != result::status::success)
     return false;
-  return *util::get<bool>(r.value);
+  return *get<bool>(r.value);
 }
 
 /// Blocking key retrieval for all keys in a data store.
@@ -356,7 +356,7 @@ std::vector<data> keys(const T& f) {
   result r = f.keys();
   if (r.stat != result::status::success)
     return {};
-  return *util::get<std::vector<data>>(r.value);
+  return *get<std::vector<data>>(r.value);
 }
 
 /// Blocking query for the number of key-value pairs in a data store.
@@ -368,7 +368,7 @@ uint64_t size(const T& f) {
   result r = f.size();
   if (r.stat != result::status::success)
     return 0;
-  return *util::get<uint64_t>(r.value);
+  return *get<uint64_t>(r.value);
 }
 
 } // namespace store

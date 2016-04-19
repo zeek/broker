@@ -8,8 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "broker/util/variant.hh"
-#include "broker/util/hash.hh"
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
 #include "broker/maybe.hh"
@@ -17,6 +15,9 @@
 #include "broker/subnet.hh"
 #include "broker/time_duration.hh"
 #include "broker/time_point.hh"
+#include "broker/variant.hh"
+
+#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -33,7 +34,7 @@ using table = std::map<data, data>;
 
 /// A container of sequential, optional data.  That is, the value at any given
 /// index either exists or does not.
-class record : util::totally_ordered<record> {
+class record : detail::totally_ordered<record> {
 public:
   using field = maybe<data>;
 
@@ -62,7 +63,7 @@ void serialize(Processor& proc, record& r, const unsigned) {
 
 /// A variant-like class that may store the data associated with one of several
 /// different primitive or compound types.
-class data : util::totally_ordered<data> {
+class data : detail::totally_ordered<data> {
 public:
   enum class tag : uint8_t {
     // Primitive types
@@ -84,7 +85,7 @@ public:
     record
   };
 
-  using types = util::variant<
+  using types = variant<
     tag, 
     bool,
     uint64_t,
@@ -104,22 +105,22 @@ public:
    >;
 
   template <class T>
-  using from = util::conditional_t<
+  using from = detail::conditional_t<
     std::is_floating_point<T>::value,
     double,
-    util::conditional_t<
+    detail::conditional_t<
       std::is_same<T, bool>::value,
       bool,
-      util::conditional_t<
+      detail::conditional_t<
         std::is_unsigned<T>::value,
         uint64_t,
-        util::conditional_t<
+        detail::conditional_t<
           std::is_signed<T>::value,
           int64_t,
-          util::conditional_t<
+          detail::conditional_t<
             std::is_convertible<T, std::string>::value,
             std::string,
-            util::conditional_t<
+            detail::conditional_t<
               std::is_same<T, address>::value 
                 || std::is_same<T, subnet>::value 
                 || std::is_same<T, port>::value
@@ -150,8 +151,8 @@ public:
   /// @param x The instance to construct data from.
   template <
     class T,
-    typename = util::disable_if_t<
-      util::is_same_or_derived<data, T>::value 
+    typename = detail::disable_if_t<
+      detail::is_same_or_derived<data, T>::value 
       || std::is_same<type<T>, std::false_type>::value>
     >
   data(T&& x)
@@ -242,10 +243,11 @@ struct hash<broker::data> {
 };
 
 template <>
-struct hash<broker::set> : broker::util::container_hasher<broker::set> {};
+struct hash<broker::set> : broker::detail::container_hasher<broker::set> {};
 
 template <>
-struct hash<broker::vector> : broker::util::container_hasher<broker::vector> {};
+struct hash<broker::vector> 
+  : broker::detail::container_hasher<broker::vector> {};
 
 template <>
 struct hash<broker::table::value_type> {
@@ -254,23 +256,23 @@ struct hash<broker::table::value_type> {
 
   inline result_type operator()(const argument_type& d) const {
     result_type rval{};
-    broker::util::hash_combine<broker::data>(rval, d.first);
-    broker::util::hash_combine<broker::data>(rval, d.second);
+    broker::detail::hash_combine<broker::data>(rval, d.first);
+    broker::detail::hash_combine<broker::data>(rval, d.second);
     return rval;
   }
 };
 
 template <>
-struct hash<broker::table> : broker::util::container_hasher<broker::table> {};
+struct hash<broker::table> : broker::detail::container_hasher<broker::table> {};
 
 template <>
 struct hash<broker::record> {
-  using result_type = typename broker::util::container_hasher<decltype(
+  using result_type = typename broker::detail::container_hasher<decltype(
     broker::record::fields)>::result_type;
   using argument_type = broker::record;
 
   inline result_type operator()(const argument_type& d) const {
-    return broker::util::container_hasher<decltype(broker::record::fields)>{}(
+    return broker::detail::container_hasher<decltype(broker::record::fields)>{}(
       d.fields);
   }
 };

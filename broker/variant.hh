@@ -26,8 +26,8 @@
 //   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 //   DEALINGS IN THE SOFTWARE.
 
-#ifndef BROKER_UTIL_VARIANT_HH
-#define BROKER_UTIL_VARIANT_HH
+#ifndef BROKER_VARIANT_HH
+#define BROKER_VARIANT_HH
 
 #include <cassert>
 #include <type_traits>
@@ -42,11 +42,10 @@
 #include <caf/deserializer.hpp>
 #include <caf/serializer.hpp>
 
-#include "broker/util/operators.hh"
-#include "broker/util/meta.hh"
+#include "broker/detail/operators.hh"
+#include "broker/detail/type_traits.hh"
 
 namespace broker {
-namespace util {
 
 namespace detail {
 
@@ -76,7 +75,7 @@ struct hasher {
 template <class Visitor>
 class delayed_visitor {
 public:
-  using result_type = typename remove_reference_t<Visitor>::result_type;
+  using result_type = typename detail::remove_reference_t<Visitor>::result_type;
 
   delayed_visitor(Visitor v) : visitor(std::move(v)) {
   }
@@ -93,7 +92,7 @@ private:
 template <class Visitor>
 class delayed_visitor_wrapper {
 public:
-  using result_type = typename remove_reference_t<Visitor>::result_type;
+  using result_type = typename detail::remove_reference_t<Visitor>::result_type;
 
   delayed_visitor_wrapper(Visitor& visitor) : visitor(visitor) {
   }
@@ -110,7 +109,7 @@ private:
 template <class Visitor, class Visitable>
 class binary_visitor {
 public:
-  using result_type = typename remove_reference_t<Visitor>::result_type;
+  using result_type = typename detail::remove_reference_t<Visitor>::result_type;
 
   binary_visitor(Visitor& arg_visitor, Visitable& arg_visitable)
     : visitor(arg_visitor), visitable(arg_visitable) {
@@ -128,7 +127,7 @@ private:
 };
 
 template <class T>
-class recursive_wrapper : totally_ordered<recursive_wrapper<T>> {
+class recursive_wrapper : detail::totally_ordered<recursive_wrapper<T>> {
 public:
   template <class U, class Dummy = enable_if_t<std::is_convertible<U, T>{}, U>>
   recursive_wrapper(const U& u)
@@ -200,7 +199,7 @@ private:
 ///             it must start at 0 and increment sequentially by 1.
 /// @tparam Ts the types the variant should assume.
 template <class Tag, class... Ts>
-class variant : totally_ordered<variant<Tag, Ts...>> {
+class variant : detail::totally_ordered<variant<Tag, Ts...>> {
 
   // Workaround for http://stackoverflow.com/q/24433658/1170277
   template <class T, class...>
@@ -241,7 +240,7 @@ public:
   /// Constructs a variant from one of the discriminated types.
   /// @param x the value to construct the variant with.  Note that *x* must be
   ///          unambiguously convertible to one of the variant types.
-  template <class T, class = disable_if_same_or_derived_t<variant, T>>
+  template <class T, class = detail::disable_if_same_or_derived_t<variant, T>>
   variant(T&& x) {
     // A compile error here means that T is not unambiguously convertible to
     // any of the variant types.
@@ -281,15 +280,15 @@ public:
   }
 
   template <class Internal, class Visitor, class... Args>
-  typename remove_reference_t<Visitor>::result_type apply(Visitor&& visitor,
-                                                          Args&&... args) {
+  typename detail::remove_reference_t<Visitor>::result_type
+  apply(Visitor&& visitor, Args&&... args) {
     return visit_impl(active, Internal{}, storage,
                       std::forward<Visitor>(visitor),
                       std::forward<Args>(args)...);
   }
 
   template <class Internal, class Visitor, class... Args>
-  typename remove_reference_t<Visitor>::result_type
+  typename detail::remove_reference_t<Visitor>::result_type
   apply(Visitor&& visitor, Args&&... args) const {
     return visit_impl(active, Internal{}, storage,
                       std::forward<Visitor>(visitor),
@@ -308,7 +307,13 @@ private:
   };
 
   // Could use std::aligned_union, but GCC doesn't have it.
-  aligned_storage_t<max<Sizeof, Ts...>(), max<Alignof, Ts...>()> storage;
+  using storage_type = 
+    detail::aligned_storage_t<
+      detail::max<Sizeof, Ts...>(),
+      detail::max<Alignof, Ts...>()
+    >;
+
+  storage_type storage;
   tag active;
 
   struct default_ctor {
@@ -495,12 +500,15 @@ private:
 
   template <class T, class Storage>
   using const_type =
-    typename std::conditional<std::is_const<remove_reference_t<Storage>>::value,
-                              T const, T>::type;
+    typename std::conditional<
+      std::is_const<detail::remove_reference_t<Storage>>::value,
+      T const,
+      T
+    >::type;
 
   template <class T, class Internal, class Storage, class Visitor,
             class... Args>
-  static typename remove_reference_t<Visitor>::result_type
+  static typename detail::remove_reference_t<Visitor>::result_type
   invoke(Internal internal, Storage&& storage, Visitor&& visitor,
          Args&&... args) {
     auto x = reinterpret_cast<const_type<T, Storage>*>(&storage);
@@ -508,10 +516,11 @@ private:
   }
 
   template <class Internal, class Storage, class Visitor, class... Args>
-  static typename remove_reference_t<Visitor>::result_type
+  static typename detail::remove_reference_t<Visitor>::result_type
   visit_impl(tag which_active, Internal internal, Storage&& storage,
              Visitor&& visitor, Args&&... args) {
-    using result_type = typename remove_reference_t<Visitor>::result_type;
+    using result_type = 
+      typename detail::remove_reference_t<Visitor>::result_type;
     using fn = result_type (*)(Internal, Storage&&, Visitor&&, Args&&...);
     static constexpr fn callers[sizeof...(Ts)]
       = {&invoke<Ts, Internal, Storage, Visitor, Args...>...};
@@ -542,7 +551,7 @@ private:
 
   template <class T>
   void construct(T&& x) noexcept(std::is_rvalue_reference<decltype(x)>{}) {
-    using type = typename std::remove_reference<T>::type;
+    using type = detail::remove_reference_t<T>;
     static_assert(std::is_nothrow_move_constructible<type>{}
                     || !std::is_rvalue_reference<decltype(x)>{},
                   "move constructor of T must not throw");
@@ -628,7 +637,7 @@ detail::delayed_visitor_wrapper<Visitor> apply_visitor(Visitor& visitor) {
 /// @param visitable a variant object.
 /// @return the result of applying the visitor to the active variant member.
 template <class Visitor, class Visitable>
-typename remove_reference_t<Visitor>::result_type
+typename detail::remove_reference_t<Visitor>::result_type
 apply_visitor(Visitor&& visitor, Visitable&& visitable) {
   return visitable.template apply<std::false_type>(
     std::forward<Visitor>(visitor));
@@ -646,7 +655,7 @@ apply_visitor(Visitor&& visitor, Visitable&& visitable) {
 /// @return the result of applying the n-ary visitor between the active members
 /// of the variant object arguments.
 template <class Visitor, class V, class... Vs>
-typename remove_reference_t<Visitor>::result_type
+typename detail::remove_reference_t<Visitor>::result_type
 apply_visitor(Visitor&& visitor, V&& v, Vs&&... vs) {
   return apply_visitor(detail::binary_visitor<Visitor, V>(visitor, v), vs...);
 }
@@ -654,15 +663,15 @@ apply_visitor(Visitor&& visitor, V&& v, Vs&&... vs) {
 /// Allows variants to conform to the variant concept.  Other data types that
 /// provide an extended interface around a variant member may provide overloads
 /// of the const and non-const version of this expose function that return the
-/// variant member in order to enable @see broker::util::visit(),
-/// @see broker::util::get(), @see broker::util::is(), and
-/// @see broker::util::which().
+/// variant member in order to enable @see broker::visit(),
+/// @see broker::get(), @see broker::is(), and
+/// @see broker::which().
 template <class Tag, class... Ts>
 variant<Tag, Ts...>& expose(variant<Tag, Ts...>& v) {
   return v;
 }
 
-/// const version of @see broker::util::expose().
+/// const version of @see broker::expose().
 template <class Tag, class... Ts>
 const variant<Tag, Ts...>& expose(const variant<Tag, Ts...>& v) {
   return v;
@@ -673,7 +682,7 @@ const variant<Tag, Ts...>& expose(const variant<Tag, Ts...>& v) {
 /// @return the result of applying the visitation operation to the active member
 /// of the variant object argument(s).
 template <class Visitor, class... Vs>
-typename remove_reference_t<Visitor>::result_type visit(Visitor&& v,
+typename detail::remove_reference_t<Visitor>::result_type visit(Visitor&& v,
                                                         Vs&&... vs) {
   return apply_visitor(std::forward<Visitor>(v), expose(vs)...);
 }
@@ -687,7 +696,7 @@ T* get(Visitable& v) {
   return apply_visitor(detail::getter<T>{}, expose(v));
 }
 
-/// const version of @see broker::util::get()
+/// const version of @see broker::get()
 template <class T, class Visitable>
 const T* get(const Visitable& v) {
   return apply_visitor(detail::getter<const T>{}, expose(v));
@@ -749,26 +758,20 @@ void serialize(caf::deserializer& source, variant<Ts...>& v, const unsigned) {
   visit(detail::deserializer{source}, v);
 }
 
-} // namespace util
-
-// Use these via ADL in broker namespace.
-using util::visit;
-using util::get;
-using util::is;
-using util::which;
-
 } // namespace broker
 
 namespace std {
+
 template <class Tag, class... Ts>
-struct hash<broker::util::variant<Tag, Ts...>> {
-  using result_type = broker::util::detail::hasher::result_type;
-  using argument_type = broker::util::variant<Tag, Ts...>;
+struct hash<broker::variant<Tag, Ts...>> {
+  using result_type = broker::detail::hasher::result_type;
+  using argument_type = broker::variant<Tag, Ts...>;
 
   inline result_type operator()(const argument_type& v) const {
-    return broker::util::visit(broker::util::detail::hasher{}, v);
+    return broker::visit(broker::detail::hasher{}, v);
   }
 };
-}
 
-#endif // BROKER_UTIL_VARIANT_HH
+} // namespace std
+
+#endif // BROKER_VARIANT_HH

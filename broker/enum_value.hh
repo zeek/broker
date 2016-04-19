@@ -5,13 +5,13 @@
 #include <ostream>
 #include <string>
 
-#include "broker/util/operators.hh"
+#include "broker/detail/operators.hh"
 
 namespace broker {
 
 /// Stores the name of an enum value.  The receiver is responsible for knowing
 /// how to map the name to the actual value if it needs that information.
-struct enum_value : util::totally_ordered<enum_value> {
+struct enum_value : detail::totally_ordered<enum_value> {
   /// Default construct empty enum value name.
   enum_value() { }
 

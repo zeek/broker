@@ -12,9 +12,6 @@
 #include "broker/report.hh"
 #include "broker/store/query.hh"
 
-// FIXME: move from implementation to includes.
-#include "src/util/radix_tree.hh"
-
 #ifdef DEBUG
 // So that we don't have a recursive expansion from sending messages via the
 // report::manager endpoint.

@@ -1,10 +1,10 @@
-#ifndef BROKER_UTIL_HASH_HH
-#define BROKER_UTIL_HASH_HH
+#ifndef BROKER_DETAIL_HASH_HH
+#define BROKER_DETAIL_HASH_HH
 
 #include <functional>
 
 namespace broker {
-namespace util {
+namespace detail {
 
 /// Calculate hash for an object and combine with a provided hash.
 template <class T>
@@ -41,7 +41,7 @@ struct container_hasher {
   }
 };
 
-} // namespace util
+} // namespace detail
 } // namespace broker
 
 #endif // BROKER_UTIL_HASH_HH

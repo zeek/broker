@@ -414,6 +414,8 @@ message = vector_of_data
 %template(incoming_connection_status_queue)
           broker::queue<broker::incoming_connection_status>;
 
+%ignore broker::detail::endpoint_actor;
+%ignore broker::detail::endpoint_proxy_actor;
 %ignore broker::endpoint::operator=;
 %include "broker/endpoint.hh"
 
@@ -592,6 +594,7 @@ public:
 
 %typemap(out) void* { $result = PyLong_FromSize_t((size_t)$1); }
 
+%ignore broker::store::detail::requester;
 %ignore broker::store::frontend::frontend(const frontend&);
 %ignore broker::store::frontend::operator=;
 %include "broker/store/frontend.hh"

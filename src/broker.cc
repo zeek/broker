@@ -16,9 +16,9 @@
 #include "broker/store/query.hh"
 #include "broker/store/response.hh"
 #include "broker/store/expiration_time.hh"
-#include "broker/util/make_unique.hh"
 
-#include "subscription.hh"
+#include "broker/detail/make_unique.hh"
+#include "broker/detail/subscription.hh"
 
 namespace broker {
 
@@ -37,7 +37,7 @@ int init(int flags) {
   report::mtx = new std::mutex{};
   caf::actor_system_config cfg;
   cfg.load<caf::io::middleman>()
-    .add_message_type<topic_set>("broker::topic_set")
+    .add_message_type<detail::topic_set>("broker::detail::topic_set")
     .add_message_type<outgoing_connection_status>(
       "broker::outgoing_connection_status")
     .add_message_type<incoming_connection_status>(

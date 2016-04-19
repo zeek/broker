@@ -4,12 +4,12 @@
 #include <functional>
 #include <ostream>
 
-#include "broker/util/operators.hh"
+#include "broker/detail/operators.hh"
 
 namespace broker {
 
 /// A duration of time, measured in seconds.
-struct time_duration : util::totally_ordered<time_duration> {
+struct time_duration : detail::totally_ordered<time_duration> {
   /// Construct an empty duration (i.e. 0 seconds).
   time_duration() : value(0) {
   }

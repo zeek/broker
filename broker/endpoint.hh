@@ -15,10 +15,8 @@
 #include "broker/peering.hh"
 #include "broker/queue.hh"
 #include "broker/topic.hh"
+#include "broker/detail/subscription.hh"
 #include "broker/store/identifier.hh"
-
-// FIXME: remove after migrating peering away from PIMPL.
-#include "src/subscription.hh"
 
 namespace broker {
 
@@ -28,53 +26,53 @@ namespace detail {
 
 class endpoint_actor : public caf::event_based_actor {
 
-  public:
-    endpoint_actor(caf::actor_config& cfg, const endpoint* ep,
-                   std::string arg_name, int flags, caf::actor ocs_queue,
-                   caf::actor ics_queue);
+public:
+  endpoint_actor(caf::actor_config& cfg, const endpoint* ep,
+                 std::string arg_name, int flags, caf::actor ocs_queue,
+                 caf::actor ics_queue);
 
-  private:
-    caf::behavior make_behavior() override;
+private:
+  caf::behavior make_behavior() override;
 
-    std::string get_peer_name(const caf::actor_addr& a) const;
+  std::string get_peer_name(const caf::actor_addr& a) const;
 
-    std::string get_peer_name(const caf::actor& p) const;
+  std::string get_peer_name(const caf::actor& p) const;
 
-    void add_peer(caf::actor p, std::string peer_name, topic_set ts,
-                  bool incoming);
+  void add_peer(caf::actor p, std::string peer_name, topic_set ts,
+                bool incoming);
 
-    void add(std::string topic_or_id, caf::actor a);
+  void add(std::string topic_or_id, caf::actor a);
 
-    caf::actor find_master(const store::identifier& id);
+  caf::actor find_master(const store::identifier& id);
 
-    void advertise_subscription(topic t);
+  void advertise_subscription(topic t);
 
-    void unadvertise_subscription(topic t);
+  void unadvertise_subscription(topic t);
 
-    void publish_subscription_operation(topic t, caf::atom_value op);
+  void publish_subscription_operation(topic t, caf::atom_value op);
 
-    void publish_locally(const topic& t, broker::message msg, int flags,
-                         bool from_peer);
+  void publish_locally(const topic& t, broker::message msg, int flags,
+                       bool from_peer);
 
-    void publish_current_msg_to_peers(const topic& t, int flags);
+  void publish_current_msg_to_peers(const topic& t, int flags);
 
-    struct peer_endpoint {
-      caf::actor ep;
-      std::string name;
-      bool incoming;
-    };
-
-    caf::behavior active;
-
+  struct peer_endpoint {
+    caf::actor ep;
     std::string name;
-    int behavior_flags;
-    topic_set pub_acls;
-    topic_set advert_acls;
+    bool incoming;
+  };
 
-    std::unordered_map<caf::actor_addr, peer_endpoint> peers;
-    subscription_registry local_subscriptions;
-    subscription_registry peer_subscriptions;
-    topic_set advertised_subscriptions;
+  caf::behavior active;
+
+  std::string name;
+  int behavior_flags;
+  topic_set pub_acls;
+  topic_set advert_acls;
+
+  std::unordered_map<caf::actor_addr, peer_endpoint> peers;
+  subscription_registry local_subscriptions;
+  subscription_registry peer_subscriptions;
+  topic_set advertised_subscriptions;
 };
 
 // Manages connection to a remote endpoint_actor including auto-reconnection

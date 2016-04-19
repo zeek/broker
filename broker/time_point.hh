@@ -5,12 +5,13 @@
 #include <ostream>
 
 #include "broker/time_duration.hh"
-#include "broker/util/operators.hh"
+
+#include "broker/detail/operators.hh"
 
 namespace broker {
 
 /// A point in time represented by a number of seconds from the Unix epoch.
-struct time_point : util::totally_ordered<time_point> {
+struct time_point : detail::totally_ordered<time_point> {
   /// Construct a point in time equal to the Unix epoch (i.e. 0).
   time_point() : value(0) { }
 

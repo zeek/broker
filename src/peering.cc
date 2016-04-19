@@ -2,7 +2,8 @@
 #include <caf/scoped_actor.hpp>
 
 #include "broker/peering.hh"
-#include "broker/util/hash.hh"
+
+#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -45,8 +46,8 @@ bool operator==(const peering& lhs, const peering& rhs) {
 
 size_t std::hash<broker::peering>::operator()(const broker::peering& p) const {
   size_t rval = 0;
-  broker::util::hash_combine(rval, p.endpoint_actor());
-  broker::util::hash_combine(rval, p.peer_actor());
+  broker::detail::hash_combine(rval, p.endpoint_actor());
+  broker::detail::hash_combine(rval, p.peer_actor());
   return rval;
 }
 
