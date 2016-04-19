@@ -48,10 +48,10 @@ public:
   size_t size() const;
 
   /// @return a const reference to a field at a given offset, if it exists.
-  optional<const data&> get(size_t index) const;
+  const data* get(size_t index) const;
 
   /// @return a reference to a field at a given offset, if it exists.
-  optional<data&> get(size_t index);
+  data* get(size_t index);
 
   std::vector<field> fields;
 };
@@ -170,20 +170,20 @@ inline size_t record::size() const {
   return fields.size();
 }
 
-inline optional<const data&> record::get(size_t index) const {
+inline const data* record::get(size_t index) const {
   if (index >= fields.size())
-    return {};
+    return nullptr;
   if (!fields[index])
-    return {};
-  return *fields[index];
+    return nullptr;
+  return &fields[index].value();
 }
 
-inline optional<data&> record::get(size_t index) {
+inline data* record::get(size_t index) {
   if (index >= fields.size())
-    return {};
+    return nullptr;
   if (!fields[index])
-    return {};
-  return *fields[index];
+    return nullptr;
+  return &fields[index].value();
 }
 
 inline bool operator==(const record& lhs, const record& rhs) {

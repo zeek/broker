@@ -73,7 +73,7 @@ public:
 
   /// @return All actors that have registered subscriptions with topic names
   /// exactly matching the given topic name.
-  optional<const actor_set&> exact_match(const topic& t) const;
+  const actor_set* exact_match(const topic& t) const;
 
   /// @return All subscription topics currently registered.
   const topic_set& topics() const {

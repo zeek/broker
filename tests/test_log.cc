@@ -71,8 +71,8 @@ int main(int argc, char** argv) {
   for (int i = 0; i < (int)returned.size(); ++i) {
     BROKER_TEST(returned[i][0] == "pong");
     const auto r = get<record>(returned[i][1]);
-    BROKER_TEST(r->get(0) == data(i));
-    BROKER_TEST(r->get(1) == data("yo"));
+    BROKER_TEST(*r->get(0) == data(i));
+    BROKER_TEST(*r->get(1) == data("yo"));
     BROKER_TEST(!r->get(2));
   }
 

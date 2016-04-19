@@ -87,12 +87,11 @@ subscription_registry::unique_prefix_matches(const topic& t) const {
   return rval;
 }
 
-optional<const actor_set&>
-subscription_registry::exact_match(const topic& t) const {
+const actor_set* subscription_registry::exact_match(const topic& t) const {
   auto it = subs_by_topic.find(t);
   if (it == subs_by_topic.end())
-    return {};
-  return it->second;
+    return nullptr;
+  return &it->second;
 }
 
 } // namespace detail

@@ -42,7 +42,6 @@ msgs = mql.want_pop()
 for m in msgs:
     print("got message")
     i = 0
-
     for d in m:
         print(i, str(d))
 
@@ -71,9 +70,6 @@ for m in msgs:
             assert(d.which() == data.tag_record)
             rec = d.as_record()
             assert(rec == r)
-            assert(rec.fields()[0].valid() == True)
-            assert(rec.fields()[0].get().which() == data.tag_count)
-            assert(rec.fields()[0].get().as_count() == 1)
-            assert(rec.fields()[1].valid() == False)
-
+            assert(rec.fields()[0].value().which() == data.tag_count)
+            assert(rec.fields()[0].value().as_count() == 1)
         i += 1
