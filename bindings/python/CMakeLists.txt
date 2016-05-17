@@ -60,7 +60,7 @@ elseif ( BROKER_PYTHON_HOME )
     set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
 else ()
     execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
-        "from distutils.sysconfig import get_python_lib; print get_python_lib()"
+        "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
                     OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
     set(PY_MOD_INSTALL_DIR ${PYTHON_SITE_PACKAGES})

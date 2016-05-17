@@ -15,6 +15,10 @@
 #include "broker/store/master.hh"
 #include "broker/store/clone.hh"
 
+#if PY_MAJOR_VERSION >= 3
+#define PyInt_AsSsize_t PyLong_AsSsize_t
+#endif
+
 static std::string swig_exception;
 
 static inline void set_swig_exception(const char* e)
