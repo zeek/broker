@@ -99,6 +99,7 @@ set(BROKER_SRC
 
   src/detail/pipe.cc
   src/detail/flare.cc
+  src/detail/scoped_flare_actor.cc
   #src/detail/subscription.cc
 
   #src/store/backend.cc
