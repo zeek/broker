@@ -17,17 +17,22 @@ public:
   }
 
   void enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit* eu) final {
-    auto empty = mailbox().empty();
     blocking_actor::enqueue(std::move(ptr), eu);
-    if (empty)
-      flare_.fire();
+    flare_.fire();
   }
 
-  void dequeue(caf::behavior& bhvr,
-               caf::message_id mid = caf::invalid_message_id) {
-    blocking_actor::dequeue(bhvr, mid);
+  void dequeue(caf::behavior& bhvr) {
+    blocking_actor::dequeue(bhvr, caf::invalid_message_id);
     if (mailbox().empty())
       flare_.extinguish();
+  }
+
+  caf::message dequeue() {
+    await_data();
+    auto ptr = next_message();
+    if (mailbox().empty())
+      flare_.extinguish();
+    return ptr->msg;
   }
 
   void act() final {
@@ -48,6 +53,20 @@ private:
 
 } // namespace <anonymous>
 
+int mailbox::descriptor() {
+  return static_cast<flare_actor*>(actor_)->descriptor();
+}
+
+bool mailbox::empty() {
+  return static_cast<flare_actor*>(actor_)->mailbox().empty();
+}
+
+size_t mailbox::count(size_t max) {
+  return static_cast<flare_actor*>(actor_)->mailbox().count(max);
+}
+
+mailbox::mailbox(caf::blocking_actor* actor) : actor_{actor} {
+}
 
 scoped_flare_actor::scoped_flare_actor(caf::actor_system& sys)
   : context_{&sys} {
@@ -81,12 +100,16 @@ caf::blocking_actor* scoped_flare_actor::ptr() const {
   return static_cast<caf::blocking_actor*>(a);
 }
 
-int scoped_flare_actor::descriptor() const {
-  return static_cast<flare_actor*>(ptr())->descriptor();
+caf::message scoped_flare_actor::dequeue() {
+  return static_cast<flare_actor*>(ptr())->dequeue();
 }
 
-void scoped_flare_actor::receive(caf::behavior& bhvr) {
+void scoped_flare_actor::dequeue(caf::behavior& bhvr) {
   return static_cast<flare_actor*>(ptr())->dequeue(bhvr);
+}
+
+detail::mailbox scoped_flare_actor::mailbox() {
+  return detail::mailbox{ptr()};
 }
 
 caf::actor_control_block* scoped_flare_actor::get() const {

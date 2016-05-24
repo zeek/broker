@@ -187,24 +187,18 @@ void endpoint::unsubscribe(topic t) {
   );
 }
 
-blocking_endpoint::blocking_endpoint(caf::actor_system& sys) 
-  : subscriber_{std::make_shared<caf::scoped_actor>(sys)} {
-  core_ = sys.spawn(core_actor, *subscriber_);
-}
-
 message blocking_endpoint::receive() {
-  for (;;) {
-    (*subscriber_)->await_data();
-    auto ptr = (*subscriber_)->next_message();
-    if (ptr)
-      return ptr->msg;
-  }
+  return subscriber_->dequeue();
 };
 
-bool blocking_endpoint::empty() const {
-  return (*subscriber_)->mailbox().empty();
+detail::mailbox blocking_endpoint::mailbox() {
+  return subscriber_->mailbox();
 }
 
+blocking_endpoint::blocking_endpoint(caf::actor_system& sys)
+  : subscriber_{std::make_shared<detail::scoped_flare_actor>(sys)} {
+  core_ = sys.spawn(core_actor, caf::actor_cast<caf::actor>(*subscriber_));
+}
 
 nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
                                            caf::actor subscriber) {

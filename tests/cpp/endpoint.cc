@@ -28,18 +28,7 @@ TEST(subscription management) {
   e.subscribe("/foo/bar");
   e.unsubscribe("/foo");
   e.publish("/foo/baz", 42); // Does not match.
-  CHECK(e.empty()); // No message in the mailbox.
-}
-
-TEST(blocking subscription) {
-  context ctx;
-  auto e = ctx.spawn<blocking>();
-  e.subscribe("/foo");
-  e.publish("/foo/data", 42);
-  e.receive([](const topic& t, const message& msg) {
-    CHECK_EQUAL(t, "/foo/data"_t);
-    CHECK_EQUAL(msg.get_as<int>(0), 42);
-  });
+  CHECK(e.mailbox().empty());
 }
 
 TEST(nonblocking subscription) {
@@ -61,7 +50,19 @@ TEST(nonblocking subscription) {
   CHECK_EQUAL(*counter, 3);
 }
 
-TEST(non-lambda blocking receive) {
+TEST(blocking lambda receive) {
+  context ctx;
+  auto e = ctx.spawn<blocking>();
+  e.subscribe("/foo");
+  e.publish("/foo/data", 42);
+  e.receive([](const topic& t, const message& msg) {
+    CHECK_EQUAL(t, "/foo/data"_t);
+    CHECK_EQUAL(msg.get_as<int>(0), 42);
+  });
+  CHECK(e.mailbox().empty());
+}
+
+TEST(blocking non-lambda receive) {
   context ctx;
   auto e = ctx.spawn<blocking>();
   e.subscribe("/foo");
@@ -74,7 +75,7 @@ TEST(non-lambda blocking receive) {
   auto m1 = msg.get_as<message>(1);
   REQUIRE_EQUAL(m1.size(), 1u);
   CHECK_EQUAL(m1.get_as<std::string>(0), "broker");
-  CHECK(e.empty());
+  CHECK(e.mailbox().empty());
 }
 
 TEST(multi-topic subscription) {
@@ -85,7 +86,7 @@ TEST(multi-topic subscription) {
   e.subscribe("/foo/bar/baz");
   e.publish("/foo/bar/baz", 4.2);
   e.receive(); // Block and wait until the next message, then discard it.
-  CHECK(e.empty()); // We should have received exactly one message.
+  CHECK(e.mailbox().empty());
 }
 
 TEST(local peering) {

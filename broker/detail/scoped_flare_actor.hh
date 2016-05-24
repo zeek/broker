@@ -1,6 +1,8 @@
 #ifndef BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
 #define BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
 
+#include <limits>
+
 #include <caf/actor_cast.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_storage.hpp>
@@ -11,6 +13,35 @@
 namespace broker {
 namespace detail {
 
+class scoped_flare_actor;
+
+// An internal proxy object that represents the mailbox of a blocking endpoint.
+struct mailbox {
+  friend scoped_flare_actor; // construction
+
+public:
+  // Retrieves a descriptor that indicates whether a message can be received
+  // without blocking.
+  int descriptor();
+
+  /// Checks whether the mailbox is empty.
+  bool empty();
+
+  // Counts the number of messages in the mailbox, up to given maximum
+  // Warning: This is not a constant-time operations, hence the name `count`
+  //          as opposed to `size`. The function takes time *O(n)* where *n*
+  //          is the size of the mailbox.
+  size_t count(size_t max = std::numeric_limits<size_t>::max());
+
+private:
+  explicit mailbox(caf::blocking_actor* actor);
+
+  caf::blocking_actor* actor_;
+};
+
+// A caf::scoped_actor equipped with a descriptor suitable for poll/select
+// loops that signals whether the actor's mailbox is emppty, i.e., whether the
+// actor can receive messages without blocking.
 class scoped_flare_actor {
 public:
   template <class, class, int>
@@ -36,11 +67,11 @@ public:
 
   caf::blocking_actor* ptr() const;
 
-  // Because blocking_actor::dequeue is non-virtual, we need to haul the
-  // receive functionality through this actor.
-  void receive(caf::behavior& bhvr);
+  caf::message dequeue();
 
-  int descriptor() const;
+  void dequeue(caf::behavior& bhvr);
+
+  detail::mailbox mailbox();
 
 private:
   caf::actor_control_block* get() const;

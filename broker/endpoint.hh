@@ -6,7 +6,8 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/scoped_actor.hpp>
+
+#include "broker/detail/scoped_flare_actor.hh"
 
 #include "broker/message.hh"
 #include "broker/topic.hh"
@@ -102,34 +103,39 @@ public:
   /// Consumes one message that matches the given handler.
   template <class T, class... Ts>
   void receive(T&& x, Ts&&... xs) {
-    (*subscriber_)->receive(std::forward<T>(x), std::forward<Ts>(xs)...);
+    caf::behavior bhvr{std::forward<T>(x), std::forward<Ts>(xs)...};
+    subscriber_->dequeue(bhvr);
   }
 
-  /// Checks whether the mailbox of the endpoint is empty.
-  /// @returns `true` if the endpoint has no messages in its mailbox.
-  bool empty() const;
-
-  /// Retrieves the number of queued messages in the mailbox.
-  /// @returns The mailbox size.
-  //size_t mailbox_size() const;
-
-  /// Retrieves a descriptor that indicates whether a message can be retrieved
-  /// without blocking.
-  /// @returns A descriptor which is ready when `mailbox_size() > 0`.
-  int descriptor();
+  /// Access the endpoint's mailbox, which provides the following
+  /// introspection functions:
+  ///
+  /// - `int descriptor()`: Retrieves a descriptor that indicates whether a
+  ///   message can be received without blocking.
+  ///
+  /// - `bool empty()`: Checks whether the endpoint's message mailbox is empty.
+  ///
+  /// - `size_t count(size_t max)`: Counts the number of messages in the
+  ///   mailbox in time that is a linear function of the mailbox size. The
+  ///   parameter `max` allows for specifying an upper bound when to stop
+  ///   counting.
+  ///
+  /// @returns A proxy object to introspect the endpoint's mailbox.
+  detail::mailbox mailbox();
 
 private:
   blocking_endpoint(caf::actor_system& sys);
 
-  std::shared_ptr<caf::scoped_actor> subscriber_;
+  std::shared_ptr<detail::scoped_flare_actor> subscriber_;
 };
 
-/// An endpoint with an asynchronous (nonblocking) API to retrieve messages.
+/// An endpoint with an asynchronous (nonblocking) messaging API.
 class nonblocking_endpoint : public endpoint {
   friend context; // construction
 
 public:
-  // Nothing to see here; full behavior specified upon construction.
+  // Nothing to see here; full behavior specified upon construction via the
+  // context instance.
 
 private:
   nonblocking_endpoint(caf::actor_system& sys, caf::actor subscriber);
