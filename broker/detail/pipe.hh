@@ -32,22 +32,18 @@ public:
   pipe& operator=(pipe&& other);
 
   /// @return the file descriptor associated with the read-end of the pipe.
-  int read_fd() const {
-    return fds[0];
-  }
+  int read_fd() const;
 
   /// @return the file descriptor associated with the write-end of the pipe.
-  int write_fd() const {
-    return fds[1];
-  }
+  int write_fd() const;
 
 private:
   void close();
   void copy(const pipe& other);
   void steal(pipe&& other);
 
-  int fds[2];
-  int flags[2];
+  int fds_[2];
+  int flags_[2];
 };
 
 } // namespace detail

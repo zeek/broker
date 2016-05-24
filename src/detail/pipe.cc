@@ -37,17 +37,16 @@ static int dup_or_fail(int fd, int flags) {
   return rval;
 }
 
-pipe::pipe(int flags0, int flags1, int status_flags0,
-                         int status_flags1) {
+pipe::pipe(int flags0, int flags1, int status_flags0, int status_flags1) {
   // pipe2 can set flags atomically, but not yet available everywhere.
-  if (::pipe(fds))
+  if (::pipe(fds_))
     pipe_fail(errno);
-  flags[0] = flags0;
-  flags[1] = flags1;
-  set_flags(fds[0], flags[0]);
-  set_flags(fds[1], flags[1]);
-  set_status_flags(fds[0], status_flags0);
-  set_status_flags(fds[1], status_flags1);
+  flags_[0] = flags0;
+  flags_[1] = flags1;
+  set_flags(fds_[0], flags_[0]);
+  set_flags(fds_[1], flags_[1]);
+  set_status_flags(fds_[0], status_flags0);
+  set_status_flags(fds_[1], status_flags1);
 }
 
 pipe::~pipe() {
@@ -76,28 +75,35 @@ pipe& pipe::operator=(pipe&& other) {
   return *this;
 }
 
+int pipe::read_fd() const {
+  return fds_[0];
+}
+
+int pipe::write_fd() const {
+  return fds_[1];
+}
+
 void pipe::close() {
-  if (fds[0] != -1)
-    ::close(fds[0]);
-  if (fds[1] != -1)
-    ::close(fds[1]);
+  if (fds_[0] != -1)
+    ::close(fds_[0]);
+  if (fds_[1] != -1)
+    ::close(fds_[1]);
 }
 
 void pipe::copy(const pipe& other) {
-  fds[0] = dup_or_fail(other.fds[0], other.flags[0]);
-  fds[1] = dup_or_fail(other.fds[1], other.flags[1]);
-  flags[0] = other.flags[0];
-  flags[1] = other.flags[1];
+  fds_[0] = dup_or_fail(other.fds_[0], other.flags_[0]);
+  fds_[1] = dup_or_fail(other.fds_[1], other.flags_[1]);
+  flags_[0] = other.flags_[0];
+  flags_[1] = other.flags_[1];
 }
 
 void pipe::steal(pipe&& other) {
-  fds[0] = other.fds[0];
-  fds[1] = other.fds[1];
-  flags[0] = other.flags[0];
-  flags[1] = other.flags[1];
-  other.fds[0] = other.fds[1] = -1;
+  fds_[0] = other.fds_[0];
+  fds_[1] = other.fds_[1];
+  flags_[0] = other.flags_[0];
+  flags_[1] = other.flags_[1];
+  other.fds_[0] = other.fds_[1] = -1;
 }
 
 } // namespace detail
 } // namespace broker
-
