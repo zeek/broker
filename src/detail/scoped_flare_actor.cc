@@ -11,6 +11,8 @@ namespace detail {
 flare_actor::flare_actor(caf::actor_config& sys)
   : super{sys.add_flag(caf::local_actor::is_blocking_flag)} {
   set_default_handler(caf::skip);
+  // Ensure that the first enqueue operation returns unblocked_reader.
+  mailbox().try_block();
 }
 
 void flare_actor::initialize() {
@@ -37,7 +39,6 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
       break;
     }
     case caf::detail::enqueue_result::success:
-      flare_.fire();
       break;
   }
 }
@@ -79,6 +80,8 @@ caf::message flare_actor::dequeue() {
 }
 
 void flare_actor::await_flare(std::chrono::milliseconds timeout) {
+  if (has_next_message())
+    return;
   pollfd p = {flare_.fd(), POLLIN};
   for (;;) {
     auto n = ::poll(&p, 1, timeout.count());
