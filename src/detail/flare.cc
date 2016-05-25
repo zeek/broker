@@ -14,13 +14,11 @@ flare::flare()
 void flare::fire() {
   char tmp = 0;
   for (;;) {
-    int n = write(p.write_fd(), &tmp, 1);
+    auto n = ::write(p.write_fd(), &tmp, 1);
     if (n > 0)
-      // Success -- wrote a byte to pipe.
-      break;
+      break; // Success -- wrote a byte to pipe.
     if (n < 0 && errno == EAGAIN)
-      // Success -- pipe is full and just need at least one byte in it.
-      break;
+      break; // Success -- pipe is full and just need at least one byte in it.
     // Loop because either the byte wasn't written or got EINTR error.
   }
 }
@@ -28,9 +26,20 @@ void flare::fire() {
 void flare::extinguish() {
   char tmp[256];
   for (;;)
-    if (read(p.read_fd(), &tmp, sizeof(tmp)) == -1 && errno == EAGAIN)
-      // Pipe is now drained.
-      break;
+    if (::read(p.read_fd(), tmp, sizeof(tmp)) == -1 && errno == EAGAIN)
+      break; // Pipe is now drained.
+}
+
+bool flare::extinguish_one() {
+  char tmp = 0;
+  auto n = 0;
+  for (;;) {
+    auto n = ::read(p.read_fd(), &tmp, 1);
+    if (n == 1)
+      return true; // Read one byte.
+    if (n < 0 && errno == EAGAIN)
+      return false; // No data available to read.
+  }
 }
 
 } // namespace detail

@@ -1,17 +1,70 @@
 #ifndef BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
 #define BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
 
+#include <chrono>
 #include <limits>
 
 #include <caf/actor_cast.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_storage.hpp>
-#include <caf/intrusive_ptr.hpp>
 #include <caf/blocking_actor.hpp>
+#include <caf/extend.hpp>
+#include <caf/intrusive_ptr.hpp>
+#include <caf/mixin/requester.hpp>
+#include <caf/mixin/sender.hpp>
 #include <caf/scoped_execution_unit.hpp>
+
+#include "broker/detail/flare.hh"
 
 namespace broker {
 namespace detail {
+
+class flare_actor;
+
+} // namespace detail
+} // namespace broker
+
+namespace caf {
+namespace mixin {
+
+template <>
+struct is_blocking_requester<broker::detail::flare_actor> : std::true_type { };
+
+} // namespace mixin
+} // namespace caf
+
+namespace broker {
+namespace detail {
+
+class flare_actor
+  : public caf::extend<caf::local_actor, flare_actor>::
+           with<caf::mixin::requester, caf::mixin::sender> {
+public:
+  using super = caf::extend<caf::local_actor, flare_actor>::
+                with<caf::mixin::requester, caf::mixin::sender>;
+
+  flare_actor(caf::actor_config& sys);
+
+  void initialize() override;
+
+  void act();
+
+  void enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) override;
+
+  void dequeue(caf::behavior& bhvr, caf::message_id mid);
+
+  caf::message dequeue();
+
+  void await_flare(std::chrono::milliseconds timeout =
+                   std::chrono::milliseconds(1000));
+
+  const char* name() const override;
+
+  int descriptor() const;
+
+private:
+  detail::flare flare_;
+};
 
 class scoped_flare_actor;
 
@@ -34,9 +87,9 @@ public:
   size_t count(size_t max = std::numeric_limits<size_t>::max());
 
 private:
-  explicit mailbox(caf::blocking_actor* actor);
+  explicit mailbox(flare_actor* actor);
 
-  caf::blocking_actor* actor_;
+  flare_actor* actor_;
 };
 
 // A caf::scoped_actor equipped with a descriptor suitable for poll/select
@@ -59,13 +112,13 @@ public:
   scoped_flare_actor& operator=(const scoped_flare_actor&) = delete;
   scoped_flare_actor& operator=(scoped_flare_actor&&) = default;
 
-  caf::blocking_actor* operator->() const;
+  flare_actor* operator->() const;
 
-  caf::blocking_actor& operator*() const;
+  flare_actor& operator*() const;
 
   caf::actor_addr address() const;
 
-  caf::blocking_actor* ptr() const;
+  flare_actor* ptr() const;
 
   caf::message dequeue();
 

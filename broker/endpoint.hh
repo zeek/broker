@@ -39,8 +39,6 @@ class endpoint {
   friend context;
 
 public:
-  endpoint() = default;
-
   endpoint(const blocking_endpoint&);
   endpoint(const nonblocking_endpoint&);
 
@@ -88,6 +86,9 @@ public:
   void unsubscribe(topic t);
 
 protected:
+  explicit endpoint(caf::actor core);
+  explicit endpoint(caf::unsafe_actor_handle_init_t);
+
   caf::actor core_;
 };
 

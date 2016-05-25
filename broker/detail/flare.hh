@@ -21,11 +21,19 @@ public:
     return p.read_fd();
   }
 
-  // Put the object in the "ready" state.
+  // Put the object in the "ready" state by writing one byte into the
+  // underlying pipe.
   void fire();
 
-  // Take the object out of the "ready" state.
+  // Take the object out of the "ready" state by consuming all bytes from the
+  // underlying pipe.
   void extinguish();
+
+  // Attempts to consume only one byte from the pipe, potentially leaving the
+  // flare in "ready" state.
+  // Returns `true` if one byte was read successfully from the pipe and false
+  // if the pipe had no data to be read.
+  bool extinguish_one();
 
 private:
   pipe p;
