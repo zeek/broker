@@ -186,11 +186,7 @@ void endpoint::unsubscribe(topic t) {
   );
 }
 
-endpoint::endpoint(caf::actor core) : core_{std::move(core)} {
-}
-
-endpoint::endpoint(caf::unsafe_actor_handle_init_t)
-  : core_{caf::unsafe_actor_handle_init} {
+endpoint::endpoint() : core_{caf::unsafe_actor_handle_init} {
 }
 
 message blocking_endpoint::receive() {
@@ -202,14 +198,13 @@ detail::mailbox blocking_endpoint::mailbox() {
 }
 
 blocking_endpoint::blocking_endpoint(caf::actor_system& sys)
-  : endpoint{caf::unsafe_actor_handle_init},
-    subscriber_{std::make_shared<detail::scoped_flare_actor>(sys)} {
+  : subscriber_{std::make_shared<detail::scoped_flare_actor>(sys)} {
   core_ = sys.spawn(core_actor, caf::actor_cast<caf::actor>(*subscriber_));
 }
 
 nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
-                                           caf::actor subscriber)
-  : endpoint{sys.spawn(core_actor, std::move(subscriber))} {
+                                           caf::actor subscriber) {
+  core_ = sys.spawn(core_actor, std::move(subscriber));
 }
 
 } // namespace broker

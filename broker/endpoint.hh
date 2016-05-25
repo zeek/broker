@@ -86,8 +86,7 @@ public:
   void unsubscribe(topic t);
 
 protected:
-  explicit endpoint(caf::actor core);
-  explicit endpoint(caf::unsafe_actor_handle_init_t);
+  endpoint();
 
   caf::actor core_;
 };
