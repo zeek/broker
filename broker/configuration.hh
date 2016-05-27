@@ -5,21 +5,17 @@
 
 namespace broker {
 
-class context;
-
 /// Provides an execution context for brokers.
-class configuration {
-  friend context;
-
+class configuration : public caf::actor_system_config {
 public:
   /// Default-constructs a configuration.
-  configuration();
+  configuration() = default;
 
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
 
 private:
-  caf::actor_system_config config_;
+  void init() override;
 };
 
 } // namespace broker

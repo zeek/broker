@@ -3,7 +3,7 @@
 
 namespace broker {
 
-context::context(configuration config) : system_{std::move(config.config_)} {
+context::context(configuration config) : system_{std::move(config)} {
 }
 
 } // namespace broker
