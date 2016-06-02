@@ -3,6 +3,8 @@
 
 #include <caf/error.hpp>
 
+#include "broker/message.hh"
+
 namespace broker {
 
 using caf::error;
@@ -22,14 +24,14 @@ const char* to_string(ec x);
 template <class... Ts>
 error make_error(ec x, Ts&&... xs) {
   return error{static_cast<uint8_t>(x), caf::atom("broker"),
-               caf::make_message(std::forward<Ts>(xs)...)};
+               make_message(std::forward<Ts>(xs)...)};
 }
 
 /// Simplifies generation of structured errors.
 /// @relates ec
 template <ec ErrorCode = ec::unspecified, class... Ts>
-error fail(Ts&&... xs) {
-  return make_error(ErrorCode, std::forward<Ts>(xs)...);
+message make_error_message(Ts&&... xs) {
+  return make_message(make_error(ErrorCode, std::forward<Ts>(xs)...));
 }
 
 } // namespace broker

@@ -7,9 +7,12 @@
 
 #include <caf/actor.hpp>
 
+#include "broker/detail/operators.hh"
 #include "broker/detail/scoped_flare_actor.hh"
 
+#include "broker/endpoint_uid.hh"
 #include "broker/message.hh"
+#include "broker/optional.hh"
 #include "broker/topic.hh"
 
 namespace broker {
@@ -19,22 +22,17 @@ class endpoint;
 class blocking_endpoint;
 class nonblocking_endpoint;
 
-/// A peer of an endpoint.
-class peer {
-  friend endpoint; // construction
-public:
-  peer() = default;
-
-  std::string address() const;
-  uint16_t port() const;
-
-private:
-  peer(caf::actor_addr addr);
-
-  caf::actor_addr addr_;
+/// Information about an endpoint peer.
+/// @relates endpoint
+struct peer_info {
+  endpoint_uid uid; ///< The globally unique endpoint ID.
+  bool outbound;    ///< A flag indicating whether an outbound peering exists.
+  bool inbound;     ///< A flag indicating whether an inbound peering exists.
 };
 
-/// The main messaging abstraction.
+/// The main publish/subscribe abstraction. Endpoints can *peer* which each
+/// other in order to relay published messages according to their
+/// subscriptions.
 class endpoint {
   friend context;
 
@@ -45,25 +43,41 @@ public:
   endpoint& operator=(const blocking_endpoint& other);
   endpoint& operator=(const nonblocking_endpoint& other);
 
-  explicit operator bool() const noexcept;
-  bool operator!() const noexcept;
+  /// @returns a globally unique identifier for this endpoint.
+  endpoint_uid uid() const;
+
+  /// Listens at a specific port to accept remote peers.
+  /// @param port The port to listen locally. If 0, the endpoint selects the
+  ///             next available free port from the OS
+  /// @param address The interface to listen at. If empty, listen on all
+  ///                local interfaces.
+  /// @returns The port the enpoint listens on or 0 upon failure.
+  uint16_t listen(uint16_t port, const std::string& address = {});
 
   /// Initiates a peering with another endpoint.
   /// @param other The endpoint to peer with.
-  bool peer(const endpoint& other);
+  /// @note The function returns immediately. The endpoint receives a status
+  ///       message indicating the result of the peering operation.
+  void peer(const endpoint& other);
 
-  /// Initiates a peering with a remote endpoint.
+  /// Initiates a peering with a remote endpoint. Thi
   /// @param address The IP address of the remote endpoint.
   /// @param port The TCP port of the remote endpoint.
-  bool peer(const std::string& address, uint16_t port);
+  /// @note The function returns immediately. The endpoint receives a status
+  ///       message indicating the result of the peering operation.
+  void peer(const std::string& address, uint16_t port);
 
   /// Unpeers from another endpoint.
   /// @param other The endpoint to unpeer from.
-  bool unpeer(const endpoint& other);
+  /// @note The function returns immediately. The endpoint receives a status
+  ///       message indicating the result of the peering operation.
+  void unpeer(const endpoint& other);
+
+  void unpeer(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.
   /// @returns A pointer to the list
-  std::vector<broker::peer> peers() const;
+  std::vector<peer_info> peers() const;
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -91,7 +105,7 @@ protected:
   caf::actor core_;
 };
 
-/// An endpoint with a synchronous (blocking) API to retrieve messages.
+/// An endpoint with a synchronous (blocking) messaging API.
 class blocking_endpoint : public endpoint {
   friend context; // construction
 
@@ -134,8 +148,8 @@ class nonblocking_endpoint : public endpoint {
   friend context; // construction
 
 public:
-  // Nothing to see here; full behavior specified upon construction via the
-  // context instance.
+  // Nothing to see here, please move along. The behavior of a nonblocking
+  // endpoint is fully specified when spawned via a context instance.
 
 private:
   nonblocking_endpoint(caf::actor_system& sys, caf::actor subscriber);

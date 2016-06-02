@@ -11,6 +11,10 @@
 
 namespace broker {
 
+configuration::configuration() {
+  init();
+}
+
 configuration::configuration(int argc, char** argv) {
   parse(argc, argv);
 }

@@ -83,12 +83,15 @@ set(BROKER_SRC
   src/context.cc
   src/data.cc
   src/endpoint.cc
+  src/endpoint_uid.cc
   src/enum_value.cc
   src/error.cc
   #src/persistables.cc
+  src/network_info.cc
   src/port.cc
   src/record.cc
   src/set.cc
+  src/status.cc
   src/string.cc
   src/subnet.cc
   src/table.cc

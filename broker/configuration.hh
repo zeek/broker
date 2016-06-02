@@ -9,7 +9,7 @@ namespace broker {
 class configuration : public caf::actor_system_config {
 public:
   /// Default-constructs a configuration.
-  configuration() = default;
+  configuration();
 
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
