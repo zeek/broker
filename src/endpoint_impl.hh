@@ -256,6 +256,8 @@ public:
 			},
 		[=](master_atom, store::identifier& id, actor& a)
 			{
+			BROKER_DEBUG(name,
+									"master_atom received");
 			if ( local_subscriptions_single.exact_match(id) )
 				{
 				report::error(name + ".store.master." + id,
@@ -312,10 +314,10 @@ public:
 				return;
 			}
 
-			BROKER_DEBUG(name, " msg received, current_sender is " 
+			BROKER_DEBUG(name, " msg received, current_sender is "
 										+ to_string(current_sender())
 										+ ", flags " + to_string(flags));
-			
+
 			// we are the initial sender
 			if(!current_sender())
 			{
@@ -361,6 +363,7 @@ public:
 		},
 		[=](store_actor_atom, const store::identifier& n)
 		{
+			BROKER_DEBUG(name, "store_actor_atom, before find_master");
 			return find_master(n);
 		},
 		[=](const store::identifier& n, const store::query& q,
@@ -490,19 +493,22 @@ private:
 	void add_peer(caf::actor p, std::string peer_name, bool incoming,
 			topic_set ts_single, topic_set ts_multi, bool routable)
 	{
+		bool self_routable = (behavior_flags & AUTO_ROUTING);
+
 		BROKER_DEBUG(name, " Peered with: '" + peer_name
 				+ "\n" + peer_name + " subscriptions:"
 				+ "single "  + to_string(ts_single)
 				+ ", multi "  + to_string(ts_multi)
 				+ "\nown subscriptions:  "
 				+ "single "  + to_string(local_subscriptions_single.topics())
-				+ ", multi "  + to_string(local_subscriptions_multi.topics()));
+				+ ", multi "  + to_string(local_subscriptions_multi.topics())
+			 	+ ", we are routable: " + to_string(self_routable));
+
 		demonitor(p);
 		monitor(p);
 		peers[p.address()] = {p, peer_name, incoming, routable};
 		peer_subscriptions_single.insert(subscriber{p, std::move(ts_single)});
 
-		bool self_routable = (behavior_flags & AUTO_ROUTING);
 		if(routable || self_routable)
 			{
 			for(auto& s: ts_multi)

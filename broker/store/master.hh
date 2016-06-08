@@ -9,16 +9,16 @@
 namespace broker { namespace store {
 
 /**
- * Data store visible locally and for neighbors only, 
- * via single-hop communication 
+ * Data store visible locally and for neighbors only,
+ * via single-hop communication
  */
-constexpr int LOCAL_STORE = 0x01;
+constexpr int LOCAL_STORE = 0x00;
 
 /**
- * Data store visible globally 
+ * Data store visible globally
  * via multi-hop communication 
  */
-constexpr int GLOBAL_STORE = 0x02;
+constexpr int GLOBAL_STORE = 0x01;
 /**
  * A master data store.  This type of store is "authoritative" over all its
  * contents meaning that if a clone makes an update, it sends it to the master
@@ -41,7 +41,7 @@ public:
 	master(const endpoint& e, identifier name,
 	       std::unique_ptr<backend> s =
 	       std::unique_ptr<backend>(new memory_backend),
-				 int flags = LOCAL_STORE 
+				 int flags = LOCAL_STORE
 				 );
 
 	/**
