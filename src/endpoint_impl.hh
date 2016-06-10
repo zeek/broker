@@ -363,7 +363,7 @@ public:
 		},
 		[=](store_actor_atom, const store::identifier& n)
 		{
-			BROKER_DEBUG(name, "store_actor_atom, before find_master");
+			BROKER_DEBUG(name, "store_actor_atom received");
 			return find_master(n);
 		},
 		[=](const store::identifier& n, const store::query& q,
@@ -428,6 +428,8 @@ public:
 				for ( const auto& t : to_remove )
 					unadvertise_subscription(topic{t.first});
 
+				// TODO handle change of AUTO_ROUTING flag 
+
 				return;
 			}
 
@@ -446,7 +448,6 @@ public:
 			BROKER_DEBUG(name, "Disallow publishing topic: " + t);
 			pub_acls.erase(t);
 		},
-		// TODO single and multi-hop subscriptions
 		[=](advert_atom, string& t)
 		{
 			BROKER_DEBUG(name, "Allow advertising subscription: " + t);
@@ -617,13 +618,18 @@ private:
 	 unadvertise_subscription(t, this);
 	 }
 
-	//FIXME unsub from multi_hop subscriptions
 	void unadvertise_subscription(topic t, caf::actor a)
 	 {
 	 if ( advertised_subscriptions_single.erase(t) )
 	  {
 		BROKER_DEBUG(name, "Unadvertise subscription: " + t);
 		publish_subscription_operation(std::move(t), unsub_atom::value, a);
+		}
+
+	 else if ( advertised_subscriptions_multi.erase(t) )
+		{
+		BROKER_DEBUG(name, "Unadvertise multi-hop subscription: " + t);
+		publish_subscription_operation(std::move(t), munsub_atom::value, a);
 		}
 	 }
 
@@ -797,7 +803,6 @@ private:
 		return true;
 		}
 
-	// TODO rename function
 	topic_set get_all_subscriptions()
 		{
 		// get subscriptions of all neighbors
