@@ -1,5 +1,6 @@
 #include "broker/broker.hh"
 #include "broker/endpoint.hh"
+#include "broker/report.hh"
 #include "broker/message_queue.hh"
 #include "testsuite.h"
 #include <vector>
@@ -1012,6 +1013,8 @@ static void test_restricted_publish_multi()
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b0, {
 	               message{"0", "bye"},
+	               message{"1", "still can't think of anything"},
+	               message{"2", "hello"}
 	               }));
 
 	BROKER_TEST(
@@ -1019,7 +1022,11 @@ static void test_restricted_publish_multi()
 	               message{"0", "hi"},
 	               message{"0", "bye"},
 	               message{"0", "topicmsg"},
+	               message{"1", "can't think of anything"},
+	               message{"1", "still can't think of anything"},
 	               message{"1", "topicmsg"},
+	               message{"2", "goodbye"},
+	               message{"2", "hello"},
 	               message{"2", "topicmsg"}
 	               }));
 
@@ -1030,8 +1037,14 @@ static void test_restricted_publish_multi()
 	               message{"0", "tmsg"},
 	               message{"0", "topicmsg"},
 	               message{"0", "What are you doing, Dave?"},
+	               message{"1", "can't think of anything"},
+	               message{"1", "still can't think of anything"},
+	               message{"1", "tmsg"},
 	               message{"1", "topicmsg"},
 	               message{"1", "My mind is going."},
+	               message{"2", "goodbye"},
+	               message{"2", "hello"},
+	               message{"2", "tmsg"},
 	               message{"2", "topicmsg"},
 	               message{"2", "I can feel it."}
 	               }));
@@ -1066,11 +1079,17 @@ static void test_restricted_publish_multi()
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_b2, {
 	               message{"2", "hello"},
+	               message{"0", "bye"},
+	               message{"1", "still can't think of anything"}
 	               }));
 	BROKER_TEST(
 	check_contents_unordered(pq_topic_2, {
+	               message{"0", "hi"},
+	               message{"0", "bye"},
 	               message{"2", "goodbye"},
 	               message{"2", "hello"},
+	               message{"1", "can't think of anything"},
+	               message{"1", "still can't think of anything"},
 	               message{"0", "topicmsg"},
 	               message{"1", "topicmsg"},
 	               message{"2", "topicmsg"}

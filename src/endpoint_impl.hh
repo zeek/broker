@@ -363,7 +363,7 @@ public:
 		},
 		[=](store_actor_atom, const store::identifier& n)
 		{
-			BROKER_DEBUG(name, "store_actor_atom received");
+			BROKER_DEBUG(name, "store_actor_atom received with id " + n);
 			return find_master(n);
 		},
 		[=](const store::identifier& n, const store::query& q,
@@ -650,9 +650,18 @@ private:
 	 // Send the msg out
 	 for ( const auto& p : peers )
 		{
+		BROKER_DEBUG(name, caf::to_string(op) + ", would like to forward subscription for topic " + t
+								+ " to peer " + p.second.name
+								+ " flags: " + to_string(behavior_flags & AUTO_ROUTING) 
+								+ " p.routable: " + to_string(p.second.routable)
+								+ " local subscriptions: " + to_string(!local_subscriptions_single.exact_match(t).empty())
+								+ " advert_acls: " + to_string(advert_acls.find(t) != advert_acls.end()));
+
 		if(	p.second.ep == skip
-				|| (!(behavior_flags & AUTO_ROUTING) && !p.second.routable))
+				|| ( !((behavior_flags & AUTO_ROUTING) && p.second.routable) 
+						&& (!(local_subscriptions_single.exact_match(t) && advert_acls.find(t) == advert_acls.end()))) ) 
 	  	continue;
+
 		BROKER_DEBUG(name, caf::to_string(op) + ", forward topic " + t
 								+ " to peer " + p.second.name);
 		send(p.second.ep, msg);
@@ -673,9 +682,7 @@ private:
 
 		if ( matches_single.empty() && matches_multi.empty() )
 			{
-			BROKER_DEBUG(name, "publish_locally, return (matches.empty()): single"
-												+ to_string(local_subscriptions_single.topics())
-												+ ", multi" + to_string(local_subscriptions_multi.topics()));
+			BROKER_DEBUG(name, "publish_locally, return (matches.empty()): single" + to_string(local_subscriptions_single.topics()) + ", multi" + to_string(local_subscriptions_multi.topics()));
 			return;
 			}
 
@@ -702,18 +709,15 @@ private:
 		{
 		if ( ! (flags & PEERS) )
 			{
-			BROKER_DEBUG(name, "   - return: ! (flags & PEERS)");
+			BROKER_DEBUG(name, "   - publish_current_msg_to_peers, return: ! (flags & PEERS)");
 			return;
 			}
 
-		if ( ! (behavior_flags & AUTO_PUBLISH) &&
-						pub_acls.find(t) == pub_acls.end() )
+		if(!(behavior_flags & AUTO_PUBLISH) // No AUTO_PUBLISH 
+				&& pub_acls.find(t) == pub_acls.end() // no single-hop sending allowed
+				&& peer_subscriptions_multi.unique_prefix_matches(t).empty()) // not a multi-hop topic
 			{
-			BROKER_DEBUG(name, "   - return: ! (behavior_flags & AUTO_PUBLISH) && pub_acls.find(t) == pub_acls.end():"
-										+ to_string(behavior_flags) + ", " + to_string(AUTO_PUBLISH) + ", "
-										+ to_string((behavior_flags & AUTO_PUBLISH))
-									  + ", " + to_string((pub_acls.find(t) == pub_acls.end())) + " for topic " + t);
-			// Not allowed to publish this topic to peers.
+			BROKER_DEBUG(name, "publish_current_msg_to_peers: not forwarding content for topic " + t);
 			return;
 			}
 
@@ -721,16 +725,17 @@ private:
 		// current_sender() to check if msg comes from a peer.
 		if ( (flags & UNSOLICITED) )
 			{
-			BROKER_DEBUG(name, "evil things are going on here");
 			for ( const auto& p : peers )
 				{
 				if(current_sender() == p.first)
 					continue;
-				assert(false);
+				
+				BROKER_DEBUG( name, " ------------> send unsolicited msg for topic " 
+											+ t + " to " + get_peer_name(p.second.ep));
 				send(p.second.ep, current_message());
 				}
 			}
-		else
+			else
 			{
 
 			// msgs for single-hop subscriptions are only forwarded when we are the publisher
@@ -739,7 +744,8 @@ private:
 				// publish msgs for single-hop subscriptions
 				for ( const auto& a : peer_subscriptions_single.unique_prefix_matches(t) )
 					{
-					BROKER_DEBUG( name, " ------------> publish single-hop msg for topic " + t + " to " + get_peer_name(a));
+					BROKER_DEBUG( name, " ------------> publish single-hop msg for topic " 
+												+ t + " to " + get_peer_name(a));
 					send(a, current_message());
 					}
 				}
@@ -750,11 +756,12 @@ private:
 				if(current_sender() == a)
 					continue;
 				assert(a != this);
-				BROKER_DEBUG( name, " ------------> publish multi-hop msg for topic " + t + " to " + get_peer_name(a));
+				BROKER_DEBUG( name, " ------------> publish multi-hop msg for topic " 
+											+ t + " to " + get_peer_name(a));
 				send(a, current_message());
 				}
 			}
-		}
+		} 
 
 	void register_subscription(const topic& t, caf::actor a)
 		{
