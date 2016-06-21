@@ -13,9 +13,6 @@ public:
 
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
-
-private:
-  void init() override;
 };
 
 } // namespace broker

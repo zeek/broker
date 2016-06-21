@@ -26,7 +26,7 @@ const char* to_string(status_info info) {
 status::status(status_info info) : info{info} {
 }
 
-status::status(status_info info, endpoint_uid local, endpoint_uid remote,
+status::status(status_info info, endpoint_info local, endpoint_info remote,
                std::string message)
   : info{info},
     local{local},

@@ -5,8 +5,7 @@
 
 #include "broker/detail/operators.hh"
 
-#include "broker/endpoint_uid.hh"
-#include "broker/message.hh"
+#include "broker/endpoint_info.hh"
 
 namespace broker {
 
@@ -33,12 +32,12 @@ struct status : detail::equality_comparable<status, status_info>,
   /// Default-constructs an unknown status.
   status(status_info info = unknown_status);
 
-  status(status_info info, endpoint_uid local, endpoint_uid remote,
+  status(status_info info, endpoint_info local, endpoint_info remote,
          std::string message = {});
 
   status_info info;     ///< The ::status_info type.
-  endpoint_uid local;   ///< The local endpoint UID.
-  endpoint_uid remote;  ///< The remote endpoint UID.
+  endpoint_info local;  ///< The local endpoint UID.
+  endpoint_info remote; ///< The remote endpoint UID.
   std::string message;  ///< A descriptive context message.
 };
 

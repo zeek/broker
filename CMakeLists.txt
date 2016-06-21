@@ -83,7 +83,6 @@ set(BROKER_SRC
   src/context.cc
   src/data.cc
   src/endpoint.cc
-  src/endpoint_uid.cc
   src/enum_value.cc
   src/error.cc
   #src/persistables.cc

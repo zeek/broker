@@ -10,16 +10,17 @@
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/spawn_flags.hh"
 
 namespace broker {
 
-class endpoint;
-class blocking_endpoint;
-class nonblocking_endpoint;
-
 /// Provides an execution context for endpoints.
 class context {
+  // Access to actor system
+  friend blocking_endpoint;
+  friend nonblocking_endpoint;
+
 public:
   /// Constructs a context from a specific configuration.
   context(configuration config = {});

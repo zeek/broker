@@ -1,9 +1,12 @@
 #include "broker/context.hh"
-#include "broker/endpoint.hh"
 
 namespace broker {
+namespace {
 
-context::context(configuration config) : system_{std::move(config)} {
+} // namespace <anonymous>
+
+context::context(configuration config)
+  : system_{std::move(config)} {
 }
 
 } // namespace broker

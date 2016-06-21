@@ -17,6 +17,9 @@ constexpr auto core = seconds(1);
 /// Timeout when peering between two brokers.
 constexpr auto peer = seconds(10);
 
+/// Timeout when reconnecting after broken connection.
+constexpr auto reconnect = seconds(10);
+
 /// Timeout when subscribing to a topic.
 constexpr auto subscribe = seconds(5);
 

@@ -10,29 +10,46 @@
 #include "broker/detail/operators.hh"
 #include "broker/detail/scoped_flare_actor.hh"
 
-#include "broker/endpoint_uid.hh"
+#include "broker/endpoint_info.hh"
+#include "broker/network_info.hh"
 #include "broker/message.hh"
 #include "broker/optional.hh"
+#include "broker/peer_flags.hh"
 #include "broker/topic.hh"
 
 namespace broker {
 
-class context;
-class endpoint;
-class blocking_endpoint;
-class nonblocking_endpoint;
-
-/// Information about an endpoint peer.
-/// @relates endpoint
-struct peer_info {
-  endpoint_uid uid; ///< The globally unique endpoint ID.
-  bool outbound;    ///< A flag indicating whether an outbound peering exists.
-  bool inbound;     ///< A flag indicating whether an inbound peering exists.
+/// Describes the possible states of a peer. A local peer begins in state
+/// `initialized` and transitions directly to `peered`. A remote peer
+/// begins in `initialized` and then through states `connecting`, `connected`,
+/// and then `peered`.
+enum class peer_status {
+  initialized,    ///< The peering process has been initiated.
+  connecting,     ///< Connection establishment is in progress.
+  connected,      ///< Connection has been established, peering pending.
+  peered,         ///< Successfully peering.
+  disconnected,   ///< Connection to remote peer lost.
+  reconnecting,   ///< Reconnecting after a lost connection.
 };
 
+/// Information about a peer of an endpoint.
+/// @relates endpoint
+struct peer_info {
+  endpoint_info peer;   ///< Information about the peer.
+  peer_flags flags;     ///< Details about peering relationship.
+  peer_status status;   ///< The current peering status.
+};
+
+template <class Processor>
+void serialize(Processor& proc, peer_info& pi) {
+  proc & pi.peer;
+  proc & pi.flags;
+  proc & pi.status;
+}
+
 /// The main publish/subscribe abstraction. Endpoints can *peer* which each
-/// other in order to relay published messages according to their
-/// subscriptions.
+/// other to exchange messages. When publishing a message though an endpoint,
+/// all peers with matching subscriptions receive the message.
 class endpoint {
   friend context;
 
@@ -43,16 +60,16 @@ public:
   endpoint& operator=(const blocking_endpoint& other);
   endpoint& operator=(const nonblocking_endpoint& other);
 
-  /// @returns a globally unique identifier for this endpoint.
-  endpoint_uid uid() const;
+  /// @returns Information about this endpoint.
+  endpoint_info info() const;
 
   /// Listens at a specific port to accept remote peers.
-  /// @param port The port to listen locally. If 0, the endpoint selects the
-  ///             next available free port from the OS
   /// @param address The interface to listen at. If empty, listen on all
   ///                local interfaces.
-  /// @returns The port the enpoint listens on or 0 upon failure.
-  uint16_t listen(uint16_t port, const std::string& address = {});
+  /// @param port The port to listen locally. If 0, the endpoint selects the
+  ///             next available free port from the OS
+  /// @returns The port the endpoint bound to or 0 on failure.
+  uint16_t listen(const std::string& address = {}, uint16_t port = 0);
 
   /// Initiates a peering with another endpoint.
   /// @param other The endpoint to peer with.
@@ -100,9 +117,11 @@ public:
   void unsubscribe(topic t);
 
 protected:
-  endpoint();
+  endpoint() = default;
 
-  caf::actor core_;
+  const caf::actor& core() const;
+
+  std::shared_ptr<caf::actor> core_;
 };
 
 /// An endpoint with a synchronous (blocking) messaging API.

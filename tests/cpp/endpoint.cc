@@ -13,7 +13,7 @@ using std::chrono::seconds;
 
 bool is_ready(blocking_endpoint& e, seconds secs = seconds::zero()) {
   auto fd = e.mailbox().descriptor();
-  pollfd p = {fd, POLLIN};
+  pollfd p = {fd, POLLIN, {}};
   auto n = ::poll(&p, 1, secs.count() * 1000);
   if (n < 0)
     std::terminate();
@@ -122,37 +122,81 @@ TEST(local peering and unpeering) {
   MESSAGE("verifying peer info of originator");
   auto peers = x.peers();
   REQUIRE_EQUAL(peers.size(), 1u);
-  CHECK(peers[0].outbound);
-  CHECK(!peers[0].inbound);
-  CHECK_EQUAL(peers[0].uid.node, y.uid().node);
-  CHECK_EQUAL(peers[0].uid.endpoint, y.uid().endpoint);
-  CHECK(!peers[0].uid.network);
+  CHECK(is_outbound(peers[0].flags));
+  CHECK(!is_inbound(peers[0].flags));
+  CHECK_EQUAL(peers[0].peer.id, y.info().id);
+  CHECK(!peers[0].peer.network);
   MESSAGE("verifying peer info of responder");
   peers = y.peers();
   REQUIRE_EQUAL(peers.size(), 1u);
-  CHECK(!peers[0].outbound);
-  CHECK(peers[0].inbound);
-  CHECK_EQUAL(peers[0].uid.node, x.uid().node);
-  CHECK_EQUAL(peers[0].uid.endpoint, x.uid().endpoint);
-  CHECK(!peers[0].uid.network);
+  CHECK(!is_outbound(peers[0].flags));
+  CHECK(is_inbound(peers[0].flags));
+  CHECK_EQUAL(peers[0].peer.id, x.info().id);
+  CHECK(!peers[0].peer.network);
   MESSAGE("unpeer endpoints");
   x.unpeer(y);
   x.receive([](const status& s) { CHECK(s == peer_removed); });
-  CHECK_EQUAL(x.peers().size(), 0u);
-  CHECK_EQUAL(y.peers().size(), 1u);
-  y.unpeer(x);
   y.receive([](const status& s) { CHECK(s == peer_removed); });
+  CHECK_EQUAL(x.peers().size(), 0u);
   CHECK_EQUAL(y.peers().size(), 0u);
+  y.unpeer(x);
+  // Peer already removed.
+  y.receive([](const status& s) { CHECK(s == peer_invalid); });
 }
 
-//TEST(remote peering) {
-//  context ctx;
-//  auto x = ctx.spawn<blocking>();
-//  auto y = ctx.spawn<blocking>();
-//  auto bound_port = y.listen(0, "127.0.0.1");
-//  REQUIRE(bound_port > 0);
-//  x.peer("127.0.0.1", bound_port);
-//  x.receive([](const status& s) { CHECK(s == peer_added); });
-//  CHECK_EQUAL(x.peers().size(), 1u);
-//  CHECK_EQUAL(y.peers().size(), 1u);
-//}
+TEST(remote peering) {
+  context ctx;
+  auto x = ctx.spawn<blocking>();
+  auto y = ctx.spawn<blocking>();
+  auto bound_port = y.listen("127.0.0.1");
+  REQUIRE(bound_port > 0);
+  x.peer("127.0.0.1", bound_port);
+  x.receive([](const status& s) { CHECK(s == peer_added); });
+  y.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK_EQUAL(x.peers().size(), 1u);
+  CHECK_EQUAL(y.peers().size(), 1u);
+}
+
+TEST(local peering termination) {
+  context ctx;
+  auto x = ctx.spawn<blocking>();
+  {
+    auto y = ctx.spawn<blocking>();
+    x.peer(y);
+    x.receive([](const status& s) { CHECK(s == peer_added); });
+    y.receive([](const status& s) { CHECK(s == peer_added); });
+    CHECK_EQUAL(x.peers().size(), 1u);
+    CHECK_EQUAL(y.peers().size(), 1u);
+  }
+  // We cannot re-establish a connection to a local endpoint. If it terminates,
+  // the peering is gone.
+  x.receive([](const status& s) { CHECK(s == peer_removed); });
+  CHECK_EQUAL(x.peers().size(), 0u);
+}
+
+TEST(remote peering termination) {
+  context ctx;
+  auto bound_port = uint16_t{0};
+  auto x = ctx.spawn<blocking>();
+  {
+    auto y = ctx.spawn<blocking>();
+    bound_port = y.listen("127.0.0.1");
+    REQUIRE(bound_port > 0);
+    x.peer("127.0.0.1", bound_port);
+    x.receive([](const status& s) { CHECK(s == peer_added); });
+    y.receive([](const status& s) { CHECK(s == peer_added); });
+  }
+  // When losing a connection to remote endpoint, we still keep that peer
+  // around until the peering originator removes it.
+  x.receive([&](const status& s) {
+    CHECK(s == peer_lost);
+    REQUIRE(s.remote.network);
+    CHECK_EQUAL(s.remote.network->address, "127.0.0.1");
+    CHECK_EQUAL(s.remote.network->port, bound_port);
+  });
+  CHECK_EQUAL(x.peers().size(), 1u);
+  // Now remove the peer.
+  x.unpeer("127.0.0.1", bound_port);
+  x.receive([&](const status& s) { CHECK(s == peer_removed); });
+  CHECK_EQUAL(x.peers().size(), 0u);
+}
