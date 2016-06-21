@@ -32,7 +32,6 @@ void flare::extinguish() {
 
 bool flare::extinguish_one() {
   char tmp = 0;
-  auto n = 0;
   for (;;) {
     auto n = ::read(p.read_fd(), &tmp, 1);
     if (n == 1)

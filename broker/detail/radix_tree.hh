@@ -543,7 +543,6 @@ template <typename T, std::size_t N>
 std::deque<typename radix_tree<T, N>::iterator>
 radix_tree<T, N>::prefix_of(const key_type& data) const {
   node* n = root;
-  node* last = root;
   std::deque<iterator> rval;
   int depth = 0;
 
@@ -1134,7 +1133,7 @@ void radix_tree<T, N>::node48::add_child(node** ref, unsigned char c,
 }
 
 template <typename T, std::size_t N>
-void radix_tree<T, N>::node256::add_child(node** ref, unsigned char c,
+void radix_tree<T, N>::node256::add_child(node**, unsigned char c,
                                           node* child) {
   ++n.num_children;
   children[c] = child;

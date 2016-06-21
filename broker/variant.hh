@@ -58,7 +58,7 @@ struct getter {
   }
 
   template <class U>
-  result_type operator()(const U& u) const {
+  result_type operator()(const U&) const {
     return nullptr;
   }
 };

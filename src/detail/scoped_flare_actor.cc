@@ -82,7 +82,7 @@ caf::message flare_actor::dequeue() {
 void flare_actor::await_flare(std::chrono::milliseconds timeout) {
   if (has_next_message())
     return;
-  pollfd p = {flare_.fd(), POLLIN};
+  pollfd p = {flare_.fd(), POLLIN, {}};
   for (;;) {
     auto n = ::poll(&p, 1, timeout.count());
     if (n < 0 && errno != EAGAIN)
