@@ -116,8 +116,7 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
   );
 }
 
-// Supervises the connection to an IP address and TCP port where an endpoint is
-// listenting.
+// Supervises the connection to an IP address and TCP port.
 caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
                          network_info net) {
   self->send(self, atom::connect::value);
@@ -146,8 +145,7 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          caf::actor subscriber) {
-  self->state.info.node = self->address().node();
-  self->state.info.id = self->address().id();
+  self->state.info = make_info(self);
   // The core actor monitors inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
@@ -348,7 +346,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->send(subscriber, std::move(s));
     },
     [=](atom::unpeer, const caf::actor& other, bool propagate) {
-      BROKER_DEBUG("got request to unpeering with endpoint");
+      BROKER_DEBUG("got request to unpeer with endpoint");
       auto peers = &self->state.peers;
       auto handle = other.address();
       auto pred = [&](const peer_state& p) { return p.actor == other; };
@@ -526,24 +524,14 @@ blocking_endpoint::blocking_endpoint(caf::actor_system& sys)
   auto sub = caf::actor_cast<caf::actor>(*subscriber_);
   auto core = sys.spawn(core_actor, std::move(sub));
   auto ptr = new caf::actor{std::move(core)};
-  try {
-    core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
-  } catch (const std::bad_alloc&) {
-    delete ptr;
-    throw;
-  }
+  core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
 }
 
 nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
                                            caf::actor subscriber) {
   auto core = sys.spawn(core_actor, std::move(subscriber));
   auto ptr = new caf::actor{std::move(core)};
-  try {
-    core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
-  } catch (const std::bad_alloc&) {
-    delete ptr;
-    throw;
-  }
+  core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
 }
 
 } // namespace broker
