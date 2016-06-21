@@ -38,6 +38,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
 
   Optional Features:
     --enable-debug         compile in debugging mode (like --build-type=Debug)
+    --enable-asan          enable AddressSanitizer
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
     --disable-pybroker     don't try to build python bindings
@@ -110,6 +111,9 @@ while [ $# -ne 0 ]; do
             ;;
         --enable-debug)
             append_cache_entry ENABLE_DEBUG         BOOL   true
+            ;;
+        --enable-asan)
+            append_cache_entry ENABLE_ADDRESS_SANITIZER BOOL true
             ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true

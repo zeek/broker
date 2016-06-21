@@ -70,6 +70,19 @@ endif ()
 
 include(RequireCXX11)
 
+# Increase maximum number of instantiations.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+
+# Reduce the number of template instantiations shown in backtrace.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+
+if (ENABLE_ADDRESS_SANITIZER)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+endif(ENABLE_ADDRESS_SANITIZER)
+
+# Append our extra flags to the existing value of CXXFLAGS.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+
 install(DIRECTORY broker DESTINATION include)
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
