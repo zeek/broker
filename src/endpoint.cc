@@ -528,8 +528,12 @@ blocking_endpoint::blocking_endpoint(caf::actor_system& sys)
 }
 
 nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
-                                           caf::actor subscriber) {
-  auto core = sys.spawn(core_actor, std::move(subscriber));
+                                           caf::behavior bhvr) {
+  auto subscriber = [=](caf::event_based_actor* self) {
+    self->set_default_handler(caf::drop); // avoids unintended leaks
+    return bhvr;
+  };
+  auto core = sys.spawn(core_actor, sys.spawn(subscriber));
   auto ptr = new caf::actor{std::move(core)};
   core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
 }

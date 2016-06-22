@@ -171,7 +171,7 @@ public:
   // endpoint is fully specified when spawned via a context instance.
 
 private:
-  nonblocking_endpoint(caf::actor_system& sys, caf::actor subscriber);
+  nonblocking_endpoint(caf::actor_system& sys, caf::behavior bhvr);
 };
 
 } // namespace broker

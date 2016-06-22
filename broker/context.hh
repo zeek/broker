@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include <caf/actor_system.hpp>
-#include <caf/event_based_actor.hpp>
+#include <caf/behavior.hpp>
 
 #include "broker/detail/type_traits.hh"
 
@@ -36,8 +36,7 @@ public:
   template <spawn_flags Flags, class... Ts>
   detail::enable_if_t<Flags == nonblocking, nonblocking_endpoint>
   spawn(Ts&&... xs) {
-    auto subscriber = system_.spawn([=] { return caf::behavior{xs...}; });
-    return {system_, std::move(subscriber)};
+    return {system_, caf::behavior{std::forward<Ts>(xs)...}};
   }
 
 private:
