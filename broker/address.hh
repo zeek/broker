@@ -3,10 +3,8 @@
 
 #include <array>
 #include <cstdint>
-#include <ostream>
 #include <string>
 
-#include <broker/optional.hh>
 #include <broker/detail/operators.hh>
 
 namespace broker {
@@ -26,17 +24,14 @@ public:
     network,
   };
 
-  /// @return an address, if one could be made from the string argument.
-  static optional<address> from_string(const std::string& s);
-
   /// Default construct an invalid address.
   address();
 
   /// Construct an address from raw bytes.
   /// @param bytes A pointer to the raw representation.  This must point
-  /// to 4 bytes if \a fam is family::ipv4 and 16 bytes for family::ipv6.
+  /// to 4 bytes if *fam* is `family::ipv4` and 16 bytes for `family::ipv6`.
   /// @param fam The type of address.
-  /// @param order The byte order in which \a bytes is stored.
+  /// @param order The byte order in which *bytes* is stored.
   address(const uint32_t* bytes, family fam, byte_order order);
 
   /// Mask out lower bits of the address.
@@ -45,51 +40,54 @@ public:
   /// the IPv6 bit width, even if the address is IPv4.  That means to compute
   /// 192.168.1.2/16, pass in 112 (i.e. 96 + 16).  The value must range from
   /// 0 to 128.
-  /// @return true on success.
+  /// @returns true on success.
   bool mask(uint8_t top_bits_to_keep);
 
-  /// @return true if the address is IPv4.
+  /// @returns true if the address is IPv4.
   bool is_v4() const;
 
-  /// @return true if the address is IPv6.
+  /// @returns true if the address is IPv6.
   bool is_v6() const;
 
-  /// @return the raw bytes of the address in network order.  For IPv4
+  /// @returns the raw bytes of the address in network order.  For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
   const std::array<uint8_t, 16>& bytes() const;
 
-  /// @return a string representation of the address argument.
-  friend std::string to_string(const address& a);
-
-  friend std::ostream& operator<<(std::ostream& out, const address& a);
-
   friend bool operator==(const address& lhs, const address& rhs);
-
   friend bool operator<(const address& lhs, const address& rhs);
+  friend bool convert(const std::string& str, address& a);
 
   template <class Processor>
-  friend void serialize(Processor& proc, address& a, const unsigned int) {
-    proc& a.addr;
+  friend void serialize(Processor& proc, address& a) {
+    proc & a.bytes_;
   }
 
-  static const std::array<uint8_t, 12> v4_mapped_prefix;
-
 private:
-  std::array<uint8_t, 16> addr; // Always in network order.
+  std::array<uint8_t, 16> bytes_; // Always in network order.
 };
 
-std::string to_string(const address& a);
-std::ostream& operator<<(std::ostream& out, const address& a);
+/// @relates address
 bool operator==(const address& lhs, const address& rhs);
+
+/// @relates address
 bool operator<(const address& lhs, const address& rhs);
+
+/// @relates address
+bool convert(const std::string& str, address& a);
+
+/// @relates address
+bool convert(const address& a, std::string& str);
 
 } // namespace broker
 
 namespace std {
+
+/// @relates address
 template <>
 struct hash<broker::address> {
   size_t operator()(const broker::address&) const;
 };
+
 } // namespace std;
 
 #endif // BROKER_ADDRESS_HH

@@ -11,8 +11,7 @@ namespace broker {
 /// A duration of time, measured in seconds.
 struct time_duration : detail::totally_ordered<time_duration> {
   /// Construct an empty duration (i.e. 0 seconds).
-  time_duration() : value(0) {
-  }
+  time_duration() = default;
 
   /// Construct a duration from a given number of seconds.
   explicit time_duration(double seconds) : value(seconds) {
@@ -38,7 +37,7 @@ struct time_duration : detail::totally_ordered<time_duration> {
     return *this;
   }
 
-  double value;
+  double value = 0.0;
 };
 
 inline bool operator==(const time_duration& lhs, const time_duration& rhs) {

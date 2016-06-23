@@ -107,9 +107,8 @@ set(BROKER_SRC
   src/string.cc
   src/subnet.cc
   src/table.cc
+  src/time.cc
   src/topic.cc
-  src/time_duration.cc
-  src/time_point.cc
   #src/vector.cc
 
   src/detail/pipe.cc

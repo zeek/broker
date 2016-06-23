@@ -18,6 +18,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(tests
   test.cpp
+  cpp/data.cc
   cpp/endpoint.cc
   cpp/radix_tree.cc
 )

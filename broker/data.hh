@@ -144,8 +144,7 @@ public:
   using type = from<typename std::decay<T>::type>;
 
   /// Default construct data.
-  data() {
-  }
+  data() = default;
 
   /// Constructs data.
   /// @param x The instance to construct data from.

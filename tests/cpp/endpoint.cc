@@ -200,3 +200,20 @@ TEST(remote peering termination) {
   x.receive([&](const status& s) { CHECK(s == peer_removed); });
   CHECK_EQUAL(x.peers().size(), 0u);
 }
+
+TEST(multiple peers) {
+  context ctx;
+  auto counter = std::make_shared<int>(0);
+  auto a = ctx.spawn<blocking>();
+  auto b = ctx.spawn<blocking>();
+  auto c = ctx.spawn<blocking>();
+  auto d = ctx.spawn<nonblocking>(
+    [=](const topic&, const message&) {
+      ++*counter;
+    }
+  );
+  MESSAGE("chain peers");
+  a.peer(b);
+  b.peer(c);
+  c.peer(d);
+}

@@ -2,7 +2,6 @@
 #define BROKER_PORT_HH
 
 #include <cstdint>
-#include <ostream>
 #include <string>
 
 #include "broker/detail/operators.hh"
@@ -11,12 +10,8 @@ namespace broker {
 
 /// A transport-layer port.
 class port : detail::totally_ordered<port> {
-  template <class Processor>
-  friend void serialize(Processor& proc, port& p, const unsigned int);
-
 public:
-  // Not using "using" because SWIG doesn't support it yet.
-  typedef uint16_t number_type;
+  using number_type = uint16_t;
 
   enum class protocol : uint8_t {
     unknown,
@@ -37,30 +32,34 @@ public:
   /// @return The port's transport protocol.
   protocol type() const;
 
-  /// @return a string representation of the port argument.
-  friend std::string to_string(const port& p);
-
-  friend std::ostream& operator<<(std::ostream& out, const port& p);
-
+  template <class Processor>
+  friend void serialize(Processor& proc, port& p);
   friend bool operator==(const port& lhs, const port& rhs);
-
   friend bool operator<(const port& lhs, const port& rhs);
 
 private:
-  number_type num;
-  protocol proto;
+  number_type num_;
+  protocol proto_;
 };
 
-std::string to_string(const port& p);
-std::ostream& operator<<(std::ostream& out, const port& p);
+/// @relates port
 bool operator==(const port& lhs, const port& rhs);
+
+/// @relates port
 bool operator<(const port& lhs, const port& rhs);
 
+/// @relates port
 template <class Processor>
-void serialize(Processor& proc, port& p, const unsigned) {
-  proc& p.num;
-  proc& p.proto;
+void serialize(Processor& proc, port& p) {
+  proc & p.num_;
+  proc & p.proto_;
 }
+
+/// @relates port
+bool convert(const port& p, std::string& str);
+
+/// @relates port
+bool convert(const std::string& str, port& p);
 
 } // namespace broker
 
