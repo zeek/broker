@@ -98,7 +98,6 @@ set(BROKER_SRC
   src/endpoint.cc
   src/enum_value.cc
   src/error.cc
-  #src/persistables.cc
   src/network_info.cc
   src/port.cc
   src/record.cc
@@ -129,7 +128,6 @@ set(BROKER_SRC
   #src/store/sqlite_backend.cc
 
   src/util/misc.cc
-  src/util/persist.cc
 
   #${OPTIONAL_SRC}
 )
@@ -144,11 +142,6 @@ set(CMAKE_REQUIRED_FLAGS)
 
 if (HAVE_SSE2)
   add_definitions(-DBROKER_USE_SSE2 -msse2)
-endif ()
-
-if (BROKER_BIG_ENDIAN)
-  set_source_files_properties(src/util/persist.c PROPERTIES COMPILE_FLAGS
-                              -DBROKER_BIG_ENDIAN)
 endif ()
 
 if (NOT INSTALL_LIB_DIR)
