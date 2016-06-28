@@ -12,44 +12,19 @@ TEST(basic) {
   CHECK(std::is_same<real, double>::value);
 }
 
-TEST(enum) {
-  auto e = enum_value{"foo"};
-  CHECK_EQUAL(e.name, "foo");
-}
-
 TEST(time duration) {
-  time::duration d;
-  CHECK_EQUAL(d.unit, time::unit::invalid);
-  CHECK_EQUAL(d.count, 0);
-  d = std::chrono::milliseconds(100);
-  CHECK_EQUAL(d.unit, time::unit::milliseconds);
-  CHECK_EQUAL(d.count, 100);
-  d = std::chrono::nanoseconds(100);
-  CHECK_EQUAL(d.unit, time::unit::nanoseconds);
-  CHECK_EQUAL(d.count, 100);
-  MESSAGE("std::chrono::time_point interoperability");
-  std::chrono::system_clock::time_point tp;
-  tp += time::duration{time::unit::milliseconds, 10};
-  auto since_epoch = tp.time_since_epoch();
-  auto us = std::chrono::duration_cast<std::chrono::microseconds>(since_epoch);
-  CHECK_EQUAL(us.count(), 10 * 1000);
-  MESSAGE("conversion");
-  auto fractional = to<double>(d);
-  REQUIRE(fractional);
-  CHECK_EQUAL(*fractional, 100e-9);
-  d = {time::unit::seconds, 42};
-  auto ms = to<std::chrono::milliseconds>(d);
-  REQUIRE(ms);
-  CHECK_EQUAL(ms->count(), 42 * 1000);
-  MESSAGE("printing");
-  CHECK_EQUAL(to_string(time::duration{}), "0");
-  CHECK_EQUAL(to_string(time::duration{time::unit::seconds, -10}), "-10s");
-  CHECK_EQUAL(to_string(time::duration{time::unit::nanoseconds, 7}), "7ns");
+  auto d = time::duration{42};
+  CHECK_EQUAL(std::chrono::nanoseconds{42}, d);
 }
 
 TEST(time point) {
-  time::point p;
-  CHECK_EQUAL(p.value.count, 0);
+  auto p = time::point{time::duration{42}};
+  CHECK_EQUAL(p.time_since_epoch(), time::duration{42});
+}
+
+TEST(enum) {
+  auto e = enum_value{"foo"};
+  CHECK_EQUAL(e.name, "foo");
 }
 
 TEST(address) {
