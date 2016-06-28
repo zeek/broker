@@ -3,228 +3,170 @@
 
 #include <cstdint>
 #include <map>
-#include <ostream>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
+#include "broker/fwd.hh"
+#include "broker/none.hh"
 #include "broker/optional.hh"
 #include "broker/port.hh"
 #include "broker/subnet.hh"
-#include "broker/time_duration.hh"
-#include "broker/time_point.hh"
-#include "broker/variant.hh"
+#include "broker/time.hh"
 
 #include "broker/detail/hash.hh"
+#include "broker/detail/variant.hh"
 
 namespace broker {
 
-class data;
+struct data;
 
 /// A container of sequential data.
 using vector = std::vector<data>;
 
+/// @relates vector
+bool convert(const vector& v, std::string& str);
+
 /// An associative, ordered container of unique keys.
 using set = std::set<data>;
+
+/// @relates set
+bool convert(const set& s, std::string& str);
 
 /// An associative, ordered container that maps unique keys other values.
 using table = std::map<data, data>;
 
-/// A container of sequential, optional data.  That is, the value at any given
-/// index either exists or does not.
-class record : detail::totally_ordered<record> {
-public:
-  using field = optional<data>;
+/// @relates table
+bool convert(const table& t, std::string& str);
 
-  /// Default construct an empty record.
-  record() = default;
-
-  /// Construct a record from a list of fields.
-  record(std::vector<field> arg_fields);
-
-  /// @return the number of fields in the record.
-  size_t size() const;
-
-  /// @return a const reference to a field at a given offset, if it exists.
-  const data* get(size_t index) const;
-
-  /// @return a reference to a field at a given offset, if it exists.
-  data* get(size_t index);
-
-  std::vector<field> fields;
+/// A container of sequential heterogeneous data.
+// We use inheritance here to ensure that record is a different type from
+// vector. With a sheer type alias, they would both map to a vector<data>. This
+// is not the most elegant solution and may change in the future.
+struct record : std::vector<data> {
+  using std::vector<broker::data>::vector;
 };
 
-template <class Processor>
-void serialize(Processor& proc, record& r, const unsigned) {
-  proc & r.fields;
-}
+/// @relates record
+bool convert(const record& r, std::string& str);
 
-/// A variant-like class that may store the data associated with one of several
+using data_variant = detail::variant<
+  none,
+  boolean,
+  count,
+  integer,
+  real,
+  std::string,
+  address,
+  subnet,
+  port,
+  time::point,
+  time::duration,
+  enum_value,
+  set,
+  table,
+  vector,
+  record
+>;
+
+/// A variant class that may store the data associated with one of several
 /// different primitive or compound types.
-class data : detail::totally_ordered<data> {
-public:
-  enum class tag : uint8_t {
-    // Primitive types
-    boolean,    // bool
-    count,      // uint64_t
-    integer,    // int64_t
-    real,       // double
-    string,     // std::string
-    address,    // broker::address
-    subnet,     // broker::subnet
-    port,       // broker::port
-    time,       // broker::time_point
-    duration,   // broker::time_duration
-    enum_value, // broker::enum_value
-    // Compound types
-    set,
-    table,
-    vector,
-    record
-  };
-
-  using types = variant<
-    tag, 
-    bool,
-    uint64_t,
-    int64_t,
-    double,
-    std::string, 
-    address, 
-    subnet, 
-    port,
-    time_point, 
-    time_duration, 
-    enum_value, 
-    set, 
-    table, 
-    vector, 
-    record
-   >;
-
-  template <class T>
-  using from = detail::conditional_t<
-    std::is_floating_point<T>::value,
-    double,
-    detail::conditional_t<
-      std::is_same<T, bool>::value,
-      bool,
-      detail::conditional_t<
-        std::is_unsigned<T>::value,
-        uint64_t,
+struct data : data_variant {
+	template <class T>
+	using from = detail::conditional_t<
+        std::is_floating_point<T>::value,
+        real,
         detail::conditional_t<
-          std::is_signed<T>::value,
-          int64_t,
+          std::is_same<T, bool>::value,
+          boolean,
           detail::conditional_t<
-            std::is_convertible<T, std::string>::value,
-            std::string,
+            std::is_unsigned<T>::value,
+            count,
             detail::conditional_t<
-              std::is_same<T, address>::value 
-                || std::is_same<T, subnet>::value 
-                || std::is_same<T, port>::value
-                || std::is_same<T, time_point>::value 
-                || std::is_same<T, time_duration>::value 
-                || std::is_same<T, enum_value>::value 
-                || std::is_same<T, set>::value 
-                || std::is_same<T, table>::value 
-                || std::is_same<T, vector>::value 
-                || std::is_same<T, record>::value,
-              T,
-              std::false_type
+              std::is_signed<T>::value,
+              integer,
+              detail::conditional_t<
+                std::is_convertible<T, std::string>::value,
+                std::string,
+                detail::conditional_t<
+                  std::is_same<T, time::point>::value
+                    || std::is_same<T, time::duration>::value
+                    || std::is_same<T, enum_value>::value
+	                  || std::is_same<T, address>::value
+                    || std::is_same<T, subnet>::value
+                    || std::is_same<T, port>::value
+                    || std::is_same<T, set>::value
+                    || std::is_same<T, table>::value
+                    || std::is_same<T, vector>::value
+                    || std::is_same<T, record>::value,
+                  T,
+                  std::false_type
+                >
+              >
             >
           >
         >
-      >
-    >
-  >;
+      >;
 
-  template <class T>
-  using type = from<typename std::decay<T>::type>;
-
-  /// Default construct data.
-  data() = default;
-
-  /// Constructs data.
-  /// @param x The instance to construct data from.
-  template <
-    class T,
-    typename = detail::disable_if_t<
-      detail::is_same_or_derived<data, T>::value 
-      || std::is_same<type<T>, std::false_type>::value>
-    >
-  data(T&& x)
-    : value(type<T>(std::forward<T>(x))) {
+  /// Default-constructs an empty data value in `none` state.
+  data(none = nil) {
+    // nop
   }
 
-  types value;
+  /// Constructs a data value from one of the possible data types.
+	template <
+	  class T,
+	  class = detail::disable_if_t<
+              detail::is_same_or_derived<data, T>::value
+                || std::is_same<
+                     from<detail::decay_t<T>>,
+                     std::false_type
+                   >::value
+            >
+	>
+	data(T&& x) : data_variant(from<detail::decay_t<T>>(std::forward<T>(x))) {
+	  // nop
+	}
+
+  /// Attempts to retrieve a specific data.
+  /// @tparam T The type to check.
+  /// @returns A pointer to `T` or `nullptr` when the data instance holds a
+  /// different type.
+  template <class T>
+  T* get() {
+    return detail::get_if<T>(*this);
+  }
+
+  /// Attempts to retrieve a specific data.
+  /// @tparam T The type to check.
+  /// @returns A pointer to `T` or `nullptr` when the data instance holds a
+  /// different type.
+  template <class T>
+  const T* get() const {
+    return detail::get_if<const T>(*this);
+  }
 };
 
-inline record::record(std::vector<field> arg_fields)
-  : fields(std::move(arg_fields)) {
+/// Perform multiple dispatch on data instances.
+/// @tparam Visitor The visitor type.
+/// @param visitor The visitor to instance.
+/// @param xs The data instances that *visitor* should visit.
+/// @returns The return value of `Visitor::operator()`.
+/// @relates data
+template <class Visitor, class... Ts>
+auto visit(Visitor&& visitor, Ts&&... xs)
+-> detail::enable_if_t<
+  detail::are_same<data, detail::decay_t<Ts>...>::value,
+  typename Visitor::result_type
+> {
+  return detail::visit(std::forward<Visitor>(visitor),
+                       std::forward<Ts>(xs)...);
 }
 
-inline size_t record::size() const {
-  return fields.size();
-}
-
-inline const data* record::get(size_t index) const {
-  if (index >= fields.size())
-    return nullptr;
-  if (!fields[index])
-    return nullptr;
-  return &fields[index].value();
-}
-
-inline data* record::get(size_t index) {
-  if (index >= fields.size())
-    return nullptr;
-  if (!fields[index])
-    return nullptr;
-  return &fields[index].value();
-}
-
-inline bool operator==(const record& lhs, const record& rhs) {
-  return lhs.fields == rhs.fields;
-}
-
-inline bool operator<(const record& lhs, const record& rhs) {
-  return lhs.fields < rhs.fields;
-}
-
-inline data::types& expose(data& d) {
-  return d.value;
-}
-
-inline const data::types& expose(const data& d) {
-  return d.value;
-}
-
-inline bool operator==(const data& lhs, const data& rhs) {
-  return lhs.value == rhs.value;
-}
-
-inline bool operator<(const data& lhs, const data& rhs) {
-  return lhs.value < rhs.value;
-}
-
-template <class Processor>
-void serialize(Processor& proc, data& d, const unsigned) {
-  proc& d.value;
-}
-
-std::string to_string(const data&);
-std::string to_string(const vector&);
-std::string to_string(const set&);
-std::string to_string(const table&);
-std::string to_string(const record&);
-
-std::ostream& operator<<(std::ostream&, const broker::data&);
-std::ostream& operator<<(std::ostream&, const broker::vector&);
-std::ostream& operator<<(std::ostream&, const broker::set&);
-std::ostream& operator<<(std::ostream&, const broker::table&);
-std::ostream& operator<<(std::ostream&, const broker::record&);
+/// @relates data
+bool convert(const data& d, std::string& str);
 
 } // namespace broker
 
@@ -232,49 +174,41 @@ namespace std {
 
 template <>
 struct hash<broker::data> {
-  using value_type = broker::data::types;
-  using result_type = typename std::hash<value_type>::result_type;
-  using argument_type = broker::data;
+  using result_type = typename std::hash<broker::data_variant>::result_type;
 
-  inline result_type operator()(const argument_type& d) const {
-    return std::hash<value_type>{}(d.value);
+  inline result_type operator()(const broker::data& d) const {
+    return std::hash<broker::data_variant>{}(d);
   }
 };
 
 template <>
-struct hash<broker::set> : broker::detail::container_hasher<broker::set> {};
+struct hash<broker::set>
+  : broker::detail::container_hasher<broker::set> {};
 
 template <>
-struct hash<broker::vector> 
+struct hash<broker::vector>
   : broker::detail::container_hasher<broker::vector> {};
 
 template <>
 struct hash<broker::table::value_type> {
   using result_type = typename std::hash<broker::data>::result_type;
-  using argument_type = broker::table::value_type;
 
-  inline result_type operator()(const argument_type& d) const {
-    result_type rval{};
-    broker::detail::hash_combine<broker::data>(rval, d.first);
-    broker::detail::hash_combine<broker::data>(rval, d.second);
-    return rval;
+  inline result_type operator()(const broker::table::value_type& p) const {
+    result_type result;
+    broker::detail::hash_combine(result, p.first);
+    broker::detail::hash_combine(result, p.second);
+    return result;
   }
 };
 
 template <>
-struct hash<broker::table> : broker::detail::container_hasher<broker::table> {};
+struct hash<broker::table>
+  : broker::detail::container_hasher<broker::table> {};
 
 template <>
-struct hash<broker::record> {
-  using result_type = typename broker::detail::container_hasher<decltype(
-    broker::record::fields)>::result_type;
-  using argument_type = broker::record;
+struct hash<broker::record>
+  : broker::detail::container_hasher<broker::record> {};
 
-  inline result_type operator()(const argument_type& d) const {
-    return broker::detail::container_hasher<decltype(broker::record::fields)>{}(
-      d.fields);
-  }
-};
-}
+} // namespace std
 
 #endif // BROKER_DATA_HH

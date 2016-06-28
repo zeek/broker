@@ -7,6 +7,14 @@ bool operator==(const duration& lhs, const duration& rhs) {
   return lhs.unit == rhs.unit && lhs.count == rhs.count;
 }
 
+bool operator<(const duration& lhs, const duration& rhs) {
+  if (lhs.unit == unit::invalid)
+    return false;
+  if (lhs.unit == rhs.unit)
+    return lhs.count < rhs.count;
+  return false;
+}
+
 bool convert(const duration& d, std::string& str) {
   str = std::to_string(d.count);
   switch (d.unit) {
@@ -81,6 +89,14 @@ bool convert(const duration& d, std::chrono::seconds& s) {
 
 bool operator==(const point& lhs, const point& rhs) {
   return lhs.value == rhs.value;
+}
+
+bool operator<(const point& lhs, const point& rhs) {
+  return lhs.value < rhs.value;
+}
+
+bool convert(const point& d, std::string& str) {
+  return convert(d.value, str);
 }
 
 point now() {

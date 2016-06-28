@@ -5,8 +5,7 @@
 #include "broker/data.hh"
 #include "broker/port.hh"
 #include "broker/subnet.hh"
-#include "broker/time_duration.hh"
-#include "broker/time_point.hh"
+#include "broker/time.hh"
 #include "broker/topic.hh"
 
 namespace broker {
@@ -16,8 +15,8 @@ configuration::configuration() {
   add_message_type<address>("broker::address");
   add_message_type<subnet>("broker::subnet");
   add_message_type<port>("broker::port");
-  add_message_type<time_duration>("broker::time_duration");
-  add_message_type<time_point>("broker::time_point");
+  add_message_type<time::duration>("broker::time::duration");
+  add_message_type<time::point>("broker::time::point");
   add_message_type<enum_value>("broker::enum_value");
   add_message_type<vector>("broker::vector");
   add_message_type<broker::set>("broker::set");

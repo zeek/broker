@@ -21,7 +21,10 @@ set(tests
   cpp/data.cc
   cpp/endpoint.cc
   cpp/radix_tree.cc
+  cpp/variant.cc
 )
+
+# TODO: port/discard old unit tests
 #unit_test(test_print)
 #unit_test(test_print_remote)
 #unit_test(test_event local;remote)
@@ -33,7 +36,6 @@ set(tests
 #unit_test(test_store_backend ${backends})
 #unit_test(test_store_expiry ${backends})
 #unit_test(test_subscription_matching)
-#unit_test(test_variant)
 #unit_test(test_data)
 #unit_test(test_network_types)
 

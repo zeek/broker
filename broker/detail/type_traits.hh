@@ -18,6 +18,10 @@ using conditional_t = typename std::conditional<B, T, F>::type;
 template <class T>
 using remove_reference_t = typename std::remove_reference<T>::type;
 
+// std::decay_t shortcut from C++14.
+template <class T>
+using decay_t = typename std::decay<T>::type;
+
 // std::aligned_storage_t shortcut from C++14.
 template <std::size_t Len, std::size_t Align>
 using aligned_storage_t = typename std::aligned_storage<Len, Align>::type;
@@ -48,6 +52,23 @@ constexpr decltype(F<Head>::value) max() {
   return max<F, Head>() > max<F, Next, Tail...>() ? max<F, Head>() :
                                                     max<F, Next, Tail...>();
 }
+
+// A variadic extension of std::is_same.
+template <class... Ts> struct are_same;
+
+template <>
+struct are_same<> : std::true_type {};
+
+template <class T>
+struct are_same<T> : std::true_type {};
+
+template <class T0, class T1, class... Ts>
+struct are_same<T0, T1, Ts...> :
+  conditional_t<
+    std::is_same<T0, T1>::value,
+    are_same<T1, Ts...>,
+    std::false_type
+  > {};
 
 } // namespace detail
 } // namespace broker

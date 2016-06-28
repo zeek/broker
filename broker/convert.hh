@@ -6,6 +6,8 @@
 
 #include "broker/optional.hh"
 
+#include "broker/detail/type_traits.hh"
+
 namespace broker {
 
 // Injects a `to<T>` overload for any type convertible to type `T` via a free
@@ -52,6 +54,14 @@ auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
   else
     os.setstate(std::ios::failbit);
   return os;
+}
+
+template <class T>
+auto convert(T x, std::string& str)
+-> detail::enable_if_t<std::is_arithmetic<T>::value, bool> {
+  using std::to_string;
+  str = to_string(x);
+  return true;
 }
 
 } // namespace broker

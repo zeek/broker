@@ -100,12 +100,12 @@ set(BROKER_SRC
   src/error.cc
   src/network_info.cc
   src/port.cc
-  src/record.cc
-  src/set.cc
+  #src/record.cc
+  #src/set.cc
   src/status.cc
   src/string.cc
   src/subnet.cc
-  src/table.cc
+  #src/table.cc
   src/time.cc
   src/topic.cc
   #src/vector.cc
@@ -127,7 +127,7 @@ set(BROKER_SRC
   #src/store/sqlite3.c
   #src/store/sqlite_backend.cc
 
-  src/util/misc.cc
+  #src/util/misc.cc
 
   #${OPTIONAL_SRC}
 )

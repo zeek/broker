@@ -26,18 +26,20 @@ inline void hash_range(size_t& seed, It first, It last) {
     hash_combine(seed, *first);
 }
 
-/// Allows hashing composite types.
-template <class C>
+// Allows hashing of composite types.
+template <class Container>
 struct container_hasher {
-  using value_type = typename C::value_type;
-  using result_type = typename std::hash<value_type>::result_type;
-  using argument_type = C;
+  using result_type = size_t;
 
-  inline result_type operator()(const argument_type& c) const {
-    result_type rval{};
-    for (const auto& e : c)
-      hash_combine<value_type>(rval, e);
-    return rval;
+  result_type operator()(const Container& c) const {
+    result_type result;
+    auto n = result_type{0};
+    for (auto& e : c) {
+      hash_combine(result, e);
+      ++n;
+    }
+    hash_combine(result, n);
+    return result;
   }
 };
 

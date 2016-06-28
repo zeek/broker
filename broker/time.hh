@@ -10,8 +10,6 @@
 #include "broker/detail/hash.hh"
 #include "broker/detail/operators.hh"
 
-#include "broker/variant.hh"
-
 namespace broker {
 namespace time {
 
@@ -19,12 +17,12 @@ namespace time {
 using double_seconds = std::chrono::duration<double, std::ratio<1>>;
 
 /// SI time units.
-enum class unit : uint8_t {
+enum class unit : int8_t {
   invalid = 0,
-  nanoseconds,
-  microseconds,
-  milliseconds,
-  seconds,
+  nanoseconds = 9,
+  microseconds = 6,
+  milliseconds = 3,
+  seconds = 1,
 };
 
 /// Converts a ratio of numerator and denominator (as in `std::ratio`) to a
@@ -66,7 +64,7 @@ struct to_unit<60 * 60, 1> {
 };
 
 /// A multi-resolution time duration.
-struct duration : detail::equality_comparable<duration> {
+struct duration : detail::totally_ordered<duration> {
   using count_type = int64_t;
 
   /// Default-constructs a zero-valued duration with nanosecond granularity.
@@ -97,6 +95,9 @@ struct duration : detail::equality_comparable<duration> {
 
 /// @relates duration
 bool operator==(const duration& lhs, const duration& rhs);
+
+/// @relates duration
+bool operator<(const duration& lhs, const duration& rhs);
 
 /// @relates duration
 template <class Processor>
@@ -171,7 +172,7 @@ operator-=(std::chrono::time_point<Clock, Duration>& lhs, const duration& rhs) {
 }
 
 /// A fixed point in time relative to the UNIX epoch.
-struct point : detail::equality_comparable<point> {
+struct point : detail::totally_ordered<point> {
   /// Constructs a time point from a duration.
   point(duration d = {}) : value{d} {
   }
@@ -189,10 +190,16 @@ struct point : detail::equality_comparable<point> {
 bool operator==(const point& lhs, const point& rhs);
 
 /// @relates point
+bool operator<(const point& lhs, const point& rhs);
+
+/// @relates point
 template <class Processor>
 void serialize(Processor& proc, point& p) {
   proc & p.value;
 }
+
+/// @relates point
+bool convert(const point& p, std::string& str);
 
 /// @returns the current point in time.
 static point now();
