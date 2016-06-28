@@ -34,11 +34,16 @@ private:
   std::string str_;
 };
 
+/// @relates topic
 bool operator==(const topic& lhs, const topic& rhs);
+
+/// @relates topic
 bool operator<(const topic& lhs, const topic& rhs);
 
-std::string to_string(const topic& t);
+/// @relates topic
+bool convert(const topic& t, std::string& str);
 
+/// @relates topic
 template <class Processor>
 void serialize(Processor& proc, topic& t) {
   proc & t;

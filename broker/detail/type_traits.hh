@@ -70,6 +70,23 @@ struct are_same<T0, T1, Ts...> :
     std::false_type
   > {};
 
+// Trait that checks for an overload of convert(const From&, T&).
+template <class From, class To>
+struct can_convert {
+  using from_type = decay_t<From>;
+  using to_type = typename std::add_lvalue_reference<decay_t<To>>::type;
+
+  template <class T>
+  static auto test(T* x)
+  -> decltype(convert(*x, std::declval<to_type>()), std::true_type());
+
+  template <class T>
+  static auto test(...) -> std::false_type;
+
+  using type = decltype(test<from_type>(nullptr));
+  static constexpr bool value = type::value;
+};
+
 } // namespace detail
 } // namespace broker
 

@@ -14,7 +14,7 @@ namespace broker {
 // function `bool convert(const From&, T&)` that can be found via ADL.
 template <class To, class From>
 auto to(From&& from)
--> decltype(convert(from, std::declval<To&>()), optional<To>()) {
+-> detail::enable_if_t<detail::can_convert<From, To>::value, optional<To>> {
   To to;
   if (convert(from, to))
     return {std::move(to)};
@@ -47,7 +47,11 @@ auto from_string(const std::string& str) -> decltype(to<T>(str)) {
 // that can be found via ADL.
 template <class Char, class Traits, class T>
 auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
--> decltype(convert(x, std::declval<std::string&>()), os) {
+-> detail::enable_if_t<
+  detail::can_convert<T, std::string>::value
+    && !std::is_same<T, std::string>::value,
+  std::basic_ostream<Char, Traits>&
+> {
   std::string str;
   if (convert(x, str))
     os << str;

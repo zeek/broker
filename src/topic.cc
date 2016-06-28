@@ -14,8 +14,9 @@ bool operator<(const topic& lhs, const topic& rhs) {
   return lhs.string() < rhs.string();
 }
 
-std::string to_string(const topic& t) {
-  return t.string();
+bool convert(const topic& t, std::string& str) {
+  str = t.string();
+  return true;
 }
 
 } // namespace broker
