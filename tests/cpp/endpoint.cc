@@ -74,11 +74,18 @@ TEST(blocking lambda receive) {
   context ctx;
   auto e = ctx.spawn<blocking>();
   e.subscribe("/foo");
-  e.publish("/foo/data", 42);
+  e.publish("/foo/bar", 42);
+  e.publish("/foo/baz", -1);
   CHECK(is_ready(e, seconds{1}));
   e.receive([](const topic& t, const message& msg) {
-    CHECK_EQUAL(t, "/foo/data"_t);
+    CHECK_EQUAL(t, "/foo/bar"_t);
     CHECK_EQUAL(msg.get_as<int>(0), 42);
+  });
+  CHECK(!e.mailbox().empty());
+  CHECK(is_ready(e));
+  e.receive([](const topic& t, const message& msg) {
+    CHECK_EQUAL(t, "/foo/baz"_t);
+    CHECK_EQUAL(msg.get_as<int>(0), -1);
   });
   CHECK(e.mailbox().empty());
   CHECK(!is_ready(e));
@@ -121,6 +128,8 @@ TEST(local peering and unpeering) {
   x.peer(y);
   x.receive([](const status& s) { CHECK(s == peer_added); });
   y.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(x.mailbox().empty());
+  CHECK(y.mailbox().empty());
   MESSAGE("verifying peer info of originator");
   auto peers = x.peers();
   REQUIRE_EQUAL(peers.size(), 1u);
@@ -141,8 +150,8 @@ TEST(local peering and unpeering) {
   y.receive([](const status& s) { CHECK(s == peer_removed); });
   CHECK_EQUAL(x.peers().size(), 0u);
   CHECK_EQUAL(y.peers().size(), 0u);
+  MESSAGE("attempt to unpeer from already unpeered endpoint");
   y.unpeer(x);
-  // Peer already removed.
   y.receive([](const status& s) { CHECK(s == peer_invalid); });
 }
 
@@ -204,7 +213,7 @@ TEST(remote peering termination) {
 }
 
 TEST(multiple peers) {
-  MESSAGE("setting up endpoints");
+  MESSAGE("spawning endpoints");
   context ctx;
   auto a = ctx.spawn<blocking>();
   auto b = ctx.spawn<blocking>();
@@ -213,17 +222,48 @@ TEST(multiple peers) {
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
   a.peer(b);
+  a.receive([](const status& s) { CHECK(s == peer_added); });
+  b.receive([](const status& s) { CHECK(s == peer_added); });
   b.peer(c);
+  b.receive([](const status& s) { CHECK(s == peer_added); });
+  c.receive([](const status& s) { CHECK(s == peer_added); });
   c.peer(d);
+  c.receive([](const status& s) { CHECK(s == peer_added); });
+  d.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK_EQUAL(a.peers().size(), 1u);
+  CHECK_EQUAL(b.peers().size(), 2u);
+  CHECK_EQUAL(c.peers().size(), 2u);
+  CHECK_EQUAL(d.peers().size(), 1u);
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
   MESSAGE("propagating subscriptions");
-  a.subscribe("/foo"); // A propagates its subscription to B.
-  c.subscribe("/bar"); // C propagates its subscription to B and D.
+  a.subscribe("/foo"); // A -> B
+  c.subscribe("/bar"); // C -> B,D
   MESSAGE("publishing messages");
-  a.publish("/foo", 42);
-  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo"_t); });
-  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo"_t); });
+  // A -> B
+  a.publish("/foo/a", 42);
+  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/a"_t); });
+  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/a"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
+  // B -> A
+  b.publish("/foo/b", 43);
+  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/b"_t); });
+  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/b"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
+  // D -> C
   d.publish("/bar", 7);
-  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
   c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
   d.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
 }

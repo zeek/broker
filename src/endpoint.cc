@@ -6,12 +6,15 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/flare_actor.hh"
+#include "broker/detail/die.hh"
 #include "broker/detail/radix_tree.hh"
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
+#include "broker/optional.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 #include "broker/version.hh"
@@ -169,15 +172,16 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
   );
   return {
     [=](atom::connect) {
-      try {
-        BROKER_DEBUG("attempting to connect to" << to_string(net));
-        auto& mm = self->home_system().middleman();
-        auto other = mm.remote_actor(net.address, net.port);
-        self->monitor(other);
-        self->send(core, atom::peer::value, net, peer_status::connected, other);
-      } catch (const std::runtime_error& e) {
+      BROKER_DEBUG("attempting to connect to" << to_string(net));
+      auto& mm = self->home_system().middleman();
+      auto other = mm.remote_actor(net.address, net.port);
+      if (!other) {
         // Try again on failure.
         self->delayed_send(self, timeout::reconnect, atom::connect::value);
+      } else {
+        self->monitor(*other);
+        self->send(core, atom::peer::value, net, peer_status::connected,
+                   *other);
       }
     }
   };
@@ -242,6 +246,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
   return {
     [=](topic& t, message& msg) {
       auto subscriptions = self->state.subscriptions.prefix_of(t.string());
+      BROKER_DEBUG("got message for" << subscriptions.size()
+                   << "subscriptions:" << t << "->" << to_string(msg));
       auto current_message = make_message(std::move(t), std::move(msg));
       // Relay message to all subscribers, at most once.
       std::unordered_set<caf::actor> sent;
@@ -260,8 +266,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Relay subscription to peers.
       auto msg = caf::make_message(atom::subscribe::value, t, self);
       for (auto& p : self->state.peers)
-        if (p.actor)
+        if (p.actor) {
+          BROKER_DEBUG("relaying subscription to peer" << to_string(*p.actor));
           self->send(*p.actor, msg);
+        }
       return atom::ok::value;
     },
     [=](atom::subscribe, const topic& t, const caf::actor& other) {
@@ -448,6 +456,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       if (i == peers->end()) {
         s.info = peer_invalid;
         s.message = "no such peer";
+        BROKER_DEBUG(s.message);
       } else {
         // Tell the other side to stop peering with us.
         if (propagate)
@@ -456,6 +465,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         // Remove the other endpoint from ourselves.
         s.info = peer_removed;
         s.message = "removed peering";
+        BROKER_DEBUG(s.message);
         peers->erase(i);
       }
       self->send(subscriber, std::move(s));
@@ -484,21 +494,34 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
 
 } // namespace anonymous
 
-endpoint::endpoint(const blocking_endpoint& other) : core_{other.core_} {
+endpoint::endpoint() : subscriber_{caf::unsafe_actor_handle_init} {
+  // nop
 }
 
-endpoint::endpoint(const nonblocking_endpoint& other) : core_{other.core_} {
+endpoint::endpoint(const blocking_endpoint& other)
+  : core_{other.core_},
+    subscriber_{other.subscriber_} {
+  // nop
+}
+
+endpoint::endpoint(const nonblocking_endpoint& other)
+  : core_{other.core_},
+    subscriber_{other.subscriber_} {
+  // nop
 }
 
 endpoint& endpoint::operator=(const blocking_endpoint& other) {
   core_ = other.core_;
+  subscriber_ = other.subscriber_;
   return *this;
 }
 
 endpoint& endpoint::operator=(const nonblocking_endpoint& other) {
   core_ = other.core_;
+  subscriber_ = other.subscriber_;
   return *this;
 }
+
 
 endpoint_info endpoint::info() const {
   auto result = make_info(core());
@@ -508,33 +531,42 @@ endpoint_info endpoint::info() const {
     [&](std::string& address, uint16_t port) {
       if (port > 0)
         result.network = network_info{std::move(address), port};
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get endpoint network info:", to_string(e));
     }
   );
   return result;
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  auto bound = uint16_t{0};
+  auto bound = caf::expected<uint16_t>{caf::error{}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
                 atom::get::value).receive(
     [&](const std::string&, uint16_t p) {
       bound = p;
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get endpoint network info:", to_string(e));
     }
   );
-  if (bound > 0)
-    return 0;
+  if (*bound > 0)
+    return 0; // already listening
   char const* addr = address.empty() ? nullptr : address.c_str();
   bound = core()->home_system().middleman().publish(core(), port, addr);
-  if (bound == 0)
+  if (!bound)
     return 0;
   self->request(core(), timeout::core, atom::network::value, atom::put::value,
-                address, bound).receive(
+                address, *bound).receive(
     [](atom::ok) {
       // nop
+    },
+    [](const caf::error& e) {
+      detail::die("failed to set endpoint network info:", to_string(e));
     }
   );
-  return bound;
+  return *bound;
 }
 
 void endpoint::peer(const endpoint& other) {
@@ -560,6 +592,9 @@ std::vector<peer_info> endpoint::peers() const {
   self->request(core(), timeout::core, std::move(msg)).receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get peers:", to_string(e));
     }
   );
   return result;
@@ -575,6 +610,9 @@ void endpoint::subscribe(topic t) {
   self->request(core(), timeout::subscribe, std::move(msg)).receive(
     [](atom::ok) {
       // nop
+    },
+    [](const caf::error& e) {
+      detail::die("failed to subscribe:", to_string(e));
     }
   );
 }
@@ -585,6 +623,9 @@ void endpoint::unsubscribe(topic t) {
   self->request(core(), timeout::subscribe, std::move(msg)).receive(
     [](atom::ok) {
       // nop
+    },
+    [](const caf::error& e) {
+      detail::die("failed to unsubscribe:", to_string(e));
     }
   );
 }
@@ -593,12 +634,33 @@ const caf::actor& endpoint::core() const {
   return *core_;
 }
 
+
+int mailbox::descriptor() {
+  return actor_->descriptor();
+}
+
+bool mailbox::empty() {
+  return actor_->mailbox().empty();
+}
+
+size_t mailbox::count(size_t max) {
+  return actor_->mailbox().count(max);
+}
+
+mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {
+}
+
 message blocking_endpoint::receive() {
-  return subscriber_->dequeue();
+  auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
+  subscriber->await_data();
+  auto msg = subscriber->dequeue()->move_content_to_message();
+  BROKER_ASSERT(!msg.empty());
+  return msg;
 };
 
-detail::mailbox blocking_endpoint::mailbox() {
-  return subscriber_->mailbox();
+mailbox blocking_endpoint::mailbox() {
+  auto subscriber = caf::actor_cast<detail::flare_actor*>(subscriber_);
+  return broker::mailbox{subscriber};
 }
 
 namespace {
@@ -610,10 +672,12 @@ auto core_deleter = [](caf::actor* core) {
 
 } // namespace <anonymous>
 
-blocking_endpoint::blocking_endpoint(caf::actor_system& sys)
-  : subscriber_{std::make_shared<detail::scoped_flare_actor>(sys)} {
-  auto sub = caf::actor_cast<caf::actor>(*subscriber_);
-  auto core = sys.spawn(core_actor, std::move(sub));
+blocking_endpoint::blocking_endpoint(caf::actor_system& sys) {
+  subscriber_ = sys.spawn<detail::flare_actor>();
+  auto core = sys.spawn(core_actor, subscriber_);
+  core->attach_functor([=] {
+    caf::anon_send_exit(subscriber_, caf::exit_reason::user_shutdown);
+  });
   auto ptr = new caf::actor{std::move(core)};
   core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
 }
@@ -624,7 +688,11 @@ nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
     self->set_default_handler(caf::drop); // avoids unintended leaks
     return bhvr;
   };
-  auto core = sys.spawn(core_actor, sys.spawn(subscriber));
+  subscriber_ = sys.spawn(subscriber);
+  auto core = sys.spawn(core_actor, subscriber_);
+  core->attach_functor([=] {
+    caf::anon_send_exit(subscriber_, caf::exit_reason::user_shutdown);
+  });
   auto ptr = new caf::actor{std::move(core)};
   core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
 }

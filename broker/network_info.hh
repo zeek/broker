@@ -17,6 +17,7 @@ struct network_info : detail::totally_ordered<network_info> {
   uint16_t port;
 };
 
+/// @relates network_info
 template <class Processor>
 void serialize(Processor& proc, network_info& info) {
   proc & info.address;

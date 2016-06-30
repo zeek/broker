@@ -1,6 +1,7 @@
 #ifndef BROKER_MESSAGE_HH
 #define BROKER_MESSAGE_HH
 
+#include <caf/make_message.hpp>
 #include <caf/message.hpp>
 
 namespace broker {

@@ -112,7 +112,7 @@ set(BROKER_SRC
 
   src/detail/pipe.cc
   src/detail/flare.cc
-  src/detail/scoped_flare_actor.cc
+  src/detail/flare_actor.cc
 
   #src/store/backend.cc
   #src/store/clone.cc

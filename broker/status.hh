@@ -47,6 +47,15 @@ bool operator==(const status& s, status_info i);
 /// @relates status
 bool operator==(status_info i, const status& s);
 
+/// @relates status
+template <class Processor>
+void serialize(Processor& proc, status& s) {
+  proc & s.info;
+  proc & s.local;
+  proc & s.remote;
+  proc & s.message;
+}
+
 } // namespace broker
 
 #endif // BROKER_STATUS_HH

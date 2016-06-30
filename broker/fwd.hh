@@ -4,6 +4,12 @@
 #include <cstdint>
 
 namespace broker {
+namespace detail {
+
+class flare_actor;
+class mailbox;
+
+} // namespace detail
 
 class context;
 class endpoint;

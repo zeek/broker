@@ -40,6 +40,7 @@ public:
   }
 
 private:
+  configuration config_;
   caf::actor_system system_;
 };
 

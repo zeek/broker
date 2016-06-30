@@ -6,7 +6,9 @@ namespace {
 } // namespace <anonymous>
 
 context::context(configuration config)
-  : system_{std::move(config)} {
+  : config_{std::move(config)},
+    system_{config_} {
+  // nop
 }
 
 } // namespace broker

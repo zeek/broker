@@ -6,14 +6,14 @@
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/blocking_actor.hpp>
 
 #include "broker/detail/operators.hh"
-#include "broker/detail/scoped_flare_actor.hh"
 
 #include "broker/endpoint_info.hh"
+#include "broker/fwd.hh"
 #include "broker/network_info.hh"
 #include "broker/message.hh"
-#include "broker/optional.hh"
 #include "broker/peer_flags.hh"
 #include "broker/topic.hh"
 
@@ -117,11 +117,36 @@ public:
   void unsubscribe(topic t);
 
 protected:
-  endpoint() = default;
+  endpoint();
 
   const caf::actor& core() const;
 
   std::shared_ptr<caf::actor> core_;
+  caf::actor subscriber_;
+};
+
+/// A proxy object that represents the mailbox of a blocking endpoint.
+struct mailbox {
+  friend blocking_endpoint; // construction
+
+public:
+  /// Retrieves a descriptor that indicates whether a message can be received
+  /// without blocking.
+  int descriptor();
+
+  /// Checks whether the mailbox is empty.
+  bool empty();
+
+  /// Counts the number of messages in the mailbox, up to given maximum
+  /// @warn This is not a constant-time operations, hence the name `count`
+  ///       as opposed to `size`. The function takes time *O(n)* where *n*
+  ///       is the size of the mailbox.
+  size_t count(size_t max = std::numeric_limits<size_t>::max());
+
+private:
+  explicit mailbox(detail::flare_actor* actor);
+
+  detail::flare_actor* actor_;
 };
 
 /// An endpoint with a synchronous (blocking) messaging API.
@@ -136,8 +161,8 @@ public:
   /// Consumes one message that matches the given handler.
   template <class T, class... Ts>
   void receive(T&& x, Ts&&... xs) {
-    caf::behavior bhvr{std::forward<T>(x), std::forward<Ts>(xs)...};
-    subscriber_->dequeue(bhvr);
+    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
+    subscriber->receive(std::forward<T>(x), std::forward<Ts>(xs)...);
   }
 
   /// Access the endpoint's mailbox, which provides the following
@@ -154,23 +179,16 @@ public:
   ///   counting.
   ///
   /// @returns A proxy object to introspect the endpoint's mailbox.
-  detail::mailbox mailbox();
+  broker::mailbox mailbox();
 
 private:
   blocking_endpoint(caf::actor_system& sys);
-
-  std::shared_ptr<detail::scoped_flare_actor> subscriber_;
 };
 
 /// An endpoint with an asynchronous (nonblocking) messaging API.
 class nonblocking_endpoint : public endpoint {
   friend context; // construction
 
-public:
-  // Nothing to see here, please move along. The behavior of a nonblocking
-  // endpoint is fully specified when spawned via a context instance.
-
-private:
   nonblocking_endpoint(caf::actor_system& sys, caf::behavior bhvr);
 };
 
