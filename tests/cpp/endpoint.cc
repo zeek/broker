@@ -52,7 +52,9 @@ TEST(subscription management) {
 TEST(nonblocking subscription) {
   auto counter = std::make_shared<int>(0);
   // The destructor of the context object blocks until all actors have
-  // terminated. Hence the new scope.
+  // terminated. In this case, once our endpoint "n" goes out of scope, the
+  // underlying actor will receive an exit message. Prior to that, it will
+  // process the three published messages.
   {
     context ctx;
     auto n = ctx.spawn<nonblocking>(
@@ -202,18 +204,26 @@ TEST(remote peering termination) {
 }
 
 TEST(multiple peers) {
+  MESSAGE("setting up endpoints");
   context ctx;
-  auto counter = std::make_shared<int>(0);
   auto a = ctx.spawn<blocking>();
   auto b = ctx.spawn<blocking>();
   auto c = ctx.spawn<blocking>();
-  auto d = ctx.spawn<nonblocking>(
-    [=](const topic&, const message&) {
-      ++*counter;
-    }
-  );
-  MESSAGE("chain peers");
+  auto d = ctx.spawn<blocking>();
+  // A <-> B <-> C <-> D
+  MESSAGE("chaining peers");
   a.peer(b);
   b.peer(c);
   c.peer(d);
+  MESSAGE("propagating subscriptions");
+  a.subscribe("/foo"); // A propagates its subscription to B.
+  c.subscribe("/bar"); // C propagates its subscription to B and D.
+  MESSAGE("publishing messages");
+  a.publish("/foo", 42);
+  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo"_t); });
+  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo"_t); });
+  d.publish("/bar", 7);
+  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
+  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
+  d.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
 }

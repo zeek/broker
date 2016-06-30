@@ -9,6 +9,7 @@
 #include "broker/detail/radix_tree.hh"
 
 #include "broker/atoms.hh"
+#include "broker/convert.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/status.hh"
@@ -18,6 +19,11 @@
 namespace broker {
 namespace {
 
+struct subscription_state {
+  std::unordered_set<caf::actor> subscribers;
+  uint64_t messages = 0;
+};
+
 struct peer_state {
   optional<caf::actor> actor;
   peer_info info;
@@ -25,7 +31,7 @@ struct peer_state {
 
 struct core_state {
   std::vector<peer_state> peers;
-  detail::radix_tree<uint64_t> subscriptions;
+  detail::radix_tree<subscription_state> subscriptions;
   std::map<network_info, caf::actor> supervisors;
   endpoint_info info;
   const char* name = "core";
@@ -40,6 +46,30 @@ endpoint_info make_info(network_info net) {
   return {{}, caf::invalid_actor_id, std::move(net)};
 }
 
+std::vector<std::string>
+local_subscriptions(caf::stateful_actor<core_state>* self,
+                    const caf::actor& subscriber) {
+  std::vector<std::string> topics;
+  for (auto& subscription : self->state.subscriptions)
+    for (auto& sub : subscription.second.subscribers)
+      if (sub == subscriber) {
+        topics.emplace_back(subscription.first);
+        break;
+      }
+  return topics;
+}
+
+void merge_subscriptions(caf::stateful_actor<core_state>* self,
+                         const caf::actor& subscriber,
+                         std::vector<std::string>& topics) {
+  for (auto& t : topics) {
+    auto i = self->state.subscriptions.find(t);
+    if (i == self->state.subscriptions.end())
+      i = self->state.subscriptions.insert({t, {}}).first;
+    i->second.subscribers.insert(subscriber);
+  }
+}
+
 // Peforms the peering handshake between two endpoints.
 void perform_handshake(caf::stateful_actor<core_state>* self,
                        const caf::actor& subscriber,
@@ -48,22 +78,32 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
   BROKER_DEBUG("performing peering handshake");
   auto proto = version::protocol;
   self->request(other, timeout::peer, atom::peer::value, self, proto).then(
-    [=](version::type v) mutable {
-      status s;
-      s.local = self->state.info;
-      s.remote = make_info(other, net);
-      auto peers = &self->state.peers;
-      auto pred = [=](const peer_state& p) { return p.actor == other; };
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      BROKER_ASSERT(i != peers->end());
+    [=](version::type v) {
       BROKER_ASSERT(version::compatible(v));
       BROKER_DEBUG("exchanging subscriptions with peer");
-      // TODO: implement.
-      i->info.status = peer_status::peered;
-      s.info = peer_added;
-      s.message = "outbound peering established";
-      BROKER_INFO(s.message);
-      self->send(subscriber, std::move(s));
+      // We're only exchanging our local subscriptions with the other side.
+      // TODO: Support multi-hop subscriptions.
+      auto subs = local_subscriptions(self, subscriber);
+      auto msg = caf::make_message(atom::peer::value, self, std::move(subs));
+      self->request(other, timeout::peer, std::move(msg)).then(
+        [=](std::vector<std::string>& peer_subs) {
+          BROKER_DEBUG("got" << peer_subs.size() << "peer subscriptions");
+          merge_subscriptions(self, other, peer_subs);
+          // Set new status: peered.
+          auto peers = &self->state.peers;
+          auto pred = [=](const peer_state& p) { return p.actor == other; };
+          auto i = std::find_if(peers->begin(), peers->end(), pred);
+          BROKER_ASSERT(i != peers->end());
+          i->info.status = peer_status::peered;
+          // Inform the subscriber about the successfully established peering.
+          status s;
+          s.local = self->state.info;
+          s.remote = make_info(other, net);
+          s.info = peer_added;
+          s.message = "outbound peering established";
+          BROKER_INFO(s.message);
+          self->send(subscriber, std::move(s));
+        });
     },
     [=](const caf::error& e) mutable {
       // Report peering error to subscriber.
@@ -171,34 +211,78 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       peers->erase(i);
     }
   );
+  auto subscribe = [=](const topic& t, const caf::actor& a) {
+    auto i = self->state.subscriptions.insert({t.string(), {}});
+    i.first->second.subscribers.insert(a);
+  };
+  auto unsubscribe = [=](const topic& t, const caf::actor& a) {
+    // We have to collect all candidate topics to remove first, because
+    // erasing a topic from the radix tree invalidates iterators.
+    std::vector<std::string> topics;
+    for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
+      auto& subscribers = match->second.subscribers;
+      // Remove the subscription state iff we are the only subscriber.
+      auto i = subscribers.find(a);
+      if (i != subscribers.end()) {
+        BROKER_ASSERT(!subscribers.empty());
+        if (subscribers.size() == 1) {
+          BROKER_DEBUG("removing state for topic" << match->first);
+          BROKER_DEBUG("processed" << match->second.messages << "messages");
+          subscribers.erase(i);
+        } else {
+          BROKER_DEBUG("removing subscriber from topic " << match->first);
+          BROKER_DEBUG(subscribers.size() - 1 << "subscribers remaining");
+          topics.push_back(match->first);
+        }
+      }
+    }
+    for (auto& top : topics)
+      self->state.subscriptions.erase(top);
+  };
   return {
     [=](topic& t, message& msg) {
-      auto local_matches = self->state.subscriptions.prefix_of(t.string());
+      auto subscriptions = self->state.subscriptions.prefix_of(t.string());
       auto current_message = make_message(std::move(t), std::move(msg));
-      if (!local_matches.empty()) {
-        self->send(subscriber, current_message);
-        for (auto match : local_matches)
-          ++match->second;
+      // Relay message to all subscribers, at most once.
+      std::unordered_set<caf::actor> sent;
+      for (auto match : subscriptions) {
+        ++match->second.messages;
+        for (auto& sub : match->second.subscribers)
+          if (sent.find(sub) == sent.end()) {
+            self->send(sub, current_message);
+            sent.insert(sub);
+          }
       }
-      // TODO: relay message to peers.
     },
     [=](atom::subscribe, const topic& t) {
-      BROKER_DEBUG("got subscribe request for topic" << to_string(t));
-      self->state.subscriptions.insert({t.string(), 0ull});
-      // TODO: relay new subscription to peers.
+      BROKER_DEBUG("got local subscribe request for topic" << t);
+      subscribe(t, subscriber);
+      // Relay subscription to peers.
+      auto msg = caf::make_message(atom::subscribe::value, t, self);
+      for (auto& p : self->state.peers)
+        if (p.actor)
+          self->send(*p.actor, msg);
       return atom::ok::value;
     },
+    [=](atom::subscribe, const topic& t, const caf::actor& other) {
+      BROKER_DEBUG("got remote subscribe request for topic" << t);
+      subscribe(t, other);
+      subscribe(t, subscriber);
+    },
     [=](atom::unsubscribe, const topic& t) {
-      BROKER_DEBUG("got unsubscribe request for topic" << to_string(t));
-      // We have to collect all topics first, because erasing a topic from the
-      // radix tree invalidates iterators.
-      std::vector<std::string> topics;
-      for (auto match : self->state.subscriptions.prefixed_by(t.string()))
-        topics.push_back(match->first);
-      for (auto& top : topics)
-        self->state.subscriptions.erase(top);
-      // TODO: relay deletion of subscription to peers.
+      BROKER_DEBUG("got local unsubscribe request for topic" << t);
+      unsubscribe(t, subscriber);
+      // Relay unsubscription to peers.
+      auto msg = caf::make_message(atom::unsubscribe::value, t, self);
+      for (auto& p : self->state.peers)
+        if (p.actor)
+          self->send(*p.actor, msg);
       return atom::ok::value;
+    },
+    [=](atom::unsubscribe, const topic& t, const caf::actor& other) {
+      BROKER_DEBUG("got remote unsubscribe request for topic" << t);
+      unsubscribe(t, other);
+      unsubscribe(t, subscriber);
     },
     [=](atom::peer, network_info net) {
       BROKER_DEBUG("requesting peering with remote endpoint"
@@ -300,6 +384,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto mm = self->home_system().middleman().actor_handle();
       self->request(mm, timeout::infinite, caf::get_atom::value, nid).then(
         [=](caf::node_id, const std::string& addr, uint16_t port) mutable {
+          // Register inbound peer.
           optional<network_info> net;
           if (port > 0)
             net = network_info{addr, port};
@@ -312,10 +397,16 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           s.message = "inbound peering established";
           BROKER_DEBUG(s.message);
           self->monitor(other);
-          self->send(subscriber, std::move(s));
           rp.deliver(caf::make_message(version::protocol));
+          self->send(subscriber, std::move(s));
         }
       );
+    },
+    [=](atom::peer, const caf::actor& other,
+        std::vector<std::string>& subscriptions) {
+      BROKER_DEBUG("got" << subscriptions.size() << "peer subscriptions");
+      merge_subscriptions(self, other, subscriptions);
+      return local_subscriptions(self, subscriber);
     },
     [=](atom::unpeer, network_info net) {
       BROKER_DEBUG("requesting unpeering with remote endpoint"

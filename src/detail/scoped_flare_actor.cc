@@ -50,6 +50,7 @@ void flare_actor::dequeue(caf::behavior& bhvr, caf::message_id mid) {
   auto timeout_id = request_timeout(bhvr.timeout());
   for (;;) {
     await_flare();
+    BROKER_ASSERT(has_next_message());
     auto msg = next_message();
     switch (invoke_message(msg, bhvr, mid)) {
       default:

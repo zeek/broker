@@ -56,4 +56,15 @@ void serialize(Processor& proc, topic& t) {
 /// @returns The topic according to *str*.
 broker::topic operator "" _t(const char* str, size_t);
 
+namespace std {
+
+template <>
+struct hash<broker::topic> {
+  size_t operator()(const broker::topic& t) const {
+    return std::hash<std::string>{}(t.string());
+  }
+};
+
+} // namespace std
+
 #endif // BROKER_TOPIC_HH

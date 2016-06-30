@@ -22,7 +22,7 @@ configuration::configuration() {
   add_message_type<broker::set>("broker::set");
   add_message_type<table>("broker::table");
   add_message_type<record>("broker::record");
-  add_message_type<record>("broker::topic");
+  add_message_type<topic>("broker::topic");
 //    .add_message_type<store::sequence_num>("broker::store::sequence_num")
 //    .add_message_type<store::expiration_time>("broker::store::expiration_time")
 //    .add_message_type<store::query>("broker::store::query")
