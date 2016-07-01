@@ -37,13 +37,13 @@ int main(int argc, char** argv)
 	// Node 0
 	endpoint node0("node0", flags);
 	node0.listen(9990, "127.0.0.1");
-	message_queue q0a("a", node0, MULTI_HOP);
+	message_queue q0a("a", node0, GLOBAL_SCOPE);
     //message_queue q0b("b", node0);
 
 	// Node 1
 	endpoint node1("node1", flags);
 	node1.listen(9991, "127.0.0.1");;
-	message_queue q1a("a", node1, MULTI_HOP);
+	message_queue q1a("a", node1, GLOBAL_SCOPE);
     //message_queue q1b("b", node1);
 	// connecting
 	node1.peer("127.0.0.1", 9990);
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 	// Node 2
 	endpoint node2("node2", flags);
 	node1.listen(9992, "127.0.0.1");;
-	message_queue q2a("a", node2, MULTI_HOP);
+	message_queue q2a("a", node2, GLOBAL_SCOPE);
 
 	// connecting
 	node2.peer("127.0.0.1", 9991);
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 
     sleep_for(seconds(1));
     // node2 adds another topic
-    message_queue q2b("b", node2, MULTI_HOP);
+    message_queue q2b("b", node2, GLOBAL_SCOPE);
     sleep_for(seconds(1));
 
     // sending request

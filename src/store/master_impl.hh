@@ -345,7 +345,7 @@ public:
 
 		self->planned_exit_reason(caf::exit_reason::user_defined);
 		actor->link_to(self);
-		if(flags == SINGLE_HOP)
+		if(flags == LOCAL_SCOPE)
 			caf::anon_send(endpoint, master_atom::value, std::move(name), actor);
 		else
 			caf::anon_send(endpoint, mmaster_atom::value, std::move(name), actor);

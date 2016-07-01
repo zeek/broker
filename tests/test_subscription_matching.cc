@@ -780,10 +780,10 @@ static void test_send_unsolicited()
 static void test_prefix_matching_multi()
 	{
 	endpoint node0("node0");
-	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
-	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
-	message_queue pq_topic_0("topic", node0, MULTI_HOP);
-	message_queue pq_all_0("", node0, MULTI_HOP);
+	message_queue pq_topic_a0("topic_a", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_b0("topic_b", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_0("topic", node0, GLOBAL_SCOPE);
+	message_queue pq_all_0("", node0, GLOBAL_SCOPE);
 
 	node0.send("topic_a", {"/", "hello"});
 	node0.send("very specific", {"/", "grats"});
@@ -832,19 +832,19 @@ static void test_without_access_control_multi()
 	{
 	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node0("node0", flags);
-	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
-	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
-	message_queue pq_topic_0("topic", node0, MULTI_HOP);
-	message_queue pq_all_0("", node0, MULTI_HOP);
+	message_queue pq_topic_a0("topic_a", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_b0("topic_b", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_0("topic", node0, GLOBAL_SCOPE);
+	message_queue pq_all_0("", node0, GLOBAL_SCOPE);
 
 	endpoint node1("node1", flags);
-	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
-	message_queue pq_topic_1("topic", node1, MULTI_HOP);
-	message_queue pq_hal_1("hal", node1, MULTI_HOP);
+	message_queue pq_topic_a1("topic_a", node1, GLOBAL_SCOPE);
+	message_queue pq_topic_1("topic", node1, GLOBAL_SCOPE);
+	message_queue pq_hal_1("hal", node1, GLOBAL_SCOPE);
 
 	endpoint node2("node2", flags);
-	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
-	message_queue pq_topic_2("topic", node2, MULTI_HOP);
+	message_queue pq_topic_b2("topic_b", node2, GLOBAL_SCOPE);
+	message_queue pq_topic_2("topic", node2, GLOBAL_SCOPE);
 
 	node0.peer(node1);
 	node1.peer(node2);
@@ -963,23 +963,23 @@ static void test_restricted_publish_multi()
 	{
 	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node0("node0", flags);
-	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
-	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
-	message_queue pq_topic_0("topic", node0, MULTI_HOP);
-	message_queue pq_all_0("", node0, MULTI_HOP);
+	message_queue pq_topic_a0("topic_a", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_b0("topic_b", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_0("topic", node0, GLOBAL_SCOPE);
+	message_queue pq_all_0("", node0, GLOBAL_SCOPE);
 
 	flags = broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node1("node1", flags);
-	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
-	message_queue pq_topic_1("topic", node1, MULTI_HOP);
-	message_queue pq_hal_1("hal", node1, MULTI_HOP);
+	message_queue pq_topic_a1("topic_a", node1, GLOBAL_SCOPE);
+	message_queue pq_topic_1("topic", node1, GLOBAL_SCOPE);
+	message_queue pq_hal_1("hal", node1, GLOBAL_SCOPE);
 	node1.publish("topic");
 	node1.publish("hal9000");
 
 	flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node2("node2", flags);
-	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
-	message_queue pq_topic_2("topic", node2, MULTI_HOP);
+	message_queue pq_topic_b2("topic_b", node2, GLOBAL_SCOPE);
+	message_queue pq_topic_2("topic", node2, GLOBAL_SCOPE);
 
 	node0.peer(node1);
 	node1.peer(node2);
@@ -1101,23 +1101,23 @@ static void test_restricted_subscribe_multi()
 	{
 	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node0("node0", flags);
-	message_queue pq_topic_a0("topic_a", node0, MULTI_HOP);
-	message_queue pq_topic_b0("topic_b", node0, MULTI_HOP);
-	message_queue pq_topic_0("topic", node0, MULTI_HOP);
-	message_queue pq_all_0("", node0, MULTI_HOP);
+	message_queue pq_topic_a0("topic_a", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_b0("topic_b", node0, GLOBAL_SCOPE);
+	message_queue pq_topic_0("topic", node0, GLOBAL_SCOPE);
+	message_queue pq_all_0("", node0, GLOBAL_SCOPE);
 
 	flags = broker::AUTO_PUBLISH | broker::AUTO_ROUTING;
 	endpoint node1("node1", flags);
 	node1.advertise("topic_a");
-	message_queue pq_topic_a1("topic_a", node1, MULTI_HOP);
-	message_queue pq_topic_1("topic", node1, MULTI_HOP);
-	message_queue pq_hal_1("hal", node1, MULTI_HOP);
+	message_queue pq_topic_a1("topic_a", node1, GLOBAL_SCOPE);
+	message_queue pq_topic_1("topic", node1, GLOBAL_SCOPE);
+	message_queue pq_hal_1("hal", node1, GLOBAL_SCOPE);
 	node1.advertise("hal");
 
 	flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	endpoint node2("node2", flags);
-	message_queue pq_topic_b2("topic_b", node2, MULTI_HOP);
-	message_queue pq_topic_2("topic", node2, MULTI_HOP);
+	message_queue pq_topic_b2("topic_b", node2, GLOBAL_SCOPE);
+	message_queue pq_topic_2("topic", node2, GLOBAL_SCOPE);
 
 	node0.peer(node1);
 	node1.peer(node2);

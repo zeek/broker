@@ -21,11 +21,11 @@ broker::message_queue::message_queue(topic prefix, const endpoint& e, int flags)
 	: broker::queue<broker::message>(),
       pimpl(new impl{std::move(prefix)})
 	{
-	if (flags == SINGLE_HOP)
+	if (flags == LOCAL_SCOPE)
 		caf::anon_send(*static_cast<caf::actor*>(e.handle()),
 									local_sub_atom::value, pimpl->subscription_prefix,
 									*static_cast<caf::actor*>(this->handle()));
-	else if(flags == MULTI_HOP)
+	else if(flags == GLOBAL_SCOPE)
 		caf::anon_send(*static_cast<caf::actor*>(e.handle()),
 		              local_msub_atom::value, pimpl->subscription_prefix,
 			             *static_cast<caf::actor*>(this->handle()));

@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 
 	int flags = broker::AUTO_PUBLISH | broker::AUTO_ADVERTISE | broker::AUTO_ROUTING;
 	broker::endpoint node0("node0", flags);
-	broker::message_queue pq_a0("topic_a", node0, broker::MULTI_HOP);
+	broker::message_queue pq_a0("topic_a", node0, broker::GLOBAL_SCOPE);
 
 	node0.send("topic_a", {"/", "hello"});
 	node0.send("nobody", {"/", "pointless"});
@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 	BROKER_TEST((node0_msgs[0] == broker::message{"/", "hello"}));
 	BROKER_TEST((node0_msgs[1] == broker::message{"/", "goodbye"}));
 
-	broker::message_queue pq_b0("topic_b", node0, broker::MULTI_HOP);
+	broker::message_queue pq_b0("topic_b", node0, broker::GLOBAL_SCOPE);
 	node0.send("topic_a", {"aaa", "hi"});
 	node0.send("nobody", {"", "pointless"});
 	node0.send("topic_b", {"bbb", "bye"});
@@ -75,9 +75,9 @@ int main(int argc, char** argv)
 
 	broker::endpoint node1("node1", flags);
 	broker::endpoint node2("node2", flags);
-	broker::message_queue pq_a1("topic_a", node1, broker::MULTI_HOP);
-	broker::message_queue pq_b1("topic_b", node1, broker::MULTI_HOP);
-	broker::message_queue pq_a2("topic_a", node2, broker::MULTI_HOP);
+	broker::message_queue pq_a1("topic_a", node1, broker::GLOBAL_SCOPE);
+	broker::message_queue pq_b1("topic_b", node1, broker::GLOBAL_SCOPE);
+	broker::message_queue pq_a2("topic_a", node2, broker::GLOBAL_SCOPE);
 	node0.peer(node1);
 	node0.peer(node2);
 

@@ -12,12 +12,12 @@ namespace broker {
 /**
  * Message queue is for single-hop communication only
  */
-constexpr int SINGLE_HOP = 0x00;
+constexpr int LOCAL_SCOPE = 0x00;
 
 /**
  * Message queue is announced globally
  */
-constexpr int MULTI_HOP = 0x01;
+constexpr int GLOBAL_SCOPE = 0x01;
 
 /**
  * Requests messages from a broker::endpoint or its peers that match a topic
@@ -65,7 +65,7 @@ public:
 	 * @param multi-hop distinguishes if topic is propagated beyond the 
 	 * direct neighbors or not
 	 */
-	message_queue(topic prefix, const endpoint& e, int flags = SINGLE_HOP);
+	message_queue(topic prefix, const endpoint& e, int flags = LOCAL_SCOPE);
 
 	/**
 	 * @return the subscription topic prefix of the queue.
