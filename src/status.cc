@@ -26,11 +26,11 @@ const char* to_string(status_info info) {
 status::status(status_info info) : info{info} {
 }
 
-status::status(status_info info, endpoint_info local, endpoint_info remote,
+status::status(status_info info, endpoint_info local, endpoint_info peer,
                std::string message)
   : info{info},
     local{local},
-    remote{remote},
+    peer{peer},
     message{std::move(message)} {
 }
 

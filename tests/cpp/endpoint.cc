@@ -203,9 +203,9 @@ TEST(remote peering termination) {
   // around until the peering originator removes it.
   x.receive([&](const status& s) {
     CHECK(s == peer_lost);
-    REQUIRE(s.remote.network);
-    CHECK_EQUAL(s.remote.network->address, "127.0.0.1");
-    CHECK_EQUAL(s.remote.network->port, bound_port);
+    REQUIRE(s.peer.network);
+    CHECK_EQUAL(s.peer.network->address, "127.0.0.1");
+    CHECK_EQUAL(s.peer.network->port, bound_port);
   });
   CHECK_EQUAL(x.peers().size(), 1u);
   // Now remove the peer.

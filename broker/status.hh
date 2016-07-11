@@ -37,7 +37,7 @@ struct status : detail::equality_comparable<status, status_info>,
 
   status_info info;     ///< The ::status_info type.
   endpoint_info local;  ///< The local endpoint UID.
-  endpoint_info remote; ///< The remote endpoint UID.
+  endpoint_info peer;   ///< The peer endpoint UID.
   std::string message;  ///< A descriptive context message.
 };
 
@@ -52,7 +52,7 @@ template <class Processor>
 void serialize(Processor& proc, status& s) {
   proc & s.info;
   proc & s.local;
-  proc & s.remote;
+  proc & s.peer;
   proc & s.message;
 }
 
