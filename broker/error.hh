@@ -24,14 +24,14 @@ const char* to_string(ec x);
 template <class... Ts>
 error make_error(ec x, Ts&&... xs) {
   return error{static_cast<uint8_t>(x), caf::atom("broker"),
-               make_message(std::forward<Ts>(xs)...)};
+               caf::make_message(std::forward<Ts>(xs)...)};
 }
 
 /// Simplifies generation of structured errors.
 /// @relates ec
 template <ec ErrorCode = ec::unspecified, class... Ts>
 message make_error_message(Ts&&... xs) {
-  return make_message(make_error(ErrorCode, std::forward<Ts>(xs)...));
+  return caf::make_message(make_error(ErrorCode, std::forward<Ts>(xs)...));
 }
 
 } // namespace broker

@@ -248,7 +248,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto subscriptions = self->state.subscriptions.prefix_of(t.string());
       BROKER_DEBUG("got message for" << subscriptions.size()
                    << "subscriptions:" << t << "->" << to_string(msg));
-      auto current_message = make_message(std::move(t), std::move(msg));
+      auto current_message = caf::make_message(std::move(t), std::move(msg));
       // Relay message to all subscribers, at most once.
       std::unordered_set<caf::actor> sent;
       for (auto match : subscriptions) {
@@ -485,9 +485,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::network, atom::get) {
       auto& net = self->state.info.network;
       if (net)
-        return make_message(net->address, net->port);
+        return caf::make_message(net->address, net->port);
       else
-        return make_message("", uint16_t{0});
+        return caf::make_message("", uint16_t{0});
     },
   };
 }
@@ -588,7 +588,7 @@ void endpoint::unpeer(const std::string& address, uint16_t port) {
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
   caf::scoped_actor self{core()->home_system()};
-  auto msg = make_message(atom::peer::value, atom::get::value);
+  auto msg = caf::make_message(atom::peer::value, atom::get::value);
   self->request(core(), timeout::core, std::move(msg)).receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
@@ -606,7 +606,7 @@ void endpoint::publish(topic t, message msg) {
 
 void endpoint::subscribe(topic t) {
   caf::scoped_actor self{core()->home_system()};
-  auto msg = make_message(atom::subscribe::value, std::move(t));
+  auto msg = caf::make_message(atom::subscribe::value, std::move(t));
   self->request(core(), timeout::subscribe, std::move(msg)).receive(
     [](atom::ok) {
       // nop
@@ -619,7 +619,7 @@ void endpoint::subscribe(topic t) {
 
 void endpoint::unsubscribe(topic t) {
   caf::scoped_actor self{core()->home_system()};
-  auto msg = make_message(atom::unsubscribe::value, std::move(t));
+  auto msg = caf::make_message(atom::unsubscribe::value, std::move(t));
   self->request(core(), timeout::subscribe, std::move(msg)).receive(
     [](atom::ok) {
       // nop

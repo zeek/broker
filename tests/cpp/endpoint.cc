@@ -79,13 +79,13 @@ TEST(blocking lambda receive) {
   CHECK(is_ready(e, seconds{1}));
   e.receive([](const topic& t, const message& msg) {
     CHECK_EQUAL(t, "/foo/bar"_t);
-    CHECK_EQUAL(msg.get_as<int>(0), 42);
+    CHECK_EQUAL(*msg.get_as<data>(0).get<integer>(), 42);
   });
   CHECK(!e.mailbox().empty());
   CHECK(is_ready(e));
   e.receive([](const topic& t, const message& msg) {
     CHECK_EQUAL(t, "/foo/baz"_t);
-    CHECK_EQUAL(msg.get_as<int>(0), -1);
+    CHECK_EQUAL(msg.get_as<data>(0), data{-1});
   });
   CHECK(e.mailbox().empty());
   CHECK(!is_ready(e));
@@ -95,7 +95,7 @@ TEST(blocking non-lambda receive) {
   context ctx;
   auto e = ctx.spawn<blocking>();
   e.subscribe("/foo");
-  auto m0 = make_message("broker");
+  auto m0 = make_data_message("broker");
   e.publish("/foo", m0);
   CHECK(is_ready(e, seconds{1}));
   auto msg = e.receive();
@@ -104,7 +104,9 @@ TEST(blocking non-lambda receive) {
   CHECK_EQUAL(t, "/foo"_t);
   auto m1 = msg.get_as<message>(1);
   REQUIRE_EQUAL(m1.size(), 1u);
-  CHECK_EQUAL(m1.get_as<std::string>(0), "broker");
+  auto str = m1.get_as<data>(0).get<std::string>();
+  REQUIRE(str);
+  CHECK_EQUAL(*str, "broker");
   CHECK(e.mailbox().empty());
   CHECK(!is_ready(e));
 }

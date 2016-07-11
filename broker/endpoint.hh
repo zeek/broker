@@ -106,7 +106,7 @@ public:
   /// @param xs The message contents.
   template <class... Ts>
   void publish(topic t, Ts&&... xs) {
-    publish(std::move(t), make_message(std::forward<Ts>(xs)...));
+    publish(std::move(t), make_data_message(std::forward<Ts>(xs)...));
   }
 
   /// Subscribes to a topic.
