@@ -6,6 +6,7 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/error.hh"
+#include "broker/expected.hh"
 #include "broker/message.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
@@ -15,6 +16,10 @@
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/core_actor.hh"
+#include "broker/detail/die.hh"
+
+#include "broker/store/detail/clone_actor.hh"
+#include "broker/store/detail/master_actor.hh"
 
 namespace broker {
 namespace detail {
@@ -164,7 +169,23 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
   };
 }
 
-} // namespace anonymous
+optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
+                                        const std::string& name) {
+  // If we don't have a master recorded locally, we could still have a
+  // propagated subscription to a remote core hosting a master.
+  auto t = name / topics::reserved / topics::master;
+  auto s = self->state.subscriptions.find(t.string());
+  if (s != self->state.subscriptions.end()) {
+    // Only the master subscribes to its inbound topic, so there can be at most
+    // a single subscriber.
+    BROKER_ASSERT(s->second.subscribers.size() == 1);
+    auto& master = *s->second.subscribers.begin();
+    return master;
+  }
+  return nil;
+}
+
+} // namespace <anonymous>
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          caf::actor subscriber) {
@@ -195,11 +216,39 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     }
   );
   return {
+    // TODO: add TTL component to this message to detect routing loops.
     [=](topic& t, message& msg, const caf::actor& source) {
+      BROKER_DEBUG("got message:" << t << "->" << to_string(msg));
+      BROKER_ASSERT(!t.string().empty());
+      // Handle internal messages first.
+      auto& str = t.string();
+      auto i = str.find(topics::reserved.string());
+      if (i != std::string::npos) {
+        BROKER_ASSERT(i > 1);
+        // Is the message for a master?
+        auto m = str.rfind(topics::master.string());
+        if (m != std::string::npos && !self->state.masters.empty()) {
+          auto name = str.substr(0, i - 1);
+          auto j = self->state.masters.find(name);
+          if (j != self->state.masters.end()) {
+            BROKER_DEBUG("delivering message to local master:" << name);
+            self->send(j->second, std::move(t), std::move(msg), source);
+            return; // This (unicast) message ends here.
+          }
+        }
+        // Is the message for a clone?
+        auto c = str.rfind(topics::clone.string());
+        if (c != std::string::npos && !self->state.clones.empty()) {
+          auto name = str.substr(0, i - 1);
+          auto j = self->state.clones.find(name);
+          if (j != self->state.clones.end()) {
+            BROKER_DEBUG("delivering message to local clone:" << name);
+            self->send(j->second, std::move(t), std::move(msg), source);
+          }
+        }
+      }
+      // Identify all subscribers, but send this message *at most* once.
       auto subscriptions = self->state.subscriptions.prefix_of(t.string());
-      BROKER_DEBUG("got message for" << subscriptions.size()
-                   << "subscriptions:" << t << "->" << to_string(msg));
-      // Relay message to all subscribers, at most once.
       std::unordered_set<caf::actor> sinks;
       for (auto match : subscriptions) {
         ++match->second.messages;
@@ -207,10 +256,15 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           if (sub != source)
             sinks.insert(sub);
       }
+      // Relay message to all subscribers.
       for (auto& sink : sinks)
         if (sink == subscriber) {
           BROKER_DEBUG("dispatching message locally");
-          self->send(sink, t, msg);
+          // Local subscribers never see internal messages.
+          if (i != std::string::npos)
+            BROKER_WARNING("dropping internal message:" << to_string(msg));
+          else
+            self->send(sink, t, msg);
         } else {
           BROKER_DEBUG("relaying message to" << to_string(sink));
           self->send(sink, t, msg, self);
@@ -218,8 +272,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {
       BROKER_DEBUG("got subscribe request for" << ts.size() << "topics");
-      for (auto& t : ts)
+      for (auto& t : ts) {
+        BROKER_DEBUG("  -" << t);
         self->state.subscriptions[t.string()].subscribers.insert(source);
+      }
       auto msg = caf::make_message(atom::subscribe::value, std::move(ts), self);
       for (auto& p : self->state.peers)
         if (p.actor && *p.actor != source) {
@@ -231,8 +287,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::unsubscribe, const topic& t, const caf::actor& source) {
       BROKER_DEBUG("got unsubscribe request for topic" << t);
-      // We have to collect all candidate topics to remove first, because
-      // erasing a topic from the radix tree invalidates iterators.
+      // We have erase all matching topics in two phases, because erasing a
+      // topic from a radix tree invalidates iterators.
       std::vector<std::string> topics;
       for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
         auto& subscribers = match->second.subscribers;
@@ -457,6 +513,54 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::make_message(net->address, net->port);
       else
         return caf::make_message("", uint16_t{0});
+    },
+    [=](atom::store, atom::master, atom::attach, const std::string& name)
+    -> expected<caf::actor> {
+      BROKER_DEBUG("attaching master:" << name);
+      auto i = self->state.masters.find(name);
+      if (i != self->state.masters.end()) {
+        BROKER_DEBUG("found local master");
+        return i->second;
+      }
+      if (find_remote_master(self, name)) {
+        BROKER_WARNING("remote master with same name exists already");
+        return ec::master_exists;
+      }
+      BROKER_DEBUG("spawning new master");
+      auto actor = self->spawn<caf::linked>(store::detail::master_actor, self,
+                                            name);
+      self->state.masters.emplace(name, actor);
+      // Subscribe to messages directly targeted at the master.
+      auto ts = std::vector<topic>{name / topics::reserved / topics::master};
+      self->send(self, atom::subscribe::value, std::move(ts), self);
+      return actor;
+    },
+    [=](atom::store, atom::clone, atom::attach, std::string& name)
+    -> expected<caf::actor> {
+      BROKER_DEBUG("attaching clone:" << name);
+      optional<caf::actor> master;
+      auto i = self->state.masters.find(name);
+      if (i != self->state.masters.end()) {
+        BROKER_DEBUG("found local master, using direct link");
+        master = i->second;
+      } else if (auto remote = find_remote_master(self, name)) {
+        BROKER_DEBUG("found remote master");
+        master = std::move(*remote);
+      } else {
+        return ec::no_such_master;
+      }
+      BROKER_DEBUG("spawning new clone");
+      auto clone = self->spawn<caf::linked>(store::detail::clone_actor, self,
+                                            *master, name);
+      self->state.clones.emplace(name, clone);
+      // Instruct clone to download snapshot from master.
+      auto msg = caf::make_message(atom::snapshot::value, clone);
+      auto t = name / topics::reserved / topics::master;
+      self->send(*master, std::move(t), std::move(msg), self);
+      // Subscribe to master updates.
+      auto ts = std::vector<topic>{name / topics::reserved / topics::clone};
+      self->send(self, atom::subscribe::value, std::move(ts), self);
+      return clone;
     },
   };
 }

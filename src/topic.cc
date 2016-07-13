@@ -3,6 +3,8 @@
 
 namespace broker {
 
+constexpr char topic::reserved[];
+
 std::vector<std::string> topic::split(const topic& t) {
   std::vector<std::string> result;
   std::string::size_type i = 0;
@@ -74,14 +76,6 @@ bool convert(const topic& t, std::string& str) {
   return true;
 }
 
-namespace detail {
-
-bool internal(const topic& t) {
-  auto i = t.string().find(topic::reserved, 0, sizeof(topic::reserved) - 1);
-  return i != std::string::npos;
-}
-
-} // namespace detail
 } // namespace broker
 
 broker::topic operator "" _t(const char* str, size_t) {

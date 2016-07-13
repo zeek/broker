@@ -13,10 +13,10 @@ namespace broker {
 class topic : detail::totally_ordered<topic> {
 public:
   /// The separator between topic hierarchies.
-  static constexpr auto sep = '/';
+  static constexpr char sep = '/';
 
   /// A reserved string which must not appear in a user topic.
-  static constexpr auto reserved = "<<broker>>";
+  static constexpr char reserved[] = "<$>";
 
   /// Splits a topic into a vector of its components.
   /// @param t The topic to split.
@@ -48,6 +48,7 @@ public:
   topic& operator/=(const topic& t);
 
   /// Retrieves the underlying string representation of the topic.
+  /// @returns A reference to the underlying string.
   const std::string& string() const;
 
 private:
@@ -74,13 +75,14 @@ void serialize(Processor& proc, topic& t) {
   proc & t;
 }
 
-namespace detail {
+/// Topics with a special meaning.
+namespace topics {
 
-// Checks whether the topic is Broker-internal, i.e., contains the reserved
-// component.
-bool internal(const topic& t);
+const topic reserved = topic{topic::reserved};
+const topic master = topic{"data"} / "master";
+const topic clone = topic{"data"} / "clone";
 
-} // namespace detail
+} // namespace topics
 } // namespace broker
 
 /// Converts a string to a topic.

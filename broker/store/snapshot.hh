@@ -1,12 +1,9 @@
 #ifndef BROKER_STORE_SNAPSHOT_HH
 #define BROKER_STORE_SNAPSHOT_HH
 
-#include <vector>
-#include <utility>
+#include <unordered_map>
 
 #include "broker/data.hh"
-#include "broker/store/value.hh"
-#include "broker/store/sequence_num.hh"
 
 namespace broker {
 namespace store {
@@ -14,18 +11,12 @@ namespace store {
 /// A snapshot of a data store's contents along with the sequence number
 /// that corresponds to it.
 struct snapshot {
-  std::vector<std::pair<data, value>> entries;
-  sequence_num sn;
+  std::unordered_map<data, data> entries;
 };
 
-inline bool operator==(const snapshot& lhs, const snapshot& rhs) {
-  return lhs.sn == rhs.sn && lhs.entries == rhs.entries;
-}
-
 template <class Processor>
-void serialize(Processor& proc, snapshot& s, const unsigned) {
-  proc& s.entries;
-  proc& s.sn;
+void serialize(Processor& proc, snapshot& s) {
+  proc & s.entries;
 }
 
 } // namespace store

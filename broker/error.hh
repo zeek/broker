@@ -14,7 +14,13 @@ enum class ec : uint8_t {
   /// The unspecified default error code.
   unspecified = 1,
   /// Version mismatch during peering.
-  version_incompatible
+  version_incompatible,
+  /// Master with given name already exist.
+  master_exists,
+  /// Master with given name does not exist.
+  no_such_master,
+  /// The given data store key does not exist.
+  no_such_key,
 };
 
 /// @relates ec

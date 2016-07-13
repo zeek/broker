@@ -4,12 +4,6 @@
 #include <cstdint>
 
 namespace broker {
-namespace detail {
-
-class flare_actor;
-class mailbox;
-
-} // namespace detail
 
 class context;
 class endpoint;
@@ -25,6 +19,22 @@ using boolean = bool;
 using count = uint64_t;
 using integer = int64_t;
 using real = double;
+
+namespace store {
+
+class backend;
+class clone;
+class frontend;
+class master;
+
+} // namespace store
+
+namespace detail {
+
+class flare_actor;
+class mailbox;
+
+} // namespace detail
 
 } // namespace broker
 

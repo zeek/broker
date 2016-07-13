@@ -4,10 +4,12 @@
 #include <functional>
 #include <string>
 
+#include "caf/none.hpp"
+
 namespace broker {
 
 /// An empty class with a single instance only.
-struct none {
+struct none : caf::none_t {
 };
 
 /// @relates none

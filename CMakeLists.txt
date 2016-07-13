@@ -112,10 +112,14 @@ set(BROKER_SRC
   src/detail/flare.cc
   src/detail/flare_actor.cc
 
+  src/store/frontend.cc
+
+  src/store/detail/clone_actor.cc
+  src/store/detail/master_actor.cc
+
   #src/store/backend.cc
   #src/store/clone.cc
   #src/store/expiration_time.cc
-  #src/store/frontend.cc
   #src/store/master.cc
   #src/store/memory_backend.cc
   #src/store/query.cc

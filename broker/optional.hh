@@ -3,6 +3,8 @@
 
 #include <caf/optional.hpp>
 
+#include "broker/none.hh"
+
 namespace broker {
 
 using caf::optional;

@@ -8,10 +8,10 @@
 
 #include "broker/detail/type_traits.hh"
 
+#include "broker/api_flags.hh"
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
-#include "broker/spawn_flags.hh"
 
 namespace broker {
 
@@ -26,14 +26,14 @@ public:
   context(configuration config = {});
 
   /// Creates a ::blocking_endpoint.
-  template <spawn_flags Flags>
+  template <api_flags Flags>
   detail::enable_if_t<Flags == blocking, blocking_endpoint>
   spawn() {
     return {system_};
   }
 
   /// Creates a ::nonblocking_endpoint.
-  template <spawn_flags Flags, class... Ts>
+  template <api_flags Flags, class... Ts>
   detail::enable_if_t<Flags == nonblocking, nonblocking_endpoint>
   spawn(Ts&&... xs) {
     return {system_, caf::behavior{std::forward<Ts>(xs)...}};

@@ -22,6 +22,18 @@ using subscribe = caf::atom_constant<caf::atom("subscribe")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
 using unsubscribe = caf::atom_constant<caf::atom("usubscribe")>;
 
+// Store
+using attach = caf::atom_constant<caf::atom("attach")>;
+using clone = caf::atom_constant<caf::atom("clone")>;
+using erase = caf::atom_constant<caf::atom("erase")>;
+using expire = caf::atom_constant<caf::atom("expire")>;
+using increment = caf::atom_constant<caf::atom("increment")>;
+using decrement = caf::atom_constant<caf::atom("decrement")>;
+using master = caf::atom_constant<caf::atom("master")>;
+using remove = caf::atom_constant<caf::atom("remove")>;
+using snapshot = caf::atom_constant<caf::atom("snapshot")>;
+using store = caf::atom_constant<caf::atom("store")>;
+
 } // namespace atom
 } // namespace broker
 

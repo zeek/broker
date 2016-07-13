@@ -23,6 +23,9 @@ constexpr auto reconnect = seconds(10);
 /// Timeout when subscribing to a topic.
 constexpr auto subscribe = seconds(5);
 
+/// Timeout for interacting with a data store frontend
+constexpr auto frontend = seconds(10);
+
 /// Infinite timeout.
 constexpr auto infinite = caf::infinite;
 

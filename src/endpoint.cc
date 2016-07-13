@@ -4,6 +4,7 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/error.hh"
 #include "broker/blocking_endpoint.hh"
 #include "broker/endpoint.hh"
 #include "broker/nonblocking_endpoint.hh"
@@ -13,6 +14,15 @@
 #include "broker/detail/die.hh"
 
 namespace broker {
+
+namespace {
+
+auto exit_deleter = [](caf::actor* a) {
+  caf::anon_send_exit(*a, caf::exit_reason::user_shutdown);
+  delete a;
+};
+
+} // namespace <anonymous>
 
 endpoint::endpoint() : subscriber_{caf::unsafe_actor_handle_init} {
   // nop
@@ -133,26 +143,47 @@ void endpoint::unsubscribe(topic t) {
   caf::anon_send(core(), atom::unsubscribe::value, std::move(t), subscriber_);
 }
 
-namespace {
-
-auto core_deleter = [](caf::actor* core) {
-  caf::anon_send_exit(*core, caf::exit_reason::user_shutdown);
-  delete core;
-};
-
-} // namespace <anonymous>
-
 void endpoint::init_core(caf::actor core) {
   BROKER_ASSERT(subscriber_ != caf::unsafe_actor_handle_init);
   core->attach_functor([=] {
     caf::anon_send_exit(subscriber_, caf::exit_reason::user_shutdown);
   });
   auto ptr = new caf::actor{std::move(core)};
-  core_ = std::shared_ptr<caf::actor>(ptr, core_deleter);
+  core_ = std::shared_ptr<caf::actor>(ptr, exit_deleter);
 }
 
 const caf::actor& endpoint::core() const {
   return *core_;
+}
+
+expected<store::frontend> endpoint::attach_master(std::string name) {
+  expected<store::frontend> result{ec::unspecified};
+  caf::scoped_actor self{core()->home_system()};
+  self->request(core(), timeout::core, atom::store::value, atom::master::value,
+                atom::attach::value, std::move(name)).receive(
+    [&](caf::actor& master) {
+      result = store::frontend{std::move(master)};
+    },
+    [&](caf::error& e) {
+      result = std::move(e);
+    }
+  );
+  return result;
+}
+
+expected<store::frontend> endpoint::attach_clone(std::string name) {
+  expected<store::frontend> result{ec::unspecified};
+  caf::scoped_actor self{core()->home_system()};
+  self->request(core(), timeout::core, atom::store::value, atom::clone::value,
+                atom::attach::value, std::move(name)).receive(
+    [&](caf::actor& clone) {
+      result = store::frontend{std::move(clone)};
+    },
+    [&](caf::error& e) {
+      result = std::move(e);
+    }
+  );
+  return result;
 }
 
 } // namespace broker

@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_CORE_ACTOR_HH
 
 #include <unordered_set>
+#include <unordered_map>
 #include <map>
 #include <vector>
 
@@ -31,6 +32,8 @@ struct peer_state {
 struct core_state {
   std::vector<peer_state> peers;
   radix_tree<subscription_state> subscriptions;
+  std::unordered_map<std::string, caf::actor> masters;
+  std::unordered_multimap<std::string, caf::actor> clones;
   std::map<network_info, caf::actor> supervisors;
   endpoint_info info;
   const char* name = "core";

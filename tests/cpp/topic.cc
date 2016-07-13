@@ -47,9 +47,3 @@ TEST(join) {
   auto t = topic::join(xs);
   CHECK_EQUAL(t, sep + "foo" + sep + "bar" + sep + "baz");
 }
-
-TEST(internal) {
-  CHECK(!detail::internal(""_t));
-  CHECK(!detail::internal("foo/bar/baz"_t));
-  CHECK(detail::internal(topic::join({"foo", topic::reserved, "bar"})));
-}
