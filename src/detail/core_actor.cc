@@ -194,30 +194,6 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       peers->erase(i);
     }
   );
-  auto unsubscribe = [=](const topic& t, const caf::actor& a) {
-    // We have to collect all candidate topics to remove first, because
-    // erasing a topic from the radix tree invalidates iterators.
-    std::vector<topic> topics;
-    for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
-      auto& subscribers = match->second.subscribers;
-      // Remove the subscription state iff we are the only subscriber.
-      auto i = subscribers.find(a);
-      if (i != subscribers.end()) {
-        BROKER_ASSERT(!subscribers.empty());
-        if (subscribers.size() == 1) {
-          BROKER_DEBUG("removing state for topic" << match->first);
-          BROKER_DEBUG("processed" << match->second.messages << "messages");
-          subscribers.erase(i);
-        } else {
-          BROKER_DEBUG("removing subscriber from topic " << match->first);
-          BROKER_DEBUG(subscribers.size() - 1 << "subscribers remaining");
-          topics.emplace_back(match->first);
-        }
-      }
-    }
-    for (auto& t : topics)
-      self->state.subscriptions.erase(t.string());
-  };
   return {
     [=](topic& t, message& msg, const caf::actor& source) {
       auto subscriptions = self->state.subscriptions.prefix_of(t.string());
@@ -255,7 +231,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::unsubscribe, const topic& t, const caf::actor& source) {
       BROKER_DEBUG("got unsubscribe request for topic" << t);
-      unsubscribe(t, source);
+      // We have to collect all candidate topics to remove first, because
+      // erasing a topic from the radix tree invalidates iterators.
+      std::vector<std::string> topics;
+      for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
+        auto& subscribers = match->second.subscribers;
+        BROKER_DEBUG("removing subscriber from topic" << match->first);
+        subscribers.erase(source);
+        if (subscribers.empty())
+          topics.push_back(std::move(match->first));
+      }
+      for (auto& t : topics) {
+        BROKER_DEBUG("removing subscription state of topic" << t);
+        self->state.subscriptions.erase(t);
+      }
       // Relay unsubscription to peers.
       auto msg = caf::make_message(atom::unsubscribe::value, t, self);
       for (auto& p : self->state.peers)
