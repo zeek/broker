@@ -3,6 +3,7 @@
 
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "broker/detail/operators.hh"
 
@@ -11,7 +12,21 @@ namespace broker {
 /// A hierachical topic used as pub/sub communication pattern.
 class topic : detail::totally_ordered<topic> {
 public:
-  static constexpr char sep[] = "/";
+  /// The separator between topic hierarchies.
+  static constexpr auto sep = '/';
+
+  /// A reserved string which must not appear in a user topic.
+  static constexpr auto reserved = "<<broker>>";
+
+  /// Splits a topic into a vector of its components.
+  /// @param t The topic to split.
+  /// @returns The components that make up the topic.
+  static std::vector<std::string> split(const topic& t);
+
+  /// Joins a sequence of components to a hierarchical topic.
+  /// @param components The components that make up the topic.
+  /// @returns The topic according to *components*.
+  static topic join(const std::vector<std::string>& components);
 
   /// Default-constructs an empty topic.
   topic() = default;
@@ -25,12 +40,19 @@ public:
     >::type
   >
   topic(T&& x) : str_(std::forward<T>(x)) {
+    clean();
   }
+
+  /// Appends a topic components with a separator.
+  /// @param t The topic to append to this instance.
+  topic& operator/=(const topic& t);
 
   /// Retrieves the underlying string representation of the topic.
   const std::string& string() const;
 
 private:
+  void clean();
+
   std::string str_;
 };
 
@@ -41,6 +63,9 @@ bool operator==(const topic& lhs, const topic& rhs);
 bool operator<(const topic& lhs, const topic& rhs);
 
 /// @relates topic
+topic operator/(const topic& lhs, const topic& rhs);
+
+/// @relates topic
 bool convert(const topic& t, std::string& str);
 
 /// @relates topic
@@ -49,6 +74,13 @@ void serialize(Processor& proc, topic& t) {
   proc & t;
 }
 
+namespace detail {
+
+// Checks whether the topic is Broker-internal, i.e., contains the reserved
+// component.
+bool internal(const topic& t);
+
+} // namespace detail
 } // namespace broker
 
 /// Converts a string to a topic.

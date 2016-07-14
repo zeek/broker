@@ -21,6 +21,7 @@ set(tests
   cpp/data.cc
   cpp/endpoint.cc
   cpp/radix_tree.cc
+  cpp/topic.cc
   cpp/variant.cc
 )
 
