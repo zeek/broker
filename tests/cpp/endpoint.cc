@@ -7,9 +7,10 @@
 
 using namespace broker;
 
-namespace {
-
+using std::chrono::milliseconds;
 using std::chrono::seconds;
+
+namespace {
 
 bool is_ready(blocking_endpoint& e, seconds secs = seconds::zero()) {
   auto fd = e.mailbox().descriptor();
@@ -81,8 +82,8 @@ TEST(blocking lambda receive) {
     CHECK_EQUAL(t, "/foo/bar"_t);
     CHECK_EQUAL(*msg.get_as<data>(0).get<integer>(), 42);
   });
-  CHECK(!e.mailbox().empty());
   CHECK(is_ready(e));
+  CHECK(!e.mailbox().empty());
   e.receive([](const topic& t, const message& msg) {
     CHECK_EQUAL(t, "/foo/baz"_t);
     CHECK_EQUAL(msg.get_as<data>(0), data{-1});
@@ -214,7 +215,7 @@ TEST(remote peering termination) {
   CHECK_EQUAL(x.peers().size(), 0u);
 }
 
-TEST(multiple peers) {
+TEST(subscribe after peering) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto a = ctx.spawn<blocking>();
@@ -241,29 +242,64 @@ TEST(multiple peers) {
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
   MESSAGE("propagating subscriptions");
-  a.subscribe("/foo"); // A -> B
-  c.subscribe("/bar"); // C -> B,D
-  MESSAGE("publishing messages");
-  // A -> B
-  a.publish("/foo/a", 42);
-  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/a"_t); });
-  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/a"_t); });
+  a.subscribe("/foo");
+  c.subscribe("/bar");
+  // Wait until subscriptions propagated along the chain.
+  std::this_thread::sleep_for(milliseconds{300});
+  MESSAGE("D -> C -> B -> A");
+  d.publish("/foo/d", 42);
+  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/d"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
-  // B -> A
-  b.publish("/foo/b", 43);
-  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/b"_t); });
-  b.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/b"_t); });
+  MESSAGE("A -> B -> C");
+  a.publish("/bar/a", 42);
+  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar/a"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
-  // D -> C
-  d.publish("/bar", 7);
-  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
-  d.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar"_t); });
+}
+
+TEST(subscribe before peering) {
+  MESSAGE("spawning endpoints");
+  context ctx;
+  auto a = ctx.spawn<blocking>();
+  auto b = ctx.spawn<blocking>();
+  auto c = ctx.spawn<blocking>();
+  auto d = ctx.spawn<blocking>();
+  a.subscribe("/foo");
+  c.subscribe("/bar");
+  // A <-> B <-> C <-> D
+  MESSAGE("chaining peers");
+  a.peer(b);
+  a.receive([](const status& s) { CHECK(s == peer_added); });
+  b.receive([](const status& s) { CHECK(s == peer_added); });
+  b.peer(c);
+  b.receive([](const status& s) { CHECK(s == peer_added); });
+  c.receive([](const status& s) { CHECK(s == peer_added); });
+  c.peer(d);
+  c.receive([](const status& s) { CHECK(s == peer_added); });
+  d.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK_EQUAL(a.peers().size(), 1u);
+  CHECK_EQUAL(b.peers().size(), 2u);
+  CHECK_EQUAL(c.peers().size(), 2u);
+  CHECK_EQUAL(d.peers().size(), 1u);
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
+  MESSAGE("D -> C -> B -> A");
+  d.publish("/foo/d", 42);
+  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/d"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  CHECK(c.mailbox().empty());
+  CHECK(d.mailbox().empty());
+  MESSAGE("A -> B -> C");
+  a.publish("/bar/a", 42);
+  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar/a"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());

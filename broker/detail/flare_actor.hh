@@ -49,7 +49,8 @@ public:
   int descriptor() const;
 
 private:
-  detail::flare flare_;
+  flare flare_;
+  bool await_flare_;
 };
 
 } // namespace detail

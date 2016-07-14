@@ -19,6 +19,10 @@
 
 namespace broker {
 
+namespace detail {
+class flare_actor;
+} // namsespace detail
+
 /// Describes the possible states of a peer. A local peer begins in state
 /// `initialized` and transitions directly to `peered`. A remote peer
 /// begins in `initialized` and then through states `connecting`, `connected`,
@@ -110,6 +114,7 @@ public:
   }
 
   /// Subscribes to a topic.
+  /// @param t The topic to subscribe to.
   void subscribe(topic t);
 
   /// Unsubscribes from a topic.
