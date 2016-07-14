@@ -98,7 +98,7 @@ void endpoint::peer(const std::string& address, uint16_t port) {
 }
 
 void endpoint::unpeer(const endpoint& other) {
-  caf::anon_send(core(), atom::unpeer::value, other.core(), true);
+  caf::anon_send(core(), atom::unpeer::value, other.core(), subscriber_);
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {

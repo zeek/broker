@@ -169,7 +169,7 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          caf::actor subscriber) {
   self->state.info = make_info(self);
-  // The core actor monitors inbound peerings and local outbound peerings.
+  // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
       BROKER_INFO("got DOWN from peer" << to_string(down.source));
@@ -252,8 +252,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->send(*p.actor, msg);
     },
     [=](atom::peer, network_info net) {
-      BROKER_DEBUG("requesting peering with remote endpoint"
-                   << to_string(net));
+      BROKER_DEBUG("peering with remote endpoint" << to_string(net));
       auto pred = [&](const peer_state& p) {
         return p.info.peer.network == net && is_outbound(p.info.flags);
       };
@@ -271,7 +270,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->state.supervisors.emplace(net, sv);
     },
     [=](atom::peer, const caf::actor& other) {
-      BROKER_DEBUG("requesting peering with local endpoint");
+      BROKER_DEBUG("peering with local endpoint");
       auto pred = [&](const peer_state& p) { return p.actor == other; };
       auto peers = &self->state.peers;
       auto i = std::find_if(peers->begin(), peers->end(), pred);
@@ -388,8 +387,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return local_subscriptions(self);
     },
     [=](atom::unpeer, network_info net) {
-      BROKER_DEBUG("requesting unpeering with remote endpoint"
-                   << to_string(net));
+      BROKER_DEBUG("unpeering with remote endpoint" << to_string(net));
       auto peers = &self->state.peers;
       auto pred = [&](const peer_state& p) {
         return p.info.peer.network == net && is_outbound(p.info.flags);
@@ -404,7 +402,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       } else {
         if (i->actor) {
           // Tell the other side to stop peering with us.
-          self->send(*i->actor, atom::unpeer::value, self, false);
+          self->send(*i->actor, atom::unpeer::value, self, self);
           self->demonitor(*i->actor);
         }
         // Remove the other endpoint from ourselves.
@@ -415,24 +413,24 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       self->send(subscriber, std::move(s));
     },
-    [=](atom::unpeer, const caf::actor& other, bool propagate) {
+    [=](atom::unpeer, const caf::actor& peer, const caf::actor& source) {
       BROKER_DEBUG("got request to unpeer with endpoint");
       auto peers = &self->state.peers;
-      auto handle = other.address();
-      auto pred = [&](const peer_state& p) { return p.actor == other; };
+      auto handle = peer.address();
+      auto pred = [&](const peer_state& p) { return p.actor == peer; };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       status s;
       s.local = self->state.info;
-      s.peer = make_info(other);
+      s.peer = make_info(peer);
       if (i == peers->end()) {
         s.info = peer_invalid;
         s.message = "no such peer";
         BROKER_DEBUG(s.message);
       } else {
         // Tell the other side to stop peering with us.
-        if (propagate)
-          self->send(other, atom::unpeer::value, self, false);
-        self->demonitor(other);
+        if (peer != source)
+          self->send(peer, atom::unpeer::value, self, self);
+        self->demonitor(peer);
         // Remove the other endpoint from ourselves.
         s.info = peer_removed;
         s.message = "removed peering";
