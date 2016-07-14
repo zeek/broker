@@ -2,10 +2,11 @@
 #define BROKER_BROKER_HH
 
 #include "broker/address.hh"
+#include "broker/blocking_endpoint.hh"
 #include "broker/context.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/endpoint.hh"
+#include "broker/nonblocking_endpoint.hh"
 #include "broker/port.hh"
 #include "broker/status.hh"
 #include "broker/subnet.hh"
