@@ -114,6 +114,7 @@ set(BROKER_SRC
   src/detail/flare.cc
   src/detail/flare_actor.cc
   src/detail/master_actor.cc
+  src/detail/memory_backend.cc
 
   #${OPTIONAL_SRC}
 )

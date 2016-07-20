@@ -1,8 +1,6 @@
 #ifndef BROKER_DETAIL_ABSTRACT_BACKEND_HH
 #define BROKER_DETAIL_ABSTRACT_BACKEND_HH
 
-#include <vector>
-
 #include "broker/data.hh"
 #include "broker/expected.hh"
 #include "broker/optional.hh"
@@ -39,7 +37,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns The result of the modification.
   virtual expected<void> add(const data& key, const data& value,
-                             time::point t) = 0;
+                             time::point t = {}) = 0;
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to remove from.
@@ -47,7 +45,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns The result of the modification.
   virtual expected<void> remove(const data& key, const data& value,
-                                time::point t) = 0;
+                                time::point t = {}) = 0;
 
   /// Removes a key and its associated value from the store, if it exists and
   /// the expiration value is the same.
@@ -56,10 +54,6 @@ public:
   /// this expiry operation is ignored.
   /// @returns `true` If the key didn't exist or was removed successfully.
   virtual expected<void> expire(const data& key, time::point expiry) = 0;
-
-  /// Remove all key-value pairs from the store.
-  /// @returns `true` on success.
-  virtual bool clear() = 0;
 
   // --- inspectors -----------------------------------------------------------
 
@@ -74,20 +68,17 @@ public:
   /// @returns The *aspect* of the value at *key*.
   virtual expected<data> get(const data& key, const data& value) const = 0;
 
-  /// @returns The number of key-value pairs in the store.
-  virtual expected<uint64_t> size() const = 0;
-
   /// Check if a given key exists.
   /// @param key The key to use.
   /// @returns `true` If the provided key exists or nil on failing to perform
   /// the query.
   virtual expected<bool> exists(const data& key) const = 0;
 
-  /// @returns All keys in the store or nil on failing to perform the query.
-  virtual expected<std::vector<data>> keys() const = 0;
+  /// @returns The number of key-value pairs in the store.
+  virtual expected<uint64_t> size() const = 0;
 
   /// @returns A snapshot of the store that includes its content.
-  virtual expected<store::snapshot> snapshot() const = 0;
+  virtual expected<broker::snapshot> snapshot() const = 0;
 };
 
 } // namespace detail

@@ -4,6 +4,7 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/backend.hh"
 #include "broker/convert.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -18,7 +19,9 @@
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
+#include "broker/detail/make_unique.hh"
 #include "broker/detail/master_actor.hh"
+#include "broker/detail/memory_backend.hh"
 
 namespace broker {
 namespace detail {
@@ -513,8 +516,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       else
         return caf::make_message("", uint16_t{0});
     },
-    [=](atom::store, atom::master, atom::attach, const std::string& name)
-    -> expected<caf::actor> {
+    [=](atom::store, atom::master, atom::attach, const std::string& name,
+        backend backend_type) -> expected<caf::actor> {
       BROKER_DEBUG("attaching master:" << name);
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
@@ -525,8 +528,19 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_WARNING("remote master with same name exists already");
         return ec::master_exists;
       }
+      BROKER_DEBUG("instantiating backend");
+      auto factory = [](backend type) -> std::unique_ptr<abstract_backend> {
+        switch (type) {
+          default:
+            return nullptr; // TODO
+          case memory:
+            return std::make_unique<memory_backend>();
+        }
+      };
+      auto ptr = factory(backend_type);
       BROKER_DEBUG("spawning new master");
-      auto actor = self->spawn<caf::linked>(master_actor, self, name);
+      auto actor = self->spawn<caf::linked>(master_actor, self, name,
+                                            std::move(ptr));
       self->state.masters.emplace(name, actor);
       // Subscribe to messages directly targeted at the master.
       auto ts = std::vector<topic>{name / topics::reserved / topics::master};

@@ -16,18 +16,18 @@ TEST(no duplicate masters) {
   auto ep0 = ctx.spawn<blocking>();
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
-  auto ds0 = ep0.attach<master>("yoda");
+  auto ds0 = ep0.attach<master, memory>("yoda");
   REQUIRE(ds0);
   CHECK_EQUAL(ds0->name(), "yoda");
   std::this_thread::sleep_for(propagation_delay); // subscription
-  auto ds1 = ep1.attach<master>("yoda");
+  auto ds1 = ep1.attach<master, memory>("yoda");
   CHECK(ds1 == ec::master_exists);
 }
 
 TEST(master operations) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
-  auto ds = ep.attach<master>("kono");
+  auto ds = ep.attach<master, memory>("kono");
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
@@ -43,7 +43,11 @@ TEST(master operations) {
   REQUIRE(!result);
   CHECK_EQUAL(result.error(), ec::no_such_key);
   MESSAGE("add");
-  ds->add("foo", 1u); // key did not exist, operation succeeds
+  ds->add("foo", 1u); // key did not exist, operation fails
+  result = ds->get("foo");
+  REQUIRE(!result);
+  ds->put("foo", 0u);
+  ds->add("foo", 1u); // key exists now, operation succeeds
   result = ds->get("foo");
   REQUIRE(result);
   CHECK_EQUAL(*result, data{1u});
@@ -79,7 +83,7 @@ TEST(master operations) {
 TEST(clone operations - same endpoint) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
-  auto m = ep.attach<master>("vulcan");
+  auto m = ep.attach<master, memory>("vulcan");
   MESSAGE("master PUT");
   m->put("key", "value");
   REQUIRE(m);
@@ -102,7 +106,7 @@ TEST(clone operations - different endpoints) {
   auto ep0 = ctx.spawn<blocking>();
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
-  auto m = ep0.attach<master>("flaka");
+  auto m = ep0.attach<master, memory>("flaka");
   auto c = ep1.attach<clone>("flaka");
   REQUIRE(m);
   REQUIRE(c);

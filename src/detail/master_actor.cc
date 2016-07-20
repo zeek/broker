@@ -12,7 +12,8 @@
 #include "broker/snapshot.hh"
 #include "broker/time.hh"
 
-#include "broker/detail/appliers.hh"
+#include "broker/detail/abstract_backend.hh"
+#include "broker/detail/die.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/type_traits.hh"
 
@@ -20,12 +21,13 @@ namespace broker {
 namespace detail {
 
 // TODO: The following aspects still need to be thought through:
-// - Backend-agnostic storage/retrieval
 // - Expiration of values.
 // - Error handling when asynchronous operations fail.
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
-                           caf::actor core, std::string name) {
+                           caf::actor core, std::string name,
+                           std::unique_ptr<abstract_backend> backend) {
+  self->state.backend = std::move(backend);
   auto next_seq = [=] { return ++self->state.sequence_number; };
   auto broadcast = [=](caf::message&& msg) {
     auto t = name / topics::reserved / topics::clone;
@@ -41,29 +43,32 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     [=](atom::put, data& key, data& value, count seq) {
       BROKER_DEBUG("PUT" << ('#' + std::to_string(seq) + ':')
                    << key << "->" << value);
-      self->state.backend[key] = value;
+      auto result = self->state.backend->put(key, value);
+      if (!result) {
+        BROKER_WARNING("failed to put" << key << "->" << value);
+        return; // TODO: propagate failure? to all clones? as status msg?
+      }
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::put::value, std::move(key),
                                     std::move(value), next_seq()));
     },
     [=](atom::erase, data& key, count seq) {
       BROKER_DEBUG("erase" << ('#' + std::to_string(seq) + ':') << key);
-      self->state.backend.erase(key);
+      auto result = self->state.backend->erase(key);
+      if (!result) {
+        BROKER_WARNING("failed to erase" << key);
+        return; // TODO: propagate failure? to all clones? as status msg?
+      }
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::erase::value, std::move(key),
                                     next_seq()));
     },
     [=](atom::add, data& key, data& value, count seq) {
       BROKER_DEBUG("add" << ('#' + std::to_string(seq) + ':') << key);
-      auto i = self->state.backend.find(key);
-      if (i == self->state.backend.end()) {
-        BROKER_DEBUG("no such key, inserting new value" << value);
-        self->state.backend.emplace(key, value);
-      } else {
-        if (!visit(adder{value}, i->second)) {
-          BROKER_ERROR("failed to add" << value << "to" << i->second);
-          return; // TODO: propagate failure? to all clones? as status msg?
-        }
+      auto result = self->state.backend->add(key, value);
+      if (!result) {
+        BROKER_WARNING("failed to add" << value << "to" << key);
+        return; // TODO: propagate failure? to all clones? as status msg?
       }
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::add::value, std::move(key),
@@ -71,13 +76,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     },
     [=](atom::remove, data& key, data& value, count seq) {
       BROKER_DEBUG("remove" << ('#' + std::to_string(seq) + ':') << key);
-      auto i = self->state.backend.find(key);
-      if (i == self->state.backend.end()) {
-        BROKER_DEBUG("no such key, ignoring removal");
-        return;
-      }
-      if (!visit(remover{value}, i->second)) {
-        BROKER_ERROR("failed to remove" << value << "to" << i->second);
+      auto result = self->state.backend->remove(key, value);
+      if (!result) {
+        BROKER_WARNING("failed to add" << value << "to" << key);
         return; // TODO: propagate failure? to all clones? as status msg?
       }
       if (!self->state.clones.empty())
@@ -86,7 +87,10 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     },
     [=](atom::snapshot, const caf::actor& clone) {
       BROKER_DEBUG("got snapshot request from" << to_string(clone));
-      self->send(clone, snapshot{self->state.backend});
+      auto ss = self->state.backend->snapshot();
+      if (!ss)
+        die("failed to snapshot master");
+      self->send(clone, std::move(*ss));
       self->monitor(clone);
       self->state.clones.insert(clone->address());
     },
@@ -107,17 +111,11 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   auto user = caf::message_handler{
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
-      auto i = self->state.backend.find(key);
-      if (i == self->state.backend.end())
-        return ec::no_such_key;
-      return i->second;
+      return self->state.backend->get(key);
     },
     [=](atom::get, const data& key, const data& value) -> expected<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
-      auto i = self->state.backend.find(key);
-      if (i == self->state.backend.end())
-        return ec::no_such_key;
-      return visit(retriever{value}, i->second);
+      return self->state.backend->get(key, value);
     },
     [=](atom::get) {
       return name;

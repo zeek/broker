@@ -126,18 +126,18 @@ struct retriever {
     return x;
   }
 
-  result_type operator()(vector& v) const {
+  result_type operator()(const vector& v) const {
     auto i = aspect.get<count>();
     if (!i || *i >= v.size())
       return nil;
     return v[*i];
   }
 
-  result_type operator()(set& s) const {
+  result_type operator()(const set& s) const {
     return s.count(aspect) == 1;
   }
 
-  result_type operator()(table& t) const {
+  result_type operator()(const table& t) const {
     // Data must come as key-value pair to be valid, which we model as
     // vector of length 2.
     auto i = t.find(aspect);

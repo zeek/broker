@@ -102,10 +102,10 @@ public:
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
   /// @returns A handle to the frontend representing the master.
-  template <frontend F, backend B = memory>
+  template <frontend F, backend B>
   auto attach(std::string name)
   -> detail::enable_if_t<F == master, expected<store>> {
-    return attach_master(std::move(name));
+    return attach_master(std::move(name), B);
   }
 
   /// Attaches and/or creates a *clone* data store with a globally unique name.
@@ -128,7 +128,7 @@ protected:
   caf::actor subscriber_;
 
 private:
-  expected<store> attach_master(std::string name);
+  expected<store> attach_master(std::string name, backend b);
   expected<store> attach_clone(std::string name);
 };
 
