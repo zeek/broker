@@ -42,7 +42,7 @@ bool convert(const duration& p, std::string& str);
 bool convert(const point& p, std::string& str);
 
 /// @returns the current point in time.
-static point now();
+point now();
 
 } // namespace time
 } // namespace broker
