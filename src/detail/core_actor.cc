@@ -15,11 +15,10 @@
 #include "broker/version.hh"
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/clone_actor.hh"
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
-
-#include "broker/store/detail/clone_actor.hh"
-#include "broker/store/detail/master_actor.hh"
+#include "broker/detail/master_actor.hh"
 
 namespace broker {
 namespace detail {
@@ -527,8 +526,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return ec::master_exists;
       }
       BROKER_DEBUG("spawning new master");
-      auto actor = self->spawn<caf::linked>(store::detail::master_actor, self,
-                                            name);
+      auto actor = self->spawn<caf::linked>(master_actor, self, name);
       self->state.masters.emplace(name, actor);
       // Subscribe to messages directly targeted at the master.
       auto ts = std::vector<topic>{name / topics::reserved / topics::master};
@@ -550,8 +548,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return ec::no_such_master;
       }
       BROKER_DEBUG("spawning new clone");
-      auto clone = self->spawn<caf::linked>(store::detail::clone_actor, self,
-                                            *master, name);
+      auto clone = self->spawn<caf::linked>(clone_actor, self, *master, name);
       self->state.clones.emplace(name, clone);
       // Instruct clone to download snapshot from master.
       auto msg = caf::make_message(atom::snapshot::value, clone);

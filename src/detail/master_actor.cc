@@ -9,16 +9,14 @@
 #include "broker/expected.hh"
 #include "broker/topic.hh"
 #include "broker/message.hh"
+#include "broker/snapshot.hh"
 #include "broker/time.hh"
 
-#include "broker/store/snapshot.hh"
-#include "broker/store/detail/master_actor.hh"
-#include "broker/store/detail/visitors.hh"
-
+#include "broker/detail/appliers.hh"
+#include "broker/detail/master_actor.hh"
 #include "broker/detail/type_traits.hh"
 
 namespace broker {
-namespace store {
 namespace detail {
 
 // TODO: The following aspects still need to be thought through:
@@ -119,7 +117,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       auto i = self->state.backend.find(key);
       if (i == self->state.backend.end())
         return ec::no_such_key;
-      return visit(getter{value}, i->second);
+      return visit(retriever{value}, i->second);
     },
     [=](atom::get) {
       return name;
@@ -129,5 +127,4 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
 }
 
 } // namespace detail
-} // namespace store
 } // namespace broker

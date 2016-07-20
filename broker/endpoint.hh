@@ -7,17 +7,19 @@
 
 #include <caf/actor.hpp>
 
+#include "broker/backend.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
+#include "broker/frontend.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
+#include "broker/store.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/operators.hh"
 
-#include "broker/store/frontend.hh"
 
 namespace broker {
 
@@ -100,18 +102,18 @@ public:
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
   /// @returns A handle to the frontend representing the master.
-  template <store::frontend_type T>
+  template <frontend F, backend B = memory>
   auto attach(std::string name)
-  -> detail::enable_if_t<T == store::master, expected<store::frontend>> {
+  -> detail::enable_if_t<F == master, expected<store>> {
     return attach_master(std::move(name));
   }
 
   /// Attaches and/or creates a *clone* data store with a globally unique name.
   /// @param name The name of the clone.
   /// @returns A handle to the frontend representing the clone.
-  template <store::frontend_type T>
+  template <frontend F>
   auto attach(std::string name)
-  -> detail::enable_if_t<T == store::clone, expected<store::frontend>> {
+  -> detail::enable_if_t<F == clone, expected<store>> {
     return attach_clone(std::move(name));
   }
 
@@ -126,8 +128,8 @@ protected:
   caf::actor subscriber_;
 
 private:
-  expected<store::frontend> attach_master(std::string name);
-  expected<store::frontend> attach_clone(std::string name);
+  expected<store> attach_master(std::string name);
+  expected<store> attach_clone(std::string name);
 };
 
 } // namespace broker

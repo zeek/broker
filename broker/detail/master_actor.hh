@@ -1,5 +1,5 @@
-#ifndef BROKER_STORE_DETAIL_MASTER_ACTOR_HH
-#define BROKER_STORE_DETAIL_MASTER_ACTOR_HH
+#ifndef BROKER_DETAIL_MASTER_ACTOR_HH
+#define BROKER_DETAIL_MASTER_ACTOR_HH
 
 #include <unordered_set>
 #include <unordered_map>
@@ -9,7 +9,6 @@
 #include "broker/fwd.hh"
 
 namespace broker {
-namespace store {
 namespace detail {
 
 struct master_state {
@@ -22,7 +21,6 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string name);
 
 } // namespace detail
-} // namespace store
 } // namespace broker
 
-#endif // BROKER_STORE_DETAIL_MASTER_ACTOR_HH
+#endif // BROKER_DETAIL_MASTER_ACTOR_HH

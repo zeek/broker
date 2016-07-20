@@ -9,6 +9,7 @@ class context;
 class endpoint;
 class blocking_endpoint;
 class nonblocking_endpoint;
+class store;
 
 struct network_info;
 
@@ -19,15 +20,6 @@ using boolean = bool;
 using count = uint64_t;
 using integer = int64_t;
 using real = double;
-
-namespace store {
-
-class backend;
-class clone;
-class frontend;
-class master;
-
-} // namespace store
 
 namespace detail {
 

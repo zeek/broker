@@ -87,7 +87,7 @@ install(DIRECTORY broker DESTINATION include)
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
-set_source_files_properties(src/store/sqlite3.c PROPERTIES COMPILE_FLAGS
+set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
 set(BROKER_SRC
@@ -103,31 +103,17 @@ set(BROKER_SRC
   src/nonblocking_endpoint.cc
   src/port.cc
   src/status.cc
+  src/store.cc
   src/string.cc
   src/subnet.cc
   src/time.cc
   src/topic.cc
 
+  src/detail/clone_actor.cc
   src/detail/core_actor.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
-
-  src/store/frontend.cc
-
-  src/store/detail/clone_actor.cc
-  src/store/detail/master_actor.cc
-
-  #src/store/backend.cc
-  #src/store/clone.cc
-  #src/store/expiration_time.cc
-  #src/store/master.cc
-  #src/store/memory_backend.cc
-  #src/store/query.cc
-  #src/store/response.cc
-  #src/store/result.cc
-  #src/store/sequence_num.cc
-  #src/store/sqlite3.c
-  #src/store/sqlite_backend.cc
+  src/detail/master_actor.cc
 
   #${OPTIONAL_SRC}
 )

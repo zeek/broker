@@ -1,5 +1,5 @@
-#ifndef BROKER_STORE_FRONTEND_HH
-#define BROKER_STORE_FRONTEND_HH
+#ifndef BROKER_STORE_HH
+#define BROKER_STORE_HH
 
 #include <string>
 
@@ -16,30 +16,16 @@ namespace broker {
 
 class endpoint;
 
-namespace store {
-
-/// Distinguishes the two frontend types.
-enum frontend_type {
-  /// A clone of a master data store.  The clone automatically synchronizes to
-  /// the master version by receiving updates made to the master and applying
-  /// them locally.
-  clone,
-  /// This type of store is authoritative over its contents. A master directly
-  /// applies mutable operations to its backend and then broadcasts the update
-  /// to its clones.
-  master
-};
-
-/// A frontend interface of a data store (either a *master* or *clone*) that
-/// supports modifying and querying contents.
-class frontend {
+/// A key-value store (either a *master* or *clone*) that supports modifying
+/// and querying contents.
+class store {
   friend endpoint; // construction
 
 public:
   // --- inspectors -----------------------------------------------------------
 
-  /// Retrieves the name of the frontend.
-  /// @returns The frontend name.
+  /// Retrieves the name of the store.
+  /// @returns The store name.
   std::string name() const;
 
   /// Retrieves a value.
@@ -91,7 +77,7 @@ public:
   void remove(data key, data value) const;
 
 private:
-  frontend(caf::actor actor);
+  store(caf::actor actor);
 
   template <class T, class... Ts>
   expected<T> request(Ts&&... xs) const {
@@ -112,7 +98,6 @@ private:
   caf::actor frontend_;
 };
 
-} // namespace store
 } // namespace broker
 
-#endif // BROKER_STORE_FRONTEND_HH
+#endif // BROKER_STORE_HH

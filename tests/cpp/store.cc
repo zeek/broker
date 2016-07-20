@@ -16,18 +16,18 @@ TEST(no duplicate masters) {
   auto ep0 = ctx.spawn<blocking>();
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
-  auto ds0 = ep0.attach<store::master>("yoda");
+  auto ds0 = ep0.attach<master>("yoda");
   REQUIRE(ds0);
   CHECK_EQUAL(ds0->name(), "yoda");
   std::this_thread::sleep_for(propagation_delay); // subscription
-  auto ds1 = ep1.attach<store::master>("yoda");
+  auto ds1 = ep1.attach<master>("yoda");
   CHECK(ds1 == ec::master_exists);
 }
 
 TEST(master operations) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
-  auto ds = ep.attach<store::master>("kono");
+  auto ds = ep.attach<master>("kono");
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
@@ -79,20 +79,20 @@ TEST(master operations) {
 TEST(clone operations - same endpoint) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
-  auto master = ep.attach<store::master>("vulcan");
+  auto m = ep.attach<master>("vulcan");
   MESSAGE("master PUT");
-  master->put("key", "value");
-  REQUIRE(master);
-  auto clone = ep.attach<store::clone>("vulcan");
-  REQUIRE(clone);
+  m->put("key", "value");
+  REQUIRE(m);
+  auto c = ep.attach<clone>("vulcan");
+  REQUIRE(c);
   std::this_thread::sleep_for(propagation_delay); // snapshot transfer
-  auto v = clone->get("key");
+  auto v = c->get("key");
   REQUIRE(v);
   CHECK_EQUAL(v, data{"value"});
   MESSAGE("clone PUT");
-  clone->put("key", 4.2);
+  c->put("key", 4.2);
   std::this_thread::sleep_for(propagation_delay);
-  v = clone->get("key");
+  v = c->get("key");
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.2});
 }
@@ -102,18 +102,18 @@ TEST(clone operations - different endpoints) {
   auto ep0 = ctx.spawn<blocking>();
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
-  auto master = ep0.attach<store::master>("flaka");
-  auto clone = ep1.attach<store::clone>("flaka");
-  REQUIRE(master);
-  REQUIRE(clone);
-  clone->put("foo", 4.2);
+  auto m = ep0.attach<master>("flaka");
+  auto c = ep1.attach<clone>("flaka");
+  REQUIRE(m);
+  REQUIRE(c);
+  c->put("foo", 4.2);
   std::this_thread::sleep_for(propagation_delay); // master -> clone
-  auto v = clone->get("foo");
+  auto v = c->get("foo");
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.2});
-  clone->remove("foo", 0.2);
+  c->remove("foo", 0.2);
   std::this_thread::sleep_for(propagation_delay); // master -> clone
-  v = clone->get("foo");
+  v = c->get("foo");
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.0});
 }

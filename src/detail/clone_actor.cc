@@ -7,16 +7,14 @@
 #include "broker/data.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/snapshot.hh"
 #include "broker/topic.hh"
 #include "broker/message.hh"
 
-#include "broker/store/snapshot.hh"
-
-#include "broker/store/detail/clone_actor.hh"
-#include "broker/store/detail/visitors.hh"
+#include "broker/detail/clone_actor.hh"
+#include "broker/detail/appliers.hh"
 
 namespace broker {
-namespace store {
 namespace detail {
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
@@ -98,7 +96,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         return ec::no_such_key;
-      return visit(getter{value}, i->second);
+      return visit(retriever{value}, i->second);
     },
     [=](atom::get) {
       return name;
@@ -114,6 +112,5 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 }
 
 } // namespace detail
-} // namespace store
 } // namespace broker
 

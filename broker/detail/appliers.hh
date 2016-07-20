@@ -1,3 +1,6 @@
+#ifndef BROKER_DETAIL_APPLIERS_HH
+#define BROKER_DETAIL_APPLIERS_HH
+
 #include "broker/data.hh"
 #include "broker/message.hh"
 #include "broker/time.hh"
@@ -5,7 +8,6 @@
 #include "broker/detail/type_traits.hh"
 
 namespace broker {
-namespace store {
 namespace detail {
 
 template <class T>
@@ -20,14 +22,12 @@ struct adder {
   using result_type = bool;
 
   template <class T>
-  auto operator()(T&)
-  -> broker::detail::disable_if_t<is_additive_group<T>(), result_type> {
+  auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
     return false;
   }
 
   template <class T>
-  auto operator()(T& c)
-  -> broker::detail::enable_if_t<is_additive_group<T>(), result_type> {
+  auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
       return false;
@@ -78,14 +78,12 @@ struct remover {
   using result_type = bool;
 
   template <class T>
-  auto operator()(T&)
-  -> broker::detail::disable_if_t<is_additive_group<T>(), result_type> {
+  auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
     return false;
   }
 
   template <class T>
-  auto operator()(T& c)
-  -> broker::detail::enable_if_t<is_additive_group<T>(), result_type> {
+  auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
       return false;
@@ -120,7 +118,7 @@ struct remover {
   const data& value;
 };
 
-struct getter {
+struct retriever {
   using result_type = data;
 
   template <class T>
@@ -152,5 +150,6 @@ struct getter {
 };
 
 } // namespace detail
-} // namespace store
 } // namespace broker
+
+#endif // BROKER_DETAIL_APPLIERS_HH
