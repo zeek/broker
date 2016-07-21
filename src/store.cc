@@ -6,12 +6,6 @@
 
 namespace broker {
 
-namespace {
-
-constexpr auto zero = count{0};
-
-} // namespace <anonymous>
-
 store::store(caf::actor actor) : frontend_{std::move(actor)} {
   // nop
 }
@@ -19,7 +13,8 @@ store::store(caf::actor actor) : frontend_{std::move(actor)} {
 std::string store::name() const {
   std::string result;
   caf::scoped_actor self{frontend_->home_system()};
-  self->request(frontend_, timeout::frontend, atom::get::value).receive(
+  self->request(frontend_, timeout::frontend, atom::get::value,
+                atom::name::value).receive(
     [&](std::string& name) {
       result = name;
     },
@@ -30,31 +25,33 @@ std::string store::name() const {
   return result;
 }
 
-void store::put(data key, data value) const {
+void store::put(data key, data value, optional<time::point> expiry) const {
   caf::anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
-                 zero);
+                 expiry);
+}
+
+void store::add(data key, data value, optional<time::point> expiry) const {
+  caf::anon_send(frontend_, atom::add::value, std::move(key),
+                 std::move(value), expiry);
+}
+
+void store::remove(data key, data value, optional<time::point> expiry) const {
+  caf::anon_send(frontend_, atom::remove::value, std::move(key),
+                 std::move(value), expiry);
 }
 
 void store::erase(data key) const {
-  caf::anon_send(frontend_, atom::erase::value, std::move(key), count{0});
+  caf::anon_send(frontend_, atom::erase::value, std::move(key));
 }
 
-void store::increment(data key, data value) const {
-  add(std::move(key), std::move(value));
+void store::increment(data key, data value,
+                      optional<time::point> expiry) const {
+  add(std::move(key), std::move(value), expiry);
 }
 
-void store::decrement(data key, data value) const {
-  remove(std::move(key), std::move(value));
-}
-
-void store::add(data key, data value) const {
-  caf::anon_send(frontend_, atom::add::value, std::move(key),
-                 std::move(value), zero);
-}
-
-void store::remove(data key, data value) const {
-  caf::anon_send(frontend_, atom::remove::value, std::move(key),
-                 std::move(value), zero);
+void store::decrement(data key, data value,
+                      optional<time::point> expiry) const {
+  remove(std::move(key), std::move(value), expiry);
 }
 
 } // namespace broker

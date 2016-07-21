@@ -22,38 +22,38 @@ public:
   /// @param key The key to use.
   /// @param value The value associated with the key.
   /// @param expiry An optional expiration time for the entry.
-  /// @returns `true` on success.
+  /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
                              optional<time::point> expiry = {}) = 0;
-
-  /// Removes a key and its associated value from the store, if it exists.
-  /// @param key The key to use.
-  /// @returns `true` if the key didn't exist or was removed successfully.
-  virtual expected<void> erase(const data& key) = 0;
 
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
   /// @param value The value to add on top of the existing value at *key*.
   /// @param t The point in time this modification took place.
-  /// @returns The result of the modification.
+  /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
-                             time::point t = {}) = 0;
+                             optional<time::point> expiry = {}) = 0;
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to remove from.
   /// @param value The value to remove from the existing value at *key*.
   /// @param t The point in time this modification took place.
-  /// @returns The result of the modification.
+  /// @returns `nil` on success.
   virtual expected<void> remove(const data& key, const data& value,
-                                time::point t = {}) = 0;
+                                optional<time::point> expiry = {}) = 0;
+
+  /// Removes a key and its associated value from the store, if it exists.
+  /// @param key The key to use.
+  /// @returns `nil` if the key didn't exist or was removed successfully.
+  virtual expected<void> erase(const data& key) = 0;
 
   /// Removes a key and its associated value from the store, if it exists and
-  /// the expiration value is the same.
-  /// @param key The key to use.
-  /// @param expiration The expiration value which must still match, otherwise
-  /// this expiry operation is ignored.
-  /// @returns `true` If the key didn't exist or was removed successfully.
-  virtual expected<void> expire(const data& key, time::point expiry) = 0;
+  /// has an expiration in the past.
+  /// @param key The key to expire.
+  /// @returns An error if the key didn't exist, `true` if *key* upon
+  /// successful removal, and `false` if the expiration failed, i.e., the
+  /// expiration time of the value lies in the future.
+  virtual expected<bool> expire(const data& key) = 0;
 
   // --- inspectors -----------------------------------------------------------
 

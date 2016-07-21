@@ -121,3 +121,23 @@ TEST(clone operations - different endpoints) {
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.0});
 }
+
+TEST(expiration) {
+  using std::chrono::milliseconds;
+  context ctx;
+  auto ep = ctx.spawn<blocking>();
+  auto m = ep.attach<master, memory>("grubby");
+  REQUIRE(m);
+  auto expiry = time::now() + milliseconds(100);
+  m->put("foo", 42, expiry);
+  // Check within validity interval.
+  std::this_thread::sleep_for(milliseconds(50));
+  auto v = m->get("foo");
+  REQUIRE(v);
+  CHECK_EQUAL(v, data{42});
+  std::this_thread::sleep_for(milliseconds(50));
+  // Check after expiration.
+  v = m->get("foo");
+  REQUIRE(!v);
+  CHECK(v.error() == ec::no_such_key);
+}

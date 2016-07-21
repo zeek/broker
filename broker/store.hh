@@ -10,6 +10,7 @@
 #include "broker/data.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/optional.hh"
 #include "broker/timeout.hh"
 
 namespace broker {
@@ -52,7 +53,20 @@ public:
   /// Inserts or updates a value.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
-  void put(data key, data value) const;
+  /// @param expiry An optional expiration time for *key*.
+  void put(data key, data value, optional<time::point> expiry = {}) const;
+
+  /// Adds a value to another one.
+  /// @param key The key of the key-value pair.
+  /// @param value The value of the key-value pair.
+  /// @param expiry An optional new expiration time for *key*.
+  void add(data key, data value, optional<time::point> expiry = {}) const;
+
+  /// Removes a value from another one.
+  /// @param key The key of the key-value pair.
+  /// @param value The value of the key-value pair.
+  /// @param expiry An optional new expiration time for *key*.
+  void remove(data key, data value, optional<time::point> expiry = {}) const;
 
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
@@ -61,20 +75,14 @@ public:
   /// Increments a value.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
-  void increment(data key, data value) const;
+  /// @param expiry An optional new expiration time for *key*.
+  void increment(data key, data value, optional<time::point> expiry = {}) const;
 
   /// Decrements a value.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
-  void decrement(data key, data value) const;
-
-  /// Adds a value to another one.
-  /// @param key The key of the key-value pair.
-  /// @param value The value of the key-value pair.
-  void add(data key, data value) const;
-
-  /// Removes a value from another one.
-  void remove(data key, data value) const;
+  /// @param expiry An optional new expiration time for *key*.
+  void decrement(data key, data value, optional<time::point> expiry = {}) const;
 
 private:
   store(caf::actor actor);
@@ -83,8 +91,8 @@ private:
   expected<T> request(Ts&&... xs) const {
     expected<T> result{ec::unspecified};
     caf::scoped_actor self{frontend_->home_system()};
-    self->request(frontend_, timeout::frontend,
-                  std::forward<Ts>(xs)...).receive(
+    auto msg = caf::make_message(std::forward<Ts>(xs)...);
+    self->request(frontend_, timeout::frontend, std::move(msg)).receive(
       [&](T& x) {
         result = std::move(x);
       },

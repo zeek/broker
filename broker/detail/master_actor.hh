@@ -15,7 +15,6 @@ class abstract_backend;
 struct master_state {
   std::unique_ptr<abstract_backend> backend;
   std::unordered_set<caf::actor_addr> clones;
-  count sequence_number = 0;  // tracks mutating operations
 };
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,

@@ -23,7 +23,7 @@ using fractional_seconds = std::chrono::duration<double, std::ratio<1>>;
 /// The clock type.
 using clock = std::chrono::system_clock;
 
-/// A fractional timestamp with nanosecond precision..
+/// A fractional timestamp with nanosecond precision.
 using duration = std::chrono::duration<int64_t, std::nano>;
 
 /// A point in time anchored at the UNIX epoch: January 1, 1970.

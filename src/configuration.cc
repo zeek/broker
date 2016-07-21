@@ -4,6 +4,7 @@
 #include "broker/configuration.hh"
 #include "broker/data.hh"
 #include "broker/port.hh"
+#include "broker/snapshot.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
@@ -24,14 +25,8 @@ configuration::configuration() {
   add_message_type<record>("broker::record");
   add_message_type<topic>("broker::topic");
   add_message_type<std::vector<topic>>("std::vector<broker::topic>");
-//    .add_message_type<store::sequence_num>("broker::store::sequence_num")
-//    .add_message_type<store::expiration_time>("broker::store::expiration_time")
-//    .add_message_type<store::query>("broker::store::query")
-//    .add_message_type<store::response>("broker::store::response")
-//    .add_message_type<store::result>("broker::store::result")
-//    .add_message_type<store::snapshot>("broker::store::snapshot")
-//    .add_message_type<store::value>("broker::store::value")
-//    .add_message_type<store::value>("broker::store::value")
+  add_message_type<optional<time::point>>("broker::optional<broker::time::point>");
+  add_message_type<snapshot>("broker::snapshot");
   load<caf::io::middleman>();
 }
 

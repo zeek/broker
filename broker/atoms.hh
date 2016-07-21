@@ -16,6 +16,7 @@ using put = caf::put_atom;
 
 // Generic
 using connect = caf::atom_constant<caf::atom("connect")>;
+using name = caf::atom_constant<caf::atom("name")>;
 using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
 using subscribe = caf::atom_constant<caf::atom("subscribe")>;

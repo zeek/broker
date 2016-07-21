@@ -10,7 +10,29 @@ namespace detail {
 
 expected<void>
 memory_backend::put(const data& key, data value, optional<time::point> expiry) {
-  store_[key] = std::move(value);
+  store_[key] = {std::move(value), expiry};
+  return {};
+}
+
+expected<void> memory_backend::add(const data& key, const data& value,
+                                   optional<time::point> expiry) {
+  auto i = store_.find(key);
+  if (i == store_.end())
+    return ec::no_such_key;
+  if (!visit(adder{value}, i->second.first))
+    return ec::unspecified; // TODO: decide error type
+  i->second.second = expiry;
+  return {};
+}
+
+expected<void> memory_backend::remove(const data& key, const data& value,
+                                      optional<time::point> expiry) {
+  auto i = store_.find(key);
+  if (i == store_.end())
+    return ec::no_such_key;
+  if (!visit(remover{value}, i->second.first))
+    return ec::unspecified; // TODO: decide error type
+  i->second.second = expiry;
   return {};
 }
 
@@ -19,42 +41,29 @@ expected<void> memory_backend::erase(const data& key) {
   return {};
 }
 
-expected<void> memory_backend::add(const data& key, const data& value,
-                                   time::point t) {
+expected<bool> memory_backend::expire(const data& key) {
+  auto now = time::now();
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  if (!visit(adder{value}, i->second))
-    return ec::unspecified; // TODO: decide error type
-  return {};
-}
-
-expected<void> memory_backend::remove(const data& key, const data& value,
-                                      time::point t) {
-  auto i = store_.find(key);
-  if (i == store_.end())
-    return ec::no_such_key;
-  if (!visit(remover{value}, i->second))
-    return ec::unspecified; // TODO: decide error type
-  return {};
-}
-
-expected<void> memory_backend::expire(const data& key, time::point expiry) {
-  return ec::unspecified; // TODO: implement this function
+  if (now < i->second.second)
+    return false;
+  store_.erase(i);
+  return true;
 }
 
 expected<data> memory_backend::get(const data& key) const {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  return i->second;
+  return i->second.first;
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  return visit(retriever{value}, i->second);
+  return visit(retriever{value}, i->second.first);
 }
 
 expected<bool> memory_backend::exists(const data& key) const {
@@ -66,7 +75,10 @@ expected<uint64_t> memory_backend::size() const {
 }
 
 expected<snapshot> memory_backend::snapshot() const {
-  return broker::snapshot{store_};
+  broker::snapshot result;
+  for (auto& p : store_)
+    result.entries.emplace(p.first, p.second.first);
+  return result;
 }
 
 } // namespace detail

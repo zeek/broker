@@ -20,41 +20,38 @@ namespace detail {
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, caf::actor master,
                           std::string name) {
-  const auto zero = count{0};
   auto forward = [=](const caf::message& msg) {
     auto t = name / topics::reserved / topics::master;
     self->send(master, std::move(t), msg, core);
   };
-  auto commands = caf::message_handler{
-    [=](atom::put, data& key, data& value, count seq) {
-      BROKER_DEBUG("put" << ('#' + std::to_string(seq) + ':')
-                   << key << "->" << value);
-      if (seq == 0) {
-        forward(caf::make_message(atom::put::value, std::move(key),
-                                  std::move(value), zero));
-        return;
-      }
+  auto relay = caf::message_handler{
+    [=](atom::put, data& key, data& value, optional<time::point> expiry) {
+      forward(caf::make_message(atom::put::value, std::move(key),
+                                std::move(value), expiry));
+    },
+    [=](atom::add, data& key, data& value, optional<time::point> expiry) {
+      forward(caf::make_message(atom::add::value, std::move(key),
+                                std::move(value), expiry));
+    },
+    [=](atom::remove, data& key, data& value, optional<time::point> expiry) {
+      forward(caf::make_message(atom::remove::value, std::move(key),
+                                std::move(value), expiry));
+    },
+    [=](atom::erase, data& key) {
+      forward(caf::make_message(atom::erase::value, std::move(key)));
+    },
+  };
+  auto update = caf::message_handler{
+    [=](atom::put, data& key, data& value) {
+      BROKER_DEBUG("put" << key << "->" << value);
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
         i->second = std::move(value);
       else
         self->state.store.emplace(std::move(key), std::move(value));
     },
-    [=](atom::erase, data& key, count seq) {
-      BROKER_DEBUG("erase" << ('#' + std::to_string(seq) + ':') << key);
-      if (seq == 0) {
-        forward(caf::make_message(atom::erase::value, std::move(key), zero));
-        return;
-      }
-      self->state.store.erase(key);
-    },
-    [=](atom::add, data& key, data& value, count seq) {
+    [=](atom::add, data& key, data& value) {
       BROKER_DEBUG("add" << key << "->" << value);
-      if (seq == 0) {
-        forward(caf::make_message(atom::add::value, std::move(key),
-                                  std::move(value), zero));
-        return;
-      }
       auto i = self->state.store.find(key);
       if (i == self->state.store.end()) {
         self->state.store.emplace(std::move(key), std::move(value));
@@ -63,27 +60,26 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         BROKER_ASSERT(result); // We don't propagate errors.
       }
     },
-    [=](atom::remove, data& key, data& value, count seq) {
+    [=](atom::remove, data& key, data& value) {
       BROKER_DEBUG("remove" << key << "->" << value);
-      if (seq == 0) {
-        forward(caf::make_message(atom::remove::value, std::move(key),
-                                  std::move(value), zero));
-        return;
-      }
       auto i = self->state.store.find(key);
       BROKER_ASSERT(i != self->state.store.end());
       auto result = visit(remover{value}, i->second);
       BROKER_ASSERT(result); // We don't propagate errors.
+    },
+    [=](atom::erase, data& key) {
+      BROKER_DEBUG("erase" << key);
+      self->state.store.erase(key);
     },
   };
   auto dispatch = caf::message_handler{
     [=](topic& t, message& msg, const caf::actor& source) mutable {
       BROKER_DEBUG("dispatching message with topic" << t << "from core"
                    << to_string(source));
-      commands(msg);
+      update(msg);
     }
   };
-  auto user = caf::message_handler{
+  auto query = caf::message_handler{
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("got GET" << key);
       auto i = self->state.store.find(key);
@@ -98,7 +94,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         return ec::no_such_key;
       return visit(retriever{value}, i->second);
     },
-    [=](atom::get) {
+    [=](atom::get, atom::name) {
       return name;
     },
   };
@@ -108,7 +104,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.store = ss.entries;
     },
   };
-  return dispatch.or_else(commands).or_else(user).or_else(direct);
+  return dispatch.or_else(relay).or_else(update).or_else(query).or_else(direct);
 }
 
 } // namespace detail
