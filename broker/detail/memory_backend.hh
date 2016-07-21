@@ -20,7 +20,7 @@ public:
   expected<void> remove(const data& key, const data& value,
                         optional<time::point> expiry) override;
 
-  expected<void> erase(const data& key) override;
+  expected<bool> erase(const data& key) override;
 
   expected<bool> expire(const data& key) override;
 

@@ -44,8 +44,9 @@ public:
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.
-  /// @returns `nil` if the key didn't exist or was removed successfully.
-  virtual expected<void> erase(const data& key) = 0;
+  /// @returns `true` if the key was removed successfully adn `false` if the key
+  /// didn't exist.
+  virtual expected<bool> erase(const data& key) = 0;
 
   /// Removes a key and its associated value from the store, if it exists and
   /// has an expiration in the past.
