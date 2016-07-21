@@ -18,6 +18,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(tests
   test.cpp
+  cpp/backend.cc
   cpp/data.cc
   cpp/endpoint.cc
   cpp/radix_tree.cc
@@ -76,9 +77,4 @@ endmacro()
 
 # -- C ------------------------------------------------------------------------
 
-# FIXME
-#make_c_test(test_data_c)
-#make_c_test(test_print_c)
-#make_c_test(test_print_remote_c)
-#make_c_test(test_network_types_c)
-#make_c_test(test_store_c)
+# TODO
