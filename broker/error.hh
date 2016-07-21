@@ -21,6 +21,10 @@ enum class ec : uint8_t {
   no_such_master,
   /// The given data store key does not exist.
   no_such_key,
+  /// The operation expected a different type than provided
+  type_clash,
+  /// The data value cannot be used to carry out the desired operation.
+  invalid_data,
 };
 
 /// @relates ec

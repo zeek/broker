@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_APPLIERS_HH
 
 #include "broker/data.hh"
+#include "broker/expected.hh"
 #include "broker/message.hh"
 #include "broker/time.hh"
 
@@ -19,107 +20,109 @@ constexpr bool is_additive_group() {
 }
 
 struct adder {
-  using result_type = bool;
+  using result_type = expected<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return false;
+    return ec::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
-      return false;
+      return ec::type_clash;
     c += *x;
-    return true;
+    return {};
   }
 
   result_type operator()(time::point& tp) {
     auto d = value.get<time::duration>();
     if (!d)
-      return false;
+      return ec::type_clash;
     tp += *d;
-    return true;
+    return {};
   }
 
   result_type operator()(std::string& str) {
     auto x = value.get<std::string>();
     if (!x)
-      return false;
+      return ec::type_clash;
     str += *x;
-    return true;
+    return {};
   }
 
   result_type operator()(vector& v) {
     v.push_back(value);
-    return true;
+    return {};
   }
 
   result_type operator()(set& s) {
     s.insert(value);
-    return true;
+    return {};
   }
 
   result_type operator()(table& t) {
     // Data must come as key-value pair to be valid, which we model as
     // vector of length 2.
     auto v = value.get<vector>();
-    if (!v || v->size() != 2)
-      return false;
+    if (!v)
+      return ec::type_clash;
+    if (v->size() != 2)
+      return ec::invalid_data;
     t[v->front()] = v->back();
-    return true;
+    return {};
   }
 
   const data& value;
 };
 
 struct remover {
-  using result_type = bool;
+  using result_type = expected<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return false;
+    return ec::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
-      return false;
+      return ec::type_clash;
     c -= *x;
-    return true;
+    return {};
   }
 
   result_type operator()(time::point& tp) {
     auto d = value.get<time::duration>();
     if (!d)
-      return false;
+      return ec::type_clash;
     tp -= *d;
-    return true;
+    return {};
   }
 
   result_type operator()(vector& v) {
     if (!v.empty())
       v.pop_back();
-    return true;
+    return {};
   }
 
   result_type operator()(set& s) {
     s.erase(value);
-    return true;
+    return {};
   }
 
   result_type operator()(table& t) {
     t.erase(value);
-    return true;
+    return {};
   }
 
   const data& value;
 };
 
 struct retriever {
-  using result_type = data;
+  using result_type = expected<data>;
 
   template <class T>
   result_type operator()(const T& x) const {
@@ -128,8 +131,10 @@ struct retriever {
 
   result_type operator()(const vector& v) const {
     auto i = aspect.get<count>();
-    if (!i || *i >= v.size())
-      return nil;
+    if (!i)
+      return ec::type_clash;
+    if (*i >= v.size())
+      return ec::invalid_data;
     return v[*i];
   }
 
@@ -138,11 +143,9 @@ struct retriever {
   }
 
   result_type operator()(const table& t) const {
-    // Data must come as key-value pair to be valid, which we model as
-    // vector of length 2.
     auto i = t.find(aspect);
     if (i == t.end())
-      return nil;
+      return ec::invalid_data;
     return i->second;
   }
 

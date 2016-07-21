@@ -6,8 +6,6 @@
 namespace broker {
 namespace detail {
 
-// TODO: implement expiration logic
-
 expected<void>
 memory_backend::put(const data& key, data value, optional<time::point> expiry) {
   store_[key] = {std::move(value), expiry};
@@ -19,10 +17,10 @@ expected<void> memory_backend::add(const data& key, const data& value,
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  if (!visit(adder{value}, i->second.first))
-    return ec::unspecified; // TODO: decide error type
-  i->second.second = expiry;
-  return {};
+  auto result = visit(adder{value}, i->second.first);
+  if (result)
+    i->second.second = expiry;
+  return result;
 }
 
 expected<void> memory_backend::remove(const data& key, const data& value,
@@ -30,10 +28,10 @@ expected<void> memory_backend::remove(const data& key, const data& value,
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  if (!visit(remover{value}, i->second.first))
-    return ec::unspecified; // TODO: decide error type
-  i->second.second = expiry;
-  return {};
+  auto result = visit(remover{value}, i->second.first);
+  if (result)
+    i->second.second = expiry;
+  return result;
 }
 
 expected<void> memory_backend::erase(const data& key) {
