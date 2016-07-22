@@ -109,6 +109,7 @@ TEST(nonblocking api) {
   REQUIRE(*result);
   CHECK_EQUAL(**result, data{42});
   MESSAGE("non-existing key");
+  *result = ec::unspecified;
   ds->get<nonblocking>("bar").then(
     [=](data& d) {
       *result = std::move(d);

@@ -25,10 +25,13 @@ class store {
   friend endpoint; // construction
 
 public:
-  class response_proxy {
+  template <class T>
+  class request_proxy {
   public:
-    response_proxy(caf::actor frontend, data key)
-      : frontend_{std::move(frontend)}, key_{std::move(key)} {
+    template <class... Ts>
+    request_proxy(caf::actor requester, Ts&&... xs)
+      : frontend_{std::move(requester)},
+        msg_{caf::make_message(std::forward<Ts>(xs)...)} {
     }
 
     template <class OnData, class OnError>
@@ -47,14 +50,16 @@ public:
                     "error callback can have only one argument");
       using on_data_arg = typename caf::detail::tl_head<on_data_args>::type;
       using on_error_arg = typename caf::detail::tl_head<on_error_args>::type;
-      static_assert(std::is_same<detail::decay_t<on_data_arg>, data>::value,
-                    "data callback must have broker::data as argument type");
+      static_assert(std::is_same<detail::decay_t<on_data_arg>, T>::value,
+                    "data callback must have valid type for operation");
       static_assert(std::is_same<detail::decay_t<on_error_arg>, error>::value,
-                    "data callback must have broker::errror as argument type");
+                    "error callback must have broker::errror as argument type");
+      // Explicitly capture *this members. Initialized lambdas are C++14. :-/
+      auto frontend = frontend_;
+      auto msg = msg_;
       frontend_->home_system().spawn(
-        [=](caf::event_based_actor* self) mutable {
-          auto msg = caf::make_message(atom::get::value, std::move(key_));
-          self->request(frontend_, timeout::frontend, std::move(msg)).then(
+        [=](caf::event_based_actor* self) {
+          self->request(frontend, timeout::frontend, std::move(msg)).then(
             on_data,
             on_error
           );
@@ -64,7 +69,7 @@ public:
 
   private:
     caf::actor frontend_;
-    data key_;
+    caf::message msg_;
   };
 
   // --- inspectors -----------------------------------------------------------
@@ -86,9 +91,9 @@ public:
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   template <api_flags Flags>
-  detail::enable_if_t<Flags == nonblocking, response_proxy>
+  detail::enable_if_t<Flags == nonblocking, request_proxy<data>>
   get(data key) const {
-    return {frontend_, std::move(key)};
+    return {frontend_, atom::get::value, std::move(key)};
   }
 
   /// Retrieves a specific aspect of a value.
