@@ -19,12 +19,12 @@ bool all_equal(const std::vector<T>& xs) {
 }
 
 class meta_backend : public detail::abstract_backend {
+  static const auto filename = "/tmp/broker-unit-test-sqlite-backend.sqlite";
+
 public:
   bool initialize() {
     backends_.push_back(std::make_unique<detail::memory_backend>());
     auto sqlite = std::make_unique<detail::sqlite_backend>();
-    // TODO: delete file if it exists.
-    auto filename = "/tmp/broker-unit-test-sqlite-backend.sqlite";
     detail::remove(filename);
     if (!sqlite->open(filename))
       return false;
