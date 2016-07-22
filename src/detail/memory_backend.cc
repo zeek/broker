@@ -43,7 +43,7 @@ expected<bool> memory_backend::expire(const data& key) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  if (now < i->second.second)
+  if (!i->second.second || now < i->second.second)
     return false;
   store_.erase(i);
   return true;

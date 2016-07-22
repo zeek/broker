@@ -207,7 +207,7 @@ TEST(erase/exists) {
   CHECK(*erase);
 }
 
-TEST(expiration) {
+TEST(expiration with expiry) {
   using namespace std::chrono;
   auto put = backend->put("foo", "bar", time::now() + milliseconds(50));
   REQUIRE(put);
@@ -227,7 +227,15 @@ TEST(expiration) {
   CHECK(!*exists); // element removed
 }
 
-TEST(snapshot) {
+TEST(expiration without expiry) {
+  auto put = backend->put("foo", 4.2);
+  REQUIRE(put);
+  auto expire = backend->expire("foo");
+  REQUIRE(expire);
+  REQUIRE(!*expire); // no expiry with key associated
+}
+
+TEST(size/snapshot) {
   auto put = backend->put("foo", "bar");
   REQUIRE(put);
   put = backend->put("bar", 4.2);
