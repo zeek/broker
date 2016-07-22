@@ -7,9 +7,17 @@ using namespace broker;
 
 namespace {
 
-const auto propagation_delay = std::chrono::milliseconds(200);
+const auto propagation_delay = std::chrono::milliseconds(100);
 
 } // namespace <anonymous>
+
+TEST(backend option passing) {
+  context ctx;
+  auto ep = ctx.spawn<blocking>();
+  auto opts = backend_options{{"foo", 4.2}};
+  auto ds = ep.attach<master, memory>("lord", std::move(opts));
+  REQUIRE(ds);
+}
 
 TEST(no duplicate masters) {
   context ctx;

@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include "broker/backend_options.hh"
+
 #include "broker/detail/abstract_backend.hh"
 
 namespace broker {
@@ -11,15 +13,14 @@ namespace detail {
 /// An in-memory key-value storage backend.
 class sqlite_backend : public abstract_backend {
 public:
-  sqlite_backend();
+  /// Constructs a SQLite backend.
+  /// @param opts The options to create/open a database.
+  /// Required parameters:
+  ///   - `path": a `std::string` representing the location of the database on
+  ///             the filesystem.
+  sqlite_backend(backend_options opts = {});
 
   ~sqlite_backend();
-
-  // --- SQLite interface ---------------------------------------------------
-
-  expected<void> open(const std::string& path);
-
-  // --- backend interface --------------------------------------------------
 
   expected<void> put(const data& key, data value,
                      optional<time::point> expiry) override;

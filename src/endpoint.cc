@@ -156,11 +156,14 @@ const caf::actor& endpoint::core() const {
   return *core_;
 }
 
-expected<store> endpoint::attach_master(std::string name, backend b) {
+expected<store> endpoint::attach_master(std::string name, backend type,
+                                        backend_options opts) {
   expected<store> result{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), timeout::core, atom::store::value, atom::master::value,
-                atom::attach::value, std::move(name), b).receive(
+  auto msg = caf::make_message(atom::store::value, atom::master::value,
+                               atom::attach::value, std::move(name), type,
+                               std::move(opts));
+  self->request(core(), timeout::core, std::move(msg)).receive(
     [&](caf::actor& master) {
       result = store{std::move(master)};
     },

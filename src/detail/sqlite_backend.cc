@@ -50,7 +50,20 @@ auto make_statement_guard = [](sqlite3_stmt* stmt) {
 } // namespace <anonymous>
 
 struct sqlite_backend::impl {
+  impl(backend_options opts) : options{std::move(opts)} {
+    auto i = options.find("path");
+    if (i == options.end())
+      return;
+    auto path = i->second.get<std::string>();
+    if (!path)
+      return;
+    if (!open(*path))
+      db = nullptr;
+  }
+
   ~impl() {
+    if (!db)
+      return;
     // Deallocate prepared statements.
     for (auto stmt : finalize)
       sqlite3_finalize(stmt);
@@ -63,7 +76,6 @@ struct sqlite_backend::impl {
     auto result = sqlite3_open(path.c_str(), &db);
     if (result != SQLITE_OK) {
       sqlite3_close(db);
-      db = nullptr;
       BROKER_ERROR("failed to open database:" << path);
       return false;
     }
@@ -113,8 +125,10 @@ struct sqlite_backend::impl {
       return sqlite3_prepare_v2(db, sql, -1, stmt, nullptr) == SQLITE_OK;
     };
     for (auto& stmt: statements)
-      if (!prepare(stmt.first, stmt.second))
+      if (!prepare(stmt.first, stmt.second)) {
+        BROKER_ERROR("failed to prepare statement:" << stmt.second);
         return false;
+      }
     return true;
   }
 
@@ -158,6 +172,7 @@ struct sqlite_backend::impl {
     }
   }
 
+  backend_options options;
   sqlite3* db = nullptr;
   sqlite3_stmt* replace = nullptr;
   sqlite3_stmt* update = nullptr;
@@ -172,48 +187,47 @@ struct sqlite_backend::impl {
 };
 
 
-sqlite_backend::sqlite_backend() : impl_{std::make_unique<impl>()} {
+sqlite_backend::sqlite_backend(backend_options opts)
+  : impl_{std::make_unique<impl>(std::move(opts))} {
 }
 
 sqlite_backend::~sqlite_backend() {
 }
 
-expected<void> sqlite_backend::open(const std::string& path) {
-  if (!impl_->open(path))
+expected<void>
+sqlite_backend::put(const data& key, data value, optional<time::point> expiry) {
+  if (!impl_->db)
+    return ec::backend_failure;
+  auto guard = make_statement_guard(impl_->replace);
+  // Bind key.
+  auto key_blob = to_blob(key);
+  auto result = sqlite3_bind_blob64(impl_->replace, 1, key_blob.data(),
+                                    key_blob.size(), SQLITE_STATIC);
+  if (result != SQLITE_OK)
+    return ec::backend_failure;
+  // Bind value.
+  auto value_blob = to_blob(value);
+  result = sqlite3_bind_blob64(impl_->replace, 2, value_blob.data(),
+                               value_blob.size(), SQLITE_STATIC);
+  if (result != SQLITE_OK)
+    return ec::backend_failure;
+  if (expiry)
+    result = sqlite3_bind_int64(impl_->replace, 3,
+                                expiry->time_since_epoch().count());
+  else
+    result = sqlite3_bind_null(impl_->replace, 3);
+  if (result != SQLITE_OK)
+    return ec::backend_failure;
+  // Execute statement.
+  if (sqlite3_step(impl_->replace) != SQLITE_DONE)
     return ec::backend_failure;
   return {};
 }
 
-expected<void>
-sqlite_backend::put(const data& key, data value, optional<time::point> expiry) {
-    auto guard = make_statement_guard(impl_->replace);
-    // Bind key.
-    auto key_blob = to_blob(key);
-    auto result = sqlite3_bind_blob64(impl_->replace, 1, key_blob.data(),
-                                      key_blob.size(), SQLITE_STATIC);
-    if (result != SQLITE_OK)
-      return ec::backend_failure;
-    // Bind value.
-    auto value_blob = to_blob(value);
-    result = sqlite3_bind_blob64(impl_->replace, 2, value_blob.data(),
-                                 value_blob.size(), SQLITE_STATIC);
-    if (result != SQLITE_OK)
-      return ec::backend_failure;
-    if (expiry)
-      result = sqlite3_bind_int64(impl_->replace, 3,
-                                  expiry->time_since_epoch().count());
-    else
-      result = sqlite3_bind_null(impl_->replace, 3);
-    if (result != SQLITE_OK)
-      return ec::backend_failure;
-    // Execute statement.
-    if (sqlite3_step(impl_->replace) != SQLITE_DONE)
-      return ec::backend_failure;
-    return {};
-}
-
 expected<void> sqlite_backend::add(const data& key, const data& value,
                                    optional<time::point> expiry) {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto v = get(key);
   if (!v)
     return v.error();
@@ -227,6 +241,8 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 
 expected<void> sqlite_backend::remove(const data& key, const data& value,
                                       optional<time::point> expiry) {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto v = get(key);
   if (!v)
     return v.error();
@@ -239,6 +255,8 @@ expected<void> sqlite_backend::remove(const data& key, const data& value,
 }
 
 expected<void> sqlite_backend::erase(const data& key) {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto guard = make_statement_guard(impl_->erase);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->erase, 1, key_blob.data(),
@@ -254,6 +272,8 @@ expected<void> sqlite_backend::erase(const data& key) {
 }
 
 expected<bool> sqlite_backend::expire(const data& key) {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto now = time::now();
   auto guard = make_statement_guard(impl_->expire);
   // Bind key.
@@ -274,6 +294,8 @@ expected<bool> sqlite_backend::expire(const data& key) {
 }
 
 expected<data> sqlite_backend::get(const data& key) const {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto guard = make_statement_guard(impl_->lookup);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->lookup, 1, key_blob.data(),
@@ -290,6 +312,8 @@ expected<data> sqlite_backend::get(const data& key) const {
 }
 
 expected<data> sqlite_backend::get(const data& key, const data& value) const {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto k = get(key);
   if (!k)
     return k;
@@ -297,6 +321,8 @@ expected<data> sqlite_backend::get(const data& key, const data& value) const {
 }
 
 expected<bool> sqlite_backend::exists(const data& key) const {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto guard = make_statement_guard(impl_->exists);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->exists, 1, key_blob.data(),
@@ -315,6 +341,8 @@ expected<bool> sqlite_backend::exists(const data& key) const {
 }
 
 expected<uint64_t> sqlite_backend::size() const {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto guard = make_statement_guard(impl_->size);
 	auto result = sqlite3_step(impl_->size);
 	if (result != SQLITE_ROW)
@@ -323,6 +351,8 @@ expected<uint64_t> sqlite_backend::size() const {
 }
 
 expected<snapshot> sqlite_backend::snapshot() const {
+  if (!impl_->db)
+    return ec::backend_failure;
   auto guard = make_statement_guard(impl_->snapshot);
   broker::snapshot ss;
   auto result = SQLITE_DONE;

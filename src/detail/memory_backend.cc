@@ -6,6 +6,12 @@
 namespace broker {
 namespace detail {
 
+
+memory_backend::memory_backend(backend_options opts)
+  : options_{std::move(opts)} {
+  // nop
+}
+
 expected<void>
 memory_backend::put(const data& key, data value, optional<time::point> expiry) {
   store_[key] = {std::move(value), expiry};

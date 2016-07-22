@@ -8,6 +8,7 @@
 #include <caf/actor.hpp>
 
 #include "broker/backend.hh"
+#include "broker/backend_options.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
@@ -101,16 +102,19 @@ public:
 
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
-  /// @returns A handle to the frontend representing the master.
+  /// @param opts The options controlling backend construction.
+  /// @returns A handle to the frontend representing the master or an error if
+  ///          a master with *name* exists already.
   template <frontend F, backend B>
-  auto attach(std::string name)
+  auto attach(std::string name, backend_options opts = {})
   -> detail::enable_if_t<F == master, expected<store>> {
-    return attach_master(std::move(name), B);
+    return attach_master(std::move(name), B, std::move(opts));
   }
 
-  /// Attaches and/or creates a *clone* data store with a globally unique name.
+  /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
-  /// @returns A handle to the frontend representing the clone.
+  /// @returns A handle to the frontend representing the clone, or an error if
+  ///          a master *name* could not be found.
   template <frontend F>
   auto attach(std::string name)
   -> detail::enable_if_t<F == clone, expected<store>> {
@@ -128,7 +132,9 @@ protected:
   caf::actor subscriber_;
 
 private:
-  expected<store> attach_master(std::string name, backend b);
+  expected<store> attach_master(std::string name, backend type,
+                                backend_options opts);
+
   expected<store> attach_clone(std::string name);
 };
 

@@ -3,6 +3,8 @@
 
 #include <unordered_map>
 
+#include "broker/backend_options.hh"
+
 #include "broker/detail/abstract_backend.hh"
 
 namespace broker {
@@ -11,6 +13,10 @@ namespace detail {
 /// An in-memory key-value storage backend.
 class memory_backend : public abstract_backend {
 public:
+  /// Constructs a memory backend.
+  /// @param opts The options controlling the backend behavior.
+  memory_backend(backend_options opts = {});
+
   expected<void> put(const data& key, data value,
                      optional<time::point> expiry) override;
 
@@ -35,6 +41,7 @@ public:
   expected<broker::snapshot> snapshot() const override;
 
 private:
+  backend_options options_;
   std::unordered_map<data, std::pair<data, optional<time::point>>> store_;
   std::unordered_map<data, time::point> expirations_;
 };

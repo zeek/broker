@@ -5,6 +5,7 @@
 
 #include "broker/atoms.hh"
 #include "broker/backend.hh"
+#include "broker/backend_options.hh"
 #include "broker/convert.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -22,6 +23,7 @@
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/memory_backend.hh"
+#include "broker/detail/sqlite_backend.hh"
 
 namespace broker {
 namespace detail {
@@ -517,7 +519,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::make_message("", uint16_t{0});
     },
     [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type) -> expected<caf::actor> {
+        backend backend_type, backend_options& opts) -> expected<caf::actor> {
       BROKER_DEBUG("attaching master:" << name);
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
@@ -529,15 +531,16 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return ec::master_exists;
       }
       BROKER_DEBUG("instantiating backend");
-      auto factory = [](backend type) -> std::unique_ptr<abstract_backend> {
+      auto factory = [&](backend type) -> std::unique_ptr<abstract_backend> {
         switch (type) {
-          default:
-            return nullptr; // TODO
           case memory:
-            return std::make_unique<memory_backend>();
+            return std::make_unique<memory_backend>(std::move(opts));
+          case sqlite:
+            return std::make_unique<sqlite_backend>(std::move(opts));
         }
       };
       auto ptr = factory(backend_type);
+      BROKER_ASSERT(ptr);
       BROKER_DEBUG("spawning new master");
       auto actor = self->spawn<caf::linked>(master_actor, self, name,
                                             std::move(ptr));

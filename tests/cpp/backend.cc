@@ -19,17 +19,10 @@ bool all_equal(const std::vector<T>& xs) {
 }
 
 class meta_backend : public detail::abstract_backend {
-  static constexpr auto filename = "/tmp/broker-unit-test-backend.sqlite";
-
 public:
-  bool initialize() {
-    backends_.push_back(std::make_unique<detail::memory_backend>());
-    auto sqlite = std::make_unique<detail::sqlite_backend>();
-    detail::remove(filename);
-    if (!sqlite->open(filename))
-      return false;
-    backends_.push_back(std::move(sqlite));
-    return true;
+  meta_backend(backend_options opts) {
+    backends_.push_back(std::make_unique<detail::memory_backend>(opts));
+    backends_.push_back(std::make_unique<detail::sqlite_backend>(opts));
   }
 
   expected<void> put(const data& key, data value,
@@ -135,13 +128,23 @@ private:
 };
 
 struct fixture {
-  fixture() : backend{&meta_backend} {
-    REQUIRE(meta_backend.initialize());
+  static constexpr char filename[] = "/tmp/broker-unit-test-backend.db";
+
+  fixture() {
+    detail::remove(filename);
+    auto opts = backend_options{{"path", filename}};
+    backend = std::make_unique<meta_backend>(std::move(opts));
   }
 
-  meta_backend meta_backend;
-  detail::abstract_backend* backend;
+  ~fixture() {
+    backend.reset();
+    detail::remove(filename);
+  }
+
+  std::unique_ptr<detail::abstract_backend> backend;
 };
+
+constexpr char fixture::filename[];
 
 } // namespace <anonymous>
 
