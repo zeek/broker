@@ -16,7 +16,7 @@ public:
   ~sqlite_backend();
 
   // --- SQLite interface ---------------------------------------------------
-  //
+
   expected<void> open(const std::string& path);
 
   // --- backend interface --------------------------------------------------
