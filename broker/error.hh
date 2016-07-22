@@ -25,6 +25,8 @@ enum class ec : uint8_t {
   type_clash,
   /// The data value cannot be used to carry out the desired operation.
   invalid_data,
+  /// The storage backend failed to execute the operation.
+  backend_failure,
 };
 
 /// @relates ec

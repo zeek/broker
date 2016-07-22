@@ -13,6 +13,17 @@ struct snapshot {
   std::unordered_map<data, data> entries;
 };
 
+/// @relates snapshot
+inline bool operator==(const snapshot& lhs, const snapshot& rhs) {
+  return lhs.entries == rhs.entries;
+}
+
+/// @relates snapshot
+inline bool operator!=(const snapshot& lhs, const snapshot& rhs) {
+  return !(lhs == rhs);
+}
+
+/// @relates snapshot
 template <class Processor>
 void serialize(Processor& proc, snapshot& s) {
   proc & s.entries;

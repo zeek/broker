@@ -2,25 +2,25 @@
 
 namespace broker {
 
-namespace {
-
-const char* descriptions[] = {
-  "<unspecified>",
-  "version_incompatible",
-  "master_exists",
-  "no_such_master",
-  "no_such_key",
-  "type_clash",
-  "invalid_data",
-};
-
-} // namespace <anonymous>
-
 const char* to_string(ec x) {
-  auto index = static_cast<size_t>(x);
-  if (index > static_cast<size_t>(ec::invalid_data))
-    return "<unknown>";
-  return descriptions[index];
-}
+  switch (x) {
+    case ec::unspecified:
+      return "<unspecified>";
+    case ec::version_incompatible:
+      return "version_incompatible";
+    case ec::master_exists:
+      return "master_exists";
+    case ec::no_such_master:
+      return "no_such_master";
+    case ec::no_such_key:
+      return "no_such_key";
+    case ec::type_clash:
+      return "type_clash";
+    case ec::invalid_data:
+      return "invalid_data";
+    case ec::backend_failure:
+      return "backend_failure";
+  }
+};
 
 } // namespace broker

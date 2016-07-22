@@ -72,10 +72,10 @@ expected<uint64_t> memory_backend::size() const {
 }
 
 expected<snapshot> memory_backend::snapshot() const {
-  broker::snapshot result;
+  broker::snapshot ss;
   for (auto& p : store_)
-    result.entries.emplace(p.first, p.second.first);
-  return result;
+    ss.entries.emplace(p.first, p.second.first);
+  return ss;
 }
 
 } // namespace detail

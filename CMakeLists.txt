@@ -114,11 +114,14 @@ set(BROKER_SRC
 
   src/detail/clone_actor.cc
   src/detail/core_actor.cc
+  src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
   src/detail/master_actor.cc
   src/detail/memory_backend.cc
+  src/detail/sqlite_backend.cc
 
+  src/detail/sqlite3.c
   #${OPTIONAL_SRC}
 )
 
