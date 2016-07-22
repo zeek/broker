@@ -71,7 +71,7 @@ endif ()
 include(RequireCXX11)
 
 # Incrase warnings.
-#set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
 
 # Increase maximum number of instantiations.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")

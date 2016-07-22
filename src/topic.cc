@@ -32,7 +32,6 @@ topic topic::join(const std::vector<std::string>& components) {
 }
 
 topic& topic::operator/=(const topic& rhs) {
-  auto start = 0u;
   if (!rhs.str_.empty() && rhs.str_[0] != sep && !str_.empty())
     str_ += sep;
   str_ += rhs.str_;

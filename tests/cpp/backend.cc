@@ -19,7 +19,7 @@ bool all_equal(const std::vector<T>& xs) {
 }
 
 class meta_backend : public detail::abstract_backend {
-  static const auto filename = "/tmp/broker-unit-test-sqlite-backend.sqlite";
+  static constexpr auto filename = "/tmp/broker-unit-test-backend.sqlite";
 
 public:
   bool initialize() {

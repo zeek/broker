@@ -400,11 +400,11 @@ private:
   node* root;
 };
 
-static inline const unsigned char* as_key_data(const std::string& key) {
+inline const unsigned char* as_key_data(const std::string& key) {
   return reinterpret_cast<const unsigned char*>(key.data());
 }
 
-static uint32_t longest_common_prefix(const std::string& k1,
+inline uint32_t longest_common_prefix(const std::string& k1,
                                       const std::string& k2, uint32_t depth) {
   // Null-terminator is part of key.
   auto n = std::min(k1.size() + 1, k2.size() + 1) - depth;
@@ -420,7 +420,7 @@ static uint32_t longest_common_prefix(const std::string& k1,
   return i;
 }
 
-static bool prefix_matches(const std::string& key, const std::string& prefix) {
+inline bool prefix_matches(const std::string& key, const std::string& prefix) {
   if (key.size() < prefix.size())
     return false;
 
