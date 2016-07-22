@@ -88,6 +88,40 @@ TEST(master operations) {
   CHECK_EQUAL(*result, data{true});
 }
 
+TEST(nonblocking api) {
+  context ctx;
+  auto ep = ctx.spawn<blocking>();
+  auto ds = ep.attach<master, memory>("captain");
+  REQUIRE(ds);
+  MESSAGE("put");
+  ds->put("foo", 42);
+  MESSAGE("existing key");
+  auto result = std::make_shared<expected<data>>(ec::unspecified);
+  ds->get<nonblocking>("foo").then(
+    [=](data& d) {
+      *result = std::move(d);
+    },
+    [=](error& e) {
+      *result = std::move(e);
+    }
+  );
+  std::this_thread::sleep_for(propagation_delay);
+  REQUIRE(*result);
+  CHECK_EQUAL(**result, data{42});
+  MESSAGE("non-existing key");
+  ds->get<nonblocking>("bar").then(
+    [=](data& d) {
+      *result = std::move(d);
+    },
+    [=](error& e) {
+      *result = std::move(e);
+    }
+  );
+  std::this_thread::sleep_for(propagation_delay);
+  REQUIRE(!*result);
+  CHECK_EQUAL(result->error(), ec::no_such_key);
+}
+
 TEST(clone operations - same endpoint) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
@@ -123,7 +157,7 @@ TEST(clone operations - different endpoints) {
   auto v = c->get("foo");
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.2});
-  c->remove("foo", 0.2);
+  c->decrement("foo", 0.2);
   std::this_thread::sleep_for(propagation_delay); // master -> clone
   v = c->get("foo");
   REQUIRE(v);
