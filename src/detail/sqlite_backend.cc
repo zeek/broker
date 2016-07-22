@@ -238,7 +238,7 @@ expected<void> sqlite_backend::remove(const data& key, const data& value,
   return {};
 }
 
-expected<bool> sqlite_backend::erase(const data& key) {
+expected<void> sqlite_backend::erase(const data& key) {
   auto guard = make_statement_guard(impl_->erase);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->erase, 1, key_blob.data(),
@@ -248,7 +248,9 @@ expected<bool> sqlite_backend::erase(const data& key) {
 	result = sqlite3_step(impl_->erase);
   if (result != SQLITE_DONE)
     return ec::backend_failure;
-  return sqlite3_changes(impl_->db) == 1;
+  if (sqlite3_changes(impl_->db) == 0)
+    return ec::no_such_key;
+  return {};
 }
 
 expected<bool> sqlite_backend::expire(const data& key) {

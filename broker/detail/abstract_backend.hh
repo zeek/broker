@@ -18,9 +18,9 @@ public:
 
   // --- modifiers ------------------------------------------------------------
 
-  /// Inserts or updates a key-value pair in to the store.
-  /// @param key The key to use.
-  /// @param value The value associated with the key.
+  /// Inserts or updates a key-value pair.
+  /// @param key The key to update/insert.
+  /// @param value The value associated with *key*.
   /// @param expiry An optional expiration time for the entry.
   /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
@@ -44,16 +44,15 @@ public:
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.
-  /// @returns `true` if the key was removed successfully adn `false` if the key
-  /// didn't exist.
-  virtual expected<bool> erase(const data& key) = 0;
+  /// @returns `nil` if *key* was removed successfully.
+  virtual expected<void> erase(const data& key) = 0;
 
   /// Removes a key and its associated value from the store, if it exists and
   /// has an expiration in the past.
   /// @param key The key to expire.
-  /// @returns An error if the key didn't exist, `true` if *key* upon
-  /// successful removal, and `false` if the expiration failed, i.e., the
-  /// expiration time of the value lies in the future.
+  /// @returns `true` if *key* was expired (and deleted) successfully, and
+  /// `false` if the value cannot be expired yet, i.e., the existing expiry
+  /// time lies in the future.
   virtual expected<bool> expire(const data& key) = 0;
 
   // --- inspectors -----------------------------------------------------------
@@ -63,21 +62,23 @@ public:
   /// @returns The value associated with *key*.
   virtual expected<data> get(const data& key) const = 0;
 
-  /// Retrieves a specific aspected associated with a given key.
+  /// Retrieves a specific aspect of a value for a given key.
   /// @param key The key to use.
   /// @param aspect The aspect of the value at *key* to lookup.
   /// @returns The *aspect* of the value at *key*.
   virtual expected<data> get(const data& key, const data& value) const = 0;
 
-  /// Check if a given key exists.
-  /// @param key The key to use.
-  /// @returns `true` If the provided key exists or nil on failing to perform
+  /// Checks if a key exists.
+  /// @param key The key to check.
+  /// @returns `true` if the *key* exists and `false` if it doesn't.
   /// the query.
   virtual expected<bool> exists(const data& key) const = 0;
 
+  /// Retrieves the number of entries in the store.
   /// @returns The number of key-value pairs in the store.
   virtual expected<uint64_t> size() const = 0;
 
+  /// Retrieves all key-value pairs.
   /// @returns A snapshot of the store that includes its content.
   virtual expected<broker::snapshot> snapshot() const = 0;
 };

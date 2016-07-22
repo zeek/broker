@@ -59,8 +59,8 @@ public:
     );
   }
 
-  expected<bool> erase(const data& key) override {
-    return perform<bool>(
+  expected<void> erase(const data& key) override {
+    return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.erase(key);
       }
@@ -195,8 +195,8 @@ TEST(erase/exists) {
   REQUIRE(exists);
   CHECK(!*exists);
   auto erase = backend->erase("foo");
-  REQUIRE(erase);
-  CHECK(!*erase); // no such key
+  REQUIRE(!erase);
+  CHECK_EQUAL(erase.error(), ec::no_such_key);
   auto put = backend->put("foo", "bar");
   REQUIRE(put);
   exists = backend->exists("foo");
@@ -204,7 +204,6 @@ TEST(erase/exists) {
   CHECK(*exists);
   erase = backend->erase("foo");
   REQUIRE(erase);
-  CHECK(*erase);
 }
 
 TEST(expiration with expiry) {

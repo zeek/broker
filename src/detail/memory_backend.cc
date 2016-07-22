@@ -34,8 +34,10 @@ expected<void> memory_backend::remove(const data& key, const data& value,
   return result;
 }
 
-expected<bool> memory_backend::erase(const data& key) {
-  return store_.erase(key) == 1;
+expected<void> memory_backend::erase(const data& key) {
+  if (store_.erase(key) == 0)
+    return ec::no_such_key;
+  return {};
 }
 
 expected<bool> memory_backend::expire(const data& key) {
