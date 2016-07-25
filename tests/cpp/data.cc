@@ -131,8 +131,3 @@ TEST(data - table) {
   CHECK_EQUAL(i->second, data{42});
   CHECK_EQUAL(to_string(t), "{bar -> 43, baz -> 44, foo -> 42}");
 }
-
-TEST(data - record) {
-  record r{42, "foo", nil};
-  CHECK_EQUAL(to_string(r), "(42, foo, nil)");
-}

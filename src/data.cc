@@ -57,11 +57,6 @@ bool convert(const table& t, std::string& str) {
   return true;
 }
 
-bool convert(const record& r, std::string& str) {
-  container_convert(r, str, "(", ")");
-  return true;
-}
-
 bool convert(const data& d, std::string& str) {
   visit(data_converter{str}, d);
   return true;

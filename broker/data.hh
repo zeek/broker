@@ -41,17 +41,6 @@ using table = std::map<data, data>;
 /// @relates table
 bool convert(const table& t, std::string& str);
 
-/// A container of sequential heterogeneous data.
-// We use inheritance here to ensure that record is a different type from
-// vector. With a sheer type alias, they would both map to a vector<data>. This
-// is not the most elegant solution and may change in the future.
-struct record : std::vector<data> {
-  using std::vector<broker::data>::vector;
-};
-
-/// @relates record
-bool convert(const record& r, std::string& str);
-
 using data_variant = detail::variant<
   none,
   boolean,
@@ -67,8 +56,7 @@ using data_variant = detail::variant<
   enum_value,
   set,
   table,
-  vector,
-  record
+  vector
 >;
 
 /// A variant class that may store the data associated with one of several
@@ -99,8 +87,7 @@ struct data : data_variant {
                     || std::is_same<T, port>::value
                     || std::is_same<T, set>::value
                     || std::is_same<T, table>::value
-                    || std::is_same<T, vector>::value
-                    || std::is_same<T, record>::value,
+                    || std::is_same<T, vector>::value,
                   T,
                   std::false_type
                 >
@@ -204,10 +191,6 @@ struct hash<broker::table::value_type> {
 template <>
 struct hash<broker::table>
   : broker::detail::container_hasher<broker::table> {};
-
-template <>
-struct hash<broker::record>
-  : broker::detail::container_hasher<broker::record> {};
 
 } // namespace std
 

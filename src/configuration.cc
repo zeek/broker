@@ -22,7 +22,6 @@ configuration::configuration() {
   add_message_type<vector>("broker::vector");
   add_message_type<broker::set>("broker::set");
   add_message_type<table>("broker::table");
-  add_message_type<record>("broker::record");
   add_message_type<topic>("broker::topic");
   add_message_type<std::vector<topic>>("std::vector<broker::topic>");
   add_message_type<optional<time::point>>("broker::optional<broker::time::point>");
