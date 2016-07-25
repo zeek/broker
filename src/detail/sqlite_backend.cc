@@ -2,9 +2,6 @@
 
 #include <cstdio> // std::snprintf
 
-#include <caf/stream_deserializer.hpp>
-#include <caf/stream_serializer.hpp>
-
 #include <caf/detail/scope_guard.hpp>
 
 #include "broker/error.hh"
@@ -12,6 +9,7 @@
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
+#include "broker/detail/blob.hh"
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/sqlite_backend.hh"
 
@@ -19,29 +17,7 @@
 
 namespace broker {
 namespace detail {
-
-using caf::detail::make_scope_guard;
-
 namespace {
-
-template <class T>
-std::vector<char> to_blob(const T& x) {
-  std::vector<char> buf;
-  caf::vectorbuf sb{buf};
-  caf::stream_serializer<caf::vectorbuf&> serializer{sb};
-  serializer(x);
-  return buf;
-}
-
-template <class T>
-T from_blob(const void* buf, size_t size) {
-  auto data = reinterpret_cast<char*>(const_cast<void*>(buf));
-  caf::arraybuf<char> sb{data, size};
-  caf::stream_deserializer<caf::arraybuf<char>&> deserializer{sb};
-  T result;
-  deserializer(result);
-  return result;
-}
 
 auto make_statement_guard = [](sqlite3_stmt* stmt) {
   return caf::detail::make_scope_guard([=] { sqlite3_reset(stmt); });
@@ -194,8 +170,8 @@ sqlite_backend::sqlite_backend(backend_options opts)
 sqlite_backend::~sqlite_backend() {
 }
 
-expected<void>
-sqlite_backend::put(const data& key, data value, optional<time::point> expiry) {
+expected<void> sqlite_backend::put(const data& key, data value,
+                                   optional<time::point> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -226,8 +202,6 @@ sqlite_backend::put(const data& key, data value, optional<time::point> expiry) {
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
                                    optional<time::point> expiry) {
-  if (!impl_->db)
-    return ec::backend_failure;
   auto v = get(key);
   if (!v)
     return v.error();
@@ -241,8 +215,6 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 
 expected<void> sqlite_backend::remove(const data& key, const data& value,
                                       optional<time::point> expiry) {
-  if (!impl_->db)
-    return ec::backend_failure;
   auto v = get(key);
   if (!v)
     return v.error();
@@ -266,8 +238,8 @@ expected<void> sqlite_backend::erase(const data& key) {
 	result = sqlite3_step(impl_->erase);
   if (result != SQLITE_DONE)
     return ec::backend_failure;
-  if (sqlite3_changes(impl_->db) == 0)
-    return ec::no_such_key;
+  //if (sqlite3_changes(impl_->db) == 0)
+  //  return ec::no_such_key;
   return {};
 }
 
@@ -309,15 +281,6 @@ expected<data> sqlite_backend::get(const data& key) const {
     return ec::backend_failure;
 	return from_blob<data>(sqlite3_column_blob(impl_->lookup, 0),
                          sqlite3_column_bytes(impl_->lookup, 0));
-}
-
-expected<data> sqlite_backend::get(const data& key, const data& value) const {
-  if (!impl_->db)
-    return ec::backend_failure;
-  auto k = get(key);
-  if (!k)
-    return k;
-  return visit(retriever{value}, *k);
 }
 
 expected<bool> sqlite_backend::exists(const data& key) const {

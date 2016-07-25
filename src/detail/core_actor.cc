@@ -19,10 +19,9 @@
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
+#include "broker/detail/make_backend.hh"
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/master_actor.hh"
-#include "broker/detail/memory_backend.hh"
-#include "broker/detail/sqlite_backend.hh"
 
 namespace broker {
 namespace detail {
@@ -535,15 +534,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return ec::master_exists;
       }
       BROKER_DEBUG("instantiating backend");
-      auto factory = [&](backend type) -> std::unique_ptr<abstract_backend> {
-        switch (type) {
-          case memory:
-            return std::make_unique<memory_backend>(std::move(opts));
-          case sqlite:
-            return std::make_unique<sqlite_backend>(std::move(opts));
-        }
-      };
-      auto ptr = factory(backend_type);
+      auto ptr = make_backend(backend_type, std::move(opts));
       BROKER_ASSERT(ptr);
       BROKER_DEBUG("spawning new master");
       auto actor = self->spawn<caf::linked>(master_actor, self, name,

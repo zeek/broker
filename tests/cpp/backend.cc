@@ -2,7 +2,9 @@
 
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/make_unique.hh"
+#include "broker/detail/make_backend.hh"
 #include "broker/detail/memory_backend.hh"
+#include "broker/detail/rocksdb_backend.hh"
 #include "broker/detail/sqlite_backend.hh"
 
 #define SUITE backend
@@ -21,8 +23,25 @@ bool all_equal(const std::vector<T>& xs) {
 class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
-    backends_.push_back(std::make_unique<detail::memory_backend>(opts));
-    backends_.push_back(std::make_unique<detail::sqlite_backend>(opts));
+    backends_.push_back(detail::make_backend(memory, opts));
+    auto path = opts["path"].get<std::string>();
+    auto base = *path;
+    // Make sure both backends have their own filesystem storage to work with.
+    *path += ".sqlite";
+    paths_.push_back(*path);
+    detail::remove_all(*path);
+    backends_.push_back(detail::make_backend(sqlite, opts));
+#ifdef BROKER_HAVE_ROCKSDB
+    *path = base + ".rocksdb";
+    paths_.push_back(*path);
+    detail::remove_all(*path);
+    backends_.push_back(detail::make_backend(rocksdb, opts));
+#endif
+  }
+
+  ~meta_backend() {
+    for (auto& path : paths_)
+      detail::remove_all(path);
   }
 
   expected<void> put(const data& key, data value,
@@ -125,20 +144,15 @@ private:
   }
 
   std::vector<std::unique_ptr<detail::abstract_backend>> backends_;
+  std::vector<std::string> paths_;
 };
 
 struct fixture {
-  static constexpr char filename[] = "/tmp/broker-unit-test-backend.db";
+  static constexpr char filename[] = "/tmp/broker-unit-test-backend";
 
   fixture() {
-    detail::remove(filename);
     auto opts = backend_options{{"path", filename}};
     backend = std::make_unique<meta_backend>(std::move(opts));
-  }
-
-  ~fixture() {
-    backend.reset();
-    detail::remove(filename);
   }
 
   std::unique_ptr<detail::abstract_backend> backend;
@@ -194,18 +208,25 @@ TEST(add/remove) {
 }
 
 TEST(erase/exists) {
+  using namespace std::chrono;
   auto exists = backend->exists("foo");
   REQUIRE(exists);
   CHECK(!*exists);
   auto erase = backend->erase("foo");
-  REQUIRE(!erase);
-  CHECK_EQUAL(erase.error(), ec::no_such_key);
-  auto put = backend->put("foo", "bar");
+  REQUIRE(erase); // succeeds independent of key existence
+  auto put = backend->put("foo", "bar", time::now() + seconds{42});
   REQUIRE(put);
   exists = backend->exists("foo");
   REQUIRE(exists);
   CHECK(*exists);
+  put = backend->put("bar", vector{1, 2, 3});
+  REQUIRE(put);
+  exists = backend->exists("bar");
+  REQUIRE(exists);
+  CHECK(*exists);
   erase = backend->erase("foo");
+  REQUIRE(erase);
+  erase = backend->erase("bar");
   REQUIRE(erase);
 }
 
@@ -238,9 +259,10 @@ TEST(expiration without expiry) {
 }
 
 TEST(size/snapshot) {
+  using namespace std::chrono;
   auto put = backend->put("foo", "bar");
   REQUIRE(put);
-  put = backend->put("bar", 4.2);
+  put = backend->put("bar", 4.2, time::now() + seconds{10});
   REQUIRE(put);
   put = backend->put("baz", table{{"foo", true}, {"bar", false}});
   REQUIRE(put);

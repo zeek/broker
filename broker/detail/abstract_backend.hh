@@ -32,7 +32,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
-                             optional<time::point> expiry = {}) = 0;
+                             optional<time::point> expiry = {});
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to remove from.
@@ -40,11 +40,12 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> remove(const data& key, const data& value,
-                                optional<time::point> expiry = {}) = 0;
+                                optional<time::point> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.
-  /// @returns `nil` if *key* was removed successfully.
+  /// @returns `nil` if *key* was removed successfully or if *key* did not
+  /// exist.
   virtual expected<void> erase(const data& key) = 0;
 
   /// Removes a key and its associated value from the store, if it exists and
@@ -66,7 +67,7 @@ public:
   /// @param key The key to use.
   /// @param aspect The aspect of the value at *key* to lookup.
   /// @returns The *aspect* of the value at *key*.
-  virtual expected<data> get(const data& key, const data& value) const = 0;
+  virtual expected<data> get(const data& key, const data& value) const;
 
   /// Checks if a key exists.
   /// @param key The key to check.

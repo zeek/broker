@@ -41,8 +41,7 @@ expected<void> memory_backend::remove(const data& key, const data& value,
 }
 
 expected<void> memory_backend::erase(const data& key) {
-  if (store_.erase(key) == 0)
-    return ec::no_such_key;
+  store_.erase(key);
   return {};
 }
 
@@ -68,6 +67,9 @@ expected<data> memory_backend::get(const data& key, const data& value) const {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
+  // We do not use the default implementation because operating directly on the
+  // stored data element is more efficient in case the visitation returns an
+  // error.
   return visit(retriever{value}, i->second.first);
 }
 

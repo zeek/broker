@@ -16,8 +16,15 @@ bool exists(const path& p);
 
 /// Removes a file or empty directory.
 /// @param p The path to remove.
-/// @returns `true` if *p* was deleted, `false` if *p* did not exist.
+/// @returns `true` iff *p* was deleted successfully.
 bool remove(const path& p);
+
+/// Deletes the contents of a path (if it is a directory) and the contents of
+/// all its subdirectories, recursively, then deletes the path itself as if by
+/// repeatedly applying the POSIX remove.
+/// @param p The path to remove.
+/// @returns `true` iff *p* was deleted successfully.
+bool remove_all(const path& p);
 
 } // namespace detail
 } // namespace broker

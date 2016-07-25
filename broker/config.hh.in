@@ -1,0 +1,6 @@
+#ifndef BROKER_CONFIG_HH
+#define BROKER_CONFIG_HH
+
+#cmakedefine BROKER_HAVE_ROCKSDB
+
+#endif

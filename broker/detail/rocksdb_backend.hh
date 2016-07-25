@@ -1,5 +1,7 @@
-#ifndef BROKER_DETAIL_SQLITE_BACKEND_HH
-#define BROKER_DETAIL_SQLITE_BACKEND_HH
+#ifndef BROKER_DETAIL_ROCKSDB_BACKEND_HH
+#define BROKER_DETAIL_ROCKSDB_BACKEND_HH
+
+#include <string>
 
 #include "broker/backend_options.hh"
 
@@ -8,17 +10,24 @@
 namespace broker {
 namespace detail {
 
-/// A SQLite storage backend.
-class sqlite_backend : public abstract_backend {
+/// A RocksDB storage backend.
+class rocksdb_backend : public abstract_backend {
 public:
-  /// Constructs a SQLite backend.
+  /// Constructs a RocksDB backend.
   /// @param opts The options to create/open a database.
-  /// Required parameters:
+  ///
+  /// Required:
   ///   - `path`: a `std::string` representing the location of the database on
   ///             the filesystem.
-  sqlite_backend(backend_options opts = {});
+  ///
+  /// Optional:
+  ///   - `exact_size_threshold`: a `count` that represents the threshold when
+  ///                             to start estimating the nubmer of keys as
+  ///                             opposed to linear enumeration.
+  ///                             (default = 10,000)
+  rocksdb_backend(backend_options opts = {});
 
-  ~sqlite_backend();
+  ~rocksdb_backend();
 
   expected<void> put(const data& key, data value,
                      optional<time::point> expiry) override;
@@ -49,4 +58,4 @@ private:
 } // namespace detail
 } // namespace broker
 
-#endif // BROKER_DETAIL_SQLITE_BACKEND_HH
+#endif // BROKER_DETAIL_ROCKSDB_BACKEND_HH

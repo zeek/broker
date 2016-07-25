@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_APPLIERS_HH
 
 #include "broker/data.hh"
+#include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/time.hh"
 

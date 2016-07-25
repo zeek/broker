@@ -1,6 +1,8 @@
 #ifndef BROKER_VERSION_HH
 #define BROKER_VERSION_HH
 
+#include <string>
+
 namespace broker {
 namespace version {
 
@@ -20,6 +22,10 @@ constexpr type protocol = 1;
 inline bool compatible(type v) {
   return v == protocol;
 }
+
+/// Generates a version string of the form `major.minor.patch`.
+/// @returns A string representing the Broker version.
+std::string string();
 
 } // namespace version
 } // namespace broker

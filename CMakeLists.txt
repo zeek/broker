@@ -37,9 +37,10 @@ set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 # RocksDB
 find_package(RocksDB)
 if (ROCKSDB_FOUND)
+  set(BROKER_HAVE_ROCKSDB true)
   include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
   set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-  set(OPTIONAL_SRC ${OPTIONAL_SRC} src/store/rocksdb_backend.cc)
+  set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
 endif ()
 
 # -- libroker -----------------------------------------------------------------
@@ -93,6 +94,10 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
+               ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
+
 set(BROKER_SRC
   src/address.cc
   src/blocking_endpoint.cc
@@ -110,18 +115,21 @@ set(BROKER_SRC
   src/subnet.cc
   src/time.cc
   src/topic.cc
+  src/version.cc
 
+  src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
   src/detail/core_actor.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
+  src/detail/make_backend.cc
   src/detail/master_actor.cc
   src/detail/memory_backend.cc
   src/detail/sqlite_backend.cc
 
   src/detail/sqlite3.c
-  #${OPTIONAL_SRC}
+  ${OPTIONAL_SRC}
 )
 
 include(TestBigEndian)
