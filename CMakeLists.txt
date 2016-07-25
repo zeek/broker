@@ -101,6 +101,7 @@ set(BROKER_SRC
   src/data.cc
   src/endpoint.cc
   src/error.cc
+  src/message.cc
   src/network_info.cc
   src/nonblocking_endpoint.cc
   src/port.cc

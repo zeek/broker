@@ -9,7 +9,6 @@
 #include "broker/convert.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
-#include "broker/message.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
@@ -221,7 +220,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
   );
   return {
     // TODO: add TTL component to this message to detect routing loops.
-    [=](topic& t, message& msg, const caf::actor& source) {
+    [=](topic& t, caf::message& msg, const caf::actor& source) {
       BROKER_DEBUG("got message:" << t << "->" << to_string(msg));
       BROKER_ASSERT(!t.string().empty());
       // Handle internal messages first.
@@ -261,17 +260,18 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
             sinks.insert(sub);
       }
       // Relay message to all subscribers.
+      auto sub_msg = caf::make_message(std::move(t), std::move(msg), self);
       for (auto& sink : sinks)
         if (sink == subscriber) {
           BROKER_DEBUG("dispatching message locally");
           // Local subscribers never see internal messages.
           if (i != std::string::npos)
-            BROKER_WARNING("dropping internal message:" << to_string(msg));
+            BROKER_ERROR("dropping internal message:" << to_string(msg));
           else
-            self->send(sink, t, msg);
+            self->send(sink, sub_msg);
         } else {
           BROKER_DEBUG("relaying message to" << to_string(sink));
-          self->send(sink, t, msg, self);
+          self->send(sink, sub_msg);
         }
     },
     [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {

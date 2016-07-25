@@ -4,6 +4,9 @@
 #include <caf/blocking_actor.hpp>
 
 #include "broker/endpoint.hh"
+#include "broker/message.hh"
+
+#include "broker/detail/type_traits.hh"
 
 namespace broker {
 
@@ -53,10 +56,37 @@ public:
   message receive();
 
   /// Consumes one message that matches the given handler.
-  template <class T, class... Ts>
-  void receive(T&& x, Ts&&... xs) {
+  template <class F>
+  detail::enable_if_t<detail::is_message_callback<F>::value>
+  receive(F f) {
     auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
-    subscriber->receive(std::forward<T>(x), std::forward<Ts>(xs)...);
+    subscriber->receive(
+      [&](const topic& t, const caf::message& msg, const caf::actor&) {
+        f(t, msg.get_as<data>(0));
+      }
+    );
+  }
+
+  /// Consumes one message that matches the given handler.
+  template <class F>
+  detail::enable_if_t<detail::is_status_callback<F>::value>
+  receive(F f) {
+    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
+    subscriber->receive(f);
+  }
+
+  /// Consumes one message that matches the given handler.
+  template <class OnMessage, class OnStatus>
+  void receive(OnMessage on_msg, OnStatus on_status) {
+    detail::verify_message_callback<OnMessage>();
+    detail::verify_status_callback<OnStatus>();
+    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
+    subscriber->receive(
+      [&](const topic& t, const caf::message& msg, const caf::actor&) {
+        on_msg(t, msg.get_as<data>(0));
+      },
+      on_status
+    );
   }
 
   /// Access the endpoint's mailbox, which provides the following

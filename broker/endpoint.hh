@@ -13,7 +13,6 @@
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/store.hh"
@@ -74,19 +73,22 @@ public:
   /// @returns A pointer to the list
   std::vector<peer_info> peers() const;
 
-  // --- message publishing ---------------------------------------------------
+  // --- messaging -----------------------------------------------------------
 
-  /// Publishes a message.
-  /// @param t The topic of the message.
-  /// @param msg The message.
-  void publish(topic t, message msg);
+  /// Publishes a data message.
+  /// @param t The topic of the data message.
+  /// @param d The message data.
+  void publish(topic t, data d);
 
-  /// Publishes a message.
-  /// @param t The topic of the message.
+  /// Publishes a data message as vector.
+  /// @param t The topic of the data message.
   /// @param xs The message contents.
-  template <class... Ts>
-  void publish(topic t, Ts&&... xs) {
-    publish(std::move(t), make_data_message(std::forward<Ts>(xs)...));
+  template <class T0, class T1, class... Ts>
+  void publish(topic t, T0&& x0, T1&& x1, Ts&&... xs) {
+    vector v;
+    add_to_vector(v, std::forward<T0>(x0), std::forward<T1>(x1),
+                  std::forward<Ts>(xs)...);
+    publish(std::move(t), data{std::move(v)});
   }
 
   // --- data stores ----------------------------------------------------------
@@ -113,6 +115,17 @@ public:
   }
 
 protected:
+  template <class T>
+  void add_to_vector(vector& v, T&& x) {
+    v.emplace_back(std::forward<T>(x));
+  }
+
+  template <class T, class... Ts>
+  void add_to_vector(vector& v, T&& x, Ts&&... xs) {
+    add_to_vector(v, std::forward<T>(x));
+    add_to_vector(v, std::forward<Ts>(xs)...);
+  }
+
   endpoint();
 
   void init_core(caf::actor core);

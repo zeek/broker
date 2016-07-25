@@ -5,11 +5,10 @@
 #include <vector>
 
 #include <caf/scoped_actor.hpp>
-#include <caf/detail/type_traits.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/data.hh"
 #include "broker/endpoint.hh"
-#include "broker/message.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -25,25 +24,16 @@ class nonblocking_endpoint : public endpoint {
 public:
   /// Subscribes to a topic.
   /// @param t The topic to subscribe to.
-  /// @param on_data The callback to invoke for messages prefix-matching *t*.
-  template <class OnData>
-  void subscribe(topic t, OnData on_data) {
-    using on_data_type = caf::detail::get_callable_trait<OnData>;
-    using arg_types = typename on_data_type::arg_types;
-    using first = typename caf::detail::tl_head<arg_types>::type;
-    //using second = typename caf::detail::tl_tail<arg_types>::type;
-    static_assert(std::is_same<void, typename on_data_type::result_type>{},
-                  "data callback must not have a return value");
-    static_assert(caf::detail::tl_size<arg_types>::value == 2,
-                  "data callback must have two arguments");
-    static_assert(std::is_same<detail::decay_t<first>, topic>::value,
-                  "first argument must be of type broker::topic");
-    //static_assert(std::is_same<detail::decay_t<second>, data>::value,
-    //              "second argument must be of type broker::data");
+  /// @param on_msg The callback to invoke for messages prefix-matching *t*.
+  template <class OnMessage>
+  void subscribe(topic t, OnMessage on_msg) {
+    detail::verify_message_callback<OnMessage>();
     auto actor = subscriber_->home_system().spawn(
       [=]() -> caf::behavior {
-        return [=](const topic& t, const message& msg, const caf::actor&) {
-          on_data(t, msg);
+        return {
+          [=](const topic& top, const caf::message& msg, const caf::actor&) {
+            on_msg(top, msg.get_as<data>(0));
+          }
         };
       }
     );
@@ -65,17 +55,11 @@ public:
   /// @param on_status The callback to execute for status messages.
   template <class OnStatus>
   void subscribe(OnStatus on_status) {
-    using on_data_type = caf::detail::get_callable_trait<OnStatus>;
-    static_assert(std::is_same<void, typename on_data_type::result_type>{},
-                  "status callback must not have a return value");
-    using on_status_args = typename on_data_type::arg_types;
-    static_assert(caf::detail::tl_size<on_status_args>::value == 1,
-                  "status callback can have only one argument");
-    using on_status_args = typename caf::detail::tl_head<on_status_args>::type;
-    static_assert(std::is_same<detail::decay_t<on_status_args>, status>::value,
-                  "status callback must have broker::status as argument type");
+    detail::verify_status_callback<OnStatus>();
     auto actor = subscriber_->home_system().spawn(
-      [=]() -> caf::behavior { return on_status; }
+      [=]() -> caf::behavior {
+        return on_status;
+      }
     );
     caf::scoped_actor self{core()->home_system()};
     self->request(subscriber_, timeout::core, atom::status::value,

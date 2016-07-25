@@ -8,7 +8,6 @@
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/topic.hh"
-#include "broker/message.hh"
 #include "broker/snapshot.hh"
 #include "broker/time.hh"
 
@@ -104,7 +103,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     },
   };
   auto dispatch = caf::message_handler{
-    [=](topic& t, message& msg, const caf::actor& source) mutable {
+    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
       BROKER_DEBUG("dispatching message with topic" << t << "from core"
                    << to_string(source));
       commands(msg);

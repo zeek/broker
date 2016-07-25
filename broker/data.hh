@@ -21,7 +21,7 @@
 
 namespace broker {
 
-struct data;
+class data;
 
 /// A container of sequential data.
 using vector = std::vector<data>;
@@ -61,7 +61,8 @@ using data_variant = detail::variant<
 
 /// A variant class that may store the data associated with one of several
 /// different primitive or compound types.
-struct data : data_variant {
+class data : public data_variant {
+public:
 	template <class T>
 	using from = detail::conditional_t<
         std::is_floating_point<T>::value,

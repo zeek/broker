@@ -50,7 +50,7 @@ TEST(nonblocking subscription managment) {
   auto counter = std::make_shared<int>(0);
   context ctx;
   auto ep = ctx.spawn<nonblocking>();
-  auto callback = [=](const topic&, const message& msg) { ++*counter; };
+  auto callback = [=](const topic&, const data&) { ++*counter; };
   MESSAGE("subscribing");
   ep.subscribe("/foo", callback);
   // After subscribe() returns, calls to publish() are guaranteed to execute
@@ -86,15 +86,15 @@ TEST(blocking lambda receive) {
   e.publish("/foo/bar", 42);
   e.publish("/foo/baz", -1);
   CHECK(is_ready(e, seconds{1}));
-  e.receive([](const topic& t, const message& msg) {
+  e.receive([](const topic& t, const data& d) {
     CHECK_EQUAL(t, "/foo/bar"_t);
-    CHECK_EQUAL(*msg.get_as<data>(0).get<integer>(), 42);
+    CHECK_EQUAL(d, data{42});
   });
   CHECK(is_ready(e));
   CHECK(!e.mailbox().empty());
-  e.receive([](const topic& t, const message& msg) {
+  e.receive([](const topic& t, const data& d) {
     CHECK_EQUAL(t, "/foo/baz"_t);
-    CHECK_EQUAL(msg.get_as<data>(0), data{-1});
+    CHECK_EQUAL(d, data{-1});
   });
   CHECK(e.mailbox().empty());
   CHECK(!is_ready(e));
@@ -104,16 +104,11 @@ TEST(blocking non-lambda receive) {
   context ctx;
   auto e = ctx.spawn<blocking>();
   e.subscribe("/foo");
-  auto m0 = make_data_message("broker");
-  e.publish("/foo", m0);
+  e.publish("/foo", "broker");
   CHECK(is_ready(e, seconds{1}));
   auto msg = e.receive();
-  REQUIRE_EQUAL(msg.size(), 2u); // <topic, message>
-  auto t = msg.get_as<topic>(0);
-  CHECK_EQUAL(t, "/foo"_t);
-  auto m1 = msg.get_as<message>(1);
-  REQUIRE_EQUAL(m1.size(), 1u);
-  auto str = m1.get_as<data>(0).get<std::string>();
+  CHECK_EQUAL(msg.topic(), "/foo"_t);
+  auto str = msg.data().get<std::string>();
   REQUIRE(str);
   CHECK_EQUAL(*str, "broker");
   CHECK(e.mailbox().empty());
@@ -131,7 +126,7 @@ TEST(multi-topic subscription) {
   CHECK(e.mailbox().empty());
 }
 
-TEST(local peering and unpeering) {
+TEST(blocking local peering and unpeering) {
   context ctx;
   auto x = ctx.spawn<blocking>();
   auto y = ctx.spawn<blocking>();
@@ -164,6 +159,24 @@ TEST(local peering and unpeering) {
   MESSAGE("attempt to unpeer from already unpeered endpoint");
   y.unpeer(x);
   y.receive([](const status& s) { CHECK(s == peer_invalid); });
+}
+
+TEST(nonblocking local peering) {
+  context ctx;
+  auto x = ctx.spawn<nonblocking>();
+  auto y = ctx.spawn<nonblocking>();
+  MESSAGE("adding status callback");
+  x.subscribe([](const status& s) { CHECK(s == peer_added); });
+  y.subscribe([](const status& s) { CHECK(s == peer_added); });
+  x.peer(y);
+  // Wait for status messages to trickle in.
+  std::this_thread::sleep_for(milliseconds{100});
+  MESSAGE("replacing status callback");
+  x.subscribe([](const status& s) { CHECK(s == peer_removed); });
+  y.subscribe([](const status& s) { CHECK(s == peer_removed); });
+  x.unpeer(y);
+  // Wait for status messages to trickle in.
+  std::this_thread::sleep_for(milliseconds{100});
 }
 
 TEST(remote peering) {
@@ -256,14 +269,14 @@ TEST(subscribe after peering) {
   std::this_thread::sleep_for(milliseconds{300});
   MESSAGE("D -> C -> B -> A");
   d.publish("/foo/d", 42);
-  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/d"_t); });
+  a.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/foo/d"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
   MESSAGE("A -> B -> C");
   a.publish("/bar/a", 42);
-  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar/a"_t); });
+  c.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/bar/a"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
@@ -300,14 +313,14 @@ TEST(subscribe before peering) {
   CHECK(d.mailbox().empty());
   MESSAGE("D -> C -> B -> A");
   d.publish("/foo/d", 42);
-  a.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/foo/d"_t); });
+  a.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/foo/d"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
   MESSAGE("A -> B -> C");
   a.publish("/bar/a", 42);
-  c.receive([](const topic& t, const message&) { CHECK_EQUAL(t, "/bar/a"_t); });
+  c.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/bar/a"_t); });
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());

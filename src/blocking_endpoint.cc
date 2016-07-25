@@ -1,10 +1,7 @@
-#include <caf/all.hpp>
-
 #include "broker/blocking_endpoint.hh"
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/core_actor.hh"
-#include "broker/detail/die.hh"
 #include "broker/detail/flare_actor.hh"
 
 namespace broker {
@@ -38,7 +35,7 @@ message blocking_endpoint::receive() {
   subscriber->await_data();
   auto msg = subscriber->dequeue()->move_content_to_message();
   BROKER_ASSERT(!msg.empty());
-  return msg;
+  return message{std::move(msg)};
 };
 
 mailbox blocking_endpoint::mailbox() {

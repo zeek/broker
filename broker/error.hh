@@ -2,8 +2,7 @@
 #define BROKER_ERROR_HH
 
 #include <caf/error.hpp>
-
-#include "broker/message.hh"
+#include <caf/make_message.hpp>
 
 namespace broker {
 
@@ -42,7 +41,7 @@ error make_error(ec x, Ts&&... xs) {
 /// Simplifies generation of structured errors.
 /// @relates ec
 template <ec ErrorCode = ec::unspecified, class... Ts>
-message make_error_message(Ts&&... xs) {
+caf::message make_error_message(Ts&&... xs) {
   return caf::make_message(make_error(ErrorCode, std::forward<Ts>(xs)...));
 }
 

@@ -3,7 +3,6 @@
 
 #include "broker/data.hh"
 #include "broker/expected.hh"
-#include "broker/message.hh"
 #include "broker/time.hh"
 
 #include "broker/detail/type_traits.hh"

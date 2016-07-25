@@ -9,7 +9,6 @@
 #include "broker/expected.hh"
 #include "broker/snapshot.hh"
 #include "broker/topic.hh"
-#include "broker/message.hh"
 
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/appliers.hh"
@@ -73,7 +72,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     },
   };
   auto dispatch = caf::message_handler{
-    [=](topic& t, message& msg, const caf::actor& source) mutable {
+    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
       BROKER_DEBUG("dispatching message with topic" << t << "from core"
                    << to_string(source));
       update(msg);
