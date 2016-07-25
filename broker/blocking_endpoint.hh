@@ -40,6 +40,14 @@ class blocking_endpoint : public endpoint {
   friend context; // construction
 
 public:
+  /// Subscribes to a topic.
+  /// @param t The topic to subscribe to.
+  void subscribe(topic t);
+
+  /// Unsubscribes from a topic.
+  /// @param t The topic to unsubscribe from.
+  void unsubscribe(topic t);
+
   /// Consumes the next message in the mailbox or blocks until one arrives.
   /// @returns The next message in the mailbox.
   message receive();

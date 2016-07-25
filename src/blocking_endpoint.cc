@@ -24,6 +24,15 @@ size_t mailbox::count(size_t max) {
 mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {
 }
 
+void blocking_endpoint::subscribe(topic t) {
+  std::vector<topic> ts{t};
+  caf::anon_send(core(), atom::subscribe::value, std::move(ts), subscriber_);
+}
+
+void blocking_endpoint::unsubscribe(topic t) {
+  caf::anon_send(core(), atom::unsubscribe::value, std::move(t), subscriber_);
+}
+
 message blocking_endpoint::receive() {
   auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
   subscriber->await_data();

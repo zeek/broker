@@ -31,11 +31,7 @@ TEST(blocking construction) {
 
 TEST(nonblocking construction) {
   context ctx;
-  auto n = ctx.spawn<nonblocking>(
-    [](const topic&, const message&) {
-      // nop
-    }
-  );
+  auto n = ctx.spawn<nonblocking>();
   endpoint e = n; // upcast
 }
 
@@ -50,25 +46,37 @@ TEST(subscription management) {
   CHECK(e.mailbox().empty());
 }
 
-TEST(nonblocking subscription) {
+TEST(nonblocking subscription managment) {
   auto counter = std::make_shared<int>(0);
-  // The destructor of the context object blocks until all actors have
-  // terminated. In this case, once our endpoint "n" goes out of scope, the
-  // underlying actor will receive an exit message. Prior to that, it will
-  // process the three published messages.
-  {
-    context ctx;
-    auto n = ctx.spawn<nonblocking>(
-      [=](const topic&, const message&) {
-        ++*counter;
-      }
-    );
-    n.subscribe("/foo");
-    n.publish("/foo/bar", 42);
-    n.publish("/foo/baz", 4.2);
-    n.publish("/foo/qux", "broker");
-  }
+  context ctx;
+  auto ep = ctx.spawn<nonblocking>();
+  auto callback = [=](const topic&, const message& msg) { ++*counter; };
+  MESSAGE("subscribing");
+  ep.subscribe("/foo", callback);
+  // After subscribe() returns, calls to publish() are guaranteed to execute
+  // the provided callback.
+  ep.publish("/foo/bar", 42);
+  ep.publish("/foo/baz", 4.2);
+  ep.publish("/foo/qux", "broker");
+  // Wait for messages to arrive at the callback actor.
+  std::this_thread::sleep_for(milliseconds{100});
   CHECK_EQUAL(*counter, 3);
+  *counter = 0;
+  MESSAGE("replacing");
+  ep.subscribe("/foo", callback);
+  ep.publish("/foo", "");
+  // Wait for messages to arrive at the callback actor.
+  std::this_thread::sleep_for(milliseconds{100});
+  CHECK_EQUAL(*counter, 1);
+  *counter = 0;
+  MESSAGE("unsubscribing");
+  ep.unsubscribe("/foo");
+  // After unsubscribe() returns, calls to publish() are guaranteed to
+  // no longer execute the previously installed callback.
+  ep.publish("/foo/bar", 42);
+  ep.publish("/foo/baz", 4.2);
+  ep.publish("/foo/qux", "broker");
+  CHECK_EQUAL(*counter, 0);
 }
 
 TEST(blocking lambda receive) {

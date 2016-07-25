@@ -134,15 +134,6 @@ void endpoint::publish(topic t, message msg) {
   caf::anon_send(core(), std::move(t), std::move(msg), core());
 }
 
-void endpoint::subscribe(topic t) {
-  std::vector<topic> ts{t};
-  caf::anon_send(core(), atom::subscribe::value, std::move(ts), subscriber_);
-}
-
-void endpoint::unsubscribe(topic t) {
-  caf::anon_send(core(), atom::unsubscribe::value, std::move(t), subscriber_);
-}
-
 void endpoint::init_core(caf::actor core) {
   BROKER_ASSERT(subscriber_ != caf::unsafe_actor_handle_init);
   core->attach_functor([=] {

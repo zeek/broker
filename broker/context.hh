@@ -1,10 +1,7 @@
 #ifndef BROKER_CONTEXT_HH
 #define BROKER_CONTEXT_HH
 
-#include <cstdint>
-
 #include <caf/actor_system.hpp>
-#include <caf/behavior.hpp>
 
 #include "broker/detail/type_traits.hh"
 
@@ -35,8 +32,8 @@ public:
   /// Creates a ::nonblocking_endpoint.
   template <api_flags Flags, class... Ts>
   detail::enable_if_t<Flags == nonblocking, nonblocking_endpoint>
-  spawn(Ts&&... xs) {
-    return {system_, caf::behavior{std::forward<Ts>(xs)...}};
+  spawn() {
+    return {system_};
   }
 
 private:

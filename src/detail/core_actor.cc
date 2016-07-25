@@ -275,7 +275,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         }
     },
     [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {
-      BROKER_DEBUG("got subscribe request for" << ts.size() << "topics");
+      BROKER_DEBUG("got subscribe request for" << to_string(source));
+      if (ts.empty()) {
+        BROKER_WARNING("ignoring subscription with empty topic list");
+        return;
+      }
       for (auto& t : ts) {
         BROKER_DEBUG("  -" << t);
         self->state.subscriptions[t.string()].subscribers.insert(source);

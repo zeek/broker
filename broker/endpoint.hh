@@ -21,7 +21,6 @@
 
 #include "broker/detail/operators.hh"
 
-
 namespace broker {
 
 /// The main publish/subscribe abstraction. Endpoints can *peer* which each
@@ -89,14 +88,6 @@ public:
   void publish(topic t, Ts&&... xs) {
     publish(std::move(t), make_data_message(std::forward<Ts>(xs)...));
   }
-
-  /// Subscribes to a topic.
-  /// @param t The topic to subscribe to.
-  void subscribe(topic t);
-
-  /// Unsubscribes from a topic.
-  /// @param t The topic to unsubscribe from.
-  void unsubscribe(topic t);
 
   // --- data store API ------------------------------------------------------
 
