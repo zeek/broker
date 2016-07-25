@@ -100,14 +100,12 @@ set(BROKER_SRC
   src/context.cc
   src/data.cc
   src/endpoint.cc
-  src/enum_value.cc
   src/error.cc
   src/network_info.cc
   src/nonblocking_endpoint.cc
   src/port.cc
   src/status.cc
   src/store.cc
-  src/string.cc
   src/subnet.cc
   src/time.cc
   src/topic.cc

@@ -80,80 +80,9 @@ bool convert(const std::string& str, port& p) {
 
 size_t std::hash<broker::port>::operator()(const broker::port& v) const {
   using broker::port;
-  size_t rval = 0;
-  broker::detail::hash_combine(rval, v.number());
+  auto result = size_t{0};
+  broker::detail::hash_combine(result, v.number());
   auto p = static_cast<std::underlying_type<port::protocol>::type>(v.type());
-  broker::detail::hash_combine(rval, p);
-  return rval;
-}
-
-// Begin C API
-#include "broker/broker.h"
-using std::nothrow;
-
-broker_port* broker_port_create() {
-  return reinterpret_cast<broker_port*>(new (nothrow) broker::port());
-}
-
-void broker_port_delete(broker_port* p) {
-  delete reinterpret_cast<broker::port*>(p);
-}
-
-broker_port* broker_port_copy(const broker_port* p) {
-  auto pp = reinterpret_cast<const broker::port*>(p);
-  return reinterpret_cast<broker_port*>(new (nothrow) broker::port(*pp));
-}
-
-broker_port* broker_port_from(uint16_t num, broker_port_protocol p) {
-  auto rval
-    = new (nothrow) broker::port(num, static_cast<broker::port::protocol>(p));
-  return reinterpret_cast<broker_port*>(rval);
-}
-
-void broker_port_set_number(broker_port* dst, uint16_t num) {
-  auto d = reinterpret_cast<broker::port*>(dst);
-  *d = broker::port(num, d->type());
-}
-
-void broker_port_set_protocol(broker_port* dst, broker_port_protocol p) {
-  auto d = reinterpret_cast<broker::port*>(dst);
-  *d = broker::port(d->number(), static_cast<broker::port::protocol>(p));
-}
-
-uint16_t broker_port_number(const broker_port* p) {
-  return reinterpret_cast<const broker::port*>(p)->number();
-}
-
-broker_port_protocol broker_port_type(const broker_port* p) {
-  auto pp = reinterpret_cast<const broker::port*>(p);
-  return static_cast<broker_port_protocol>(pp->type());
-}
-
-broker_string* broker_port_to_string(const broker_port* p) {
-  auto pp = reinterpret_cast<const broker::port*>(p);
-  try {
-    std::string str;
-    if (!convert(*pp, str))
-      return nullptr;
-    return reinterpret_cast<broker_string*>(new std::string{std::move(str)});
-  } catch (const std::bad_alloc&) {
-    return nullptr;
-  }
-}
-
-int broker_port_eq(const broker_port* a, const broker_port* b) {
-  auto aa = reinterpret_cast<const broker::port*>(a);
-  auto bb = reinterpret_cast<const broker::port*>(b);
-  return *aa == *bb;
-}
-
-int broker_port_lt(const broker_port* a, const broker_port* b) {
-  auto aa = reinterpret_cast<const broker::port*>(a);
-  auto bb = reinterpret_cast<const broker::port*>(b);
-  return *aa < *bb;
-}
-
-size_t broker_port_hash(const broker_port* p) {
-  auto pp = reinterpret_cast<const broker::port*>(p);
-  return std::hash<broker::port>{}(*pp);
+  broker::detail::hash_combine(result, p);
+  return result;
 }

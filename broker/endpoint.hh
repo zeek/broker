@@ -74,7 +74,7 @@ public:
   /// @returns A pointer to the list
   std::vector<peer_info> peers() const;
 
-  // --- pub/sub API ---------------------------------------------------------
+  // --- message publishing ---------------------------------------------------
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -89,7 +89,7 @@ public:
     publish(std::move(t), make_data_message(std::forward<Ts>(xs)...));
   }
 
-  // --- data store API ------------------------------------------------------
+  // --- data stores ----------------------------------------------------------
 
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
