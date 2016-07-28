@@ -170,16 +170,21 @@ if (ENABLE_STATIC)
   install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
+# -- Unit Tests ---------------------------------------------------------------
+
 add_subdirectory(tests)
 
-# -- Bindings ----------------------------------------------------------------
+# -- Bindings -----------------------------------------------------------------
 
-# FIXME
-#add_subdirectory(bindings)
+# TODO
 
-string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
+# -- Documentation ------------------------------------------------------------
+
+add_subdirectory(doc)
 
 # -- Build Summary ------------------------------------------------------------
+
+string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
 macro(display test desc summary)
   if ( ${test} )
@@ -205,7 +210,7 @@ display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS ${BROKER_PYTHON_BINDINGS} pybindings_summary)
 
 message(
-    "\n==================|  broker Config Summary  |===================="
+    "\n==================|  Broker Config Summary  |===================="
     "\nVersion:         ${BROKER_VERSION}"
     "\nSO version:      ${BROKER_SOVERSION}"
     "\n"
