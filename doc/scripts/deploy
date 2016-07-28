@@ -1,0 +1,21 @@
+#!/bin/sh
+
+root="$1"
+
+set -e
+
+if [ ! -d "$root/.git" ]; then
+  echo web root not initialized
+  exit 1
+fi
+
+if [ ! -f "$root/index.html" ]; then
+  echo not a valid web root
+  exit 1
+fi
+
+cd "$root"
+
+git add -A
+git commit || exit 0
+git push origin HEAD

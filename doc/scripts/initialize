@@ -1,0 +1,20 @@
+#!/bin/sh
+
+root="$1"
+repo="ssh://git@git.bro.org/broker.git"
+branch="gh-pages"
+
+set -e
+
+if [ -d "$root" ] || [ -d "$root/.git" ]; then
+  echo repository already initialized
+  exit 0
+fi
+
+mkdir "$root"
+cd "$root"
+
+git init .
+git remote add origin "$repo"
+git fetch
+git checkout "$branch"
