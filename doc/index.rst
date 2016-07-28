@@ -7,12 +7,8 @@ Broker User Manual
 Outline
 --------
 
-:ref:`introduction` introduces Broker's key components and basic terminology,
+:ref:`overview` introduces Broker's key components and basic terminology,
 such as *contexts*, *endpoints*, *messages*, *topics*, and *data stores*.
-
-:ref:`data-model` presents Broker's data model which applications can pack into
-messages und publish under a given topic. The same data also works with
-Broker's :ref:`data stores <data-stores>`.
 
 :ref:`communication` shows how one can send and receive data with Broker's
 publish/subscribe communication primitives. By structuring applications in
@@ -20,15 +16,16 @@ independent *endpoints* and peering with other endpoints, one can create a
 variety of different communication topologies that perform topic-based message
 routing.
 
+:ref:`data-model` presents Broker's data model which applications can pack into
+messages und publish under a given topic. The same data also works with
+Broker's :ref:`data stores <data-stores>`.
+
 :ref:`data-stores` introduces *data stores*, a distributed key-value
 abstraction operating with the complete :ref:`data model <data-model>`, for
 both keys and values. Users interact with a data store *frontend*, which is
 either an authoritative *master* or a *clone* replica. The master can choose to
 keep its data in various *backends*: in-memory, `SQLite
 <https://www.sqlite.org>`_, and `RocksDB <http://rocksdb.org>`_.
-
-Finally, :ref:`architecture` takes a deeper look at how Broker works
-internally.
 
 Synopsis
 --------
@@ -53,7 +50,7 @@ Synopsis
       process(d);
     },
     [=](const error& e) {
-      if (e = ec::key_not_found)
+      if (e == ec::key_not_found)
         std::cout << "no such key: 4.2" << std::endl;
       else
         std::terminate();
@@ -64,8 +61,7 @@ Synopsis
   :numbered:
   :hidden:
 
-  intro
-  data_model
-  communication
-  data_stores
-  architecture
+  overview
+  comm
+  data
+  stores

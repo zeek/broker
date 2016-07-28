@@ -136,7 +136,7 @@ bootstrap_theme_options = {
 
     # Global TOC depth for "site" navbar tab. (Default: 1)
     # Switching to -1 shows all levels.
-    'globaltoc_depth': -1,
+    'globaltoc_depth': 3,
 
     # HTML navbar class (Default: "navbar") to attach to <div> element.
     # For black navbar, do "navbar navbar-inverse"
@@ -205,7 +205,7 @@ htmlhelp_basename = 'broker-doc'
 # -- Options for PDF output -----------------------------------------------
 
 pdf_documents = [
-    ('index', u'Broker', u'Broker', u'The Bro Project'),
+    ('index', u'user-manual', u'Broker', u'The Bro Project'),
 ]
 
 pdf_stylesheets = ['sphinx', 'kerning', 'letter']

@@ -20,7 +20,7 @@ add_custom_target(doc-html-init
   COMMENT "Initializing HTML git repository" VERBATIM)
 
 # TODO: check that sphinx-build exists, and if not, suggest the user to install
-# the missing dependencies via `pip install sphinx sphinx-rtd-theme`.
+# the missing dependencies via `pip install sphinx sphinx-bootstrap-theme`.
 add_custom_target(doc-html-build
   sphinx-build -b html -c ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/html
