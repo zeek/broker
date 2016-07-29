@@ -6,7 +6,7 @@ branch="gh-pages"
 
 set -e
 
-if [ -d "$root" ] || [ -d "$root/.git" ]; then
+if [ -d "$root/.git" ]; then
   echo repository already initialized
   exit 0
 fi

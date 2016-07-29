@@ -2,12 +2,6 @@
 add_custom_target(doc)
 add_custom_target(doc-deploy)
 
-# TODO: check that sphinx-build exists, and if not, suggest the user to install
-# the missing dependencies as follows.
-#
-#  pip install sphinx sphinx-bootstrap-theme rst2pdf
-#
-
 # -- HTML ---------------------------------------------------------------------
 
 add_custom_target(doc-html)
@@ -26,9 +20,9 @@ add_custom_target(doc-html-init
   COMMENT "Initializing HTML git repository" VERBATIM)
 
 add_custom_target(doc-html-build
-  sphinx-build -b html -c ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/html
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build html
+    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
+  #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating HTML documentation" VERBATIM)
 
 add_custom_target(doc-html-deploy
@@ -43,10 +37,9 @@ add_dependencies(doc-deploy doc-html-deploy)
 
 # -- PDF ----------------------------------------------------------------------
 
-# Requires: pip install rst2pdf
 add_custom_target(doc-pdf
-  sphinx-build -b pdf -c ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/pdf
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build pdf
+    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating PDF documentation" VERBATIM)
 
