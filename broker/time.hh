@@ -14,7 +14,6 @@
 #include "broker/detail/operators.hh"
 
 namespace broker {
-namespace time {
 
 /// A fractional timestamp represented in IEEE754 double-precision floating
 /// point.
@@ -24,27 +23,26 @@ using fractional_seconds = std::chrono::duration<double, std::ratio<1>>;
 using clock = std::chrono::system_clock;
 
 /// A fractional timestamp with nanosecond precision.
-using duration = std::chrono::duration<int64_t, std::nano>;
+using interval = std::chrono::duration<int64_t, std::nano>;
 
 /// A point in time anchored at the UNIX epoch: January 1, 1970.
-using point = std::chrono::time_point<clock, duration>;
+using timestamp = std::chrono::time_point<clock, interval>;
 
-/// @relates duration
-bool convert(const duration& d, fractional_seconds& secs);
+/// @relates interval
+bool convert(const interval& i, fractional_seconds& secs);
 
-/// @relates duration
-bool convert(const duration& d, double& secs);
+/// @relates interval
+bool convert(const interval& i, double& secs);
 
-/// @relates duration
-bool convert(const duration& p, std::string& str);
+/// @relates interval
+bool convert(const interval& i, std::string& str);
 
-/// @relates point
-bool convert(const point& p, std::string& str);
+/// @relates timestamp
+bool convert(const timestamp& t, std::string& str);
 
 /// @returns the current point in time.
-point now();
+timestamp now();
 
-} // namespace time
 } // namespace broker
 
 // Because we only use type aliases and CAF's serialization framework uses ADL
@@ -65,35 +63,35 @@ void serialize(deserializer& source, std::chrono::duration<Rep, Period>& d) {
 }
 
 template <class Clock, class Duration>
-void serialize(serializer& sink, std::chrono::time_point<Clock, Duration> t) {
-  sink << t.time_since_epoch();
+void serialize(serializer& sink, std::chrono::time_point<Clock, Duration> tp) {
+  sink << tp.time_since_epoch();
 }
 
 template <class Clock, class Duration>
 void serialize(deserializer& source,
-                 std::chrono::time_point<Clock, Duration>& t) {
+               std::chrono::time_point<Clock, Duration>& tp) {
   Duration since_epoch;
   source >> since_epoch;
-  t = std::chrono::time_point<Clock, Duration>(since_epoch);
+  tp = std::chrono::time_point<Clock, Duration>(since_epoch);
 }
 
 } // namespace caf
 
 namespace std {
 
-/// @relates broker::time::duration
+/// @relates broker::interval
 template <>
-struct hash<broker::time::duration> {
-  size_t operator()(const broker::time::duration& d) const {
-    return hash<broker::time::duration::rep>{}(d.count());
+struct hash<broker::interval> {
+  size_t operator()(const broker::interval& d) const {
+    return hash<broker::interval::rep>{}(d.count());
   }
 };
 
-/// @relates broker::time::point
+/// @relates broker::timestamp
 template <>
-struct hash<broker::time::point> {
-  size_t operator()(const broker::time::point& p) const {
-    return hash<broker::time::duration>{}(p.time_since_epoch());
+struct hash<broker::timestamp> {
+  size_t operator()(const broker::timestamp& t) const {
+    return hash<broker::interval>{}(t.time_since_epoch());
   }
 };
 

@@ -55,28 +55,42 @@ known as ``double``.
 Time
 ----
 
-Broker offers two data types for expressing time: ``time::duration`` and
-``time::point``. A duration represents relative time span, whereas as a point
-an absolute point in time. Time durations have nanosecond granularity and time
-points. Instances of ``time::point`` are anchored at the UNIX epoch, January 1,
-1970. The function ``time::now()`` returns the current wallclock time as a
-``time::point``.
+Broker offers two data types for expressing time: ``interval`` and
+``timestamp``.
 
 Both types seemlessly interoperate with the C++ standard library time
-faciliates. In fact, they are instances of ``std::chrono::duration`` and
-``std::chrono::time_point``::
+faciliates. In fact, they are concrete specializations of the time types in
+|std_chrono|_:
+
+.. code-block:: cpp
 
   namespace broker {
-  namespace time {
 
   using clock = std::chrono::system_clock;
-  using duration = std::chrono::duration<int64_t, std::nano>;
-  using point = std::chrono::time_point<clock, duration>;
+  using interval = std::chrono::duration<int64_t, std::nano>;
+  using timestamp = std::chrono::time_point<clock, duration>;
 
-  point now();
+  timestamp now();
 
-  } // namespace time
   } // namespace broker
+
+.. |std_chrono| replace:: ``std::chrono``
+.. _std_chrono: http://en.cppreference.com/w/cpp/chrono
+
+Interval
+~~~~~~~~
+
+An ``interval`` represents relative time duration in nanoseconds. Given that
+the internal reprsentation is a 64-bit signed integer, this allows for
+representing approximately 292 years.
+
+Timestamp
+~~~~~~~~~
+
+A ``timestamp`` represents an absolute point in time. The frame of reference
+for a ``timestamp`` is the UNIX epoch, January 1, 1970. That is, a
+``timestamp`` is simply an anchored ``interval``. The function ``now()``
+returns the current wallclock time as a ``timestamp``.
 
 String
 ------

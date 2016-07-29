@@ -18,13 +18,13 @@ public:
   memory_backend(backend_options opts = {});
 
   expected<void> put(const data& key, data value,
-                     optional<time::point> expiry) override;
+                     optional<timestamp> expiry) override;
 
   expected<void> add(const data& key, const data& value,
-                     optional<time::point> expiry) override;
+                     optional<timestamp> expiry) override;
 
   expected<void> remove(const data& key, const data& value,
-                        optional<time::point> expiry) override;
+                        optional<timestamp> expiry) override;
 
   expected<void> erase(const data& key) override;
 
@@ -42,8 +42,8 @@ public:
 
 private:
   backend_options options_;
-  std::unordered_map<data, std::pair<data, optional<time::point>>> store_;
-  std::unordered_map<data, time::point> expirations_;
+  std::unordered_map<data, std::pair<data, optional<timestamp>>> store_;
+  std::unordered_map<data, timestamp> expirations_;
 };
 
 } // namespace detail

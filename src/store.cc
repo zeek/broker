@@ -25,17 +25,17 @@ std::string store::name() const {
   return result;
 }
 
-void store::put(data key, data value, optional<time::point> expiry) const {
+void store::put(data key, data value, optional<timestamp> expiry) const {
   caf::anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
                  expiry);
 }
 
-void store::add(data key, data value, optional<time::point> expiry) const {
+void store::add(data key, data value, optional<timestamp> expiry) const {
   caf::anon_send(frontend_, atom::add::value, std::move(key),
                  std::move(value), expiry);
 }
 
-void store::remove(data key, data value, optional<time::point> expiry) const {
+void store::remove(data key, data value, optional<timestamp> expiry) const {
   caf::anon_send(frontend_, atom::remove::value, std::move(key),
                  std::move(value), expiry);
 }
@@ -45,12 +45,12 @@ void store::erase(data key) const {
 }
 
 void store::increment(data key, data value,
-                      optional<time::point> expiry) const {
+                      optional<timestamp> expiry) const {
   add(std::move(key), std::move(value), expiry);
 }
 
 void store::decrement(data key, data value,
-                      optional<time::point> expiry) const {
+                      optional<timestamp> expiry) const {
   remove(std::move(key), std::move(value), expiry);
 }
 

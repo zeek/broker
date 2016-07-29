@@ -16,15 +16,15 @@ configuration::configuration() {
   add_message_type<address>("broker::address");
   add_message_type<subnet>("broker::subnet");
   add_message_type<port>("broker::port");
-  add_message_type<time::duration>("broker::time::duration");
-  add_message_type<time::point>("broker::time::point");
+  add_message_type<interval>("broker::interval");
+  add_message_type<timestamp>("broker::timestamp");
   add_message_type<enum_value>("broker::enum_value");
   add_message_type<vector>("broker::vector");
   add_message_type<broker::set>("broker::set");
   add_message_type<table>("broker::table");
   add_message_type<topic>("broker::topic");
   add_message_type<std::vector<topic>>("std::vector<broker::topic>");
-  add_message_type<optional<time::point>>("broker::optional<broker::time::point>");
+  add_message_type<optional<timestamp>>("broker::optional<broker::timestamp>");
   add_message_type<snapshot>("broker::snapshot");
   load<caf::io::middleman>();
 }

@@ -24,7 +24,7 @@ public:
   /// @param expiry An optional expiration time for the entry.
   /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
-                             optional<time::point> expiry = {}) = 0;
+                             optional<timestamp> expiry = {}) = 0;
 
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
@@ -32,7 +32,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
-                             optional<time::point> expiry = {});
+                             optional<timestamp> expiry = {});
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to remove from.
@@ -40,7 +40,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> remove(const data& key, const data& value,
-                                optional<time::point> expiry = {});
+                                optional<timestamp> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.

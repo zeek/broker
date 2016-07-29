@@ -58,7 +58,7 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key, class Value>
-  bool put(Key& key, const Value& value, optional<time::point> expiry) {
+  bool put(Key& key, const Value& value, optional<timestamp> expiry) {
     if (!db)
       return false;
     rocksdb::WriteBatch batch;
@@ -178,7 +178,7 @@ rocksdb_backend::~rocksdb_backend() {
 }
 
 expected<void> rocksdb_backend::put(const data& key, data value,
-                                    optional<time::point> expiry) {
+                                    optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto key_blob = to_key_blob<prefix::data>(key);
@@ -189,7 +189,7 @@ expected<void> rocksdb_backend::put(const data& key, data value,
 }
 
 expected<void> rocksdb_backend::add(const data& key, const data& value,
-                                   optional<time::point> expiry) {
+                                   optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -205,7 +205,7 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
 }
 
 expected<void> rocksdb_backend::remove(const data& key, const data& value,
-                                      optional<time::point> expiry) {
+                                      optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -237,7 +237,7 @@ expected<void> rocksdb_backend::erase(const data& key) {
 }
 
 expected<bool> rocksdb_backend::expire(const data& key) {
-  auto now = time::now();
+  auto ts = now();
   auto key_blob = to_key_blob<prefix::expiry>(key);
   auto expiry_blob = impl_->get(key_blob);
   if (!expiry_blob) {
@@ -245,8 +245,8 @@ expected<bool> rocksdb_backend::expire(const data& key) {
       return false;
     return expiry_blob.error();
   }
-  auto expiry = from_blob<time::point>(*expiry_blob);
-  if (now < expiry)
+  auto expiry = from_blob<timestamp>(*expiry_blob);
+  if (ts < expiry)
     return false;
   rocksdb::WriteBatch batch;
   batch.Delete(key_blob);

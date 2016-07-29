@@ -1,32 +1,30 @@
 #include "broker/time.hh"
 
 namespace broker {
-namespace time {
 
-bool convert(const duration& d, std::string& str) {
+bool convert(const interval& i, std::string& str) {
   using std::to_string;
-  str = to_string(d.count());
+  str = to_string(i.count());
   str += "ns";
   return true;
 }
 
-bool convert(const duration& d, fractional_seconds& secs) {
-  secs = std::chrono::duration_cast<fractional_seconds>(d);
+bool convert(const interval& i, fractional_seconds& secs) {
+  secs = std::chrono::duration_cast<fractional_seconds>(i);
   return true;
 }
 
-bool convert(const duration& d, double& secs) {
-  secs = std::chrono::duration_cast<fractional_seconds>(d).count();
+bool convert(const interval& i, double& secs) {
+  secs = std::chrono::duration_cast<fractional_seconds>(i).count();
   return true;
 }
 
-bool convert(const point& p, std::string& str) {
-  return convert(p.time_since_epoch(), str);
+bool convert(const timestamp& t, std::string& str) {
+  return convert(t.time_since_epoch(), str);
 }
 
-point now() {
+timestamp now() {
   return clock::now();
 };
 
-} // namespace time
 } // namespace broker

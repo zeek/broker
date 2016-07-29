@@ -51,8 +51,8 @@ using data_variant = detail::variant<
   address,
   subnet,
   port,
-  time::point,
-  time::duration,
+  timestamp,
+  interval,
   enum_value,
   set,
   table,
@@ -80,8 +80,8 @@ public:
                 std::is_convertible<T, std::string>::value,
                 std::string,
                 detail::conditional_t<
-                  std::is_same<T, time::point>::value
-                    || std::is_same<T, time::duration>::value
+                  std::is_same<T, timestamp>::value
+                    || std::is_same<T, interval>::value
                     || std::is_same<T, enum_value>::value
 	                  || std::is_same<T, address>::value
                     || std::is_same<T, subnet>::value

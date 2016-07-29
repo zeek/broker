@@ -16,7 +16,7 @@ constexpr bool is_additive_group() {
   return std::is_same<T, count>::value
     || std::is_same<T, integer>::value
     || std::is_same<T, real>::value
-    || std::is_same<T, time::duration>::value;
+    || std::is_same<T, interval>::value;
 }
 
 struct adder {
@@ -36,8 +36,8 @@ struct adder {
     return {};
   }
 
-  result_type operator()(time::point& tp) {
-    auto d = value.get<time::duration>();
+  result_type operator()(timestamp& tp) {
+    auto d = value.get<interval>();
     if (!d)
       return ec::type_clash;
     tp += *d;
@@ -94,11 +94,11 @@ struct remover {
     return {};
   }
 
-  result_type operator()(time::point& tp) {
-    auto d = value.get<time::duration>();
-    if (!d)
+  result_type operator()(timestamp& ts) {
+    auto i = value.get<interval>();
+    if (!i)
       return ec::type_clash;
-    tp -= *d;
+    ts -= *i;
     return {};
   }
 

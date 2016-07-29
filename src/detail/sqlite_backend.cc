@@ -109,7 +109,7 @@ struct sqlite_backend::impl {
   }
 
   bool modify(const data& key, const data& value,
-              optional<time::point> expiry) {
+              optional<timestamp> expiry) {
     auto key_blob = to_blob(key);
     auto value_blob = to_blob(value);
     if (expiry) {
@@ -171,7 +171,7 @@ sqlite_backend::~sqlite_backend() {
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
-                                   optional<time::point> expiry) {
+                                   optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -201,7 +201,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
 }
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
-                                   optional<time::point> expiry) {
+                                   optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -214,7 +214,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 }
 
 expected<void> sqlite_backend::remove(const data& key, const data& value,
-                                      optional<time::point> expiry) {
+                                      optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -246,7 +246,7 @@ expected<void> sqlite_backend::erase(const data& key) {
 expected<bool> sqlite_backend::expire(const data& key) {
   if (!impl_->db)
     return ec::backend_failure;
-  auto now = time::now();
+  auto ts = now();
   auto guard = make_statement_guard(impl_->expire);
   // Bind key.
 	auto key_blob = to_blob(key);
@@ -255,7 +255,7 @@ expected<bool> sqlite_backend::expire(const data& key) {
   if (result != SQLITE_OK)
     return ec::backend_failure;
   // Bind expiry.
-  result = sqlite3_bind_int64(impl_->expire, 2, now.time_since_epoch().count());
+  result = sqlite3_bind_int64(impl_->expire, 2, ts.time_since_epoch().count());
   if (result != SQLITE_OK)
     return ec::backend_failure;
   // Execute query.

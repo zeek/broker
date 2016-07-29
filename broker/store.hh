@@ -112,19 +112,19 @@ public:
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional expiration time for *key*.
-  void put(data key, data value, optional<time::point> expiry = {}) const;
+  void put(data key, data value, optional<timestamp> expiry = {}) const;
 
   /// Adds a value to another one.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void add(data key, data value, optional<time::point> expiry = {}) const;
+  void add(data key, data value, optional<timestamp> expiry = {}) const;
 
   /// Removes a value from another one.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void remove(data key, data value, optional<time::point> expiry = {}) const;
+  void remove(data key, data value, optional<timestamp> expiry = {}) const;
 
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
@@ -134,13 +134,13 @@ public:
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void increment(data key, data value, optional<time::point> expiry = {}) const;
+  void increment(data key, data value, optional<timestamp> expiry = {}) const;
 
   /// Decrements a value.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void decrement(data key, data value, optional<time::point> expiry = {}) const;
+  void decrement(data key, data value, optional<timestamp> expiry = {}) const;
 
 private:
   store(caf::actor actor);

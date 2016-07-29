@@ -12,14 +12,14 @@ TEST(basic) {
   CHECK(std::is_same<real, double>::value);
 }
 
-TEST(time duration) {
-  auto d = time::duration{42};
-  CHECK_EQUAL(std::chrono::nanoseconds{42}, d);
+TEST(interval) {
+  auto i = interval{42};
+  CHECK_EQUAL(std::chrono::nanoseconds{42}, i);
 }
 
-TEST(time point) {
-  auto p = time::point{time::duration{42}};
-  CHECK_EQUAL(p.time_since_epoch(), time::duration{42});
+TEST(timestamp) {
+  auto ts = timestamp{interval{42}};
+  CHECK_EQUAL(ts.time_since_epoch(), interval{42});
 }
 
 TEST(enum) {
