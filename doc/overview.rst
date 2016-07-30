@@ -57,8 +57,8 @@ types:
 - ``count``
 - ``integer``
 - ``real``
-- ``time::duration``
-- ``time::point``
+- ``interval``
+- ``timestamp``
 - ``string``
 - ``address``
 - ``subnet``
