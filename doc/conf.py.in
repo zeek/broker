@@ -122,7 +122,9 @@ html_theme = 'bootstrap'
 
 bootstrap_theme_options = {
     # Tab name for entire site. (Default: "Site")
-    'navbar_site_name': "", # How can we hide this entirely?
+    # Note: this option has no effect in our setup; we remove this button
+    # entirely via _templates/navbar.html.
+    #'navbar_site_name': "Site",
 
     'navbar_links': [
         ("github", "http://github.com/bro/broker", True),
