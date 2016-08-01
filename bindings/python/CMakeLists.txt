@@ -1,77 +1,68 @@
-find_package(SWIG)
-find_package(PythonInterp)
-find_package(PythonDev)
+# Setup build instructions for Python module.
+add_library(pybroker MODULE _broker.cpp)
 
-if ( NOT SWIG_FOUND )
-    message(WARNING "Skip Python bindings: SWIG not found")
-    return()
-endif ()
+# Set includes.
+target_include_directories(pybroker
+  PUBLIC ${PYBIND11_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
 
-set(required_swig_version 3.0.3)
-
-if ( SWIG_VERSION VERSION_LESS ${required_swig_version} )
-    message(WARNING "Skip Python bindings: require SWIG "
-                    "${required_swig_version}, but only have ${SWIG_VERSION}")
-    return()
-endif ()
-
-if ( NOT PYTHONINTERP_FOUND )
-    message(WARNING "Skip Python bindings: Python interpreter not found")
-    return()
-endif ()
-
-if ( NOT PYTHONDEV_FOUND )
-    message(WARNING "Skip Python bindings: Python include/libraries not found")
-    return()
-endif ()
-
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/example.i "%module example %{%}")
-execute_process(COMMAND ${SWIG_EXECUTABLE} -python
-    ${CMAKE_CURRENT_BINARY_DIR}/example.i
-    ERROR_VARIABLE SWIG_PYTHON_ERR)
-
-if ( SWIG_PYTHON_ERR )
-    message(WARNING "Skip Python bindings: SWIG test fail, ${SWIG_PYTHON_ERR}")
-endif ()
-
-include_directories(BEFORE ${PYTHON_INCLUDE_DIR})
-
-if ( ENABLE_SHARED )
-    set(libbroker broker)
+# Set libraries to link against.
+target_compile_options(pybroker PRIVATE "-fvisibility=hidden")
+if (ENABLE_SHARED)
+  set(libbroker broker)
 else ()
-    set(libbroker brokerStatic)
+  set(libbroker brokerStatic)
+endif ()
+target_link_libraries(pybroker PUBLIC ${libbroker} ${PYTHON_LIBRARIES})
+if (ROCKSDB_FOUND)
+  target_link_libraries(pybroker PUBLIC ${ROCKSDB_LIBRARIES})
+endif ()
+if (APPLE)
+  # Support multiple Python installations.
+  target_link_libraries(pybroker PRIVATE "-undefined dynamic_lookup")
 endif ()
 
-if ( ROCKSDB_FOUND )
-    set(CMAKE_SWIG_FLAGS -DHAVE_ROCKSDB)
-    add_definitions(-DHAVE_ROCKSDB)
+set_target_properties(pybroker PROPERTIES OUTPUT_NAME "_broker")
+# By setting an empty prefix, we can invoke the Python executable in the same
+# path as the module. Then 'import _broker' Just Works.
+set_target_properties(pybroker PROPERTIES PREFIX "")
+
+# Check for Link Time Optimization support (GCC/Clang)
+include(CheckCXXCompilerFlag)
+if (NOT CMAKE_BUILD_TYPE MATCHES DEBUG)
+  check_cxx_compiler_flag("-flto" HAS_LTO_FLAG)
+  if (HAS_LTO_FLAG)
+    target_compile_options(pybroker PRIVATE -flto)
+  endif()
 endif ()
 
-include(UseSWIG)
-set_property(SOURCE pybroker.i PROPERTY CPLUSPLUS ON)
-swig_add_module(pybroker python pybroker.i)
-swig_link_libraries(pybroker ${libbroker} ${PYTHON_LIBRARIES})
+# Strip unnecessary sections of the binary on Linux/Mac OS
+if (CMAKE_STRIP)
+  if(APPLE)
+    add_custom_command(TARGET pybroker POST_BUILD
+                       COMMAND ${CMAKE_STRIP} -u -r $<TARGET_FILE:pybroker>)
+  else()
+    add_custom_command(TARGET pybroker POST_BUILD
+                       COMMAND ${CMAKE_STRIP} $<TARGET_FILE:pybroker>)
+  endif()
+endif ()
 
-if ( BROKER_PYTHON_PREFIX )
-    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
-    set(PY_MOD_INSTALL_DIR
-        ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
-elseif ( BROKER_PYTHON_HOME )
-    set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
+# Figure out Python module install directory.
+if (BROKER_PYTHON_PREFIX)
+  set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+  set(PY_MOD_INSTALL_DIR
+      ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
+elseif (BROKER_PYTHON_HOME)
+  set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
 else ()
-    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
-        "from distutils.sysconfig import get_python_lib; print get_python_lib()"
-                    OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(PY_MOD_INSTALL_DIR ${PYTHON_SITE_PACKAGES})
+  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
+    "from distutils.sysconfig import get_python_lib; print get_python_lib()"
+    OUTPUT_VARIABLE python_site_packages
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(PY_MOD_INSTALL_DIR ${python_site_packages})
 endif ()
+message(STATUS "Python bindings will be built and installed to:")
+message(STATUS "  ${PY_MOD_INSTALL_DIR}")
 
-message(STATUS "Python bindings will be built and installed to: "
-               ${PY_MOD_INSTALL_DIR})
-
-install(TARGETS ${SWIG_MODULE_pybroker_REAL_NAME}
+install(TARGETS pybroker DESTINATION ${PY_MOD_INSTALL_DIR})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/broker.py
         DESTINATION ${PY_MOD_INSTALL_DIR})
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pybroker.py
-        DESTINATION ${PY_MOD_INSTALL_DIR})
-
-set(BROKER_PYTHON_BINDINGS true CACHE INTERNAL "" FORCE)

@@ -176,7 +176,28 @@ add_subdirectory(tests)
 
 # -- Bindings -----------------------------------------------------------------
 
-# TODO
+find_package(PythonInterp)
+if (NOT PYTHONINTERP_FOUND)
+  message(WARNING "Skipping Python bindings: Python interpreter not found")
+endif ()
+
+find_package(PythonDev)
+if (PYTHONDEV_FOUND)
+  # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
+  set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
+else ()
+  message(WARNING "Skip Python bindings: Python include/libraries not found")
+endif ()
+
+# TODO: Add a FindPybind11.cmake script instead. We won't ship with pybind11,
+# which can be installed, e.g., via `pip install pybind11`.
+set(PYBIND11_INCLUDE_DIRS
+  ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/pybind11/include)
+
+if (NOT (DISABLE_PYBROKER AND PYTHONINTERP_FOUND AND PYTHONLIBS_FOUND))
+  set (BROKER_PYTHON_BINDINGS true)
+  add_subdirectory(bindings/python)
+endif ()
 
 # -- Documentation ------------------------------------------------------------
 
@@ -207,7 +228,7 @@ display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS ${BROKER_PYTHON_BINDINGS} pybindings_summary)
+display(BROKER_PYTHON_BINDINGS ${PYTHON_INCLUDE_DIR} pybindings_summary)
 
 message(
     "\n==================|  Broker Config Summary  |===================="
