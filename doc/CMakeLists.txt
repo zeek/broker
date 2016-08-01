@@ -11,6 +11,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/conf.py.in
                ${CMAKE_CURRENT_BINARY_DIR}/conf.py @ONLY)
 
 # Copy over static files to avoid frickling with relative paths in conf.py.
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/_static
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/_templates
      DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
