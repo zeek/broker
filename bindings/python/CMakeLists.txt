@@ -1,48 +1,57 @@
-# Setup build instructions for Python module.
-add_library(pybroker MODULE _broker.cpp)
+add_library(_broker MODULE _broker.cpp)
 
 # Set includes.
-target_include_directories(pybroker
+target_include_directories(_broker
   PUBLIC ${PYBIND11_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
 
 # Set libraries to link against.
-target_compile_options(pybroker PRIVATE "-fvisibility=hidden")
+target_compile_options(_broker PRIVATE "-fvisibility=hidden")
 if (ENABLE_SHARED)
   set(libbroker broker)
 else ()
   set(libbroker brokerStatic)
 endif ()
-target_link_libraries(pybroker PUBLIC ${libbroker} ${PYTHON_LIBRARIES})
+target_link_libraries(_broker PUBLIC ${libbroker} ${PYTHON_LIBRARIES})
 if (ROCKSDB_FOUND)
-  target_link_libraries(pybroker PUBLIC ${ROCKSDB_LIBRARIES})
+  target_link_libraries(_broker PUBLIC ${ROCKSDB_LIBRARIES})
 endif ()
 if (APPLE)
   # Support multiple Python installations.
-  target_link_libraries(pybroker PRIVATE "-undefined dynamic_lookup")
+  target_link_libraries(_broker PRIVATE "-undefined dynamic_lookup")
 endif ()
 
-set_target_properties(pybroker PROPERTIES OUTPUT_NAME "_broker")
-# By setting an empty prefix, we can invoke the Python executable in the same
-# path as the module. Then 'import _broker' Just Works.
-set_target_properties(pybroker PROPERTIES PREFIX "")
+# Stage Python module in one place for testing.
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/broker
+     DESTINATION ${BROKER_PYTHON_STAGING_DIR}
+     REGEX "/\\..*" EXCLUDE)
+
+set (BROKER_PYTHON_MODULE_DIR ${BROKER_PYTHON_STAGING_DIR}/broker)
+set_target_properties(_broker PROPERTIES
+                      OUTPUT_NAME "_broker"
+                      LIBRARY_OUTPUT_DIRECTORY ${BROKER_PYTHON_MODULE_DIR}
+                      # By setting an empty prefix, we can invoke the Python
+                      # executable in the same path as the module. Then
+                      # 'import _broker' Just Works.
+                      PREFIX "")
+
 
 # Check for Link Time Optimization support (GCC/Clang)
 include(CheckCXXCompilerFlag)
 if (NOT CMAKE_BUILD_TYPE MATCHES DEBUG)
   check_cxx_compiler_flag("-flto" HAS_LTO_FLAG)
   if (HAS_LTO_FLAG)
-    target_compile_options(pybroker PRIVATE -flto)
+    target_compile_options(_broker PRIVATE -flto)
   endif()
 endif ()
 
 # Strip unnecessary sections of the binary on Linux/Mac OS
 if (CMAKE_STRIP)
   if(APPLE)
-    add_custom_command(TARGET pybroker POST_BUILD
-                       COMMAND ${CMAKE_STRIP} -u -r $<TARGET_FILE:pybroker>)
+    add_custom_command(TARGET _broker POST_BUILD
+                       COMMAND ${CMAKE_STRIP} -u -r $<TARGET_FILE:_broker>)
   else()
-    add_custom_command(TARGET pybroker POST_BUILD
-                       COMMAND ${CMAKE_STRIP} $<TARGET_FILE:pybroker>)
+    add_custom_command(TARGET _broker POST_BUILD
+                       COMMAND ${CMAKE_STRIP} $<TARGET_FILE:_broker>)
   endif()
 endif ()
 
@@ -63,6 +72,7 @@ endif ()
 message(STATUS "Python bindings will be built and installed to:")
 message(STATUS "  ${PY_MOD_INSTALL_DIR}")
 
-install(TARGETS pybroker DESTINATION ${PY_MOD_INSTALL_DIR})
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/broker.py
-        DESTINATION ${PY_MOD_INSTALL_DIR})
+install(TARGETS _broker DESTINATION ${PY_MOD_INSTALL_DIR}/broker)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/broker
+        DESTINATION ${PY_MOD_INSTALL_DIR}
+        REGEX "/\\..*" EXCLUDE)

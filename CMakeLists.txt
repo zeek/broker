@@ -172,6 +172,7 @@ endif ()
 
 # -- Unit Tests ---------------------------------------------------------------
 
+enable_testing()
 add_subdirectory(tests)
 
 # -- Bindings -----------------------------------------------------------------
@@ -196,6 +197,7 @@ set(PYBIND11_INCLUDE_DIRS
 
 if (NOT (DISABLE_PYBROKER AND PYTHONINTERP_FOUND AND PYTHONLIBS_FOUND))
   set (BROKER_PYTHON_BINDINGS true)
+  set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
   add_subdirectory(bindings/python)
 endif ()
 
@@ -228,7 +230,7 @@ display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS ${PYTHON_INCLUDE_DIR} pybindings_summary)
+display(BROKER_PYTHON_BINDINGS "yes (${PYTHON_VERSION_STRING})" python_summary)
 
 message(
     "\n==================|  Broker Config Summary  |===================="
@@ -248,7 +250,7 @@ message(
     "\n"
     "\nCAF:             ${caf_summary}"
     "\nRocksDB:         ${rocksdb_summary}"
-    "\nPython bindings: ${pybindings_summary}"
+    "\nPython bindings: ${python_summary}"
     "\n=================================================================")
 
 include(UserChangedWarning)

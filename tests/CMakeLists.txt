@@ -1,16 +1,6 @@
 # -- Global test harness setup ------------------------------------------------
 
-include(CTest)
-enable_testing()
-
-set(BROKER_TEST_TIMEOUT 10)
-
-# FIXME
-#set(backends memory;sqlite)
-#if (ROCKSDB_FOUND)
-#  add_definitions(-DHAVE_ROCKSDB)
-#  set(backends ${backends} rocksdb)
-#endif ()
+set(BROKER_TEST_TIMEOUT 20)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -48,7 +38,7 @@ foreach(test ${tests})
   file(STRINGS ${test} contents)
   foreach(line ${contents})
     if ("${line}" MATCHES "SUITE")
-      string(REGEX REPLACE "#define SUITE \(.*\)" "\\1" suite ${line})
+      string(REGEX REPLACE ".* SUITE (.*)" "\\1" suite ${line})
       list(APPEND suites ${suite})
     endif()
   endforeach()
@@ -61,20 +51,15 @@ endforeach ()
 
 # -- Python -------------------------------------------------------------------
 
-macro(make_python_test script)
-  if (BROKER_PYTHON_BINDINGS)
-    add_test(NAME ${script} COMMAND ${PYTHON_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/${script})
-    set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
-    set_tests_properties(${script} PROPERTIES ENVIRONMENT
-      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/../bindings/python")
-  endif ()
-endmacro()
-
-# FIXME
-#make_python_test(test_messages.py)
-#make_python_test(test_store.py)
-
-# -- C ------------------------------------------------------------------------
-
 # TODO
+if (BROKER_PYTHON_BINDINGS)
+  #macro(make_python_test script)
+  #  if (BROKER_PYTHON_BINDINGS)
+  #    add_test(NAME ${script} COMMAND ${PYTHON_EXECUTABLE}
+  #      ${CMAKE_CURRENT_SOURCE_DIR}/${script})
+  #    set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+  #    set_tests_properties(${script} PROPERTIES ENVIRONMENT
+  #      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/../bindings/python")
+  #  endif ()
+  #endmacro()
+endif ()
