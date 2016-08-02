@@ -1,6 +1,15 @@
 # Format-agnostic meta targets.
 add_custom_target(doc)
-add_custom_target(doc-deploy)
+
+# -- PDF ----------------------------------------------------------------------
+
+add_custom_target(doc-pdf
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build pdf
+    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMENT "Generating PDF documentation" VERBATIM)
+
+add_dependencies(doc doc-pdf)
 
 # -- HTML ---------------------------------------------------------------------
 
@@ -27,22 +36,16 @@ add_custom_target(doc-html-build
   #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating HTML documentation" VERBATIM)
 
-add_custom_target(doc-html-deploy
-  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/deploy html
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  COMMENT "Deploying generated HTML" VERBATIM)
-
 add_dependencies(doc-html-build doc-html-init)
 add_dependencies(doc-html doc-html-build)
-add_dependencies(doc-html-deploy doc-html-build)
-add_dependencies(doc-deploy doc-html-deploy)
+add_dependencies(doc doc-html)
 
-# -- PDF ----------------------------------------------------------------------
+# -- WWW ----------------------------------------------------------------------
 
-add_custom_target(doc-pdf
-  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build pdf
-    ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Generating PDF documentation" VERBATIM)
+add_custom_target(doc-deploy
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/deploy
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Deploying documentation to WWW" VERBATIM)
 
-add_dependencies(doc doc-pdf)
+add_dependencies(doc-deploy doc-pdf)
+add_dependencies(doc-deploy doc-html)

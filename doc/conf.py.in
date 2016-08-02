@@ -127,6 +127,7 @@ bootstrap_theme_options = {
     #'navbar_site_name': "Site",
 
     'navbar_links': [
+        ("PDF", "https://bro.github.io/broker/user-manual.pdf", True),
         ("GitHub", "http://github.com/bro/broker", True),
     ],
 
