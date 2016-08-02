@@ -26,14 +26,6 @@ const char* to_string(status_info info) {
 status::status(status_info info) : info{info} {
 }
 
-status::status(status_info info, endpoint_info local, endpoint_info peer,
-               std::string message)
-  : info{info},
-    local{local},
-    peer{peer},
-    message{std::move(message)} {
-}
-
 bool operator==(const status& x, status_info y) {
   return static_cast<uint8_t>(x.info) == y;
 }

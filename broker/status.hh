@@ -25,20 +25,14 @@ enum status_info : uint8_t {
 /// @relates status_info
 const char* to_string(status_info info);
 
-/// A diagnostic message.
-/// @relates status_info
+/// Diagnostic status information.
 struct status : detail::equality_comparable<status, status_info>,
                 detail::equality_comparable<status_info, status> {
-  /// Default-constructs an unknown status.
   status(status_info info = unknown_status);
 
-  status(status_info info, endpoint_info local, endpoint_info remote,
-         std::string message = {});
-
-  status_info info;     ///< The ::status_info type.
-  endpoint_info local;  ///< The local endpoint UID.
-  endpoint_info peer;   ///< The peer endpoint UID.
-  std::string message;  ///< A descriptive context message.
+  status_info info;       ///< The ::status_info type.
+  endpoint_info endpoint; ///< The affected endpoint.
+  std::string message;    ///< A human-readable description of the event.
 };
 
 /// @relates status
@@ -51,8 +45,7 @@ bool operator==(status_info i, const status& s);
 template <class Processor>
 void serialize(Processor& proc, status& s) {
   proc & s.info;
-  proc & s.local;
-  proc & s.peer;
+  proc & s.endpoint;
   proc & s.message;
 }
 

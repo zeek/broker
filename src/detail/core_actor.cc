@@ -84,8 +84,7 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
           i->info.status = peer_status::peered;
           // Inform the subscriber about the successfully established peering.
           status s;
-          s.local = self->state.info;
-          s.peer = make_info(other, net);
+          s.endpoint = make_info(other, net);
           s.info = peer_added;
           s.message = "outbound peering established";
           BROKER_INFO(s.message);
@@ -95,8 +94,7 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
     [=](const caf::error& e) mutable {
       // Report peering error to subscriber.
       status s;
-      s.local = self->state.info;
-      s.peer = make_info(other, net);
+      s.endpoint = make_info(other, net);
       if (e == caf::sec::request_timeout) {
         s.message = "peering request timed out";
         BROKER_ERROR(s.message);
@@ -203,8 +201,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       BROKER_ASSERT(i != self->state.peers.end());
       auto s = status{peer_removed};
-      s.local = self->state.info;
-      s.peer = i->info.peer;
+      s.endpoint = i->info.peer;
       if (is_outbound(i->info.flags)) {
         BROKER_ASSERT(is_local(i->info.flags));
         s.message = "lost local outbound peer";
@@ -390,8 +387,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         i->actor = {};
         // Notify local subscriber.
         auto s = status{peer_lost};
-        s.local = self->state.info;
-        s.peer = i->info.peer;
+        s.endpoint = i->info.peer;
         s.message = "lost remote peer";
         self->send(subscriber, std::move(s));
       }
@@ -424,9 +420,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           if (port > 0)
             net = network_info{addr, port};
           status s;
-          s.local = self->state.info;
-          s.peer = make_info(other, net);
-          peer_info pi{s.peer, peer_flags::inbound, peer_status::peered};
+          s.endpoint = make_info(other, net);
+          peer_info pi{s.endpoint, peer_flags::inbound, peer_status::peered};
           peers->push_back({other, std::move(pi)});
           s.info = peer_added;
           s.message = "inbound peering established";
@@ -457,10 +452,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       status s;
-      s.local = self->state.info;
       if (i == peers->end()) {
         s.info = peer_invalid;
-        s.peer = make_info(net);
+        s.endpoint = make_info(net);
         s.message = "no such peer";
       } else {
         if (i->actor) {
@@ -470,7 +464,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         }
         // Remove the other endpoint from ourselves.
         s.info = peer_removed;
-        s.peer = make_info(net);
+        s.endpoint = make_info(net);
         s.message = "removed peering";
         peers->erase(i);
       }
@@ -483,8 +477,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto pred = [&](const peer_state& p) { return p.actor == peer; };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       status s;
-      s.local = self->state.info;
-      s.peer = make_info(peer);
+      s.endpoint = make_info(peer);
       if (i == peers->end()) {
         s.info = peer_invalid;
         s.message = "no such peer";

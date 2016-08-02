@@ -10,11 +10,11 @@ using namespace broker;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-PYBIND11_PLUGIN(broker) {
+PYBIND11_PLUGIN(_broker) {
   py::module m{"_broker", "Broker python bindings"};
 
   //
-  // Generic
+  // Version & Constants
   //
 
   auto version = m.def_submodule("Version", "Version constants");
@@ -25,8 +25,6 @@ PYBIND11_PLUGIN(broker) {
   version.def("compatible", &version::compatible,
               "Checks whether two Broker protocol versions are compatible");
 
-  py::class_<message>(m, "Message");
-
   py::enum_<ec>(m, "EC")
     .value("Unspecified", ec::unspecified)
     .value("VersionIncompatible", ec::version_incompatible)
@@ -35,6 +33,52 @@ PYBIND11_PLUGIN(broker) {
     .value("TypeClash", ec::type_clash)
     .value("InvalidData", ec::invalid_data)
     .value("BackendFailure", ec::backend_failure);
+
+  py::enum_<peer_status>(m, "PeerStatus")
+    .value("Initialized", peer_status::initialized)
+    .value("Connecting", peer_status::connecting)
+    .value("Connected", peer_status::connected)
+    .value("Peered", peer_status::peered)
+    .value("Disconnected", peer_status::disconnected)
+    .value("Reconnecting", peer_status::reconnecting);
+
+  py::enum_<peer_flags>(m, "PeerFlags")
+    .value("Invalid", peer_flags::invalid)
+    .value("Local", peer_flags::local)
+    .value("Remote", peer_flags::remote)
+    .value("Outbound", peer_flags::outbound)
+    .value("Inbound", peer_flags::inbound);
+
+  py::enum_<status_info>(m, "StatusInfo")
+    .value("UnknownStatus", unknown_status)
+    .value("PeerAdded", peer_added)
+    .value("PeerRemoved", peer_removed)
+    .value("PeerIncompatible", peer_incompatible)
+    .value("PeerInvalid", peer_invalid)
+    .value("PeerUnavailable", peer_unavailable)
+    .value("PeerLost", peer_lost)
+    .value("PeerRecovered", peer_recovered)
+    .export_values();
+
+  py::enum_<api_flags>(m, "ApiFlags")
+    .value("Blocking", blocking)
+    .value("Nonblocking", nonblocking)
+    .export_values();
+
+  py::enum_<frontend>(m, "Frontend")
+    .value("Master", master)
+    .value("Clone", clone)
+    .export_values();
+
+  py::enum_<backend>(m, "Backend")
+    .value("Memory", memory)
+    .value("SQLite", sqlite)
+    .value("RocksDB", rocksdb)
+    .export_values();
+
+  //
+  // General
+  //
 
   py::class_<error>(m, "Error")
     .def("code", &error::code)
@@ -45,29 +89,22 @@ PYBIND11_PLUGIN(broker) {
     .def_readwrite("id", &endpoint_info::id)
     .def_readwrite("network", &endpoint_info::network);
 
+  py::class_<message>(m, "Message");
+
   py::class_<network_info>(m, "NetworkInfo")
     .def_readwrite("address", &network_info::address)
     .def_readwrite("port", &network_info::port);
 
-  py::enum_<peer_flags>(m, "PeerFlags")
-    .value("Invalid", peer_flags::invalid)
-    .value("Local", peer_flags::local)
-    .value("Remote", peer_flags::remote)
-    .value("Outbound", peer_flags::outbound)
-    .value("Inbound", peer_flags::inbound);
-
-  py::class_<network_info>(m, "PeerInfo")
+  py::class_<peer_info>(m, "PeerInfo")
     .def_readwrite("peer", &peer_info::peer)
     .def_readwrite("flags", &peer_info::flags)
     .def_readwrite("status", &peer_info::status);
 
-  py::enum_<peer_status>(m, "PeerStatus")
-    .value("Initialized", peer_status::initialized)
-    .value("Connecting", peer_status::connecting)
-    .value("Connected", peer_status::connected)
-    .value("Peered", peer_status::peered)
-    .value("Disconnected", peer_status::disconnected)
-    .value("Reconnecting", peer_status::reconnecting);
+  py::class_<status>(m, "Status")
+    .def(py::init<status_info>())
+    .def_readwrite("info", &status::info)
+    .def_readwrite("endpoint", &status::endpoint)
+    .def_readwrite("message", &status::message);
 
   //
   // Data model
@@ -288,22 +325,6 @@ PYBIND11_PLUGIN(broker) {
   //
   // Communication & Store
   //
-
-  py::enum_<api_flags>(m, "ApiFlags")
-    .value("Blocking", blocking)
-    .value("Nonblocking", nonblocking)
-    .export_values();
-
-  py::enum_<frontend>(m, "Frontend")
-    .value("Master", master)
-    .value("Clone", clone)
-    .export_values();
-
-  py::enum_<backend>(m, "Backend")
-    .value("Memory", memory)
-    .value("SQLite", sqlite)
-    .value("RocksDB", rocksdb)
-    .export_values();
 
   py::class_<topic>(m, "Topic")
     .def(py::init<std::string>())
