@@ -63,7 +63,7 @@ results = m.responses().want_pop()
 assert(len(results) == 1)
 
 for r in results:
-    assert(r.cookie == 42)
+    assert(int(r.cookie) == 42)
     assert(r.reply.data() == data(2))
 
 c = clone_create(ep, "mystore", 1)
