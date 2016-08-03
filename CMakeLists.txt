@@ -177,28 +177,31 @@ add_subdirectory(tests)
 
 # -- Bindings -----------------------------------------------------------------
 
-find_package(PythonInterp)
-if (NOT PYTHONINTERP_FOUND)
-  message(WARNING "Skipping Python bindings: Python interpreter not found")
-endif ()
+if (NOT DISABLE_PYTHON_BINDINGS)
+  find_package(PythonInterp)
+  if (NOT PYTHONINTERP_FOUND)
+    message(STATUS "Skipping Python bindings: Python interpreter not found")
+  endif ()
 
-find_package(PythonDev)
-if (PYTHONDEV_FOUND)
-  # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
-  set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
-else ()
-  message(WARNING "Skip Python bindings: Python include/libraries not found")
-endif ()
+  find_package(PythonDev)
+  if (PYTHONDEV_FOUND)
+    # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
+    set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
+  else ()
+    message(STATUS
+            "Skipping Python bindings: Python includes/libraries not found")
+  endif ()
 
-# TODO: Add a FindPybind11.cmake script instead. We won't ship with pybind11,
-# which can be installed, e.g., via `pip install pybind11`.
-set(PYBIND11_INCLUDE_DIRS
-  ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/pybind11/include)
+  find_package(Pybind11 QUIET)
+  if (NOT PYBIND11_FOUND)
+    message(STATUS "Skipping Python bindings: pybind11 not found")
+  endif ()
 
-if (NOT (DISABLE_PYBROKER AND PYTHONINTERP_FOUND AND PYTHONLIBS_FOUND))
-  set (BROKER_PYTHON_BINDINGS true)
-  set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
-  add_subdirectory(bindings/python)
+  if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND AND PYBIND11_FOUND)
+    set (BROKER_PYTHON_BINDINGS true)
+    set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
+    add_subdirectory(bindings/python)
+  endif ()
 endif ()
 
 # -- Documentation ------------------------------------------------------------
@@ -230,7 +233,7 @@ display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS "yes (${PYTHON_VERSION_STRING})" python_summary)
+display(BROKER_PYTHON_BINDINGS ${PYBIND11_INCLUDE_DIRS} python_summary)
 
 message(
     "\n==================|  Broker Config Summary  |===================="

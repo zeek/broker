@@ -1,8 +1,8 @@
 add_library(_broker MODULE _broker.cpp)
 
 # Set includes.
-target_include_directories(_broker
-  PUBLIC ${PYBIND11_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
+target_include_directories(_broker PUBLIC
+                           ${PYBIND11_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
 
 # Set libraries to link against.
 target_compile_options(_broker PRIVATE "-fvisibility=hidden")
@@ -64,7 +64,7 @@ elseif (BROKER_PYTHON_HOME)
   set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
 else ()
   execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
-    "from distutils.sysconfig import get_python_lib; print get_python_lib()"
+    "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
     OUTPUT_VARIABLE python_site_packages
     OUTPUT_STRIP_TRAILING_WHITESPACE)
   set(PY_MOD_INSTALL_DIR ${python_site_packages})

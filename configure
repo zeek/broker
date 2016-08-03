@@ -72,7 +72,6 @@ builddir=build
 prefix=/usr/local
 CMakeCacheEntries=""
 append_cache_entry CMAKE_INSTALL_PREFIX PATH     $prefix
-append_cache_entry BROKER_PYTHON_BINDINGS BOOL false
 
 # parse arguments
 while [ $# -ne 0 ]; do
@@ -121,21 +120,17 @@ while [ $# -ne 0 ]; do
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
-        --disable-pybroker)
-            append_cache_entry DISABLE_PYBROKER     BOOL   true
+        --disable-python-bindings)
+            append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
             ;;
         --with-caf=*)
-            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
-            ;;
-        --with-libcaf=*)
-            echo "warning: --with-libcaf deprecated, use --with-caf instead"
             append_cache_entry CAF_ROOT_DIR      PATH   $optarg
             ;;
         --with-rocksdb=*)
             append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
             ;;
-        --with-swig=*)
-            append_cache_entry SWIG_EXECUTABLE      PATH    $optarg
+        --with-python=*)
+            append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
