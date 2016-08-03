@@ -41,9 +41,9 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-asan          enable AddressSanitizer
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
-    --disable-pybroker     don't try to build python bindings
+    --disable-python       don't try to build python bindings
     --with-rocksdb=PATH    path to RocksDB installation
-    --with-swig=PATH       path to SWIG executable (builds python bindings)
+    --with-python=PATH     path to Python executable
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -120,7 +120,7 @@ while [ $# -ne 0 ]; do
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
-        --disable-python-bindings)
+        --disable-python)
             append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
             ;;
         --with-caf=*)
