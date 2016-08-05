@@ -1,3 +1,12 @@
+
+0.4-31 | 2016-08-05 15:39:07 -0700
+
+  * Respect -DINSTALL_LIB_DIR in multilib environments. Addresses
+    BIT-1555. (M.B., Matthias Vallentin).
+
+  * Fix compile and testing issues with Python 3. Addresses BIT-1554.
+    (Matthias Vallentin)
+
 0.4-24 | 2016-03-11 15:35:55 -0800
 
   * Fix broken link to manual (Matthias Vallentin)

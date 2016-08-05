@@ -52,18 +52,20 @@ set_property(SOURCE pybroker.i PROPERTY CPLUSPLUS ON)
 swig_add_module(pybroker python pybroker.i)
 swig_link_libraries(pybroker ${libbroker} ${PYTHON_LIBRARIES})
 
-if ( BROKER_PYTHON_PREFIX )
-    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
-    set(PY_MOD_INSTALL_DIR
-        ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
-elseif ( BROKER_PYTHON_HOME )
-    set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
-else ()
-    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
-        "from distutils.sysconfig import get_python_lib; print get_python_lib()"
-                    OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(PY_MOD_INSTALL_DIR ${PYTHON_SITE_PACKAGES})
+if ( NOT PY_MOD_INSTALL_DIR )
+    if ( BROKER_PYTHON_PREFIX )
+        set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+        set(PY_MOD_INSTALL_DIR
+            ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
+    elseif ()
+        set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
+    else ()
+        execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
+                        "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
+                        OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+                        OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(PY_MOD_INSTALL_DIR ${PYTHON_SITE_PACKAGES})
+    endif ()
 endif ()
 
 message(STATUS "Python bindings will be built and installed to: "

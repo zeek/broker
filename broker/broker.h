@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BROKER_VERSION "0.4-24"
+#define BROKER_VERSION "0.4-31"
 
 /**
  * The version of the broker messaging protocol.  Endpoints can only
