@@ -1,4 +1,5 @@
 from broker import *
+from datetime import *
 from ipaddress import *
 
 # TODO: figure out a better way to test correctness.
@@ -25,11 +26,13 @@ check_data_ctor(4.2)
 check_data_ctor(-4.2)
 
 # Interval
-# TODO: support Python's builtin time classes
+check_data_ctor(Interval(1234))
+check_data_ctor(timedelta(seconds=1, microseconds=1))
+check_data_ctor(timedelta(milliseconds=-1))
 
 # Timestamp
-# TODO: support Python's builtin time classes
 check_data_ctor(now())
+check_data_ctor(datetime.today())
 
 # String
 check_data_ctor('foo')

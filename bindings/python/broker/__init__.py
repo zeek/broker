@@ -49,6 +49,14 @@ class Data:
     elif isinstance(x, (bool, int, float, str, Count, Interval, Timestamp,
                         Port)):
       self.data = _broker.Data(x)
+    elif isinstance(x, datetime.timedelta):
+      ns = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**9
+      self.data = _broker.Interval(ns)
+    elif isinstance(x, datetime.datetime):
+      # Pyton 3 only
+      #self.data = _broker.Timestamp(x.timestamp())
+      time_since_epoch = (x - datetime.datetime(1970, 1, 1)).total_seconds()
+      self.data = _broker.Timestamp(time_since_epoch)
     elif isinstance(x, ipaddress.IPv4Address):
       self.data = _broker.Data(_broker.Address(x.packed, 4))
     elif isinstance(x, ipaddress.IPv6Address):
