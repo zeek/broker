@@ -238,7 +238,6 @@ PYBIND11_PLUGIN(_broker) {
 
   py::class_<data>(m, "Data")
     .def(py::init<>())
-    .def(py::init<none>())
     .def(py::init<boolean>())
     .def(py::init<integer>())
     .def("__init__",

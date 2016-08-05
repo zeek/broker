@@ -50,11 +50,11 @@ class Data:
                         Port)):
       self.data = _broker.Data(x)
     elif isinstance(x, datetime.timedelta):
-      ns = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**9
+      us = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**6
+      ns = us * 10**3
       self.data = _broker.Interval(ns)
     elif isinstance(x, datetime.datetime):
-      # Pyton 3 only
-      #self.data = _broker.Timestamp(x.timestamp())
+      #self.data = _broker.Timestamp(x.timestamp()) # Python 3 only
       time_since_epoch = (x - datetime.datetime(1970, 1, 1)).total_seconds()
       self.data = _broker.Timestamp(time_since_epoch)
     elif isinstance(x, ipaddress.IPv4Address):
@@ -79,7 +79,7 @@ class Data:
       t = _broker.Table({Data(k).get(): Data(v).get() for k, v in x.items()})
       self.data = _broker.Data(t)
     else:
-      raise Exception("unsupported data type")
+      raise Exception("unsupported data type: " + str(type(x)))
 
   def get(self):
     return self.data
@@ -87,6 +87,8 @@ class Data:
   def __eq__(self, other):
     if isinstance(other, Data):
       return self.data == other.data
+    elif isinstance(other, _broker.Data):
+      return self.data == other
     else:
       return self == Data(other)
 

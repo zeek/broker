@@ -27,6 +27,11 @@ struct data_converter {
     return convert(x, str);
   }
 
+  result_type operator()(bool b) {
+    str = b ? 'T' : 'F';
+    return true;
+  }
+
   result_type operator()(const std::string& x) {
     str = x;
     return true;
