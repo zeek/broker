@@ -1,7 +1,6 @@
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 
 #include "broker/broker.hh"
 
@@ -110,9 +109,27 @@ PYBIND11_PLUGIN(_broker) {
   // Data model
   //
 
+  // A thin wrapper around the 'count' type, because Python has no notion of
+  // unsigned integers.
+  struct count_type {
+    count_type(count c) : value{c} {
+    }
+
+    count value;
+  };
+
+  py::class_<count_type>(m, "Count")
+    .def(py::init<py::int_>());
+
   py::class_<interval>(m, "Interval")
     .def(py::init<>())
     .def(py::init<integer>())
+    .def("__init__",
+         [](interval& instance, double seconds) {
+           auto fs = fractional_seconds{seconds};
+           auto i = std::chrono::duration_cast<interval>(fs);
+           new (&instance) interval{i};
+         })
     .def("count", &interval::count)
     .def("__repr__", [](const interval& i) { return to_string(i); })
     .def(py::self + py::self)
@@ -133,6 +150,12 @@ PYBIND11_PLUGIN(_broker) {
   py::class_<timestamp>(m, "Timestamp")
     .def(py::init<>())
     .def(py::init<interval>())
+    .def("__init__",
+         [](timestamp& instance, double seconds) {
+           auto fs = fractional_seconds{seconds};
+           auto i = std::chrono::duration_cast<interval>(fs);
+           new (&instance) timestamp{i};
+         })
     .def("time_since_epoch", &timestamp::time_since_epoch)
     .def("__repr__", [](const timestamp& ts) { return to_string(ts); })
     .def(py::self < py::self)
@@ -142,13 +165,19 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::self == py::self)
     .def(py::self != py::self);
 
-  py::class_<enum_value>(m, "EnumValue")
-    .def(py::init<std::string>())
-    .def_readwrite("name", &enum_value::name);
+  m.def("now", &now, "Get the current wallclock time");
 
-  py::class_<address>(m, "Address")
+  py::class_<address> address_type{m, "Address"};
+  address_type
     .def(py::init<>())
-    // TODO: Add bytes-based ctor overload.
+    .def("__init__",
+         [](address& instance, const py::bytes& bytes, int family) {
+           BROKER_ASSERT(family == 4 || family == 6);
+           auto str = static_cast<std::string>(bytes);
+           auto ptr = reinterpret_cast<const uint32_t*>(str.data());
+           auto f = family == 4 ? address::family::ipv4 : address::family::ipv6;
+           new (&instance) address{ptr, f, address::byte_order::network};
+         })
     .def("mask", &address::mask, "top_bits_to_keep"_a)
     .def("v4", &address::is_v4)
     .def("v6", &address::is_v6)
@@ -160,6 +189,14 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::self >= py::self)
     .def(py::self == py::self)
     .def(py::self != py::self);
+
+  py::enum_<address::family>(address_type, "Family")
+    .value("IPv4", address::family::ipv4)
+    .value("IPv6", address::family::ipv6);
+
+  py::enum_<address::byte_order>(address_type, "ByteOrder")
+    .value("Host", address::byte_order::host)
+    .value("Network", address::byte_order::network);
 
   py::class_<subnet>(m, "Subnet")
     .def(py::init<>())
@@ -178,7 +215,7 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::self == py::self)
     .def(py::self != py::self);
 
-  py::class_<port> port_type(m, "Port");
+  py::class_<port> port_type{m, "Port"};
   port_type
     .def(py::init<>())
     .def(py::init<port::number_type, port::protocol>())
@@ -196,23 +233,19 @@ PYBIND11_PLUGIN(_broker) {
     .value("TCP", port::protocol::tcp)
     .value("UDP", port::protocol::udp)
     .value("ICMP", port::protocol::icmp)
-    .value("Unknown", port::protocol::unknown);
+    .value("Unknown", port::protocol::unknown)
+    .export_values();
 
-  // TODO:
-  // - How to visit? Decorators?
-  // - How to type-inspect and call .get<T>?
   py::class_<data>(m, "Data")
-    // TODO: Add missing ctor overloads.
-    .def("__init__",
-         [](data& instance, py::none) { new (&instance) data{nil}; })
+    .def(py::init<>())
     .def(py::init<none>())
     .def(py::init<boolean>())
     .def(py::init<integer>())
-    .def(py::init<count>())
+    .def("__init__",
+         [](data& instance, count_type c) { new (&instance) data{c.value}; })
     .def(py::init<real>())
     .def(py::init<interval>())
     .def(py::init<timestamp>())
-    .def(py::init<enum_value>())
     .def(py::init<std::string>())
     .def(py::init<address>())
     .def(py::init<subnet>())
@@ -220,10 +253,6 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::init<vector>())
     .def(py::init<set>())
     .def(py::init<table>())
-    // TODO
-    //.def("get", [](const data& d, py::object obj) {
-    //       return dispatch_based_on_type(obj);
-    //     })
     .def("__str__", [](const data& d) { return to_string(d); })
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -232,56 +261,20 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::self == py::self)
     .def(py::self != py::self);
 
+  // py::bind_vector<data> (from pybind11/stl_bind.h) causes an infinite
+  // recursion in __repr__. See #371 for details.
   py::class_<vector>(m, "Vector")
     .def(py::init<>())
-    .def("__getitem__", [](const vector &v, size_t i) {
-       if (i >= v.size())
-         throw py::index_error();
-       return v[i];
-     })
-    .def("__getitem__",
-         [](const vector& v, py::slice slice) -> vector* {
-           size_t start, stop, step, slicelength;
-           if (!slice.compute(v.size(), &start, &stop, &step, &slicelength))
-             throw py::error_already_set();
-           auto seq = new vector(slicelength);
-           for (auto i = 0u; i < slicelength; ++i) {
-             (*seq)[i] = v[start];
-             start += step;
+    .def("__init__",
+         [](vector& instance, const py::list& list) {
+           new (&instance) vector(list.size());
+           try {
+             for (auto i = 0u; i < instance.size(); ++i)
+               instance[i] = list[i].cast<data>();
+           } catch (...) {
+             instance.~vector();
+             throw;
            }
-           return seq;
-         })
-    .def("__setitem__", [](vector &v, size_t i, const data& d) {
-       if (i >= v.size())
-         throw py::index_error();
-       v[i] = d;
-     })
-    .def("__setitem__",
-         [](vector& v, py::slice slice, const vector& value) {
-           size_t start, stop, step, slicelength;
-           if (!slice.compute(v.size(), &start, &stop, &step, &slicelength))
-             throw py::error_already_set();
-           if (slicelength != value.size())
-               throw std::runtime_error("Left and right hand size of slice "
-                                        "assignment have different sizes!");
-           for (auto i = 0u; i < slicelength; ++i) {
-               v[start] = value[i];
-               start += step;
-           }
-         })
-    .def("__len__", &vector::size)
-    .def("__iter__", [](const vector &v) {
-           return py::make_iterator(v.begin(), v.end());
-         },
-         py::keep_alive<0, 1>())
-    .def("__contains__",
-         [](const vector& v, const data& d) {
-           return std::find(v.begin(), v.end(), d) != v.end();
-         })
-    .def("__reversed__",
-         [](vector v) -> vector {
-           std::reverse(v.begin(), v.end());
-           return v;
          })
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -290,16 +283,20 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::self == py::self)
     .def(py::self != py::self);
 
+  // Don't include pybind11/stl.h, as it will inject the wrong py::type_caster
+  // template specializations.
   py::class_<set>(m, "Set")
     .def(py::init<>())
-    .def("__len__", &set::size)
-    .def("__iter__", [](const set &s) {
-           return py::make_iterator(s.begin(), s.end());
-         },
-         py::keep_alive<0, 1>())
-    .def("__contains__",
-         [](const set& s, const data& d) {
-           return s.count(d) == 1;
+    .def("__init__",
+         [](set& instance, const py::list& list) {
+           new (&instance) set{};
+           try {
+             for (auto i = 0u; i < list.size(); ++i)
+               instance.insert(list[i].cast<data>());
+           } catch (...) {
+             instance.~set();
+             throw;
+           }
          })
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -310,11 +307,18 @@ PYBIND11_PLUGIN(_broker) {
 
   py::class_<table>(m, "Table")
     .def(py::init<>())
-    .def("__len__", &table::size)
-    .def("__iter__", [](const table &t) {
-           return py::make_iterator(t.begin(), t.end());
-         },
-         py::keep_alive<0, 1>())
+    .def("__init__",
+         [](table& instance, const py::dict& dict) {
+           new (&instance) table{};
+           try {
+             for (auto pair : dict)
+               instance.emplace(pair.first.cast<data>(),
+                                pair.second.cast<data>());
+           } catch (...) {
+             instance.~table();
+             throw;
+           }
+         })
     .def(py::self < py::self)
     .def(py::self <= py::self)
     .def(py::self > py::self)
@@ -332,10 +336,9 @@ PYBIND11_PLUGIN(_broker) {
          "Get the underlying string representation of the topic",
          py::return_value_policy::reference_internal);
 
+  // TODO: add ctor that takes command line arguments.
   py::class_<configuration>(m, "Configuration")
-    .def(py::init<>())
-    // TODO: add ctor that takes command line arguments.
-    ;
+    .def(py::init<>());
 
   py::class_<context>(m, "Context")
     .def("__init__",
@@ -422,30 +425,6 @@ PYBIND11_PLUGIN(_broker) {
   // TODO: complete definition
   py::class_<store>(m, "Store")
     .def("name", &store::name);
-
-  //
-  // Implicit conversions (must come after type definitions)
-  //
-
-  py::implicitly_convertible<boolean, data>();
-  py::implicitly_convertible<integer, data>();
-  py::implicitly_convertible<count, data>();
-  py::implicitly_convertible<real, data>();
-  py::implicitly_convertible<std::string, data>();
-  py::implicitly_convertible<interval, data>();
-  py::implicitly_convertible<timestamp, data>();
-  py::implicitly_convertible<address, data>();
-  py::implicitly_convertible<subnet, data>();
-  py::implicitly_convertible<port, data>();
-  py::implicitly_convertible<vector, data>();
-  py::implicitly_convertible<set, data>();
-  py::implicitly_convertible<table, data>();
-
-
-  py::implicitly_convertible<py::list, vector>();
-  py::implicitly_convertible<py::dict, table>();
-
-  py::implicitly_convertible<std::string, topic>();
 
   return m.ptr();
 }

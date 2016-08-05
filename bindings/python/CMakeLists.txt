@@ -1,4 +1,22 @@
+# The internal module, which is wrapped by Python code.
 add_library(_broker MODULE _broker.cpp)
+
+# Stage the Python wrapper along with the internal module in the public
+# "broker" module.
+set (BROKER_PYTHON_MODULE_DIR ${BROKER_PYTHON_STAGING_DIR}/broker)
+set_target_properties(_broker PROPERTIES
+                      OUTPUT_NAME "_broker"
+                      LIBRARY_OUTPUT_DIRECTORY ${BROKER_PYTHON_MODULE_DIR}
+                      # By setting an empty prefix, we can invoke the Python
+                      # executable in the same path as the module. Then
+                      # 'import _broker' Just Works.
+                      PREFIX "")
+
+# Collect all files in one place.
+MESSAGE(STATUS "Staging Python bindings into ${BROKER_PYTHON_STAGING_DIR}")
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/broker
+     DESTINATION ${BROKER_PYTHON_STAGING_DIR}
+     REGEX "/\\..*" EXCLUDE)
 
 # Set includes.
 target_include_directories(_broker PUBLIC
@@ -19,21 +37,6 @@ if (APPLE)
   # Support multiple Python installations.
   target_link_libraries(_broker PRIVATE "-undefined dynamic_lookup")
 endif ()
-
-# Stage Python module in one place for testing.
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/broker
-     DESTINATION ${BROKER_PYTHON_STAGING_DIR}
-     REGEX "/\\..*" EXCLUDE)
-
-set (BROKER_PYTHON_MODULE_DIR ${BROKER_PYTHON_STAGING_DIR}/broker)
-set_target_properties(_broker PROPERTIES
-                      OUTPUT_NAME "_broker"
-                      LIBRARY_OUTPUT_DIRECTORY ${BROKER_PYTHON_MODULE_DIR}
-                      # By setting an empty prefix, we can invoke the Python
-                      # executable in the same path as the module. Then
-                      # 'import _broker' Just Works.
-                      PREFIX "")
-
 
 # Check for Link Time Optimization support (GCC/Clang)
 include(CheckCXXCompilerFlag)

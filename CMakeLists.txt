@@ -170,11 +170,6 @@ if (ENABLE_STATIC)
   install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
-# -- Unit Tests ---------------------------------------------------------------
-
-enable_testing()
-add_subdirectory(tests)
-
 # -- Bindings -----------------------------------------------------------------
 
 if (NOT DISABLE_PYTHON_BINDINGS)
@@ -204,6 +199,11 @@ if (NOT DISABLE_PYTHON_BINDINGS)
   endif ()
 endif ()
 
+# -- Unit Tests ---------------------------------------------------------------
+
+enable_testing()
+add_subdirectory(tests)
+
 # -- Documentation ------------------------------------------------------------
 
 add_subdirectory(doc)
@@ -232,8 +232,8 @@ endif ()
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
-display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS ${PYBIND11_INCLUDE_DIRS} python_summary)
+display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
+display(BROKER_PYTHON_BINDINGS "${PYBIND11_INCLUDE_DIRS}" python_summary)
 
 message(
     "\n==================|  Broker Config Summary  |===================="

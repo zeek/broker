@@ -51,15 +51,17 @@ endforeach ()
 
 # -- Python -------------------------------------------------------------------
 
-# TODO
 if (BROKER_PYTHON_BINDINGS)
-  #macro(make_python_test script)
-  #  if (BROKER_PYTHON_BINDINGS)
-  #    add_test(NAME ${script} COMMAND ${PYTHON_EXECUTABLE}
-  #      ${CMAKE_CURRENT_SOURCE_DIR}/${script})
-  #    set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
-  #    set_tests_properties(${script} PROPERTIES ENVIRONMENT
-  #      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/../bindings/python")
-  #  endif ()
-  #endmacro()
+  macro(make_python_test name)
+    set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
+    set(test_name python-${name})
+    add_test(NAME ${test_name}
+             COMMAND ${PYTHON_EXECUTABLE} ${script}
+             WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
+    set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+    set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
+                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR}")
+  endmacro()
+
+  make_python_test(data)
 endif ()
