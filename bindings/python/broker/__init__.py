@@ -15,15 +15,34 @@ VERSION_PROTOCOL = _broker.Version.PROTOCOL
 VERSION = '%u.%u.%u' % (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
 
 def compatible(protocol_version):
+  """Checks whether another Broker protocol is compatible with this instance."""
   _broker.Version.compatible(protocol_version)
 
+# api_flags
+Blocking = _broker.ApiFlags.Blocking
+Nonblocking = _broker.ApiFlags.Nonblocking
+
+# frontend
+Master = _broker.Frontend.Master
+Clone = _broker.Frontend.Clone
+
+# backend
+Memory = _broker.Backend.Memory
+SQLite = _broker.Backend.SQLite
+RocksDB = _broker.Backend.RocksDB
+
+# Broker will only raise exceptions of type BrokerError
+class BrokerError(Exception):
+  """A Broker-specific error."""
+
+  def __init__(self, *args, **kwargs):
+    Exception.__init__(self, *args, **kwargs)
+
+
 EC = _broker.EC
+Error = _broker.Error
 PeerStatus = _broker.PeerStatus
 PeerFlags = _broker.PeerFlags
-ApiFlags = _broker.ApiFlags
-Frontend = _broker.Frontend
-Backend = _broker.Backend
-Error = _broker.Error
 EndpointInfo = _broker.EndpointInfo
 Message = _broker.Message
 NetworkInfo = _broker.NetworkInfo
@@ -79,7 +98,7 @@ class Data:
       t = _broker.Table({Data(k).get(): Data(v).get() for k, v in x.items()})
       self.data = _broker.Data(t)
     else:
-      raise Exception("unsupported data type: " + str(type(x)))
+      raise BrokerError("unsupported data type: " + str(type(x)))
 
   def get(self):
     return self.data
@@ -97,3 +116,115 @@ class Data:
 
   def __str__(self):
     return str(self.data)
+
+
+# TODO: complete interface
+class Store:
+  def __init__(self, handle):
+    self.store = handle
+
+  def name(self):
+    return self.store.name()
+
+
+class Endpoint:
+   def __init__(self, handle):
+     self.endpoint = handle
+
+   def listen(self, address = "", port = 0):
+     return self.endpoint.listen(address, port)
+
+   def peer(self, other):
+     self.endpoint.peer(other)
+
+   def peer(self, address, port):
+     self.endpoint.peer(str(address), port)
+
+   def unpeer(self, other):
+     self.endpoint.unpeer(other)
+
+   def unpeer(self, address, port):
+     self.endpoint.unpeer(str(address), port)
+
+   def publish(self, topic, data):
+     x = data if isinstance(data, Data) else Data(data)
+     self.endpoint.publish(_broker.Topic(topic), x.get())
+
+   def attach(self, frontend, name, backend = None, backend_options = None):
+     if frontend == Frontend.Clone:
+       return self.endpoint.attach_clone(name)
+     else:
+       return self.endpoint.attach_master(name, backend, backend_options)
+
+class Mailbox:
+  def __init__(self, handle):
+    self.mailbox = handle
+
+  def descriptor(self):
+    return self.mailbox.descriptor()
+
+  def empty(self):
+    return self.mailbox.empty()
+
+  def count(self, n = -1):
+    return self.mailbox.count(n)
+
+
+class Message:
+  def __init__(self, handle):
+    self.message = handle
+
+  def topic(self):
+    return self.message.topic().string()
+
+  def data(self):
+    return str(self.message.data()) # TODO: unwrap properly
+
+  def __repr__(self):
+    return "%s -> %s" % (self.topic(), self.data())
+
+
+class BlockingEndpoint(Endpoint):
+  def __init__(self, handle):
+    super(BlockingEndpoint, self).__init__(handle)
+
+  def subscribe(self, topic):
+    self.endpoint.subscribe(_broker.Topic(topic))
+
+  def unsubscribe(self, topic):
+    self.endpoint.unsubscribe(_broker.Topic(topic))
+
+  def mailbox(self):
+    return Mailbox(self.endpoint.mailbox())
+
+  def receive(self):
+    return Message(self.endpoint.receive())
+
+  # TODO: find a good way to implement receive overloads
+  #def receive(self, on_message):
+  #  self.endpoint.receive(on_message)
+
+
+class NonblockingEndpoint(Endpoint):
+  def __init__(self, handle):
+    super(NonblockingEndpoint, self).__init__(handle)
+
+  # TODO: fix callback mechanism.
+  def subscribe(self, topic, callback):
+    self.endpoint.subscribe(_broker.Topic(topic), callback)
+
+  def unsubscribe(self, topic):
+    self.endpoint.unsubscribe(_broker.Topic(topic))
+
+
+class Context:
+  def __init__(self):
+    self.context = _broker.Context()
+
+  def spawn(self, api):
+    if api == Blocking:
+      return BlockingEndpoint(self.context.spawn_blocking())
+    elif api == Nonblocking:
+      return NonblockingEndpoint(self.context.spawn_nonblocking())
+    else:
+      raise BrokerError("invalid API flag: " + str(api))

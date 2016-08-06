@@ -64,4 +64,5 @@ if (BROKER_PYTHON_BINDINGS)
   endmacro()
 
   make_python_test(data)
+  make_python_test(communication)
 endif ()

@@ -104,6 +104,7 @@ class TestDataConstruction(unittest.TestCase):
     d = {'foo': 42, Count(7): True}
     self.assertEqual(str(Data(d)), "{7 -> T, foo -> 42}")
     d = {True: 42, Port(22, Port.TCP): False}
+    self.assertEqual(str(Data(d)), "{T -> 42, 22/tcp -> F}")
 
 if __name__ == '__main__':
   unittest.main(verbosity=3)

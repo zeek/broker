@@ -88,8 +88,6 @@ PYBIND11_PLUGIN(_broker) {
     .def_readwrite("id", &endpoint_info::id)
     .def_readwrite("network", &endpoint_info::network);
 
-  py::class_<message>(m, "Message");
-
   py::class_<network_info>(m, "NetworkInfo")
     .def_readwrite("address", &network_info::address)
     .def_readwrite("port", &network_info::port);
@@ -333,7 +331,12 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::init<std::string>())
     .def("string", &topic::string,
          "Get the underlying string representation of the topic",
-         py::return_value_policy::reference_internal);
+         py::return_value_policy::reference_internal)
+    .def("__repr__", [](const topic& t) { return t.string(); });
+
+  py::class_<message>(m, "Message")
+    .def("topic", &message::topic)
+    .def("data", &message::data);
 
   // TODO: add ctor that takes command line arguments.
   py::class_<configuration>(m, "Configuration")
@@ -348,8 +351,10 @@ PYBIND11_PLUGIN(_broker) {
          [](context& instance, configuration& cfg) {
            new (&instance) context{std::move(cfg)};
          })
-    .def("spawn_blocking", &context::spawn<blocking>)
-    .def("spawn_nonblocking", &context::spawn<nonblocking>);
+    .def("spawn_blocking", &context::spawn<blocking>,
+         py::keep_alive<1, 0>())
+    .def("spawn_nonblocking", &context::spawn<nonblocking>,
+         py::keep_alive<1, 0>());
 
   py::class_<backend_options>(m, "BackendOptions");
 
@@ -375,11 +380,13 @@ PYBIND11_PLUGIN(_broker) {
              case rocksdb:
                return ep.attach<master, rocksdb>(name, opts);
            }
-         })
+         },
+         py::keep_alive<1, 0>())
     .def("attach_clone",
          [](endpoint& ep, const std::string& name) {
            return ep.attach<clone>(name);
-         });
+         },
+         py::keep_alive<1, 0>());
 
   py::class_<mailbox>(m, "Mailbox")
     .def("descriptor", &mailbox::descriptor)
@@ -406,9 +413,9 @@ PYBIND11_PLUGIN(_broker) {
             ) {
            ep.receive(on_msg, on_status);
          })
-    .def("mailbox", &blocking_endpoint::mailbox);
+    .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<1, 0>());
 
-  py::class_<nonblocking_endpoint>(m, "NonBlockingEndpoint",
+  py::class_<nonblocking_endpoint>(m, "NonblockingEndpoint",
                                    py::base<endpoint>{})
     .def("subscribe",
          [](nonblocking_endpoint& ep, topic t,
