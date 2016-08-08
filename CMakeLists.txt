@@ -6,6 +6,7 @@ find_package(CAF COMPONENTS core io REQUIRED)
 
 # Check for required CAF version.
 set(CAF_VERSION_REQUIRED 0.14)
+set(CAF_VERSION_LAST 0.14.99)
 file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
@@ -16,9 +17,9 @@ math(EXPR caf_version_patch "${caf_version_int} % 100")
 set(CAF_VERSION
     "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
-if ( CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED} )
-    message(FATAL_ERROR "Broker requires at least CAF version"
-            " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
+if ( (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED}) OR (CAF_VERSION VERSION_GREATER ${CAF_VERSION_LAST}) )
+    message(FATAL_ERROR "Broker requires CAF version"
+            " ${CAF_VERSION_REQUIRED}, older and newer versions are not supported. Detected version: ${CAF_VERSION}")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
