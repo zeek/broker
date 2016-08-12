@@ -1,4 +1,10 @@
 
+0.5 | 2016-08-12 13:16:46 -0700
+
+  * Release 0.5.
+
+  * Change broker version check so that it only accepts version 0.14.X. (Johanna Amann)
+
 0.4-31 | 2016-08-05 15:39:07 -0700
 
   * Respect -DINSTALL_LIB_DIR in multilib environments. Addresses
