@@ -3,4 +3,8 @@
 
 #cmakedefine BROKER_HAVE_ROCKSDB
 
+#cmakedefine BROKER_APPLE
+#cmakedefine BROKER_FREEBSD
+#cmakedefine BROKER_LINUX
+
 #endif

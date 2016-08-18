@@ -95,6 +95,14 @@ set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+if (APPLE)
+  set(BROKER_APPLE true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(BROKER_LINUX true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(BROKER_FREEBSD)
+endif ()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 
