@@ -1,3 +1,5 @@
+#include <tuple>
+
 #include "broker/network_info.hh"
 
 namespace broker {
