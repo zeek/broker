@@ -136,8 +136,11 @@ void endpoint::publish(topic t, data d) {
 
 void endpoint::init_core(caf::actor core) {
   BROKER_ASSERT(subscriber_ != caf::unsafe_actor_handle_init);
+  // This local variable is just a workaround for the lack of initialized lamda
+  // captures, wich are C++14.
+  auto subscriber = subscriber_;
   core->attach_functor([=] {
-    caf::anon_send_exit(subscriber_, caf::exit_reason::user_shutdown);
+    caf::anon_send_exit(subscriber, caf::exit_reason::user_shutdown);
   });
   auto ptr = new caf::actor{std::move(core)};
   core_ = std::shared_ptr<caf::actor>(ptr, exit_deleter);
