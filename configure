@@ -44,6 +44,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --disable-python       don't try to build python bindings
     --with-rocksdb=PATH    path to RocksDB installation
     --with-python=PATH     path to Python executable
+    --with-pybind11=PATH   path to pybind11 source tree
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -131,6 +132,9 @@ while [ $# -ne 0 ]; do
             ;;
         --with-python=*)
             append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
+            ;;
+        --with-pybind11=*)
+            append_cache_entry PYBIND11_ROOT_DIR      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
