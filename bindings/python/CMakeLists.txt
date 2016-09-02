@@ -12,11 +12,19 @@ set_target_properties(_broker PROPERTIES
                       # 'import _broker' Just Works.
                       PREFIX "")
 
-# Collect all files in one place.
-MESSAGE(STATUS "Staging Python bindings into ${BROKER_PYTHON_STAGING_DIR}")
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/broker
-     DESTINATION ${BROKER_PYTHON_STAGING_DIR}
-     REGEX "/\\..*" EXCLUDE)
+# Stage Python scripts.
+file(GLOB_RECURSE BROKER_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/broker/*.py)
+add_custom_target(python-scripts-stage
+                  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${BROKER_SCRIPTS}
+                    ${BROKER_PYTHON_MODULE_DIR}
+                  COMMENT
+                    "Staging Python scripts in ${BROKER_PYTHON_MODULE_DIR}"
+                  VERBATIM)
+
+# Whenever we build the bindings, we also ensure that we stage the current
+# scripts along with it.
+add_dependencies(_broker python-scripts-stage)
 
 # Set includes.
 target_include_directories(_broker PUBLIC
@@ -47,7 +55,7 @@ if (NOT CMAKE_BUILD_TYPE MATCHES DEBUG)
   endif()
 endif ()
 
-# Strip unnecessary sections of the binary on Linux/Mac OS
+# Strip unnecessary sections of the binary on Linux/Mac OS.
 if (CMAKE_STRIP)
   if(APPLE)
     add_custom_command(TARGET _broker POST_BUILD

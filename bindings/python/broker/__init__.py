@@ -1,4 +1,5 @@
 from . import _broker
+from . import utils
 
 import datetime
 import ipaddress
@@ -148,7 +149,7 @@ class Endpoint:
 
    def publish(self, topic, data):
      x = data if isinstance(data, Data) else Data(data)
-     self.endpoint.publish(_broker.Topic(topic), x.get())
+     self.endpoint.publish(topic, x.get())
 
    def attach(self, frontend, name, backend = None, backend_options = None):
      if frontend == Frontend.Clone:
@@ -178,10 +179,10 @@ class Message:
     return self.message.topic().string()
 
   def data(self):
-    return str(self.message.data()) # TODO: unwrap properly
+    return self.message.data() # TODO: unwrap properly
 
   def __repr__(self):
-    return "%s -> %s" % (self.topic(), self.data())
+    return "%s -> %s" % (self.topic(), str(self.data()))
 
 
 class BlockingEndpoint(Endpoint):
@@ -189,32 +190,38 @@ class BlockingEndpoint(Endpoint):
     super(BlockingEndpoint, self).__init__(handle)
 
   def subscribe(self, topic):
-    self.endpoint.subscribe(_broker.Topic(topic))
+    self.endpoint.subscribe(topic)
 
   def unsubscribe(self, topic):
-    self.endpoint.unsubscribe(_broker.Topic(topic))
+    self.endpoint.unsubscribe(topic)
+
+  def receive(self, fun1 = None, fun2 = None):
+    if fun1 is None:
+      return Message(self.endpoint.receive())
+    if fun2 is None:
+      if utils.arity(fun1) == 1:
+        return self.endpoint.receive_status(fun1)
+      if utils.arity(fun1) == 2:
+        return self.endpoint.receive_msg(fun1)
+      raise BrokerError("invalid receive callback arity; must be 1 or 2")
+    return self.endpoint.receive_msg_or_status(fun1, fun2)
 
   def mailbox(self):
     return Mailbox(self.endpoint.mailbox())
-
-  def receive(self):
-    return Message(self.endpoint.receive())
-
-  # TODO: find a good way to implement receive overloads
-  #def receive(self, on_message):
-  #  self.endpoint.receive(on_message)
 
 
 class NonblockingEndpoint(Endpoint):
   def __init__(self, handle):
     super(NonblockingEndpoint, self).__init__(handle)
 
-  # TODO: fix callback mechanism.
-  def subscribe(self, topic, callback):
-    self.endpoint.subscribe(_broker.Topic(topic), callback)
+  def subscribe(self, topic, fun):
+    self.endpoint.subscribe_msg(topic, fun)
+
+  def on_status(fun):
+    self.endpoint.subscribe_status(fun)
 
   def unsubscribe(self, topic):
-    self.endpoint.unsubscribe(_broker.Topic(topic))
+    self.endpoint.unsubscribe(topic)
 
 
 class Context:

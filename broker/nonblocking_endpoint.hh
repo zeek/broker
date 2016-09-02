@@ -28,7 +28,7 @@ public:
   template <class OnMessage>
   void subscribe(topic t, OnMessage on_msg) {
     detail::verify_message_callback<OnMessage>();
-    auto actor = subscriber_->home_system().spawn(
+    auto handler = subscriber_->home_system().spawn(
       [=]() -> caf::behavior {
         return {
           [=](const topic& top, const caf::message& msg, const caf::actor&) {
@@ -39,7 +39,7 @@ public:
     );
     caf::scoped_actor self{core()->home_system()};
     self->request(subscriber_, timeout::core, atom::subscribe::value,
-                  std::move(t), std::move(actor)).receive(
+                  std::move(t), std::move(handler)).receive(
       []() {
         // nop
       },
@@ -56,14 +56,14 @@ public:
   template <class OnStatus>
   void subscribe(OnStatus on_status) {
     detail::verify_status_callback<OnStatus>();
-    auto actor = subscriber_->home_system().spawn(
+    auto handler = subscriber_->home_system().spawn(
       [=]() -> caf::behavior {
         return on_status;
       }
     );
     caf::scoped_actor self{core()->home_system()};
     self->request(subscriber_, timeout::core, atom::status::value,
-                  std::move(actor)).receive(
+                  std::move(handler)).receive(
       [](atom::ok) {
         // nop
       },

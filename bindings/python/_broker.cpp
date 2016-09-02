@@ -352,9 +352,9 @@ PYBIND11_PLUGIN(_broker) {
            new (&instance) context{std::move(cfg)};
          })
     .def("spawn_blocking", &context::spawn<blocking>,
-         py::keep_alive<1, 0>())
+         py::keep_alive<0, 1>())
     .def("spawn_nonblocking", &context::spawn<nonblocking>,
-         py::keep_alive<1, 0>());
+         py::keep_alive<0, 1>());
 
   py::class_<backend_options>(m, "BackendOptions");
 
@@ -367,8 +367,9 @@ PYBIND11_PLUGIN(_broker) {
     .def("unpeer", (void (endpoint::*)(const std::string&, uint16_t))
                      &endpoint::unpeer)
     .def("peers", &endpoint::peers)
-    .def("publish", (void (endpoint::*)(topic, data)) &endpoint::publish,
-         "topic"_a, "data"_a)
+    .def("publish", [](endpoint& ep, const std::string& t, const data& d) { 
+                      ep.publish(t, d);
+                    })
     .def("attach_master",
          [](endpoint& ep, const std::string& name, backend b,
             const backend_options& opts) {
@@ -381,12 +382,12 @@ PYBIND11_PLUGIN(_broker) {
                return ep.attach<master, rocksdb>(name, opts);
            }
          },
-         py::keep_alive<1, 0>())
+         py::keep_alive<0, 1>())
     .def("attach_clone",
          [](endpoint& ep, const std::string& name) {
            return ep.attach<clone>(name);
          },
-         py::keep_alive<1, 0>());
+         py::keep_alive<0, 1>());
 
   py::class_<mailbox>(m, "Mailbox")
     .def("descriptor", &mailbox::descriptor)
@@ -394,39 +395,45 @@ PYBIND11_PLUGIN(_broker) {
     .def("count", &mailbox::count);
 
   py::class_<blocking_endpoint>(m, "BlockingEndpoint", py::base<endpoint>{})
-    .def("subscribe", &blocking_endpoint::subscribe)
-    .def("unsubscribe", &blocking_endpoint::subscribe)
+    .def("subscribe", [](blocking_endpoint& ep, const std::string& t) {
+           ep.subscribe(t);
+         })
+    .def("unsubscribe", [](blocking_endpoint& ep, const std::string& t) {
+           ep.unsubscribe(t);
+         })
     .def("receive", (message (endpoint::*)())&blocking_endpoint::receive)
-    .def("receive",
+    .def("receive_msg",
          [](blocking_endpoint& ep,
             std::function<void(const topic&, const data& d)> f) {
            ep.receive(f);
          })
-    .def("receive",
+    .def("receive_status",
          [](blocking_endpoint& ep, std::function<void(const status&)> f) {
            ep.receive(f);
          })
-    .def("receive",
+    .def("receive_msg_or_status",
          [](blocking_endpoint& ep,
             std::function<void(const topic&, const data& d)> on_msg,
             std::function<void(const status&)> on_status
             ) {
            ep.receive(on_msg, on_status);
          })
-    .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<1, 0>());
+    .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<0, 1>());
 
   py::class_<nonblocking_endpoint>(m, "NonblockingEndpoint",
                                    py::base<endpoint>{})
-    .def("subscribe",
-         [](nonblocking_endpoint& ep, topic t,
+    .def("subscribe_msg",
+         [](nonblocking_endpoint& ep, const std::string& t,
             std::function<void(const topic&, const data& d)> f) {
-           ep.subscribe(std::move(t), f);
+           ep.subscribe(t, f);
          })
-    .def("subscribe",
+    .def("subscribe_status",
          [](nonblocking_endpoint& ep, std::function<void(const status& s)> f) {
            ep.subscribe(f);
          })
-    .def("unsubscribe", &blocking_endpoint::subscribe);
+    .def("unsubscribe", [](nonblocking_endpoint& ep, const std::string& t) {
+           ep.unsubscribe(t);
+         });
 
   // TODO: complete definition
   py::class_<store>(m, "Store")
