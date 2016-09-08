@@ -66,7 +66,7 @@ PYBIND11_PLUGIN(_broker) {
 
   py::enum_<frontend>(m, "Frontend")
     .value("Master", master)
-    .value("Clone", clone)
+    .value("Clone", broker::clone)
     .export_values();
 
   py::enum_<backend>(m, "Backend")
@@ -385,7 +385,7 @@ PYBIND11_PLUGIN(_broker) {
          py::keep_alive<0, 1>())
     .def("attach_clone",
          [](endpoint& ep, const std::string& name) {
-           return ep.attach<clone>(name);
+           return ep.attach<broker::clone>(name);
          },
          py::keep_alive<0, 1>());
 

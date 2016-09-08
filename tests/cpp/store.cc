@@ -130,7 +130,7 @@ TEST(clone operations - same endpoint) {
   MESSAGE("master PUT");
   m->put("key", "value");
   REQUIRE(m);
-  auto c = ep.attach<clone>("vulcan");
+  auto c = ep.attach<broker::clone>("vulcan");
   REQUIRE(c);
   std::this_thread::sleep_for(propagation_delay); // snapshot transfer
   auto v = c->get("key");
@@ -150,7 +150,7 @@ TEST(clone operations - different endpoints) {
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
   auto m = ep0.attach<master, memory>("flaka");
-  auto c = ep1.attach<clone>("flaka");
+  auto c = ep1.attach<broker::clone>("flaka");
   REQUIRE(m);
   REQUIRE(c);
   c->put("foo", 4.2);
