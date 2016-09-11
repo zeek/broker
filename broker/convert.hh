@@ -10,6 +10,26 @@
 
 namespace broker {
 
+template <class Rep, class Period>
+bool convert(std::chrono::duration<Rep, Period> d, std::string& str) {
+  str = std::to_string(d.count());
+  if (std::is_same<Period, std::nano>::value)
+    str += "ns";
+  else if (std::is_same<Period, std::micro>::value)
+    str += "us";
+  else if (std::is_same<Period, std::milli>::value)
+    str += "ms";
+  else if (std::is_same<Period, std::ratio<1>>::value)
+    str += "s";
+  else if (std::is_same<Period, std::ratio<60>>::value)
+    str += "mins";
+  else if (std::is_same<Period, std::ratio<3600>>::value)
+    str += "hrs";
+  else
+    return false;
+  return true;
+}
+
 // Injects a `to<T>` overload for any type convertible to type `T` via a free
 // function `bool convert(const From&, T&)` that can be found via ADL.
 template <class To, class From>
@@ -58,14 +78,6 @@ auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
   else
     os.setstate(std::ios::failbit);
   return os;
-}
-
-template <class T>
-auto convert(T x, std::string& str)
--> detail::enable_if_t<std::is_arithmetic<T>::value, bool> {
-  using std::to_string;
-  str = to_string(x);
-  return true;
 }
 
 } // namespace broker

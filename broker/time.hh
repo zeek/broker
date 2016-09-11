@@ -29,16 +29,22 @@ using interval = std::chrono::duration<int64_t, std::nano>;
 using timestamp = std::chrono::time_point<clock, interval>;
 
 /// @relates interval
-bool convert(const interval& i, fractional_seconds& secs);
+bool convert(interval i, fractional_seconds& secs);
 
 /// @relates interval
-bool convert(const interval& i, double& secs);
+bool convert(interval i, double& secs);
 
 /// @relates interval
-bool convert(const interval& i, std::string& str);
+bool convert(interval i, std::string& str);
 
 /// @relates timestamp
-bool convert(const timestamp& t, std::string& str);
+bool convert(timestamp t, std::string& str);
+
+/// @relates interval
+bool convert(double secs, interval& i);
+
+/// @relates interval
+bool convert(double secs, timestamp& ts);
 
 /// @returns the current point in time.
 timestamp now();
