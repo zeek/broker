@@ -75,14 +75,14 @@ public:
 
   // --- messaging -----------------------------------------------------------
 
-  /// Publishes a data message.
-  /// @param t The topic of the data message.
+  /// Publishes a message.
+  /// @param t The topic of the message.
   /// @param d The message data.
   void publish(topic t, data d);
 
-  /// Publishes a data message as vector.
-  /// @param t The topic of the data message.
-  /// @param xs The message contents.
+  /// Publishes a message as vector.
+  /// @param t The topic of the message.
+  /// @param xs The message contents to be concatenated into a vector.
   template <class T0, class T1, class... Ts>
   void publish(topic t, T0&& x0, T1&& x1, Ts&&... xs) {
     vector v;
