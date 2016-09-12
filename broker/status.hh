@@ -42,11 +42,9 @@ bool operator==(const status& s, status_info i);
 bool operator==(status_info i, const status& s);
 
 /// @relates status
-template <class Processor>
-void serialize(Processor& proc, status& s) {
-  proc & s.info;
-  proc & s.endpoint;
-  proc & s.message;
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, status& s) {
+  return f(s.info, s.endpoint, s.message);
 }
 
 } // namespace broker

@@ -15,11 +15,9 @@ struct peer_info {
   peer_status status;   ///< The current peering status.
 };
 
-template <class Processor>
-void serialize(Processor& proc, peer_info& pi) {
-  proc & pi.peer;
-  proc & pi.flags;
-  proc & pi.status;
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, peer_info& pi) {
+  return f(pi.peer, pi.flags, pi.status);
 }
 
 } // namespace broker

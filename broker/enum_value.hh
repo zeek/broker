@@ -23,19 +23,23 @@ struct enum_value : detail::totally_ordered<enum_value> {
   std::string name;
 };
 
+/// @relates enum_value
 inline bool operator==(const enum_value& lhs, const enum_value& rhs) {
   return lhs.name == rhs.name;
 }
 
+/// @relates enum_value
 inline bool operator<(const enum_value& lhs, const enum_value& rhs) {
   return lhs.name < rhs.name;
 }
 
-template <class Processor>
-void serialize(Processor& proc, enum_value& e) {
-  proc & e.name;
+/// @relates enum_value
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, enum_value& e) {
+  return f(e.name);
 }
 
+/// @relates enum_value
 inline bool convert(const enum_value& e, std::string& str) {
   str = e.name;
   return true;

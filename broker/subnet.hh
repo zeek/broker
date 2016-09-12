@@ -23,10 +23,13 @@ public:
   /// @return the prefix length of the subnet.
   uint8_t length() const;
 
-  template <class Processor>
-  friend void serialize(Processor& proc, subnet& sn);
   friend bool operator==(const subnet& lhs, const subnet& rhs);
   friend bool operator<(const subnet& lhs, const subnet& rhs);
+
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f, subnet& sn) {
+    return f(sn.net_, sn.len_);
+  }
 
 private:
   bool init();
@@ -43,13 +46,6 @@ bool operator<(const subnet& lhs, const subnet& rhs);
 
 /// @relates subnet
 bool convert(const subnet& sn, std::string& str);
-
-/// @relates subnet
-template <class Processor>
-void serialize(Processor& proc, subnet& sn) {
-  proc & sn.net_;
-  proc & sn.len_;
-}
 
 } // namespace broker
 

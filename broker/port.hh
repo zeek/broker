@@ -32,10 +32,13 @@ public:
   /// @return The port's transport protocol.
   protocol type() const;
 
-  template <class Processor>
-  friend void serialize(Processor& proc, port& p);
   friend bool operator==(const port& lhs, const port& rhs);
   friend bool operator<(const port& lhs, const port& rhs);
+
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f, port& p) {
+    return f(p.num_, p.proto_);
+  }
 
 private:
   number_type num_;
@@ -47,13 +50,6 @@ bool operator==(const port& lhs, const port& rhs);
 
 /// @relates port
 bool operator<(const port& lhs, const port& rhs);
-
-/// @relates port
-template <class Processor>
-void serialize(Processor& proc, port& p) {
-  proc & p.num_;
-  proc & p.proto_;
-}
 
 /// @relates port
 bool convert(const port& p, std::string& str);

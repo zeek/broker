@@ -51,6 +51,11 @@ public:
   /// @returns A reference to the underlying string.
   const std::string& string() const;
 
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f, topic& t) {
+    return f(t.str_);
+  }
+
 private:
   void clean();
 
@@ -68,12 +73,6 @@ topic operator/(const topic& lhs, const topic& rhs);
 
 /// @relates topic
 bool convert(const topic& t, std::string& str);
-
-/// @relates topic
-template <class Processor>
-void serialize(Processor& proc, topic& t) {
-  proc & t;
-}
 
 /// Topics with a special meaning.
 namespace topics {

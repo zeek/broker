@@ -24,9 +24,9 @@ inline bool operator!=(const snapshot& lhs, const snapshot& rhs) {
 }
 
 /// @relates snapshot
-template <class Processor>
-void serialize(Processor& proc, snapshot& s) {
-  proc & s.entries;
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, snapshot& s) {
+  return f(s.entries);
 }
 
 } // namespace broker

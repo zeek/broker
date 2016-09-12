@@ -19,11 +19,9 @@ struct endpoint_info {
   optional<network_info> network; ///< Optional network-level information.
 };
 
-template <class Processor>
-void serialize(Processor& proc, endpoint_info& info) {
-  proc & info.node;
-  proc & info.id;
-  proc & info.network;
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
+  return f(info.node, info.id, info.network);
 }
 
 } // namespace broker

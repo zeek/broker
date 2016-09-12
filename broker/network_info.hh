@@ -18,17 +18,16 @@ struct network_info : detail::totally_ordered<network_info> {
 };
 
 /// @relates network_info
-template <class Processor>
-void serialize(Processor& proc, network_info& info) {
-  proc & info.address;
-  proc & info.port;
-}
-
-/// @relates network_info
 bool operator==(const network_info& x, const network_info& y);
 
 /// @relates network_info
 bool operator<(const network_info& x, const network_info& y);
+
+/// @relates network_info
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, network_info& info) {
+  return f(info.address, info.port);
+}
 
 /// @relates network_info
 inline std::string to_string(const network_info& info) {

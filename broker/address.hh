@@ -57,9 +57,9 @@ public:
   friend bool operator<(const address& lhs, const address& rhs);
   friend bool convert(const std::string& str, address& a);
 
-  template <class Processor>
-  friend void serialize(Processor& proc, address& a) {
-    proc & a.bytes_;
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f, address& a) {
+    return f(a.bytes_);
   }
 
 private:
