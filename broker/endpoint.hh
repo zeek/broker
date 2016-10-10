@@ -126,7 +126,7 @@ protected:
     add_to_vector(v, std::forward<Ts>(xs)...);
   }
 
-  endpoint();
+  endpoint() = default;
 
   void init_core(caf::actor core);
 

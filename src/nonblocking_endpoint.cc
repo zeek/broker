@@ -12,7 +12,7 @@ namespace broker {
 namespace {
 
 struct subscriber_state {
-  caf::actor core{caf::unsafe_actor_handle_init};
+  caf::actor core;
   optional<caf::actor> status_subscriber;
   detail::radix_tree<caf::actor> data_subscribers;
   const char* name = "nonblocking_subscriber";

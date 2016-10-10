@@ -24,10 +24,6 @@ auto exit_deleter = [](caf::actor* a) {
 
 } // namespace <anonymous>
 
-endpoint::endpoint() : subscriber_{caf::unsafe_actor_handle_init} {
-  // nop
-}
-
 endpoint::endpoint(const blocking_endpoint& other)
   : core_{other.core_},
     subscriber_{other.subscriber_} {
@@ -135,7 +131,7 @@ void endpoint::publish(topic t, data d) {
 }
 
 void endpoint::init_core(caf::actor core) {
-  BROKER_ASSERT(subscriber_ != caf::unsafe_actor_handle_init);
+  BROKER_ASSERT(subscriber_);
   // This local variable is just a workaround for the lack of initialized lamda
   // captures, wich are C++14.
   auto subscriber = subscriber_;
