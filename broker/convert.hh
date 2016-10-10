@@ -11,6 +11,13 @@
 
 namespace broker {
 
+template <class T>
+auto convert(T x, std::string& str)
+-> detail::enable_if_t<std::is_arithmetic<T>::value, bool> {
+  str = std::to_string(x);
+  return true;
+}
+
 template <class Rep, class Period>
 bool convert(std::chrono::duration<Rep, Period> d, std::string& str) {
   str = std::to_string(d.count());
