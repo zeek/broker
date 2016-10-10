@@ -1,6 +1,7 @@
 #ifndef BROKER_CONVERT_HH
 #define BROKER_CONVERT_HH
 
+#include <chrono>
 #include <ostream>
 #include <string>
 
