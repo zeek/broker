@@ -181,7 +181,7 @@ class Message:
   def data(self):
     return self.message.data() # TODO: unwrap properly
 
-  def __repr__(self):
+  def __str__(self):
     return "%s -> %s" % (self.topic(), str(self.data()))
 
 
