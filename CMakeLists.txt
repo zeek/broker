@@ -69,6 +69,16 @@ if (ENABLE_STATIC_ONLY)
   set(ENABLE_SHARED false)
 endif ()
 
+# -- compiler -----------------------------------------------------------------
+
+if (APPLE)
+  set(BROKER_APPLE true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(BROKER_LINUX true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(BROKER_FREEBSD)
+endif ()
+
 include(RequireCXX11)
 
 set (version_cpp "
@@ -104,6 +114,11 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
   endif()
 endif ()
 
+# Mac OS ignores -pthread but other platforms require it
+if (BROKER_APPLE)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+endif ()
+
 # Incrase warnings.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
 
@@ -115,6 +130,11 @@ set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
 
 if (ENABLE_ADDRESS_SANITIZER)
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+  # Some Linux distributions have apparently cannot pick the right linker
+  # properly. See: http://stackoverflow.com/q/37603238/1170277
+  if (BROKER_LINUX)
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
+  endif ()
 endif(ENABLE_ADDRESS_SANITIZER)
 
 # Append our extra flags to the existing value of CXXFLAGS.
@@ -129,13 +149,6 @@ set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-if (APPLE)
-  set(BROKER_APPLE true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  set(BROKER_LINUX true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(BROKER_FREEBSD)
-endif ()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 

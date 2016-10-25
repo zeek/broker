@@ -14,12 +14,12 @@ TEST(basic) {
 
 TEST(interval) {
   auto i = interval{42};
-  CHECK_EQUAL(std::chrono::nanoseconds{42}, i);
+  CHECK(std::chrono::nanoseconds{42} == i);
 }
 
 TEST(timestamp) {
   auto ts = timestamp{interval{42}};
-  CHECK_EQUAL(ts.time_since_epoch(), interval{42});
+  CHECK(ts.time_since_epoch() == interval{42});
 }
 
 TEST(enum) {

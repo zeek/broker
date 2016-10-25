@@ -17,8 +17,8 @@ env:
 matrix:
   include:
     # GCC & libstdc++
-    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=RelWithDebInfo
-    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=Release
+    - env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=RelWithDebInfo
+    - env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=Release
     # Clang & libc++
     - env: COMPILER=clang VERSION=3.6 STDLIB=libc++    BUILD=RelWithDebInfo
     - env: COMPILER=clang VERSION=3.6 STDLIB=libc++    BUILD=Release
@@ -34,7 +34,7 @@ matrix:
     - env: COMPILER=clang VERSION=3.8 STDLIB=libstdc++ BUILD=RelWithDebInfo
     - env: COMPILER=clang VERSION=3.8 STDLIB=libstdc++ BUILD=Release
     # Address sanitizer: only with most recent compilers.
-    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++ BUILD=RelWithDebInfo ASAN=on
+    - env: COMPILER=gcc VERSION=5 STDLIB=libstdc++ BUILD=RelWithDebInfo ASAN=on
     - env: COMPILER=clang VERSION=3.8 STDLIB=libc++ BUILD=RelWithDebInfo ASAN=on
 
 addons:
