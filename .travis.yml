@@ -96,4 +96,4 @@ before_script:
       eval $configure
 script:
   - make
-  - build/bin/broker-test -n -v 4 -r 600
+  - build/bin/broker-test -n -v 3 -r 600
