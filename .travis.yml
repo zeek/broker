@@ -1,0 +1,98 @@
+sudo: required
+dist: trusty
+language: cpp
+
+notifications:
+  email:
+    on_success: change
+    on_failure: change
+
+env:
+  global:
+    - CAF=0.15.1
+    - PREFIX=/usr/local
+matrix:
+  include:
+    # GCC & libstdc++
+    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=RelWithDebInfo 
+    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++    BUILD=Release 
+    # Clang & libc++
+    - env: COMPILER=clang VERSION=3.6 STDLIB=libc++    BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.6 STDLIB=libc++    BUILD=Release 
+    - env: COMPILER=clang VERSION=3.7 STDLIB=libc++    BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.7 STDLIB=libc++    BUILD=Release 
+    - env: COMPILER=clang VERSION=3.8 STDLIB=libc++    BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.8 STDLIB=libc++    BUILD=Release 
+    # Clang & libstdc++
+    - env: COMPILER=clang VERSION=3.6 STDLIB=libstdc++ BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.6 STDLIB=libstdc++ BUILD=Release 
+    - env: COMPILER=clang VERSION=3.7 STDLIB=libstdc++ BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.7 STDLIB=libstdc++ BUILD=Release 
+    - env: COMPILER=clang VERSION=3.8 STDLIB=libstdc++ BUILD=RelWithDebInfo 
+    - env: COMPILER=clang VERSION=3.8 STDLIB=libstdc++ BUILD=Release 
+    # Address sanitizer: only with most recent compilers.
+    #- env: COMPILER=gcc VERSION=5 STDLIB=libstdc++ BUILD=RelWithDebInfo ASAN=on
+    - env: COMPILER=clang VERSION=3.8 STDLIB=libc++ BUILD=RelWithDebInfo ASAN=on
+
+# Until https://github.com/travis-ci/apt-source-whitelist/issues/199 gets
+# resolved, we cannot use Travis' addon facility to add newer versions of
+# Clang, because the source are not whitelisted yet. That's why we use
+# before_install instead.
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      #- llvm-toolchain-trusty-3.6
+      #- llvm-toolchain-trusty-3.7
+      #- llvm-toolchain-trusty-3.8
+
+before_install:
+  # Setup additionally package sources. There's no better way to handle this
+  # right now, see https://github.com/travis-ci/apt-source-whitelist/issues/199.
+  - wget -nv -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
+  - sudo apt-add-repository -y 'deb http://llvm.org/apt/trusty llvm-toolchain-trusty-3.6 main'
+  - sudo apt-add-repository -y 'deb http://llvm.org/apt/trusty llvm-toolchain-trusty-3.7 main'
+  - sudo apt-add-repository -y 'deb http://llvm.org/apt/trusty llvm-toolchain-trusty-3.8 main'
+  - sudo apt-get update -qq
+  # Install selected compiler.
+  - |
+      if [ "$COMPILER" = "clang" ] ; then
+        sudo apt-get install -qq -y clang-$VERSION
+      elif [ "$COMPILER" = "gcc" ] ; then
+        sudo apt-get install -qq -y gcc-$VERSION g++-$VERSION
+      fi
+  # Install libc++ if desired. We'll stick with the system-provided libstdc++.
+  - |
+      if [ "$STDLIB" = "libc++" ] ; then
+        sudo apt-get install -qq -y libc++-dev libc++abi-dev
+      fi
+before_script:
+  # Adjust compiler environment variables, since Travis sets CC and CXX right
+  # *after* we define our matrix.
+  - |
+      if [ "$COMPILER" = "clang" ] ; then
+        export CC=clang-$VERSION CXX=clang++-$VERSION
+      elif [ "$COMPILER" = "gcc" ] ; then
+        export CC=gcc-$VERSION CXX=g++-$VERSION
+      fi
+  # Build CAF.
+  - |
+      set -e
+      git clone https://github.com/actor-framework/actor-framework.git caf
+      pushd caf
+      git checkout $CAF
+      ./configure --with-runtime-checks --no-examples
+      make
+      make test
+      sudo make install
+      popd
+  # Configure Broker.
+  - |
+      configure="./configure"
+      if [ -n "$ASAN" ]; then
+        configure="$configure --enable-asan"
+      fi
+      eval $configure
+script:
+  - make
+  - build/bin/broker-test -n -v 3 -r 600
