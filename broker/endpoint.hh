@@ -99,7 +99,7 @@ public:
   /// @returns A handle to the frontend representing the master or an error if
   ///          a master with *name* exists already.
   template <frontend F, backend B>
-  auto attach(std::string name, backend_options opts = {})
+  auto attach(std::string name, backend_options opts = backend_options{})
   -> detail::enable_if_t<F == master, expected<store>> {
     return attach_master(std::move(name), B, std::move(opts));
   }

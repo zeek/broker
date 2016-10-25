@@ -25,7 +25,7 @@ public:
   ///                             to start estimating the nubmer of keys as
   ///                             opposed to linear enumeration.
   ///                             (default = 10,000)
-  rocksdb_backend(backend_options opts = {});
+  rocksdb_backend(backend_options opts = backend_options{});
 
   ~rocksdb_backend();
 

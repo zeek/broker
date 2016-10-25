@@ -16,7 +16,7 @@ public:
   /// Required parameters:
   ///   - `path`: a `std::string` representing the location of the database on
   ///             the filesystem.
-  sqlite_backend(backend_options opts = {});
+  sqlite_backend(backend_options opts = backend_options{});
 
   ~sqlite_backend();
 
