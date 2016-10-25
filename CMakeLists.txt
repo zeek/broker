@@ -115,7 +115,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 endif ()
 
 # Mac OS ignores -pthread but other platforms require it
-if (BROKER_APPLE)
+if (NOT BROKER_APPLE)
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
 endif ()
 
