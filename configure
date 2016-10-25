@@ -25,6 +25,12 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                              - Release: optimizations on, debugging off
                              - RelWithDebInfo: optimizations on,
                                    debug symbols on, debug flags off
+    --enable-debug         compile in debugging mode (like --build-type=Debug)
+    --enable-asan          enable AddressSanitizer
+    --enable-static        build static libraries (in addition to shared)
+    --enable-static-only   only build static libraries, not shared
+    --no-auto-libc++       do not automatically use libc++ with Clang
+
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -37,10 +43,6 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                            [PATH/lib/python<Python Version>/site-packages]
 
   Optional Features:
-    --enable-debug         compile in debugging mode (like --build-type=Debug)
-    --enable-asan          enable AddressSanitizer
-    --enable-static        build static libraries (in addition to shared)
-    --enable-static-only   only build static libraries, not shared
     --disable-python       don't try to build python bindings
     --with-rocksdb=PATH    path to RocksDB installation
     --with-python=PATH     path to Python executable
@@ -108,6 +110,9 @@ while [ $# -ne 0 ]; do
             ;;
         --build-type=*)
             append_cache_entry CMAKE_BUILD_TYPE     STRING $optarg
+            ;;
+        --no-auto-libc++)
+            append_cache_entry NO_AUTO_LIBCPP BOOL yes
             ;;
         --enable-debug)
             append_cache_entry ENABLE_DEBUG         BOOL   true

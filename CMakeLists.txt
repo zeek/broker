@@ -71,6 +71,39 @@ endif ()
 
 include(RequireCXX11)
 
+set (version_cpp "
+  #include <iostream>
+  using namespace std\;
+  int main() {
+  #   ifdef __clang__
+      cout << __clang_major__ << '.' << __clang_minor__\;
+  #   elif defined(__GNUC__)
+      cout << __GNUC__ << '.' << __GNUC_MINOR__\;
+  #   else
+      cout << \"0.0\"\;
+  #   endif
+      return 0\;
+  }")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/version.cpp" ${version_cpp})
+  if (NOT NO_AUTO_LIBCPP)
+    # Standard library selection: check if libc++ is available, and if so, use
+    # it. Otherwise fall back to libstdc++.
+    set(CXXFLAGS_BACKUP "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-std=c++11 -stdlib=libc++")
+    try_run(program_result
+            compilation_succeeded
+            "${CMAKE_CURRENT_BINARY_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+    set(CMAKE_CXX_FLAGS "${CXXFLAGS_BACKUP}")
+    if(compilation_succeeded)
+      set (disable "(disable with --no-auto-libc++)")
+      message(STATUS "Automatically adding -stdlib=libc++ flag ${disable}")
+      set(EXTRA_FLAGS "${EXTRA_FLAGS} -stdlib=libc++")
+    endif()
+  endif()
+endif ()
+
 # Incrase warnings.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
 
