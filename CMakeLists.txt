@@ -69,7 +69,55 @@ if (ENABLE_STATIC_ONLY)
   set(ENABLE_SHARED false)
 endif ()
 
+# -- compiler -----------------------------------------------------------------
+
+if (APPLE)
+  set(BROKER_APPLE true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(BROKER_LINUX true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(BROKER_FREEBSD)
+endif ()
+
 include(RequireCXX11)
+
+set (version_cpp "
+  #include <iostream>
+  using namespace std\;
+  int main() {
+  #   ifdef __clang__
+      cout << __clang_major__ << '.' << __clang_minor__\;
+  #   elif defined(__GNUC__)
+      cout << __GNUC__ << '.' << __GNUC_MINOR__\;
+  #   else
+      cout << \"0.0\"\;
+  #   endif
+      return 0\;
+  }")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/version.cpp" ${version_cpp})
+  if (NOT NO_AUTO_LIBCPP)
+    # Standard library selection: check if libc++ is available, and if so, use
+    # it. Otherwise fall back to libstdc++.
+    set(CXXFLAGS_BACKUP "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-std=c++11 -stdlib=libc++")
+    try_run(program_result
+            compilation_succeeded
+            "${CMAKE_CURRENT_BINARY_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+    set(CMAKE_CXX_FLAGS "${CXXFLAGS_BACKUP}")
+    if(compilation_succeeded)
+      set (disable "(disable with --no-auto-libc++)")
+      message(STATUS "Automatically adding -stdlib=libc++ flag ${disable}")
+      set(EXTRA_FLAGS "${EXTRA_FLAGS} -stdlib=libc++")
+    endif()
+  endif()
+endif ()
+
+# Mac OS ignores -pthread but other platforms require it
+if (BROKER_APPLE)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+endif ()
 
 # Incrase warnings.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
@@ -82,6 +130,11 @@ set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
 
 if (ENABLE_ADDRESS_SANITIZER)
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+  # Some Linux distributions have apparently cannot pick the right linker
+  # properly. See: http://stackoverflow.com/q/37603238/1170277
+  if (BROKER_LINUX)
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
+  endif ()
 endif(ENABLE_ADDRESS_SANITIZER)
 
 # Append our extra flags to the existing value of CXXFLAGS.
@@ -96,13 +149,6 @@ set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-if (APPLE)
-  set(BROKER_APPLE true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  set(BROKER_LINUX true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(BROKER_FREEBSD)
-endif ()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 

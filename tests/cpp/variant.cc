@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 
 #include "broker/detail/variant.hh"

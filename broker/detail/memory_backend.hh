@@ -15,7 +15,7 @@ class memory_backend : public abstract_backend {
 public:
   /// Constructs a memory backend.
   /// @param opts The options controlling the backend behavior.
-  memory_backend(backend_options opts = {});
+  memory_backend(backend_options opts = backend_options{});
 
   expected<void> put(const data& key, data value,
                      optional<timestamp> expiry) override;
