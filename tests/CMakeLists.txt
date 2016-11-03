@@ -15,6 +15,7 @@ set(tests
   cpp/store.cc
   cpp/topic.cc
   cpp/variant.cc
+	cpp/multihop_1.cc
 )
 
 # Setup correct broker library (static/shared).
