@@ -8,14 +8,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(tests
   test.cpp
-  cpp/backend.cc
-  cpp/data.cc
-  cpp/endpoint.cc
-  cpp/radix_tree.cc
-  cpp/store.cc
-  cpp/topic.cc
-  cpp/variant.cc
-	cpp/multihop_1.cc
+	cpp/backend.cc
+	cpp/data.cc
+	cpp/endpoint.cc
+	cpp/radix_tree.cc
+	cpp/store.cc
+	cpp/topic.cc
+	cpp/variant.cc
+	cpp/multihop.cc
 )
 
 # Setup correct broker library (static/shared).
