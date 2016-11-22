@@ -32,7 +32,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   };
   auto remind = [=](timestamp expiry, const data& key) {
     auto delta = expiry - now();
-    BROKER_ASSERT(delta > interval::zero());
+    BROKER_ASSERT(delta > timespan::zero());
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(delta);
     self->delayed_send(self, us, atom::expire::value, key);
   };

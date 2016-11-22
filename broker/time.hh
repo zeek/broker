@@ -23,27 +23,27 @@ using fractional_seconds = std::chrono::duration<double, std::ratio<1>>;
 using clock = std::chrono::system_clock;
 
 /// A fractional timestamp with nanosecond precision.
-using interval = std::chrono::duration<int64_t, std::nano>;
+using timespan = std::chrono::duration<int64_t, std::nano>;
 
 /// A point in time anchored at the UNIX epoch: January 1, 1970.
-using timestamp = std::chrono::time_point<clock, interval>;
+using timestamp = std::chrono::time_point<clock, timespan>;
 
-/// @relates interval
-bool convert(interval i, fractional_seconds& secs);
+/// @relates timespan
+bool convert(timespan i, fractional_seconds& secs);
 
-/// @relates interval
-bool convert(interval i, double& secs);
+/// @relates timespan
+bool convert(timespan i, double& secs);
 
-/// @relates interval
-bool convert(interval i, std::string& str);
+/// @relates timespan
+bool convert(timespan i, std::string& str);
 
 /// @relates timestamp
 bool convert(timestamp t, std::string& str);
 
-/// @relates interval
-bool convert(double secs, interval& i);
+/// @relates timespan
+bool convert(double secs, timespan& i);
 
-/// @relates interval
+/// @relates timespan
 bool convert(double secs, timestamp& ts);
 
 /// @returns the current point in time.
@@ -85,11 +85,11 @@ void serialize(deserializer& source,
 
 namespace std {
 
-/// @relates broker::interval
+/// @relates broker::timespan
 template <>
-struct hash<broker::interval> {
-  size_t operator()(const broker::interval& d) const {
-    return hash<broker::interval::rep>{}(d.count());
+struct hash<broker::timespan> {
+  size_t operator()(const broker::timespan& s) const {
+    return hash<broker::timespan::rep>{}(s.count());
   }
 };
 
@@ -97,7 +97,7 @@ struct hash<broker::interval> {
 template <>
 struct hash<broker::timestamp> {
   size_t operator()(const broker::timestamp& t) const {
-    return hash<broker::interval>{}(t.time_since_epoch());
+    return hash<broker::timespan>{}(t.time_since_epoch());
   }
 };
 

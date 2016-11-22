@@ -57,7 +57,7 @@ types:
 - ``count``
 - ``integer``
 - ``real``
-- ``interval``
+- ``timespan``
 - ``timestamp``
 - ``string``
 - ``address``

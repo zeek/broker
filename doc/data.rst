@@ -55,7 +55,7 @@ known as ``double``.
 Time
 ----
 
-Broker offers two data types for expressing time: ``interval`` and
+Broker offers two data types for expressing time: ``timespan`` and
 ``timestamp``.
 
 Both types seemlessly interoperate with the C++ standard library time
@@ -67,7 +67,7 @@ faciliates. In fact, they are concrete specializations of the time types in
   namespace broker {
 
   using clock = std::chrono::system_clock;
-  using interval = std::chrono::duration<int64_t, std::nano>;
+  using timespan = std::chrono::duration<int64_t, std::nano>;
   using timestamp = std::chrono::time_point<clock, duration>;
 
   timestamp now();
@@ -77,10 +77,10 @@ faciliates. In fact, they are concrete specializations of the time types in
 .. |std_chrono| replace:: ``std::chrono``
 .. _std_chrono: http://en.cppreference.com/w/cpp/chrono
 
-Interval
+Timespan
 ~~~~~~~~
 
-An ``interval`` represents relative time duration in nanoseconds. Given that
+An ``timespan`` represents relative time duration in nanoseconds. Given that
 the internal reprsentation is a 64-bit signed integer, this allows for
 representing approximately 292 years.
 
@@ -89,7 +89,7 @@ Timestamp
 
 A ``timestamp`` represents an absolute point in time. The frame of reference
 for a ``timestamp`` is the UNIX epoch, January 1, 1970. That is, a
-``timestamp`` is simply an anchored ``interval``. The function ``now()``
+``timestamp`` is simply an anchored ``timespan``. The function ``now()``
 returns the current wallclock time as a ``timestamp``.
 
 String

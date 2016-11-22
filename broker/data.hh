@@ -52,7 +52,7 @@ using data_variant = detail::variant<
   subnet,
   port,
   timestamp,
-  interval,
+  timespan,
   enum_value,
   set,
   table,
@@ -81,7 +81,7 @@ public:
                 std::string,
                 detail::conditional_t<
                   std::is_same<T, timestamp>::value
-                    || std::is_same<T, interval>::value
+                    || std::is_same<T, timespan>::value
                     || std::is_same<T, enum_value>::value
 	                  || std::is_same<T, address>::value
                     || std::is_same<T, subnet>::value

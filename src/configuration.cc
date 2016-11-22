@@ -16,7 +16,7 @@ configuration::configuration() {
   add_message_type<address>("broker::address");
   add_message_type<subnet>("broker::subnet");
   add_message_type<port>("broker::port");
-  add_message_type<interval>("broker::interval");
+  add_message_type<timespan>("broker::timespan");
   add_message_type<timestamp>("broker::timestamp");
   add_message_type<enum_value>("broker::enum_value");
   add_message_type<vector>("broker::vector");

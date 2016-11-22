@@ -119,25 +119,25 @@ PYBIND11_PLUGIN(_broker) {
   py::class_<count_type>(m, "Count")
     .def(py::init<py::int_>());
 
-  py::class_<interval>(m, "Interval")
+  py::class_<timespan>(m, "Timespan")
     .def(py::init<>())
     .def(py::init<integer>())
     .def("__init__",
-         [](interval& instance, double seconds) {
+         [](timespan& instance, double seconds) {
            auto fs = fractional_seconds{seconds};
-           auto i = std::chrono::duration_cast<interval>(fs);
-           new (&instance) interval{i};
+           auto s = std::chrono::duration_cast<timespan>(fs);
+           new (&instance) timespan{s};
          })
-    .def("count", &interval::count)
-    .def("__repr__", [](const interval& i) { return to_string(i); })
+    .def("count", &timespan::count)
+    .def("__repr__", [](const timespan& s) { return to_string(s); })
     .def(py::self + py::self)
     .def(py::self - py::self)
-    .def(py::self * interval::rep{})
-    .def(interval::rep{} * py::self)
+    .def(py::self * timespan::rep{})
+    .def(timespan::rep{} * py::self)
     .def(py::self / py::self)
-    .def(py::self / interval::rep{})
+    .def(py::self / timespan::rep{})
     .def(py::self % py::self)
-    .def(py::self % interval::rep{})
+    .def(py::self % timespan::rep{})
     .def(py::self < py::self)
     .def(py::self <= py::self)
     .def(py::self > py::self)
@@ -147,12 +147,12 @@ PYBIND11_PLUGIN(_broker) {
 
   py::class_<timestamp>(m, "Timestamp")
     .def(py::init<>())
-    .def(py::init<interval>())
+    .def(py::init<timespan>())
     .def("__init__",
          [](timestamp& instance, double seconds) {
            auto fs = fractional_seconds{seconds};
-           auto i = std::chrono::duration_cast<interval>(fs);
-           new (&instance) timestamp{i};
+           auto s = std::chrono::duration_cast<timespan>(fs);
+           new (&instance) timestamp{s};
          })
     .def("time_since_epoch", &timestamp::time_since_epoch)
     .def("__repr__", [](const timestamp& ts) { return to_string(ts); })
@@ -241,7 +241,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("__init__",
          [](data& instance, count_type c) { new (&instance) data{c.value}; })
     .def(py::init<real>())
-    .def(py::init<interval>())
+    .def(py::init<timespan>())
     .def(py::init<timestamp>())
     .def(py::init<std::string>())
     .def(py::init<address>())

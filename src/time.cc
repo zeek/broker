@@ -2,20 +2,20 @@
 
 namespace broker {
 
-bool convert(interval i, std::string& str) {
+bool convert(timespan s, std::string& str) {
   using std::to_string;
-  str = to_string(i.count());
+  str = to_string(s.count());
   str += "ns";
   return true;
 }
 
-bool convert(interval i, fractional_seconds& secs) {
-  secs = std::chrono::duration_cast<fractional_seconds>(i);
+bool convert(timespan s, fractional_seconds& secs) {
+  secs = std::chrono::duration_cast<fractional_seconds>(s);
   return true;
 }
 
-bool convert(interval i, double& secs) {
-  secs = std::chrono::duration_cast<fractional_seconds>(i).count();
+bool convert(timespan s, double& secs) {
+  secs = std::chrono::duration_cast<fractional_seconds>(s).count();
   return true;
 }
 
@@ -23,13 +23,13 @@ bool convert(timestamp t, std::string& str) {
   return convert(t.time_since_epoch(), str);
 }
 
-bool convert(double secs, interval& i) {
-  i = std::chrono::duration_cast<interval>(fractional_seconds{secs});
+bool convert(double secs, timespan& s) {
+  s = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
   return true;
 }
 
 bool convert(double secs, timestamp& ts) {
-  auto d = std::chrono::duration_cast<interval>(fractional_seconds{secs});
+  auto d = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
   ts = timestamp{d};
   return true;
 }
