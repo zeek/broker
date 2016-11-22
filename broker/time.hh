@@ -7,9 +7,6 @@
 #include <type_traits>
 #include <string>
 
-#include <caf/serializer.hpp>
-#include <caf/deserializer.hpp>
-
 #include "broker/detail/hash.hh"
 #include "broker/detail/operators.hh"
 
@@ -50,38 +47,6 @@ bool convert(double secs, timestamp& ts);
 timestamp now();
 
 } // namespace broker
-
-// Because we only use type aliases and CAF's serialization framework uses ADL
-// to find the serialize() overloads, we must define them in the corresponding
-// namespace.
-namespace caf {
-
-template <class Rep, class Period>
-void serialize(serializer& sink, std::chrono::duration<Rep, Period> d) {
-  sink << d.count();
-}
-
-template <class Rep, class Period>
-void serialize(deserializer& source, std::chrono::duration<Rep, Period>& d) {
-  Rep r;
-  source >> r;
-  d = r;
-}
-
-template <class Clock, class Duration>
-void serialize(serializer& sink, std::chrono::time_point<Clock, Duration> tp) {
-  sink << tp.time_since_epoch();
-}
-
-template <class Clock, class Duration>
-void serialize(deserializer& source,
-               std::chrono::time_point<Clock, Duration>& tp) {
-  Duration since_epoch;
-  source >> since_epoch;
-  tp = std::chrono::time_point<Clock, Duration>(since_epoch);
-}
-
-} // namespace caf
 
 namespace std {
 
