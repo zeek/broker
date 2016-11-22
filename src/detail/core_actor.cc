@@ -292,7 +292,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::unsubscribe, const topic& t, const caf::actor& source) {
       BROKER_DEBUG("got unsubscribe request for topic" << t);
-      // We have erase all matching topics in two phases, because erasing a
+      // We have to erase all matching topics in two phases, because erasing a
       // topic from a radix tree invalidates iterators.
       std::vector<std::string> topics;
       for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
@@ -303,14 +303,17 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           topics.push_back(std::move(match->first));
       }
       for (auto& t : topics) {
-        BROKER_DEBUG("removing subscription state of topic" << t);
-        self->state.subscriptions.erase(t);
+        self->state.subscriptions[t].subscribers.erase(source);
+        if (self->state.subscriptions[t].subscribers.empty()) {
+          BROKER_DEBUG("removing subscription state of topic" << t);
+          self->state.subscriptions.erase(t);
+          // Relay unsubscription to peers.
+          auto msg = caf::make_message(atom::unsubscribe::value, t, self);
+          for (auto& p : self->state.peers)
+            if (p.actor && *p.actor != source)
+              self->send(*p.actor, msg);
+        }
       }
-      // Relay unsubscription to peers.
-      auto msg = caf::make_message(atom::unsubscribe::value, t, self);
-      for (auto& p : self->state.peers)
-        if (p.actor && *p.actor != source)
-          self->send(*p.actor, msg);
     },
     [=](atom::peer, network_info net) {
       BROKER_DEBUG("peering with remote endpoint" << to_string(net));
