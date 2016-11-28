@@ -394,7 +394,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("empty", &mailbox::empty)
     .def("count", &mailbox::count);
 
-  py::class_<blocking_endpoint>(m, "BlockingEndpoint", py::base<endpoint>{})
+  py::class_<blocking_endpoint, endpoint>(m, "BlockingEndpoint")
     .def("subscribe", [](blocking_endpoint& ep, const std::string& t) {
            ep.subscribe(t);
          })
@@ -420,8 +420,7 @@ PYBIND11_PLUGIN(_broker) {
          })
     .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<0, 1>());
 
-  py::class_<nonblocking_endpoint>(m, "NonblockingEndpoint",
-                                   py::base<endpoint>{})
+  py::class_<nonblocking_endpoint, endpoint>(m, "NonblockingEndpoint")
     .def("subscribe_msg",
          [](nonblocking_endpoint& ep, const std::string& t,
             std::function<void(const topic&, const data& d)> f) {
