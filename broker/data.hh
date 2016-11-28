@@ -182,7 +182,7 @@ struct hash<broker::table::value_type> {
   using result_type = typename std::hash<broker::data>::result_type;
 
   inline result_type operator()(const broker::table::value_type& p) const {
-    result_type result;
+    auto result = result_type{0};
     broker::detail::hash_combine(result, p.first);
     broker::detail::hash_combine(result, p.second);
     return result;

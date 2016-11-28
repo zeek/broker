@@ -524,7 +524,7 @@ struct hash<broker::detail::variant<Ts...>> {
   };
 
   result_type operator()(const broker::detail::variant<Ts...>& v) const {
-    result_type result;
+    auto result = result_type{0};
     broker::detail::hash_combine(result, v.index());
     broker::detail::hash_combine(result, visit(hasher{}, v));
     return result;

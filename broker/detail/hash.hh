@@ -32,7 +32,7 @@ struct container_hasher {
   using result_type = size_t;
 
   result_type operator()(const Container& c) const {
-    result_type result;
+    auto result = result_type{0};
     auto n = result_type{0};
     for (auto& e : c) {
       hash_combine(result, e);

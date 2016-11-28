@@ -1,9 +1,14 @@
 #include "broker/error.hh"
 
+#include "broker/detail/assert.hh"
+
 namespace broker {
 
 const char* to_string(ec x) {
   switch (x) {
+    default:
+      BROKER_ASSERT(!"missing to_string implementation");
+      return "<unknown>";
     case ec::unspecified:
       return "<unspecified>";
     case ec::version_incompatible:
