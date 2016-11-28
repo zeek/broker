@@ -13,14 +13,28 @@ set_target_properties(_broker PROPERTIES
                       PREFIX "")
 
 # Stage Python scripts.
-file(GLOB_RECURSE BROKER_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/broker/*.py)
-add_custom_target(python-scripts-stage
-                  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${BROKER_SCRIPTS}
-                    ${BROKER_PYTHON_MODULE_DIR}
-                  COMMENT
-                    "Staging Python scripts in ${BROKER_PYTHON_MODULE_DIR}"
-                  VERBATIM)
+if (${CMAKE_VERSION} VERSION_LESS "3.5")
+  # TODO: Only CMake 3.5 can support multiple arguments to the copy* commands.
+  # Once we've bumped up the minimum version requirement to 3.5, we can get rid
+  # of this branch.
+  add_custom_target(python-scripts-stage
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                      ${CMAKE_CURRENT_SOURCE_DIR}/broker
+                      ${BROKER_PYTHON_MODULE_DIR}
+                    COMMENT
+                      "Staging Python scripts in ${BROKER_PYTHON_MODULE_DIR}"
+                    VERBATIM)
+else ()
+  file(GLOB_RECURSE BROKER_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/broker/*.py)
+  add_custom_target(python-scripts-stage
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                      ${BROKER_SCRIPTS}
+                      ${BROKER_PYTHON_MODULE_DIR}
+                    COMMENT
+                      "Staging Python scripts in ${BROKER_PYTHON_MODULE_DIR}"
+                    VERBATIM)
+endif ()
+
 
 # Whenever we build the bindings, we also ensure that we stage the current
 # scripts along with it.
