@@ -273,3 +273,87 @@ TEST(3 Unpeering and Overlay Partitioning) {
   CHECK(n4.mailbox().empty());
   CHECK(n5.mailbox().empty());
 }
+
+// legacy broker: multihop3 and multihop4
+TEST(4 Bro Standard Cluster Setup) {
+	/* Overlay configuration as in 
+	 * a typical bro cluster setting
+	 *
+	 *  ---------- -----------
+	 *  |        | |         |
+	 *	| -------n0[b]------ |
+	 *	| |	      |        | |
+	 *	| |  ----n1[a]--   | |
+	 *	| |  |		|    |   | |
+	 *	| --n2[a] |  n3[a]-- |
+	 *	|	   |		|	   |     |
+	 *	|    ---n4[a]---     |
+	 *	|	       | |         |
+	 *	---------- ----------
+	 *
+	 *	n0 (broctl) is connected to all cluster nodes
+   *	n0 publishes a message for topic a
+   */
+
+  MESSAGE("spawning endpoints");
+  context ctx;
+  auto n0 = ctx.spawn<blocking>();
+  auto n1 = ctx.spawn<blocking>();
+  auto n2 = ctx.spawn<blocking>();
+  auto n3 = ctx.spawn<blocking>();
+  auto n4 = ctx.spawn<blocking>();
+
+  MESSAGE("connecting peers");
+  n0.peer(n1);
+  n0.receive([](const status& s) { CHECK(s == peer_added); });
+  n1.receive([](const status& s) { CHECK(s == peer_added); });
+  n0.peer(n2);
+  n0.receive([](const status& s) { CHECK(s == peer_added); });
+  n2.receive([](const status& s) { CHECK(s == peer_added); });
+  n0.peer(n3);
+  n0.receive([](const status& s) { CHECK(s == peer_added); });
+  n3.receive([](const status& s) { CHECK(s == peer_added); });
+  n0.peer(n4);
+  n0.receive([](const status& s) { CHECK(s == peer_added); });
+  n4.receive([](const status& s) { CHECK(s == peer_added); });
+  n1.peer(n2);
+  n1.receive([](const status& s) { CHECK(s == peer_added); });
+  n2.receive([](const status& s) { CHECK(s == peer_added); });
+  n1.peer(n3);
+  n1.receive([](const status& s) { CHECK(s == peer_added); });
+  n3.receive([](const status& s) { CHECK(s == peer_added); });
+  n1.peer(n4);
+  n1.receive([](const status& s) { CHECK(s == peer_added); });
+  n4.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK_EQUAL(n0.peers().size(), 4u);
+  CHECK_EQUAL(n1.peers().size(), 4u);
+  CHECK_EQUAL(n2.peers().size(), 4u);
+  CHECK_EQUAL(n3.peers().size(), 4u);
+  CHECK_EQUAL(n4.peers().size(), 4u);
+  CHECK(n0.mailbox().empty());
+  CHECK(n1.mailbox().empty());
+  CHECK(n2.mailbox().empty());
+  CHECK(n3.mailbox().empty());
+  CHECK(n4.mailbox().empty());
+
+  MESSAGE("propagating subscriptions");
+  n0.subscribe("b");
+  n1.subscribe("a");
+  n2.subscribe("a");
+  n3.subscribe("a");
+  n4.subscribe("a");
+  std::this_thread::sleep_for(milliseconds{100});
+
+  MESSAGE("Broadcasting message from n0 to all others");
+  n0.publish("a", "ping");
+  n1.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
+  n2.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
+  n3.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
+  n4.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
+  std::this_thread::sleep_for(milliseconds{100});
+  CHECK(n0.mailbox().empty());
+  CHECK(n1.mailbox().empty());
+  CHECK(n2.mailbox().empty());
+  CHECK(n3.mailbox().empty());
+  CHECK(n4.mailbox().empty());
+}
