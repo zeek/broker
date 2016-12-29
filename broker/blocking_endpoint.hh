@@ -3,6 +3,7 @@
 
 #include <caf/blocking_actor.hpp>
 
+#include "broker/api_flags.hh"
 #include "broker/endpoint.hh"
 #include "broker/message.hh"
 #include "broker/status.hh"
@@ -132,7 +133,7 @@ public:
   broker::mailbox mailbox();
 
 private:
-  blocking_endpoint(caf::actor_system& sys);
+  blocking_endpoint(caf::actor_system& sys, api_flags flags);
 };
 
 } // namespace broker

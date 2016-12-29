@@ -8,6 +8,7 @@ enum class api_flags : int {
   no_flags = 0x00,
   blocking_flag = 0x01,
   nonblocking_flag = 0x02,
+  routable_flag = 0x04,
 };
 
 /// @see api_flags
@@ -18,6 +19,9 @@ constexpr api_flags blocking = api_flags::blocking_flag;
 
 /// @see api_flags
 constexpr api_flags nonblocking = api_flags::nonblocking_flag;
+
+/// @see api_flags
+constexpr api_flags routable = api_flags::routable_flag;
 
 /// @see api_flags
 constexpr bool has_api_flags(api_flags haystack, api_flags needle) {

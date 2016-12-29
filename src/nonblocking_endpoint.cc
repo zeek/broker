@@ -85,9 +85,10 @@ void nonblocking_endpoint::unsubscribe(topic t) {
   );
 }
 
-nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys) {
+nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys,
+                                           api_flags flags) {
   subscriber_ = sys.spawn(subscriber);
-  init_core(sys.spawn(detail::core_actor, subscriber_));
+  init_core(sys.spawn(detail::core_actor, subscriber_, flags));
   caf::anon_send(subscriber_, core());
 }
 

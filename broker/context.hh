@@ -24,16 +24,16 @@ public:
 
   /// Creates a ::blocking_endpoint.
   template <api_flags Flags>
-  detail::enable_if_t<Flags == blocking, blocking_endpoint>
+  detail::enable_if_t<has_api_flags(Flags, blocking), blocking_endpoint>
   spawn() {
-    return {system_};
+    return {system_, Flags};
   }
 
   /// Creates a ::nonblocking_endpoint.
   template <api_flags Flags, class... Ts>
-  detail::enable_if_t<Flags == nonblocking, nonblocking_endpoint>
+  detail::enable_if_t<has_api_flags(Flags, nonblocking), nonblocking_endpoint>
   spawn() {
-    return {system_};
+    return {system_, Flags};
   }
 
 private:
