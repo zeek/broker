@@ -4,10 +4,10 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/atoms.hh"
-#include "broker/error.hh"
 #include "broker/blocking_endpoint.hh"
 #include "broker/endpoint.hh"
 #include "broker/nonblocking_endpoint.hh"
+#include "broker/status.hh"
 #include "broker/timeout.hh"
 
 #include "broker/detail/assert.hh"
@@ -148,7 +148,7 @@ const caf::actor& endpoint::core() const {
 
 expected<store> endpoint::attach_master(std::string name, backend type,
                                         backend_options opts) {
-  expected<store> result{ec::unspecified};
+  expected<store> result{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::store::value, atom::master::value,
                                atom::attach::value, std::move(name), type,
@@ -165,7 +165,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 }
 
 expected<store> endpoint::attach_clone(std::string name) {
-  expected<store> result{ec::unspecified};
+  expected<store> result{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::store::value, atom::clone::value,
                 atom::attach::value, std::move(name)).receive(

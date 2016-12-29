@@ -10,9 +10,9 @@
 #include "broker/api_flags.hh"
 #include "broker/atoms.hh"
 #include "broker/data.hh"
-#include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/optional.hh"
+#include "broker/status.hh"
 #include "broker/timeout.hh"
 
 namespace broker {
@@ -34,26 +34,26 @@ public:
         msg_{caf::make_message(std::forward<Ts>(xs)...)} {
     }
 
-    template <class OnData, class OnError>
-    void then(OnData on_data, OnError on_error) {
+    template <class OnData, class OnStatus>
+    void then(OnData on_data, OnStatus on_status) {
       using on_data_type = caf::detail::get_callable_trait<OnData>;
-      using on_error_type = caf::detail::get_callable_trait<OnError>;
+      using on_status_type = caf::detail::get_callable_trait<OnStatus>;
       static_assert(std::is_same<void, typename on_data_type::result_type>{},
                     "data callback must not have a return value");
-      static_assert(std::is_same<void, typename on_error_type::result_type>{},
+      static_assert(std::is_same<void, typename on_status_type::result_type>{},
                     "error callback must not have a return value");
       using on_data_args = typename on_data_type::arg_types;
-      using on_error_args = typename on_error_type::arg_types;
+      using on_status_args = typename on_status_type::arg_types;
       static_assert(caf::detail::tl_size<on_data_args>::value == 1,
                     "data callback can have only one argument");
-      static_assert(caf::detail::tl_size<on_error_args>::value == 1,
+      static_assert(caf::detail::tl_size<on_status_args>::value == 1,
                     "error callback can have only one argument");
       using on_data_arg = typename caf::detail::tl_head<on_data_args>::type;
-      using on_error_arg = typename caf::detail::tl_head<on_error_args>::type;
+      using on_status_arg = typename caf::detail::tl_head<on_status_args>::type;
       static_assert(std::is_same<detail::decay_t<on_data_arg>, T>::value,
                     "data callback must have valid type for operation");
-      static_assert(std::is_same<detail::decay_t<on_error_arg>, error>::value,
-                    "error callback must have broker::errror as argument type");
+      static_assert(std::is_same<detail::decay_t<on_status_arg>, status>::value,
+                    "error callback must have broker::status as argument type");
       // Explicitly capture *this members. Initialized lambdas are C++14. :-/
       auto frontend = frontend_;
       auto msg = msg_;
@@ -61,7 +61,17 @@ public:
         [=](caf::event_based_actor* self) {
           self->request(frontend, timeout::frontend, std::move(msg)).then(
             on_data,
-            on_error
+            [=](caf::error& e) {
+              if (e == caf::sec::request_timeout) {
+                auto desc = "store operation timed out";
+                on_status(make_status<sc::request_timeout>(desc));
+              } else if (e.category() == caf::atom("broker")) {
+                on_status(make_status(std::move(e)));
+              } else {
+                auto desc = self->system().render(e);
+                on_status(make_status<sc::unspecified>(std::move(desc)));
+              }
+            }
           );
         }
       );
@@ -147,14 +157,14 @@ private:
 
   template <class T, class... Ts>
   expected<T> request(Ts&&... xs) const {
-    expected<T> result{ec::unspecified};
+    expected<T> result{sc::unspecified};
     caf::scoped_actor self{frontend_->home_system()};
     auto msg = caf::make_message(std::forward<Ts>(xs)...);
     self->request(frontend_, timeout::frontend, std::move(msg)).receive(
       [&](T& x) {
         result = std::move(x);
       },
-      [&](error& e) {
+      [&](caf::error& e) {
         result = std::move(e);
       }
     );

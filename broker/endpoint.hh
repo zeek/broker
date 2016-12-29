@@ -15,6 +15,7 @@
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
+#include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
 

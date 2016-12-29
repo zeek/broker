@@ -7,11 +7,11 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/convert.hh"
-#include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
+#include "broker/status.hh"
 #include "broker/topic.hh"
 #include "broker/version.hh"
 
@@ -25,7 +25,6 @@
 
 namespace broker {
 namespace detail {
-
 namespace {
 
 // Creates endpoint information from a core actor.
@@ -83,35 +82,33 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
           BROKER_ASSERT(i != peers->end());
           i->info.status = peer_status::peered;
           // Inform the subscriber about the successfully established peering.
-          status s;
-          s.endpoint = make_info(other, net);
-          s.info = peer_added;
-          s.message = "outbound peering established";
-          BROKER_INFO(s.message);
+          auto desc = "outbound peering established";
+          auto s = make_status<sc::peer_added>(make_info(other, net), desc);
+          BROKER_INFO(desc);
           self->send(subscriber, std::move(s));
         });
     },
     [=](const caf::error& e) mutable {
       // Report peering error to subscriber.
-      status s;
-      s.endpoint = make_info(other, net);
+      auto info = make_info(other, net);
       if (e == caf::sec::request_timeout) {
-        s.message = "peering request timed out";
-        BROKER_ERROR(s.message);
+        auto desc = "peering request timed out";
+        BROKER_ERROR(desc);
+        auto s = make_status<sc::peer_timeout>(std::move(info), desc);
         self->send(subscriber, std::move(s));
         // Try again.
         perform_handshake(self, subscriber, other, std::move(net));
       } else if (e == caf::sec::request_receiver_down) {
         // The supervisor will automatically attempt to re-establish a
         // connection.
-        s.info = peer_unavailable;
-        s.message = "remote endpoint unavailable";
-        BROKER_ERROR(s.message);
+        auto desc = "remote endpoint unavailable";
+        BROKER_ERROR(desc);
+        auto s = make_status<sc::peer_unavailable>(std::move(info), desc);
         self->send(subscriber, std::move(s));
-      } else if (e == ec::version_incompatible) {
-        s.info = peer_incompatible;
-        s.message = "incompatible peer version";
-        BROKER_INFO(s.message);
+      } else if (e == sc::peer_incompatible) {
+        auto desc = "incompatible peer version";
+        BROKER_INFO(desc);
+        auto s = make_status<sc::peer_incompatible>(info, desc);
         self->send(subscriber, s);
         auto peers = &self->state.peers;
         auto pred = [=](const peer_state& p) { return p.actor == other; };
@@ -127,14 +124,14 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
           self->state.supervisors.erase(sv);
         }
         peers->erase(i);
-        s.info = peer_removed;
-        s.message = "permanently removed incompatible peer";
-        BROKER_INFO(s.message);
+        desc = "permanently removed incompatible peer";
+        BROKER_INFO(desc);
+        s = make_status<sc::peer_removed>(std::move(info), desc);
         self->send(subscriber, std::move(s));
       } else {
-        s.message = to_string(e);
-        BROKER_ERROR(s.message);
-        self->send(subscriber, std::move(s));
+        auto desc = self->system().render(e);
+        BROKER_ERROR(desc);
+        self->send(subscriber, make_status<sc::unspecified>(std::move(desc)));
         self->quit(caf::exit_reason::user_shutdown);
       }
     }
@@ -200,17 +197,17 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       BROKER_ASSERT(i != self->state.peers.end());
-      auto s = status{peer_removed};
-      s.endpoint = i->info.peer;
+      const char* desc;
       if (is_outbound(i->info.flags)) {
         BROKER_ASSERT(is_local(i->info.flags));
-        s.message = "lost local outbound peer";
+        desc = "lost local outbound peer";
       } else {
         BROKER_ASSERT(is_inbound(i->info.flags));
         BROKER_ASSERT(is_remote(i->info.flags));
-        s.message = "lost remote inbound peer";
+        desc = "lost remote inbound peer";
       }
-      self->send(subscriber, std::move(s));
+      BROKER_DEBUG(desc);
+      self->send(subscriber, make_status<sc::peer_removed>(i->info.peer, desc));
       peers->erase(i);
     }
   );
@@ -391,10 +388,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           sub.second.subscribers.erase(*i->actor);
         i->actor = {};
         // Notify local subscriber.
-        auto s = status{peer_lost};
-        s.endpoint = i->info.peer;
-        s.message = "lost remote peer";
-        self->send(subscriber, std::move(s));
+        auto desc = "lost remote peer";
+        self->send(subscriber, make_status<sc::peer_lost>(i->info.peer, desc));
       }
     },
     [=](atom::peer, const caf::actor& other, version::type v) {
@@ -402,7 +397,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto rp = self->make_response_promise();
       if (!version::compatible(v)) {
         BROKER_INFO("detected incompatible version" << v);
-        rp.deliver(make_error_message(ec::version_incompatible));
+        rp.deliver(make_message(make_error(sc::peer_incompatible)));
         return;
       }
       auto pred = [=](const peer_state& p) { return p.actor == other; };
@@ -424,15 +419,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           optional<network_info> net;
           if (port > 0)
             net = network_info{addr, port};
-          status s;
-          s.endpoint = make_info(other, net);
-          peer_info pi{s.endpoint, peer_flags::inbound, peer_status::peered};
+          auto info = make_info(other, net);
+          peer_info pi{info, peer_flags::inbound, peer_status::peered};
           peers->push_back({other, std::move(pi)});
-          s.info = peer_added;
-          s.message = "inbound peering established";
-          BROKER_DEBUG(s.message);
+          auto desc = "inbound peering established";
+          BROKER_DEBUG(desc);
           self->monitor(other);
           rp.deliver(caf::make_message(version::protocol));
+          auto s = make_status<sc::peer_added>(std::move(info), desc);
           self->send(subscriber, std::move(s));
         }
       );
@@ -458,9 +452,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       status s;
       if (i == peers->end()) {
-        s.info = peer_invalid;
-        s.endpoint = make_info(net);
-        s.message = "no such peer";
+        s = make_status<sc::peer_invalid>(make_info(net), "no such peer");
       } else {
         if (i->actor) {
           // Tell the other side to stop peering with us.
@@ -468,9 +460,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->demonitor(*i->actor);
         }
         // Remove the other endpoint from ourselves.
-        s.info = peer_removed;
-        s.endpoint = make_info(net);
-        s.message = "removed peering";
+        s = make_status<sc::peer_removed>(make_info(net), "removed peering");
         peers->erase(i);
       }
       self->send(subscriber, std::move(s));
@@ -482,21 +472,16 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto pred = [&](const peer_state& p) { return p.actor == peer; };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       status s;
-      s.endpoint = make_info(peer);
       if (i == peers->end()) {
-        s.info = peer_invalid;
-        s.message = "no such peer";
-        BROKER_DEBUG(s.message);
+        s = make_status<sc::peer_invalid>(make_info(peer), "no such peer");
       } else {
         // Tell the other side to stop peering with us.
         if (peer != source)
           self->send(peer, atom::unpeer::value, self, self);
         self->demonitor(peer);
         // Remove the other endpoint from ourselves.
-        s.info = peer_removed;
-        s.message = "removed peering";
-        BROKER_DEBUG(s.message);
         peers->erase(i);
+        s = make_status<sc::peer_removed>(make_info(peer), "removed peering");
       }
       self->send(subscriber, std::move(s));
     },
@@ -529,7 +514,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       if (find_remote_master(self, name)) {
         BROKER_WARNING("remote master with same name exists already");
-        return ec::master_exists;
+        return sc::master_exists;
       }
       BROKER_DEBUG("instantiating backend");
       auto ptr = make_backend(backend_type, std::move(opts));
@@ -555,7 +540,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_DEBUG("found remote master");
         master = std::move(*remote);
       } else {
-        return ec::no_such_master;
+        return sc::no_such_master;
       }
       BROKER_DEBUG("spawning new clone");
       auto clone = self->spawn<caf::linked>(clone_actor, self, *master, name);

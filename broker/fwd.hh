@@ -9,6 +9,7 @@ class context;
 class endpoint;
 class blocking_endpoint;
 class nonblocking_endpoint;
+class status;
 class store;
 
 struct network_info;

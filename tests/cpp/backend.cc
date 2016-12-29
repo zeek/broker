@@ -134,7 +134,7 @@ private:
     for (auto& backend : backends_)
       xs.push_back(f(*backend));
     if (!all_equal(xs))
-      return ec::unspecified;
+      return sc::unspecified;
     return std::move(xs.front());
   }
 
@@ -179,16 +179,16 @@ TEST(put/get) {
   MESSAGE("no key");
   get = backend->get("bar");
   REQUIRE(!get);
-  CHECK_EQUAL(get.error(), ec::no_such_key);
+  CHECK_EQUAL(get.error(), sc::no_such_key);
 }
 
 TEST(add/remove) {
   auto add = backend->add("foo", 42);
   REQUIRE(!add);
-  CHECK_EQUAL(add.error(), ec::no_such_key);
+  CHECK_EQUAL(add.error(), sc::no_such_key);
   auto remove = backend->remove("foo", 42);
   REQUIRE(!remove);
-  CHECK_EQUAL(remove.error(), ec::no_such_key);
+  CHECK_EQUAL(remove.error(), sc::no_such_key);
   auto put = backend->put("foo", 42);
   MESSAGE("add");
   add = backend->add("foo", 2);
@@ -199,7 +199,7 @@ TEST(add/remove) {
   MESSAGE("remove");
   remove = backend->remove("foo", "bar");
   REQUIRE(!remove);
-  CHECK_EQUAL(remove.error(), ec::type_clash);
+  CHECK_EQUAL(remove.error(), sc::type_clash);
   remove = backend->remove("foo", 10);
   REQUIRE(remove);
   get = backend->get("foo");

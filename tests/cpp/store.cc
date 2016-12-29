@@ -29,7 +29,7 @@ TEST(no duplicate masters) {
   CHECK_EQUAL(ds0->name(), "yoda");
   std::this_thread::sleep_for(propagation_delay); // subscription
   auto ds1 = ep1.attach<master, memory>("yoda");
-  CHECK(ds1 == ec::master_exists);
+  CHECK(ds1 == sc::master_exists);
 }
 
 TEST(master operations) {
@@ -44,12 +44,12 @@ TEST(master operations) {
   CHECK_EQUAL(*result, data{42});
   result = ds->get("bar");
   REQUIRE(!result);
-  CHECK_EQUAL(result.error(), ec::no_such_key);
+  CHECK_EQUAL(result.error(), sc::no_such_key);
   MESSAGE("erase");
   ds->erase("foo");
   result = ds->get("foo");
   REQUIRE(!result);
-  CHECK_EQUAL(result.error(), ec::no_such_key);
+  CHECK_EQUAL(result.error(), sc::no_such_key);
   MESSAGE("add");
   ds->add("foo", 1u); // key did not exist, operation fails
   result = ds->get("foo");
@@ -96,31 +96,23 @@ TEST(nonblocking api) {
   MESSAGE("put");
   ds->put("foo", 42);
   MESSAGE("existing key");
-  auto result = std::make_shared<expected<data>>(ec::unspecified);
+  auto result = std::make_shared<data>();
   ds->get<nonblocking>("foo").then(
-    [=](data& d) {
-      *result = std::move(d);
-    },
-    [=](error& e) {
-      *result = std::move(e);
-    }
+    [=](data& d) { *result = std::move(d); },
+    [](status) { /* nop */ }
   );
   std::this_thread::sleep_for(propagation_delay);
-  REQUIRE(*result);
-  CHECK_EQUAL(**result, data{42});
+  REQUIRE(result);
+  CHECK_EQUAL(*result, data{42});
   MESSAGE("non-existing key");
-  *result = ec::unspecified;
+  auto failure = std::make_shared<status>();
   ds->get<nonblocking>("bar").then(
-    [=](data& d) {
-      *result = std::move(d);
-    },
-    [=](error& e) {
-      *result = std::move(e);
-    }
+    [](const data&) { /* nop */ },
+    [=](status s) { *failure = std::move(s); }
   );
   std::this_thread::sleep_for(propagation_delay);
-  REQUIRE(!*result);
-  CHECK_EQUAL(result->error(), ec::no_such_key);
+  REQUIRE(failure);
+  CHECK_EQUAL(*failure, sc::no_such_key);
 }
 
 TEST(clone operations - same endpoint) {
@@ -182,5 +174,5 @@ TEST(expiration) {
   // Check after expiration.
   v = m->get("foo");
   REQUIRE(!v);
-  CHECK(v.error() == ec::no_such_key);
+  CHECK(v.error() == sc::no_such_key);
 }

@@ -1,12 +1,9 @@
 #ifndef BROKER_BLOCKING_ENDPOINT_HH
 #define BROKER_BLOCKING_ENDPOINT_HH
 
-#include <caf/blocking_actor.hpp>
-
 #include "broker/endpoint.hh"
 #include "broker/message.hh"
-
-#include "broker/detail/type_traits.hh"
+#include "broker/status.hh"
 
 namespace broker {
 
@@ -51,43 +48,9 @@ public:
   /// @param t The topic to unsubscribe from.
   void unsubscribe(topic t);
 
-  /// Consumes the next message in the mailbox or blocks until one arrives.
+  /// Consumes the next message blocks until one arrives.
   /// @returns The next message in the mailbox.
   message receive();
-
-  /// Consumes one message that matches the given handler.
-  template <class F>
-  detail::enable_if_t<detail::is_message_callback<F>::value>
-  receive(F f) {
-    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
-    subscriber->receive(
-      [&](const topic& t, const caf::message& msg, const caf::actor&) {
-        f(t, msg.get_as<data>(0));
-      }
-    );
-  }
-
-  /// Consumes one message that matches the given handler.
-  template <class F>
-  detail::enable_if_t<detail::is_status_callback<F>::value>
-  receive(F f) {
-    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
-    subscriber->receive(f);
-  }
-
-  /// Consumes one message that matches the given handler.
-  template <class OnMessage, class OnStatus>
-  void receive(OnMessage on_msg, OnStatus on_status) {
-    detail::verify_message_callback<OnMessage>();
-    detail::verify_status_callback<OnStatus>();
-    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
-    subscriber->receive(
-      [&](const topic& t, const caf::message& msg, const caf::actor&) {
-        on_msg(t, msg.get_as<data>(0));
-      },
-      on_status
-    );
-  }
 
   /// Access the endpoint's mailbox, which provides the following
   /// introspection functions:

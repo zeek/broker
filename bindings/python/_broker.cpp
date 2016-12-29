@@ -24,14 +24,21 @@ PYBIND11_PLUGIN(_broker) {
   version.def("compatible", &version::compatible,
               "Checks whether two Broker protocol versions are compatible");
 
-  py::enum_<ec>(m, "EC")
-    .value("Unspecified", ec::unspecified)
-    .value("VersionIncompatible", ec::version_incompatible)
-    .value("MasterExists", ec::master_exists)
-    .value("NoSuchMaster", ec::no_such_master)
-    .value("TypeClash", ec::type_clash)
-    .value("InvalidData", ec::invalid_data)
-    .value("BackendFailure", ec::backend_failure);
+  py::enum_<sc>(m, "SC")
+    .value("Unspecified", sc::unspecified)
+    .value("PeerAdded", sc::peer_added)
+    .value("PeerRemoved", sc::peer_removed)
+    .value("PeerIncompatible", sc::peer_incompatible)
+    .value("PeerInvalid", sc::peer_invalid)
+    .value("PeerUnavailable", sc::peer_unavailable)
+    .value("PeerTimeout", sc::peer_timeout)
+    .value("PeerLost", sc::peer_lost)
+    .value("PeerRecovered", sc::peer_recovered)
+    .value("MasterExists", sc::master_exists)
+    .value("NoSuchMaster", sc::no_such_master)
+    .value("TypeClash", sc::type_clash)
+    .value("InvalidData", sc::invalid_data)
+    .value("BackendFailure", sc::backend_failure);
 
   py::enum_<peer_status>(m, "PeerStatus")
     .value("Initialized", peer_status::initialized)
@@ -47,17 +54,6 @@ PYBIND11_PLUGIN(_broker) {
     .value("Remote", peer_flags::remote)
     .value("Outbound", peer_flags::outbound)
     .value("Inbound", peer_flags::inbound);
-
-  py::enum_<status_info>(m, "StatusInfo")
-    .value("UnknownStatus", unknown_status)
-    .value("PeerAdded", peer_added)
-    .value("PeerRemoved", peer_removed)
-    .value("PeerIncompatible", peer_incompatible)
-    .value("PeerInvalid", peer_invalid)
-    .value("PeerUnavailable", peer_unavailable)
-    .value("PeerLost", peer_lost)
-    .value("PeerRecovered", peer_recovered)
-    .export_values();
 
   py::enum_<api_flags>(m, "ApiFlags")
     .value("Blocking", blocking)
@@ -79,10 +75,6 @@ PYBIND11_PLUGIN(_broker) {
   // General
   //
 
-  py::class_<error>(m, "Error")
-    .def("code", &error::code)
-    .def("context", [](const error& e) { return e.context(); });
-
   py::class_<endpoint_info>(m, "EndpointInfo")
     .def_readwrite("node", &endpoint_info::node)
     .def_readwrite("id", &endpoint_info::id)
@@ -98,10 +90,17 @@ PYBIND11_PLUGIN(_broker) {
     .def_readwrite("status", &peer_info::status);
 
   py::class_<status>(m, "Status")
-    .def(py::init<status_info>())
-    .def_readwrite("info", &status::info)
-    .def_readwrite("endpoint", &status::endpoint)
-    .def_readwrite("message", &status::message);
+    .def(py::init<>())
+    .def("context",
+         [](status& instance) {
+           // TODO: create the right context object based on status code.
+           return "";
+         })
+    .def("message",
+         [](status& instance) {
+           auto msg = instance.message();
+           return msg ? *msg : std::string{};
+         });
 
   //
   // Data model
@@ -367,7 +366,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("unpeer", (void (endpoint::*)(const std::string&, uint16_t))
                      &endpoint::unpeer)
     .def("peers", &endpoint::peers)
-    .def("publish", [](endpoint& ep, const std::string& t, const data& d) { 
+    .def("publish", [](endpoint& ep, const std::string& t, const data& d) {
                       ep.publish(t, d);
                     })
     .def("attach_master",
@@ -375,7 +374,7 @@ PYBIND11_PLUGIN(_broker) {
             const backend_options& opts) -> expected<store> {
            switch (b) {
              default:
-               return make_error(ec::backend_failure, "invalid backend type");
+               return make_error(sc::backend_failure, "invalid backend type");
              case memory:
                return ep.attach<master, memory>(name, opts);
              case sqlite:
@@ -403,23 +402,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("unsubscribe", [](blocking_endpoint& ep, const std::string& t) {
            ep.unsubscribe(t);
          })
-    .def("receive", (message (endpoint::*)())&blocking_endpoint::receive)
-    .def("receive_msg",
-         [](blocking_endpoint& ep,
-            std::function<void(const topic&, const data& d)> f) {
-           ep.receive(f);
-         })
-    .def("receive_status",
-         [](blocking_endpoint& ep, std::function<void(const status&)> f) {
-           ep.receive(f);
-         })
-    .def("receive_msg_or_status",
-         [](blocking_endpoint& ep,
-            std::function<void(const topic&, const data& d)> on_msg,
-            std::function<void(const status&)> on_status
-            ) {
-           ep.receive(on_msg, on_status);
-         })
+    .def("receive", &blocking_endpoint::receive)
     .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<0, 1>());
 
   py::class_<nonblocking_endpoint, endpoint>(m, "NonblockingEndpoint")

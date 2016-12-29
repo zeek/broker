@@ -2,8 +2,8 @@
 #define BROKER_DETAIL_APPLIERS_HH
 
 #include "broker/data.hh"
-#include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/status.hh"
 #include "broker/time.hh"
 
 #include "broker/detail/type_traits.hh"
@@ -24,14 +24,14 @@ struct adder {
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return ec::type_clash;
+    return sc::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
-      return ec::type_clash;
+      return sc::type_clash;
     c += *x;
     return {};
   }
@@ -39,7 +39,7 @@ struct adder {
   result_type operator()(timestamp& tp) {
     auto s = value.get<timespan>();
     if (!s)
-      return ec::type_clash;
+      return sc::type_clash;
     tp += *s;
     return {};
   }
@@ -47,7 +47,7 @@ struct adder {
   result_type operator()(std::string& str) {
     auto x = value.get<std::string>();
     if (!x)
-      return ec::type_clash;
+      return sc::type_clash;
     str += *x;
     return {};
   }
@@ -67,9 +67,9 @@ struct adder {
     // vector of length 2.
     auto v = value.get<vector>();
     if (!v)
-      return ec::type_clash;
+      return sc::type_clash;
     if (v->size() != 2)
-      return ec::invalid_data;
+      return sc::invalid_data;
     t[v->front()] = v->back();
     return {};
   }
@@ -82,14 +82,14 @@ struct remover {
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return ec::type_clash;
+    return sc::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = value.get<T>();
     if (!x)
-      return ec::type_clash;
+      return sc::type_clash;
     c -= *x;
     return {};
   }
@@ -97,7 +97,7 @@ struct remover {
   result_type operator()(timestamp& ts) {
     auto s = value.get<timespan>();
     if (!s)
-      return ec::type_clash;
+      return sc::type_clash;
     ts -= *s;
     return {};
   }
@@ -132,9 +132,9 @@ struct retriever {
   result_type operator()(const vector& v) const {
     auto i = aspect.get<count>();
     if (!i)
-      return ec::type_clash;
+      return sc::type_clash;
     if (*i >= v.size())
-      return ec::invalid_data;
+      return sc::invalid_data;
     return v[*i];
   }
 
@@ -145,7 +145,7 @@ struct retriever {
   result_type operator()(const table& t) const {
     auto i = t.find(aspect);
     if (i == t.end())
-      return ec::invalid_data;
+      return sc::invalid_data;
     return i->second;
   }
 

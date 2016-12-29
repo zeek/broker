@@ -1,4 +1,4 @@
-#include "broker/error.hh"
+#include "broker/status.hh"
 
 #include "broker/detail/appliers.hh"
 #include "broker/detail/memory_backend.hh"
@@ -22,7 +22,7 @@ expected<void> memory_backend::add(const data& key, const data& value,
                                    optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return sc::no_such_key;
   auto result = visit(adder{value}, i->second.first);
   if (result)
     i->second.second = expiry;
@@ -33,7 +33,7 @@ expected<void> memory_backend::remove(const data& key, const data& value,
                                       optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return sc::no_such_key;
   auto result = visit(remover{value}, i->second.first);
   if (result)
     i->second.second = expiry;
@@ -49,7 +49,7 @@ expected<bool> memory_backend::expire(const data& key) {
   auto ts = now();
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return sc::no_such_key;
   if (!i->second.second || ts < i->second.second)
     return false;
   store_.erase(i);
@@ -59,14 +59,14 @@ expected<bool> memory_backend::expire(const data& key) {
 expected<data> memory_backend::get(const data& key) const {
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return sc::no_such_key;
   return i->second.first;
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return sc::no_such_key;
   // We do not use the default implementation because operating directly on the
   // stored data element is more efficient in case the visitation returns an
   // error.

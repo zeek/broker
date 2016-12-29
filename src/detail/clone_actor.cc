@@ -5,9 +5,9 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/snapshot.hh"
+#include "broker/status.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/clone_actor.hh"
@@ -83,14 +83,14 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_DEBUG("got GET" << key);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        return ec::no_such_key;
+        return sc::no_such_key;
       return i->second;
     },
     [=](atom::get, const data& key, const data& value) -> expected<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        return ec::no_such_key;
+        return sc::no_such_key;
       return visit(retriever{value}, i->second);
     },
     [=](atom::get, atom::name) {

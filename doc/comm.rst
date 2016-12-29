@@ -61,52 +61,47 @@ call a ``receive`` function to block and wait for message:
   auto ep = ctx.spawn<blocking>();
   ep.subscribe("foo");
   auto msg = ep.receive(); // block and wait until a message arrives
-  std::cout << msg.topic() << " -> " << msg.data() << std::endl;
+  if (msg)
+    std::cout << msg.topic() << " -> " << msg.data() << std::endl;
+  else
+    std::cout << to_string(msg.status()) << std::endl;
 
-There exists also an overload of ``receive`` that takes a callback, but is
-semantically otherwise equivalent:
+The function ``receive`` blocks until the endpoint receives a ``message``,
+which is either a (``topic``, ``data``) pair or a ``status`` to signal an error
+or a status change of the endpoint topology. More on ``status``
+handling in :ref:`status-handling`.
 
-.. code-block:: cpp
-
-  // block and wait until a message arrives
-  ep.receive(
-    [&](const topic& t, const data& d) {
-      std::cout << msg.topic() << " -> " << msg.data() << std::endl;
-    }
-  );
-
-Because ``receive`` may block forever, blocking endpoints also expose a simple
-interface to their mailbox:
+Blocking indefinitely does not work well in combination with existing event
+loops or polling. Therefore, blocking endpoints offer an additional ``mailbox``
+API:
 
 .. code-block:: cpp
 
+  // Manual polling.
   if (!ep.mailbox().empty()) {
-    // guaranteed to not block
-    auto msg = ep.receive();
+    auto msg = ep.receive(); // guaranteed to not block
     ...
   }
 
-Alternatively, the mailbox exposes a file descriptor that indicates
-"readiness," i.e., whether a message sits in the mailbox and can be processed
-without blocking:
+  // Introspection.
+  auto n = ep.mailbox().count(); // O(n) due to internal queue implementation
 
-.. code-block:: cpp
-
+  // Event loop integration.
   auto fd = ep.mailbox().descriptor();
-  // use descriptor in existing poll/select loop
   ::pollfd p = {fd, POLLIN, {}};
   auto n = ::poll(&p, 1, timeout);
   if (n < 0)
     std::terminate(); // poll failed
-  if (n == 1 && p.revents & POLLIN;)
-    // guaranteed to not block
-    auto msg = ep.receive();
+  if (n == 1 && p.revents & POLLIN) {
+    auto msg = ep.receive(); // guaranteed to not block
+    ...
+  }
 
 
 Non-Blocking
 ************
 
-If your application does not require the synchronous API, the non-blocking API
+If your application does not require a blocking API, the non-blocking API
 offers an asynchronous alternative. Unlike the blocking API, non-blocking
 endpoints take a callback for each topic they subscribe to:
 
@@ -208,14 +203,15 @@ Note that ``ep2`` does not know about ``ep1`` and forwards ``data`` for topic
 ``foo`` and ``bar`` via ``ep0``. However, ``ep2.publish("bar", 42)`` still
 forwards a message via ``ep0`` to ``ep1``.
 
-Status Messages
----------------
+.. _status-handling:
 
-In an asynchronous and distributed system, failures become the norm rather than
-constitute an exception. Endpoints may crash or the network experience an
-outage. While Broker cannot prevent these events from happening, it can detect
-them. To this end, there exists a special ``status`` message, which endpoints
-can subscribe to in addition to regular data messages.
+Status and Error Handling
+-------------------------
+
+In an distributed system, failures occur routinely. While Broker cannot prevent
+these events from happening, it presents to the user in the form of ``status``
+messages. Blocking endpoints get them via ``receive`` and non-blocking
+endpoints much subscribe to them explicitly.
 
 For example, when a new peering relationship gets estalbished, both endpoints
 receive ``peer_added`` status message:
@@ -223,18 +219,40 @@ receive ``peer_added`` status message:
 .. code-block:: cpp
 
   context ctx;
+  // Peer two endpoints.
   auto ep0 = ctx.spawn<blocking>();
   auto ep1 = ctx.spawn<blocking>();
-  ep0.receive(
-    [&](const status& s) { BROKER_ASSERT(s == peer_added); }
-  );
-  ep1.receive(
-    [&](const status& s) { BROKER_ASSERT(s == peer_added); }
-  );
+  ep0.peer(ep1);
+  // Block and wait for status messages.
+  auto msg0 = ep0.receive();
+  assert(!msg0);
+  if (msg0.status() == sc::peer_added)
+    std::cout << "peering established successfully" << std::endl;
 
-For blocking endpoints, status messages accumulate along with data messages. It
-is the user's responsibility to extract status messages from the mailbox to
-prevent it from overflowing.
+An instance of type ``status`` is equality-comparable with one of the status
+codes of the ``sc`` enum. For example, ``sc::peer_added`` conveyes a successful
+peering.
+
+Status messages have an optional *context* and an optional descriptive
+*message*:
+
+.. code-block:: cpp
+
+  auto& s = msg.status();
+  // Check for textual description.
+  if (auto str = s.message())
+    std::cout << *str << std::endl;
+  // Check for contextual information.
+  if (auto ctx = s.context<endpoint_info>())
+    if (ctx->network)
+      std::cout << "peer at: "
+                << ctx->network->address << ':'
+                << ctx->network->port << std::endl;
+
+The member function ``context<T>`` returns a ``const T*`` if the context is
+available. The type of available context information is dependent on the status
+code enum ``sc``. For example, all ``sc::peer_`` status codes have an
+``enpoint_info`` context as well as a message.
 
 For nonblocking endpoints, status message get ignored unless subscribing to
 them explicitly:
@@ -244,5 +262,5 @@ them explicitly:
   context ctx;
   auto ep = ctx.spawn<nonblocking>();
   ep.subscribe(
-    [&](const status& s) { log(s); }
+    [&](const status& s) { ... }
   );

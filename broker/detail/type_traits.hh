@@ -10,7 +10,7 @@
 namespace broker {
 
 class data;
-struct status;
+class status;
 class topic;
 
 namespace detail {

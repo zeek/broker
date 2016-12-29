@@ -5,10 +5,10 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/topic.hh"
 #include "broker/snapshot.hh"
+#include "broker/status.hh"
 #include "broker/time.hh"
 
 #include "broker/detail/abstract_backend.hh"

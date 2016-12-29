@@ -4,7 +4,7 @@
 
 #include <caf/detail/scope_guard.hpp>
 
-#include "broker/error.hh"
+#include "broker/status.hh"
 #include "broker/version.hh"
 
 #include "broker/detail/assert.hh"
@@ -173,30 +173,30 @@ sqlite_backend::~sqlite_backend() {
 expected<void> sqlite_backend::put(const data& key, data value,
                                    optional<timestamp> expiry) {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
   // Bind key.
   auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->replace, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
   // Bind value.
   auto value_blob = to_blob(value);
   result = sqlite3_bind_blob64(impl_->replace, 2, value_blob.data(),
                                value_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
   if (expiry)
     result = sqlite3_bind_int64(impl_->replace, 3,
                                 expiry->time_since_epoch().count());
   else
     result = sqlite3_bind_null(impl_->replace, 3);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
   // Execute statement.
   if (sqlite3_step(impl_->replace) != SQLITE_DONE)
-    return ec::backend_failure;
+    return sc::backend_failure;
   return {};
 }
 
@@ -209,7 +209,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
   if (!result)
     return result;
   if (!impl_->modify(key, *v, expiry))
-    return ec::backend_failure;
+    return sc::backend_failure;
   return {};
 }
 
@@ -222,30 +222,30 @@ expected<void> sqlite_backend::remove(const data& key, const data& value,
   if (!result)
     return result;
   if (!impl_->modify(key, *v, expiry))
-    return ec::backend_failure;
+    return sc::backend_failure;
   return {};
 }
 
 expected<void> sqlite_backend::erase(const data& key) {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->erase);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->erase, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
 	result = sqlite3_step(impl_->erase);
   if (result != SQLITE_DONE)
-    return ec::backend_failure;
+    return sc::backend_failure;
   //if (sqlite3_changes(impl_->db) == 0)
-  //  return ec::no_such_key;
+  //  return sc::no_such_key;
   return {};
 }
 
 expected<bool> sqlite_backend::expire(const data& key) {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto ts = now();
   auto guard = make_statement_guard(impl_->expire);
   // Bind key.
@@ -253,50 +253,50 @@ expected<bool> sqlite_backend::expire(const data& key) {
   auto result = sqlite3_bind_blob64(impl_->expire, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
   // Bind expiry.
   result = sqlite3_bind_int64(impl_->expire, 2, ts.time_since_epoch().count());
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
   // Execute query.
 	result = sqlite3_step(impl_->expire);
   if (result != SQLITE_DONE)
-    return ec::backend_failure;
+    return sc::backend_failure;
   return sqlite3_changes(impl_->db) == 1;
 }
 
 expected<data> sqlite_backend::get(const data& key) const {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->lookup);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->lookup, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
 	result = sqlite3_step(impl_->lookup);
 	if (result == SQLITE_DONE)
-	  return ec::no_such_key;
+	  return sc::no_such_key;
 	if (result != SQLITE_ROW)
-    return ec::backend_failure;
+    return sc::backend_failure;
 	return from_blob<data>(sqlite3_column_blob(impl_->lookup, 0),
                          sqlite3_column_bytes(impl_->lookup, 0));
 }
 
 expected<bool> sqlite_backend::exists(const data& key) const {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->exists);
 	auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->exists, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
-    return ec::backend_failure;
+    return sc::backend_failure;
 	result = sqlite3_step(impl_->exists);
 	if (result == SQLITE_DONE)
 	  return false;
 	if (result != SQLITE_ROW)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto n = sqlite3_column_int(impl_->exists, 0);
   BROKER_ASSERT(n == 1);
 	return true;
@@ -305,17 +305,17 @@ expected<bool> sqlite_backend::exists(const data& key) const {
 
 expected<uint64_t> sqlite_backend::size() const {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->size);
 	auto result = sqlite3_step(impl_->size);
 	if (result != SQLITE_ROW)
-	  return ec::backend_failure;
+	  return sc::backend_failure;
 	return sqlite3_column_int(impl_->size, 0);
 }
 
 expected<snapshot> sqlite_backend::snapshot() const {
   if (!impl_->db)
-    return ec::backend_failure;
+    return sc::backend_failure;
   auto guard = make_statement_guard(impl_->snapshot);
   broker::snapshot ss;
   auto result = SQLITE_DONE;
@@ -328,7 +328,7 @@ expected<snapshot> sqlite_backend::snapshot() const {
   }
   if (result == SQLITE_DONE)
     return ss;
-  return ec::backend_failure;
+  return sc::backend_failure;
 }
 
 } // namespace detail

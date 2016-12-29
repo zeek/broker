@@ -1,3 +1,5 @@
+#include <caf/blocking_actor.hpp>
+
 #include "broker/blocking_endpoint.hh"
 
 #include "broker/detail/assert.hh"
@@ -35,9 +37,8 @@ message blocking_endpoint::receive() {
   auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
   subscriber->await_data();
   auto msg = subscriber->dequeue()->move_content_to_message();
-  BROKER_ASSERT(!msg.empty());
   return message{std::move(msg)};
-};
+}
 
 mailbox blocking_endpoint::mailbox() {
   auto subscriber = caf::actor_cast<detail::flare_actor*>(subscriber_);
