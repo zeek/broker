@@ -5,6 +5,7 @@
 #include "broker/data.hh"
 #include "broker/port.hh"
 #include "broker/snapshot.hh"
+#include "broker/status.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
@@ -21,6 +22,7 @@ configuration::configuration() {
   add_message_type<enum_value>("broker::enum_value");
   add_message_type<vector>("broker::vector");
   add_message_type<broker::set>("broker::set");
+  add_message_type<status>("broker::status");
   add_message_type<table>("broker::table");
   add_message_type<topic>("broker::topic");
   add_message_type<std::vector<topic>>("std::vector<broker::topic>");
