@@ -289,8 +289,8 @@ display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS "${PYBIND11_INCLUDE_DIRS}" python_summary)
 
-message(
-    "\n==================|  Broker Config Summary  |===================="
+set(summary
+    "==================|  Broker Config Summary  |===================="
     "\nVersion:         ${BROKER_VERSION}"
     "\nSO version:      ${BROKER_SOVERSION}"
     "\n"
@@ -309,5 +309,8 @@ message(
     "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
     "\n=================================================================")
+
+message("\n" ${summary} "\n")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/config.summary ${summary})
 
 include(UserChangedWarning)
