@@ -55,7 +55,7 @@ Status = _broker.Status
 #
 
 Count = _broker.Count
-Interval = _broker.Interval
+Timespan = _broker.Timespan
 Timestamp = _broker.Timestamp
 Port = _broker.Port
 
@@ -66,13 +66,13 @@ class Data:
   def __init__(self, x = None):
     if x is None:
       self.data = _broker.Data()
-    elif isinstance(x, (bool, int, float, str, Count, Interval, Timestamp,
+    elif isinstance(x, (bool, int, float, str, Count, Timespan, Timestamp,
                         Port)):
       self.data = _broker.Data(x)
     elif isinstance(x, datetime.timedelta):
       us = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**6
       ns = us * 10**3
-      self.data = _broker.Interval(ns)
+      self.data = _broker.Timespan(ns)
     elif isinstance(x, datetime.datetime):
       #self.data = _broker.Timestamp(x.timestamp()) # Python 3 only
       time_since_epoch = (x - datetime.datetime(1970, 1, 1)).total_seconds()

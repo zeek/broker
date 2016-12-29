@@ -8,7 +8,7 @@ from ipaddress import *
 
 class TestDataConstruction(unittest.TestCase):
 
-  def compare_data_to_interal(self, x):
+  def compare_data_to_internal(self, x):
     lhs = Data(x).get()
     rhs = _broker.Data(x)
     print("raw: %s, data: %s" % (x, rhs))
@@ -19,15 +19,15 @@ class TestDataConstruction(unittest.TestCase):
     self.assertEqual(Data(None).get(), _broker.Data())
 
   def test_bool(self):
-    self.compare_data_to_interal(True)
-    self.compare_data_to_interal(False)
+    self.compare_data_to_internal(True)
+    self.compare_data_to_internal(False)
 
   def test_integer(self):
-    self.compare_data_to_interal(42)
-    self.compare_data_to_interal(-42)
+    self.compare_data_to_internal(42)
+    self.compare_data_to_internal(-42)
 
   def test_count(self):
-    self.compare_data_to_interal(Count(42))
+    self.compare_data_to_internal(Count(42))
 
   def test_count_overflow(self):
     # TODO: figure out why catching OverflowError doesn't work
@@ -35,30 +35,30 @@ class TestDataConstruction(unittest.TestCase):
       Count(-1)
 
   def test_real(self):
-    self.compare_data_to_interal(4.2)
-    self.compare_data_to_interal(-4.2)
+    self.compare_data_to_internal(4.2)
+    self.compare_data_to_internal(-4.2)
 
-  def test_interval(self):
-    # Interval only
+  def test_timespan(self):
+    # Timespan only
     to_us = lambda x: x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**6
     to_ns = lambda x: to_us(x) * 10**3
     self.assertEqual(-10**6, to_ns(timedelta(microseconds = -1000)))
     td = timedelta(milliseconds = 1, microseconds = 1)
-    self.assertEqual(Interval(10**3 + 10**6), Interval(to_ns(td)))
+    self.assertEqual(Timespan(10**3 + 10**6), Timespan(to_ns(td)))
     # Data
     neg42 = timedelta(milliseconds = -42 * 10**3)
-    self.compare_data_to_interal(Interval(to_ns(neg42)))
-    self.compare_data_to_interal(Interval(to_ns(td)))
+    self.compare_data_to_internal(Timespan(to_ns(neg42)))
+    self.compare_data_to_internal(Timespan(to_ns(td)))
 
   def test_timestamp(self):
-    self.compare_data_to_interal(now())
+    self.compare_data_to_internal(now())
     today = datetime.today()
     time_since_epoch = (today - datetime(1970, 1, 1)).total_seconds()
-    self.compare_data_to_interal(Timestamp(time_since_epoch))
+    self.compare_data_to_internal(Timestamp(time_since_epoch))
 
   def test_string(self):
-    self.compare_data_to_interal('')
-    self.compare_data_to_interal('foo')
+    self.compare_data_to_internal('')
+    self.compare_data_to_internal('foo')
 
   def test_address_v4(self):
     addr = IPv4Address('1.2.3.4')
@@ -79,10 +79,10 @@ class TestDataConstruction(unittest.TestCase):
     self.assertEqual(Data(sn), _broker.Data(_broker.Subnet(addr, sn.prefixlen)))
 
   def test_port(self):
-    self.compare_data_to_interal(Port(22, Port.TCP))
-    self.compare_data_to_interal(Port(53, Port.UDP))
-    self.compare_data_to_interal(Port(8, Port.ICMP))
-    self.compare_data_to_interal(Port(0, Port.Unknown))
+    self.compare_data_to_internal(Port(22, Port.TCP))
+    self.compare_data_to_internal(Port(53, Port.UDP))
+    self.compare_data_to_internal(Port(8, Port.ICMP))
+    self.compare_data_to_internal(Port(0, Port.Unknown))
 
   def test_vector(self):
     l = []
