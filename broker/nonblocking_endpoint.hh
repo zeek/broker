@@ -6,6 +6,7 @@
 
 #include <caf/scoped_actor.hpp>
 
+#include "broker/api_flags.hh"
 #include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
@@ -78,7 +79,7 @@ public:
   void unsubscribe(topic t);
 
 private:
-  nonblocking_endpoint(caf::actor_system& sys);
+  nonblocking_endpoint(caf::actor_system& sys, api_flags flags);
 };
 
 } // namespace broker

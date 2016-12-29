@@ -9,6 +9,7 @@
 #include <caf/actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include "broker/api_flags.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/optional.hh"
 #include "broker/network_info.hh"
@@ -30,6 +31,7 @@ struct peer_state {
 };
 
 struct core_state {
+  bool forwarding;
   std::vector<peer_state> peers;
   radix_tree<subscription_state> subscriptions;
   std::unordered_map<std::string, caf::actor> masters;
@@ -40,7 +42,7 @@ struct core_state {
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         caf::actor subscriber);
+                         caf::actor subscriber, api_flags flags);
 
 } // namespace detail
 } // namespace broker
