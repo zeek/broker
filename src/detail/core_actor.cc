@@ -189,7 +189,7 @@ optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          caf::actor subscriber, api_flags flags) {
-  self->state.forwarding = has_api_flags(flags, routable);
+  self->state.routable = has_api_flags(flags, routable);
   self->state.info = make_info(self);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(

@@ -31,7 +31,7 @@ struct peer_state {
 };
 
 struct core_state {
-  bool forwarding;
+  bool routable;
   std::vector<peer_state> peers;
   radix_tree<subscription_state> subscriptions;
   std::unordered_map<std::string, caf::actor> masters;
