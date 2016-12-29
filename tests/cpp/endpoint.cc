@@ -106,7 +106,7 @@ TEST(blocking non-lambda receive) {
   e.subscribe("/foo");
   e.publish("/foo", "broker");
   CHECK(is_ready(e, seconds{1}));
-  auto msg = e.receive();
+  auto msg = e.receive<message>();
   CHECK_EQUAL(msg.topic(), "/foo"_t);
   auto str = msg.data().get<std::string>();
   REQUIRE(str);
@@ -122,7 +122,7 @@ TEST(multi-topic subscription) {
   e.subscribe("/foo/bar");
   e.subscribe("/foo/bar/baz");
   e.publish("/foo/bar/baz", 4.2);
-  e.receive(); // Block and wait until the next message, then discard it.
+  e.receive<message>(); // Block and wait until the next message, then discard it.
   CHECK(e.mailbox().empty());
 }
 
@@ -132,8 +132,8 @@ TEST(blocking local peering and unpeering) {
   auto y = ctx.spawn<blocking>();
   MESSAGE("peer endpoints");
   x.peer(y);
-  x.receive([](const status& s) { CHECK(s == peer_added); });
-  y.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(x.receive<status>() == peer_added);
+  CHECK(y.receive<status>() == peer_added);
   CHECK(x.mailbox().empty());
   CHECK(y.mailbox().empty());
   MESSAGE("verifying peer info of originator");
@@ -152,13 +152,13 @@ TEST(blocking local peering and unpeering) {
   CHECK(!peers[0].peer.network);
   MESSAGE("unpeer endpoints");
   x.unpeer(y);
-  x.receive([](const status& s) { CHECK(s == peer_removed); });
-  y.receive([](const status& s) { CHECK(s == peer_removed); });
+  CHECK(x.receive<status>() == peer_removed);
+  CHECK(y.receive<status>() == peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
   CHECK_EQUAL(y.peers().size(), 0u);
   MESSAGE("attempt to unpeer from already unpeered endpoint");
   y.unpeer(x);
-  y.receive([](const status& s) { CHECK(s == peer_invalid); });
+  CHECK(y.receive<status>() == peer_invalid);
 }
 
 TEST(nonblocking local peering) {
@@ -186,8 +186,8 @@ TEST(remote peering) {
   auto bound_port = y.listen("127.0.0.1");
   REQUIRE(bound_port > 0);
   x.peer("127.0.0.1", bound_port);
-  x.receive([](const status& s) { CHECK(s == peer_added); });
-  y.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(x.receive<status>() == peer_added);
+  CHECK(y.receive<status>() == peer_added);
   CHECK_EQUAL(x.peers().size(), 1u);
   CHECK_EQUAL(y.peers().size(), 1u);
 }
@@ -198,14 +198,14 @@ TEST(local peering termination) {
   {
     auto y = ctx.spawn<blocking>();
     x.peer(y);
-    x.receive([](const status& s) { CHECK(s == peer_added); });
-    y.receive([](const status& s) { CHECK(s == peer_added); });
+    CHECK(x.receive<status>() == peer_added);
+    CHECK(y.receive<status>() == peer_added);
     CHECK_EQUAL(x.peers().size(), 1u);
     CHECK_EQUAL(y.peers().size(), 1u);
   }
   // We cannot re-establish a connection to a local endpoint. If it terminates,
   // the peering is gone.
-  x.receive([](const status& s) { CHECK(s == peer_removed); });
+  CHECK(x.receive<status>() == peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
 }
 
@@ -218,8 +218,8 @@ TEST(remote peering termination) {
     bound_port = y.listen("127.0.0.1");
     REQUIRE(bound_port > 0);
     x.peer("127.0.0.1", bound_port);
-    x.receive([](const status& s) { CHECK(s == peer_added); });
-    y.receive([](const status& s) { CHECK(s == peer_added); });
+    CHECK(x.receive<status>() == peer_added);
+    CHECK(y.receive<status>() == peer_added);
   }
   // When losing a connection to remote endpoint, we still keep that peer
   // around until the peering originator removes it.
@@ -232,7 +232,7 @@ TEST(remote peering termination) {
   CHECK_EQUAL(x.peers().size(), 1u);
   // Now remove the peer.
   x.unpeer("127.0.0.1", bound_port);
-  x.receive([&](const status& s) { CHECK(s == peer_removed); });
+  CHECK(x.receive<status>() == peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
 }
 
@@ -246,14 +246,14 @@ TEST(subscribe after peering) {
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
   a.peer(b);
-  a.receive([](const status& s) { CHECK(s == peer_added); });
-  b.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(a.receive<status>() == peer_added);
+  CHECK(b.receive<status>() == peer_added);
   b.peer(c);
-  b.receive([](const status& s) { CHECK(s == peer_added); });
-  c.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(b.receive<status>() == peer_added);
+  CHECK(c.receive<status>() == peer_added);
   c.peer(d);
-  c.receive([](const status& s) { CHECK(s == peer_added); });
-  d.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(c.receive<status>() == peer_added);
+  CHECK(d.receive<status>() == peer_added);
   CHECK_EQUAL(a.peers().size(), 1u);
   CHECK_EQUAL(b.peers().size(), 2u);
   CHECK_EQUAL(c.peers().size(), 2u);
@@ -295,14 +295,14 @@ TEST(subscribe before peering) {
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
   a.peer(b);
-  a.receive([](const status& s) { CHECK(s == peer_added); });
-  b.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(a.receive<status>() == peer_added);
+  CHECK(b.receive<status>() == peer_added);
   b.peer(c);
-  b.receive([](const status& s) { CHECK(s == peer_added); });
-  c.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(b.receive<status>() == peer_added);
+  CHECK(c.receive<status>() == peer_added);
   c.peer(d);
-  c.receive([](const status& s) { CHECK(s == peer_added); });
-  d.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK(c.receive<status>() == peer_added);
+  CHECK(d.receive<status>() == peer_added);
   CHECK_EQUAL(a.peers().size(), 1u);
   CHECK_EQUAL(b.peers().size(), 2u);
   CHECK_EQUAL(c.peers().size(), 2u);

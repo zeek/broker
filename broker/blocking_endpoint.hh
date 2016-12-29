@@ -5,6 +5,7 @@
 
 #include "broker/endpoint.hh"
 #include "broker/message.hh"
+#include "broker/status.hh"
 
 #include "broker/detail/type_traits.hh"
 
@@ -51,9 +52,34 @@ public:
   /// @param t The topic to unsubscribe from.
   void unsubscribe(topic t);
 
-  /// Consumes the next message in the mailbox or blocks until one arrives.
-  /// @returns The next message in the mailbox.
-  message receive();
+  /// Consumes the next data message blocks until one arrives.
+  /// @returns The next data message in the mailbox.
+  template <class T>
+  detail::enable_if_t<std::is_same<T, message>::value, T>
+  receive() {
+    caf::message msg;
+    auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
+    subscriber->receive(
+      [&](const topic&, const caf::message&, const caf::actor&) mutable {
+        msg = subscriber->current_mailbox_element()->move_content_to_message();
+      }
+    );
+    return message{msg};
+  }
+
+  /// Consumes the next ::status message or blocks until one arrives.
+  /// @returns The next status message in the mailbox.
+  template <class T>
+  detail::enable_if_t<std::is_same<T, status>::value, T>
+  receive() {
+    status result;
+    caf::actor_cast<caf::blocking_actor*>(subscriber_)->receive(
+      [&](const status& s) mutable {
+        result = s;
+      }
+    );
+    return result;
+  }
 
   /// Consumes one message that matches the given handler.
   template <class F>

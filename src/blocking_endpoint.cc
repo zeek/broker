@@ -30,14 +30,6 @@ void blocking_endpoint::unsubscribe(topic t) {
   caf::anon_send(core(), atom::unsubscribe::value, std::move(t), subscriber_);
 }
 
-message blocking_endpoint::receive() {
-  auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
-  subscriber->await_data();
-  auto msg = subscriber->dequeue()->move_content_to_message();
-  BROKER_ASSERT(!msg.empty());
-  return message{std::move(msg)};
-};
-
 mailbox blocking_endpoint::mailbox() {
   auto subscriber = caf::actor_cast<detail::flare_actor*>(subscriber_);
   return broker::mailbox{subscriber};

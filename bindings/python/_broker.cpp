@@ -403,16 +403,8 @@ PYBIND11_PLUGIN(_broker) {
     .def("unsubscribe", [](blocking_endpoint& ep, const std::string& t) {
            ep.unsubscribe(t);
          })
-    .def("receive", (message (endpoint::*)())&blocking_endpoint::receive)
-    .def("receive_msg",
-         [](blocking_endpoint& ep,
-            std::function<void(const topic&, const data& d)> f) {
-           ep.receive(f);
-         })
-    .def("receive_status",
-         [](blocking_endpoint& ep, std::function<void(const status&)> f) {
-           ep.receive(f);
-         })
+    .def("receive_msg", &blocking_endpoint::receive<message>)
+    .def("receive_status", &blocking_endpoint::receive<status>)
     .def("receive_msg_or_status",
          [](blocking_endpoint& ep,
             std::function<void(const topic&, const data& d)> on_msg,

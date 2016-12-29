@@ -45,7 +45,6 @@ Error = _broker.Error
 PeerStatus = _broker.PeerStatus
 PeerFlags = _broker.PeerFlags
 EndpointInfo = _broker.EndpointInfo
-Message = _broker.Message
 NetworkInfo = _broker.NetworkInfo
 PeerInfo = _broker.PeerInfo
 Status = _broker.Status
@@ -136,15 +135,15 @@ class Endpoint:
      return self.endpoint.listen(address, port)
 
    def peer(self, other):
-     self.endpoint.peer(other)
+     self.endpoint.peer(other.endpoint)
 
-   def peer(self, address, port):
+   def remote_peer(self, address, port):
      self.endpoint.peer(str(address), port)
 
    def unpeer(self, other):
      self.endpoint.unpeer(other)
 
-   def unpeer(self, address, port):
+   def remote_unpeer(self, address, port):
      self.endpoint.unpeer(str(address), port)
 
    def publish(self, topic, data):
@@ -195,16 +194,24 @@ class BlockingEndpoint(Endpoint):
   def unsubscribe(self, topic):
     self.endpoint.unsubscribe(topic)
 
-  def receive(self, fun1 = None, fun2 = None):
-    if fun1 is None:
-      return Message(self.endpoint.receive())
-    if fun2 is None:
-      if utils.arity(fun1) == 1:
-        return self.endpoint.receive_status(fun1)
-      if utils.arity(fun1) == 2:
-        return self.endpoint.receive_msg(fun1)
-      raise BrokerError("invalid receive callback arity; must be 1 or 2")
-    return self.endpoint.receive_msg_or_status(fun1, fun2)
+  def receive(self, x):
+    if x == Status:
+      return self.endpoint.receive_status()
+    elif x == Message:
+      return Message(self.endpoint.receive_msg())
+    else:
+      raise BrokerError("invalid receive type")
+
+  #def receive(self):
+  #  if fun1 is None:
+  #    return Message(self.endpoint.receive())
+  #  if fun2 is None:
+  #    if utils.arity(fun1) == 1:
+  #      return self.endpoint.receive_status(fun1)
+  #    if utils.arity(fun1) == 2:
+  #      return self.endpoint.receive_msg(fun1)
+  #    raise BrokerError("invalid receive callback arity; must be 1 or 2")
+  #  return self.endpoint.receive_msg_or_status(fun1, fun2)
 
   def mailbox(self):
     return Mailbox(self.endpoint.mailbox())

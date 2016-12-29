@@ -29,6 +29,9 @@ configuration::configuration() {
   add_message_type<optional<timestamp>>("broker::optional<broker::timestamp>");
   add_message_type<snapshot>("broker::snapshot");
   load<caf::io::middleman>();
+  logger_filename = "broker_[TIMESTAMP]_[PID].log";
+  logger_verbosity = caf::atom("DEBUG");
+  logger_console = caf::atom("COLORED");
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {
