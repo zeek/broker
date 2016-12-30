@@ -283,6 +283,37 @@ TEST(subscribe after peering) {
   CHECK(d.mailbox().empty());
 }
 
+TEST(subscribe after peering and routable flag set) {
+  MESSAGE("spawning endpoints");
+  context ctx;
+  auto a = ctx.spawn<blocking+routable>();
+  auto b = ctx.spawn<blocking+routable>();
+  // A <-> B
+  MESSAGE("chaining peers");
+  a.peer(b);
+  a.receive([](const status& s) { CHECK(s == peer_added); });
+  b.receive([](const status& s) { CHECK(s == peer_added); });
+  CHECK_EQUAL(a.peers().size(), 1u);
+  CHECK_EQUAL(b.peers().size(), 1u);
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  MESSAGE("propagating subscriptions");
+  a.subscribe("/foo");
+  b.subscribe("/bar");
+  // Wait until subscriptions propagated along the chain.
+  std::this_thread::sleep_for(milliseconds{300});
+  MESSAGE("B -> A");
+  b.publish("/foo/d", 42);
+  a.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/foo/d"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+  MESSAGE("A -> B");
+  a.publish("/bar/a", 42);
+  b.receive([](const topic& t, const data&) { CHECK_EQUAL(t, "/bar/a"_t); });
+  CHECK(a.mailbox().empty());
+  CHECK(b.mailbox().empty());
+}
+
 TEST(subscribe before peering) {
   MESSAGE("spawning endpoints");
   context ctx;
