@@ -266,7 +266,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
             BROKER_ERROR("dropping internal message:" << to_string(msg));
           else
             self->send(sink, sub_msg);
-        } else {
+        } else if (self->state.routable){
           BROKER_DEBUG("relaying message to" << to_string(sink));
           self->send(sink, sub_msg);
         }
