@@ -9,6 +9,8 @@ enum class api_flags : int {
   blocking_flag = 0x01,
   nonblocking_flag = 0x02,
   routable_flag = 0x04,
+  routable_blocking_flag = 0x05,
+  routable_nonblocking_flag = 0x06,
 };
 
 /// @see api_flags
@@ -26,6 +28,10 @@ constexpr api_flags routable = api_flags::routable_flag;
 /// @see api_flags
 constexpr bool has_api_flags(api_flags haystack, api_flags needle) {
   return (static_cast<int>(haystack) & static_cast<int>(needle)) != 0;
+}
+
+constexpr api_flags operator+(api_flags lhs, api_flags rhs) {
+  return static_cast<api_flags>(static_cast<int>(lhs) | static_cast<int>(rhs));
 }
 
 } // namespace broker
