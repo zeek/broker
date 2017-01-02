@@ -41,7 +41,7 @@ TEST(1 chain of nodes) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto n0 = ctx.spawn<blocking>();
-  auto n1 = ctx.spawn<blocking>();
+  auto n1 = ctx.spawn<blocking+routable>();
   auto n2 = ctx.spawn<blocking>();
 
   MESSAGE("connecting peers");
@@ -106,9 +106,9 @@ TEST(2 tree) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto n0 = ctx.spawn<blocking>();
-  auto n1 = ctx.spawn<blocking>();
+  auto n1 = ctx.spawn<blocking+routable>();
   auto n2 = ctx.spawn<blocking>();
-  auto n3 = ctx.spawn<blocking>();
+  auto n3 = ctx.spawn<blocking+routable>();
   auto n4 = ctx.spawn<blocking>();
 
   MESSAGE("connecting peers");
@@ -185,10 +185,10 @@ TEST(3 Unpeering and Overlay Partitioning) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto n0 = ctx.spawn<blocking>();
-  auto n1 = ctx.spawn<blocking>();
+  auto n1 = ctx.spawn<blocking+routable>();
   auto n2 = ctx.spawn<blocking>();
-  auto n3 = ctx.spawn<blocking>();
-  auto n4 = ctx.spawn<blocking>();
+  auto n3 = ctx.spawn<blocking+routable>();
+  auto n4 = ctx.spawn<blocking+routable>();
   auto n5 = ctx.spawn<blocking>();
 
   MESSAGE("connecting peers");
@@ -276,24 +276,25 @@ TEST(3 Unpeering and Overlay Partitioning) {
 
 // legacy broker: multihop3 and multihop4
 TEST(4 Bro Standard Cluster Setup) {
-	/* Overlay configuration as in 
-	 * a typical bro cluster setting
-	 *
-	 *  ---------- -----------
-	 *  |        | |         |
-	 *	| -------n0[b]------ |
-	 *	| |	      |        | |
-	 *	| |  ----n1[a]--   | |
-	 *	| |  |		|    |   | |
-	 *	| --n2[a] |  n3[a]-- |
-	 *	|	   |		|	   |     |
-	 *	|    ---n4[a]---     |
-	 *	|	       | |         |
-	 *	---------- ----------
-	 *
-	 *	n0 (broctl) is connected to all cluster nodes
-   *	n0 publishes a message for topic a
-   */
+   /**
+    * Overlay configuration as in 
+    * a typical bro cluster setting
+    * 
+    * ---------- 
+    * |        |          
+    * | -------n0[b]------ 
+    * | |	      |        | 
+    * | |  ---n1[a]---   | 
+    * | |  |		|    |   | 
+    * | --n2[a] |  n3[a]-- 
+    * |	   |		|	   |     
+    * |    ---n4[a]---     
+    * |	        |          
+    * ----------- 
+    * 
+    * n0 (broctl) is connected to all cluster nodes
+    * n0 publishes a message for topic a
+    */
 
   MESSAGE("spawning endpoints");
   context ctx;
@@ -325,10 +326,16 @@ TEST(4 Bro Standard Cluster Setup) {
   n1.peer(n4);
   n1.receive([](const status& s) { CHECK(s == peer_added); });
   n4.receive([](const status& s) { CHECK(s == peer_added); });
+  n2.peer(n4);
+  n2.receive([](const status& s) { CHECK(s == peer_added); });
+  n4.receive([](const status& s) { CHECK(s == peer_added); });
+  n3.peer(n4);
+  n3.receive([](const status& s) { CHECK(s == peer_added); });
+  n4.receive([](const status& s) { CHECK(s == peer_added); });
   CHECK_EQUAL(n0.peers().size(), 4u);
   CHECK_EQUAL(n1.peers().size(), 4u);
-  CHECK_EQUAL(n2.peers().size(), 4u);
-  CHECK_EQUAL(n3.peers().size(), 4u);
+  CHECK_EQUAL(n2.peers().size(), 3u);
+  CHECK_EQUAL(n3.peers().size(), 3u);
   CHECK_EQUAL(n4.peers().size(), 4u);
   CHECK(n0.mailbox().empty());
   CHECK(n1.mailbox().empty());
@@ -346,6 +353,12 @@ TEST(4 Bro Standard Cluster Setup) {
 
   MESSAGE("Broadcasting message from n0 to all others");
   n0.publish("a", "ping");
+  std::this_thread::sleep_for(milliseconds{200});
+  MESSAGE("n0 " << n0.mailbox().count(99999));
+  MESSAGE("n1 " << n1.mailbox().count(99999));
+  MESSAGE("n2 " << n2.mailbox().count(99999));
+  MESSAGE("n3 " << n3.mailbox().count(99999));
+  MESSAGE("n4 " << n4.mailbox().count(99999));
   n1.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
   n2.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
   n3.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});

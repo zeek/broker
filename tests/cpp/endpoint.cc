@@ -240,8 +240,8 @@ TEST(subscribe after peering) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto a = ctx.spawn<blocking>();
-  auto b = ctx.spawn<blocking>();
-  auto c = ctx.spawn<blocking>();
+  auto b = ctx.spawn<blocking+routable>();
+  auto c = ctx.spawn<blocking+routable>();
   auto d = ctx.spawn<blocking>();
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
@@ -318,8 +318,8 @@ TEST(subscribe before peering) {
   MESSAGE("spawning endpoints");
   context ctx;
   auto a = ctx.spawn<blocking>();
-  auto b = ctx.spawn<blocking>();
-  auto c = ctx.spawn<blocking>();
+  auto b = ctx.spawn<blocking+routable>();
+  auto c = ctx.spawn<blocking+routable>();
   auto d = ctx.spawn<blocking>();
   a.subscribe("/foo");
   c.subscribe("/bar");

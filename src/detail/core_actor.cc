@@ -266,7 +266,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
             BROKER_ERROR("dropping internal message:" << to_string(msg));
           else
             self->send(sink, sub_msg);
-        } else if (self->state.routable){
+        } else if (self->state.routable || source == self){
           BROKER_DEBUG("relaying message to" << to_string(sink));
           self->send(sink, sub_msg);
         }
@@ -285,8 +285,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       for (auto& p : self->state.peers)
         if (p.actor && *p.actor != source) {
           BROKER_DEBUG("relaying subscriptions to peer" << to_string(*p.actor));
-          for (auto& t : msg.get_as<std::vector<topic>>(1))
+          for (auto& t : msg.get_as<std::vector<topic>>(1)) {
             self->state.subscriptions[t.string()].subscribers.insert(*p.actor);
+            BROKER_DEBUG(" - topic " << t.string());
+          }
           self->send(*p.actor, msg);
         }
     },
