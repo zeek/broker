@@ -289,24 +289,29 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->send(*p.actor, msg);
         }
     },
-    [=](atom::unsubscribe, const topic& t, const caf::actor& source) {
-      BROKER_DEBUG("got unsubscribe request for topic" << t);
+    [=](atom::unsubscribe, const std::vector<topic>& ts,
+        const caf::actor& source) {
       // We have erase all matching topics in two phases, because erasing a
       // topic from a radix tree invalidates iterators.
-      std::vector<std::string> topics;
-      for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
-        auto& subscribers = match->second.subscribers;
-        BROKER_DEBUG("removing subscriber from topic" << match->first);
-        subscribers.erase(source);
-        if (subscribers.empty())
-          topics.push_back(std::move(match->first));
+      std::vector<topic> topics;
+      for (auto& t : ts) {
+        BROKER_DEBUG("got unsubscribe request for topic" << t);
+        for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
+          auto& subscribers = match->second.subscribers;
+          BROKER_DEBUG("removing subscriber from topic" << match->first);
+          subscribers.erase(source);
+          if (subscribers.empty())
+            topics.emplace_back(std::move(match->first));
+        }
       }
       for (auto& t : topics) {
-        BROKER_DEBUG("removing subscription state of topic" << t);
-        self->state.subscriptions.erase(t);
+        BROKER_DEBUG("removing subscription state of topic" << t.string());
+        self->state.subscriptions.erase(t.string());
       }
-      // Relay unsubscription to peers.
-      auto msg = caf::make_message(atom::unsubscribe::value, t, self);
+      // Propagate unsubscription to peers for those topics that have no more
+      // subscribers.
+      auto msg = caf::make_message(atom::unsubscribe::value, std::move(topics),
+                                   self);
       for (auto& p : self->state.peers)
         if (p.actor && *p.actor != source)
           self->send(*p.actor, msg);

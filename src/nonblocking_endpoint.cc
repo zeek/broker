@@ -52,8 +52,8 @@ caf::behavior subscriber(caf::stateful_actor<subscriber_state>* self) {
       }
       self->send_exit(i->second, caf::exit_reason::user_shutdown);
       // Relay unsubscribe request to core.
-      self->delegate(self->state.core, atom::unsubscribe::value, std::move(t),
-                     i->second);
+      self->delegate(self->state.core, atom::unsubscribe::value,
+                     std::vector<topic>{std::move(t)}, i->second);
     },
     [=](atom::status, const caf::actor& actor) {
       BROKER_DEBUG("registering status actor");
