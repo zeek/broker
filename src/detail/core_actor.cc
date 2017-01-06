@@ -319,7 +319,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_WARNING("ignoring subscription with empty topic list");
         return;
       }
-      // 1. store the new topics 
+      // 1. Store the new topics 
       std::vector<topic> topics;
       for (auto& t : ts) {
         if(self->state.subscriptions.find(t.string()) 
@@ -329,7 +329,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_DEBUG("store a subscription for peer" << to_string(source) << " to " << t);
         self->state.subscriptions[t.string()].subscribers.insert(source);
       }
-      // 2. forward only the ones we had no subscribtion before 
+      // 2. Forward only the ones we had no subscribtion before 
       for(auto& p : self->state.peers) {
         auto msg = caf::make_message(atom::subscribe::value, topics, self);
         if (p.actor && *p.actor != source) {
@@ -340,30 +340,24 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::unsubscribe, const std::vector<topic>& ts, const caf::actor& source) {
       BROKER_DEBUG("got unsubscribe request for topics" << ts);
-      std::vector<std::string> topics;
+      // Remove topics.
+      std::vector<topic> del_topics;
       for(auto& t : ts) {
-        for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
-          auto& subscribers = match->second.subscribers;
-          BROKER_DEBUG("removing subscriber from topic" << match->first);
-          subscribers.erase(source);
-          if (subscribers.empty())
-            topics.push_back(std::move(match->first));
+        BROKER_DEBUG("removing subscriber from topic" << t);
+        if(self->state.subscriptions.find(t.string()) != self->state.subscriptions.end()){
+          self->state.subscriptions[t.string()].subscribers.erase(source);
+          if (self->state.subscriptions[t.string()].subscribers.empty()) {
+            del_topics.push_back(std::move(t));
+            self->state.subscriptions.erase(t.string());
+          }
         }
       }
-      // remove the topics with no subscribers anymore
-      for(auto& t : topics) {
-        self->state.subscriptions[t].subscribers.erase(source);
-        if (self->state.subscriptions[t].subscribers.empty()) {
-          BROKER_DEBUG("removing subscription state of topic" << t);
-          self->state.subscriptions.erase(t);
-        }
-      }
-      // Relay unsubscription to peers.
-      auto msg = caf::make_message(atom::unsubscribe::value, topics, self);
+      // Relay unsubscription to peers for every topic we do not have a subscriber anymore.
+      auto msg = caf::make_message(atom::unsubscribe::value, del_topics, self);
       for (auto& p : self->state.peers)
         if (p.actor && *p.actor != source) {
           self->send(*p.actor, msg);
-          BROKER_DEBUG("relaying unsub for " << topics << " to " << to_string(*p.actor) );
+          BROKER_DEBUG("relaying unsub for " << del_topics << " to " << to_string(*p.actor) );
         }
     },
     [=](atom::peer, network_info net) {
