@@ -26,6 +26,9 @@ caf::behavior subscriber(caf::stateful_actor<subscriber_state>* self) {
       if (self->state.status_subscriber)
         self->send(*self->state.status_subscriber, std::move(s));
     },
+    [=](atom::subscribe, std::vector<topic>& ts) {
+      BROKER_DEBUG("subscribing actor for several topics" << ts);
+    },
     [=](atom::subscribe, topic& t, caf::actor& subscriber) {
       BROKER_DEBUG("subscribing actor for topic" << t);
       // Shutdown existing actor, if a subscription exists already.
@@ -43,6 +46,9 @@ caf::behavior subscriber(caf::stateful_actor<subscriber_state>* self) {
       self->delegate(self->state.core, atom::subscribe::value, std::move(ts),
                      std::move(subscriber));
     },
+    [=](atom::unsubscribe, std::vector<topic>& ts) {
+      BROKER_DEBUG("unsubscribing actor from several topics" << ts);
+    },
     [=](atom::unsubscribe, topic& t) {
       BROKER_DEBUG("unsubscribing actor from topic" << t);
       auto i = self->state.data_subscribers.find(t.string());
@@ -52,7 +58,8 @@ caf::behavior subscriber(caf::stateful_actor<subscriber_state>* self) {
       }
       self->send_exit(i->second, caf::exit_reason::user_shutdown);
       // Relay unsubscribe request to core.
-      self->delegate(self->state.core, atom::unsubscribe::value, std::move(t),
+      std::vector<topic> ts{t};
+      self->delegate(self->state.core, atom::unsubscribe::value, std::move(ts),
                      i->second);
     },
     [=](atom::status, const caf::actor& actor) {
@@ -74,8 +81,9 @@ caf::behavior subscriber(caf::stateful_actor<subscriber_state>* self) {
 
 void nonblocking_endpoint::unsubscribe(topic t) {
   caf::scoped_actor self{core()->home_system()};
+  std::vector<topic> ts{t};
   self->request(subscriber_, timeout::core, atom::unsubscribe::value,
-                std::move(t)).receive(
+                std::move(ts)).receive(
     []() {
       // nop
     },

@@ -27,7 +27,8 @@ void blocking_endpoint::subscribe(topic t) {
 }
 
 void blocking_endpoint::unsubscribe(topic t) {
-  caf::anon_send(core(), atom::unsubscribe::value, std::move(t), subscriber_);
+  std::vector<topic> ts{t};
+  caf::anon_send(core(), atom::unsubscribe::value, std::move(ts), subscriber_);
 }
 
 message blocking_endpoint::receive() {

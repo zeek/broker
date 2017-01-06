@@ -44,7 +44,41 @@ std::vector<topic> local_subscriptions(caf::stateful_actor<core_state>* self) {
   return topics;
 }
 
-// Peforms the peering handshake between two endpoints. When this endpoint (A)
+// Deletes all subscriptions of a peer
+bool del_subscriptions(caf::stateful_actor<core_state>* self, 
+                       const caf::actor& peer) {
+  BROKER_DEBUG("remove all subscriptions for peer " << peer);
+  // 1. Find all topics the peer subscribed to.
+  std::vector<topic> topics;
+  for(auto sub : self->state.subscriptions)
+    if(sub.second.subscribers.find(peer) != sub.second.subscribers.end()) {
+      topics.push_back(sub.first);
+    }
+    BROKER_DEBUG(" -> remove subscriptions for " << topics);
+  // 2. Delete local subscriptions for that peer.
+  std::vector<topic> del;
+  for(auto& t: topics) {
+    self->state.subscriptions[t.string()].subscribers.erase(peer);
+    if(self->state.subscriptions[t.string()].subscribers.empty()) {
+      self->state.subscriptions.erase(t.string());
+      del.push_back(t);
+    }
+  }
+  // Return if we do not have to delete a topic,
+  // because all topics still have at least one subscriber.
+  if(del.empty())
+    return false;
+  // 3. Relay unsubscription to peers.
+  for(auto& p : self->state.peers) {
+    auto msg = caf::make_message(atom::unsubscribe::value, del, self);
+    if (p.actor && *p.actor != peer) {
+      BROKER_DEBUG(" -> relaying unsub for " << del << " to peer" << to_string(*p.actor));
+      self->send(*p.actor, msg);
+    }
+  }
+}
+
+// Performs the peering handshake between two endpoints. When this endpoint (A)
 // attempts to peer with another one (B), the following messages are exchanged:
 //
 //  A -> B: version_A
@@ -68,12 +102,16 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
         [=](std::vector<topic>& topics) {
           BROKER_DEBUG("got" << topics.size() << "peer subscriptions");
           // Record new subscriptions.
-          for (auto& t : topics)
+          std::vector<topic> topics_new;
+          for (auto& t : topics) {
+            if(self->state.subscriptions.find(t.string()) == self->state.subscriptions.end())
+              topics_new.push_back(t);
             self->state.subscriptions[t.string()].subscribers.insert(other);
-          // Propagate subscriptions to peers.
+          }
+          // Propagate (only!) new subscriptions to peers.
           auto peers = &self->state.peers;
           auto subscription = caf::make_message(atom::subscribe::value,
-                                                std::move(topics), self);
+                                                std::move(topics_new), self);
           for (auto& p : *peers)
             if (p.actor && *p.actor != other)
               self->send(*p.actor, subscription);
@@ -252,9 +290,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       std::unordered_set<caf::actor> sinks;
       for (auto match : subscriptions) {
         ++match->second.messages;
-        for (auto& sub : match->second.subscribers)
+        for (auto& sub : match->second.subscribers) {
           if (sub != source)
             sinks.insert(sub);
+        }
       }
       // Relay message to all subscribers.
       auto sub_msg = caf::make_message(std::move(t), std::move(msg), self);
@@ -271,51 +310,61 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->send(sink, sub_msg);
         }
     },
+    [=](atom::subscribe, std::vector<std::string>& ts, const caf::actor& source) {
+      BROKER_DEBUG("got subscribe request for " << to_string(source) << ", string-topics " << ts);
+    },
     [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {
-      BROKER_DEBUG("got subscribe request for" << to_string(source));
+      BROKER_DEBUG("got subscribe request for " << to_string(source) << ", topics " << ts);
       if (ts.empty()) {
         BROKER_WARNING("ignoring subscription with empty topic list");
         return;
       }
+      // 1. store the new topics 
+      std::vector<topic> topics;
       for (auto& t : ts) {
-        BROKER_DEBUG("  -" << t);
+        if(self->state.subscriptions.find(t.string()) 
+            == self->state.subscriptions.end()) {
+          topics.push_back(t); 
+        }
+        BROKER_DEBUG("store a subscription for peer" << to_string(source) << " to " << t);
         self->state.subscriptions[t.string()].subscribers.insert(source);
       }
-      auto msg = caf::make_message(atom::subscribe::value, std::move(ts), self);
-      for (auto& p : self->state.peers)
+      // 2. forward only the ones we had no subscribtion before 
+      for(auto& p : self->state.peers) {
+        auto msg = caf::make_message(atom::subscribe::value, topics, self);
         if (p.actor && *p.actor != source) {
-          BROKER_DEBUG("relaying subscriptions to peer" << to_string(*p.actor));
-          for (auto& t : msg.get_as<std::vector<topic>>(1)) {
-            self->state.subscriptions[t.string()].subscribers.insert(*p.actor);
-            BROKER_DEBUG(" - topic " << t.string());
-          }
+          BROKER_DEBUG("relaying subs for " << topics << " to peer" << to_string(*p.actor));
           self->send(*p.actor, msg);
         }
-    },
-    [=](atom::unsubscribe, const topic& t, const caf::actor& source) {
-      BROKER_DEBUG("got unsubscribe request for topic" << t);
-      // We have to erase all matching topics in two phases, because erasing a
-      // topic from a radix tree invalidates iterators.
-      std::vector<std::string> topics;
-      for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
-        auto& subscribers = match->second.subscribers;
-        BROKER_DEBUG("removing subscriber from topic" << match->first);
-        subscribers.erase(source);
-        if (subscribers.empty())
-          topics.push_back(std::move(match->first));
       }
-      for (auto& t : topics) {
+    },
+    [=](atom::unsubscribe, const std::vector<topic>& ts, const caf::actor& source) {
+      BROKER_DEBUG("got unsubscribe request for topics" << ts);
+      std::vector<std::string> topics;
+      for(auto& t : ts) {
+        for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
+          auto& subscribers = match->second.subscribers;
+          BROKER_DEBUG("removing subscriber from topic" << match->first);
+          subscribers.erase(source);
+          if (subscribers.empty())
+            topics.push_back(std::move(match->first));
+        }
+      }
+      // remove the topics with no subscribers anymore
+      for(auto& t : topics) {
         self->state.subscriptions[t].subscribers.erase(source);
         if (self->state.subscriptions[t].subscribers.empty()) {
           BROKER_DEBUG("removing subscription state of topic" << t);
           self->state.subscriptions.erase(t);
-          // Relay unsubscription to peers.
-          auto msg = caf::make_message(atom::unsubscribe::value, t, self);
-          for (auto& p : self->state.peers)
-            if (p.actor && *p.actor != source)
-              self->send(*p.actor, msg);
         }
       }
+      // Relay unsubscription to peers.
+      auto msg = caf::make_message(atom::unsubscribe::value, topics, self);
+      for (auto& p : self->state.peers)
+        if (p.actor && *p.actor != source) {
+          self->send(*p.actor, msg);
+          BROKER_DEBUG("relaying unsub for " << topics << " to " << to_string(*p.actor) );
+        }
     },
     [=](atom::peer, network_info net) {
       BROKER_DEBUG("peering with remote endpoint" << to_string(net));
@@ -498,6 +547,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         s.message = "removed peering";
         BROKER_DEBUG(s.message);
         peers->erase(i);
+        // Delete all subscriptions of that peer
+        del_subscriptions(self, peer);
       }
       self->send(subscriber, std::move(s));
     },

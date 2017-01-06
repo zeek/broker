@@ -242,7 +242,7 @@ TEST(3 Unpeering and Overlay Partitioning) {
   CHECK(n4.mailbox().empty());
   CHECK(n5.mailbox().empty());
 
-  MESSAGE("Sending n5 -> n0");
+  MESSAGE("Sending n3 -> n0");
   n3.publish("a", "pong");
   n0.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
   CHECK(n0.mailbox().empty());
@@ -251,9 +251,11 @@ TEST(3 Unpeering and Overlay Partitioning) {
   CHECK(n3.mailbox().empty());
   CHECK(n4.mailbox().empty());
   CHECK(n5.mailbox().empty());
+  std::this_thread::sleep_for(milliseconds{100});
 
   MESSAGE("Unpeering n3 and n1");
   n3.unpeer(n1);
+  std::this_thread::sleep_for(milliseconds{100});
   MESSAGE("Sending n0 -> n1, n3");
   n0.publish("b", "ping");
   n1.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "b");});
