@@ -9,23 +9,22 @@
 
 namespace broker {
 
-message::operator bool() const {
-  return msg_.match_element<broker::topic>(0);
+const topic* message::topic() const {
+  if (msg_.match_element<broker::topic>(0))
+    return &msg_.get_as<broker::topic>(0);
+  return nullptr;
 }
 
-const topic& message::topic() const {
-  BROKER_ASSERT(msg_.match_element<broker::topic>(0));
-  return msg_.get_as<broker::topic>(0);
+const data* message::data() const {
+  if (msg_.match_element<caf::message>(1))
+    return &msg_.get_as<caf::message>(1).get_as<broker::data>(0);
+  return nullptr;
 }
 
-const data& message::data() const {
-  BROKER_ASSERT(msg_.match_element<caf::message>(1));
-  return msg_.get_as<caf::message>(1).get_as<broker::data>(0);
-}
-
-const status& message::status() const {
-  BROKER_ASSERT(msg_.match_element<broker::status>(0));
-  return msg_.get_as<broker::status>(0);
+const status* message::status() const {
+  if (msg_.match_element<broker::status>(0))
+    return &msg_.get_as<broker::status>(0);
+  return nullptr;
 }
 
 message::message(caf::message msg) : msg_{std::move(msg)} {

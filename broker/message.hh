@@ -14,21 +14,17 @@ class message {
   friend blocking_endpoint; // construction
 
 public:
-  /// Checks whether a message is a (topic, data) pair.
-  /// @returns `true` iff the message contains a (topic, data) pair.
-  explicit operator bool() const;
+  /// Retrieves the contained topic.
+  /// @returns A pointer the contained topic or `nullptr` if not present.
+  const broker::topic* topic() const;
 
-  /// @returns the contained topic.
-  /// @pre `static_cast<bool>(*this)`
-  const broker::topic& topic() const;
+  /// Retrieves the contained data.
+  /// @returns A pointer the contained data or `nullptr` if not present.
+  const broker::data* data() const;
 
-  /// @returns the contained topic.
-  /// @pre `static_cast<bool>(*this)`
-  const broker::data& data() const;
-
-  /// @returns the contained status.
-  /// @pre `!*this`
-  const broker::status& status() const;
+  /// Retrieves the contained status.
+  /// @returns A pointer the contained status or `nullptr` if not present.
+  const broker::status* status() const;
 
 private:
   explicit message(caf::message msg);
