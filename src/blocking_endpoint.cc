@@ -8,21 +8,6 @@
 
 namespace broker {
 
-int mailbox::descriptor() {
-  return actor_->descriptor();
-}
-
-bool mailbox::empty() {
-  return actor_->mailbox().empty();
-}
-
-size_t mailbox::count(size_t max) {
-  return actor_->mailbox().count(max);
-}
-
-mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {
-}
-
 void blocking_endpoint::subscribe(topic t) {
   std::vector<topic> ts{t};
   caf::anon_send(core(), atom::subscribe::value, std::move(ts), subscriber_);
