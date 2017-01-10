@@ -1,6 +1,13 @@
 #ifndef BROKER_STATUS_HH
 #define BROKER_STATUS_HH
 
+// ATTENTION
+// ---------
+// When updating this file, make sure to update doc/comm.rst as well because it
+// copies parts of this file verbatim.
+//
+// Included lines: 27-60
+
 #include <string>
 #include <tuple>
 

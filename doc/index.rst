@@ -49,8 +49,8 @@ Synopsis
     [=](const data& d) {
       process(d);
     },
-    [=](const error& e) {
-      if (e == ec::key_not_found)
+    [=](status s) {
+      if (s == ec::key_not_found)
         std::cout << "no such key: 4.2" << std::endl;
       else
         std::terminate();

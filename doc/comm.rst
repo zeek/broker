@@ -69,7 +69,7 @@ call a ``receive`` function to block and wait for message:
 The function ``receive`` blocks until the endpoint receives a ``message``,
 which is either a (``topic``, ``data``) pair or a ``status`` to signal an error
 or a status change of the endpoint topology. More on ``status``
-handling in :ref:`status-handling`.
+messages in :ref:`status-messages`.
 
 Blocking indefinitely does not work well in combination with existing event
 loops or polling. Therefore, blocking endpoints offer an additional ``mailbox``
@@ -203,18 +203,15 @@ Note that ``ep2`` does not know about ``ep1`` and forwards ``data`` for topic
 ``foo`` and ``bar`` via ``ep0``. However, ``ep2.publish("bar", 42)`` still
 forwards a message via ``ep0`` to ``ep1``.
 
-.. _status-handling:
+.. _status-messages:
 
-Status and Error Handling
--------------------------
+Status Messages
+---------------
 
-In an distributed system, failures occur routinely. While Broker cannot prevent
-these events from happening, it presents to the user in the form of ``status``
-messages. Blocking endpoints get them via ``receive`` and non-blocking
-endpoints much subscribe to them explicitly.
-
-For example, when a new peering relationship gets estalbished, both endpoints
-receive ``peer_added`` status message:
+Broker presents errors and runtime changes to the user as ``status`` messages.
+Blocking endpoints obtain them via ``receive`` and non-blocking endpoints must
+subscribe to them explicitly. For example, after a successful peering, both
+endpoints receive a ``peer_added`` status message:
 
 .. code-block:: cpp
 
@@ -229,9 +226,13 @@ receive ``peer_added`` status message:
   if (msg0.status() == sc::peer_added)
     std::cout << "peering established successfully" << std::endl;
 
-An instance of type ``status`` is equality-comparable with one of the status
-codes of the ``sc`` enum. For example, ``sc::peer_added`` conveyes a successful
-peering.
+The concrete semantics of a status depend on its embedded code, which the enum
+``sc`` codifies:
+
+.. literalinclude:: ../broker/status.hh
+   :language: cpp
+   :lines: 27-60
+   :emphasize-lines: 5,7
 
 Status messages have an optional *context* and an optional descriptive
 *message*:
@@ -251,11 +252,11 @@ Status messages have an optional *context* and an optional descriptive
 
 The member function ``context<T>`` returns a ``const T*`` if the context is
 available. The type of available context information is dependent on the status
-code enum ``sc``. For example, all ``sc::peer_`` status codes have an
+code enum ``sc``. For example, all ``sc::peer_*`` status codes include an
 ``enpoint_info`` context as well as a message.
 
-For nonblocking endpoints, status message get ignored unless subscribing to
-them explicitly:
+Non-blocking endpoints ignore ``status`` messages unless they subscribe to them
+explicitly:
 
 .. code-block:: cpp
 
