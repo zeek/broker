@@ -16,6 +16,9 @@ struct network_info;
 
 using endpoint_id = uint64_t;
 
+/// A monotonic identifier to represent a specific lookup request.
+using request_id = uint64_t;
+
 // Arithmetic data types
 using boolean = bool;
 using count = uint64_t;

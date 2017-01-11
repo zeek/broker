@@ -21,7 +21,7 @@ public:
   /// @param t The topic to unsubscribe from.
   void unsubscribe(topic t);
 
-  /// Consumes the next message blocks until one arrives.
+  /// Consumes the next message or blocks until one arrives.
   /// @returns The next message in the mailbox.
   message receive();
 

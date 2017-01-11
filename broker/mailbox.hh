@@ -6,15 +6,20 @@
 
 namespace broker {
 
+struct mailbox;
+
 namespace detail {
+
 class flare_actor;
+broker::mailbox make_mailbox(flare_actor* actor);
+
 } // namsespace detail
 
 class blocking_endpoint;
 
 /// A proxy object that represents the mailbox of a blocking endpoint.
 struct mailbox {
-  friend blocking_endpoint; // construction
+  friend mailbox detail::make_mailbox(detail::flare_actor*);
 
 public:
   /// Retrieves a descriptor that indicates whether a message can be received

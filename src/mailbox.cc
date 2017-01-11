@@ -3,6 +3,13 @@
 #include "broker/detail/flare_actor.hh"
 
 namespace broker {
+namespace detail {
+
+mailbox make_mailbox(detail::flare_actor* actor) {
+  return mailbox{actor};
+}
+
+} // namespace detail
 
 int mailbox::descriptor() {
   return actor_->descriptor();

@@ -11,6 +11,8 @@
 #include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/expected.hh"
+#include "broker/fwd.hh"
+#include "broker/mailbox.hh"
 #include "broker/optional.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
@@ -26,10 +28,10 @@ class store {
 
 public:
   template <class T>
-  class request_proxy {
+  class continuation {
   public:
     template <class... Ts>
-    request_proxy(caf::actor requester, Ts&&... xs)
+    continuation(caf::actor requester, Ts&&... xs)
       : frontend_{std::move(requester)},
         msg_{caf::make_message(std::forward<Ts>(xs)...)} {
     }
@@ -82,6 +84,63 @@ public:
     caf::message msg_;
   };
 
+  class proxy;
+
+  /// A response to a lookup request issued by a ::proxy.
+  class response {
+    friend proxy; // construction
+
+  public:
+    /// Default-constructs an (invalid) response.
+    response();
+
+    /// Checks whether a response contains data or a status.
+    explicit operator bool() const;
+
+    /// @pre `static_cast<bool>(*this)`
+    data& operator*();
+
+    /// @pre `static_cast<bool>(*this)`
+    data* operator->();
+
+    /// @pre `!*this`
+    broker::status status();
+
+    /// @returns the ID corresponding to the request.
+    request_id id() const;
+
+  private:
+    expected<data> data_;
+    request_id id_ = 0;
+  };
+
+  /// A utility to decouple store lookups and corresponding response
+  /// processing.
+  class proxy {
+  public:
+    /// Constructs a proxy for a given store.
+    /// @param s The store to create a proxy for.
+    proxy(store& s);
+
+    /// Performs a request to retrieve a value.
+    /// @param key The key of the value to retrieve.
+    /// @returns A unique identifier for this request that is also present in
+    ///          the corresponding response.
+    request_id get(data key);
+
+    /// Retrieves the proxy's mailbox that reflects query responses.
+    broker::mailbox mailbox();
+
+    /// Consumes the next response or blocks until one arrives.
+    /// @returns The next response in the proxy's mailbox.
+    response receive();
+
+  private:
+    request_id id_ = 0;
+    caf::actor frontend_;
+    caf::actor proxy_;
+  };
+
   // --- inspectors -----------------------------------------------------------
 
   /// Retrieves the name of the store.
@@ -101,7 +160,7 @@ public:
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   template <api_flags Flags>
-  detail::enable_if_t<Flags == nonblocking, request_proxy<data>>
+  detail::enable_if_t<Flags == nonblocking, continuation<data>>
   get(data key) const {
     return {frontend_, atom::get::value, std::move(key)};
   }

@@ -80,7 +80,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
   };
   auto query = caf::message_handler{
     [=](atom::get, const data& key) -> expected<data> {
-      BROKER_DEBUG("got GET" << key);
+      BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         return sc::no_such_key;
@@ -92,6 +92,29 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if (i == self->state.store.end())
         return sc::no_such_key;
       return visit(retriever{value}, i->second);
+    },
+    [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
+      BROKER_DEBUG("GET" << key << "with id:" << id);
+      auto result = expected<data>{sc::no_such_key};
+      auto i = self->state.store.find(key);
+      if (i == self->state.store.end())
+        self->send(proxy, data{}, make_error(sc::no_such_key), id);
+      else
+        self->send(proxy, i->second, caf::error{}, id);
+    },
+    [=](atom::get, const data& key, const data& value, const caf::actor& proxy,
+        request_id id) {
+      BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
+      auto i = self->state.store.find(key);
+      if (i == self->state.store.end()) {
+        self->send(proxy, data{}, make_error(sc::no_such_key), id);
+        return;
+      }
+      auto x = visit(retriever{value}, i->second);
+      if (x)
+        self->send(proxy, std::move(*x), caf::error{}, id);
+      else
+        self->send(proxy, data{}, std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
       return name;

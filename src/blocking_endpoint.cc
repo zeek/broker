@@ -27,7 +27,7 @@ message blocking_endpoint::receive() {
 
 mailbox blocking_endpoint::mailbox() {
   auto subscriber = caf::actor_cast<detail::flare_actor*>(subscriber_);
-  return broker::mailbox{subscriber};
+  return detail::make_mailbox(subscriber);
 }
 
 blocking_endpoint::blocking_endpoint(caf::actor_system& sys) {

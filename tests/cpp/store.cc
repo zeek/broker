@@ -176,3 +176,43 @@ TEST(expiration) {
   REQUIRE(!v);
   CHECK(v.error() == sc::no_such_key);
 }
+
+TEST(proxy) {
+  context ctx;
+  auto ep = ctx.spawn<blocking>();
+  auto m = ep.attach<master, memory>("puneta");
+  REQUIRE(m);
+  m->put("foo", 42);
+  MESSAGE("master: issue queries");
+  auto proxy = store::proxy{*m};
+  auto id = proxy.get("foo");
+  CHECK_EQUAL(id, 1u);
+  id = proxy.get("bar");
+  CHECK_EQUAL(id, 2u);
+  MESSAGE("master: collect responses");
+  auto resp = proxy.receive();
+  CHECK_EQUAL(resp.id(), 1u);
+  REQUIRE(resp);
+  CHECK_EQUAL(*resp, data{42});
+  resp = proxy.receive();
+  CHECK_EQUAL(resp.id(), 2u);
+  REQUIRE(!resp);
+  CHECK_EQUAL(resp.status(), sc::no_such_key);
+  MESSAGE("clone: issue queries");
+  auto c = ep.attach<clone>("puneta");
+  REQUIRE(c);
+  proxy = store::proxy{*c};
+  id = proxy.get("foo");
+  CHECK_EQUAL(id, 1u);
+  id = proxy.get("bar");
+  CHECK_EQUAL(id, 2u);
+  MESSAGE("clone: collect responses");
+  resp = proxy.receive();
+  CHECK_EQUAL(resp.id(), 1u);
+  REQUIRE(resp);
+  CHECK_EQUAL(*resp, data{42});
+  resp = proxy.receive();
+  CHECK_EQUAL(resp.id(), 2u);
+  REQUIRE(!resp);
+  CHECK_EQUAL(resp.status(), sc::no_such_key);
+}

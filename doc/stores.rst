@@ -133,11 +133,11 @@ Data stores support the following mutating operations:
 
 .. note:: TODO: Document type-specific ``add`` and ``remove``.
 
-Retrieval
-~~~~~~~~~
+Direct Retrieval
+~~~~~~~~~~~~~~~~
 
-There exist two methods of extracting values from a store: either in a blocking
-or non-blocking fashion.
+There exist two methods of directly extracting values from a store: either in a
+blocking or non-blocking fashion.
 
 The overload ``get<blocking>(const data& key)`` retrieves a value in a blocking
 manner and returns an instance of ``expected<data>``.
@@ -147,9 +147,9 @@ manner and returns an instance of ``expected<data>``.
   auto result = ds->get<blocking>("foo");
   if (result)
     std::cout << *result << std::endl; // may print 4.2
-  else if (result.error() == ec::no_such_key)
+  else if (result.error() == sc::no_such_key)
     std::cout << "key 'foo' does not exist'" << std::endl;
-  else if (result.error() == ec::backend_failure)
+  else if (result.error() == sc::backend_failure)
     std::cout << "something went wrong with the backend" << std::endl;
   else
     std::cout << "could not retrieve value at key 'foo'" << std::endl;
@@ -166,11 +166,44 @@ the retrieval operation is available.
       std::cout << d << std::endl; // may print 4.2
     },
     [=](const error& e) {
-      if (result.error() == ec::no_such_key)
+      if (result.error() == sc::no_such_key)
         std::cout << "key 'foo' does not exist'" << std::endl;
-      else if (result.error() == ec::backend_failure)
+      else if (result.error() == sc::backend_failure)
         std::cout << "something went wrong with the backend" << std::endl;
       else
         std::cout << "could not retrieve value at key 'foo'" << std::endl;
     }
   );
+
+Proxy Retrieval
+~~~~~~~~~~~~~~~
+
+When integrating data store queries into an event loop, the direct retrieval
+API does not prove a good fit: there's no descriptor that we can poll, and
+request and response are coupled at lookup time. Therefore, Broker offers a
+second mechanism to lookup values in data stores. A ``store::proxy``
+decouples lookup requests from responses and exposes a mailbox to integrate
+into event loops---exactly like blocking endpoints. Each request has a unique,
+monotonically increasing 64-bit ID that is hauled through the response:
+
+.. code-block:: cpp
+
+  // Add a value to a data store (master or clone).
+  ds->put("foo", 42);
+  // Create a proxy.
+  auto proxy = store::proxy{*ds};
+  // Perform an asynchyronous request to look up a value.
+  auto id = proxy.get("foo");
+  // Get a file descriptor for event loops.
+  auto fd = proxy.mailbox().fd();
+  // Receive results or block until the result is available.
+  auto response = proxy.receive();
+  assert(response.id() == id)
+  // Check whether we got data or an error.
+  if (response)
+    std::cout << *result << std::endl; // may print 42
+  else if (response.error() == sc::no_such_key)
+    std::cout << "no such key: 'foo'" << std::endl;
+  else
+    std::cout << "failed to retrieve value at key 'foo'" << std::endl;
+
