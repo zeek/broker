@@ -28,6 +28,10 @@ const status& message::status() const {
   return msg_.get_as<broker::status>(0);
 }
 
+bool message::error() const {
+  return status().error();
+}
+
 message::message(caf::message msg) : msg_{std::move(msg)} {
   BROKER_ASSERT((msg_.match_elements<broker::topic, caf::message, caf::actor>())
                 || msg_.match_elements<broker::status>());

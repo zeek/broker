@@ -42,6 +42,20 @@ const char* to_string(sc code) {
   }
 }
 
+bool status::error() const {
+  if (error_ == caf::none)
+    return false;
+  BROKER_ASSERT(error_.category() == caf::atom("broker"));
+  switch (static_cast<sc>(error_.code())) {
+    default:
+      return true;
+    case sc::peer_added:
+    case sc::peer_removed:
+    case sc::peer_recovered:
+      return false;
+  }
+}
+
 const std::string* status::message() const {
   if (error_ == caf::none)
     return nullptr;

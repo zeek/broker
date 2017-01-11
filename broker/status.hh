@@ -75,6 +75,11 @@ public:
   /// Default-constructs a status, indicating a successful operation.
   status() = default;
 
+  /// Checks whether the status represents an error or a notification.
+  /// @returns `true` if the status represents an error.
+  /// @note A default-constructed status does not constitute an error.
+  bool error() const;
+
   /// Retrieves additional contextual information, if available.
   /// The [status code][::sc] determines the type of information that's
   /// available.

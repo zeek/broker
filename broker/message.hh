@@ -30,6 +30,10 @@ public:
   /// @pre `!*this`
   const broker::status& status() const;
 
+  /// @returns `true` if the contained status reflects an error.
+  /// @pre `!*this`
+  bool error() const;
+
 private:
   explicit message(caf::message msg);
 
