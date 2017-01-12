@@ -245,6 +245,12 @@ TEST(3 Unpeering and Overlay Partitioning) {
   MESSAGE("Sending n3 -> n0");
   n3.publish("a", "pong");
   n0.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "a");});
+  MESSAGE("n0 " << n0.mailbox().count(99));
+  MESSAGE("n1 " << n1.mailbox().count(99));
+  MESSAGE("n2 " << n2.mailbox().count(99));
+  MESSAGE("n3 " << n3.mailbox().count(99));
+  MESSAGE("n4 " << n4.mailbox().count(99));
+  MESSAGE("n5 " << n5.mailbox().count(99));
   CHECK(n0.mailbox().empty());
   CHECK(n1.mailbox().empty());
   CHECK(n2.mailbox().empty());
@@ -258,7 +264,15 @@ TEST(3 Unpeering and Overlay Partitioning) {
   std::this_thread::sleep_for(milliseconds{100});
   MESSAGE("Sending n0 -> n1, n3");
   n0.publish("b", "ping");
+  n1.receive([](const topic& t, const data& d) {MESSAGE("n1 topic " << t);});
+  n3.receive([](const topic& t, const data& d) {MESSAGE("n3 topic " << t);});
   n1.receive([](const topic& t, const data& d) {CHECK_EQUAL(t, "b");});
+  MESSAGE("n0 " << n0.mailbox().count(99));
+  MESSAGE("n1 " << n1.mailbox().count(99));
+  MESSAGE("n2 " << n2.mailbox().count(99));
+  MESSAGE("n3 " << n3.mailbox().count(99));
+  MESSAGE("n4 " << n4.mailbox().count(99));
+  MESSAGE("n5 " << n5.mailbox().count(99));
   CHECK(n0.mailbox().empty());
   CHECK(n1.mailbox().empty());
   CHECK(n2.mailbox().empty());
@@ -268,6 +282,13 @@ TEST(3 Unpeering and Overlay Partitioning) {
 
   MESSAGE("Sending n0 -> n5");
   n0.publish("e", "ping");
+  std::this_thread::sleep_for(milliseconds{100});
+  MESSAGE("n0 " << n0.mailbox().count(99));
+  MESSAGE("n1 " << n1.mailbox().count(99));
+  MESSAGE("n2 " << n2.mailbox().count(99));
+  MESSAGE("n3 " << n3.mailbox().count(99));
+  MESSAGE("n4 " << n4.mailbox().count(99));
+  MESSAGE("n5 " << n5.mailbox().count(99));
   CHECK(n0.mailbox().empty());
   CHECK(n1.mailbox().empty());
   CHECK(n2.mailbox().empty());
