@@ -232,7 +232,6 @@ The concrete semantics of a status depend on its embedded code, which the enum
 .. literalinclude:: ../broker/status.hh
    :language: cpp
    :lines: 27-60
-   :emphasize-lines: 5,7
 
 Status messages have an optional *context* and an optional descriptive
 *message*:
