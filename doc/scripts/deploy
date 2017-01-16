@@ -18,8 +18,10 @@ fi
 # Put most recent PDF version of documentation into webroot
 cp "$pdf/user-manual.pdf" "$html"
 
+sha=$(git rev-parse --short HEAD)
+
 cd "$html"
 
 git add -A
-git commit || exit 0
+git commit -m "Automatic deployment of commit $sha"
 git push origin HEAD
