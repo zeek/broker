@@ -7,7 +7,6 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/convert.hh"
-#include "broker/expected.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
@@ -505,7 +504,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::make_message("", uint16_t{0});
     },
     [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type, backend_options& opts) -> expected<caf::actor> {
+        backend backend_type, backend_options& opts)
+    -> caf::result<caf::actor> {
       BROKER_DEBUG("attaching master:" << name);
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
@@ -529,7 +529,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return actor;
     },
     [=](atom::store, atom::clone, atom::attach, std::string& name)
-    -> expected<caf::actor> {
+    -> caf::result<caf::actor> {
       BROKER_DEBUG("attaching clone:" << name);
       optional<caf::actor> master;
       auto i = self->state.masters.find(name);

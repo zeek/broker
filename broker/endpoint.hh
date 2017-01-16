@@ -10,11 +10,11 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/endpoint_info.hh"
-#include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
+#include "broker/result.hh"
 #include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
@@ -101,7 +101,7 @@ public:
   ///          a master with *name* exists already.
   template <frontend F, backend B>
   auto attach(std::string name, backend_options opts = backend_options{})
-  -> detail::enable_if_t<F == master, expected<store>> {
+  -> detail::enable_if_t<F == master, result<store>> {
     return attach_master(std::move(name), B, std::move(opts));
   }
 
@@ -111,7 +111,7 @@ public:
   ///          a master *name* could not be found.
   template <frontend F>
   auto attach(std::string name)
-  -> detail::enable_if_t<F == clone, expected<store>> {
+  -> detail::enable_if_t<F == clone, result<store>> {
     return attach_clone(std::move(name));
   }
 
@@ -137,10 +137,10 @@ protected:
   caf::actor subscriber_;
 
 private:
-  expected<store> attach_master(std::string name, backend type,
-                                backend_options opts);
+  result<store> attach_master(std::string name, backend type,
+                              backend_options opts);
 
-  expected<store> attach_clone(std::string name);
+  result<store> attach_clone(std::string name);
 };
 
 } // namespace broker

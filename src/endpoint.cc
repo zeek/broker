@@ -146,37 +146,37 @@ const caf::actor& endpoint::core() const {
   return *core_;
 }
 
-expected<store> endpoint::attach_master(std::string name, backend type,
-                                        backend_options opts) {
-  expected<store> result{sc::unspecified};
+result<store> endpoint::attach_master(std::string name, backend type,
+                                      backend_options opts) {
+  result<store> res{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::store::value, atom::master::value,
                                atom::attach::value, std::move(name), type,
                                std::move(opts));
   self->request(core(), timeout::core, std::move(msg)).receive(
     [&](caf::actor& master) {
-      result = store{std::move(master)};
+      res = store{std::move(master)};
     },
     [&](caf::error& e) {
-      result = std::move(e);
+      res = make_status(std::move(e));
     }
   );
-  return result;
+  return res;
 }
 
-expected<store> endpoint::attach_clone(std::string name) {
-  expected<store> result{sc::unspecified};
+result<store> endpoint::attach_clone(std::string name) {
+  result<store> res{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::store::value, atom::clone::value,
                 atom::attach::value, std::move(name)).receive(
     [&](caf::actor& clone) {
-      result = store{std::move(clone)};
+      res = store{std::move(clone)};
     },
     [&](caf::error& e) {
-      result = std::move(e);
+      res = make_status(std::move(e));
     }
   );
-  return result;
+  return res;
 }
 
 } // namespace broker

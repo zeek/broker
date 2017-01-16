@@ -39,53 +39,53 @@ TEST(master operations) {
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
-  auto result = ds->get("foo");
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{42});
-  result = ds->get("bar");
-  REQUIRE(!result);
-  CHECK_EQUAL(result.error(), sc::no_such_key);
+  auto x = ds->get("foo");
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{42});
+  x = ds->get("bar");
+  REQUIRE(!x);
+  CHECK_EQUAL(x, sc::no_such_key);
   MESSAGE("erase");
   ds->erase("foo");
-  result = ds->get("foo");
-  REQUIRE(!result);
-  CHECK_EQUAL(result.error(), sc::no_such_key);
+  x = ds->get("foo");
+  REQUIRE(!x);
+  CHECK_EQUAL(x, sc::no_such_key);
   MESSAGE("add");
   ds->add("foo", 1u); // key did not exist, operation fails
-  result = ds->get("foo");
-  REQUIRE(!result);
+  x = ds->get("foo");
+  REQUIRE(!x);
   ds->put("foo", 0u);
   ds->add("foo", 1u); // key exists now, operation succeeds
-  result = ds->get("foo");
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{1u});
+  x = ds->get("foo");
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{1u});
   ds->add("foo", 41u); // adding on top of existing value
-  result = ds->get("foo");
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{42u});
+  x = ds->get("foo");
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{42u});
   ds->put("foo", "b");
   ds->add("foo", "a");
   ds->add("foo", "r");
-  result = ds->get("foo");
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{"bar"});
+  x = ds->get("foo");
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{"bar"});
   ds->put("foo", set{1, 3});
   ds->add("foo", 2);
-  result = ds->get("foo");
-  REQUIRE(result);
-  CHECK(*result == set{1, 2, 3});
+  x = ds->get("foo");
+  REQUIRE(x);
+  CHECK(*x == set{1, 2, 3});
   MESSAGE("remove");
   ds->remove("foo", 1);
-  result = ds->get("foo");
-  REQUIRE(result);
-  CHECK(*result == set{2, 3});
+  x = ds->get("foo");
+  REQUIRE(x);
+  CHECK(*x == set{2, 3});
   MESSAGE("lookup");
-  result = ds->lookup("foo", 1);
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{false});
-  result = ds->lookup("foo", 2);
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{true});
+  x = ds->lookup("foo", 1);
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{false});
+  x = ds->lookup("foo", 2);
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{true});
 }
 
 TEST(nonblocking api) {
@@ -96,14 +96,14 @@ TEST(nonblocking api) {
   MESSAGE("put");
   ds->put("foo", 42);
   MESSAGE("existing key");
-  auto result = std::make_shared<data>();
+  auto x = std::make_shared<data>();
   ds->get<nonblocking>("foo").then(
-    [=](data& d) { *result = std::move(d); },
+    [=](data& d) { *x = std::move(d); },
     [](status) { /* nop */ }
   );
   std::this_thread::sleep_for(propagation_delay);
-  REQUIRE(result);
-  CHECK_EQUAL(*result, data{42});
+  REQUIRE(x);
+  CHECK_EQUAL(*x, data{42});
   MESSAGE("non-existing key");
   auto failure = std::make_shared<status>();
   ds->get<nonblocking>("bar").then(
@@ -174,7 +174,7 @@ TEST(expiration) {
   // Check after expiration.
   v = m->get("foo");
   REQUIRE(!v);
-  CHECK(v.error() == sc::no_such_key);
+  CHECK(v == sc::no_such_key);
 }
 
 TEST(proxy) {
@@ -191,13 +191,13 @@ TEST(proxy) {
   CHECK_EQUAL(id, 2u);
   MESSAGE("master: collect responses");
   auto resp = proxy.receive();
-  CHECK_EQUAL(resp.id(), 1u);
-  REQUIRE(resp);
-  CHECK_EQUAL(*resp, data{42});
+  CHECK_EQUAL(resp.id, 1u);
+  REQUIRE(resp.answer);
+  CHECK_EQUAL(*resp.answer, data{42});
   resp = proxy.receive();
-  CHECK_EQUAL(resp.id(), 2u);
-  REQUIRE(!resp);
-  CHECK_EQUAL(resp.status(), sc::no_such_key);
+  CHECK_EQUAL(resp.id, 2u);
+  REQUIRE(!resp.answer);
+  CHECK_EQUAL(resp.answer.status(), sc::no_such_key);
   MESSAGE("clone: issue queries");
   auto c = ep.attach<clone>("puneta");
   REQUIRE(c);
@@ -208,11 +208,11 @@ TEST(proxy) {
   CHECK_EQUAL(id, 2u);
   MESSAGE("clone: collect responses");
   resp = proxy.receive();
-  CHECK_EQUAL(resp.id(), 1u);
-  REQUIRE(resp);
-  CHECK_EQUAL(*resp, data{42});
+  CHECK_EQUAL(resp.id, 1u);
+  REQUIRE(resp.answer);
+  CHECK_EQUAL(*resp.answer, data{42});
   resp = proxy.receive();
-  CHECK_EQUAL(resp.id(), 2u);
-  REQUIRE(!resp);
-  CHECK_EQUAL(resp.status(), sc::no_such_key);
+  CHECK_EQUAL(resp.id, 2u);
+  REQUIRE(!resp.answer);
+  CHECK_EQUAL(resp.answer.status(), sc::no_such_key);
 }

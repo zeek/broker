@@ -89,18 +89,18 @@ The two template parameters ``F`` and ``B`` denote the respective frontend and
 backend types, where ``B`` defaults to ``memory``.  The function takes as first
 argument the name of the store and as second argument optionally a set of
 backend options, such as the path where to keep the backend on the filesystem.
-The function returns a ``expected<store>`` which encapsulates a type-erased
+The function returns a ``result<store>`` which encapsulates a type-erased
 reference to the data store.
 
 .. note::
 
-  The type ``expected<T>`` encapsulates an instance of type ``T`` or an
-  ``error``, with an interface that has "pointer semantics" for syntactic
+  The type ``result<T>`` encapsulates an instance of type ``T`` or a
+  ``status``, with an interface that has "pointer semantics" for syntactic
   convenience:
 
   .. code-block:: cpp
 
-    auto f(...) -> expected<T>;
+    auto f(...) -> result<T>;
 
     auto x = f();
     if (x)
@@ -108,8 +108,8 @@ reference to the data store.
     else
       std::cout << to_string(x.error()) << std::endl;
 
-  In the failure case, the ``expected<T>::error()`` holds an ``error`` that
-  can be compared against an error enumeration.
+  In the failure case, the ``result<T>::status()`` holds a ``status`` that
+  can be compared against the status code enumeration ``sc``.
 
 Modification
 ~~~~~~~~~~~~
@@ -140,7 +140,7 @@ There exist two methods of directly extracting values from a store: either in a
 blocking or non-blocking fashion.
 
 The overload ``get<blocking>(const data& key)`` retrieves a value in a blocking
-manner and returns an instance of ``expected<data>``.
+manner and returns an instance of ``result<data>``.
 
 .. code-block:: cpp
 
@@ -198,11 +198,11 @@ monotonically increasing 64-bit ID that is hauled through the response:
   auto fd = proxy.mailbox().fd();
   // Receive results or block until the result is available.
   auto response = proxy.receive();
-  assert(response.id() == id)
+  assert(response.id == id)
   // Check whether we got data or an error.
-  if (response)
-    std::cout << *result << std::endl; // may print 42
-  else if (response.error() == sc::no_such_key)
+  if (response.answer)
+    std::cout << *result.answer << std::endl; // may print 42
+  else if (response.answer.status() == sc::no_such_key)
     std::cout << "no such key: 'foo'" << std::endl;
   else
     std::cout << "failed to retrieve value at key 'foo'" << std::endl;

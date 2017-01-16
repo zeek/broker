@@ -44,7 +44,7 @@ public:
       detail::remove_all(path);
   }
 
-  expected<void> put(const data& key, data value,
+  result<void> put(const data& key, data value,
                      optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
@@ -53,7 +53,7 @@ public:
     );
   }
 
-  expected<void> add(const data& key, const data& value,
+  result<void> add(const data& key, const data& value,
                      optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
@@ -62,7 +62,7 @@ public:
     );
   }
 
-  expected<void> remove(const data& key, const data& value,
+  result<void> remove(const data& key, const data& value,
                         optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
@@ -71,7 +71,7 @@ public:
     );
   }
 
-  expected<void> erase(const data& key) override {
+  result<void> erase(const data& key) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.erase(key);
@@ -79,7 +79,7 @@ public:
     );
   }
 
-  expected<bool> expire(const data& key) override {
+  result<bool> expire(const data& key) override {
     return perform<bool>(
       [&](detail::abstract_backend& backend) {
         return backend.expire(key);
@@ -87,7 +87,7 @@ public:
     );
   }
 
-  expected<data> get(const data& key) const override {
+  result<data> get(const data& key) const override {
     return perform<data>(
       [&](detail::abstract_backend& backend) {
         return backend.get(key);
@@ -95,7 +95,7 @@ public:
     );
   }
 
-  expected<data> get(const data& key, const data& value) const override {
+  result<data> get(const data& key, const data& value) const override {
     return perform<data>(
       [&](detail::abstract_backend& backend) {
         return backend.get(key, value);
@@ -103,7 +103,7 @@ public:
     );
   }
 
-  expected<bool> exists(const data& key) const override {
+  result<bool> exists(const data& key) const override {
     return perform<bool>(
       [&](detail::abstract_backend& backend) {
         return backend.exists(key);
@@ -111,7 +111,7 @@ public:
     );
   }
 
-  expected<uint64_t> size() const override {
+  result<uint64_t> size() const override {
     return perform<uint64_t>(
       [](detail::abstract_backend& backend) {
         return backend.size();
@@ -119,7 +119,7 @@ public:
     );
   }
 
-  expected<broker::snapshot> snapshot() const override {
+  result<broker::snapshot> snapshot() const override {
     return perform<broker::snapshot>(
       [](detail::abstract_backend& backend) {
         return backend.snapshot();
@@ -129,8 +129,8 @@ public:
 
 private:
   template <class T, class F>
-  expected<T> perform(F f) {
-    std::vector<expected<T>> xs;
+  result<T> perform(F f) {
+    std::vector<result<T>> xs;
     for (auto& backend : backends_)
       xs.push_back(f(*backend));
     if (!all_equal(xs))
@@ -139,7 +139,7 @@ private:
   }
 
   template <class T, class F>
-  expected<T> perform(F f) const {
+  result<T> perform(F f) const {
     return const_cast<meta_backend*>(this)->perform<T>(f); // lazy
   }
 
@@ -179,16 +179,16 @@ TEST(put/get) {
   MESSAGE("no key");
   get = backend->get("bar");
   REQUIRE(!get);
-  CHECK_EQUAL(get.error(), sc::no_such_key);
+  CHECK_EQUAL(get, sc::no_such_key);
 }
 
 TEST(add/remove) {
   auto add = backend->add("foo", 42);
   REQUIRE(!add);
-  CHECK_EQUAL(add.error(), sc::no_such_key);
+  CHECK_EQUAL(add, sc::no_such_key);
   auto remove = backend->remove("foo", 42);
   REQUIRE(!remove);
-  CHECK_EQUAL(remove.error(), sc::no_such_key);
+  CHECK_EQUAL(remove, sc::no_such_key);
   auto put = backend->put("foo", 42);
   MESSAGE("add");
   add = backend->add("foo", 2);
@@ -199,7 +199,7 @@ TEST(add/remove) {
   MESSAGE("remove");
   remove = backend->remove("foo", "bar");
   REQUIRE(!remove);
-  CHECK_EQUAL(remove.error(), sc::type_clash);
+  CHECK_EQUAL(remove, sc::type_clash);
   remove = backend->remove("foo", 10);
   REQUIRE(remove);
   get = backend->get("foo");

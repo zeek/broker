@@ -42,6 +42,9 @@ const char* to_string(sc code) {
   }
 }
 
+status::status(sc code) : error_{code} {
+}
+
 bool status::error() const {
   if (error_ == caf::none)
     return false;
@@ -56,17 +59,23 @@ bool status::error() const {
   }
 }
 
+sc status::code() const {
+  if (error_ == caf::none)
+    return sc::unspecified;
+  BROKER_ASSERT(error_.category() == caf::atom("broker"));
+  return static_cast<sc>(error_.code());
+}
+
 const std::string* status::message() const {
   if (error_ == caf::none)
     return nullptr;
   BROKER_ASSERT(error_.category() == caf::atom("broker"));
+  auto& ctx = error_.context();
   switch (static_cast<sc>(error_.code())) {
     default:
       return nullptr;
-    case sc::unspecified: {
-      auto& ctx = error_.context();
+    case sc::unspecified:
       return ctx.empty() ? nullptr : &ctx.get_as<std::string>(0);
-    }
     case sc::peer_added:
     case sc::peer_removed:
     case sc::peer_incompatible:
@@ -75,18 +84,31 @@ const std::string* status::message() const {
     case sc::peer_timeout:
     case sc::peer_lost:
     case sc::peer_recovered:
-      return &error_.context().get_as<std::string>(1);
+      return &ctx.get_as<std::string>(1);
     case sc::request_timeout:
-      return &error_.context().get_as<std::string>(0);
+      return &ctx.get_as<std::string>(0);
   }
 }
 
+bool operator==(const status& x, const status& y) {
+  return x.error_ == y.error_;
+}
+
 bool operator==(const status& x, sc y) {
-  return x.error_ == y;
+  return x.code() == y;
 }
 
 bool operator==(sc x, const status& y) {
   return y == x;
+}
+
+std::string to_string(const status& s) {
+  if (s.error_ == caf::none)
+    return "";
+  BROKER_ASSERT(s.error_.category() == caf::atom("broker"));
+  auto code = static_cast<sc>(s.error_.code());
+  // TODO: include context and message.
+  return to_string(code);
 }
 
 status status::make(caf::error e) {
@@ -118,6 +140,10 @@ status::status(caf::error e) : error_{std::move(e)} {
 
 status make_status(caf::error e) {
   return status::make(std::move(e));
+}
+
+caf::error make_error(const status& s) {
+  return s.error_;
 }
 
 } // namespace broker

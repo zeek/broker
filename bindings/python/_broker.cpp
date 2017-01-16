@@ -371,10 +371,10 @@ PYBIND11_PLUGIN(_broker) {
                     })
     .def("attach_master",
          [](endpoint& ep, const std::string& name, backend b,
-            const backend_options& opts) -> expected<store> {
+            const backend_options& opts) -> result<store> {
            switch (b) {
              default:
-               return make_error(sc::backend_failure, "invalid backend type");
+               return make_status<sc::backend_failure>("invalid backend type");
              case memory:
                return ep.attach<master, memory>(name, opts);
              case sqlite:

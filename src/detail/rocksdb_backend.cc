@@ -79,7 +79,7 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key>
-  expected<std::string> get(const Key& key) {
+  result<std::string> get(const Key& key) {
     if (!db)
       return sc::backend_failure;
     std::string value;
@@ -102,7 +102,7 @@ struct rocksdb_backend::impl {
   // API surprisingly doesn't allow for efficient checking of key existence; a
   // value is always returned along the way.
   template <class Key>
-  expected<bool> exists(const Key& key) {
+  result<bool> exists(const Key& key) {
     if (!db)
       return sc::backend_failure;
     bool exists;
@@ -122,7 +122,7 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key>
-  expected<void> erase(const Key& key) {
+  result<void> erase(const Key& key) {
     if (!db)
       return sc::backend_failure;
     auto status = db->Delete({}, key);
@@ -177,7 +177,7 @@ rocksdb_backend::~rocksdb_backend() {
     delete impl_->db;
 }
 
-expected<void> rocksdb_backend::put(const data& key, data value,
+result<void> rocksdb_backend::put(const data& key, data value,
                                     optional<timestamp> expiry) {
   if (!impl_->db)
     return sc::backend_failure;
@@ -188,12 +188,12 @@ expected<void> rocksdb_backend::put(const data& key, data value,
   return {};
 }
 
-expected<void> rocksdb_backend::add(const data& key, const data& value,
+result<void> rocksdb_backend::add(const data& key, const data& value,
                                    optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
-    return value_blob.error();
+    return value_blob.status();
   auto v = from_blob<data>(*value_blob);
   auto result = visit(adder{value}, v);
   if (!result)
@@ -204,12 +204,12 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
   return {};
 }
 
-expected<void> rocksdb_backend::remove(const data& key, const data& value,
+result<void> rocksdb_backend::remove(const data& key, const data& value,
                                       optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
-    return value_blob.error();
+    return value_blob.status();
   auto v = from_blob<data>(*value_blob);
   auto result = visit(remover{value}, v);
   if (!result)
@@ -220,7 +220,7 @@ expected<void> rocksdb_backend::remove(const data& key, const data& value,
   return {};
 }
 
-expected<void> rocksdb_backend::erase(const data& key) {
+result<void> rocksdb_backend::erase(const data& key) {
   if (!impl_->db)
     return sc::backend_failure;
   rocksdb::WriteBatch batch;
@@ -236,14 +236,14 @@ expected<void> rocksdb_backend::erase(const data& key) {
   return {};
 }
 
-expected<bool> rocksdb_backend::expire(const data& key) {
+result<bool> rocksdb_backend::expire(const data& key) {
   auto ts = now();
   auto key_blob = to_key_blob<prefix::expiry>(key);
   auto expiry_blob = impl_->get(key_blob);
   if (!expiry_blob) {
-    if (expiry_blob.error() == sc::no_such_key)
+    if (expiry_blob == sc::no_such_key)
       return false;
-    return expiry_blob.error();
+    return expiry_blob.status();
   }
   auto expiry = from_blob<timestamp>(*expiry_blob);
   if (ts < expiry)
@@ -260,18 +260,18 @@ expected<bool> rocksdb_backend::expire(const data& key) {
   return true;
 }
 
-expected<data> rocksdb_backend::get(const data& key) const {
+result<data> rocksdb_backend::get(const data& key) const {
   auto value_blob = impl_->get(to_key_blob<prefix::data>(key));
   if (!value_blob)
-    return value_blob.error();
+    return value_blob.status();
   return from_blob<data>(*value_blob);
 }
 
-expected<bool> rocksdb_backend::exists(const data& key) const {
+result<bool> rocksdb_backend::exists(const data& key) const {
   return impl_->exists(to_key_blob<prefix::data>(key));
 }
 
-expected<uint64_t> rocksdb_backend::size() const {
+result<uint64_t> rocksdb_backend::size() const {
   if (!impl_->db)
     return sc::backend_failure;
   uint64_t result;
@@ -296,7 +296,7 @@ expected<uint64_t> rocksdb_backend::size() const {
   return result;
 }
 
-expected<snapshot> rocksdb_backend::snapshot() const {
+result<snapshot> rocksdb_backend::snapshot() const {
   if (!impl_->db)
     return sc::backend_failure;
   broker::snapshot result;

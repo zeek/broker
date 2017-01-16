@@ -5,13 +5,14 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/expected.hh"
+#include "broker/result.hh"
 #include "broker/snapshot.hh"
 #include "broker/status.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/appliers.hh"
+#include "broker/detail/unbox.hh"
 
 namespace broker {
 namespace detail {
@@ -79,23 +80,22 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     }
   };
   auto query = caf::message_handler{
-    [=](atom::get, const data& key) -> expected<data> {
+    [=](atom::get, const data& key) -> caf::result<data> {
       BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         return sc::no_such_key;
       return i->second;
     },
-    [=](atom::get, const data& key, const data& value) -> expected<data> {
+    [=](atom::get, const data& key, const data& value) -> caf::result<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         return sc::no_such_key;
-      return visit(retriever{value}, i->second);
+      return unbox(visit(retriever{value}, i->second));
     },
     [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
       BROKER_DEBUG("GET" << key << "with id:" << id);
-      auto result = expected<data>{sc::no_such_key};
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         self->send(proxy, data{}, make_error(sc::no_such_key), id);
@@ -114,7 +114,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if (x)
         self->send(proxy, std::move(*x), caf::error{}, id);
       else
-        self->send(proxy, data{}, std::move(x.error()), id);
+        self->send(proxy, data{}, x.status(), id);
     },
     [=](atom::get, atom::name) {
       return name;

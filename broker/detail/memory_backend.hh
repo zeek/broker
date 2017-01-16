@@ -17,28 +17,28 @@ public:
   /// @param opts The options controlling the backend behavior.
   memory_backend(backend_options opts = backend_options{});
 
-  expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override;
+  result<void> put(const data& key, data value,
+                   optional<timestamp> expiry) override;
 
-  expected<void> add(const data& key, const data& value,
-                     optional<timestamp> expiry) override;
+  result<void> add(const data& key, const data& value,
+                   optional<timestamp> expiry) override;
 
-  expected<void> remove(const data& key, const data& value,
-                        optional<timestamp> expiry) override;
+  result<void> remove(const data& key, const data& value,
+                      optional<timestamp> expiry) override;
 
-  expected<void> erase(const data& key) override;
+  result<void> erase(const data& key) override;
 
-  expected<bool> expire(const data& key) override;
+  result<bool> expire(const data& key) override;
 
-  expected<data> get(const data& key) const override;
+  result<data> get(const data& key) const override;
 
-  expected<data> get(const data& key, const data& value) const override;
+  result<data> get(const data& key, const data& value) const override;
 
-  expected<bool> exists(const data& key) const override;
+  result<bool> exists(const data& key) const override;
 
-  expected<uint64_t> size() const override;
+  result<uint64_t> size() const override;
 
-  expected<broker::snapshot> snapshot() const override;
+  result<broker::snapshot> snapshot() const override;
 
 private:
   backend_options options_;

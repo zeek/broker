@@ -12,13 +12,13 @@ memory_backend::memory_backend(backend_options opts)
   // nop
 }
 
-expected<void>
+result<void>
 memory_backend::put(const data& key, data value, optional<timestamp> expiry) {
   store_[key] = {std::move(value), expiry};
   return {};
 }
 
-expected<void> memory_backend::add(const data& key, const data& value,
+result<void> memory_backend::add(const data& key, const data& value,
                                    optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
@@ -29,7 +29,7 @@ expected<void> memory_backend::add(const data& key, const data& value,
   return result;
 }
 
-expected<void> memory_backend::remove(const data& key, const data& value,
+result<void> memory_backend::remove(const data& key, const data& value,
                                       optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
@@ -40,12 +40,12 @@ expected<void> memory_backend::remove(const data& key, const data& value,
   return result;
 }
 
-expected<void> memory_backend::erase(const data& key) {
+result<void> memory_backend::erase(const data& key) {
   store_.erase(key);
   return {};
 }
 
-expected<bool> memory_backend::expire(const data& key) {
+result<bool> memory_backend::expire(const data& key) {
   auto ts = now();
   auto i = store_.find(key);
   if (i == store_.end())
@@ -56,14 +56,14 @@ expected<bool> memory_backend::expire(const data& key) {
   return true;
 }
 
-expected<data> memory_backend::get(const data& key) const {
+result<data> memory_backend::get(const data& key) const {
   auto i = store_.find(key);
   if (i == store_.end())
     return sc::no_such_key;
   return i->second.first;
 }
 
-expected<data> memory_backend::get(const data& key, const data& value) const {
+result<data> memory_backend::get(const data& key, const data& value) const {
   auto i = store_.find(key);
   if (i == store_.end())
     return sc::no_such_key;
@@ -73,15 +73,15 @@ expected<data> memory_backend::get(const data& key, const data& value) const {
   return visit(retriever{value}, i->second.first);
 }
 
-expected<bool> memory_backend::exists(const data& key) const {
+result<bool> memory_backend::exists(const data& key) const {
   return store_.count(key) == 1;
 }
 
-expected<uint64_t> memory_backend::size() const {
+result<uint64_t> memory_backend::size() const {
   return store_.size();
 }
 
-expected<snapshot> memory_backend::snapshot() const {
+result<snapshot> memory_backend::snapshot() const {
   broker::snapshot ss;
   for (auto& p : store_)
     ss.entries.emplace(p.first, p.second.first);

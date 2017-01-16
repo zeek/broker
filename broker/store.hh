@@ -10,10 +10,10 @@
 #include "broker/api_flags.hh"
 #include "broker/atoms.hh"
 #include "broker/data.hh"
-#include "broker/expected.hh"
 #include "broker/fwd.hh"
 #include "broker/mailbox.hh"
 #include "broker/optional.hh"
+#include "broker/result.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -84,34 +84,10 @@ public:
     caf::message msg_;
   };
 
-  class proxy;
-
   /// A response to a lookup request issued by a ::proxy.
-  class response {
-    friend proxy; // construction
-
-  public:
-    /// Default-constructs an (invalid) response.
-    response();
-
-    /// Checks whether a response contains data or a status.
-    explicit operator bool() const;
-
-    /// @pre `static_cast<bool>(*this)`
-    data& operator*();
-
-    /// @pre `static_cast<bool>(*this)`
-    data* operator->();
-
-    /// @pre `!*this`
-    broker::status status();
-
-    /// @returns the ID corresponding to the request.
-    request_id id() const;
-
-  private:
-    expected<data> data_;
-    request_id id_ = 0;
+  struct response {
+    result<data> answer;
+    request_id id;
   };
 
   /// A utility to decouple store lookups and corresponding response
@@ -151,7 +127,7 @@ public:
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, expected<data>>
+  detail::enable_if_t<Flags == blocking, result<data>>
   get(data key) const {
     return request<data>(atom::get::value, std::move(key));
   }
@@ -170,7 +146,7 @@ public:
   /// @param aspect The aspect of the value.
   /// @returns The value under *key* or an error.
   template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, expected<data>>
+  detail::enable_if_t<Flags == blocking, result<data>>
   lookup(data key, data value) const {
     return request<data>(atom::get::value, std::move(key), std::move(value));
   }
@@ -215,19 +191,19 @@ private:
   store(caf::actor actor);
 
   template <class T, class... Ts>
-  expected<T> request(Ts&&... xs) const {
-    expected<T> result{sc::unspecified};
+  result<T> request(Ts&&... xs) const {
+    result<T> res{sc::unspecified};
     caf::scoped_actor self{frontend_->home_system()};
     auto msg = caf::make_message(std::forward<Ts>(xs)...);
     self->request(frontend_, timeout::frontend, std::move(msg)).receive(
       [&](T& x) {
-        result = std::move(x);
+        res = std::move(x);
       },
       [&](caf::error& e) {
-        result = std::move(e);
+        res = make_status(std::move(e));
       }
     );
-    return result;
+    return res;
   }
 
   caf::actor frontend_;

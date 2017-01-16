@@ -2,7 +2,7 @@
 #define BROKER_DETAIL_APPLIERS_HH
 
 #include "broker/data.hh"
-#include "broker/expected.hh"
+#include "broker/result.hh"
 #include "broker/status.hh"
 #include "broker/time.hh"
 
@@ -20,7 +20,7 @@ constexpr bool is_additive_group() {
 }
 
 struct adder {
-  using result_type = expected<void>;
+  using result_type = result<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
@@ -78,7 +78,7 @@ struct adder {
 };
 
 struct remover {
-  using result_type = expected<void>;
+  using result_type = result<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
@@ -122,7 +122,7 @@ struct remover {
 };
 
 struct retriever {
-  using result_type = expected<data>;
+  using result_type = result<data>;
 
   template <class T>
   result_type operator()(const T& x) const {

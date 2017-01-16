@@ -10,30 +10,6 @@
 
 namespace broker {
 
-store::response::response() : data_{caf::error{}} {
-}
-
-store::response::operator bool() const {
-  return !!data_;
-}
-
-data& store::response::operator*() {
-  return *data_;
-}
-
-data* store::response::operator->() {
-  return &*data_;
-}
-
-status store::response::status() {
-  return make_status(data_.error());
-}
-
-request_id store::response::id() const {
-  return id_;
-}
-
-
 store::proxy::proxy(store& s) : frontend_{s.frontend_} {
   proxy_ = frontend_.home_system().spawn<detail::flare_actor>();
 }
@@ -49,18 +25,18 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
-  response resp;
+  auto resp = response{status{}, 0};
   caf::actor_cast<caf::blocking_actor*>(proxy_)->receive(
     [&](data& x, caf::error& e, request_id id) {
-      resp.id_ = id;
+      resp.id = id;
       if (e)
-        resp.data_ = std::move(e);
+        resp.answer = make_status(std::move(e));
       else
-        resp.data_ = std::move(x);
+        resp.answer = std::move(x);
     },
     [&](caf::error& e) {
       BROKER_ERROR("proxy failed to receive response from store");
-      resp.data_ = std::move(e);
+      resp.answer = make_status(std::move(e));
     }
   );
   return resp;

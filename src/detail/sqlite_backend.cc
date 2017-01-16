@@ -170,7 +170,7 @@ sqlite_backend::sqlite_backend(backend_options opts)
 sqlite_backend::~sqlite_backend() {
 }
 
-expected<void> sqlite_backend::put(const data& key, data value,
+result<void> sqlite_backend::put(const data& key, data value,
                                    optional<timestamp> expiry) {
   if (!impl_->db)
     return sc::backend_failure;
@@ -200,11 +200,11 @@ expected<void> sqlite_backend::put(const data& key, data value,
   return {};
 }
 
-expected<void> sqlite_backend::add(const data& key, const data& value,
+result<void> sqlite_backend::add(const data& key, const data& value,
                                    optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
-    return v.error();
+    return v.status();
   auto result = visit(adder{value}, *v);
   if (!result)
     return result;
@@ -213,11 +213,11 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
   return {};
 }
 
-expected<void> sqlite_backend::remove(const data& key, const data& value,
+result<void> sqlite_backend::remove(const data& key, const data& value,
                                       optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
-    return v.error();
+    return v.status();
   auto result = visit(remover{value}, *v);
   if (!result)
     return result;
@@ -226,7 +226,7 @@ expected<void> sqlite_backend::remove(const data& key, const data& value,
   return {};
 }
 
-expected<void> sqlite_backend::erase(const data& key) {
+result<void> sqlite_backend::erase(const data& key) {
   if (!impl_->db)
     return sc::backend_failure;
   auto guard = make_statement_guard(impl_->erase);
@@ -243,7 +243,7 @@ expected<void> sqlite_backend::erase(const data& key) {
   return {};
 }
 
-expected<bool> sqlite_backend::expire(const data& key) {
+result<bool> sqlite_backend::expire(const data& key) {
   if (!impl_->db)
     return sc::backend_failure;
   auto ts = now();
@@ -265,7 +265,7 @@ expected<bool> sqlite_backend::expire(const data& key) {
   return sqlite3_changes(impl_->db) == 1;
 }
 
-expected<data> sqlite_backend::get(const data& key) const {
+result<data> sqlite_backend::get(const data& key) const {
   if (!impl_->db)
     return sc::backend_failure;
   auto guard = make_statement_guard(impl_->lookup);
@@ -283,7 +283,7 @@ expected<data> sqlite_backend::get(const data& key) const {
                          sqlite3_column_bytes(impl_->lookup, 0));
 }
 
-expected<bool> sqlite_backend::exists(const data& key) const {
+result<bool> sqlite_backend::exists(const data& key) const {
   if (!impl_->db)
     return sc::backend_failure;
   auto guard = make_statement_guard(impl_->exists);
@@ -303,7 +303,7 @@ expected<bool> sqlite_backend::exists(const data& key) const {
 
 }
 
-expected<uint64_t> sqlite_backend::size() const {
+result<uint64_t> sqlite_backend::size() const {
   if (!impl_->db)
     return sc::backend_failure;
   auto guard = make_statement_guard(impl_->size);
@@ -313,7 +313,7 @@ expected<uint64_t> sqlite_backend::size() const {
 	return sqlite3_column_int(impl_->size, 0);
 }
 
-expected<snapshot> sqlite_backend::snapshot() const {
+result<snapshot> sqlite_backend::snapshot() const {
   if (!impl_->db)
     return sc::backend_failure;
   auto guard = make_statement_guard(impl_->snapshot);

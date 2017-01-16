@@ -68,17 +68,31 @@ caf::error make_error(sc x, Ts&&... xs) {
 /// @relates sc
 const char* to_string(sc code);
 
+template <class T>
+class result;
+
 /// Diagnostic status information.
-class status : detail::equality_comparable<status, sc>,
+class status : detail::equality_comparable<status, status>,
+               detail::equality_comparable<status, sc>,
                detail::equality_comparable<sc, status> {
+  template <class T>
+  friend class result; // for result<void>::operator bool
+
 public:
   /// Default-constructs a status, indicating a successful operation.
   status() = default;
+
+  /// Constructs a status from a specific code.
+  /// @param code The status code.
+  status(sc code);
 
   /// Checks whether the status represents an error or a notification.
   /// @returns `true` if the status represents an error.
   /// @note A default-constructed status does not constitute an error.
   bool error() const;
+
+  /// @returns The code of this status.
+  sc code() const;
 
   /// Retrieves additional contextual information, if available.
   /// The [status code][::sc] determines the type of information that's
@@ -108,9 +122,13 @@ public:
   /// @returns A textual description of status details.
   const std::string* message() const;
 
-  friend bool operator==(const status& s, sc x);
+  friend bool operator==(const status& x, const status& y);
 
-  friend bool operator==(sc x, const status& s);
+  friend bool operator==(const status& x, sc y);
+
+  friend bool operator==(sc x, const status& y);
+
+  friend std::string to_string(const status& s);
 
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, status& s) {
@@ -123,6 +141,8 @@ private:
 
   friend status make_status(caf::error);
 
+  friend caf::error make_error(const status&);
+
   template <sc S>
   static detail::enable_if_t<S == sc::unspecified, status>
   make() {
@@ -131,7 +151,9 @@ private:
 
   template <sc S>
   static detail::enable_if_t<
-    S == sc::unspecified || S == sc::request_timeout,
+    S == sc::unspecified
+    || S == sc::request_timeout
+    || S == sc::backend_failure,
     status
   >
   make(std::string msg) {
@@ -156,6 +178,7 @@ private:
 
   static status make(caf::error e);
 
+  // Translates a CAF error into a Broker status.
   explicit status(caf::error e);
 
   template <class... Ts>
@@ -166,13 +189,20 @@ private:
   caf::error error_;
 };
 
-  /// Factory to construct a status instance based on a specific status code.
+/// Factory to construct a status instance based on a specific status code.
+/// @relates status
 template <sc S, class... Ts>
 status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
 }
 
+// -- internal ---------------------------------------------------------------
+
+// Converts a CAF error into a Broker status.
 status make_status(caf::error e);
+
+// Converts a status back into a CAF error for message passing.
+caf::error make_error(const status& s);
 
 } // namespace broker
 
