@@ -166,14 +166,25 @@ Interface
 The ``data`` abstraction offers two ways of interacting with the contained type
 instance:
 
-1. Querying a specific type ``T``. The function ``data::get<T>`` returns either
-   a ``T*`` if the contained type is ``T`` and ``nullptr`` otherwise:
+1. Querying a specific type ``T``. As C++17's ``std::variant``, the function
+   ``get_if<T>`` returns either a ``T*`` if the contained type is ``T`` and
+   ``nullptr`` otherwise:
 
    .. code-block:: cpp
 
      auto x = data{...};
-     if (auto i = x.get<integer>())
+     if (auto i = get_if<integer>(x))
        f(*i); // safe use of x
+
+    Alternatively, the function ``get<T>`` returns a reference of type ``T&``
+    or ``const T&``, based on whether the given ``data`` argument is
+    const-qualified:
+
+   .. code-block:: cpp
+
+     auto x = data{...};
+     auto& str = get<std::string>(x); // throws std::bad_cast on type clash
+     f(str); // safe use of x
 
 2. Applying a *visitor*. Since ``data`` is a variant type, one can apply a
    visitor to it, i.e., dispatch a function call based on the type discrimantor

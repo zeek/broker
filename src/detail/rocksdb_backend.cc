@@ -142,13 +142,13 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
   auto i = opts.find("path");
   if (i == opts.end())
     return;
-  auto path = i->second.get<std::string>();
+  auto path = get_if<std::string>(i->second);
   if (!path)
     return;
   // Parse optional options.
   i = opts.find("exact-size-threshold");
   if (i != opts.end()) {
-    if (auto exact_size_threshold = i->second.get<count>())
+    if (auto exact_size_threshold = get_if<count>(i->second))
       impl_->exact_size_threshold = *exact_size_threshold;
     else
       BROKER_ERROR("exact-size-threshold must be of type count");

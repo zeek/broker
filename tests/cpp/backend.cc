@@ -24,7 +24,7 @@ class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(memory, opts));
-    auto path = opts["path"].get<std::string>();
+    auto path = get_if<std::string>(opts["path"]);
     auto base = *path;
     // Make sure both backends have their own filesystem storage to work with.
     *path += ".sqlite";

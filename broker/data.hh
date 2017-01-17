@@ -117,25 +117,11 @@ public:
 	data(T&& x) : data_variant(from<detail::decay_t<T>>(std::forward<T>(x))) {
 	  // nop
 	}
-
-  /// Attempts to retrieve a specific data.
-  /// @tparam T The type to check.
-  /// @returns A pointer to `T` or `nullptr` when the data instance holds a
-  /// different type.
-  template <class T>
-  T* get() {
-    return detail::get_if<T>(*this);
-  }
-
-  /// Attempts to retrieve a specific data.
-  /// @tparam T The type to check.
-  /// @returns A pointer to `T` or `nullptr` when the data instance holds a
-  /// different type.
-  template <class T>
-  const T* get() const {
-    return detail::get_if<const T>(*this);
-  }
 };
+
+// C++17 variant compliance.
+using detail::get;
+using detail::get_if;
 
 /// Perform multiple dispatch on data instances.
 /// @tparam Visitor The visitor type.

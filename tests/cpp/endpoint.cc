@@ -88,7 +88,7 @@ TEST(blocking message receive) {
   auto msg = e.receive();
   REQUIRE(msg);
   CHECK_EQUAL(msg.topic(), "/foo"_t);
-  auto str = msg.data().get<std::string>();
+  auto str = get_if<std::string>(msg.data());
   REQUIRE(str);
   CHECK_EQUAL(*str, "broker");
   CHECK(e.mailbox().empty());

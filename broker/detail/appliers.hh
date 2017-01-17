@@ -29,7 +29,7 @@ struct adder {
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = value.get<T>();
+    auto x = get_if<T>(value);
     if (!x)
       return sc::type_clash;
     c += *x;
@@ -37,7 +37,7 @@ struct adder {
   }
 
   result_type operator()(timestamp& tp) {
-    auto s = value.get<timespan>();
+    auto s = get_if<timespan>(value);
     if (!s)
       return sc::type_clash;
     tp += *s;
@@ -45,7 +45,7 @@ struct adder {
   }
 
   result_type operator()(std::string& str) {
-    auto x = value.get<std::string>();
+    auto x = get_if<std::string>(value);
     if (!x)
       return sc::type_clash;
     str += *x;
@@ -65,7 +65,7 @@ struct adder {
   result_type operator()(table& t) {
     // Data must come as key-value pair to be valid, which we model as
     // vector of length 2.
-    auto v = value.get<vector>();
+    auto v = get_if<vector>(value);
     if (!v)
       return sc::type_clash;
     if (v->size() != 2)
@@ -87,7 +87,7 @@ struct remover {
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = value.get<T>();
+    auto x = get_if<T>(value);
     if (!x)
       return sc::type_clash;
     c -= *x;
@@ -95,7 +95,7 @@ struct remover {
   }
 
   result_type operator()(timestamp& ts) {
-    auto s = value.get<timespan>();
+    auto s = get_if<timespan>(value);
     if (!s)
       return sc::type_clash;
     ts -= *s;
@@ -130,7 +130,7 @@ struct retriever {
   }
 
   result_type operator()(const vector& v) const {
-    auto i = aspect.get<count>();
+    auto i = get_if<count>(aspect);
     if (!i)
       return sc::type_clash;
     if (*i >= v.size())

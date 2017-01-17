@@ -30,7 +30,7 @@ struct sqlite_backend::impl {
     auto i = options.find("path");
     if (i == options.end())
       return;
-    auto path = i->second.get<std::string>();
+    auto path = get_if<std::string>(i->second);
     if (!path)
       return;
     if (!open(*path))
