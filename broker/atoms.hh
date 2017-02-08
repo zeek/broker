@@ -13,16 +13,16 @@ using join = caf::join_atom;
 using leave = caf::leave_atom;
 using ok = caf::ok_atom;
 using put = caf::put_atom;
+using connect = caf::connect_atom;
+using subscribe = caf::subscribe_atom;
+using unsubscribe = caf::unsubscribe_atom;
 
 // Generic
-using connect = caf::atom_constant<caf::atom("connect")>;
 using name = caf::atom_constant<caf::atom("name")>;
 using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
-using subscribe = caf::atom_constant<caf::atom("subscribe")>;
 using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
-using unsubscribe = caf::atom_constant<caf::atom("usubscribe")>;
 
 // Store
 using attach = caf::atom_constant<caf::atom("attach")>;
