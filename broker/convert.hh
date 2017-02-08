@@ -18,24 +18,41 @@ auto convert(T x, std::string& str)
   return true;
 }
 
-template <class Rep, class Period>
-bool convert(std::chrono::duration<Rep, Period> d, std::string& str) {
-  str = std::to_string(d.count());
-  if (std::is_same<Period, std::nano>::value)
-    str += "ns";
-  else if (std::is_same<Period, std::micro>::value)
-    str += "us";
-  else if (std::is_same<Period, std::milli>::value)
-    str += "ms";
-  else if (std::is_same<Period, std::ratio<1>>::value)
-    str += "s";
-  else if (std::is_same<Period, std::ratio<60>>::value)
-    str += "mins";
-  else if (std::is_same<Period, std::ratio<3600>>::value)
-    str += "hrs";
-  else
-    return false;
+template <class Rep>
+bool convert_duration(Rep count, const char* unit_name, std::string& str) {
+  str = std::to_string(count);
+  str += unit_name;
   return true;
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
+  return convert_duration(d.count, "ns", str);
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
+  return convert_duration(d.count, "us", str);
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
+  return convert_duration(d.count, "ms", str);
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
+  return convert_duration(d.count, "s", str);
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
+  return convert_duration(d.count, "mins", str);
+}
+
+template <class Rep>
+bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
+  return convert_duration(d.count, "hrs", str);
 }
 
 // Injects a `to<T>` overload for any type convertible to type `T` via a free
