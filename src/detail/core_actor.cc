@@ -55,39 +55,34 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
                        const caf::actor& other,
                        optional<network_info> net = {}) {
   BROKER_DEBUG("performing peering handshake");
-  auto proto = version::protocol;
-  self->request(other, timeout::peer, atom::peer::value, self, proto).then(
-    [=](version::type v) {
-      BROKER_ASSERT(version::compatible(v));
-      BROKER_DEBUG("exchanging subscriptions with peer");
-      auto msg = caf::make_message(atom::peer::value, self,
-                                   local_subscriptions(self));
-      self->request(other, timeout::peer, std::move(msg)).then(
-        [=](std::vector<topic>& topics) {
-          BROKER_DEBUG("got" << topics.size() << "peer subscriptions");
-          // Record new subscriptions.
-          for (auto& t : topics)
-            self->state.subscriptions[t.string()].subscribers.insert(other);
-          // Propagate subscriptions to peers.
-          auto peers = &self->state.peers;
-          auto subscription = caf::make_message(atom::subscribe::value,
-                                                std::move(topics), self);
-          for (auto& p : *peers)
-            if (p.actor && *p.actor != other)
-              self->send(*p.actor, subscription);
-          // Set new status: peered.
-          auto pred = [=](const peer_state& p) { return p.actor == other; };
-          auto i = std::find_if(peers->begin(), peers->end(), pred);
-          BROKER_ASSERT(i != peers->end());
-          i->info.status = peer_status::peered;
-          // Inform the subscriber about the successfully established peering.
-          auto desc = "outbound peering established";
-          auto s = make_status<sc::peer_added>(make_info(other, net), desc);
-          BROKER_INFO(desc);
-          self->send(subscriber, std::move(s));
-        });
+  self->request(other, timeout::peer, atom::peer::value, self,
+                local_subscriptions(self)).then(
+    [=](std::vector<topic>& topics) {
+      BROKER_DEBUG("got" << topics.size() << "peer subscriptions");
+      // Record new subscriptions.
+      for (auto& t : topics)
+        self->state.subscriptions[t.string()].subscribers.insert(other);
+      // Propagate subscriptions to peers.
+      auto peers = &self->state.peers;
+      auto subscription = caf::make_message(atom::subscribe::value,
+                                            std::move(topics), self);
+      for (auto& p : *peers)
+        if (p.actor && *p.actor != other)
+          self->send(*p.actor, subscription);
+      // Set new status: peered.
+      auto pred = [=](const peer_state& p) { return p.actor == other; };
+      auto i = std::find_if(peers->begin(), peers->end(), pred);
+      BROKER_ASSERT(i != peers->end());
+      i->info.status = peer_status::peered;
+      // Inform the subscriber about the successfully established peering.
+      auto desc = "outbound peering established";
+      auto s = make_status<sc::peer_added>(make_info(other, net), desc);
+      BROKER_INFO(desc);
+      self->send(subscriber, std::move(s));
     },
     [=](const caf::error& e) mutable {
+      BROKER_INFO("error while performing handshake"
+                  << self->system().render(e));
       // Report peering error to subscriber.
       auto info = make_info(other, net);
       if (e == caf::sec::request_timeout) {
@@ -391,23 +386,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         self->send(subscriber, make_status<sc::peer_lost>(i->info.peer, desc));
       }
     },
-    [=](atom::peer, const caf::actor& other, version::type v) {
-      BROKER_DEBUG("got peering request from endpoint" << to_string(other));
+    [=](atom::peer, const caf::actor& other, std::vector<topic>& topics) {
+      BROKER_DEBUG("got peering request with" << topics.size()
+                   << "peer subscriptions");
+      // Delay response message until MM responded.
       auto rp = self->make_response_promise();
-      if (!version::compatible(v)) {
-        BROKER_INFO("detected incompatible version" << v);
-        rp.deliver(make_message(make_error(sc::peer_incompatible)));
-        return;
-      }
-      auto pred = [=](const peer_state& p) { return p.actor == other; };
-      auto peers = &self->state.peers;
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      if (i != peers->end()) {
-        BROKER_DEBUG("found existing peering");
-        i->info.flags = i->info.flags + peer_flags::inbound;
-        rp.deliver(caf::make_message(version::protocol));
-        return;
-      }
       // Gather some information about the other peer. Note that this may not
       // be the endpoint information that the peer has (e.g., due to NAT).
       auto nid = other->address().node();
@@ -420,27 +403,27 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
             net = network_info{addr, port};
           auto info = make_info(other, net);
           peer_info pi{info, peer_flags::inbound, peer_status::peered};
+          auto peers = &self->state.peers;
           peers->push_back({other, std::move(pi)});
           auto desc = "inbound peering established";
           BROKER_DEBUG(desc);
           self->monitor(other);
-          rp.deliver(caf::make_message(version::protocol));
           auto s = make_status<sc::peer_added>(std::move(info), desc);
           self->send(subscriber, std::move(s));
+          for (auto& t : topics)
+            self->state.subscriptions[t.string()].subscribers.insert(other);
+          // Propagate subscriptions to peers.
+          auto subscription = caf::make_message(atom::subscribe::value,
+                                                std::move(topics), self);
+          for (auto& p : self->state.peers)
+            if (p.actor && *p.actor != other)
+              self->send(*p.actor, subscription);
+          rp.deliver(local_subscriptions(self));
+        },
+        [](caf::error& err) {
         }
       );
-    },
-    [=](atom::peer, const caf::actor& other, std::vector<topic>& topics) {
-      BROKER_DEBUG("got" << topics.size() << "peer subscriptions");
-      for (auto& t : topics)
-        self->state.subscriptions[t.string()].subscribers.insert(other);
-      // Propagate subscriptions to peers.
-      auto subscription = caf::make_message(atom::subscribe::value,
-                                            std::move(topics), self);
-      for (auto& p : self->state.peers)
-        if (p.actor && *p.actor != other)
-          self->send(*p.actor, subscription);
-      return local_subscriptions(self);
+      return rp;
     },
     [=](atom::unpeer, network_info net) {
       BROKER_DEBUG("unpeering with remote endpoint" << to_string(net));
@@ -504,8 +487,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::make_message("", uint16_t{0});
     },
     [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type, backend_options& opts)
-    -> caf::result<caf::actor> {
+        backend backend_type,
+        backend_options& opts) -> caf::result<caf::actor> {
       BROKER_DEBUG("attaching master:" << name);
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
@@ -528,8 +511,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->send(self, atom::subscribe::value, std::move(ts), self);
       return actor;
     },
-    [=](atom::store, atom::clone, atom::attach, std::string& name)
-    -> caf::result<caf::actor> {
+    [=](atom::store, atom::clone, atom::attach,
+        std::string& name) -> caf::result<caf::actor> {
       BROKER_DEBUG("attaching clone:" << name);
       optional<caf::actor> master;
       auto i = self->state.masters.find(name);
