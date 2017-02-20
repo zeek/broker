@@ -105,6 +105,26 @@ public:
     return attach_master(std::move(name), B, std::move(opts));
   }
 
+  /// Attaches and/or creates a *master* data store with a globally unique name.
+  /// @param name The name of the master.
+  /// @param type The backend type.
+  /// @param opts The options controlling backend construction.
+  /// @returns A handle to the frontend representing the master or an error if
+  ///          a master with *name* exists already.
+  template <frontend F>
+  auto attach(std::string name, backend type,
+              backend_options opts = backend_options{})
+  -> detail::enable_if_t<F == master, result<store>> {
+    switch (type) {
+      case memory:
+        return attach<master, memory>(std::move(name), std::move(opts));
+      case sqlite:
+        return attach<master, sqlite>(std::move(name), std::move(opts));
+      case rocksdb:
+        return attach<master, rocksdb>(std::move(name), std::move(opts));
+    }
+  }
+
   /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
   /// @returns A handle to the frontend representing the clone, or an error if

@@ -15,7 +15,7 @@ TEST(backend option passing) {
   context ctx;
   auto ep = ctx.spawn<blocking>();
   auto opts = backend_options{{"foo", 4.2}};
-  auto ds = ep.attach<master, memory>("lord", std::move(opts));
+  auto ds = ep.attach<master>("lord", memory, std::move(opts));
   REQUIRE(ds);
 }
 
