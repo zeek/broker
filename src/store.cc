@@ -15,6 +15,8 @@ store::proxy::proxy(store& s) : frontend_{s.frontend_} {
 }
 
 request_id store::proxy::get(data key) {
+  if (!frontend_)
+    return 0;
   auto p = caf::actor_cast<caf::blocking_actor*>(proxy_);
   p->send(frontend_, atom::get::value, std::move(key), p, ++id_);
   return id_;
@@ -59,32 +61,26 @@ std::string store::name() const {
 }
 
 void store::put(data key, data value, optional<timestamp> expiry) const {
-  caf::anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
-                 expiry);
-}
-
-void store::add(data key, data value, optional<timestamp> expiry) const {
-  caf::anon_send(frontend_, atom::add::value, std::move(key),
-                 std::move(value), expiry);
-}
-
-void store::remove(data key, data value, optional<timestamp> expiry) const {
-  caf::anon_send(frontend_, atom::remove::value, std::move(key),
-                 std::move(value), expiry);
+  if (frontend_)
+    caf::anon_send(frontend_, atom::put::value, std::move(key),
+                   std::move(value), expiry);
 }
 
 void store::erase(data key) const {
-  caf::anon_send(frontend_, atom::erase::value, std::move(key));
+  if (frontend_)
+    caf::anon_send(frontend_, atom::erase::value, std::move(key));
 }
 
-void store::increment(data key, data value,
-                      optional<timestamp> expiry) const {
-  add(std::move(key), std::move(value), expiry);
+void store::add(data key, data value, optional<timestamp> expiry) const {
+  if (frontend_)
+    caf::anon_send(frontend_, atom::add::value, std::move(key),
+                   std::move(value), expiry);
 }
 
-void store::decrement(data key, data value,
-                      optional<timestamp> expiry) const {
-  remove(std::move(key), std::move(value), expiry);
+void store::subtract(data key, data value, optional<timestamp> expiry) const {
+  if (frontend_)
+    caf::anon_send(frontend_, atom::remove::value, std::move(key),
+                   std::move(value), expiry);
 }
 
 store::store(caf::actor actor) : frontend_{std::move(actor)} {

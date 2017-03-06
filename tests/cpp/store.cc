@@ -79,8 +79,8 @@ TEST(master operations) {
   x = ds->get("foo");
   REQUIRE(x);
   CHECK(*x == set{1, 2, 3});
-  MESSAGE("remove");
-  ds->remove("foo", 1);
+  MESSAGE("subtract");
+  ds->subtract("foo", 1);
   x = ds->get("foo");
   REQUIRE(x);
   CHECK(*x == set{2, 3});
@@ -155,7 +155,7 @@ TEST(clone operations - different endpoints) {
   auto v = c->get("foo");
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.2});
-  c->decrement("foo", 0.2);
+  c->subtract("foo", 0.2);
   std::this_thread::sleep_for(propagation_delay); // master -> clone
   v = c->get("foo");
   REQUIRE(v);
