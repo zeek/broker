@@ -30,6 +30,8 @@ class endpoint {
   friend context;
 
 public:
+  endpoint() = default;
+
   endpoint(const blocking_endpoint&);
   endpoint(const nonblocking_endpoint&);
 
@@ -146,8 +148,6 @@ protected:
     add_to_vector(v, std::forward<T>(x));
     add_to_vector(v, std::forward<Ts>(xs)...);
   }
-
-  endpoint() = default;
 
   void init_core(caf::actor core);
 

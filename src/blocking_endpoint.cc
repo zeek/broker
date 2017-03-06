@@ -9,16 +9,24 @@
 namespace broker {
 
 void blocking_endpoint::subscribe(topic t) {
+  if (!core_)
+    return;
   std::vector<topic> ts{t};
   caf::anon_send(core(), atom::subscribe::value, std::move(ts), subscriber_);
 }
 
 void blocking_endpoint::unsubscribe(topic t) {
+  if (!core_)
+    return;
   caf::anon_send(core(), atom::unsubscribe::value,
                  std::vector<topic>{std::move(t)}, subscriber_);
 }
 
 message blocking_endpoint::receive() {
+  if (!core_) {
+    auto s = make_status<sc::unspecified>("endpoint not initialized");
+    return message{caf::make_message(std::move(s))};
+  }
   auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
   subscriber->await_data();
   auto msg = subscriber->dequeue()->move_content_to_message();
@@ -26,6 +34,7 @@ message blocking_endpoint::receive() {
 }
 
 mailbox blocking_endpoint::mailbox() {
+  BROKER_ASSERT(subscriber_);
   auto subscriber = caf::actor_cast<detail::flare_actor*>(subscriber_);
   return detail::make_mailbox(subscriber);
 }

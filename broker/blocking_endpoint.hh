@@ -13,6 +13,9 @@ class blocking_endpoint : public endpoint {
   friend context; // construction
 
 public:
+  /// Default-constructs an uninitialized endpoint.
+  blocking_endpoint() = default;
+
   /// Subscribes to a topic.
   /// @param t The topic to subscribe to.
   void subscribe(topic t);

@@ -11,6 +11,11 @@ const auto propagation_delay = std::chrono::milliseconds(100);
 
 } // namespace <anonymous>
 
+TEST(default construction) {
+  store{};
+  store::proxy{};
+}
+
 TEST(backend option passing) {
   context ctx;
   auto ep = ctx.spawn<blocking>();

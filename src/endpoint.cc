@@ -50,6 +50,8 @@ endpoint& endpoint::operator=(const nonblocking_endpoint& other) {
 
 
 endpoint_info endpoint::info() const {
+  if (!core_)
+    return {};
   auto result = endpoint_info{core()->node(), core()->id(), {}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
@@ -66,6 +68,8 @@ endpoint_info endpoint::info() const {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+  if (!core_)
+    return 0;
   auto bound = caf::expected<uint16_t>{caf::error{}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
@@ -96,23 +100,29 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 }
 
 void endpoint::peer(const endpoint& other) {
-  caf::anon_send(core(), atom::peer::value, other.core());
+  if (core_)
+    caf::anon_send(core(), atom::peer::value, other.core());
 }
 
 void endpoint::peer(const std::string& address, uint16_t port) {
-  caf::anon_send(core(), atom::peer::value, network_info{address, port});
+  if (core_)
+    caf::anon_send(core(), atom::peer::value, network_info{address, port});
 }
 
 void endpoint::unpeer(const endpoint& other) {
-  caf::anon_send(core(), atom::unpeer::value, other.core(), subscriber_);
+  if (core_)
+    caf::anon_send(core(), atom::unpeer::value, other.core(), subscriber_);
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {
-  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
+  if (core_)
+    caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
+  if (!core_)
+    return result;
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::peer::value, atom::get::value);
   self->request(core(), timeout::core, std::move(msg)).receive(
@@ -127,7 +137,9 @@ std::vector<peer_info> endpoint::peers() const {
 }
 
 void endpoint::publish(topic t, data d) {
-  caf::anon_send(core(), std::move(t), caf::make_message(std::move(d)), core());
+  if (core_)
+    caf::anon_send(core(), std::move(t), caf::make_message(std::move(d)),
+                   core());
 }
 
 void endpoint::init_core(caf::actor core) {
@@ -143,11 +155,14 @@ void endpoint::init_core(caf::actor core) {
 }
 
 const caf::actor& endpoint::core() const {
+  BROKER_ASSERT(core_);
   return *core_;
 }
 
 result<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
+  if (!core_)
+    return make_status<sc::unspecified>("endpoint not initialized");
   result<store> res{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::store::value, atom::master::value,
@@ -165,6 +180,8 @@ result<store> endpoint::attach_master(std::string name, backend type,
 }
 
 result<store> endpoint::attach_clone(std::string name) {
+  if (!core_)
+    return make_status<sc::unspecified>("endpoint not initialized");
   result<store> res{sc::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::store::value, atom::clone::value,

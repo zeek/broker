@@ -23,6 +23,12 @@ bool is_ready(blocking_endpoint& e, seconds secs = seconds::zero()) {
 
 } // namespace <anonymous>
 
+TEST(default construction) {
+  endpoint{};
+  blocking_endpoint{};
+  nonblocking_endpoint{};
+}
+
 TEST(blocking construction) {
   context ctx;
   auto b = ctx.spawn<blocking>();

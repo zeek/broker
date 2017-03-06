@@ -56,6 +56,10 @@ public:
                     "data callback must have valid type for operation");
       static_assert(std::is_same<detail::decay_t<on_status_arg>, status>::value,
                     "error callback must have broker::status as argument type");
+      if (!frontend_) {
+        on_status(make_status<sc::unspecified>("store not initialized"));
+        return;
+      }
       // Explicitly capture *this members. Initialized lambdas are C++14. :-/
       auto frontend = frontend_;
       auto msg = msg_;
@@ -94,9 +98,11 @@ public:
   /// processing.
   class proxy {
   public:
+    proxy() = default;
+
     /// Constructs a proxy for a given store.
     /// @param s The store to create a proxy for.
-    proxy(store& s);
+    explicit proxy(store& s);
 
     /// Performs a request to retrieve a value.
     /// @param key The key of the value to retrieve.
@@ -116,6 +122,9 @@ public:
     caf::actor frontend_;
     caf::actor proxy_;
   };
+
+  /// Default-constructs an uninitialized store.
+  store() = default;
 
   // --- inspectors -----------------------------------------------------------
 
@@ -192,6 +201,8 @@ private:
 
   template <class T, class... Ts>
   result<T> request(Ts&&... xs) const {
+    if (!frontend_)
+      return make_status<sc::unspecified>("store not initialized");
     result<T> res{sc::unspecified};
     caf::scoped_actor self{frontend_->home_system()};
     auto msg = caf::make_message(std::forward<Ts>(xs)...);

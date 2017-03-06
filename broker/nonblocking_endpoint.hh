@@ -22,12 +22,17 @@ class nonblocking_endpoint : public endpoint {
   friend context; // construction
 
 public:
+  /// Default-constructs an uninitialized endpoint.
+  nonblocking_endpoint() = default;
+
   /// Subscribes to a topic.
   /// @param t The topic to subscribe to.
   /// @param on_msg The callback to invoke for messages prefix-matching *t*.
   template <class OnMessage>
   void subscribe(topic t, OnMessage on_msg) {
     detail::verify_message_callback<OnMessage>();
+    if (!core_)
+      return;
     auto handler = subscriber_->home_system().spawn(
       [=]() -> caf::behavior {
         return {
@@ -56,6 +61,8 @@ public:
   template <class OnStatus>
   void subscribe(OnStatus on_status) {
     detail::verify_status_callback<OnStatus>();
+    if (!core_)
+      return;
     auto handler = subscriber_->home_system().spawn(
       [=]() -> caf::behavior {
         return on_status;
