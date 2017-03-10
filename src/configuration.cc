@@ -9,6 +9,7 @@
 #include "broker/subnet.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
+#include "broker/version.hh"
 
 namespace broker {
 
@@ -31,6 +32,7 @@ configuration::configuration() {
   load<caf::io::middleman>();
   logger_filename = "broker_[TIMESTAMP]_[PID].log";
   logger_verbosity = caf::atom("DEBUG");
+  middleman_app_identifier = "broker.v" + std::to_string(version::protocol);
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {
