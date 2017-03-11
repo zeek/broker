@@ -5,14 +5,12 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/result.hh"
+#include "broker/error.hh"
 #include "broker/snapshot.hh"
-#include "broker/status.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/appliers.hh"
-#include "broker/detail/unbox.hh"
 
 namespace broker {
 namespace detail {
@@ -84,37 +82,37 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        return sc::no_such_key;
+        return ec::no_such_key;
       return i->second;
     },
     [=](atom::get, const data& key, const data& value) -> caf::result<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        return sc::no_such_key;
-      return unbox(visit(retriever{value}, i->second));
+        return ec::no_such_key;
+      return visit(retriever{value}, i->second);
     },
     [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
       BROKER_DEBUG("GET" << key << "with id:" << id);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        self->send(proxy, data{}, make_error(sc::no_such_key), id);
+        self->send(proxy, make_error(ec::no_such_key), id);
       else
-        self->send(proxy, i->second, caf::error{}, id);
+        self->send(proxy, i->second, id);
     },
     [=](atom::get, const data& key, const data& value, const caf::actor& proxy,
         request_id id) {
       BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end()) {
-        self->send(proxy, data{}, make_error(sc::no_such_key), id);
+        self->send(proxy, make_error(ec::no_such_key), id);
         return;
       }
       auto x = visit(retriever{value}, i->second);
       if (x)
-        self->send(proxy, std::move(*x), caf::error{}, id);
+        self->send(proxy, std::move(*x), id);
       else
-        self->send(proxy, data{}, x.status(), id);
+        self->send(proxy, std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
       return name;

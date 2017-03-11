@@ -53,33 +53,31 @@ Blocking
 
 The blocking API exists for applications that primarily operate synchronously
 and/or ship their own event loop. Endpoints subscribe to various topics and
-call a ``receive`` function to block and wait for message:
+call ``receive`` to wait for a new element in their mailbox:
 
 .. code-block:: cpp
 
   context ctx;
   auto ep = ctx.spawn<blocking>();
   ep.subscribe("foo");
-  auto msg = ep.receive(); // block and wait until a message arrives
-  if (msg)
-    std::cout << msg.topic() << " -> " << msg.data() << std::endl;
-  else
-    std::cout << to_string(msg.status()) << std::endl;
+  auto elem = ep.receive(); // block and wait until a message arrives
+  if (auto msg = get_if<message>(elem))
+    std::cout << msg->topic() << " -> " << msg->data() << std::endl;
 
-The function ``receive`` blocks until the endpoint receives a ``message``,
-which is either a (``topic``, ``data``) pair or a ``status`` to signal an error
-or a status change of the endpoint topology. More on ``status``
-messages in :ref:`status-messages`.
+The function ``receive`` blocks until the endpoint has at least one ``element``
+available. An ``element`` can hold a ``message`` (i.e., a pair of ``topic`` and
+``data``) a ``status`` representing a change in endpoint topology, or an error.
+More on ``status`` and ``error`` in :ref:`status-error-messages`.
 
 Blocking indefinitely does not work well in combination with existing event
-loops or polling. Therefore, blocking endpoints offer an additional ``mailbox``
-API:
+loops or polling. Therefore, blocking endpoints expose an additional
+``mailbox`` API:
 
 .. code-block:: cpp
 
   // Manual polling.
   if (!ep.mailbox().empty()) {
-    auto msg = ep.receive(); // guaranteed to not block
+    auto elem = ep.receive(); // guaranteed to not block
     ...
   }
 
@@ -93,7 +91,7 @@ API:
   if (n < 0)
     std::terminate(); // poll failed
   if (n == 1 && p.revents & POLLIN) {
-    auto msg = ep.receive(); // guaranteed to not block
+    auto elem = ep.receive(); // guaranteed to not block
     ...
   }
 
@@ -203,15 +201,23 @@ Note that ``ep2`` does not know about ``ep1`` and forwards ``data`` for topic
 ``foo`` and ``bar`` via ``ep0``. However, ``ep2.publish("bar", 42)`` still
 forwards a message via ``ep0`` to ``ep1``.
 
-.. _status-messages:
+.. _status-error-messages:
 
-Status Messages
----------------
+Status and Error Messages
+-------------------------
 
-Broker presents errors and runtime changes to the user as ``status`` messages.
-Blocking endpoints obtain them via ``receive`` and non-blocking endpoints must
-subscribe to them explicitly. For example, after a successful peering, both
-endpoints receive a ``peer_added`` status message:
+Broker presents runtime changes to the user as ``status`` messages. For
+failures, there exists a separate ``error`` type. Blocking endpoints obtain
+both statuses and errors via ``receive`` and non-blocking endpoints must
+subscribe to them explicitly.
+
+
+Status
+******
+
+Status messages represent non-critical changes to the topology. For example,
+after a successful peering, both endpoints receive a ``peer_added`` status
+message:
 
 .. code-block:: cpp
 
@@ -221,9 +227,10 @@ endpoints receive a ``peer_added`` status message:
   auto ep1 = ctx.spawn<blocking>();
   ep0.peer(ep1);
   // Block and wait for status messages.
-  auto msg0 = ep0.receive();
-  assert(!msg0);
-  if (msg0.status() == sc::peer_added)
+  auto elem = ep0.receive();
+  auto s = get_if<status>(elem);
+  assert(s != nullptr);
+  if (*s == sc::peer_added)
     std::cout << "peering established successfully" << std::endl;
 
 The concrete semantics of a status depend on its embedded code, which the enum
@@ -231,14 +238,14 @@ The concrete semantics of a status depend on its embedded code, which the enum
 
 .. literalinclude:: ../broker/status.hh
    :language: cpp
-   :lines: 27-60
+   :lines: 26-37
 
 Status messages have an optional *context* and an optional descriptive
 *message*:
 
 .. code-block:: cpp
 
-  auto& s = msg.status();
+  auto& s = get<status>(elem);
   // Check for textual description.
   if (auto str = s.message())
     std::cout << *str << std::endl;
@@ -264,3 +271,21 @@ explicitly:
   ep.subscribe(
     [&](const status& s) { ... }
   );
+
+Errors
+******
+
+Errors reflect failures that may impact the correctness of operation.
+Similar to status codes, the enum ``ec`` codifies existing error codes:
+
+.. literalinclude:: ../broker/error.hh
+   :language: cpp
+   :lines: 25-48
+
+As with statuses, an ``error`` can appear in a mailbox ``element``:
+
+.. code-block:: cpp
+
+  auto elem = ep.receive();
+  if (auto e = get_if<error>(elem))
+    std::cout << "an error occurred: " << to_string(*e) << std::endl;

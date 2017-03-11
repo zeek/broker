@@ -24,21 +24,24 @@ PYBIND11_PLUGIN(_broker) {
   version.def("compatible", &version::compatible,
               "Checks whether two Broker protocol versions are compatible");
 
+  py::enum_<ec>(m, "EC")
+    .value("Unspecified", ec::unspecified)
+    .value("PeerIncompatible", ec::peer_incompatible)
+    .value("PeerInvalid", ec::peer_invalid)
+    .value("PeerUnavailable", ec::peer_unavailable)
+    .value("PeerTimeout", ec::peer_timeout)
+    .value("MasterExists", ec::master_exists)
+    .value("NoSuchMaster", ec::no_such_master)
+    .value("TypeClash", ec::type_clash)
+    .value("InvalidData", ec::invalid_data)
+    .value("BackendFailure", ec::backend_failure);
+
   py::enum_<sc>(m, "SC")
     .value("Unspecified", sc::unspecified)
     .value("PeerAdded", sc::peer_added)
     .value("PeerRemoved", sc::peer_removed)
-    .value("PeerIncompatible", sc::peer_incompatible)
-    .value("PeerInvalid", sc::peer_invalid)
-    .value("PeerUnavailable", sc::peer_unavailable)
-    .value("PeerTimeout", sc::peer_timeout)
     .value("PeerLost", sc::peer_lost)
-    .value("PeerRecovered", sc::peer_recovered)
-    .value("MasterExists", sc::master_exists)
-    .value("NoSuchMaster", sc::no_such_master)
-    .value("TypeClash", sc::type_clash)
-    .value("InvalidData", sc::invalid_data)
-    .value("BackendFailure", sc::backend_failure);
+    .value("PeerRecovered", sc::peer_recovered);
 
   py::enum_<peer_status>(m, "PeerStatus")
     .value("Initialized", peer_status::initialized)
@@ -371,10 +374,10 @@ PYBIND11_PLUGIN(_broker) {
                     })
     .def("attach_master",
          [](endpoint& ep, const std::string& name, backend b,
-            const backend_options& opts) -> result<store> {
+            const backend_options& opts) -> expected<store> {
            switch (b) {
              default:
-               return make_status<sc::backend_failure>("invalid backend type");
+               return make_error(ec::backend_failure, "invalid backend type");
              case memory:
                return ep.attach<master, memory>(name, opts);
              case sqlite:

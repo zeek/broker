@@ -91,10 +91,11 @@ TEST(blocking message receive) {
   e.subscribe("/foo");
   e.publish("/foo", "broker");
   CHECK(is_ready(e, seconds{1}));
-  auto msg = e.receive();
+  auto elem = e.receive();
+  auto msg = get_if<message>(elem);
   REQUIRE(msg);
-  CHECK_EQUAL(msg.topic(), "/foo"_t);
-  auto str = get_if<std::string>(msg.data());
+  CHECK_EQUAL(msg->topic(), "/foo"_t);
+  auto str = get_if<std::string>(msg->data());
   REQUIRE(str);
   CHECK_EQUAL(*str, "broker");
   CHECK(e.mailbox().empty());
@@ -118,8 +119,8 @@ TEST(blocking local peering and unpeering) {
   auto y = ctx.spawn<blocking>();
   MESSAGE("peer endpoints");
   x.peer(y);
-  CHECK(x.receive().status() == sc::peer_added);
-  CHECK(y.receive().status() == sc::peer_added);
+  CHECK(get<status>(x.receive()) == sc::peer_added);
+  CHECK(get<status>(y.receive()) == sc::peer_added);
   CHECK(x.mailbox().empty());
   CHECK(y.mailbox().empty());
   MESSAGE("verifying peer info of originator");
@@ -138,13 +139,13 @@ TEST(blocking local peering and unpeering) {
   CHECK(!peers[0].peer.network);
   MESSAGE("unpeer endpoints");
   x.unpeer(y);
-  CHECK(x.receive().status() == sc::peer_removed);
-  CHECK(y.receive().status() == sc::peer_removed);
+  CHECK(get<status>(x.receive()) == sc::peer_removed);
+  CHECK(get<status>(y.receive()) == sc::peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
   CHECK_EQUAL(y.peers().size(), 0u);
   MESSAGE("attempt to unpeer from already unpeered endpoint");
   y.unpeer(x);
-  CHECK(y.receive().status() == sc::peer_invalid);
+  CHECK(get<error>(y.receive()) == ec::peer_invalid);
 }
 
 TEST(nonblocking local peering) {
@@ -172,8 +173,8 @@ TEST(remote peering) {
   auto bound_port = y.listen("127.0.0.1");
   REQUIRE(bound_port > 0);
   x.peer("127.0.0.1", bound_port);
-  CHECK(x.receive().status() == sc::peer_added);
-  CHECK(y.receive().status() == sc::peer_added);
+  CHECK(get<status>(x.receive()) == sc::peer_added);
+  CHECK(get<status>(y.receive()) == sc::peer_added);
   CHECK_EQUAL(x.peers().size(), 1u);
   CHECK_EQUAL(y.peers().size(), 1u);
 }
@@ -184,14 +185,14 @@ TEST(local peering termination) {
   {
     auto y = ctx.spawn<blocking>();
     x.peer(y);
-    CHECK(x.receive().status() == sc::peer_added);
-    CHECK(y.receive().status() == sc::peer_added);
+    CHECK(get<status>(x.receive()) == sc::peer_added);
+    CHECK(get<status>(y.receive()) == sc::peer_added);
     CHECK_EQUAL(x.peers().size(), 1u);
     CHECK_EQUAL(y.peers().size(), 1u);
   }
   // We cannot re-establish a connection to a local endpoint. If it terminates,
   // the peering is gone.
-  CHECK(x.receive().status() == sc::peer_removed);
+  CHECK(get<status>(x.receive()) == sc::peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
 }
 
@@ -204,14 +205,13 @@ TEST(remote peering termination) {
     bound_port = y.listen("127.0.0.1");
     REQUIRE(bound_port > 0);
     x.peer("127.0.0.1", bound_port);
-    CHECK(x.receive().status() == sc::peer_added);
-    CHECK(y.receive().status() == sc::peer_added);
+    CHECK(get<status>(x.receive()) == sc::peer_added);
+    CHECK(get<status>(y.receive()) == sc::peer_added);
   }
   // When losing a connection to remote endpoint, we still keep that peer
   // around until the peering originator removes it.
-  auto msg = x.receive();
-  REQUIRE(!msg);
-  auto& s = msg.status();
+  auto e = x.receive();
+  auto& s = get<status>(e);
   CHECK(s == sc::peer_lost);
   auto ep = s.context<endpoint_info>();
   REQUIRE(ep);
@@ -221,7 +221,7 @@ TEST(remote peering termination) {
   CHECK_EQUAL(x.peers().size(), 1u);
   // Now remove the peer.
   x.unpeer("127.0.0.1", bound_port);
-  CHECK(x.receive().status() == sc::peer_removed);
+  CHECK(get<status>(x.receive()) == sc::peer_removed);
   CHECK_EQUAL(x.peers().size(), 0u);
 }
 
@@ -235,14 +235,14 @@ TEST(subscribe after peering) {
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
   a.peer(b);
-  CHECK(a.receive().status() == sc::peer_added);
-  CHECK(b.receive().status() == sc::peer_added);
+  CHECK(get<status>(a.receive()) == sc::peer_added);
+  CHECK(get<status>(b.receive()) == sc::peer_added);
   b.peer(c);
-  CHECK(b.receive().status() == sc::peer_added);
-  CHECK(c.receive().status() == sc::peer_added);
+  CHECK(get<status>(b.receive()) == sc::peer_added);
+  CHECK(get<status>(c.receive()) == sc::peer_added);
   c.peer(d);
-  CHECK(c.receive().status() == sc::peer_added);
-  CHECK(d.receive().status() == sc::peer_added);
+  CHECK(get<status>(c.receive()) == sc::peer_added);
+  CHECK(get<status>(d.receive()) == sc::peer_added);
   CHECK_EQUAL(a.peers().size(), 1u);
   CHECK_EQUAL(b.peers().size(), 2u);
   CHECK_EQUAL(c.peers().size(), 2u);
@@ -258,14 +258,14 @@ TEST(subscribe after peering) {
   std::this_thread::sleep_for(milliseconds{300});
   MESSAGE("D -> C -> B -> A");
   d.publish("/foo/d", 42);
-  CHECK_EQUAL(a.receive().topic(), "/foo/d"_t);
+  CHECK_EQUAL(get<message>(a.receive()).topic(), "/foo/d"_t);
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
   MESSAGE("A -> B -> C");
   a.publish("/bar/a", 42);
-  CHECK_EQUAL(c.receive().topic(), "/bar/a"_t);
+  CHECK_EQUAL(get<message>(c.receive()).topic(), "/bar/a"_t);
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
@@ -284,14 +284,14 @@ TEST(subscribe before peering) {
   // A <-> B <-> C <-> D
   MESSAGE("chaining peers");
   a.peer(b);
-  CHECK(a.receive().status() == sc::peer_added);
-  CHECK(b.receive().status() == sc::peer_added);
+  CHECK(get<status>(a.receive()) == sc::peer_added);
+  CHECK(get<status>(b.receive()) == sc::peer_added);
   b.peer(c);
-  CHECK(b.receive().status() == sc::peer_added);
-  CHECK(c.receive().status() == sc::peer_added);
+  CHECK(get<status>(b.receive()) == sc::peer_added);
+  CHECK(get<status>(c.receive()) == sc::peer_added);
   c.peer(d);
-  CHECK(c.receive().status() == sc::peer_added);
-  CHECK(d.receive().status() == sc::peer_added);
+  CHECK(get<status>(c.receive()) == sc::peer_added);
+  CHECK(get<status>(d.receive()) == sc::peer_added);
   CHECK_EQUAL(a.peers().size(), 1u);
   CHECK_EQUAL(b.peers().size(), 2u);
   CHECK_EQUAL(c.peers().size(), 2u);
@@ -302,14 +302,14 @@ TEST(subscribe before peering) {
   CHECK(d.mailbox().empty());
   MESSAGE("D -> C -> B -> A");
   d.publish("/foo/d", 42);
-  CHECK_EQUAL(a.receive().topic(), "/foo/d"_t);
+  CHECK_EQUAL(get<message>(a.receive()).topic(), "/foo/d"_t);
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());
   CHECK(d.mailbox().empty());
   MESSAGE("A -> B -> C");
   a.publish("/bar/a", 42);
-  CHECK_EQUAL(c.receive().topic(), "/bar/a"_t);
+  CHECK_EQUAL(get<message>(c.receive()).topic(), "/bar/a"_t);
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());

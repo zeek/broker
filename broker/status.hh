@@ -6,17 +6,16 @@
 // When updating this file, make sure to update doc/comm.rst as well because it
 // copies parts of this file verbatim.
 //
-// Included lines: 27-60
+// Included lines: 26-37
 
 #include <string>
 #include <tuple>
 
-#include <caf/error.hpp>
+#include <caf/message.hpp>
 #include <caf/make_message.hpp>
 
 #include "broker/endpoint_info.hh"
 
-#include "broker/detail/assert.hh"
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
 
@@ -26,70 +25,53 @@ namespace broker {
 /// @relates status
 enum class sc : uint8_t {
   /// The unspecified default error code.
-  unspecified = 1,
+  unspecified = 0,
   /// Successfully added a new peer.
   peer_added,
   /// Successfully removed a peer.
   peer_removed,
-  /// Version incompatibility.
-  peer_incompatible,
-  /// Referenced peer does not exist.
-  peer_invalid,
-  /// Remote peer not listening.
-  peer_unavailable,
-  /// An peering request timed out.
-  peer_timeout,
   /// Lost connection to peer.
   peer_lost,
   /// Re-gained connection to peer.
   peer_recovered,
-  /// Master with given name already exist.
-  master_exists,
-  /// Master with given name does not exist.
-  no_such_master,
-  /// The given data store key does not exist.
-  no_such_key,
-  /// The store operation timed out.
-  request_timeout,
-  /// The operation expected a different type than provided
-  type_clash,
-  /// The data value cannot be used to carry out the desired operation.
-  invalid_data,
-  /// The storage backend failed to execute the operation.
-  backend_failure,
 };
-
-template <class... Ts>
-caf::error make_error(sc x, Ts&&... xs) {
-  return {static_cast<uint8_t>(x), caf::atom("broker"),
-          caf::make_message(std::forward<Ts>(xs)...)};
-}
 
 /// @relates sc
 const char* to_string(sc code);
-
-template <class T>
-class result;
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,
                detail::equality_comparable<status, sc>,
                detail::equality_comparable<sc, status> {
-  template <class T>
-  friend class result; // for result<void>::operator bool
 
 public:
-  /// Default-constructs a status, indicating a successful operation.
+  template <sc S>
+  static detail::enable_if_t<S == sc::unspecified, status>
+  make(std::string msg) {
+    status s;
+    s.code_ = S;
+    if (!msg.empty())
+      s.context_ = caf::make_message(std::move(msg));
+    return s;
+  }
+
+  template <sc S>
+  static detail::enable_if_t<
+    S == sc::peer_added
+    || S == sc::peer_removed
+    || S == sc::peer_lost
+    || S == sc::peer_recovered,
+    status
+  >
+  make(endpoint_info ei, std::string msg) {
+    status s;
+    s.code_ = S;
+    s.context_ = caf::make_message(std::move(ei), std::move(msg));
+    return s;
+  }
+
+  /// Default-constructs an unspecified status.
   status() = default;
-
-  /// Constructs a status from a specific code.
-  /// @param code The status code.
-  status(sc code);
-
-  /// Checks whether the status represents an error or a notification.
-  /// @returns `true` if the status represents an error.
-  /// @note A default-constructed status does not constitute an error.
-  bool error() const;
 
   /// @returns The code of this status.
   sc code() const;
@@ -100,21 +82,14 @@ public:
   /// @tparam T The type of the attached context information.
   template <class T>
   const T* context() const {
-    if (error_ == caf::none)
-      return nullptr;
-    BROKER_ASSERT(error_.category() == caf::atom("broker"));
-    switch (static_cast<sc>(error_.code())) {
+    switch (code_) {
       default:
         return nullptr;
       case sc::peer_added:
       case sc::peer_removed:
-      case sc::peer_incompatible:
-      case sc::peer_invalid:
-      case sc::peer_unavailable:
-      case sc::peer_timeout:
       case sc::peer_lost:
       case sc::peer_recovered:
-        return &error_.context().get_as<endpoint_info>(0);
+        return &context_.get_as<endpoint_info>(0);
     }
   }
 
@@ -132,77 +107,18 @@ public:
 
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, status& s) {
-    return f(s.error_);
+    return f(s.code_, s.context_);
   }
 
 private:
-  template <sc S, class... Ts>
-  friend status make_status(Ts&&...);
-
-  friend status make_status(caf::error);
-
-  friend caf::error make_error(const status&);
-
-  template <sc S>
-  static detail::enable_if_t<S == sc::unspecified, status>
-  make() {
-    return status{S};
-  }
-
-  template <sc S>
-  static detail::enable_if_t<
-    S == sc::unspecified
-    || S == sc::request_timeout
-    || S == sc::backend_failure,
-    status
-  >
-  make(std::string msg) {
-    return status{S, std::move(msg)};
-  }
-
-  template <sc S>
-  static detail::enable_if_t<
-    S == sc::peer_added
-    || S == sc::peer_removed
-    || S == sc::peer_incompatible
-    || S == sc::peer_invalid
-    || S == sc::peer_unavailable
-    || S == sc::peer_timeout
-    || S == sc::peer_lost
-    || S == sc::peer_recovered,
-    status
-  >
-  make(endpoint_info ei, std::string msg) {
-    return status{S, std::move(ei), std::move(msg)};
-  }
-
-  static status make(caf::error e);
-
-  // Translates a CAF error into a Broker status.
-  explicit status(caf::error e);
-
-  template <class... Ts>
-  explicit status(sc code, Ts&&... xs)
-    : error_{make_error(code, std::forward<Ts>(xs)...)} {
-  }
-
-  caf::error error_;
+  sc code_;
+  caf::message context_;
 };
 
-/// Factory to construct a status instance based on a specific status code.
-/// @relates status
 template <sc S, class... Ts>
 status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
 }
-
-// -- internal ---------------------------------------------------------------
-
-// Converts a CAF error into a Broker status.
-status make_status(caf::error e);
-
-// Converts a status back into a CAF error for message passing.
-caf::error make_error(const status& s);
 
 } // namespace broker
 

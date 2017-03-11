@@ -7,15 +7,12 @@
 #include "broker/data.hh"
 #include "broker/topic.hh"
 #include "broker/snapshot.hh"
-#include "broker/result.hh"
-#include "broker/status.hh"
 #include "broker/time.hh"
 
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/type_traits.hh"
-#include "broker/detail/unbox.hh"
 
 namespace broker {
 namespace detail {
@@ -115,7 +112,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       BROKER_DEBUG("expiring key" << key);
       auto result = self->state.backend->expire(key);
       if (!result)
-        BROKER_ERROR("failed to expire key:" << to_string(result.status()));
+        BROKER_ERROR("failed to expire key:" << to_string(result.error()));
       else if (!*result)
         BROKER_WARNING("ignoring stale expiration reminder");
       else if (!self->state.clones.empty())
@@ -125,28 +122,28 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   auto query = caf::message_handler{
     [=](atom::get, const data& key) -> caf::result<data> {
       BROKER_DEBUG("GET" << key);
-      return unbox(self->state.backend->get(key));
+      return self->state.backend->get(key);
     },
     [=](atom::get, const data& key, const data& value) -> caf::result<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
-      return unbox(self->state.backend->get(key, value));
+      return self->state.backend->get(key, value);
     },
     [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
       BROKER_DEBUG("GET" << key << "with id:" << id);
       auto x = self->state.backend->get(key);
       if (x)
-        self->send(proxy, std::move(*x), caf::error{}, id);
+        self->send(proxy, std::move(*x), id);
       else
-        self->send(proxy, data{}, make_error(x.status()), id);
+        self->send(proxy, std::move(x.error()), id);
     },
     [=](atom::get, const data& key, const data& value, const caf::actor& proxy,
         request_id id) {
       BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
       auto x = self->state.backend->get(key, value);
       if (x)
-        self->send(proxy, std::move(*x), caf::error{}, id);
+        self->send(proxy, std::move(*x), id);
       else
-        self->send(proxy, data{}, make_error(x.status()), id);
+        self->send(proxy, std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
       return name;

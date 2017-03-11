@@ -2,11 +2,17 @@
 #define BROKER_BLOCKING_ENDPOINT_HH
 
 #include "broker/endpoint.hh"
+#include "broker/error.hh"
 #include "broker/mailbox.hh"
 #include "broker/message.hh"
 #include "broker/status.hh"
 
+#include "broker/detail/variant.hh"
+
 namespace broker {
+
+/// A mailbox element.
+using element = detail::variant<message, status, error>;
 
 /// An endpoint with a synchronous (blocking) messaging API.
 class blocking_endpoint : public endpoint {
@@ -24,9 +30,9 @@ public:
   /// @param t The topic to unsubscribe from.
   void unsubscribe(topic t);
 
-  /// Consumes the next message or blocks until one arrives.
-  /// @returns The next message in the mailbox.
-  message receive();
+  /// Consumes the next element or blocks until one arrives.
+  /// @returns The next element in the mailbox.
+  element receive();
 
   /// Access the endpoint's mailbox, which provides the following
   /// introspection functions:

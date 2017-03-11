@@ -490,7 +490,6 @@ const T* get_if(const variant<Ts...>& v) {
   return visit(getter<const T>{}, v);
 }
 
-// FIXME: return references instead of pointers
 template <class T, class... Ts>
 T& get(variant<Ts...>& v) {
   if (auto ptr = get_if<T>(v))
@@ -503,6 +502,16 @@ const T& get(const variant<Ts...>& v) {
   if (auto ptr = get_if<const T>(v))
     return *ptr;
   throw bad_variant_access{};
+}
+
+template <class T, class... Ts>
+bool is(variant<Ts...>& v) {
+  return get_if<T>(v) != nullptr;
+}
+
+template <class T, class... Ts>
+bool is(const variant<Ts...>& v) {
+  return get_if<T>(v) != nullptr;
 }
 
 } // namespace detail

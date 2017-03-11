@@ -9,30 +9,24 @@ class blocking_endpoint;
 class data;
 class topic;
 
-/// A container for data and status messages.
+/// A reference-counted topic-data pair.
 class message {
   friend blocking_endpoint; // construction
 
 public:
-  /// Checks whether a message is a (topic, data) pair.
-  /// @returns `true` iff the message contains a (topic, data) pair.
-  explicit operator bool() const;
+  /// Default-constructs an empty message.
+  message();
+
+  /// Constructs a message as a topic-data pair.
+  /// @param t The topic of the message.
+  /// @param d The messsage data.
+  message(topic t, data d);
 
   /// @returns the contained topic.
-  /// @pre `static_cast<bool>(*this)`
   const broker::topic& topic() const;
 
-  /// @returns the contained topic.
-  /// @pre `static_cast<bool>(*this)`
+  /// @returns the contained data.
   const broker::data& data() const;
-
-  /// @returns the contained status.
-  /// @pre `!*this`
-  const broker::status& status() const;
-
-  /// @returns `true` if the contained status reflects an error.
-  /// @pre `!*this`
-  bool error() const;
 
 private:
   explicit message(caf::message msg);

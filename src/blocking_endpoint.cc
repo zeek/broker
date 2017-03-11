@@ -22,14 +22,16 @@ void blocking_endpoint::unsubscribe(topic t) {
                  std::vector<topic>{std::move(t)}, subscriber_);
 }
 
-message blocking_endpoint::receive() {
-  if (!core_) {
-    auto s = make_status<sc::unspecified>("endpoint not initialized");
-    return message{caf::make_message(std::move(s))};
-  }
+element blocking_endpoint::receive() {
+  if (!core_)
+    return make_error(ec::unspecified, "endpoint not initialized");
   auto subscriber = caf::actor_cast<caf::blocking_actor*>(subscriber_);
   subscriber->await_data();
   auto msg = subscriber->dequeue()->move_content_to_message();
+  if (msg.match_element<status>(0))
+    return msg.get_as<status>(0);
+  if (msg.match_element<error>(0))
+    return msg.get_as<error>(0);
   return message{std::move(msg)};
 }
 

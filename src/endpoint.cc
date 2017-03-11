@@ -159,11 +159,11 @@ const caf::actor& endpoint::core() const {
   return *core_;
 }
 
-result<store> endpoint::attach_master(std::string name, backend type,
+expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
   if (!core_)
-    return make_status<sc::unspecified>("endpoint not initialized");
-  result<store> res{sc::unspecified};
+    return make_error(ec::unspecified, "endpoint not initialized");
+  expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::store::value, atom::master::value,
                                atom::attach::value, std::move(name), type,
@@ -173,16 +173,16 @@ result<store> endpoint::attach_master(std::string name, backend type,
       res = store{std::move(master)};
     },
     [&](caf::error& e) {
-      res = make_status(std::move(e));
+      res = std::move(e);
     }
   );
   return res;
 }
 
-result<store> endpoint::attach_clone(std::string name) {
+expected<store> endpoint::attach_clone(std::string name) {
   if (!core_)
-    return make_status<sc::unspecified>("endpoint not initialized");
-  result<store> res{sc::unspecified};
+    return make_error(ec::unspecified, "endpoint not initialized");
+  expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::store::value, atom::clone::value,
                 atom::attach::value, std::move(name)).receive(
@@ -190,7 +190,7 @@ result<store> endpoint::attach_clone(std::string name) {
       res = store{std::move(clone)};
     },
     [&](caf::error& e) {
-      res = make_status(std::move(e));
+      res = std::move(e);
     }
   );
   return res;

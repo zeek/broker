@@ -2,7 +2,8 @@
 #define BROKER_DETAIL_APPLIERS_HH
 
 #include "broker/data.hh"
-#include "broker/result.hh"
+#include "broker/error.hh"
+#include "broker/expected.hh"
 #include "broker/status.hh"
 #include "broker/time.hh"
 
@@ -20,18 +21,18 @@ constexpr bool is_additive_group() {
 }
 
 struct adder {
-  using result_type = result<void>;
+  using result_type = expected<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return sc::type_clash;
+    return ec::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = get_if<T>(value);
     if (!x)
-      return sc::type_clash;
+      return ec::type_clash;
     c += *x;
     return {};
   }
@@ -39,7 +40,7 @@ struct adder {
   result_type operator()(timestamp& tp) {
     auto s = get_if<timespan>(value);
     if (!s)
-      return sc::type_clash;
+      return ec::type_clash;
     tp += *s;
     return {};
   }
@@ -47,7 +48,7 @@ struct adder {
   result_type operator()(std::string& str) {
     auto x = get_if<std::string>(value);
     if (!x)
-      return sc::type_clash;
+      return ec::type_clash;
     str += *x;
     return {};
   }
@@ -67,9 +68,9 @@ struct adder {
     // vector of length 2.
     auto v = get_if<vector>(value);
     if (!v)
-      return sc::type_clash;
+      return ec::type_clash;
     if (v->size() != 2)
-      return sc::invalid_data;
+      return ec::invalid_data;
     t[v->front()] = v->back();
     return {};
   }
@@ -78,18 +79,18 @@ struct adder {
 };
 
 struct remover {
-  using result_type = result<void>;
+  using result_type = expected<void>;
 
   template <class T>
   auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return sc::type_clash;
+    return ec::type_clash;
   }
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
     auto x = get_if<T>(value);
     if (!x)
-      return sc::type_clash;
+      return ec::type_clash;
     c -= *x;
     return {};
   }
@@ -97,7 +98,7 @@ struct remover {
   result_type operator()(timestamp& ts) {
     auto s = get_if<timespan>(value);
     if (!s)
-      return sc::type_clash;
+      return ec::type_clash;
     ts -= *s;
     return {};
   }
@@ -122,7 +123,7 @@ struct remover {
 };
 
 struct retriever {
-  using result_type = result<data>;
+  using result_type = expected<data>;
 
   template <class T>
   result_type operator()(const T& x) const {
@@ -132,9 +133,9 @@ struct retriever {
   result_type operator()(const vector& v) const {
     auto i = get_if<count>(aspect);
     if (!i)
-      return sc::type_clash;
+      return ec::type_clash;
     if (*i >= v.size())
-      return sc::invalid_data;
+      return ec::invalid_data;
     return v[*i];
   }
 
@@ -145,7 +146,7 @@ struct retriever {
   result_type operator()(const table& t) const {
     auto i = t.find(aspect);
     if (i == t.end())
-      return sc::invalid_data;
+      return ec::invalid_data;
     return i->second;
   }
 

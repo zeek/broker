@@ -13,7 +13,8 @@
 #include "broker/fwd.hh"
 #include "broker/mailbox.hh"
 #include "broker/optional.hh"
-#include "broker/result.hh"
+#include "broker/error.hh"
+#include "broker/expected.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -36,28 +37,28 @@ public:
         msg_{caf::make_message(std::forward<Ts>(xs)...)} {
     }
 
-    template <class OnData, class OnStatus>
-    void then(OnData on_data, OnStatus on_status) {
+    template <class OnData, class OnError>
+    void then(OnData on_data, OnError on_error) {
       using on_data_type = caf::detail::get_callable_trait<OnData>;
-      using on_status_type = caf::detail::get_callable_trait<OnStatus>;
+      using on_error_type = caf::detail::get_callable_trait<OnError>;
       static_assert(std::is_same<void, typename on_data_type::result_type>{},
                     "data callback must not have a return value");
-      static_assert(std::is_same<void, typename on_status_type::result_type>{},
+      static_assert(std::is_same<void, typename on_error_type::result_type>{},
                     "error callback must not have a return value");
       using on_data_args = typename on_data_type::arg_types;
-      using on_status_args = typename on_status_type::arg_types;
+      using on_error_args = typename on_error_type::arg_types;
       static_assert(caf::detail::tl_size<on_data_args>::value == 1,
                     "data callback can have only one argument");
-      static_assert(caf::detail::tl_size<on_status_args>::value == 1,
+      static_assert(caf::detail::tl_size<on_error_args>::value == 1,
                     "error callback can have only one argument");
       using on_data_arg = typename caf::detail::tl_head<on_data_args>::type;
-      using on_status_arg = typename caf::detail::tl_head<on_status_args>::type;
+      using on_error_arg = typename caf::detail::tl_head<on_error_args>::type;
       static_assert(std::is_same<detail::decay_t<on_data_arg>, T>::value,
                     "data callback must have valid type for operation");
-      static_assert(std::is_same<detail::decay_t<on_status_arg>, status>::value,
-                    "error callback must have broker::status as argument type");
+      static_assert(std::is_same<detail::decay_t<on_error_arg>, error>::value,
+                    "error callback must have broker::error as argument type");
       if (!frontend_) {
-        on_status(make_status<sc::unspecified>("store not initialized"));
+        on_error(make_error(ec::unspecified, "store not initialized"));
         return;
       }
       // Explicitly capture *this members. Initialized lambdas are C++14. :-/
@@ -70,12 +71,12 @@ public:
             [=](caf::error& e) {
               if (e == caf::sec::request_timeout) {
                 auto desc = "store operation timed out";
-                on_status(make_status<sc::request_timeout>(desc));
+                on_error(make_error(ec::request_timeout, desc));
               } else if (e.category() == caf::atom("broker")) {
-                on_status(make_status(std::move(e)));
+                on_error(std::move(e));
               } else {
                 auto desc = self->system().render(e);
-                on_status(make_status<sc::unspecified>(std::move(desc)));
+                on_error(make_error(ec::unspecified, std::move(desc)));
               }
             }
           );
@@ -90,7 +91,7 @@ public:
 
   /// A response to a lookup request issued by a ::proxy.
   struct response {
-    result<data> answer;
+    expected<data> answer;
     request_id id;
   };
 
@@ -136,7 +137,7 @@ public:
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, result<data>>
+  detail::enable_if_t<Flags == blocking, expected<data>>
   get(data key) const {
     return request<data>(atom::get::value, std::move(key));
   }
@@ -155,7 +156,7 @@ public:
   /// @param aspect The aspect of the value.
   /// @returns The value under *key* or an error.
   template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, result<data>>
+  detail::enable_if_t<Flags == blocking, expected<data>>
   lookup(data key, data value) const {
     return request<data>(atom::get::value, std::move(key), std::move(value));
   }
@@ -188,10 +189,10 @@ private:
   store(caf::actor actor);
 
   template <class T, class... Ts>
-  result<T> request(Ts&&... xs) const {
+  expected<T> request(Ts&&... xs) const {
     if (!frontend_)
-      return make_status<sc::unspecified>("store not initialized");
-    result<T> res{sc::unspecified};
+      return make_error(ec::unspecified, "store not initialized");
+    expected<T> res{ec::unspecified};
     caf::scoped_actor self{frontend_->home_system()};
     auto msg = caf::make_message(std::forward<Ts>(xs)...);
     self->request(frontend_, timeout::frontend, std::move(msg)).receive(
@@ -199,7 +200,7 @@ private:
         res = std::move(x);
       },
       [&](caf::error& e) {
-        res = make_status(std::move(e));
+        res = std::move(e);
       }
     );
     return res;

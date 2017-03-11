@@ -3,7 +3,7 @@
 
 #include "broker/logger.hh"
 
-#include "broker/status.hh"
+#include "broker/error.hh"
 #include "broker/version.hh"
 
 #include "broker/detail/assert.hh"
@@ -79,21 +79,21 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key>
-  result<std::string> get(const Key& key) {
+  expected<std::string> get(const Key& key) {
     if (!db)
-      return sc::backend_failure;
+      return ec::backend_failure;
     std::string value;
     bool exists;
     if (!db->KeyMayExist({}, key, &value, &exists))
-      return sc::no_such_key;
+      return ec::no_such_key;
     if (exists)
       return value;
     auto status = db->Get(rocksdb::ReadOptions{}, key, &value);
     if (status.IsNotFound())
-      return sc::no_such_key;
+      return ec::no_such_key;
     if (!status.ok()) {
       BROKER_ERROR("failed to lookup value:" << status.ToString());
-      return sc::backend_failure;
+      return ec::backend_failure;
     }
     return value;
   }
@@ -102,9 +102,9 @@ struct rocksdb_backend::impl {
   // API surprisingly doesn't allow for efficient checking of key existence; a
   // value is always returned along the way.
   template <class Key>
-  result<bool> exists(const Key& key) {
+  expected<bool> exists(const Key& key) {
     if (!db)
-      return sc::backend_failure;
+      return ec::backend_failure;
     bool exists;
     std::string value; // unused, but can't pass nullptr
     if (!db->KeyMayExist({}, key, &value, &exists))
@@ -116,19 +116,19 @@ struct rocksdb_backend::impl {
       return false;
     if (!status.ok()) {
       BROKER_ERROR("failed to lookup value:" << status.ToString());
-      return sc::backend_failure;
+      return ec::backend_failure;
     }
     return true;
   }
 
   template <class Key>
-  result<void> erase(const Key& key) {
+  expected<void> erase(const Key& key) {
     if (!db)
-      return sc::backend_failure;
+      return ec::backend_failure;
     auto status = db->Delete({}, key);
     if (!status.ok()) {
       BROKER_ERROR("failed to delete key:" << status.ToString());
-      return sc::backend_failure;
+      return ec::backend_failure;
     }
   }
 
@@ -177,52 +177,52 @@ rocksdb_backend::~rocksdb_backend() {
     delete impl_->db;
 }
 
-result<void> rocksdb_backend::put(const data& key, data value,
+expected<void> rocksdb_backend::put(const data& key, data value,
                                     optional<timestamp> expiry) {
   if (!impl_->db)
-    return sc::backend_failure;
+    return ec::backend_failure;
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = to_blob(value);
   if (!impl_->put(key_blob, value_blob, expiry))
-    return sc::backend_failure;
+    return ec::backend_failure;
   return {};
 }
 
-result<void> rocksdb_backend::add(const data& key, const data& value,
+expected<void> rocksdb_backend::add(const data& key, const data& value,
                                    optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
-    return value_blob.status();
+    return value_blob.error();
   auto v = from_blob<data>(*value_blob);
   auto result = visit(adder{value}, v);
   if (!result)
     return result;
   *value_blob = to_blob(v);
   if (!impl_->put(key_blob, *value_blob, expiry))
-    return sc::backend_failure;
+    return ec::backend_failure;
   return {};
 }
 
-result<void> rocksdb_backend::remove(const data& key, const data& value,
+expected<void> rocksdb_backend::remove(const data& key, const data& value,
                                       optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
-    return value_blob.status();
+    return value_blob.error();
   auto v = from_blob<data>(*value_blob);
   auto result = visit(remover{value}, v);
   if (!result)
     return result;
   *value_blob = to_blob(v);
   if (!impl_->put(key_blob, *value_blob, expiry))
-    return sc::backend_failure;
+    return ec::backend_failure;
   return {};
 }
 
-result<void> rocksdb_backend::erase(const data& key) {
+expected<void> rocksdb_backend::erase(const data& key) {
   if (!impl_->db)
-    return sc::backend_failure;
+    return ec::backend_failure;
   rocksdb::WriteBatch batch;
   auto key_blob = to_key_blob<prefix::data>(key);
   batch.Delete(key_blob);
@@ -231,19 +231,19 @@ result<void> rocksdb_backend::erase(const data& key) {
   auto status = impl_->db->Write({}, &batch);
   if (!status.ok()) {
     BROKER_ERROR("failed to delete key:" << status.ToString());
-    return sc::backend_failure;
+    return ec::backend_failure;
   }
   return {};
 }
 
-result<bool> rocksdb_backend::expire(const data& key) {
+expected<bool> rocksdb_backend::expire(const data& key) {
   auto ts = now();
   auto key_blob = to_key_blob<prefix::expiry>(key);
   auto expiry_blob = impl_->get(key_blob);
   if (!expiry_blob) {
-    if (expiry_blob == sc::no_such_key)
+    if (expiry_blob == ec::no_such_key)
       return false;
-    return expiry_blob.status();
+    return expiry_blob.error();
   }
   auto expiry = from_blob<timestamp>(*expiry_blob);
   if (ts < expiry)
@@ -255,28 +255,28 @@ result<bool> rocksdb_backend::expire(const data& key) {
   auto status = impl_->db->Write({}, &batch);
   if (!status.ok()) {
     BROKER_ERROR("failed to delete key:" << status.ToString());
-    return sc::backend_failure;
+    return ec::backend_failure;
   }
   return true;
 }
 
-result<data> rocksdb_backend::get(const data& key) const {
+expected<data> rocksdb_backend::get(const data& key) const {
   auto value_blob = impl_->get(to_key_blob<prefix::data>(key));
   if (!value_blob)
-    return value_blob.status();
+    return value_blob.error();
   return from_blob<data>(*value_blob);
 }
 
-result<bool> rocksdb_backend::exists(const data& key) const {
+expected<bool> rocksdb_backend::exists(const data& key) const {
   return impl_->exists(to_key_blob<prefix::data>(key));
 }
 
-result<uint64_t> rocksdb_backend::size() const {
+expected<uint64_t> rocksdb_backend::size() const {
   if (!impl_->db)
-    return sc::backend_failure;
+    return ec::backend_failure;
   uint64_t result;
   if (!impl_->db->GetIntProperty("rocksdb.estimate-num-keys", &result))
-    return sc::backend_failure;
+    return ec::backend_failure;
   if (result > impl_->exact_size_threshold)
     return result;
   result = 0;
@@ -291,14 +291,14 @@ result<uint64_t> rocksdb_backend::size() const {
   }
   if (!i->status().ok()) {
     BROKER_ERROR("failed to compute size:" << i->status().ToString());
-    return sc::backend_failure;
+    return ec::backend_failure;
   }
   return result;
 }
 
-result<snapshot> rocksdb_backend::snapshot() const {
+expected<snapshot> rocksdb_backend::snapshot() const {
   if (!impl_->db)
-    return sc::backend_failure;
+    return ec::backend_failure;
   broker::snapshot result;
   rocksdb::ReadOptions opts;
   opts.fill_cache = false;
@@ -313,7 +313,7 @@ result<snapshot> rocksdb_backend::snapshot() const {
   }
   if (!i->status().ok()) {
     BROKER_ERROR("failed to compute size:" << i->status().ToString());
-    return sc::backend_failure;
+    return ec::backend_failure;
   }
   return result;
 }

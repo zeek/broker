@@ -27,18 +27,14 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
-  auto resp = response{status{}, 0};
+  auto resp = response{error{}, 0};
   caf::actor_cast<caf::blocking_actor*>(proxy_)->receive(
-    [&](data& x, caf::error& e, request_id id) {
-      resp.id = id;
-      if (e)
-        resp.answer = make_status(std::move(e));
-      else
-        resp.answer = std::move(x);
+    [&](data& x, request_id id) {
+      resp = {std::move(x), id};
     },
-    [&](caf::error& e) {
+    [&](caf::error& e, request_id id) {
       BROKER_ERROR("proxy failed to receive response from store");
-      resp.answer = make_status(std::move(e));
+      resp = {std::move(e), id};
     }
   );
   return resp;

@@ -34,7 +34,7 @@ TEST(no duplicate masters) {
   CHECK_EQUAL(ds0->name(), "yoda");
   std::this_thread::sleep_for(propagation_delay); // subscription
   auto ds1 = ep1.attach<master, memory>("yoda");
-  CHECK(ds1 == sc::master_exists);
+  CHECK(ds1 == ec::master_exists);
 }
 
 TEST(master operations) {
@@ -49,12 +49,12 @@ TEST(master operations) {
   CHECK_EQUAL(*x, data{42});
   x = ds->get("bar");
   REQUIRE(!x);
-  CHECK_EQUAL(x, sc::no_such_key);
+  CHECK_EQUAL(x.error(), ec::no_such_key);
   MESSAGE("erase");
   ds->erase("foo");
   x = ds->get("foo");
   REQUIRE(!x);
-  CHECK_EQUAL(x, sc::no_such_key);
+  CHECK_EQUAL(x.error(), ec::no_such_key);
   MESSAGE("add");
   ds->add("foo", 1u); // key did not exist, operation fails
   x = ds->get("foo");
@@ -104,20 +104,20 @@ TEST(nonblocking api) {
   auto x = std::make_shared<data>();
   ds->get<nonblocking>("foo").then(
     [=](data& d) { *x = std::move(d); },
-    [](status) { /* nop */ }
+    [](error) { /* nop */ }
   );
   std::this_thread::sleep_for(propagation_delay);
   REQUIRE(x);
   CHECK_EQUAL(*x, data{42});
   MESSAGE("non-existing key");
-  auto failure = std::make_shared<status>();
+  auto failure = std::make_shared<error>();
   ds->get<nonblocking>("bar").then(
     [](const data&) { /* nop */ },
-    [=](status s) { *failure = std::move(s); }
+    [=](error s) { *failure = std::move(s); }
   );
   std::this_thread::sleep_for(propagation_delay);
   REQUIRE(failure);
-  CHECK_EQUAL(*failure, sc::no_such_key);
+  CHECK_EQUAL(*failure, ec::no_such_key);
 }
 
 TEST(clone operations - same endpoint) {
@@ -179,7 +179,7 @@ TEST(expiration) {
   // Check after expiration.
   v = m->get("foo");
   REQUIRE(!v);
-  CHECK(v == sc::no_such_key);
+  CHECK(v.error() == ec::no_such_key);
 }
 
 TEST(proxy) {
@@ -202,7 +202,7 @@ TEST(proxy) {
   resp = proxy.receive();
   CHECK_EQUAL(resp.id, 2u);
   REQUIRE(!resp.answer);
-  CHECK_EQUAL(resp.answer.status(), sc::no_such_key);
+  CHECK_EQUAL(resp.answer.error(), ec::no_such_key);
   MESSAGE("clone: issue queries");
   auto c = ep.attach<clone>("puneta");
   REQUIRE(c);
@@ -219,5 +219,5 @@ TEST(proxy) {
   resp = proxy.receive();
   CHECK_EQUAL(resp.id, 2u);
   REQUIRE(!resp.answer);
-  CHECK_EQUAL(resp.answer.status(), sc::no_such_key);
+  CHECK_EQUAL(resp.answer.error(), ec::no_such_key);
 }
