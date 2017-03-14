@@ -35,12 +35,12 @@ public:
                              optional<timestamp> expiry = {});
 
   /// Removes one value from another value.
-  /// @param key The key associated with the existing value to remove from.
-  /// @param value The value to remove from the existing value at *key*.
+  /// @param key The key associated with the existing value to subtract from.
+  /// @param value The value to subtract from the existing value at *key*.
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
-  virtual expected<void> remove(const data& key, const data& value,
-                                optional<timestamp> expiry = {});
+  virtual expected<void> subtract(const data& key, const data& value,
+                                  optional<timestamp> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.

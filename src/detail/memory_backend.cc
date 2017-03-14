@@ -29,8 +29,8 @@ expected<void> memory_backend::add(const data& key, const data& value,
   return result;
 }
 
-expected<void> memory_backend::remove(const data& key, const data& value,
-                                      optional<timestamp> expiry) {
+expected<void> memory_backend::subtract(const data& key, const data& value,
+                                        optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;

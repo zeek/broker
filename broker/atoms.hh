@@ -32,9 +32,9 @@ using expire = caf::atom_constant<caf::atom("expire")>;
 using increment = caf::atom_constant<caf::atom("increment")>;
 using decrement = caf::atom_constant<caf::atom("decrement")>;
 using master = caf::atom_constant<caf::atom("master")>;
-using remove = caf::atom_constant<caf::atom("remove")>;
 using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 using store = caf::atom_constant<caf::atom("store")>;
+using subtract = caf::atom_constant<caf::atom("subtract")>;
 
 } // namespace atom
 } // namespace broker

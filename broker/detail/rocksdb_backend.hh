@@ -35,8 +35,8 @@ public:
   expected<void> add(const data& key, const data& value,
                      optional<timestamp> expiry) override;
 
-  expected<void> remove(const data& key, const data& value,
-                        optional<timestamp> expiry) override;
+  expected<void> subtract(const data& key, const data& value,
+                          optional<timestamp> expiry) override;
 
   expected<void> erase(const data& key) override;
 

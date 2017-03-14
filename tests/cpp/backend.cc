@@ -62,11 +62,11 @@ public:
     );
   }
 
-  expected<void> remove(const data& key, const data& value,
+  expected<void> subtract(const data& key, const data& value,
                         optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
-        return backend.remove(key, value, expiry);
+        return backend.subtract(key, value, expiry);
       }
     );
   }
@@ -186,7 +186,7 @@ TEST(add/remove) {
   auto add = backend->add("foo", 42);
   REQUIRE(!add);
   CHECK_EQUAL(add, ec::no_such_key);
-  auto remove = backend->remove("foo", 42);
+  auto remove = backend->subtract("foo", 42);
   REQUIRE(!remove);
   CHECK_EQUAL(remove, ec::no_such_key);
   auto put = backend->put("foo", 42);
@@ -197,10 +197,10 @@ TEST(add/remove) {
   REQUIRE(get);
   CHECK_EQUAL(*get, data{44});
   MESSAGE("remove");
-  remove = backend->remove("foo", "bar");
+  remove = backend->subtract("foo", "bar");
   REQUIRE(!remove);
   CHECK_EQUAL(remove, ec::type_clash);
-  remove = backend->remove("foo", 10);
+  remove = backend->subtract("foo", 10);
   REQUIRE(remove);
   get = backend->get("foo");
   REQUIRE(get);

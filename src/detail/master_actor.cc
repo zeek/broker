@@ -54,6 +54,16 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         broadcast(caf::make_message(atom::put::value, std::move(key),
                                     std::move(value)));
     },
+    [=](atom::erase, data& key) {
+      BROKER_DEBUG("erase" << key);
+      auto result = self->state.backend->erase(key);
+      if (!result) {
+        BROKER_WARNING("failed to erase" << key);
+        return; // TODO: propagate failure? to all clones? as status msg?
+      }
+      if (!self->state.clones.empty())
+        broadcast(caf::make_message(atom::erase::value, std::move(key)));
+    },
     [=](atom::add, data& key, data& value, optional<timestamp> expiry) {
       BROKER_DEBUG("add" << key);
       auto result = self->state.backend->add(key, value, expiry);
@@ -67,9 +77,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         broadcast(caf::make_message(atom::add::value, std::move(key),
                                     std::move(value)));
     },
-    [=](atom::remove, data& key, data& value, optional<timestamp> expiry) {
-      BROKER_DEBUG("remove" << key);
-      auto result = self->state.backend->remove(key, value, expiry);
+    [=](atom::subtract, data& key, data& value, optional<timestamp> expiry) {
+      BROKER_DEBUG("subtract" << key);
+      auto result = self->state.backend->subtract(key, value, expiry);
       if (!result) {
         BROKER_WARNING("failed to add" << value << "to" << key);
         return; // TODO: propagate failure? to all clones? as status msg?
@@ -77,18 +87,8 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       if (expiry)
         remind(*expiry, key);
       if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::remove::value, std::move(key),
+        broadcast(caf::make_message(atom::subtract::value, std::move(key),
                                     std::move(value)));
-    },
-    [=](atom::erase, data& key) {
-      BROKER_DEBUG("erase" << key);
-      auto result = self->state.backend->erase(key);
-      if (!result) {
-        BROKER_WARNING("failed to erase" << key);
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::erase::value, std::move(key)));
     },
     [=](atom::snapshot, const caf::actor& clone) {
       BROKER_DEBUG("got snapshot request from" << to_string(clone));
@@ -120,11 +120,11 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     }
   };
   auto query = caf::message_handler{
-    [=](atom::get, const data& key) -> caf::result<data> {
+    [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       return self->state.backend->get(key);
     },
-    [=](atom::get, const data& key, const data& value) -> caf::result<data> {
+    [=](atom::get, const data& key, const data& value) -> expected<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
       return self->state.backend->get(key, value);
     },

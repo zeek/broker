@@ -213,8 +213,8 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
   return {};
 }
 
-expected<void> sqlite_backend::remove(const data& key, const data& value,
-                                      optional<timestamp> expiry) {
+expected<void> sqlite_backend::subtract(const data& key, const data& value,
+                                        optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();

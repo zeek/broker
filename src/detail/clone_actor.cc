@@ -31,12 +31,12 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       forward(caf::make_message(atom::add::value, std::move(key),
                                 std::move(value), expiry));
     },
-    [=](atom::remove, data& key, data& value, optional<timestamp> expiry) {
-      forward(caf::make_message(atom::remove::value, std::move(key),
-                                std::move(value), expiry));
-    },
     [=](atom::erase, data& key) {
       forward(caf::make_message(atom::erase::value, std::move(key)));
+    },
+    [=](atom::subtract, data& key, data& value, optional<timestamp> expiry) {
+      forward(caf::make_message(atom::subtract::value, std::move(key),
+                                std::move(value), expiry));
     },
   };
   auto update = caf::message_handler{
@@ -48,6 +48,10 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       else
         self->state.store.emplace(std::move(key), std::move(value));
     },
+    [=](atom::erase, data& key) {
+      BROKER_DEBUG("erase" << key);
+      self->state.store.erase(key);
+    },
     [=](atom::add, data& key, data& value) {
       BROKER_DEBUG("add" << key << "->" << value);
       auto i = self->state.store.find(key);
@@ -58,16 +62,12 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         BROKER_ASSERT(result); // We don't propagate errors.
       }
     },
-    [=](atom::remove, data& key, data& value) {
-      BROKER_DEBUG("remove" << key << "->" << value);
+    [=](atom::subtract, data& key, data& value) {
+      BROKER_DEBUG("subtract" << key << "->" << value);
       auto i = self->state.store.find(key);
       BROKER_ASSERT(i != self->state.store.end());
       auto result = visit(remover{value}, i->second);
       BROKER_ASSERT(result); // We don't propagate errors.
-    },
-    [=](atom::erase, data& key) {
-      BROKER_DEBUG("erase" << key);
-      self->state.store.erase(key);
     },
   };
   auto dispatch = caf::message_handler{
@@ -78,14 +78,14 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     }
   };
   auto query = caf::message_handler{
-    [=](atom::get, const data& key) -> caf::result<data> {
+    [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
         return ec::no_such_key;
       return i->second;
     },
-    [=](atom::get, const data& key, const data& value) -> caf::result<data> {
+    [=](atom::get, const data& key, const data& value) -> expected<data> {
       BROKER_DEBUG("GET" << key << "->" << value);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())

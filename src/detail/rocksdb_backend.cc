@@ -204,8 +204,8 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
   return {};
 }
 
-expected<void> rocksdb_backend::remove(const data& key, const data& value,
-                                      optional<timestamp> expiry) {
+expected<void> rocksdb_backend::subtract(const data& key, const data& value,
+                                         optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)

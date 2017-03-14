@@ -75,7 +75,7 @@ void store::add(data key, data value, optional<timestamp> expiry) const {
 
 void store::subtract(data key, data value, optional<timestamp> expiry) const {
   if (frontend_)
-    caf::anon_send(frontend_, atom::remove::value, std::move(key),
+    caf::anon_send(frontend_, atom::subtract::value, std::move(key),
                    std::move(value), expiry);
 }
 
