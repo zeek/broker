@@ -28,75 +28,13 @@ class store {
   friend endpoint; // construction
 
 public:
-  template <class T>
-  class continuation {
-  public:
-    template <class... Ts>
-    continuation(caf::actor requester, Ts&&... xs)
-      : frontend_{std::move(requester)},
-        msg_{caf::make_message(std::forward<Ts>(xs)...)} {
-    }
-
-    template <class OnData, class OnError>
-    void then(OnData on_data, OnError on_error) {
-      using on_data_type = caf::detail::get_callable_trait<OnData>;
-      using on_error_type = caf::detail::get_callable_trait<OnError>;
-      static_assert(std::is_same<void, typename on_data_type::result_type>{},
-                    "data callback must not have a return value");
-      static_assert(std::is_same<void, typename on_error_type::result_type>{},
-                    "error callback must not have a return value");
-      using on_data_args = typename on_data_type::arg_types;
-      using on_error_args = typename on_error_type::arg_types;
-      static_assert(caf::detail::tl_size<on_data_args>::value == 1,
-                    "data callback can have only one argument");
-      static_assert(caf::detail::tl_size<on_error_args>::value == 1,
-                    "error callback can have only one argument");
-      using on_data_arg = typename caf::detail::tl_head<on_data_args>::type;
-      using on_error_arg = typename caf::detail::tl_head<on_error_args>::type;
-      static_assert(std::is_same<detail::decay_t<on_data_arg>, T>::value,
-                    "data callback must have valid type for operation");
-      static_assert(std::is_same<detail::decay_t<on_error_arg>, error>::value,
-                    "error callback must have broker::error as argument type");
-      if (!frontend_) {
-        on_error(make_error(ec::unspecified, "store not initialized"));
-        return;
-      }
-      // Explicitly capture *this members. Initialized lambdas are C++14. :-/
-      auto frontend = frontend_;
-      auto msg = msg_;
-      frontend_->home_system().spawn(
-        [=](caf::event_based_actor* self) {
-          self->request(frontend, timeout::frontend, std::move(msg)).then(
-            on_data,
-            [=](caf::error& e) {
-              if (e == caf::sec::request_timeout) {
-                auto desc = "store operation timed out";
-                on_error(make_error(ec::request_timeout, desc));
-              } else if (e.category() == caf::atom("broker")) {
-                on_error(std::move(e));
-              } else {
-                auto desc = self->system().render(e);
-                on_error(make_error(ec::unspecified, std::move(desc)));
-              }
-            }
-          );
-        }
-      );
-    }
-
-  private:
-    caf::actor frontend_;
-    caf::message msg_;
-  };
-
   /// A response to a lookup request issued by a ::proxy.
   struct response {
     expected<data> answer;
     request_id id;
   };
 
-  /// A utility to decouple store lookups and corresponding response
-  /// processing.
+  /// A utility to decouple store request from response processing.
   class proxy {
   public:
     proxy() = default;
@@ -107,8 +45,8 @@ public:
 
     /// Performs a request to retrieve a value.
     /// @param key The key of the value to retrieve.
-    /// @returns A unique identifier for this request that is also present in
-    ///          the corresponding response.
+    /// @returns A unique identifier for this request to correlate it with a
+    /// response.
     request_id get(data key);
 
     /// Retrieves the proxy's mailbox that reflects query responses.
@@ -136,30 +74,13 @@ public:
   /// Retrieves a value.
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
-  template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, expected<data>>
-  get(data key) const {
-    return request<data>(atom::get::value, std::move(key));
-  }
-
-  /// Retrieves a value.
-  /// @param key The key of the value to retrieve.
-  /// @returns The value under *key* or an error.
-  template <api_flags Flags>
-  detail::enable_if_t<Flags == nonblocking, continuation<data>>
-  get(data key) const {
-    return {frontend_, atom::get::value, std::move(key)};
-  }
+  expected<data> get(data key) const;
 
   /// Retrieves a specific aspect of a value.
   /// @param key The key of the value to retrieve.
   /// @param aspect The aspect of the value.
   /// @returns The value under *key* or an error.
-  template <api_flags Flags = blocking>
-  detail::enable_if_t<Flags == blocking, expected<data>>
-  lookup(data key, data value) const {
-    return request<data>(atom::get::value, std::move(key), std::move(value));
-  }
+  expected<data> get(data key, data aspect) const;
 
   // --- modifiers -----------------------------------------------------------
 

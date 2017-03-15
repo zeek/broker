@@ -17,8 +17,7 @@ store::proxy::proxy(store& s) : frontend_{s.frontend_} {
 request_id store::proxy::get(data key) {
   if (!frontend_)
     return 0;
-  auto p = caf::actor_cast<caf::blocking_actor*>(proxy_);
-  p->send(frontend_, atom::get::value, std::move(key), p, ++id_);
+  send_as(proxy_, frontend_, atom::get::value, std::move(key), ++id_);
   return id_;
 }
 
@@ -56,27 +55,35 @@ std::string store::name() const {
   return result;
 }
 
+expected<data> store::get(data key) const {
+  return request<data>(atom::get::value, std::move(key));
+}
+
+expected<data> store::get(data key, data aspect) const {
+  return request<data>(atom::get::value, std::move(key), std::move(aspect));
+}
+
 void store::put(data key, data value, optional<timestamp> expiry) const {
   if (frontend_)
-    caf::anon_send(frontend_, atom::put::value, std::move(key),
-                   std::move(value), expiry);
+    anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
+              expiry);
 }
 
 void store::erase(data key) const {
   if (frontend_)
-    caf::anon_send(frontend_, atom::erase::value, std::move(key));
+    anon_send(frontend_, atom::erase::value, std::move(key));
 }
 
 void store::add(data key, data value, optional<timestamp> expiry) const {
   if (frontend_)
-    caf::anon_send(frontend_, atom::add::value, std::move(key),
-                   std::move(value), expiry);
+    anon_send(frontend_, atom::add::value, std::move(key), std::move(value),
+              expiry);
 }
 
 void store::subtract(data key, data value, optional<timestamp> expiry) const {
   if (frontend_)
-    caf::anon_send(frontend_, atom::subtract::value, std::move(key),
-                   std::move(value), expiry);
+    anon_send(frontend_, atom::subtract::value, std::move(key),
+              std::move(value), expiry);
 }
 
 store::store(caf::actor actor) : frontend_{std::move(actor)} {

@@ -55,29 +55,19 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     [=](atom::add, data& key, data& value) {
       BROKER_DEBUG("add" << key << "->" << value);
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end()) {
+      if (i == self->state.store.end())
         self->state.store.emplace(std::move(key), std::move(value));
-      } else {
-        auto result = visit(adder{value}, i->second);
-        BROKER_ASSERT(result); // We don't propagate errors.
-      }
+      else
+        visit(adder{value}, i->second);
     },
     [=](atom::subtract, data& key, data& value) {
       BROKER_DEBUG("subtract" << key << "->" << value);
       auto i = self->state.store.find(key);
       BROKER_ASSERT(i != self->state.store.end());
-      auto result = visit(remover{value}, i->second);
-      BROKER_ASSERT(result); // We don't propagate errors.
+      visit(remover{value}, i->second);
     },
   };
-  auto dispatch = caf::message_handler{
-    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
-      BROKER_DEBUG("dispatching message with topic" << t << "from core"
-                   << to_string(source));
-      update(msg);
-    }
-  };
-  auto query = caf::message_handler{
+  auto local = caf::message_handler{
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
@@ -92,31 +82,33 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         return ec::no_such_key;
       return visit(retriever{value}, i->second);
     },
-    [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
+    [=](atom::get, const data& key, request_id id) {
       BROKER_DEBUG("GET" << key << "with id:" << id);
       auto i = self->state.store.find(key);
       if (i == self->state.store.end())
-        self->send(proxy, make_error(ec::no_such_key), id);
-      else
-        self->send(proxy, i->second, id);
+        return caf::make_message(make_error(ec::no_such_key), id);
+      return caf::make_message(i->second, id);
     },
-    [=](atom::get, const data& key, const data& value, const caf::actor& proxy,
-        request_id id) {
+    [=](atom::get, const data& key, const data& value, request_id id) {
       BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end()) {
-        self->send(proxy, make_error(ec::no_such_key), id);
-        return;
-      }
+      if (i == self->state.store.end())
+        return caf::make_message(make_error(ec::no_such_key), id);
       auto x = visit(retriever{value}, i->second);
       if (x)
-        self->send(proxy, std::move(*x), id);
-      else
-        self->send(proxy, std::move(x.error()), id);
+        return caf::make_message(std::move(*x), id);
+      return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
       return name;
     },
+  };
+  auto dispatch = caf::message_handler{
+    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
+      BROKER_DEBUG("dispatching message with topic" << t << "from core"
+                   << to_string(source));
+      update(msg);
+    }
   };
   auto direct = caf::message_handler{
     [=](snapshot& ss) {
@@ -124,7 +116,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.store = ss.entries;
     },
   };
-  return dispatch.or_else(relay).or_else(update).or_else(query).or_else(direct);
+  return dispatch.or_else(relay).or_else(update).or_else(local).or_else(direct);
 }
 
 } // namespace detail

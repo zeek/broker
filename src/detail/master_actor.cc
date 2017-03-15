@@ -17,9 +17,6 @@
 namespace broker {
 namespace detail {
 
-// TODO: The following aspects still need to be thought through:
-// - Error handling when asynchronous operations fail.
-
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string name,
                            std::unique_ptr<abstract_backend> backend) {
@@ -100,14 +97,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       self->state.clones.insert(clone->address());
     },
   };
-  auto dispatch = caf::message_handler{
-    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
-      BROKER_DEBUG("dispatching message with topic" << t << "from core"
-                   << to_string(source));
-      commands(msg);
-    }
-  };
-  auto expiration = caf::message_handler{
+  auto local = caf::message_handler{
     [=](atom::expire, data& key) {
       BROKER_DEBUG("expiring key" << key);
       auto result = self->state.backend->expire(key);
@@ -117,9 +107,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         BROKER_WARNING("ignoring stale expiration reminder");
       else if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::erase::value, std::move(key)));
-    }
-  };
-  auto query = caf::message_handler{
+    },
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       return self->state.backend->get(key);
@@ -128,28 +116,32 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       BROKER_DEBUG("GET" << key << "->" << value);
       return self->state.backend->get(key, value);
     },
-    [=](atom::get, const data& key, const caf::actor& proxy, request_id id) {
+    [=](atom::get, const data& key, request_id id) {
       BROKER_DEBUG("GET" << key << "with id:" << id);
       auto x = self->state.backend->get(key);
       if (x)
-        self->send(proxy, std::move(*x), id);
-      else
-        self->send(proxy, std::move(x.error()), id);
+        return caf::make_message(std::move(*x), id);
+      return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::get, const data& key, const data& value, const caf::actor& proxy,
-        request_id id) {
+    [=](atom::get, const data& key, const data& value, request_id id) {
       BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
       auto x = self->state.backend->get(key, value);
       if (x)
-        self->send(proxy, std::move(*x), id);
-      else
-        self->send(proxy, std::move(x.error()), id);
+        return caf::make_message(std::move(*x), id);
+      return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
       return name;
     },
   };
-  return dispatch.or_else(expiration).or_else(commands).or_else(query);
+  auto dispatch = caf::message_handler{
+    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
+      BROKER_DEBUG("dispatching message with topic" << t << "from core"
+                   << to_string(source));
+      commands(msg);
+    }
+  };
+  return dispatch.or_else(local).or_else(commands);
 }
 
 } // namespace detail

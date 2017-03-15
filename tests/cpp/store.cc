@@ -84,40 +84,13 @@ TEST(master operations) {
   x = ds->get("foo");
   REQUIRE(x);
   CHECK(*x == set{2, 3});
-  MESSAGE("lookup");
-  x = ds->lookup("foo", 1);
+  MESSAGE("get overload");
+  x = ds->get("foo", 1);
   REQUIRE(x);
   CHECK_EQUAL(*x, data{false});
-  x = ds->lookup("foo", 2);
+  x = ds->get("foo", 2);
   REQUIRE(x);
   CHECK_EQUAL(*x, data{true});
-}
-
-TEST(nonblocking api) {
-  context ctx;
-  auto ep = ctx.spawn<blocking>();
-  auto ds = ep.attach<master, memory>("captain");
-  REQUIRE(ds);
-  MESSAGE("put");
-  ds->put("foo", 42);
-  MESSAGE("existing key");
-  auto x = std::make_shared<data>();
-  ds->get<nonblocking>("foo").then(
-    [=](data& d) { *x = std::move(d); },
-    [](error) { /* nop */ }
-  );
-  std::this_thread::sleep_for(propagation_delay);
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{42});
-  MESSAGE("non-existing key");
-  auto failure = std::make_shared<error>();
-  ds->get<nonblocking>("bar").then(
-    [](const data&) { /* nop */ },
-    [=](error s) { *failure = std::move(s); }
-  );
-  std::this_thread::sleep_for(propagation_delay);
-  REQUIRE(failure);
-  CHECK_EQUAL(*failure, ec::no_such_key);
 }
 
 TEST(clone operations - same endpoint) {

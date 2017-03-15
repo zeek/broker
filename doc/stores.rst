@@ -89,18 +89,18 @@ The two template parameters ``F`` and ``B`` denote the respective frontend and
 backend types, where ``B`` defaults to ``memory``.  The function takes as first
 argument the name of the store and as second argument optionally a set of
 backend options, such as the path where to keep the backend on the filesystem.
-The function returns a ``result<store>`` which encapsulates a type-erased
+The function returns a ``expected<store>`` which encapsulates a type-erased
 reference to the data store.
 
 .. note::
 
-  The type ``result<T>`` encapsulates an instance of type ``T`` or a
+  The type ``expected<T>`` encapsulates an instance of type ``T`` or a
   ``status``, with an interface that has "pointer semantics" for syntactic
   convenience:
 
   .. code-block:: cpp
 
-    auto f(...) -> result<T>;
+    auto f(...) -> expected<T>;
 
     auto x = f();
     if (x)
@@ -108,8 +108,7 @@ reference to the data store.
     else
       std::cout << to_string(x.error()) << std::endl;
 
-  In the failure case, the ``result<T>::status()`` holds a ``status`` that
-  can be compared against the status code enumeration ``sc``.
+  In the failure case, the ``expected<T>::error()`` holds an ``error``.
 
 Modification
 ~~~~~~~~~~~~
@@ -136,44 +135,20 @@ Data stores support the following mutating operations:
 Direct Retrieval
 ~~~~~~~~~~~~~~~~
 
-There exist two methods of directly extracting values from a store: either in a
-blocking or non-blocking fashion.
-
-The overload ``get<blocking>(const data& key)`` retrieves a value in a blocking
-manner and returns an instance of ``result<data>``.
+The function ``get(const data& key)`` retrieves a value in a blocking
+manner and returns an instance of ``expected<data>``.
 
 .. code-block:: cpp
 
-  auto result = ds->get<blocking>("foo");
+  auto result = ds->get("foo");
   if (result)
     std::cout << *result << std::endl; // may print 4.2
-  else if (result.error() == sc::no_such_key)
+  else if (result.error() == ec::no_such_key)
     std::cout << "key 'foo' does not exist'" << std::endl;
-  else if (result.error() == sc::backend_failure)
+  else if (result.error() == ec::backend_failure)
     std::cout << "something went wrong with the backend" << std::endl;
   else
     std::cout << "could not retrieve value at key 'foo'" << std::endl;
-
-The overload ``get<nonblocking>(const data& key)`` returns a future-like proxy
-object which has the sole purpose of invoking ``.then(...)`` on it to
-install a one-shot handler that the runtime executes as soon as the result of
-the retrieval operation is available.
-
-.. code-block:: cpp
-
-  ds->get<nonblocking>("foo").then(
-    [=](const data& d) {
-      std::cout << d << std::endl; // may print 4.2
-    },
-    [=](const error& e) {
-      if (result.error() == sc::no_such_key)
-        std::cout << "key 'foo' does not exist'" << std::endl;
-      else if (result.error() == sc::backend_failure)
-        std::cout << "something went wrong with the backend" << std::endl;
-      else
-        std::cout << "could not retrieve value at key 'foo'" << std::endl;
-    }
-  );
 
 Proxy Retrieval
 ~~~~~~~~~~~~~~~
@@ -202,7 +177,7 @@ monotonically increasing 64-bit ID that is hauled through the response:
   // Check whether we got data or an error.
   if (response.answer)
     std::cout << *result.answer << std::endl; // may print 42
-  else if (response.answer.status() == sc::no_such_key)
+  else if (response.answer.error() == ec::no_such_key)
     std::cout << "no such key: 'foo'" << std::endl;
   else
     std::cout << "failed to retrieve value at key 'foo'" << std::endl;
