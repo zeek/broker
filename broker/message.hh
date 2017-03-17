@@ -12,6 +12,7 @@ class topic;
 /// A reference-counted topic-data pair.
 class message {
   friend blocking_endpoint; // construction
+  friend endpoint; // publish
 
 public:
   /// Default-constructs an empty message.

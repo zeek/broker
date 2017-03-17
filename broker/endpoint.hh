@@ -83,6 +83,10 @@ public:
   /// @param d The message data.
   void publish(topic t, data d);
 
+  /// Publishes a message.
+  /// @param msg The message to publish.
+  void publish(const message& msg);
+
   /// Publishes a message as vector.
   /// @param t The topic of the message.
   /// @param xs The message contents to be concatenated into a vector.

@@ -63,7 +63,7 @@ TEST(nonblocking subscription managment) {
   // the provided callback.
   ep.publish("/foo/bar", 42);
   ep.publish("/foo/baz", 4.2);
-  ep.publish("/foo/qux", "broker");
+  ep.publish(message{"/foo/qux", "broker"});
   // Wait for messages to arrive at the callback actor.
   std::this_thread::sleep_for(milliseconds{100});
   CHECK_EQUAL(*counter, 3);

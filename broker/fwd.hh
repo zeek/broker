@@ -8,6 +8,7 @@ namespace broker {
 class context;
 class endpoint;
 class blocking_endpoint;
+class message;
 class nonblocking_endpoint;
 class status;
 class store;

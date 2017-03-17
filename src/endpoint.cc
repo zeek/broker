@@ -6,6 +6,7 @@
 #include "broker/atoms.hh"
 #include "broker/blocking_endpoint.hh"
 #include "broker/endpoint.hh"
+#include "broker/message.hh"
 #include "broker/nonblocking_endpoint.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
@@ -140,6 +141,11 @@ void endpoint::publish(topic t, data d) {
   if (core_)
     caf::anon_send(core(), std::move(t), caf::make_message(std::move(d)),
                    core());
+}
+
+void endpoint::publish(const message& msg) {
+  if (core_)
+    caf::anon_send(core(), msg.msg_.take(2) + caf::make_message(core()));
 }
 
 void endpoint::init_core(caf::actor core) {
