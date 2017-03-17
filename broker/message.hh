@@ -18,10 +18,19 @@ public:
   /// Default-constructs an empty message.
   message();
 
+  /// Constructs a message from data with an empty topic.
+  /// @param d The messsage data.
+  explicit message(data d);
+
   /// Constructs a message as a topic-data pair.
   /// @param t The topic of the message.
   /// @param d The messsage data.
   message(topic t, data d);
+
+  /// Constructs a message from another message with new topic.
+  /// @param t The new message topic.
+  /// @param msg The message to extract data from.
+  message(broker::topic t, const message& msg);
 
   /// @returns the contained topic.
   const broker::topic& topic() const;

@@ -14,8 +14,18 @@ message::message()
   // nop
 }
 
+message::message(broker::data d)
+  : msg_{caf::make_message(broker::topic{}, caf::make_message(std::move(d)))} {
+  // nop
+}
+
 message::message(broker::topic t, broker::data d)
   : msg_{caf::make_message(std::move(t), caf::make_message(std::move(d)))} {
+  // nop
+}
+
+message::message(broker::topic t, const message& msg)
+  : msg_{caf::make_message(std::move(t)) + msg.msg_.drop(1)} {
   // nop
 }
 
