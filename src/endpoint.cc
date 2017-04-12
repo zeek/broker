@@ -140,12 +140,12 @@ std::vector<peer_info> endpoint::peers() const {
 void endpoint::publish(topic t, data d) {
   if (core_)
     caf::anon_send(core(), std::move(t), caf::make_message(std::move(d)),
-                   core());
+                   subscriber_);
 }
 
 void endpoint::publish(const message& msg) {
   if (core_)
-    caf::anon_send(core(), msg.msg_.take(2) + caf::make_message(core()));
+    caf::anon_send(core(), msg.msg_.take(2) + caf::make_message(subscriber_));
 }
 
 void endpoint::init_core(caf::actor core) {
