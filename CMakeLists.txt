@@ -261,7 +261,9 @@ add_subdirectory(tests)
 
 # -- Documentation ------------------------------------------------------------
 
-add_subdirectory(doc)
+if (NOT BROKER_DISABLE_DOCS)
+  add_subdirectory(doc)
+endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
