@@ -4,11 +4,8 @@ project(broker C CXX)
 cmake_minimum_required(VERSION 2.8)
 include(cmake/CommonCMakeConfig.cmake)
 
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/bin
-  CACHE PATH "Single directory for all executables")
-
-set (LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/lib
-  CACHE PATH "Single directory for all libraries")
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 # -- Dependencies -------------------------------------------------------------
 
