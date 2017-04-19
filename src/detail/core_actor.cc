@@ -428,7 +428,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       BROKER_DEBUG("unpeering with remote endpoint" << to_string(net));
       auto peers = &self->state.peers;
       auto pred = [&](const peer_state& p) {
-        return p.info.peer.network == net && is_outbound(p.info.flags);
+        return p.info.peer.network == net;
       };
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       if (i == peers->end()) {
@@ -440,6 +440,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->send(*i->actor, atom::unpeer::value, self, self);
           self->demonitor(*i->actor);
         }
+        // Remove peer from subscriptions.
+        for (auto& sub : self->state.subscriptions)
+          sub.second.subscribers.erase(*i->actor);
         // Remove the other endpoint from ourselves.
         peers->erase(i);
         auto desc = "removed peering";
