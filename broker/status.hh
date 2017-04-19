@@ -32,8 +32,6 @@ enum class sc : uint8_t {
   peer_removed,
   /// Lost connection to peer.
   peer_lost,
-  /// Re-gained connection to peer.
-  peer_recovered,
 };
 
 /// @relates sc
@@ -59,8 +57,7 @@ public:
   static detail::enable_if_t<
     S == sc::peer_added
     || S == sc::peer_removed
-    || S == sc::peer_lost
-    || S == sc::peer_recovered,
+    || S == sc::peer_lost,
     status
   >
   make(endpoint_info ei, std::string msg) {
@@ -88,7 +85,6 @@ public:
       case sc::peer_added:
       case sc::peer_removed:
       case sc::peer_lost:
-      case sc::peer_recovered:
         return &context_.get_as<endpoint_info>(0);
     }
   }
