@@ -368,6 +368,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::peer, network_info net, peer_status stat) {
       if (stat == peer_status::disconnected) {
+        auto info = make_info(net);
         BROKER_INFO("lost connection to remote peer" << to_string(net));
         auto pred = [&](const peer_state& p) {
           return p.info.peer.network == net && is_outbound(p.info.flags);
@@ -382,7 +383,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         i->actor = {};
         // Notify local subscriber.
         auto desc = "lost remote peer";
-        self->send(subscriber, make_status<sc::peer_lost>(i->info.peer, desc));
+        self->send(subscriber, make_status<sc::peer_lost>(std::move(info), desc));
       }
     },
     [=](atom::peer, const caf::actor& other, std::vector<topic>& topics) {
@@ -435,6 +436,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         auto e = make_error(ec::peer_invalid, make_info(net), "no such peer");
         self->send(subscriber, std::move(e));
       } else {
+        auto info = i->info.peer;
         if (i->actor) {
           // Tell the other side to stop peering with us.
           self->send(*i->actor, atom::unpeer::value, self, self);
@@ -446,7 +448,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         // Remove the other endpoint from ourselves.
         peers->erase(i);
         auto desc = "removed peering";
-        auto s = make_status<sc::peer_removed>(make_info(net), desc);
+        auto s = make_status<sc::peer_removed>(std::move(info), desc);
         self->send(subscriber, std::move(s));
       }
     },
@@ -461,13 +463,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         auto e = make_error(ec::peer_invalid, make_info(peer), "no such peer");
         self->send(subscriber, std::move(e));
       } else {
+        auto info = i->info.peer;
         // Tell the other side to stop peering with us.
         if (peer != source)
           self->send(peer, atom::unpeer::value, self, self);
         self->demonitor(peer);
         // Remove the other endpoint from ourselves.
         peers->erase(i);
-        s = make_status<sc::peer_removed>(make_info(peer), "removed peering");
+        s = make_status<sc::peer_removed>(std::move(info), "removed peering");
         self->send(subscriber, std::move(s));
       }
     },
