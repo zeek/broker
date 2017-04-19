@@ -85,7 +85,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   if (*bound > 0)
     return 0; // already listening
   char const* addr = address.empty() ? nullptr : address.c_str();
-  bound = core()->home_system().middleman().publish(core(), port, addr);
+  bound = core()->home_system().middleman().publish(core(), port, addr, true);
   if (!bound)
     return 0;
   self->request(core(), timeout::core, atom::network::value, atom::put::value,
