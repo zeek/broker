@@ -133,7 +133,7 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
 
 // Supervises the connection to an IP address and TCP port.
 caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
-                         network_info net) {
+                         network_info net, timeout::seconds retry) {
   self->send(self, atom::connect::value);
   self->set_down_handler(
     [=](const caf::down_msg&) {
@@ -147,9 +147,9 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
       BROKER_DEBUG("attempting to connect to" << to_string(net));
       auto& mm = self->home_system().middleman();
       auto other = mm.remote_actor(net.address, net.port);
-      if (!other) {
+      if (!other && retry != timeout::seconds(0)) {
         // Try again on failure.
-        self->delayed_send(self, timeout::reconnect, atom::connect::value);
+        self->delayed_send(self, retry, atom::connect::value);
       } else {
         self->monitor(*other);
         self->send(core, atom::peer::value, net, peer_status::connected,
@@ -306,7 +306,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         if (p.actor && *p.actor != source)
           self->send(*p.actor, msg);
     },
-    [=](atom::peer, network_info net) {
+    [=](atom::peer, network_info net, timeout::seconds retry) {
       BROKER_DEBUG("peering with remote endpoint" << to_string(net));
       auto pred = [&](const peer_state& p) {
         return p.info.peer.network == net && is_outbound(p.info.flags);
@@ -321,7 +321,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto flags = peer_flags::outbound + peer_flags::remote;
       self->state.peers.push_back({{}, {ei, flags, peer_status::connecting}});
       BROKER_DEBUG("spawning connection supervisor");
-      auto sv = self->spawn<caf::linked>(supervisor, self, net);
+      auto sv = self->spawn<caf::linked>(supervisor, self, net, retry);
       self->state.supervisors.emplace(net, sv);
     },
     [=](atom::peer, const caf::actor& other) {

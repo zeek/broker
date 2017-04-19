@@ -60,9 +60,11 @@ public:
   /// Initiates a peering with a remote endpoint. Thi
   /// @param address The IP address of the remote endpoint.
   /// @param port The TCP port of the remote endpoint.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///        cannot be established, or breaks.
   /// @note The function returns immediately. The endpoint receives a status
   ///       message indicating the result of the peering operation.
-  void peer(const std::string& address, uint16_t port);
+  void peer(const std::string& address, uint16_t port, timeout::seconds retry = timeout::seconds(10));
 
   /// Unpeers from another endpoint.
   /// @param other The endpoint to unpeer from.

@@ -105,9 +105,9 @@ void endpoint::peer(const endpoint& other) {
     caf::anon_send(core(), atom::peer::value, other.core());
 }
 
-void endpoint::peer(const std::string& address, uint16_t port) {
+void endpoint::peer(const std::string& address, uint16_t port, timeout::seconds retry) {
   if (core_)
-    caf::anon_send(core(), atom::peer::value, network_info{address, port});
+    caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry);
 }
 
 void endpoint::unpeer(const endpoint& other) {
