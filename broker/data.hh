@@ -122,6 +122,7 @@ public:
 // C++17 variant compliance.
 using detail::get;
 using detail::get_if;
+using detail::is;
 
 /// Perform multiple dispatch on data instances.
 /// @tparam Visitor The visitor type.
