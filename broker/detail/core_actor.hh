@@ -15,6 +15,7 @@
 #include "broker/peer_info.hh"
 
 #include "broker/detail/radix_tree.hh"
+#include "broker/detail/stream_governor.hh"
 
 namespace broker {
 namespace detail {
@@ -30,17 +31,44 @@ struct peer_state {
 };
 
 struct core_state {
-  std::vector<peer_state> peers;
+  /// Establishes all invariants.
+  void init(caf::event_based_actor* s, filter_type initial_filter);
+
+  /// Returns the peer that sent the current message.
+  /// @pre `xs.match_elements<stream_msg>()`
+  caf::strong_actor_ptr prev_peer_from_handshake();
+
+  //std::vector<peer_state> peers;
   radix_tree<subscription_state> subscriptions;
   std::unordered_map<std::string, caf::actor> masters;
   std::unordered_multimap<std::string, caf::actor> clones;
   std::map<network_info, caf::actor> supervisors;
   endpoint_info info;
-  const char* name = "core";
+
+  /// Lists all known peers that we need to update whenever `filter` changes.
+  std::vector<caf::strong_actor_ptr> peers;
+
+  /// Requested topics on this core.
+  filter_type filter;
+ 
+  /// Multiplexes local streams and streams for peers.
+  caf::intrusive_ptr<stream_governor> governor;
+
+  /// Stream ID used by the governor.
+  caf::stream_id sid;
+
+  /// Set of pending handshake requests.
+  std::unordered_set<caf::strong_actor_ptr> pending_peers;
+
+  /// Points to the owning actor.
+  caf::event_based_actor* self;
+
+  /// Name shown in logs for all instances of this actor.
+  static const char* name;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         caf::actor subscriber);
+                         filter_type initial_filter);
 
 } // namespace detail
 } // namespace broker

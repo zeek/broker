@@ -22,8 +22,13 @@
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/master_actor.hh"
 
+using namespace caf;
+
 namespace broker {
 namespace detail {
+
+const char* core_state::name = "core";
+
 namespace {
 
 // Creates endpoint information from a core actor.
@@ -134,6 +139,9 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
 }
 
 // Supervises the connection to an IP address and TCP port.
+=======
+// Peform// Supervises the connection to an IP address and TCP port.
+>>>>>>> Base new core on proof-of-concept stream governor
 caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
                          network_info net, timeout::seconds retry) {
   self->send(self, atom::connect::value);
@@ -179,12 +187,33 @@ optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
 
 } // namespace <anonymous>
 
+void core_state::init(caf::event_based_actor* s, filter_type initial_filter) {
+  self = s;
+  filter = std::move(initial_filter);
+  governor = caf::make_counted<stream_governor>(this);
+  sid = caf::stream_id{
+    self->ctrl(),
+    self->new_request_id(caf::message_priority::normal).integer_value()};
+  self->streams().emplace(sid, governor);
+}
+
+caf::strong_actor_ptr core_state::prev_peer_from_handshake() {
+  auto& xs = self->current_mailbox_element()->content();
+  CAF_ASSERT(xs.match_elements<caf::stream_msg>());
+  auto& x = xs.get_as<caf::stream_msg>(0);
+  if (caf::holds_alternative<caf::stream_msg::open>(x.content))
+    return get<caf::stream_msg::open>(x.content).prev_stage;
+  return nullptr;
+}
+
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         caf::actor subscriber) {
+                         filter_type initial_filter) {
+  self->state.init(self, std::move(initial_filter));
   self->state.info = make_info(self);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
+      /* TODO: still needed? Already tracked by governor.
       BROKER_INFO("got DOWN from peer" << to_string(down.source));
       auto peers = &self->state.peers;
       auto pred = [&](const peer_state& p) {
@@ -204,10 +233,130 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       BROKER_DEBUG(desc);
       self->send(subscriber, make_status<sc::peer_removed>(i->info.peer, desc));
       peers->erase(i);
+      */
     }
   );
   return {
+    // -- Peering requests from local actors, i.e., "step 0". ------------------
+    [=](atom::peer, strong_actor_ptr remote_core) -> result<void> {
+      auto& st = self->state;
+      // Sanity checking.
+      if (remote_core == nullptr)
+        return sec::invalid_argument;
+      // Create necessary state and send message to remote core if not already
+      // peering with B.
+      if (!st.governor->has_peer(remote_core))
+        self->send(actor{self} * actor_cast<actor>(remote_core),
+                   atom::peer::value, st.filter);
+      return unit;
+    },
+    // -- 3-way handshake for establishing peering streams between A and B. ----
+    // -- A (this node) performs steps #1 and #3. B performs #2 and #4. --------
+    // Step #1: A demands B shall establish a stream back to A. A has
+    //          subscribers to the topics `ts`.
+    [=](atom::peer, filter_type& peer_ts) -> stream_type {
+      auto& st = self->state;
+      // Reject anonymous peering requests.
+      auto p = self->current_sender();
+      if (p == nullptr) {
+        CAF_LOG_DEBUG("Drop anonymous peering request.");
+        return invalid_stream;
+      }
+      // Ignore unexpected handshakes as well as handshakes that collide
+      // with an already pending handshake.
+      if (st.pending_peers.count(p) > 0) {
+        CAF_LOG_DEBUG("Drop repeated peering request.");
+        return invalid_stream;
+      }
+      auto peer_ptr = st.governor->add_peer(p, std::move(peer_ts));
+      if (peer_ptr == nullptr) {
+        CAF_LOG_DEBUG("Drop peering request of already known peer.");
+        return invalid_stream;
+      }
+      st.pending_peers.emplace(std::move(p));
+      auto& next = self->current_mailbox_element()->stages.back();
+      CAF_ASSERT(next != nullptr);
+      auto token = std::make_tuple(st.filter);
+      self->fwd_stream_handshake<element_type>(st.sid, token);
+      return {st.sid, st.governor};
+    },
+    // step #2: B establishes a stream to A, sending its own local subscriptions
+    [=](const stream_type& in, filter_type& filter) {
+      auto& st = self->state;
+      // Reject anonymous peering requests and unrequested handshakes.
+      auto p = st.prev_peer_from_handshake();
+      if (p == nullptr) {
+        CAF_LOG_DEBUG("Drop anonymous peering request.");
+        return;
+      }
+      // Ignore duplicates.
+      if (st.governor->has_peer(p)) {
+        CAF_LOG_DEBUG("Drop repeated handshake phase #2.");
+        return;
+      }
+      // Add state to actor.
+      auto peer_ptr = st.governor->add_peer(p, std::move(filter));
+      peer_ptr->incoming_sid = in.id();
+      self->streams().emplace(in.id(), st.governor);
+      // Start streaming in opposite direction.
+      st.governor->new_stream(p, st.sid, std::make_tuple(ok_atom::value));
+    },
+    // step #3: A establishes a stream to B
+    // (now B has a stream to A and vice versa)
+    [=](const stream_type& in, ok_atom) {
+      CAF_LOG_TRACE(CAF_ARG(in));
+      auto& st = self->state;
+      // Reject anonymous peering requests and unrequested handshakes.
+      auto p = st.prev_peer_from_handshake();
+      if (p == nullptr) {
+        CAF_LOG_DEBUG("Ignored anonymous peering request.");
+        return;
+      }
+      // Reject step #3 handshake if this actor didn't receive a step #1
+      // handshake previously.
+      auto i = st.pending_peers.find(p);
+      if (i == st.pending_peers.end()) {
+        CAF_LOG_WARNING("Received a step #3 handshake, but no #1 previously.");
+        return;
+      }
+      st.pending_peers.erase(i);
+      auto res = self->streams().emplace(in.id(), st.governor);
+      if (!res.second) {
+        CAF_LOG_WARNING("Stream already existed.");
+      }
+    },
+    // -- Communication to local actors: incoming streams and subscriptions. ---
+    [=](join_atom, filter_type& filter) -> expected<stream_type> {
+      auto& st = self->state;
+      auto& cs = self->current_sender();
+      if (cs == nullptr)
+        return sec::cannot_add_downstream;
+      auto& stages = self->current_mailbox_element()->stages;
+      if (stages.empty()) {
+        CAF_LOG_ERROR("Cannot join a data stream without downstream.");
+        auto rp = self->make_response_promise();
+        rp.deliver(sec::no_downstream_stages_defined);
+        return stream_type{stream_id{nullptr, 0}, nullptr};
+      }
+      auto next = stages.back();
+      CAF_ASSERT(next != nullptr);
+      std::tuple<> token;
+      self->fwd_stream_handshake<element_type>(st.sid, token);
+      st.governor->local_subscribers().add_path(cs);
+      st.governor->local_subscribers().set_filter(cs, std::move(filter));
+      return stream_type{st.sid, st.governor};
+    },
+    [=](const stream_type& in) {
+      auto& st = self->state;
+      auto& cs = self->current_sender();
+      if (cs == nullptr) {
+        return;
+      }
+      self->streams().emplace(in.id(), st.governor);
+    },
     // TODO: add TTL component to this message to detect routing loops.
+    /* TODO: dispatching is done in governor, how to integrate master/clone
+             semantics into the picture?
     [=](topic& t, caf::message& msg, const caf::actor& source) {
       BROKER_DEBUG("got message:" << t << "->" << to_string(msg));
       BROKER_ASSERT(!t.string().empty());
@@ -262,255 +411,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           self->send(sink, sub_msg);
         }
     },
-    [=](topic& t, caf::message& msg, node_id dst_node, endpoint_id dst_id, const caf::actor& source) {
-      BROKER_DEBUG("got direct message for node ID" << dst_node << "endpoint ID" << dst_id  << ":" << t << "->" << to_string(msg));
-      // Locate peer by network info.
-      auto pred = [&](const peer_state& p) {
-        return p.info.peer.node == dst_node && p.info.peer.id == dst_id;
-      };
-      auto& peers = self->state.peers;
-      auto i = std::find_if(peers.begin(), peers.end(), pred);
-      if (i == peers.end()) {
-        BROKER_WARNING(
-          "not connected to peer that's a destination of a direct messe");
-        return;
-      }
-      auto sub_msg = caf::make_message(std::move(t), std::move(msg), self);
-      self->send(*i->actor, sub_msg);
-    },
-    [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {
-      BROKER_DEBUG("got subscribe request for" << to_string(source));
-      if (ts.empty()) {
-        BROKER_WARNING("ignoring subscription with empty topic list");
-        return;
-      }
-      for (auto& t : ts) {
-        BROKER_DEBUG("  -" << t);
-        self->state.subscriptions[t.string()].subscribers.insert(source);
-      }
-      auto msg = caf::make_message(atom::subscribe::value, std::move(ts), self);
-      for (auto& p : self->state.peers)
-        if (p.actor && *p.actor != source) {
-          BROKER_DEBUG("relaying subscriptions to peer" << to_string(*p.actor));
-          for (auto& t : msg.get_as<std::vector<topic>>(1))
-            self->state.subscriptions[t.string()].subscribers.insert(*p.actor);
-          self->send(*p.actor, msg);
-        }
-    },
-    [=](atom::unsubscribe, const std::vector<topic>& ts,
-        const caf::actor& source) {
-      // We have erase all matching topics in two phases, because erasing a
-      // topic from a radix tree invalidates iterators.
-      std::vector<topic> topics;
-      for (auto& t : ts) {
-        BROKER_DEBUG("got unsubscribe request for topic" << t);
-        for (auto match : self->state.subscriptions.prefixed_by(t.string())) {
-          auto& subscribers = match->second.subscribers;
-          BROKER_DEBUG("removing subscriber from topic" << match->first);
-          subscribers.erase(source);
-          if (subscribers.empty())
-            topics.emplace_back(std::move(match->first));
-        }
-      }
-      for (auto& t : topics) {
-        BROKER_DEBUG("removing subscription state of topic" << t.string());
-        self->state.subscriptions.erase(t.string());
-      }
-      // Propagate unsubscription to peers for those topics that have no more
-      // subscribers.
-      auto msg = caf::make_message(atom::unsubscribe::value, std::move(topics),
-                                   self);
-      for (auto& p : self->state.peers)
-        if (p.actor && *p.actor != source)
-          self->send(*p.actor, msg);
-    },
-    [=](atom::peer, network_info net, timeout::seconds retry) {
-      BROKER_DEBUG("peering with remote endpoint" << to_string(net));
-      auto pred = [&](const peer_state& p) {
-        return p.info.peer.network == net && is_outbound(p.info.flags);
-      };
-      auto peers = &self->state.peers;
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      if (i != peers->end()) {
-        BROKER_WARNING("outbound peering already exists");
-        return;
-      }
-      auto ei = make_info(net);
-      auto flags = peer_flags::outbound + peer_flags::remote;
-      self->state.peers.push_back({{}, {ei, flags, peer_status::connecting}});
-      BROKER_DEBUG("spawning connection supervisor");
-      auto sv = self->spawn<caf::linked>(supervisor, self, net, retry);
-      self->state.supervisors.emplace(net, sv);
-    },
-    [=](atom::peer, const caf::actor& other) {
-      BROKER_DEBUG("peering with local endpoint");
-      auto pred = [&](const peer_state& p) { return p.actor == other; };
-      auto peers = &self->state.peers;
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      if (i != peers->end()) {
-        BROKER_WARNING("ignoring duplicate peering attempt");
-        return;
-      }
-      auto addr = other->address();
-      auto flags = peer_flags::outbound + peer_flags::local;
-      peer_info pi{make_info(other), flags, peer_status::initialized};
-      self->state.peers.push_back({other, pi});
-      self->monitor(other);
-      perform_handshake(self, subscriber, other);
-    },
-    [=](atom::peer, network_info net, peer_status, const caf::actor& other) {
-      // Check if this peer is already known.
-      auto peers = &self->state.peers;
-      auto known = [&](const peer_state& p) {
-        return p.actor == other && is_outbound(p.info.flags);
-      };
-      auto i = std::find_if(peers->begin(), peers->end(), known);
-      if (i != peers->end()) {
-        BROKER_ERROR("found known peer under different network configuration:"
-                     << to_string(net) << "(new)"
-                     << to_string(*i->info.peer.network) << "(old)");
-        self->quit(caf::exit_reason::user_shutdown);
-        return;
-      }
-      // Locate peer by network info.
-      auto pred = [&](const peer_state& p) {
-        return p.info.peer.network == net && is_outbound(p.info.flags);
-      };
-      i = std::find_if(peers->begin(), peers->end(), pred);
-      BROKER_ASSERT(i != peers->end());
-      BROKER_ASSERT(i->info.status == peer_status::connecting
-                    || i->info.status == peer_status::reconnecting);
-      i->info.status = peer_status::connected;
-      i->actor = other;
-      perform_handshake(self, subscriber, other, net);
-    },
-    [=](atom::peer, network_info net, peer_status stat) {
-      if (stat == peer_status::disconnected) {
-        auto info = make_info(net);
-        BROKER_INFO("lost connection to remote peer" << to_string(net));
-        auto pred = [&](const peer_state& p) {
-          return p.info.peer.network == net && is_outbound(p.info.flags);
-        };
-        // Remove peer from subscriptions and switch it "off".
-        auto peers = &self->state.peers;
-        auto i = std::find_if(peers->begin(), peers->end(), pred);
-        BROKER_ASSERT(i != peers->end());
-        BROKER_ASSERT(i->actor);
-        for (auto& sub : self->state.subscriptions)
-          sub.second.subscribers.erase(*i->actor);
-        i->actor = {};
-        // Notify local subscriber.
-        auto desc = "lost remote peer";
-        self->send(subscriber, make_status<sc::peer_lost>(std::move(info), desc));
-      }
-    },
-    [=](atom::peer, const caf::actor& other, std::vector<topic>& topics) {
-      BROKER_DEBUG("got peering request with" << topics.size()
-                   << "peer subscriptions");
-      // Delay response message until MM responded.
-      auto rp = self->make_response_promise();
-      // Gather some information about the other peer. Note that this may not
-      // be the endpoint information that the peer has (e.g., due to NAT).
-      auto nid = other->address().node();
-      auto mm = self->home_system().middleman().actor_handle();
-      self->request(mm, timeout::infinite, caf::get_atom::value, nid).then(
-        [=](caf::node_id, const std::string& addr, uint16_t port) mutable {
-          // Register inbound peer.
-          optional<network_info> net;
-          if (port > 0)
-            net = network_info{addr, port};
-          auto info = make_info(other, net);
-          peer_info pi{info, peer_flags::inbound, peer_status::peered};
-          auto peers = &self->state.peers;
-          peers->push_back({other, std::move(pi)});
-          auto desc = "inbound peering established";
-          BROKER_DEBUG(desc);
-          self->monitor(other);
-          auto s = make_status<sc::peer_added>(std::move(info), desc);
-          self->send(subscriber, std::move(s));
-          for (auto& t : topics)
-            self->state.subscriptions[t.string()].subscribers.insert(other);
-          // Propagate subscriptions to peers.
-          auto subscription = caf::make_message(atom::subscribe::value,
-                                                std::move(topics), self);
-          for (auto& p : self->state.peers)
-            if (p.actor && *p.actor != other)
-              self->send(*p.actor, subscription);
-          rp.deliver(local_subscriptions(self));
-        },
-        [](caf::error& err) {
-        }
-      );
-      return rp;
-    },
-    [=](atom::unpeer, network_info net) {
-      BROKER_DEBUG("unpeering with remote endpoint" << to_string(net));
-      auto peers = &self->state.peers;
-      auto pred = [&](const peer_state& p) {
-        return p.info.peer.network == net;
-      };
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      if (i == peers->end()) {
-        auto e = make_error(ec::peer_invalid, make_info(net), "no such peer");
-        self->send(subscriber, std::move(e));
-      } else {
-        auto info = i->info.peer;
-        if (i->actor) {
-          // Tell the other side to stop peering with us.
-          self->send(*i->actor, atom::unpeer::value, self, self);
-          self->demonitor(*i->actor);
-        }
-        // Remove peer from subscriptions.
-        for (auto& sub : self->state.subscriptions)
-          sub.second.subscribers.erase(*i->actor);
-        // Remove the other endpoint from ourselves.
-        peers->erase(i);
-        auto desc = "removed peering";
-        auto s = make_status<sc::peer_removed>(std::move(info), desc);
-        self->send(subscriber, std::move(s));
-      }
-    },
-    [=](atom::unpeer, const caf::actor& peer, const caf::actor& source) {
-      BROKER_DEBUG("got request to unpeer with endpoint");
-      auto peers = &self->state.peers;
-      auto handle = peer.address();
-      auto pred = [&](const peer_state& p) { return p.actor == peer; };
-      auto i = std::find_if(peers->begin(), peers->end(), pred);
-      status s;
-      if (i == peers->end()) {
-        auto e = make_error(ec::peer_invalid, make_info(peer), "no such peer");
-        self->send(subscriber, std::move(e));
-      } else {
-        auto info = i->info.peer;
-        // Tell the other side to stop peering with us.
-        if (peer != source)
-          self->send(peer, atom::unpeer::value, self, self);
-        self->demonitor(peer);
-        // Remove the other endpoint from ourselves.
-        peers->erase(i);
-        s = make_status<sc::peer_removed>(std::move(info), "removed peering");
-        self->send(subscriber, std::move(s));
-      }
-    },
-    [=](atom::peer, atom::get) {
-      std::vector<peer_info> result;
-      std::transform(self->state.peers.begin(),
-                     self->state.peers.end(),
-                     std::back_inserter(result),
-                     [](const peer_state& p) { return p.info; });
-      return result;
-    },
-    [=](atom::network, atom::put, std::string& address, uint16_t port) {
-      self->state.info.network = network_info{std::move(address), port};
-      return atom::ok::value;
-    },
-    [=](atom::network, atom::get) {
-      auto& net = self->state.info.network;
-      if (net)
-        return caf::make_message(net->address, net->port);
-      else
-        return caf::make_message("", uint16_t{0});
-    },
+    */
     [=](atom::store, atom::master, atom::attach, const std::string& name,
         backend backend_type,
         backend_options& opts) -> caf::result<caf::actor> {

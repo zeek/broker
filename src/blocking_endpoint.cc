@@ -43,7 +43,8 @@ mailbox blocking_endpoint::mailbox() {
 
 blocking_endpoint::blocking_endpoint(caf::actor_system& sys) {
   subscriber_ = sys.spawn<detail::flare_actor>();
-  init_core(sys.spawn(detail::core_actor, subscriber_));
+  // TODO: fixme
+  //init_core(sys.spawn(detail::core_actor, subscriber_));
 }
 
 } // namespace broker

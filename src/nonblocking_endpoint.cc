@@ -87,7 +87,8 @@ void nonblocking_endpoint::unsubscribe(topic t) {
 
 nonblocking_endpoint::nonblocking_endpoint(caf::actor_system& sys) {
   subscriber_ = sys.spawn(subscriber);
-  init_core(sys.spawn(detail::core_actor, subscriber_));
+  // TODO: fixme
+  //init_core(sys.spawn(detail::core_actor, subscriber_));
   caf::anon_send(subscriber_, core());
 }
 

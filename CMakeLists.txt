@@ -164,6 +164,7 @@ set(BROKER_SRC
   src/port.cc
   src/status.cc
   src/store.cc
+  src/stream_governor.cc
   src/subnet.cc
   src/time.cc
   src/topic.cc
