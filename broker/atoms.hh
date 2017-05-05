@@ -23,6 +23,7 @@ using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
 using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
+using default_ = caf::atom_constant<caf::atom("default")>;
 
 // Store
 using attach = caf::atom_constant<caf::atom("attach")>;

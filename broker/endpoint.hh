@@ -10,11 +10,12 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/endpoint_info.hh"
+#include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
+#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
-#include "broker/expected.hh"
 #include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
@@ -85,20 +86,15 @@ public:
   /// @param d The message data.
   void publish(topic t, data d);
 
+  /// Publishes a message with a custom message type.
+  /// @param t The topic of the message.
+  /// @param ty The custom type.
+  /// @param d The message data.
+  void publish(topic t, message_type ty, data d);
+
   /// Publishes a message.
   /// @param msg The message to publish.
   void publish(const message& msg);
-
-  /// Publishes a message as vector.
-  /// @param t The topic of the message.
-  /// @param xs The message contents to be concatenated into a vector.
-  template <class T0, class T1, class... Ts>
-  void publish(topic t, T0&& x0, T1&& x1, Ts&&... xs) {
-    vector v;
-    add_to_vector(v, std::forward<T0>(x0), std::forward<T1>(x1),
-                  std::forward<Ts>(xs)...);
-    publish(std::move(t), data{std::move(v)});
-  }
 
   // --- data stores ----------------------------------------------------------
 
