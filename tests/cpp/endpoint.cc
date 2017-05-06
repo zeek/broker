@@ -257,8 +257,12 @@ TEST(subscribe after peering) {
   // Wait until subscriptions propagated along the chain.
   std::this_thread::sleep_for(milliseconds{300});
   MESSAGE("D -> C -> B -> A");
-  d.publish("/foo/d", 42);
-  CHECK_EQUAL(get<message>(a.receive()).topic(), "/foo/d"_t);
+  using test = message_type_constant<make_message_type("test")>;
+  d.publish("/foo/d", test::value, 42);
+  auto msg = get<message>(a.receive());
+  CHECK_EQUAL(msg.topic(), "/foo/d"_t);
+  std::cerr << "|1 " << to_string(msg.type()) << std::endl;
+  CHECK_EQUAL(msg.type(), test::value);
   CHECK(a.mailbox().empty());
   CHECK(b.mailbox().empty());
   CHECK(c.mailbox().empty());

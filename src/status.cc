@@ -17,8 +17,6 @@ const char* to_string(sc code) {
       return "peer_removed";
     case sc::peer_lost:
       return "peer_lost";
-    case sc::peer_recovered:
-      return "peer_recovered";
   }
 }
 
@@ -37,7 +35,6 @@ const std::string* status::message() const {
     case sc::peer_added:
     case sc::peer_removed:
     case sc::peer_lost:
-    case sc::peer_recovered:
       return &context_.get_as<std::string>(1);
   }
 }

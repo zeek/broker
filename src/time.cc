@@ -23,6 +23,11 @@ bool convert(timestamp t, std::string& str) {
   return convert(t.time_since_epoch(), str);
 }
 
+bool convert(timestamp t, double& secs) {
+  secs = std::chrono::duration_cast<fractional_seconds>(t.time_since_epoch()).count();
+  return true;
+}
+
 bool convert(double secs, timespan& s) {
   s = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
   return true;

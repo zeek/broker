@@ -85,7 +85,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   if (*bound > 0)
     return 0; // already listening
   char const* addr = address.empty() ? nullptr : address.c_str();
-  bound = core()->home_system().middleman().publish(core(), port, addr);
+  bound = core()->home_system().middleman().publish(core(), port, addr, true);
   if (!bound)
     return 0;
   self->request(core(), timeout::core, atom::network::value, atom::put::value,
@@ -105,9 +105,9 @@ void endpoint::peer(const endpoint& other) {
     caf::anon_send(core(), atom::peer::value, other.core());
 }
 
-void endpoint::peer(const std::string& address, uint16_t port) {
+void endpoint::peer(const std::string& address, uint16_t port, timeout::seconds retry) {
   if (core_)
-    caf::anon_send(core(), atom::peer::value, network_info{address, port});
+    caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry);
 }
 
 void endpoint::unpeer(const endpoint& other) {
@@ -139,8 +139,17 @@ std::vector<peer_info> endpoint::peers() const {
 
 void endpoint::publish(topic t, data d) {
   if (core_)
-    caf::anon_send(core(), std::move(t), caf::make_message(std::move(d)),
-                   subscriber_);
+    caf::anon_send(core(), std::move(t),
+                   caf::make_message(std::move(d), atom::default_::value),
+		   subscriber_);
+}
+
+void endpoint::publish(topic t, message_type ty, data d) {
+  if (core_)
+    caf::anon_send(
+      core(), std::move(t),
+      caf::make_message(std::move(d), std::move(ty)),
+      subscriber_);
 }
 
 void endpoint::publish(const message& msg) {

@@ -37,6 +37,9 @@ bool convert(timespan i, std::string& str);
 /// @relates timestamp
 bool convert(timestamp t, std::string& str);
 
+/// @relates timestamp
+bool convert(timestamp i, double& secs);
+
 /// @relates timespan
 bool convert(double secs, timespan& i);
 
