@@ -144,12 +144,27 @@ void endpoint::publish(topic t, data d) {
 		   subscriber_);
 }
 
+void endpoint::publish(const endpoint_info& dst, topic t, data d) {
+  if (core_)
+    caf::anon_send(core(), std::move(t),
+                   caf::make_message(std::move(d), atom::default_::value),
+		   dst.node, dst.id, subscriber_);
+}
+
 void endpoint::publish(topic t, message_type ty, data d) {
   if (core_)
     caf::anon_send(
       core(), std::move(t),
       caf::make_message(std::move(d), std::move(ty)),
       subscriber_);
+}
+
+void endpoint::publish(const endpoint_info& dst, topic t, message_type ty, data d) {
+  if (core_)
+    caf::anon_send(
+      core(), std::move(t),
+      caf::make_message(std::move(d), std::move(ty)),
+      dst.node, dst.id, subscriber_);
 }
 
 void endpoint::publish(const message& msg) {

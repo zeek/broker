@@ -74,10 +74,12 @@ void perform_handshake(caf::stateful_actor<core_state>* self,
       auto i = std::find_if(peers->begin(), peers->end(), pred);
       BROKER_ASSERT(i != peers->end());
       i->info.status = peer_status::peered;
+      // Update the endpoint info.
+      i->info.peer = make_info(other, std::move(i->info.peer.network));
       // Inform the subscriber about the successfully established peering.
       auto desc = "outbound peering established";
       BROKER_INFO(desc);
-      auto s = make_status<sc::peer_added>(make_info(other, net), desc);
+      auto s = make_status<sc::peer_added>(i->info.peer, desc);
       self->send(subscriber, s);
     },
     [=](const caf::error& e) mutable {
@@ -259,6 +261,22 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           BROKER_DEBUG("relaying message to" << to_string(sink));
           self->send(sink, sub_msg);
         }
+    },
+    [=](topic& t, caf::message& msg, node_id dst_node, endpoint_id dst_id, const caf::actor& source) {
+      BROKER_DEBUG("got direct message for node ID" << dst_node << "endpoint ID" << dst_id  << ":" << t << "->" << to_string(msg));
+      // Locate peer by network info.
+      auto pred = [&](const peer_state& p) {
+        return p.info.peer.node == dst_node && p.info.peer.id == dst_id;
+      };
+      auto& peers = self->state.peers;
+      auto i = std::find_if(peers.begin(), peers.end(), pred);
+      if (i == peers.end()) {
+        BROKER_WARNING(
+          "not connected to peer that's a destination of a direct messe");
+        return;
+      }
+      auto sub_msg = caf::make_message(std::move(t), std::move(msg), self);
+      self->send(*i->actor, sub_msg);
     },
     [=](atom::subscribe, std::vector<topic>& ts, const caf::actor& source) {
       BROKER_DEBUG("got subscribe request for" << to_string(source));
