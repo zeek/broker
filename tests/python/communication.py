@@ -1,21 +1,21 @@
 import unittest
 
-from broker import *
+import broker
 
 class TestCommunication(unittest.TestCase):
   def test_endpoint_spawn(self):
-    ctx = Context()
-    ctx.spawn(Blocking)
-    ctx.spawn(Nonblocking)
+    ctx = broker.Context()
+    ctx.spawn(broker.Blocking)
+    ctx.spawn(broker.Nonblocking)
     with self.assertRaises(TypeError):
       ctx.spawn("yikes")
 
   def test_endpoint_subscription_forwarding(self):
-    ctx = Context()
-    x = ctx.spawn(Blocking)
-    y = ctx.spawn(Blocking)
+    ctx = broker.Context()
+    x = ctx.spawn(broker.Blocking)
+    y = ctx.spawn(broker.Blocking)
     x.peer(y)
-    s = x.receive(Status)
+    s = x.receive(broker.Status)
     print(s)
     #x.publish("foo", 4) # nobody subscribed yet
     #x.subscribe("foo")
@@ -24,12 +24,12 @@ class TestCommunication(unittest.TestCase):
     #x.publish("foo", 0) # no more
 
   def test_endpoint_blocking_local_subscription(self):
-    ctx = Context()
-    ep = ctx.spawn(Blocking)
+    ctx = broker.Context()
+    ep = ctx.spawn(broker.Blocking)
     ep.subscribe("foo")
     ep.publish("foo.bar", 42)
     ep.publish("foo", [1, 2, 3])
-    msg = ep.receive(Message)
+    msg = ep.receive(broker.Message)
     self.assertEqual(msg.topic(), "foo.bar")
     # FIXME: data needs to be unwrapped
     #self.assertEqual(msg.data(), 42)
