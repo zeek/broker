@@ -36,9 +36,14 @@ public:
     return {system_};
   }
 
+  inline const caf::actor& core() const {
+    return core_;
+  }
+
 private:
   configuration config_;
   caf::actor_system system_;
+  caf::actor core_;
 };
 
 } // namespace broker
