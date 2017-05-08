@@ -40,8 +40,7 @@ PYBIND11_PLUGIN(_broker) {
     .value("Unspecified", sc::unspecified)
     .value("PeerAdded", sc::peer_added)
     .value("PeerRemoved", sc::peer_removed)
-    .value("PeerLost", sc::peer_lost)
-    .value("PeerRecovered", sc::peer_recovered);
+    .value("PeerLost", sc::peer_lost);
 
   py::enum_<peer_status>(m, "PeerStatus")
     .value("Initialized", peer_status::initialized)
@@ -363,7 +362,7 @@ PYBIND11_PLUGIN(_broker) {
   py::class_<endpoint>(m, "Endpoint")
     .def("listen", &endpoint::listen)
     .def("peer", (void (endpoint::*)(const endpoint&)) &endpoint::peer)
-    .def("peer", (void (endpoint::*)(const std::string&, uint16_t))
+    .def("peer", (void (endpoint::*)(const std::string&, uint16_t, timeout::seconds))
                    &endpoint::peer)
     .def("unpeer", (void (endpoint::*)(const endpoint&)) &endpoint::unpeer)
     .def("unpeer", (void (endpoint::*)(const std::string&, uint16_t))
