@@ -58,7 +58,7 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key, class Value>
-  bool put(Key& key, const Value& value, optional<timestamp> expiry) {
+  bool put(Key& key, const Value& value, optional<timespan> expiry) {
     if (!db)
       return false;
     rocksdb::WriteBatch batch;
@@ -67,7 +67,7 @@ struct rocksdb_backend::impl {
     if (expiry) {
       BROKER_ASSERT(key.size() > 1);
       key[0] = static_cast<char>(prefix::expiry); // reuse key blob
-      auto blob = to_blob(*expiry);
+      auto blob = to_blob(expiry_time(expiry));
       batch.Put(key, blob);
     }
     auto status = db->Write({}, &batch);
@@ -178,7 +178,7 @@ rocksdb_backend::~rocksdb_backend() {
 }
 
 expected<void> rocksdb_backend::put(const data& key, data value,
-                                    optional<timestamp> expiry) {
+                                    optional<timespan> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto key_blob = to_key_blob<prefix::data>(key);
@@ -189,7 +189,7 @@ expected<void> rocksdb_backend::put(const data& key, data value,
 }
 
 expected<void> rocksdb_backend::add(const data& key, const data& value,
-                                   optional<timestamp> expiry) {
+                                   optional<timespan> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -205,7 +205,7 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
 }
 
 expected<void> rocksdb_backend::subtract(const data& key, const data& value,
-                                         optional<timestamp> expiry) {
+                                         optional<timespan> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -215,7 +215,7 @@ expected<void> rocksdb_backend::subtract(const data& key, const data& value,
   if (!result)
     return result;
   *value_blob = to_blob(v);
-  if (!impl_->put(key_blob, *value_blob, expiry))
+  if (!impl_->put(key_blob, *value_blob,expiry))
     return ec::backend_failure;
   return {};
 }

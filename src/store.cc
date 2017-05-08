@@ -63,7 +63,7 @@ expected<data> store::get(data key, data aspect) const {
   return request<data>(atom::get::value, std::move(key), std::move(aspect));
 }
 
-void store::put(data key, data value, optional<timestamp> expiry) const {
+void store::put(data key, data value, optional<timespan> expiry) const {
   if (frontend_)
     anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
               expiry);
@@ -74,13 +74,13 @@ void store::erase(data key) const {
     anon_send(frontend_, atom::erase::value, std::move(key));
 }
 
-void store::add(data key, data value, optional<timestamp> expiry) const {
+void store::add(data key, data value, optional<timespan> expiry) const {
   if (frontend_)
     anon_send(frontend_, atom::add::value, std::move(key), std::move(value),
               expiry);
 }
 
-void store::subtract(data key, data value, optional<timestamp> expiry) const {
+void store::subtract(data key, data value, optional<timespan> expiry) const {
   if (frontend_)
     anon_send(frontend_, atom::subtract::value, std::move(key),
               std::move(value), expiry);

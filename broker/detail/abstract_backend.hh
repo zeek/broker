@@ -9,6 +9,22 @@
 namespace broker {
 namespace detail {
 
+/// Helper function to convert a relative expiration interval
+/// to an absolute time, taking the current point as base.
+/// @parem e the interval to convert
+/// @returns the time, or an unset value if *expiry* is unset.
+inline optional<timestamp> expiry_time(optional<timespan> e) {
+  return e ? now() + *e : optional<timestamp>();
+}
+
+/// Helper function to convert a relative expiration interval
+/// to an absolute time, taking the current point as base.
+/// @parem e the interval to convert
+/// @returns the time
+inline timestamp expiry_time(timespan e) {
+  return now() + e;
+}
+
 /// Abstract base class for a key-value storage backend.
 class abstract_backend {
 public:
@@ -24,7 +40,7 @@ public:
   /// @param expiry An optional expiration time for the entry.
   /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
-                             optional<timestamp> expiry = {}) = 0;
+                             optional<timespan> expiry = {}) = 0;
 
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
@@ -32,7 +48,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
-                             optional<timestamp> expiry = {});
+                             optional<timespan> expiry = {});
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to subtract from.
@@ -40,7 +56,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> subtract(const data& key, const data& value,
-                                  optional<timestamp> expiry = {});
+                                  optional<timespan> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.

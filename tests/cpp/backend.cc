@@ -45,7 +45,7 @@ public:
   }
 
   expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override {
+                     optional<timespan> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.put(key, value, expiry);
@@ -54,7 +54,7 @@ public:
   }
 
   expected<void> add(const data& key, const data& value,
-                     optional<timestamp> expiry) override {
+                     optional<timespan> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.add(key, value, expiry);
@@ -63,7 +63,7 @@ public:
   }
 
   expected<void> subtract(const data& key, const data& value,
-                        optional<timestamp> expiry) override {
+                        optional<timespan> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.subtract(key, value, expiry);
@@ -214,7 +214,7 @@ TEST(erase/exists) {
   CHECK(!*exists);
   auto erase = backend->erase("foo");
   REQUIRE(erase); // succeeds independent of key existence
-  auto put = backend->put("foo", "bar", now() + seconds{42});
+  auto put = backend->put("foo", "bar", seconds{42});
   REQUIRE(put);
   exists = backend->exists("foo");
   REQUIRE(exists);
@@ -232,7 +232,7 @@ TEST(erase/exists) {
 
 TEST(expiration with expiry) {
   using namespace std::chrono;
-  auto put = backend->put("foo", "bar", now() + milliseconds(50));
+  auto put = backend->put("foo", "bar", milliseconds(50));
   REQUIRE(put);
   std::this_thread::sleep_for(milliseconds(10));
   auto expire = backend->expire("foo");
@@ -262,7 +262,7 @@ TEST(size/snapshot) {
   using namespace std::chrono;
   auto put = backend->put("foo", "bar");
   REQUIRE(put);
-  put = backend->put("bar", 4.2, now() + seconds{10});
+  put = backend->put("bar", 4.2, seconds{10});
   REQUIRE(put);
   put = backend->put("baz", table{{"foo", true}, {"bar", false}});
   REQUIRE(put);

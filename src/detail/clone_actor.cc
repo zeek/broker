@@ -23,18 +23,18 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     self->send(master, std::move(t), msg, core);
   };
   auto relay = caf::message_handler{
-    [=](atom::put, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::put, data& key, data& value, optional<timespan> expiry) {
       forward(caf::make_message(atom::put::value, std::move(key),
                                 std::move(value), expiry));
     },
-    [=](atom::add, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::add, data& key, data& value, optional<timespan> expiry) {
       forward(caf::make_message(atom::add::value, std::move(key),
                                 std::move(value), expiry));
     },
     [=](atom::erase, data& key) {
       forward(caf::make_message(atom::erase::value, std::move(key)));
     },
-    [=](atom::subtract, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::subtract, data& key, data& value, optional<timespan> expiry) {
       forward(caf::make_message(atom::subtract::value, std::move(key),
                                 std::move(value), expiry));
     },

@@ -109,7 +109,7 @@ struct sqlite_backend::impl {
   }
 
   bool modify(const data& key, const data& value,
-              optional<timestamp> expiry) {
+              optional<timespan> expiry) {
     auto key_blob = to_blob(key);
     auto value_blob = to_blob(value);
     if (expiry) {
@@ -121,7 +121,7 @@ struct sqlite_backend::impl {
         return false;
       // Bind expiry.
       result = sqlite3_bind_int64(update_expiry, 2,
-                                  expiry->time_since_epoch().count());
+                                  expiry_time(expiry)->time_since_epoch().count());
       if (result != SQLITE_OK)
         return false;
       // Bind key.
@@ -171,7 +171,7 @@ sqlite_backend::~sqlite_backend() {
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
-                                   optional<timestamp> expiry) {
+                                   optional<timespan> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -189,7 +189,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
     return ec::backend_failure;
   if (expiry)
     result = sqlite3_bind_int64(impl_->replace, 3,
-                                expiry->time_since_epoch().count());
+                                expiry_time(expiry)->time_since_epoch().count());
   else
     result = sqlite3_bind_null(impl_->replace, 3);
   if (result != SQLITE_OK)
@@ -201,7 +201,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
 }
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
-                                   optional<timestamp> expiry) {
+                                   optional<timespan> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -214,7 +214,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 }
 
 expected<void> sqlite_backend::subtract(const data& key, const data& value,
-                                        optional<timestamp> expiry) {
+                                        optional<timespan> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();

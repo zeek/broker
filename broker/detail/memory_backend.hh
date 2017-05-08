@@ -18,13 +18,13 @@ public:
   memory_backend(backend_options opts = backend_options{});
 
   expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override;
+                     optional<timespan> expiry) override;
 
   expected<void> add(const data& key, const data& value,
-                     optional<timestamp> expiry) override;
+                     optional<timespan> expiry) override;
 
   expected<void> subtract(const data& key, const data& value,
-                          optional<timestamp> expiry) override;
+                          optional<timespan> expiry) override;
 
   expected<void> erase(const data& key) override;
 

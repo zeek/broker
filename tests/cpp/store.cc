@@ -141,7 +141,7 @@ TEST(expiration) {
   auto ep = ctx.spawn<blocking>();
   auto m = ep.attach<master, memory>("grubby");
   REQUIRE(m);
-  auto expiry = now() + milliseconds(100);
+  auto expiry = milliseconds(100);
   m->put("foo", 42, expiry);
   // Check within validity interval.
   std::this_thread::sleep_for(milliseconds(50));

@@ -25,10 +25,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     auto t = name / topics::reserved / topics::clone;
     self->send(core, std::move(t), std::move(msg), core);
   };
-  auto remind = [=](timestamp expiry, const data& key) {
-    auto delta = expiry - now();
+  auto remind = [=](timespan expiry, const data& key) {
     BROKER_ASSERT(delta > timespan::zero());
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(delta);
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(expiry);
     self->delayed_send(self, us, atom::expire::value, key);
   };
   self->set_down_handler(
@@ -38,7 +37,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     }
   );
   auto commands = caf::message_handler{
-    [=](atom::put, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::put, data& key, data& value, optional<timespan> expiry) {
       BROKER_DEBUG("put" << key << "->" << value);
       auto result = self->state.backend->put(key, value, expiry);
       if (!result) {
@@ -61,7 +60,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::erase::value, std::move(key)));
     },
-    [=](atom::add, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::add, data& key, data& value, optional<timespan> expiry) {
       BROKER_DEBUG("add" << key);
       auto result = self->state.backend->add(key, value, expiry);
       if (!result) {
@@ -74,7 +73,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         broadcast(caf::make_message(atom::add::value, std::move(key),
                                     std::move(value)));
     },
-    [=](atom::subtract, data& key, data& value, optional<timestamp> expiry) {
+    [=](atom::subtract, data& key, data& value, optional<timespan> expiry) {
       BROKER_DEBUG("subtract" << key);
       auto result = self->state.backend->subtract(key, value, expiry);
       if (!result) {

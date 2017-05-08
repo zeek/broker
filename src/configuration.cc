@@ -28,6 +28,7 @@ configuration::configuration() {
   add_message_type<topic>("broker::topic");
   add_message_type<std::vector<topic>>("std::vector<broker::topic>");
   add_message_type<optional<timestamp>>("broker::optional<broker::timestamp>");
+  add_message_type<optional<timespan>>("broker::optional<broker::timespan>");
   add_message_type<snapshot>("broker::snapshot");
   load<caf::io::middleman>();
   logger_filename = "broker_[TIMESTAMP]_[PID].log";
