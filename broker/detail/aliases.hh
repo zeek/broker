@@ -4,12 +4,15 @@
 
 #include "caf/stream.hpp"
 
+#include "broker/data.hh"
+#include "broker/topic.hh"
+
 namespace broker {
 namespace detail {
 
-using key_type = std::string;
+using key_type = topic;
 
-using value_type = int;
+using value_type = data;
 
 using filter_type = std::vector<key_type>;
 

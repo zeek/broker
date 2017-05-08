@@ -22,8 +22,8 @@ void driver(event_based_actor* self, const actor& sink) {
     sink,
     // Initialize send buffer with 10 elements.
     [](buf_type& xs) {
-      xs = buf_type{{"a", 0}, {"b", 0}, {"a", 1}, {"a", 2}, {"b", 1},
-                    {"b", 2}, {"a", 3}, {"b", 3}, {"a", 4}, {"a", 5}};
+      xs = buf_type{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false},
+                    {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}};
     },
     // Get next element.
     [](buf_type& xs, downstream<element_type>& out, size_t num) {
@@ -119,13 +119,15 @@ CAF_TEST(two_peers) {
   using buf = std::vector<element_type>;
   expect((stream_msg::batch),
          from(d1).to(core1)
-         .with(5, buf{{"a", 0}, {"b", 0}, {"a", 1}, {"a", 2}, {"b", 1}}, 0));
+         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
+               0));
   expect((stream_msg::batch),
          from(core1).to(core2)
-         .with(5, buf{{"a", 0}, {"b", 0}, {"a", 1}, {"a", 2}, {"b", 1}}, 0));
+         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
+               0));
   expect((stream_msg::batch),
          from(core2).to(leaf)
-         .with(2, buf{{"b", 0}, {"b", 1}}, 0));
+         .with(2, buf{{"b", true}, {"b", false}}, 0));
   expect((stream_msg::ack_batch), from(core2).to(core1).with(5, 0));
   expect((stream_msg::ack_batch), from(core1).to(d1).with(5, 0));
   // Shutdown.
