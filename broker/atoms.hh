@@ -6,7 +6,8 @@
 namespace broker {
 namespace atom {
 
-// Inherited from CAF.
+/// --- inherited from CAF -----------------------------------------------------
+
 using add = caf::add_atom;
 using get = caf::get_atom;
 using join = caf::join_atom;
@@ -16,8 +17,10 @@ using put = caf::put_atom;
 using connect = caf::connect_atom;
 using subscribe = caf::subscribe_atom;
 using unsubscribe = caf::unsubscribe_atom;
+using tick = caf::tick_atom;
 
-// Generic
+/// --- generic communication --------------------------------------------------
+
 using name = caf::atom_constant<caf::atom("name")>;
 using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
@@ -25,7 +28,12 @@ using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
 using default_ = caf::atom_constant<caf::atom("default")>;
 
-// Store
+/// --- communiation with workers ----------------------------------------------
+
+using resume = caf::atom_constant<caf::atom("resume")>;
+
+/// --- communiation with stores -----------------------------------------------
+
 using attach = caf::atom_constant<caf::atom("attach")>;
 using clear = caf::atom_constant<caf::atom("clear")>;
 using clone = caf::atom_constant<caf::atom("clone")>;

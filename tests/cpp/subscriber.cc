@@ -1,4 +1,8 @@
-#define CAF_SUITE core
+// This unit test is a variation of the `core` unit test that uses a
+// `subscriber` instead of an event-based `consumer` actor.
+
+#define CAF_SUITE subscriber
+#include "test.hpp"
 #include <caf/test/dsl.hpp>
 
 #include "broker/broker.hh"
@@ -43,66 +47,25 @@ void driver(event_based_actor* self, const actor& sink) {
   );
 }
 
-struct consumer_state {
-  std::vector<element_type> xs;
-};
-
-behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
-                  const actor& src) {
-  self->send(self * src, atom::join::value, std::move(ts));
-  return {
-    [=](const stream_type& in) {
-      self->add_sink(
-        // Input stream.
-        in,
-        // Initialize state.
-        [](unit_t&) {
-          // nop
-        },
-        // Process single element.
-        [=](unit_t&, element_type x) {
-          self->state.xs.emplace_back(std::move(x));
-        },
-        // Cleanup.
-        [](unit_t&) {
-          // nop
-        }
-      );
-    },
-    [=](atom::get) {
-      return self->state.xs;
-    }
-  };
-}
-
-struct config : actor_system_config {
-public:
-  config() {
-    add_message_type<element_type>("element");
-  }
-};
-
-using fixture = test_coordinator_fixture<config>;
-
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(manual_stream_management, fixture)
+CAF_TEST_FIXTURE_SCOPE(subscriber_tests, test_coordinator_context_fixture)
 
-CAF_TEST(two_peers) {
-  // Spawn core actors.
+CAF_TEST(single_subscriber) {
+  // Spawn/get/configure core actors.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+  auto core2 = ctx.core();
+  anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
   // Connect a consumer (leaf) to core2.
-  auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  CAF_MESSAGE("core1: " << to_string(core1));
-  CAF_MESSAGE("core2: " << to_string(core2));
-  CAF_MESSAGE("leaf: " << to_string(leaf));
+  // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
+  subscriber sub{ctx, filter_type{"b"}};
+  auto leaf = sub.worker();
   sched.run_once();
   expect((atom_value, filter_type),
          from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
   expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 5, _, false));
+  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 20, _, false));
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, actor_cast<strong_actor_ptr>(core2));
   expect((atom::peer, strong_actor_ptr), from(self).to(core1).with(_, core2));
@@ -141,16 +104,14 @@ CAF_TEST(two_peers) {
          .with(2, buf{{"b", true}, {"b", false}}, 0));
   expect((stream_msg::ack_batch), from(core2).to(core1).with(5, 0));
   expect((stream_msg::ack_batch), from(core1).to(d1).with(5, 0));
-  // Check log of the consumer.
-  self->send(leaf, atom::get::value);
-  sched.prioritize(leaf);
-  sched.run_once();
-  self->receive(
-    [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}};
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  CAF_MESSAGE("check content of the subscriber's buffer");
+  auto x0 = sub.get();
+  CAF_REQUIRE_EQUAL(x0.first, "b");
+  CAF_REQUIRE_EQUAL(x0.second, true);
+  auto xs = sub.poll();
+  CAF_REQUIRE_EQUAL(xs.size(), 1);
+  CAF_REQUIRE_EQUAL(xs[0].first, "b");
+  CAF_REQUIRE_EQUAL(xs[0].second, false);
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);

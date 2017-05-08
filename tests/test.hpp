@@ -7,18 +7,28 @@
 
 #include <caf/test/unit_test.hpp>
 
-// Logging
+#include <caf/actor_system.hpp>
+#include <caf/scheduler/test_coordinator.hpp>
+#include <caf/scoped_actor.hpp>
+
+#include "broker/configuration.hh"
+#include "broker/context.hh"
+
+// -- test setup macros --------------------------------------------------------
+
+#define TEST CAF_TEST
+#define FIXTURE_SCOPE CAF_TEST_FIXTURE_SCOPE
+#define FIXTURE_SCOPE_END CAF_TEST_FIXTURE_SCOPE_END
+
+// -- logging macros -----------------------------------------------------------
+
 #define ERROR CAF_TEST_PRINT_ERROR
 #define INFO CAF_TEST_PRINT_INFO
 #define VERBOSE CAF_TEST_PRINT_VERBOSE
 #define MESSAGE CAF_TEST_PRINT_VERBOSE
 
-// Test setup
-#define TEST CAF_TEST
-#define FIXTURE_SCOPE CAF_TEST_FIXTURE_SCOPE
-#define FIXTURE_SCOPE_END CAF_TEST_FIXTURE_SCOPE_END
+// -- macros for checking results ---------------------------------------------
 
-// Checking
 #define REQUIRE CAF_REQUIRE
 #define REQUIRE_EQUAL CAF_REQUIRE_EQUAL
 #define REQUIRE_NOT_EQUAL CAF_REQUIRE_NOT_EQUAL
@@ -35,5 +45,22 @@
 #define CHECK_GREATER_EQUAL CAF_CHECK_GREATER_EQUAL
 #define CHECK_FAIL CAF_CHECK_FAIL
 #define FAIL CAF_FAIL
+
+// -- fixtures -----------------------------------------------------------------
+
+/// A fixture that offes a `context` configured with `test_coordinator` as
+/// scheduler as well as a `scoped_actor`.
+struct test_coordinator_context_fixture {
+  using scheduler_type = caf::scheduler::test_coordinator;
+
+  broker::context ctx;
+  caf::actor_system& sys;
+  caf::scoped_actor self;
+  scheduler_type& sched;
+
+  static broker::configuration make_config();
+
+  test_coordinator_context_fixture();
+};
 
 #endif

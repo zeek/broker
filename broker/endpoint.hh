@@ -28,21 +28,21 @@ namespace broker {
 /// other to exchange messages. When publishing a message though an endpoint,
 /// all peers with matching subscriptions receive the message.
 class endpoint {
-  friend context;
-
 public:
-  endpoint() = default;
+  using value_type = std::pair<topic, data>;
 
-  endpoint(const blocking_endpoint&);
-  endpoint(const nonblocking_endpoint&);
+  endpoint(context& ctx);
 
-  endpoint& operator=(const blocking_endpoint& other);
-  endpoint& operator=(const nonblocking_endpoint& other);
+  endpoint(endpoint&&) = default;
+
+  endpoint() = delete;
+  endpoint(const endpoint&) = delete;
+  endpoint& operator=(const endpoint&) = delete;
 
   /// @returns Information about this endpoint.
   endpoint_info info() const;
 
-  // --- peer management -----------------------------------------------------
+  // --- peer management -------------------------------------------------------
 
   /// Listens at a specific port to accept remote peers.
   /// @param address The interface to listen at. If empty, listen on all
@@ -51,12 +51,6 @@ public:
   ///             next available free port from the OS
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen(const std::string& address = {}, uint16_t port = 0);
-
-  /// Initiates a peering with another endpoint.
-  /// @param other The endpoint to peer with.
-  /// @note The function returns immediately. The endpoint receives a status
-  ///       message indicating the result of the peering operation.
-  void peer(const endpoint& other);
 
   /// Initiates a peering with a remote endpoint. Thi
   /// @param address The IP address of the remote endpoint.
@@ -67,19 +61,13 @@ public:
   ///       message indicating the result of the peering operation.
   void peer(const std::string& address, uint16_t port, timeout::seconds retry = timeout::seconds(10));
 
-  /// Unpeers from another endpoint.
-  /// @param other The endpoint to unpeer from.
-  /// @note The function returns immediately. The endpoint receives a status
-  ///       message indicating the result of the peering operation.
-  void unpeer(const endpoint& other);
-
   void unpeer(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.
   /// @returns A pointer to the list
   std::vector<peer_info> peers() const;
 
-  // --- messaging -----------------------------------------------------------
+  // --- publishing ------------------------------------------------------------
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -109,7 +97,20 @@ public:
   /// @param msg The message to publish.
   void publish(const message& msg);
 
-  // --- data stores ----------------------------------------------------------
+  /// Publishes a message as vector.
+  /// @param t The topic of the messages.
+  /// @param xs The contents of the messages.
+  void publish(topic t, std::initializer_list<data> xs);
+
+  // Publishes all messages in `xs`.
+  void publish(std::vector<value_type> xs);
+
+  // --- subscribing -----------------------------------------------------------
+
+  /// Returns a subscriber connected to this endpoint for the topics `ts`.
+  subscriber make_subscriber(std::vector<topic> ts);
+
+  // --- data stores -----------------------------------------------------------
 
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
@@ -152,6 +153,8 @@ public:
     return attach_clone(std::move(name));
   }
 
+  const caf::actor& core() const;
+
 protected:
   template <class T>
   void add_to_vector(vector& v, T&& x) {
@@ -166,9 +169,6 @@ protected:
 
   void init_core(caf::actor core);
 
-  const caf::actor& core() const;
-
-  std::shared_ptr<caf::actor> core_;
   caf::actor subscriber_;
 
 private:
@@ -176,6 +176,8 @@ private:
                               backend_options opts);
 
   expected<store> attach_clone(std::string name);
+
+  context& ctx_;
 };
 
 } // namespace broker

@@ -123,7 +123,7 @@ caf::error stream_governor::upstream_batch(caf::strong_actor_ptr& hdl,
   auto& vec = xs.get_mutable_as<std::vector<element_type>>(0);
   // Decrease credit assigned to `hdl` and get currently available downstream
   // credit on all paths.
-  CAF_LOG_DEBUG(CAF_ARG(path->assigned_credit));
+  CAF_LOG_DEBUG(CAF_ARG(path->assigned_credit) << CAF_ARG(xs_size));
   path->assigned_credit -= xs_size;
   // Forward data to all other peers.
   auto selected = [](const filter_type& f, const element_type& x) -> bool {

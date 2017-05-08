@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
 #include "broker/endpoint_info.hh"

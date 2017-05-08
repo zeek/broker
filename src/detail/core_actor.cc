@@ -190,10 +190,10 @@ optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
 void core_state::init(caf::event_based_actor* s, filter_type initial_filter) {
   self = s;
   filter = std::move(initial_filter);
-  governor = caf::make_counted<stream_governor>(this);
   sid = caf::stream_id{
     self->ctrl(),
     self->new_request_id(caf::message_priority::normal).integer_value()};
+  governor = caf::make_counted<stream_governor>(this);
   self->streams().emplace(sid, governor);
 }
 
@@ -237,6 +237,17 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     }
   );
   return {
+    // -- Filter manipulation. -------------------------------------------------
+    [=](atom::subscribe, filter_type f) {
+      auto& fs = self->state.filter;
+      fs.insert(fs.end(), std::make_move_iterator(f.begin()),
+                std::make_move_iterator(f.end()));
+      std::sort(fs.begin(), fs.end());
+      auto e = std::unique(fs.begin(), fs.end());
+      if (e != fs.end())
+        fs.erase(e, fs.end());
+      // TODO: update filter on all paths
+    },
     // -- Peering requests from local actors, i.e., "step 0". ------------------
     [=](atom::peer, strong_actor_ptr remote_core) -> result<void> {
       auto& st = self->state;

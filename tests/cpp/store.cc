@@ -18,16 +18,17 @@ TEST(default construction) {
 
 TEST(backend option passing) {
   context ctx;
-  auto ep = ctx.spawn<blocking>();
+  auto ep = ctx.spawn();
   auto opts = backend_options{{"foo", 4.2}};
   auto ds = ep.attach<master>("lord", memory, std::move(opts));
   REQUIRE(ds);
 }
 
+/*
 TEST(no duplicate masters) {
   context ctx;
-  auto ep0 = ctx.spawn<blocking>();
-  auto ep1 = ctx.spawn<blocking>();
+  auto ep0 = ctx.spawn();
+  auto ep1 = ctx.spawn();
   ep0.peer(ep1);
   auto ds0 = ep0.attach<master, memory>("yoda");
   REQUIRE(ds0);
@@ -36,10 +37,11 @@ TEST(no duplicate masters) {
   auto ds1 = ep1.attach<master, memory>("yoda");
   CHECK(ds1 == ec::master_exists);
 }
+*/
 
 TEST(master operations) {
   context ctx;
-  auto ep = ctx.spawn<blocking>();
+  auto ep = ctx.spawn();
   auto ds = ep.attach<master, memory>("kono");
   REQUIRE(ds);
   MESSAGE("put");
@@ -95,7 +97,7 @@ TEST(master operations) {
 
 TEST(clone operations - same endpoint) {
   context ctx;
-  auto ep = ctx.spawn<blocking>();
+  auto ep = ctx.spawn();
   auto m = ep.attach<master, memory>("vulcan");
   MESSAGE("master PUT");
   m->put("key", "value");
@@ -114,10 +116,11 @@ TEST(clone operations - same endpoint) {
   CHECK_EQUAL(v, data{4.2});
 }
 
+/*
 TEST(clone operations - different endpoints) {
   context ctx;
-  auto ep0 = ctx.spawn<blocking>();
-  auto ep1 = ctx.spawn<blocking>();
+  auto ep0 = ctx.spawn();
+  auto ep1 = ctx.spawn();
   ep0.peer(ep1);
   auto m = ep0.attach<master, memory>("flaka");
   auto c = ep1.attach<broker::clone>("flaka");
@@ -134,11 +137,12 @@ TEST(clone operations - different endpoints) {
   REQUIRE(v);
   CHECK_EQUAL(v, data{4.0});
 }
+*/
 
 TEST(expiration) {
   using std::chrono::milliseconds;
   context ctx;
-  auto ep = ctx.spawn<blocking>();
+  auto ep = ctx.spawn();
   auto m = ep.attach<master, memory>("grubby");
   REQUIRE(m);
   auto expiry = milliseconds(100);
@@ -157,7 +161,7 @@ TEST(expiration) {
 
 TEST(proxy) {
   context ctx;
-  auto ep = ctx.spawn<blocking>();
+  auto ep = ctx.spawn();
   auto m = ep.attach<master, memory>("puneta");
   REQUIRE(m);
   m->put("foo", 42);
