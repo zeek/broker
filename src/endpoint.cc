@@ -96,6 +96,12 @@ const caf::actor& endpoint::core() const {
   return ctx_.core();
 }
 
+void endpoint::make_actor(actor_init_fun f) {
+  ctx_.system().spawn([=](caf::event_based_actor* self) {
+    f(self);
+  });
+}
+
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
   expected<store> res{ec::unspecified};

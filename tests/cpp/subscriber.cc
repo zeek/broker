@@ -51,7 +51,7 @@ void driver(event_based_actor* self, const actor& sink) {
 
 CAF_TEST_FIXTURE_SCOPE(subscriber_tests, test_coordinator_context_fixture)
 
-CAF_TEST(single_subscriber) {
+CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   auto core2 = ctx.core();
@@ -117,6 +117,44 @@ CAF_TEST(single_subscriber) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
+  sched.run();
+}
+
+CAF_TEST(nonblocking_subscriber) {
+  // Spawn/get/configure core actors.
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+  auto core2 = ctx.core();
+  anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
+  sched.run();
+  // Initiate handshake between core1 and core2.
+  self->send(core1, atom::peer::value, actor_cast<strong_actor_ptr>(core2));
+  expect((atom::peer, strong_actor_ptr), from(self).to(core1).with(_, core2));
+  // Connect a subscriber (leaf) to core2.
+  using buf = std::vector<element_type>;
+  buf result;
+  endpoint ep{ctx};
+  ep.subscribe_nosync(
+    {"b"},
+    [](unit_t&) {
+      // nop
+    },
+    [&](unit_t&, element_type x) {
+      result.emplace_back(std::move(x));
+    },
+    [](unit_t&) {
+      // nop
+    }
+  );
+  // Spin up driver on core1.
+  auto d1 = sys.spawn(driver, core1);
+  // Communication is identical to the consumer-centric test in test/cpp/core.cc
+  sched.run();
+  buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+  CAF_REQUIRE_EQUAL(result, expected);
+  // Shutdown.
+  CAF_MESSAGE("Shutdown core actors.");
+  anon_send_exit(core1, exit_reason::user_shutdown);
+  anon_send_exit(core2, exit_reason::user_shutdown);
   sched.run();
 }
 

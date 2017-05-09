@@ -2,10 +2,12 @@
 #define BROKER_ENDPOINT_HH
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/event_based_actor.hpp>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -20,6 +22,7 @@
 #include "broker/store.hh"
 #include "broker/topic.hh"
 
+#include "broker/detail/aliases.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -29,7 +32,11 @@ namespace broker {
 /// all peers with matching subscriptions receive the message.
 class endpoint {
 public:
+  // --- member types ----------------------------------------------------------
+
   using value_type = std::pair<topic, data>;
+
+  using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
   endpoint(context& ctx);
 
@@ -88,10 +95,84 @@ public:
   // Publishes all messages in `xs`.
   void publish(std::vector<value_type> xs);
 
+  /// Starts a background worker from the given set of functions that publishes
+  /// a series of messages. The worker will run in the background, but `init`
+  /// is guaranteed to be called before the function returns.
+  template <class Init, class GetNext, class AtEnd, class ResultHandler>
+  void publish_all(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
+    std::mutex mx;
+    std::condition_variable cv;
+    make_actor([&](caf::event_based_actor* self) {
+      self->new_stream(
+        core(),
+        init,
+        f,
+        pred,
+        rf 
+      );
+      std::unique_lock<std::mutex> guard{mx};
+      cv.notify_one();
+    });
+    std::unique_lock<std::mutex> guard{mx};
+    cv.wait(guard);
+  }
+
+  /// Identical to ::publish_all, but does not guarantee that `init` is called
+  /// before the function returns. 
+  template <class Init, class GetNext, class AtEnd, class ResultHandler>
+  void publish_all_nosync(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
+    make_actor([=](caf::event_based_actor* self) {
+      self->new_stream(
+        core(),
+        init,
+        f,
+        pred,
+        rf 
+      );
+    });
+  }
+
   // --- subscribing -----------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
   subscriber make_subscriber(std::vector<topic> ts);
+
+  /// Starts a background worker from the given set of function that consumes
+  /// incoming messages. The worker will run in the background, but `init` is
+  /// guaranteed to be called before the function returns.
+  template <class Init, class HandleMessage, class Cleanup>
+  void subscribe(std::vector<topic> topics, Init init, HandleMessage f,
+                 Cleanup cleanup) {
+    std::mutex mx;
+    std::condition_variable cv;
+    make_actor([&](caf::event_based_actor* self) {
+      self->send(self * core(), atom::join::value, std::move(topics));
+      self->become(
+        [&](const caf::stream<detail::element_type>& in) {
+          self->add_sink(in, init, f, cleanup);
+        }
+      );
+      std::unique_lock<std::mutex> guard{mx};
+      cv.notify_one();
+    });
+    std::unique_lock<std::mutex> guard{mx};
+    cv.wait(guard);
+  }
+
+  /// Identical to ::subscribe, but does not guarantee that `init` is called
+  /// before the function returns. 
+  template <class Init, class HandleMessage, class Cleanup>
+  void subscribe_nosync(std::vector<topic> topics, Init init, HandleMessage f,
+                        Cleanup cleanup) {
+    make_actor([=](caf::event_based_actor* self) {
+      self->send(self * core(), atom::join::value, std::move(topics));
+      self->become(
+        [=](const caf::stream<detail::element_type>& in) {
+          self->add_sink(in, init, f, cleanup);
+        }
+      );
+    });
+  }
 
   // --- data stores -----------------------------------------------------------
 
@@ -142,6 +223,8 @@ protected:
   caf::actor subscriber_;
 
 private:
+  void make_actor(actor_init_fun f);
+
   expected<store> attach_master(std::string name, backend type,
                               backend_options opts);
 
