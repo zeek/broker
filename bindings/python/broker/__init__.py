@@ -41,7 +41,7 @@ class BrokerError(Exception):
 
 
 EC = _broker.EC
-Error = _broker.Error
+#Error = _broker.Error
 PeerStatus = _broker.PeerStatus
 PeerFlags = _broker.PeerFlags
 EndpointInfo = _broker.EndpointInfo
@@ -196,9 +196,9 @@ class BlockingEndpoint(Endpoint):
 
   def receive(self, x):
     if x == Status:
-      return self.endpoint.receive_status()
+      return self.endpoint.receive()
     elif x == Message:
-      return Message(self.endpoint.receive_msg())
+      return Message(self.endpoint.receive())
     else:
       raise BrokerError("invalid receive type")
 
