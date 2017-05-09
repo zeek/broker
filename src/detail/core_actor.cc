@@ -365,6 +365,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       self->streams().emplace(in.id(), st.governor);
     },
+    [=](atom::publish, topic& t, data& x) {
+      self->state.governor->push(std::move(t), std::move(x));
+    },
     // TODO: add TTL component to this message to detect routing loops.
     /* TODO: dispatching is done in governor, how to integrate master/clone
              semantics into the picture?

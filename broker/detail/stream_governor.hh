@@ -82,6 +82,9 @@ public:
 
   peer_data* add_peer(caf::strong_actor_ptr ptr, filter_type filter);
 
+  /// Pushes data into the stream.
+  void push(topic&& t, data&& x);
+
   // -- Overridden member functions of `stream_handler` ------------------------
 
   caf::error add_downstream(caf::strong_actor_ptr& hdl) override;

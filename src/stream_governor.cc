@@ -33,6 +33,25 @@ caf::error stream_governor::add_downstream(caf::strong_actor_ptr&) {
   return caf::sec::invalid_stream_state;
 }
 
+void stream_governor::push(topic&& t, data&& x) {
+  auto selected = [](const filter_type& f, const element_type& e) -> bool {
+    for (auto& key : f)
+      if (key == e.first)
+        return true;
+    return false;
+  };
+  element_type e{std::move(t), std::move(x)};
+  for (auto& kvp : peers_) {
+    auto& out = kvp.second->out;
+    if (selected(kvp.second->filter, e)) {
+      out.push(e);
+      out.policy().push(out);
+    }
+  }
+  local_subscribers_.push(std::move(e));
+  local_subscribers_.policy().push(local_subscribers_);
+}
+
 caf::error
 stream_governor::confirm_downstream(const caf::strong_actor_ptr& rebind_from,
                                     caf::strong_actor_ptr& hdl,

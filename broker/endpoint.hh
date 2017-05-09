@@ -80,23 +80,6 @@ public:
   /// @param d The message data.
   void publish(const endpoint_info& dst, topic t, data d);
 
-  /// Publishes a message with a custom message type.
-  /// @param t The topic of the message.
-  /// @param ty The custom type.
-  /// @param d The message data.
-  void publish(topic t, message_type ty, data d);
-
-  /// Publishes a message to a specific peer endpoint only.
-  /// @param dst The destination endpoint.
-  /// @param t The topic of the message.
-  /// @param ty The custom type.
-  /// @param d The message data.
-  void publish(const endpoint_info& dst, topic t, message_type ty, data d);
-
-  /// Publishes a message.
-  /// @param msg The message to publish.
-  void publish(const message& msg);
-
   /// Publishes a message as vector.
   /// @param t The topic of the messages.
   /// @param xs The contents of the messages.
@@ -156,19 +139,6 @@ public:
   const caf::actor& core() const;
 
 protected:
-  template <class T>
-  void add_to_vector(vector& v, T&& x) {
-    v.emplace_back(std::forward<T>(x));
-  }
-
-  template <class T, class... Ts>
-  void add_to_vector(vector& v, T&& x, Ts&&... xs) {
-    add_to_vector(v, std::forward<T>(x));
-    add_to_vector(v, std::forward<Ts>(xs)...);
-  }
-
-  void init_core(caf::actor core);
-
   caf::actor subscriber_;
 
 private:

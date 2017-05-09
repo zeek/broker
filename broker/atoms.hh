@@ -18,6 +18,7 @@ using connect = caf::connect_atom;
 using subscribe = caf::subscribe_atom;
 using unsubscribe = caf::unsubscribe_atom;
 using tick = caf::tick_atom;
+using publish = caf::publish_atom;
 
 /// --- generic communication --------------------------------------------------
 
