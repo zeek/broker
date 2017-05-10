@@ -6,7 +6,6 @@
 #include "broker/atoms.hh"
 #include "broker/context.hh"
 #include "broker/endpoint.hh"
-#include "broker/message.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -105,11 +104,10 @@ void endpoint::make_actor(actor_init_fun f) {
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{core()->home_system()};
-  auto msg = caf::make_message(atom::store::value, atom::master::value,
-                               atom::attach::value, std::move(name), type,
-                               std::move(opts));
-  self->request(core(), timeout::core, std::move(msg)).receive(
+  caf::scoped_actor self{ctx_.system()};
+  self->request(core(), caf::infinite, atom::store::value, atom::master::value,
+                atom::attach::value, std::move(name), type, std::move(opts))
+  .receive(
     [&](caf::actor& master) {
       res = store{std::move(master)};
     },
