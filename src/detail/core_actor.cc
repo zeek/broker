@@ -237,7 +237,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     }
   );
   return {
-    // -- Filter manipulation. -------------------------------------------------
+    // --- filter manipulation -------------------------------------------------
     [=](atom::subscribe, filter_type f) {
       auto& fs = self->state.filter;
       fs.insert(fs.end(), std::make_move_iterator(f.begin()),
@@ -248,7 +248,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         fs.erase(e, fs.end());
       // TODO: update filter on all paths
     },
-    // -- Peering requests from local actors, i.e., "step 0". ------------------
+    // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, strong_actor_ptr remote_core) -> result<void> {
       auto& st = self->state;
       // Sanity checking.
@@ -261,10 +261,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                    atom::peer::value, st.filter);
       return unit;
     },
-    // -- 3-way handshake for establishing peering streams between A and B. ----
-    // -- A (this node) performs steps #1 and #3. B performs #2 and #4. --------
-    // Step #1: A demands B shall establish a stream back to A. A has
-    //          subscribers to the topics `ts`.
+    // --- 3-way handshake for establishing peering streams between A and B ----
+    // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
+    // Step #1: - A demands B shall establish a stream back to A
+    //          - A has subscribers to the topics `ts`
     [=](atom::peer, filter_type& peer_ts) -> stream_type {
       auto& st = self->state;
       // Reject anonymous peering requests.
@@ -291,7 +291,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->fwd_stream_handshake<element_type>(st.sid, token);
       return {st.sid, st.governor};
     },
-    // step #2: B establishes a stream to A, sending its own local subscriptions
+    // Step #2: B establishes a stream to A and sends its own filter
     [=](const stream_type& in, filter_type& filter) {
       auto& st = self->state;
       // Reject anonymous peering requests and unrequested handshakes.
@@ -312,8 +312,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Start streaming in opposite direction.
       st.governor->new_stream(p, st.sid, std::make_tuple(ok_atom::value));
     },
-    // step #3: A establishes a stream to B
-    // (now B has a stream to A and vice versa)
+    // Step #3: - A establishes a stream to B
+    //          - B has a stream to A and vice versa now
     [=](const stream_type& in, ok_atom) {
       CAF_LOG_TRACE(CAF_ARG(in));
       auto& st = self->state;
@@ -336,7 +336,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_WARNING("Stream already existed.");
       }
     },
-    // -- Communication to local actors: incoming streams and subscriptions. ---
+    // --- communication to local actors: incoming streams and subscriptions ---
     [=](join_atom, filter_type& filter) -> expected<stream_type> {
       auto& st = self->state;
       auto& cs = self->current_sender();
@@ -368,64 +368,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::publish, topic& t, data& x) {
       self->state.governor->push(std::move(t), std::move(x));
     },
-    // TODO: add TTL component to this message to detect routing loops.
-    /* TODO: dispatching is done in governor, how to integrate master/clone
-             semantics into the picture?
-    [=](topic& t, caf::message& msg, const caf::actor& source) {
-      BROKER_DEBUG("got message:" << t << "->" << to_string(msg));
-      BROKER_ASSERT(!t.string().empty());
-      // Handle internal messages first.
-      auto& str = t.string();
-      auto i = str.find(topics::reserved.string());
-      if (i != std::string::npos) {
-        BROKER_ASSERT(i > 1);
-        // Is the message for a master?
-        auto m = str.rfind(topics::master.string());
-        if (m != std::string::npos && !self->state.masters.empty()) {
-          auto name = str.substr(0, i - 1);
-          auto j = self->state.masters.find(name);
-          if (j != self->state.masters.end()) {
-            BROKER_DEBUG("delivering message to local master:" << name);
-            self->send(j->second, std::move(t), std::move(msg), source);
-            return; // This (unicast) message ends here.
-          }
-        }
-        // Is the message for a clone?
-        auto c = str.rfind(topics::clone.string());
-        if (c != std::string::npos && !self->state.clones.empty()) {
-          auto name = str.substr(0, i - 1);
-          auto j = self->state.clones.find(name);
-          if (j != self->state.clones.end()) {
-            BROKER_DEBUG("delivering message to local clone:" << name);
-            self->send(j->second, std::move(t), std::move(msg), source);
-          }
-        }
-      }
-      // Identify all subscribers, but send this message *at most* once.
-      auto subscriptions = self->state.subscriptions.prefix_of(t.string());
-      std::unordered_set<caf::actor> sinks;
-      for (auto match : subscriptions) {
-        ++match->second.messages;
-        for (auto& sub : match->second.subscribers)
-          if (sub != source)
-            sinks.insert(sub);
-      }
-      // Relay message to all subscribers.
-      auto sub_msg = caf::make_message(std::move(t), std::move(msg), self);
-      for (auto& sink : sinks)
-        if (sink == subscriber) {
-          BROKER_DEBUG("dispatching message locally");
-          // Local subscribers never see internal messages.
-          if (i != std::string::npos)
-            BROKER_ERROR("dropping internal message:" << to_string(msg));
-          else
-            self->send(sink, sub_msg);
-        } else {
-          BROKER_DEBUG("relaying message to" << to_string(sink));
-          self->send(sink, sub_msg);
-        }
-    },
-    */
+    // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
         backend backend_type,
         backend_options& opts) -> caf::result<caf::actor> {
