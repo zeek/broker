@@ -373,8 +373,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         backend backend_type,
         backend_options& opts) -> caf::result<caf::actor> {
       BROKER_DEBUG("attaching master:" << name);
-      auto i = self->state.masters.find(name);
-      if (i != self->state.masters.end()) {
+      // Sanity check: this message must be a point-to-point message.
+      auto& cme = *self->current_mailbox_element();
+      if (!cme.stages.empty())
+        return ec::unspecified;
+      auto& st = self->state;
+      auto i = st.masters.find(name);
+      if (i != st.masters.end()) {
         BROKER_DEBUG("found local master");
         return i->second;
       }
@@ -386,13 +391,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto ptr = make_backend(backend_type, std::move(opts));
       BROKER_ASSERT(ptr);
       BROKER_DEBUG("spawning new master");
-      auto actor = self->spawn<caf::linked>(master_actor, self, name,
+      auto ms = self->spawn<caf::linked>(master_actor, self, name,
                                             std::move(ptr));
-      self->state.masters.emplace(name, actor);
+      st.masters.emplace(name, ms);
       // Subscribe to messages directly targeted at the master.
-      auto ts = std::vector<topic>{name / topics::reserved / topics::master};
-      self->send(self, atom::subscribe::value, std::move(ts), self);
-      return actor;
+      std::tuple<> token;
+      // fwd_stream_handshake expects the next stage in cme.stages
+      auto ms_ptr = actor_cast<strong_actor_ptr>(ms);
+      cme.stages.emplace_back(ms_ptr);
+      self->fwd_stream_handshake<element_type>(st.sid, token, true);
+      st.governor->local_subscribers().add_path(ms_ptr);
+      filter_type filter{name / topics::reserved / topics::master};
+      st.governor->local_subscribers().set_filter(std::move(ms_ptr),
+                                                  std::move(filter));
+      return ms;
     },
     [=](atom::store, atom::clone, atom::attach,
         std::string& name) -> caf::result<caf::actor> {
