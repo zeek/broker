@@ -157,7 +157,6 @@ set(BROKER_SRC
   src/endpoint.cc
   src/error.cc
   src/mailbox.cc
-  src/message.cc
   src/network_info.cc
   src/port.cc
   src/publisher.cc
