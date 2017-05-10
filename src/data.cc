@@ -39,9 +39,88 @@ const detail::command& internal_command::shared() const {
   return *ptr_;
 }
 
-long internal_command::compare(const internal_command& x) const {
-  // TODO: fixme
+namespace {
+
+using namespace detail;
+
+template <class T>
+long fc(const T& x, const T& y) {
+  return (x < y) ? -1 : ((x == y) ? 0 : 1);
+}
+
+long fuse(std::initializer_list<long> xs) {
+  for (auto x : xs)
+    if (x != 0)
+      return x;
   return 0;
+}
+
+long compare_impl(none, none) {
+  return 0;
+}
+
+long compare_impl(const put_command& x, const put_command& y) {
+  return fuse({fc(x.key, y.key), fc(x.value, y.value), fc(x.expiry, y.expiry)});
+}
+
+long compare_impl(const erase_command& x, const erase_command& y) {
+  return fc(x.key, y.key);
+}
+
+long compare_impl(const add_command& x, const add_command& y) {
+  return fuse({fc(x.key, y.key), fc(x.value, y.value), fc(x.expiry, y.expiry)});
+}
+
+long compare_impl(const subtract_command& x, const subtract_command& y) {
+  return fuse({fc(x.key, y.key), fc(x.value, y.value), fc(x.expiry, y.expiry)});
+}
+
+long compare_impl(const snapshot_command& x, const snapshot_command& y) {
+  return fc(x.clone, y.clone);
+}
+
+template <class T>
+struct double_dispatch_phase2 {
+  using result_type = long;
+
+  const T& x;
+
+  double_dispatch_phase2(const T& xref) : x(xref) {
+    // nop
+  }
+
+  long operator()(const T& y) const {
+    return compare_impl(x, y);
+  }
+
+  template <class U>
+  long operator()(const U&) const {
+    // must not happen
+    return -2;
+  }
+};
+
+struct double_dispatch_phase1 {
+  using result_type = long;
+
+  const internal_command& y;
+
+  template <class T>
+  long operator()(const T& x) const {
+    double_dispatch_phase2<T> f{x};
+    return visit(f, y.shared().xs);
+  }
+};
+
+} // namespace <anonymous>
+
+long internal_command::compare(const internal_command& x) const {
+  auto i0 = static_cast<long>(ptr_->xs.index());
+  auto i1 = static_cast<long>(x.shared().xs.index());
+  if (i0 != i1)
+    return i0 - i1;
+  double_dispatch_phase1 f{x};
+  return visit(f, shared().xs);
 }
 
 bool convert(const internal_command& t, std::string& str) {
