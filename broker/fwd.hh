@@ -16,6 +16,7 @@ class status;
 class store;
 class subscriber;
 class topic;
+class internal_command;
 
 struct network_info;
 
@@ -34,6 +35,12 @@ namespace detail {
 
 class flare_actor;
 class mailbox;
+
+struct put_command;
+struct erase_command;
+struct add_command;
+struct subtract_command;
+struct snapshot_command;
 
 } // namespace detail
 
