@@ -71,30 +71,28 @@ expected<data> store::get(data key, data aspect) const {
 }
 
 expected<data> store::keys() const {
-  return request<data>(atom::keys::value);
+  // TODO: implement me
+  return caf::sec::bad_function_call;
+  //return request<data>(atom::keys::value);
 }
 
 void store::put(data key, data value, optional<timespan> expiry) const {
-  if (frontend_)
-    anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
-              expiry);
+  anon_send(frontend_,
+            detail::put_command{std::move(key), std::move(value), expiry});
 }
 
 void store::erase(data key) const {
-  if (frontend_)
-    anon_send(frontend_, atom::erase::value, std::move(key));
+  anon_send(frontend_, detail::erase_command{std::move(key)});
 }
 
 void store::add(data key, data value, optional<timespan> expiry) const {
-  if (frontend_)
-    anon_send(frontend_, atom::add::value, std::move(key), std::move(value),
-              expiry);
+  anon_send(frontend_,
+            detail::add_command{std::move(key), std::move(value), expiry});
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) const {
-  if (frontend_)
-    anon_send(frontend_, atom::subtract::value, std::move(key),
-              std::move(value), expiry);
+  anon_send(frontend_,
+            detail::subtract_command{std::move(key), std::move(value), expiry});
 }
 
 void store::clear() const {

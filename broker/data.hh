@@ -201,7 +201,7 @@ namespace detail {
 struct put_command {
   data key;
   data value;
-  caf::optional<timestamp> expiry;
+  caf::optional<timespan> expiry;
 };
 
 template <class Inspector>
@@ -221,7 +221,7 @@ typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
 struct add_command {
   data key;
   data value;
-  caf::optional<timestamp> expiry;
+  caf::optional<timespan> expiry;
 };
 
 template <class Inspector>
@@ -232,7 +232,7 @@ typename Inspector::result_type inspect(Inspector& f, add_command& x) {
 struct subtract_command {
   data key;
   data value;
-  caf::optional<timestamp> expiry;
+  caf::optional<timespan> expiry;
 };
 
 template <class Inspector>

@@ -10,6 +10,7 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
+  cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   cpp/store.cc

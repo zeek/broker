@@ -10,6 +10,7 @@
 #include "broker/time.hh"
 
 #include "broker/detail/abstract_backend.hh"
+#include "broker/detail/aliases.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/type_traits.hh"
@@ -17,49 +18,146 @@
 namespace broker {
 namespace detail {
 
+master_state::master_state() : self(nullptr) {
+  // nop
+}
+
+void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
+                        backend_pointer&& bp, caf::actor&& parent) {
+
+  self = ptr;
+  name = std::move(nm);
+  clones_topic = name / topics::reserved / topics::clone;
+  backend = std::move(bp);
+  core = std::move(parent);
+}
+
+void master_state::broadcast(data&& x) {
+  self->send(core, clones_topic, std::move(x));
+}
+
+void master_state::remind(timespan expiry, const data& key) {
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(expiry);
+  self->delayed_send(self, us, atom::expire::value, key);
+}
+
+void master_state::expire(data& key) {
+  BROKER_DEBUG("expiring key" << key);
+  auto result = backend->expire(key);
+  if (!result)
+    BROKER_ERROR("failed to expire key:" << to_string(result.error()));
+  else if (!*result)
+    BROKER_WARNING("ignoring stale expiration reminder");
+  else {
+    erase_command cmd{std::move(key)};
+    broadcast_from(cmd);
+  }
+}
+
+void master_state::command(internal_command& cmd) {
+  visit(*this, cmd.exclusive().xs);
+}
+
+void master_state::operator()(none) {
+  BROKER_DEBUG("received empty command");
+}
+
+void master_state::operator()(detail::put_command& x) {
+  BROKER_DEBUG("put" << x.key << "->" << x.value);
+  auto result = backend->put(x.key, x.value, x.expiry);
+  if (!result) {
+    BROKER_WARNING("failed to put" << x.key << "->" << x.value);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  if (x.expiry)
+    remind(*x.expiry, x.key);
+  broadcast_from(x);
+}
+
+void master_state::operator()(detail::erase_command& x) {
+  BROKER_DEBUG("erase" << x.key);
+  auto result = backend->erase(x.key);
+  if (!result) {
+    BROKER_WARNING("failed to erase" << x.key);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  broadcast_from(x);
+}
+
+void master_state::operator()(detail::add_command& x) {
+  BROKER_DEBUG("add" << x.key);
+  auto result = backend->add(x.key, x.value, x.expiry);
+  if (!result) {
+    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  if (x.expiry)
+    remind(*x.expiry, x.key);
+  broadcast_from(x);
+}
+
+void master_state::operator()(detail::subtract_command& x) {
+  BROKER_DEBUG("subtract" << x.key);
+  auto result = backend->subtract(x.key, x.value, x.expiry);
+  if (!result) {
+    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  if (x.expiry)
+    remind(*x.expiry, x.key);
+  broadcast_from(x);
+}
+
+void master_state::operator()(detail::snapshot_command& x) {
+  BROKER_DEBUG("got snapshot request from" << to_string(x.clone));
+  auto ss = backend->snapshot();
+  if (!ss)
+    die("failed to snapshot master");
+  self->send(x.clone, std::move(*ss));
+  self->monitor(x.clone);
+  clones.insert(x.clone->address());
+}
+
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string name,
-                           std::unique_ptr<abstract_backend> backend) {
-  self->state.backend = std::move(backend);
-  auto broadcast = [=](caf::message&& msg) {
-    auto t = name / topics::reserved / topics::clone;
-    self->send(core, std::move(t), std::move(msg), core);
-  };
-  auto remind = [=](timespan expiry, const data& key) {
-    BROKER_ASSERT(delta > timespan::zero());
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(expiry);
-    self->delayed_send(self, us, atom::expire::value, key);
-  };
+                           master_state::backend_pointer backend) {
+  self->state.init(self, std::move(name), std::move(backend), std::move(core));
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       BROKER_DEBUG("lost connection to clone" << to_string(msg.source));
       self->state.clones.erase(msg.source);
     }
   );
-  auto commands = caf::message_handler{
-    [=](atom::put, data& key, data& value, optional<timespan> expiry) {
-      BROKER_DEBUG("put" << key << "->" << value);
-      auto result = self->state.backend->put(key, value, expiry);
-      if (!result) {
-        BROKER_WARNING("failed to put" << key << "->" << value);
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (expiry)
-        remind(*expiry, key);
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::put::value, std::move(key),
-                                    std::move(value)));
+  return {
+    // --- stream handshake with core ------------------------------------------
+    [=](const stream_type& in) {
+      self->add_sink(
+        // input stream
+        in,
+        // initialize state
+        [](caf::unit_t&) {
+          // nop
+        },
+        // processing step
+        [=](caf::unit_t&, element_type y) {
+          auto ptr = get_if<internal_command>(y.second);
+          if (ptr) {
+            self->state.command(*ptr);
+          } else {
+            BROKER_DEBUG("received non-command message:" << y);
+          }
+        },
+        // cleanup and produce result message
+        [](caf::unit_t&) {
+          // nop
+        }
+      );
     },
-    [=](atom::erase, data& key) {
-      BROKER_DEBUG("erase" << key);
-      auto result = self->state.backend->erase(key);
-      if (!result) {
-        BROKER_WARNING("failed to erase" << key);
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::erase::value, std::move(key)));
+    // --- local communication -------------------------------------------------
+    [=](atom::expire, data& key) {
+      self->state.expire(key);
     },
+    /* TODO: reimplement
     [=](atom::clear) {
       BROKER_DEBUG("clear");
       auto result = self->state.backend->clear();
@@ -70,52 +168,21 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::clear::value));
     },
-    [=](atom::add, data& key, data& value, optional<timespan> expiry) {
-      BROKER_DEBUG("add" << key);
-      auto result = self->state.backend->add(key, value, expiry);
-      if (!result) {
-        BROKER_WARNING("failed to add" << value << "to" << key);
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (expiry)
-        remind(*expiry, key);
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::add::value, std::move(key),
-                                    std::move(value)));
+    */
+    [=](put_command& x) {
+      self->state(x);
     },
-    [=](atom::subtract, data& key, data& value, optional<timespan> expiry) {
-      BROKER_DEBUG("subtract" << key);
-      auto result = self->state.backend->subtract(key, value, expiry);
-      if (!result) {
-        BROKER_WARNING("failed to add" << value << "to" << key);
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (expiry)
-        remind(*expiry, key);
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::subtract::value, std::move(key),
-                                    std::move(value)));
+    [=](erase_command& x) {
+      self->state(x);
     },
-    [=](atom::snapshot, const caf::actor& clone) {
-      BROKER_DEBUG("got snapshot request from" << to_string(clone));
-      auto ss = self->state.backend->snapshot();
-      if (!ss)
-        die("failed to snapshot master");
-      self->send(clone, std::move(*ss));
-      self->monitor(clone);
-      self->state.clones.insert(clone->address());
+    [=](add_command& x) {
+      self->state(x);
     },
-  };
-  auto local = caf::message_handler{
-    [=](atom::expire, data& key) {
-      BROKER_DEBUG("expiring key" << key);
-      auto result = self->state.backend->expire(key);
-      if (!result)
-        BROKER_ERROR("failed to expire key:" << to_string(result.error()));
-      else if (!*result)
-        BROKER_WARNING("ignoring stale expiration reminder");
-      else if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::erase::value, std::move(key)));
+    [=](subtract_command& x) {
+      self->state(x);
+    },
+    [=](snapshot_command& x) {
+      self->state(x);
     },
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
@@ -140,7 +207,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
-      return name;
+      return self->state.name;
     },
     [=](atom::keys) -> expected<data> {
       BROKER_DEBUG("KEYS");
@@ -154,14 +221,6 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       return caf::make_message(std::move(x.error()), id);
     },
   };
-  auto dispatch = caf::message_handler{
-    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
-      BROKER_DEBUG("dispatching message with topic" << t << "from core"
-                   << to_string(source));
-      commands(msg);
-    }
-  };
-  return dispatch.or_else(local).or_else(commands);
 }
 
 } // namespace detail

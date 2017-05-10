@@ -64,6 +64,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   return *bound;
 }
 
+/* TODO: reimplement
 void endpoint::peer(const std::string& address, uint16_t port) {
   caf::anon_send(core(), atom::peer::value, network_info{address, port});
 }
@@ -86,6 +87,7 @@ std::vector<peer_info> endpoint::peers() const {
   );
   return result;
 }
+*/
 
 void endpoint::publish(topic t, data d) {
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
