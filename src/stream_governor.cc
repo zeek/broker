@@ -183,14 +183,20 @@ caf::error stream_governor::close_upstream(caf::strong_actor_ptr& hdl) {
 void stream_governor::abort(caf::strong_actor_ptr& hdl,
                             const caf::error& reason) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(reason));
-  CAF_IGNORE_UNUSED(reason);
-  if (local_subscribers_.remove_path(hdl))
-    return;
-  auto i = peers_.find(hdl);
-  if (i != peers_.end()) {
-    auto& pd = *i->second;
-    state_->self->streams().erase(pd.incoming_sid);
-    peers_.erase(i);
+  if (hdl != nullptr) {
+    if (local_subscribers_.remove_path(hdl))
+      return;
+    auto i = peers_.find(hdl);
+    if (i != peers_.end()) {
+      auto& pd = *i->second;
+      state_->self->streams().erase(pd.incoming_sid);
+      peers_.erase(i);
+    }
+  } else {
+    local_subscribers_.abort(hdl, reason);
+    for (auto& kvp : peers_)
+      kvp.second->out.abort(hdl, reason);
+    peers_.clear();
   }
 }
 
