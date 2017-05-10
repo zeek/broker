@@ -90,6 +90,11 @@ public:
   /// Retrieves a copy of the store's current keys, returned as a set.
   expected<data> keys() const;
 
+  /// Retrieves the frontend.
+  inline const caf::actor& frontend() const {
+    return frontend_;
+  }
+
   // --- modifiers -----------------------------------------------------------
 
   /// Inserts or updates a value.
