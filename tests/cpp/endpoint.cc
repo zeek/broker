@@ -85,6 +85,8 @@ TEST(nonblocking subscription managment) {
   CHECK_EQUAL(*counter, 0);
 }
 
+#if 0
+
 TEST(blocking message receive) {
   context ctx;
   auto e = ctx.spawn<blocking>();
@@ -112,6 +114,8 @@ TEST(multi-topic subscription) {
   e.receive(); // Block and wait until the next message, then discard it.
   CHECK(e.mailbox().empty());
 }
+
+#endif
 
 TEST(blocking local peering and unpeering) {
   context ctx;

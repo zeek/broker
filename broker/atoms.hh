@@ -27,11 +27,13 @@ using default_ = caf::atom_constant<caf::atom("default")>;
 
 // Store
 using attach = caf::atom_constant<caf::atom("attach")>;
+using clear = caf::atom_constant<caf::atom("clear")>;
 using clone = caf::atom_constant<caf::atom("clone")>;
+using decrement = caf::atom_constant<caf::atom("decrement")>;
 using erase = caf::atom_constant<caf::atom("erase")>;
 using expire = caf::atom_constant<caf::atom("expire")>;
 using increment = caf::atom_constant<caf::atom("increment")>;
-using decrement = caf::atom_constant<caf::atom("decrement")>;
+using keys = caf::atom_constant<caf::atom("keys")>;
 using master = caf::atom_constant<caf::atom("master")>;
 using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 using store = caf::atom_constant<caf::atom("store")>;

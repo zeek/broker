@@ -60,6 +60,16 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::erase::value, std::move(key)));
     },
+    [=](atom::clear) {
+      BROKER_DEBUG("clear");
+      auto result = self->state.backend->clear();
+      if (!result) {
+        BROKER_WARNING("failed to clear");
+        return; // TODO: propagate failure? to all clones? as status msg?
+      }
+      if (!self->state.clones.empty())
+        broadcast(caf::make_message(atom::clear::value));
+    },
     [=](atom::add, data& key, data& value, optional<timespan> expiry) {
       BROKER_DEBUG("add" << key);
       auto result = self->state.backend->add(key, value, expiry);
@@ -131,6 +141,17 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     },
     [=](atom::get, atom::name) {
       return name;
+    },
+    [=](atom::keys) -> expected<data> {
+      BROKER_DEBUG("KEYS");
+      return self->state.backend->keys();
+    },
+    [=](atom::keys, request_id id) {
+      BROKER_DEBUG("KEYS" << "with id:" << id);
+      auto x = self->state.backend->keys();
+      if (x)
+        return caf::make_message(std::move(*x), id);
+      return caf::make_message(std::move(x.error()), id);
     },
   };
   auto dispatch = caf::message_handler{

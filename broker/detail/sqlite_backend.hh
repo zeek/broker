@@ -31,6 +31,8 @@ public:
 
   expected<void> erase(const data& key) override;
 
+  expected<void> clear() override;
+
   expected<bool> expire(const data& key) override;
 
   expected<data> get(const data& key) const override;
@@ -38,6 +40,8 @@ public:
   expected<bool> exists(const data& key) const override;
 
   expected<uint64_t> size() const override;
+
+  expected<data> keys() const override;
 
   expected<broker::snapshot> snapshot() const override;
 

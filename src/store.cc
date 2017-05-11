@@ -21,6 +21,13 @@ request_id store::proxy::get(data key) {
   return id_;
 }
 
+request_id store::proxy::keys() {
+  if (!frontend_)
+    return 0;
+  send_as(proxy_, frontend_, atom::keys::value, ++id_);
+  return id_;
+}
+
 mailbox store::proxy::mailbox() {
   return detail::make_mailbox(caf::actor_cast<detail::flare_actor*>(proxy_));
 }
@@ -32,7 +39,7 @@ store::response store::proxy::receive() {
       resp = {std::move(x), id};
     },
     [&](caf::error& e, request_id id) {
-      BROKER_ERROR("proxy failed to receive response from store");
+      BROKER_ERROR("proxy failed to receive response from store" << id);
       resp = {std::move(e), id};
     }
   );
@@ -63,6 +70,10 @@ expected<data> store::get(data key, data aspect) const {
   return request<data>(atom::get::value, std::move(key), std::move(aspect));
 }
 
+expected<data> store::keys() const {
+  return request<data>(atom::keys::value);
+}
+
 void store::put(data key, data value, optional<timespan> expiry) const {
   if (frontend_)
     anon_send(frontend_, atom::put::value, std::move(key), std::move(value),
@@ -84,6 +95,11 @@ void store::subtract(data key, data value, optional<timespan> expiry) const {
   if (frontend_)
     anon_send(frontend_, atom::subtract::value, std::move(key),
               std::move(value), expiry);
+}
+
+void store::clear() const {
+  if (frontend_)
+    anon_send(frontend_, atom::clear::value);
 }
 
 store::store(caf::actor actor) : frontend_{std::move(actor)} {

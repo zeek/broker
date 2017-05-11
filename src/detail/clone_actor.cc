@@ -34,6 +34,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     [=](atom::erase, data& key) {
       forward(caf::make_message(atom::erase::value, std::move(key)));
     },
+    [=](atom::clear) {
+      forward(caf::make_message(atom::clear::value));
+    },
     [=](atom::subtract, data& key, data& value, optional<timespan> expiry) {
       forward(caf::make_message(atom::subtract::value, std::move(key),
                                 std::move(value), expiry));
@@ -102,6 +105,20 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     [=](atom::get, atom::name) {
       return name;
     },
+    [=](atom::keys) -> expected<data> {
+      BROKER_DEBUG("KEYS");
+      set keys;
+      for ( auto i = self->state.store.begin(); i != self->state.store.end(); i++ )
+        keys.insert(i->first);
+      return keys;
+    },
+    [=](atom::keys, request_id id) {
+      BROKER_DEBUG("KEYS" << "with id:" << id);
+      set keys;
+      for ( auto i = self->state.store.begin(); i != self->state.store.end(); i++ )
+        keys.insert(i->first);
+      return caf::make_message(std::move(keys), id);
+    }
   };
   auto dispatch = caf::message_handler{
     [=](topic& t, caf::message& msg, const caf::actor& source) mutable {

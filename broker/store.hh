@@ -49,6 +49,11 @@ public:
     /// response.
     request_id get(data key);
 
+    /// Performs a request to retrieve a store's keys.
+    /// @returns A unique identifier for this request to correlate it with a
+    /// response.
+    request_id keys();
+
     /// Retrieves the proxy's mailbox that reflects query responses.
     broker::mailbox mailbox();
 
@@ -82,6 +87,9 @@ public:
   /// @returns The value under *key* or an error.
   expected<data> get(data key, data aspect) const;
 
+  /// Retrieves a copy of the store's current keys, returned as a set.
+  expected<data> keys() const;
+
   // --- modifiers -----------------------------------------------------------
 
   /// Inserts or updates a value.
@@ -93,6 +101,9 @@ public:
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
   void erase(data key) const;
+
+  /// Empties out the store.
+  void clear() const;
 
   /// Adds a value to another one.
   /// @param key The key of the key-value pair.

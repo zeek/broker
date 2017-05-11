@@ -134,6 +134,7 @@ struct rocksdb_backend::impl {
 
   rocksdb::DB* db = nullptr;
   count exact_size_threshold = 10000;
+  std::string* path;
 };
 
 rocksdb_backend::rocksdb_backend(backend_options opts)
@@ -142,8 +143,8 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
   auto i = opts.find("path");
   if (i == opts.end())
     return;
-  auto path = get_if<std::string>(i->second);
-  if (!path)
+  impl_->path = get_if<std::string>(i->second);
+  if (!impl_->path)
     return;
   // Parse optional options.
   i = opts.find("exact-size-threshold");
@@ -153,14 +154,18 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
     else
       BROKER_ERROR("exact-size-threshold must be of type count");
   }
-  // Open the DB.
+
+  open_db();
+}
+
+bool rocksdb_backend::open_db() {
   rocksdb::Options rocks_opts;
   rocks_opts.create_if_missing = true;
-  auto status = rocksdb::DB::Open(rocks_opts, path->c_str(), &impl_->db);
+  auto status = rocksdb::DB::Open(rocks_opts, impl_->path->c_str(), &impl_->db);
   if (!status.ok()) {
     BROKER_ERROR("failed to open DB:" << status.ToString());
     impl_->db = nullptr;
-    return;
+    return false;
   }
   // Check/write the broker version.
   status = impl_->db->Put({}, "mbroker_version", version::string());
@@ -168,8 +173,10 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
     BROKER_ERROR("failed to open DB:" << status.ToString());
     delete impl_->db;
     impl_->db = nullptr;
-    return;
+    return false;
   }
+
+  return true;
 }
 
 rocksdb_backend::~rocksdb_backend() {
@@ -236,6 +243,27 @@ expected<void> rocksdb_backend::erase(const data& key) {
   return {};
 }
 
+expected<void> rocksdb_backend::clear() {
+  if (!impl_->db)
+    return ec::backend_failure;
+
+  delete impl_->db;
+  impl_->db = nullptr;
+
+  auto status = rocksdb::DestroyDB(impl_->path->c_str(), rocksdb::Options());
+  if (!status.ok()) {
+    BROKER_ERROR("failed to destroy DB:" << status.ToString());
+    return ec::backend_failure;
+  }
+
+  if (!open_db()) {
+    BROKER_ERROR("failed to reopen DB");
+    return ec::backend_failure;
+    }
+
+  return {};
+}
+
 expected<bool> rocksdb_backend::expire(const data& key) {
   auto ts = now();
   auto key_blob = to_key_blob<prefix::expiry>(key);
@@ -265,6 +293,27 @@ expected<data> rocksdb_backend::get(const data& key) const {
   if (!value_blob)
     return value_blob.error();
   return from_blob<data>(*value_blob);
+}
+
+expected<data> rocksdb_backend::keys() const {
+  if (!impl_->db)
+    return ec::backend_failure;
+  set result;
+  rocksdb::ReadOptions opts;
+  opts.fill_cache = false;
+  auto i = std::unique_ptr<rocksdb::Iterator>{impl_->db->NewIterator(opts)};
+  static const auto pfx = static_cast<char>(prefix::data);
+  i->Seek(rocksdb::Slice{&pfx, 1}); // initializes iterator
+  while (i->Valid() && i->key()[0] == pfx) {
+    auto key = from_key_blob<prefix::data>(i->key().data(), i->key().size());
+    result.insert(std::move(key));
+    i->Next();
+  }
+  if (!i->status().ok()) {
+    BROKER_ERROR("failed to get keys:" << i->status().ToString());
+    return ec::backend_failure;
+  }
+  return result;
 }
 
 expected<bool> rocksdb_backend::exists(const data& key) const {

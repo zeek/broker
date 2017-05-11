@@ -45,6 +45,11 @@ expected<void> memory_backend::erase(const data& key) {
   return {};
 }
 
+expected<void> memory_backend::clear() {
+   store_.clear();
+   return {};
+}
+
 expected<bool> memory_backend::expire(const data& key) {
   auto ts = now();
   auto i = store_.find(key);
@@ -61,6 +66,13 @@ expected<data> memory_backend::get(const data& key) const {
   if (i == store_.end())
     return ec::no_such_key;
   return i->second.first;
+}
+
+expected<data> memory_backend::keys() const {
+  set keys;
+  for ( auto i = store_.begin(); i != store_.end(); i++ )
+    keys.insert(i->first);
+  return std::move(keys);
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {

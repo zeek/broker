@@ -95,6 +95,8 @@ struct sqlite_backend::impl {
       {&exists, "select 1 from store where key = ?;"},
       {&size, "select count(*) from store;"},
       {&snapshot, "select key, value, expiry from store;"},
+      {&clear, "delete from store;"},
+      {&keys, "select key from store;"},
     };
     auto prepare = [&](sqlite3_stmt** stmt, const char* sql) {
       finalize.push_back(*stmt);
@@ -159,6 +161,8 @@ struct sqlite_backend::impl {
   sqlite3_stmt* exists = nullptr;
   sqlite3_stmt* size = nullptr;
   sqlite3_stmt* snapshot = nullptr;
+  sqlite3_stmt* clear = nullptr;
+  sqlite3_stmt* keys = nullptr;
   std::vector<sqlite3_stmt*> finalize;
 };
 
@@ -243,6 +247,16 @@ expected<void> sqlite_backend::erase(const data& key) {
   return {};
 }
 
+expected<void> sqlite_backend::clear() {
+  if (!impl_->db)
+    return ec::backend_failure;
+  auto guard = make_statement_guard(impl_->clear);
+  auto result = sqlite3_step(impl_->clear);
+  if (result != SQLITE_DONE)
+    return ec::backend_failure;
+  return {};
+}
+
 expected<bool> sqlite_backend::expire(const data& key) {
   if (!impl_->db)
     return ec::backend_failure;
@@ -281,6 +295,22 @@ expected<data> sqlite_backend::get(const data& key) const {
     return ec::backend_failure;
 	return from_blob<data>(sqlite3_column_blob(impl_->lookup, 0),
                          sqlite3_column_bytes(impl_->lookup, 0));
+}
+
+expected<data> sqlite_backend::keys() const {
+  if (!impl_->db)
+    return ec::backend_failure;
+  auto guard = make_statement_guard(impl_->keys);
+  set keys;
+  auto result = SQLITE_DONE;
+  while ((result = sqlite3_step(impl_->keys)) == SQLITE_ROW) {
+    auto key = from_blob<data>(sqlite3_column_blob(impl_->keys, 0),
+                               sqlite3_column_bytes(impl_->keys, 0));
+    keys.insert(std::move(key));
+  }
+  if (result == SQLITE_DONE)
+    return keys;
+  return ec::backend_failure;
 }
 
 expected<bool> sqlite_backend::exists(const data& key) const {

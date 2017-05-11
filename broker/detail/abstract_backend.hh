@@ -64,6 +64,10 @@ public:
   /// exist.
   virtual expected<void> erase(const data& key) = 0;
 
+  /// Empties out the store.
+  /// @returns `nil` if the store was successfully emptied out.
+  virtual expected<void> clear() = 0;
+
   /// Removes a key and its associated value from the store, if it exists and
   /// has an expiration in the past.
   /// @param key The key to expire.
@@ -94,6 +98,10 @@ public:
   /// Retrieves the number of entries in the store.
   /// @returns The number of key-value pairs in the store.
   virtual expected<uint64_t> size() const = 0;
+
+  /// Retrieves the current keys.
+  /// @returns The set of current keys.
+  virtual expected<data> keys() const = 0;
 
   /// Retrieves all key-value pairs.
   /// @returns A snapshot of the store that includes its content.
