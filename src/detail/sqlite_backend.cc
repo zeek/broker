@@ -354,7 +354,7 @@ expected<snapshot> sqlite_backend::snapshot() const {
                                sqlite3_column_bytes(impl_->snapshot, 0));
     auto value = from_blob<data>(sqlite3_column_blob(impl_->snapshot, 1),
                                  sqlite3_column_bytes(impl_->snapshot, 1));
-    ss.entries.emplace(std::move(key), std::move(value));
+    ss.emplace(std::move(key), std::move(value));
   }
   if (result == SQLITE_DONE)
     return ss;

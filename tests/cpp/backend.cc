@@ -306,8 +306,8 @@ TEST(size/snapshot) {
   CHECK_EQUAL(*size, 3u);
   auto ss = backend->snapshot();
   REQUIRE(ss);
-  CHECK_EQUAL(ss->entries.size(), *size);
-  CHECK_EQUAL(ss->entries.count("foo"), 1u);
+  CHECK_EQUAL(ss->size(), *size);
+  CHECK_EQUAL(ss->count("foo"), 1u);
 }
 
 FIXTURE_SCOPE_END()
