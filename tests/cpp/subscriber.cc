@@ -49,7 +49,7 @@ void driver(event_based_actor* self, const actor& sink) {
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(subscriber_tests, test_coordinator_context_fixture)
+CAF_TEST_FIXTURE_SCOPE(subscriber_tests, base_fixture)
 
 CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
@@ -67,11 +67,11 @@ CAF_TEST(blocking_subscriber) {
   expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
   expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 20, _, false));
   // Initiate handshake between core1 and core2.
-  self->send(core1, atom::peer::value, actor_cast<strong_actor_ptr>(core2));
-  expect((atom::peer, strong_actor_ptr), from(self).to(core1).with(_, core2));
+  self->send(core1, atom::peer::value, core2);
+  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type),
-         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}));
+  expect((atom::peer, filter_type, actor),
+         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   // Step #2: core1  <---   (stream_msg::open)   <--- core2
   expect((stream_msg::open),
          from(_).to(core1).with(
@@ -127,8 +127,8 @@ CAF_TEST(nonblocking_subscriber) {
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
   // Initiate handshake between core1 and core2.
-  self->send(core1, atom::peer::value, actor_cast<strong_actor_ptr>(core2));
-  expect((atom::peer, strong_actor_ptr), from(self).to(core1).with(_, core2));
+  self->send(core1, atom::peer::value, core2);
+  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<element_type>;
   buf result;

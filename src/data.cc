@@ -43,16 +43,34 @@ namespace {
 
 using namespace detail;
 
-template <class T>
-long fc(const T& x, const T& y) {
-  return (x < y) ? -1 : ((x == y) ? 0 : 1);
-}
-
 long fuse(std::initializer_list<long> xs) {
   for (auto x : xs)
     if (x != 0)
       return x;
   return 0;
+}
+
+template <class T>
+long fc(const T& x, const T& y) {
+  return (x < y) ? -1 : ((x == y) ? 0 : 1);
+}
+
+long fc(const std::unordered_map<data, data>& x,
+        const std::unordered_map<data, data>& y) {
+  if (x.size() == y.size()) {
+    auto i = x.begin();
+    auto e = x.end();
+    auto j = y.begin();
+    while (i != e) {
+      auto r = fuse({fc(i->first, j->first), fc(i->second, j->second)});
+      if (r != 0)
+        return r;
+      ++i;
+      ++j;
+    }
+    return 0;
+  }
+  return (x.size() < y.size()) ? -1 : 1;
 }
 
 long compare_impl(none, none) {
@@ -77,6 +95,10 @@ long compare_impl(const subtract_command& x, const subtract_command& y) {
 
 long compare_impl(const snapshot_command& x, const snapshot_command& y) {
   return fc(x.clone, y.clone);
+}
+
+long compare_impl(const set_command& x, const set_command& y) {
+  return fc(x.state, y.state);
 }
 
 template <class T>
@@ -108,7 +130,7 @@ struct double_dispatch_phase1 {
   template <class T>
   long operator()(const T& x) const {
     double_dispatch_phase2<T> f{x};
-    return visit(f, y.shared().xs);
+    return caf::visit(f, y.shared().xs);
   }
 };
 
@@ -120,7 +142,7 @@ long internal_command::compare(const internal_command& x) const {
   if (i0 != i1)
     return i0 - i1;
   double_dispatch_phase1 f{x};
-  return visit(f, shared().xs);
+  return caf::visit(f, shared().xs);
 }
 
 bool convert(const internal_command& t, std::string& str) {

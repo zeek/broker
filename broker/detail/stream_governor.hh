@@ -4,14 +4,16 @@
 #include <memory>
 #include <unordered_map>
 
-#include "caf/filtering_downstream.hpp"
-#include "caf/stream_handler.hpp"
-#include "caf/stream_source.hpp"
-#include "caf/upstream.hpp"
+#include <caf/filtering_downstream.hpp>
+#include <caf/ref_counted.hpp>
+#include <caf/stream_handler.hpp>
+#include <caf/stream_source.hpp>
+#include <caf/upstream.hpp>
 
 #include "broker/atoms.hh"
 
 #include "broker/detail/aliases.hh"
+#include "broker/detail/stream_relay.hh"
 
 namespace broker {
 namespace detail {
@@ -23,37 +25,62 @@ struct core_state;
 /// A stream governor dispatches incoming data from all publishers to local
 /// subscribers as well as peers. Its primary job is to avoid routing loops by
 /// not forwarding data from a peer back to itself.
-class stream_governor : public caf::stream_handler {
+class stream_governor : public caf::ref_counted {
 public:
-  // -- Nested types -----------------------------------------------------------
+  // -- nested types -----------------------------------------------------------
 
-  struct peer_data {
-    filter_type filter;
-    caf::downstream<element_type> out;
-    caf::stream_id incoming_sid;
+  /// Stores state for both stream directions as well as a filter.
+  class peer_data : public caf::ref_counted {
+  public:
+    // --- constructors and destructors ----------------------------------------
 
-    peer_data(filter_type y, caf::local_actor* self, const caf::stream_id& sid,
-              caf::abstract_downstream::policy_ptr pp)
-        : filter(std::move(y)),
-          out(self, sid, std::move(pp)) {
-      // nop
-    }
+    peer_data(stream_governor* parent, filter_type y,
+              const caf::stream_id& downstream_sid,
+              caf::abstract_downstream::policy_ptr pp);
+
+    ~peer_data();
+
+    void send_stream_handshake();
+
+    /// Returns the downstream handle for this peer.
+    const caf::strong_actor_ptr& hdl() const;
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, peer_data& x) {
-      return f(x.filter, x.out, x.incoming_sid);
+      return f(x.filter, x.incoming_sid, x.out);
     }
+
+    /// Active filter on this peer.
+    filter_type filter;
+
+    /// ID of the input stream.
+    caf::stream_id incoming_sid;
+
+    /// Output stream.
+    caf::downstream<element_type> out;
+
+    /// Relay for this peer.
+    stream_relay_ptr relay;
+
+    /// Handle to the actual remote core.
+    caf::actor remote_core;
   };
 
-  using peer_data_ptr = std::unique_ptr<peer_data>;
+  using peer_data_ptr = caf::intrusive_ptr<peer_data>;
 
-  using peer_map = std::unordered_map<caf::strong_actor_ptr, peer_data_ptr>;
+  /// Maps peer handles to peer data.
+  using peer_map = std::unordered_map<caf::actor, peer_data_ptr>;
+
+  /// Maps input stream IDs to peer data.
+  using input_to_peer_map = std::unordered_map<caf::stream_id, peer_data_ptr>;
 
   using local_downstream = caf::filtering_downstream<element_type, key_type>;
 
-  // -- Constructors and destructors -------------------------------------------
+  // --- constructors and destructors ------------------------------------------
 
   stream_governor(core_state* state);
+
+  ~stream_governor();
 
   // -- Accessors --------------------------------------------------------------
 
@@ -61,7 +88,7 @@ public:
     return peers_;
   }
 
-  inline bool has_peer(const caf::strong_actor_ptr& hdl) const {
+  inline bool has_peer(const caf::actor& hdl) const {
     return peers_.count(hdl) > 0;
   }
 
@@ -69,61 +96,71 @@ public:
     return local_subscribers_;
   }
 
-  // -- Mutators ---------------------------------------------------------------
-  
-  template <class... Ts>
-  void new_stream(const caf::strong_actor_ptr& hdl, const caf::stream_id& sid,
-                  std::tuple<Ts...> xs) {
-    CAF_ASSERT(hdl != nullptr);
-    stream_type token{sid};
-    auto ys = std::tuple_cat(std::make_tuple(token), std::move(xs));
-    new_stream(hdl, token, make_message_from_tuple(std::move(ys)));
-  }
+  peer_data* peer(const caf::actor& remote_core);
 
-  peer_data* add_peer(caf::strong_actor_ptr ptr, filter_type filter);
+  // -- Mutators ---------------------------------------------------------------
+
+  /// Adds a new peer.
+  peer_data* add_peer(caf::strong_actor_ptr downstream_handle,
+                      caf::actor remote_core, const caf::stream_id& sid,
+                      filter_type filter);
+
+  /// Updates the filter of an existing peer.
+  bool update_peer(const caf::actor& hdl, filter_type filter);
 
   /// Pushes data into the stream.
   void push(topic&& t, data&& x);
 
   // -- Overridden member functions of `stream_handler` ------------------------
 
-  caf::error add_downstream(caf::strong_actor_ptr& hdl) override;
+  caf::error add_downstream(const caf::stream_id& sid,
+                            caf::strong_actor_ptr& hdl);
 
-  caf::error confirm_downstream(const caf::strong_actor_ptr& rebind_from,
+  caf::error confirm_downstream(const caf::stream_id& sid,
+                                const caf::strong_actor_ptr& rebind_from,
                                 caf::strong_actor_ptr& hdl, long initial_demand,
-                                bool redeployable) override;
+                                bool redeployable);
 
-  caf::error downstream_demand(caf::strong_actor_ptr& hdl,
-                               long new_demand) override;
+  caf::error downstream_demand(const caf::stream_id& sid,
+                               caf::strong_actor_ptr& hdl, long new_demand);
 
-  caf::error push(long* hint) override;
+  caf::error push();
 
-  caf::expected<long> add_upstream(caf::strong_actor_ptr& hdl,
-                                   const caf::stream_id& sid,
-                                   caf::stream_priority prio) override;
+  caf::expected<long> add_upstream(const caf::stream_id& sid,
+                                   caf::strong_actor_ptr& hdl,
+                                   const caf::stream_id& up_sid,
+                                   caf::stream_priority prio);
 
-  caf::error upstream_batch(caf::strong_actor_ptr& hdl, long,
-                            caf::message& xs) override;
+  caf::error upstream_batch(const caf::stream_id& sid,
+                            caf::strong_actor_ptr& hdl, long, caf::message& xs);
 
-  caf::error close_upstream(caf::strong_actor_ptr& hdl) override;
+  caf::error close_upstream(const caf::stream_id& sid,
+                            caf::strong_actor_ptr& hdl);
 
-  void abort(caf::strong_actor_ptr& cause, const caf::error& reason) override;
-
-  bool done() const override;
-
-  caf::message make_output_token(const caf::stream_id&) const override;
+  void abort(const caf::stream_id& sid, caf::strong_actor_ptr& cause,
+             const caf::error& reason);
 
   long total_downstream_net_credit() const;
 
-private:
-  void new_stream(const caf::strong_actor_ptr& hdl,
-                  const stream_type& token, caf::message msg);
+  inline core_state* state() {
+    return state_;
+  }
 
+private:
   core_state* state_;
   caf::upstream<element_type> in_;
   local_downstream local_subscribers_;
   peer_map peers_;
+  input_to_peer_map input_to_peers_;
 };
+
+/// @relates stream_governor
+void intrusive_ptr_add_ref(stream_governor*);
+
+/// @relates stream_governor
+void intrusive_ptr_release(stream_governor* p);
+
+using stream_governor_ptr = caf::intrusive_ptr<stream_governor>;
 
 } // namespace detail
 } // namespace broker

@@ -33,7 +33,7 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
 }
 
 void master_state::broadcast(data&& x) {
-  self->send(core, clones_topic, std::move(x));
+  self->send(core, atom::publish::value, clones_topic, std::move(x));
 }
 
 void master_state::remind(timespan expiry, const data& key) {
@@ -55,7 +55,7 @@ void master_state::expire(data& key) {
 }
 
 void master_state::command(internal_command& cmd) {
-  visit(*this, cmd.exclusive().xs);
+  caf::visit(*this, cmd.exclusive().xs);
 }
 
 void master_state::operator()(none) {
@@ -110,50 +110,53 @@ void master_state::operator()(detail::subtract_command& x) {
 
 void master_state::operator()(detail::snapshot_command& x) {
   BROKER_DEBUG("got snapshot request from" << to_string(x.clone));
+  if (x.clone == nullptr) {
+    BROKER_DEBUG("snapshot command with invalid address received");
+    return;
+  }
   auto ss = backend->snapshot();
   if (!ss)
     die("failed to snapshot master");
-  self->send(x.clone, std::move(*ss));
   self->monitor(x.clone);
   clones.insert(x.clone->address());
+  // TODO: While sending the full state to all replicas is wasteful, it is the
+  //       only way to make sure new replicas reach a consistent state. This is
+  //       because sending an asynchronous message here uses a separate channel
+  //       to clone. Since ordering is of upmost importance in our protocol, we
+  //       cannot have new commands arrive before the snapshot or vice versa. A
+  //       network-friendlier protocol would require to annotate each command
+  //       with a version in order to allow clones to figure out the correct
+  //       ordering of events.
+  set_command cmd{std::move(*ss)};
+  broadcast_from(cmd);
+}
+
+void master_state::operator()(detail::set_command& x) {
+  BROKER_ERROR("received a set_command in master actor");
 }
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string name,
                            master_state::backend_pointer backend) {
+  self->monitor(core);
   self->state.init(self, std::move(name), std::move(backend), std::move(core));
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
-      BROKER_DEBUG("lost connection to clone" << to_string(msg.source));
-      self->state.clones.erase(msg.source);
+      if (msg.source == core) {
+        BROKER_DEBUG("core is down, kill master as well");
+        self->quit(msg.reason);
+      } else {
+        BROKER_DEBUG("lost a clone");
+        self->state.clones.erase(msg.source);
+      }
     }
   );
   return {
-    // --- stream handshake with core ------------------------------------------
-    [=](const stream_type& in) {
-      self->add_sink(
-        // input stream
-        in,
-        // initialize state
-        [](caf::unit_t&) {
-          // nop
-        },
-        // processing step
-        [=](caf::unit_t&, element_type y) {
-          auto ptr = get_if<internal_command>(y.second);
-          if (ptr) {
-            self->state.command(*ptr);
-          } else {
-            BROKER_DEBUG("received non-command message:" << y);
-          }
-        },
-        // cleanup and produce result message
-        [](caf::unit_t&) {
-          // nop
-        }
-      );
-    },
     // --- local communication -------------------------------------------------
+    [=](atom::local, internal_command& x) {
+      // treat locally and remotely received commands in the same way
+      self->state.command(x);
+    },
     [=](atom::expire, data& key) {
       self->state.expire(key);
     },
@@ -168,22 +171,18 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       if (!self->state.clones.empty())
         broadcast(caf::make_message(atom::clear::value));
     },
+    [=](atom::keys) -> expected<data> {
+      BROKER_DEBUG("KEYS");
+      return self->state.backend->keys();
+    },
+    [=](atom::keys, request_id id) {
+      BROKER_DEBUG("KEYS" << "with id:" << id);
+      auto x = self->state.backend->keys();
+      if (x)
+        return caf::make_message(std::move(*x), id);
+      return caf::make_message(std::move(x.error()), id);
+    },
     */
-    [=](put_command& x) {
-      self->state(x);
-    },
-    [=](erase_command& x) {
-      self->state(x);
-    },
-    [=](add_command& x) {
-      self->state(x);
-    },
-    [=](subtract_command& x) {
-      self->state(x);
-    },
-    [=](snapshot_command& x) {
-      self->state(x);
-    },
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       return self->state.backend->get(key);
@@ -209,17 +208,30 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     [=](atom::get, atom::name) {
       return self->state.name;
     },
-    [=](atom::keys) -> expected<data> {
-      BROKER_DEBUG("KEYS");
-      return self->state.backend->keys();
-    },
-    [=](atom::keys, request_id id) {
-      BROKER_DEBUG("KEYS" << "with id:" << id);
-      auto x = self->state.backend->keys();
-      if (x)
-        return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
-    },
+    // --- stream handshake with core ------------------------------------------
+    [=](const stream_type& in) {
+      self->add_sink(
+        // input stream
+        in,
+        // initialize state
+        [](caf::unit_t&) {
+          // nop
+        },
+        // processing step
+        [=](caf::unit_t&, element_type y) {
+          auto ptr = get_if<internal_command>(y.second);
+          if (ptr) {
+            self->state.command(*ptr);
+          } else {
+            BROKER_DEBUG("received non-command message:" << y);
+          }
+        },
+        // cleanup and produce result message
+        [](caf::unit_t&) {
+          // nop
+        }
+      );
+    }
   };
 }
 

@@ -35,6 +35,12 @@ endpoint::endpoint(context& ctx) : ctx_(ctx) {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+  char const* addr = address.empty() ? nullptr : address.c_str();
+  auto res = ctx_.system().middleman().publish(core(), port, addr);
+  return res ? *res : 0;
+  /*
+  auto res = caf::io::publish(ctx_.core(), port);
+
   auto bound = caf::expected<uint16_t>{caf::error{}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
@@ -62,11 +68,18 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
     }
   );
   return *bound;
+  */
 }
 
 /* TODO: reimplement
 void endpoint::peer(const std::string& address, uint16_t port) {
-  caf::anon_send(core(), atom::peer::value, network_info{address, port});
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  auto hdl = ctx_.system().middleman().remote_actor(address, port);
+  if (hdl) {
+    CAF_LOG_DEBUG(CAF_ARG(core()) << CAF_ARG(hdl));
+    anon_send(core(), atom::peer::value, std::move(*hdl));
+  }
+  //caf::anon_send(core(), atom::peer::value, network_info{address, port});
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {
@@ -123,7 +136,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 expected<store> endpoint::attach_clone(std::string name) {
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), timeout::core, atom::store::value, atom::clone::value,
+  self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
                 atom::attach::value, std::move(name)).receive(
     [&](caf::actor& clone) {
       res = store{std::move(clone)};

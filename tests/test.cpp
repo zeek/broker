@@ -3,21 +3,31 @@
 
 #include "test.hpp"
 
+#include <caf/io/middleman.hpp>
+#include <caf/io/network/test_multiplexer.hpp>
+
 using namespace caf;
 using namespace broker;
 
-configuration test_coordinator_context_fixture::make_config() {
-  configuration cfg;
-  cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_verbosity = caf::atom("TRACE");
-  return cfg;
-}
-
-test_coordinator_context_fixture::test_coordinator_context_fixture()
-    : ctx(make_config()),
+base_fixture::base_fixture(bool fake_network)
+    : ctx(make_config(fake_network)),
       sys(ctx.system()),
       self(sys),
       sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
+  // nop
+}
+
+configuration base_fixture::make_config(bool fake_network) {
+  configuration cfg;
+  cfg.middleman_detach_utility_actors = false;
+  cfg.scheduler_policy = caf::atom("testing");
+  cfg.logger_verbosity = caf::atom("TRACE");
+  if (fake_network)
+    cfg.load<io::middleman, io::network::test_multiplexer>();
+  return cfg;
+}
+
+fake_network_fixture::fake_network_fixture() : base_fixture(true) {
   // nop
 }
 

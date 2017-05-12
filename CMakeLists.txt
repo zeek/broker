@@ -164,6 +164,7 @@ set(BROKER_SRC
   src/status.cc
   src/store.cc
   src/stream_governor.cc
+  src/stream_relay.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc
@@ -178,6 +179,7 @@ set(BROKER_SRC
   src/detail/flare_actor.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
+  src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/sqlite_backend.cc
 

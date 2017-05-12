@@ -11,6 +11,8 @@
 #include "broker/topic.hh"
 #include "broker/version.hh"
 
+#include "broker/detail/aliases.hh"
+
 namespace broker {
 
 configuration::configuration() {
@@ -30,6 +32,10 @@ configuration::configuration() {
   add_message_type<optional<timestamp>>("broker::optional<broker::timestamp>");
   add_message_type<optional<timespan>>("broker::optional<broker::timespan>");
   add_message_type<snapshot>("broker::snapshot");
+  add_message_type<detail::element_type>("broker::detail::element_type");
+  add_message_type<internal_command>("broker::internal_command");
+  add_message_type<std::vector<detail::element_type>>(
+    "broker::detail::element_type_vec");
   load<caf::io::middleman>();
   logger_filename = "broker_[TIMESTAMP]_[PID].log";
   logger_verbosity = caf::atom("DEBUG");

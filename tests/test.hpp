@@ -11,6 +11,8 @@
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 
+#include <caf/io/network/test_multiplexer.hpp>
+
 #include "broker/configuration.hh"
 #include "broker/context.hh"
 
@@ -50,17 +52,25 @@
 
 /// A fixture that offes a `context` configured with `test_coordinator` as
 /// scheduler as well as a `scoped_actor`.
-struct test_coordinator_context_fixture {
+class base_fixture {
+public:
   using scheduler_type = caf::scheduler::test_coordinator;
+
+  base_fixture(bool fake_network = false);
 
   broker::context ctx;
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
 
-  static broker::configuration make_config();
+private:
+  static broker::configuration make_config(bool fake_network);
+};
 
-  test_coordinator_context_fixture();
+/// Extends the base fixture with fake networking.
+class fake_network_fixture : public base_fixture {
+public:
+  fake_network_fixture();
 };
 
 #endif

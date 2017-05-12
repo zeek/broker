@@ -19,6 +19,7 @@ using subscribe = caf::subscribe_atom;
 using unsubscribe = caf::unsubscribe_atom;
 using tick = caf::tick_atom;
 using publish = caf::publish_atom;
+using update = caf::update_atom;
 
 /// --- generic communication --------------------------------------------------
 
@@ -44,9 +45,10 @@ using expire = caf::atom_constant<caf::atom("expire")>;
 using increment = caf::atom_constant<caf::atom("increment")>;
 using keys = caf::atom_constant<caf::atom("keys")>;
 using master = caf::atom_constant<caf::atom("master")>;
-using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 using store = caf::atom_constant<caf::atom("store")>;
 using subtract = caf::atom_constant<caf::atom("subtract")>;
+using local = caf::atom_constant<caf::atom("local")>;
+using resolve = caf::atom_constant<caf::atom("resolve")>;
 
 } // namespace atom
 } // namespace broker

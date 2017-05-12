@@ -17,6 +17,7 @@
 
 #include "broker/detail/radix_tree.hh"
 #include "broker/detail/stream_governor.hh"
+#include "broker/detail/stream_relay.hh"
 
 namespace broker {
 namespace detail {
@@ -32,12 +33,37 @@ struct peer_state {
 };
 
 struct core_state {
+  // --- nested types ----------------------------------------------------------
+
+  /// Identifies the two individual streams forming a bidirectional channel.
+  /// The first ID denotes the *input*  and the second ID denotes the *output*.
+  using stream_id_pair = std::pair<caf::stream_id, caf::stream_id>;
+
+  // --- construction ----------------------------------------------------------
+
   /// Establishes all invariants.
   void init(caf::event_based_actor* s, filter_type initial_filter);
+
+  // --- message introspection -------------------------------------------------
 
   /// Returns the peer that sent the current message.
   /// @pre `xs.match_elements<stream_msg>()`
   caf::strong_actor_ptr prev_peer_from_handshake();
+
+  // --- filter management -----------------------------------------------------
+
+  /// Sends the current filter to all peers.
+  void update_filter_on_peers();
+
+  /// Adds `xs` to our filter and update all peers on changes.
+  void add_to_filter(filter_type xs);
+
+  // --- convenience functions for querying state ------------------------------
+
+  /// Returns whether `x` is either a pending peer or a connected peer.
+  bool has_peer(const caf::actor& x);
+
+  // --- member variables ------------------------------------------------------
 
   //std::vector<peer_state> peers;
   radix_tree<subscription_state> subscriptions;
@@ -53,16 +79,19 @@ struct core_state {
   filter_type filter;
  
   /// Multiplexes local streams and streams for peers.
-  caf::intrusive_ptr<stream_governor> governor;
+  detail::stream_governor_ptr governor;
 
-  /// Stream ID used by the governor.
-  caf::stream_id sid;
+  /// Maps pending peer handles to output IDs.
+  std::unordered_map<caf::actor, caf::stream_id> pending_peers;
 
-  /// Set of pending handshake requests.
-  std::unordered_set<caf::strong_actor_ptr> pending_peers;
+  /// Connected peers.
+  std::unordered_map<caf::actor, stream_id_pair> connected_peers;
 
   /// Points to the owning actor.
   caf::event_based_actor* self;
+
+  /// Connects the governor to the input of local actor.
+  caf::stream_handler_ptr local_relay;
 
   /// Name shown in logs for all instances of this actor.
   static const char* name;

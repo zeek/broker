@@ -55,6 +55,8 @@ public:
 
   void operator()(detail::snapshot_command&);
 
+  void operator()(detail::set_command&);
+
   caf::event_based_actor* self;
 
   std::string name;

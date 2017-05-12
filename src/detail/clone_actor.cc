@@ -9,68 +9,103 @@
 #include "broker/snapshot.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/clone_actor.hh"
+#include "broker/detail/aliases.hh"
 #include "broker/detail/appliers.hh"
+#include "broker/detail/clone_actor.hh"
 
 namespace broker {
 namespace detail {
 
+clone_state::clone_state() : self(nullptr) {
+  // nop
+}
+
+void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
+                       caf::actor&& parent) {
+
+  self = ptr;
+  name = std::move(nm);
+  master_topic = name / topics::reserved / topics::master;
+  core = std::move(parent);
+}
+
+void clone_state::forward(data&& x) {
+  self->send(core, atom::publish::value, master_topic, std::move(x));
+}
+
+void clone_state::command(internal_command& cmd) {
+  caf::visit(*this, cmd.exclusive().xs);
+}
+
+void clone_state::operator()(none) {
+  BROKER_DEBUG("received empty command");
+}
+
+void clone_state::operator()(detail::put_command& x) {
+  BROKER_DEBUG("put" << x.key << "->" << x.value);
+  auto i = store.find(x.key);
+  if (i != store.end())
+    i->second = std::move(x.value);
+  else
+    store.emplace(std::move(x.key), std::move(x.value));
+}
+
+void clone_state::operator()(detail::erase_command& x) {
+  BROKER_DEBUG("erase" << x.key);
+  store.erase(x.key);
+}
+
+void clone_state::operator()(detail::add_command& x) {
+  BROKER_DEBUG("add" << x.key << "->" << x.value);
+  auto i = store.find(x.key);
+  if (i == store.end())
+    store.emplace(std::move(x.key), std::move(x.value));
+  else
+    visit(adder{x.value}, i->second);
+}
+
+void clone_state::operator()(detail::subtract_command& x) {
+  BROKER_DEBUG("subtract" << x.key << "->" << x.value);
+  auto i = store.find(x.key);
+  if (i != store.end()) {
+    visit(remover{x.value}, i->second);
+  } else {
+    // can happen if we joined a stream but did not yet receive set_command
+    BROKER_WARNING("received substract_command for unknown key");
+  }
+}
+
+void clone_state::operator()(detail::snapshot_command&) {
+  BROKER_ERROR("received a snapshot_command in clone actor");
+}
+
+void clone_state::operator()(detail::set_command& x) {
+  store = std::move(x.state);
+}
+
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, caf::actor master,
                           std::string name) {
-  auto forward = [=](const caf::message& msg) {
-    auto t = name / topics::reserved / topics::master;
-    self->send(master, std::move(t), msg, core);
-  };
-  auto relay = caf::message_handler{
-    [=](atom::put, data& key, data& value, optional<timespan> expiry) {
-      forward(caf::make_message(atom::put::value, std::move(key),
-                                std::move(value), expiry));
+  self->monitor(master);
+  self->monitor(core);
+  self->state.init(self, std::move(name), std::move(core));
+  self->set_down_handler(
+    [=](const caf::down_msg& msg) {
+      if (msg.source == core) {
+        BROKER_DEBUG("core is down, kill clone as well");
+        self->quit(msg.reason);
+      } else {
+        BROKER_DEBUG("lost master");
+        self->quit(msg.reason);
+      }
+    }
+  );
+  return {
+    // --- local communication -------------------------------------------------
+    [=](atom::local, internal_command& x) {
+      // forward all commands to the master
+      self->state.forward(data{std::move(x)});
     },
-    [=](atom::add, data& key, data& value, optional<timespan> expiry) {
-      forward(caf::make_message(atom::add::value, std::move(key),
-                                std::move(value), expiry));
-    },
-    [=](atom::erase, data& key) {
-      forward(caf::make_message(atom::erase::value, std::move(key)));
-    },
-    [=](atom::clear) {
-      forward(caf::make_message(atom::clear::value));
-    },
-    [=](atom::subtract, data& key, data& value, optional<timespan> expiry) {
-      forward(caf::make_message(atom::subtract::value, std::move(key),
-                                std::move(value), expiry));
-    },
-  };
-  auto update = caf::message_handler{
-    [=](atom::put, data& key, data& value) {
-      BROKER_DEBUG("put" << key << "->" << value);
-      auto i = self->state.store.find(key);
-      if (i != self->state.store.end())
-        i->second = std::move(value);
-      else
-        self->state.store.emplace(std::move(key), std::move(value));
-    },
-    [=](atom::erase, data& key) {
-      BROKER_DEBUG("erase" << key);
-      self->state.store.erase(key);
-    },
-    [=](atom::add, data& key, data& value) {
-      BROKER_DEBUG("add" << key << "->" << value);
-      auto i = self->state.store.find(key);
-      if (i == self->state.store.end())
-        self->state.store.emplace(std::move(key), std::move(value));
-      else
-        visit(adder{value}, i->second);
-    },
-    [=](atom::subtract, data& key, data& value) {
-      BROKER_DEBUG("subtract" << key << "->" << value);
-      auto i = self->state.store.find(key);
-      BROKER_ASSERT(i != self->state.store.end());
-      visit(remover{value}, i->second);
-    },
-  };
-  auto local = caf::message_handler{
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       auto i = self->state.store.find(key);
@@ -103,37 +138,33 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
-      return name;
+      return self->state.name;
     },
-    [=](atom::keys) -> expected<data> {
-      BROKER_DEBUG("KEYS");
-      set keys;
-      for ( auto i = self->state.store.begin(); i != self->state.store.end(); i++ )
-        keys.insert(i->first);
-      return keys;
-    },
-    [=](atom::keys, request_id id) {
-      BROKER_DEBUG("KEYS" << "with id:" << id);
-      set keys;
-      for ( auto i = self->state.store.begin(); i != self->state.store.end(); i++ )
-        keys.insert(i->first);
-      return caf::make_message(std::move(keys), id);
+    // --- stream handshake with core ------------------------------------------
+    [=](const stream_type& in) {
+      self->add_sink(
+        // input stream
+        in,
+        // initialize state
+        [](caf::unit_t&) {
+          // nop
+        },
+        // processing step
+        [=](caf::unit_t&, element_type y) {
+          auto ptr = get_if<internal_command>(y.second);
+          if (ptr) {
+            self->state.command(*ptr);
+          } else {
+            BROKER_DEBUG("received non-command message:" << y);
+          }
+        },
+        // cleanup and produce result message
+        [](caf::unit_t&) {
+          // nop
+        }
+      );
     }
   };
-  auto dispatch = caf::message_handler{
-    [=](topic& t, caf::message& msg, const caf::actor& source) mutable {
-      BROKER_DEBUG("dispatching message with topic" << t << "from core"
-                   << to_string(source));
-      update(msg);
-    }
-  };
-  auto direct = caf::message_handler{
-    [=](snapshot& ss) {
-      BROKER_DEBUG("got snapshot with" << ss.entries.size() << "entries");
-      self->state.store = ss.entries;
-    },
-  };
-  return dispatch.or_else(relay).or_else(update).or_else(local).or_else(direct);
 }
 
 } // namespace detail

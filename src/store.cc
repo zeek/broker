@@ -8,10 +8,12 @@
 #include "broker/detail/die.hh"
 #include "broker/detail/flare_actor.hh"
 
+using namespace broker::detail;
+
 namespace broker {
 
 store::proxy::proxy(store& s) : frontend_{s.frontend_} {
-  proxy_ = frontend_.home_system().spawn<detail::flare_actor>();
+  proxy_ = frontend_.home_system().spawn<flare_actor>();
 }
 
 request_id store::proxy::get(data key) {
@@ -29,7 +31,7 @@ request_id store::proxy::keys() {
 }
 
 mailbox store::proxy::mailbox() {
-  return detail::make_mailbox(caf::actor_cast<detail::flare_actor*>(proxy_));
+  return make_mailbox(caf::actor_cast<flare_actor*>(proxy_));
 }
 
 store::response store::proxy::receive() {
@@ -56,7 +58,7 @@ std::string store::name() const {
       result = name;
     },
     [&](caf::error& e) {
-      detail::die("failed to retrieve store name:", to_string(e));
+      die("failed to retrieve store name:", to_string(e));
     }
   );
   return result;
@@ -77,22 +79,26 @@ expected<data> store::keys() const {
 }
 
 void store::put(data key, data value, optional<timespan> expiry) const {
-  anon_send(frontend_,
-            detail::put_command{std::move(key), std::move(value), expiry});
+  anon_send(frontend_, atom::local::value,
+            make_internal_command<put_command>(
+              std::move(key), std::move(value), expiry));
 }
 
 void store::erase(data key) const {
-  anon_send(frontend_, detail::erase_command{std::move(key)});
+  anon_send(frontend_, atom::local::value,
+            make_internal_command<erase_command>(std::move(key)));
 }
 
 void store::add(data key, data value, optional<timespan> expiry) const {
-  anon_send(frontend_,
-            detail::add_command{std::move(key), std::move(value), expiry});
+  anon_send(frontend_, atom::local::value,
+            make_internal_command<add_command>(std::move(key), std::move(value),
+                                               expiry));
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) const {
-  anon_send(frontend_,
-            detail::subtract_command{std::move(key), std::move(value), expiry});
+  anon_send(frontend_, atom::local::value,
+            make_internal_command<subtract_command>(std::move(key),
+                                                    std::move(value), expiry));
 }
 
 void store::clear() const {
