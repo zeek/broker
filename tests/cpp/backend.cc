@@ -31,13 +31,11 @@ public:
     paths_.push_back(*path);
     detail::remove_all(*path);
     backends_.push_back(detail::make_backend(sqlite, opts));
-#if 0 // Tests don't pass right now.
 #ifdef BROKER_HAVE_ROCKSDB
     *path = base + ".rocksdb";
     paths_.push_back(*path);
     detail::remove_all(*path);
     backends_.push_back(detail::make_backend(rocksdb, opts));
-#endif
 #endif
   }
 

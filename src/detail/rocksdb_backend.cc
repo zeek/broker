@@ -67,7 +67,7 @@ struct rocksdb_backend::impl {
     if (expiry) {
       BROKER_ASSERT(key.size() > 1);
       key[0] = static_cast<char>(prefix::expiry); // reuse key blob
-      auto blob = to_blob(expiry_time(expiry));
+      auto blob = to_blob(expiry_time(*expiry));
       batch.Put(key, blob);
     }
     auto status = db->Write({}, &batch);
@@ -134,7 +134,7 @@ struct rocksdb_backend::impl {
 
   rocksdb::DB* db = nullptr;
   count exact_size_threshold = 10000;
-  std::string* path;
+  std::string path;
 };
 
 rocksdb_backend::rocksdb_backend(backend_options opts)
@@ -143,9 +143,10 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
   auto i = opts.find("path");
   if (i == opts.end())
     return;
-  impl_->path = get_if<std::string>(i->second);
-  if (!impl_->path)
+  auto path = get_if<std::string>(i->second);
+  if (!path)
     return;
+  impl_->path = *path;
   // Parse optional options.
   i = opts.find("exact-size-threshold");
   if (i != opts.end()) {
@@ -161,7 +162,7 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
 bool rocksdb_backend::open_db() {
   rocksdb::Options rocks_opts;
   rocks_opts.create_if_missing = true;
-  auto status = rocksdb::DB::Open(rocks_opts, impl_->path->c_str(), &impl_->db);
+  auto status = rocksdb::DB::Open(rocks_opts, impl_->path.c_str(), &impl_->db);
   if (!status.ok()) {
     BROKER_ERROR("failed to open DB:" << status.ToString());
     impl_->db = nullptr;
@@ -246,21 +247,18 @@ expected<void> rocksdb_backend::erase(const data& key) {
 expected<void> rocksdb_backend::clear() {
   if (!impl_->db)
     return ec::backend_failure;
-
+  std::string path = impl_->path;
   delete impl_->db;
   impl_->db = nullptr;
-
-  auto status = rocksdb::DestroyDB(impl_->path->c_str(), rocksdb::Options());
+  auto status = rocksdb::DestroyDB(path.c_str(), rocksdb::Options());
   if (!status.ok()) {
     BROKER_ERROR("failed to destroy DB:" << status.ToString());
     return ec::backend_failure;
   }
-
   if (!open_db()) {
     BROKER_ERROR("failed to reopen DB");
     return ec::backend_failure;
-    }
-
+  }
   return {};
 }
 
