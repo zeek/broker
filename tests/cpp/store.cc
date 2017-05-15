@@ -177,7 +177,7 @@ TEST(proxy) {
   REQUIRE(!resp.answer);
   CHECK_EQUAL(resp.answer.error(), ec::no_such_key);
   MESSAGE("clone: issue queries");
-  auto c = ep.attach<clone>("puneta");
+  auto c = ep.attach<broker::clone>("puneta");
   REQUIRE(c);
   proxy = store::proxy{*c};
   id = proxy.get("foo");

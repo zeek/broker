@@ -14,7 +14,7 @@ namespace {
 
 bool is_ready(blocking_endpoint& e, seconds secs = seconds::zero()) {
   auto fd = e.mailbox().descriptor();
-  pollfd p = {fd, POLLIN, {}};
+  pollfd p = {fd, POLLIN, 0};
   auto n = ::poll(&p, 1, secs.count() * 1000);
   if (n < 0)
     std::terminate();
