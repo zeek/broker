@@ -24,6 +24,8 @@ std::unique_ptr<detail::abstract_backend> make_backend(backend type,
       die("not compiled with RocksDB support");
 #endif
   }
+
+  die("invalid backend type");
 }
 
 } // namespace detail

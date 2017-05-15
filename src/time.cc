@@ -41,6 +41,6 @@ bool convert(double secs, timestamp& ts) {
 
 timestamp now() {
   return clock::now();
-};
+}
 
 } // namespace broker
