@@ -1,5 +1,5 @@
-#ifndef BROKER_DETAIL_DIE_HPP
-#define BROKER_DETAIL_DIE_HPP
+#ifndef BROKER_DETAIL_DIE_HH
+#define BROKER_DETAIL_DIE_HH
 
 #include <iostream>
 
@@ -30,4 +30,4 @@ template <class... Ts>
 } // namespace detail
 } // namespace broker
 
-#endif
+#endif // BROKER_DETAIL_DIE_HH

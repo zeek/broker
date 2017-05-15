@@ -1,5 +1,5 @@
-#ifndef BROKER_DETAIL_MAKE_BACKEND_HPP
-#define BROKER_DETAIL_MAKE_BACKEND_HPP
+#ifndef BROKER_DETAIL_MAKE_BACKEND_HH
+#define BROKER_DETAIL_MAKE_BACKEND_HH
 
 #include <memory>
 
@@ -17,4 +17,4 @@ std::unique_ptr<abstract_backend> make_backend(backend type,
 } // namespace detail
 } // namespace broker
 
-#endif // BROKER_DETAIL_MAKE_BACKEND_HPP
+#endif // BROKER_DETAIL_MAKE_BACKEND_HH

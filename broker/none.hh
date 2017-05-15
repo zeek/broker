@@ -66,4 +66,4 @@ struct hash<broker::none> {
 
 }
 
-#endif // BROKER_FWD_HH
+#endif // BROKER_NONE_HH

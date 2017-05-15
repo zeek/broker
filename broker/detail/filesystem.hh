@@ -29,4 +29,4 @@ bool remove_all(const path& p);
 } // namespace detail
 } // namespace broker
 
-#endif // BROKER_DETAIL_FILE_SYSTEM_HH
+#endif // BROKER_DETAIL_FILESYSTEM_HH

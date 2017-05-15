@@ -542,4 +542,4 @@ struct hash<broker::detail::variant<Ts...>> {
 
 } // namespace std
 
-#endif // BROKER_VARIANT_HH
+#endif // BROKER_DETAIL_VARIANT_HH

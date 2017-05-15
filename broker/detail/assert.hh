@@ -5,5 +5,5 @@
 
 #define BROKER_ASSERT CAF_ASSERT
 
-#endif // BROKER_ASSERT_HH
+#endif // BROKER_DETAIL_ASSERT_HH
 

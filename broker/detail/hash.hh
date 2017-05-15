@@ -46,4 +46,4 @@ struct container_hasher {
 } // namespace detail
 } // namespace broker
 
-#endif // BROKER_UTIL_HASH_HH
+#endif // BROKER_DETAIL_HASH_HH

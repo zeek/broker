@@ -7,4 +7,4 @@
 #cmakedefine BROKER_FREEBSD
 #cmakedefine BROKER_LINUX
 
-#endif
+#endif // BROKER_CONFIG_HH

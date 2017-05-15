@@ -13,4 +13,4 @@ unique_ptr<T> make_unique(Ts&&... xs) {
 
 } // namespace std
 
-#endif
+#endif // BROKER_DETAIL_MAKE_UNIQUE_HH
