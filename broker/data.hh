@@ -28,17 +28,6 @@
 #include "broker/detail/variant.hh"
 
 namespace broker {
-namespace detail {
-
-class command;
-
-void intrusive_ptr_add_ref(command*);
-void intrusive_ptr_release(command*);
-
-} // namespace detail
-} // namespace broker
-
-namespace broker {
 
 class data;
 
@@ -60,37 +49,6 @@ using table = std::map<data, data>;
 /// @relates table
 bool convert(const table& t, std::string& str);
 
-/// A Broker-internal command.
-class internal_command : caf::detail::comparable<internal_command> {
-public:
-  using pointer = caf::intrusive_ptr<detail::command>;
-
-  internal_command();
-  internal_command(internal_command&&) = default;
-  internal_command(const internal_command&) = default;
-  internal_command& operator=(internal_command&&) = default;
-  internal_command& operator=(const internal_command&) = default;
-
-  explicit internal_command(pointer ptr);
-
-  /// Grants exclusive access to the command with mutable access.
-  detail::command& exclusive();
-
-  /// Grants shared access to the command with const access only.
-  const detail::command& shared() const;
-
-  long compare(const internal_command& x) const;
-
-private:
-  pointer ptr_;
-};
-
-//std::string to_string(const internal_command& x);
-
-/// @relates internal_command
-bool convert(const internal_command& t, std::string& str);
-
-
 using data_variant = detail::variant<
   none,
   boolean,
@@ -106,8 +64,7 @@ using data_variant = detail::variant<
   enum_value,
   set,
   table,
-  vector,
-  internal_command
+  vector
 >;
 
 /// A variant class that may store the data associated with one of several
@@ -139,8 +96,7 @@ public:
                     || std::is_same<T, port>::value
                     || std::is_same<T, set>::value
                     || std::is_same<T, table>::value
-                    || std::is_same<T, vector>::value
-                    || std::is_same<T, internal_command>::value,
+                    || std::is_same<T, vector>::value,
                   T,
                   std::false_type
                 >
@@ -234,120 +190,6 @@ template <>
 struct hash<broker::table>
   : broker::detail::container_hasher<broker::table> {};
 
-template <>
-struct hash<broker::internal_command> {
-  size_t operator()(const broker::internal_command&) const {
-    // TODO: implement me
-    return 0;
-  }
-};
-
 } // namespace std
-
-// --- implementations internal command types ----------------------------------
-
-namespace broker {
-namespace detail {
-
-/// Sets a value in the key-value store.
-struct put_command {
-  data key;
-  data value;
-  caf::optional<timespan> expiry;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, put_command& x) {
-  return f(caf::meta::type_name("put"), x.key, x.value, x.expiry);
-}
-
-/// Removes a value in the key-value store.
-struct erase_command {
-  data key;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
-  return f(caf::meta::type_name("erase"), x.key);
-}
-
-/// Adds a value to the existing value.
-struct add_command {
-  data key;
-  data value;
-  caf::optional<timespan> expiry;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, add_command& x) {
-  return f(caf::meta::type_name("add"), x.key, x.value, x.expiry);
-}
-
-/// Subtracts a value to the existing value.
-struct subtract_command {
-  data key;
-  data value;
-  caf::optional<timespan> expiry;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, subtract_command& x) {
-  return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry);
-}
-
-/// Forces the master to create and broadcast a new snapshot of its state.
-struct snapshot_command {
-  caf::actor clone;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, snapshot_command& x) {
-  return f(caf::meta::type_name("snapshot"), x.clone);
-}
-
-/// Sets the full state of all receiving replicates to the included snapshot.
-struct set_command {
-  std::unordered_map<data, data> state;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, set_command& x) {
-  return f(caf::meta::type_name("set"), x.state);
-}
-
-class command : public caf::ref_counted {
-public:
-  using variant_type = caf::variant<none, put_command, erase_command, add_command,
-                               subtract_command, snapshot_command, set_command>;
-
-  variant_type xs;
-
-  command(variant_type ys);
-};
-
-} // namespace detail
-
-template <class T, class... Ts>
-internal_command make_internal_command(Ts&&... xs) {
-  auto ptr = caf::make_counted<detail::command>(T{std::forward<Ts>(xs)...});
-  return internal_command{std::move(ptr)};
-}
-
-  template <class Inspector>
-  typename std::enable_if<Inspector::reads_state,
-                          typename Inspector::result_type>::type
-  inspect(Inspector& f, internal_command& x) {
-  return f(caf::meta::type_name("internal_command"), x.shared().xs);
-}
-
-template <class Inspector>
-typename std::enable_if<Inspector::writes_state,
-                        typename Inspector::result_type>::type
-inspect(Inspector& f, internal_command& x) {
-  return f(caf::meta::type_name("internal_command"), x.exclusive().xs);
-}
-
-} // namespace broker
-
 
 #endif // BROKER_DATA_HH

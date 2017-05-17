@@ -6,9 +6,10 @@ namespace broker {
 namespace detail {
 
 stream_relay::stream_relay(caf::intrusive_ptr<stream_governor> gov,
-                           const caf::stream_id& sid)
+                           const caf::stream_id& sid, token_factory factory)
   : governor_(std::move(gov)),
-    sid_(std::move(sid)) {
+    sid_(std::move(sid)),
+    factory_(std::move(factory)) {
   // nop
 }
 
@@ -62,7 +63,7 @@ bool stream_relay::done() const {
 }
 
 caf::message stream_relay::make_output_token(const caf::stream_id& x) const {
-  return caf::make_message(detail::stream_type{x});
+  return factory_(x);
 }
 
 } // namespace broker

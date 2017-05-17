@@ -4,6 +4,8 @@
 
 #include "broker/store.hh"
 
+#include "broker/internal_command.hh"
+
 #include "broker/detail/assert.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/flare_actor.hh"

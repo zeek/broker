@@ -6,10 +6,10 @@
 
 #include "broker/context.hh"
 #include "broker/data.hh"
+#include "broker/endpoint.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using namespace caf;
 
@@ -24,7 +24,7 @@ behavior publisher_worker(event_based_actor* self, context* ctx,
     [](unit_t&) {
       // nop
     },
-    [=](unit_t&, downstream<detail::stream_type::value_type>& out, size_t num) {
+    [=](unit_t&, downstream<endpoint::value_type>& out, size_t num) {
       publisher::guard_type guard{qptr->mtx};
       auto& xs = qptr->xs;
       if (xs.empty()) {
@@ -33,7 +33,7 @@ behavior publisher_worker(event_based_actor* self, context* ctx,
       } else {
         auto n = std::min(num, xs.size());
         for (size_t i = 0u; i < n; ++i)
-          out.push(xs[i]);
+          out.push(std::move(xs[i]));
         xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
         if (num - n > 0) {
           qptr->pending = static_cast<long>(num - n);

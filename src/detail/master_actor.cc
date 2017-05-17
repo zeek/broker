@@ -5,15 +5,15 @@
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/topic.hh"
 #include "broker/snapshot.hh"
+#include "broker/store.hh"
 #include "broker/time.hh"
+#include "broker/topic.hh"
 
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filter_type.hh"
 #include "broker/detail/master_actor.hh"
-#include "broker/detail/stream_type.hh"
 #include "broker/detail/type_traits.hh"
 
 namespace broker {
@@ -33,7 +33,7 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
   core = std::move(parent);
 }
 
-void master_state::broadcast(data&& x) {
+void master_state::broadcast(internal_command&& x) {
   self->send(core, atom::publish::value, clones_topic, std::move(x));
 }
 
@@ -56,14 +56,14 @@ void master_state::expire(data& key) {
 }
 
 void master_state::command(internal_command& cmd) {
-  caf::visit(*this, cmd.exclusive().xs);
+  caf::visit(*this, cmd.content);
 }
 
 void master_state::operator()(none) {
   BROKER_DEBUG("received empty command");
 }
 
-void master_state::operator()(detail::put_command& x) {
+void master_state::operator()(put_command& x) {
   BROKER_DEBUG("put" << x.key << "->" << x.value);
   auto result = backend->put(x.key, x.value, x.expiry);
   if (!result) {
@@ -75,7 +75,7 @@ void master_state::operator()(detail::put_command& x) {
   broadcast_from(x);
 }
 
-void master_state::operator()(detail::erase_command& x) {
+void master_state::operator()(erase_command& x) {
   BROKER_DEBUG("erase" << x.key);
   auto result = backend->erase(x.key);
   if (!result) {
@@ -85,7 +85,7 @@ void master_state::operator()(detail::erase_command& x) {
   broadcast_from(x);
 }
 
-void master_state::operator()(detail::add_command& x) {
+void master_state::operator()(add_command& x) {
   BROKER_DEBUG("add" << x.key);
   auto result = backend->add(x.key, x.value, x.expiry);
   if (!result) {
@@ -97,7 +97,7 @@ void master_state::operator()(detail::add_command& x) {
   broadcast_from(x);
 }
 
-void master_state::operator()(detail::subtract_command& x) {
+void master_state::operator()(subtract_command& x) {
   BROKER_DEBUG("subtract" << x.key);
   auto result = backend->subtract(x.key, x.value, x.expiry);
   if (!result) {
@@ -109,7 +109,7 @@ void master_state::operator()(detail::subtract_command& x) {
   broadcast_from(x);
 }
 
-void master_state::operator()(detail::snapshot_command& x) {
+void master_state::operator()(snapshot_command& x) {
   BROKER_DEBUG("got snapshot request from" << to_string(x.clone));
   if (x.clone == nullptr) {
     BROKER_DEBUG("snapshot command with invalid address received");
@@ -132,7 +132,7 @@ void master_state::operator()(detail::snapshot_command& x) {
   broadcast_from(cmd);
 }
 
-void master_state::operator()(detail::set_command& x) {
+void master_state::operator()(set_command& x) {
   BROKER_ERROR("received a set_command in master actor");
 }
 
@@ -210,7 +210,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       return self->state.name;
     },
     // --- stream handshake with core ------------------------------------------
-    [=](const stream_type& in) {
+    [=](const store::stream_type& in) {
       self->add_sink(
         // input stream
         in,
@@ -219,13 +219,8 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
           // nop
         },
         // processing step
-        [=](caf::unit_t&, stream_type::value_type y) {
-          auto ptr = get_if<internal_command>(y.second);
-          if (ptr) {
-            self->state.command(*ptr);
-          } else {
-            BROKER_DEBUG("received non-command message:" << y);
-          }
+        [=](caf::unit_t&, store::stream_type::value_type y) {
+          self->state.command(y.second);
         },
         // cleanup and produce result message
         [](caf::unit_t&) {

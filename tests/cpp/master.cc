@@ -6,7 +6,6 @@
 
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;
@@ -41,19 +40,20 @@ CAF_TEST(local_master) {
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   auto res = ds.get("hello");
-  CAF_CHECK_EQUAL(res, data{"world"});
+  CAF_REQUIRE_EQUAL(res, data{"world"});
   // check the name of the master
   sched.inline_next_enqueue(); // ds.name talks to the master_actor (blocking)
   auto n = ds.name();
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
   anon_send(core, atom::publish::value, n / topics::reserved / topics::master,
-            data{make_internal_command<put_command>("hello", "universe")});
+            make_internal_command<put_command>("hello", "universe"));
+  expect((atom_value, topic, internal_command), from(_).to(core).with(_, _, _));
   sched.run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   auto res2 = ds.get("hello");
-  CAF_CHECK_EQUAL(res2, data{"universe"});
+  CAF_REQUIRE_EQUAL(res2, data{"universe"});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
   sched.run();
@@ -207,7 +207,7 @@ CAF_TEST(master_with_clone) {
   ds_mars.put("user", "neverlord");
   expect_on(mars, (atom_value, internal_command),
             from(_).to(ds_mars.frontend()).with(atom::local::value, _));
-  expect_on(mars, (atom_value, topic, data),
+  expect_on(mars, (atom_value, topic, internal_command),
             from(_).to(mars.ctx.core()).with(atom::publish::value, _, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master

@@ -9,14 +9,19 @@ class blocking_endpoint;
 class context;
 class data;
 class endpoint;
-class message;
+class internal_command;
 class nonblocking_endpoint;
 class publisher;
 class status;
 class store;
 class subscriber;
 class topic;
-class internal_command;
+struct add_command;
+struct erase_command;
+struct put_command;
+struct set_command;
+struct snapshot_command;
+struct subtract_command;
 
 struct network_info;
 
@@ -35,12 +40,6 @@ namespace detail {
 
 class flare_actor;
 class mailbox;
-
-struct put_command;
-struct erase_command;
-struct add_command;
-struct subtract_command;
-struct snapshot_command;
 
 } // namespace detail
 

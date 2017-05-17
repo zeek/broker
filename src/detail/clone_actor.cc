@@ -7,12 +7,12 @@
 #include "broker/data.hh"
 #include "broker/error.hh"
 #include "broker/snapshot.hh"
+#include "broker/store.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/appliers.hh"
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 namespace broker {
 namespace detail {
@@ -30,19 +30,19 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   core = std::move(parent);
 }
 
-void clone_state::forward(data&& x) {
+void clone_state::forward(internal_command&& x) {
   self->send(core, atom::publish::value, master_topic, std::move(x));
 }
 
 void clone_state::command(internal_command& cmd) {
-  caf::visit(*this, cmd.exclusive().xs);
+  caf::visit(*this, cmd.content);
 }
 
 void clone_state::operator()(none) {
   BROKER_DEBUG("received empty command");
 }
 
-void clone_state::operator()(detail::put_command& x) {
+void clone_state::operator()(put_command& x) {
   BROKER_DEBUG("put" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end())
@@ -51,12 +51,12 @@ void clone_state::operator()(detail::put_command& x) {
     store.emplace(std::move(x.key), std::move(x.value));
 }
 
-void clone_state::operator()(detail::erase_command& x) {
+void clone_state::operator()(erase_command& x) {
   BROKER_DEBUG("erase" << x.key);
   store.erase(x.key);
 }
 
-void clone_state::operator()(detail::add_command& x) {
+void clone_state::operator()(add_command& x) {
   BROKER_DEBUG("add" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i == store.end())
@@ -65,7 +65,7 @@ void clone_state::operator()(detail::add_command& x) {
     visit(adder{x.value}, i->second);
 }
 
-void clone_state::operator()(detail::subtract_command& x) {
+void clone_state::operator()(subtract_command& x) {
   BROKER_DEBUG("subtract" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
@@ -76,11 +76,11 @@ void clone_state::operator()(detail::subtract_command& x) {
   }
 }
 
-void clone_state::operator()(detail::snapshot_command&) {
+void clone_state::operator()(snapshot_command&) {
   BROKER_ERROR("received a snapshot_command in clone actor");
 }
 
-void clone_state::operator()(detail::set_command& x) {
+void clone_state::operator()(set_command& x) {
   store = std::move(x.state);
 }
 
@@ -105,7 +105,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& x) {
       // forward all commands to the master
-      self->state.forward(data{std::move(x)});
+      self->state.forward(std::move(x));
     },
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
@@ -142,7 +142,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return self->state.name;
     },
     // --- stream handshake with core ------------------------------------------
-    [=](const stream_type& in) {
+    [=](const store::stream_type& in) {
       self->add_sink(
         // input stream
         in,
@@ -151,13 +151,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           // nop
         },
         // processing step
-        [=](caf::unit_t&, stream_type::value_type y) {
-          auto ptr = get_if<internal_command>(y.second);
-          if (ptr) {
-            self->state.command(*ptr);
-          } else {
-            BROKER_DEBUG("received non-command message:" << y);
-          }
+        [=](caf::unit_t&, store::stream_type::value_type y) {
+          self->state.command(y.second);
         },
         // cleanup and produce result message
         [](caf::unit_t&) {

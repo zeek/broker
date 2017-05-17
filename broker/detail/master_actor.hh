@@ -5,8 +5,10 @@
 
 #include <caf/stateful_actor.hpp>
 
-#include "broker/fwd.hh"
 #include "broker/data.hh"
+#include "broker/fwd.hh"
+#include "broker/internal_command.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 namespace detail {
@@ -29,7 +31,7 @@ public:
             backend_pointer&& bp, caf::actor&& parent);
 
   /// Sends `x` to all clones.
-  void broadcast(data&& x);
+  void broadcast(internal_command&& x);
 
   template <class T>
   void broadcast_from(T& x) {
@@ -45,17 +47,17 @@ public:
 
   void operator()(none);
 
-  void operator()(detail::put_command&);
+  void operator()(put_command&);
 
-  void operator()(detail::erase_command&);
+  void operator()(erase_command&);
 
-  void operator()(detail::add_command&);
+  void operator()(add_command&);
 
-  void operator()(detail::subtract_command&);
+  void operator()(subtract_command&);
 
-  void operator()(detail::snapshot_command&);
+  void operator()(snapshot_command&);
 
-  void operator()(detail::set_command&);
+  void operator()(set_command&);
 
   caf::event_based_actor* self;
 

@@ -1,6 +1,8 @@
 #ifndef BROKER_DETAIL_STREAM_RELAY_HH
 #define BROKER_DETAIL_STREAM_RELAY_HH
 
+#include <functional>
+
 #include <caf/intrusive_ptr.hpp>
 #include <caf/stream_handler.hpp>
 #include <caf/stream_id.hpp>
@@ -15,8 +17,10 @@ void intrusive_ptr_release(stream_governor* p);
 /// A stream relay forwards all received messages to the central governor.
 class stream_relay : public caf::stream_handler {
 public:
+  using token_factory = std::function<caf::message (const caf::stream_id&)>;
+
   stream_relay(caf::intrusive_ptr<stream_governor> gov,
-               const caf::stream_id& sid);
+               const caf::stream_id& sid, token_factory factory);
 
   ~stream_relay();
 
@@ -49,6 +53,7 @@ public:
 private:
   caf::intrusive_ptr<stream_governor> governor_;
   caf::stream_id sid_;
+  token_factory factory_;
 };
 
 using stream_relay_ptr = caf::intrusive_ptr<stream_relay>;

@@ -11,9 +11,9 @@
 
 #include "broker/atoms.hh"
 #include "broker/context.hh"
+#include "broker/endpoint.hh"
 
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using namespace caf;
 
@@ -58,7 +58,7 @@ private:
 class subscriber_sink : public extend<stream_handler, subscriber_sink>::
                                with<mixin::has_upstreams> {
 public:
-  using element_type = detail::stream_type::value_type;
+  using element_type = std::pair<topic, data>;
 
   subscriber_sink(event_based_actor* self, detail::shared_queue_ptr qptr,
                   long max_qsize)
@@ -122,7 +122,7 @@ behavior subscriber_worker(event_based_actor* self, context* ctx,
                            long max_qsize) {
   self->send(self * ctx->core(), atom::join::value, std::move(ts));
   return {
-    [=](const detail::stream_type& in) {
+    [=](const endpoint::stream_type& in) {
       auto mptr = self->current_mailbox_element();
       BROKER_ASSERT(mptr != nullptr);
       auto sptr = make_counted<subscriber_sink>(self, qptr, max_qsize);

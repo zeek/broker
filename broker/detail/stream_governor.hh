@@ -11,10 +11,12 @@
 #include <caf/upstream.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/data.hh"
+#include "broker/internal_command.hh"
+#include "broker/topic.hh"
 
 #include "broker/detail/filter_type.hh"
 #include "broker/detail/stream_relay.hh"
-#include "broker/detail/stream_type.hh"
 
 namespace broker {
 namespace detail {
@@ -30,8 +32,14 @@ class stream_governor : public caf::ref_counted {
 public:
   // -- nested types -----------------------------------------------------------
 
-  /// The type of each individual stream item.
-  using element_type = std::pair<topic, data>;
+  /// The type of each individual stream item for local endpoints.
+  using worker_element = std::pair<topic, data>;
+
+  /// The type of each individual stream item for store actors.
+  using store_element = std::pair<topic, internal_command>;
+
+  /// The type of each individual stream item for communication between peers.
+  using peer_element = caf::message;
 
   /// Stores state for both stream directions as well as a filter.
   class peer_data : public caf::ref_counted {
@@ -61,7 +69,7 @@ public:
     caf::stream_id incoming_sid;
 
     /// Output stream.
-    caf::downstream<element_type> out;
+    caf::downstream<peer_element> out;
 
     /// Relay for this peer.
     stream_relay_ptr relay;
@@ -78,7 +86,11 @@ public:
   /// Maps input stream IDs to peer data.
   using input_to_peer_map = std::unordered_map<caf::stream_id, peer_data_ptr>;
 
-  using local_downstream = caf::filtering_downstream<element_type, topic>;
+  /// Manages local subscribers spawned from endpoints.
+  using workers_downstream = caf::filtering_downstream<worker_element, topic>;
+
+  /// Manages local subscribers spawned from endpoints.
+  using stores_downstream = caf::filtering_downstream<store_element, topic>;
 
   // --- constructors and destructors ------------------------------------------
 
@@ -96,8 +108,12 @@ public:
     return peers_.count(hdl) > 0;
   }
 
-  inline local_downstream& local_subscribers() {
-    return local_subscribers_;
+  inline workers_downstream& workers() {
+    return workers_;
+  }
+
+  inline stores_downstream& stores() {
+    return stores_;
   }
 
   peer_data* peer(const caf::actor& remote_core);
@@ -112,8 +128,11 @@ public:
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);
 
-  /// Pushes data into the stream.
+  /// Pushes worker traffic into the stream.
   void push(topic&& t, data&& x);
+
+  /// Pushes store traffic into the stream.
+  void push(topic&& t, internal_command&& x);
 
   // -- Overridden member functions of `stream_handler` ------------------------
 
@@ -152,8 +171,9 @@ public:
 
 private:
   core_state* state_;
-  caf::upstream<element_type> in_;
-  local_downstream local_subscribers_;
+  caf::upstream<peer_element> in_;
+  workers_downstream workers_;
+  stores_downstream stores_;
   peer_map peers_;
   input_to_peer_map input_to_peers_;
 };

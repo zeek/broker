@@ -91,7 +91,10 @@ struct core_state {
   caf::event_based_actor* self;
 
   /// Connects the governor to the input of local actor.
-  caf::stream_handler_ptr local_relay;
+  caf::stream_handler_ptr worker_relay;
+
+  /// Connects the governor to the input of local actor.
+  caf::stream_handler_ptr store_relay;
 
   /// Name shown in logs for all instances of this actor.
   static const char* name;

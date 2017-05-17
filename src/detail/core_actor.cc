@@ -7,6 +7,7 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/convert.hh"
+#include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
@@ -31,6 +32,10 @@ namespace detail {
 const char* core_state::name = "core";
 
 namespace {
+
+// A stream between peers, each element is either a `(topic, data)` pair
+// or a `(topic, internal_command)` pair.
+using generic_stream = stream<message>;
 
 // Creates endpoint information from a core actor.
 endpoint_info make_info(const caf::actor& a, optional<network_info> net = {}) {
@@ -85,15 +90,28 @@ optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
   return nil;
 }
 
+caf::message worker_token_factory(const caf::stream_id& x) {
+  return caf::make_message(endpoint::stream_type{x});
+}
+
+caf::message store_token_factory(const caf::stream_id& x) {
+  return caf::make_message(store::stream_type{x});
+}
+
 } // namespace <anonymous>
 
 void core_state::init(caf::event_based_actor* s, filter_type initial_filter) {
   self = s;
   filter = std::move(initial_filter);
   governor = caf::make_counted<stream_governor>(this);
-  auto lsid = governor->local_subscribers().sid();
-  local_relay = caf::make_counted<stream_relay>(governor, lsid);
-  self->streams().emplace(std::move(lsid), local_relay);
+  auto wsid = governor->workers().sid();
+  worker_relay = caf::make_counted<stream_relay>(governor, wsid,
+                                                 worker_token_factory);
+  self->streams().emplace(std::move(wsid), worker_relay);
+  auto ssid = governor->stores().sid();
+  store_relay = caf::make_counted<stream_relay>(governor, ssid,
+                                                store_token_factory);
+  self->streams().emplace(std::move(ssid), store_relay);
 }
 
 caf::strong_actor_ptr core_state::prev_peer_from_handshake() {
@@ -187,7 +205,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     // Step #1: - A demands B shall establish a stream back to A
     //          - A has subscribers to the topics `ts`
     [=](atom::peer, filter_type& peer_ts,
-        caf::actor& remote_core) -> stream_type {
+        caf::actor& remote_core) -> generic_stream {
       CAF_LOG_TRACE(CAF_ARG(peer_ts) << CAF_ARG(remote_core));
       auto& st = self->state;
       // Reject anonymous peering requests.
@@ -221,11 +239,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& next = self->current_mailbox_element()->stages.back();
       CAF_ASSERT(next != nullptr);
       auto token = std::make_tuple(st.filter, caf::actor{self});
-      self->fwd_stream_handshake<stream_type::value_type>(sid, token);
+      self->fwd_stream_handshake<message>(sid, token);
       return {sid, peer_ptr->relay};
     },
     // Step #2: B establishes a stream to A and sends its own filter
-    [=](const stream_type& in, filter_type& filter, caf::actor& remote_core) {
+    [=](const generic_stream& in, filter_type& filter,
+        caf::actor& remote_core) {
       CAF_LOG_TRACE(CAF_ARG(in) << CAF_ARG(filter) << remote_core);
       auto& st = self->state;
       // Reject anonymous peering requests and unrequested handshakes.
@@ -252,7 +271,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // Step #3: - A establishes a stream to B
     //          - B has a stream to A and vice versa now
-    [=](const stream_type& in, ok_atom, caf::actor& remote_core) {
+    [=](const generic_stream& in, ok_atom, caf::actor& remote_core) {
       CAF_LOG_TRACE(CAF_ARG(in));
       auto& st = self->state;
       // Reject anonymous peering requests and unrequested handshakes.
@@ -295,7 +314,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_DEBUG("Cannot update filter of unknown peer:" << to_string(p));
     },
     // --- communication to local actors: incoming streams and subscriptions ---
-    [=](atom::join, filter_type& filter) -> expected<stream_type> {
+    [=](atom::join, filter_type& filter) -> expected<endpoint::stream_type> {
       CAF_LOG_TRACE(CAF_ARG(filter));
       // Check if the message is not anonymous and does contain a next stage.
       auto& st = self->state;
@@ -307,32 +326,36 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_ERROR("Cannot join a data stream without downstream.");
         auto rp = self->make_response_promise();
         rp.deliver(sec::no_downstream_stages_defined);
-        return stream_type{stream_id{nullptr, 0}, nullptr};
+        return endpoint::stream_type{stream_id{nullptr, 0}, nullptr};
       }
       auto next = stages.back();
       CAF_ASSERT(next != nullptr);
       // Initiate stream handshake and add subscriber to the governor.
       std::tuple<> token;
-      auto sid = st.governor->local_subscribers().sid();
-      self->fwd_stream_handshake<stream_type::value_type>(sid, token);
-      st.governor->local_subscribers().add_path(cs);
-      st.governor->local_subscribers().set_filter(cs, filter);
+      auto sid = st.governor->workers().sid();
+      self->fwd_stream_handshake<endpoint::value_type>(sid, token);
+      st.governor->workers().add_path(cs);
+      st.governor->workers().set_filter(cs, filter);
       CAF_LOG_DEBUG("updates lanes: "
-                    << st.governor->local_subscribers().lanes());
+                    << st.governor->workers().lanes());
       // Update our filter to receive updates on all subscribed topics.
       st.add_to_filter(std::move(filter));
-      return stream_type{sid, st.local_relay};
+      return endpoint::stream_type{sid, st.worker_relay};
     },
-    [=](const stream_type& in) {
+    [=](const endpoint::stream_type& in) {
       CAF_LOG_TRACE(CAF_ARG(in));
       auto& st = self->state;
       auto& cs = self->current_sender();
       if (cs == nullptr) {
         return;
       }
-      self->streams().emplace(in.id(), st.local_relay);
+      self->streams().emplace(in.id(), st.worker_relay);
     },
     [=](atom::publish, topic& t, data& x) {
+      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
+      self->state.governor->push(std::move(t), std::move(x));
+    },
+    [=](atom::publish, topic& t, internal_command& x) {
       CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
       self->state.governor->push(std::move(t), std::move(x));
     },
@@ -368,12 +391,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // fwd_stream_handshake expects the next stage in cme.stages
       auto ms_ptr = actor_cast<strong_actor_ptr>(ms);
       cme.stages.emplace_back(ms_ptr);
-      auto sid = st.governor->local_subscribers().sid();
-      self->fwd_stream_handshake<stream_type::value_type>(sid, token, true);
+      auto sid = st.governor->stores().sid();
+      self->fwd_stream_handshake<store::stream_type::value_type>(sid, token,
+                                                                 true);
       // Update governor and filter.
-      st.governor->local_subscribers().add_path(ms_ptr);
+      st.governor->stores().add_path(ms_ptr);
       filter_type filter{name / topics::reserved / topics::master};
-      st.governor->local_subscribers().set_filter(std::move(ms_ptr), filter);
+      st.governor->stores().set_filter(std::move(ms_ptr), filter);
       st.add_to_filter(std::move(filter));
       return ms;
     },
@@ -393,12 +417,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         // Subscribe to updates.
         filter_type f{name / topics::reserved / topics::clone};
         std::tuple<> token;
-        auto sid = st.governor->local_subscribers().sid();
+        auto sid = st.governor->stores().sid();
         auto cptr = actor_cast<strong_actor_ptr>(clone);
         self->current_mailbox_element()->stages.emplace_back(cptr);
-        st.governor->local_subscribers().add_path(cptr);
-        st.governor->local_subscribers().set_filter(cptr, f);
-        self->fwd_stream_handshake<stream_type::value_type>(sid, token, true);
+        st.governor->stores().add_path(cptr);
+        st.governor->stores().set_filter(cptr, f);
+        self->fwd_stream_handshake<store::stream_type::value_type>(sid, token,
+                                                                   true);
         st.add_to_filter(std::move(f));
         // Instruct master to generate a snapshot.
         self->state.governor->push(
@@ -466,8 +491,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         }
       );
       return rp;
-    }
-  };
+    }};
 }
 
 } // namespace detail

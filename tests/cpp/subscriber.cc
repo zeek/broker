@@ -9,7 +9,6 @@
 
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;
@@ -19,7 +18,7 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-using element_type = stream_type::value_type;
+using element_type = std::pair<topic, data>;
 
 namespace {
 
@@ -94,18 +93,9 @@ CAF_TEST(blocking_subscriber) {
   expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
   expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
   // Data flows from driver to core1 to core2 and finally to leaf.
-  using buf = std::vector<element_type>;
-  expect((stream_msg::batch),
-         from(d1).to(core1)
-         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
-               0));
-  expect((stream_msg::batch),
-         from(core1).to(core2)
-         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
-               0));
-  expect((stream_msg::batch),
-         from(core2).to(leaf)
-         .with(2, buf{{"b", true}, {"b", false}}, 0));
+  expect((stream_msg::batch), from(d1).to(core1).with(5, _, 0));
+  expect((stream_msg::batch), from(core1).to(core2).with(5, _, 0));
+  expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
   expect((stream_msg::ack_batch), from(core2).to(core1).with(5, 0));
   expect((stream_msg::ack_batch), from(core1).to(d1).with(5, 0));
   CAF_MESSAGE("check content of the subscriber's buffer");

@@ -9,17 +9,19 @@
 
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;
 using std::string;
 
-using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-using element_type = stream_type::value_type;
+using namespace caf;
+
+using filter_type = ::broker::detail::filter_type;
+using element_type = std::pair<topic, data>;
+using stream_type = stream<std::pair<topic, data>>;
 
 namespace {
 
@@ -27,8 +29,8 @@ struct consumer_state {
   std::vector<element_type> xs;
 };
 
-behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
-                  const actor& src) {
+behavior consumer(stateful_actor<consumer_state>* self,
+                  filter_type ts, const actor& src) {
   self->send(self * src, atom::join::value, std::move(ts));
   return {
     [=](const stream_type& in) {
@@ -109,77 +111,37 @@ CAF_TEST(blocking_publishers) {
     // First set of published messages gets filtered out at core2.
     pub1.publish(0);
     expect((atom_value), from(_).to(d1).with(atom::resume::value));
-    expect((stream_msg::batch),
-           from(d1).to(core1)
-           .with(1, buf{{"a", 0}}, 0));
-    expect((stream_msg::batch),
-           from(core1).to(core2)
-           .with(1, buf{{"a", 0}}, 0));
-    expect((stream_msg::ack_batch),
-           from(core2).to(core1)
-           .with(1, 0));
-    expect((stream_msg::ack_batch),
-           from(core1).to(d1)
-           .with(1, 0));
+    expect((stream_msg::batch), from(d1).to(core1).with(1, _, 0));
+    expect((stream_msg::batch), from(core1).to(core2).with(1, _, 0));
+    expect((stream_msg::ack_batch), from(core2).to(core1).with(1, 0));
+    expect((stream_msg::ack_batch), from(core1).to(d1).with(1, 0));
     // Must not be forwarded to `leaf`.
     CAF_REQUIRE(!sched.has_job());
     // Second set of published messages gets delivered to leaf.
     pub2.publish(true);
     expect((atom_value), from(_).to(d2).with(atom::resume::value));
-    expect((stream_msg::batch),
-           from(d2).to(core1)
-           .with(1, buf{{"b", true}}, 0));
-    expect((stream_msg::batch),
-           from(core1).to(core2)
-           .with(1, buf{{"b", true}}, 1));
-    expect((stream_msg::batch),
-           from(core2).to(leaf)
-           .with(1, buf{{"b", true}}, 0));
-    expect((stream_msg::ack_batch),
-           from(leaf).to(core2)
-           .with(1, 0));
-    expect((stream_msg::ack_batch),
-           from(core2).to(core1)
-           .with(1, 1));
-    expect((stream_msg::ack_batch),
-           from(core1).to(d2)
-           .with(1, 0));
+    expect((stream_msg::batch), from(d2).to(core1).with(1, _, 0));
+    expect((stream_msg::batch), from(core1).to(core2).with(1, _, 1));
+    expect((stream_msg::batch), from(core2).to(leaf).with(1, _, 0));
+    expect((stream_msg::ack_batch), from(leaf).to(core2).with(1, 0));
+    expect((stream_msg::ack_batch), from(core2).to(core1).with(1, 1));
+    expect((stream_msg::ack_batch), from(core1).to(d2).with(1, 0));
     // Third set of published messages gets again filtered out at core2.
     pub1.publish({1, 2, 3});
     expect((atom_value), from(_).to(d1).with(atom::resume::value));
-    expect((stream_msg::batch),
-           from(d1).to(core1)
-           .with(3, buf{{"a", 1}, {"a", 2}, {"a", 3}}, 1));
-    expect((stream_msg::batch),
-           from(core1).to(core2)
-           .with(3, buf{{"a", 1}, {"a", 2}, {"a", 3}}, 2));
-    expect((stream_msg::ack_batch),
-           from(core2).to(core1)
-           .with(3, 2));
-    expect((stream_msg::ack_batch),
-           from(core1).to(d1)
-           .with(3, 1));
+    expect((stream_msg::batch), from(d1).to(core1).with(3, _, 1));
+    expect((stream_msg::batch), from(core1).to(core2).with(3, _, 2));
+    expect((stream_msg::ack_batch), from(core2).to(core1).with(3, 2));
+    expect((stream_msg::ack_batch), from(core1).to(d1).with(3, 1));
     // Fourth set of published messages gets delivered to leaf again.
     pub2.publish({false, true});
     expect((atom_value), from(_).to(d2).with(atom::resume::value));
-    expect((stream_msg::batch),
-           from(d2).to(core1)
-           .with(2, buf{{"b", false}, {"b", true}}, 1));
-    expect((stream_msg::batch),
-           from(core1).to(core2)
-           .with(2, buf{{"b", false}, {"b", true}}, 3));
-    expect((stream_msg::batch),
-           from(core2).to(leaf)
-           .with(2, buf{{"b", false}, {"b", true}}, 1));
-    expect((stream_msg::ack_batch),
-           from(leaf).to(core2)
-           .with(2, 1));
-    expect((stream_msg::ack_batch),
-           from(core2).to(core1)
-           .with(2, 3));
-    expect((stream_msg::ack_batch),
-           from(core1).to(d2)
-           .with(2, 1));
+    expect((stream_msg::batch), from(d2).to(core1).with(2, _, 1));
+    expect((stream_msg::batch), from(core1).to(core2).with(2, _, 3));
+    expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 1));
+    expect((stream_msg::ack_batch), from(leaf).to(core2).with(2, 1));
+    expect((stream_msg::ack_batch), from(core2).to(core1).with(2, 3));
+    expect((stream_msg::ack_batch), from(core1).to(d2).with(2, 1));
     // Check log of the consumer.
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
@@ -220,9 +182,8 @@ CAF_TEST(nonblocking_publishers) {
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   // Step #2: core1  <---   (stream_msg::open)   <--- core2
   expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}), core2, _, _,
-           false));
+         from(_).to(core1).with(std::make_tuple(_, filter_type{"a", "b", "c"}),
+                                core2, _, _, false));
   // Step #3: core1  --->   (stream_msg::open)   ---> core2
   //          core1  ---> (stream_msg::ack_open) ---> core2
   expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));

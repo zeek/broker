@@ -15,7 +15,6 @@
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
@@ -24,7 +23,6 @@
 
 #include "broker/detail/filter_type.hh"
 #include "broker/detail/operators.hh"
-#include "broker/detail/stream_type.hh"
 
 namespace broker {
 
@@ -36,6 +34,8 @@ public:
   // --- member types ----------------------------------------------------------
 
   using value_type = std::pair<topic, data>;
+
+  using stream_type = caf::stream<value_type>;
 
   using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
@@ -149,7 +149,7 @@ public:
     make_actor([&](caf::event_based_actor* self) {
       self->send(self * core(), atom::join::value, std::move(topics));
       self->become(
-        [&](const detail::stream_type& in) {
+        [&](const stream_type& in) {
           self->add_sink(in, init, f, cleanup);
         }
       );
@@ -168,7 +168,7 @@ public:
     make_actor([=](caf::event_based_actor* self) {
       self->send(self * core(), atom::join::value, std::move(topics));
       self->become(
-        [=](const detail::stream_type& in) {
+        [=](const stream_type& in) {
           self->add_sink(in, init, f, cleanup);
         }
       );

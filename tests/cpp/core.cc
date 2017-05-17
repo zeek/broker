@@ -2,11 +2,8 @@
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
-
+#include "broker/endpoint.hh"
 #include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
-#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;
@@ -16,7 +13,7 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-using element_type = stream_type::value_type;
+using element_type = endpoint::stream_type::value_type;
 
 namespace {
 
@@ -56,7 +53,7 @@ behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
                   const actor& src) {
   self->send(self * src, atom::join::value, std::move(ts));
   return {
-    [=](const stream_type& in) {
+    [=](const endpoint::stream_type& in) {
       self->add_sink(
         // Input stream.
         in,
@@ -134,17 +131,9 @@ CAF_TEST(local_peers) {
   expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
   // Data flows from driver to core1 to core2 and finally to leaf.
   using buf = std::vector<element_type>;
-  expect((stream_msg::batch),
-         from(d1).to(core1)
-         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
-               0));
-  expect((stream_msg::batch),
-         from(core1).to(core2)
-         .with(5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}},
-               0));
-  expect((stream_msg::batch),
-         from(core2).to(leaf)
-         .with(2, buf{{"b", true}, {"b", false}}, 0));
+  expect((stream_msg::batch), from(d1).to(core1).with(5, _, 0));
+  expect((stream_msg::batch), from(core1).to(core2).with(5, _, 0));
+  expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
   expect((stream_msg::ack_batch), from(core2).to(core1).with(5, 0));
   expect((stream_msg::ack_batch), from(core1).to(d1).with(5, 0));
   // Check log of the consumer.
@@ -175,10 +164,8 @@ CAF_TEST(remote_peers_setup1) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ctx.core();
   auto ss1 = earth.stream_serv; 
-  auto basp1 = earth.basp;
   auto core2 = mars.ctx.core();
   auto ss2 = mars.stream_serv;
-  auto basp2 = mars.basp;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
       if (ff.sched.prioritize(ss)) {
@@ -278,33 +265,20 @@ CAF_TEST(remote_peers_setup1) {
             from(core1).to(d1).with(_, 5, _, false));
   // Data flows from driver to core1 to core2 and finally to leaf.
   using buf = std::vector<element_type>;
-  expect_on(
-    earth, (stream_msg::batch),
-    from(d1).to(core1).with(
-      5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}}, 0));
+  expect_on(earth, (stream_msg::batch), from(d1).to(core1).with(5, _, 0));
   forward_stream_traffic();
-  expect_on(
-    mars, (stream_msg::batch),
-    from(_).to(core2).with(
-      5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}}, 0));
-  expect_on(mars, (stream_msg::batch),
-            from(core2).to(leaf).with(2, buf{{"b", true}, {"b", false}}, 0));
+  expect_on(mars, (stream_msg::batch), from(_).to(core2).with(5, _, 0));
+  expect_on(mars, (stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
   expect_on(mars, (stream_msg::ack_batch), from(leaf).to(core2).with(2, 0));
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_batch), from(_).to(core1).with(5, 0));
   expect_on(earth, (stream_msg::ack_batch), from(_).to(d1).with(5, 0));
   // Second round of data.
-  expect_on(
-    earth, (stream_msg::batch),
-    from(d1).to(core1).with(
-      5, buf{{"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}}, 1));
+  expect_on(earth, (stream_msg::batch), from(d1).to(core1).with(5, _, 1));
   forward_stream_traffic();
-  expect_on(
-    mars, (stream_msg::batch),
-    from(_).to(core2).with(
-      5, buf{{"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}}, 1));
+  expect_on(mars, (stream_msg::batch), from(_).to(core2).with(5, _, 1));
   expect_on(mars, (stream_msg::batch),
-            from(core2).to(leaf).with(2, buf{{"b", true}, {"b", false}}, 1));
+            from(core2).to(leaf).with(2, _, 1));
   expect_on(mars, (stream_msg::ack_batch), from(leaf).to(core2).with(2, 1));
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_batch), from(_).to(core1).with(5, 1));
@@ -331,10 +305,8 @@ CAF_TEST(remote_peers_setup2) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ctx.core();
   auto ss1 = earth.stream_serv; 
-  auto basp1 = earth.basp;
   auto core2 = mars.ctx.core();
   auto ss2 = mars.stream_serv;
-  auto basp2 = mars.basp;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
       if (ff.sched.prioritize(ss)) {
@@ -434,33 +406,20 @@ CAF_TEST(remote_peers_setup2) {
             from(core2).to(d1).with(_, 5, _, false));
   // Data flows from driver to core2 to core1 and finally to leaf.
   using buf = std::vector<element_type>;
-  expect_on(
-    mars, (stream_msg::batch),
-    from(d1).to(core2).with(
-      5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}}, 0));
+  expect_on(mars, (stream_msg::batch), from(d1).to(core2).with(5, _, 0));
   forward_stream_traffic();
-  expect_on(
-    earth, (stream_msg::batch),
-    from(_).to(core1).with(
-      5, buf{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false}}, 0));
+  expect_on(earth, (stream_msg::batch), from(_).to(core1).with(5, _, 0));
   expect_on(earth, (stream_msg::batch),
-            from(core1).to(leaf).with(2, buf{{"b", true}, {"b", false}}, 0));
+            from(core1).to(leaf).with(2, _, 0));
   expect_on(earth, (stream_msg::ack_batch), from(leaf).to(core1).with(2, 0));
   forward_stream_traffic();
   expect_on(mars, (stream_msg::ack_batch), from(_).to(core2).with(5, 0));
   expect_on(mars, (stream_msg::ack_batch), from(_).to(d1).with(5, 0));
   // Second round of data.
-  expect_on(
-    mars, (stream_msg::batch),
-    from(d1).to(core2).with(
-      5, buf{{"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}}, 1));
+  expect_on(mars, (stream_msg::batch), from(d1).to(core2).with(5, _, 1));
   forward_stream_traffic();
-  expect_on(
-    earth, (stream_msg::batch),
-    from(_).to(core1).with(
-      5, buf{{"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}}, 1));
-  expect_on(earth, (stream_msg::batch),
-            from(core1).to(leaf).with(2, buf{{"b", true}, {"b", false}}, 1));
+  expect_on(earth, (stream_msg::batch), from(_).to(core1).with(5, _, 1));
+  expect_on(earth, (stream_msg::batch), from(core1).to(leaf).with(2, _, 1));
   expect_on(earth, (stream_msg::ack_batch), from(leaf).to(core1).with(2, 1));
   forward_stream_traffic();
   expect_on(mars, (stream_msg::ack_batch), from(_).to(core2).with(5, 1));

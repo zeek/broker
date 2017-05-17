@@ -2,6 +2,7 @@
 #define BROKER_BROKER_HH
 
 #include "broker/address.hh"
+#include "broker/atoms.hh"
 #include "broker/config.hh"
 #include "broker/context.hh"
 #include "broker/convert.hh"
