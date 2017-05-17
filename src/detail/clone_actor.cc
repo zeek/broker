@@ -9,9 +9,10 @@
 #include "broker/snapshot.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/aliases.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/clone_actor.hh"
+#include "broker/detail/filter_type.hh"
+#include "broker/detail/stream_type.hh"
 
 namespace broker {
 namespace detail {
@@ -150,7 +151,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           // nop
         },
         // processing step
-        [=](caf::unit_t&, element_type y) {
+        [=](caf::unit_t&, stream_type::value_type y) {
           auto ptr = get_if<internal_command>(y.second);
           if (ptr) {
             self->state.command(*ptr);

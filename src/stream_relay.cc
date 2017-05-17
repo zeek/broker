@@ -62,7 +62,7 @@ bool stream_relay::done() const {
 }
 
 caf::message stream_relay::make_output_token(const caf::stream_id& x) const {
-  return caf::make_message(caf::stream<element_type>{x});
+  return caf::make_message(detail::stream_type{x});
 }
 
 } // namespace broker

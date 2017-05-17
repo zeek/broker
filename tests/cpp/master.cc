@@ -3,8 +3,10 @@
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/broker.hh"
-#include "broker/detail/aliases.hh"
+
 #include "broker/detail/core_actor.hh"
+#include "broker/detail/filter_type.hh"
+#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;

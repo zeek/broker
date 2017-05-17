@@ -221,7 +221,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& next = self->current_mailbox_element()->stages.back();
       CAF_ASSERT(next != nullptr);
       auto token = std::make_tuple(st.filter, caf::actor{self});
-      self->fwd_stream_handshake<element_type>(sid, token);
+      self->fwd_stream_handshake<stream_type::value_type>(sid, token);
       return {sid, peer_ptr->relay};
     },
     // Step #2: B establishes a stream to A and sends its own filter
@@ -314,7 +314,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Initiate stream handshake and add subscriber to the governor.
       std::tuple<> token;
       auto sid = st.governor->local_subscribers().sid();
-      self->fwd_stream_handshake<element_type>(sid, token);
+      self->fwd_stream_handshake<stream_type::value_type>(sid, token);
       st.governor->local_subscribers().add_path(cs);
       st.governor->local_subscribers().set_filter(cs, filter);
       CAF_LOG_DEBUG("updates lanes: "
@@ -369,7 +369,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto ms_ptr = actor_cast<strong_actor_ptr>(ms);
       cme.stages.emplace_back(ms_ptr);
       auto sid = st.governor->local_subscribers().sid();
-      self->fwd_stream_handshake<element_type>(sid, token, true);
+      self->fwd_stream_handshake<stream_type::value_type>(sid, token, true);
       // Update governor and filter.
       st.governor->local_subscribers().add_path(ms_ptr);
       filter_type filter{name / topics::reserved / topics::master};
@@ -398,7 +398,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         self->current_mailbox_element()->stages.emplace_back(cptr);
         st.governor->local_subscribers().add_path(cptr);
         st.governor->local_subscribers().set_filter(cptr, f);
-        self->fwd_stream_handshake<element_type>(sid, token, true);
+        self->fwd_stream_handshake<stream_type::value_type>(sid, token, true);
         st.add_to_filter(std::move(f));
         // Instruct master to generate a snapshot.
         self->state.governor->push(

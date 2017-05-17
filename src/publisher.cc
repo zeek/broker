@@ -8,6 +8,9 @@
 #include "broker/data.hh"
 #include "broker/topic.hh"
 
+#include "broker/detail/filter_type.hh"
+#include "broker/detail/stream_type.hh"
+
 using namespace caf;
 
 namespace broker {
@@ -21,7 +24,7 @@ behavior publisher_worker(event_based_actor* self, context* ctx,
     [](unit_t&) {
       // nop
     },
-    [=](unit_t&, downstream<detail::element_type>& out, size_t num) {
+    [=](unit_t&, downstream<detail::stream_type::value_type>& out, size_t num) {
       publisher::guard_type guard{qptr->mtx};
       auto& xs = qptr->xs;
       if (xs.empty()) {

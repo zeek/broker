@@ -12,8 +12,9 @@
 
 #include "broker/atoms.hh"
 
-#include "broker/detail/aliases.hh"
+#include "broker/detail/filter_type.hh"
 #include "broker/detail/stream_relay.hh"
+#include "broker/detail/stream_type.hh"
 
 namespace broker {
 namespace detail {
@@ -28,6 +29,9 @@ struct core_state;
 class stream_governor : public caf::ref_counted {
 public:
   // -- nested types -----------------------------------------------------------
+
+  /// The type of each individual stream item.
+  using element_type = std::pair<topic, data>;
 
   /// Stores state for both stream directions as well as a filter.
   class peer_data : public caf::ref_counted {
@@ -74,7 +78,7 @@ public:
   /// Maps input stream IDs to peer data.
   using input_to_peer_map = std::unordered_map<caf::stream_id, peer_data_ptr>;
 
-  using local_downstream = caf::filtering_downstream<element_type, key_type>;
+  using local_downstream = caf::filtering_downstream<element_type, topic>;
 
   // --- constructors and destructors ------------------------------------------
 

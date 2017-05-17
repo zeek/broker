@@ -12,15 +12,14 @@
 #include "broker/atoms.hh"
 #include "broker/context.hh"
 
-#include "broker/detail/aliases.hh"
+#include "broker/detail/filter_type.hh"
+#include "broker/detail/stream_type.hh"
 
 using namespace caf;
 
 namespace broker {
 
 namespace {
-
-using detail::element_type;
 
 using policy_ptr = std::unique_ptr<upstream_policy>;
 
@@ -59,6 +58,8 @@ private:
 class subscriber_sink : public extend<stream_handler, subscriber_sink>::
                                with<mixin::has_upstreams> {
 public:
+  using element_type = detail::stream_type::value_type;
+
   subscriber_sink(event_based_actor* self, detail::shared_queue_ptr qptr,
                   long max_qsize)
     : in_(self, subscriber_policy::make(qptr, max_qsize)),

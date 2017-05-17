@@ -10,9 +10,10 @@
 #include "broker/time.hh"
 
 #include "broker/detail/abstract_backend.hh"
-#include "broker/detail/aliases.hh"
 #include "broker/detail/die.hh"
+#include "broker/detail/filter_type.hh"
 #include "broker/detail/master_actor.hh"
+#include "broker/detail/stream_type.hh"
 #include "broker/detail/type_traits.hh"
 
 namespace broker {
@@ -218,7 +219,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
           // nop
         },
         // processing step
-        [=](caf::unit_t&, element_type y) {
+        [=](caf::unit_t&, stream_type::value_type y) {
           auto ptr = get_if<internal_command>(y.second);
           if (ptr) {
             self->state.command(*ptr);

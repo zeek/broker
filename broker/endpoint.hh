@@ -22,8 +22,9 @@
 #include "broker/store.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/aliases.hh"
+#include "broker/detail/filter_type.hh"
 #include "broker/detail/operators.hh"
+#include "broker/detail/stream_type.hh"
 
 namespace broker {
 
@@ -148,7 +149,7 @@ public:
     make_actor([&](caf::event_based_actor* self) {
       self->send(self * core(), atom::join::value, std::move(topics));
       self->become(
-        [&](const caf::stream<detail::element_type>& in) {
+        [&](const detail::stream_type& in) {
           self->add_sink(in, init, f, cleanup);
         }
       );
@@ -167,7 +168,7 @@ public:
     make_actor([=](caf::event_based_actor* self) {
       self->send(self * core(), atom::join::value, std::move(topics));
       self->become(
-        [=](const caf::stream<detail::element_type>& in) {
+        [=](const detail::stream_type& in) {
           self->add_sink(in, init, f, cleanup);
         }
       );

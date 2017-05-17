@@ -6,8 +6,10 @@
 #include <caf/test/dsl.hpp>
 
 #include "broker/broker.hh"
-#include "broker/detail/aliases.hh"
+
 #include "broker/detail/core_actor.hh"
+#include "broker/detail/filter_type.hh"
+#include "broker/detail/stream_type.hh"
 
 using std::cout;
 using std::endl;
@@ -16,6 +18,8 @@ using std::string;
 using namespace caf;
 using namespace broker;
 using namespace broker::detail;
+
+using element_type = stream_type::value_type;
 
 namespace {
 

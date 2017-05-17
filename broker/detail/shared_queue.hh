@@ -12,13 +12,13 @@
 #include "broker/data.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/aliases.hh"
-
 namespace broker {
 namespace detail {
 
 /// Synchronizes a subscriber with a background worker.
 struct shared_queue : caf::ref_counted {
+  using element_type = std::pair<topic, data>;
+
   shared_queue();
 
   /// Guards access to all members of the queue.
