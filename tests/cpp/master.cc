@@ -73,10 +73,8 @@ CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ctx.core();
   auto ss1 = earth.stream_serv; 
-  auto basp1 = earth.basp;
   auto core2 = mars.ctx.core();
   auto ss2 = mars.stream_serv;
-  auto basp2 = mars.basp;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
       if (ff.sched.prioritize(ss)) {
