@@ -84,6 +84,10 @@ void clone_state::operator()(set_command& x) {
   store = std::move(x.state);
 }
 
+void clone_state::operator()(clear_command&) {
+  store.clear();
+}
+
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, caf::actor master,
                           std::string name) {

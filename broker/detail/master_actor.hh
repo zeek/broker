@@ -59,6 +59,8 @@ public:
 
   void operator()(set_command&);
 
+  void operator()(clear_command&);
+
   caf::event_based_actor* self;
 
   std::string name;

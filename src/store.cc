@@ -104,8 +104,8 @@ void store::subtract(data key, data value, optional<timespan> expiry) const {
 }
 
 void store::clear() const {
-  if (frontend_)
-    anon_send(frontend_, atom::clear::value);
+  anon_send(frontend_, atom::local::value,
+            make_internal_command<clear_command>());
 }
 
 store::store(caf::actor actor) : frontend_{std::move(actor)} {

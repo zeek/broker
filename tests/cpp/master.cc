@@ -54,6 +54,11 @@ CAF_TEST(local_master) {
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   auto res2 = ds.get("hello");
   CAF_REQUIRE_EQUAL(res2, data{"universe"});
+  ds.clear();
+  sched.run();
+  sched.inline_next_enqueue();
+  auto res3 = ds.get("hello");
+  CAF_REQUIRE_EQUAL(res3, caf::error{ec::no_such_key});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
   sched.run();

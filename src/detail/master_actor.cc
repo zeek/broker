@@ -136,6 +136,14 @@ void master_state::operator()(set_command& x) {
   BROKER_ERROR("received a set_command in master actor");
 }
 
+void master_state::operator()(clear_command& x) {
+  BROKER_ERROR("clear");
+  auto res = backend->clear();
+  if (!res)
+    die("failed to clear master");
+  broadcast_from(x);
+}
+
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string name,
                            master_state::backend_pointer backend) {
@@ -162,16 +170,6 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       self->state.expire(key);
     },
     /* TODO: reimplement
-    [=](atom::clear) {
-      BROKER_DEBUG("clear");
-      auto result = self->state.backend->clear();
-      if (!result) {
-        BROKER_WARNING("failed to clear");
-        return; // TODO: propagate failure? to all clones? as status msg?
-      }
-      if (!self->state.clones.empty())
-        broadcast(caf::make_message(atom::clear::value));
-    },
     [=](atom::keys) -> expected<data> {
       BROKER_DEBUG("KEYS");
       return self->state.backend->keys();

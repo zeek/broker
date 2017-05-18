@@ -84,11 +84,22 @@ typename Inspector::result_type inspect(Inspector& f, set_command& x) {
   return f(caf::meta::type_name("set"), x.state);
 }
 
+/// Drops all values.
+struct clear_command {
+  // tag type
+};
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, clear_command&) {
+  return f(caf::meta::type_name("clear"));
+}
+
 class internal_command {
 public:
   using variant_type
     = caf::variant<none, put_command, erase_command, add_command,
-                   subtract_command, snapshot_command, set_command>;
+                   subtract_command, snapshot_command, set_command,
+                   clear_command>;
 
   variant_type content;
 
@@ -100,7 +111,6 @@ public:
   internal_command& operator=(internal_command&&) = default;
   internal_command& operator=(const internal_command&) = default;
 };
-
 
 template <class T, class... Ts>
 internal_command make_internal_command(Ts&&... xs) {
