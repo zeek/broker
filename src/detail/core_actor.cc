@@ -74,22 +74,6 @@ caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
   };
 }
 
-optional<caf::actor> find_remote_master(caf::stateful_actor<core_state>* self,
-                                        const std::string& name) {
-  // If we don't have a master recorded locally, we could still have a
-  // propagated subscription to a remote core hosting a master.
-  auto t = name / topics::reserved / topics::master;
-  auto s = self->state.subscriptions.find(t.string());
-  if (s != self->state.subscriptions.end()) {
-    // Only the master subscribes to its inbound topic, so there can be at most
-    // a single subscriber.
-    BROKER_ASSERT(s->second.subscribers.size() == 1);
-    auto& master = *s->second.subscribers.begin();
-    return master;
-  }
-  return nil;
-}
-
 caf::message worker_token_factory(const caf::stream_id& x) {
   return caf::make_message(endpoint::stream_type{x});
 }
@@ -148,13 +132,24 @@ void core_state::add_to_filter(filter_type xs) {
 }
 
 bool core_state::has_peer(const caf::actor& x) {
-  return pending_peers.count(x) > 0 || connected_peers.count(x) > 0;
+  return pending_peers.count(x) > 0 || governor->has_peer(x) > 0;
+}
+
+bool core_state::has_remote_master(const std::string& name) {
+  // If we don't have a master recorded locally, we could still have a
+  // propagated subscription to a remote core hosting a master.
+  auto t = name / topics::reserved / topics::master;
+  return std::any_of(governor->peers().begin(), governor->peers().end(),
+                     [&](const stream_governor::peer_map::value_type& kvp) {
+                       auto& filter = kvp.second->filter;
+                       auto e = filter.end();
+                       return std::find(filter.begin(), e, t) != e;
+                     });
 }
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter) {
   self->state.init(self, std::move(initial_filter));
-  self->state.info = make_info(self);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
@@ -223,7 +218,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return invalid_stream;
       }
       // Especially ignore handshakes from already connected peers.
-      if (st.connected_peers.count(remote_core) > 0) {
+      if (st.governor->has_peer(remote_core)) {
         CAF_LOG_WARNING("Drop peering request from already connected peer.");
         return invalid_stream;
       }
@@ -375,7 +370,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_DEBUG("found local master");
         return i->second;
       }
-      if (find_remote_master(self, name)) {
+      if (st.has_remote_master(name)) {
         BROKER_WARNING("remote master with same name exists already");
         return ec::master_exists;
       }

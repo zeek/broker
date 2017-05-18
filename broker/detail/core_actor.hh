@@ -22,16 +22,6 @@
 namespace broker {
 namespace detail {
 
-struct subscription_state {
-  std::unordered_set<caf::actor> subscribers;
-  uint64_t messages = 0;
-};
-
-struct peer_state {
-  optional<caf::actor> actor;
-  peer_info info;
-};
-
 struct core_state {
   // --- nested types ----------------------------------------------------------
 
@@ -63,17 +53,17 @@ struct core_state {
   /// Returns whether `x` is either a pending peer or a connected peer.
   bool has_peer(const caf::actor& x);
 
+  /// Returns whether a master for `name` probably exists already on one of our
+  /// peers.
+  bool has_remote_master(const std::string& name);
+
   // --- member variables ------------------------------------------------------
 
-  //std::vector<peer_state> peers;
-  radix_tree<subscription_state> subscriptions;
+  /// Stores all master actors created by this core.
   std::unordered_map<std::string, caf::actor> masters;
-  std::unordered_multimap<std::string, caf::actor> clones;
-  std::map<network_info, caf::actor> supervisors;
-  endpoint_info info;
 
-  /// Lists all known peers that we need to update whenever `filter` changes.
-  std::vector<caf::strong_actor_ptr> peers;
+  /// Stores all clone actors created by this core.
+  std::unordered_multimap<std::string, caf::actor> clones;
 
   /// Requested topics on this core.
   filter_type filter;
@@ -83,9 +73,6 @@ struct core_state {
 
   /// Maps pending peer handles to output IDs.
   std::unordered_map<caf::actor, caf::stream_id> pending_peers;
-
-  /// Connected peers.
-  std::unordered_map<caf::actor, stream_id_pair> connected_peers;
 
   /// Points to the owning actor.
   caf::event_based_actor* self;
