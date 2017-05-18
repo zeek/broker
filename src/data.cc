@@ -2,6 +2,7 @@
 #include "broker/convert.hh"
 
 namespace broker {
+
 namespace {
 
 template <class Container>

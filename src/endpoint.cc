@@ -4,10 +4,8 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/atoms.hh"
-#include "broker/blocking_endpoint.hh"
+#include "broker/context.hh"
 #include "broker/endpoint.hh"
-#include "broker/message.hh"
-#include "broker/nonblocking_endpoint.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -16,43 +14,7 @@
 
 namespace broker {
 
-namespace {
-
-auto exit_deleter = [](caf::actor* a) {
-  caf::anon_send_exit(*a, caf::exit_reason::user_shutdown);
-  delete a;
-};
-
-} // namespace <anonymous>
-
-endpoint::endpoint(const blocking_endpoint& other)
-  : core_{other.core_},
-    subscriber_{other.subscriber_} {
-  // nop
-}
-
-endpoint::endpoint(const nonblocking_endpoint& other)
-  : core_{other.core_},
-    subscriber_{other.subscriber_} {
-  // nop
-}
-
-endpoint& endpoint::operator=(const blocking_endpoint& other) {
-  core_ = other.core_;
-  subscriber_ = other.subscriber_;
-  return *this;
-}
-
-endpoint& endpoint::operator=(const nonblocking_endpoint& other) {
-  core_ = other.core_;
-  subscriber_ = other.subscriber_;
-  return *this;
-}
-
-
 endpoint_info endpoint::info() const {
-  if (!core_)
-    return {};
   auto result = endpoint_info{core()->node(), core()->id(), {}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
@@ -68,9 +30,17 @@ endpoint_info endpoint::info() const {
   return result;
 }
 
+endpoint::endpoint(context& ctx) : ctx_(ctx) {
+  // nop
+}
+
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  if (!core_)
-    return 0;
+  char const* addr = address.empty() ? nullptr : address.c_str();
+  auto res = ctx_.system().middleman().publish(core(), port, addr);
+  return res ? *res : 0;
+  /*
+  auto res = caf::io::publish(ctx_.core(), port);
+
   auto bound = caf::expected<uint16_t>{caf::error{}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
@@ -98,32 +68,26 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
     }
   );
   return *bound;
+  */
 }
 
-void endpoint::peer(const endpoint& other) {
-  if (core_)
-    caf::anon_send(core(), atom::peer::value, other.core());
-}
-
-void endpoint::peer(const std::string& address, uint16_t port, timeout::seconds retry) {
-  if (core_)
-    caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry);
-}
-
-void endpoint::unpeer(const endpoint& other) {
-  if (core_)
-    caf::anon_send(core(), atom::unpeer::value, other.core(), subscriber_);
+/* TODO: reimplement
+void endpoint::peer(const std::string& address, uint16_t port) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  auto hdl = ctx_.system().middleman().remote_actor(address, port);
+  if (hdl) {
+    CAF_LOG_DEBUG(CAF_ARG(core()) << CAF_ARG(hdl));
+    anon_send(core(), atom::peer::value, std::move(*hdl));
+  }
+  //caf::anon_send(core(), atom::peer::value, network_info{address, port});
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {
-  if (core_)
-    caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
+  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
-  if (!core_)
-    return result;
   caf::scoped_actor self{core()->home_system()};
   auto msg = caf::make_message(atom::peer::value, atom::get::value);
   self->request(core(), timeout::core, std::move(msg)).receive(
@@ -136,69 +100,29 @@ std::vector<peer_info> endpoint::peers() const {
   );
   return result;
 }
+*/
 
 void endpoint::publish(topic t, data d) {
-  if (core_)
-    caf::anon_send(core(), std::move(t),
-                   caf::make_message(std::move(d), atom::default_::value),
-		   subscriber_);
-}
-
-void endpoint::publish(const endpoint_info& dst, topic t, data d) {
-  if (core_)
-    caf::anon_send(core(), std::move(t),
-                   caf::make_message(std::move(d), atom::default_::value),
-		   dst.node, dst.id, subscriber_);
-}
-
-void endpoint::publish(topic t, message_type ty, data d) {
-  if (core_)
-    caf::anon_send(
-      core(), std::move(t),
-      caf::make_message(std::move(d), std::move(ty)),
-      subscriber_);
-}
-
-void endpoint::publish(const endpoint_info& dst, topic t, message_type ty, data d) {
-  if (core_)
-    caf::anon_send(
-      core(), std::move(t),
-      caf::make_message(std::move(d), std::move(ty)),
-      dst.node, dst.id, subscriber_);
-}
-
-void endpoint::publish(const message& msg) {
-  if (core_)
-    caf::anon_send(core(), msg.msg_.take(2) + caf::make_message(subscriber_));
-}
-
-void endpoint::init_core(caf::actor core) {
-  BROKER_ASSERT(subscriber_);
-  // This local variable is just a workaround for the lack of initialized lamda
-  // captures, wich are C++14.
-  auto subscriber = subscriber_;
-  core->attach_functor([=] {
-    caf::anon_send_exit(subscriber, caf::exit_reason::user_shutdown);
-  });
-  auto ptr = new caf::actor{std::move(core)};
-  core_ = std::shared_ptr<caf::actor>(ptr, exit_deleter);
+  caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
 }
 
 const caf::actor& endpoint::core() const {
-  BROKER_ASSERT(core_);
-  return *core_;
+  return ctx_.core();
+}
+
+void endpoint::make_actor(actor_init_fun f) {
+  ctx_.system().spawn([=](caf::event_based_actor* self) {
+    f(self);
+  });
 }
 
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
-  if (!core_)
-    return make_error(ec::unspecified, "endpoint not initialized");
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{core()->home_system()};
-  auto msg = caf::make_message(atom::store::value, atom::master::value,
-                               atom::attach::value, std::move(name), type,
-                               std::move(opts));
-  self->request(core(), timeout::core, std::move(msg)).receive(
+  caf::scoped_actor self{ctx_.system()};
+  self->request(core(), caf::infinite, atom::store::value, atom::master::value,
+                atom::attach::value, std::move(name), type, std::move(opts))
+  .receive(
     [&](caf::actor& master) {
       res = store{std::move(master)};
     },
@@ -210,11 +134,9 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 }
 
 expected<store> endpoint::attach_clone(std::string name) {
-  if (!core_)
-    return make_error(ec::unspecified, "endpoint not initialized");
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), timeout::core, atom::store::value, atom::clone::value,
+  self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
                 atom::attach::value, std::move(name)).receive(
     [&](caf::actor& clone) {
       res = store{std::move(clone)};

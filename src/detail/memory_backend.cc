@@ -96,7 +96,7 @@ expected<uint64_t> memory_backend::size() const {
 expected<snapshot> memory_backend::snapshot() const {
   broker::snapshot ss;
   for (auto& p : store_)
-    ss.entries.emplace(p.first, p.second.first);
+    ss.emplace(p.first, p.second.first);
   return ss;
 }
 

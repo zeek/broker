@@ -7,7 +7,6 @@
 
 #include "broker/api_flags.hh"
 #include "broker/configuration.hh"
-#include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -22,23 +21,21 @@ public:
   /// Constructs a context from a specific configuration.
   context(configuration config = {});
 
-  /// Creates a ::blocking_endpoint.
-  template <api_flags Flags>
-  detail::enable_if_t<Flags == blocking, blocking_endpoint>
-  spawn() {
-    return {system_};
+  /// Creates an ::endpoint.
+  endpoint spawn();
+
+  inline caf::actor_system& system() {
+    return system_;
   }
 
-  /// Creates a ::nonblocking_endpoint.
-  template <api_flags Flags, class... Ts>
-  detail::enable_if_t<Flags == nonblocking, nonblocking_endpoint>
-  spawn() {
-    return {system_};
+  inline const caf::actor& core() const {
+    return core_;
   }
 
 private:
   configuration config_;
   caf::actor_system system_;
+  caf::actor core_;
 };
 
 } // namespace broker

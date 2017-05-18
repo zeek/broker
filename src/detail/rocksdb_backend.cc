@@ -355,7 +355,7 @@ expected<snapshot> rocksdb_backend::snapshot() const {
   while (i->Valid() && i->key()[0] == pfx) {
     auto key = from_key_blob<prefix::data>(i->key().data(), i->key().size());
     auto value = from_blob<data>(i->value().data(), i->value().size());
-    result.entries.emplace(std::move(key), std::move(value));
+    result.emplace(std::move(key), std::move(value));
     i->Next();
   }
   if (!i->status().ok()) {

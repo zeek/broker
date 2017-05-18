@@ -6,7 +6,8 @@
 namespace broker {
 namespace atom {
 
-// Inherited from CAF.
+/// --- inherited from CAF -----------------------------------------------------
+
 using add = caf::add_atom;
 using get = caf::get_atom;
 using join = caf::join_atom;
@@ -16,8 +17,12 @@ using put = caf::put_atom;
 using connect = caf::connect_atom;
 using subscribe = caf::subscribe_atom;
 using unsubscribe = caf::unsubscribe_atom;
+using tick = caf::tick_atom;
+using publish = caf::publish_atom;
+using update = caf::update_atom;
 
-// Generic
+/// --- generic communication --------------------------------------------------
+
 using name = caf::atom_constant<caf::atom("name")>;
 using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
@@ -25,7 +30,12 @@ using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
 using default_ = caf::atom_constant<caf::atom("default")>;
 
-// Store
+/// --- communiation with workers ----------------------------------------------
+
+using resume = caf::atom_constant<caf::atom("resume")>;
+
+/// --- communiation with stores -----------------------------------------------
+
 using attach = caf::atom_constant<caf::atom("attach")>;
 using clear = caf::atom_constant<caf::atom("clear")>;
 using clone = caf::atom_constant<caf::atom("clone")>;
@@ -35,9 +45,10 @@ using expire = caf::atom_constant<caf::atom("expire")>;
 using increment = caf::atom_constant<caf::atom("increment")>;
 using keys = caf::atom_constant<caf::atom("keys")>;
 using master = caf::atom_constant<caf::atom("master")>;
-using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 using store = caf::atom_constant<caf::atom("store")>;
 using subtract = caf::atom_constant<caf::atom("subtract")>;
+using local = caf::atom_constant<caf::atom("local")>;
+using resolve = caf::atom_constant<caf::atom("resolve")>;
 
 } // namespace atom
 } // namespace broker

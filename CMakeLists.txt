@@ -151,20 +151,23 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
 
 set(BROKER_SRC
   src/address.cc
-  src/blocking_endpoint.cc
   src/configuration.cc
   src/context.cc
   src/data.cc
   src/endpoint.cc
   src/error.cc
+  src/internal_command.cc
   src/mailbox.cc
-  src/message.cc
   src/network_info.cc
-  src/nonblocking_endpoint.cc
   src/port.cc
+  src/publisher.cc
+  src/shared_queue.cc
   src/status.cc
   src/store.cc
+  src/stream_governor.cc
+  src/stream_relay.cc
   src/subnet.cc
+  src/subscriber.cc
   src/time.cc
   src/topic.cc
   src/version.cc
@@ -177,6 +180,7 @@ set(BROKER_SRC
   src/detail/flare_actor.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
+  src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/sqlite_backend.cc
 

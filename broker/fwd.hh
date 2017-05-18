@@ -5,13 +5,23 @@
 
 namespace broker {
 
-class context;
-class endpoint;
 class blocking_endpoint;
-class message;
+class context;
+class data;
+class endpoint;
+class internal_command;
 class nonblocking_endpoint;
+class publisher;
 class status;
 class store;
+class subscriber;
+class topic;
+struct add_command;
+struct erase_command;
+struct put_command;
+struct set_command;
+struct snapshot_command;
+struct subtract_command;
 
 struct network_info;
 

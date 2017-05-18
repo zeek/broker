@@ -25,9 +25,11 @@ class endpoint;
 /// A key-value store (either a *master* or *clone*) that supports modifying
 /// and querying contents.
 class store {
-  friend endpoint; // construction
-
 public:
+  friend class endpoint;
+
+  using stream_type = caf::stream<std::pair<topic, internal_command>>;
+
   /// A response to a lookup request issued by a ::proxy.
   struct response {
     expected<data> answer;
@@ -89,6 +91,11 @@ public:
 
   /// Retrieves a copy of the store's current keys, returned as a set.
   expected<data> keys() const;
+
+  /// Retrieves the frontend.
+  inline const caf::actor& frontend() const {
+    return frontend_;
+  }
 
   // --- modifiers -----------------------------------------------------------
 

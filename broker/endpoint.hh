@@ -2,10 +2,12 @@
 #define BROKER_ENDPOINT_HH
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/event_based_actor.hpp>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -13,13 +15,13 @@
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
 
+#include "broker/detail/filter_type.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -28,21 +30,27 @@ namespace broker {
 /// other to exchange messages. When publishing a message though an endpoint,
 /// all peers with matching subscriptions receive the message.
 class endpoint {
-  friend context;
-
 public:
-  endpoint() = default;
+  // --- member types ----------------------------------------------------------
 
-  endpoint(const blocking_endpoint&);
-  endpoint(const nonblocking_endpoint&);
+  using value_type = std::pair<topic, data>;
 
-  endpoint& operator=(const blocking_endpoint& other);
-  endpoint& operator=(const nonblocking_endpoint& other);
+  using stream_type = caf::stream<value_type>;
+
+  using actor_init_fun = std::function<void (caf::event_based_actor*)>;
+
+  endpoint(context& ctx);
+
+  endpoint(endpoint&&) = default;
+
+  endpoint() = delete;
+  endpoint(const endpoint&) = delete;
+  endpoint& operator=(const endpoint&) = delete;
 
   /// @returns Information about this endpoint.
   endpoint_info info() const;
 
-  // --- peer management -----------------------------------------------------
+  // --- peer management -------------------------------------------------------
 
   /// Listens at a specific port to accept remote peers.
   /// @param address The interface to listen at. If empty, listen on all
@@ -51,12 +59,6 @@ public:
   ///             next available free port from the OS
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen(const std::string& address = {}, uint16_t port = 0);
-
-  /// Initiates a peering with another endpoint.
-  /// @param other The endpoint to peer with.
-  /// @note The function returns immediately. The endpoint receives a status
-  ///       message indicating the result of the peering operation.
-  void peer(const endpoint& other);
 
   /// Initiates a peering with a remote endpoint. Thi
   /// @param address The IP address of the remote endpoint.
@@ -67,19 +69,13 @@ public:
   ///       message indicating the result of the peering operation.
   void peer(const std::string& address, uint16_t port, timeout::seconds retry = timeout::seconds(10));
 
-  /// Unpeers from another endpoint.
-  /// @param other The endpoint to unpeer from.
-  /// @note The function returns immediately. The endpoint receives a status
-  ///       message indicating the result of the peering operation.
-  void unpeer(const endpoint& other);
-
   void unpeer(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.
   /// @returns A pointer to the list
   std::vector<peer_info> peers() const;
 
-  // --- messaging -----------------------------------------------------------
+  // --- publishing ------------------------------------------------------------
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -92,24 +88,94 @@ public:
   /// @param d The message data.
   void publish(const endpoint_info& dst, topic t, data d);
 
-  /// Publishes a message with a custom message type.
-  /// @param t The topic of the message.
-  /// @param ty The custom type.
-  /// @param d The message data.
-  void publish(topic t, message_type ty, data d);
+  /// Publishes a message as vector.
+  /// @param t The topic of the messages.
+  /// @param xs The contents of the messages.
+  void publish(topic t, std::initializer_list<data> xs);
 
-  /// Publishes a message to a specific peer endpoint only.
-  /// @param dst The destination endpoint.
-  /// @param t The topic of the message.
-  /// @param ty The custom type.
-  /// @param d The message data.
-  void publish(const endpoint_info& dst, topic t, message_type ty, data d);
+  // Publishes all messages in `xs`.
+  void publish(std::vector<value_type> xs);
 
-  /// Publishes a message.
-  /// @param msg The message to publish.
-  void publish(const message& msg);
+  /// Starts a background worker from the given set of functions that publishes
+  /// a series of messages. The worker will run in the background, but `init`
+  /// is guaranteed to be called before the function returns.
+  template <class Init, class GetNext, class AtEnd, class ResultHandler>
+  void publish_all(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
+    std::mutex mx;
+    std::condition_variable cv;
+    make_actor([&](caf::event_based_actor* self) {
+      self->new_stream(
+        core(),
+        init,
+        f,
+        pred,
+        rf 
+      );
+      std::unique_lock<std::mutex> guard{mx};
+      cv.notify_one();
+    });
+    std::unique_lock<std::mutex> guard{mx};
+    cv.wait(guard);
+  }
 
-  // --- data stores ----------------------------------------------------------
+  /// Identical to ::publish_all, but does not guarantee that `init` is called
+  /// before the function returns. 
+  template <class Init, class GetNext, class AtEnd, class ResultHandler>
+  void publish_all_nosync(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
+    make_actor([=](caf::event_based_actor* self) {
+      self->new_stream(
+        core(),
+        init,
+        f,
+        pred,
+        rf 
+      );
+    });
+  }
+
+  // --- subscribing -----------------------------------------------------------
+
+  /// Returns a subscriber connected to this endpoint for the topics `ts`.
+  subscriber make_subscriber(std::vector<topic> ts);
+
+  /// Starts a background worker from the given set of function that consumes
+  /// incoming messages. The worker will run in the background, but `init` is
+  /// guaranteed to be called before the function returns.
+  template <class Init, class HandleMessage, class Cleanup>
+  void subscribe(std::vector<topic> topics, Init init, HandleMessage f,
+                 Cleanup cleanup) {
+    std::mutex mx;
+    std::condition_variable cv;
+    make_actor([&](caf::event_based_actor* self) {
+      self->send(self * core(), atom::join::value, std::move(topics));
+      self->become(
+        [&](const stream_type& in) {
+          self->add_sink(in, init, f, cleanup);
+        }
+      );
+      std::unique_lock<std::mutex> guard{mx};
+      cv.notify_one();
+    });
+    std::unique_lock<std::mutex> guard{mx};
+    cv.wait(guard);
+  }
+
+  /// Identical to ::subscribe, but does not guarantee that `init` is called
+  /// before the function returns. 
+  template <class Init, class HandleMessage, class Cleanup>
+  void subscribe_nosync(std::vector<topic> topics, Init init, HandleMessage f,
+                        Cleanup cleanup) {
+    make_actor([=](caf::event_based_actor* self) {
+      self->send(self * core(), atom::join::value, std::move(topics));
+      self->become(
+        [=](const stream_type& in) {
+          self->add_sink(in, init, f, cleanup);
+        }
+      );
+    });
+  }
+
+  // --- data stores -----------------------------------------------------------
 
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
@@ -152,30 +218,20 @@ public:
     return attach_clone(std::move(name));
   }
 
-protected:
-  template <class T>
-  void add_to_vector(vector& v, T&& x) {
-    v.emplace_back(std::forward<T>(x));
-  }
-
-  template <class T, class... Ts>
-  void add_to_vector(vector& v, T&& x, Ts&&... xs) {
-    add_to_vector(v, std::forward<T>(x));
-    add_to_vector(v, std::forward<Ts>(xs)...);
-  }
-
-  void init_core(caf::actor core);
-
   const caf::actor& core() const;
 
-  std::shared_ptr<caf::actor> core_;
+protected:
   caf::actor subscriber_;
 
 private:
+  void make_actor(actor_init_fun f);
+
   expected<store> attach_master(std::string name, backend type,
                               backend_options opts);
 
   expected<store> attach_clone(std::string name);
+
+  context& ctx_;
 };
 
 } // namespace broker

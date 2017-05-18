@@ -5,7 +5,15 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include <caf/actor.hpp>
+#include <caf/intrusive_ptr.hpp>
+#include <caf/ref_counted.hpp>
+#include <caf/variant.hpp>
+
+#include <caf/detail/comparable.hpp>
 
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
@@ -35,7 +43,7 @@ using set = std::set<data>;
 /// @relates set
 bool convert(const set& s, std::string& str);
 
-/// An associative, ordered container that maps unique keys other values.
+/// An associative, ordered container that maps unique keys to values.
 using table = std::map<data, data>;
 
 /// @relates table
@@ -144,6 +152,8 @@ auto visit(Visitor&& visitor, Ts&&... xs)
 bool convert(const data& d, std::string& str);
 
 } // namespace broker
+
+// --- implementations of std::hash --------------------------------------------
 
 namespace std {
 
