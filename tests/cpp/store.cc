@@ -5,12 +5,6 @@
 
 using namespace broker;
 
-namespace {
-
-const auto propagation_delay = std::chrono::milliseconds(100);
-
-} // namespace <anonymous>
-
 TEST(default construction) {
   store{};
   store::proxy{};
@@ -23,74 +17,40 @@ TEST(backend option passing) {
   REQUIRE(ds);
 }
 
-/*
-TEST(no duplicate masters) {
-  context ctx;
-  auto ep0 = ctx.spawn();
-  auto ep1 = ctx.spawn();
-  ep0.peer(ep1);
-  auto ds0 = ep0.attach<master, memory>("yoda");
-  REQUIRE(ds0);
-  CHECK_EQUAL(ds0->name(), "yoda");
-  std::this_thread::sleep_for(propagation_delay); // subscription
-  auto ds1 = ep1.attach<master, memory>("yoda");
-  CHECK(ds1 == ec::master_exists);
-}
-*/
-
 TEST(master operations) {
   endpoint ep;
   auto ds = ep.attach<master, memory>("kono");
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
-  auto x = ds->get("foo");
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{42});
-  x = ds->get("bar");
-  REQUIRE(!x);
-  CHECK_EQUAL(x.error(), ec::no_such_key);
+  REQUIRE_EQUAL(ds->get("foo"), data{42});
+  REQUIRE_EQUAL(ds->get("bar"), error{ec::no_such_key});
   MESSAGE("erase");
   ds->erase("foo");
-  x = ds->get("foo");
-  REQUIRE(!x);
-  CHECK_EQUAL(x.error(), ec::no_such_key);
+  REQUIRE_EQUAL(ds->get("foo"), error{ec::no_such_key});
   MESSAGE("add");
   ds->add("foo", 1u); // key did not exist, operation fails
-  x = ds->get("foo");
-  REQUIRE(!x);
+  REQUIRE(!ds->get("foo"));
   ds->put("foo", 0u);
   ds->add("foo", 1u); // key exists now, operation succeeds
-  x = ds->get("foo");
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{1u});
+  REQUIRE_EQUAL(ds->get("foo"), data{1u});
   ds->add("foo", 41u); // adding on top of existing value
-  x = ds->get("foo");
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{42u});
+  REQUIRE_EQUAL(ds->get("foo"), data{42u});
   ds->put("foo", "b");
   ds->add("foo", "a");
   ds->add("foo", "r");
-  x = ds->get("foo");
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{"bar"});
+  REQUIRE_EQUAL(ds->get("foo"), data{"bar"});
   ds->put("foo", set{1, 3});
   ds->add("foo", 2);
-  x = ds->get("foo");
-  REQUIRE(x);
-  CHECK(*x == set{1, 2, 3});
+  REQUIRE_EQUAL(ds->get("foo"), data(set{1, 2, 3}));
   MESSAGE("subtract");
   ds->subtract("foo", 1);
-  x = ds->get("foo");
-  REQUIRE(x);
-  CHECK(*x == set{2, 3});
+  REQUIRE_EQUAL(ds->get("foo"), data(set{2, 3}));
   MESSAGE("get overload");
-  x = ds->get("foo", 1);
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{false});
-  x = ds->get("foo", 2);
-  REQUIRE(x);
-  CHECK_EQUAL(*x, data{true});
+  REQUIRE_EQUAL(ds->get("foo", 1), data{false});
+  REQUIRE_EQUAL(ds->get("foo", 2), data{true});
+  MESSAGE("keys");
+  REQUIRE_EQUAL(ds->keys(), data(set{"foo"}));
 }
 
 TEST(clone operations - same endpoint) {
@@ -102,29 +62,6 @@ TEST(clone operations - same endpoint) {
   auto c = ep.attach<broker::clone>("vulcan");
   REQUIRE(!c);
 }
-
-/*
-TEST(clone operations - different endpoints) {
-  context ctx;
-  auto ep0 = ctx.spawn();
-  auto ep1 = ctx.spawn();
-  ep0.peer(ep1);
-  auto m = ep0.attach<master, memory>("flaka");
-  auto c = ep1.attach<broker::clone>("flaka");
-  REQUIRE(m);
-  REQUIRE(c);
-  c->put("foo", 4.2);
-  std::this_thread::sleep_for(propagation_delay); // master -> clone
-  auto v = c->get("foo");
-  REQUIRE(v);
-  CHECK_EQUAL(v, data{4.2});
-  c->subtract("foo", 0.2);
-  std::this_thread::sleep_for(propagation_delay); // master -> clone
-  v = c->get("foo");
-  REQUIRE(v);
-  CHECK_EQUAL(v, data{4.0});
-}
-*/
 
 TEST(expiration) {
   using std::chrono::milliseconds;
@@ -163,7 +100,8 @@ TEST(proxy) {
   resp = proxy.receive();
   CHECK_EQUAL(resp.id, 2u);
   REQUIRE_EQUAL(resp.answer, error{ec::no_such_key});
-  MESSAGE("clone: issue queries");
-  auto c = ep.attach<broker::clone>("puneta");
-  REQUIRE(!c);
+  auto key_id = proxy.keys();
+  auto key_resp = proxy.receive();
+  CAF_REQUIRE_EQUAL(key_resp.id, key_id);
+  CAF_REQUIRE_EQUAL(key_resp.answer, data(set{"foo"}));
 }

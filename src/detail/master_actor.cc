@@ -169,19 +169,17 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     [=](atom::expire, data& key) {
       self->state.expire(key);
     },
-    /* TODO: reimplement
-    [=](atom::keys) -> expected<data> {
+    [=](atom::get, atom::keys) -> expected<data> {
       BROKER_DEBUG("KEYS");
       return self->state.backend->keys();
     },
-    [=](atom::keys, request_id id) {
+    [=](atom::get, atom::keys, request_id id) {
       BROKER_DEBUG("KEYS" << "with id:" << id);
       auto x = self->state.backend->keys();
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    */
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);
       return self->state.backend->get(key);

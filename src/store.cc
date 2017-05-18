@@ -28,7 +28,7 @@ request_id store::proxy::get(data key) {
 request_id store::proxy::keys() {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::keys::value, ++id_);
+  send_as(proxy_, frontend_, atom::get::value, atom::keys::value, ++id_);
   return id_;
 }
 
@@ -75,9 +75,7 @@ expected<data> store::get(data key, data aspect) const {
 }
 
 expected<data> store::keys() const {
-  // TODO: implement me
-  return caf::sec::bad_function_call;
-  //return request<data>(atom::keys::value);
+  return request<data>(atom::get::value, atom::keys::value);
 }
 
 void store::put(data key, data value, optional<timespan> expiry) const {

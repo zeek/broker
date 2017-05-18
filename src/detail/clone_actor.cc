@@ -88,6 +88,13 @@ void clone_state::operator()(clear_command&) {
   store.clear();
 }
 
+data clone_state::keys() const {
+  set result;
+  for (auto& kvp : store)
+    result.emplace(kvp.first);
+  return result;
+}
+
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, caf::actor master,
                           std::string name) {
@@ -110,6 +117,14 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     [=](atom::local, internal_command& x) {
       // forward all commands to the master
       self->state.forward(std::move(x));
+    },
+    [=](atom::get, atom::keys) -> data {
+      BROKER_DEBUG("KEYS");
+      return self->state.keys();
+    },
+    [=](atom::get, atom::keys, request_id id) {
+      BROKER_DEBUG("KEYS" << "with id:" << id);
+      return caf::make_message(self->state.keys(), id);
     },
     [=](atom::get, const data& key) -> expected<data> {
       BROKER_DEBUG("GET" << key);

@@ -52,6 +52,8 @@ public:
 
   void operator()(clear_command&);
 
+  data keys() const;
+
   caf::event_based_actor* self;
 
   std::string name;
