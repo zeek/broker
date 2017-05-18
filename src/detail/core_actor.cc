@@ -403,6 +403,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& cme = *self->current_mailbox_element();
       if (!cme.stages.empty())
         return ec::unspecified;
+      // We don't run clone and master on the same endpoint.
+      if (self->state.masters.count(name) > 0)
+        return ec::master_exists;
       auto spawn_clone = [=](const caf::actor& master) -> caf::actor {
         BROKER_DEBUG("spawn new clone");
         auto clone = self->spawn<linked + lazy_init>(clone_actor, self,
