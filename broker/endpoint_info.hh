@@ -15,13 +15,12 @@ using caf::node_id;
 /// @relates endpoint
 struct endpoint_info {
   node_id node;                   ///< A unique context ID per machine/process.
-  endpoint_id id;                 ///< A unique endpoint ID within a node.
   optional<network_info> network; ///< Optional network-level information.
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
-  return f(info.node, info.id, info.network);
+  return f(info.node, info.network);
 }
 
 } // namespace broker

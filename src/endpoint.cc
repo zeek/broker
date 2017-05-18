@@ -15,7 +15,7 @@
 namespace broker {
 
 endpoint_info endpoint::info() const {
-  auto result = endpoint_info{core()->node(), core()->id(), {}};
+  auto result = endpoint_info{core()->node(), {}};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), timeout::core, atom::network::value,
                 atom::get::value).receive(

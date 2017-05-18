@@ -25,8 +25,6 @@ struct subtract_command;
 
 struct network_info;
 
-using endpoint_id = uint64_t;
-
 /// A monotonic identifier to represent a specific lookup request.
 using request_id = uint64_t;
 

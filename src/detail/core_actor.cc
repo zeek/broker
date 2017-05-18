@@ -39,11 +39,11 @@ using generic_stream = stream<message>;
 
 // Creates endpoint information from a core actor.
 endpoint_info make_info(const caf::actor& a, optional<network_info> net = {}) {
-  return {a->node(), a->id(), std::move(net)};
+  return {a->node(), std::move(net)};
 }
 
 endpoint_info make_info(network_info net) {
-  return {{}, caf::invalid_actor_id, std::move(net)};
+  return {{}, std::move(net)};
 }
 
 // Supervises the connection to an IP address and TCP port.
