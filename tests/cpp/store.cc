@@ -100,17 +100,7 @@ TEST(clone operations - same endpoint) {
   m->put("key", "value");
   REQUIRE(m);
   auto c = ep.attach<broker::clone>("vulcan");
-  REQUIRE(c);
-  std::this_thread::sleep_for(propagation_delay); // snapshot transfer
-  auto v = c->get("key");
-  REQUIRE(v);
-  CHECK_EQUAL(v, data{"value"});
-  MESSAGE("clone PUT");
-  c->put("key", 4.2);
-  std::this_thread::sleep_for(propagation_delay);
-  v = c->get("key");
-  REQUIRE(v);
-  CHECK_EQUAL(v, data{4.2});
+  REQUIRE(!c);
 }
 
 /*
@@ -169,27 +159,11 @@ TEST(proxy) {
   MESSAGE("master: collect responses");
   auto resp = proxy.receive();
   CHECK_EQUAL(resp.id, 1u);
-  REQUIRE(resp.answer);
-  CHECK_EQUAL(*resp.answer, data{42});
+  REQUIRE_EQUAL(resp.answer, data{42});
   resp = proxy.receive();
   CHECK_EQUAL(resp.id, 2u);
-  REQUIRE(!resp.answer);
-  CHECK_EQUAL(resp.answer.error(), ec::no_such_key);
+  REQUIRE_EQUAL(resp.answer, error{ec::no_such_key});
   MESSAGE("clone: issue queries");
   auto c = ep.attach<broker::clone>("puneta");
-  REQUIRE(c);
-  proxy = store::proxy{*c};
-  id = proxy.get("foo");
-  CHECK_EQUAL(id, 1u);
-  id = proxy.get("bar");
-  CHECK_EQUAL(id, 2u);
-  MESSAGE("clone: collect responses");
-  resp = proxy.receive();
-  CHECK_EQUAL(resp.id, 1u);
-  REQUIRE(resp.answer);
-  CHECK_EQUAL(*resp.answer, data{42});
-  resp = proxy.receive();
-  CHECK_EQUAL(resp.id, 2u);
-  REQUIRE(!resp.answer);
-  CHECK_EQUAL(resp.answer.error(), ec::no_such_key);
+  REQUIRE(!c);
 }
