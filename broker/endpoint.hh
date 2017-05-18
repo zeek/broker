@@ -47,6 +47,8 @@ public:
   endpoint& operator=(endpoint&&) = delete;
   endpoint& operator=(const endpoint&) = delete;
 
+  ~endpoint();
+
   /// @returns Information about this endpoint.
   endpoint_info info() const;
 

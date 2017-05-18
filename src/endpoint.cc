@@ -37,6 +37,10 @@ endpoint::endpoint(configuration config)
   core_ = system_.spawn(detail::core_actor, detail::filter_type{});
 }
 
+endpoint::~endpoint() {
+  anon_send_exit(core_, caf::exit_reason::user_shutdown);
+}
+
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
   auto res = system_.middleman().publish(core(), port, addr);
