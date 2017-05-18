@@ -10,7 +10,6 @@
 #include <caf/upstream_path.hpp>
 
 #include "broker/atoms.hh"
-#include "broker/context.hh"
 #include "broker/endpoint.hh"
 
 #include "broker/detail/filter_type.hh"
@@ -117,10 +116,10 @@ private:
   detail::shared_queue_ptr queue_;
 };
 
-behavior subscriber_worker(event_based_actor* self, context* ctx,
+behavior subscriber_worker(event_based_actor* self, endpoint* ep,
                            detail::shared_queue_ptr qptr, std::vector<topic> ts,
                            long max_qsize) {
-  self->send(self * ctx->core(), atom::join::value, std::move(ts));
+  self->send(self * ep->core(), atom::join::value, std::move(ts));
   return {
     [=](const endpoint::stream_type& in) {
       auto mptr = self->current_mailbox_element();
@@ -133,9 +132,9 @@ behavior subscriber_worker(event_based_actor* self, context* ctx,
 
 } // namespace <anonymous>
 
-subscriber::subscriber(context& ctx, std::vector<topic> ts, long max_qsize) {
+subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
   queue_ = detail::make_shared_queue();
-  worker_ = ctx.system().spawn(subscriber_worker, &ctx, queue_, std::move(ts),
+  worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
 }
 

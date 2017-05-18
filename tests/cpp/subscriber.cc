@@ -57,12 +57,12 @@ CAF_TEST_FIXTURE_SCOPE(subscriber_tests, base_fixture)
 CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
-  auto core2 = ctx.core();
+  auto core2 = ep.core();
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  subscriber sub{ctx, filter_type{"b"}};
+  subscriber sub{ep, filter_type{"b"}};
   auto leaf = sub.worker();
   sched.run_once();
   expect((atom_value, filter_type),
@@ -117,7 +117,7 @@ CAF_TEST(blocking_subscriber) {
 CAF_TEST(nonblocking_subscriber) {
   // Spawn/get/configure core actors.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
-  auto core2 = ctx.core();
+  auto core2 = ep.core();
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
   // Initiate handshake between core1 and core2.
@@ -126,7 +126,6 @@ CAF_TEST(nonblocking_subscriber) {
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<element_type>;
   buf result;
-  endpoint ep{ctx};
   ep.subscribe_nosync(
     {"b"},
     [](unit_t&) {

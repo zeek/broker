@@ -17,8 +17,7 @@ TEST(default construction) {
 }
 
 TEST(backend option passing) {
-  context ctx;
-  auto ep = ctx.spawn();
+  endpoint ep;
   auto opts = backend_options{{"foo", 4.2}};
   auto ds = ep.attach<master>("lord", memory, std::move(opts));
   REQUIRE(ds);
@@ -40,8 +39,7 @@ TEST(no duplicate masters) {
 */
 
 TEST(master operations) {
-  context ctx;
-  auto ep = ctx.spawn();
+  endpoint ep;
   auto ds = ep.attach<master, memory>("kono");
   REQUIRE(ds);
   MESSAGE("put");
@@ -96,8 +94,7 @@ TEST(master operations) {
 }
 
 TEST(clone operations - same endpoint) {
-  context ctx;
-  auto ep = ctx.spawn();
+  endpoint ep;
   auto m = ep.attach<master, memory>("vulcan");
   MESSAGE("master PUT");
   m->put("key", "value");
@@ -141,8 +138,7 @@ TEST(clone operations - different endpoints) {
 
 TEST(expiration) {
   using std::chrono::milliseconds;
-  context ctx;
-  auto ep = ctx.spawn();
+  endpoint ep;
   auto m = ep.attach<master, memory>("grubby");
   REQUIRE(m);
   auto expiry = milliseconds(100);
@@ -160,8 +156,7 @@ TEST(expiration) {
 }
 
 TEST(proxy) {
-  context ctx;
-  auto ep = ctx.spawn();
+  endpoint ep;
   auto m = ep.attach<master, memory>("puneta");
   REQUIRE(m);
   m->put("foo", 42);

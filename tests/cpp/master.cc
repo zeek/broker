@@ -18,8 +18,7 @@ using namespace broker::detail;
 CAF_TEST_FIXTURE_SCOPE(local_store_master, base_fixture)
 
 CAF_TEST(local_master) {
-  auto core = ctx.core();
-  endpoint ep{ctx};
+  auto core = ep.core();
   sched.run();
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
@@ -71,9 +70,9 @@ CAF_TEST_FIXTURE_SCOPE(store_master,
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ctx.core();
+  auto core1 = earth.ep.core();
   auto ss1 = earth.stream_serv; 
-  auto core2 = mars.ctx.core();
+  auto core2 = mars.ep.core();
   auto ss2 = mars.stream_serv;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
@@ -95,15 +94,12 @@ CAF_TEST(master_with_clone) {
   // Prepare publish and remote_actor calls.
   CAF_MESSAGE("prepare connections on earth and mars");
   prepare_connection(mars, earth, "mars", 8080u);
-  // Publish sink on mars.
-  endpoint ep_mars{mars.ctx};
-  endpoint ep_earth{earth.ctx};
   // Run any initialization code.
   exec_all();
   // Tell mars to listen for peers.
   CAF_MESSAGE("publish core on mars");
   mars.sched.inline_next_enqueue(); // listen() calls middleman().publish()
-  auto res = ep_mars.listen("", 8080u);
+  auto res = mars.ep.listen("", 8080u);
   CAF_CHECK_EQUAL(res, 8080u);
   exec_all();
   // Establish connection between mars and earth before peering in order to
@@ -122,7 +118,7 @@ CAF_TEST(master_with_clone) {
   // --- phase 4: attach a master on earth -------------------------------------
   CAF_MESSAGE("attach a master on earth");
   earth.sched.inline_next_enqueue();
-  auto expected_ds_earth = ep_earth.attach<master, memory>("foo");
+  auto expected_ds_earth = earth.ep.attach<master, memory>("foo");
   if (!expected_ds_earth)
     CAF_FAIL("could not attach master: "
              << earth.sys.render(expected_ds_earth.error()));
@@ -186,7 +182,7 @@ CAF_TEST(master_with_clone) {
   mars.sched.inline_next_enqueue();
   CAF_MESSAGE("attach a clone on mars");
   mars.sched.inline_next_enqueue();
-  auto expected_ds_mars = ep_mars.attach<clone>("foo");
+  auto expected_ds_mars = mars.ep.attach<clone>("foo");
   CAF_REQUIRE(expected_ds_mars.engaged());
   auto& ds_mars = *expected_ds_mars;
   auto& ms_mars = ds_mars.frontend();
@@ -211,7 +207,7 @@ CAF_TEST(master_with_clone) {
   expect_on(mars, (atom_value, internal_command),
             from(_).to(ds_mars.frontend()).with(atom::local::value, _));
   expect_on(mars, (atom_value, topic, internal_command),
-            from(_).to(mars.ctx.core()).with(atom::publish::value, _, _));
+            from(_).to(mars.ep.core()).with(atom::publish::value, _, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
   CAF_CHECK_EQUAL(ds_earth.get("user"), data{"neverlord"});
@@ -220,8 +216,8 @@ CAF_TEST(master_with_clone) {
   mars.sched.inline_next_enqueue(); // .get talks to the master
   CAF_CHECK_EQUAL(ds_mars.get("user"), data{"neverlord"});
   // done
-  anon_send_exit(earth.ctx.core(), exit_reason::user_shutdown);
-  anon_send_exit(mars.ctx.core(), exit_reason::user_shutdown);
+  anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
+  anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
 }
 

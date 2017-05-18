@@ -10,8 +10,8 @@ using namespace caf;
 using namespace broker;
 
 base_fixture::base_fixture(bool fake_network)
-    : ctx(make_config(fake_network)),
-      sys(ctx.system()),
+    : ep(make_config(fake_network)),
+      sys(ep.system()),
       self(sys),
       sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   // nop

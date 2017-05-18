@@ -63,7 +63,7 @@ CAF_TEST_FIXTURE_SCOPE(publisher_tests, base_fixture)
 
 CAF_TEST(blocking_publishers) {
   // Spawn/get/configure core actors.
-  auto core1 = ctx.core();
+  auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
@@ -94,13 +94,13 @@ CAF_TEST(blocking_publishers) {
     // There must be no communication pending at this point.
     CAF_REQUIRE(!sched.has_job());
     // Spin up two publishers: one for "a" and one for "b".
-    publisher pub1{ctx, "a"};
+    publisher pub1{ep, "a"};
     auto d1 = pub1.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
     expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
     CAF_REQUIRE_EQUAL(pub1.demand(), 10); // 5 demand + 5 extra buffer
-    publisher pub2{ctx, "b"};
+    publisher pub2{ep, "b"};
     auto d2 = pub2.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d2, _, _, false));
@@ -163,7 +163,7 @@ CAF_TEST(blocking_publishers) {
 
 CAF_TEST(nonblocking_publishers) {
   // Spawn/get/configure core actors.
-  auto core1 = ctx.core();
+  auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
@@ -194,7 +194,6 @@ CAF_TEST(nonblocking_publishers) {
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
-  endpoint ep{ctx};
   using buf_type = std::vector<element_type>;
   ep.publish_all_nosync(
     // Initialize send buffer with 10 elements.

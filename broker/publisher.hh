@@ -28,7 +28,7 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  publisher(context& ctx, topic t);
+  publisher(endpoint& ep, topic t);
   publisher(const publisher&) = delete;
   publisher& operator=(const publisher&) = delete;
 

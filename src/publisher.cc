@@ -4,7 +4,6 @@
 #include <caf/send.hpp>
 #include <caf/stream_source.hpp>
 
-#include "broker/context.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/topic.hh"
@@ -17,10 +16,10 @@ namespace broker {
 
 namespace {
 
-behavior publisher_worker(event_based_actor* self, context* ctx,
+behavior publisher_worker(event_based_actor* self, endpoint* ep,
                           detail::shared_queue_ptr qptr) {
   auto handler = self->new_stream(
-    ctx->core(),
+    ep->core(),
     [](unit_t&) {
       // nop
     },
@@ -61,9 +60,9 @@ behavior publisher_worker(event_based_actor* self, context* ctx,
 
 } // namespace <anonymous>
 
-publisher::publisher(context& ctx, topic t)
+publisher::publisher(endpoint& ep, topic t)
   : queue_(detail::make_shared_queue()),
-    worker_(ctx.system().spawn(publisher_worker, &ctx, queue_)),
+    worker_(ep.system().spawn(publisher_worker, &ep, queue_)),
     topic_(std::move(t)) {
   // nop
 }

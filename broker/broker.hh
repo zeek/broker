@@ -4,7 +4,6 @@
 #include "broker/address.hh"
 #include "broker/atoms.hh"
 #include "broker/config.hh"
-#include "broker/context.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"

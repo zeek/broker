@@ -4,13 +4,14 @@
 #include <caf/io/middleman.hpp>
 
 #include "broker/atoms.hh"
-#include "broker/context.hh"
 #include "broker/endpoint.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
+
 
 namespace broker {
 
@@ -30,13 +31,15 @@ endpoint_info endpoint::info() const {
   return result;
 }
 
-endpoint::endpoint(context& ctx) : ctx_(ctx) {
-  // nop
+endpoint::endpoint(configuration config)
+  : config_(std::move(config)),
+    system_(config_) {
+  core_ = system_.spawn(detail::core_actor, detail::filter_type{});
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
-  auto res = ctx_.system().middleman().publish(core(), port, addr);
+  auto res = system_.middleman().publish(core(), port, addr);
   return res ? *res : 0;
   /*
   auto res = caf::io::publish(ctx_.core(), port);
@@ -106,12 +109,8 @@ void endpoint::publish(topic t, data d) {
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
 }
 
-const caf::actor& endpoint::core() const {
-  return ctx_.core();
-}
-
 void endpoint::make_actor(actor_init_fun f) {
-  ctx_.system().spawn([=](caf::event_based_actor* self) {
+  system_.spawn([=](caf::event_based_actor* self) {
     f(self);
   });
 }
@@ -119,7 +118,7 @@ void endpoint::make_actor(actor_init_fun f) {
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{ctx_.system()};
+  caf::scoped_actor self{system_};
   self->request(core(), caf::infinite, atom::store::value, atom::master::value,
                 atom::attach::value, std::move(name), type, std::move(opts))
   .receive(

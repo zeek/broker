@@ -1,7 +1,6 @@
 #ifndef BROKER_SUBSCRIBER_HH
 #define BROKER_SUBSCRIBER_HH
 
-#include <mutex>
 #include <vector>
 
 #include <caf/actor.hpp>
@@ -10,6 +9,7 @@
 #include <caf/ref_counted.hpp>
 
 #include "broker/data.hh"
+#include "broker/fwd.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/shared_queue.hh"
@@ -27,7 +27,7 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  subscriber(context& ctx, std::vector<topic> ts, long max_qsize = 20);
+  subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize = 20);
 
   ~subscriber();
 

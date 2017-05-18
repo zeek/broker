@@ -162,9 +162,9 @@ CAF_TEST_FIXTURE_SCOPE(distributed_peers,
 // Setup: driver -> earth.core -> mars.core -> leaf
 CAF_TEST(remote_peers_setup1) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ctx.core();
+  auto core1 = earth.ep.core();
   auto ss1 = earth.stream_serv; 
-  auto core2 = mars.ctx.core();
+  auto core2 = mars.ep.core();
   auto ss2 = mars.stream_serv;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
@@ -189,15 +189,12 @@ CAF_TEST(remote_peers_setup1) {
   // Prepare publish and remote_actor calls.
   CAF_MESSAGE("prepare connections on earth and mars");
   prepare_connection(mars, earth, "mars", 8080u);
-  // Publish sink on mars.
-  endpoint ep_mars{mars.ctx};
-  endpoint ep_earth{earth.ctx};
   // Run any initialization code.
   exec_all();
   // Tell mars to listen for peers.
   CAF_MESSAGE("publish core on mars");
   mars.sched.inline_next_enqueue(); // listen() calls middleman().publish()
-  auto res = ep_mars.listen("", 8080u);
+  auto res = mars.ep.listen("", 8080u);
   CAF_CHECK_EQUAL(res, 8080u);
   exec_all();
   // Establish connection between mars and earth before peering in order to
@@ -303,9 +300,9 @@ CAF_TEST(remote_peers_setup1) {
 // Setup: driver -> mars.core -> earth.core -> leaf
 CAF_TEST(remote_peers_setup2) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ctx.core();
+  auto core1 = earth.ep.core();
   auto ss1 = earth.stream_serv; 
-  auto core2 = mars.ctx.core();
+  auto core2 = mars.ep.core();
   auto ss2 = mars.stream_serv;
   auto forward_stream_traffic = [&] {
     auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
@@ -330,15 +327,12 @@ CAF_TEST(remote_peers_setup2) {
   // Prepare publish and remote_actor calls.
   CAF_MESSAGE("prepare connections on earth and mars");
   prepare_connection(mars, earth, "mars", 8080u);
-  // Publish sink on mars.
-  endpoint ep_mars{mars.ctx};
-  endpoint ep_earth{earth.ctx};
   // Run any initialization code.
   exec_all();
   // Tell mars to listen for peers.
   CAF_MESSAGE("publish core on mars");
   mars.sched.inline_next_enqueue(); // listen() calls middleman().publish()
-  auto res = ep_mars.listen("", 8080u);
+  auto res = mars.ep.listen("", 8080u);
   CAF_CHECK_EQUAL(res, 8080u);
   exec_all();
   // Establish connection between mars and earth before peering in order to
@@ -354,7 +348,7 @@ CAF_TEST(remote_peers_setup2) {
   anon_send(actor_cast<actor>(ss1), connect_atom::value, ss2->node());
   anon_send(actor_cast<actor>(ss2), connect_atom::value, ss1->node());
   exec_all();
-  // --- phase 4: spawn a leaf/consumer on earth and connect it to core2 --------
+  // --- phase 4: spawn a leaf/consumer on earth and connect it to core2 -------
   // Connect a consumer (leaf) to core2.
   auto leaf = earth.sys.spawn(consumer, filter_type{"b"}, core1);
   CAF_MESSAGE("core1: " << to_string(core1));

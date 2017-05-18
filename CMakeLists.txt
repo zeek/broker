@@ -152,7 +152,6 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
 set(BROKER_SRC
   src/address.cc
   src/configuration.cc
-  src/context.cc
   src/data.cc
   src/endpoint.cc
   src/error.cc

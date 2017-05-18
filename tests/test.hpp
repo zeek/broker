@@ -14,7 +14,7 @@
 #include <caf/io/network/test_multiplexer.hpp>
 
 #include "broker/configuration.hh"
-#include "broker/context.hh"
+#include "broker/endpoint.hh"
 
 // -- test setup macros --------------------------------------------------------
 
@@ -58,7 +58,7 @@ public:
 
   base_fixture(bool fake_network = false);
 
-  broker::context ctx;
+  broker::endpoint ep;
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;

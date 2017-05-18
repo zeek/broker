@@ -11,6 +11,7 @@
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
+#include "broker/configuration.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
@@ -39,12 +40,11 @@ public:
 
   using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
-  endpoint(context& ctx);
+  endpoint(configuration config = {});
 
-  endpoint(endpoint&&) = default;
-
-  endpoint() = delete;
+  endpoint(endpoint&&) = delete;
   endpoint(const endpoint&) = delete;
+  endpoint& operator=(endpoint&&) = delete;
   endpoint& operator=(const endpoint&) = delete;
 
   /// @returns Information about this endpoint.
@@ -218,7 +218,13 @@ public:
     return attach_clone(std::move(name));
   }
 
-  const caf::actor& core() const;
+  inline caf::actor_system& system() {
+    return system_;
+  }
+
+  inline const caf::actor& core() const {
+    return core_;
+  }
 
 protected:
   caf::actor subscriber_;
@@ -231,7 +237,9 @@ private:
 
   expected<store> attach_clone(std::string name);
 
-  context& ctx_;
+  configuration config_;
+  caf::actor_system system_;
+  caf::actor core_;
 };
 
 } // namespace broker
