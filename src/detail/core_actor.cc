@@ -461,9 +461,6 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& cme = *self->current_mailbox_element();
       if (!cme.stages.empty())
         return ec::unspecified;
-      // We don't run clone and master on the same endpoint.
-      if (self->state.masters.count(name) > 0)
-        return ec::master_exists;
       auto spawn_clone = [=](const caf::actor& master) -> caf::actor {
         BROKER_DEBUG("spawn new clone");
         auto clone = self->spawn<linked + lazy_init>(clone_actor, self,
@@ -490,7 +487,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& peers = self->state.governor->peers();
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
-        BROKER_DEBUG("found local master, using direct link");
+        // We don't run clone and master on the same endpoint.
+        if (self->node() == i->second.node()) {
+          BROKER_DEBUG("attempted to run clone & master on the same endpoint");
+          return ec::no_such_master;
+        }
+        BROKER_DEBUG("found master in map");
         return spawn_clone(i->second);
       } else if (peers.empty()) {
         BROKER_DEBUG("no peers to ask for the master");
