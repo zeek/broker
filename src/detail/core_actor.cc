@@ -382,6 +382,36 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
       self->state.governor->push(std::move(t), std::move(x));
     },
+    // --- communication to local actors only, i.e., never forward to peers ----
+    [=](atom::publish, atom::local, topic& t, data& x) {
+      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
+      self->state.governor->local_push(std::move(t), std::move(x));
+    },
+    // --- "one-to-one" communication that bypasses streaming entirely ---------
+    [=](atom::publish, endpoint_info& e, topic& t, data& x) {
+      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
+      auto& st = self->state;
+      actor hdl;
+      if (e.network) {
+        auto tmp = st.cache.find(*e.network);
+        if (tmp)
+          hdl = std::move(*tmp);
+      }
+      if (!hdl) {
+        auto predicate = [&](const stream_governor::peer_map::value_type& kvp) {
+          return kvp.first.node() == e.node;
+        };
+        auto e = st.governor->peers().end();
+        auto i = std::find_if(st.governor->peers().begin(), e, predicate);
+        if (i == e) {
+          BROKER_ERROR("no node found for endpoint info" << e);
+          return;
+        }
+        hdl = i->first;
+      }
+      self->send(hdl, atom::publish::value, atom::local::value,
+                 std::move(t), std::move(x));
+    },
     // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
         backend backend_type,

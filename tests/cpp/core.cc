@@ -181,6 +181,37 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
+  CAF_MESSAGE("deliver remaining items from driver");
+  sched.run();
+  // Check log of the consumer after receiving all items from driver.
+  self->send(leaf, atom::get::value);
+  sched.prioritize(leaf);
+  sched.run_once();
+  self->receive(
+    [](const buf& xs) {
+      buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+      CAF_REQUIRE_EQUAL(xs, expected);
+    }
+  );
+  // Send a message "directly" from core1 to core2 by bypassing the stream.
+  anon_send(core1, atom::publish::value, endpoint_info{core2.node(), caf::none},
+            topic("b"), data{true});
+  expect((atom::publish, endpoint_info, topic, data),
+         from(_).to(core1).with(_, _, _, _));
+  expect((atom::publish, atom::local, topic, data),
+         from(core1).to(core2).with(_, _, topic("b"), data{true}));
+  expect((stream_msg::batch), from(core2).to(leaf).with(1, _, _));
+  // Check log of the consumer one last time.
+  self->send(leaf, atom::get::value);
+  sched.prioritize(leaf);
+  sched.run_once();
+  self->receive(
+    [](const buf& xs) {
+      buf expected{{"b", true}, {"b", false}, {"b", true},
+                   {"b", false}, {"b", true}};
+      CAF_REQUIRE_EQUAL(xs, expected);
+    }
+  );
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);

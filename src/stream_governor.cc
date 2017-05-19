@@ -119,6 +119,16 @@ caf::error stream_governor::add_downstream(const caf::stream_id& sid,
   return caf::sec::invalid_stream_state;
 }
 
+void stream_governor::local_push(worker_element&& x) {
+  workers_.push(std::move(x));
+  workers_.policy().push(workers_);
+}
+
+void stream_governor::local_push(topic&& t, data&& x) {
+  worker_element e{std::move(t), std::move(x)};
+  local_push(std::move(e));
+}
+
 void stream_governor::push(topic&& t, data&& x) {
   CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
   auto selected = [](const filter_type& f, const worker_element& e) -> bool {
@@ -135,8 +145,7 @@ void stream_governor::push(topic&& t, data&& x) {
       out.policy().push(out);
     }
   }
-  workers_.push(std::move(e));
-  workers_.policy().push(workers_);
+  local_push(std::move(e));
 }
 
 void stream_governor::push(topic&& t, internal_command&& x) {

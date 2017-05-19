@@ -128,6 +128,12 @@ public:
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);
 
+  /// Pushes worker traffic into the that must not be forwarded to peers stream.
+  void local_push(worker_element&& x);
+
+  /// Pushes worker traffic into the that must not be forwarded to peers stream.
+  void local_push(topic&& t, data&& x);
+
   /// Pushes worker traffic into the stream.
   void push(topic&& t, data&& x);
 
