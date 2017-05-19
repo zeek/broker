@@ -36,7 +36,7 @@ struct shared_queue : caf::ref_counted {
   std::atomic<long> pending;
 
   /// Stores consumption or production rate.
-  std::atomic<long> rate;
+  std::atomic<size_t> rate;
 };
 
 using shared_queue_ptr = caf::intrusive_ptr<shared_queue>;

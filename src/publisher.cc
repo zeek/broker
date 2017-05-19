@@ -16,8 +16,32 @@ namespace broker {
 
 namespace {
 
-behavior publisher_worker(event_based_actor* self, endpoint* ep,
-                          detail::shared_queue_ptr qptr) {
+/// Defines how many seconds are averaged for the computation of the send rate.
+constexpr size_t sample_size = 10;
+
+struct publisher_worker_state {
+  std::vector<size_t> buf;
+  size_t counter = 0;
+
+  void tick() {
+    if (buf.size() < sample_size) {
+      buf.push_back(counter);
+    } else {
+      std::rotate(buf.begin(), buf.begin() + 1, buf.end());
+      buf.back() = counter;
+    }
+    counter = 0;
+  }
+
+  size_t rate() {
+    return !buf.empty()
+           ? std::accumulate(buf.begin(), buf.end(), size_t{0}) / buf.size()
+           : 0;
+  }
+};
+
+behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
+                          endpoint* ep, detail::shared_queue_ptr qptr) {
   auto handler = self->new_stream(
     ep->core(),
     [](unit_t&) {
@@ -31,6 +55,7 @@ behavior publisher_worker(event_based_actor* self, endpoint* ep,
         qptr->cv.notify_one();
       } else {
         auto n = std::min(num, xs.size());
+        self->state.counter += n;
         for (size_t i = 0u; i < n; ++i)
           out.push(std::move(xs[i]));
         xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
@@ -46,13 +71,17 @@ behavior publisher_worker(event_based_actor* self, endpoint* ep,
       // nop
     }
   ).ptr();
+  self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](atom::resume) {
       static_cast<stream_source*>(handler.get())->generate();
       handler->push();
     },
     [=](atom::tick) {
-      // TODO: compute rate
+      auto& st = self->state;
+      st.tick();
+      qptr->rate = st.rate();
+      self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     }
   };
 }

@@ -20,6 +20,30 @@ namespace broker {
 
 namespace {
 
+/// Defines how many seconds are averaged for the computation of the send rate.
+constexpr size_t sample_size = 10;
+
+struct subscriber_worker_state {
+  std::vector<size_t> buf;
+  size_t counter = 0;
+
+  void tick() {
+    if (buf.size() < sample_size) {
+      buf.push_back(counter);
+    } else {
+      std::rotate(buf.begin(), buf.begin() + 1, buf.end());
+      buf.back() = counter;
+    }
+    counter = 0;
+  }
+
+  size_t rate() {
+    return !buf.empty()
+           ? std::accumulate(buf.begin(), buf.end(), size_t{0}) / buf.size()
+           : 0;
+  }
+};
+
 using policy_ptr = std::unique_ptr<upstream_policy>;
 
 class subscriber_policy : public upstream_policy {
@@ -59,10 +83,11 @@ class subscriber_sink : public extend<stream_handler, subscriber_sink>::
 public:
   using element_type = std::pair<topic, data>;
 
-  subscriber_sink(event_based_actor* self, detail::shared_queue_ptr qptr,
-                  long max_qsize)
+  subscriber_sink(event_based_actor* self, subscriber_worker_state* state,
+                  detail::shared_queue_ptr qptr, long max_qsize)
     : in_(self, subscriber_policy::make(qptr, max_qsize)),
-      queue_(std::move(qptr)) {
+      queue_(std::move(qptr)),
+      state_(state) {
     // nop
   }
 
@@ -86,6 +111,7 @@ public:
         return sec::unexpected_message;
       auto& ys = xs.get_mutable_as<std::vector<element_type>>(0);
       subscriber::guard_type guard{queue_->mtx};
+      state_->counter += ys.size();
       queue_->xs.insert(queue_->xs.end(), std::make_move_iterator(ys.begin()),
                         std::make_move_iterator(ys.end()));
       in_.assign_credit(0); // 0 is ignored by our policy.
@@ -114,18 +140,27 @@ public:
 private:
   upstream<element_type> in_;
   detail::shared_queue_ptr queue_;
+  subscriber_worker_state* state_;
 };
 
-behavior subscriber_worker(event_based_actor* self, endpoint* ep,
-                           detail::shared_queue_ptr qptr, std::vector<topic> ts,
-                           long max_qsize) {
+behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
+                           endpoint* ep, detail::shared_queue_ptr qptr,
+                           std::vector<topic> ts, long max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
+  self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](const endpoint::stream_type& in) {
       auto mptr = self->current_mailbox_element();
       BROKER_ASSERT(mptr != nullptr);
-      auto sptr = make_counted<subscriber_sink>(self, qptr, max_qsize);
+      auto sptr = make_counted<subscriber_sink>(self, &self->state,
+                                                qptr, max_qsize);
       self->streams().emplace(in.id(), std::move(sptr));
+    },
+    [=](atom::tick) {
+      auto& st = self->state;
+      st.tick();
+      qptr->rate = st.rate();
+      self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     }
   };
 }

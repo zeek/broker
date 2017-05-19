@@ -46,7 +46,7 @@ public:
 
   /// Returns a rough estimate of the throughput per second of this publisher.
   size_t send_rate() const;
-
+  
   // --- messaging -------------------------------------------------------------
   
   /// Sends `x` to all subscribers.
