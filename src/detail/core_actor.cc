@@ -543,7 +543,6 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           add(kvp.first, peer_status::connected);
         else
           add(kvp.first, peer_status::connecting);
-printf("%s\n", deep_to_string(result).c_str());
       return result;
     }
   };
