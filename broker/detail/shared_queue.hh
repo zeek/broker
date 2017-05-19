@@ -5,6 +5,7 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <condition_variable>
 
 #include <caf/intrusive_ptr.hpp>
 #include <caf/ref_counted.hpp>
