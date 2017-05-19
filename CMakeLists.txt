@@ -181,6 +181,7 @@ set(BROKER_SRC
   src/detail/master_actor.cc
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
+  src/detail/network_cache.cc
   src/detail/sqlite_backend.cc
 
   src/detail/sqlite3.c

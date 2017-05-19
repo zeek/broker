@@ -15,6 +15,7 @@
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 
+#include "broker/detail/network_cache.hh"
 #include "broker/detail/radix_tree.hh"
 #include "broker/detail/stream_governor.hh"
 #include "broker/detail/stream_relay.hh"
@@ -30,9 +31,11 @@ struct core_state {
   using stream_id_pair = std::pair<caf::stream_id, caf::stream_id>;
 
   // --- construction ----------------------------------------------------------
+  
+  core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(caf::event_based_actor* s, filter_type initial_filter);
+  void init(filter_type initial_filter);
 
   // --- message introspection -------------------------------------------------
 
@@ -71,7 +74,11 @@ struct core_state {
   /// Multiplexes local streams and streams for peers.
   detail::stream_governor_ptr governor;
 
-  /// Maps pending peer handles to output IDs.
+  /// Maps pending peer handles to output IDs. An invalid stream ID indicates
+  /// that only "step #0" was performed so far. An invalid stream ID
+  /// corresponds to `peer_status::connecting` and a valid stream ID
+  /// cooresponds to `peer_status::connected`. The status for a given handle
+  /// `x` is `peer_status::peered` if `governor->has_peer(x)` returns true.
   std::unordered_map<caf::actor, caf::stream_id> pending_peers;
 
   /// Points to the owning actor.
@@ -82,6 +89,9 @@ struct core_state {
 
   /// Connects the governor to the input of local actor.
   caf::stream_handler_ptr store_relay;
+
+  /// Associates network addresses to remote actor handles and vice versa.
+  network_cache cache;
 
   /// Name shown in logs for all instances of this actor.
   static const char* name;

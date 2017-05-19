@@ -108,6 +108,18 @@ CAF_TEST(local_peers) {
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  // Check if core1 reports a pending peer.
+  CAF_MESSAGE("query peer information from core1");
+  sched.inline_next_enqueue();
+  self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
+    [&](const std::vector<peer_info>& xs) {
+      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
+    }
+  );
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
@@ -123,6 +135,29 @@ CAF_TEST(local_peers) {
   expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
   // There must be no communication pending at this point.
   CAF_REQUIRE(!sched.has_job());
+  // Check if core1 & core2 both report each other as peered.
+  CAF_MESSAGE("query peer information from core1");
+  sched.inline_next_enqueue();
+  self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
+    [&](const std::vector<peer_info>& xs) {
+      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
+    }
+  );
+  CAF_MESSAGE("query peer information from core2");
+  sched.inline_next_enqueue();
+  self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
+    [&](const std::vector<peer_info>& xs) {
+      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
+    }
+  );
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   CAF_MESSAGE("d1: " << to_string(d1));

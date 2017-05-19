@@ -84,8 +84,11 @@ caf::message store_token_factory(const caf::stream_id& x) {
 
 } // namespace <anonymous>
 
-void core_state::init(caf::event_based_actor* s, filter_type initial_filter) {
-  self = s;
+core_state::core_state(caf::event_based_actor* ptr) : self(ptr), cache(ptr) {
+  // nop
+}
+
+void core_state::init(filter_type initial_filter) {
   filter = std::move(initial_filter);
   governor = caf::make_counted<stream_governor>(this);
   auto wsid = governor->workers().sid();
@@ -149,7 +152,7 @@ bool core_state::has_remote_master(const std::string& name) {
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter) {
-  self->state.init(self, std::move(initial_filter));
+  self->state.init(std::move(initial_filter));
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
@@ -176,6 +179,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       */
     }
   );
+  auto init_peering = [=](actor remote_core) -> result<void> {
+    CAF_LOG_TRACE(CAF_ARG(remote_core));
+    auto& st = self->state;
+    // Sanity checking.
+    if (remote_core == nullptr)
+      return sec::invalid_argument;
+    // Ignore repeated peering requests without error.
+    if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core))
+      return unit;
+    // Create necessary state and send message to remote core.
+    st.pending_peers.emplace(remote_core, stream_id{});
+    self->send(self * remote_core, atom::peer::value, st.filter, self);
+    return unit;
+  };
   return {
     // --- filter manipulation -------------------------------------------------
     [=](atom::subscribe, filter_type& f) {
@@ -184,16 +201,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) -> result<void> {
-      CAF_LOG_TRACE(CAF_ARG(remote_core));
-      auto& st = self->state;
-      // Sanity checking.
-      if (remote_core == nullptr)
-        return sec::invalid_argument;
-      // Create necessary state and send message to remote core if not already
-      // peering with B.
-      if (!st.has_peer(remote_core))
-        self->send(self * remote_core, atom::peer::value, st.filter, self);
-      return unit;
+      return init_peering(std::move(remote_core));
+    },
+    [=](atom::peer, network_info addr, timeout::seconds retry, uint32_t n) {
+      self->state.cache.fetch(addr,
+                              [=](actor x) mutable {
+                                init_peering(std::move(x));
+                              },
+                              [=](error err) mutable {
+                                // TODO: make max_try_attempts configurable
+                                if (retry.count() > 0 && n < 100)
+                                  self->delayed_send(self, retry,
+                                                     atom::peer::value, addr,
+                                                     retry, n + 1);
+                              });
     },
     // --- 3-way handshake for establishing peering streams between A and B ----
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
@@ -213,9 +234,15 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                     << "via" << p << CAF_ARG(actor{self}));
       // Ignore unexpected handshakes as well as handshakes that collide
       // with an already pending handshake.
-      if (st.pending_peers.count(remote_core) > 0) {
-        CAF_LOG_DEBUG("Drop repeated peering request.");
-        return invalid_stream;
+      auto i = st.pending_peers.find(remote_core);
+      if (i != st.pending_peers.end()) {
+        if (i->second.valid()) {
+          CAF_LOG_DEBUG("Drop repeated peering request.");
+          return invalid_stream;
+        } else {
+          // Simply erase obsolete item here and insert a new item later.
+          st.pending_peers.erase(i);
+        }
       }
       // Especially ignore handshakes from already connected peers.
       if (st.governor->has_peer(remote_core)) {
@@ -257,6 +284,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       // Start streaming in opposite direction.
       auto sid = self->make_stream_id();
+      st.pending_peers.erase(remote_core);
       auto peer_ptr = st.governor->add_peer(p, std::move(remote_core),
                                             sid, std::move(filter));
       peer_ptr->incoming_sid = in.id();
@@ -280,7 +308,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Reject step #3 handshake if this actor didn't receive a step #1
       // handshake previously.
       auto i = st.pending_peers.find(remote_core);
-      if (i == st.pending_peers.end()) {
+      if (i == st.pending_peers.end() || !i->second.valid()) {
         CAF_LOG_WARNING("Received a step #3 handshake, but no #1 previously.");
         return;
       }
@@ -489,7 +517,36 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         }
       );
       return rp;
-    }};
+    },
+    // --- accessors -----------------------------------------------------------
+    [=](atom::get, atom::peer) {
+      auto& st = self->state;
+      std::vector<peer_info> result;
+      auto add = [&](actor hdl, peer_status status) {
+        peer_info tmp;
+        tmp.status = status;
+        tmp.flags = peer_flags::remote + peer_flags::inbound
+                    + peer_flags::outbound;
+        tmp.peer.node = hdl.node();
+        auto addrs = st.cache.find(hdl);
+        // the peer_info only holds a single address, so ... pick first?
+        if (addrs.size() > 0)
+        tmp.peer.network = *addrs.begin();
+        result.emplace_back(std::move(tmp));
+      };
+      // collect connected peers
+      for (auto& kvp : st.governor->peers())
+        add(kvp.first, peer_status::peered);
+      // collect pending peers
+      for (auto& kvp : st.pending_peers)
+        if (kvp.second.valid())
+          add(kvp.first, peer_status::connected);
+        else
+          add(kvp.first, peer_status::connecting);
+printf("%s\n", deep_to_string(result).c_str());
+      return result;
+    }
+  };
 }
 
 } // namespace detail

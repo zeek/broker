@@ -45,53 +45,19 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
   auto res = system_.middleman().publish(core(), port, addr);
   return res ? *res : 0;
-  /*
-  auto res = caf::io::publish(ctx_.core(), port);
+}
 
-  auto bound = caf::expected<uint16_t>{caf::error{}};
-  caf::scoped_actor self{core()->home_system()};
-  self->request(core(), timeout::core, atom::network::value,
-                atom::get::value).receive(
-    [&](const std::string&, uint16_t p) {
-      bound = p;
-    },
-    [](const caf::error& e) {
-      detail::die("failed to get endpoint network info:", to_string(e));
-    }
-  );
-  if (*bound > 0)
-    return 0; // already listening
-  char const* addr = address.empty() ? nullptr : address.c_str();
-  bound = core()->home_system().middleman().publish(core(), port, addr, true);
-  if (!bound)
-    return 0;
-  self->request(core(), timeout::core, atom::network::value, atom::put::value,
-                address, *bound).receive(
-    [](atom::ok) {
-      // nop
-    },
-    [](const caf::error& e) {
-      detail::die("failed to set endpoint network info:", to_string(e));
-    }
-  );
-  return *bound;
-  */
+void endpoint::peer(const std::string& address, uint16_t port,
+                    timeout::seconds retry) {
+  caf::anon_send(core_, atom::peer::value, network_info{address, port}, retry,
+                 uint32_t{0});
 }
 
 /* TODO: reimplement
-void endpoint::peer(const std::string& address, uint16_t port) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  auto hdl = ctx_.system().middleman().remote_actor(address, port);
-  if (hdl) {
-    CAF_LOG_DEBUG(CAF_ARG(core()) << CAF_ARG(hdl));
-    anon_send(core(), atom::peer::value, std::move(*hdl));
-  }
-  //caf::anon_send(core(), atom::peer::value, network_info{address, port});
-}
-
 void endpoint::unpeer(const std::string& address, uint16_t port) {
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
+*/
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
@@ -107,7 +73,6 @@ std::vector<peer_info> endpoint::peers() const {
   );
   return result;
 }
-*/
 
 void endpoint::publish(topic t, data d) {
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));

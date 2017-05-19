@@ -37,4 +37,16 @@ inline std::string to_string(const network_info& info) {
 
 } // namespace broker
 
+namespace std {
+
+template <>
+struct hash<broker::network_info> {
+  size_t operator()(const broker::network_info& x) const {
+    hash<string> f;
+    return f(x.address) ^ static_cast<size_t>(x.port);
+  }
+};
+
+} // namespace std
+
 #endif // BROKER_NETWORK_INFO_HH
