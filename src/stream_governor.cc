@@ -102,6 +102,21 @@ stream_governor::add_peer(caf::strong_actor_ptr downstream_handle,
   return nullptr;
 }
 
+void stream_governor::remove_peer(const caf::actor& hdl) {
+  CAF_LOG_TRACE(CAF_ARG(hdl));
+  auto i = peers_.find(hdl);
+  if (i == peers_.end())
+    return;
+  auto self = state_->self;
+  auto sptr = caf::actor_cast<caf::strong_actor_ptr>(self);
+  caf::error err = caf::exit_reason::user_shutdown;
+  auto& pd = *i->second;
+  self->streams().erase(pd.incoming_sid);
+  self->streams().erase(pd.out.sid());
+  pd.out.abort(sptr, err);
+  peers_.erase(i);
+}
+
 bool stream_governor::update_peer(const caf::actor& hdl, filter_type filter) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(filter));
   auto i = peers_.find(hdl);

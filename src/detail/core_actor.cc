@@ -576,7 +576,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         else
           add(kvp.first, peer_status::connecting);
       return result;
-    }
+    },
+    // --- destructive state manipulations -------------------------------------
+    [=](atom::unpeer, network_info addr) {
+      self->state.cache.fetch(addr,
+                              [=](actor x) mutable {
+                                self->state.governor->remove_peer(x);
+                              },
+                              [=](error) mutable {
+                                // nop
+                              });
+    },
+    [=](atom::unpeer, actor x) {
+      self->state.governor->remove_peer(x);
+    },
   };
 }
 

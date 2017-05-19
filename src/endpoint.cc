@@ -53,11 +53,9 @@ void endpoint::peer(const std::string& address, uint16_t port,
                  uint32_t{0});
 }
 
-/* TODO: reimplement
 void endpoint::unpeer(const std::string& address, uint16_t port) {
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
-*/
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;

@@ -212,6 +212,30 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
+  // Tell core1 to unpeer from core2
+  CAF_MESSAGE("unpeer core1 from core2");
+  anon_send(core1, atom::unpeer::value, core2);
+  sched.run();
+  // Check if core1 and core2 reports no more peers.
+  CAF_MESSAGE("query peer information from core1");
+  sched.inline_next_enqueue();
+  self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
+    [&](const std::vector<peer_info>& xs) {
+      CAF_REQUIRE_EQUAL(xs.size(), 0);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
+    }
+  );
+  sched.inline_next_enqueue();
+  self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
+    [&](const std::vector<peer_info>& xs) {
+      CAF_REQUIRE_EQUAL(xs.size(), 0);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
+    }
+  );
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);
