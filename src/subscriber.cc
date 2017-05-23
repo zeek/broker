@@ -53,28 +53,28 @@ public:
     // We assume there is only one upstream (the core) and simply ignore the
     // second parameter since we only consider the current state of our buffer.
     BROKER_ASSERT(xs.size() == 1);
-    auto size = static_cast<long>(queue_->xs.size());
+    auto size = static_cast<long>(queue_->buffer_size());
     BROKER_ASSERT(size <= max_qsize_);
     auto x = max_qsize_ - size;
-    queue_->pending = x;
-    queue_->cv.notify_one();
+    queue_->pending(x);
     auto assigned = xs.front().first->assigned_credit;
     BROKER_ASSERT(x >= assigned);
     xs.front().second = x - xs.front().first->assigned_credit;
   }
 
-  static policy_ptr make(detail::shared_queue_ptr qptr, long max_qsize) {
+  static policy_ptr make(detail::shared_subscriber_queue_ptr qptr,
+                         long max_qsize) {
     return policy_ptr {new subscriber_policy(std::move(qptr), max_qsize)};
   }
 
 private:
-  subscriber_policy(detail::shared_queue_ptr qptr, long max_qsize)
+  subscriber_policy(detail::shared_subscriber_queue_ptr qptr, long max_qsize)
     : queue_(std::move(qptr)),
       max_qsize_(max_qsize) {
     // nop
   }
 
-  detail::shared_queue_ptr queue_;
+  detail::shared_subscriber_queue_ptr queue_;
   long max_qsize_;
 };
 
@@ -84,7 +84,7 @@ public:
   using element_type = std::pair<topic, data>;
 
   subscriber_sink(event_based_actor* self, subscriber_worker_state* state,
-                  detail::shared_queue_ptr qptr, long max_qsize)
+                  detail::shared_subscriber_queue_ptr qptr, long max_qsize)
     : in_(self, subscriber_policy::make(qptr, max_qsize)),
       queue_(std::move(qptr)),
       state_(state) {
@@ -110,10 +110,11 @@ public:
       if (!xs.match_elements<std::vector<element_type>>())
         return sec::unexpected_message;
       auto& ys = xs.get_mutable_as<std::vector<element_type>>(0);
-      subscriber::guard_type guard{queue_->mtx};
-      state_->counter += ys.size();
-      queue_->xs.insert(queue_->xs.end(), std::make_move_iterator(ys.begin()),
-                        std::make_move_iterator(ys.end()));
+      auto ys_size = ys.size();
+      CAF_ASSERT(ys_size == xs_size);
+      state_->counter += ys_size;
+      queue_->produce(ys_size, std::make_move_iterator(ys.begin()),
+                      std::make_move_iterator(ys.end()));
       in_.assign_credit(0); // 0 is ignored by our policy.
       return caf::none;
     }
@@ -139,12 +140,13 @@ public:
 
 private:
   upstream<element_type> in_;
-  detail::shared_queue_ptr queue_;
+  detail::shared_subscriber_queue_ptr queue_;
   subscriber_worker_state* state_;
 };
 
 behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
-                           endpoint* ep, detail::shared_queue_ptr qptr,
+                           endpoint* ep,
+                           detail::shared_subscriber_queue_ptr qptr,
                            std::vector<topic> ts, long max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
   self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
@@ -159,7 +161,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
     [=](atom::tick) {
       auto& st = self->state;
       st.tick();
-      qptr->rate = st.rate();
+      qptr->rate(st.rate());
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     }
   };
@@ -168,7 +170,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 } // namespace <anonymous>
 
 subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
-  queue_ = detail::make_shared_queue();
+  queue_ = detail::make_shared_subscriber_queue();
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
 }
@@ -192,77 +194,33 @@ caf::optional<subscriber::value_type> subscriber::get(caf::duration timeout) {
 
 std::vector<subscriber::value_type> subscriber::get(size_t num,
                                                     caf::duration timeout) {
-  // Reserve space on the heap for the result.
-  using std::swap;
+
   std::vector<value_type> result;
   if (num == 0)
     return result;
-  result.reserve(num);
-  // Get exclusive access to the queue.
-  guard_type guard{queue_->mtx};
-  // Initialize required state and formulate predicate for wait_until.
-  auto& xs = queue_->xs;
-  size_t moved = 0;
-  auto xs_filled = [&] { return !xs.empty(); };
-  // Get absolute timeout.
   auto t0 = std::chrono::high_resolution_clock::now();
   t0 += timeout;
-  // Loop until either a timeout occurs or we are done.
   for (;;) {
-    // Wait some time and abort on timeout.
-    if (timeout == caf::infinite) {
-      while (xs.empty())
-        queue_->cv.wait(guard);
-    } else {
-      if (!queue_->cv.wait_until(guard, t0, xs_filled))
-        return result;
-    }
-    // Move chunk from deque into our buffer.
-    auto chunk = std::min(xs.size(), num - moved);
-    auto b = xs.begin();
-    auto e = b + chunk;
-    result.insert(result.end(), std::make_move_iterator(b),
-                  std::make_move_iterator(e));
-    xs.erase(b, e);
-    moved += chunk;
-    // Make sure to trigger our worker in case it ran out of credit.
-    if (queue_->pending == 0) {
-      // Note: it can happen that we trigger the worker multiple times, however
-      // there is no harm in doing so (except a few wasted CPU cycles).
-      caf::anon_send(worker_, atom::tick::value);
-    }
-    // Return if we have filled our buffer.
-    if (moved == num)
+    if (!timeout.valid())
+      queue_->wait_on_flare();
+    else if (!queue_->wait_on_flare_abs(t0))
+      return result;
+    queue_->consume(num - result.size(),
+                    [&](value_type&& x) { result.emplace_back(std::move(x)); });
+    if (result.size() == num)
       return result;
   }
 }
 
 std::vector<subscriber::value_type> subscriber::poll() {
-  using std::swap;
   std::vector<value_type> result;
-  // Get exclusive access to the queue.
-  guard_type guard{queue_->mtx};
-  // Move everything from the queue if not empty.
-  auto& xs = queue_->xs;
-  if (xs.empty())
-    return result;
-  auto b = xs.begin();
-  auto e = xs.end();
-  result.insert(result.end(), std::make_move_iterator(b),
-                std::make_move_iterator(e));
-  xs.clear();
-  // Make sure to trigger our worker in case it ran out of credit.
-  if (queue_->pending == 0) {
-    // Note: it can happen that we trigger the worker multiple times, however
-    // there is no harm in doing so (except a few wasted CPU cycles).
-    anon_send(worker_, atom::tick::value);
-  }
+  queue_->consume(std::numeric_limits<size_t>::max(),
+                  [&](value_type&& x) { result.emplace_back(std::move(x)); });
   return result;
 }
 
 size_t subscriber::available() const {
-  guard_type guard{queue_->mtx};
-  return queue_->xs.size();
+  return queue_->buffer_size();
 }
 
 } // namespace broker

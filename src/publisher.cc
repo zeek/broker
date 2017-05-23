@@ -16,8 +16,13 @@ namespace broker {
 
 namespace {
 
+// TODO: make these constants configurable
+
 /// Defines how many seconds are averaged for the computation of the send rate.
 constexpr size_t sample_size = 10;
+
+/// Defines how many items are stored in the queue.
+constexpr size_t queue_size = 30;
 
 struct publisher_worker_state {
   std::vector<size_t> buf;
@@ -41,28 +46,19 @@ struct publisher_worker_state {
 };
 
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
-                          endpoint* ep, detail::shared_queue_ptr qptr) {
+                          endpoint* ep,
+                          detail::shared_publisher_queue_ptr qptr) {
   auto handler = self->new_stream(
     ep->core(),
     [](unit_t&) {
       // nop
     },
     [=](unit_t&, downstream<endpoint::value_type>& out, size_t num) {
-      publisher::guard_type guard{qptr->mtx};
-      auto& xs = qptr->xs;
-      if (xs.empty()) {
-        qptr->pending = static_cast<long>(num);
-        qptr->cv.notify_one();
-      } else {
-        auto n = std::min(num, xs.size());
-        self->state.counter += n;
-        for (size_t i = 0u; i < n; ++i)
-          out.push(std::move(xs[i]));
-        xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-        if (num - n > 0) {
-          qptr->pending = static_cast<long>(num - n);
-        }
-      }
+      auto consumed = qptr->consume(num, [&](std::pair<topic, data>&& x) {
+        out.push(std::move(x));
+      });
+      if (consumed > 0)
+        self->state.counter += consumed;
     },
     [](const unit_t&) {
       return false;
@@ -80,7 +76,7 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
     [=](atom::tick) {
       auto& st = self->state;
       st.tick();
-      qptr->rate = st.rate();
+      qptr->rate(st.rate());
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     }
   };
@@ -90,7 +86,7 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
 } // namespace <anonymous>
 
 publisher::publisher(endpoint& ep, topic t)
-  : queue_(detail::make_shared_queue()),
+  : queue_(detail::make_shared_publisher_queue(queue_size)),
     worker_(ep.system().spawn(publisher_worker, &ep, queue_)),
     topic_(std::move(t)) {
   // nop
@@ -101,65 +97,26 @@ publisher::~publisher() {
 }
 
 size_t publisher::demand() const {
-  return queue_->pending.load();
+  return static_cast<size_t>(queue_->pending());
 }
 
 size_t publisher::buffered() const {
-  guard_type guard{queue_->mtx};
-  return queue_->xs.size();
+  return queue_->buffer_size();
 
 }
 
 size_t publisher::send_rate() const {
-  return queue_->rate.load();
+  return static_cast<size_t>(queue_->rate());
 }
 
 void publisher::publish(data x) {
-  bool trigger_resume = false;
-  {
-    guard_type guard{queue_->mtx};
-    if (queue_->xs.empty())
-      trigger_resume = true;
-    queue_->xs.emplace_back(topic_, std::move(x));
-  }
-  if (trigger_resume)
+  if (queue_->produce(topic_, std::move(x)))
     anon_send(worker_, atom::resume::value);
 }
 
 void publisher::publish(std::vector<data> xs) {
-  bool trigger_resume = false;
-  {
-    guard_type guard{queue_->mtx};
-    if (queue_->xs.empty())
-      trigger_resume = true;
-    for (auto& x : xs)
-      queue_->xs.emplace_back(topic_, std::move(x));
-  }
-  if (trigger_resume)
+  if (queue_->produce(topic_, std::move(xs)))
     anon_send(worker_, atom::resume::value);
-}
-
-bool publisher::wait_for_demand(size_t min_demand, duration timeout) {
-  auto x = demand();
-  if (x >= min_demand)
-    return true;
-  // Get exclusive access to the queue.
-  guard_type guard{queue_->mtx};
-  if (timeout.valid()) {
-    auto abs_timeout = std::chrono::high_resolution_clock::now();
-    abs_timeout += timeout;
-    auto demand_reached = [=] {
-      return demand() >= min_demand;
-    };
-    if (!queue_->cv.wait_until(guard, abs_timeout, demand_reached))
-      return false;
-  } else {
-    do {
-      queue_->cv.wait(guard);
-      x = demand();
-    } while (x < min_demand);
-  }
-  return true;
 }
 
 } // namespace broker

@@ -11,7 +11,7 @@
 #include "broker/atoms.hh"
 #include "broker/fwd.hh"
 
-#include "broker/detail/shared_queue.hh"
+#include "broker/detail/shared_publisher_queue.hh"
 
 namespace broker {
 
@@ -47,6 +47,17 @@ public:
   /// Returns a rough estimate of the throughput per second of this publisher.
   size_t send_rate() const;
   
+  /// Returns a reference to the background worker.
+  inline const caf::actor& worker() const {
+    return worker_;
+  }
+
+  /// Returns a file handle for integrating this publisher into a `select` or
+  /// `poll` loop.
+  inline int fd() const {
+    return queue_->fd();
+  }
+
   // --- messaging -------------------------------------------------------------
   
   /// Sends `x` to all subscribers.
@@ -54,8 +65,6 @@ public:
 
   /// Sends `xs` to all subscribers.
   void publish(std::vector<data> xs);
-
-  // --- control flow ----------------------------------------------------------
 
   /// Blocks the current thread until a timeout occurs or until the publisher
   /// has sufficient capacity to send `min_demand` messages immediately.
@@ -66,15 +75,10 @@ public:
   ///          is free to assign only small capacity kvalues to each publisher
   ///          individually in order to balance fairness and overall
   ///          throughput.
-  bool wait_for_demand(size_t min_demand = 1,
-                       caf::duration timeout = caf::infinite);
-
-  caf::actor worker() const {
-    return worker_;
-  }
+  bool wait_for_demand(caf::duration timeout = caf::infinite);
 
 private:
-  detail::shared_queue_ptr queue_;
+  detail::shared_publisher_queue_ptr queue_;
   caf::actor worker_;
   topic topic_;
 };

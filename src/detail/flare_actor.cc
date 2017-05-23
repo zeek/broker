@@ -32,39 +32,18 @@ void flare_actor::await_data() {
   CAF_LOG_DEBUG("awaiting data");
   if (! await_flare_)
     return;
-  pollfd p = {flare_.fd(), POLLIN, 0};
-  for (;;) {
-    CAF_LOG_DEBUG("polling");
-    auto n = ::poll(&p, 1, -1);
-    if (n < 0 && errno != EAGAIN)
-      std::terminate();
-    if (n == 1) {
-      CAF_ASSERT(p.revents & POLLIN);
-      CAF_ASSERT(has_next_message());
-      await_flare_ = false;
-      return;
-    }
-  }
+  await_flare_ = false;
+  flare_.await_one();
 }
 
 bool flare_actor::await_data(timeout_type timeout) {
   CAF_LOG_DEBUG("awaiting data with timeout");
   if (! await_flare_)
     return true;
-  auto delta = timeout - timeout_type::clock::now();
-  if (delta.count() <= 0)
-    return false;
-  pollfd p = {flare_.fd(), POLLIN, 0};
-  auto n = ::poll(&p, 1, delta.count());
-  if (n < 0 && errno != EAGAIN)
-    std::terminate();
-  if (n == 1) {
-    CAF_ASSERT(p.revents & POLLIN);
-    CAF_ASSERT(has_next_message());
+  auto res = flare_.await_one(timeout);
+  if (res)
     await_flare_ = false;
-    return true;
-  }
-  return false;
+  return res;
 }
 
 void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {

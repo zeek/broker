@@ -182,6 +182,8 @@ set(BROKER_SRC
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/network_cache.cc
+  src/detail/shared_publisher_queue.cc
+  src/detail/shared_subscriber_queue.cc
   src/detail/sqlite_backend.cc
 
   src/detail/sqlite3.c

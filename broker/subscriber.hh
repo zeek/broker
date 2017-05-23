@@ -12,7 +12,7 @@
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/shared_queue.hh"
+#include "broker/detail/shared_subscriber_queue.hh"
 
 namespace broker {
 
@@ -53,12 +53,18 @@ public:
   size_t available() const;
 
   /// Returns the worker serving this subscriber.
-  const caf::actor& worker() const {
+  inline const caf::actor& worker() const {
     return worker_;
   }
 
+  /// Returns a file handle for integrating this publisher into a `select` or
+  /// `poll` loop.
+  inline int fd() const {
+    return queue_->fd();
+  }
+
 private:
-  detail::shared_queue_ptr queue_;
+  detail::shared_subscriber_queue_ptr queue_;
   caf::actor worker_;
 };
 
