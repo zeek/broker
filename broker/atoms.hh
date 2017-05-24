@@ -4,7 +4,19 @@
 #include <caf/atom.hpp>
 
 namespace broker {
+
+using atom_value = caf::atom_value;
+
+template <atom_value V>
+using atom_constant = caf::atom_constant<V>;
+
 namespace atom {
+
+/// Creates an atom from given string literal.
+template <size_t Size>
+constexpr atom_value make(char const (&str)[Size]) {
+     return caf::atom(str);
+}
 
 /// --- inherited from CAF -----------------------------------------------------
 
