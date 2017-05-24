@@ -91,9 +91,11 @@ using fixture = test_coordinator_fixture<config>;
 CAF_TEST_FIXTURE_SCOPE(manual_stream_management, fixture)
 
 CAF_TEST(local_peers) {
-  // Spawn core actors.
+  // Spawn core actors and disable events.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   sched.run();
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
@@ -273,6 +275,8 @@ CAF_TEST(remote_peers_setup1) {
       // rince and repeat
     }
   };
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   exec_all();
@@ -413,6 +417,8 @@ CAF_TEST(remote_peers_setup2) {
       // rince and repeat
     }
   };
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   exec_all();

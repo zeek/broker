@@ -284,6 +284,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return;
       }
       // Start streaming in opposite direction.
+      st.emit_status<sc::peer_added>(make_info(remote_core),
+                                     "received handshake from remote core");
       auto sid = self->make_stream_id();
       st.pending_peers.erase(remote_core);
       auto peer_ptr = st.governor->add_peer(p, std::move(remote_core),
@@ -323,6 +325,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto res = self->streams().emplace(in.id(), peer_ptr->relay);
       if (!res.second) {
         CAF_LOG_WARNING("Stream already existed.");
+      } else {
+        st.emit_status<sc::peer_added>(make_info(remote_core),
+                                       "handshake successful");
       }
     },
     // --- asynchronous communication to peers ---------------------------------
@@ -599,6 +604,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::unpeer, actor x) {
       self->state.governor->remove_peer(x);
     },
+    [=](atom::no_events) {
+      auto& st = self->state;
+      st.errors_ = caf::group{};
+      st.statuses_ = caf::group{};
+    }
   };
 }
 

@@ -66,6 +66,8 @@ CAF_TEST(blocking_publishers) {
   auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   sched.run();
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
@@ -167,6 +169,8 @@ CAF_TEST(nonblocking_publishers) {
   auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   sched.run();
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);

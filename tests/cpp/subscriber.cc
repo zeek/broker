@@ -59,6 +59,8 @@ CAF_TEST(blocking_subscriber) {
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   auto core2 = ep.core();
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   sched.run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
@@ -119,6 +121,8 @@ CAF_TEST(nonblocking_subscriber) {
   // Spawn/get/configure core actors.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
   auto core2 = ep.core();
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   sched.run();
   // Initiate handshake between core1 and core2.

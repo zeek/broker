@@ -11,9 +11,11 @@
 #include <caf/stateful_actor.hpp>
 
 #include "broker/endpoint_info.hh"
-#include "broker/optional.hh"
+#include "broker/error.hh"
 #include "broker/network_info.hh"
+#include "broker/optional.hh"
 #include "broker/peer_info.hh"
+#include "broker/status.hh"
 
 #include "broker/detail/network_cache.hh"
 #include "broker/detail/radix_tree.hh"
@@ -59,6 +61,20 @@ struct core_state {
   /// Returns whether a master for `name` probably exists already on one of our
   /// peers.
   bool has_remote_master(const std::string& name);
+
+  // --- convenience functions for sending errors and events -------------------
+
+  template <ec ErrorCode, class... Ts>
+  void emit_error(Ts&&... xs) {
+    self->send(errors_, atom::local::value,
+               make_error(ErrorCode, std::forward<Ts>(xs)...));
+  }
+
+  template <sc StatusCode, class... Ts>
+  void emit_status(Ts&&... xs) {
+    self->send(statuses_, atom::local::value,
+               status::make<StatusCode>(std::forward<Ts>(xs)...));
+  }
 
   // --- member variables ------------------------------------------------------
 

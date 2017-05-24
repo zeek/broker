@@ -50,6 +50,10 @@ using subtract = caf::atom_constant<caf::atom("subtract")>;
 using local = caf::atom_constant<caf::atom("local")>;
 using resolve = caf::atom_constant<caf::atom("resolve")>;
 
+/// --- communiation with core actor -------------------------------------------
+
+using no_events = caf::atom_constant<caf::atom("NoEvents")>;
+
 } // namespace atom
 } // namespace broker
 

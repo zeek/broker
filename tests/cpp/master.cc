@@ -91,6 +91,8 @@ CAF_TEST(master_with_clone) {
       // rince and repeat
     }
   };
+  anon_send(core1, atom::no_events::value);
+  anon_send(core2, atom::no_events::value);
   // --- phase 2: connect earth and mars at CAF level --------------------------
   // Prepare publish and remote_actor calls.
   CAF_MESSAGE("prepare connections on earth and mars");
