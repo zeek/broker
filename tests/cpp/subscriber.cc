@@ -18,12 +18,12 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-using element_type = std::pair<topic, data>;
+using value_type = std::pair<topic, data>;
 
 namespace {
 
 void driver(event_based_actor* self, const actor& sink) {
-  using buf_type = std::vector<element_type>;
+  using buf_type = std::vector<value_type>;
   self->new_stream(
     // Destination.
     sink,
@@ -33,7 +33,7 @@ void driver(event_based_actor* self, const actor& sink) {
                     {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}};
     },
     // Get next element.
-    [](buf_type& xs, downstream<element_type>& out, size_t num) {
+    [](buf_type& xs, downstream<value_type>& out, size_t num) {
       auto n = std::min(num, xs.size());
       for (size_t i = 0u; i < n; ++i)
         out.push(xs[i]);
@@ -124,14 +124,14 @@ CAF_TEST(nonblocking_subscriber) {
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   // Connect a subscriber (leaf) to core2.
-  using buf = std::vector<element_type>;
+  using buf = std::vector<value_type>;
   buf result;
   ep.subscribe_nosync(
     {"b"},
     [](unit_t&) {
       // nop
     },
-    [&](unit_t&, element_type x) {
+    [&](unit_t&, value_type x) {
       result.emplace_back(std::move(x));
     },
     [](unit_t&) {

@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 
 #include <caf/duration.hpp>
+#include <caf/make_counted.hpp>
 
 #include "broker/detail/shared_queue.hh"
 
@@ -18,33 +19,36 @@ namespace detail {
 /// - the flare is active as long as xs_ has more than one item
 /// - produce() fires the flare when it adds items to xs_ and xs_ was empty
 /// - consume() extinguishes the flare when it removes the last item from xs_
-class shared_subscriber_queue : public shared_queue {
+template <class ValueType = std::pair<topic, data>>
+class shared_subscriber_queue : public shared_queue<ValueType> {
 public:
-  using element_type = std::pair<topic, data>;
+  using value_type = ValueType;
+
+  using super = shared_queue<ValueType>;
+
+  using guard_type = typename super::guard_type;
 
   shared_subscriber_queue() = default;
-
-  ~shared_subscriber_queue();
 
   // Called to pull up to `num` items out of the queue. Returns the number of
   // consumed elements.
   template <class F>
   size_t consume(size_t num, F fun) {
-    guard_type guard{mtx_};
-    if (xs_.empty())
+    guard_type guard{this->mtx_};
+    if (this->xs_.empty())
       return 0;
-    auto n = std::min(num, xs_.size());
-    if (n == xs_.size()) {
-      for (auto& x : xs_)
+    auto n = std::min(num, this->xs_.size());
+    if (n == this->xs_.size()) {
+      for (auto& x : this->xs_)
         fun(std::move(x));
-      xs_.clear();
-      fx_.extinguish_one();
+      this->xs_.clear();
+      this->fx_.extinguish_one();
     } else {
-      auto b = xs_.begin();
+      auto b = this->xs_.begin();
       auto e = b + static_cast<ptrdiff_t>(n);
       for (auto i = b; i != e; ++i)
         fun(std::move(*i));
-      xs_.erase(b, e);
+      this->xs_.erase(b, e);
     }
     return n;
   }
@@ -53,16 +57,21 @@ public:
   template <class Iter>
   void produce(size_t num, Iter i, Iter e) {
     CAF_ASSERT(num == std::distance(i, e));
-    guard_type guard{mtx_};
-    if (xs_.empty())
-      fx_.fire();
-    xs_.insert(xs_.end(), i, e);
+    guard_type guard{this->mtx_};
+    if (this->xs_.empty())
+      this->fx_.fire();
+    this->xs_.insert(this->xs_.end(), i, e);
   }
 };
 
-using shared_subscriber_queue_ptr = caf::intrusive_ptr<shared_subscriber_queue>;
+template <class ValueType = std::pair<topic, data>>
+using shared_subscriber_queue_ptr
+  = caf::intrusive_ptr<shared_subscriber_queue<ValueType>>;
 
-shared_subscriber_queue_ptr make_shared_subscriber_queue();
+template <class ValueType = std::pair<topic, data>>
+shared_subscriber_queue_ptr<ValueType> make_shared_subscriber_queue() {
+  return caf::make_counted<shared_subscriber_queue<ValueType>>();
+}
 
 } // namespace detail
 } // namespace broker

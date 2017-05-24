@@ -20,13 +20,13 @@ using namespace broker::detail;
 using namespace caf;
 
 using filter_type = ::broker::detail::filter_type;
-using element_type = std::pair<topic, data>;
+using value_type = std::pair<topic, data>;
 using stream_type = stream<std::pair<topic, data>>;
 
 namespace {
 
 struct consumer_state {
-  std::vector<element_type> xs;
+  std::vector<value_type> xs;
 };
 
 behavior consumer(stateful_actor<consumer_state>* self,
@@ -42,7 +42,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
           // nop
         },
         // Process single element.
-        [=](unit_t&, element_type x) {
+        [=](unit_t&, value_type x) {
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
@@ -107,7 +107,7 @@ CAF_TEST(blocking_publishers) {
     expect((stream_msg::ack_open), from(core1).to(d2).with(_, 5, _, false));
     CAF_REQUIRE_EQUAL(pub2.demand(), 10); // 5 demand + 5 extra buffer
     // Data flows from our publishers to core1 to core2 and finally to leaf.
-    using buf = std::vector<element_type>;
+    using buf = std::vector<value_type>;
     // First set of published messages gets filtered out at core2.
     pub1.publish(0);
     expect((atom_value), from(_).to(d1).with(atom::resume::value));
@@ -194,7 +194,7 @@ CAF_TEST(nonblocking_publishers) {
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
-  using buf_type = std::vector<element_type>;
+  using buf_type = std::vector<value_type>;
   ep.publish_all_nosync(
     // Initialize send buffer with 10 elements.
     [](buf_type& xs) {
@@ -202,7 +202,7 @@ CAF_TEST(nonblocking_publishers) {
                     {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}};
     },
     // Get next element.
-    [](buf_type& xs, downstream<element_type>& out, size_t num) {
+    [](buf_type& xs, downstream<value_type>& out, size_t num) {
       auto n = std::min(num, xs.size());
       for (size_t i = 0u; i < n; ++i)
         out.push(xs[i]);

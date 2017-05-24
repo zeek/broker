@@ -19,11 +19,18 @@ namespace detail {
 /// - consume() fires the flare when it removes items from xs_ and less than 20
 ///   items remain
 /// - produce() extinguishes the flare it adds items to xs_, exceeding 20
-class shared_publisher_queue : public shared_queue {
+template <class ValueType = std::pair<topic, data>>
+class shared_publisher_queue : public shared_queue<ValueType> {
 public:
-  using element_type = std::pair<topic, data>;
+  using value_type = ValueType;
 
-  shared_publisher_queue(size_t buffer_size);
+  using super = shared_queue<ValueType>;
+
+  using guard_type = typename super::guard_type;
+
+  shared_publisher_queue(size_t buffer_size) : threshold_(buffer_size) {
+    // nop
+  }
 
   // Called to pull items out of the queue. Signals demand to the user if less
   // than `num` items can be published from the buffer. When calling consume
@@ -32,39 +39,64 @@ public:
   // sync.
   template <class F>
   size_t consume(size_t num, F fun) {
-    guard_type guard{mtx_};
-    if (xs_.empty()) {
-      pending_ = static_cast<long>(num);
+    guard_type guard{this->mtx_};
+    auto& xs = this->xs_;
+    if (xs.empty()) {
+      this->pending_ = static_cast<long>(num);
       return false;
     }
-    auto n = std::min(num, xs_.size());
-    auto b = xs_.begin();
+    auto n = std::min(num, xs.size());
+    auto b = xs.begin();
     auto e = b + static_cast<ptrdiff_t>(n);
     for (auto i = b; i != e; ++i)
       fun(std::move(*i));
-    auto xs_old_size = xs_.size();
-    xs_.erase(b, e);
-    if (xs_.size() < threshold_ && xs_old_size > threshold_)
-      fx_.fire();
+    auto xs_old_size = xs.size();
+    xs.erase(b, e);
+    if (xs.size() < threshold_ && xs_old_size > threshold_)
+      this->fx_.fire();
     if (num - n > 0)
-      pending_ = static_cast<long>(num - n);
+      this->pending_ = static_cast<long>(num - n);
     return n;
   }
 
   // Returns true if the caller must wake up the consumer.
-  bool produce(const topic& t, std::vector<data>&& ys);
+  bool produce(const topic& t, std::vector<data>&& ys) {
+    guard_type guard{this->mtx_};
+    auto& xs = this->xs_;
+    auto xs_old_size = xs.size();
+    for (auto& y : ys)
+      xs.emplace_back(t, std::move(y));
+    if (xs_old_size < threshold_ && xs.size() >= threshold_)
+      this->fx_.extinguish_one();
+    return xs_old_size == 0;
+  }
 
   // Returns true if the caller must wake up the consumer.
-  bool produce(const topic& t, data&& ys);
+  bool produce(const topic& t, data&& y) {
+    guard_type guard{this->mtx_};
+    auto& xs = this->xs_;
+    auto xs_old_size = xs.size();
+    xs.emplace_back(t, std::move(y));
+    if (xs_old_size + 1 == threshold_)
+      this->fx_.extinguish_one();
+    return xs_old_size == 0;
+  }
 
 private:
   // Configures the amound of items for xs_.
   const size_t threshold_;
 };
 
-using shared_publisher_queue_ptr = caf::intrusive_ptr<shared_publisher_queue>;
+template <class ValueType = std::pair<topic, data>>
+using shared_publisher_queue_ptr
+  = caf::intrusive_ptr<shared_publisher_queue<ValueType>>;
 
-shared_publisher_queue_ptr make_shared_publisher_queue(size_t buffer_size);
+template <class ValueType = std::pair<topic, data>>
+shared_publisher_queue_ptr<ValueType>
+make_shared_publisher_queue(size_t buffer_size) {
+  return caf::make_counted<shared_publisher_queue<ValueType>>(buffer_size);
+}
+
 
 } // namespace detail
 } // namespace broker

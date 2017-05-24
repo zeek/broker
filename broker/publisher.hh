@@ -24,8 +24,6 @@ public:
 
   using guard_type = std::unique_lock<std::mutex>;
 
-  using queue_ptr = detail::shared_queue_ptr;
-
   // --- constructors and destructors ------------------------------------------
 
   publisher(endpoint& ep, topic t);
@@ -78,7 +76,7 @@ public:
   bool wait_for_demand(caf::duration timeout = caf::infinite);
 
 private:
-  detail::shared_publisher_queue_ptr queue_;
+  detail::shared_publisher_queue_ptr<> queue_;
   caf::actor worker_;
   topic topic_;
 };

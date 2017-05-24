@@ -47,7 +47,7 @@ struct publisher_worker_state {
 
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
                           endpoint* ep,
-                          detail::shared_publisher_queue_ptr qptr) {
+                          detail::shared_publisher_queue_ptr<> qptr) {
   auto handler = self->new_stream(
     ep->core(),
     [](unit_t&) {

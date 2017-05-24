@@ -62,29 +62,29 @@ public:
     xs.front().second = x - xs.front().first->assigned_credit;
   }
 
-  static policy_ptr make(detail::shared_subscriber_queue_ptr qptr,
+  static policy_ptr make(detail::shared_subscriber_queue_ptr<> qptr,
                          long max_qsize) {
     return policy_ptr {new subscriber_policy(std::move(qptr), max_qsize)};
   }
 
 private:
-  subscriber_policy(detail::shared_subscriber_queue_ptr qptr, long max_qsize)
+  subscriber_policy(detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
     : queue_(std::move(qptr)),
       max_qsize_(max_qsize) {
     // nop
   }
 
-  detail::shared_subscriber_queue_ptr queue_;
+  detail::shared_subscriber_queue_ptr<> queue_;
   long max_qsize_;
 };
 
 class subscriber_sink : public extend<stream_handler, subscriber_sink>::
                                with<mixin::has_upstreams> {
 public:
-  using element_type = std::pair<topic, data>;
+  using value_type = std::pair<topic, data>;
 
   subscriber_sink(event_based_actor* self, subscriber_worker_state* state,
-                  detail::shared_subscriber_queue_ptr qptr, long max_qsize)
+                  detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
     : in_(self, subscriber_policy::make(qptr, max_qsize)),
       queue_(std::move(qptr)),
       state_(state) {
@@ -107,9 +107,9 @@ public:
       if (xs_size > path->assigned_credit)
         return sec::invalid_stream_state;
       path->assigned_credit -= xs_size;
-      if (!xs.match_elements<std::vector<element_type>>())
+      if (!xs.match_elements<std::vector<value_type>>())
         return sec::unexpected_message;
-      auto& ys = xs.get_mutable_as<std::vector<element_type>>(0);
+      auto& ys = xs.get_mutable_as<std::vector<value_type>>(0);
       auto ys_size = ys.size();
       CAF_ASSERT(ys_size == xs_size);
       state_->counter += ys_size;
@@ -139,14 +139,14 @@ public:
   }
 
 private:
-  upstream<element_type> in_;
-  detail::shared_subscriber_queue_ptr queue_;
+  upstream<value_type> in_;
+  detail::shared_subscriber_queue_ptr<> queue_;
   subscriber_worker_state* state_;
 };
 
 behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
                            endpoint* ep,
-                           detail::shared_subscriber_queue_ptr qptr,
+                           detail::shared_subscriber_queue_ptr<> qptr,
                            std::vector<topic> ts, long max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
   self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
@@ -170,7 +170,6 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 } // namespace <anonymous>
 
 subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
-  queue_ = detail::make_shared_subscriber_queue();
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
 }
@@ -179,48 +178,8 @@ subscriber::~subscriber() {
   anon_send_exit(worker_, exit_reason::user_shutdown);
 }
 
-subscriber::value_type subscriber::get() {
-  auto tmp = get(1);
-  BROKER_ASSERT(tmp.size() == 1);
-  return std::move(tmp.front());
-}
-
-caf::optional<subscriber::value_type> subscriber::get(caf::duration timeout) {
-  auto tmp = get(1, timeout);
-  if (tmp.size() == 1)
-    return std::move(tmp.front());
-  return caf::none;
-}
-
-std::vector<subscriber::value_type> subscriber::get(size_t num,
-                                                    caf::duration timeout) {
-
-  std::vector<value_type> result;
-  if (num == 0)
-    return result;
-  auto t0 = std::chrono::high_resolution_clock::now();
-  t0 += timeout;
-  for (;;) {
-    if (!timeout.valid())
-      queue_->wait_on_flare();
-    else if (!queue_->wait_on_flare_abs(t0))
-      return result;
-    queue_->consume(num - result.size(),
-                    [&](value_type&& x) { result.emplace_back(std::move(x)); });
-    if (result.size() == num)
-      return result;
-  }
-}
-
-std::vector<subscriber::value_type> subscriber::poll() {
-  std::vector<value_type> result;
-  queue_->consume(std::numeric_limits<size_t>::max(),
-                  [&](value_type&& x) { result.emplace_back(std::move(x)); });
-  return result;
-}
-
-size_t subscriber::available() const {
-  return queue_->buffer_size();
+size_t subscriber::rate() const {
+  return queue_->rate();
 }
 
 } // namespace broker

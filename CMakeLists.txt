@@ -155,12 +155,12 @@ set(BROKER_SRC
   src/data.cc
   src/endpoint.cc
   src/error.cc
+  src/event_subscriber.cc
   src/internal_command.cc
   src/mailbox.cc
   src/network_info.cc
   src/port.cc
   src/publisher.cc
-  src/shared_queue.cc
   src/status.cc
   src/store.cc
   src/stream_governor.cc
@@ -182,8 +182,6 @@ set(BROKER_SRC
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/network_cache.cc
-  src/detail/shared_publisher_queue.cc
-  src/detail/shared_subscriber_queue.cc
   src/detail/sqlite_backend.cc
 
   src/detail/sqlite3.c
