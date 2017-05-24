@@ -94,13 +94,13 @@ CAF_TEST(blocking_publishers) {
     // There must be no communication pending at this point.
     CAF_REQUIRE(!sched.has_job());
     // Spin up two publishers: one for "a" and one for "b".
-    publisher pub1{ep, "a"};
+    auto pub1 = ep.make_publisher("a");
     auto d1 = pub1.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
     expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
     CAF_REQUIRE_EQUAL(pub1.demand(), 10); // 5 demand + 5 extra buffer
-    publisher pub2{ep, "b"};
+    auto pub2 = ep.make_publisher("b");
     auto d2 = pub2.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d2, _, _, false));

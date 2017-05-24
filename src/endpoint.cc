@@ -6,6 +6,7 @@
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
 #include "broker/event_subscriber.hh"
+#include "broker/publisher.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
@@ -80,6 +81,10 @@ void endpoint::publish(topic t, data d) {
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
+}
+
+publisher endpoint::make_publisher(topic ts) {
+  return {*this, std::move(ts)};
 }
 
 event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {

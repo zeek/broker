@@ -18,6 +18,10 @@ namespace broker {
 /// Provides asynchronous publishing of data with demand management.
 class publisher {
 public:
+  // --- friend declarations ---------------------------------------------------
+
+  friend class endpoint;
+
   // --- nested types ----------------------------------------------------------
 
   using value_type = std::pair<topic, data>;
@@ -26,8 +30,12 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  publisher(endpoint& ep, topic t);
+  publisher(publisher&&) = default;
+
+  publisher& operator=(publisher&&) = default;
+
   publisher(const publisher&) = delete;
+
   publisher& operator=(const publisher&) = delete;
 
   ~publisher();
@@ -76,6 +84,9 @@ public:
   bool wait_for_demand(caf::duration timeout = caf::infinite);
 
 private:
+  // -- force users to use `endpoint::make_publsiher` -------------------------
+  publisher(endpoint& ep, topic t);
+
   detail::shared_publisher_queue_ptr<> queue_;
   caf::actor worker_;
   topic topic_;

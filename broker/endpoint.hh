@@ -100,6 +100,8 @@ public:
   // Publishes all messages in `xs`.
   void publish(std::vector<value_type> xs);
 
+  publisher make_publisher(topic ts);
+
   /// Starts a background worker from the given set of functions that publishes
   /// a series of messages. The worker will run in the background, but `init`
   /// is guaranteed to be called before the function returns.
