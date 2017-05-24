@@ -260,8 +260,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return invalid_stream;
       }
       st.pending_peers.emplace(remote_core, sid);
-      auto& next = self->current_mailbox_element()->stages.back();
-      CAF_ASSERT(next != nullptr);
+      CAF_ASSERT(self->current_mailbox_element()->stages.back() != nullptr);
       auto token = std::make_tuple(st.filter, caf::actor{self});
       self->fwd_stream_handshake<message>(sid, token);
       return {sid, peer_ptr->relay};
@@ -366,6 +365,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Update our filter to receive updates on all subscribed topics.
       st.add_to_filter(std::move(filter));
       return endpoint::stream_type{sid, st.worker_relay};
+    },
+    [=](atom::join, atom::update, filter_type& filter) {
+      auto cs = self->current_sender();
+      if (cs == nullptr)
+        return;
+      auto& st = self->state;
+      st.governor->workers().set_filter(cs, filter);
+      st.add_to_filter(std::move(filter));
     },
     [=](const endpoint::stream_type& in) {
       CAF_LOG_TRACE(CAF_ARG(in));

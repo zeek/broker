@@ -20,6 +20,8 @@ namespace broker {
 
 namespace {
 
+using detail::filter_type;
+
 /// Defines how many seconds are averaged for the computation of the send rate.
 constexpr size_t sample_size = 10;
 
@@ -59,6 +61,7 @@ public:
     queue_->pending(x);
     auto assigned = xs.front().first->assigned_credit;
     BROKER_ASSERT(x >= assigned);
+    CAF_IGNORE_UNUSED(assigned);
     xs.front().second = x - xs.front().first->assigned_credit;
   }
 
@@ -152,11 +155,13 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
   self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](const endpoint::stream_type& in) {
-      auto mptr = self->current_mailbox_element();
       BROKER_ASSERT(mptr != nullptr);
       auto sptr = make_counted<subscriber_sink>(self, &self->state,
                                                 qptr, max_qsize);
       self->streams().emplace(in.id(), std::move(sptr));
+    },
+    [=](atom::join a0, atom::update a1, filter_type& f) {
+      self->send(ep->core(), a0, a1, std::move(f));
     },
     [=](atom::tick) {
       auto& st = self->state;
@@ -180,6 +185,24 @@ subscriber::~subscriber() {
 
 size_t subscriber::rate() const {
   return queue_->rate();
+}
+
+void subscriber::add_topic(topic x) {
+  auto e = filter_.end();
+  auto i = std::find(filter_.begin(), e, x);
+  if (i == e) {
+    filter_.emplace_back(std::move(x));
+    anon_send(worker_, atom::subscribe::value, filter_);
+  }
+}
+
+void subscriber::remove_topic(topic x) {
+  auto e = filter_.end();
+  auto i = std::find(filter_.begin(), e, x);
+  if (i != filter_.end()) {
+    filter_.erase(i);
+    anon_send(worker_, atom::subscribe::value, filter_);
+  }
 }
 
 } // namespace broker
