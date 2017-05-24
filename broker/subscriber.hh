@@ -20,9 +20,15 @@ namespace broker {
 /// Provides blocking access to a stream of data.
 class subscriber : public subscriber_base<std::pair<topic, data>> {
 public:
+  // --- friend declarations ---------------------------------------------------
+
+  friend class endpoint;
+
   // --- constructors and destructors ------------------------------------------
 
-  subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize = 20);
+  subscriber(subscriber&&) = default;
+
+  subscriber& operator=(subscriber&&) = default;
 
   ~subscriber();
 
@@ -33,6 +39,9 @@ public:
   }
 
 private:
+  // -- force users to use `endpoint::make_event_subscriber` -------------------
+  subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize);
+
   caf::actor worker_;
 };
 

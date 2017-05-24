@@ -62,7 +62,7 @@ CAF_TEST(blocking_subscriber) {
   sched.run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  subscriber sub{ep, filter_type{"b"}};
+  auto sub = ep.make_subscriber(filter_type{"b"});
   auto leaf = sub.worker();
   sched.run_once();
   expect((atom_value, filter_type),

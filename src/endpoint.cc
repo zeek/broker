@@ -5,7 +5,9 @@
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
+#include "broker/event_subscriber.hh"
 #include "broker/status.hh"
+#include "broker/subscriber.hh"
 #include "broker/timeout.hh"
 
 #include "broker/detail/assert.hh"
@@ -81,7 +83,11 @@ void endpoint::publish(const endpoint_info& dst, topic t, data d) {
 }
 
 event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {
-  return event_subscriber{*this, receive_statuses};
+  return {*this, receive_statuses};
+}
+
+subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
+  return {*this, std::move(ts), max_qsize};
 }
 
 void endpoint::make_actor(actor_init_fun f) {
