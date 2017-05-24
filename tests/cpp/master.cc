@@ -61,6 +61,7 @@ CAF_TEST(local_master) {
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
   sched.run();
+  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -219,6 +220,8 @@ CAF_TEST(master_with_clone) {
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
+  mars.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  earth.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

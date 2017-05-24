@@ -242,6 +242,7 @@ CAF_TEST(local_peers) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   sched.run();
+  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -385,6 +386,8 @@ CAF_TEST(remote_peers_setup1) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
+  mars.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  earth.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 // Setup: driver -> mars.core -> earth.core -> leaf
@@ -519,10 +522,13 @@ CAF_TEST(remote_peers_setup2) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
+  CAF_MESSAGE("shutdown core actors");
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
+  mars.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  earth.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

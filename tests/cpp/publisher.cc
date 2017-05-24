@@ -159,6 +159,7 @@ CAF_TEST(blocking_publishers) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   sched.run();
+  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST(nonblocking_publishers) {
@@ -235,6 +236,7 @@ CAF_TEST(nonblocking_publishers) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   sched.run();
+  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
