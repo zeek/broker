@@ -80,6 +80,10 @@ void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
 }
 
+event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {
+  return event_subscriber{*this, receive_statuses};
+}
+
 void endpoint::make_actor(actor_init_fun f) {
   system_.spawn([=](caf::event_based_actor* self) {
     f(self);

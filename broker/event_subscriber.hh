@@ -22,9 +22,15 @@ namespace broker {
 class event_subscriber
   : public subscriber_base<detail::variant<none, error, status>> {
 public:
+  // --- friend declarations ---------------------------------------------------
+
+  friend class endpoint;
+
   // --- constructors and destructors ------------------------------------------
 
-  event_subscriber(endpoint& ep, bool receive_statuses = false);
+  event_subscriber(event_subscriber&&) = default;
+
+  event_subscriber& operator=(event_subscriber&&) = default;
 
   ~event_subscriber();
 
@@ -33,6 +39,9 @@ public:
   }
 
 private:
+  // -- force users to use `endpoint::make_event_subscriber` -------------------
+  event_subscriber(endpoint& ep, bool receive_statuses = false);
+
   caf::actor worker_;
 };
 

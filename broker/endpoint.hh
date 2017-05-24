@@ -13,6 +13,7 @@
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/endpoint_info.hh"
+#include "broker/event_subscriber.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
@@ -69,7 +70,8 @@ public:
   ///        cannot be established, or breaks.
   /// @note The function returns immediately. The endpoint receives a status
   ///       message indicating the result of the peering operation.
-  void peer(const std::string& address, uint16_t port, timeout::seconds retry = timeout::seconds(10));
+  void peer(const std::string& address, uint16_t port,
+            timeout::seconds retry = timeout::seconds(10));
 
   void unpeer(const std::string& address, uint16_t port);
 
@@ -135,7 +137,13 @@ public:
     });
   }
 
-  // --- subscribing -----------------------------------------------------------
+  // --- subscribing events ----------------------------------------------------
+
+  /// Returns a subscriber connected to this endpoint for receiving error and
+  /// (optionally) status events.
+  event_subscriber make_event_subscriber(bool receive_statuses = false);
+
+  // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
   subscriber make_subscriber(std::vector<topic> ts);

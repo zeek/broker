@@ -42,8 +42,8 @@ struct fixture : base_fixture {
 CAF_TEST_FIXTURE_SCOPE(event_subscriber_tests, fixture)
 
 CAF_TEST(base_tests) {
-  event_subscriber sub1{ep, true};
-  event_subscriber sub2{ep, false};
+  auto sub1 = ep.make_event_subscriber(true);
+  auto sub2 = ep.make_event_subscriber(false);
   sched.run();
   CAF_REQUIRE_EQUAL(sub1.available(), 0);
   CAF_REQUIRE_EQUAL(sub2.available(), 0);

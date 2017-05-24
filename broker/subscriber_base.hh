@@ -35,9 +35,19 @@ public:
     // nop
   }
 
+  subscriber_base(subscriber_base&&) = default;
+
+  subscriber_base& operator=(subscriber_base&&) = default;
+
   virtual ~subscriber_base() {
     // nop
   }
+
+  subscriber_base(const subscriber_base&) = delete;
+
+  subscriber_base& operator=(const subscriber_base&) = delete;
+
+  // --- access to values ------------------------------------------------------
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available.
@@ -88,6 +98,8 @@ public:
     return result;
   }
   
+  // --- accessors -------------------------------------------------------------
+
   /// Returns the amound of values than can be extracted immediately without
   /// blocking.
   size_t available() const {
