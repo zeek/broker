@@ -62,6 +62,14 @@ public:
       this->fx_.fire();
     this->xs_.insert(this->xs_.end(), i, e);
   }
+
+  // Inserts `x` into the queue.
+  void produce(ValueType x) {
+    guard_type guard{this->mtx_};
+    if (this->xs_.empty())
+      this->fx_.fire();
+    this->xs_.emplace_back(std::move(x));
+  }
 };
 
 template <class ValueType = std::pair<topic, data>>

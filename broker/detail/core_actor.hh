@@ -93,6 +93,12 @@ struct core_state {
   /// Associates network addresses to remote actor handles and vice versa.
   network_cache cache;
 
+  /// Caches the CAF group for error messages.
+  caf::group errors_;
+
+  /// Caches the CAF group for status messages.
+  caf::group statuses_;
+
   /// Name shown in logs for all instances of this actor.
   static const char* name;
 };

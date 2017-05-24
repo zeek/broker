@@ -7,6 +7,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/event_subscriber.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"

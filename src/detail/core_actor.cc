@@ -1,3 +1,5 @@
+#include "broker/detail/core_actor.hh"
+
 #include "broker/logger.hh" // Must come before any CAF include.
 
 #include <caf/all.hpp>
@@ -17,7 +19,6 @@
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/clone_actor.hh"
-#include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/make_unique.hh"
@@ -85,7 +86,8 @@ caf::message store_token_factory(const caf::stream_id& x) {
 } // namespace <anonymous>
 
 core_state::core_state(caf::event_based_actor* ptr) : self(ptr), cache(ptr) {
-  // nop
+  errors_ = self->system().groups().get_local("broker/errors");
+  statuses_ = self->system().groups().get_local("broker/statuses");
 }
 
 void core_state::init(filter_type initial_filter) {

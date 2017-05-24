@@ -24,6 +24,10 @@ public:
   
   using value_type = ValueType;
 
+  using queue_type = detail::shared_subscriber_queue<value_type>;
+
+  using queue_ptr = detail::shared_subscriber_queue_ptr<value_type>;
+
   // --- constructors and destructors ------------------------------------------
 
   subscriber_base()
@@ -97,7 +101,7 @@ public:
   }
 
 protected:
-  detail::shared_subscriber_queue_ptr<value_type> queue_;
+  queue_ptr queue_;
 };
 
 } // namespace broker
