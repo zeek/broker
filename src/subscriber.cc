@@ -155,7 +155,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
   self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](const endpoint::stream_type& in) {
-      BROKER_ASSERT(mptr != nullptr);
+      BROKER_ASSERT(qptr != nullptr);
       auto sptr = make_counted<subscriber_sink>(self, &self->state,
                                                 qptr, max_qsize);
       self->streams().emplace(in.id(), std::move(sptr));
