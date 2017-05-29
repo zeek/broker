@@ -1,4 +1,4 @@
-#define CAF_SUITE event_subscriber
+#define SUITE event_subscriber
 #include "test.hpp"
 #include <caf/test/dsl.hpp>
 

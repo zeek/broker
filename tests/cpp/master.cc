@@ -1,4 +1,4 @@
-#define CAF_SUITE master
+#define SUITE master
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 

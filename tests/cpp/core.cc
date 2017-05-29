@@ -1,4 +1,4 @@
-#define CAF_SUITE core
+#define SUITE core
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 

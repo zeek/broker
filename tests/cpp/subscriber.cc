@@ -1,7 +1,7 @@
 // This unit test is a variation of the `core` unit test that uses a
 // `subscriber` instead of an event-based `consumer` actor.
 
-#define CAF_SUITE subscriber
+#define SUITE subscriber
 #include "test.hpp"
 #include <caf/test/dsl.hpp>
 

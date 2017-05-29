@@ -1,7 +1,7 @@
 // This unit test is a variation of the `core` unit test that uses a
 // `publisher` instead of an event-based `driver` actor.
 
-#define CAF_SUITE publisher
+#define SUITE publisher
 #include "test.hpp"
 #include <caf/test/dsl.hpp>
 
