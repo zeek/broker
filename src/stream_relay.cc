@@ -34,7 +34,7 @@ caf::error stream_relay::downstream_demand(caf::strong_actor_ptr& hdl,
   return governor_->downstream_demand(sid_, hdl, new_demand);
 }
 
-caf::error stream_relay::push(long*) {
+caf::error stream_relay::push() {
   return governor_->push();
 }
 

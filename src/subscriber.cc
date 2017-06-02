@@ -46,37 +46,33 @@ struct subscriber_worker_state {
   }
 };
 
-using policy_ptr = std::unique_ptr<upstream_policy>;
-
 class subscriber_policy : public upstream_policy {
 public:
-  // @pre `queue_->mtx` is locked.
-  void assign_credit(assignment_vec& xs, long) override {
-    // We assume there is only one upstream (the core) and simply ignore the
-    // second parameter since we only consider the current state of our buffer.
-    BROKER_ASSERT(xs.size() == 1);
-    auto size = static_cast<long>(queue_->buffer_size());
-    BROKER_ASSERT(size <= max_qsize_);
-    auto x = max_qsize_ - size;
-    queue_->pending(x);
-    auto assigned = xs.front().first->assigned_credit;
-    BROKER_ASSERT(x >= assigned);
-    CAF_IGNORE_UNUSED(assigned);
-    xs.front().second = x - xs.front().first->assigned_credit;
-  }
-
-  static policy_ptr make(detail::shared_subscriber_queue_ptr<> qptr,
-                         long max_qsize) {
-    return policy_ptr {new subscriber_policy(std::move(qptr), max_qsize)};
-  }
-
-private:
-  subscriber_policy(detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
-    : queue_(std::move(qptr)),
+  subscriber_policy(local_actor* selfptr,
+                    detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
+    : upstream_policy(selfptr),
+      queue_(std::move(qptr)),
       max_qsize_(max_qsize) {
     // nop
   }
 
+  // @pre `queue_->mtx` is locked.
+  void fill_assignment_vec(long) override {
+    // We assume there is only one upstream (the core) and simply ignore the
+    // second parameter since we only consider the current state of our buffer.
+    BROKER_ASSERT(assignment_vec_.size() == 1);
+    auto size = static_cast<long>(queue_->buffer_size());
+    BROKER_ASSERT(size <= max_qsize_);
+    auto x = max_qsize_ - size;
+    queue_->pending(x);
+    auto& avf = assignment_vec_.front();
+    auto assigned = avf.first->assigned_credit;
+    BROKER_ASSERT(x >= assigned);
+    CAF_IGNORE_UNUSED(assigned);
+    avf.second = x - avf.first->assigned_credit;
+  }
+
+private:
   detail::shared_subscriber_queue_ptr<> queue_;
   long max_qsize_;
 };
@@ -88,7 +84,7 @@ public:
 
   subscriber_sink(event_based_actor* self, subscriber_worker_state* state,
                   detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
-    : in_(self, subscriber_policy::make(qptr, max_qsize)),
+    : in_(self, qptr, max_qsize),
       queue_(std::move(qptr)),
       state_(state) {
     // nop
@@ -133,7 +129,7 @@ public:
     in_.abort(cause, reason);
   }
 
-  optional<abstract_upstream&> get_upstream() override {
+  optional<upstream_policy&> up() override {
     return in_;
   }
 
@@ -142,7 +138,7 @@ public:
   }
 
 private:
-  upstream<value_type> in_;
+  subscriber_policy in_;
   detail::shared_subscriber_queue_ptr<> queue_;
   subscriber_worker_state* state_;
 };

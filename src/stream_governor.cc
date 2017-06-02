@@ -24,10 +24,9 @@ caf::message generic_factory(const caf::stream_id& x) {
 // --- nested types ------------------------------------------------------------
 
 stream_governor::peer_data::peer_data(stream_governor* parent, filter_type y,
-                                      const caf::stream_id& downstream_sid,
-                                      caf::abstract_downstream::policy_ptr pp)
+                                      const caf::stream_id& downstream_sid)
   : filter(std::move(y)),
-    out(parent->state()->self, downstream_sid, std::move(pp)),
+    out(parent->state()->self, downstream_sid),
     relay(caf::make_counted<stream_relay>(parent, downstream_sid,
                                           generic_factory)) {
   // nop
@@ -62,11 +61,9 @@ const caf::strong_actor_ptr& stream_governor::peer_data::hdl() const {
 
 stream_governor::stream_governor(core_state* state)
   : state_(state),
-    in_(state->self, caf::policy::greedy::make()),
-    workers_(state->self, state->self->make_stream_id(),
-             caf::policy::broadcast::make()),
-    stores_(state->self, state->self->make_stream_id(),
-            caf::policy::broadcast::make()) {
+    in_(state->self),
+    workers_(state->self, state->self->make_stream_id()),
+    stores_(state->self, state->self->make_stream_id()) {
   CAF_LOG_DEBUG("started governor with workers SID"
                 << workers_.sid() << "and stores SID" << stores_.sid());
 }
@@ -87,9 +84,7 @@ stream_governor::add_peer(caf::strong_actor_ptr downstream_handle,
                           filter_type filter) {
   CAF_LOG_TRACE(CAF_ARG(downstream_handle)
                 << CAF_ARG(remote_core) << CAF_ARG(sid) << CAF_ARG(filter));
-  auto pp = caf::policy::broadcast::make();
-  auto ptr = caf::make_counted<peer_data>(this, std::move(filter),
-                                          sid, std::move(pp));
+  auto ptr = caf::make_counted<peer_data>(this, std::move(filter), sid);
   ptr->out.add_path(downstream_handle);
   ptr->remote_core = remote_core;
   auto res = peers_.emplace(std::move(remote_core), ptr);
@@ -136,7 +131,7 @@ caf::error stream_governor::add_downstream(const caf::stream_id& sid,
 
 void stream_governor::local_push(worker_element&& x) {
   workers_.push(std::move(x));
-  workers_.policy().push(workers_);
+  workers_.emit_batches();
 }
 
 void stream_governor::local_push(topic&& t, data&& x) {
@@ -157,7 +152,7 @@ void stream_governor::push(topic&& t, data&& x) {
     auto& out = kvp.second->out;
     if (selected(kvp.second->filter, e)) {
       out.push(caf::make_message(e.first, e.second));
-      out.policy().push(out);
+      out.emit_batches();
     }
   }
   local_push(std::move(e));
@@ -178,11 +173,11 @@ void stream_governor::push(topic&& t, internal_command&& x) {
     auto& out = kvp.second->out;
     if (selected(kvp.second->filter, e)) {
       out.push(caf::make_message(e.first, e.second));
-      out.policy().push(out);
+      out.emit_batches();
     }
   }
   stores_.push(std::move(e));
-  stores_.policy().push(stores_);
+  stores_.emit_batches();
 }
 
 caf::error
@@ -240,13 +235,13 @@ caf::error stream_governor::downstream_demand(const caf::stream_id& sid,
 caf::error stream_governor::push() {
   CAF_LOG_TRACE("");
   if (workers_.buf_size() > 0)
-    workers_.policy().push(workers_);
+    workers_.emit_batches();
   if (stores_.buf_size() > 0)
-    stores_.policy().push(stores_);
+    stores_.emit_batches();
   for (auto& kvp : peers_) {
     auto& out = kvp.second->out;
     if (out.buf_size() > 0)
-      out.policy().push(out);
+      out.emit_batches();
   }
   return caf::none;
 }
@@ -257,7 +252,7 @@ caf::expected<long> stream_governor::add_upstream(const caf::stream_id&,
                                                   caf::stream_priority prio) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(up_sid) << CAF_ARG(prio));
   if (hdl)
-    return in_.add_path(hdl, up_sid, prio, total_downstream_net_credit());
+    return in_.add_path(hdl, up_sid, prio, downstream_credit());
   return caf::sec::invalid_argument;
 }
 
@@ -295,7 +290,7 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
           if (selected(kvp.second->filter, x))
             out.push(caf::make_message(x.first, x.second));
         if (out.buf_size() > 0) {
-          out.policy().push(out);
+          out.emit_batches();
         }
       }
     // Move elements from `xs` to the buffer for local subscribers.
@@ -303,9 +298,9 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
     if (!workers_.lanes().empty())
       for (auto& x : vec)
         workers_.push(std::move(x));
-    workers_.policy().push(workers_);
+    workers_.emit_batches();
     // Grant new credit to upstream if possible.
-    auto available = total_downstream_net_credit();
+    auto available = downstream_credit();
     if (available > 0)
       in_.assign_credit(available);
     return caf::none;
@@ -336,7 +331,7 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
         if (selected(kvp.second->filter, x))
           out.push(x);
       if (out.buf_size() > 0) {
-        out.policy().push(out);
+        out.emit_batches();
       }
     }
   // Move elements from `xs` to the buffer for local subscribers.
@@ -347,7 +342,7 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
         workers_.push(std::make_pair(x.get_as<topic>(0),
                                      std::move(x.get_mutable_as<data>(1))));
       }
-  workers_.policy().push(workers_);
+  workers_.emit_batches();
   if (!stores_.lanes().empty())
     for (auto& x : vec)
       if (x.match_element<internal_command>(1)) {
@@ -356,12 +351,12 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
           std::make_pair(x.get_as<topic>(0),
                          std::move(x.get_mutable_as<internal_command>(1))));
       }
-  stores_.policy().push(stores_);
+  stores_.emit_batches();
   // Grant new credit to upstream if possible.
   CAF_LOG_DEBUG("pushed data to" << peers_.size() << "peers,"
                 << workers_.paths().size() << "workers, and"
                 << workers_.paths().size() << "stores");
-  auto available = total_downstream_net_credit();
+  auto available = downstream_credit();
   if (available > 0)
     in_.assign_credit(available);
   return caf::none;
@@ -409,12 +404,23 @@ void stream_governor::abort(const caf::stream_id& sid,
   input_to_peers_.erase(i);
 }
 
-long stream_governor::total_downstream_net_credit() const {
-  auto net_credit = std::min(workers_.total_net_credit(),
-                             stores_.total_net_credit());
-  for (auto& kvp : peers_)
-    net_credit = std::min(net_credit, kvp.second->out.total_net_credit());
-  return net_credit;
+long stream_governor::downstream_credit() const {
+  auto min_peer_credit = [&] {
+    return std::accumulate(peers_.begin(), peers_.end(),
+                           std::numeric_limits<long>::max(),
+                           [](long x, const peer_map::value_type& y) {
+                             return std::min(x, y.second->out.min_credit());
+                           });
+  };
+  // TODO: make configurable and/or adaptive
+  constexpr long min_buffer_size = 5l;
+  auto result = min_peer_credit(); // max long value if no peer exists
+  if (workers_.num_paths() > 0)
+    result = std::min(result, workers_.min_credit());
+  if (stores_.num_paths() > 0)
+    result = std::min(result, stores_.min_credit());
+  return (result == std::numeric_limits<long>::max() ? 0l : result) 
+         + min_buffer_size;
 }
 
 void intrusive_ptr_add_ref(stream_governor* x) {

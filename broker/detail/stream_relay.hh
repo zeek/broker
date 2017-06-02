@@ -33,7 +33,7 @@ public:
   caf::error downstream_demand(caf::strong_actor_ptr& hdl,
                                long new_demand) override;
 
-  caf::error push(long* hint) override;
+  caf::error push() override;
 
   caf::expected<long> add_upstream(caf::strong_actor_ptr& hdl,
                                    const caf::stream_id& sid,

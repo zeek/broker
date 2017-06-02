@@ -10,6 +10,9 @@
 #include <caf/stream_source.hpp>
 #include <caf/upstream.hpp>
 
+#include <caf/policy/broadcast.hpp>
+#include <caf/policy/greedy.hpp>
+
 #include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/internal_command.hh"
@@ -47,8 +50,7 @@ public:
     // --- constructors and destructors ----------------------------------------
 
     peer_data(stream_governor* parent, filter_type y,
-              const caf::stream_id& downstream_sid,
-              caf::abstract_downstream::policy_ptr pp);
+              const caf::stream_id& downstream_sid);
 
     ~peer_data();
 
@@ -69,7 +71,7 @@ public:
     caf::stream_id incoming_sid;
 
     /// Output stream.
-    caf::downstream<peer_element> out;
+    caf::policy::broadcast<caf::message> out;
 
     /// Relay for this peer.
     stream_relay_ptr relay;
@@ -172,7 +174,7 @@ public:
   void abort(const caf::stream_id& sid, caf::strong_actor_ptr& cause,
              const caf::error& reason);
 
-  long total_downstream_net_credit() const;
+  long downstream_credit() const;
 
   inline core_state* state() {
     return state_;
@@ -180,7 +182,7 @@ public:
 
 private:
   core_state* state_;
-  caf::upstream<peer_element> in_;
+  caf::policy::greedy in_;
   workers_downstream workers_;
   stores_downstream stores_;
   peer_map peers_;
