@@ -72,6 +72,10 @@ public:
     avf.second = x - avf.first->assigned_credit;
   }
 
+  long max_qsize() const {
+    return max_qsize_;
+  }
+
 private:
   detail::shared_subscriber_queue_ptr<> queue_;
   long max_qsize_;
@@ -94,7 +98,7 @@ public:
                               stream_priority prio) override {
     CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(sid) << CAF_ARG(prio));
     if (hdl)
-      return in_.add_path(hdl, sid, prio, 0); // 0 is ignored by the policy.
+      return in_.add_path(hdl, sid, prio, in_.max_qsize());
     return sec::invalid_argument;
   }
 

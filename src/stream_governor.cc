@@ -213,12 +213,16 @@ caf::error stream_governor::downstream_demand(const caf::stream_id& sid,
   auto wpath = workers_.find(hdl);
   if (wpath) {
     wpath->open_credit += value;
-    return push();
+    push();
+    assign_credit();
+    return caf::none;
   }
   auto spath = stores_.find(hdl);
   if (spath) {
     spath->open_credit += value;
-    return push();
+    push();
+    assign_credit();
+    return caf::none;
   }
   auto i = input_to_peers_.find(sid);
   if (i != input_to_peers_.end()) {
@@ -227,7 +231,9 @@ caf::error stream_governor::downstream_demand(const caf::stream_id& sid,
       return caf::sec::invalid_stream_state;
     CAF_LOG_DEBUG("grant" << value << "new credit to" << hdl);
     pp->open_credit += value;
-    return push();
+    push();
+    assign_credit();
+    return caf::none;
   }
   return caf::sec::invalid_downstream;
 }
@@ -252,7 +258,7 @@ caf::expected<long> stream_governor::add_upstream(const caf::stream_id&,
                                                   caf::stream_priority prio) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(up_sid) << CAF_ARG(prio));
   if (hdl)
-    return in_.add_path(hdl, up_sid, prio, downstream_credit());
+    return in_.add_path(hdl, up_sid, prio, assignable_credit());
   return caf::sec::invalid_argument;
 }
 
@@ -300,9 +306,7 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
         workers_.push(std::move(x));
     workers_.emit_batches();
     // Grant new credit to upstream if possible.
-    auto available = downstream_credit();
-    if (available > 0)
-      in_.assign_credit(available);
+    assign_credit();
     return caf::none;
   }
   // Process messages from peers.
@@ -385,11 +389,16 @@ void stream_governor::abort(const caf::stream_id& sid,
         kvp.second->out.abort(hdl, reason);
       peers_.clear();
     }
+    in_.abort(hdl, reason);
+    return;
   }
   if (workers_.remove_path(hdl))
     return;
   if (stores_.remove_path(hdl))
     return;
+  // do not return when removing an upstream actor, because it might be a peer
+  // that requires further state clearing
+  in_.remove_path(hdl);
   auto i = input_to_peers_.find(sid);
   if (i == input_to_peers_.end()) {
     CAF_LOG_DEBUG("Abort from unknown stream ID.");
@@ -421,6 +430,27 @@ long stream_governor::downstream_credit() const {
     result = std::min(result, stores_.min_credit());
   return (result == std::numeric_limits<long>::max() ? 0l : result) 
          + min_buffer_size;
+}
+
+long stream_governor::downstream_buffer_size() const {
+  auto result = std::max(workers_.buf_size(), stores_.buf_size());
+  for (auto& kvp : peers_)
+    result += std::max(result, kvp.second->out.buf_size());
+  return result;
+}
+
+void stream_governor::assign_credit() {
+  CAF_LOG_TRACE("");
+  auto x = assignable_credit();
+  if (x > 0)
+    in_.assign_credit(x);
+}
+
+long stream_governor::assignable_credit() {
+  auto current_size = downstream_buffer_size();
+  auto desired_size = downstream_credit();
+  CAF_LOG_DEBUG(CAF_ARG(current_size) << CAF_ARG(desired_size));
+  return current_size < desired_size ? desired_size - current_size : 0l;
 }
 
 void intrusive_ptr_add_ref(stream_governor* x) {

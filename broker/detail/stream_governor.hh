@@ -181,6 +181,12 @@ public:
   }
 
 private:
+  long downstream_buffer_size() const;
+
+  void assign_credit();
+
+  long assignable_credit();
+
   core_state* state_;
   caf::policy::greedy in_;
   workers_downstream workers_;
