@@ -46,7 +46,7 @@ endpoint::~endpoint() {
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
-  auto res = system_.middleman().publish(core(), port, addr);
+  auto res = system_.middleman().publish(core(), port, addr, true);
   return res ? *res : 0;
 }
 
