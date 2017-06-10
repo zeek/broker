@@ -63,7 +63,7 @@ void endpoint::unpeer(const std::string& address, uint16_t port) {
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
   caf::scoped_actor self{core()->home_system()};
-  auto msg = caf::make_message(atom::peer::value, atom::get::value);
+  auto msg = caf::make_message(atom::get::value, atom::peer::value);
   self->request(core(), timeout::core, std::move(msg)).receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
