@@ -191,7 +191,7 @@ void subscriber::add_topic(topic x) {
   auto i = std::find(filter_.begin(), e, x);
   if (i == e) {
     filter_.emplace_back(std::move(x));
-    anon_send(worker_, atom::subscribe::value, filter_);
+    anon_send(worker_, atom::join::value, atom::update::value, filter_);
   }
 }
 
@@ -200,7 +200,7 @@ void subscriber::remove_topic(topic x) {
   auto i = std::find(filter_.begin(), e, x);
   if (i != filter_.end()) {
     filter_.erase(i);
-    anon_send(worker_, atom::subscribe::value, filter_);
+    anon_send(worker_, atom::join::value, atom::update::value, filter_);
   }
 }
 
