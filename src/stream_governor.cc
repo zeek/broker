@@ -3,6 +3,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/message.hpp>
 #include <caf/stream.hpp>
+#include <caf/upstream_path.hpp>
 
 #include <caf/policy/broadcast.hpp>
 #include <caf/policy/greedy.hpp>

@@ -6,7 +6,6 @@
 #include <caf/send.hpp>
 #include <caf/stream_sink.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/upstream.hpp>
 #include <caf/upstream_path.hpp>
 
 #include "broker/atoms.hh"

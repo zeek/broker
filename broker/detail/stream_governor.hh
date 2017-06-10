@@ -8,7 +8,6 @@
 #include <caf/ref_counted.hpp>
 #include <caf/stream_handler.hpp>
 #include <caf/stream_source.hpp>
-#include <caf/upstream.hpp>
 
 #include <caf/policy/broadcast.hpp>
 #include <caf/policy/greedy.hpp>
