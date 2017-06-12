@@ -45,8 +45,9 @@ caf::expected<long> stream_relay::add_upstream(caf::strong_actor_ptr& hdl,
 }
 
 caf::error stream_relay::upstream_batch(caf::strong_actor_ptr& hdl,
-                                        long xs_size, caf::message& xs) {
-  return governor_->upstream_batch(sid_, hdl, xs_size, xs);
+                                        int64_t xs_id, long xs_size,
+                                        caf::message& xs) {
+  return governor_->upstream_batch(sid_, hdl, xs_id, xs_size, xs);
 }
 
 caf::error stream_relay::close_upstream(caf::strong_actor_ptr& hdl) {

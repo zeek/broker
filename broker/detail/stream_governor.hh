@@ -165,7 +165,8 @@ public:
                                    caf::stream_priority prio);
 
   caf::error upstream_batch(const caf::stream_id& sid,
-                            caf::strong_actor_ptr& hdl, long, caf::message& xs);
+                            caf::strong_actor_ptr& hdl, int64_t, long,
+                            caf::message& xs);
 
   caf::error close_upstream(const caf::stream_id& sid,
                             caf::strong_actor_ptr& hdl);

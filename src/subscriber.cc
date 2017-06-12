@@ -101,13 +101,14 @@ public:
     return sec::invalid_argument;
   }
 
-  error upstream_batch(strong_actor_ptr& hdl, long xs_size,
+  error upstream_batch(strong_actor_ptr& hdl, int64_t xs_id, long xs_size,
                        caf::message& xs) override {
     CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(xs_size) << CAF_ARG(xs));
     auto path = in_.find(hdl);
     if (path) {
       if (xs_size > path->assigned_credit)
         return sec::invalid_stream_state;
+      path->last_batch_id = xs_id;
       path->assigned_credit -= xs_size;
       if (!xs.match_elements<std::vector<value_type>>())
         return sec::unexpected_message;

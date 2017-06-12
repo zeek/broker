@@ -39,7 +39,7 @@ public:
                                    const caf::stream_id& sid,
                                    caf::stream_priority prio) override;
 
-  caf::error upstream_batch(caf::strong_actor_ptr& hdl, long,
+  caf::error upstream_batch(caf::strong_actor_ptr& hdl, int64_t, long,
                             caf::message& xs) override;
 
   caf::error close_upstream(caf::strong_actor_ptr& hdl) override;
