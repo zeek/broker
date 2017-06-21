@@ -72,17 +72,6 @@ public:
   /// Sends `xs` to all subscribers.
   void publish(std::vector<data> xs);
 
-  /// Blocks the current thread until a timeout occurs or until the publisher
-  /// has sufficient capacity to send `min_demand` messages immediately.
-  /// Returns `false` if a timeout occured, `true` otherwise.
-  /// @warning Picking a high value for `min_demand` can result in a deadlock
-  ///          when setting `timeout` to `infinite`. Demand is assigned to
-  ///          publishers according to the credit policy of the core. The core
-  ///          is free to assign only small capacity kvalues to each publisher
-  ///          individually in order to balance fairness and overall
-  ///          throughput.
-  bool wait_for_demand(caf::duration timeout = caf::infinite);
-
 private:
   // -- force users to use `endpoint::make_publsiher` -------------------------
   publisher(endpoint& ep, topic t);
