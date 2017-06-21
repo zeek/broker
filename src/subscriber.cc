@@ -28,6 +28,8 @@ struct subscriber_worker_state {
   std::vector<size_t> buf;
   size_t counter = 0;
 
+  static const char* name;
+
   void tick() {
     if (buf.size() < sample_size) {
       buf.push_back(counter);
@@ -44,6 +46,8 @@ struct subscriber_worker_state {
            : 0;
   }
 };
+
+const char* subscriber_worker_state::name = "subscriber_worker";
 
 class subscriber_policy : public upstream_policy {
 public:
