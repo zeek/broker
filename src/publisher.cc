@@ -27,6 +27,9 @@ constexpr size_t queue_size = 30;
 struct publisher_worker_state {
   std::vector<size_t> buf;
   size_t counter = 0;
+  bool shutting_down = false;
+
+  static const char* name;
 
   void tick() {
     if (buf.size() < sample_size) {
@@ -45,6 +48,8 @@ struct publisher_worker_state {
   }
 };
 
+const char* publisher_worker_state::name = "publisher_worker";
+
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
                           endpoint* ep,
                           detail::shared_publisher_queue_ptr<> qptr) {
@@ -54,11 +59,15 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       // nop
     },
     [=](unit_t&, downstream<endpoint::value_type>& out, size_t num) {
+      auto& st = self->state;
       auto consumed = qptr->consume(num, [&](std::pair<topic, data>&& x) {
         out.push(std::move(x));
       });
-      if (consumed > 0)
-        self->state.counter += consumed;
+      if (consumed > 0) {
+        st.counter += consumed;
+        if (st.shutting_down && qptr->buffer_size() == 0)
+          self->quit();
+      }
     },
     [](const unit_t&) {
       return false;
@@ -78,10 +87,15 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       st.tick();
       qptr->rate(st.rate());
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+    },
+    [=](caf::flush_atom) {
+      if (qptr->buffer_size() == 0)
+        self->quit();
+      else
+        self->state.shutting_down = true;
     }
   };
 }
-
 
 } // namespace <anonymous>
 
@@ -93,7 +107,7 @@ publisher::publisher(endpoint& ep, topic t)
 }
 
 publisher::~publisher() {
-  anon_send_exit(worker_, exit_reason::user_shutdown);
+  anon_send(worker_, caf::flush_atom::value);
 }
 
 size_t publisher::demand() const {
@@ -115,8 +129,15 @@ void publisher::publish(data x) {
 }
 
 void publisher::publish(std::vector<data> xs) {
-  if (queue_->produce(topic_, std::move(xs)))
-    anon_send(worker_, atom::resume::value);
+  auto t = static_cast<ptrdiff_t>(queue_->threshold());
+  auto i = xs.begin();
+  auto e = xs.end();
+  while (i != e) {
+    auto j = i + std::min(std::distance(i, e), t);
+    if (queue_->produce(topic_, i, j))
+      anon_send(worker_, atom::resume::value);
+    i = j;
+  }
 }
 
 } // namespace broker

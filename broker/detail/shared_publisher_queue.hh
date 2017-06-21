@@ -52,7 +52,7 @@ public:
       fun(std::move(*i));
     auto xs_old_size = xs.size();
     xs.erase(b, e);
-    if (xs.size() < threshold_ && xs_old_size > threshold_)
+    if (xs.size() < threshold_ && xs_old_size >= threshold_)
       this->fx_.fire();
     if (num - n > 0)
       this->pending_ = static_cast<long>(num - n);
@@ -60,14 +60,20 @@ public:
   }
 
   // Returns true if the caller must wake up the consumer.
-  bool produce(const topic& t, std::vector<data>&& ys) {
+  template <class Iterator>
+  bool produce(const topic& t, Iterator first, Iterator last) {
+    BROKER_ASSERT(std::distance(first, last) < threshold_);
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
     auto xs_old_size = xs.size();
-    for (auto& y : ys)
-      xs.emplace_back(t, std::move(y));
-    if (xs_old_size < threshold_ && xs.size() >= threshold_)
+    for (; first != last; ++first)
+      xs.emplace_back(t, std::move(*first));
+    if (xs.size() >= threshold_) {
+      // Block the caller until the consumer catched up.
+      guard.unlock();
+      this->fx_.await_one();
       this->fx_.extinguish_one();
+    }
     return xs_old_size == 0;
   }
 
@@ -77,9 +83,17 @@ public:
     auto& xs = this->xs_;
     auto xs_old_size = xs.size();
     xs.emplace_back(t, std::move(y));
-    if (xs_old_size + 1 == threshold_)
+    if (xs.size() >= threshold_) {
+      // Block the caller until the consumer catched up.
+      guard.unlock();
+      this->fx_.await_one();
       this->fx_.extinguish_one();
+    }
     return xs_old_size == 0;
+  }
+
+  size_t threshold() const {
+    return threshold_;
   }
 
 private:
