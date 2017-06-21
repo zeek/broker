@@ -226,6 +226,21 @@ if (ENABLE_STATIC)
   install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
+# -- Tools --------------------------------------------------------------------
+
+macro(add_tool name)
+  add_executable(${name} src/${name}.cc ${ARGN})
+  if (ENABLE_SHARED)
+    target_link_libraries(${name} ${LINK_LIBS} broker)
+    add_dependencies(${name} broker)
+  else()
+    target_link_libraries(${name} ${LINK_LIBS} broker_static)
+    add_dependencies(${name} broker_static)
+  endif()
+endmacro()
+
+add_tool(broker-pipe)
+
 # -- Bindings -----------------------------------------------------------------
 
 if (NOT DISABLE_PYTHON_BINDINGS)
