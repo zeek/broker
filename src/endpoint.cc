@@ -52,8 +52,18 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 
 void endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
-  caf::anon_send(core_, atom::peer::value, network_info{address, port}, retry,
-                 uint32_t{0});
+  caf::scoped_actor self{core()->home_system()};
+  self->request(core_, caf::infinite, atom::peer::value,
+                network_info{address, port}, retry, uint32_t{0})
+  .receive(
+    [](const caf::actor&) {
+      // nop
+    },
+    [&](caf::error& err) {
+      CAF_LOG_DEBUG("Cannot peer to" << address << "on port"
+                    << port << ":" << err);
+    }
+  );
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {

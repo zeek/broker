@@ -28,6 +28,11 @@ namespace detail {
 struct core_state {
   // --- nested types ----------------------------------------------------------
 
+  struct pending_peer_state {
+    caf::stream_id sid;
+    caf::response_promise rp;
+  };
+
   /// Identifies the two individual streams forming a bidirectional channel.
   /// The first ID denotes the *input*  and the second ID denotes the *output*.
   using stream_id_pair = std::pair<caf::stream_id, caf::stream_id>;
@@ -95,7 +100,7 @@ struct core_state {
   /// corresponds to `peer_status::connecting` and a valid stream ID
   /// cooresponds to `peer_status::connected`. The status for a given handle
   /// `x` is `peer_status::peered` if `governor->has_peer(x)` returns true.
-  std::unordered_map<caf::actor, caf::stream_id> pending_peers;
+  std::unordered_map<caf::actor, pending_peer_state> pending_peers;
 
   /// Points to the owning actor.
   caf::event_based_actor* self;

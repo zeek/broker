@@ -1,6 +1,6 @@
-#include "broker/detail/core_actor.hh"
-
 #include "broker/logger.hh" // Must come before any CAF include.
+
+#include "broker/detail/core_actor.hh"
 
 #include <caf/all.hpp>
 #include <caf/io/middleman.hpp>
@@ -181,7 +181,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       */
     }
   );
-  auto init_peering = [=](actor remote_core) -> result<void> {
+  auto init_peering = [=](actor remote_core, response_promise rp)
+  -> result<void> {
     CAF_LOG_TRACE(CAF_ARG(remote_core));
     auto& st = self->state;
     // Sanity checking.
@@ -191,9 +192,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core))
       return unit;
     // Create necessary state and send message to remote core.
-    st.pending_peers.emplace(remote_core, stream_id{});
+    st.pending_peers.emplace(remote_core,
+                             core_state::pending_peer_state{stream_id{}, rp});
     self->send(self * remote_core, atom::peer::value, st.filter, self);
-    return unit;
+    return rp;
   };
   return {
     // --- filter manipulation -------------------------------------------------
@@ -203,20 +205,23 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) -> result<void> {
-      return init_peering(std::move(remote_core));
+      return init_peering(std::move(remote_core), self->make_response_promise());
     },
-    [=](atom::peer, network_info addr, timeout::seconds retry, uint32_t n) {
+    [=](atom::peer, network_info addr, timeout::seconds retry, uint32_t n)
+    -> result<void> {
+      auto rp = self->make_response_promise();
       self->state.cache.fetch(addr,
                               [=](actor x) mutable {
-                                init_peering(std::move(x));
+                                init_peering(std::move(x), std::move(rp));
                               },
-                              [=](error err) mutable {
+                              [=](error) mutable {
                                 // TODO: make max_try_attempts configurable
                                 if (retry.count() > 0 && n < 100)
                                   self->delayed_send(self, retry,
                                                      atom::peer::value, addr,
                                                      retry, n + 1);
                               });
+      return rp;
     },
     // --- 3-way handshake for establishing peering streams between A and B ----
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
@@ -237,14 +242,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Ignore unexpected handshakes as well as handshakes that collide
       // with an already pending handshake.
       auto i = st.pending_peers.find(remote_core);
-      if (i != st.pending_peers.end()) {
-        if (i->second.valid()) {
-          CAF_LOG_DEBUG("Drop repeated peering request.");
-          return invalid_stream;
-        } else {
-          // Simply erase obsolete item here and insert a new item later.
-          st.pending_peers.erase(i);
-        }
+      if (i != st.pending_peers.end() && i->second.sid.valid()) {
+        CAF_LOG_DEBUG("Drop repeated peering request.");
+        return invalid_stream;
       }
       // Especially ignore handshakes from already connected peers.
       if (st.governor->has_peer(remote_core)) {
@@ -259,7 +259,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_DEBUG("Drop peering request of already known peer.");
         return invalid_stream;
       }
-      st.pending_peers.emplace(remote_core, sid);
+      st.pending_peers.emplace(remote_core,
+                               core_state::pending_peer_state{sid, {}});
       CAF_ASSERT(self->current_mailbox_element()->stages.back() != nullptr);
       auto token = std::make_tuple(st.filter, caf::actor{self});
       self->fwd_stream_handshake<message>(sid, token);
@@ -287,7 +288,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.emit_status<sc::peer_added>(make_info(remote_core),
                                      "received handshake from remote core");
       auto sid = self->make_stream_id();
-      st.pending_peers.erase(remote_core);
+      auto i = st.pending_peers.find(remote_core);
+      if (i != st.pending_peers.end()) {
+        i->second.rp.deliver(remote_core);
+        st.pending_peers.erase(i);
+      }
       auto peer_ptr = st.governor->add_peer(p, std::move(remote_core),
                                             sid, std::move(filter));
       peer_ptr->incoming_sid = in.id();
@@ -311,10 +316,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Reject step #3 handshake if this actor didn't receive a step #1
       // handshake previously.
       auto i = st.pending_peers.find(remote_core);
-      if (i == st.pending_peers.end() || !i->second.valid()) {
+      if (i == st.pending_peers.end() || !i->second.sid.valid()) {
         CAF_LOG_WARNING("Received a step #3 handshake, but no #1 previously.");
         return;
       }
+      i->second.rp.deliver(remote_core);
       st.pending_peers.erase(i);
       // Get peer data and install stream handler.
       auto peer_ptr = st.governor->peer(remote_core);
@@ -585,7 +591,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         add(kvp.first, peer_status::peered);
       // collect pending peers
       for (auto& kvp : st.pending_peers)
-        if (kvp.second.valid())
+        if (kvp.second.sid.valid())
           add(kvp.first, peer_status::connected);
         else
           add(kvp.first, peer_status::connecting);
