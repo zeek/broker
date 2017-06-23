@@ -65,12 +65,10 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       });
       if (consumed > 0) {
         st.counter += consumed;
-        if (st.shutting_down && qptr->buffer_size() == 0)
-          self->quit();
       }
     },
-    [](const unit_t&) {
-      return false;
+    [=](const unit_t&) {
+      return qptr->buffer_size() == 0 && self->state.shutting_down;
     },
     [](expected<void>) {
       // nop
@@ -89,10 +87,10 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     },
     [=](caf::flush_atom) {
-      if (qptr->buffer_size() == 0)
-        self->quit();
-      else
-        self->state.shutting_down = true;
+      self->state.shutting_down = true;
+      // triggers the stream to terminate if the queue is already empty
+      static_cast<stream_source*>(handler.get())->generate();
+      handler->push();
     }
   };
 }
