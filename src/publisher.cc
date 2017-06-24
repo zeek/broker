@@ -117,6 +117,16 @@ size_t publisher::buffered() const {
 
 }
 
+size_t publisher::capacity() const {
+  return queue_->capacity();
+}
+
+size_t publisher::free_capacity() const {
+  auto x = capacity();
+  auto y = buffered();
+  return x > y ? x - y : 0;
+}
+
 size_t publisher::send_rate() const {
   return static_cast<size_t>(queue_->rate());
 }
@@ -127,7 +137,7 @@ void publisher::publish(data x) {
 }
 
 void publisher::publish(std::vector<data> xs) {
-  auto t = static_cast<ptrdiff_t>(queue_->threshold());
+  auto t = static_cast<ptrdiff_t>(queue_->capacity());
   auto i = xs.begin();
   auto e = xs.end();
   while (i != e) {

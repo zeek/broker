@@ -50,6 +50,14 @@ public:
   /// Returns the current size of the output queue.
   size_t buffered() const;
 
+  /// Returns the capacity of the output queue.
+  size_t capacity() const;
+
+  /// Returns the free capacity of the output queue, i.e., how many items can
+  /// be enqueued before it starts blocking. The free capacity is calculated as
+  /// `capacity - buffered`.
+  size_t free_capacity() const;
+
   /// Returns a rough estimate of the throughput per second of this publisher.
   size_t send_rate() const;
   
