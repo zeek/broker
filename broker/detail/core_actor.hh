@@ -122,6 +122,9 @@ struct core_state {
 
   /// Name shown in logs for all instances of this actor.
   static const char* name;
+
+  /// Set to `true` after receiving a shutdown message from the endpoint.
+  bool shutting_down;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

@@ -41,7 +41,7 @@ endpoint::endpoint(configuration config)
 }
 
 endpoint::~endpoint() {
-  anon_send_exit(core_, caf::exit_reason::user_shutdown);
+  anon_send(core_, atom::shutdown::value);
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {

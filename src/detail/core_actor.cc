@@ -85,7 +85,10 @@ caf::message store_token_factory(const caf::stream_id& x) {
 
 } // namespace <anonymous>
 
-core_state::core_state(caf::event_based_actor* ptr) : self(ptr), cache(ptr) {
+core_state::core_state(caf::event_based_actor* ptr)
+  : self(ptr),
+    cache(ptr),
+    shutting_down(false) {
   errors_ = self->system().groups().get_local("broker/errors");
   statuses_ = self->system().groups().get_local("broker/statuses");
 }
@@ -614,6 +617,16 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       st.errors_ = caf::group{};
       st.statuses_ = caf::group{};
+    },
+    [=](atom::shutdown) {
+      auto& st = self->state;
+      st.shutting_down = true;
+      // Shutdown all input streams immediately, but make sure we still send
+      // all pending output messages before terminating.
+      st.governor->close_remote_input();
+      // Do not respond to any further message.
+      self->set_default_handler(caf::drop);
+      self->unbecome();
     }
   };
 }
