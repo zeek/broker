@@ -28,8 +28,9 @@ public:
 
   using guard_type = typename super::guard_type;
 
-  shared_publisher_queue(size_t buffer_size) : threshold_(buffer_size) {
-    // nop
+  shared_publisher_queue(size_t buffer_size) : capacity_(buffer_size) {
+    // The flare is active as long as publishers can write.
+    this->fx_.fire();
   }
 
   // Called to pull items out of the queue. Signals demand to the user if less
@@ -50,29 +51,35 @@ public:
     auto e = b + static_cast<ptrdiff_t>(n);
     for (auto i = b; i != e; ++i)
       fun(std::move(*i));
-    auto xs_old_size = xs.size();
+    auto old_size = xs.size();
     xs.erase(b, e);
-    if (xs.size() < threshold_ && xs_old_size >= threshold_)
+    auto new_size = xs.size();
+    // Extinguish the flare if we reach the capacity or fire it if we drop
+    // below the capacity again.
+    if (new_size >= capacity_ && old_size < capacity_)
+      this->fx_.extinguish();
+    else if (new_size < capacity_ && old_size >= capacity_)
       this->fx_.fire();
     if (num - n > 0)
       this->pending_ = static_cast<long>(num - n);
     return n;
   }
 
-  // Returns true if the caller must wake up the consumer.
+  /// Returns true if the caller must wake up the consumer. This function can
+  /// go beyond the capacity of the queue.
   template <class Iterator>
   bool produce(const topic& t, Iterator first, Iterator last) {
-    BROKER_ASSERT(std::distance(first, last) < threshold_);
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
+    if (xs.size() >= capacity_)
+      await_consumer(guard);
     auto xs_old_size = xs.size();
+    BROKER_ASSERT(xs_old_size < capacity_);
     for (; first != last; ++first)
       xs.emplace_back(t, std::move(*first));
-    if (xs.size() >= threshold_) {
-      // Block the caller until the consumer catched up.
-      guard.unlock();
-      this->fx_.await_one();
-      this->fx_.extinguish_one();
+    if (xs.size() >= capacity_) {
+      // Extinguish the flare to cause the *next* produce to block.
+      this->fx_.extinguish();
     }
     return xs_old_size == 0;
   }
@@ -81,24 +88,38 @@ public:
   bool produce(const topic& t, data&& y) {
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
+    if (xs.size() >= capacity_)
+      await_consumer(guard);
     auto xs_old_size = xs.size();
+    BROKER_ASSERT(xs_old_size < capacity_);
     xs.emplace_back(t, std::move(y));
-    if (xs.size() >= threshold_) {
-      // Block the caller until the consumer catched up.
-      guard.unlock();
-      this->fx_.await_one();
-      this->fx_.extinguish_one();
+    if (xs.size() >= capacity_) {
+      // Extinguish the flare to cause the *next* produce to block.
+      this->fx_.extinguish();
     }
     return xs_old_size == 0;
   }
 
-  size_t threshold() const {
-    return threshold_;
+  size_t capacity() const {
+    return capacity_;
   }
 
 private:
+  void await_consumer(guard_type& guard) {
+    // Block the caller until the consumer catched up.
+    guard.unlock();
+    this->fx_.await_one();
+    guard.lock();
+  }
+
+  /// @pre xs.size() < capacity_
+  ptrdiff_t free_space() {
+    return static_cast<ptrdiff_t>(capacity_ - this->xs.size());
+  }
+
+
   // Configures the amound of items for xs_.
-  const size_t threshold_;
+  const size_t capacity_;
 };
 
 template <class ValueType = std::pair<topic, data>>
