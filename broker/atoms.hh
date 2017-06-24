@@ -41,6 +41,7 @@ using peer = caf::atom_constant<caf::atom("peer")>;
 using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
 using default_ = caf::atom_constant<caf::atom("default")>;
+using shutdown = caf::atom_constant<caf::atom("shutdown")>;
 
 /// --- communiation with workers ----------------------------------------------
 
