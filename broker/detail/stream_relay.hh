@@ -30,8 +30,8 @@ public:
                                 caf::strong_actor_ptr& hdl, long initial_demand,
                                 bool redeployable) override;
 
-  caf::error downstream_demand(caf::strong_actor_ptr& hdl,
-                               long new_demand) override;
+  caf::error downstream_ack(caf::strong_actor_ptr& hdl, int64_t batch_id,
+                            long new_demand) override;
 
   caf::error push() override;
 

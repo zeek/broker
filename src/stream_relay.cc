@@ -29,9 +29,9 @@ stream_relay::confirm_downstream(const caf::strong_actor_ptr& rebind_from,
                                        redeployable);
 }
 
-caf::error stream_relay::downstream_demand(caf::strong_actor_ptr& hdl,
-                                           long new_demand) {
-  return governor_->downstream_demand(sid_, hdl, new_demand);
+caf::error stream_relay::downstream_ack(caf::strong_actor_ptr& hdl,
+                                        int64_t batch_id, long new_demand) {
+  return governor_->downstream_ack(sid_, hdl, batch_id, new_demand);
 }
 
 caf::error stream_relay::push() {

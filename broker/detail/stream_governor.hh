@@ -149,13 +149,16 @@ public:
   caf::error add_downstream(const caf::stream_id& sid,
                             caf::strong_actor_ptr& hdl);
 
+  void downstream_demand(caf::downstream_path* path, long demand);
+
   caf::error confirm_downstream(const caf::stream_id& sid,
                                 const caf::strong_actor_ptr& rebind_from,
                                 caf::strong_actor_ptr& hdl, long initial_demand,
                                 bool redeployable);
 
-  caf::error downstream_demand(const caf::stream_id& sid,
-                               caf::strong_actor_ptr& hdl, long new_demand);
+  caf::error downstream_ack(const caf::stream_id& sid,
+                            caf::strong_actor_ptr& hdl, int64_t batch_id,
+                            long new_demand);
 
   caf::error push();
 
@@ -178,6 +181,11 @@ public:
 
   inline core_state* state() {
     return state_;
+  }
+
+  inline void close_remote_input() {
+    caf::strong_actor_ptr tmp;
+    in_.abort(tmp, caf::exit_reason::user_shutdown);
   }
 
 private:

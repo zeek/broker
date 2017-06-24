@@ -181,6 +181,34 @@ void stream_governor::push(topic&& t, internal_command&& x) {
   stores_.emit_batches();
 }
 
+void stream_governor::downstream_demand(caf::downstream_path* path,
+                                        long demand) {
+  path->open_credit += demand;
+  push();
+  assign_credit();
+}
+
+namespace {
+
+template <class T>
+bool try_confirm(stream_governor& gov, T& down,
+                 const caf::strong_actor_ptr& rebind_from,
+                 caf::strong_actor_ptr& hdl, long initial_demand) {
+  if (down.confirm_path(rebind_from, hdl, initial_demand)) {
+    CAF_LOG_DEBUG("Confirmed path to local worker" << hdl);
+    auto path = down.find(hdl);
+    if (path == nullptr) {
+      CAF_LOG_ERROR("Cannot find worker after confirming it");
+      return false;
+    }
+    gov.downstream_demand(path, initial_demand);
+    return true;
+  }
+  return false;
+}
+
+} // namespace <anonymous>
+
 caf::error
 stream_governor::confirm_downstream(const caf::stream_id& sid,
                                     const caf::strong_actor_ptr& rebind_from,
@@ -189,52 +217,51 @@ stream_governor::confirm_downstream(const caf::stream_id& sid,
   CAF_LOG_TRACE(CAF_ARG(rebind_from) << CAF_ARG(hdl)
                 << CAF_ARG(initial_demand) << CAF_ARG(redeployable));
   CAF_IGNORE_UNUSED(redeployable);
-  if (workers_.confirm_path(rebind_from, hdl, initial_demand)) {
-    CAF_LOG_DEBUG("Confirmed path to local worker" << hdl);
-    return downstream_demand(sid, hdl, initial_demand);
-  }
-  if (stores_.confirm_path(rebind_from, hdl, initial_demand)) {
-    CAF_LOG_DEBUG("Confirmed path to local data store" << hdl);
-    return downstream_demand(sid, hdl, initial_demand);
-  }
+  if (try_confirm(*this, workers_, rebind_from, hdl, initial_demand)
+      || try_confirm(*this, stores_, rebind_from, hdl, initial_demand))
+    return caf::none;
   auto i = input_to_peers_.find(sid);
   if (i == input_to_peers_.end()) {
     CAF_LOG_ERROR("Cannot confirm path to unknown downstream.");
     return caf::sec::invalid_downstream;
   }
-  CAF_LOG_DEBUG("Confirmed path to remote core" << i->second->remote_core);
-  i->second->out.confirm_path(rebind_from, hdl, initial_demand);
-  return downstream_demand(sid, hdl, initial_demand);
+  if (try_confirm(*this, i->second->out, rebind_from, hdl, initial_demand))
+    return caf::none;
+  return caf::sec::invalid_downstream;
 }
 
-caf::error stream_governor::downstream_demand(const caf::stream_id& sid,
-                                              caf::strong_actor_ptr& hdl,
-                                              long value) {
-  CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(value));
+caf::error stream_governor::downstream_ack(const caf::stream_id& sid,
+                                           caf::strong_actor_ptr& hdl,
+                                           int64_t batch_id, long demand) {
+  CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(demand));
+  auto at_end = [](const caf::downstream_policy::path_uptr& ptr) {
+    return ptr->next_batch_id == ptr->next_ack_id;
+  };
+  auto ack_path = [&](caf::downstream_policy& dp,
+                      caf::downstream_path* path) -> caf::none_t {
+    auto next_id = batch_id + 1;
+    if (next_id > path->next_ack_id)
+      path->next_ack_id = next_id;
+    if (state_->shutting_down
+        && dp.buf_size() == 0
+        && std::all_of(dp.paths().begin(), dp.paths().end(), at_end))
+      dp.close();
+    downstream_demand(path, demand);
+    return caf::none;
+  };
   auto wpath = workers_.find(hdl);
-  if (wpath) {
-    wpath->open_credit += value;
-    push();
-    assign_credit();
-    return caf::none;
-  }
+  if (wpath)
+    return ack_path(workers_, wpath);
   auto spath = stores_.find(hdl);
-  if (spath) {
-    spath->open_credit += value;
-    push();
-    assign_credit();
-    return caf::none;
-  }
+  if (spath)
+    return ack_path(stores_, spath);
   auto i = input_to_peers_.find(sid);
   if (i != input_to_peers_.end()) {
-    auto pp = i->second->out.find(hdl);
-    if (!pp)
+    auto ppath = i->second->out.find(hdl);
+    if (!ppath)
       return caf::sec::invalid_stream_state;
-    CAF_LOG_DEBUG("grant" << value << "new credit to" << hdl);
-    pp->open_credit += value;
-    push();
-    assign_credit();
-    return caf::none;
+    CAF_LOG_DEBUG("grant" << demand << "new credit to" << hdl);
+    return ack_path(i->second->out, ppath);
   }
   return caf::sec::invalid_downstream;
 }
