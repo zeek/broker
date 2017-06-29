@@ -156,7 +156,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
                            detail::shared_subscriber_queue_ptr<> qptr,
                            std::vector<topic> ts, long max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
-  self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+  //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](const endpoint::stream_type& in) {
       BROKER_ASSERT(qptr != nullptr);

@@ -1,9 +1,9 @@
 #ifndef BROKER_DETAIL_CORE_ACTOR_HH
 #define BROKER_DETAIL_CORE_ACTOR_HH
 
-#include <unordered_set>
-#include <unordered_map>
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <caf/actor.hpp>
@@ -125,6 +125,9 @@ struct core_state {
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
+
+  /// Stores which stream sources are local actors.
+  std::unordered_set<caf::strong_actor_ptr> local_inputs;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

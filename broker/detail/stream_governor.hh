@@ -183,10 +183,15 @@ public:
     return state_;
   }
 
-  inline void close_remote_input() {
-    caf::strong_actor_ptr tmp;
-    in_.abort(tmp, caf::exit_reason::user_shutdown);
-  }
+  void close_remote_input();
+
+  /// Returns true if 1) `state_->self->shutting_down`, 2) there is no more
+  /// active local data source, and 3) there is no pending data to any peer.
+  bool at_end() const;
+
+  /// Returns true we have received an ACK for all of our batches on all
+  /// downstream paths.
+  bool no_data_pending() const;
 
 private:
   long downstream_buffer_size() const;

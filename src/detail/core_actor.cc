@@ -392,9 +392,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       CAF_LOG_TRACE(CAF_ARG(in));
       auto& st = self->state;
       auto& cs = self->current_sender();
-      if (cs == nullptr) {
+      if (cs == nullptr)
         return;
-      }
+      st.local_inputs.emplace(cs);
       self->streams().emplace(in.id(), st.worker_relay);
     },
     [=](atom::publish, topic& t, data& x) {
@@ -623,10 +623,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.shutting_down = true;
       // Shutdown all input streams immediately, but make sure we still send
       // all pending output messages before terminating.
-      st.governor->close_remote_input();
+      //st.governor->close_remote_input();
       // Do not respond to any further message.
       self->set_default_handler(caf::drop);
-      self->unbecome();
+      self->become(
+        [] {
+          // Dummy behavior to keep the actor alive but unresponsive.
+        }
+      );
     }
   };
 }

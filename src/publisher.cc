@@ -68,13 +68,13 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       }
     },
     [=](const unit_t&) {
-      return qptr->buffer_size() == 0 && self->state.shutting_down;
+      return self->state.shutting_down && qptr->buffer_size() == 0;
     },
     [](expected<void>) {
       // nop
     }
   ).ptr();
-  self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+  //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](atom::resume) {
       static_cast<stream_source*>(handler.get())->generate();
@@ -86,8 +86,9 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       qptr->rate(st.rate());
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
     },
-    [=](caf::flush_atom) {
+    [=](atom::shutdown) {
       self->state.shutting_down = true;
+      self->unbecome();
       // triggers the stream to terminate if the queue is already empty
       static_cast<stream_source*>(handler.get())->generate();
       handler->push();
@@ -105,7 +106,7 @@ publisher::publisher(endpoint& ep, topic t)
 }
 
 publisher::~publisher() {
-  anon_send(worker_, caf::flush_atom::value);
+  anon_send(worker_, atom::shutdown::value);
 }
 
 size_t publisher::demand() const {

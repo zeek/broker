@@ -234,18 +234,15 @@ caf::error stream_governor::downstream_ack(const caf::stream_id& sid,
                                            caf::strong_actor_ptr& hdl,
                                            int64_t batch_id, long demand) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(demand));
-  auto at_end = [](const caf::downstream_policy::path_uptr& ptr) {
-    return ptr->next_batch_id == ptr->next_ack_id;
-  };
   auto ack_path = [&](caf::downstream_policy& dp,
                       caf::downstream_path* path) -> caf::none_t {
     auto next_id = batch_id + 1;
     if (next_id > path->next_ack_id)
       path->next_ack_id = next_id;
-    if (state_->shutting_down
-        && dp.buf_size() == 0
-        && std::all_of(dp.paths().begin(), dp.paths().end(), at_end))
-      dp.close();
+    if (at_end()) {
+      CAF_LOG_DEBUG("Received last ACK, shuttding down");
+      state_->self->quit(caf::exit_reason::user_shutdown);
+    }
     downstream_demand(path, demand);
     return caf::none;
   };
@@ -280,14 +277,16 @@ caf::error stream_governor::push() {
   return caf::none;
 }
 
-caf::expected<long> stream_governor::add_upstream(const caf::stream_id&,
+caf::expected<long> stream_governor::add_upstream(const caf::stream_id& relay_id,
                                                   caf::strong_actor_ptr& hdl,
                                                   const caf::stream_id& up_sid,
                                                   caf::stream_priority prio) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(up_sid) << CAF_ARG(prio));
-  if (hdl)
-    return in_.add_path(hdl, up_sid, prio, assignable_credit());
-  return caf::sec::invalid_argument;
+  if (!hdl)
+    return caf::sec::invalid_argument;
+  if (relay_id == workers().sid())
+    state_->local_inputs.emplace(hdl);
+  return in_.add_path(hdl, up_sid, prio, assignable_credit());
 }
 
 caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
@@ -400,8 +399,19 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
 caf::error stream_governor::close_upstream(const caf::stream_id& sid,
                                            caf::strong_actor_ptr& hdl) {
   CAF_LOG_TRACE(CAF_ARG(hdl));
-  if (in_.remove_path(hdl))
+  if (in_.remove_path(hdl)) {
+    auto& li = state_->local_inputs;
+    auto i = li.find(hdl);
+    if (i != li.end()) {
+      CAF_LOG_DEBUG("local upstream closed:" << CAF_ARG(sid));
+      li.erase(i);
+      if (at_end()) {
+        CAF_LOG_DEBUG("Closed last local input, shutting down");
+        state_->self->quit(caf::exit_reason::user_shutdown);
+      }
+    }
     return caf::none;
+  }
   return caf::sec::invalid_upstream;
 }
 
@@ -418,6 +428,7 @@ void stream_governor::abort(const caf::stream_id& sid,
     if (!peers_.empty()) {
       for (auto& kvp : peers_)
         kvp.second->out.abort(hdl, reason);
+      input_to_peers_.clear();
       peers_.clear();
     }
     in_.abort(hdl, reason);
@@ -427,21 +438,60 @@ void stream_governor::abort(const caf::stream_id& sid,
     return;
   if (stores_.remove_path(hdl))
     return;
-  // do not return when removing an upstream actor, because it might be a peer
-  // that requires further state clearing
-  in_.remove_path(hdl);
-  auto i = input_to_peers_.find(sid);
-  if (i == input_to_peers_.end()) {
-    CAF_LOG_DEBUG("Abort from unknown stream ID.");
-    return;
+  // Check if hdl is a local source.
+  { // Lifetime scope of state_->local_inputs iterator i
+    auto i = state_->local_inputs.find(hdl);
+    if (i != state_->local_inputs.end()) {
+      CAF_LOG_DEBUG("Abort from local source.");
+      // Do not propagate errors of local actors.
+      in_.remove_path(hdl);
+      state_->local_inputs.erase(i);
+      // Shutdown when the last local input source is done.
+      if (at_end()) {
+        CAF_LOG_DEBUG("Last local input aborted, shuttding down");
+        state_->self->quit(caf::exit_reason::user_shutdown);
+      }
+      return;
+    }
   }
-  auto& pd = *i->second;
-  auto j = peers_.find(pd.remote_core);
-  if (j != peers_.end()) {
-    j->second->out.abort(hdl, reason);
-    peers_.erase(j);
+  // Check if this stream ID (sid) is used by a peer for sending data to us.
+  { // Lifetime scope of input_to_peers_ iterator i
+    auto i = input_to_peers_.find(sid);
+    if (i != input_to_peers_.end()) {
+      CAF_LOG_DEBUG("Abort from remote source (peer).");
+      in_.remove_path(hdl);
+      auto pptr = std::move(i->second);
+      input_to_peers_.erase(i);
+      // Remove this peer entirely if no downstream to it exists.
+      if (pptr->out.num_paths() == 0) {
+        CAF_LOG_DEBUG("Remove peer: up- and downstream severed.");
+        peers_.erase(pptr->remote_core);
+      }
+      return;
+    }
   }
-  input_to_peers_.erase(i);
+  // Check if this stream ID (sid) is used by a peer for receiving data from us.
+  { // Lifetime scope of  peers_ iterators
+    auto predicate = [&](const peer_map::value_type& kvp) {
+      return kvp.second->out.sid() == sid;
+    };
+    auto e = peers_.end();
+    auto i = std::find_if(peers_.begin(), e, predicate);
+    if (i != e) {
+      auto& pd = *i->second;
+      pd.out.remove_path(hdl);
+      // Remove this peer entirely if no upstream from it exists.
+      if (input_to_peers_.count(pd.incoming_sid) == 0) {
+        CAF_LOG_DEBUG("Remove peer: down- and upstream severed.");
+        peers_.erase(i);
+        // Shutdown when the last peer stops listening.
+        if (state_->shutting_down && peers_.empty())
+          state_->self->quit(caf::exit_reason::user_shutdown);
+      }
+      return;
+    }
+  }
+  CAF_LOG_DEBUG("Abort from unknown stream ID.");
 }
 
 long stream_governor::downstream_credit() const {
@@ -461,6 +511,41 @@ long stream_governor::downstream_credit() const {
     result = std::min(result, stores_.min_credit());
   return (result == std::numeric_limits<long>::max() ? 0l : result) 
          + min_buffer_size;
+}
+
+void stream_governor::close_remote_input() {
+  CAF_LOG_TRACE("");
+  auto local_inputs = workers_.sid();
+  std::vector<caf::strong_actor_ptr> remotes;
+  for (auto& path : in_.paths())
+    if (state_->local_inputs.count(path->hdl) == 0)
+      remotes.emplace_back(path->hdl);
+  CAF_LOG_DEBUG(CAF_ARG(remotes) << CAF_ARG(state_->local_inputs));
+  caf::strong_actor_ptr dummy;
+  for (auto& sap : remotes)
+    in_.remove_path(sap, caf::exit_reason::user_shutdown);
+  input_to_peers_.clear();
+}
+
+bool stream_governor::at_end() const {
+  return state_->shutting_down
+         && state_->local_inputs.empty()
+         && no_data_pending();
+}
+
+bool stream_governor::no_data_pending() const {
+  auto path_clean = [](const caf::downstream_policy::path_uptr& ptr) {
+    return ptr->next_batch_id == ptr->next_ack_id;
+  };
+  auto all_acked = [&](const caf::downstream_policy& dp) {
+    return std::all_of(dp.paths().begin(), dp.paths().end(), path_clean);
+  };
+  auto peer_all_acked = [&](const peer_map::value_type& kvp) {
+    return all_acked(kvp.second->out);
+  };
+  return all_acked(workers_)
+         && all_acked(stores_)
+         && std::all_of(peers_.begin(), peers_.end(), peer_all_acked);
 }
 
 long stream_governor::downstream_buffer_size() const {
