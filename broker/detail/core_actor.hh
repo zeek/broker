@@ -58,6 +58,10 @@ struct core_state {
   /// Adds `xs` to our filter and update all peers on changes.
   void add_to_filter(filter_type xs);
 
+  // --- convenience factory functions for querying state ----------------------
+
+  caf::stream_handler_ptr make_relay(const caf::stream_id& sid) const;
+
   // --- convenience functions for querying state ------------------------------
 
   /// Returns whether `x` is either a pending peer or a connected peer.
@@ -126,8 +130,9 @@ struct core_state {
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
 
-  /// Stores which stream sources are local actors.
-  std::unordered_set<caf::strong_actor_ptr> local_inputs;
+  /// Stores which stream sources are local actors. Storing the actor handle is
+  /// sufficient, because we assign the same stream ID to all of our sources.
+  std::unordered_map<caf::stream_id, caf::strong_actor_ptr> local_sources;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

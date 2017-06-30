@@ -239,10 +239,7 @@ caf::error stream_governor::downstream_ack(const caf::stream_id& sid,
     auto next_id = batch_id + 1;
     if (next_id > path->next_ack_id)
       path->next_ack_id = next_id;
-    if (at_end()) {
-      CAF_LOG_DEBUG("Received last ACK, shuttding down");
-      state_->self->quit(caf::exit_reason::user_shutdown);
-    }
+    shutdown_if_at_end("Received last ACK");
     downstream_demand(path, demand);
     return caf::none;
   };
@@ -284,8 +281,6 @@ caf::expected<long> stream_governor::add_upstream(const caf::stream_id& relay_id
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(up_sid) << CAF_ARG(prio));
   if (!hdl)
     return caf::sec::invalid_argument;
-  if (relay_id == workers().sid())
-    state_->local_inputs.emplace(hdl);
   return in_.add_path(hdl, up_sid, prio, assignable_credit());
 }
 
@@ -400,15 +395,12 @@ caf::error stream_governor::close_upstream(const caf::stream_id& sid,
                                            caf::strong_actor_ptr& hdl) {
   CAF_LOG_TRACE(CAF_ARG(hdl));
   if (in_.remove_path(hdl)) {
-    auto& li = state_->local_inputs;
-    auto i = li.find(hdl);
+    auto& li = state_->local_sources;
+    auto i = li.find(sid);
     if (i != li.end()) {
       CAF_LOG_DEBUG("local upstream closed:" << CAF_ARG(sid));
       li.erase(i);
-      if (at_end()) {
-        CAF_LOG_DEBUG("Closed last local input, shutting down");
-        state_->self->quit(caf::exit_reason::user_shutdown);
-      }
+      shutdown_if_at_end("Closed last local input");
     }
     return caf::none;
   }
@@ -434,23 +426,19 @@ void stream_governor::abort(const caf::stream_id& sid,
     in_.abort(hdl, reason);
     return;
   }
-  if (workers_.remove_path(hdl))
+  if (workers_.remove_path(hdl) || stores_.remove_path(hdl)) {
+    shutdown_if_at_end("Aborted last local sink");
     return;
-  if (stores_.remove_path(hdl))
-    return;
+  }
   // Check if hdl is a local source.
-  { // Lifetime scope of state_->local_inputs iterator i
-    auto i = state_->local_inputs.find(hdl);
-    if (i != state_->local_inputs.end()) {
+  { // Lifetime scope of state_->local_sources iterator i
+    auto i = state_->local_sources.find(sid);
+    if (i != state_->local_sources.end()) {
       CAF_LOG_DEBUG("Abort from local source.");
       // Do not propagate errors of local actors.
       in_.remove_path(hdl);
-      state_->local_inputs.erase(i);
-      // Shutdown when the last local input source is done.
-      if (at_end()) {
-        CAF_LOG_DEBUG("Last local input aborted, shuttding down");
-        state_->self->quit(caf::exit_reason::user_shutdown);
-      }
+      state_->local_sources.erase(i);
+      shutdown_if_at_end("Aborted last local source");
       return;
     }
   }
@@ -515,12 +503,12 @@ long stream_governor::downstream_credit() const {
 
 void stream_governor::close_remote_input() {
   CAF_LOG_TRACE("");
-  auto local_inputs = workers_.sid();
+  auto sid = workers_.sid();
   std::vector<caf::strong_actor_ptr> remotes;
   for (auto& path : in_.paths())
-    if (state_->local_inputs.count(path->hdl) == 0)
+    if (state_->local_sources.count(path->sid) == 0)
       remotes.emplace_back(path->hdl);
-  CAF_LOG_DEBUG(CAF_ARG(remotes) << CAF_ARG(state_->local_inputs));
+  CAF_LOG_DEBUG(CAF_ARG(remotes) << CAF_ARG(state_->local_sources));
   caf::strong_actor_ptr dummy;
   for (auto& sap : remotes)
     in_.remove_path(sap, caf::exit_reason::user_shutdown);
@@ -529,7 +517,9 @@ void stream_governor::close_remote_input() {
 
 bool stream_governor::at_end() const {
   return state_->shutting_down
-         && state_->local_inputs.empty()
+         && state_->local_sources.empty()
+         && workers_.closed()
+         && stores_.closed()
          && no_data_pending();
 }
 
@@ -546,6 +536,14 @@ bool stream_governor::no_data_pending() const {
   return all_acked(workers_)
          && all_acked(stores_)
          && std::all_of(peers_.begin(), peers_.end(), peer_all_acked);
+}
+
+void stream_governor::shutdown_if_at_end(const char* log_message) {
+  CAF_IGNORE_UNUSED(log_message);
+  if (at_end()) {
+    CAF_LOG_DEBUG(log_message);
+    state_->self->quit(caf::exit_reason::user_shutdown);
+  }
 }
 
 long stream_governor::downstream_buffer_size() const {

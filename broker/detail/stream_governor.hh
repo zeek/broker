@@ -193,6 +193,10 @@ public:
   /// downstream paths.
   bool no_data_pending() const;
 
+  /// Terminates the core actor with log output `log_message` if `at_end`
+  /// returns `true`.
+  void shutdown_if_at_end(const char* log_message);
+
 private:
   long downstream_buffer_size() const;
 

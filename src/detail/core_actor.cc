@@ -139,6 +139,11 @@ void core_state::add_to_filter(filter_type xs) {
   }
 }
 
+caf::stream_handler_ptr
+core_state::make_relay(const caf::stream_id& sid) const {
+  return caf::make_counted<stream_relay>(governor, sid, worker_token_factory);
+}
+
 bool core_state::has_peer(const caf::actor& x) {
   return pending_peers.count(x) > 0 || governor->has_peer(x) > 0;
 }
@@ -394,8 +399,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& cs = self->current_sender();
       if (cs == nullptr)
         return;
-      st.local_inputs.emplace(cs);
-      self->streams().emplace(in.id(), st.worker_relay);
+      st.local_sources.emplace(in.id(), cs);
+      self->streams().emplace(in.id(), st.make_relay(in.id()));
     },
     [=](atom::publish, topic& t, data& x) {
       CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
@@ -621,10 +626,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::shutdown) {
       auto& st = self->state;
       st.shutting_down = true;
-      // Shutdown all input streams immediately, but make sure we still send
-      // all pending output messages before terminating.
-      //st.governor->close_remote_input();
-      // Do not respond to any further message.
+      // Shutdown immediately if no local sink or source is connected.
+      if (st.governor->at_end()) {
+        self->quit(exit_reason::user_shutdown);
+        return;
+      }
+      // Wait until local sinks and sources are done, but no longer respond to
+      // any future message.
       self->set_default_handler(caf::drop);
       self->become(
         [] {
