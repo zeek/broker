@@ -293,7 +293,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return;
       }
       // Start streaming in opposite direction.
-      st.emit_status<sc::peer_added>(make_info(remote_core),
+      st.emit_status<sc::peer_added>(remote_core,
                                      "received handshake from remote core");
       auto sid = self->make_stream_id();
       auto i = st.pending_peers.find(remote_core);
@@ -340,7 +340,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       if (!res.second) {
         CAF_LOG_WARNING("Stream already existed.");
       } else {
-        st.emit_status<sc::peer_added>(make_info(remote_core),
+        st.emit_status<sc::peer_added>(remote_core,
                                        "handshake successful");
       }
     },
@@ -590,8 +590,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         tmp.peer.node = hdl.node();
         auto addrs = st.cache.find(hdl);
         // the peer_info only holds a single address, so ... pick first?
-        if (addrs.size() > 0)
-        tmp.peer.network = *addrs.begin();
+        if (addrs)
+          tmp.peer.network = *addrs;
         result.emplace_back(std::move(tmp));
       };
       // collect connected peers

@@ -26,12 +26,16 @@ caf::optional<caf::actor> network_cache::find(const network_info& x) {
   return caf::none;
 }
 
-network_cache::network_info_set network_cache::find(const caf::actor& x) {
-  network_info_set result;
+caf::optional<network_info> network_cache::find(const caf::actor& x) {
   auto i = addrs_.find(x);
   if (i != addrs_.end())
-    result = i->second;
-  return result;
+    return i->second;
+  return caf::none;
+}
+
+void network_cache::add(const caf::actor& x, const network_info& y) {
+  addrs_.emplace(x, y);
+  hdls_.emplace(y, x);
 }
 
 } // namespace detail

@@ -453,6 +453,8 @@ void stream_governor::abort(const caf::stream_id& sid,
       // Remove this peer entirely if no downstream to it exists.
       if (pptr->out.num_paths() == 0) {
         CAF_LOG_DEBUG("Remove peer: up- and downstream severed.");
+        state_->emit_status<sc::peer_lost>(pptr->remote_core,
+                                           "lost remote peer");
         peers_.erase(pptr->remote_core);
       }
       return;
@@ -470,6 +472,8 @@ void stream_governor::abort(const caf::stream_id& sid,
       pd.out.remove_path(hdl);
       // Remove this peer entirely if no upstream from it exists.
       if (input_to_peers_.count(pd.incoming_sid) == 0) {
+        state_->emit_status<sc::peer_lost>(pd.remote_core,
+                                           "lost remote peer");
         CAF_LOG_DEBUG("Remove peer: down- and upstream severed.");
         peers_.erase(i);
         // Shutdown when the last peer stops listening.

@@ -79,10 +79,22 @@ struct core_state {
                make_error(ErrorCode, std::forward<Ts>(xs)...));
   }
 
-  template <sc StatusCode, class... Ts>
-  void emit_status(Ts&&... xs) {
-    self->send(statuses_, atom::local::value,
-               status::make<StatusCode>(std::forward<Ts>(xs)...));
+  template <sc StatusCode>
+  void emit_status(caf::actor hdl, const char* msg) {
+    cache.fetch(hdl,
+                [=](network_info x) {
+                  self->send(statuses_, atom::local::value,
+                             status::make<StatusCode>(
+                               endpoint_info{hdl.node(), std::move(x)}, msg));
+                },
+                [=](caf::error) {
+                  // nop?
+                });
+  }
+
+  template <sc StatusCode>
+  void emit_status(caf::strong_actor_ptr hdl, const char* msg) {
+    emit_status<StatusCode>(caf::actor_cast<caf::actor>(std::move(hdl)), msg);
   }
 
   // --- member variables ------------------------------------------------------

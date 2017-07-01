@@ -22,8 +22,6 @@ namespace detail {
 /// can get published to more than one port.
 class network_cache {
 public:
-  using network_info_set = std::unordered_set<network_info>;
-
   network_cache(caf::event_based_actor* selfptr);
 
   /// Either returns an actor handle immediately if the entry is cached or
@@ -50,9 +48,32 @@ public:
         else {
           auto hdl = actor_cast<actor>(std::move(res));
           hdls_.emplace(x, hdl);
-          addrs_[hdl].emplace(x);
+          addrs_.emplace(hdl, x);
           f(std::move(hdl));
         }
+      },
+      [=](error& err) mutable {
+        g(std::move(err));
+      }
+    );
+  }
+
+  template <class OnResult, class OnError>
+  void fetch(const caf::actor& x, OnResult f, OnError g) {
+    using namespace caf;
+    auto y = find(x);
+    if (y) {
+      f(*y);
+      return;
+    }
+    self->request(self->home_system().middleman().actor_handle(), infinite,
+                  get_atom::value, x.node())
+    .then(
+      [=](const node_id&, std::string& address, uint16_t port) mutable {
+        network_info result{std::move(address), port};
+        hdls_.emplace(result, x);
+        addrs_.emplace(x, result);
+        f(std::move(result));
       },
       [=](error& err) mutable {
         g(std::move(err));
@@ -64,14 +85,17 @@ public:
   caf::optional<caf::actor> find(const network_info& x);
 
   /// Returns all known network addresses for `x`.
-  network_info_set find(const caf::actor& x);
+  caf::optional<network_info> find(const caf::actor& x);
+
+  /// Maps `x` to `y` and vice versa.
+  void add(const caf::actor& x, const network_info& y);
 
 private:
   // Parent.
   caf::event_based_actor* self;
 
   // Maps remote actor handles to network addresses.
-  std::unordered_map<caf::actor, network_info_set> addrs_;
+  std::unordered_map<caf::actor, network_info> addrs_;
 
   // Maps network addresses to remote actor handles.
   std::unordered_map<network_info, caf::actor> hdls_;
