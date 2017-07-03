@@ -111,6 +111,13 @@ void endpoint::detach_all() {
 
 caf::actor endpoint::make_actor(actor_init_fun f) {
   return system_.spawn([=](caf::event_based_actor* self) {
+    // "Hide" unhandled-exception warning if users throw.
+    self->set_exception_handler(
+      [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
+        return caf::exit_reason::unhandled_exception;
+      }
+    );
+    // Run callback.
     f(self);
   });
 }
