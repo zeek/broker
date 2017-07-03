@@ -30,13 +30,19 @@ std::mutex cout_mtx;
 
 using guard_type = std::unique_lock<std::mutex>;
 
+void print_line(std::ostream& out, const std::string& line) {
+  guard_type guard{cout_mtx};
+  out << line << std::endl;
+}
+
 class config : public broker::configuration {
 public:
-  atom_value mode;
+  atom_value mode = atom("");
   atom_value impl = atom("blocking");
   std::string topic;
   std::vector<std::string> peers;
-  uint16_t local_port;
+  uint16_t local_port = 0;
+  size_t message_cap = std::numeric_limits<size_t>::max();
   config() {
     opt_group{custom_options_, "global"}
     .add(peers, "peers,p",
@@ -48,57 +54,67 @@ public:
     .add(mode, "mode,m",
          "set mode ('publish' or 'subscribe')")
     .add(impl, "impl,i",
-         "set mode implementation ('blocking' [default], 'select', or 'stream')");
+         "set mode implementation ('blocking', 'select', or 'stream')")
+    .add(message_cap, "message-cap,c",
+         "set a maximum for received/sent messages");
   }
 };
 
-void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str) {
+void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
+                           size_t cap) {
   auto out = ep.make_publisher(topic_str);
   std::string line;
-  while (std::getline(std::cin, line)) {
+  size_t i = 0;
+  while (std::getline(std::cin, line) && i++ < cap)
     out.publish(std::move(line));
-  }
 }
 
-void publish_mode_select(broker::endpoint& ep, const std::string& topic_str) {
+void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
+                         size_t cap) {
   auto out = ep.make_publisher(topic_str);
   auto fd = out.fd();
   std::string line;
   fd_set readset;
-  for (;;) {
+  size_t i = 0;
+  while (i < cap) {
     FD_ZERO(&readset);
     FD_SET(fd, &readset);
     if (select(fd + 1, &readset, NULL, NULL, NULL) <= 0) {
-      std::cerr << "select() failed, errno: " << errno << std::endl;
+      print_line(std::cerr, "select() failed, errno: " + std::to_string(errno));
       return;
     }
-    auto j = out.free_capacity();
-    assert(j > 0);
-    for (size_t i = 0; i < j; ++i)
+    auto num = std::min(cap - i, out.free_capacity());
+    assert(num > 0);
+    for (size_t j = 0; j < num; ++j)
       if (!std::getline(std::cin, line))
         return; // Reached end of STDIO.
       else
         out.publish(std::move(line));
+    i += num;
   }
 }
 
-void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str) {
+void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
+                         size_t cap) {
   auto worker = ep.publish_all(
-    [](bool& at_end) {
-      at_end = false;
+    [](size_t& msgs) {
+      msgs = 0;
     },
-    [=](bool& at_end, downstream<std::pair<topic, data>>& out, size_t num) {
+    [=](size_t& msgs, downstream<std::pair<topic, data>>& out, size_t hint) {
+      auto num = std::min(cap - msgs, hint);
       std::string line;
       for (size_t i = 0; i < num; ++i)
         if (!std::getline(std::cin, line)) {
-          at_end = true;
-          return; // Reached end of STDIO.
+          // Reached end of STDIO.
+          msgs = cap;
+          return;
         } else {
           out.push(std::make_pair(topic_str, std::move(line)));
         }
+      msgs += num;
     },
-    [](const bool& at_end) {
-      return at_end;
+    [=](const size_t& msgs) {
+      return msgs == cap;
     },
     // Handle result of the stream.
     [](expected<void>) {
@@ -109,15 +125,52 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str) {
   self->wait_for(worker);
 }
 
-
-void subscribe_mode(broker::endpoint& ep, const std::string& topic_str) {
+void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
+                    size_t cap) {
   auto in = ep.make_subscriber({topic_str});
   std::string line;
-  for (;;) {
-    line = deep_to_string(in.get());
-    guard_type guard{cout_mtx};
-    std::cout << line << std::endl;
+  for (size_t i = 0; i < cap; ++i)
+    print_line(std::cout, deep_to_string(in.get()));
+}
+
+void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
+                    size_t cap) {
+  auto in = ep.make_subscriber({topic_str});
+  auto fd = in.fd();
+  fd_set readset;
+  size_t i = 0;
+  while (i < cap) {
+    FD_ZERO(&readset);
+    FD_SET(fd, &readset);
+    if (select(fd + 1, &readset, NULL, NULL, NULL) <= 0) {
+      print_line(std::cerr, "select() failed, errno: " + std::to_string(errno));
+      return;
+    }
+    auto num = std::min(cap - i, in.available());
+    for (size_t j = 0; j < num; ++j)
+      print_line(std::cout, deep_to_string(in.get()));
+    i += num;
   }
+}
+
+void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
+                    size_t cap) {
+  auto worker = ep.subscribe(
+    {topic_str},
+    [](size_t& msgs) {
+      msgs = 0;
+    },
+    [=](size_t& msgs, std::pair<topic, data> x) {
+      print_line(std::cout, deep_to_string(x));
+      if (++msgs >= cap)
+        throw std::runtime_error("Reached cap");
+    },
+    [](size_t&) {
+      // nop
+    }
+  );
+  scoped_actor self{ep.system()};
+  self->wait_for(worker);
 }
 
 behavior event_listener(event_based_actor* self) {
@@ -170,18 +223,18 @@ int main(int argc, char** argv) {
     ep.peer(fields.front(), port);
   }
   // Run requested mode.
-  auto dummy_mode = [](broker::endpoint&, const std::string&) {
+  auto dummy_mode = [](broker::endpoint&, const std::string&, size_t) {
     guard_type guard{cout_mtx};
     std::cerr << "*** invalid mode or implementation setting\n";
   };
-  using mode_fun = void (*)(broker::endpoint&, const std::string&);
+  using mode_fun = void (*)(broker::endpoint&, const std::string&, size_t);
   mode_fun fs[] = {
     publish_mode_blocking,
     publish_mode_select,
     publish_mode_stream,
-    subscribe_mode,
-    subscribe_mode,
-    subscribe_mode,
+    subscribe_mode_blocking,
+    subscribe_mode_select,
+    subscribe_mode_stream,
     dummy_mode
   };
   std::pair<atom_value, atom_value> as[] = {
@@ -195,7 +248,7 @@ int main(int argc, char** argv) {
   auto b = std::begin(as);
   auto i = std::find(b, std::end(as), std::make_pair(cfg.mode, cfg.impl));
   auto f = fs[std::distance(b, i)];
-  f(ep, cfg.topic);
+  f(ep, cfg.topic, cfg.message_cap);
   anon_send_exit(el, exit_reason::user_shutdown);
 }
 
