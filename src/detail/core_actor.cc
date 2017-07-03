@@ -213,10 +213,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) -> result<void> {
-      return init_peering(std::move(remote_core), self->make_response_promise());
+      return init_peering(std::move(remote_core),
+                          self->make_response_promise());
     },
-    [=](atom::peer, network_info addr, timeout::seconds retry, uint32_t n)
-    -> result<void> {
+    [=](atom::peer, network_info addr, timeout::seconds retry,
+        uint32_t n) -> result<void> {
       auto rp = self->make_response_promise();
       self->state.cache.fetch(addr,
                               [=](actor x) mutable {
@@ -639,6 +640,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           // Dummy behavior to keep the actor alive but unresponsive.
         }
       );
+    },
+    [=](atom::shutdown, atom::store) {
+      strong_actor_ptr dummy;
+      auto& st = self->state;
+      for (auto& p : st.governor->stores().paths())
+        self->send_exit(p->hdl, caf::exit_reason::user_shutdown);
     }
   };
 }

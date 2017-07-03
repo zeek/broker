@@ -81,15 +81,19 @@ struct core_state {
 
   template <sc StatusCode>
   void emit_status(caf::actor hdl, const char* msg) {
-    cache.fetch(hdl,
-                [=](network_info x) {
-                  self->send(statuses_, atom::local::value,
-                             status::make<StatusCode>(
-                               endpoint_info{hdl.node(), std::move(x)}, msg));
-                },
-                [=](caf::error) {
-                  // nop?
-                });
+    if (self->node() != hdl.node())
+      cache.fetch(hdl,
+                  [=](network_info x) {
+                    self->send(statuses_, atom::local::value,
+                               status::make<StatusCode>(
+                                 endpoint_info{hdl.node(), std::move(x)}, msg));
+                  },
+                  [=](caf::error) {
+                    // nop?
+                  });
+    else
+      self->send(statuses_, atom::local::value,
+                 status::make<StatusCode>(endpoint_info{hdl.node(), {}}, msg));
   }
 
   template <sc StatusCode>

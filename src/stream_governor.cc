@@ -427,6 +427,8 @@ void stream_governor::abort(const caf::stream_id& sid,
     return;
   }
   if (workers_.remove_path(hdl) || stores_.remove_path(hdl)) {
+    push();
+    assign_credit();
     shutdown_if_at_end("Aborted last local sink");
     return;
   }
@@ -438,6 +440,8 @@ void stream_governor::abort(const caf::stream_id& sid,
       // Do not propagate errors of local actors.
       in_.remove_path(hdl);
       state_->local_sources.erase(i);
+      push();
+      assign_credit();
       shutdown_if_at_end("Aborted last local source");
       return;
     }
@@ -457,6 +461,8 @@ void stream_governor::abort(const caf::stream_id& sid,
                                            "lost remote peer");
         peers_.erase(pptr->remote_core);
       }
+      push();
+      assign_credit();
       return;
     }
   }
@@ -480,6 +486,8 @@ void stream_governor::abort(const caf::stream_id& sid,
         if (state_->shutting_down && peers_.empty())
           state_->self->quit(caf::exit_reason::user_shutdown);
       }
+      assign_credit();
+      push();
       return;
     }
   }

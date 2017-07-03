@@ -63,7 +63,7 @@ public:
 
   caf::event_based_actor* self;
 
-  std::string name;
+  std::string id;
 
   topic clones_topic;
 
@@ -72,10 +72,12 @@ public:
   caf::actor core;
 
   std::unordered_set<caf::actor_addr> clones;
+
+  static const char* name;
 };
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
-                           caf::actor core, std::string name,
+                           caf::actor core, std::string id,
                            master_state::backend_pointer backend);
 
 } // namespace detail

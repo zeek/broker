@@ -19,6 +19,8 @@
 namespace broker {
 namespace detail {
 
+const char* master_state::name = "master_actor";
+
 master_state::master_state() : self(nullptr) {
   // nop
 }
@@ -27,8 +29,8 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
                         backend_pointer&& bp, caf::actor&& parent) {
 
   self = ptr;
-  name = std::move(nm);
-  clones_topic = name / topics::reserved / topics::clone;
+  id = std::move(nm);
+  clones_topic = id / topics::reserved / topics::clone;
   backend = std::move(bp);
   core = std::move(parent);
 }
@@ -145,10 +147,10 @@ void master_state::operator()(clear_command& x) {
 }
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
-                           caf::actor core, std::string name,
+                           caf::actor core, std::string id,
                            master_state::backend_pointer backend) {
   self->monitor(core);
-  self->state.init(self, std::move(name), std::move(backend), std::move(core));
+  self->state.init(self, std::move(id), std::move(backend), std::move(core));
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -203,7 +205,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, atom::name) {
-      return self->state.name;
+      return self->state.id;
     },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {

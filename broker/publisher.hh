@@ -60,7 +60,7 @@ public:
 
   /// Returns a rough estimate of the throughput per second of this publisher.
   size_t send_rate() const;
-  
+
   /// Returns a reference to the background worker.
   inline const caf::actor& worker() const {
     return worker_;
@@ -72,6 +72,12 @@ public:
     return queue_->fd();
   }
 
+  // --- mutators --------------------------------------------------------------
+  
+  /// Forces the publisher to drop all remaining items from the queue when the
+  /// destructor gets called.
+  void drop_all_on_destruction();
+  
   // --- messaging -------------------------------------------------------------
   
   /// Sends `x` to all subscribers.
@@ -84,6 +90,7 @@ private:
   // -- force users to use `endpoint::make_publsiher` -------------------------
   publisher(endpoint& ep, topic t);
 
+  bool drop_on_destruction_;
   detail::shared_publisher_queue_ptr<> queue_;
   caf::actor worker_;
   topic topic_;

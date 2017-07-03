@@ -235,6 +235,11 @@ public:
     return attach_clone(std::move(name));
   }
 
+  /// Detaches (shuts down) all masters and clones on this endpoint.
+  void detach_all();
+
+  // --- access to CAF state ---------------------------------------------------
+
   inline caf::actor_system& system() {
     return system_;
   }
@@ -250,7 +255,7 @@ private:
   caf::actor make_actor(actor_init_fun f);
 
   expected<store> attach_master(std::string name, backend type,
-                              backend_options opts);
+                                backend_options opts);
 
   expected<store> attach_clone(std::string name);
 

@@ -344,9 +344,8 @@ CAF_TEST(remote_peers_setup1) {
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_open),
             from(_).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!mars.sched.has_job());
-  CAF_REQUIRE(!earth.sched.has_job());
+  // Make sure there is no communication pending at this point.
+  exec_all();
   // Spin up driver on core1.
   auto d1 = earth.sys.spawn(driver, core1);
   CAF_MESSAGE("d1: " << to_string(d1));
@@ -486,9 +485,8 @@ CAF_TEST(remote_peers_setup2) {
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_open),
             from(_).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!mars.sched.has_job());
-  CAF_REQUIRE(!earth.sched.has_job());
+  // Make sure there is no communication pending at this point.
+  exec_all();
   // Spin up driver on core2.
   auto d1 = mars.sys.spawn(driver, core2);
   CAF_MESSAGE("d1: " << to_string(d1));

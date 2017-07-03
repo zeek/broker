@@ -99,14 +99,18 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
 } // namespace <anonymous>
 
 publisher::publisher(endpoint& ep, topic t)
-  : queue_(detail::make_shared_publisher_queue(queue_size)),
+  : drop_on_destruction_(false),
+    queue_(detail::make_shared_publisher_queue(queue_size)),
     worker_(ep.system().spawn(publisher_worker, &ep, queue_)),
     topic_(std::move(t)) {
   // nop
 }
 
 publisher::~publisher() {
-  anon_send(worker_, atom::shutdown::value);
+  if (!drop_on_destruction_)
+    anon_send(worker_, atom::shutdown::value);
+  else
+    anon_send_exit(worker_, exit_reason::user_shutdown);
 }
 
 size_t publisher::demand() const {
@@ -130,6 +134,10 @@ size_t publisher::free_capacity() const {
 
 size_t publisher::send_rate() const {
   return static_cast<size_t>(queue_->rate());
+}
+
+void publisher::drop_all_on_destruction() {
+  drop_on_destruction_ = true;
 }
 
 void publisher::publish(data x) {

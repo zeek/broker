@@ -165,9 +165,8 @@ CAF_TEST(master_with_clone) {
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_open),
             from(_).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!mars.sched.has_job());
-  CAF_REQUIRE(!earth.sched.has_job());
+  // Make sure there is no communication pending at this point.
+  exec_all();
   // --- phase 7: resolve master for foo proactively ---------------------------
   CAF_MESSAGE("resolve master on mars");
   anon_send(core2, atom::store::value, atom::master::value,

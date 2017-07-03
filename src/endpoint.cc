@@ -105,6 +105,10 @@ subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
   return {*this, std::move(ts), max_qsize};
 }
 
+void endpoint::detach_all() {
+  anon_send(core_, atom::shutdown::value, atom::store::value);
+}
+
 caf::actor endpoint::make_actor(actor_init_fun f) {
   return system_.spawn([=](caf::event_based_actor* self) {
     f(self);

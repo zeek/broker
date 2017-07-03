@@ -97,12 +97,14 @@ CAF_TEST(blocking_publishers) {
     CAF_REQUIRE(!sched.has_job());
     // Spin up two publishers: one for "a" and one for "b".
     auto pub1 = ep.make_publisher("a");
+    pub1.drop_all_on_destruction();
     auto d1 = pub1.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
     expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
     //CAF_CHECK_EQUAL(pub1.demand(), 10); // 5 demand + 5 extra buffer
     auto pub2 = ep.make_publisher("b");
+    pub2.drop_all_on_destruction();
     auto d2 = pub2.worker();
     sched.run_once();
     expect((stream_msg::open), from(_).to(core1).with(_, d2, _, _, false));
