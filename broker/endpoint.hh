@@ -109,7 +109,7 @@ public:
   caf::actor publish_all(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
     std::mutex mx;
     std::condition_variable cv;
-    auto res = make_actor([&](caf::event_based_actor* self) {
+    auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
       self->new_stream(
         core(),
         init,
@@ -160,10 +160,10 @@ public:
                        Cleanup cleanup) {
     std::mutex mx;
     std::condition_variable cv;
-    auto res = make_actor([&](caf::event_based_actor* self) {
+    auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
       self->send(self * core(), atom::join::value, std::move(topics));
       self->become(
-        [&](const stream_type& in) {
+        [=](const stream_type& in) {
           self->add_sink(in, init, f, cleanup);
           self->unbecome();
         }
