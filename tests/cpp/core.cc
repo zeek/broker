@@ -294,11 +294,14 @@ CAF_TEST(triangle_peering) {
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
   sched.run();
+  // Connect a consumer (leaf) to core1 (this consumer never receives data,
+  // because data isn't forwarded to local subscribers).
+  auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core1);
   // Connect a consumer (leaf) to core2.
-  auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core2);
+  auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core2);
   sched.run();
   // Connect a consumer (leaf) to core3.
-  auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core3);
+  auto leaf3 = sys.spawn(consumer, filter_type{"b"}, core3);
   sched.run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
@@ -403,7 +406,7 @@ CAF_TEST(triangle_peering) {
   // Check log of the consumers.
   using buf = std::vector<element_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
-  for (auto& leaf : {leaf1, leaf2}) {
+  for (auto& leaf : {leaf2, leaf3}) {
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
     sched.run_once();
@@ -413,6 +416,15 @@ CAF_TEST(triangle_peering) {
       }
     );
   }
+  // Make sure leaf1 never received any data.
+  self->send(leaf1, atom::get::value);
+  sched.prioritize(leaf1);
+  sched.run_once();
+  self->receive(
+    [&](const buf& xs) {
+      CAF_REQUIRE(xs.empty());
+    }
+  );
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);

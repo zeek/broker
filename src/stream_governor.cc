@@ -323,12 +323,15 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
           out.emit_batches();
         }
       }
+    /* Uncommenting this block forwards data from publishers to subscribers
+     * inside an endpoint.
     // Move elements from `xs` to the buffer for local subscribers.
     CAF_LOG_DEBUG("local subs: " << workers_.num_paths());
     if (!workers_.lanes().empty())
       for (auto& x : vec)
         workers_.push(std::move(x));
     workers_.emit_batches();
+    */
     // Grant new credit to upstream if possible.
     assign_credit();
     return caf::none;
