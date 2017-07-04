@@ -159,6 +159,7 @@ set(BROKER_SRC
   src/internal_command.cc
   src/mailbox.cc
   src/network_info.cc
+  src/peer_status.cc
   src/port.cc
   src/publisher.cc
   src/status.cc

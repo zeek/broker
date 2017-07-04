@@ -16,6 +16,8 @@ enum class peer_status {
   reconnecting,   ///< Reconnecting after a lost connection.
 };
 
+const char* to_string(peer_status);
+
 } // namespace broker
 
 #endif // BROKER_PEER_STATUS_HH
