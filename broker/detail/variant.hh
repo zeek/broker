@@ -514,6 +514,16 @@ bool is(const variant<Ts...>& v) {
   return get_if<T>(v) != nullptr;
 }
 
+template <class T, class... Ts>
+bool holds_alternative(variant<Ts...>& v) {
+  return get_if<T>(v) != nullptr;
+}
+
+template <class T, class... Ts>
+bool holds_alternative(const variant<Ts...>& v) {
+  return get_if<T>(v) != nullptr;
+}
+
 } // namespace detail
 } // namespace broker
 
