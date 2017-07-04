@@ -33,6 +33,8 @@ struct core_state {
     caf::response_promise rp;
   };
 
+  using pending_peers_map = std::unordered_map<caf::actor, pending_peer_state>;
+
   /// Identifies the two individual streams forming a bidirectional channel.
   /// The first ID denotes the *input*  and the second ID denotes the *output*.
   using stream_id_pair = std::pair<caf::stream_id, caf::stream_id>;
@@ -73,27 +75,51 @@ struct core_state {
 
   // --- convenience functions for sending errors and events -------------------
 
-  template <ec ErrorCode, class... Ts>
-  void emit_error(Ts&&... xs) {
-    self->send(errors_, atom::local::value,
-               make_error(ErrorCode, std::forward<Ts>(xs)...));
+  template <ec ErrorCode>
+  void emit_error(caf::actor hdl, const char* msg) {
+    auto emit = [=](network_info x) {
+      self->send(
+        statuses_, atom::local::value,
+        make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg));
+    };
+    if (self->node() != hdl.node())
+      cache.fetch(hdl,
+                  [=](network_info x) { emit(std::move(x)); },
+                  [=](caf::error) { emit({}); });
+    else
+      emit({});
+  }
+
+  template <ec ErrorCode>
+  void emit_error(caf::strong_actor_ptr hdl, const char* msg) {
+    emit_error<ErrorCode>(caf::actor_cast<caf::actor>(hdl), msg);
+  }
+
+  template <ec ErrorCode>
+  void emit_error(network_info inf, const char* msg) {
+    auto emit = [=](caf::actor x) {
+      self->send(
+        statuses_, atom::local::value,
+        make_error(ErrorCode, endpoint_info{x.node(), inf}, msg));
+    };
+    cache.fetch(inf,
+                [=](caf::actor x) { emit(std::move(x)); },
+                [=](caf::error) { emit({}); });
   }
 
   template <sc StatusCode>
   void emit_status(caf::actor hdl, const char* msg) {
+    auto emit = [=](network_info x) {
+      self->send(statuses_, atom::local::value,
+                 status::make<StatusCode>(
+                 endpoint_info{hdl.node(), std::move(x)}, msg));
+    };
     if (self->node() != hdl.node())
       cache.fetch(hdl,
-                  [=](network_info x) {
-                    self->send(statuses_, atom::local::value,
-                               status::make<StatusCode>(
-                                 endpoint_info{hdl.node(), std::move(x)}, msg));
-                  },
-                  [=](caf::error) {
-                    // nop?
-                  });
+                  [=](network_info x) { emit(x); },
+                  [=](caf::error) { emit({}); });
     else
-      self->send(statuses_, atom::local::value,
-                 status::make<StatusCode>(endpoint_info{hdl.node(), {}}, msg));
+      emit({});
   }
 
   template <sc StatusCode>
@@ -120,7 +146,7 @@ struct core_state {
   /// corresponds to `peer_status::connecting` and a valid stream ID
   /// cooresponds to `peer_status::connected`. The status for a given handle
   /// `x` is `peer_status::peered` if `governor->has_peer(x)` returns true.
-  std::unordered_map<caf::actor, pending_peer_state> pending_peers;
+  pending_peers_map pending_peers;
 
   /// Points to the owning actor.
   caf::event_based_actor* self;

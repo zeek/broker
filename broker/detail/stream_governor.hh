@@ -127,7 +127,7 @@ public:
                       filter_type filter);
 
   /// Removes a peer, aborting any stream to & from that peer.
-  void remove_peer(const caf::actor& hdl);
+  bool remove_peer(const caf::actor& hdl);
 
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);

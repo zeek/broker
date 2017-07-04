@@ -166,6 +166,15 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
+      // Only required because the initial `peer` message can get lost.
+      auto& st = self->state;
+      auto hdl = caf::actor_cast<caf::actor>(down.source);
+      auto i = st.pending_peers.find(hdl);
+      if (i != st.pending_peers.end()) {
+        st.emit_error<ec::peer_unavailable>(hdl, "remote endpoint unavailable");
+        i->second.rp.deliver(down.reason);
+        st.pending_peers.erase(i);
+      }
       /* TODO: still needed? Already tracked by governor.
       BROKER_INFO("got DOWN from peer" << to_string(down.source));
       auto peers = &self->state.peers;
@@ -194,15 +203,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     CAF_LOG_TRACE(CAF_ARG(remote_core));
     auto& st = self->state;
     // Sanity checking.
-    if (remote_core == nullptr)
-      return sec::invalid_argument;
+    if (remote_core == nullptr) {
+      rp.deliver(sec::invalid_argument);
+      return rp;
+    }
     // Ignore repeated peering requests without error.
-    if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core))
-      return unit;
+    if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core)) {
+      rp.deliver(caf::unit);
+      return rp;
+    }
     // Create necessary state and send message to remote core.
     st.pending_peers.emplace(remote_core,
                              core_state::pending_peer_state{stream_id{}, rp});
     self->send(self * remote_core, atom::peer::value, st.filter, self);
+    self->monitor(remote_core);
     return rp;
   };
   return {
@@ -229,6 +243,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                                   self->delayed_send(self, retry,
                                                      atom::peer::value, addr,
                                                      retry, n + 1);
+                                else {
+                                  auto desc = "remote endpoint unavailable";
+                                  BROKER_ERROR(desc);
+                                  self->state.emit_error<ec::peer_unavailable>(
+                                    addr, desc);
+                                }
                               });
       return rp;
     },
@@ -331,6 +351,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       i->second.rp.deliver(remote_core);
       st.pending_peers.erase(i);
+      self->demonitor(remote_core); // watched by the stream_aborter now
       // Get peer data and install stream handler.
       auto peer_ptr = st.governor->peer(remote_core);
       if (!peer_ptr) {
@@ -610,14 +631,19 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::unpeer, network_info addr) {
       self->state.cache.fetch(addr,
                               [=](actor x) mutable {
-                                self->state.governor->remove_peer(x);
+                                if (!self->state.governor->remove_peer(x))
+                                  self->state.emit_error<ec::peer_invalid>(
+                                    x, "no such peer");
                               },
                               [=](error) mutable {
-                                // nop
+                                self->state.emit_error<ec::peer_invalid>(
+                                  addr, "no such peer");
                               });
     },
     [=](atom::unpeer, actor x) {
-      self->state.governor->remove_peer(x);
+      auto& st = self->state;
+      if (!st.governor->remove_peer(x))
+        st.emit_error<ec::peer_invalid>(x, "no such peer");
     },
     [=](atom::no_events) {
       auto& st = self->state;
@@ -646,8 +672,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       for (auto& p : st.governor->stores().paths())
         self->send_exit(p->hdl, caf::exit_reason::user_shutdown);
-    }
-  };
+    }};
 }
 
 } // namespace detail

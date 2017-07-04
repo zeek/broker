@@ -124,8 +124,10 @@ using fixture = test_coordinator_fixture<config>;
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(manual_stream_management, fixture)
+CAF_TEST_FIXTURE_SCOPE(local_tests, fixture)
 
+// Simulates a simple setup with two cores, where data flows from core1 to
+// core2.
 CAF_TEST(local_peers) {
   // Spawn core actors and disable events.
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
@@ -560,6 +562,135 @@ CAF_TEST(sequenced_peering) {
   anon_send_exit(core3, exit_reason::user_shutdown);
   sched.run();
   sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+}
+
+CAF_TEST_FIXTURE_SCOPE_END()
+
+namespace {
+
+struct error_signaling_fixture : base_fixture {
+  actor core1;
+  actor core2;
+  event_subscriber es;
+
+  error_signaling_fixture() : es(ep.make_event_subscriber(true)) {
+    core1 = ep.core();
+    anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
+    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+    anon_send(core2, atom::no_events::value);
+    sched.run();
+  }
+
+  ~error_signaling_fixture() {
+    sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  }
+};
+
+} // namespace <anonymous>
+
+CAF_TEST_FIXTURE_SCOPE(error_signaling, error_signaling_fixture)
+
+// Simulates a connection abort after sending 'peer' message ("stage #0").
+CAF_TEST(failed_handshake_stage0) {
+  // Spawn core actors and disable events.
+  // Initiate handshake between core1 and core2, but kill core2 right away.
+  self->send(core1, atom::peer::value, core2);
+  anon_send_exit(core2, exit_reason::kill);
+  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  sched.run();
+  // Check the event log.
+  CAF_REQUIRE_EQUAL(es.available(), 1);
+  auto gv1 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<error>(gv1));
+  auto v1 = get<error>(gv1); // actual value 1
+  CAF_CHECK_EQUAL(v1.category(), caf::atom("broker"));
+  CAF_CHECK_EQUAL(static_cast<ec>(v1.code()), ec::peer_unavailable);
+}
+
+// Simulates a connection abort after receiving stage #1 handshake.
+CAF_TEST(failed_handshake_stage1) {
+  // Initiate handshake between core1 and core2, but kill core2 right away.
+  self->send(core2, atom::peer::value, core1);
+  expect((atom::peer, actor), from(self).to(core2).with(_, core1));
+  expect((atom::peer, filter_type, actor),
+         from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
+  anon_send_exit(core2, exit_reason::kill);
+  sched.run();
+  // Check the event log.
+  CAF_REQUIRE_EQUAL(es.available(), 2);
+  auto gv1 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv1));
+  auto v1 = get<status>(gv1); // actual value 1
+  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
+  auto gv2 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv2));
+  auto v2 = get<status>(gv2); // actual value 1
+  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+}
+
+// Simulates a connection abort after sending 'peer' message ("stage #0").
+CAF_TEST(failed_handshake_stage2) {
+  // Spawn core actors and disable events.
+  // Initiate handshake between core1 and core2, but kill core2 right away.
+  self->send(core1, atom::peer::value, core2);
+  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  expect((atom::peer, filter_type, actor),
+         from(_).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
+  anon_send_exit(core2, exit_reason::kill);
+  expect((stream_msg::open), from(_).to(core1).with(_, _, _, _, _, false));
+  sched.run();
+  // Check the event log.
+  CAF_REQUIRE_EQUAL(es.available(), 2);
+  auto gv1 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv1));
+  auto v1 = get<status>(gv1); // actual value 1
+  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
+  auto gv2 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv2));
+  auto v2 = get<status>(gv2); // actual value 1
+  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+}
+
+// Simulates a connection abort after receiving stage #1 handshake.
+CAF_TEST(failed_handshake_stage3) {
+  // Initiate handshake between core1 and core2, but kill core2 right away.
+  self->send(core2, atom::peer::value, core1);
+  expect((atom::peer, actor), from(self).to(core2).with(_, core1));
+  expect((atom::peer, filter_type, actor),
+         from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
+  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
+  anon_send_exit(core2, exit_reason::kill);
+  expect((stream_msg::open), from(_).to(core1).with(_, core2, _, _, false));
+  sched.run();
+  // Check the event log.
+  CAF_REQUIRE_EQUAL(es.available(), 2);
+  auto gv1 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv1));
+  auto v1 = get<status>(gv1); // actual value 1
+  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
+  auto gv2 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv2));
+  auto v2 = get<status>(gv2); // actual value 1
+  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+}
+
+// Simulates a connection abort after receiving stage #1 handshake.
+CAF_TEST(unpeering) {
+  // Initiate handshake between core1 and core2.
+  self->send(core2, atom::peer::value, core1);
+  sched.run();
+  self->send(core2, atom::unpeer::value, core1);
+  sched.run();
+  // Check the event log.
+  CAF_REQUIRE_EQUAL(es.available(), 2);
+  auto gv1 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv1));
+  auto v1 = get<status>(gv1); // actual value 1
+  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
+  auto gv2 = es.get(); // generic value 1
+  CAF_REQUIRE(holds_alternative<status>(gv2));
+  auto v2 = get<status>(gv2); // actual value 1
+  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
