@@ -235,8 +235,15 @@ public:
     return attach_clone(std::move(name));
   }
 
-  /// Detaches (shuts down) all masters and clones on this endpoint.
-  void detach_all();
+  /// Queries whether the endpoint waits for masters and slaves on shutdown.
+  inline bool await_stores_on_shutdown() const {
+    return await_stores_on_shutdown_;
+  }
+
+  /// Sets whether the endpoint waits for masters and slaves on shutdown.
+  inline void await_stores_on_shutdown(bool x) {
+    await_stores_on_shutdown_ = x;
+  }
 
   // --- access to CAF state ---------------------------------------------------
 
@@ -262,6 +269,7 @@ private:
   configuration config_;
   caf::actor_system system_;
   caf::actor core_;
+  bool await_stores_on_shutdown_;
 };
 
 } // namespace broker

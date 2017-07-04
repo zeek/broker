@@ -36,11 +36,14 @@ endpoint_info endpoint::info() const {
 
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
-    system_(config_) {
+    system_(config_),
+    await_stores_on_shutdown_(false) {
   core_ = system_.spawn(detail::core_actor, detail::filter_type{});
 }
 
 endpoint::~endpoint() {
+  if (!await_stores_on_shutdown_)
+    anon_send(core_, atom::shutdown::value, atom::store::value);
   anon_send(core_, atom::shutdown::value);
 }
 
@@ -103,10 +106,6 @@ event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {
 
 subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
   return {*this, std::move(ts), max_qsize};
-}
-
-void endpoint::detach_all() {
-  anon_send(core_, atom::shutdown::value, atom::store::value);
 }
 
 caf::actor endpoint::make_actor(actor_init_fun f) {

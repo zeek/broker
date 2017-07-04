@@ -15,7 +15,6 @@ TEST(backend option passing) {
   auto opts = backend_options{{"foo", 4.2}};
   auto ds = ep.attach<master>("lord", memory, std::move(opts));
   REQUIRE(ds);
-  ep.detach_all();
 }
 
 TEST(master operations) {
@@ -52,7 +51,6 @@ TEST(master operations) {
   REQUIRE_EQUAL(ds->get("foo", 2), data{true});
   MESSAGE("keys");
   REQUIRE_EQUAL(ds->keys(), data(set{"foo"}));
-  ep.detach_all();
 }
 
 TEST(clone operations - same endpoint) {
@@ -63,7 +61,6 @@ TEST(clone operations - same endpoint) {
   REQUIRE(m);
   auto c = ep.attach<broker::clone>("vulcan");
   REQUIRE(!c);
-  ep.detach_all();
 }
 
 TEST(expiration) {
@@ -83,7 +80,6 @@ TEST(expiration) {
   v = m->get("foo");
   REQUIRE(!v);
   CHECK(v.error() == ec::no_such_key);
-  ep.detach_all();
 }
 
 TEST(proxy) {
@@ -108,5 +104,4 @@ TEST(proxy) {
   auto key_resp = proxy.receive();
   CAF_REQUIRE_EQUAL(key_resp.id, key_id);
   CAF_REQUIRE_EQUAL(key_resp.answer, data(set{"foo"}));
-  ep.detach_all();
 }
