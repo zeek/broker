@@ -48,6 +48,9 @@ public:
 
   bool done() const override;
 
+  /// Mark this stream realy as `done`.
+  void disable();
+
   caf::message make_output_token(const caf::stream_id&) const override;
 
 private:

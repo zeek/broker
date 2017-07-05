@@ -109,8 +109,8 @@ stream_governor::peer_data*
 stream_governor::add_peer(caf::strong_actor_ptr downstream_handle,
                           caf::actor remote_core, const caf::stream_id& sid,
                           filter_type filter) {
-  CAF_LOG_TRACE(CAF_ARG(downstream_handle)
-                << CAF_ARG(remote_core) << CAF_ARG(sid) << CAF_ARG(filter));
+  CAF_LOG_TRACE(CAF_ARG(downstream_handle) << CAF_ARG(remote_core)
+                << CAF_ARG(sid) << CAF_ARG(filter));
   auto ptr = caf::make_counted<peer_data>(this, std::move(filter), sid);
   ptr->out.add_path(downstream_handle);
   ptr->remote_core = remote_core;
@@ -118,25 +118,71 @@ stream_governor::add_peer(caf::strong_actor_ptr downstream_handle,
   if (res.second) {
     auto self = static_cast<caf::scheduled_actor*>(ptr->out.self());
     self->streams().emplace(sid, ptr->relay);
-    input_to_peers_.emplace(sid, ptr);
     return ptr.get(); // safe, because two more refs to ptr exist
   }
   return nullptr;
 }
 
-bool stream_governor::remove_peer(const caf::actor& hdl) {
+void stream_governor::init_peer(peer_data* ptr,
+                                const caf::stream_id& upstream_sid) {
+  if (ptr->incoming_sid.valid()) {
+    CAF_LOG_ERROR("stream_governor::init_peer called twice for the same peer");
+    return;
+  }
+  ptr->incoming_sid = upstream_sid;
+  if (!input_to_peers_.emplace(upstream_sid, ptr).second
+      || !state_->self->streams().emplace(upstream_sid, ptr->relay).second)
+    CAF_LOG_ERROR("stream_governor::init_peer failed to initialize state");
+}
+
+void stream_governor::init_peer(const caf::actor& remote_core,
+                                const caf::stream_id& upstream_sid) {
+  auto i = peers_.find(remote_core);
+  if (i != peers_.end())
+    init_peer(i->second.get(), upstream_sid);
+  else
+    CAF_LOG_WARNING("stream_governor::init_peer called with unknown actor");
+}
+
+bool stream_governor::remove_peer(const caf::actor& hdl,
+                                  bool cleanup_stream_state) {
   CAF_LOG_TRACE(CAF_ARG(hdl));
+  // Sanity check.
   auto i = peers_.find(hdl);
   if (i == peers_.end())
     return false;
+  auto hdl_ptr = caf::actor_cast<caf::strong_actor_ptr>(hdl);
   auto self = state_->self;
   auto sptr = caf::actor_cast<caf::strong_actor_ptr>(self);
   caf::error err = caf::exit_reason::user_shutdown;
   auto& pd = *i->second;
-  self->streams().erase(pd.incoming_sid);
-  self->streams().erase(pd.out.sid());
+  // Remove from input and output paths.
+  in_.remove_path(hdl_ptr);
+  input_to_peers_.erase(pd.incoming_sid);
   pd.out.abort(sptr, err);
+  // Remove obsolete state.
+  if (cleanup_stream_state) {
+    self->streams().erase(pd.incoming_sid);
+    self->streams().erase(pd.out.sid());
+  } else {
+    auto disable_relay = [&](const caf::stream_id& sid) {
+      auto i = self->streams().find(sid);
+      if (i != self->streams().end())
+        static_cast<stream_relay*>(i->second.get())->disable();
+    };
+    disable_relay(pd.incoming_sid);
+    disable_relay(pd.out.sid());
+    state_->emit_status<sc::peer_lost>(pd.remote_core, "lost remote peer");
+  }
   peers_.erase(i);
+  if (state_->shutting_down && peers_.empty()) {
+    // Shutdown when the last peer stops listening.
+    state_->self->quit(caf::exit_reason::user_shutdown);
+  } else {
+    // See whether we can make progress without that peer in the mix.
+    assign_credit();
+    push();
+  }
   return true;
 }
 
@@ -238,14 +284,17 @@ stream_governor::confirm_downstream(const caf::stream_id& sid,
   if (try_confirm(*this, workers_, rebind_from, hdl, initial_demand)
       || try_confirm(*this, stores_, rebind_from, hdl, initial_demand))
     return caf::none;
-  auto i = input_to_peers_.find(sid);
-  if (i == input_to_peers_.end()) {
+  auto e = peers_.end();
+  auto i = std::find_if(peers_.begin(), e, [&](const peer_map::value_type& x) {
+    return x.second->out.sid() == sid;
+  });
+  if (i == e
+      || !try_confirm(*this, i->second->out, rebind_from, hdl,
+                      initial_demand)) {
     CAF_LOG_ERROR("Cannot confirm path to unknown downstream.");
     return caf::sec::invalid_downstream;
   }
-  if (try_confirm(*this, i->second->out, rebind_from, hdl, initial_demand))
-    return caf::none;
-  return caf::sec::invalid_downstream;
+  return caf::none;
 }
 
 caf::error stream_governor::downstream_ack(const caf::stream_id& sid,
@@ -267,8 +316,12 @@ caf::error stream_governor::downstream_ack(const caf::stream_id& sid,
   auto spath = stores_.find(hdl);
   if (spath)
     return ack_path(stores_, spath);
-  auto i = input_to_peers_.find(sid);
-  if (i != input_to_peers_.end()) {
+
+  auto e = peers_.end();
+  auto i = std::find_if(peers_.begin(), e, [&](const peer_map::value_type& x) {
+    return x.second->out.sid() == sid;
+  });
+  if (i != e) {
     auto ppath = i->second->out.find(hdl);
     if (!ppath)
       return caf::sec::invalid_stream_state;
@@ -452,52 +505,10 @@ void stream_governor::abort(const caf::stream_id& sid,
       return;
     }
   }
-  // Check if this stream ID (sid) is used by a peer for sending data to us.
-  { // Lifetime scope of input_to_peers_ iterator i
-    auto i = input_to_peers_.find(sid);
-    if (i != input_to_peers_.end()) {
-      CAF_LOG_DEBUG("Abort from remote source (peer).");
-      in_.remove_path(hdl);
-      auto pptr = std::move(i->second);
-      input_to_peers_.erase(i);
-      // Remove this peer entirely if no downstream to it exists.
-      if (pptr->out.num_paths() == 0) {
-        CAF_LOG_DEBUG("Remove peer: up- and downstream severed.");
-        state_->emit_status<sc::peer_lost>(pptr->remote_core,
-                                           "lost remote peer");
-        peers_.erase(pptr->remote_core);
-      }
-      push();
-      assign_credit();
-      return;
-    }
-  }
-  // Check if this stream ID (sid) is used by a peer for receiving data from us.
-  { // Lifetime scope of  peers_ iterators
-    auto predicate = [&](const peer_map::value_type& kvp) {
-      return kvp.second->out.sid() == sid;
-    };
-    auto e = peers_.end();
-    auto i = std::find_if(peers_.begin(), e, predicate);
-    if (i != e) {
-      auto& pd = *i->second;
-      pd.out.remove_path(hdl);
-      // Remove this peer entirely if no upstream from it exists.
-      if (input_to_peers_.count(pd.incoming_sid) == 0) {
-        state_->emit_status<sc::peer_lost>(pd.remote_core,
-                                           "lost remote peer");
-        CAF_LOG_DEBUG("Remove peer: down- and upstream severed.");
-        peers_.erase(i);
-        // Shutdown when the last peer stops listening.
-        if (state_->shutting_down && peers_.empty())
-          state_->self->quit(caf::exit_reason::user_shutdown);
-      }
-      assign_credit();
-      push();
-      return;
-    }
-  }
-  CAF_LOG_DEBUG("Abort from unknown stream ID.");
+  // Remove peer, but leave the relays in the streams_ map, because CAF will
+  // remove the current relay automatically.
+  if (!remove_peer(caf::actor_cast<caf::actor>(hdl), false))
+    CAF_LOG_DEBUG("Abort from unknown stream ID.");
 }
 
 long stream_governor::downstream_credit() const {

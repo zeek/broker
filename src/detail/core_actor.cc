@@ -324,9 +324,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       auto peer_ptr = st.governor->add_peer(p, std::move(remote_core),
                                             sid, std::move(filter));
-      peer_ptr->incoming_sid = in.id();
-      self->streams().emplace(sid, peer_ptr->relay);
-      self->streams().emplace(in.id(), peer_ptr->relay);
+      st.governor->init_peer(peer_ptr, in.id());
       peer_ptr->send_stream_handshake();
     },
     // Step #3: - A establishes a stream to B
@@ -349,22 +347,18 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_WARNING("Received a step #3 handshake, but no #1 previously.");
         return;
       }
-      i->second.rp.deliver(remote_core);
-      st.pending_peers.erase(i);
-      self->demonitor(remote_core); // watched by the stream_aborter now
       // Get peer data and install stream handler.
+      self->demonitor(remote_core); // watched by the stream_aborter now
       auto peer_ptr = st.governor->peer(remote_core);
       if (!peer_ptr) {
         CAF_LOG_WARNING("could not get peer data for " << remote_core);
+        st.pending_peers.erase(i);
         return;
       }
-      auto res = self->streams().emplace(in.id(), peer_ptr->relay);
-      if (!res.second) {
-        CAF_LOG_WARNING("Stream already existed.");
-      } else {
-        st.emit_status<sc::peer_added>(remote_core,
-                                       "handshake successful");
-      }
+      st.governor->init_peer(peer_ptr, in.id());
+      i->second.rp.deliver(remote_core);
+      st.emit_status<sc::peer_added>(remote_core, "handshake successful");
+      st.pending_peers.erase(i);
     },
     // --- asynchronous communication to peers ---------------------------------
     [=](atom::update, filter_type f) {
@@ -631,7 +625,10 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::unpeer, network_info addr) {
       self->state.cache.fetch(addr,
                               [=](actor x) mutable {
-                                if (!self->state.governor->remove_peer(x))
+                                if (self->state.governor->remove_peer(x))
+                                  self->state.emit_status<sc::peer_removed>(
+                                    x, "removed peering");
+                                else
                                   self->state.emit_error<ec::peer_invalid>(
                                     x, "no such peer");
                               },
@@ -642,7 +639,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::unpeer, actor x) {
       auto& st = self->state;
-      if (!st.governor->remove_peer(x))
+      if (st.governor->remove_peer(x))
+        st.emit_status<sc::peer_removed>(x, "removed peering");
+      else
         st.emit_error<ec::peer_invalid>(x, "no such peer");
     },
     [=](atom::no_events) {

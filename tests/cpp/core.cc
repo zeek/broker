@@ -221,6 +221,8 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
+  CAF_SET_LOGGER_SYS(&sys);
+  CAF_LOG_INFO("deliver remaining items from driver");
   CAF_MESSAGE("deliver remaining items from driver");
   sched.run();
   // Check log of the consumer after receiving all items from driver.
@@ -586,6 +588,41 @@ struct error_signaling_fixture : base_fixture {
   }
 };
 
+struct event_visitor {
+  using result_type = caf::variant<caf::none_t, sc, ec>;
+  using vector_type = std::vector<result_type>;
+
+  result_type operator()(const broker::error& x) {
+    return {static_cast<ec>(x.code())};
+  }
+
+  result_type operator()(const broker::status& x) {
+    return {x.code()};
+  }
+
+  template <class T>
+  result_type operator()(const T&) {
+    return {caf::none};
+  }
+
+  template <class T>
+  static vector_type convert(const std::vector<T>& xs) {
+    event_visitor f;
+    std::vector<result_type> ys;
+    for (auto& x : xs)
+      ys.emplace_back(visit(f, x));
+    return ys;
+  }
+};
+
+#define BROKER_CHECK_LOG(InputLog, ...)                                        \
+  {                                                                            \
+    auto log = event_visitor::convert(InputLog);                               \
+    event_visitor::vector_type expected_log{__VA_ARGS__};                      \
+    CAF_CHECK_EQUAL(log, expected_log);                                        \
+  }                                                                            \
+  CAF_VOID_STMT
+
 } // namespace <anonymous>
 
 CAF_TEST_FIXTURE_SCOPE(error_signaling, error_signaling_fixture)
@@ -598,13 +635,7 @@ CAF_TEST(failed_handshake_stage0) {
   anon_send_exit(core2, exit_reason::kill);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   sched.run();
-  // Check the event log.
-  CAF_REQUIRE_EQUAL(es.available(), 1);
-  auto gv1 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<error>(gv1));
-  auto v1 = get<error>(gv1); // actual value 1
-  CAF_CHECK_EQUAL(v1.category(), caf::atom("broker"));
-  CAF_CHECK_EQUAL(static_cast<ec>(v1.code()), ec::peer_unavailable);
+  BROKER_CHECK_LOG(es.poll(), ec::peer_unavailable);
 }
 
 // Simulates a connection abort after receiving stage #1 handshake.
@@ -616,16 +647,7 @@ CAF_TEST(failed_handshake_stage1) {
          from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
   anon_send_exit(core2, exit_reason::kill);
   sched.run();
-  // Check the event log.
-  CAF_REQUIRE_EQUAL(es.available(), 2);
-  auto gv1 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv1));
-  auto v1 = get<status>(gv1); // actual value 1
-  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
-  auto gv2 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv2));
-  auto v2 = get<status>(gv2); // actual value 1
-  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
 // Simulates a connection abort after sending 'peer' message ("stage #0").
@@ -639,16 +661,7 @@ CAF_TEST(failed_handshake_stage2) {
   anon_send_exit(core2, exit_reason::kill);
   expect((stream_msg::open), from(_).to(core1).with(_, _, _, _, _, false));
   sched.run();
-  // Check the event log.
-  CAF_REQUIRE_EQUAL(es.available(), 2);
-  auto gv1 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv1));
-  auto v1 = get<status>(gv1); // actual value 1
-  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
-  auto gv2 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv2));
-  auto v2 = get<status>(gv2); // actual value 1
-  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
 // Simulates a connection abort after receiving stage #1 handshake.
@@ -662,35 +675,43 @@ CAF_TEST(failed_handshake_stage3) {
   anon_send_exit(core2, exit_reason::kill);
   expect((stream_msg::open), from(_).to(core1).with(_, core2, _, _, false));
   sched.run();
-  // Check the event log.
-  CAF_REQUIRE_EQUAL(es.available(), 2);
-  auto gv1 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv1));
-  auto v1 = get<status>(gv1); // actual value 1
-  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
-  auto gv2 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv2));
-  auto v2 = get<status>(gv2); // actual value 1
-  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
-// Simulates a connection abort after receiving stage #1 handshake.
-CAF_TEST(unpeering) {
+// Checks emitted events in case we unpeer from a remote peer.
+CAF_TEST(unpeer_core1_from_core2) {
   // Initiate handshake between core1 and core2.
-  self->send(core2, atom::peer::value, core1);
+  anon_send(core1, atom::peer::value, core2);
   sched.run();
-  self->send(core2, atom::unpeer::value, core1);
+  anon_send(core1, atom::unpeer::value, core2);
   sched.run();
-  // Check the event log.
-  CAF_REQUIRE_EQUAL(es.available(), 2);
-  auto gv1 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv1));
-  auto v1 = get<status>(gv1); // actual value 1
-  CAF_CHECK_EQUAL(v1.code(), sc::peer_added);
-  auto gv2 = es.get(); // generic value 1
-  CAF_REQUIRE(holds_alternative<status>(gv2));
-  auto v2 = get<status>(gv2); // actual value 1
-  CAF_CHECK_EQUAL(v2.code(), sc::peer_lost);
+  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_removed);
+  // Try unpeering again and check if we receive a `peer_invalid` error.
+  anon_send(core1, atom::unpeer::value, core2);
+  sched.run();
+  BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
+  // Try unpeering from an unconnected network address.
+  anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
+  sched.run();
+  BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
+}
+
+// Checks emitted events in case a remote peer unpeers.
+CAF_TEST(unpeer_core2_from_core1) {
+  // Initiate handshake between core1 and core2.
+  anon_send(core2, atom::peer::value, core1);
+  sched.run();
+  anon_send(core2, atom::unpeer::value, core1);
+  sched.run();
+  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
+  // Try unpeering again, this time on core1.
+  anon_send(core1, atom::unpeer::value, core2);
+  sched.run();
+  BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
+  // Try unpeering from an unconnected network address.
+  anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
+  sched.run();
+  BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

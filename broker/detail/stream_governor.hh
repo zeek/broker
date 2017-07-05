@@ -121,13 +121,23 @@ public:
 
   // -- Mutators ---------------------------------------------------------------
 
-  /// Adds a new peer.
+  /// Adds a new peer that isn't fully initialized yet. A peer is fully
+  /// initialized if there is an upstream ID associated to it.
   peer_data* add_peer(caf::strong_actor_ptr downstream_handle,
-                      caf::actor remote_core, const caf::stream_id& sid,
-                      filter_type filter);
+                      caf::actor remote_core,
+                      const caf::stream_id& downstream_sid, filter_type filter);
+
+  /// Fully initializes a peer by setting an upstream ID and inserting it into
+  /// the `input_to_peer_`  map.
+  void init_peer(peer_data* ptr, const caf::stream_id& upstream_sid);
+
+  /// Fully initializes a peer by setting an upstream ID and inserting it into
+  /// the `input_to_peer_`  map.
+  void init_peer(const caf::actor& remote_core,
+                 const caf::stream_id& upstream_sid);
 
   /// Removes a peer, aborting any stream to & from that peer.
-  bool remove_peer(const caf::actor& hdl);
+  bool remove_peer(const caf::actor& hdl, bool cleanup_stream_state = true);
 
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);
