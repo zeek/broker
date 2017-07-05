@@ -47,3 +47,54 @@ TEST(join) {
   auto t = topic::join(xs);
   CHECK_EQUAL(t, sep + "foo" + sep + "bar" + sep + "baz");
 }
+
+TEST(prefix) {
+  topic t0 = "/bro/";
+  topic t1 = "/bro/events/";
+  topic t2 = "/bro/events/debugging/";
+  topic t3 = "/bro/stores/";
+  topic t4 = "/bro/stores/masters/";
+  topic t5 = "/";
+  // t0 is a prefix of all topics except t5
+  CAF_CHECK( t0.prefix_of(t0));
+  CAF_CHECK( t0.prefix_of(t1));
+  CAF_CHECK( t0.prefix_of(t2));
+  CAF_CHECK( t0.prefix_of(t3));
+  CAF_CHECK( t0.prefix_of(t4));
+  CAF_CHECK(!t0.prefix_of(t5));
+  // t1 is a prefix of itself and t3
+  CAF_CHECK(!t1.prefix_of(t0));
+  CAF_CHECK( t1.prefix_of(t1));
+  CAF_CHECK( t1.prefix_of(t2));
+  CAF_CHECK(!t1.prefix_of(t3));
+  CAF_CHECK(!t1.prefix_of(t4));
+  CAF_CHECK(!t1.prefix_of(t5));
+  // t2 is only a prefix of itself
+  CAF_CHECK(!t2.prefix_of(t0));
+  CAF_CHECK(!t2.prefix_of(t1));
+  CAF_CHECK( t2.prefix_of(t2));
+  CAF_CHECK(!t2.prefix_of(t3));
+  CAF_CHECK(!t2.prefix_of(t4));
+  CAF_CHECK(!t2.prefix_of(t5));
+  // t3 is a prefix of itself and t4
+  CAF_CHECK(!t3.prefix_of(t0));
+  CAF_CHECK(!t3.prefix_of(t1));
+  CAF_CHECK(!t3.prefix_of(t2));
+  CAF_CHECK( t3.prefix_of(t3));
+  CAF_CHECK( t3.prefix_of(t4));
+  CAF_CHECK(!t3.prefix_of(t5));
+  // t4 is only a prefix of itself
+  CAF_CHECK(!t4.prefix_of(t0));
+  CAF_CHECK(!t4.prefix_of(t1));
+  CAF_CHECK(!t4.prefix_of(t2));
+  CAF_CHECK(!t4.prefix_of(t3));
+  CAF_CHECK( t4.prefix_of(t4));
+  CAF_CHECK(!t4.prefix_of(t5));
+  // t5 is a prefix of all topics
+  CAF_CHECK( t5.prefix_of(t0));
+  CAF_CHECK( t5.prefix_of(t1));
+  CAF_CHECK( t5.prefix_of(t2));
+  CAF_CHECK( t5.prefix_of(t3));
+  CAF_CHECK( t5.prefix_of(t4));
+  CAF_CHECK( t5.prefix_of(t5));
+}

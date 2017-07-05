@@ -51,6 +51,9 @@ public:
   /// @returns A reference to the underlying string.
   const std::string& string() const;
 
+  /// Returns whether this topic is a prefix match for `t`.
+  bool prefix_of(const topic& t) const;
+
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, topic& t) {
     return f(t.str_);

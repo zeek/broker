@@ -44,6 +44,11 @@ const std::string& topic::string() const {
   return str_;
 }
 
+bool topic::prefix_of(const topic& t) const {
+  return str_.size() <= t.str_.size()
+         && t.str_.compare(0, str_.size(), str_) == 0;
+}
+
 void topic::clean() {
   // Remove one or more separators at the end.
   while (!str_.empty() && str_.back() == sep)
