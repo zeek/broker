@@ -64,16 +64,16 @@ CAF_TEST_FIXTURE_SCOPE(publisher_tests, base_fixture)
 CAF_TEST(blocking_publishers) {
   // Spawn/get/configure core actors.
   auto core1 = ep.core();
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
-  anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
+  auto core2 = sys.spawn(core_actor, filter_type{"a"});
+  anon_send(core1, atom::subscribe::value, filter_type{"a"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   sched.run();
-  // Connect a consumer (leaf) to core2.
-  auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
+  // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
+  auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
   sched.run_once();
   expect((atom_value, filter_type),
-         from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
+         from(leaf).to(core2).with(join_atom::value, filter_type{"a/b"}));
   expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
   expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 5, _, false));
   // Initiate handshake between core1 and core2.
@@ -81,11 +81,11 @@ CAF_TEST(blocking_publishers) {
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, actor),
-         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
+         from(core1).to(core2).with(_, filter_type{"a"}, core1));
   // Step #2: core1  <---   (stream_msg::open)   <--- core2
   expect((stream_msg::open),
          from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}), core2, _, _,
+           std::make_tuple(_, filter_type{"a", "a/b"}), core2, _, _,
            false));
   // Step #3: core1  --->   (stream_msg::open)   ---> core2
   //          core1  ---> (stream_msg::ack_open) ---> core2
@@ -95,7 +95,7 @@ CAF_TEST(blocking_publishers) {
   { // Lifetime scope of our publishers.
     // There must be no communication pending at this point.
     CAF_REQUIRE(!sched.has_job());
-    // Spin up two publishers: one for "a" and one for "b".
+    // Spin up two publishers: one for "a" and one for "a/b".
     auto pub1 = ep.make_publisher("a");
     pub1.drop_all_on_destruction();
     auto d1 = pub1.worker();
@@ -103,7 +103,7 @@ CAF_TEST(blocking_publishers) {
     expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
     expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
     //CAF_CHECK_EQUAL(pub1.demand(), 10); // 5 demand + 5 extra buffer
-    auto pub2 = ep.make_publisher("b");
+    auto pub2 = ep.make_publisher("a/b");
     pub2.drop_all_on_destruction();
     auto d2 = pub2.worker();
     sched.run_once();
@@ -145,10 +145,10 @@ CAF_TEST(blocking_publishers) {
     sched.run_once();
     self->receive(
       [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}, {"b", true}};
-      CAF_REQUIRE_EQUAL(xs, expected);
+        buf expected{{"a/b", true}, {"a/b", false}, {"a/b", true}};
+        CAF_REQUIRE_EQUAL(xs, expected);
       }
-      );
+    );
   }
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");

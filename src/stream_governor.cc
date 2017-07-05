@@ -20,6 +20,32 @@ caf::message generic_factory(const caf::stream_id& x) {
   return caf::make_message(caf::stream<caf::message>{x});
 }
 
+// Convenience function object for checking whether a stream item matches a
+// given filter.
+class selected_t {
+public:
+  constexpr selected_t() {
+    // nop
+  }
+
+  // Matches store_element and worker_element.
+  template <class ElementPair>
+  bool operator()(const filter_type& f, const ElementPair& y) const {
+    return std::any_of(f.cbegin(), f.cend(),
+                       [&](const topic& x) { return x.prefix_of(y.first); });
+  }
+
+  bool operator()(const filter_type& f,
+                  const stream_governor::peer_element& type_erased_pair) const {
+    CAF_ASSERT(type_erased_pair.size() == 2
+               && type_erased_pair.match_element<topic>(0));
+    auto& y = type_erased_pair.get_as<topic>(0);
+    return std::any_of(f.cbegin(), f.cend(),
+                       [&](const topic& x) { return x.prefix_of(y); });
+  }
+}
+selected;
+
 } // namespace <anonymous>
 
 // --- nested types ------------------------------------------------------------
@@ -143,12 +169,6 @@ void stream_governor::local_push(topic&& t, data&& x) {
 
 void stream_governor::push(topic&& t, data&& x) {
   CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-  auto selected = [](const filter_type& f, const worker_element& e) -> bool {
-    for (auto& key : f)
-      if (key == e.first)
-        return true;
-    return false;
-  };
   worker_element e{std::move(t), std::move(x)};
   for (auto& kvp : peers_) {
     auto& out = kvp.second->out;
@@ -165,12 +185,6 @@ void stream_governor::push(topic&& t, data&& x) {
 
 void stream_governor::push(topic&& t, internal_command&& x) {
   CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-  auto selected = [](const filter_type& f, const store_element& e) -> bool {
-    for (auto& key : f)
-      if (key == e.first)
-        return true;
-    return false;
-  };
   CAF_LOG_DEBUG("push internal to command to" << peers_.size() << "peers and"
                 << stores_.paths().size() << "data stores");
   store_element e{std::move(t), std::move(x)};
@@ -303,13 +317,6 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
   // Process messages from local workers.
   if (xs.match_elements<std::vector<worker_element>>()) {
     // Predicate for matching a single element against the filters of a peers.
-    auto selected = [](const filter_type& f, const worker_element& x) -> bool {
-      using std::get;
-      for (auto& key : f)
-        if (key == x.first)
-          return true;
-      return false;
-    };
     auto& vec = xs.get_mutable_as<std::vector<worker_element>>(0);
     // Decrease credit assigned to `hdl` and get currently available downstream
     // credit on all paths.
@@ -344,14 +351,6 @@ caf::error stream_governor::upstream_batch(const caf::stream_id& sid,
   if (!xs.match_elements<std::vector<peer_element>>())
     return caf::sec::unexpected_message;
   // Predicate for matching a single element against the filters of a peers.
-  auto selected = [](const filter_type& f, const peer_element& x) -> bool {
-    CAF_ASSERT(x.size() == 2 && x.match_element<topic>(0));
-    using std::get;
-    for (auto& key : f)
-      if (key == x.get_as<topic>(0))
-        return true;
-    return false;
-  };
   // Unwrap `xs`.
   auto& vec = xs.get_mutable_as<std::vector<peer_element>>(0);
   // Decrease credit assigned to `hdl` and get currently available downstream
