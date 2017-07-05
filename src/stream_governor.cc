@@ -157,7 +157,10 @@ void stream_governor::push(topic&& t, data&& x) {
       out.emit_batches();
     }
   }
+  /* Uncommenting this block forwards data from publishers to subscribers
+   * inside an endpoint.
   local_push(std::move(e));
+  */
 }
 
 void stream_governor::push(topic&& t, internal_command&& x) {
