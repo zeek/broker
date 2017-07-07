@@ -65,7 +65,7 @@ CAF_TEST(base_tests) {
   CAF_MESSAGE("shutdown");
   anon_send_exit(ep.core(), exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

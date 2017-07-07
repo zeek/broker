@@ -119,7 +119,7 @@ CAF_TEST(blocking_subscriber) {
   anon_send_exit(leaf, exit_reason::user_shutdown);
   anon_send_exit(d1, exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 CAF_TEST(nonblocking_subscriber) {
@@ -159,7 +159,7 @@ CAF_TEST(nonblocking_subscriber) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

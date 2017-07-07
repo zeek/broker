@@ -280,7 +280,7 @@ CAF_TEST(local_peers) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 // Simulates a simple triance setup where core1 peers with core2, and core2
@@ -431,7 +431,7 @@ CAF_TEST(triangle_peering) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(core3, exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 // Simulates a simple setup where core1 peers with core2 and starts sending
@@ -559,7 +559,7 @@ CAF_TEST(sequenced_peering) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core3, exit_reason::user_shutdown);
   sched.run();
-  sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -580,7 +580,7 @@ struct error_signaling_fixture : base_fixture {
   }
 
   ~error_signaling_fixture() {
-    sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+    sched.inline_all_enqueues();
   }
 };
 
@@ -852,8 +852,8 @@ CAF_TEST(remote_peers_setup1) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
-  earth.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  mars.sched.inline_all_enqueues();
+  earth.sched.inline_all_enqueues();
 }
 
 // Setup: driver -> mars.core -> earth.core -> leaf
@@ -994,8 +994,8 @@ CAF_TEST(remote_peers_setup2) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
-  earth.sched.inline_next_enqueues(std::numeric_limits<size_t>::max());
+  mars.sched.inline_all_enqueues();
+  earth.sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

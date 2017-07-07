@@ -100,21 +100,14 @@ struct peer_fixture {
     parent->peers.emplace(name, this);
     // Run initialization code
     exec_loop();
-    // Tell scheduler to advance global state in hook.
-    sched.inlining_hook = [=] {
-      return parent->exec_loop();
-    };
   }
 
   ~peer_fixture() {
     LOGGED_MESSAGE("shut down " << name);
-    sched.inlining_hook = [=] {
-      return exec_loop();
-    };
     for (auto& w : workers)
       caf::anon_send_exit(w, caf::exit_reason::user_shutdown);
     exec_loop();
-    sched.set_inline_enqueues(2048);
+    sched.inline_all_enqueues();
   }
 
   // Returns the next unused connection handle.
@@ -185,6 +178,10 @@ struct peer_fixture {
     while (try_exec())
       ; // rinse and repeat
   }
+
+  void loop_after_next_enqueue() {
+    sched.after_next_enqueue([=] { parent->exec_loop();  });
+  }
 };
 
 bool global_fixture::try_exec() {
@@ -227,32 +224,30 @@ CAF_TEST(topic_prefix_matching) {
   LOGGED_MESSAGE("start listening on mercury:4040");
   // We need to connect venus and earth while mercury is blocked on ep.listen()
   // in order to avoid a "deadlock" in `ep.listen()`.
-  auto bk = mercury.sched.inlining_hook;
-  mercury.sched.inlining_hook = [&] {
-    bk();
+  mercury.sched.after_next_enqueue([&] {
+    exec_loop();
     LOGGED_MESSAGE("peer venus to mercury:4040");
-    venus.sched.inline_next_enqueue();
+    venus.loop_after_next_enqueue();
     venus.ep.peer("mercury", 4040);
     LOGGED_MESSAGE("peer earth to mercury:4040");
-    earth.sched.inline_next_enqueue();
+    earth.loop_after_next_enqueue();
     earth.ep.peer("mercury", 4040);
-  };
-  mercury.sched.inline_next_enqueue();
+  });
+  //mercury.sched.inline_next_enqueue();
   mercury.ep.listen("", 4040);
-  mercury.sched.inlining_hook = std::move(bk); // restore hook to default
   LOGGED_MESSAGE("assume two peers for mercury");
-  mercury.sched.inline_next_enqueue();
+  mercury.loop_after_next_enqueue();
   auto mercury_peers = mercury.ep.peers();
   CAF_REQUIRE_EQUAL(mercury_peers.size(), 2);
   CAF_CHECK_EQUAL(mercury_peers.front().status, peer_status::peered);
   CAF_CHECK_EQUAL(mercury_peers.back().status, peer_status::peered);
   LOGGED_MESSAGE("assume one peer for venus");
-  venus.sched.inline_next_enqueue();
+  venus.loop_after_next_enqueue();
   auto venus_peers = venus.ep.peers();
   CAF_REQUIRE_EQUAL(venus_peers.size(), 1);
   CAF_CHECK_EQUAL(venus_peers.front().status, peer_status::peered);
   LOGGED_MESSAGE("assume one peer for earth");
-  earth.sched.inline_next_enqueue();
+  earth.loop_after_next_enqueue();
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1);
   CAF_CHECK_EQUAL(earth_peers.front().status, peer_status::peered);
@@ -264,12 +259,12 @@ CAF_TEST(topic_prefix_matching) {
   auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
     return xs;
   };
-  mercury.sched.inline_next_enqueue();
+  mercury.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
                   filter({"bro/events", "bro/events/failures"}));
-  venus.sched.inline_next_enqueue();
+  venus.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
-  earth.sched.inline_next_enqueue();
+  earth.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
   LOGGED_MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
   mercury.publish("bro/events/failures", "oops", "sorry!");
