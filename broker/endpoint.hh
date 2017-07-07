@@ -79,6 +79,9 @@ public:
   /// @returns A pointer to the list
   std::vector<peer_info> peers() const;
 
+  /// Retrieves a list of topics that peers have subscribed to on this endpoint.
+  std::vector<topic> peer_subscriptions() const;
+
   // --- publishing ------------------------------------------------------------
 
   /// Publishes a message.
@@ -267,7 +270,7 @@ private:
   expected<store> attach_clone(std::string name);
 
   configuration config_;
-  caf::actor_system system_;
+  mutable caf::actor_system system_;
   caf::actor core_;
   bool await_stores_on_shutdown_;
 };

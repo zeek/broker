@@ -55,7 +55,8 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 
 void endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
-  caf::scoped_actor self{core()->home_system()};
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
+  caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
                 network_info{address, port}, retry, uint32_t{0})
   .receive(
@@ -75,11 +76,27 @@ void endpoint::unpeer(const std::string& address, uint16_t port) {
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
-  caf::scoped_actor self{core()->home_system()};
-  auto msg = caf::make_message(atom::get::value, atom::peer::value);
-  self->request(core(), timeout::core, std::move(msg)).receive(
+  caf::scoped_actor self{system_};
+  self->request(core(), timeout::core, atom::get::value, atom::peer::value)
+  .receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get peers:", to_string(e));
+    }
+  );
+  return result;
+}
+
+std::vector<topic> endpoint::peer_subscriptions() const {
+  std::vector<topic> result;
+  caf::scoped_actor self{system_};
+  self->request(core(), timeout::core, atom::get::value,
+                atom::peer::value, atom::subscriptions::value)
+  .receive(
+    [&](std::vector<topic>& ts) {
+      result = std::move(ts);
     },
     [](const caf::error& e) {
       detail::die("failed to get peers:", to_string(e));

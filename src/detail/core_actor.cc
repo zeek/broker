@@ -621,6 +621,22 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           add(kvp.first, peer_status::connecting);
       return result;
     },
+    [=](atom::get, atom::peer, atom::subscriptions) {
+      std::vector<topic> result;
+      // Collect filters for all peers.
+      for (auto& p : self->state.governor->peers())
+      {
+        CAF_LOG_INFO(p.second->filter);
+        result.insert(result.end(), p.second->filter.begin(),
+                      p.second->filter.end());
+      }
+      // Sort and drop duplicates.
+      std::sort(result.begin(), result.end());
+      auto e = std::unique(result.begin(), result.end());
+      if (e != result.end())
+        result.erase(e, result.end());
+      return result;
+    },
     // --- destructive state manipulations -------------------------------------
     [=](atom::unpeer, network_info addr) {
       self->state.cache.fetch(addr,

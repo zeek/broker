@@ -65,7 +65,8 @@ using resolve = caf::atom_constant<caf::atom("resolve")>;
 
 /// --- communiation with core actor -------------------------------------------
 
-using no_events = caf::atom_constant<caf::atom("NoEvents")>;
+using no_events = caf::atom_constant<caf::atom("noEvents")>;
+using subscriptions = caf::atom_constant<caf::atom("subs")>;
 
 } // namespace atom
 } // namespace broker
