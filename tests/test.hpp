@@ -29,6 +29,10 @@
 #define VERBOSE CAF_TEST_PRINT_VERBOSE
 #define MESSAGE CAF_TEST_PRINT_VERBOSE
 
+#define LOGGED_MESSAGE(msg)                                                    \
+  CAF_LOG_INFO(msg);                                                           \
+  CAF_MESSAGE(msg)
+
 // -- macros for checking results ---------------------------------------------
 
 #define REQUIRE CAF_REQUIRE
