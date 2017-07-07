@@ -5,10 +5,6 @@
 #include "broker/endpoint.hh"
 #include "broker/detail/core_actor.hh"
 
-using std::cout;
-using std::endl;
-using std::string;
-
 using namespace caf;
 using namespace broker;
 using namespace broker::detail;
