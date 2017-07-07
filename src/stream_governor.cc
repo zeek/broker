@@ -22,29 +22,7 @@ caf::message generic_factory(const caf::stream_id& x) {
 
 // Convenience function object for checking whether a stream item matches a
 // given filter.
-class selected_t {
-public:
-  constexpr selected_t() {
-    // nop
-  }
-
-  // Matches store_element and worker_element.
-  template <class ElementPair>
-  bool operator()(const filter_type& f, const ElementPair& y) const {
-    return std::any_of(f.cbegin(), f.cend(),
-                       [&](const topic& x) { return x.prefix_of(y.first); });
-  }
-
-  bool operator()(const filter_type& f,
-                  const stream_governor::peer_element& type_erased_pair) const {
-    CAF_ASSERT(type_erased_pair.size() == 2
-               && type_erased_pair.match_element<topic>(0));
-    auto& y = type_erased_pair.get_as<topic>(0);
-    return std::any_of(f.cbegin(), f.cend(),
-                       [&](const topic& x) { return x.prefix_of(y); });
-  }
-}
-selected;
+stream_governor::prefix_matcher selected;
 
 } // namespace <anonymous>
 
@@ -82,6 +60,20 @@ const caf::strong_actor_ptr& stream_governor::peer_data::hdl() const {
   auto& l = out.paths();
   CAF_ASSERT(l.size() == 1);
   return l.front()->hdl;
+}
+
+bool stream_governor::prefix_matcher::operator()(const filter_type& f,
+                const peer_element& type_erased_pair) const {
+  CAF_ASSERT(type_erased_pair.size() == 2
+             && type_erased_pair.match_element<topic>(0));
+  auto& y = type_erased_pair.get_as<topic>(0);
+  return std::any_of(f.cbegin(), f.cend(),
+                     [&](const topic& x) { return x.prefix_of(y); });
+}
+
+bool stream_governor::prefix_matcher::operator()(const topic& x,
+                                                 const topic& y) {
+  return x.prefix_of(y);
 }
 
 // --- constructors and destructors --------------------------------------------

@@ -79,6 +79,27 @@ public:
     caf::actor remote_core;
   };
 
+  /// Implements prefix matching for topics.
+  class prefix_matcher {
+  public:
+    constexpr prefix_matcher() {
+      // nop
+    }
+
+    // Matches store_element and worker_element.
+    template <class ElementPair>
+    bool operator()(const filter_type& f, const ElementPair& y) const {
+      return std::any_of(f.cbegin(), f.cend(),
+                         [&](const topic& x) { return x.prefix_of(y.first); });
+    }
+
+    bool operator()(const filter_type& f,
+                    const peer_element& type_erased_pair) const;
+
+    /// Returns `true` if `x.prefix_of(y)`, `false` otherwise.
+    bool operator()(const topic& x, const topic& y);
+  };
+
   using peer_data_ptr = caf::intrusive_ptr<peer_data>;
 
   /// Maps peer handles to peer data.
@@ -88,10 +109,12 @@ public:
   using input_to_peer_map = std::unordered_map<caf::stream_id, peer_data_ptr>;
 
   /// Manages local subscribers spawned from endpoints.
-  using workers_downstream = caf::filtering_downstream<worker_element, topic>;
+  using workers_downstream = caf::filtering_downstream<worker_element, topic,
+                                                       prefix_matcher>;
 
   /// Manages local subscribers spawned from endpoints.
-  using stores_downstream = caf::filtering_downstream<store_element, topic>;
+  using stores_downstream = caf::filtering_downstream<store_element, topic,
+                                                      prefix_matcher>;
 
   // --- constructors and destructors ------------------------------------------
 
