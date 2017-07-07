@@ -11,6 +11,7 @@ set(tests
   cpp/core.cc
   cpp/data.cc
   cpp/event_subscriber.cc
+  cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
