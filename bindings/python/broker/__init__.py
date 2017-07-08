@@ -1,4 +1,9 @@
-from . import _broker
+
+try:
+    from . import _broker
+except ImportError:
+    import _broker
+
 from . import utils
 
 import datetime
@@ -8,29 +13,22 @@ import ipaddress
 # Version & Contants
 #
 
-VERSION_MAJOR = _broker.Version.MAJOR
-VERSION_MINOR = _broker.Version.MINOR
-VERSION_PATCH = _broker.Version.PATCH
-VERSION_PROTOCOL = _broker.Version.PROTOCOL
+Version = _broker.Version
+Version.__str__ = lambda self: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
-VERSION = '%u.%u.%u' % (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
+APIFlags = _broker.APIFlags
+EC = _broker.EC
+SC = _broker.SC
+PeerStatus = _broker.PeerStatus
+PeerFlags = _broker.PeerFlags
+Frontend = _broker.Frontend
+Backend = _broker.Backend
+NetworkInfo = _broker.NetworkInfo
+PeerInfo = _broker.PeerInfo
 
-def compatible(protocol_version):
-  """Checks whether another Broker protocol is compatible with this instance."""
-  _broker.Version.compatible(protocol_version)
+Topic = _broker.Topic
 
-# api_flags
-Blocking = _broker.ApiFlags.Blocking
-Nonblocking = _broker.ApiFlags.Nonblocking
-
-# frontend
-Master = _broker.Frontend.Master
-Clone = _broker.Frontend.Clone
-
-# backend
-Memory = _broker.Backend.Memory
-SQLite = _broker.Backend.SQLite
-RocksDB = _broker.Backend.RocksDB
+####### TODO: Updated to new Broker API until here.
 
 # Broker will only raise exceptions of type BrokerError
 class BrokerError(Exception):
@@ -39,24 +37,14 @@ class BrokerError(Exception):
   def __init__(self, *args, **kwargs):
     Exception.__init__(self, *args, **kwargs)
 
-
-EC = _broker.EC
-#Error = _broker.Error
-PeerStatus = _broker.PeerStatus
-PeerFlags = _broker.PeerFlags
-EndpointInfo = _broker.EndpointInfo
-NetworkInfo = _broker.NetworkInfo
-PeerInfo = _broker.PeerInfo
-Status = _broker.Status
-
 #
 # Data Model
 #
 
-Count = _broker.Count
-Timespan = _broker.Timespan
-Timestamp = _broker.Timestamp
-Port = _broker.Port
+# Count = _broker.Count
+# Timespan = _broker.Timespan
+# Timestamp = _broker.Timestamp
+# Port = _broker.Port
 
 def now():
   return _broker.now()

@@ -4,8 +4,6 @@
 
 #include "broker/broker.hh"
 
-using namespace broker;
-
 namespace py = pybind11;
 using namespace pybind11::literals;
 
@@ -17,80 +15,92 @@ PYBIND11_PLUGIN(_broker) {
   //
 
   auto version = m.def_submodule("Version", "Version constants");
-  version.attr("MAJOR") = py::cast(new version::type{version::major});
-  version.attr("MINOR") = py::cast(new version::type{version::minor});
-  version.attr("PATCH") = py::cast(new version::type{version::patch});
-  version.attr("PROTOCOL") = py::cast(new version::type{version::protocol});
-  version.def("compatible", &version::compatible,
+  version.attr("MAJOR") = py::cast(new broker::version::type{broker::version::major});
+  version.attr("MINOR") = py::cast(new broker::version::type{broker::version::minor});
+  version.attr("PATCH") = py::cast(new broker::version::type{broker::version::patch});
+  version.attr("PROTOCOL") = py::cast(new broker::version::type{broker::version::protocol});
+  version.def("compatible", &broker::version::compatible,
               "Checks whether two Broker protocol versions are compatible");
 
-  py::enum_<ec>(m, "EC")
-    .value("Unspecified", ec::unspecified)
-    .value("PeerIncompatible", ec::peer_incompatible)
-    .value("PeerInvalid", ec::peer_invalid)
-    .value("PeerUnavailable", ec::peer_unavailable)
-    .value("PeerTimeout", ec::peer_timeout)
-    .value("MasterExists", ec::master_exists)
-    .value("NoSuchMaster", ec::no_such_master)
-    .value("TypeClash", ec::type_clash)
-    .value("InvalidData", ec::invalid_data)
-    .value("BackendFailure", ec::backend_failure);
+  py::enum_<broker::ec>(m, "EC")
+    .value("Unspecified", broker::ec::unspecified)
+    .value("PeerIncompatible", broker::ec::peer_incompatible)
+    .value("PeerInvalid", broker::ec::peer_invalid)
+    .value("PeerUnavailable", broker::ec::peer_unavailable)
+    .value("PeerTimeout", broker::ec::peer_timeout)
+    .value("MasterExists", broker::ec::master_exists)
+    .value("NoSuchMaster", broker::ec::no_such_master)
+    .value("NoSuchKey", broker::ec::no_such_key)
+    .value("RequestTimeOut", broker::ec::request_timeout)
+    .value("TypeClash", broker::ec::type_clash)
+    .value("InvalidData", broker::ec::invalid_data)
+    .value("BackendFailure", broker::ec::backend_failure);
 
-  py::enum_<sc>(m, "SC")
-    .value("Unspecified", sc::unspecified)
-    .value("PeerAdded", sc::peer_added)
-    .value("PeerRemoved", sc::peer_removed)
-    .value("PeerLost", sc::peer_lost);
+  py::enum_<broker::sc>(m, "SC")
+    .value("Unspecified", broker::sc::unspecified)
+    .value("PeerAdded", broker::sc::peer_added)
+    .value("PeerRemoved", broker::sc::peer_removed)
+    .value("PeerLost", broker::sc::peer_lost);
 
-  py::enum_<peer_status>(m, "PeerStatus")
-    .value("Initialized", peer_status::initialized)
-    .value("Connecting", peer_status::connecting)
-    .value("Connected", peer_status::connected)
-    .value("Peered", peer_status::peered)
-    .value("Disconnected", peer_status::disconnected)
-    .value("Reconnecting", peer_status::reconnecting);
+  py::enum_<broker::peer_status>(m, "PeerStatus")
+    .value("Initialized", broker::peer_status::initialized)
+    .value("Connecting", broker::peer_status::connecting)
+    .value("Connected", broker::peer_status::connected)
+    .value("Peered", broker::peer_status::peered)
+    .value("Disconnected", broker::peer_status::disconnected)
+    .value("Reconnecting", broker::peer_status::reconnecting);
 
-  py::enum_<peer_flags>(m, "PeerFlags")
-    .value("Invalid", peer_flags::invalid)
-    .value("Local", peer_flags::local)
-    .value("Remote", peer_flags::remote)
-    .value("Outbound", peer_flags::outbound)
-    .value("Inbound", peer_flags::inbound);
+  py::enum_<broker::peer_flags>(m, "PeerFlags")
+    .value("Invalid", broker::peer_flags::invalid)
+    .value("Local", broker::peer_flags::local)
+    .value("Remote", broker::peer_flags::remote)
+    .value("Outbound", broker::peer_flags::outbound)
+    .value("Inbound", broker::peer_flags::inbound);
 
-  py::enum_<api_flags>(m, "ApiFlags")
-    .value("Blocking", blocking)
-    .value("Nonblocking", nonblocking)
+  py::enum_<broker::api_flags>(m, "APIFlags")
+    .value("Blocking", broker::blocking)
+    .value("NonBlocking", broker::nonblocking)
     .export_values();
 
-  py::enum_<frontend>(m, "Frontend")
-    .value("Master", master)
+  py::enum_<broker::frontend>(m, "Frontend")
+    .value("Master", broker::master)
     .value("Clone", broker::clone)
     .export_values();
 
-  py::enum_<backend>(m, "Backend")
-    .value("Memory", memory)
-    .value("SQLite", sqlite)
-    .value("RocksDB", rocksdb)
+  py::enum_<broker::backend>(m, "Backend")
+    .value("Memory", broker::memory)
+    .value("SQLite", broker::sqlite)
+    .value("RocksDB", broker::rocksdb)
     .export_values();
 
-  //
-  // General
-  //
+  py::class_<broker::endpoint_info>(m, "EndpointInfo")
+    .def_readwrite("node", &broker::endpoint_info::node)
+    .def_readwrite("network", &broker::endpoint_info::network);
 
-  py::class_<endpoint_info>(m, "EndpointInfo")
-    .def_readwrite("node", &endpoint_info::node)
-    .def_readwrite("id", &endpoint_info::id)
-    .def_readwrite("network", &endpoint_info::network);
+  py::class_<broker::network_info>(m, "NetworkInfo")
+    .def_readwrite("address", &broker::network_info::address)
+    .def_readwrite("port", &broker::network_info::port);
 
-  py::class_<network_info>(m, "NetworkInfo")
-    .def_readwrite("address", &network_info::address)
-    .def_readwrite("port", &network_info::port);
+  py::class_<broker::peer_info>(m, "PeerInfo")
+    .def_readwrite("peer", &broker::peer_info::peer)
+    .def_readwrite("flags", &broker::peer_info::flags)
+    .def_readwrite("status", &broker::peer_info::status);
 
-  py::class_<peer_info>(m, "PeerInfo")
-    .def_readwrite("peer", &peer_info::peer)
-    .def_readwrite("flags", &peer_info::flags)
-    .def_readwrite("status", &peer_info::status);
+  py::class_<broker::topic>(m, "Topic")
+    .def(py::init<std::string>())
+    .def(py::self /= py::self,
+         "Appends a topic component with a separator")
+    .def(py::self / py::self,
+         "Appends topic components with a separator")
+    .def("string", &broker::topic::string,
+         "Get the underlying string representation of the topic",
+         py::return_value_policy::reference_internal)
+    .def("__repr__", [](const broker::topic& t) { return t.string(); });
 
+
+/////// TODO: Updated to new Broker API until here.
+
+#if 0
   py::class_<status>(m, "Status")
     .def(py::init<>())
     .def("context",
@@ -328,13 +338,6 @@ PYBIND11_PLUGIN(_broker) {
   // Communication & Store
   //
 
-  py::class_<topic>(m, "Topic")
-    .def(py::init<std::string>())
-    .def("string", &topic::string,
-         "Get the underlying string representation of the topic",
-         py::return_value_policy::reference_internal)
-    .def("__repr__", [](const topic& t) { return t.string(); });
-
   py::class_<message>(m, "Message")
     .def("topic", &message::topic)
     .def("data", &message::data);
@@ -424,6 +427,8 @@ PYBIND11_PLUGIN(_broker) {
   // TODO: complete definition
   py::class_<store>(m, "Store")
     .def("name", &store::name);
+#endif
 
   return m.ptr();
 }
+
