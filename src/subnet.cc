@@ -56,7 +56,7 @@ bool convert(const subnet& sn, std::string& str) {
   if (!convert(sn.network(), str))
     return false;
   str += '/';
-  str += std::to_string(sn.network().is_v4() ? sn.length() - 96 : sn.length());
+  str += std::to_string(sn.length());
   return true;
 }
 
