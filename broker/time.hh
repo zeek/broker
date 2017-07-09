@@ -49,6 +49,21 @@ bool convert(double secs, timestamp& ts);
 /// @returns the current point in time.
 timestamp now();
 
+/// @relates broker::timespan
+inline std::string to_string(const broker::timespan& s) {
+  std::string x;
+  convert(s, x);
+  return x;
+}
+
+/// @relates broker::timestamp
+inline std::string to_string(const broker::timestamp& t) {
+  std::string x;
+  convert(t, x);
+  return x;
+}
+
+
 } // namespace broker
 
 namespace std {

@@ -71,6 +71,24 @@ using data_variant = detail::variant<
 /// different primitive or compound types.
 class data : public data_variant {
 public:
+    enum class type : uint8_t {
+      address,
+      boolean,
+      count,
+      enum_value,
+      integer,
+      none,
+      port,
+      real,
+      set,
+      string,
+      subnet,
+      table,
+      timespan,
+      timestamp,
+      vector
+    };
+		
 	template <class T>
 	using from = detail::conditional_t<
         std::is_floating_point<T>::value,
@@ -125,6 +143,9 @@ public:
 	data(T&& x) : data_variant(from<detail::decay_t<T>>(std::forward<T>(x))) {
 	  // nop
 	}
+
+  /// Returns a string representation of the stored type.
+  type get_type() const;
 };
 
 // C++17 variant compliance.

@@ -1,26 +1,36 @@
+
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl_bind.h>
+
+#include "set_bind.h"
 
 #include "broker/broker.hh"
 
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+// PYBIND11_MAKE_OPAQUE(broker::set);
+PYBIND11_MAKE_OPAQUE(broker::table);
+PYBIND11_MAKE_OPAQUE(broker::vector);
+
 PYBIND11_PLUGIN(_broker) {
   py::module m{"_broker", "Broker python bindings"};
 
-  //
-  // Version & Constants
-  //
-
   auto version = m.def_submodule("Version", "Version constants");
-  version.attr("MAJOR") = py::cast(new broker::version::type{broker::version::major});
-  version.attr("MINOR") = py::cast(new broker::version::type{broker::version::minor});
-  version.attr("PATCH") = py::cast(new broker::version::type{broker::version::patch});
-  version.attr("PROTOCOL") = py::cast(new broker::version::type{broker::version::protocol});
+  version.attr("MAJOR")
+    = py::cast(new broker::version::type{broker::version::major});
+  version.attr("MINOR")
+    = py::cast(new broker::version::type{broker::version::minor});
+  version.attr("PATCH")
+    = py::cast(new broker::version::type{broker::version::patch});
+  version.attr("PROTOCOL")
+    = py::cast(new broker::version::type{broker::version::protocol});
   version.def("compatible", &broker::version::compatible,
               "Checks whether two Broker protocol versions are compatible");
+
+  m.def("now", &broker::now, "Get the current wallclock time");
 
   py::enum_<broker::ec>(m, "EC")
     .value("Unspecified", broker::ec::unspecified)
@@ -97,6 +107,229 @@ PYBIND11_PLUGIN(_broker) {
          py::return_value_policy::reference_internal)
     .def("__repr__", [](const broker::topic& t) { return t.string(); });
 
+  //
+  // Data model
+  //
+
+  py::class_<broker::address> address_type{m, "Address"};
+  address_type.def(py::init<>())
+    .def("__init__",
+         [](broker::address& instance, const py::bytes& bytes, int family) {
+           BROKER_ASSERT(family == 4 || family == 6);
+           auto str = static_cast<std::string>(bytes);
+           auto ptr = reinterpret_cast<const uint32_t*>(str.data());
+           auto f = family == 4 ? broker::address::family::ipv4 :
+                                  broker::address::family::ipv6;
+           new (&instance)
+             broker::address{ptr, f, broker::address::byte_order::network};
+         })
+    .def("mask", &broker::address::mask, "top_bits_to_keep"_a)
+    .def("is_v4", &broker::address::is_v4)
+    .def("is_v6", &broker::address::is_v6)
+    .def("bytes", [](const broker::address& a) {
+        return py::bytes(std::string(std::begin(a.bytes()), std::end(a.bytes())));
+        })
+    .def("__repr__",
+         [](const broker::address& a) { return broker::to_string(a); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::enum_<broker::address::family>(address_type, "Family")
+    .value("IPv4", broker::address::family::ipv4)
+    .value("IPv6", broker::address::family::ipv6);
+
+  py::enum_<broker::address::byte_order>(address_type, "ByteOrder")
+    .value("Host", broker::address::byte_order::host)
+    .value("Network", broker::address::byte_order::network);
+
+  // A thin wrapper around the 'count' type, because Python has no notion of
+  // unsigned integers.
+  struct count_type {
+    count_type(broker::count c) : value{c} {}
+    bool operator==(const count_type& other) const { return value == other.value; }
+    bool operator!=(const count_type& other) const { return value != other.value; }
+    bool operator<(const count_type& other) const { return value < other.value; }
+    bool operator<=(const count_type& other) const { return value <= other.value; }
+    bool operator>(const count_type& other) const { return value > other.value; }
+    bool operator>=(const count_type& other) const { return value >= other.value; }
+    broker::count value;
+  };
+
+  py::class_<count_type>(m, "Count")
+    .def(py::init<py::int_>())
+    .def_readwrite("value", &count_type::value)
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::class_<broker::enum_value>{m, "Enum"}
+    .def(py::init<std::string>())
+    .def_readwrite("name", &broker::enum_value::name)
+    .def("__repr__", [](const broker::enum_value& e) { return broker::to_string(e); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::class_<broker::port> port_type{m, "Port"};
+  port_type
+    .def(py::init<>())
+    .def(py::init<broker::port::number_type, broker::port::protocol>())
+    .def("number", &broker::port::number)
+    .def("get_type", &broker::port::type)
+    .def("__repr__", [](const broker::port& p) { return broker::to_string(p); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::enum_<broker::port::protocol>(port_type, "Protocol")
+    .value("ICMP", broker::port::protocol::icmp)
+    .value("TCP", broker::port::protocol::tcp)
+    .value("UDP", broker::port::protocol::udp)
+    .value("Unknown", broker::port::protocol::unknown)
+    .export_values();
+
+  py::bind_set<broker::set>(m, "Set");
+
+  py::bind_map<broker::table>(m, "Table");
+
+  py::class_<broker::subnet>(m, "Subnet")
+    .def(py::init<>())
+    .def("__init__",
+         [](broker::subnet& instance, broker::address addr, uint8_t length) {
+           new (&instance) broker::subnet{std::move(addr), length};
+         })
+    .def("contains", &broker::subnet::contains, "addr"_a)
+    .def("network", &broker::subnet::network)
+    .def("length", &broker::subnet::length)
+    .def("__repr__", [](const broker::subnet& sn) { return to_string(sn); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::class_<broker::timespan>(m, "Timespan")
+    .def(py::init<>())
+    .def(py::init<broker::integer>())
+    .def("__init__",
+         [](broker::timespan& instance, double seconds) {
+           auto fs = broker::fractional_seconds{seconds};
+           auto s = std::chrono::duration_cast<broker::timespan>(fs);
+           new (&instance) broker::timespan{s};
+         })
+    .def("count", &broker::timespan::count)
+    .def("__repr__", [](const broker::timespan& s) { return broker::to_string(s); })
+    .def(py::self + py::self)
+    .def(py::self - py::self)
+    .def(py::self * broker::timespan::rep{})
+    .def(broker::timespan::rep{} * py::self)
+    .def(py::self / py::self)
+    .def(py::self / broker::timespan::rep{})
+    .def(py::self % py::self)
+    .def(py::self % broker::timespan::rep{})
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::class_<broker::timestamp>(m, "Timestamp")
+    .def(py::init<>())
+    .def(py::init<broker::timespan>())
+    .def("__init__",
+         [](broker::timestamp& instance, double seconds) {
+           auto fs = broker::fractional_seconds{seconds};
+           auto s = std::chrono::duration_cast<broker::timespan>(fs);
+           new (&instance) broker::timestamp{s};
+         })
+    .def("time_since_epoch", &broker::timestamp::time_since_epoch)
+    .def("__repr__", [](const broker::timestamp& ts) { return broker::to_string(ts); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::bind_vector<broker::vector>(m, "Vector");
+
+  py::class_<broker::data> data_type{m, "Data"};
+  data_type
+    .def(py::init<>())
+    .def(py::init<broker::data>())
+    .def(py::init<broker::address>())
+    .def(py::init<broker::boolean>())
+    .def("__init__",
+         [](broker::data& instance, count_type c) { new (&instance) broker::data{c.value}; })
+    .def("__init__",
+         [](broker::data& instance, broker::enum_value e) { new (&instance) broker::data{e}; })
+    .def(py::init<broker::integer>())
+    .def(py::init<broker::port>())
+    .def(py::init<broker::real>())
+    .def(py::init<broker::set>())
+    .def(py::init<std::string>())
+    .def(py::init<broker::subnet>())
+    .def(py::init<broker::table>())
+    .def(py::init<broker::timespan>())
+    .def(py::init<broker::timestamp>())
+    .def(py::init<broker::vector>())
+    .def("as_address", [](const broker::data& d) { return broker::get<broker::address>(d); })
+    .def("as_boolean", [](const broker::data& d) { return broker::get<broker::boolean>(d); })
+    .def("as_count", [](const broker::data& d) { return broker::get<broker::count>(d); })
+    .def("as_enum_value", [](const broker::data& d) { return broker::get<broker::enum_value>(d); })
+    .def("as_integer", [](const broker::data& d) { return broker::get<broker::integer>(d); })
+    .def("as_none", [](const broker::data& d) { return broker::get<broker::none>(d); })
+    .def("as_port", [](const broker::data& d) { return broker::get<broker::port>(d); })
+    .def("as_real", [](const broker::data& d) { return broker::get<broker::real>(d); })
+    .def("as_set", [](const broker::data& d) { return broker::get<broker::set>(d); })
+    .def("as_string", [](const broker::data& d) { return broker::get<std::string>(d); })
+    .def("as_subnet", [](const broker::data& d) { return broker::get<broker::subnet>(d); })
+    .def("as_table", [](const broker::data& d) { return broker::get<broker::table>(d); })
+    .def("as_timespan", [](const broker::data& d) { return broker::get<broker::timespan>(d); })
+    .def("as_timestamp", [](const broker::data& d) { return broker::get<broker::timestamp>(d); })
+    .def("as_vector", [](const broker::data& d) { return broker::get<broker::vector>(d); })
+    .def("get_type", &broker::data::get_type)
+    .def("__str__", [](const broker::data& d) { return broker::to_string(d); })
+    .def(py::self < py::self)
+    .def(py::self <= py::self)
+    .def(py::self > py::self)
+    .def(py::self >= py::self)
+    .def(py::self == py::self)
+    .def(py::self != py::self);
+
+  py::enum_<broker::data::type>(data_type, "Type")
+    .value("Nil", broker::data::type::none)
+    .value("Address", broker::data::type::address)
+    .value("Boolean", broker::data::type::boolean)
+    .value("Count", broker::data::type::count)
+    .value("EnumValue", broker::data::type::enum_value)
+    .value("Integer", broker::data::type::integer)
+    .value("None", broker::data::type::none)
+    .value("Port", broker::data::type::port)
+    .value("Real", broker::data::type::real)
+    .value("Set", broker::data::type::set)
+    .value("String", broker::data::type::string)
+    .value("Subnet", broker::data::type::subnet)
+    .value("Table", broker::data::type::table)
+    .value("Timespan", broker::data::type::timespan)
+    .value("Timestamp", broker::data::type::timestamp)
+    .value("Vector", broker::data::type::vector);
+
 
 /////// TODO: Updated to new Broker API until here.
 
@@ -113,226 +346,6 @@ PYBIND11_PLUGIN(_broker) {
            auto msg = instance.message();
            return msg ? *msg : std::string{};
          });
-
-  //
-  // Data model
-  //
-
-  // A thin wrapper around the 'count' type, because Python has no notion of
-  // unsigned integers.
-  struct count_type {
-    count_type(count c) : value{c} {
-    }
-
-    count value;
-  };
-
-  py::class_<count_type>(m, "Count")
-    .def(py::init<py::int_>());
-
-  py::class_<timespan>(m, "Timespan")
-    .def(py::init<>())
-    .def(py::init<integer>())
-    .def("__init__",
-         [](timespan& instance, double seconds) {
-           auto fs = fractional_seconds{seconds};
-           auto s = std::chrono::duration_cast<timespan>(fs);
-           new (&instance) timespan{s};
-         })
-    .def("count", &timespan::count)
-    .def("__repr__", [](const timespan& s) { return to_string(s); })
-    .def(py::self + py::self)
-    .def(py::self - py::self)
-    .def(py::self * timespan::rep{})
-    .def(timespan::rep{} * py::self)
-    .def(py::self / py::self)
-    .def(py::self / timespan::rep{})
-    .def(py::self % py::self)
-    .def(py::self % timespan::rep{})
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  py::class_<timestamp>(m, "Timestamp")
-    .def(py::init<>())
-    .def(py::init<timespan>())
-    .def("__init__",
-         [](timestamp& instance, double seconds) {
-           auto fs = fractional_seconds{seconds};
-           auto s = std::chrono::duration_cast<timespan>(fs);
-           new (&instance) timestamp{s};
-         })
-    .def("time_since_epoch", &timestamp::time_since_epoch)
-    .def("__repr__", [](const timestamp& ts) { return to_string(ts); })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  m.def("now", &now, "Get the current wallclock time");
-
-  py::class_<address> address_type{m, "Address"};
-  address_type
-    .def(py::init<>())
-    .def("__init__",
-         [](address& instance, const py::bytes& bytes, int family) {
-           BROKER_ASSERT(family == 4 || family == 6);
-           auto str = static_cast<std::string>(bytes);
-           auto ptr = reinterpret_cast<const uint32_t*>(str.data());
-           auto f = family == 4 ? address::family::ipv4 : address::family::ipv6;
-           new (&instance) address{ptr, f, address::byte_order::network};
-         })
-    .def("mask", &address::mask, "top_bits_to_keep"_a)
-    .def("v4", &address::is_v4)
-    .def("v6", &address::is_v6)
-    .def("bytes", &address::bytes)
-    .def("__repr__", [](const address& a) { return to_string(a); })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  py::enum_<address::family>(address_type, "Family")
-    .value("IPv4", address::family::ipv4)
-    .value("IPv6", address::family::ipv6);
-
-  py::enum_<address::byte_order>(address_type, "ByteOrder")
-    .value("Host", address::byte_order::host)
-    .value("Network", address::byte_order::network);
-
-  py::class_<subnet>(m, "Subnet")
-    .def(py::init<>())
-    .def("__init__",
-         [](subnet& instance, address addr, uint8_t length) {
-           new (&instance) subnet{std::move(addr), length};
-         })
-    .def("contains", &subnet::contains, "addr"_a)
-    .def("network", &subnet::network)
-    .def("length", &subnet::length)
-    .def("__repr__", [](const subnet& sn) { return to_string(sn); })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  py::class_<port> port_type{m, "Port"};
-  port_type
-    .def(py::init<>())
-    .def(py::init<port::number_type, port::protocol>())
-    .def("number", &port::number)
-    .def("type", &port::type)
-    .def("__repr__", [](const port& p) { return to_string(p); })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  py::enum_<port::protocol>(port_type, "Protocol")
-    .value("TCP", port::protocol::tcp)
-    .value("UDP", port::protocol::udp)
-    .value("ICMP", port::protocol::icmp)
-    .value("Unknown", port::protocol::unknown)
-    .export_values();
-
-  py::class_<data>(m, "Data")
-    .def(py::init<>())
-    .def(py::init<boolean>())
-    .def(py::init<integer>())
-    .def("__init__",
-         [](data& instance, count_type c) { new (&instance) data{c.value}; })
-    .def(py::init<real>())
-    .def(py::init<timespan>())
-    .def(py::init<timestamp>())
-    .def(py::init<std::string>())
-    .def(py::init<address>())
-    .def(py::init<subnet>())
-    .def(py::init<port>())
-    .def(py::init<vector>())
-    .def(py::init<set>())
-    .def(py::init<table>())
-    .def("__str__", [](const data& d) { return to_string(d); })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  // py::bind_vector<data> (from pybind11/stl_bind.h) causes an infinite
-  // recursion in __repr__. See #371 for details.
-  py::class_<vector>(m, "Vector")
-    .def(py::init<>())
-    .def("__init__",
-         [](vector& instance, const py::list& list) {
-           new (&instance) vector(list.size());
-           try {
-             for (auto i = 0u; i < instance.size(); ++i)
-               instance[i] = list[i].cast<data>();
-           } catch (...) {
-             instance.~vector();
-             throw;
-           }
-         })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  // Don't include pybind11/stl.h, as it will inject the wrong py::type_caster
-  // template specializations.
-  py::class_<set>(m, "Set")
-    .def(py::init<>())
-    .def("__init__",
-         [](set& instance, const py::list& list) {
-           new (&instance) set{};
-           try {
-             for (auto i = 0u; i < list.size(); ++i)
-               instance.insert(list[i].cast<data>());
-           } catch (...) {
-             instance.~set();
-             throw;
-           }
-         })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
-
-  py::class_<table>(m, "Table")
-    .def(py::init<>())
-    .def("__init__",
-         [](table& instance, const py::dict& dict) {
-           new (&instance) table{};
-           try {
-             for (auto pair : dict)
-               instance.emplace(pair.first.cast<data>(),
-                                pair.second.cast<data>());
-           } catch (...) {
-             instance.~table();
-             throw;
-           }
-         })
-    .def(py::self < py::self)
-    .def(py::self <= py::self)
-    .def(py::self > py::self)
-    .def(py::self >= py::self)
-    .def(py::self == py::self)
-    .def(py::self != py::self);
 
   //
   // Communication & Store

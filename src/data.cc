@@ -3,6 +3,74 @@
 
 namespace broker {
 
+struct type_name_getter {
+  using result_type = data::type;
+
+  result_type operator()(broker::address) {
+    return data::type::address;
+  }
+
+  result_type operator()(broker::boolean) {
+    return data::type::boolean;
+  }
+
+  result_type operator()(broker::count) {
+    return data::type::count;
+  }
+
+  result_type operator()(broker::enum_value) {
+    return data::type::enum_value;
+  }
+
+  result_type operator()(broker::integer) {
+    return data::type::integer;
+  }
+
+  result_type operator()(broker::none) {
+    return data::type::none;
+  }
+
+  result_type operator()(broker::port) {
+    return data::type::port;
+  }
+
+  result_type operator()(broker::real) {
+    return data::type::real;
+  }
+
+  result_type operator()(broker::set) {
+    return data::type::set;
+  }
+
+  result_type operator()(std::string) {
+    return data::type::string;
+  }
+
+  result_type operator()(broker::subnet) {
+    return data::type::subnet;
+  }
+
+  result_type operator()(broker::table) {
+    return data::type::table;
+  }
+
+  result_type operator()(broker::timespan) {
+    return data::type::timespan;
+  }
+
+  result_type operator()(broker::timestamp) {
+    return data::type::timestamp;
+  }
+
+  result_type operator()(broker::vector) {
+    return data::type::vector;
+  }
+};
+
+data::type data::get_type() const {
+  return visit(type_name_getter(), *this);
+}
+
 namespace {
 
 template <class Container>

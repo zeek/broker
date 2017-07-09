@@ -9,12 +9,15 @@ from . import utils
 import datetime
 import ipaddress
 
-#
-# Version & Contants
-#
-
 Version = _broker.Version
-Version.__str__ = lambda self: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
+Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
+
+now = _broker.now
+
+# Broker will only raise exceptions of type broker.Error
+class Error(Exception):
+  """A Broker-specific error."""
+  pass
 
 APIFlags = _broker.APIFlags
 EC = _broker.EC
@@ -25,36 +28,133 @@ Frontend = _broker.Frontend
 Backend = _broker.Backend
 NetworkInfo = _broker.NetworkInfo
 PeerInfo = _broker.PeerInfo
-
 Topic = _broker.Topic
+
+Address = _broker.Address
+Count = _broker.Count
+Enum = _broker.Enum
+Port = _broker.Port
+Set = _broker.Set
+Subnet = _broker.Subnet
+Table = _broker.Table
+Timespan = _broker.Timespan
+Timestamp = _broker.Timestamp
+Vector = _broker.Vector
+
+class Data(_broker.Data):
+    def __init__(self, x = None):
+        if x is None:
+            _broker.Data.__init__(self)
+
+        elif isinstance(x, _broker.Data):
+            _broker.Data.__init__(self, x)
+
+        elif isinstance(x, (bool, int, float, str,
+                            Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
+            _broker.Data.__init__(self, x)
+
+        elif isinstance(x, datetime.timedelta):
+            us = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**6
+            ns = us * 10**3
+            _broker.Data.__init__(self, _broker.Timespan(ns))
+
+        elif isinstance(x, datetime.datetime):
+            time_since_epoch = (x - datetime.datetime(1970, 1, 1)).total_seconds()
+            _broker.Data.__init__(self, _broker.Timestamp(time_since_epoch))
+
+        elif isinstance(x, ipaddress.IPv4Address):
+            _broker.Data.__init__(self, _broker.Address(x.packed, 4))
+
+        elif isinstance(x, ipaddress.IPv6Address):
+            _broker.Data.__init__(self, _broker.Address(x.packed, 6))
+
+        elif isinstance(x, ipaddress.IPv4Network):
+            address = _broker.Address(x.network_address.packed, 4)
+            length = x.prefixlen
+            _broker.Data.__init__(self, _broker.Subnet(address, length))
+
+        elif isinstance(x, ipaddress.IPv6Network):
+            address = _broker.Address(x.network_address.packed, 6)
+            length = x.prefixlen
+            _broker.Data.__init__(self, _broker.Subnet(address, length))
+
+        elif isinstance(x, list):
+            v = _broker.Vector([Data(i) for i in x])
+            _broker.Data.__init__(self, v)
+
+        elif isinstance(x, set):
+            s = _broker.Set(([Data(i) for i in x]))
+            _broker.Data.__init__(self, s)
+
+        elif isinstance(x, dict):
+            t = _broker.Table()
+            for (k, v) in x.items():
+                t[Data(k)] = Data(v)
+
+            _broker.Data.__init__(self, t)
+
+        else:
+            raise Error("unsupported data type: " + str(type(x)))
+
+    @staticmethod
+    def from_py(self, x):
+        return Data(x)
+
+    @staticmethod
+    def to_py(d):
+        def to_ipaddress(a):
+            if a.is_v4():
+                return ipaddress.IPv4Address(a.bytes()[-4:])
+            else:
+                return ipaddress.IPv6Address(a.bytes())
+
+        def to_subnet(s):
+            # Python < 3.5 does not have a nicer way of setting the prefixlen
+            # when creating from packed data.
+            if s.network().is_v4():
+                return ipaddress.IPv4Network(to_ipaddress(s.network())).supernet(new_prefix=s.length())
+            else:
+                return ipaddress.IPv6Network(to_ipaddress(s.network())).supernet(new_prefix=s.length())
+
+        def to_set(s):
+            return set([Data.to_py(i) for i in s])
+
+        def to_table(t):
+            return {Data.to_py(k): Data.to_py(v) for (k, v) in t.items()}
+
+        def to_vector(v):
+            return [Data.to_py(i) for i in v]
+
+        converters = {
+            Data.Type.Address: lambda: to_ipaddress(d.as_address()),
+            Data.Type.Boolean: lambda: d.as_boolean(),
+            Data.Type.Count: lambda: Count(d.as_count()),
+            Data.Type.EnumValue: lambda: d.as_enum_value(),
+            Data.Type.Integer: lambda: d.as_integer(),
+            Data.Type.Port: lambda: d.as_port(),
+            Data.Type.Real: lambda: d.as_real(),
+            Data.Type.Set: lambda: to_set(d.as_set()),
+            Data.Type.String: lambda: d.as_string(),
+            Data.Type.Subnet: lambda: to_subnet(d.as_subnet()),
+            Data.Type.Table: lambda: to_table(d.as_table()),
+            Data.Type.Timespan: lambda: d.as_timespan(),
+            Data.Type.Timestamp: lambda: d.as_timestamp(),
+            Data.Type.Vector: lambda: to_vector(d.as_vector())
+            }
+
+        try:
+            return converters[d.get_type()]()
+        except KeyError:
+            raise Error("unsupported data type: " + str(d.get_type()))
 
 ####### TODO: Updated to new Broker API until here.
 
-# Broker will only raise exceptions of type BrokerError
-class BrokerError(Exception):
-  """A Broker-specific error."""
-
-  def __init__(self, *args, **kwargs):
-    Exception.__init__(self, *args, **kwargs)
-
-#
-# Data Model
-#
-
-# Count = _broker.Count
-# Timespan = _broker.Timespan
-# Timestamp = _broker.Timestamp
-# Port = _broker.Port
-
-def now():
-  return _broker.now()
-
-class Data:
+class Data__OLD__:
   def __init__(self, x = None):
     if x is None:
       self.data = _broker.Data()
     elif isinstance(x, (bool, int, float, str, Count, Timespan, Timestamp,
-                        Port)):
+Port)):
       self.data = _broker.Data(x)
     elif isinstance(x, datetime.timedelta):
       us = x.microseconds + (x.seconds + x.days * 24 * 3600) * 10**6
@@ -104,7 +204,6 @@ class Data:
 
   def __str__(self):
     return str(self.data)
-
 
 # TODO: complete interface
 class Store:
