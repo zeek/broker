@@ -107,6 +107,11 @@ PYBIND11_PLUGIN(_broker) {
          py::return_value_policy::reference_internal)
     .def("__repr__", [](const broker::topic& t) { return t.string(); });
 
+  py::bind_vector<std::vector<broker::topic>>(m, "VectorTopic");
+
+  py::class_<broker::infinite_t>(m, "Infinite")
+    .def(py::init<>());
+
   //
   // Data model
   //
@@ -330,6 +335,81 @@ PYBIND11_PLUGIN(_broker) {
     .value("Timestamp", broker::data::type::timestamp)
     .value("Vector", broker::data::type::vector);
 
+  using subscriber_base = broker::subscriber_base<std::pair<broker::topic, broker::data>>;
+
+  py::class_<subscriber_base>(m, "SubscriberBase")
+    .def("get", (subscriber_base::value_type (subscriber_base::*)()) &subscriber_base::get)
+    .def("get", (broker::optional<subscriber_base::value_type> (subscriber_base::*)(broker::duration)) &broker::subscriber::get)
+    .def("get", (std::vector<subscriber_base::value_type> (subscriber_base::*)(size_t num, broker::duration)) &broker::subscriber::get, py::arg("num"), py::arg("timeout") = broker::infinite)
+    .def("poll", &subscriber_base::poll)
+    .def("available", &subscriber_base::available)
+    .def("fd", &subscriber_base::fd);
+
+  py::class_<broker::subscriber, subscriber_base>(m, "Subscriber")
+    .def("add_topic", &broker::subscriber::add_topic)
+    .def("remove_topic", &broker::subscriber::remove_topic);
+
+  using event_subscriber_base = broker::subscriber_base<broker::detail::variant<broker::none, broker::error, broker::status>>;
+
+  py::class_<event_subscriber_base>(m, "EventSubscriberBase")
+    .def("get", (event_subscriber_base::value_type (event_subscriber_base::*)()) &event_subscriber_base::get)
+    .def("get", (broker::optional<event_subscriber_base::value_type> (event_subscriber_base::*)(broker::duration)) &broker::event_subscriber::get)
+    .def("get", (std::vector<event_subscriber_base::value_type> (event_subscriber_base::*)(size_t num, broker::duration)) &broker::event_subscriber::get, py::arg("num"), py::arg("timeout") = broker::infinite)
+    .def("poll", &event_subscriber_base::poll)
+    .def("available", &event_subscriber_base::available)
+    .def("fd", &event_subscriber_base::fd);
+
+  py::class_<broker::event_subscriber, event_subscriber_base>(m, "EventSubscriber");
+
+  py::class_<broker::endpoint>(m, "Endpoint")
+    .def(py::init<>())
+    // .def(py::init<broker::configuration>())
+    .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
+    .def("peer",
+         [](broker::endpoint& ep, std::string& addr, uint16_t port, double seconds) {
+         auto fs = broker::fractional_seconds{seconds};
+	 auto s = std::chrono::duration_cast<broker::timeout::seconds>(fs);
+	 ep.peer(addr, port, s);
+         })
+    .def("unpeer", &broker::endpoint::peer)
+    .def("peers", &broker::endpoint::peers)
+    .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
+    .def("publish", (void (broker::endpoint::*)(broker::topic t, broker::data d)) &broker::endpoint::publish)
+    .def("publish", (void (broker::endpoint::*)(const broker::endpoint_info& dst, broker::topic t, broker::data d)) &broker::endpoint::publish)
+    // .def("publish", (void (endpoint::*)(topic t, std::initializer_list<data> xs)) &broker::endpoint::publish
+    // .def("publish", (void (endpoint::*)(std::vector<value_type> xs)) &broker::endpoint::publish
+    // .def("make_publisher", &broker::endpoint::make_publisher);
+    // .def("publish_all", ...)
+    // .def("publish_all_nosync", ...)
+    .def("make_event_subscriber", &broker::endpoint::make_event_subscriber, py::arg("receive_statuses") = false)
+    .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
+    // .def("subscribe", ...)
+    // .def("subscribe_nosync", ...)
+    ;
+
+#if 0
+    // TODO: old, needs updating.
+    .def("attach_master",
+         [](endpoint& ep, const std::string& name, backend b,
+            const backend_options& opts) -> expected<store> {
+           switch (b) {
+             default:
+               return make_error(ec::backend_failure, "invalid backend type");
+             case memory:
+               return ep.attach<master, memory>(name, opts);
+             case sqlite:
+               return ep.attach<master, sqlite>(name, opts);
+             case rocksdb:
+               return ep.attach<master, rocksdb>(name, opts);
+           }
+         },
+         py::keep_alive<0, 1>())
+    .def("attach_clone",
+         [](endpoint& ep, const std::string& name) {
+           return ep.attach<broker::clone>(name);
+         },
+         py::keep_alive<0, 1>());
+#endif
 
 /////// TODO: Updated to new Broker API until here.
 
@@ -374,39 +454,6 @@ PYBIND11_PLUGIN(_broker) {
          py::keep_alive<0, 1>());
 
   py::class_<backend_options>(m, "BackendOptions");
-
-  py::class_<endpoint>(m, "Endpoint")
-    .def("listen", &endpoint::listen)
-    .def("peer", (void (endpoint::*)(const endpoint&)) &endpoint::peer)
-    .def("peer", (void (endpoint::*)(const std::string&, uint16_t, timeout::seconds))
-                   &endpoint::peer)
-    .def("unpeer", (void (endpoint::*)(const endpoint&)) &endpoint::unpeer)
-    .def("unpeer", (void (endpoint::*)(const std::string&, uint16_t))
-                     &endpoint::unpeer)
-    .def("peers", &endpoint::peers)
-    .def("publish", [](endpoint& ep, const std::string& t, const data& d) {
-                      ep.publish(t, d);
-                    })
-    .def("attach_master",
-         [](endpoint& ep, const std::string& name, backend b,
-            const backend_options& opts) -> expected<store> {
-           switch (b) {
-             default:
-               return make_error(ec::backend_failure, "invalid backend type");
-             case memory:
-               return ep.attach<master, memory>(name, opts);
-             case sqlite:
-               return ep.attach<master, sqlite>(name, opts);
-             case rocksdb:
-               return ep.attach<master, rocksdb>(name, opts);
-           }
-         },
-         py::keep_alive<0, 1>())
-    .def("attach_clone",
-         [](endpoint& ep, const std::string& name) {
-           return ep.attach<broker::clone>(name);
-         },
-         py::keep_alive<0, 1>());
 
   py::class_<mailbox>(m, "Mailbox")
     .def("descriptor", &mailbox::descriptor)

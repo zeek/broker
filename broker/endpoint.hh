@@ -73,6 +73,9 @@ public:
   void peer(const std::string& address, uint16_t port,
             timeout::seconds retry = timeout::seconds(10));
 
+  /// Shuts down a peering with a remote endpoint.
+  /// @param address The IP address of the remote endpoint.
+  /// @param port The TCP port of the remote endpoint.
   void unpeer(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.

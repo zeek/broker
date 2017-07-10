@@ -16,6 +16,10 @@
 
 namespace broker {
 
+using duration = caf::duration;
+using infinite_t = caf::infinite_t;
+using caf::infinite;
+
 /// Provides blocking access to a stream of data.
 template <class ValueType>
 class subscriber_base {
@@ -59,7 +63,7 @@ public:
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
-  caf::optional<value_type> get(caf::duration timeout) {
+  caf::optional<value_type> get(duration timeout) {
     auto tmp = get(1, timeout);
     if (tmp.size() == 1)
       return std::move(tmp.front());
@@ -71,7 +75,7 @@ public:
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
   std::vector<value_type> get(size_t num,
-                              caf::duration timeout = caf::infinite) {
+                              duration timeout = infinite) {
     std::vector<value_type> result;
     if (num == 0)
       return result;
