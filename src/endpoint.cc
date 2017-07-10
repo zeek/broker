@@ -71,7 +71,19 @@ void endpoint::peer(const std::string& address, uint16_t port,
 }
 
 void endpoint::unpeer(const std::string& address, uint16_t port) {
-  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  caf::scoped_actor self{system_};
+  self->request(core_, caf::infinite, atom::unpeer::value,
+                network_info{address, port})
+  .receive(
+    [](void) {
+      // nop
+    },
+    [&](caf::error& err) {
+      CAF_LOG_DEBUG("Cannot unpeer from" << address << "on port"
+                    << port << ":" << err);
+    }
+  );
 }
 
 std::vector<peer_info> endpoint::peers() const {
