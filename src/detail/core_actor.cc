@@ -160,6 +160,64 @@ bool core_state::has_remote_master(const std::string& name) {
                      });
 }
 
+result<void> init_peering(caf::stateful_actor<core_state>* self,
+                          actor remote_core, response_promise rp) {
+  CAF_LOG_TRACE(CAF_ARG(remote_core));
+  auto& st = self->state;
+  // Sanity checking.
+  if (remote_core == nullptr) {
+    rp.deliver(sec::invalid_argument);
+    return rp;
+  }
+  // Ignore repeated peering requests without error.
+  if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core)) {
+    rp.deliver(caf::unit);
+    return rp;
+  }
+  // Create necessary state and send message to remote core.
+  st.pending_peers.emplace(remote_core,
+                           core_state::pending_peer_state{stream_id{}, rp});
+  self->send(self * remote_core, atom::peer::value, st.filter, self);
+  self->monitor(remote_core);
+  return rp;
+};
+
+struct retry_state {
+  network_info addr;
+  timeout::seconds retry;
+  uint32_t n;
+  response_promise rp;
+
+  void try_once(caf::stateful_actor<core_state>* self);
+};
+
+} // namespace detail
+} // namespace broker
+
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
+
+namespace broker {
+namespace detail {
+
+void retry_state::try_once(caf::stateful_actor<core_state>* self) {
+  auto cpy = std::move(*this);
+  self->state.cache.fetch(cpy.addr,
+                          [self, cpy](actor x) mutable {
+                            init_peering(self, std::move(x), std::move(cpy.rp));
+                          },
+                          [self, cpy](error) mutable {
+                            // TODO: make max_try_attempts configurable
+                            if (cpy.retry.count() > 0 && cpy.n < 100)
+                              self->delayed_send(self, cpy.retry, cpy);
+                            else {
+                              auto desc = "remote endpoint unavailable";
+                              BROKER_ERROR(desc);
+                              self->state.emit_error<ec::peer_unavailable>(
+                                std::move(cpy.addr), desc);
+                            }
+                          });
+}
+
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter) {
   self->state.init(std::move(initial_filter));
@@ -198,27 +256,6 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       */
     }
   );
-  auto init_peering = [=](actor remote_core, response_promise rp)
-  -> result<void> {
-    CAF_LOG_TRACE(CAF_ARG(remote_core));
-    auto& st = self->state;
-    // Sanity checking.
-    if (remote_core == nullptr) {
-      rp.deliver(sec::invalid_argument);
-      return rp;
-    }
-    // Ignore repeated peering requests without error.
-    if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core)) {
-      rp.deliver(caf::unit);
-      return rp;
-    }
-    // Create necessary state and send message to remote core.
-    st.pending_peers.emplace(remote_core,
-                             core_state::pending_peer_state{stream_id{}, rp});
-    self->send(self * remote_core, atom::peer::value, st.filter, self);
-    self->monitor(remote_core);
-    return rp;
-  };
   return {
     // --- filter manipulation -------------------------------------------------
     [=](atom::subscribe, filter_type& f) {
@@ -227,30 +264,18 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) -> result<void> {
-      return init_peering(std::move(remote_core),
+      return init_peering(self, std::move(remote_core),
                           self->make_response_promise());
     },
-    [=](atom::peer, network_info addr, timeout::seconds retry,
+    [=](atom::peer, network_info& addr, timeout::seconds retry,
         uint32_t n) -> result<void> {
       auto rp = self->make_response_promise();
-      self->state.cache.fetch(addr,
-                              [=](actor x) mutable {
-                                init_peering(std::move(x), std::move(rp));
-                              },
-                              [=](error) mutable {
-                                // TODO: make max_try_attempts configurable
-                                if (retry.count() > 0 && n < 100)
-                                  self->delayed_send(self, retry,
-                                                     atom::peer::value, addr,
-                                                     retry, n + 1);
-                                else {
-                                  auto desc = "remote endpoint unavailable";
-                                  BROKER_ERROR(desc);
-                                  self->state.emit_error<ec::peer_unavailable>(
-                                    addr, desc);
-                                }
-                              });
+      retry_state rt{std::move(addr), retry, n, rp};
+      rt.try_once(self);
       return rp;
+    },
+    [=](retry_state& rt) {
+      rt.try_once(self);
     },
     // --- 3-way handshake for establishing peering streams between A and B ----
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
