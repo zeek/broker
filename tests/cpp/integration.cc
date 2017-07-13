@@ -103,7 +103,7 @@ struct peer_fixture {
   }
 
   ~peer_fixture() {
-    LOGGED_MESSAGE("shut down " << name);
+    MESSAGE("shut down " << name);
     for (auto& w : workers)
       caf::anon_send_exit(w, caf::exit_reason::user_shutdown);
     exec_loop();
@@ -205,7 +205,7 @@ struct triangle_fixture : global_fixture {
   }
 
   void connect_peers() {
-    LOGGED_MESSAGE("prepare connections");
+    MESSAGE("prepare connections");
     auto server_handle = mercury.make_accept_handle();
     mercury.mpx.prepare_connection(server_handle,
                                    mercury.make_connection_handle(), venus.mpx,
@@ -215,15 +215,15 @@ struct triangle_fixture : global_fixture {
                                    mercury.make_connection_handle(), earth.mpx,
                                    "mercury", 4040,
                                    earth.make_connection_handle());
-    LOGGED_MESSAGE("start listening on mercury:4040");
+    MESSAGE("start listening on mercury:4040");
     // We need to connect venus and earth while mercury is blocked on ep.listen()
     // in order to avoid a "deadlock" in `ep.listen()`.
     mercury.sched.after_next_enqueue([&] {
       exec_loop();
-      LOGGED_MESSAGE("peer venus to mercury:4040");
+      MESSAGE("peer venus to mercury:4040");
       venus.loop_after_next_enqueue();
       venus.ep.peer("mercury", 4040);
-      LOGGED_MESSAGE("peer earth to mercury:4040");
+      MESSAGE("peer earth to mercury:4040");
       earth.loop_after_next_enqueue();
       earth.ep.peer("mercury", 4040);
     });
@@ -241,27 +241,27 @@ CAF_TEST_FIXTURE_SCOPE(triangle_use_cases, triangle_fixture)
 // Checks whether topic subscriptions are prefix-based.
 CAF_TEST(topic_prefix_matching) {
   connect_peers();
-  LOGGED_MESSAGE("assume two peers for mercury");
+  MESSAGE("assume two peers for mercury");
   mercury.loop_after_next_enqueue();
   auto mercury_peers = mercury.ep.peers();
   CAF_REQUIRE_EQUAL(mercury_peers.size(), 2);
   CAF_CHECK_EQUAL(mercury_peers.front().status, peer_status::peered);
   CAF_CHECK_EQUAL(mercury_peers.back().status, peer_status::peered);
-  LOGGED_MESSAGE("assume one peer for venus");
+  MESSAGE("assume one peer for venus");
   venus.loop_after_next_enqueue();
   auto venus_peers = venus.ep.peers();
   CAF_REQUIRE_EQUAL(venus_peers.size(), 1);
   CAF_CHECK_EQUAL(venus_peers.front().status, peer_status::peered);
-  LOGGED_MESSAGE("assume one peer for earth");
+  MESSAGE("assume one peer for earth");
   earth.loop_after_next_enqueue();
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1);
   CAF_CHECK_EQUAL(earth_peers.front().status, peer_status::peered);
-  LOGGED_MESSAGE("subscribe to 'bro/events' on venus");
+  MESSAGE("subscribe to 'bro/events' on venus");
   venus.subscribe_to("bro/events");
-  LOGGED_MESSAGE("subscribe to 'bro/events/failures' on earth");
+  MESSAGE("subscribe to 'bro/events/failures' on earth");
   earth.subscribe_to("bro/events/failures");
-  LOGGED_MESSAGE("verify subscriptions");
+  MESSAGE("verify subscriptions");
   auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
     return xs;
   };
@@ -272,10 +272,10 @@ CAF_TEST(topic_prefix_matching) {
   CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
   earth.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
-  LOGGED_MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
+  MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
   mercury.publish("bro/events/failures", "oops", "sorry!");
   mercury.publish("bro/events/logging", 123, 456);
-  LOGGED_MESSAGE("verify published data");
+  MESSAGE("verify published data");
   auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
     return xs;
   };
@@ -334,7 +334,7 @@ std::vector<code> event_log(const std::vector<event_value>& xs) {
 }
 
 CAF_TEST(unpeering) {
-  LOGGED_MESSAGE("get events from all peers");
+  MESSAGE("get events from all peers");
   auto mercury_es = mercury.ep.make_event_subscriber(true);
   auto venus_es = venus.ep.make_event_subscriber(true);
   auto earth_es = earth.ep.make_event_subscriber(true);
@@ -343,25 +343,25 @@ CAF_TEST(unpeering) {
                   event_log({sc::peer_added, sc::peer_added}));
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_added}));
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({sc::peer_added}));
-  LOGGED_MESSAGE("disconnect venus from mercury");
+  MESSAGE("disconnect venus from mercury");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_lost}));
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_removed}));
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({}));
-  LOGGED_MESSAGE("disconnect venus again (raises ec::peer_invalid)");
+  MESSAGE("disconnect venus again (raises ec::peer_invalid)");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({}));
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_invalid}));
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({}));
-  LOGGED_MESSAGE("disconnect venus from sun (invalid peer)");
+  MESSAGE("disconnect venus from sun (invalid peer)");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("sun", 123);
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({}));
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_invalid}));
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({}));
-  LOGGED_MESSAGE("disconnect earth from mercury");
+  MESSAGE("disconnect earth from mercury");
   earth.loop_after_next_enqueue();
   earth.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_lost}));
@@ -370,9 +370,9 @@ CAF_TEST(unpeering) {
 }
 
 CAF_TEST(unpeering_error) {
-  LOGGED_MESSAGE("get events from all peers");
+  MESSAGE("get events from all peers");
   auto venus_es = venus.ep.make_event_subscriber(true);
-  LOGGED_MESSAGE("disconnect venus from non-existing peer");
+  MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_lost}));

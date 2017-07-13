@@ -27,11 +27,7 @@
 #define ERROR CAF_TEST_PRINT_ERROR
 #define INFO CAF_TEST_PRINT_INFO
 #define VERBOSE CAF_TEST_PRINT_VERBOSE
-#define MESSAGE CAF_TEST_PRINT_VERBOSE
-
-#define LOGGED_MESSAGE(msg)                                                    \
-  CAF_LOG_INFO(msg);                                                           \
-  CAF_MESSAGE(msg)
+#define MESSAGE CAF_MESSAGE
 
 // -- macros for checking results ---------------------------------------------
 
