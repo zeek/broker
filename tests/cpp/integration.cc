@@ -369,5 +369,14 @@ CAF_TEST(unpeering) {
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({sc::peer_removed}));
 }
 
+CAF_TEST(unpeering_error) {
+  LOGGED_MESSAGE("get events from all peers");
+  auto venus_es = venus.ep.make_event_subscriber(true);
+  LOGGED_MESSAGE("disconnect venus from non-existing peer");
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_lost}));
+}
+
 CAF_TEST_FIXTURE_SCOPE_END()
 
