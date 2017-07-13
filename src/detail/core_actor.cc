@@ -38,43 +38,6 @@ namespace {
 // or a `(topic, internal_command)` pair.
 using generic_stream = stream<message>;
 
-// Creates endpoint information from a core actor.
-endpoint_info make_info(const caf::actor& a, optional<network_info> net = {}) {
-  return {a->node(), std::move(net)};
-}
-
-endpoint_info make_info(network_info net) {
-  return {{}, std::move(net)};
-}
-
-// Supervises the connection to an IP address and TCP port.
-caf::behavior supervisor(caf::event_based_actor* self, caf::actor core,
-                         network_info net, timeout::seconds retry) {
-  self->send(self, atom::connect::value);
-  self->set_down_handler(
-    [=](const caf::down_msg&) {
-      BROKER_DEBUG("lost connection to" << to_string(net));
-      self->send(core, atom::peer::value, net, peer_status::disconnected);
-      self->send(self, atom::connect::value);
-    }
-  );
-  return {
-    [=](atom::connect) {
-      BROKER_DEBUG("attempting to connect to" << to_string(net));
-      auto& mm = self->home_system().middleman();
-      auto other = mm.remote_actor(net.address, net.port);
-      if (!other && retry != timeout::seconds(0)) {
-        // Try again on failure.
-        self->delayed_send(self, retry, atom::connect::value);
-      } else {
-        self->monitor(*other);
-        self->send(core, atom::peer::value, net, peer_status::connected,
-                   *other);
-      }
-    }
-  };
-}
-
 caf::message worker_token_factory(const caf::stream_id& x) {
   return caf::make_message(endpoint::stream_type{x});
 }
