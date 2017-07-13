@@ -378,5 +378,37 @@ CAF_TEST(unpeering_error) {
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_lost}));
 }
 
+CAF_TEST(connection_retry) {
+  MESSAGE("get events from mercury and venus");
+  auto mercury_es = mercury.ep.make_event_subscriber(true);
+  auto venus_es = venus.ep.make_event_subscriber(true);
+  MESSAGE("initiate peering from venus to mercury (will fail)");
+  venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
+  exec_loop();
+  MESSAGE("start listening on mercury:4040");
+  auto server_handle = mercury.make_accept_handle();
+  mercury.mpx.prepare_connection(server_handle,
+                                 mercury.make_connection_handle(), venus.mpx,
+                                 "mercury", 4040,
+                                 venus.make_connection_handle());
+  // We need to connect venus while mercury is blocked on ep.listen() in order
+  // to avoid a "deadlock" in `ep.listen()`.
+  mercury.sched.after_next_enqueue([&] {
+    exec_loop();
+    MESSAGE("peer venus to mercury:4040 by triggering the retry timeout");
+    CAF_CHECK_EQUAL(venus.sched.dispatch(), 1);
+    exec_loop();
+  });
+  mercury.ep.listen("", 4040);
+  MESSAGE("check event logs");
+  CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_added}));
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_added}));
+  MESSAGE("disconnect venus from mercury");
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_lost}));
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_removed}));
+}
+
 CAF_TEST_FIXTURE_SCOPE_END()
 
