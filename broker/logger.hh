@@ -1,6 +1,7 @@
 #ifndef BROKER_LOGGER_HH
 #define BROKER_LOGGER_HH
 
+#undef CAF_LOG_COMPONENT
 #define CAF_LOG_COMPONENT "broker"
 #include <caf/logger.hpp>
 

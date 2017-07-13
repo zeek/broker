@@ -14,6 +14,12 @@
 
 #include "broker/detail/shared_subscriber_queue.hh"
 
+#ifdef CAF_LOG_COMPONENT
+#undef CAF_LOG_COMPONENT
+#endif
+
+#define CAF_LOG_COMPONENT "broker"
+
 namespace broker {
 
 using duration = caf::duration;
@@ -58,15 +64,20 @@ public:
   value_type get() {
     auto tmp = get(1);
     BROKER_ASSERT(tmp.size() == 1);
-    return std::move(tmp.front());
+    auto x = std::move(tmp.front());
+    CAF_LOG_INFO("received" << _debug_to_string(x));
+    return std::move(x);
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
   caf::optional<value_type> get(duration timeout) {
     auto tmp = get(1, timeout);
-    if (tmp.size() == 1)
-      return std::move(tmp.front());
+    if (tmp.size() == 1) {
+      auto x = std::move(tmp.front());
+      CAF_LOG_INFO("received" << _debug_to_string(x));
+      return std::move(x);
+    }
     return caf::none;
   }
 
@@ -87,6 +98,7 @@ public:
       else if (!queue_->wait_on_flare_abs(t0))
         return result;
       queue_->consume(num - result.size(), [&](value_type&& x) {
+        CAF_LOG_INFO("received" << _debug_to_string(x));
         result.emplace_back(std::move(x));
       });
       if (result.size() == num)

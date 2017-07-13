@@ -50,6 +50,12 @@ private:
   std::vector<topic> filter_;
 };
 
+inline std::string _debug_to_string(std::pair<topic, data> x) {
+  std::string s;
+  convert(x.second, s);
+  return std::string("message ") + s + " from topic " + x.first.string();
+}
+
 } // namespace broker
 
 #endif // BROKER_SUBSCRIBER_HH

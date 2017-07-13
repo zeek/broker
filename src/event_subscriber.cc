@@ -1,3 +1,4 @@
+#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/event_subscriber.hh"
 
 #include <chrono>

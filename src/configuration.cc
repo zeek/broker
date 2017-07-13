@@ -45,8 +45,28 @@ configuration::configuration() {
   add_message_type<std::vector<endpoint::stream_type::value_type>>(
     "std::vector<broker::endpoint::stream_type::value_type>");
   load<caf::io::middleman>();
-  logger_filename = "broker_[TIMESTAMP]_[PID].log";
-  logger_verbosity = caf::atom("DEBUG");
+  logger_file_name = "broker_[PID]_[TIMESTAMP].log";
+  logger_verbosity = caf::atom("INFO");
+  logger_component_filter = "broker";
+
+  if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
+    if (*env && *env != '0') {
+      logger_verbosity = caf::atom("DEBUG");
+      logger_component_filter = "";
+    }
+  }
+
+  if (auto env = getenv("BROKER_DEBUG_LEVEL")) {
+    char level[10];
+    strncpy(level, env, sizeof(level));
+    level[sizeof(level) - 1] = '\0';
+    logger_verbosity = caf::atom(level);
+  }
+
+  if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER")) {
+    logger_component_filter = env;
+  }
+
   middleman_app_identifier = "broker.v" + std::to_string(version::protocol);
 }
 

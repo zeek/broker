@@ -38,16 +38,19 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     system_(config_),
     await_stores_on_shutdown_(false) {
+  CAF_LOG_INFO("creating endpoint");
   core_ = system_.spawn(detail::core_actor, detail::filter_type{});
 }
 
 endpoint::~endpoint() {
+  CAF_LOG_INFO("destroying endpoint");
   if (!await_stores_on_shutdown_)
     anon_send(core_, atom::shutdown::value, atom::store::value);
   anon_send(core_, atom::shutdown::value);
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+  CAF_LOG_INFO("listening on" << (address + ":" + std::to_string(port)));
   char const* addr = address.empty() ? nullptr : address.c_str();
   auto res = system_.middleman().publish(core(), port, addr, true);
   return res ? *res : 0;
@@ -56,6 +59,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 bool endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
+  CAF_LOG_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
@@ -75,11 +79,13 @@ bool endpoint::peer(const std::string& address, uint16_t port,
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  CAF_LOG_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
   caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry, uint32_t{0});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  CAF_LOG_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::unpeer::value,
@@ -99,6 +105,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
 
 void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  CAF_LOG_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
@@ -133,11 +140,20 @@ std::vector<topic> endpoint::peer_subscriptions() const {
   return result;
 }
 
+static std::string data_to_string(data& d)
+	{
+	std::string s;
+	convert(d, s);
+	return s;
+	}
+
 void endpoint::publish(topic t, data d) {
+  CAF_LOG_INFO("publishing message" << data_to_string(d) << "to topic" << t.string());
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
+  CAF_LOG_INFO("publishing message" << data_to_string(d) << "to" << dst.node << "for topic" << t.string());
   caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
 }
 
@@ -168,6 +184,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
 
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
+  CAF_LOG_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
   self->request(core(), caf::infinite, atom::store::value, atom::master::value,
@@ -184,6 +201,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 }
 
 expected<store> endpoint::attach_clone(std::string name) {
+  CAF_LOG_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::store::value, atom::clone::value,

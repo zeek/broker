@@ -45,6 +45,10 @@ private:
   caf::actor worker_;
 };
 
+inline std::string _debug_to_string(detail::variant<none, error, status> x) {
+  return std::string("XXX");
+}
+
 } // namespace broker
 
 #endif // BROKER_EVENT_SUBSCRIBER_HH
