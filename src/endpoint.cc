@@ -53,37 +53,53 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   return res ? *res : 0;
 }
 
-void endpoint::peer(const std::string& address, uint16_t port,
+bool endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
+  bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
                 network_info{address, port}, retry, uint32_t{0})
   .receive(
-    [](const caf::actor&) {
-      // nop
+    [&](const caf::actor&) {
+      result = true;
     },
     [&](caf::error& err) {
       CAF_LOG_DEBUG("Cannot peer to" << address << "on port"
                     << port << ":" << err);
     }
   );
+  return result;
 }
 
-void endpoint::unpeer(const std::string& address, uint16_t port) {
+void endpoint::peer_nosync(const std::string& address, uint16_t port,
+			   timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry, uint32_t{0});
+}
+
+bool endpoint::unpeer(const std::string& address, uint16_t port) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::unpeer::value,
                 network_info{address, port})
   .receive(
-    [](void) {
-      // nop
+    [&](void) {
+      result = true;
     },
     [&](caf::error& err) {
       CAF_LOG_DEBUG("Cannot unpeer from" << address << "on port"
                     << port << ":" << err);
     }
   );
+
+  return result;
+}
+
+void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
 std::vector<peer_info> endpoint::peers() const {

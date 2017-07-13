@@ -63,20 +63,44 @@ public:
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen(const std::string& address = {}, uint16_t port = 0);
 
-  /// Initiates a peering with a remote endpoint. Thi
+  /// Initiates a peering with a remote endpoint.
+  /// @param address The IP address of the remote endpoint.
+  /// @param port The TCP port of the remote endpoint.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///        cannot be established, or breaks.
+  /// @returns True if connection was successfulluy set up.
+  /// @note The endpoint will also receive a status message indicating
+  ///       success or failure.
+  bool peer(const std::string& address, uint16_t port,
+            timeout::seconds retry = timeout::seconds(10));
+
+  /// Initiates a peering with a remote endpoint, without waiting
+  /// for the operation to complete.
   /// @param address The IP address of the remote endpoint.
   /// @param port The TCP port of the remote endpoint.
   /// @param retry If non-zero, seconds after which to retry if connection
   ///        cannot be established, or breaks.
   /// @note The function returns immediately. The endpoint receives a status
   ///       message indicating the result of the peering operation.
-  void peer(const std::string& address, uint16_t port,
+  void peer_nosync(const std::string& address, uint16_t port,
             timeout::seconds retry = timeout::seconds(10));
 
   /// Shuts down a peering with a remote endpoint.
   /// @param address The IP address of the remote endpoint.
   /// @param port The TCP port of the remote endpoint.
-  void unpeer(const std::string& address, uint16_t port);
+  /// @returns True if connection was successfully torn down.
+  /// @note The endpoint will also receive a status message
+  ///       indicating sucess or failure.
+  bool unpeer(const std::string& address, uint16_t port);
+
+  /// Shuts down a peering with a remote endpoint, without waiting for
+  /// for the operation to complete.
+  /// @param address The IP address of the remote endpoint.
+  /// @param port The TCP port of the remote endpoint.
+  /// @returns True if connection was successfully torn down.
+  /// @note The endpoint will also receive a status message
+  ///       indicating sucess or failure.
+  void unpeer_nosync(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.
   /// @returns A pointer to the list
