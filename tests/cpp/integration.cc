@@ -238,8 +238,9 @@ CAF_TEST_FIXTURE_SCOPE(triangle_use_cases, triangle_fixture)
 
 // -- prefix-based data forwarding in Broker -----------------------------------
 
-// Checks whether topic subscriptions are prefix-based.
-CAF_TEST(topic_prefix_matching) {
+// Checks whether topic subscriptions are prefix-based using the asynchronous
+// `endpoint::subscribe_nosync` API to subscribe to topics.
+CAF_TEST(topic_prefix_matching_async_subscribe) {
   connect_peers();
   MESSAGE("assume two peers for mercury");
   mercury.loop_after_next_enqueue();
@@ -286,6 +287,67 @@ CAF_TEST(topic_prefix_matching) {
                                     {"bro/events/logging", 456}}));
   CAF_CHECK_EQUAL(earth.data, data({{"bro/events/failures", "oops"},
                                     {"bro/events/failures", "sorry!"}}));
+}
+
+// Checks whether topic subscriptions are prefix-based using the synchronous
+// `endpoint::make_subscriber` API to subscribe to topics.
+CAF_TEST(topic_prefix_matching_make_subscriber) {
+  connect_peers();
+  MESSAGE("assume two peers for mercury");
+  mercury.loop_after_next_enqueue();
+  auto mercury_peers = mercury.ep.peers();
+  CAF_REQUIRE_EQUAL(mercury_peers.size(), 2);
+  CAF_CHECK_EQUAL(mercury_peers.front().status, peer_status::peered);
+  CAF_CHECK_EQUAL(mercury_peers.back().status, peer_status::peered);
+  MESSAGE("assume one peer for venus");
+  venus.loop_after_next_enqueue();
+  auto venus_peers = venus.ep.peers();
+  CAF_REQUIRE_EQUAL(venus_peers.size(), 1);
+  CAF_CHECK_EQUAL(venus_peers.front().status, peer_status::peered);
+  MESSAGE("assume one peer for earth");
+  earth.loop_after_next_enqueue();
+  auto earth_peers = earth.ep.peers();
+  CAF_REQUIRE_EQUAL(earth_peers.size(), 1);
+  CAF_CHECK_EQUAL(earth_peers.front().status, peer_status::peered);
+  MESSAGE("subscribe to 'bro/events' on venus");
+  auto venus_s1 = venus.ep.make_subscriber({"bro/events"});
+  auto venus_s2 = venus.ep.make_subscriber({"bro/events"});
+  exec_loop();
+  MESSAGE("subscribe to 'bro/events/failures' on earth");
+  auto earth_s1 = earth.ep.make_subscriber({"bro/events/failures"});
+  auto earth_s2 = earth.ep.make_subscriber({"bro/events/failures"});
+  exec_loop();
+  MESSAGE("verify subscriptions");
+  auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
+    return xs;
+  };
+  mercury.loop_after_next_enqueue();
+  CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
+                  filter({"bro/events", "bro/events/failures"}));
+  venus.loop_after_next_enqueue();
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
+  earth.loop_after_next_enqueue();
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
+  mercury.publish("bro/events/failures", "oops", "sorry!");
+  mercury.publish("bro/events/logging", 123, 456);
+  MESSAGE("verify published data");
+  auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
+    return xs;
+  };
+  CAF_CHECK_EQUAL(venus_s1.poll(), data({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"},
+                                         {"bro/events/logging", 123},
+                                         {"bro/events/logging", 456}}));
+  CAF_CHECK_EQUAL(venus_s2.poll(), data({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"},
+                                         {"bro/events/logging", 123},
+                                         {"bro/events/logging", 456}}));
+  CAF_CHECK_EQUAL(earth_s1.poll(), data({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(earth_s2.poll(), data({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"}}));
+  exec_loop();
 }
 
 // -- unpeering of nodes and emitted status/error messages ---------------------
@@ -369,7 +431,7 @@ CAF_TEST(unpeering) {
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({sc::peer_removed}));
 }
 
-CAF_TEST(unpeering_error) {
+CAF_TEST(unpeering_without_connections) {
   MESSAGE("get events from all peers");
   auto venus_es = venus.ep.make_event_subscriber(true);
   MESSAGE("disconnect venus from non-existing peer");
