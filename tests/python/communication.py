@@ -6,28 +6,56 @@ import time
 
 import broker
 
-def wait_for_connect(es):
-    while not es.available():
-        time.sleep(1)
-
-    print(repr(es.get()))
-
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
         ep1 = broker.Endpoint()
-        es1 = ep1.make_event_subscriber(True)
-        port = ep1.listen("127.0.0.1", 0)
-
         ep2 = broker.Endpoint()
-        es2 = ep2.make_event_subscriber(True)
+        es1 = ep1.make_subscriber("/test")
+        es2 = ep2.make_subscriber("/test")
+        port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
-        print(".")
-        wait_for_connect(es2)
-        print("o")
+        ep2.publish("/test", ["ping"])
+        (t, d) = es1.get()
+        assert t == "/test"
+        assert d[0] == "ping"
 
-        ep1 = None
-        ep2 = None
+        ep1.publish(t, ["pong"])
+        (t, d) = es2.get()
+        assert t == "/test"
+        assert d[0] == "pong"
+
+        # TODO: This is needed so that the process terminates.
+        # Need to find something better.
+        es1 = es2 = ep1 = ep2 = None
+
+    def test_messages(self):
+        ep1 = broker.Endpoint()
+        ep2 = broker.Endpoint()
+        es1 = ep1.make_subscriber("/test")
+        es2 = ep2.make_subscriber("/test")
+        port = ep1.listen("127.0.0.1", 0)
+        ep2.peer("127.0.0.1", port, 1.0)
+
+        msg0 = ("/test/1", [])
+        msg1 = ("/test/2", [1, 2, 3])
+        msg2 = ("/test/3", [42, "foo", {"a": "A", "b": broker.Port(1947, broker.Port.Protocol.TCP)}])
+
+        ep2.publish(*msg0)
+        ep2.publish(*msg1)
+        ep2.publish(*msg2)
+
+        msgs = es1.get(3)
+        assert not es1.available()
+
+        assert msgs[0] == msg0
+        assert msgs[1] == msg1
+        assert msgs[2] == msg2
+
+        # TODO: This is needed so that the process terminates.
+        # Need to find something better.
+        es1 = es2 = ep1 = ep2 = None
 
 if __name__ == '__main__':
-  unittest.main(verbosity=3)
+    # TestCommunication().test_messages()
+    unittest.main(verbosity=3)

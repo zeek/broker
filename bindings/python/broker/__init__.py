@@ -42,22 +42,68 @@ Timespan = _broker.Timespan
 Timestamp = _broker.Timestamp
 Vector = _broker.Vector
 
-class Subscriber(_broker.Subscriber):
-    pass
+def _make_topic(t):
+    return (Topic(t) if not isinstance(t, Topic) else t)
 
 class EventSubscriber(_broker.Subscriber):
     pass
+
+# This one does not derive from the internal class because we
+# need to pass in existign instances. That means we need to
+# wrap all methods, even those that just reuse the internal
+# implementation.
+class Subscriber:
+    def __init__(self, internal_subscriber):
+        self._subscriber = internal_subscriber
+
+    def get(self, *args, **kwargs):
+        msg = self._subscriber.get(*args, **kwargs)
+
+        if msg is None:
+            return None
+
+        if isinstance(msg, tuple):
+            return (msg[0].string(), Data.to_py(msg[1]))
+
+        if isinstance(msg, _broker.VectorSubscriberValueType):
+            return [(d[0].string(), Data.to_py(d[1])) for d in msg]
+
+        assert False
+
+    def poll(self):
+        msgs = self._subscriber.poll()
+        return [(d[0].string(), Data.to_py(d[1])) for d in msgs]
+
+    def available(self):
+        return self._subscriber.available()
+
+    def fd(self):
+        return self._subscriber.fd()
+
+    def add_topic(self, topic):
+        return self._subscriber.add_topic(_make_topic(topic))
+
+    def remove_topic(self, topic):
+        return self._subscriber.remove_topic(_make_topic(topic))
 
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
         if isinstance(topics, Topic):
             topics = [topics]
+        elif isinstance(topics, str):
+            topics = [Topic(topics)]
         elif isinstance(topics, collections.Iterable):
-            topics = [(Topic(t) if not isinstance(topics, Topic) else t) for t in topics]
+            topics = [_make_topic(t) for t in topics]
         else:
             topics = [Topic(topics)]
 
-        return _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
+        s = _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
+        return Subscriber(s)
+
+    def publish(self, topic, data):
+        topic = _make_topic(topic)
+        data =  Data.from_py(data)
+        return _broker.Endpoint.publish(self, topic, data)
 
 class Data(_broker.Data):
     def __init__(self, x = None):
@@ -115,7 +161,7 @@ class Data(_broker.Data):
             raise Error("unsupported data type: " + str(type(x)))
 
     @staticmethod
-    def from_py(self, x):
+    def from_py(x):
         return Data(x)
 
     @staticmethod

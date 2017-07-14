@@ -26,12 +26,16 @@ using duration = caf::duration;
 using infinite_t = caf::infinite_t;
 using caf::infinite;
 
+inline duration to_duration(double secs) {
+    return duration(std::chrono::milliseconds((int)(secs * 1e3)));
+}
+
 /// Provides blocking access to a stream of data.
 template <class ValueType>
 class subscriber_base {
 public:
   // --- nested types ----------------------------------------------------------
-  
+
   using value_type = ValueType;
 
   using queue_type = detail::shared_subscriber_queue<value_type>;
@@ -105,7 +109,7 @@ public:
         return result;
     }
   }
-  
+
   /// Returns all currently available values without blocking.
   std::vector<value_type> poll() {
     std::vector<value_type> result;
@@ -113,7 +117,7 @@ public:
                     [&](value_type&& x) { result.emplace_back(std::move(x)); });
     return result;
   }
-  
+
   // --- accessors -------------------------------------------------------------
 
   /// Returns the amound of values than can be extracted immediately without

@@ -231,10 +231,8 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::init<>())
     .def(py::init<broker::integer>())
     .def("__init__",
-         [](broker::timespan& instance, double seconds) {
-           auto fs = broker::fractional_seconds{seconds};
-           auto s = std::chrono::duration_cast<broker::timespan>(fs);
-           new (&instance) broker::timespan{s};
+         [](broker::timespan& instance, double secs) {
+           new (&instance) broker::timespan{broker::to_timespan(secs)};
          })
     .def("count", &broker::timespan::count)
     .def("__repr__", [](const broker::timespan& s) { return broker::to_string(s); })
@@ -257,10 +255,8 @@ PYBIND11_PLUGIN(_broker) {
     .def(py::init<>())
     .def(py::init<broker::timespan>())
     .def("__init__",
-         [](broker::timestamp& instance, double seconds) {
-           auto fs = broker::fractional_seconds{seconds};
-           auto s = std::chrono::duration_cast<broker::timespan>(fs);
-           new (&instance) broker::timestamp{s};
+         [](broker::timestamp& instance, double secs) {
+           new (&instance) broker::timespan{broker::to_timespan(secs)};
          })
     .def("time_since_epoch", &broker::timestamp::time_since_epoch)
     .def("__repr__", [](const broker::timestamp& ts) { return broker::to_string(ts); })
@@ -337,10 +333,19 @@ PYBIND11_PLUGIN(_broker) {
 
   using subscriber_base = broker::subscriber_base<std::pair<broker::topic, broker::data>>;
 
+  py::bind_vector<std::vector<subscriber_base::value_type>>(m, "VectorSubscriberValueType");
+
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get", (subscriber_base::value_type (subscriber_base::*)()) &subscriber_base::get)
-    .def("get", (broker::optional<subscriber_base::value_type> (subscriber_base::*)(broker::duration)) &broker::subscriber::get)
-    .def("get", (std::vector<subscriber_base::value_type> (subscriber_base::*)(size_t num, broker::duration)) &broker::subscriber::get, py::arg("num"), py::arg("timeout") = broker::infinite)
+    .def("get",
+         [](subscriber_base& ep, double secs) -> broker::optional<subscriber_base::value_type> {
+	   return ep.get(broker::to_duration(secs)); })
+    .def("get",
+         [](subscriber_base& ep, size_t num) -> std::vector<subscriber_base::value_type> {
+	   return ep.get(num); })
+    .def("get",
+         [](subscriber_base& ep, size_t num, double secs) -> std::vector<subscriber_base::value_type> {
+	   return ep.get(num, broker::to_duration(secs)); })
     .def("poll", &subscriber_base::poll)
     .def("available", &subscriber_base::available)
     .def("fd", &subscriber_base::fd);
@@ -366,10 +371,8 @@ PYBIND11_PLUGIN(_broker) {
     // .def(py::init<broker::configuration>())
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
-         [](broker::endpoint& ep, std::string& addr, uint16_t port, double seconds) {
-         auto fs = broker::fractional_seconds{seconds};
-	 auto s = std::chrono::duration_cast<broker::timeout::seconds>(fs);
-	 ep.peer(addr, port, s);
+         [](broker::endpoint& ep, std::string& addr, uint16_t port, double secs) {
+	 ep.peer(addr, port, std::chrono::seconds((int)secs));
          })
     .def("unpeer", &broker::endpoint::peer)
     .def("peers", &broker::endpoint::peers)

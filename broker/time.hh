@@ -63,6 +63,19 @@ inline std::string to_string(const broker::timestamp& t) {
   return x;
 }
 
+/// @relates broker::timestamp
+inline broker::timespan to_timespan(double secs) {
+  timespan ts;
+  convert(secs, ts);
+  return ts;
+}
+
+/// @relates broker::timestamp
+inline broker::timestamp to_timestamp(double secs) {
+  timestamp ts;
+  convert(secs, ts);
+  return ts;
+}
 
 } // namespace broker
 
