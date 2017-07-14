@@ -44,8 +44,25 @@ endpoint::endpoint(configuration config)
 
 endpoint::~endpoint() {
   CAF_LOG_INFO("destroying endpoint");
-  if (!await_stores_on_shutdown_)
+  shutdown();
+}
+
+void endpoint::shutdown() {
+  CAF_LOG_INFO("shutting down endpoint");
+  if (!await_stores_on_shutdown_) {
+    CAF_LOG_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
+  }
+  if (!children_.empty()) {
+    caf::scoped_actor self{system_};
+    CAF_LOG_DEBUG("send exit messages to all children");
+    for (auto& child : children_)
+      self->send_exit(child, caf::exit_reason::user_shutdown);
+    CAF_LOG_DEBUG("wait until all children have terminated");
+    self->wait_for(children_);
+    children_.clear();
+  }
+  CAF_LOG_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown::value);
 }
 
@@ -170,7 +187,7 @@ subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
 }
 
 caf::actor endpoint::make_actor(actor_init_fun f) {
-  return system_.spawn([=](caf::event_based_actor* self) {
+  auto hdl = system_.spawn([=](caf::event_based_actor* self) {
     // "Hide" unhandled-exception warning if users throw.
     self->set_exception_handler(
       [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
@@ -180,6 +197,8 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
     // Run callback.
     f(self);
   });
+  children_.emplace_back(hdl);
+  return hdl;
 }
 
 expected<store> endpoint::attach_master(std::string name, backend type,

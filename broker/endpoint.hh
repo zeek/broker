@@ -41,6 +41,8 @@ public:
 
   using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
+  // --- construction and destruction ------------------------------------------
+
   endpoint(configuration config = {});
 
   endpoint(endpoint&&) = delete;
@@ -48,7 +50,12 @@ public:
   endpoint& operator=(endpoint&&) = delete;
   endpoint& operator=(const endpoint&) = delete;
 
+  /// Calls `shutdown`.
   ~endpoint();
+
+  /// Shuts down all background activity and blocks until all local subscribers
+  /// and publishers have terminated.
+  void shutdown();
 
   /// @returns Information about this endpoint.
   endpoint_info info() const;
@@ -300,6 +307,7 @@ private:
   mutable caf::actor_system system_;
   caf::actor core_;
   bool await_stores_on_shutdown_;
+  std::vector<caf::actor> children_;
 };
 
 } // namespace broker
