@@ -69,7 +69,7 @@ public:
     auto tmp = get(1);
     BROKER_ASSERT(tmp.size() == 1);
     auto x = std::move(tmp.front());
-    CAF_LOG_INFO("received" << _debug_to_string(x));
+    CAF_LOG_INFO("received" << x);
     return std::move(x);
   }
 
@@ -79,7 +79,7 @@ public:
     auto tmp = get(1, timeout);
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
-      CAF_LOG_INFO("received" << _debug_to_string(x));
+      CAF_LOG_INFO("received" << x);
       return std::move(x);
     }
     return caf::none;
@@ -102,7 +102,7 @@ public:
       else if (!queue_->wait_on_flare_abs(t0))
         return result;
       queue_->consume(num - result.size(), [&](value_type&& x) {
-        CAF_LOG_INFO("received" << _debug_to_string(x));
+        CAF_LOG_INFO("received" << x);
         result.emplace_back(std::move(x));
       });
       if (result.size() == num)
