@@ -10,30 +10,29 @@ class TestCommunication(unittest.TestCase):
     def test_ping(self):
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
-        es1 = ep1.make_subscriber("/test")
-        es2 = ep2.make_subscriber("/test")
+        s1 = ep1.make_subscriber("/test")
+        s2 = ep2.make_subscriber("/test")
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
         ep2.publish("/test", ["ping"])
-        (t, d) = es1.get()
-        assert t == "/test"
-        assert d[0] == "ping"
+        (t, d) = s1.get()
+        self.assertEqual(t, "/test")
+        self.assertEqual(d[0], "ping")
 
         ep1.publish(t, ["pong"])
-        (t, d) = es2.get()
-        assert t == "/test"
-        assert d[0] == "pong"
+        (t, d) = s2.get()
+        self.assertEqual(t, "/test")
+        self.assertEqual(d[0], "pong")
 
         # TODO: This is needed so that the process terminates.
         # Need to find something better.
-        es1 = es2 = ep1 = ep2 = None
+        s1 = s2 = ep1 = ep2 = None
 
     def test_messages(self):
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
-        es1 = ep1.make_subscriber("/test")
-        es2 = ep2.make_subscriber("/test")
+        s1 = ep1.make_subscriber("/test")
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
@@ -42,20 +41,77 @@ class TestCommunication(unittest.TestCase):
         msg2 = ("/test/3", [42, "foo", {"a": "A", "b": broker.Port(1947, broker.Port.Protocol.TCP)}])
 
         ep2.publish(*msg0)
-        ep2.publish(*msg1)
-        ep2.publish(*msg2)
+        ep2.publish_batch(msg1, msg2)
 
-        msgs = es1.get(3)
-        assert not es1.available()
+        msgs = s1.get(3)
+        self.assertFalse(s1.available())
 
-        assert msgs[0] == msg0
-        assert msgs[1] == msg1
-        assert msgs[2] == msg2
+        self.assertEqual(msgs[0], msg0)
+        self.assertEqual(msgs[1], msg1)
+        self.assertEqual(msgs[2], msg2)
 
         # TODO: This is needed so that the process terminates.
         # Need to find something better.
-        es1 = es2 = ep1 = ep2 = None
+        s1 = ep1 = ep2 = None
+
+    def test_publisher(self):
+        ep1 = broker.Endpoint()
+        ep2 = broker.Endpoint()
+        s1 = ep1.make_subscriber("/test")
+        p2 = ep2.make_publisher("/test")
+        port = ep1.listen("127.0.0.1", 0)
+        ep2.peer("127.0.0.1", port, 1.0)
+
+        p2.publish([1, 2, 3])
+        p2.publish_batch(["a", "b", "c"], [True, False])
+
+        msgs = s1.get(3)
+        self.assertFalse(s1.available())
+
+        self.assertEqual(msgs[0], ("/test", [1, 2, 3]))
+        self.assertEqual(msgs[1], ("/test", ["a", "b", "c"]))
+        self.assertEqual(msgs[2], ("/test", [True, False]))
+
+        # TODO: This *still* doesn't terminate, even with this manual
+        # cleanup here.
+        p2 = s1 = None
+        ep1 = ep2 = None
+
+    def test_event_subscriber(self):
+        ep1 = broker.Endpoint()
+        ep2 = broker.Endpoint()
+        es1 = ep1.make_event_subscriber()
+        es2 = ep2.make_event_subscriber()
+        port = ep1.listen("127.0.0.1", 0)
+        ep2.peer("127.0.0.1", port, 1.0)
+
+        # TODO: These never get anything and don't return.
+        es1.get()
+        es2.get()
+
+        # TODO: Once we receive a status, check that it's correct.
+
+        # TODO: This is needed so that the process terminates.
+        # Need to find something better. Note that even the order is
+        # important.
+        es1 = es2 = None
+        s1 = s2 = ep1 = ep2 = None
+
+    def test_event_subscriber_error(self):
+        ep1 = broker.Endpoint()
+        es1 = ep1.make_event_subscriber()
+
+        # TODO: This never returns, would expect it to abort
+        x = ep1.peer("127.0.0.1", 1947, 0.0)
+
+        # TODO: Once we receive an error, check it
+
+        # TODO: This is needed so that the process terminates.
+        # Need to find something better. Note that even the order is
+        # important.
+        es1 = None
+        ep1 = None
 
 if __name__ == '__main__':
-    # TestCommunication().test_messages()
+    #TestCommunication().test_publisher()
     unittest.main(verbosity=3)

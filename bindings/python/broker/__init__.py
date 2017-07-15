@@ -45,10 +45,7 @@ Vector = _broker.Vector
 def _make_topic(t):
     return (Topic(t) if not isinstance(t, Topic) else t)
 
-class EventSubscriber(_broker.Subscriber):
-    pass
-
-# This one does not derive from the internal class because we
+# This class does not derive from the internal class because we
 # need to pass in existign instances. That means we need to
 # wrap all methods, even those that just reuse the internal
 # implementation.
@@ -65,7 +62,7 @@ class Subscriber:
         if isinstance(msg, tuple):
             return (msg[0].string(), Data.to_py(msg[1]))
 
-        if isinstance(msg, _broker.VectorSubscriberValueType):
+        if isinstance(msg, _broker.VectorPairTopicData):
             return [(d[0].string(), Data.to_py(d[1])) for d in msg]
 
         assert False
@@ -86,6 +83,67 @@ class Subscriber:
     def remove_topic(self, topic):
         return self._subscriber.remove_topic(_make_topic(topic))
 
+class EventSubscriber(_broker.Subscriber):
+    def __init__(self, internal_subscriber):
+        self._subscriber = internal_subscriber
+
+    def get(self, *args, **kwargs):
+        x = self._subscriber.get(*args, **kwargs)
+        return self._to_result(x)
+
+    def poll(self):
+        xs = self._subscriber.poll()
+        return [self._to_result(x) for x in xs]
+
+    def available(self):
+        return self._subscriber.available()
+
+    def fd(self):
+        return self._subscriber.fd()
+
+    def _to_result(self, x):
+        if x.is_error():
+            return x.get_error()
+
+        if x.is_status():
+            return x.get_status()
+
+        assert False
+
+class Publisher:
+    # This class does not derive from the internal class because we
+    # need to pass in existign instances. That means we need to
+    # wrap all methods, even those that just reuse the internal
+    # implementation.
+    def __init__(self, internal_publisher):
+        self._publisher = internal_publisher
+
+    def demand(self):
+        return self._publisher.demand()
+
+    def buffered(self):
+        return self._publisher.buffered()
+
+    def capacity(self):
+        return self._publisher.capacity()
+
+    def free_capacity(self):
+        return self._publisher.free_capacity()
+
+    def send_rate(self):
+        return self._publisher.send_rate()
+
+    def fd(self):
+        return self._publisher.fd()
+
+    def publish(self, data):
+        data =  Data.from_py(data)
+        return self._publisher.publish(data)
+
+    def publish_batch(self, *batch):
+        batch = [Data.from_py(d) for d in batch]
+        return self._publisher.publish_batch(_broker.Vector(batch))
+
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
         if isinstance(topics, Topic):
@@ -100,10 +158,23 @@ class Endpoint(_broker.Endpoint):
         s = _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
         return Subscriber(s)
 
+    def make_event_subscriber(self):
+        s = _broker.Endpoint.make_event_subscriber(self)
+        return EventSubscriber(s)
+
+    def make_publisher(self, topic):
+        topic = _make_topic(topic)
+        p = _broker.Endpoint.make_publisher(self, topic)
+        return Publisher(p)
+
     def publish(self, topic, data):
         topic = _make_topic(topic)
         data =  Data.from_py(data)
         return _broker.Endpoint.publish(self, topic, data)
+
+    def publish_batch(self, *batch):
+        batch = [(_make_topic(t), Data.from_py(d)) for (t, d) in batch]
+        return _broker.Endpoint.publish_batch(self, _broker.VectorPairTopicData(batch))
 
 class Data(_broker.Data):
     def __init__(self, x = None):

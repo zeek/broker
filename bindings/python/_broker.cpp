@@ -11,6 +11,10 @@ namespace py = pybind11;
 extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
 
+PYBIND11_MAKE_OPAQUE(broker::set);
+PYBIND11_MAKE_OPAQUE(broker::table);
+PYBIND11_MAKE_OPAQUE(broker::vector);
+
 PYBIND11_PLUGIN(_broker) {
   py::module m{"_broker", "Broker python bindings"};
 
@@ -60,9 +64,21 @@ PYBIND11_PLUGIN(_broker) {
   py::class_<broker::infinite_t>(m, "Infinite")
     .def(py::init<>());
 
-  using subscriber_base = broker::subscriber_base<std::pair<broker::topic, broker::data>>;
+  py::class_<broker::publisher>(m, "Publisher")
+    .def("demand", &broker::publisher::demand)
+    .def("buffered", &broker::publisher::buffered)
+    .def("capacity", &broker::publisher::capacity)
+    .def("free_capacity", &broker::publisher::free_capacity)
+    .def("send_rate", &broker::publisher::send_rate)
+    .def("fd", &broker::publisher::fd)
+    .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
+    .def("publish", (void (broker::publisher::*)(broker::data d)) &broker::publisher::publish)
+    .def("publish_batch",
+       [](broker::publisher& p, std::vector<broker::data> xs) { p.publish(xs); });
 
-  py::bind_vector<std::vector<subscriber_base::value_type>>(m, "VectorSubscriberValueType");
+  using subscriber_base = broker::subscriber_base<broker::subscriber::value_type>;
+
+  py::bind_vector<std::vector<subscriber_base::value_type>>(m, "VectorPairTopicData");
 
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get", (subscriber_base::value_type (subscriber_base::*)()) &subscriber_base::get)
@@ -83,40 +99,63 @@ PYBIND11_PLUGIN(_broker) {
     .def("add_topic", &broker::subscriber::add_topic)
     .def("remove_topic", &broker::subscriber::remove_topic);
 
-  using event_subscriber_base = broker::subscriber_base<broker::detail::variant<broker::none, broker::error, broker::status>>;
+  using event_subscriber_base = broker::subscriber_base<broker::event_subscriber::value_type>;
+
+  py::bind_vector<std::vector<event_subscriber_base::value_type>>(m, "VectorEventSubscriberValueType");
 
   py::class_<event_subscriber_base>(m, "EventSubscriberBase")
     .def("get", (event_subscriber_base::value_type (event_subscriber_base::*)()) &event_subscriber_base::get)
-    .def("get", (broker::optional<event_subscriber_base::value_type> (event_subscriber_base::*)(broker::duration)) &broker::event_subscriber::get)
-    .def("get", (std::vector<event_subscriber_base::value_type> (event_subscriber_base::*)(size_t num, broker::duration)) &broker::event_subscriber::get, py::arg("num"), py::arg("timeout") = broker::infinite)
-    .def("poll", &event_subscriber_base::poll)
+    .def("get",
+         [](event_subscriber_base& ep, double secs) -> broker::optional<event_subscriber_base::value_type> {
+	   return ep.get(broker::to_duration(secs)); })
+    .def("get",
+         [](event_subscriber_base& ep, size_t num) -> std::vector<event_subscriber_base::value_type> {
+	   return ep.get(num); })
+    .def("get",
+         [](event_subscriber_base& ep, size_t num, double secs) -> std::vector<event_subscriber_base::value_type> {
+	   return ep.get(num, broker::to_duration(secs)); })
+    .def("poll",
+         [](event_subscriber_base& ep) -> std::vector<event_subscriber_base::value_type> {
+	   return ep.poll(); })
     .def("available", &event_subscriber_base::available)
     .def("fd", &event_subscriber_base::fd);
 
-  py::class_<broker::event_subscriber, event_subscriber_base>(m, "EventSubscriber");
+  py::class_<broker::event_subscriber, event_subscriber_base> event_subscriber(m, "EventSubscriber");
+
+  py::class_<broker::event_subscriber::value_type>(event_subscriber, "ValueType")
+    .def("is_error",
+         [](broker::event_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
+    .def("is_status",
+         [](broker::event_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
+    .def("get_error",
+         [](broker::event_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
+    .def("get_status",
+         [](broker::event_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
 
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
     // .def(py::init<broker::configuration>())
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
-         [](broker::endpoint& ep, std::string& addr, uint16_t port, double secs) {
-	 ep.peer(addr, port, std::chrono::seconds((int)secs));
-         })
+         [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
+	 return ep.peer(addr, port, std::chrono::seconds((int)retry));},
+         py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
+         )
+    .def("peer_nosync",
+         [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) {
+	 ep.peer_nosync(addr, port, std::chrono::seconds((int)retry));},
+         py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
+         )
     .def("unpeer", &broker::endpoint::peer)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("publish", (void (broker::endpoint::*)(broker::topic t, broker::data d)) &broker::endpoint::publish)
     .def("publish", (void (broker::endpoint::*)(const broker::endpoint_info& dst, broker::topic t, broker::data d)) &broker::endpoint::publish)
-    // .def("publish", (void (endpoint::*)(topic t, std::initializer_list<data> xs)) &broker::endpoint::publish
-    // .def("publish", (void (endpoint::*)(std::vector<value_type> xs)) &broker::endpoint::publish
-    // .def("make_publisher", &broker::endpoint::make_publisher);
-    // .def("publish_all", ...)
-    // .def("publish_all_nosync", ...)
-    .def("make_event_subscriber", &broker::endpoint::make_event_subscriber, py::arg("receive_statuses") = false)
+    .def("publish_batch",
+       [](broker::endpoint& ep, std::vector<broker::endpoint::value_type> xs) { ep.publish(xs); })
+    .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
-    // .def("subscribe", ...)
-    // .def("subscribe_nosync", ...)
+    .def("make_event_subscriber", &broker::endpoint::make_event_subscriber, py::arg("receive_statuses") = false)
     .def("shutdown", &broker::endpoint::shutdown)
     ;
 
