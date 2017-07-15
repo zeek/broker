@@ -388,6 +388,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
     // .def("subscribe", ...)
     // .def("subscribe_nosync", ...)
+    .def("shutdown", &broker::endpoint::shutdown)
     ;
 
 #if 0
