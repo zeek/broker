@@ -157,20 +157,13 @@ std::vector<topic> endpoint::peer_subscriptions() const {
   return result;
 }
 
-static std::string data_to_string(data& d)
-	{
-	std::string s;
-	convert(d, s);
-	return s;
-	}
-
 void endpoint::publish(topic t, data d) {
-  CAF_LOG_INFO("publishing message" << data_to_string(d) << "to topic" << t.string());
+  CAF_LOG_INFO("publishing message" << d << "to topic" << t.string());
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
-  CAF_LOG_INFO("publishing message" << data_to_string(d) << "to" << dst.node << "for topic" << t.string());
+  CAF_LOG_INFO("publishing message" << d << "to" << dst.node << "for topic" << t.string());
   caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
 }
 

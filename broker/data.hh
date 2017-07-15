@@ -88,7 +88,7 @@ public:
       timestamp,
       vector
     };
-		
+
 	template <class T>
 	using from = detail::conditional_t<
         std::is_floating_point<T>::value,
@@ -171,6 +171,13 @@ auto visit(Visitor&& visitor, Ts&&... xs)
 
 /// @relates data
 bool convert(const data& d, std::string& str);
+
+/// @relates data
+inline std::string to_string(const broker::data& d) {
+  std::string s;
+  convert(d, s);
+  return s;
+}
 
 } // namespace broker
 

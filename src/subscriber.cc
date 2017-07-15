@@ -179,18 +179,8 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 
 } // namespace <anonymous>
 
-std::string topics_to_string(std::vector<topic> ts) {
-  std::string s;
-  for (auto t : ts) {
-    if (s.size())
-      s += ", ";
-    s += t.string();
-  }
-  return s;
-}
-
 subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
-  CAF_LOG_INFO("creating subscriber for topic(s)" << topics_to_string(ts));
+  CAF_LOG_INFO("creating subscriber for topic(s)" << ts);
 
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
