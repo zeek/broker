@@ -15,6 +15,7 @@ set(tests
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
+  cpp/ssl.cc
   cpp/store.cc
   cpp/subscriber.cc
   cpp/topic.cc

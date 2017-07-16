@@ -44,7 +44,7 @@ struct core_state {
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(filter_type initial_filter);
+  void init(filter_type initial_filter, bool use_ssl);
 
   // --- message introspection -------------------------------------------------
 
@@ -181,7 +181,7 @@ struct core_state {
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter);
+                         filter_type initial_filter, bool use_ssl);
 
 } // namespace detail
 } // namespace broker

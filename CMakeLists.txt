@@ -10,7 +10,7 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/lib)
 # -- Dependencies -------------------------------------------------------------
 
 # Extract CAF version.
-find_package(CAF COMPONENTS core io test REQUIRED)
+find_package(CAF COMPONENTS core io test openssl REQUIRED)
 file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
@@ -22,7 +22,7 @@ set(CAF_VERSION
     "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
 # Check for required CAF version.
-set(CAF_VERSION_REQUIRED 0.15.2)
+set(CAF_VERSION_REQUIRED 0.15.3)
 if (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED})
   message(FATAL_ERROR "Broker requires at least CAF version"
     " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")

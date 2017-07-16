@@ -56,7 +56,7 @@ CAF_TEST_FIXTURE_SCOPE(subscriber_tests, base_fixture)
 
 CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, false);
   auto core2 = ep.core();
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
@@ -124,7 +124,7 @@ CAF_TEST(blocking_subscriber) {
 
 CAF_TEST(nonblocking_subscriber) {
   // Spawn/get/configure core actors.
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, false);
   auto core2 = ep.core();
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);

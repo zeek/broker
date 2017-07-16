@@ -9,7 +9,7 @@
 #include <caf/optional.hpp>
 
 #include <caf/io/middleman.hpp>
-
+#include <caf/openssl/manager.hpp>
 
 #include "broker/network_info.hh"
 
@@ -24,6 +24,8 @@ class network_cache {
 public:
   network_cache(caf::event_based_actor* selfptr);
 
+  void set_use_ssl(bool use_ssl_) { use_ssl = use_ssl_; }
+
   /// Either returns an actor handle immediately if the entry is cached or
   /// queries the middleman actor and responds later via response promise.
   caf::result<caf::actor> fetch(const network_info& x);
@@ -36,7 +38,10 @@ public:
       f(*y);
       return;
     }
-    self->request(self->home_system().middleman().actor_handle(), infinite,
+    CAF_LOG_INFO("initiating connection to" << (x.address + ":" + std::to_string(x.port)) << (use_ssl ? "(SSL)" : "(no SSL)"));
+    auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
+                        : self->home_system().middleman().actor_handle());
+    self->request(hdl, infinite,
                   connect_atom::value, x.address, x.port)
     .then(
       [=](const node_id&, strong_actor_ptr& res,
@@ -66,7 +71,10 @@ public:
       f(*y);
       return;
     }
-    self->request(self->home_system().middleman().actor_handle(), infinite,
+    CAF_LOG_INFO("retrieving connection for" << x << (use_ssl ? "(SSL)" : "(no SSL)"));
+    auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
+                        : self->home_system().middleman().actor_handle());
+    self->request(hdl, infinite,
                   get_atom::value, x.node())
     .then(
       [=](const node_id&, std::string& address, uint16_t port) mutable {
@@ -93,6 +101,7 @@ public:
 private:
   // Parent.
   caf::event_based_actor* self;
+  bool use_ssl = true;
 
   // Maps remote actor handles to network addresses.
   std::unordered_map<caf::actor, network_info> addrs_;

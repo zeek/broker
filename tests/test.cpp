@@ -18,7 +18,7 @@ base_fixture::base_fixture(bool fake_network)
 }
 
 configuration base_fixture::make_config(bool fake_network) {
-  configuration cfg;
+  configuration cfg(fake_network);
   cfg.middleman_detach_utility_actors = false;
   cfg.scheduler_policy = caf::atom("testing");
   cfg.logger_verbosity = caf::atom("TRACE");

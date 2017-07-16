@@ -1,4 +1,5 @@
 #include <caf/io/middleman.hpp>
+#include <caf/openssl/all.hpp>
 
 #include "broker/address.hh"
 #include "broker/configuration.hh"
@@ -18,7 +19,7 @@
 
 namespace broker {
 
-configuration::configuration() {
+configuration::configuration(bool disable_ssl) : use_ssl(!disable_ssl) {
   add_message_type<data>("broker::data");
   add_message_type<address>("broker::address");
   add_message_type<subnet>("broker::subnet");
@@ -45,6 +46,8 @@ configuration::configuration() {
   add_message_type<std::vector<endpoint::stream_type::value_type>>(
     "std::vector<broker::endpoint::stream_type::value_type>");
   load<caf::io::middleman>();
+  if (use_ssl)
+    load<caf::openssl::manager>();
   logger_file_name = "broker_[PID]_[TIMESTAMP].log";
   logger_verbosity = caf::atom("INFO");
   logger_component_filter = "broker";

@@ -23,7 +23,7 @@ using data_vector = std::vector<endpoint::value_type>;
 namespace {
 
 configuration make_config() {
-  configuration cfg;
+  configuration cfg(true);
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
   cfg.middleman_network_backend = caf::atom("testing");
   cfg.scheduler_policy = caf::atom("testing");

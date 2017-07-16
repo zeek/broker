@@ -9,10 +9,12 @@ namespace broker {
 class configuration : public caf::actor_system_config {
 public:
   /// Default-constructs a configuration.
-  configuration();
+  configuration(bool disable_ssl=false);
 
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
+
+  bool use_ssl;
 };
 
 } // namespace broker

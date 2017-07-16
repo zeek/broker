@@ -56,8 +56,9 @@ core_state::core_state(caf::event_based_actor* ptr)
   statuses_ = self->system().groups().get_local("broker/statuses");
 }
 
-void core_state::init(filter_type initial_filter) {
+void core_state::init(filter_type initial_filter, bool use_ssl) {
   filter = std::move(initial_filter);
+  cache.set_use_ssl(use_ssl);
   governor = caf::make_counted<stream_governor>(this);
   auto wsid = governor->workers().sid();
   worker_relay = caf::make_counted<stream_relay>(governor, wsid,
@@ -183,8 +184,8 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
 }
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter) {
-  self->state.init(std::move(initial_filter));
+                         filter_type initial_filter, bool use_ssl) {
+  self->state.init(std::move(initial_filter), use_ssl);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
