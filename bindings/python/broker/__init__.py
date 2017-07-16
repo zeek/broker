@@ -144,6 +144,60 @@ class Publisher:
         batch = [Data.from_py(d) for d in batch]
         return self._publisher.publish_batch(_broker.Vector(batch))
 
+class Store:
+    # This class does not derive from the internal class because we
+    # need to pass in existign instances. That means we need to
+    # wrap all methods, even those that just reuse the internal
+    # implementation.
+    def __init__(self, internal_store):
+        self._store = internal_store
+
+    def name(self):
+        return self._store.name()
+
+    def get(self, data, aspect=None):
+        data = Data.from_py(data)
+
+        if aspect is None:
+            value = self._store.get(data)
+        else:
+            value = self._store.get(data, aspect)
+
+        return Data.to_py(value.get()) if value.is_valid() else None
+
+    def keys(self):
+        return [Data.to_py(k) for k in self._store.keys()]
+
+    def put(self, key, value, expiry=None):
+        key = Data.from_py(key)
+        value = Data.from_py(value)
+        expiry = self._to_expiry(expiry)
+        return self._store.put(key, value, expiry)
+
+    def erase(self, data):
+        data = Data.from_py(data)
+        return self._store.erase(data)
+
+    def clear(self):
+        key = Data.from_py(key)
+        value = Data.from_py(value)
+        return self._store.clear()
+
+    def add(self, key, value, expiry=None):
+        key = Data.from_py(key)
+        value = Data.from_py(value)
+        expiry = self._to_expiry(expiry)
+        return self._store.add(key, value, expiry)
+
+    def subtract(self, key, value, expiry=None):
+        key = Data.from_py(key)
+        value = Data.from_py(value)
+        expiry = self._to_expiry(expiry)
+        return self._store.subtract(key, value, expiry)
+
+    def _to_expiry(self, e):
+        return (_broker.OptionalTimespan(_broker.Timespan(e * 1e9)) if e is not None else _broker.OptionalTimespan())
+
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
         if isinstance(topics, Topic):
@@ -175,6 +229,20 @@ class Endpoint(_broker.Endpoint):
     def publish_batch(self, *batch):
         batch = [(_make_topic(t), Data.from_py(d)) for (t, d) in batch]
         return _broker.Endpoint.publish_batch(self, _broker.VectorPairTopicData(batch))
+
+    def attach(self, name, type=None, opts={}):
+        if type:
+            # Master
+            bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
+            for (k, v) in opts.items():
+                bopts[k] = Data.from_py(v)
+
+            s = _broker.Endpoint.attach(self, name, type, bopts)
+        else:
+            # Clone
+            s = _broker.Endpoint.attach(self, name)
+
+        return Store(s.get()) if s.is_valid() else None
 
 class Data(_broker.Data):
     def __init__(self, x = None):

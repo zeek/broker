@@ -10,6 +10,7 @@ namespace py = pybind11;
 
 extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
+extern void init_store(py::module& m);
 
 PYBIND11_MAKE_OPAQUE(broker::set);
 PYBIND11_MAKE_OPAQUE(broker::table);
@@ -20,6 +21,7 @@ PYBIND11_PLUGIN(_broker) {
 
   init_enums(m);
   init_data(m);
+  init_store(m);
 
   auto version = m.def_submodule("Version", "Version constants");
   version.attr("MAJOR")
@@ -132,6 +134,8 @@ PYBIND11_PLUGIN(_broker) {
     .def("get_status",
          [](broker::event_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
 
+  py::bind_map<broker::backend_options>(m, "MapBackendOptions");
+
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
     // .def(py::init<broker::configuration>())
@@ -157,109 +161,16 @@ PYBIND11_PLUGIN(_broker) {
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
     .def("make_event_subscriber", &broker::endpoint::make_event_subscriber, py::arg("receive_statuses") = false)
     .def("shutdown", &broker::endpoint::shutdown)
-    ;
-
-#if 0
-    // TODO: old, needs updating.
-    .def("attach_master",
-         [](endpoint& ep, const std::string& name, backend b,
-            const backend_options& opts) -> expected<store> {
-           switch (b) {
-             default:
-               return make_error(ec::backend_failure, "invalid backend type");
-             case memory:
-               return ep.attach<master, memory>(name, opts);
-             case sqlite:
-               return ep.attach<master, sqlite>(name, opts);
-             case rocksdb:
-               return ep.attach<master, rocksdb>(name, opts);
-           }
-         },
-         py::keep_alive<0, 1>())
-    .def("attach_clone",
-         [](endpoint& ep, const std::string& name) {
-           return ep.attach<broker::clone>(name);
-         },
-         py::keep_alive<0, 1>());
-#endif
-
-/////// TODO: Updated to new Broker API until here.
-
-#if 0
-  py::class_<status>(m, "Status")
-    .def(py::init<>())
-    .def("context",
-         [](status& instance) {
-           // TODO: create the right context object based on status code.
-           return "";
-         })
-    .def("message",
-         [](status& instance) {
-           auto msg = instance.message();
-           return msg ? *msg : std::string{};
-         });
-
-  //
-  // Communication & Store
-  //
-
-  py::class_<message>(m, "Message")
-    .def("topic", &message::topic)
-    .def("data", &message::data);
-
-  // TODO: add ctor that takes command line arguments.
-  py::class_<configuration>(m, "Configuration")
-    .def(py::init<>());
-
-  py::class_<context>(m, "Context")
-    .def("__init__",
-         [](context& instance) {
-           new (&instance) context{};
-         })
-    .def("__init__",
-         [](context& instance, configuration& cfg) {
-           new (&instance) context{std::move(cfg)};
-         })
-    .def("spawn_blocking", &context::spawn<blocking>,
-         py::keep_alive<0, 1>())
-    .def("spawn_nonblocking", &context::spawn<nonblocking>,
-         py::keep_alive<0, 1>());
-
-  py::class_<backend_options>(m, "BackendOptions");
-
-  py::class_<mailbox>(m, "Mailbox")
-    .def("descriptor", &mailbox::descriptor)
-    .def("empty", &mailbox::empty)
-    .def("count", &mailbox::count);
-
-  py::class_<blocking_endpoint, endpoint>(m, "BlockingEndpoint")
-    .def("subscribe", [](blocking_endpoint& ep, const std::string& t) {
-           ep.subscribe(t);
-         })
-    .def("unsubscribe", [](blocking_endpoint& ep, const std::string& t) {
-           ep.unsubscribe(t);
-         })
-    .def("receive", &blocking_endpoint::receive)
-    .def("mailbox", &blocking_endpoint::mailbox, py::keep_alive<0, 1>());
-
-  py::class_<nonblocking_endpoint, endpoint>(m, "NonblockingEndpoint")
-    .def("subscribe_msg",
-         [](nonblocking_endpoint& ep, const std::string& t,
-            std::function<void(const topic&, const data& d)> f) {
-           ep.subscribe(t, f);
-         })
-    .def("subscribe_status",
-         [](nonblocking_endpoint& ep, std::function<void(const status& s)> f) {
-           ep.subscribe(f);
-         })
-    .def("unsubscribe", [](nonblocking_endpoint& ep, const std::string& t) {
-           ep.unsubscribe(t);
-         });
-
-  // TODO: complete definition
-  py::class_<store>(m, "Store")
-    .def("name", &store::name);
-#endif
+    .def("attach",
+         [](broker::endpoint& ep, const std::string& name, broker::backend type,
+            const broker::backend_options& opts) -> broker::expected<broker::store> {
+	        return ep.attach<broker::master>(name, type, opts);
+	    })
+    .def("attach",
+         [](broker::endpoint& ep, const std::string& name) -> broker::expected<broker::store> {
+	        return ep.attach<broker::clone>(name);
+	    }) 
+   ;
 
   return m.ptr();
 }
