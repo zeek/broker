@@ -177,6 +177,7 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
                               BROKER_ERROR(desc);
                               self->state.emit_error<ec::peer_unavailable>(
                                 std::move(cpy.addr), desc);
+			      cpy.rp.deliver(sec::cannot_connect_to_node);
                             }
                           });
 }
