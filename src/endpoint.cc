@@ -41,17 +41,17 @@ endpoint::endpoint(configuration config)
     await_stores_on_shutdown_(false) {
   if (config.use_ssl && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
-  CAF_LOG_INFO("creating endpoint");
+  BROKER_INFO("creating endpoint");
   core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config.use_ssl);
 }
 
 endpoint::~endpoint() {
-  CAF_LOG_INFO("destroying endpoint");
+  BROKER_INFO("destroying endpoint");
   shutdown();
 }
 
 void endpoint::shutdown() {
-  CAF_LOG_INFO("shutting down endpoint");
+  BROKER_INFO("shutting down endpoint");
   if (!await_stores_on_shutdown_) {
     CAF_LOG_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
@@ -70,7 +70,7 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  CAF_LOG_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.use_ssl ? "(SSL)" : "(no SSL)"));
+  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.use_ssl ? "(SSL)" : "(no SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   expected<uint16_t> res = caf::error{};
   if (config_.use_ssl)
@@ -83,7 +83,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 bool endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
-  CAF_LOG_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
@@ -103,13 +103,13 @@ bool endpoint::peer(const std::string& address, uint16_t port,
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  CAF_LOG_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
   caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry, uint32_t{0});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  CAF_LOG_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
+  BROKER_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::unpeer::value,
@@ -129,7 +129,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
 
 void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  CAF_LOG_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
+  BROKER_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
@@ -165,18 +165,18 @@ std::vector<topic> endpoint::peer_subscriptions() const {
 }
 
 void endpoint::publish(topic t, data d) {
-  CAF_LOG_INFO("publishing" << std::make_pair(t, d));
+  BROKER_INFO("publishing" << std::make_pair(t, d));
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
-  CAF_LOG_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
+  BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
   caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
 }
 
 void endpoint::publish(std::vector<value_type> xs) {
   for ( auto x : xs ) {
-    CAF_LOG_INFO("publishing" << x);
+    BROKER_INFO("publishing" << x);
     caf::anon_send(core(), atom::publish::value, std::move(x.first), std::move(x.second));
   }
 }
@@ -210,7 +210,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
 
 expected<store> endpoint::attach_master(std::string name, backend type,
                                       backend_options opts) {
-  CAF_LOG_INFO("attaching master store" << name << "of type" << type);
+  BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
   self->request(core(), caf::infinite, atom::store::value, atom::master::value,
@@ -227,7 +227,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 }
 
 expected<store> endpoint::attach_clone(std::string name) {
-  CAF_LOG_INFO("attaching clone store" << name);
+  BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::store::value, atom::clone::value,

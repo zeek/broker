@@ -180,7 +180,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 } // namespace <anonymous>
 
 subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
-  CAF_LOG_INFO("creating subscriber for topic(s)" << ts);
+  BROKER_INFO("creating subscriber for topic(s)" << ts);
 
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
@@ -195,7 +195,7 @@ size_t subscriber::rate() const {
 }
 
 void subscriber::add_topic(topic x) {
-  CAF_LOG_INFO("adding topic" << x << "to subscriber");
+  BROKER_INFO("adding topic" << x << "to subscriber");
   auto e = filter_.end();
   auto i = std::find(filter_.begin(), e, x);
   if (i == e) {
@@ -205,7 +205,7 @@ void subscriber::add_topic(topic x) {
 }
 
 void subscriber::remove_topic(topic x) {
-  CAF_LOG_INFO("removing topic" << x << "from subscriber");
+  BROKER_INFO("removing topic" << x << "from subscriber");
   auto e = filter_.end();
   auto i = std::find(filter_.begin(), e, x);
   if (i != filter_.end()) {

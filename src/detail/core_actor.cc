@@ -215,7 +215,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         BROKER_ASSERT(is_remote(i->info.flags));
         desc = "lost remote inbound peer";
       }
-      BROKER_DEBUG(desc);
+      BROKER_INFO(desc);
       self->send(subscriber, make_status<sc::peer_removed>(i->info.peer, desc));
       peers->erase(i);
       */
@@ -451,7 +451,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         backend backend_type,
         backend_options& opts) -> caf::result<caf::actor> {
       CAF_LOG_TRACE(CAF_ARG(name) << CAF_ARG(backend_type) << CAF_ARG(opts));
-      BROKER_DEBUG("attaching master:" << name);
+      BROKER_INFO("attaching master:" << name);
       // Sanity check: this message must be a point-to-point message.
       auto& cme = *self->current_mailbox_element();
       if (!cme.stages.empty())
@@ -459,17 +459,17 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       auto i = st.masters.find(name);
       if (i != st.masters.end()) {
-        BROKER_DEBUG("found local master");
+        BROKER_INFO("found local master");
         return i->second;
       }
       if (st.has_remote_master(name)) {
         BROKER_WARNING("remote master with same name exists already");
         return ec::master_exists;
       }
-      BROKER_DEBUG("instantiating backend");
+      BROKER_INFO("instantiating backend");
       auto ptr = make_backend(backend_type, std::move(opts));
       BROKER_ASSERT(ptr);
-      BROKER_DEBUG("spawn new master");
+      BROKER_INFO("spawning new master");
       auto ms = self->spawn<caf::linked + caf::lazy_init>(master_actor, self,
                                                           name, std::move(ptr));
       st.masters.emplace(name, ms);
@@ -490,13 +490,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::store, atom::clone, atom::attach,
         std::string& name) -> caf::result<caf::actor> {
-      BROKER_DEBUG("attaching clone:" << name);
+      BROKER_INFO("attaching clone:" << name);
       // Sanity check: this message must be a point-to-point message.
       auto& cme = *self->current_mailbox_element();
       if (!cme.stages.empty())
         return ec::unspecified;
       auto spawn_clone = [=](const caf::actor& master) -> caf::actor {
-        BROKER_DEBUG("spawn new clone");
+        BROKER_INFO("spawning new clone");
         auto clone = self->spawn<linked + lazy_init>(clone_actor, self,
                                                      master, name);
         auto& st = self->state;
@@ -523,13 +523,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       if (i != self->state.masters.end()) {
         // We don't run clone and master on the same endpoint.
         if (self->node() == i->second.node()) {
-          BROKER_DEBUG("attempted to run clone & master on the same endpoint");
+          BROKER_WARNING("attempted to run clone & master on the same endpoint");
           return ec::no_such_master;
         }
-        BROKER_DEBUG("found master in map");
+        BROKER_INFO("found master in map");
         return spawn_clone(i->second);
       } else if (peers.empty()) {
-        BROKER_DEBUG("no peers to ask for the master");
+        BROKER_INFO("no peers to ask for the master");
         return ec::no_such_master;
       }
       auto resolv = self->spawn<caf::lazy_init>(master_resolver);
@@ -540,12 +540,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->request(resolv, caf::infinite, std::move(tmp), std::move(name))
       .then(
         [=](actor& master) mutable {
-          BROKER_DEBUG("received result from resolver:" << master);
+          BROKER_INFO("received result from resolver:" << master);
           self->state.masters.emplace(name, master);
           rp.deliver(spawn_clone(std::move(master)));
         },
         [=](caf::error& err) mutable {
-          BROKER_DEBUG("received error from resolver:" << err);
+          BROKER_INFO("received error from resolver:" << err);
           rp.deliver(std::move(err));
         }
       );
@@ -562,7 +562,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         const std::string& name) -> result<actor> {
       auto i = self->state.masters.find(name);
       if (i != self->state.masters.end()) {
-        BROKER_DEBUG("found local master, using direct link");
+        BROKER_INFO("found local master, using direct link");
         return i->second;
       }
       auto resolv = self->spawn<caf::lazy_init>(master_resolver);
@@ -573,12 +573,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       self->request(resolv, caf::infinite, std::move(tmp), std::move(name))
       .then(
         [=](actor& master) mutable {
-          BROKER_DEBUG("received result from resolver:" << master);
+          BROKER_INFO("received result from resolver:" << master);
           self->state.masters.emplace(name, master);
           rp.deliver(master);
         },
         [=](caf::error& err) mutable {
-          BROKER_DEBUG("received error from resolver:" << err);
+          BROKER_INFO("received error from resolver:" << err);
           rp.deliver(std::move(err));
         }
       );

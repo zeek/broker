@@ -39,11 +39,11 @@ void clone_state::command(internal_command& cmd) {
 }
 
 void clone_state::operator()(none) {
-  BROKER_DEBUG("received empty command");
+  BROKER_WARNING("received empty command");
 }
 
 void clone_state::operator()(put_command& x) {
-  BROKER_DEBUG("put" << x.key << "->" << x.value);
+  BROKER_INFO("PUT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end())
     i->second = std::move(x.value);
@@ -52,12 +52,12 @@ void clone_state::operator()(put_command& x) {
 }
 
 void clone_state::operator()(erase_command& x) {
-  BROKER_DEBUG("erase" << x.key);
+  BROKER_INFO("ERASE" << x.key);
   store.erase(x.key);
 }
 
 void clone_state::operator()(add_command& x) {
-  BROKER_DEBUG("add" << x.key << "->" << x.value);
+  BROKER_INFO("ADD" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i == store.end())
     store.emplace(std::move(x.key), std::move(x.value));
@@ -66,7 +66,7 @@ void clone_state::operator()(add_command& x) {
 }
 
 void clone_state::operator()(subtract_command& x) {
-  BROKER_DEBUG("subtract" << x.key << "->" << x.value);
+  BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
     visit(remover{x.value}, i->second);
@@ -77,14 +77,16 @@ void clone_state::operator()(subtract_command& x) {
 }
 
 void clone_state::operator()(snapshot_command&) {
-  BROKER_ERROR("received a snapshot_command in clone actor");
+  BROKER_ERROR("received SNAPSHOT");
 }
 
 void clone_state::operator()(set_command& x) {
+  BROKER_INFO("SET" << x.state);
   store = std::move(x.state);
 }
 
 void clone_state::operator()(clear_command&) {
+  BROKER_INFO("CLEAR");
   store.clear();
 }
 
@@ -104,10 +106,10 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
-        BROKER_DEBUG("core is down, kill clone as well");
+        BROKER_INFO("core is down, kill clone as well");
         self->quit(msg.reason);
       } else {
-        BROKER_DEBUG("lost master");
+        BROKER_INFO("lost master");
         self->quit(msg.reason);
       }
     }
@@ -119,43 +121,55 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.forward(std::move(x));
     },
     [=](atom::get, atom::keys) -> data {
-      BROKER_DEBUG("KEYS");
-      return self->state.keys();
+      auto x = self->state.keys();
+      BROKER_INFO("KEYS ->" << x);
+      return x;
     },
     [=](atom::get, atom::keys, request_id id) {
-      BROKER_DEBUG("KEYS" << "with id:" << id);
-      return caf::make_message(self->state.keys(), id);
+      auto x = self->state.keys();
+      BROKER_INFO("KEYS" << "with id" << id << "->" << x);
+      return caf::make_message(x, id);
     },
     [=](atom::get, const data& key) -> expected<data> {
-      BROKER_DEBUG("GET" << key);
+      expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end())
-        return ec::no_such_key;
-      return i->second;
+      if (i != self->state.store.end())
+        result = std::move(i->second);
+      BROKER_INFO("GET" << key << "->" << result);
+      return result;
     },
-    [=](atom::get, const data& key, const data& value) -> expected<data> {
-      BROKER_DEBUG("GET" << key << "->" << value);
+    [=](atom::get, const data& key, const data& aspect) -> expected<data> {
+      expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end())
-        return ec::no_such_key;
-      return visit(retriever{value}, i->second);
+      if (i != self->state.store.end())
+        result = visit(retriever{aspect}, i->second);
+      BROKER_INFO("GET" << key << aspect << "->" << result);
+      return result;
     },
     [=](atom::get, const data& key, request_id id) {
-      BROKER_DEBUG("GET" << key << "with id:" << id);
+      caf::message result;
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end())
-        return caf::make_message(make_error(ec::no_such_key), id);
-      return caf::make_message(i->second, id);
+      if (i != self->state.store.end())
+        result = caf::make_message(i->second, id);
+      else
+        result = caf::make_message(make_error(ec::no_such_key), id);
+      BROKER_INFO("GET" << key << "with id" << id << "->" << result.take(1));
+      return result;
     },
-    [=](atom::get, const data& key, const data& value, request_id id) {
-      BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
+    [=](atom::get, const data& key, const data& aspect, request_id id) {
+      caf::message result;
       auto i = self->state.store.find(key);
-      if (i == self->state.store.end())
-        return caf::make_message(make_error(ec::no_such_key), id);
-      auto x = visit(retriever{value}, i->second);
-      if (x)
-        return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
+      if (i != self->state.store.end()) {
+        auto x = visit(retriever{aspect}, i->second);
+        if (x)
+          result = caf::make_message(*x, id);
+        else
+          result = caf::make_message(std::move(x.error()), id);
+      }
+      else
+        result = caf::make_message(make_error(ec::no_such_key), id);
+      BROKER_INFO("GET" << key << aspect << "with id" << id << "->" << result.take(1));
+      return result;
     },
     [=](atom::get, atom::name) {
       return self->state.name;

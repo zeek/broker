@@ -45,7 +45,7 @@ void master_state::remind(timespan expiry, const data& key) {
 }
 
 void master_state::expire(data& key) {
-  BROKER_DEBUG("expiring key" << key);
+  BROKER_INFO("EXPIRE" << key);
   auto result = backend->expire(key);
   if (!result)
     BROKER_ERROR("failed to expire key:" << to_string(result.error()));
@@ -62,11 +62,11 @@ void master_state::command(internal_command& cmd) {
 }
 
 void master_state::operator()(none) {
-  BROKER_DEBUG("received empty command");
+  BROKER_INFO("received empty command");
 }
 
 void master_state::operator()(put_command& x) {
-  BROKER_DEBUG("put" << x.key << "->" << x.value);
+  BROKER_INFO("PUT" << x.key << "->" << x.value);
   auto result = backend->put(x.key, x.value, x.expiry);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
@@ -78,7 +78,7 @@ void master_state::operator()(put_command& x) {
 }
 
 void master_state::operator()(erase_command& x) {
-  BROKER_DEBUG("erase" << x.key);
+  BROKER_INFO("ERASE" << x.key);
   auto result = backend->erase(x.key);
   if (!result) {
     BROKER_WARNING("failed to erase" << x.key);
@@ -88,7 +88,7 @@ void master_state::operator()(erase_command& x) {
 }
 
 void master_state::operator()(add_command& x) {
-  BROKER_DEBUG("add" << x.key);
+  BROKER_INFO("ADD" << x.key);
   auto result = backend->add(x.key, x.value, x.expiry);
   if (!result) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
@@ -100,7 +100,7 @@ void master_state::operator()(add_command& x) {
 }
 
 void master_state::operator()(subtract_command& x) {
-  BROKER_DEBUG("subtract" << x.key);
+  BROKER_INFO("SUBTRACT" << x.key);
   auto result = backend->subtract(x.key, x.value, x.expiry);
   if (!result) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
@@ -112,9 +112,9 @@ void master_state::operator()(subtract_command& x) {
 }
 
 void master_state::operator()(snapshot_command& x) {
-  BROKER_DEBUG("got snapshot request from" << to_string(x.clone));
+  BROKER_INFO("SNAPSHOT from" << to_string(x.clone));
   if (x.clone == nullptr) {
-    BROKER_DEBUG("snapshot command with invalid address received");
+    BROKER_INFO("snapshot command with invalid address received");
     return;
   }
   auto ss = backend->snapshot();
@@ -139,7 +139,7 @@ void master_state::operator()(set_command& x) {
 }
 
 void master_state::operator()(clear_command& x) {
-  BROKER_ERROR("clear");
+  BROKER_ERROR("CLEAR");
   auto res = backend->clear();
   if (!res)
     die("failed to clear master");
@@ -154,10 +154,10 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
-        BROKER_DEBUG("core is down, kill master as well");
+        BROKER_INFO("core is down, kill master as well");
         self->quit(msg.reason);
       } else {
-        BROKER_DEBUG("lost a clone");
+        BROKER_INFO("lost a clone");
         self->state.clones.erase(msg.source);
       }
     }
@@ -172,34 +172,37 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       self->state.expire(key);
     },
     [=](atom::get, atom::keys) -> expected<data> {
-      BROKER_DEBUG("KEYS");
-      return self->state.backend->keys();
+      auto x = self->state.backend->keys();
+      BROKER_INFO("KEYS ->" << x);
+      return x;
     },
     [=](atom::get, atom::keys, request_id id) {
-      BROKER_DEBUG("KEYS" << "with id:" << id);
       auto x = self->state.backend->keys();
+      BROKER_INFO("KEYS" << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, const data& key) -> expected<data> {
-      BROKER_DEBUG("GET" << key);
-      return self->state.backend->get(key);
+      auto x = self->state.backend->get(key);
+      BROKER_INFO("GET" << key << "->" << x);
+      return x;
     },
-    [=](atom::get, const data& key, const data& value) -> expected<data> {
-      BROKER_DEBUG("GET" << key << "->" << value);
-      return self->state.backend->get(key, value);
+    [=](atom::get, const data& key, const data& aspect) -> expected<data> {
+      auto x = self->state.backend->get(key, aspect);
+      BROKER_INFO("GET" << key << aspect << "->" << x);
+      return x;
     },
     [=](atom::get, const data& key, request_id id) {
-      BROKER_DEBUG("GET" << key << "with id:" << id);
       auto x = self->state.backend->get(key);
+      BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
     [=](atom::get, const data& key, const data& value, request_id id) {
-      BROKER_DEBUG("GET" << key << "->" << value << "with id:" << id);
       auto x = self->state.backend->get(key, value);
+      BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
