@@ -184,7 +184,7 @@ CAF_TEST(master_with_clone) {
   mars.sched.inline_next_enqueue();
   CAF_MESSAGE("attach a clone on mars");
   mars.sched.inline_next_enqueue();
-  auto expected_ds_mars = mars.ep.attach<clone>("foo");
+  auto expected_ds_mars = mars.ep.attach<frontend::clone>("foo");
   CAF_REQUIRE(expected_ds_mars.engaged());
   auto& ds_mars = *expected_ds_mars;
   auto& ms_mars = ds_mars.frontend();

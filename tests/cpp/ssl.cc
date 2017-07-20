@@ -1,6 +1,8 @@
 // This suite is a test ensuring SSL authentication works as expected.
 #define SUITE ssl
 
+#include <limits.h>
+
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 

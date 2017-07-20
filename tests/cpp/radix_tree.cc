@@ -16,7 +16,7 @@ using test_radix_tree = detail::radix_tree<int>;
 namespace {
 
 bool check_match(deque<test_radix_tree::iterator> matches,
-                 set<pair<string, int>> expected) {
+                 std::set<pair<string, int>> expected) {
   if (matches.size() != expected.size())
     return false;
   for (auto it = expected.begin(); it != expected.end(); ++it) {
