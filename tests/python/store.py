@@ -76,8 +76,9 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("d", 10), None)
 
         testOps(m)
-        # Note: I'd expect a slight delay until the data gets into the clones  .
-        # But haven't see this fail so far ..                                  .
+        # Note: There's a slight delay until the data gets into the clones, but
+        # doing the master tests first seems good enough. At least I haven't
+        # seen this break so far unless I take them out.
         testOps(c1)
         testOps(c2)
 

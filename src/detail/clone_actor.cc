@@ -134,7 +134,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
-        result = std::move(i->second);
+        result = i->second;
       BROKER_INFO("GET" << key << "->" << result);
       return result;
     },
