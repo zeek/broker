@@ -113,5 +113,4 @@ class TestCommunication(unittest.TestCase):
         ep1 = None
 
 if __name__ == '__main__':
-    #TestCommunication().test_publisher()
     unittest.main(verbosity=3)

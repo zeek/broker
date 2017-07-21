@@ -161,6 +161,7 @@ class Store:
         if aspect is None:
             value = self._store.get(data)
         else:
+            aspect = Data.from_py(aspect)
             value = self._store.get(data, aspect)
 
         return Data.to_py(value.get()) if value.is_valid() else None
