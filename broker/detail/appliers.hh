@@ -131,12 +131,19 @@ struct retriever {
   }
 
   result_type operator()(const vector& v) const {
-    auto i = get_if<count>(aspect);
-    if (!i)
-      return ec::type_clash;
-    if (*i >= v.size())
+    count i;
+    auto x = get_if<count>(aspect);
+    if (x)
+      i = *x;
+    else {
+      auto y = get_if<integer>(aspect);
+      if (!y || y < 0)
+        return ec::type_clash;
+      i = static_cast<count>(*y);
+    }
+    if (i >= v.size())
       return ec::invalid_data;
-    return v[*i];
+    return v[i];
   }
 
   result_type operator()(const set& s) const {
