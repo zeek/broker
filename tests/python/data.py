@@ -47,7 +47,9 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_broker_and_back(broker.Count(42), '42', broker.Data.Type.Count)
 
     def test_count_overflow(self):
-        with self.assertRaises(SystemError) as context:
+        with self.assertRaises(Exception) as context:
+            # I've seen this raise either OverflowError or SystemError
+            # depending on Python version is seems.
             self.check_to_broker(broker.Count(-1), '-1', broker.Data.Type.Count)
 
     def test_real(self):
