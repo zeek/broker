@@ -66,7 +66,7 @@ void master_state::operator()(none) {
 }
 
 void master_state::operator()(put_command& x) {
-  BROKER_INFO("PUT" << x.key << "->" << x.value);
+  BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
   auto result = backend->put(x.key, x.value, x.expiry);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);

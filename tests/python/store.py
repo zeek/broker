@@ -47,7 +47,7 @@ class TestStore(unittest.TestCase):
         m = None
         ep1 = None
 
-    def test_multi_clones(self):
+    def test_from_master(self):
         (ep0, ep1, ep2, m, c1, c2) = create_stores()
 
         v1 = "A"
@@ -59,32 +59,115 @@ class TestStore(unittest.TestCase):
         m.put("b", v2)
         m.put("c", v3)
         m.put("d", v4)
+        time.sleep(.5)
 
-        def testOps(x):
+        def checkAccessors(x):
             self.assertEqual(x.get("a"), v1)
             self.assertEqual(x.get("b"), v2)
             self.assertEqual(x.get("c"), v3)
             self.assertEqual(x.get("d"), v4)
             self.assertEqual(x.get("X"), None)
-
-            # TODO: These fail for clones currently.
             self.assertEqual(x.get("b", "A"), True)
             self.assertEqual(x.get("b", "X"), False)
             self.assertEqual(x.get("c", 1), "A")
             self.assertEqual(x.get("c", 10), None)
             self.assertEqual(x.get("d", 1), "B")
             self.assertEqual(x.get("d", 10), None)
+            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd'})
 
-        testOps(m)
-        # Note: There's a slight delay until the data gets into the clones, but
-        # doing the master tests first seems good enough. At least I haven't
-        # seen this break so far unless I take them out.
-        testOps(c1)
-        testOps(c2)
+        checkAccessors(m)
+        checkAccessors(c1)
+        checkAccessors(c2)
+
+        v5 = 5
+        m.put("e", v5)
+        m.put("f", v5)
+        m.add("e", 1)
+        m.put("g", v5, 0.1)
+        m.put("h", v5, 2)
+        m.subtract("f", 1)
+        time.sleep(.5)
+
+        def checkModifiers(x):
+            self.assertEqual(x.get("e"), v5 + 1)
+            self.assertEqual(x.get("f"), v5 - 1)
+            self.assertEqual(x.get("g"), None) # Expired
+            self.assertEqual(x.get("h"), v5) # Not Expired
+
+        checkModifiers(m)
+        checkModifiers(c1)
+        checkModifiers(c2)
+
+        m.clear()
+        time.sleep(.5)
+        self.assertEqual(m.keys(), set())
+        self.assertEqual(c1.keys(), set())
+        self.assertEqual(c2.keys(), set())
 
         m = c1 = c2 = None
         ep0 = ep1 = ep2
 
+    def test_from_clones(self):
+        (ep0, ep1, ep2, m, c1, c2) = create_stores()
+
+        v1 = "A"
+        v2 = {"A", "B", "C"}
+        v3 = {1: "A", 2: "B", 3: "C"}
+        v4 = ["A", "B", "C"]
+
+        c1.put("a", v1)
+        c1.put("b", v2)
+        c2.put("c", v3)
+        c2.put("d", v4)
+        time.sleep(.5)
+
+        def checkAccessors(x):
+            self.assertEqual(x.get("a"), v1)
+            self.assertEqual(x.get("b"), v2)
+            self.assertEqual(x.get("c"), v3)
+            self.assertEqual(x.get("d"), v4)
+            self.assertEqual(x.get("X"), None)
+            self.assertEqual(x.get("b", "A"), True)
+            self.assertEqual(x.get("b", "X"), False)
+            self.assertEqual(x.get("c", 1), "A")
+            self.assertEqual(x.get("c", 10), None)
+            self.assertEqual(x.get("d", 1), "B")
+            self.assertEqual(x.get("d", 10), None)
+            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd'})
+
+        checkAccessors(m)
+        checkAccessors(c1)
+        checkAccessors(c2)
+
+        v5 = 5
+        c1.put("e", v5)
+        c2.put("f", v5)
+        c1.put("g", v5, 0.1)
+        c2.put("h", v5, 2)
+        time.sleep(.5)
+        c2.add("e", 1)
+        c1.subtract("f", 1)
+        time.sleep(.5)
+
+        def checkModifiers(x):
+            self.assertEqual(x.get("e"), v5 + 1)
+            self.assertEqual(x.get("f"), v5 - 1)
+            self.assertEqual(x.get("g"), None) # Expired
+            self.assertEqual(x.get("h"), v5) # Not Expired
+
+        checkModifiers(m)
+        checkModifiers(c1)
+        checkModifiers(c2)
+
+        m.clear()
+        time.sleep(.5)
+        self.assertEqual(m.keys(), set())
+        self.assertEqual(c1.keys(), set())
+        self.assertEqual(c2.keys(), set())
+
+        m = c1 = c2 = None
+        ep0 = ep1 = ep2
+
+
 if __name__ == '__main__':
-    TestStore().test_multi_clones()
-    #unittest.main(verbosity=3)
+    unittest.main(verbosity=3)

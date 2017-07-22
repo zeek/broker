@@ -27,32 +27,32 @@ bool convert_duration(Rep count, const char* unit_name, std::string& str) {
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
-  return convert_duration(d.count, "ns", str);
+  return convert_duration(d.count(), "ns", str);
 }
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
-  return convert_duration(d.count, "us", str);
+  return convert_duration(d.count(), "us", str);
 }
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
-  return convert_duration(d.count, "ms", str);
+  return convert_duration(d.count(), "ms", str);
 }
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
-  return convert_duration(d.count, "s", str);
+  return convert_duration(d.count(), "s", str);
 }
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
-  return convert_duration(d.count, "mins", str);
+  return convert_duration(d.count(), "mins", str);
 }
 
 template <class Rep>
 bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
-  return convert_duration(d.count, "hrs", str);
+  return convert_duration(d.count(), "hrs", str);
 }
 
 // Injects a `to<T>` overload for any type convertible to type `T` via a free

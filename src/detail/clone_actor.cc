@@ -43,7 +43,7 @@ void clone_state::operator()(none) {
 }
 
 void clone_state::operator()(put_command& x) {
-  BROKER_INFO("PUT" << x.key << "->" << x.value);
+  BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
   auto i = store.find(x.key);
   if (i != store.end())
     i->second = std::move(x.value);

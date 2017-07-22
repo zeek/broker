@@ -167,7 +167,12 @@ class Store:
         return Data.to_py(value.get()) if value.is_valid() else None
 
     def keys(self):
-        return [Data.to_py(k) for k in self._store.keys()]
+        keys = self._store.keys()
+
+        if keys is None:
+            return None
+
+        return Data.to_py(keys.get())
 
     def put(self, key, value, expiry=None):
         key = Data.from_py(key)
@@ -180,8 +185,6 @@ class Store:
         return self._store.erase(data)
 
     def clear(self):
-        key = Data.from_py(key)
-        value = Data.from_py(value)
         return self._store.clear()
 
     def add(self, key, value, expiry=None):
@@ -197,7 +200,7 @@ class Store:
         return self._store.subtract(key, value, expiry)
 
     def _to_expiry(self, e):
-        return (_broker.OptionalTimespan(_broker.Timespan(e * 1e9)) if e is not None else _broker.OptionalTimespan())
+        return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
 
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
