@@ -10,6 +10,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include "broker/logger.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
 #include "broker/network_info.hh"
@@ -78,6 +79,7 @@ struct core_state {
   template <ec ErrorCode>
   void emit_error(caf::actor hdl, const char* msg) {
     auto emit = [=](network_info x) {
+      BROKER_INFO("error" << ErrorCode << x);
       self->send(
         statuses_, atom::local::value,
         make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg));
@@ -98,6 +100,7 @@ struct core_state {
   template <ec ErrorCode>
   void emit_error(network_info inf, const char* msg) {
     auto emit = [=](caf::actor x) {
+      BROKER_INFO("error" << ErrorCode << x);
       node_id nid;
       if (x)
         nid = x.node();
@@ -113,6 +116,7 @@ struct core_state {
   template <sc StatusCode>
   void emit_status(caf::actor hdl, const char* msg) {
     auto emit = [=](network_info x) {
+      BROKER_INFO("status" << StatusCode << x);
       self->send(statuses_, atom::local::value,
                  status::make<StatusCode>(
                  endpoint_info{hdl.node(), std::move(x)}, msg));
