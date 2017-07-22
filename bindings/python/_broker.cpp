@@ -39,11 +39,20 @@ PYBIND11_PLUGIN(_broker) {
 
   py::class_<broker::endpoint_info>(m, "EndpointInfo")
     .def_readwrite("node", &broker::endpoint_info::node)
+    // TODO: Can we convert this optional<network_info> directly into network_info or None?
     .def_readwrite("network", &broker::endpoint_info::network);
 
   py::class_<broker::network_info>(m, "NetworkInfo")
     .def_readwrite("address", &broker::network_info::address)
-    .def_readwrite("port", &broker::network_info::port);
+    .def_readwrite("port", &broker::network_info::port)
+    .def("__repr__", [](const broker::network_info& n) { return to_string(n); });
+
+  py::class_<broker::optional<broker::network_info>>(m, "OptionalNetworkInfo")
+    .def("is_set",
+         [](broker::optional<broker::network_info>& i) { return static_cast<bool>(i);})
+    .def("get",
+         [](broker::optional<broker::network_info>& i) { return *i; })
+    .def("__repr__", [](const broker::optional<broker::network_info>& i) { return to_string(i); });
 
   py::class_<broker::peer_info>(m, "PeerInfo")
     .def_readwrite("peer", &broker::peer_info::peer)
@@ -121,6 +130,13 @@ PYBIND11_PLUGIN(_broker) {
 	   return ep.poll(); })
     .def("available", &event_subscriber_base::available)
     .def("fd", &event_subscriber_base::fd);
+
+  py::class_<broker::status>(m, "Status")
+    .def(py::init<>())
+    .def("code", &broker::status::code)
+    .def("context", &broker::status::context<broker::endpoint_info>,
+	 py::return_value_policy::reference_internal)
+    .def("__repr__", [](const broker::status& s) { return to_string(s); });
 
   py::class_<broker::event_subscriber, event_subscriber_base> event_subscriber(m, "EventSubscriber");
 

@@ -28,8 +28,10 @@ PeerFlags = _broker.PeerFlags
 Frontend = _broker.Frontend
 Backend = _broker.Backend
 NetworkInfo = _broker.NetworkInfo
+EndpointInfo = _broker.EndpointInfo
 PeerInfo = _broker.PeerInfo
 Topic = _broker.Topic
+Status = _broker.Status
 
 Address = _broker.Address
 Count = _broker.Count
@@ -216,8 +218,8 @@ class Endpoint(_broker.Endpoint):
         s = _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
         return Subscriber(s)
 
-    def make_event_subscriber(self):
-        s = _broker.Endpoint.make_event_subscriber(self)
+    def make_event_subscriber(self, receive_statuses=False):
+        s = _broker.Endpoint.make_event_subscriber(self, receive_statuses)
         return EventSubscriber(s)
 
     def make_publisher(self, topic):

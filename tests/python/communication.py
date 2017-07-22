@@ -1,4 +1,4 @@
-
+\
 import unittest
 import multiprocessing
 import sys
@@ -80,16 +80,18 @@ class TestCommunication(unittest.TestCase):
     def test_event_subscriber(self):
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
-        es1 = ep1.make_event_subscriber()
-        es2 = ep2.make_event_subscriber()
+        es1 = ep1.make_event_subscriber(True)
+        es2 = ep2.make_event_subscriber(True)
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
-        # TODO: These never get anything and don't return.
-        es1.get()
-        es2.get()
+        st1 = es1.get()
+        st2 = es2.get()
 
-        # TODO: Once we receive a status, check that it's correct.
+        self.assertEqual(st1.code(), broker.SC.PeerAdded)
+        self.assertEqual(st1.context().network.get().address, "127.0.0.1")
+        self.assertEqual(st2.code(), broker.SC.PeerAdded)
+        self.assertEqual(st2.context().network.get().address, "127.0.0.1")
 
         # TODO: This is needed so that the process terminates.
         # Need to find something better. Note that even the order is
@@ -101,10 +103,12 @@ class TestCommunication(unittest.TestCase):
         ep1 = broker.Endpoint()
         es1 = ep1.make_event_subscriber()
 
-        # TODO: This never returns, would expect it to abort
-        x = ep1.peer("127.0.0.1", 1947, 0.0)
+        r = ep1.peer("127.0.0.1", 1947, 0.0)
+        self.assertEqual(r, False)
 
-        # TODO: Once we receive an error, check it
+        # TODO: This never returns. Bug?
+        st1 = es1.get()
+        self.assertEqual(st1, broker.EC.PeerUnavailable)
 
         # TODO: This is needed so that the process terminates.
         # Need to find something better. Note that even the order is
