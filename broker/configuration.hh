@@ -14,7 +14,9 @@ public:
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
 
-  bool use_ssl;
+  /// If true, we use SSL for network connections. This is set automatically
+  /// based on the current configuration.
+  const bool use_ssl;
 };
 
 } // namespace broker

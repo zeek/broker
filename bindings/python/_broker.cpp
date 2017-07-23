@@ -152,9 +152,44 @@ PYBIND11_PLUGIN(_broker) {
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
+  // We need a configuration class here that's separate from
+  // broker::configuration. When creating an endpoint one has to instantiate
+  // the standard class right at that point, one cannot pass an already
+  // created one in, which is unfortunate.
+  struct Configuration {
+    Configuration(bool disable_ssl=false) : disable_ssl(disable_ssl) {}
+    bool disable_ssl;
+    std::string openssl_cafile;
+    std::string openssl_capath;
+    std::string openssl_certificate;
+    std::string openssl_key;
+    std::string openssl_passphrase;
+  };
+
+  py::class_<Configuration>(m, "Configuration")
+    .def(py::init<>())
+    .def(py::init<bool>())
+    .def_readwrite("openssl_cafile", &Configuration::openssl_cafile)
+    .def_readwrite("openssl_capath", &Configuration::openssl_capath)
+    .def_readwrite("openssl_certificate", &Configuration::openssl_certificate)
+    .def_readwrite("openssl_key", &Configuration::openssl_key)
+    .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase);
+
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
-    // .def(py::init<broker::configuration>())
+    .def("__init__",
+       [](broker::endpoint& ep, Configuration cfg) {
+       auto make_config = [&]() {
+           broker::configuration bcfg;
+	   bcfg.openssl_capath = cfg.openssl_capath;
+	   bcfg.openssl_passphrase = cfg.openssl_passphrase;
+           bcfg.openssl_cafile = cfg.openssl_cafile;
+           bcfg.openssl_certificate = cfg.openssl_certificate;
+           bcfg.openssl_key = cfg.openssl_key;
+           return bcfg;
+	   };
+       new (&ep) broker::endpoint(make_config());
+       })
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
@@ -185,7 +220,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("attach",
          [](broker::endpoint& ep, const std::string& name) -> broker::expected<broker::store> {
 	        return ep.attach<broker::clone>(name);
-	    }) 
+	    })
    ;
 
   return m.ptr();

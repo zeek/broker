@@ -4,8 +4,6 @@ try:
 except ImportError:
     import _broker
 
-from . import utils
-
 import datetime
 import ipaddress
 import collections
@@ -32,6 +30,7 @@ EndpointInfo = _broker.EndpointInfo
 PeerInfo = _broker.PeerInfo
 Topic = _broker.Topic
 Status = _broker.Status
+Configuration = _broker.Configuration
 
 Address = _broker.Address
 Count = _broker.Count
