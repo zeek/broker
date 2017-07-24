@@ -32,6 +32,17 @@ Topic = _broker.Topic
 Status = _broker.Status
 Configuration = _broker.Configuration
 
+# Broker's (or better: CAF's) EC code is an integer. Add support
+# for comparision against the enum.
+_EC_eq = _broker.EC.__eq__
+def _our_EC_eq(self, other):
+    if isinstance(other, int):
+        return other == int(self)
+    else:
+        return _EC_eq(self, other)
+
+_broker.EC.__eq__ = _our_EC_eq
+
 Address = _broker.Address
 Count = _broker.Count
 Enum = _broker.Enum

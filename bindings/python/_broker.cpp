@@ -138,6 +138,11 @@ PYBIND11_PLUGIN(_broker) {
 	 py::return_value_policy::reference_internal)
     .def("__repr__", [](const broker::status& s) { return to_string(s); });
 
+  py::class_<broker::error>(m, "Error")
+    .def(py::init<>())
+    .def("code", &broker::error::code)
+    .def("__repr__", [](const broker::error& e) { return to_string(e); });
+
   py::class_<broker::event_subscriber, event_subscriber_base> event_subscriber(m, "EventSubscriber");
 
   py::class_<broker::event_subscriber::value_type>(event_subscriber, "ValueType")

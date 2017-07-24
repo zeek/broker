@@ -81,7 +81,7 @@ struct core_state {
     auto emit = [=](network_info x) {
       BROKER_INFO("error" << ErrorCode << x);
       self->send(
-        statuses_, atom::local::value,
+        errors_, atom::local::value,
         make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg));
     };
     if (self->node() != hdl.node())
@@ -105,7 +105,7 @@ struct core_state {
       if (x)
         nid = x.node();
       self->send(
-        statuses_, atom::local::value,
+        errors_, atom::local::value,
         make_error(ErrorCode, endpoint_info{nid, inf}, msg));
     };
     cache.fetch(inf,

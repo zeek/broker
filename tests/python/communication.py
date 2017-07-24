@@ -103,12 +103,18 @@ class TestCommunication(unittest.TestCase):
         ep1 = broker.Endpoint()
         es1 = ep1.make_event_subscriber()
 
+        # Sync version.
         r = ep1.peer("127.0.0.1", 1947, 0.0)
         self.assertEqual(r, False)
-
-        # TODO: This never returns. Bug?
         st1 = es1.get()
-        self.assertEqual(st1, broker.EC.PeerUnavailable)
+        self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
+
+        # Async version.
+        ep1.peer_nosync("127.0.0.1", 1947, 1.0)
+        st1 = es1.get()
+        self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
+        st1 = es1.get()
+        self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
         # TODO: This is needed so that the process terminates.
         # Need to find something better. Note that even the order is
@@ -117,4 +123,5 @@ class TestCommunication(unittest.TestCase):
         ep1 = None
 
 if __name__ == '__main__':
-    unittest.main(verbosity=3)
+    TestCommunication().test_event_subscriber_error()
+    #unittest.main(verbosity=3)
