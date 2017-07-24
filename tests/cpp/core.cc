@@ -719,22 +719,10 @@ CAF_TEST_FIXTURE_SCOPE(distributed_peers,
 CAF_TEST(remote_peers_setup1) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ep.core();
-  auto ss1 = earth.stream_serv; 
   auto core2 = mars.ep.core();
-  auto ss2 = mars.stream_serv;
   auto forward_stream_traffic = [&] {
-    auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
-      if (ff.sched.prioritize(ss)) {
-        do {
-          ff.sched.run_once();
-        } while (ff.sched.prioritize(ss1));
-        return true;
-      }
-      return false;
-    };
     while (earth.mpx.try_exec_runnable() || mars.mpx.try_exec_runnable()
-           || earth.mpx.read_data() || mars.mpx.read_data()
-           || exec_ss(earth, ss1) || exec_ss(mars, ss2)) {
+           || earth.mpx.read_data() || mars.mpx.read_data()) {
       // rince and repeat
     }
   };
@@ -759,14 +747,6 @@ CAF_TEST(remote_peers_setup1) {
   // connect the streaming parts of CAF before we go into Broker code.
   CAF_MESSAGE("connect mars and earth");
   auto core2_proxy = earth.remote_actor("mars", 8080u);
-  exec_all();
-  // --- phase 3: initialize streaming-related state in CAF --------------------
-  // Establish remote paths between the two stream servers. This step is
-  // necessary to prevent a deadlock in `stream_serv::remote_stream_serv` due
-  // to blocking communication with the BASP broker.
-  CAF_MESSAGE("connect streaming worker of mars and earth");
-  anon_send(actor_cast<actor>(ss1), connect_atom::value, ss2->node());
-  anon_send(actor_cast<actor>(ss2), connect_atom::value, ss1->node());
   exec_all();
   // --- phase 4: spawn a leaf/consumer on mars and connect it to core2 --------
   // Connect a consumer (leaf) to core2.
@@ -860,22 +840,10 @@ CAF_TEST(remote_peers_setup1) {
 CAF_TEST(remote_peers_setup2) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ep.core();
-  auto ss1 = earth.stream_serv; 
   auto core2 = mars.ep.core();
-  auto ss2 = mars.stream_serv;
   auto forward_stream_traffic = [&] {
-    auto exec_ss = [&](fake_network_fixture& ff, const strong_actor_ptr& ss) {
-      if (ff.sched.prioritize(ss)) {
-        do {
-          ff.sched.run_once();
-        } while (ff.sched.prioritize(ss1));
-        return true;
-      }
-      return false;
-    };
     while (earth.mpx.try_exec_runnable() || mars.mpx.try_exec_runnable()
-           || earth.mpx.read_data() || mars.mpx.read_data()
-           || exec_ss(earth, ss1) || exec_ss(mars, ss2)) {
+           || earth.mpx.read_data() || mars.mpx.read_data()) {
       // rince and repeat
     }
   };
@@ -900,14 +868,6 @@ CAF_TEST(remote_peers_setup2) {
   // connect the streaming parts of CAF before we go into Broker code.
   CAF_MESSAGE("connect mars and earth");
   auto core2_proxy = earth.remote_actor("mars", 8080u);
-  exec_all();
-  // --- phase 3: initialize streaming-related state in CAF --------------------
-  // Establish remote paths between the two stream servers. This step is
-  // necessary to prevent a deadlock in `stream_serv::remote_stream_serv` due
-  // to blocking communication with the BASP broker.
-  CAF_MESSAGE("connect streaming worker of mars and earth");
-  anon_send(actor_cast<actor>(ss1), connect_atom::value, ss2->node());
-  anon_send(actor_cast<actor>(ss2), connect_atom::value, ss1->node());
   exec_all();
   // --- phase 4: spawn a leaf/consumer on earth and connect it to core2 -------
   // Connect a consumer (leaf) to core2.
