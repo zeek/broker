@@ -199,17 +199,51 @@ class Store:
     def clear(self):
         return self._store.clear()
 
-    def add(self, key, value, expiry=None):
+    def increment(self, key, amount, expiry=None):
         key = Data.from_py(key)
-        value = Data.from_py(value)
+        amount = Data.from_py(amount)
         expiry = self._to_expiry(expiry)
-        return self._store.add(key, value, expiry)
+        return self._store.increment(key, amount, expiry)
 
-    def subtract(self, key, value, expiry=None):
+    def decrement(self, key, amount, expiry=None):
+        key = Data.from_py(key)
+        amount = Data.from_py(amount)
+        expiry = self._to_expiry(expiry)
+        return self._store.decrement(key, amount, expiry)
+
+    def append(self, key, s, expiry=None):
+        key = Data.from_py(key)
+        s = Data.from_py(s)
+        expiry = self._to_expiry(expiry)
+        return  self._store.append(key, s, expiry)
+
+    def insert_into(self, key, index, value=None, expiry=None):
+        key = Data.from_py(key)
+        index = Data.from_py(index)
+        expiry = self._to_expiry(expiry)
+
+        if value:
+            value = Data.from_py(value)
+            return self._store.insert_into(key, index, value, expiry)
+        else:
+            return self._store.insert_into(key, index, expiry)
+
+    def remove_from(self, key, index, expiry=None):
+        key = Data.from_py(key)
+        index = Data.from_py(index)
+        expiry = self._to_expiry(expiry)
+        return  self._store.remove_from(key, index, expiry)
+
+    def push(self, key, value, expiry=None):
         key = Data.from_py(key)
         value = Data.from_py(value)
         expiry = self._to_expiry(expiry)
-        return self._store.subtract(key, value, expiry)
+        return self._store.push(key, value, expiry)
+
+    def pop(self, key, expiry=None):
+        key = Data.from_py(key)
+        expiry = self._to_expiry(expiry)
+        return self._store.pop(key, expiry)
 
     def _to_expiry(self, e):
         return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())

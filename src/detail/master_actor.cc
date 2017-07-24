@@ -88,7 +88,7 @@ void master_state::operator()(erase_command& x) {
 }
 
 void master_state::operator()(add_command& x) {
-  BROKER_INFO("ADD" << x.key);
+  BROKER_INFO("ADD" << x);
   auto result = backend->add(x.key, x.value, x.expiry);
   if (!result) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
@@ -100,10 +100,10 @@ void master_state::operator()(add_command& x) {
 }
 
 void master_state::operator()(subtract_command& x) {
-  BROKER_INFO("SUBTRACT" << x.key);
+  BROKER_INFO("SUBTRACT" << x);
   auto result = backend->subtract(x.key, x.value, x.expiry);
   if (!result) {
-    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
+    BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (x.expiry)

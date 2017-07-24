@@ -82,10 +82,24 @@ class TestStore(unittest.TestCase):
         v5 = 5
         m.put("e", v5)
         m.put("f", v5)
-        m.add("e", 1)
         m.put("g", v5, 0.1)
         m.put("h", v5, 2)
-        m.subtract("f", 1)
+        m.put("str", "b")
+        m.put("vec", [1, 2])
+        m.put("set", set([1, 2]))
+        m.put("table", {1: "A", "2": "C"})
+
+        m.increment("e", 1)
+        m.decrement("f", 1)
+        m.append("str", "ar")
+        m.insert_into("set", 3)
+        m.remove_from("set", 1)
+        m.insert_into("table", 3, "D")
+        m.remove_from("table", 1)
+        m.push("vec", 3)
+        m.push("vec", 4)
+        m.pop("vec")
+
         time.sleep(.5)
 
         def checkModifiers(x):
@@ -93,6 +107,10 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("f"), v5 - 1)
             self.assertEqual(x.get("g"), None) # Expired
             self.assertEqual(x.get("h"), v5) # Not Expired
+            self.assertEqual(x.get("str"), "bar")
+            self.assertEqual(x.get("set"), set([2, 3]))
+            self.assertEqual(x.get("table"), {3: "D", "2": "C"})
+            self.assertEqual(x.get("vec"), [1, 2,3])
 
         checkModifiers(m)
         checkModifiers(c1)
@@ -144,9 +162,22 @@ class TestStore(unittest.TestCase):
         c2.put("f", v5)
         c1.put("g", v5, 0.1)
         c2.put("h", v5, 2)
+        m.put("str", "b")
+        m.put("vec", [1, 2])
+        m.put("set", set([1, 2]))
+        m.put("table", {1: "A", "2": "C"})
+
         time.sleep(.5)
-        c2.add("e", 1)
-        c1.subtract("f", 1)
+        c2.increment("e", 1)
+        c1.decrement("f", 1)
+        c2.append("str", "ar")
+        c1.insert_into("set", 3)
+        c2.remove_from("set", 1)
+        c1.insert_into("table", 3, "D")
+        c2.remove_from("table", 1)
+        c1.push("vec", 3)
+        c2.push("vec", 4)
+        c2.pop("vec")
         time.sleep(.5)
 
         def checkModifiers(x):
@@ -154,6 +185,10 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("f"), v5 - 1)
             self.assertEqual(x.get("g"), None) # Expired
             self.assertEqual(x.get("h"), v5) # Not Expired
+            self.assertEqual(x.get("str"), "bar")
+            self.assertEqual(x.get("set"), set([2, 3]))
+            self.assertEqual(x.get("table"), {3: "D", "2": "C"})
+            self.assertEqual(x.get("vec"), [1, 2,3])
 
         checkModifiers(m)
         checkModifiers(c1)

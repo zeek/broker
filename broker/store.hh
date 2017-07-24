@@ -112,20 +112,88 @@ public:
   /// Empties out the store.
   void clear() const;
 
-  /// Adds a value to another one.
+  /// Increments a value by a given amount. This is supported for all
+  /// numerical types as well as for timestamps.
+  /// @param key The key of the value to increment.
+  /// @param value The amount to increment the value.
+  /// @param expiry An optional new expiration time for *key*.
+  void increment(data key, data amount, optional<timespan> expiry = {}) const {
+    add(key, amount, expiry);
+  }
+
+  /// Decrements a value by a given amount. This is supported for all
+  /// numerical types as well as for timestamps.
+  /// @param key The key of the value to increment.
+  /// @param value The amount to decrement the value.
+  /// @param expiry An optional new expiration time for *key*.
+  void decrement(data key, data amount, optional<timespan> expiry = {}) const {
+    subtract(key, amount, expiry);
+  }
+
+  /// Appends a string to another one.
+  /// @param key The key of the string to which to append.
+  /// @param str The string to append.
+  /// @param expiry An optional new expiration time for *key*.
+  void append(data key, data str, optional<timespan> expiry = {}) const {
+    add(key, str, expiry);
+  }
+
+  /// Inserts an index into a set.
+  /// @param key The key of the set into which to insert the value.
+  /// @param index The index to insert.
+  /// @param expiry An optional new expiration time for *key*.
+  void insert_into(data key, data index, optional<timespan> expiry = {}) const {
+      add(key, index, expiry);
+  }
+
+  /// Inserts an index into a table.
+  /// @param key The key of the table into which to insert the value.
+  /// @param index The index to insert.
+  /// @param value The value to associated with the inserted index. For sets, this is ignored.
+  /// @param expiry An optional new expiration time for *key*.
+  void insert_into(data key, data index, data value, optional<timespan> expiry = {}) const {
+      add(key, vector({index, value}), expiry);
+  }
+
+  /// Removes am index from a set or table.
+  /// @param key The key of the set/table from which to remove the value.
+  /// @param index The index to remove.
+  /// @param expiry An optional new expiration time for *key*.
+  void remove_from(data key, data index, optional<timespan> expiry = {}) const {
+    subtract(key, index, expiry);
+  }
+
+  /// Appends a value to a vector.
+  /// @param key The key of the vector to which to append the value.
+  /// @param value The value to append.
+  /// @param expiry An optional new expiration time for *key*.
+  void push(data key, data value, optional<timespan> expiry = {}) const {
+    add(key, value, expiry);
+  }
+
+  /// Removes the last value of a vector.
+  /// @param key The key of the vector from which to remove the last value.
+  /// @param expiry An optional new expiration time for *key*.
+  void pop(data key, optional<timespan> expiry = {}) const {
+    subtract(key, key, expiry);
+  }
+
+private:
+  store(caf::actor actor);
+
+  /// Adds a value to another one, with a type-specific meaning of
+  /// "add". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
   void add(data key, data value, optional<timespan> expiry = {}) const;
 
-  /// Subtracts a value from another one.
+  /// Subtracts a value from another one, with a type-specific meaning of
+  /// "substract". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
   void subtract(data key, data value, optional<timespan> expiry = {}) const;
-
-private:
-  store(caf::actor actor);
 
   template <class T, class... Ts>
   expected<T> request(Ts&&... xs) const {

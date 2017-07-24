@@ -28,25 +28,38 @@ TEST(master operations) {
   MESSAGE("erase");
   ds->erase("foo");
   REQUIRE_EQUAL(ds->get("foo"), error{ec::no_such_key});
-  MESSAGE("add");
-  ds->add("foo", 1u); // key did not exist, operation fails
+  MESSAGE("increment");
+  ds->increment("foo", 1u); // key did not exist, operation fails
   REQUIRE(!ds->get("foo"));
   ds->put("foo", 0u);
-  ds->add("foo", 1u); // key exists now, operation succeeds
+  ds->increment("foo", 1u); // key exists now, operation succeeds
   REQUIRE_EQUAL(ds->get("foo"), data{1u});
-  ds->add("foo", 41u); // adding on top of existing value
+  ds->increment("foo", 41u); // adding on top of existing value
   REQUIRE_EQUAL(ds->get("foo"), data{42u});
+  MESSAGE("decrement");
+  ds->decrement("foo", 1u);
+  REQUIRE_EQUAL(ds->get("foo"), data{41u});
+  MESSAGE("append");
   ds->put("foo", "b");
-  ds->add("foo", "a");
-  ds->add("foo", "r");
+  ds->append("foo", "a");
+  ds->append("foo", "r");
   REQUIRE_EQUAL(ds->get("foo"), data{"bar"});
+  MESSAGE("insert_into");
   ds->put("foo", set{1, 3});
-  ds->add("foo", 2);
+  ds->insert_into("foo", 2);
   REQUIRE_EQUAL(ds->get("foo"), data(set{1, 2, 3}));
-  MESSAGE("subtract");
-  ds->subtract("foo", 1);
-  REQUIRE_EQUAL(ds->get("foo"), data(set{2, 3}));
+  MESSAGE("remove_from");
+  ds->remove_from("foo", 2);
+  REQUIRE_EQUAL(ds->get("foo"), data(set{1, 3}));
+  MESSAGE("push");
+  ds->put("foo", vector{1, 2});
+  ds->push("foo", 3);
+  REQUIRE_EQUAL(ds->get("foo"), data(vector{1, 2, 3}));
+  MESSAGE("pop");
+  ds->pop("foo");
+  REQUIRE_EQUAL(ds->get("foo"), data(vector{1, 2}));
   MESSAGE("get overload");
+  ds->put("foo", set{2, 3});
   REQUIRE_EQUAL(ds->get("foo", 1), data{false});
   REQUIRE_EQUAL(ds->get("foo", 2), data{true});
   MESSAGE("keys");
