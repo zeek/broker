@@ -659,11 +659,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.shutting_down = true;
       // Shutdown immediately if no local sink or source is connected.
       if (st.governor->at_end()) {
+        CAF_LOG_DEBUG("Terminate core actor after receiving 'shutdown'");
         self->quit(exit_reason::user_shutdown);
         return;
       }
       // Wait until local sinks and sources are done, but no longer respond to
       // any future message.
+      CAF_LOG_DEBUG("Delay termination of core actor after receiving "
+                    "'shutdown' until local sinks and sources are done");
       self->set_default_handler(caf::drop);
       self->become(
         [] {

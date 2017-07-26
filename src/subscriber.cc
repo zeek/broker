@@ -157,22 +157,26 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
                            detail::shared_subscriber_queue_ptr<> qptr,
                            std::vector<topic> ts, long max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
-  //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+  self->set_default_handler(skip);
   return {
     [=](const endpoint::stream_type& in) {
       BROKER_ASSERT(qptr != nullptr);
       auto sptr = make_counted<subscriber_sink>(self, &self->state,
                                                 qptr, max_qsize);
       self->streams().emplace(in.id(), std::move(sptr));
-    },
-    [=](atom::join a0, atom::update a1, filter_type& f) {
-      self->send(ep->core(), a0, a1, std::move(f));
-    },
-    [=](atom::tick) {
-      auto& st = self->state;
-      st.tick();
-      qptr->rate(st.rate());
+      self->set_default_handler(print_and_drop);
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+      self->become(
+        [=](atom::join a0, atom::update a1, filter_type& f) {
+          self->send(ep->core(), a0, a1, std::move(f));
+        },
+        [=](atom::tick) {
+          auto& st = self->state;
+          st.tick();
+          qptr->rate(st.rate());
+          self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+        }
+      );
     }
   };
 }
@@ -181,7 +185,6 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 
 subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
-
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
 }

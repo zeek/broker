@@ -39,6 +39,12 @@ struct global_fixture {
   using peers_map = std::map<std::string, peer_fixture*>;
   peers_map peers;
 
+  ~global_fixture() {
+    // Make sure peers vector is empty before destructors of children might
+    // attempt accessing it.
+    peers.clear();
+  }
+
   // Makes sure all handles are distinct.
   uint64_t next_handle_id = 1;
 
@@ -84,9 +90,6 @@ struct peer_fixture {
   // Stores all received items for subscribed topics.
   data_vector data; 
 
-  // Stores all actors we spawn for subscribing or publishing.
-  std::vector<caf::actor> workers;
-
   // Initializes this peer and registers it at parent.
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
     : parent(parent_ptr),
@@ -103,11 +106,9 @@ struct peer_fixture {
   }
 
   ~peer_fixture() {
+    CAF_SET_LOGGER_SYS(&ep.system());
     MESSAGE("shut down " << name);
-    for (auto& w : workers)
-      caf::anon_send_exit(w, caf::exit_reason::user_shutdown);
-    exec_loop();
-    sched.inline_all_enqueues();
+    loop_after_all_enqueues();
   }
 
   // Returns the next unused connection handle.
@@ -126,7 +127,7 @@ struct peer_fixture {
 
   // Subscribes to a topic, storing all incoming tuples in `data`.
   void subscribe_to(topic t) {
-    workers.emplace_back(ep.subscribe_nosync(
+    ep.subscribe_nosync(
       {t},
       [](unit_t&) {
         // nop
@@ -137,7 +138,7 @@ struct peer_fixture {
       [](unit_t&) {
         // nop
       }
-    ));
+    );
     parent->exec_loop();
   }
 
@@ -146,7 +147,7 @@ struct peer_fixture {
   void publish(topic t, Ts... xs) {
     using buf_t = std::deque<endpoint::value_type>;
     auto buf = std::make_shared<buf_t>(buf_t{std::make_pair(t, std::move(xs))...});
-    workers.emplace_back(ep.publish_all_nosync(
+    ep.publish_all_nosync(
       [](unit_t&) {
         // nop
       },
@@ -163,7 +164,7 @@ struct peer_fixture {
       [](expected<void>) {
         // nop
       }
-    ));
+    );
     parent->exec_loop();
   }
 
@@ -181,6 +182,15 @@ struct peer_fixture {
 
   void loop_after_next_enqueue() {
     sched.after_next_enqueue([=] { parent->exec_loop();  });
+  }
+
+  void loop_after_all_enqueues_helper() {
+    exec_loop();
+    sched.after_next_enqueue([=] { loop_after_all_enqueues_helper(); });
+  }
+
+  void loop_after_all_enqueues() {
+    sched.after_next_enqueue([=] { loop_after_all_enqueues_helper();  });
   }
 };
 

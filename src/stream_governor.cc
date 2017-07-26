@@ -461,7 +461,7 @@ caf::error stream_governor::close_upstream(const caf::stream_id& sid,
 void stream_governor::abort(const caf::stream_id& sid,
                             caf::strong_actor_ptr& hdl,
                             const caf::error& reason) {
-  CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(reason));
+  CAF_LOG_TRACE(CAF_ARG(sid) << CAF_ARG(hdl) << CAF_ARG(reason));
   if (hdl == nullptr) {
     // actor shutdown
     if (!workers_.lanes().empty())
@@ -475,9 +475,13 @@ void stream_governor::abort(const caf::stream_id& sid,
       peers_.clear();
     }
     in_.abort(hdl, reason);
+    shutdown_if_at_end("Aborted all streams");
     return;
   }
   if (workers_.remove_path(hdl) || stores_.remove_path(hdl)) {
+    CAF_LOG_DEBUG("Abort from local worker or store. Workes left:"
+                  << workers_.num_paths()
+                  << "; Stores left:" << stores_.num_paths());
     push();
     assign_credit();
     shutdown_if_at_end("Aborted last local sink");
@@ -500,7 +504,7 @@ void stream_governor::abort(const caf::stream_id& sid,
   // Remove peer, but leave the relays in the streams_ map, because CAF will
   // remove the current relay automatically.
   if (!remove_peer(caf::actor_cast<caf::actor>(hdl), false))
-    CAF_LOG_DEBUG("Abort from unknown stream ID.");
+    CAF_LOG_DEBUG("Abort from unknown actor.");
 }
 
 long stream_governor::downstream_credit() const {
