@@ -54,7 +54,11 @@ public:
   ~endpoint();
 
   /// Shuts down all background activity and blocks until all local subscribers
-  /// and publishers have terminated.
+  /// and publishers have terminated. *Must* be the very last function call on
+  /// this object before destroying it.
+  /// @warning *Destroys* the underlying actor system. Calling *any* member
+  ///          function afterwards except `shutdown` and the destructor is
+  ///          undefined behavior.
   void shutdown();
 
   /// @returns Information about this endpoint.
@@ -304,10 +308,13 @@ private:
   expected<store> attach_clone(std::string name);
 
   configuration config_;
-  mutable caf::actor_system system_;
+  union {
+    mutable caf::actor_system system_;
+  };
   caf::actor core_;
   bool await_stores_on_shutdown_;
   std::vector<caf::actor> children_;
+  bool destroyed_;
 };
 
 } // namespace broker

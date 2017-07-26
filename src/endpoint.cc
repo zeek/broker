@@ -37,8 +37,9 @@ endpoint_info endpoint::info() const {
 
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
-    system_(config_),
-    await_stores_on_shutdown_(false) {
+    await_stores_on_shutdown_(false),
+    destroyed_(false) {
+  new (&system_) caf::actor_system(config_);
   if (config.use_ssl && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
@@ -52,6 +53,8 @@ endpoint::~endpoint() {
 
 void endpoint::shutdown() {
   BROKER_INFO("shutting down endpoint");
+  if (destroyed_)
+    return;
   if (!await_stores_on_shutdown_) {
     CAF_LOG_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
@@ -67,6 +70,9 @@ void endpoint::shutdown() {
   }
   CAF_LOG_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown::value);
+  core_ = nullptr;
+  system_.~actor_system();
+  destroyed_ = true;
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
