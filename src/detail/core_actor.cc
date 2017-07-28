@@ -628,26 +628,19 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- destructive state manipulations -------------------------------------
     [=](atom::unpeer, network_info addr) {
-      self->state.cache.fetch(addr,
-                              [=](actor x) mutable {
-                                if (self->state.governor->remove_peer(x))
-                                  self->state.emit_status<sc::peer_removed>(
-                                    x, "removed peering");
-                                else
-                                  self->state.emit_error<ec::peer_invalid>(
-                                    x, "no such peer");
-                              },
-                              [=](error) mutable {
-                                self->state.emit_error<ec::peer_invalid>(
-                                  addr, "no such peer");
-                              });
+      auto& st = self->state;
+      auto x = self->state.cache.find(addr);
+      if (st.governor->remove_peer(*x))
+        st.emit_status<sc::peer_removed>(*x, "removed peering");
+      else
+        st.emit_error<ec::peer_invalid>(addr, "no such peer when unpeering");
     },
     [=](atom::unpeer, actor x) {
       auto& st = self->state;
       if (st.governor->remove_peer(x))
         st.emit_status<sc::peer_removed>(x, "removed peering");
       else
-        st.emit_error<ec::peer_invalid>(x, "no such peer");
+        st.emit_error<ec::peer_invalid>(x, "no such peer when unpeering");
     },
     [=](atom::no_events) {
       auto& st = self->state;
