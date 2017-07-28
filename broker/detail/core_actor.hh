@@ -99,18 +99,15 @@ struct core_state {
 
   template <ec ErrorCode>
   void emit_error(network_info inf, const char* msg) {
-    auto emit = [=](caf::actor x) {
-      BROKER_INFO("error" << ErrorCode << x);
-      node_id nid;
-      if (x)
-        nid = x.node();
+    auto x = cache.find(inf);
+    if (x)
+      emit_error<ErrorCode>(std::move(*x), msg);
+    else {
+      BROKER_INFO("error" << ErrorCode << inf);
       self->send(
         errors_, atom::local::value,
-        make_error(ErrorCode, endpoint_info{nid, inf}, msg));
-    };
-    cache.fetch(inf,
-                [=](caf::actor x) { emit(std::move(x)); },
-                [=](caf::error) { emit({}); });
+        make_error(ErrorCode, endpoint_info{node_id(), inf}, msg));
+    }
   }
 
   template <sc StatusCode>
