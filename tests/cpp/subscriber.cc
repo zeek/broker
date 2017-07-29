@@ -109,7 +109,7 @@ CAF_TEST(blocking_subscriber) {
   CAF_REQUIRE_EQUAL(x0.first, "b");
   CAF_REQUIRE_EQUAL(x0.second, true);
   auto xs = sub.poll();
-  CAF_REQUIRE_EQUAL(xs.size(), 1);
+  CAF_REQUIRE_EQUAL(xs.size(), 1u);
   CAF_REQUIRE_EQUAL(xs[0].first, "b");
   CAF_REQUIRE_EQUAL(xs[0].second, false);
   // Shutdown.

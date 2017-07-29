@@ -264,6 +264,7 @@ public:
       case rocksdb:
         return attach<master, rocksdb>(std::move(name), std::move(opts));
     }
+  throw std::domain_error("unknown backend type");
   }
 
   /// Attaches and/or creates a *clone* data store to an existing master.

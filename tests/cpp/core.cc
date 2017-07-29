@@ -149,7 +149,7 @@ CAF_TEST(local_peers) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
     },
     [&](const error& err) {
@@ -176,7 +176,7 @@ CAF_TEST(local_peers) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
     },
     [&](const error& err) {
@@ -187,7 +187,7 @@ CAF_TEST(local_peers) {
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
     },
     [&](const error& err) {
@@ -259,7 +259,7 @@ CAF_TEST(local_peers) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0);
+      CAF_REQUIRE_EQUAL(xs.size(), 0u);
     },
     [&](const error& err) {
       CAF_FAIL(sys.render(err));
@@ -268,7 +268,7 @@ CAF_TEST(local_peers) {
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0);
+      CAF_REQUIRE_EQUAL(xs.size(), 0u);
     },
     [&](const error& err) {
       CAF_FAIL(sys.render(err));
@@ -311,7 +311,7 @@ CAF_TEST(triangle_peering) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
     },
     [&](const error& err) {
@@ -341,7 +341,7 @@ CAF_TEST(triangle_peering) {
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 2);
+      CAF_REQUIRE_EQUAL(xs.size(), 2u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       CAF_REQUIRE_EQUAL(xs.back().status, peer_status::connecting);
     },
@@ -369,7 +369,7 @@ CAF_TEST(triangle_peering) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
     },
     [&](const error& err) {
@@ -380,7 +380,7 @@ CAF_TEST(triangle_peering) {
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 2);
+      CAF_REQUIRE_EQUAL(xs.size(), 2u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       CAF_REQUIRE_EQUAL(xs.back().status, peer_status::peered);
     },
@@ -392,7 +392,7 @@ CAF_TEST(triangle_peering) {
   sched.inline_next_enqueue();
   self->request(core3, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
     },
     [&](const error& err) {
@@ -461,7 +461,7 @@ CAF_TEST(sequenced_peering) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
     },
     [&](const error& err) {
@@ -506,7 +506,7 @@ CAF_TEST(sequenced_peering) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0);
+      CAF_REQUIRE_EQUAL(xs.size(), 0u);
     },
     [&](const error& err) {
       CAF_FAIL(sys.render(err));
@@ -520,7 +520,7 @@ CAF_TEST(sequenced_peering) {
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1);
+      CAF_REQUIRE_EQUAL(xs.size(), 1u);
       CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
     },
     [&](const error& err) {
