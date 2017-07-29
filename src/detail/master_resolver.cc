@@ -35,8 +35,8 @@ behavior master_resolver(stateful_actor<master_resolver_state>* self) {
       for (auto& peer : peers)
         self->send(peer, atom::store::value, atom::master::value,
                    atom::get::value, name);
-        self->state.rp = self->make_response_promise();
-        self->state.remaining_responses = peers.size();
+      self->state.rp = self->make_response_promise();
+      self->state.remaining_responses = peers.size();
     },
     [=](caf::actor& master) {
       CAF_LOG_DEBUG("resolver found master:" << master);
