@@ -24,7 +24,7 @@ namespace {
 
 void driver(event_based_actor* self, const actor& sink) {
   using buf_type = std::vector<value_type>;
-  self->new_stream(
+  self->make_source(
     // Destination.
     sink,
     // Initialize send buffer with 10 elements.
@@ -69,49 +69,17 @@ CAF_TEST(blocking_subscriber) {
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
-  sched.run_once();
-  expect((atom_value, filter_type),
-         from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
-  expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, _, _, false));
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type, actor),
-         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}), core2, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, _, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, _, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  sched.run();
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   CAF_MESSAGE("driver: " << to_string(d1));
-  sched.run_once();
-  expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(d1).with(_, _, _, false));
-  // Data flows from driver to core1 to core2 and finally to leaf.
-  expect((stream_msg::batch), from(d1).to(core1).with(5, _, 0));
-  expect((stream_msg::batch), from(core1).to(core2).with(5, _, 0));
-  expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
-  expect((stream_msg::ack_batch), from(core2).to(core1).with(_, 0));
-  expect((stream_msg::ack_batch), from(core1).to(d1).with(_, 0));
+  sched.run();
   CAF_MESSAGE("check content of the subscriber's buffer");
-  auto x0 = sub.get();
-  CAF_REQUIRE_EQUAL(x0.first, "b");
-  CAF_REQUIRE_EQUAL(x0.second, true);
-  auto xs = sub.poll();
-  CAF_REQUIRE_EQUAL(xs.size(), 1u);
-  CAF_REQUIRE_EQUAL(xs[0].first, "b");
-  CAF_REQUIRE_EQUAL(xs[0].second, false);
+  using buf = std::vector<value_type>;
+  buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+  CAF_CHECK_EQUAL(sub.poll(), expected);
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);
@@ -129,10 +97,8 @@ CAF_TEST(nonblocking_subscriber) {
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
-  sched.run();
-  // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  sched.run();
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<value_type>;
   buf result;

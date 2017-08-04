@@ -125,6 +125,11 @@ struct peer_fixture {
     return result;
   }
 
+  std::vector<peer_info> peers() {
+    sched.inline_next_enqueue();
+    return ep.peers();
+  }
+
   // Subscribes to a topic, storing all incoming tuples in `data`.
   void subscribe_to(topic t) {
     ep.subscribe_nosync(
@@ -439,6 +444,10 @@ CAF_TEST(unpeering) {
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_lost}));
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({}));
   CAF_CHECK_EQUAL(event_log(earth_es.poll()), event_log({sc::peer_removed}));
+  CAF_CHECK(mercury.peers().empty());
+  CAF_CHECK(venus.peers().empty());
+  CAF_CHECK(earth.peers().empty());
+
 }
 
 CAF_TEST(unpeering_without_connections) {
@@ -447,7 +456,7 @@ CAF_TEST(unpeering_without_connections) {
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
-  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_lost}));
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_invalid}));
 }
 
 CAF_TEST(connection_retry) {

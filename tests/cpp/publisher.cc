@@ -34,7 +34,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
   self->send(self * src, atom::join::value, std::move(ts));
   return {
     [=](const stream_type& in) {
-      self->add_sink(
+      self->make_sink(
         // Input stream.
         in,
         // Initialize state.
@@ -68,77 +68,33 @@ CAF_TEST(blocking_publishers) {
   anon_send(core1, atom::subscribe::value, filter_type{"a"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
-  sched.run();
+  self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
   auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
-  sched.run_once();
-  expect((atom_value, filter_type),
-         from(leaf).to(core2).with(join_atom::value, filter_type{"a/b"}));
-  expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 5, _, false));
-  // Initiate handshake between core1 and core2.
-  self->send(core1, atom::peer::value, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type, actor),
-         from(core1).to(core2).with(_, filter_type{"a"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "a/b"}), core2, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
+  sched.run();
   { // Lifetime scope of our publishers.
-    // There must be no communication pending at this point.
-    CAF_REQUIRE(!sched.has_job());
     // Spin up two publishers: one for "a" and one for "a/b".
     auto pub1 = ep.make_publisher("a");
-    pub1.drop_all_on_destruction();
-    auto d1 = pub1.worker();
-    sched.run_once();
-    expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
-    expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
-    //CAF_CHECK_EQUAL(pub1.demand(), 10); // 5 demand + 5 extra buffer
     auto pub2 = ep.make_publisher("a/b");
+    pub1.drop_all_on_destruction();
     pub2.drop_all_on_destruction();
+    auto d1 = pub1.worker();
     auto d2 = pub2.worker();
-    sched.run_once();
-    expect((stream_msg::open), from(_).to(core1).with(_, d2, _, _, false));
-    expect((stream_msg::ack_open), from(core1).to(d2).with(_, 5, _, false));
-    //CAF_CHECK_EQUAL(pub2.demand(), 10); // 5 demand + 5 extra buffer
+    sched.run();
     // Data flows from our publishers to core1 to core2 and finally to leaf.
     using buf = std::vector<value_type>;
-    // First set of published messages gets filtered out at core2.
+    // First, set of published messages gets filtered out at core2.
     pub1.publish(0);
-    expect((atom_value), from(_).to(d1).with(atom::resume::value));
-    expect((stream_msg::batch), from(d1).to(core1).with(1, _, 0));
-    expect((stream_msg::batch), from(core1).to(core2).with(1, _, 0));
-    sched.run(); // run any ack_batch message
-    // Second set of published messages gets delivered to leaf.
+    sched.run();
+    // Second, set of published messages gets delivered to leaf.
     pub2.publish(true);
-    expect((atom_value), from(_).to(d2).with(atom::resume::value));
-    expect((stream_msg::batch), from(d2).to(core1).with(1, _, 0));
-    expect((stream_msg::batch), from(core1).to(core2).with(1, _, 1));
-    expect((stream_msg::batch), from(core2).to(leaf).with(1, _, 0));
-    expect((stream_msg::ack_batch), from(leaf).to(core2).with(1, 0));
-    sched.run(); // run any ack_batch message
-    // Third set of published messages gets again filtered out at core2.
+    sched.run();
+    // Third, set of published messages gets again filtered out at core2.
     pub1.publish({1, 2, 3});
-    expect((atom_value), from(_).to(d1).with(atom::resume::value));
-    expect((stream_msg::batch), from(d1).to(core1).with(3, _, 1));
-    expect((stream_msg::batch), from(core1).to(core2).with(3, _, 2));
-    sched.run(); // run any ack_batch message
-    // Fourth set of published messages gets delivered to leaf again.
+    sched.run();
+    // Fourth, set of published messages gets delivered to leaf again.
     pub2.publish({false, true});
-    expect((atom_value), from(_).to(d2).with(atom::resume::value));
-    expect((stream_msg::batch), from(d2).to(core1).with(2, _, 1));
-    expect((stream_msg::batch), from(core1).to(core2).with(2, _, 3));
-    expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 1));
-    sched.run(); // run any ack_batch message
+    sched.run();
     // Check log of the consumer.
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
@@ -166,31 +122,10 @@ CAF_TEST(nonblocking_publishers) {
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
-  sched.run();
+  self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  sched.run_once();
-  expect((atom_value, filter_type),
-         from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
-  expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 5, _, false));
-  // Initiate handshake between core1 and core2.
-  self->send(core1, atom::peer::value, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type, actor),
-         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(std::make_tuple(_, filter_type{"a", "b", "c"}),
-                                core2, _, _, false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  sched.run();
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.

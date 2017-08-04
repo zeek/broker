@@ -34,7 +34,7 @@ struct driver_state {
 const char* driver_state::name = "driver";
 
 behavior driver(stateful_actor<driver_state>* self, const actor& sink) {
-  auto ptr = self->new_stream(
+  auto ptr = self->make_source(
     // Destination.
     sink,
     // Initialize send buffer with 10 elements.
@@ -68,8 +68,8 @@ behavior driver(stateful_actor<driver_state>* self, const actor& sink) {
     [=](restart_atom) {
       self->state.reset();
       self->state.restartable = false;
-      static_cast<stream_source*>(ptr.get())->generate();
-      ptr->push();
+      if (ptr->generate_messages())
+        ptr->push();
     }
   };
 }
@@ -86,7 +86,7 @@ behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
   self->send(self * src, atom::join::value, std::move(ts));
   return {
     [=](const endpoint::stream_type& in) {
-      self->add_sink(
+      self->make_sink(
         // Input stream.
         in,
         // Initialize state.
@@ -139,8 +139,7 @@ CAF_TEST(local_peers) {
   sched.run_once();
   expect((atom_value, filter_type),
          from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
-  expect((stream_msg::open), from(_).to(leaf).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(leaf).to(core2).with(_, 5, _, false));
+  sched.run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
@@ -156,21 +155,8 @@ CAF_TEST(local_peers) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type, actor),
-         from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}, core2), core2, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  // Run handshake between peers.
+  sched.run();
   // Check if core1 & core2 both report each other as peered.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
@@ -197,31 +183,9 @@ CAF_TEST(local_peers) {
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   CAF_MESSAGE("d1: " << to_string(d1));
-  sched.run_once();
-  expect((stream_msg::open), from(_).to(core1).with(_, d1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(d1).with(_, 5, _, false));
-  // Data flows from driver to core1 to core2 and finally to leaf.
-  using buf = std::vector<element_type>;
-  expect((stream_msg::batch), from(d1).to(core1).with(5, _, 0));
-  expect((stream_msg::batch), from(core1).to(core2).with(5, _, 0));
-  expect((stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
-  expect((stream_msg::ack_batch), from(core2).to(core1).with(5, 0));
-  expect((stream_msg::ack_batch), from(core1).to(d1).with(5, 0));
-  // Check log of the consumer.
-  self->send(leaf, atom::get::value);
-  sched.prioritize(leaf);
-  sched.run_once();
-  self->receive(
-    [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}};
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
-  CAF_SET_LOGGER_SYS(&sys);
-  CAF_LOG_INFO("deliver remaining items from driver");
-  CAF_MESSAGE("deliver remaining items from driver");
   sched.run();
   // Check log of the consumer after receiving all items from driver.
+  using buf = std::vector<element_type>;
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
   sched.run_once();
@@ -231,14 +195,14 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
-  // Send a message "directly" from core1 to core2 by bypassing the stream.
+  // Send a message "directly" from core1 to core2, bypassing the stream.
   anon_send(core1, atom::publish::value, endpoint_info{core2.node(), caf::none},
             topic("b"), data{true});
   expect((atom::publish, endpoint_info, topic, data),
          from(_).to(core1).with(_, _, _, _));
   expect((atom::publish, atom::local, topic, data),
          from(core1).to(core2).with(_, _, topic("b"), data{true}));
-  expect((stream_msg::batch), from(core2).to(leaf).with(1, _, _));
+  sched.run();
   // Check log of the consumer one last time.
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
@@ -321,18 +285,7 @@ CAF_TEST(triangle_peering) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}, core2), core2, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  sched.run();
   // Initiate handshake between core2 and core3.
   self->send(core2, atom::peer::value, core3);
   expect((atom::peer, actor), from(self).to(core2).with(_, core3));
@@ -349,21 +302,8 @@ CAF_TEST(triangle_peering) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Step #1: core2  --->    ('peer', filter_type)    ---> core3
-  expect((atom::peer, filter_type, actor),
-         from(core2).to(core3).with(_, filter_type{"a", "b", "c"}, core2));
-  // Step #2: core2  <---   (stream_msg::open)   <--- core3
-  expect((stream_msg::open),
-         from(_).to(core2).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}, core3), core3, _, _,
-           false));
-  // Step #3: core2  --->   (stream_msg::open)   ---> core3
-  //          core2  ---> (stream_msg::ack_open) ---> core3
-  expect((stream_msg::open), from(_).to(core3).with(_, core2, _, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core3).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core3).to(core2).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  // Perform further handshake steps.
+  sched.run();
   // Check if all cores properly report peering setup.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
@@ -468,21 +408,9 @@ CAF_TEST(sequenced_peering) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}, core2), core2, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core2).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core2).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  sched.run();
   // Spin up driver and transmit first half of the data.
   auto d1 = sys.spawn(driver, core1);
   anon_send(d1, make_restartable_atom::value);
@@ -530,28 +458,18 @@ CAF_TEST(sequenced_peering) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core3
   expect((atom::peer, filter_type, actor),
          from(core1).to(core3).with(_, filter_type{"a", "b", "c"}, core1));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core3
-  expect((stream_msg::open),
-         from(_).to(core1).with(
-           std::make_tuple(_, filter_type{"a", "b", "c"}, core3), core3, _, _,
-           false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core3
-  //          core1  ---> (stream_msg::ack_open) ---> core3
-  expect((stream_msg::open), from(_).to(core3).with(_, core1, _, _, false));
-  expect((stream_msg::ack_open), from(core1).to(core3).with(_, 5, _, false));
-  expect((stream_msg::ack_open), from(core3).to(core1).with(_, 5, _, false));
-  // There must be no communication pending at this point.
-  CAF_REQUIRE(!sched.has_job());
+  sched.run();
   // Restart driver and send second half of the data.
   anon_send(d1, restart_atom::value);
   sched.run();
   // Check log of the consumer on core3.
-  self->send(leaf2, atom::get::value);
-  sched.prioritize(leaf2);
-  sched.run_once();
-  self->receive(
+  sched.inline_next_enqueue();
+  self->request(leaf2, infinite, atom::get::value).receive(
     [&](const buf& xs) {
       CAF_CHECK_EQUAL(xs, expected);
+    },
+    [&](const error& err) {
+      CAF_FAIL(sys.render(err));
     }
   );
   // Shutdown.
@@ -720,12 +638,6 @@ CAF_TEST(remote_peers_setup1) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ep.core();
   auto core2 = mars.ep.core();
-  auto forward_stream_traffic = [&] {
-    while (earth.mpx.try_exec_runnable() || mars.mpx.try_exec_runnable()
-           || earth.mpx.read_data() || mars.mpx.read_data()) {
-      // rince and repeat
-    }
-  };
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
@@ -754,74 +666,19 @@ CAF_TEST(remote_peers_setup1) {
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
-  mars.sched.run_once();
-  expect_on(mars, (atom_value, filter_type),
-            from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
-  expect_on(mars, (stream_msg::open),
-            from(_).to(leaf).with(_, core2, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
-            from(leaf).to(core2).with(_, 5, _, false));
+  exec_all();
   // --- phase 5: peer from earth to mars --------------------------------------
   // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer::value, core2_proxy);
-  expect_on(earth, (atom::peer, actor),
-            from(earth.self).to(core1).with(_, core2_proxy));
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  forward_stream_traffic();
-  expect_on(mars, (atom::peer, filter_type, actor),
-            from(_).to(core2).with(_, filter_type{"a", "b", "c"}, _));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::open),
-            from(_).to(core1).with(
-              std::make_tuple(_, filter_type{"a", "b", "c"}, core2_proxy), _, _,
-              _, false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::open),
-            from(_).to(core2).with(_, _, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
-            from(_).to(core2).with(_, 5, _, false));
-  // Step #4: core1  <--- (stream_msg::ack_open) <--- core2
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::ack_open),
-            from(_).to(core1).with(_, 5, _, false));
-  // Make sure there is no communication pending at this point.
   exec_all();
   // Spin up driver on core1.
   auto d1 = earth.sys.spawn(driver, core1);
   CAF_MESSAGE("d1: " << to_string(d1));
-  earth.sched.run_once();
-  expect_on(earth, (stream_msg::open),
-            from(_).to(core1).with(_, d1, _, _, false));
-  expect_on(earth, (stream_msg::ack_open),
-            from(core1).to(d1).with(_, 5, _, false));
-  // Data flows from driver to core1 to core2 and finally to leaf.
-  using buf = std::vector<element_type>;
-  expect_on(earth, (stream_msg::batch), from(d1).to(core1).with(5, _, 0));
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::batch), from(_).to(core2).with(5, _, 0));
-  expect_on(mars, (stream_msg::batch), from(core2).to(leaf).with(2, _, 0));
-  expect_on(mars, (stream_msg::ack_batch), from(leaf).to(core2).with(2, 0));
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::ack_batch), from(_).to(core1).with(5, 0));
-  expect_on(earth, (stream_msg::ack_batch), from(_).to(d1).with(5, 0));
-  // Second round of data.
-  expect_on(earth, (stream_msg::batch), from(d1).to(core1).with(5, _, 1));
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::batch), from(_).to(core2).with(5, _, 1));
-  expect_on(mars, (stream_msg::batch),
-            from(core2).to(leaf).with(2, _, 1));
-  expect_on(mars, (stream_msg::ack_batch), from(leaf).to(core2).with(2, 1));
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::ack_batch), from(_).to(core1).with(5, 1));
-  expect_on(earth, (stream_msg::ack_batch), from(_).to(d1).with(5, 1));
-  expect_on(earth, (stream_msg::close), from(d1).to(core1).with());
+  exec_all();
   // Check log of the consumer.
+  using buf = std::vector<element_type>;
   earth.self->send(leaf, atom::get::value);
-  earth.sched.prioritize(leaf);
-  earth.sched.run_once();
+  exec_all();
   earth.self->receive(
     [](const buf& xs) {
       buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -841,12 +698,6 @@ CAF_TEST(remote_peers_setup2) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
   auto core1 = earth.ep.core();
   auto core2 = mars.ep.core();
-  auto forward_stream_traffic = [&] {
-    while (earth.mpx.try_exec_runnable() || mars.mpx.try_exec_runnable()
-           || earth.mpx.read_data() || mars.mpx.read_data()) {
-      // rince and repeat
-    }
-  };
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
@@ -875,71 +726,18 @@ CAF_TEST(remote_peers_setup2) {
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
-  earth.sched.run_once();
-  expect_on(earth, (atom_value, filter_type),
-            from(leaf).to(core1).with(join_atom::value, filter_type{"b"}));
-  expect_on(earth, (stream_msg::open),
-            from(_).to(leaf).with(_, core1, _, _, false));
-  expect_on(earth, (stream_msg::ack_open),
-            from(leaf).to(core1).with(_, 5, _, false));
+  exec_all();
   // --- phase 5: peer from earth to mars --------------------------------------
   // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer::value, core2_proxy);
-  expect_on(earth, (atom::peer, actor),
-            from(earth.self).to(core1).with(_, core2_proxy));
-  // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  forward_stream_traffic();
-  expect_on(mars, (atom::peer, filter_type, actor),
-            from(_).to(core2).with(_, filter_type{"a", "b", "c"}, _));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::open),
-            from(_).to(core1).with(
-              std::make_tuple(_, filter_type{"a", "b", "c"}, core2_proxy), _, _,
-              _, false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::open),
-            from(_).to(core2).with(_, _, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
-            from(_).to(core2).with(_, 5, _, false));
-  // Step #4: core1  <--- (stream_msg::ack_open) <--- core2
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::ack_open),
-            from(_).to(core1).with(_, 5, _, false));
-  // Make sure there is no communication pending at this point.
   exec_all();
-  // Spin up driver on core2.
+  // Spin up driver on core2. Data flows from driver to core2 to core1 and
+  // finally to leaf.
   auto d1 = mars.sys.spawn(driver, core2);
   CAF_MESSAGE("d1: " << to_string(d1));
-  mars.sched.run_once();
-  expect_on(mars, (stream_msg::open),
-            from(_).to(core2).with(_, d1, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
-            from(core2).to(d1).with(_, 5, _, false));
-  // Data flows from driver to core2 to core1 and finally to leaf.
-  using buf = std::vector<element_type>;
-  expect_on(mars, (stream_msg::batch), from(d1).to(core2).with(5, _, 0));
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::batch), from(_).to(core1).with(5, _, 0));
-  expect_on(earth, (stream_msg::batch),
-            from(core1).to(leaf).with(2, _, 0));
-  expect_on(earth, (stream_msg::ack_batch), from(leaf).to(core1).with(2, 0));
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::ack_batch), from(_).to(core2).with(5, 0));
-  expect_on(mars, (stream_msg::ack_batch), from(_).to(d1).with(5, 0));
-  // Second round of data.
-  expect_on(mars, (stream_msg::batch), from(d1).to(core2).with(5, _, 1));
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::batch), from(_).to(core1).with(5, _, 1));
-  expect_on(earth, (stream_msg::batch), from(core1).to(leaf).with(2, _, 1));
-  expect_on(earth, (stream_msg::ack_batch), from(leaf).to(core1).with(2, 1));
-  forward_stream_traffic();
-  expect_on(mars, (stream_msg::ack_batch), from(_).to(core2).with(5, 1));
-  expect_on(mars, (stream_msg::ack_batch), from(_).to(d1).with(5, 1));
-  expect_on(mars, (stream_msg::close), from(d1).to(core2).with());
+  exec_all();
   // Check log of the consumer.
+  using buf = std::vector<element_type>;
   mars.self->send(leaf, atom::get::value);
   mars.sched.prioritize(leaf);
   mars.sched.run_once();

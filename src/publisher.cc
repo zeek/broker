@@ -2,7 +2,6 @@
 
 #include <caf/event_based_actor.hpp>
 #include <caf/send.hpp>
-#include <caf/stream_source.hpp>
 
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
@@ -53,7 +52,7 @@ const char* publisher_worker_state::name = "publisher_worker";
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
                           endpoint* ep,
                           detail::shared_publisher_queue_ptr<> qptr) {
-  auto handler = self->new_stream(
+  auto handler = self->make_source(
     ep->core(),
     [](unit_t&) {
       // nop
@@ -77,8 +76,8 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
   //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
   return {
     [=](atom::resume) {
-      static_cast<stream_source*>(handler.get())->generate();
-      handler->push();
+      if (handler->generate_messages())
+        handler->push();
     },
     [=](atom::tick) {
       auto& st = self->state;
@@ -89,8 +88,8 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
     [=](atom::shutdown) {
       self->state.shutting_down = true;
       self->unbecome();
+      handler->generate_messages();
       // triggers the stream to terminate if the queue is already empty
-      static_cast<stream_source*>(handler.get())->generate();
       handler->push();
     }
   };

@@ -164,8 +164,6 @@ set(BROKER_SRC
   src/publisher.cc
   src/status.cc
   src/store.cc
-  src/stream_governor.cc
-  src/stream_relay.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc
@@ -175,6 +173,7 @@ set(BROKER_SRC
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
   src/detail/core_actor.cc
+  src/detail/core_policy.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
@@ -183,6 +182,7 @@ set(BROKER_SRC
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/network_cache.cc
+  src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
 
   src/detail/sqlite3.c

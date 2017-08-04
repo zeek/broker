@@ -188,15 +188,21 @@ void endpoint::publish(std::vector<value_type> xs) {
 }
 
 publisher endpoint::make_publisher(topic ts) {
-  return {*this, std::move(ts)};
+  publisher result{*this, std::move(ts)};
+  children_.emplace_back(result.worker());
+  return result;
 }
 
 event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {
-  return {*this, receive_statuses};
+  event_subscriber result{*this, receive_statuses};
+  children_.emplace_back(result.worker());
+  return result;
 }
 
 subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
-  return {*this, std::move(ts), max_qsize};
+  subscriber result{*this, std::move(ts), max_qsize};
+  children_.emplace_back(result.worker());
+  return result;
 }
 
 caf::actor endpoint::make_actor(actor_init_fun f) {

@@ -86,20 +86,23 @@ MESSAGE("prepare authenticated connection");
   auto b = venus_auth.ep.peer("127.0.0.1", p);
   CAF_REQUIRE(b);
 
-  auto ping = std::make_pair(topic("/broker/test"), data({"ping"}));
-  auto pong = std::make_pair(topic("/broker/test"), data({"pong"}));
+  using value_type = std::pair<topic, data>;
+  value_type ping{"/broker/test", "ping"};
+  value_type pong{"/broker/test", "pong"};
 
   MESSAGE("mercury_auth sending ping");
   mercury_auth.ep.publish({ping});
   MESSAGE("venus_auth waiting for ping");
-  auto m1 = venus_auth_es.get();
-  CAF_CHECK_EQUAL(m1, ping);
+  CAF_CHECK_EQUAL(venus_auth_es.get(), ping);
+  CAF_CHECK(mercury_auth_es.poll().empty());
+  CAF_CHECK(venus_auth_es.poll().empty());
 
   MESSAGE("venus_auth sending pong");
   venus_auth.ep.publish({pong});
   MESSAGE("mercury_auth waiting for pong");
-  auto m2 = mercury_auth_es.get();
-  CAF_CHECK_EQUAL(m2, pong);
+  CAF_CHECK_EQUAL(mercury_auth_es.get(), pong);
+  CAF_CHECK(mercury_auth_es.poll().empty());
+  CAF_CHECK(venus_auth_es.poll().empty());
 
   MESSAGE("disconnect venus_auth from mercury_auth");
   venus_auth.ep.unpeer("mercury", 4040);
@@ -107,6 +110,7 @@ MESSAGE("prepare authenticated connection");
   venus_auth.ep.shutdown();
   MESSAGE("mercury_auth to shutdown");
   mercury_auth.ep.shutdown();
+  MESSAGE("all done");
 }
 
 CAF_TEST(authenticated_failure_no_ssl_peer) {

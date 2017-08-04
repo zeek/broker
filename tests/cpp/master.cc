@@ -1,4 +1,5 @@
 #define SUITE master
+
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 
@@ -28,36 +29,29 @@ CAF_TEST(local_master) {
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream
   // handshake
-  expect((stream_msg::open),
-         from(_).to(ms).with(_, core, _, _, _, _, false));
-  expect((stream_msg::ack_open),
-         from(ms).to(core).with(_, 5, _, false));
+  sched.run();
   // test putting something into the store
   ds.put("hello", "world");
-  expect((atom_value, internal_command),
-         from(_).to(ms).with(atom::local::value, _));
+  sched.run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  auto res = ds.get("hello");
-  CAF_REQUIRE_EQUAL(res, data{"world"});
+  CAF_CHECK_EQUAL(ds.get("hello"), data{"world"});
   // check the name of the master
   sched.inline_next_enqueue(); // ds.name talks to the master_actor (blocking)
   auto n = ds.name();
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
-  anon_send(core, atom::publish::value, n / topics::reserved / topics::master,
+  anon_send(core, atom::publish::value, atom::local::value,
+            n / topics::reserved / topics::master,
             make_internal_command<put_command>("hello", "universe"));
-  expect((atom_value, topic, internal_command), from(_).to(core).with(_, _, _));
   sched.run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  auto res2 = ds.get("hello");
-  CAF_REQUIRE_EQUAL(res2, data{"universe"});
+  CAF_CHECK_EQUAL(ds.get("hello"), data{"universe"});
   ds.clear();
   sched.run();
   sched.inline_next_enqueue();
-  auto res3 = ds.get("hello");
-  CAF_REQUIRE_EQUAL(res3, caf::error{ec::no_such_key});
+  CAF_CHECK_EQUAL(ds.get("hello"), caf::error{ec::no_such_key});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
   sched.run();
@@ -140,11 +134,11 @@ CAF_TEST(master_with_clone) {
   expect_on(mars, (stream_msg::open),
             from(_).to(core2).with(_, _, _, _, false));
   expect_on(mars, (stream_msg::ack_open),
-            from(_).to(core2).with(_, 5, _, false));
+            from(_).to(core2).with(_, _, _, _, false));
   // Step #4: core1  <--- (stream_msg::ack_open) <--- core2
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_open),
-            from(_).to(core1).with(_, 5, _, false));
+            from(_).to(core1).with(_, _, _, _, false));
   // Make sure there is no communication pending at this point.
   exec_all();
   // --- phase 7: resolve master for foo proactively ---------------------------
@@ -174,7 +168,7 @@ CAF_TEST(master_with_clone) {
   expect_on(mars, (stream_msg::open),
             from(_).to(ms_mars).with(_, core2, _, _, _, _, false));
   expect_on(mars, (stream_msg::ack_open),
-            from(ms_mars).to(core2).with(_, 5, false));
+            from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();
   expect_on(earth, (atom::update, filter_type),

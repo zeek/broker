@@ -10,6 +10,9 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include <caf/detail/stream_distribution_tree.hpp>
+
+#include "broker/atoms.hh"
 #include "broker/logger.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
@@ -18,16 +21,20 @@
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
 
+#include "broker/detail/core_policy.hh"
+#include "broker/detail/filter_type.hh"
 #include "broker/detail/network_cache.hh"
 #include "broker/detail/radix_tree.hh"
-#include "broker/detail/stream_governor.hh"
-#include "broker/detail/stream_relay.hh"
 
 namespace broker {
 namespace detail {
 
 struct core_state {
   // --- nested types ----------------------------------------------------------
+
+  using governor_type = caf::detail::stream_distribution_tree<core_policy>;
+
+  using governor_ptr = caf::intrusive_ptr<governor_type>;
 
   struct pending_peer_state {
     caf::stream_id sid;
@@ -61,10 +68,6 @@ struct core_state {
   /// Adds `xs` to our filter and update all peers on changes.
   void add_to_filter(filter_type xs);
 
-  // --- convenience factory functions for querying state ----------------------
-
-  caf::stream_handler_ptr make_relay(const caf::stream_id& sid) const;
-
   // --- convenience functions for querying state ------------------------------
 
   /// Returns whether `x` is either a pending peer or a connected peer.
@@ -73,6 +76,8 @@ struct core_state {
   /// Returns whether a master for `name` probably exists already on one of our
   /// peers.
   bool has_remote_master(const std::string& name);
+
+  core_policy& policy();
 
   // --- convenience functions for sending errors and events -------------------
 
@@ -143,7 +148,7 @@ struct core_state {
   filter_type filter;
  
   /// Multiplexes local streams and streams for peers.
-  detail::stream_governor_ptr governor;
+  governor_ptr governor;
 
   /// Maps pending peer handles to output IDs. An invalid stream ID indicates
   /// that only "step #0" was performed so far. An invalid stream ID
@@ -154,12 +159,6 @@ struct core_state {
 
   /// Points to the owning actor.
   caf::event_based_actor* self;
-
-  /// Connects the governor to the input of local actor.
-  caf::stream_handler_ptr worker_relay;
-
-  /// Connects the governor to the input of local actor.
-  caf::stream_handler_ptr store_relay;
 
   /// Associates network addresses to remote actor handles and vice versa.
   network_cache cache;

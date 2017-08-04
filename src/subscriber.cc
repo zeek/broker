@@ -2,12 +2,13 @@
 #include "broker/subscriber.hh"
 
 #include <chrono>
+#include <numeric>
 
 #include <caf/message.hpp>
+#include <caf/random_gatherer.hpp>
+#include <caf/scheduled_actor.hpp>
 #include <caf/send.hpp>
-#include <caf/stream_sink.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/upstream_path.hpp>
+#include <caf/terminal_stream_scatterer.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
@@ -50,105 +51,75 @@ struct subscriber_worker_state {
 
 const char* subscriber_worker_state::name = "subscriber_worker";
 
-class subscriber_policy : public upstream_policy {
+class subscriber_term : public terminal_stream_scatterer {
 public:
-  subscriber_policy(local_actor* selfptr,
-                    detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
-    : upstream_policy(selfptr),
-      queue_(std::move(qptr)),
+  using queue_ptr = detail::shared_subscriber_queue_ptr<>;
+
+  subscriber_term(queue_ptr qptr, long max_qsize)
+    : queue_(std::move(qptr)),
       max_qsize_(max_qsize) {
     // nop
   }
 
-  // @pre `queue_->mtx` is locked.
-  void fill_assignment_vec(long) override {
-    // We assume there is only one upstream (the core) and simply ignore the
-    // second parameter since we only consider the current state of our buffer.
-    BROKER_ASSERT(assignment_vec_.size() == 1);
-    auto size = static_cast<long>(queue_->buffer_size());
-    BROKER_ASSERT(size <= max_qsize_);
-    auto x = max_qsize_ - size;
-    queue_->pending(x);
-    auto& avf = assignment_vec_.front();
-    auto assigned = avf.first->assigned_credit;
-    BROKER_ASSERT(x >= assigned);
-    CAF_IGNORE_UNUSED(assigned);
-    avf.second = x - avf.first->assigned_credit;
+  long credit() const override {
+    return max_qsize_ - static_cast<long>(queue_->buffer_size());
   }
 
-  long max_qsize() const {
-    return max_qsize_;
+  queue_ptr& queue() {
+    return queue_;
   }
 
 private:
-  detail::shared_subscriber_queue_ptr<> queue_;
+  queue_ptr queue_;
   long max_qsize_;
 };
 
-class subscriber_sink : public extend<stream_handler, subscriber_sink>::
-                               with<mixin::has_upstreams> {
+class subscriber_sink : public stream_manager {
 public:
-  using value_type = std::pair<topic, data>;
+  using input_type = std::pair<topic, data>;
 
-  subscriber_sink(event_based_actor* self, subscriber_worker_state* state,
-                  detail::shared_subscriber_queue_ptr<> qptr, long max_qsize)
-    : in_(self, qptr, max_qsize),
-      queue_(std::move(qptr)),
+  using output_type = void;
+
+  subscriber_sink(scheduled_actor* self, subscriber_worker_state* state,
+                  subscriber_term::queue_ptr qptr, long max_qsize)
+    : in_(self),
+      out_(std::move(qptr), max_qsize),
       state_(state) {
     // nop
   }
 
-  expected<long> add_upstream(strong_actor_ptr& hdl, const stream_id& sid,
-                              stream_priority prio) override {
-    CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(sid) << CAF_ARG(prio));
-    if (hdl)
-      return in_.add_path(hdl, sid, prio, in_.max_qsize());
-    return sec::invalid_argument;
+  random_gatherer& in() override {
+    return in_;
   }
 
-  error upstream_batch(strong_actor_ptr& hdl, int64_t xs_id, long xs_size,
-                       caf::message& xs) override {
-    CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(xs_size) << CAF_ARG(xs));
-    auto path = in_.find(hdl);
-    if (path) {
-      if (xs_size > path->assigned_credit)
-        return sec::invalid_stream_state;
-      path->last_batch_id = xs_id;
-      path->assigned_credit -= xs_size;
-      if (!xs.match_elements<std::vector<value_type>>())
-        return sec::unexpected_message;
-      auto& ys = xs.get_mutable_as<std::vector<value_type>>(0);
-      auto ys_size = ys.size();
-      CAF_ASSERT(ys_size == xs_size);
-      state_->counter += ys_size;
-      queue_->produce(ys_size, std::make_move_iterator(ys.begin()),
-                      std::make_move_iterator(ys.end()));
-      in_.assign_credit(0); // 0 is ignored by our policy.
-      return caf::none;
-    }
-    return sec::invalid_upstream;
+  subscriber_term& out() override {
+    return out_;
   }
 
   bool done() const override {
     return in_.closed();
   }
 
-  void abort(strong_actor_ptr& cause, const error& reason) override {
-    CAF_LOG_TRACE(CAF_ARG(cause) << CAF_ARG(reason));
-    in_.abort(cause, reason);
+protected:
+  error process_batch(message& msg) override {
+    CAF_LOG_TRACE(CAF_ARG(msg));
+    if (!msg.match_elements<std::vector<input_type>>())
+      return sec::unexpected_message;
+    auto& ys = msg.get_mutable_as<std::vector<input_type>>(0);
+    auto ys_size = ys.size();
+    state_->counter += ys_size;
+    out_.queue()->produce(ys_size, std::make_move_iterator(ys.begin()),
+                          std::make_move_iterator(ys.end()));
+    return caf::none;
   }
 
-  optional<upstream_policy&> up() override {
-    return in_;
-  }
-
-  void last_upstream_closed() {
-    CAF_LOG_TRACE("");
+  message make_final_result() override {
+    return make_message();
   }
 
 private:
-  subscriber_policy in_;
-  detail::shared_subscriber_queue_ptr<> queue_;
+  random_gatherer in_;
+  subscriber_term out_;
   subscriber_worker_state* state_;
 };
 
@@ -161,14 +132,15 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
   return {
     [=](const endpoint::stream_type& in) {
       BROKER_ASSERT(qptr != nullptr);
-      auto sptr = make_counted<subscriber_sink>(self, &self->state,
-                                                qptr, max_qsize);
-      self->streams().emplace(in.id(), std::move(sptr));
+      auto sid = in.id();
+      auto nop = [](subscriber_sink&) {};
+      self->make_sink_impl<subscriber_sink>(in, nop, &self->state,
+                                            qptr, max_qsize);
       self->set_default_handler(print_and_drop);
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
       self->become(
         [=](atom::join a0, atom::update a1, filter_type& f) {
-          self->send(ep->core(), a0, a1, std::move(f));
+          self->send(ep->core(), a0, a1, sid, std::move(f));
         },
         [=](atom::tick) {
           auto& st = self->state;
