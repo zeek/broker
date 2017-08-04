@@ -150,14 +150,13 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
                           [self, cpy](error) mutable {
                             auto desc = "remote endpoint unavailable";
                             BROKER_ERROR(desc);
+                            self->state.emit_error<ec::peer_unavailable>(
+                              cpy.addr, desc);
                             // TODO: make max_try_attempts configurable
                             if (cpy.retry.count() > 0 && cpy.n < 100)
                               self->delayed_send(self, cpy.retry, cpy);
-                            else {
-                              self->state.emit_error<ec::peer_unavailable>(
-                                cpy.addr, desc);
+                            else
                               cpy.rp.deliver(sec::cannot_connect_to_node);
-                            }
                           });
 }
 

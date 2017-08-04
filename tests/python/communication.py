@@ -1,4 +1,4 @@
-\
+
 import unittest
 import multiprocessing
 import sys
@@ -92,7 +92,7 @@ class TestCommunication(unittest.TestCase):
         ep1.shutdown()
         ep2.shutdown()
 
-    def Xtest_event_subscriber_error(self):
+    def test_event_subscriber_error(self):
         ep1 = broker.Endpoint()
         es1 = ep1.make_event_subscriber()
 
@@ -106,6 +106,7 @@ class TestCommunication(unittest.TestCase):
         ep1.peer_nosync("127.0.0.1", 1947, 1.0)
         st1 = es1.get()
         self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
+
         st1 = es1.get()
         self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
@@ -118,5 +119,5 @@ class TestCommunication(unittest.TestCase):
         ep1.shutdown()
 
 if __name__ == '__main__':
-    #TestCommunication().test_event_subscriber_error()
-    unittest.main(verbosity=3)
+    TestCommunication().test_event_subscriber_error()
+    #unittest.main(verbosity=3)
