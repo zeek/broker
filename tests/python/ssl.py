@@ -39,9 +39,8 @@ class TestSSL(unittest.TestCase):
 
         self.check_ping(ep1, s1, ep2, s2)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        s1 = s2 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_ssl_auth_success_ca_pw(self):
         cfg = broker.Configuration()
@@ -60,9 +59,8 @@ class TestSSL(unittest.TestCase):
 
         self.check_ping(ep1, s1, ep2, s2)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        s1 = s2 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_ssl_auth_success_self_signed(self):
         cfg = broker.Configuration()
@@ -80,9 +78,8 @@ class TestSSL(unittest.TestCase):
 
         self.check_ping(ep1, s1, ep2, s2)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        s1 = s2 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_ssl_auth_failure_self_signed(self):
         cfg1 = broker.Configuration()
@@ -107,9 +104,8 @@ class TestSSL(unittest.TestCase):
         r = ep2.peer("127.0.0.1", port, 0)
         self.assertEqual(r, False)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_ssl_auth_failure_no_auth(self):
         cfg1 = broker.Configuration()
@@ -167,9 +163,8 @@ class TestSSL(unittest.TestCase):
         r = ep2.peer("127.0.0.1", port, 0)
         self.assertEqual(r, False)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
 if __name__ == '__main__':
     unittest.main(verbosity=3)

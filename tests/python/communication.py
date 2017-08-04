@@ -25,9 +25,8 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(t, "/test")
         self.assertEqual(d[0], "pong")
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        s1 = s2 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_messages(self):
         ep1 = broker.Endpoint()
@@ -50,9 +49,8 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(msgs[1], msg1)
         self.assertEqual(msgs[2], msg2)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better.
-        s1 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_publisher(self):
         ep1 = broker.Endpoint()
@@ -72,10 +70,8 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(msgs[1], ("/test", ["a", "b", "c"]))
         self.assertEqual(msgs[2], ("/test", [True, False]))
 
-        # TODO: This *still* doesn't terminate, even with this manual
-        # cleanup here.
-        p2 = s1 = None
-        ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_event_subscriber(self):
         ep1 = broker.Endpoint()
@@ -93,13 +89,10 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(st2.code(), broker.SC.PeerAdded)
         self.assertEqual(st2.context().network.get().address, "127.0.0.1")
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better. Note that even the order is
-        # important.
-        es1 = es2 = None
-        s1 = s2 = ep1 = ep2 = None
+        ep1.shutdown()
+        ep2.shutdown()
 
-    def test_event_subscriber_error(self):
+    def Xtest_event_subscriber_error(self):
         ep1 = broker.Endpoint()
         es1 = ep1.make_event_subscriber()
 
@@ -116,12 +109,14 @@ class TestCommunication(unittest.TestCase):
         st1 = es1.get()
         self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
-        # TODO: This is needed so that the process terminates.
-        # Need to find something better. Note that even the order is
-        # important.
-        es1 = None
-        ep1 = None
+        ep1.shutdown()
+
+    def test_idle_endpoint(self):
+        ep1 = broker.Endpoint()
+        es1 = ep1.make_event_subscriber()
+        s1 = ep1.make_subscriber("/test")
+        ep1.shutdown()
 
 if __name__ == '__main__':
-    TestCommunication().test_event_subscriber_error()
-    #unittest.main(verbosity=3)
+    #TestCommunication().test_event_subscriber_error()
+    unittest.main(verbosity=3)

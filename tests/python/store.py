@@ -43,9 +43,7 @@ class TestStore(unittest.TestCase):
         self.assertEqual(x, "value")
         self.assertEqual(m.name(), "test")
 
-        # TODO: This is so that the process shuts down.
-        m = None
-        ep1 = None
+        ep1.shutdown()
 
     def test_from_master(self):
         (ep0, ep1, ep2, m, c1, c2) = create_stores()
@@ -122,8 +120,8 @@ class TestStore(unittest.TestCase):
         self.assertEqual(c1.keys(), set())
         self.assertEqual(c2.keys(), set())
 
-        m = c1 = c2 = None
-        ep0 = ep1 = ep2
+        ep1.shutdown()
+        ep2.shutdown()
 
     def test_from_clones(self):
         (ep0, ep1, ep2, m, c1, c2) = create_stores()
@@ -200,8 +198,8 @@ class TestStore(unittest.TestCase):
         self.assertEqual(c1.keys(), set())
         self.assertEqual(c2.keys(), set())
 
-        m = c1 = c2 = None
-        ep0 = ep1 = ep2
+        ep1.shutdown()
+        ep2.shutdown()
 
 
 if __name__ == '__main__':
