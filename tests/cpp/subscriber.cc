@@ -24,7 +24,7 @@ namespace {
 
 void driver(event_based_actor* self, const actor& sink) {
   using buf_type = std::vector<value_type>;
-  self->new_stream(
+  self->make_source(
     // Destination.
     sink,
     // Initialize send buffer with 10 elements.

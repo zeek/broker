@@ -31,7 +31,7 @@ CAF_TEST(local_master) {
   expect((stream_msg::open),
          from(_).to(ms).with(_, core, _, _, _, _, false));
   expect((stream_msg::ack_open),
-         from(ms).to(core).with(_, 5, _, false));
+         from(ms).to(core).with(_, _, _, _, false));
   // test putting something into the store
   ds.put("hello", "world");
   expect((atom_value, internal_command),
@@ -140,11 +140,11 @@ CAF_TEST(master_with_clone) {
   expect_on(mars, (stream_msg::open),
             from(_).to(core2).with(_, _, _, _, false));
   expect_on(mars, (stream_msg::ack_open),
-            from(_).to(core2).with(_, 5, _, false));
+            from(_).to(core2).with(_, _, _, _, false));
   // Step #4: core1  <--- (stream_msg::ack_open) <--- core2
   forward_stream_traffic();
   expect_on(earth, (stream_msg::ack_open),
-            from(_).to(core1).with(_, 5, _, false));
+            from(_).to(core1).with(_, _, _, _, false));
   // Make sure there is no communication pending at this point.
   exec_all();
   // --- phase 7: resolve master for foo proactively ---------------------------
@@ -174,7 +174,7 @@ CAF_TEST(master_with_clone) {
   expect_on(mars, (stream_msg::open),
             from(_).to(ms_mars).with(_, core2, _, _, _, _, false));
   expect_on(mars, (stream_msg::ack_open),
-            from(ms_mars).to(core2).with(_, 5, false));
+            from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();
   expect_on(earth, (atom::update, filter_type),

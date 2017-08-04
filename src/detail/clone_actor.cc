@@ -168,7 +168,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
       else
         result = caf::make_message(make_error(ec::no_such_key), id);
-      BROKER_INFO("GET" << key << aspect << "with id" << id << "->" << result.take(1));
+      BROKER_INFO("GET" << key << aspect << "with id" << id
+                  << "->" << result.take(1));
       return result;
     },
     [=](atom::get, atom::name) {
@@ -176,7 +177,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
-      self->add_sink(
+      self->make_sink(
         // input stream
         in,
         // initialize state

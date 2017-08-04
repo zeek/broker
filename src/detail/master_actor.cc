@@ -212,7 +212,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
-      self->add_sink(
+      self->make_sink(
         // input stream
         in,
         // initialize state
