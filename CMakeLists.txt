@@ -250,6 +250,16 @@ if (NOT DISABLE_PYTHON_BINDINGS)
     message(STATUS "Skipping Python bindings: Python interpreter not found")
   endif ()
 
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/3rdparty/pybind11/CMakeLists.txt")
+    message(WARNING "Skipping Python bindings: pybind11 submodule not available")
+    set(PYTHONINTERP_FOUND false)
+  endif ()
+
+  if (NOT ${PYTHON_VERSION_MAJOR} EQUAL 3)
+    message(WARNING "Skipping Python bindings: Only Python 3 supported currently")
+    set(PYTHONINTERP_FOUND false)
+  endif ()
+
   find_package(PythonDev)
   if (PYTHONDEV_FOUND)
     # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
@@ -259,12 +269,7 @@ if (NOT DISABLE_PYTHON_BINDINGS)
             "Skipping Python bindings: Python includes/libraries not found")
   endif ()
 
-  find_package(Pybind11 QUIET)
-  if (NOT PYBIND11_FOUND)
-    message(STATUS "Skipping Python bindings: pybind11 not found")
-  endif ()
-
-  if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND AND PYBIND11_FOUND)
+  if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND)
     set (BROKER_PYTHON_BINDINGS true)
     set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
     add_subdirectory(bindings/python)
@@ -307,7 +312,7 @@ display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS "${PYBIND11_INCLUDE_DIRS}" python_summary)
+display(BROKER_PYTHON_BINDINGS yes python_summary)
 
 set(summary
     "==================|  Broker Config Summary  |===================="

@@ -42,7 +42,8 @@ add_dependencies(_broker python-scripts-stage)
 
 # Set includes.
 target_include_directories(_broker PUBLIC
-                           ${PYBIND11_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
+                           ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/pybind11/include/
+                           ${PYTHON_INCLUDE_DIRS})
 
 # Set libraries to link against.
 target_compile_options(_broker PRIVATE "-fvisibility=hidden")

@@ -1,3 +1,6 @@
 [submodule "cmake"]
 	path = cmake
 	url = git://git.bro.org/cmake
+[submodule "bindings/python/3rdparty/pybind11"]
+	path = bindings/python/3rdparty/pybind11
+	url = https://github.com/pybind/pybind11.git
