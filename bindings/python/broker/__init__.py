@@ -294,10 +294,17 @@ class Endpoint(_broker.Endpoint):
 
         return Store(s.get()) if s.is_valid() else None
 
+class Message:
+    def to_broker(self):
+        assert False and "method not overridden"
+
 class Data(_broker.Data):
     def __init__(self, x = None):
         if x is None:
             _broker.Data.__init__(self)
+
+        elif isinstance(x, Message):
+            _broker.Data.__init__(self, Data.from_py(x.to_broker()))
 
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)

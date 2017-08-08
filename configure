@@ -47,6 +47,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --disable-docs         don't try to build local documentation
     --with-rocksdb=PATH    path to RocksDB installation
     --with-python=PATH     path to Python executable
+    --with-bro=PATH        path to Bro executable for interoperability tests
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -141,6 +142,9 @@ while [ $# -ne 0 ]; do
             ;;
         --with-python=*)
             append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
+            ;;
+        --with-bro=*)
+            append_cache_entry BRO_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."

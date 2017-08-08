@@ -276,6 +276,19 @@ if (NOT DISABLE_PYTHON_BINDINGS)
   endif ()
 endif ()
 
+# -- Bro ----------------------------------------------------------------------
+
+
+if (NOT "${BRO_EXECUTABLE}" STREQUAL "")
+    set(BRO_FOUND true)
+else ()
+    set(BRO_FOUND false)
+    find_file(BRO_EXECUTABLE bro PATHS ${CMAKE_BINARY_DIR}/../../../build/src NO_DEFAULT_PATH)
+    if (EXISTS ${BRO_EXECUTABLE})
+      set(BRO_FOUND true)
+    endif ()
+endif ()
+
 # -- Unit Tests ---------------------------------------------------------------
 
 enable_testing()
@@ -313,6 +326,7 @@ display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
+display(BRO_FOUND "${BRO_EXECUTABLE}" bro_summary)
 
 set(summary
     "==================|  Broker Config Summary  |===================="
@@ -333,6 +347,7 @@ set(summary
     "\nCAF:             ${caf_summary}"
     "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
+    "\nBro executable:  ${bro_summary}"
     "\n=================================================================")
 
 message("\n" ${summary} "\n")
