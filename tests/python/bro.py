@@ -10,6 +10,15 @@ import time
 import broker
 import broker.bro
 
+def run_bro_path():
+    base = os.path.realpath(__file__)
+    for d in (os.path.join(os.path.join(os.path.dirname(base), "../../build")), os.getcwd()):
+        run_bro = os.path.abspath(os.path.join(d, "tests/python/run-bro"))
+        if os.path.exists(run_bro):
+            return run_bro
+
+    return "bro" # # Hope for the best ...
+
 BroPing = """
 redef Broker::default_connect_retry=1secs;
 redef Broker::default_listen_retry=1secs;
@@ -54,8 +63,7 @@ def RunBro(script, port):
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".bro", delete=False)
         print(script.replace("__PORT__", str(port)), file=tmp)
         tmp.close()
-        os.environ["BROPATH"] = "/home/robin/bro/bro-matthias/scripts:/home/robin/bro/bro-matthias/scripts/policy:/home/robin/bro/bro-matthias/scripts/site:/home/robin/bro/bro-matthias/build/scripts"
-        subprocess.check_call(["/home/robin/bro/bro-matthias/build/src/bro", "-b", "-B", "broker", tmp.name])
+        subprocess.check_call([run_bro_path(), "-b", "-B", "broker", tmp.name])
         return True
     except subprocess.CalledProcessError:
         return False
@@ -75,13 +83,13 @@ class TestCommunication(unittest.TestCase):
         for i in range(0, 6):
             (t, msg) = sub.get()
             ev = broker.bro.Event(msg)
-            (s, c) = ev.args
+            (s, c) = ev.args()
 
-            self.assertEqual(ev.name, "ping")
+            self.assertEqual(ev.name(), "ping")
             self.assertEqual(s, "x" + "Xx" * i)
             self.assertEqual(c, i)
 
-            ev = broker.bro.Event("pong", s + "X", c)
+            ev = broker.bro.Event("pong", (s + "X", c))
             ep.publish("/test", ev)
 
         ep.shutdown()

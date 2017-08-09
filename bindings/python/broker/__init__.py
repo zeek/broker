@@ -8,6 +8,8 @@ import datetime
 import ipaddress
 import collections
 
+from . import bro
+
 Version = _broker.Version
 Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
@@ -149,7 +151,7 @@ class Publisher:
         return self._publisher.fd()
 
     def publish(self, data):
-        data =  Data.from_py(data)
+        data = Data.from_py(data)
         return self._publisher.publish(data)
 
     def publish_batch(self, *batch):
@@ -303,8 +305,8 @@ class Data(_broker.Data):
         if x is None:
             _broker.Data.__init__(self)
 
-        elif isinstance(x, Message):
-            _broker.Data.__init__(self, Data.from_py(x.to_broker()))
+        elif isinstance(x, bro.Event):
+            _broker.Data.__init__(self, x.as_data())
 
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
@@ -338,7 +340,7 @@ class Data(_broker.Data):
             length = x.prefixlen
             _broker.Data.__init__(self, _broker.Subnet(address, length))
 
-        elif isinstance(x, list):
+        elif isinstance(x, list) or isinstance(x, tuple):
             v = _broker.Vector([Data(i) for i in x])
             _broker.Data.__init__(self, v)
 

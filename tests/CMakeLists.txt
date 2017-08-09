@@ -8,6 +8,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(tests
   cpp/backend.cc
+  cpp/bro.cc
   cpp/core.cc
   cpp/data.cc
   cpp/event_subscriber.cc
@@ -58,6 +59,9 @@ endforeach ()
 # -- Python -------------------------------------------------------------------
 
 if (BROKER_PYTHON_BINDINGS)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-bro.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-bro)
+
   macro(make_python_test name)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
     set(test_name python-${name})
@@ -69,8 +73,9 @@ if (BROKER_PYTHON_BINDINGS)
                          "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR}")
   endmacro()
 
-  make_python_test(topic)
-  make_python_test(data)
+  make_python_test(bro)
   make_python_test(communication)
+  make_python_test(data)
   make_python_test(store)
+  make_python_test(topic)
 endif ()

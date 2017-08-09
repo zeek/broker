@@ -153,6 +153,8 @@ using detail::get;
 using detail::get_if;
 using detail::is;
 
+using detail::bad_variant_access;
+
 /// Perform multiple dispatch on data instances.
 /// @tparam Visitor The visitor type.
 /// @param visitor The visitor to instance.

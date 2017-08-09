@@ -151,6 +151,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
 
 set(BROKER_SRC
   src/address.cc
+  src/bro.cc
   src/configuration.cc
   src/data.cc
   src/endpoint.cc
@@ -281,11 +282,13 @@ endif ()
 
 if (NOT "${BRO_EXECUTABLE}" STREQUAL "")
     set(BRO_FOUND true)
+    set(BRO_FOUND_MSG "${BRO_EXECUTABLE}")
 else ()
     set(BRO_FOUND false)
-    find_file(BRO_EXECUTABLE bro PATHS ${CMAKE_BINARY_DIR}/../../../build/src NO_DEFAULT_PATH)
-    if (EXISTS ${BRO_EXECUTABLE})
+    find_file(BRO_PATH_DEV bro-path-dev.sh PATHS ${CMAKE_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
+    if (EXISTS ${BRO_PATH_DEV})
       set(BRO_FOUND true)
+      set(BRO_FOUND_MSG "${BRO_PATH_DEV}")
     endif ()
 endif ()
 
@@ -326,7 +329,7 @@ display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
-display(BRO_FOUND "${BRO_EXECUTABLE}" bro_summary)
+display(BRO_FOUND "${BRO_FOUND_MSG}" bro_summary)
 
 set(summary
     "==================|  Broker Config Summary  |===================="
@@ -347,7 +350,7 @@ set(summary
     "\nCAF:             ${caf_summary}"
     "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
-    "\nBro executable:  ${bro_summary}"
+    "\nBro:             ${bro_summary}"
     "\n=================================================================")
 
 message("\n" ${summary} "\n")
