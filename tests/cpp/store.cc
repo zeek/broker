@@ -13,13 +13,13 @@ TEST(default construction) {
 TEST(backend option passing) {
   endpoint ep;
   auto opts = backend_options{{"foo", 4.2}};
-  auto ds = ep.attach<master>("lord", memory, std::move(opts));
+  auto ds = ep.attach_master("lord", memory, std::move(opts));
   REQUIRE(ds);
 }
 
 TEST(master operations) {
   endpoint ep;
-  auto ds = ep.attach<master, memory>("kono");
+  auto ds = ep.attach_master("kono", memory);
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
@@ -68,18 +68,18 @@ TEST(master operations) {
 
 TEST(clone operations - same endpoint) {
   endpoint ep;
-  auto m = ep.attach<master, memory>("vulcan");
+  auto m = ep.attach_master("vulcan", memory);
   MESSAGE("master PUT");
   m->put("key", "value");
   REQUIRE(m);
-  auto c = ep.attach<broker::clone>("vulcan");
+  auto c = ep.attach_clone("vulcan");
   REQUIRE(!c);
 }
 
 TEST(expiration) {
   using std::chrono::milliseconds;
   endpoint ep;
-  auto m = ep.attach<master, memory>("grubby");
+  auto m = ep.attach_master("grubby", memory);
   REQUIRE(m);
   auto expiry = milliseconds(100);
   m->put("foo", 42, expiry);
@@ -97,7 +97,7 @@ TEST(expiration) {
 
 TEST(proxy) {
   endpoint ep;
-  auto m = ep.attach<master, memory>("puneta");
+  auto m = ep.attach_master("puneta", memory);
   REQUIRE(m);
   m->put("foo", 42);
   MESSAGE("master: issue queries");

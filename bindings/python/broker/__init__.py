@@ -264,8 +264,8 @@ class Endpoint(_broker.Endpoint):
         s = _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
         return Subscriber(s)
 
-    def make_event_subscriber(self, receive_statuses=False):
-        s = _broker.Endpoint.make_event_subscriber(self, receive_statuses)
+    def make_status_subscriber(self, receive_statuses=False):
+        s = _broker.Endpoint.make_status_subscriber(self, receive_statuses)
         return EventSubscriber(s)
 
     def make_publisher(self, topic):
@@ -282,18 +282,16 @@ class Endpoint(_broker.Endpoint):
         batch = [(_make_topic(t), Data.from_py(d)) for (t, d) in batch]
         return _broker.Endpoint.publish_batch(self, _broker.VectorPairTopicData(batch))
 
-    def attach(self, name, type=None, opts={}):
-        if type:
-            # Master
-            bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
-            for (k, v) in opts.items():
-                bopts[k] = Data.from_py(v)
+    def attach_master(self, name, type=None, opts={}):
+        bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
+        for (k, v) in opts.items():
+            bopts[k] = Data.from_py(v)
 
-            s = _broker.Endpoint.attach(self, name, type, bopts)
-        else:
-            # Clone
-            s = _broker.Endpoint.attach(self, name)
+        s = _broker.Endpoint.attach_master(self, name, type, bopts)
+        return Store(s.get()) if s.is_valid() else None
 
+    def attach_clone(self, name):
+        s = _broker.Endpoint.attach_clone(self, name)
         return Store(s.get()) if s.is_valid() else None
 
 class Message:

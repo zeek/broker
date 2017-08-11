@@ -73,11 +73,11 @@ class TestCommunication(unittest.TestCase):
         ep1.shutdown()
         ep2.shutdown()
 
-    def test_event_subscriber(self):
+    def test_status_subscriber(self):
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
-        es1 = ep1.make_event_subscriber(True)
-        es2 = ep2.make_event_subscriber(True)
+        es1 = ep1.make_status_subscriber(True)
+        es2 = ep2.make_status_subscriber(True)
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
@@ -92,9 +92,9 @@ class TestCommunication(unittest.TestCase):
         ep1.shutdown()
         ep2.shutdown()
 
-    def test_event_subscriber_error(self):
+    def test_status_subscriber_error(self):
         ep1 = broker.Endpoint()
-        es1 = ep1.make_event_subscriber()
+        es1 = ep1.make_status_subscriber()
 
         # Sync version.
         r = ep1.peer("127.0.0.1", 1947, 0.0)
@@ -114,10 +114,10 @@ class TestCommunication(unittest.TestCase):
 
     def test_idle_endpoint(self):
         ep1 = broker.Endpoint()
-        es1 = ep1.make_event_subscriber()
+        es1 = ep1.make_status_subscriber()
         s1 = ep1.make_subscriber("/test")
         ep1.shutdown()
 
 if __name__ == '__main__':
-    TestCommunication().test_event_subscriber_error()
+    TestCommunication().test_status_subscriber_error()
     #unittest.main(verbosity=3)

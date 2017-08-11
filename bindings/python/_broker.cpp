@@ -113,26 +113,26 @@ PYBIND11_PLUGIN(_broker) {
     .def("add_topic", &broker::subscriber::add_topic)
     .def("remove_topic", &broker::subscriber::remove_topic);
 
-  using event_subscriber_base = broker::subscriber_base<broker::event_subscriber::value_type>;
+  using status_subscriber_base = broker::subscriber_base<broker::status_subscriber::value_type>;
 
-  py::bind_vector<std::vector<event_subscriber_base::value_type>>(m, "VectorEventSubscriberValueType");
+  py::bind_vector<std::vector<status_subscriber_base::value_type>>(m, "VectorEventSubscriberValueType");
 
-  py::class_<event_subscriber_base>(m, "EventSubscriberBase")
-    .def("get", (event_subscriber_base::value_type (event_subscriber_base::*)()) &event_subscriber_base::get)
+  py::class_<status_subscriber_base>(m, "EventSubscriberBase")
+    .def("get", (status_subscriber_base::value_type (status_subscriber_base::*)()) &status_subscriber_base::get)
     .def("get",
-         [](event_subscriber_base& ep, double secs) -> broker::optional<event_subscriber_base::value_type> {
+         [](status_subscriber_base& ep, double secs) -> broker::optional<status_subscriber_base::value_type> {
 	   return ep.get(broker::to_duration(secs)); })
     .def("get",
-         [](event_subscriber_base& ep, size_t num) -> std::vector<event_subscriber_base::value_type> {
+         [](status_subscriber_base& ep, size_t num) -> std::vector<status_subscriber_base::value_type> {
 	   return ep.get(num); })
     .def("get",
-         [](event_subscriber_base& ep, size_t num, double secs) -> std::vector<event_subscriber_base::value_type> {
+         [](status_subscriber_base& ep, size_t num, double secs) -> std::vector<status_subscriber_base::value_type> {
 	   return ep.get(num, broker::to_duration(secs)); })
     .def("poll",
-         [](event_subscriber_base& ep) -> std::vector<event_subscriber_base::value_type> {
+         [](status_subscriber_base& ep) -> std::vector<status_subscriber_base::value_type> {
 	   return ep.poll(); })
-    .def("available", &event_subscriber_base::available)
-    .def("fd", &event_subscriber_base::fd);
+    .def("available", &status_subscriber_base::available)
+    .def("fd", &status_subscriber_base::fd);
 
   py::class_<broker::status>(m, "Status")
     .def(py::init<>())
@@ -146,17 +146,17 @@ PYBIND11_PLUGIN(_broker) {
     .def("code", &broker::error::code)
     .def("__repr__", [](const broker::error& e) { return to_string(e); });
 
-  py::class_<broker::event_subscriber, event_subscriber_base> event_subscriber(m, "EventSubscriber");
+  py::class_<broker::status_subscriber, status_subscriber_base> status_subscriber(m, "EventSubscriber");
 
-  py::class_<broker::event_subscriber::value_type>(event_subscriber, "ValueType")
+  py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::event_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
     .def("is_status",
-         [](broker::event_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
     .def("get_error",
-         [](broker::event_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
     .def("get_status",
-         [](broker::event_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
@@ -218,16 +218,16 @@ PYBIND11_PLUGIN(_broker) {
        [](broker::endpoint& ep, std::vector<broker::endpoint::value_type> xs) { ep.publish(xs); })
     .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
-    .def("make_event_subscriber", &broker::endpoint::make_event_subscriber, py::arg("receive_statuses") = false)
+    .def("make_status_subscriber", &broker::endpoint::make_status_subscriber, py::arg("receive_statuses") = false)
     .def("shutdown", &broker::endpoint::shutdown)
-    .def("attach",
+    .def("attach_master",
          [](broker::endpoint& ep, const std::string& name, broker::backend type,
             const broker::backend_options& opts) -> broker::expected<broker::store> {
-	        return ep.attach<broker::master>(name, type, opts);
+	        return ep.attach_master(name, type, opts);
 	    })
-    .def("attach",
+    .def("attach_clone",
          [](broker::endpoint& ep, const std::string& name) -> broker::expected<broker::store> {
-	        return ep.attach<broker::clone>(name);
+	        return ep.attach_clone(name);
 	    })
    ;
 

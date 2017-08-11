@@ -23,7 +23,7 @@ CAF_TEST(local_master) {
   sched.run();
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
-  auto expected_ds = ep.attach<master, memory>("foo");
+  auto expected_ds = ep.attach_master("foo", memory);
   CAF_REQUIRE(expected_ds.engaged());
   auto& ds = *expected_ds;
   auto ms = ds.frontend();
@@ -95,7 +95,7 @@ CAF_TEST(master_with_clone) {
   // --- phase 4: attach a master on earth -------------------------------------
   CAF_MESSAGE("attach a master on earth");
   earth.sched.inline_next_enqueue();
-  auto expected_ds_earth = earth.ep.attach<master, memory>("foo");
+  auto expected_ds_earth = earth.ep.attach_master("foo", memory);
   if (!expected_ds_earth)
     CAF_FAIL("could not attach master: "
              << earth.sys.render(expected_ds_earth.error()));
@@ -158,7 +158,7 @@ CAF_TEST(master_with_clone) {
   mars.sched.inline_next_enqueue();
   CAF_MESSAGE("attach a clone on mars");
   mars.sched.inline_next_enqueue();
-  auto expected_ds_mars = mars.ep.attach<frontend::clone>("foo");
+  auto expected_ds_mars = mars.ep.attach_clone("foo");
   CAF_REQUIRE(expected_ds_mars.engaged());
   auto& ds_mars = *expected_ds_mars;
   auto& ms_mars = ds_mars.frontend();

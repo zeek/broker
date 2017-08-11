@@ -13,7 +13,7 @@
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/endpoint_info.hh"
-#include "broker/event_subscriber.hh"
+#include "broker/status_subscriber.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
@@ -186,7 +186,7 @@ public:
 
   /// Returns a subscriber connected to this endpoint for receiving error and
   /// (optionally) status events.
-  event_subscriber make_event_subscriber(bool receive_statuses = false);
+  status_subscriber make_status_subscriber(bool receive_statuses = false);
 
   // --- subscribing data ------------------------------------------------------
 
@@ -237,45 +237,19 @@ public:
 
   /// Attaches and/or creates a *master* data store with a globally unique name.
   /// @param name The name of the master.
+  /// @param type The type of backend to use.
   /// @param opts The options controlling backend construction.
   /// @returns A handle to the frontend representing the master or an error if
   ///          a master with *name* exists already.
-  template <frontend F, backend B>
-  auto attach(std::string name, backend_options opts = backend_options{})
-  -> detail::enable_if_t<F == master, expected<store>> {
-    return attach_master(std::move(name), B, std::move(opts));
-  }
+  expected<store> attach_master(std::string name, backend type,
+                                backend_options opts=backend_options());
 
-  /// Attaches and/or creates a *master* data store with a globally unique name.
-  /// @param name The name of the master.
-  /// @param type The backend type.
-  /// @param opts The options controlling backend construction.
-  /// @returns A handle to the frontend representing the master or an error if
-  ///          a master with *name* exists already.
-  template <frontend F>
-  auto attach(std::string name, backend type,
-              backend_options opts = backend_options{})
-  -> detail::enable_if_t<F == master, expected<store>> {
-    switch (type) {
-      case memory:
-        return attach<master, memory>(std::move(name), std::move(opts));
-      case sqlite:
-        return attach<master, sqlite>(std::move(name), std::move(opts));
-      case rocksdb:
-        return attach<master, rocksdb>(std::move(name), std::move(opts));
-    }
-  throw std::domain_error("unknown backend type");
-  }
 
   /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
   /// @returns A handle to the frontend representing the clone, or an error if
   ///          a master *name* could not be found.
-  template <frontend F>
-  auto attach(std::string name)
-  -> detail::enable_if_t<F == clone, expected<store>> {
-    return attach_clone(std::move(name));
-  }
+  expected<store> attach_clone(std::string name);
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
   inline bool await_stores_on_shutdown() const {
@@ -302,11 +276,6 @@ protected:
 
 private:
   caf::actor make_actor(actor_init_fun f);
-
-  expected<store> attach_master(std::string name, backend type,
-                                backend_options opts);
-
-  expected<store> attach_clone(std::string name);
 
   configuration config_;
   union {

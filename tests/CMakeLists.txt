@@ -11,7 +11,7 @@ set(tests
   cpp/bro.cc
   cpp/core.cc
   cpp/data.cc
-  cpp/event_subscriber.cc
+  cpp/status_subscriber.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc

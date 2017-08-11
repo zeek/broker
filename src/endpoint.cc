@@ -6,7 +6,7 @@
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
-#include "broker/event_subscriber.hh"
+#include "broker/status_subscriber.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
@@ -40,10 +40,10 @@ endpoint::endpoint(configuration config)
     await_stores_on_shutdown_(false),
     destroyed_(false) {
   new (&system_) caf::actor_system(config_);
-  if (config.use_ssl && !system_.has_openssl_manager())
+  if (config.using_ssl() && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config.use_ssl);
+  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config.using_ssl());
 }
 
 endpoint::~endpoint() {
@@ -76,10 +76,10 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.use_ssl ? "(SSL)" : "(no SSL)"));
+  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.using_ssl() ? "(SSL)" : "(no SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   expected<uint16_t> res = caf::error{};
-  if (config_.use_ssl)
+  if (config_.using_ssl())
     res = caf::openssl::publish(core(), port, addr, true);
   else
     res = system_.middleman().publish(core(), port, addr, true);
@@ -193,8 +193,8 @@ publisher endpoint::make_publisher(topic ts) {
   return result;
 }
 
-event_subscriber endpoint::make_event_subscriber(bool receive_statuses) {
-  event_subscriber result{*this, receive_statuses};
+status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
+  status_subscriber result{*this, receive_statuses};
   children_.emplace_back(result.worker());
   return result;
 }

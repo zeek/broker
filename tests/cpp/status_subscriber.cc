@@ -1,4 +1,4 @@
-#define SUITE event_subscriber
+#define SUITE status_subscriber
 #include "test.hpp"
 #include <caf/test/dsl.hpp>
 
@@ -39,11 +39,11 @@ struct fixture : base_fixture {
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(event_subscriber_tests, fixture)
+CAF_TEST_FIXTURE_SCOPE(status_subscriber_tests, fixture)
 
 CAF_TEST(base_tests) {
-  auto sub1 = ep.make_event_subscriber(true);
-  auto sub2 = ep.make_event_subscriber(false);
+  auto sub1 = ep.make_status_subscriber(true);
+  auto sub2 = ep.make_status_subscriber(false);
   sched.run();
   CAF_REQUIRE_EQUAL(sub1.available(), 0u);
   CAF_REQUIRE_EQUAL(sub2.available(), 0u);

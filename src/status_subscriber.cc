@@ -1,5 +1,5 @@
 #include "broker/logger.hh" // Must come before any CAF include.
-#include "broker/event_subscriber.hh"
+#include "broker/status_subscriber.hh"
 
 #include <chrono>
 
@@ -18,9 +18,9 @@ namespace broker {
 
 namespace {
 
-behavior event_subscriber_worker(event_based_actor* self,
+behavior status_subscriber_worker(event_based_actor* self,
                                  bool receive_statuses,
-                                 event_subscriber::queue_ptr qptr) {
+                                 status_subscriber::queue_ptr qptr) {
   self->join(self->system().groups().get_local("broker/errors"));
   if (receive_statuses)
     self->join(self->system().groups().get_local("broker/statuses"));
@@ -36,12 +36,12 @@ behavior event_subscriber_worker(event_based_actor* self,
 
 } // namespace <anonymous>
 
-event_subscriber::event_subscriber(endpoint& ep, bool receive_statuses) {
-  worker_ = ep.system().spawn(event_subscriber_worker, receive_statuses,
+status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses) {
+  worker_ = ep.system().spawn(status_subscriber_worker, receive_statuses,
                               queue_);
 }
 
-event_subscriber::~event_subscriber() {
+status_subscriber::~status_subscriber() {
   anon_send_exit(worker_, exit_reason::user_shutdown);
 }
 

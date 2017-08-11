@@ -19,7 +19,7 @@
 namespace broker {
 
 /// Provides blocking access to a stream of endpoint events.
-class event_subscriber
+class status_subscriber
   : public subscriber_base<detail::variant<none, error, status>> {
 public:
   // --- friend declarations ---------------------------------------------------
@@ -28,19 +28,19 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  event_subscriber(event_subscriber&&) = default;
+  status_subscriber(status_subscriber&&) = default;
 
-  event_subscriber& operator=(event_subscriber&&) = default;
+  status_subscriber& operator=(status_subscriber&&) = default;
 
-  ~event_subscriber();
+  ~status_subscriber();
 
   inline const caf::actor& worker() const {
     return worker_;
   }
 
 private:
-  // -- force users to use `endpoint::make_event_subscriber` -------------------
-  event_subscriber(endpoint& ep, bool receive_statuses = false);
+  // -- force users to use `endpoint::make_status_subscriber` -------------------
+  status_subscriber(endpoint& ep, bool receive_statuses = false);
 
   caf::actor worker_;
 };

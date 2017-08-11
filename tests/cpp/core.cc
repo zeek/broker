@@ -487,9 +487,9 @@ namespace {
 struct error_signaling_fixture : base_fixture {
   actor core1;
   actor core2;
-  event_subscriber es;
+  status_subscriber es;
 
-  error_signaling_fixture() : es(ep.make_event_subscriber(true)) {
+  error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
     core1 = ep.core();
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
     core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, false);

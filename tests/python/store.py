@@ -12,12 +12,12 @@ def create_stores():
 
     ep1 = broker.Endpoint()
     s1 = ep1.make_subscriber("/test")
-    es1 = ep1.make_event_subscriber()
+    es1 = ep1.make_status_subscriber()
     ep1.peer("127.0.0.1", p)
 
     ep2 = broker.Endpoint()
     s2 = ep2.make_subscriber("/test")
-    es2 = ep2.make_event_subscriber()
+    es2 = ep2.make_status_subscriber()
     ep2.peer("127.0.0.1", p)
 
     # TODO: This doesn't work. Once it does, remove the event handshake.
@@ -28,16 +28,16 @@ def create_stores():
     s2.get()
     ####
 
-    m = ep0.attach("test", broker.Backend.Memory)
-    c1 = ep1.attach("test")
-    c2 = ep2.attach("test")
+    m = ep0.attach_master("test", broker.Backend.Memory)
+    c1 = ep1.attach_clone("test")
+    c2 = ep2.attach_clone("test")
 
     return (ep0, ep1, ep2, m, c1, c2)
 
 class TestStore(unittest.TestCase):
     def test_basic(self):
         ep1 = broker.Endpoint()
-        m = ep1.attach("test", broker.Backend.Memory)
+        m = ep1.attach_master("test", broker.Backend.Memory)
         m.put("key", "value")
         x = m.get("key")
         self.assertEqual(x, "value")

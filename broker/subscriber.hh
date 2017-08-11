@@ -43,7 +43,7 @@ public:
   void remove_topic(topic x);
 
 private:
-  // -- force users to use `endpoint::make_event_subscriber` -------------------
+  // -- force users to use `endpoint::make_status_subscriber` -------------------
   subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize);
 
   caf::actor worker_;
