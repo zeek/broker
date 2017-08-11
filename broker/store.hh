@@ -45,11 +45,24 @@ public:
     /// @param s The store to create a proxy for.
     explicit proxy(store& s);
 
+    /// Performs a request to check existance of a value.
+    /// @returns A unique identifier for this request to correlate it with a
+    /// response.
+    request_id exists(data key);
+
     /// Performs a request to retrieve a value.
     /// @param key The key of the value to retrieve.
     /// @returns A unique identifier for this request to correlate it with a
     /// response.
     request_id get(data key);
+
+    /// For containers values, retrieves a specific index from the value. This
+    /// is supported for sets, tables, and vectors.
+    /// @param key The key of the container value to retrieve from.
+    /// @param key The index of the value to retrieve.
+    /// @returns A unique identifier for this request to correlate it with a
+    /// response.
+    request_id get_index_from_value(data key, data index);
 
     /// Performs a request to retrieve a store's keys.
     /// @returns A unique identifier for this request to correlate it with a
@@ -78,16 +91,23 @@ public:
   /// @returns The store name.
   std::string name() const;
 
+  /// Checks whether a key exists in the store.
+  /// @returns A boolean that's if the key exists.
+  expected<data> exists(data key) const;
+
   /// Retrieves a value.
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   expected<data> get(data key) const;
 
-  /// Retrieves a specific aspect of a value.
-  /// @param key The key of the value to retrieve.
-  /// @param aspect The aspect of the value.
-  /// @returns The value under *key* or an error.
-  expected<data> get(data key, data aspect) const;
+  /// For containers values, retrieves a specific index from the value. This
+  /// is supported for sets, tables, and vectors.
+  /// @param key The key of the value to retrieve the index from.
+  /// @param index The index of the value to retrieve.
+  /// @returns For tables and vector, the value under *index* or an error.
+  /// For sets, a boolean indicating whether the set contains the index.
+  /// Always returns an error if the store does not have the key.
+  expected<data> get_index_from_value(data key, data index) const;
 
   /// Retrieves a copy of the store's current keys, returned as a set.
   expected<data> keys() const;

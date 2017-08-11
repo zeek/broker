@@ -55,6 +55,7 @@ using clone = caf::atom_constant<caf::atom("clone")>;
 using decrement = caf::atom_constant<caf::atom("decrement")>;
 using erase = caf::atom_constant<caf::atom("erase")>;
 using expire = caf::atom_constant<caf::atom("expire")>;
+using exists = caf::atom_constant<caf::atom("exists")>;
 using increment = caf::atom_constant<caf::atom("increment")>;
 using keys = caf::atom_constant<caf::atom("keys")>;
 using master = caf::atom_constant<caf::atom("master")>;

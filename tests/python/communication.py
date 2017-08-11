@@ -119,5 +119,4 @@ class TestCommunication(unittest.TestCase):
         ep1.shutdown()
 
 if __name__ == '__main__':
-    TestCommunication().test_status_subscriber_error()
-    #unittest.main(verbosity=3)
+    unittest.main(verbosity=3)

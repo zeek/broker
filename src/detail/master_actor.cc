@@ -183,6 +183,16 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
+    [=](atom::exists, const data& key) -> expected<data> {
+      auto x = self->state.backend->exists(key);
+      BROKER_INFO("EXISTS" << key << "->" << x);
+      return {data{std::move(*x)}};
+    },
+    [=](atom::exists, const data& key, request_id id) {
+      auto x = self->state.backend->exists(key);
+      BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
+      return caf::make_message(data{std::move(*x)}, id);
+    },
     [=](atom::get, const data& key) -> expected<data> {
       auto x = self->state.backend->get(key);
       BROKER_INFO("GET" << key << "->" << x);

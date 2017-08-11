@@ -25,6 +25,8 @@ TEST(master operations) {
   ds->put("foo", 42);
   REQUIRE_EQUAL(ds->get("foo"), data{42});
   REQUIRE_EQUAL(ds->get("bar"), error{ec::no_such_key});
+  REQUIRE_EQUAL(ds->exists("foo"), data{true});
+  REQUIRE_EQUAL(ds->exists("bar"), data{false});
   MESSAGE("erase");
   ds->erase("foo");
   REQUIRE_EQUAL(ds->get("foo"), error{ec::no_such_key});
@@ -60,8 +62,8 @@ TEST(master operations) {
   REQUIRE_EQUAL(ds->get("foo"), data(vector{1, 2}));
   MESSAGE("get overload");
   ds->put("foo", set{2, 3});
-  REQUIRE_EQUAL(ds->get("foo", 1), data{false});
-  REQUIRE_EQUAL(ds->get("foo", 2), data{true});
+  REQUIRE_EQUAL(ds->get_index_from_value("foo", 1), data{false});
+  REQUIRE_EQUAL(ds->get_index_from_value("foo", 2), data{true});
   MESSAGE("keys");
   REQUIRE_EQUAL(ds->keys(), data(set{"foo"}));
 }

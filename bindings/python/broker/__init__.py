@@ -97,7 +97,7 @@ class Subscriber:
     def remove_topic(self, topic):
         return self._subscriber.remove_topic(_make_topic(topic))
 
-class EventSubscriber(_broker.Subscriber):
+class StatusSubscriber(_broker.Subscriber):
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
@@ -169,15 +169,20 @@ class Store:
     def name(self):
         return self._store.name()
 
-    def get(self, data, aspect=None):
-        data = Data.from_py(data)
+    def exists(self, key):
+        key = Data.from_py(key)
+        value = self._store.exists(key)
+        return Data.to_py(value.get())
 
-        if aspect is None:
-            value = self._store.get(data)
-        else:
-            aspect = Data.from_py(aspect)
-            value = self._store.get(data, aspect)
+    def get(self, key):
+        key = Data.from_py(key)
+        value = self._store.get(key)
+        return Data.to_py(value.get()) if value.is_valid() else None
 
+    def get_index_from_value(self, key, index):
+        key = Data.from_py(key)
+        index = Data.from_py(index)
+        value = self._store.get_index_from_value(key, index)
         return Data.to_py(value.get()) if value.is_valid() else None
 
     def keys(self):
@@ -266,7 +271,7 @@ class Endpoint(_broker.Endpoint):
 
     def make_status_subscriber(self, receive_statuses=False):
         s = _broker.Endpoint.make_status_subscriber(self, receive_statuses)
-        return EventSubscriber(s)
+        return StatusSubscriber(s)
 
     def make_publisher(self, topic):
         topic = _make_topic(topic)

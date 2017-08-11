@@ -142,7 +142,7 @@ struct retriever {
       i = static_cast<count>(*y);
     }
     if (i >= v.size())
-      return ec::invalid_data;
+      return ec::no_such_key;
     return v[i];
   }
 
@@ -153,7 +153,7 @@ struct retriever {
   result_type operator()(const table& t) const {
     auto i = t.find(aspect);
     if (i == t.end())
-      return ec::invalid_data;
+      return ec::no_such_key;
     return i->second;
   }
 

@@ -32,8 +32,9 @@ void init_store(py::module& m) {
   py::class_<broker::store> store(m, "Store");
   store
     .def("name", &broker::store::name)
+    .def("exists", (broker::expected<broker::data> (broker::store::*)(broker::data d) const) &broker::store::exists)
     .def("get", (broker::expected<broker::data> (broker::store::*)(broker::data d) const) &broker::store::get)
-    .def("get", (broker::expected<broker::data> (broker::store::*)(broker::data d, broker::data aspect) const) &broker::store::get)
+    .def("get_index_from_value", (broker::expected<broker::data> (broker::store::*)(broker::data d, broker::data index) const) &broker::store::get_index_from_value)
     .def("keys", &broker::store::keys)
     .def("put", &broker::store::put)
     .def("erase", &broker::store::erase)

@@ -130,6 +130,17 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
       return caf::make_message(x, id);
     },
+    [=](atom::exists, const data& key) -> expected<data> {
+      auto result = (self->state.store.find(key) != self->state.store.end());
+      BROKER_INFO("EXISTS" << key << "->" << result);
+      return {result};
+    },
+    [=](atom::exists, const data& key, request_id id) {
+      auto r = (self->state.store.find(key) != self->state.store.end());
+      auto result = caf::make_message(data{r}, id);
+      BROKER_INFO("EXISTS" << key << "with id" << id << "->" << result.take(1));
+      return result;
+    },
     [=](atom::get, const data& key) -> expected<data> {
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);

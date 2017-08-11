@@ -115,9 +115,9 @@ PYBIND11_PLUGIN(_broker) {
 
   using status_subscriber_base = broker::subscriber_base<broker::status_subscriber::value_type>;
 
-  py::bind_vector<std::vector<status_subscriber_base::value_type>>(m, "VectorEventSubscriberValueType");
+  py::bind_vector<std::vector<status_subscriber_base::value_type>>(m, "VectorStatusSubscriberValueType");
 
-  py::class_<status_subscriber_base>(m, "EventSubscriberBase")
+  py::class_<status_subscriber_base>(m, "StatusSubscriberBase")
     .def("get", (status_subscriber_base::value_type (status_subscriber_base::*)()) &status_subscriber_base::get)
     .def("get",
          [](status_subscriber_base& ep, double secs) -> broker::optional<status_subscriber_base::value_type> {
@@ -146,7 +146,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("code", &broker::error::code)
     .def("__repr__", [](const broker::error& e) { return to_string(e); });
 
-  py::class_<broker::status_subscriber, status_subscriber_base> status_subscriber(m, "EventSubscriber");
+  py::class_<broker::status_subscriber, status_subscriber_base> status_subscriber(m, "StatusSubscriber");
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",

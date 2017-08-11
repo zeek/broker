@@ -18,10 +18,24 @@ store::proxy::proxy(store& s) : frontend_{s.frontend_} {
   proxy_ = frontend_.home_system().spawn<flare_actor>();
 }
 
+request_id store::proxy::exists(data key) {
+  if (!frontend_)
+    return 0;
+  send_as(proxy_, frontend_, atom::exists::value, std::move(key), ++id_);
+  return id_;
+}
+
 request_id store::proxy::get(data key) {
   if (!frontend_)
     return 0;
   send_as(proxy_, frontend_, atom::get::value, std::move(key), ++id_);
+  return id_;
+}
+
+request_id store::proxy::get_index_from_value(data key, data index) {
+  if (!frontend_)
+    return 0;
+  send_as(proxy_, frontend_, atom::get::value, std::move(key), std::move(index), ++id_);
   return id_;
 }
 
@@ -66,12 +80,16 @@ std::string store::name() const {
   return result;
 }
 
+expected<data> store::exists(data key) const {
+  return request<data>(atom::exists::value, std::move(key));
+}
+
 expected<data> store::get(data key) const {
   return request<data>(atom::get::value, std::move(key));
 }
 
-expected<data> store::get(data key, data aspect) const {
-  return request<data>(atom::get::value, std::move(key), std::move(aspect));
+expected<data> store::get_index_from_value(data key, data index) const {
+  return request<data>(atom::get::value, std::move(key), std::move(index));
 }
 
 expected<data> store::keys() const {
