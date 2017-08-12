@@ -101,6 +101,7 @@ void core_policy::ack_open_failure(const stream_id& sid,
   if (i != opath_to_peer_.end()) {
     auto pp = std::move(i->second);
     peer_lost(pp);
+    state_->cache.remove(pp);
     peer_to_opath_.erase(pp);
     opath_to_peer_.erase(i);
   }
@@ -141,6 +142,13 @@ optional<error> core_policy::batch(const stream_id&, const actor_addr&, long,
 
 void core_policy::peer_lost(const actor& hdl) {
   state_->emit_status<sc::peer_lost>(hdl, "lost remote peer");
+  if (shutting_down())
+    return;
+  auto x = state_->cache.find(hdl);
+  if (!x || x->retry == timeout::seconds(0))
+    return;
+  BROKER_INFO("will try reconnecting to" << *x << "in" << to_string(x->retry));
+  state_->self->delayed_send(state_->self, x->retry, atom::peer::value, atom::retry::value, *x);
 }
 
 void core_policy::peer_removed(const caf::actor& hdl) {
@@ -288,6 +296,7 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     peer_removed(hdl);
   else
     peer_lost(hdl);
+  state_->cache.remove(hdl);
   if (shutting_down() && peer_to_opath_.empty()) {
     // Shutdown when the last peer stops listening.
     parent_->self()->quit(exit_reason::user_shutdown);

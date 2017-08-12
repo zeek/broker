@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include <caf/atom.hpp>
+#include <caf/duration.hpp>
 
 namespace broker {
 namespace timeout {

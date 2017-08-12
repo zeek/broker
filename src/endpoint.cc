@@ -93,7 +93,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
-                network_info{address, port}, retry, uint32_t{0})
+                network_info{address, port, retry})
   .receive(
     [&](const caf::actor&) {
       result = true;
@@ -110,7 +110,7 @@ void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
   CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
   BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
-  caf::anon_send(core(), atom::peer::value, network_info{address, port}, retry, uint32_t{0});
+  caf::anon_send(core(), atom::peer::value, network_info{address, port, retry});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {

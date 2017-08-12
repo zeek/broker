@@ -126,8 +126,6 @@ result<void> init_peering(caf::stateful_actor<core_state>* self,
 
 struct retry_state {
   network_info addr;
-  timeout::seconds retry;
-  uint32_t n;
   response_promise rp;
 
   void try_once(caf::stateful_actor<core_state>* self);
@@ -152,10 +150,12 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
                             BROKER_ERROR(desc);
                             self->state.emit_error<ec::peer_unavailable>(
                               cpy.addr, desc);
-                            // TODO: make max_try_attempts configurable
-                            if (cpy.retry.count() > 0 && cpy.n < 100)
-                              self->delayed_send(self, cpy.retry, cpy);
-                            else
+                            if (cpy.addr.retry.count() > 0) {
+                              BROKER_INFO("retrying"
+                                          << cpy.addr << "in"
+                                          << to_string(cpy.addr.retry));
+                              self->delayed_send(self, cpy.addr.retry, cpy);
+                            } else
                               cpy.rp.deliver(sec::cannot_connect_to_node);
                           });
 }
@@ -209,16 +209,17 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return init_peering(self, std::move(remote_core),
                           self->make_response_promise());
     },
-    [=](atom::peer, network_info& addr, timeout::seconds retry,
-        uint32_t n) -> result<void> {
+    [=](atom::peer, network_info& addr) -> result<void> {
       auto rp = self->make_response_promise();
-      retry_state rt{std::move(addr), retry, n, rp};
+      retry_state rt{std::move(addr), rp};
       rt.try_once(self);
       return rp;
     },
-    [=](retry_state& rt) {
+    [=](atom::peer, atom::retry, network_info& addr) {
+      retry_state rt{std::move(addr), {}};
       rt.try_once(self);
     },
+    [=](retry_state& rt) { rt.try_once(self); },
     // --- 3-way handshake for establishing peering streams between A and B ----
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
     // Step #1: - A demands B shall establish a stream back to A

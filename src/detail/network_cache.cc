@@ -38,5 +38,21 @@ void network_cache::add(const caf::actor& x, const network_info& y) {
   hdls_.emplace(y, x);
 }
 
+void network_cache::remove(const caf::actor& x) {
+  auto i = addrs_.find(x);
+  if (i == addrs_.end())
+    return;
+  hdls_.erase(i->second);
+  addrs_.erase(i);
+}
+
+void network_cache::remove(const network_info& x) {
+  auto i = hdls_.find(x);
+  if (i == hdls_.end())
+    return;
+  addrs_.erase(i->second);
+  hdls_.erase(i);
+}
+
 } // namespace detail
 } // namespace broker

@@ -98,6 +98,12 @@ public:
   /// Maps `x` to `y` and vice versa.
   void add(const caf::actor& x, const network_info& y);
 
+  /// Removes mapping for `x` and the corresponding network_info.
+  void remove(const caf::actor& x);
+
+  /// Removes mapping for `x` and the corresponding actor handle.
+  void remove(const network_info& x);
+
 private:
   // Parent.
   caf::event_based_actor* self;
