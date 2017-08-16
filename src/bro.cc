@@ -60,7 +60,7 @@ void EventBase::init() {
 template <>
 data EventBase::as_data() const {
   auto hdr = vector{ProtocolVersion, static_cast<count>(Type::Event)};
-  auto content = vector{args_.name, vector{args_.args}};
+  auto content = vector{args_.name, args_.args};
   return vector{std::move(hdr), std::move(content)};
 }
 
