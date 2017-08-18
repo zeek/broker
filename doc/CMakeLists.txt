@@ -9,7 +9,7 @@ add_custom_target(doc-pdf
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating PDF documentation" VERBATIM)
 
-add_dependencies(doc doc-pdf)
+#add_dependencies(doc doc-pdf)
 
 # -- HTML ---------------------------------------------------------------------
 
@@ -49,3 +49,5 @@ add_custom_target(doc-deploy
 
 add_dependencies(doc-deploy doc-pdf)
 add_dependencies(doc-deploy doc-html)
+
+add_subdirectory(_examples)

@@ -36,11 +36,11 @@ The following figure illustrates an exemplary topology.
 .. figure:: _images/high-level-comm.png
   :align: center
 
-There exist two API flavors: a synchronous (blocking) and asynchronous
-(non-blocking) version. Internally, Broker operates entirely asynchronously by
+The API allows for both synchronous and asynchronous
+communication. Internally, Broker operates entirely asynchronously by
 leveraging the `C++ Actor Framework (CAF) <http://www.actor-framework.org>`_.
-Users can receive messages either by calling a blocking function call until the
-next message arrives, or by installing a callback for a specific topic.
+Users can receive messages either explicitly polling for them, or
+by installing a callback to execute as they come in.
 
 See :ref:`communication` for concrete usage examples.
 
@@ -69,6 +69,13 @@ types:
 
 :ref:`data-model` discusses the various types and their API in depth.
 
+From these data units, one then composes *messages* to be exchanged.
+Broker does generally not impose any further structure on messages,
+it's up to sender and receiver to agree. For communication with Bro,
+however, Broker provide an additional *event* abstraction that defines
+the specific message layout that Bro expects for exchanging Bro
+events.
+
 Data Stores
 -----------
 
@@ -80,7 +87,7 @@ data. There exist two types of frontends: *master* and *clone*. A master is the
 authoritative source for the key-value store, whereas a clone represents a
 local cache. Only the master can perform mutating operations on the store,
 which it then pushes to all its clones over the existing peering communication
-channel. A clone has a full copy of the data for faster access, but sends any
+channel. A clone has a full copy of the data for faster access, but transparently  sends any
 modifying operations to its master first. Only when the master propagates back
 the change, the result of the operation becomes visible at the clone. The
 figure below illustrates how one can deploy a master with several clones.
@@ -90,7 +97,7 @@ figure below illustrates how one can deploy a master with several clones.
 
 Each data store has a name that identifies the master. This name must be unique
 among the endpoint's peers. The master can choose to keep its data in various
-backends: in-memory, `SQLite <https://www.sqlite.org>`_, and `RocksDB
+backends, which are currently: in-memory, `SQLite <https://www.sqlite.org>`_, and `RocksDB
 <http://rocksdb.org>`_.
 
 :ref:`data-stores` illustrates how to use data stores in different settings.

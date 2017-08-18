@@ -12,28 +12,22 @@ coupled, distributed systems.
 Broker is the successor of `Broccoli
 <https://www.bro.org/sphinx/components/broccoli/broccoli-manual.html>`_, Bro's
 client communications library. Broccoli enables arbitrary applications to
-communicate in Bro's data model.
+communicate in Bro's data model. In this chapter, we describe first
+describe generic Broker communication between peers that don't assume
+any specific message layout. Afterwards, we show how to exchange
+events with Bro through an additional Bro-specific shim on top of
+Broker's generic messages.
 
 Endpoints
 ---------
 
-Broker encapsulates its entire state in a ``context`` object. Multiple
-instances of a ``context`` can exist in the same process, but each ``context``
+Broker encapsulates its entire peering in an ``endpoint`` object. Multiple
+instances of a ``endpoint`` can exist in the same process, but each ``endpoint``
 features a thread-pool and (configurable) scheduler, which determines the
-execution of Broker's components. Using a single ``context`` per OS process
+execution of Broker's components. Using a single ``endpoint`` per OS process
 guarantees the most efficient usage of available hardware resources.
 Nonetheless, multiple Broker applications can seamlessly operate when linked
 together, as there exists no global library state.
-
-A ``context`` can *spawn* ``endpoint`` instances, of which there exists a
-*blocking* and *non-blocking* variant. The two types differ in the way they
-manage their subscriptions and receive messages. Both variants have a
-*mailbox*, which is essentially a queue with its unprocessed messages. In the
-blocking case, the user manually extracts messages from the mailbox, whereas
-the Broker runtime dispatches messages asynchronously in the non-blocking case.
-
-Both endpoint variants can be mixed and matched, it is not necessary to commit
-to a particular type for all endpoints within a context.
 
 .. note::
 
@@ -42,86 +36,78 @@ to a particular type for all endpoints within a context.
   null pointer). An ``endpoint`` can also be copied around cheaply, but is not
   thread-safe.
 
+
 Receiving Data
 ~~~~~~~~~~~~~~
 
-Endpoints can receive data through an explicit call to ``receive`` (blocking
-API) or installing a callback invoked by the runtime (non-blocking API).
+Endpoints receive data by creating a ``subscriber`` attached to the
+topics of interest. Subscriptions are prefix-based, matching all
+topics that start with the guven string. A ``subscriber`` can either
+retrieve incoming messages explicitly by calling ``get`` or ``poll``
+(synchronous API), or spawning a background worker to process messages
+as they come in (asynchronous API).
 
-Blocking
-********
+Synchronous API
+***************
+    
+The synchronous API exists for applications that want to poll for
+messages explicitly. Once a subscribers is registered for topics,
+calling ``get`` will wait for a new message:
 
-The blocking API exists for applications that primarily operate synchronously
-and/or ship their own event loop. Endpoints subscribe to various topics and
-call ``receive`` to wait for a new element in their mailbox:
+.. literalinclude:: _examples/comm.cc
+   :start-after: --get-start
+   :end-before: --get-end
 
-.. code-block:: cpp
+The function ``get`` blocks until the subscriber has at least one
+message available. Each message has two parts: the topic is was
+published to, and the message's payload in the form of a `data`
+instance. The example just prints them out.
 
-  context ctx;
-  auto ep = ctx.spawn<blocking>();
-  ep.subscribe("foo");
-  auto elem = ep.receive(); // block and wait until a message arrives
-  if (auto msg = get_if<message>(elem))
-    std::cout << msg->topic() << " -> " << msg->data() << std::endl;
+Blocking indefinitely does not work well in combination with existing
+event loops or polling. `get` takes an optional timeout parameter to
+wait only for a certain amount of time. One can also use ``available``
+to explicitly check for available messages, or ``poll`` to extract all
+currently pending messages (which may be none):
 
-The function ``receive`` blocks until the endpoint has at least one ``element``
-available. An ``element`` can hold a ``message`` (i.e., a pair of ``topic`` and
-``data``) a ``status`` representing a change in endpoint topology, or an error.
-More on ``status`` and ``error`` in :ref:`status-error-messages`.
+.. literalinclude:: _examples/comm.cc
+   :start-after: --poll-start
+   :end-before: --poll-end
 
-Blocking indefinitely does not work well in combination with existing event
-loops or polling. Therefore, blocking endpoints expose an additional
-``mailbox`` API:
+For integration into event loops, `subscriber` also provides a file
+descriptor that signals available messages:
 
-.. code-block:: cpp
+.. literalinclude:: _examples/comm.cc
+   :start-after: --fd-start
+   :end-before: --fd-end
 
-  // Manual polling.
-  if (!ep.mailbox().empty()) {
-    auto elem = ep.receive(); // guaranteed to not block
-    ...
-  }
+Asynchronous API
+****************
 
-  // Introspection.
-  auto n = ep.mailbox().count(); // O(n) due to internal queue implementation
+TODO.
 
-  // Event loop integration.
-  auto fd = ep.mailbox().descriptor();
-  ::pollfd p = {fd, POLLIN, {}};
-  auto n = ::poll(&p, 1, timeout);
-  if (n < 0)
-    std::terminate(); // poll failed
-  if (n == 1 && p.revents & POLLIN) {
-    auto elem = ep.receive(); // guaranteed to not block
-    ...
-  }
-
-
-Non-Blocking
-************
-
-If your application does not require a blocking API, the non-blocking API
-offers an asynchronous alternative. Unlike the blocking API, non-blocking
-endpoints take a callback for each topic they subscribe to:
-
-.. code-block:: cpp
-
-  context ctx;
-  auto ep = ctx.spawn<nonblocking>();
-  ep.subscribe("/foo", [=](const topic& t, const data& d) {
-    std::cout << t << " -> " << d << std::endl;
-  });
-  ep.subscribe("/bar", [=](const topic& t, const data& d) {
-    std::cout << t << " -> " << d << std::endl;
-  });
-
-When a new message matching the subscription arrives, Broker dispatches it to
-the callback without blocking.
-
-.. warning::
-
-  The function ``subscribe`` returns immediately. Capturing variable *by
-  reference* introduces a dangling reference once the outer frame returns.
-  Therefore, only capture locals *by value*.
+.. If your application does not require a blocking API, the non-blocking API
+.. offers an asynchronous alternative. Unlike the blocking API, non-blocking
+.. endpoints take a callback for each topic they subscribe to:
+.. 
+.. .. code-block:: cpp
+.. 
+..   context ctx;
+..   auto ep = ctx.spawn<nonblocking>();
+..   ep.subscribe("/foo", [=](const topic& t, const data& d) {
+..     std::cout << t << " -> " << d << std::endl;
+..   });
+..   ep.subscribe("/bar", [=](const topic& t, const data& d) {
+..     std::cout << t << " -> " << d << std::endl;
+..   });
+.. 
+.. When a new message matching the subscription arrives, Broker dispatches it to
+.. the callback without blocking.
+.. 
+.. .. warning::
+.. 
+..   The function ``subscribe`` returns immediately. Capturing variable *by
+..   reference* introduces a dangling reference once the outer frame returns.
+..   Therefore, only capture locals *by value*.
 
 Sending Data
 ~~~~~~~~~~~~
@@ -130,15 +116,9 @@ The API for sending data is the same for blocking and non-blocking endpoints.
 In Broker, a *message* is a *topic*-*data* pair. That is, endpoints *publish*
 data under a *topic* to send a message to all subscribers:
 
-.. code-block:: cpp
-
-  ep.publish("foo", 42);
-  ep.publish("bar", vector{1, 2, 3});
-  ep.publish("baz", 1, 2, 3); // same as above, implicit conversion to vector
-
-The one-argument version of ``publish`` takes as first argument a ``topic`` and
-``data`` instance. The variadic version implicitly constructs a ``vector`` from
-the provided ``data`` instances.
+.. literalinclude:: _examples/comm.cc
+   :start-after: --publish-start
+   :end-before: --publish-end
 
 .. note::
 
@@ -146,146 +126,90 @@ the provided ``data`` instances.
   Broker has fire-and-forget messaging semantics, the runtime does not generate
   a notification if no subscribers exist.
 
+
+One can also explicitly create a ``publisher`` for a specific topic
+first, and then use that to send subsequent messages:
+
+.. literalinclude:: _examples/comm.cc
+   :start-after: --publisher-start
+   :end-before: --publisher-end
+
+This approach better suited for high-volume streams, as it leverages
+CAF's demand management internally.
+
+Finally, there's also a streaming version that pulls messages from a
+producer as capacity becomes available on the output channel; see
+``endpoint::publish_all`` and ``endpoint::publish_all_no_sync``.
+
 See :ref:`data-model` for a detailed discussion on how to construct various
 types of ``data``.
 
 Peerings
 --------
 
-In order to publish messages beyond the sending endpoint, an endpoint needs to
+In order to publish messages to elsewhere, an endpoint needs to
 peer with other endpoints. A peering is a bidirectional relationship between
 two endpoints. Peering endpoints exchange subscriptions and forward messages
 accordingly. This allows for creating flexible communication topologies that
 use topic-based message routing.
 
+An endpoint can either create peering itself by connecting to remote
+locations, or wait for an incoming request:
+
+.. literalinclude:: _examples/comm.cc
+   :start-after: --peering-start
+   :end-before: --peering-end
+
 .. note::
 
-  Broker currently does not support topologies with loops. This is purely a
-  technical limitation and vanishes in the future.
+    Currently subscriptions are not propagated across hops, and Broker
+    does not yet route messages. Support for topic-based routing will
+    come soon.
 
-An endpoint can either peer with a local or a remote endpoint:
-
-.. code-block:: cpp
-
-  context ctx;
-  auto ep0 = ctx.spawn<blocking>();
-  ep0.subscribe("foo");
-  auto ep1 = ctx.spawn<nonblocking>();
-  ep0.peer(ep1); // exchanges existing subscriptions
-  ep1.subscribe("bar"); // relays subscription to peers
-
-The figure below shows the subscription before and after entering the peering
-relationship.
-
-.. image:: _images/peering-1.png
-  :align: center
-
-Let's consider a third endpoint joining, this time through a remote connection.
-
-.. code-block:: cpp
-
-  // Expose endpoint at an IP address and TCP port.
-  ep0.listen(1.2.3.4, 40000);
-
-  // In a separate OS process, connect to it.
-  context ctx;
-  auto ep2 = ctx.spawn<nonblocking>();
-  ep2.peer(1.2.3.4, 42000); // installs a remote peering
-
-Thereafter, we have the following topology:
-
-.. image:: _images/peering-2.png
-  :align: center
-
-Note that ``ep2`` does not know about ``ep1`` and forwards ``data`` for topic
-``foo`` and ``bar`` via ``ep0``. However, ``ep2.publish("bar", 42)`` still
-forwards a message via ``ep0`` to ``ep1``.
 
 .. _status-error-messages:
 
 Status and Error Messages
 -------------------------
 
-Broker presents runtime changes to the user as ``status`` messages. For
-failures, there exists a separate ``error`` type. Blocking endpoints obtain
-both statuses and errors via ``receive`` and non-blocking endpoints must
-subscribe to them explicitly.
+Broker presents runtime connective changes to the user as ``status``
+messages. For failures, there exists a separate ``error`` type. To get
+access to either one creates a ``status_subscriber``, which provides a
+similar synchronous ``get/available/poll`` API as the standard message
+subscriber. By default, a ``status_subscriber`` returns only errors:
 
-
-Status
-******
-
-Status messages represent non-critical changes to the topology. For example,
-after a successful peering, both endpoints receive a ``peer_added`` status
-message:
-
-.. code-block:: cpp
-
-  context ctx;
-  // Peer two endpoints.
-  auto ep0 = ctx.spawn<blocking>();
-  auto ep1 = ctx.spawn<blocking>();
-  ep0.peer(ep1);
-  // Block and wait for status messages.
-  auto elem = ep0.receive();
-  auto s = get_if<status>(elem);
-  assert(s != nullptr);
-  if (*s == sc::peer_added)
-    std::cout << "peering established successfully" << std::endl;
-
-The concrete semantics of a status depend on its embedded code, which the enum
-``sc`` codifies:
-
-.. literalinclude:: ../broker/status.hh
-   :language: cpp
-   :lines: 26-37
-
-Status messages have an optional *context* and an optional descriptive
-*message*:
-
-.. code-block:: cpp
-
-  auto& s = get<status>(elem);
-  // Check for textual description.
-  if (auto str = s.message())
-    std::cout << *str << std::endl;
-  // Check for contextual information.
-  if (auto ctx = s.context<endpoint_info>())
-    if (ctx->network)
-      std::cout << "peer at: "
-                << ctx->network->address << ':'
-                << ctx->network->port << std::endl;
-
-The member function ``context<T>`` returns a ``const T*`` if the context is
-available. The type of available context information is dependent on the status
-code enum ``sc``. For example, all ``sc::peer_*`` status codes include an
-``enpoint_info`` context as well as a message.
-
-Non-blocking endpoints ignore ``status`` messages unless they subscribe to them
-explicitly:
-
-.. code-block:: cpp
-
-  context ctx;
-  auto ep = ctx.spawn<nonblocking>();
-  ep.subscribe(
-    [&](const status& s) { ... }
-  );
-
-Errors
-******
+.. literalinclude:: _examples/comm.cc
+   :start-after: --status-subscriber-err-start
+   :end-before: --status-subscriber-err-end
 
 Errors reflect failures that may impact the correctness of operation.
-Similar to status codes, the enum ``ec`` codifies existing error codes:
+`err.code()`` returns an enum ``ec`` that codifies existing error
+codes:
 
 .. literalinclude:: ../broker/error.hh
    :language: cpp
-   :lines: 25-48
+   :lines: 23-48
 
-As with statuses, an ``error`` can appear in a mailbox ``element``:
+To receive non-critical status messages as well, specify that when
+creating the ``status_subscriber``:
 
-.. code-block:: cpp
+.. literalinclude:: _examples/comm.cc
+   :start-after: --status-subscriber-all-start
+   :end-before: --status-subscriber-all-end
 
-  auto elem = ep.receive();
-  if (auto e = get_if<error>(elem))
-    std::cout << "an error occurred: " << to_string(*e) << std::endl;
+Status messages represent non-critical changes to the topology. For
+example, after a successful peering, both endpoints receive a
+``peer_added`` status message. The concrete semantics of a status
+depend on its embedded code, which the enum ``sc`` codifies:
+
+.. literalinclude:: ../broker/status.hh
+   :language: cpp
+   :lines: 26-35
+
+Status messages have an optional *context* and an optional descriptive
+*message*. The member function ``context<T>`` returns a ``const T*``
+if the context is available. The type of available context information
+is dependent on the status code enum ``sc``. For example, all
+``sc::peer_*`` status codes include an ``endpoint_info`` context as
+well as a message.
+
