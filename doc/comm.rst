@@ -5,28 +5,38 @@ Communication
 
 Broker's primary objective is to facilitate efficient communication through a
 publish/subscribe model. In this model, entities send data by publishing to a
-specific topic, and receive data by subscribing to a topic of interest. The
+specific topic, and receive data by subscribing to topics of interest. The
 asynchronous nature of publish/subscribe makes it a popular choice for loosely
 coupled, distributed systems.
 
 Broker is the successor of `Broccoli
 <https://www.bro.org/sphinx/components/broccoli/broccoli-manual.html>`_, Bro's
 client communications library. Broccoli enables arbitrary applications to
-communicate in Bro's data model. In this chapter, we describe first
+communicate in Bro's data model. In this chapter, we first
 describe generic Broker communication between peers that don't assume
 any specific message layout. Afterwards, we show how to exchange
 events with Bro through an additional Bro-specific shim on top of
 Broker's generic messages.
 
-Endpoints
----------
+Exchanging Broker Messages
+--------------------------
 
-Broker encapsulates its entire peering in an ``endpoint`` object. Multiple
-instances of a ``endpoint`` can exist in the same process, but each ``endpoint``
-features a thread-pool and (configurable) scheduler, which determines the
-execution of Broker's components. Using a single ``endpoint`` per OS process
-guarantees the most efficient usage of available hardware resources.
-Nonetheless, multiple Broker applications can seamlessly operate when linked
+We start with a discussion of generic message exchange between Broker
+clients. At the Broker-level level, messages are just arbitrary values
+that have no further semantics attached. It's up to senders and
+receivers to agree on a specific layout of messages (e.g., a set of
+doubles for a measurement series).
+
+Endpoints
+~~~~~~~~~
+
+Broker encapsulates its entire peering setup in an ``endpoint``
+object. Multiple instances of an ``endpoint`` can exist in the same
+process, but each ``endpoint`` features a thread-pool and
+(configurable) scheduler, which determines the execution of Broker's
+components. Using a single ``endpoint`` per OS process guarantees the
+most efficient usage of available hardware resources. Nonetheless,
+multiple Broker applications can seamlessly operate when linked
 together, as there exists no global library state.
 
 .. note::
@@ -34,15 +44,70 @@ together, as there exists no global library state.
   Instances of type ``endpoint`` have reference semantics: that is, they behave
   like a reference in that it's impossible to obtain an invalid one (unlike a
   null pointer). An ``endpoint`` can also be copied around cheaply, but is not
-  thread-safe.
+  safe against access from concurrent threads.
 
+Peerings
+~~~~~~~~
+
+In order to publish, or receive, messages an endpoint needs to peer with other
+endpoints. A peering is a bidirectional relationship between two
+endpoints. Peering endpoints exchange subscriptions and then forward
+messages accordingly. This allows for creating flexible communication
+topologies that use topic-based message routing.
+
+An endpoint can either initiate a peering itself by connecting to
+remote locations, or wait for an incoming request:
+
+.. literalinclude:: _examples/comm.cc
+   :start-after: --peering-start
+   :end-before: --peering-end
+
+.. note::
+
+    Currently subscriptions are not propagated across hops, and Broker
+    does not yet route messages. Support for topic-based routing will
+    come soon.
+
+Sending Data
+~~~~~~~~~~~~
+
+In Broker a message consists of a *topic*-*data* pair. That is, endpoints
+*publish* values as `data` instances along with a *topic* that steers
+them to interested subscribers:
+
+.. literalinclude:: _examples/comm.cc
+   :start-after: --publish-start
+   :end-before: --publish-end
+
+.. note::
+
+  Publishing a message can be no-op if there exists no subscriber. Because
+  Broker has fire-and-forget messaging semantics, the runtime does not generate
+  a notification if no subscribers exist.
+
+One can also explicitly create a dedicated ``publisher`` for a
+specific topic first, and then use that to send subsequent messages.
+This approach better suited for high-volume streams, as it leverages
+CAF's demand management internally:
+
+.. literalinclude:: _examples/comm.cc
+   :start-after: --publisher-start
+   :end-before: --publisher-end
+
+Finally, there's also a streaming version of the publisher that pulls
+messages from a producer as capacity becomes available on the output
+channel; see ``endpoint::publish_all`` and
+``endpoint::publish_all_no_sync``.
+
+See :ref:`data-model` for a detailed discussion on how to construct
+values for messgea in the form of various types of ``data`` instaces.
 
 Receiving Data
 ~~~~~~~~~~~~~~
 
 Endpoints receive data by creating a ``subscriber`` attached to the
 topics of interest. Subscriptions are prefix-based, matching all
-topics that start with the guven string. A ``subscriber`` can either
+topics that start with a given string. A ``subscriber`` can either
 retrieve incoming messages explicitly by calling ``get`` or ``poll``
 (synchronous API), or spawning a background worker to process messages
 as they come in (asynchronous API).
@@ -58,23 +123,26 @@ calling ``get`` will wait for a new message:
    :start-after: --get-start
    :end-before: --get-end
 
-The function ``get`` blocks until the subscriber has at least one
-message available. Each message has two parts: the topic is was
-published to, and the message's payload in the form of a `data`
-instance. The example just prints them out.
+By default the function ``get`` blocks until the subscriber has at
+least one message available, which it then returns. Each retrieved
+message consists of the same two elements that the publisher passed
+along: the topic that the message has been published to, and the
+message's payload in the form of an arbitray Broker value, (i.e., a
+`data` instance). The example just prints them both out.
 
-Blocking indefinitely does not work well in combination with existing
-event loops or polling. `get` takes an optional timeout parameter to
-wait only for a certain amount of time. One can also use ``available``
-to explicitly check for available messages, or ``poll`` to extract all
-currently pending messages (which may be none):
+Blocking indefinitely until messages arrive often won't work well, in
+particular not in combination with existing event loops or polling.
+Therfore, `get` takes an additional optional timeout parameter to wait
+only for a certain amount of time. Alternatively, one can also use
+``available`` to explicitly check for available messages, or ``poll``
+to extract just all currently pending messages (which may be none):
 
 .. literalinclude:: _examples/comm.cc
    :start-after: --poll-start
    :end-before: --poll-end
 
 For integration into event loops, `subscriber` also provides a file
-descriptor that signals available messages:
+descriptor that signals whether messages are available:
 
 .. literalinclude:: _examples/comm.cc
    :start-after: --fd-start
@@ -83,7 +151,8 @@ descriptor that signals available messages:
 Asynchronous API
 ****************
 
-TODO.
+
+.. todo: Add docs for asynchronous API.
 
 .. If your application does not require a blocking API, the non-blocking API
 .. offers an asynchronous alternative. Unlike the blocking API, non-blocking
@@ -109,74 +178,18 @@ TODO.
 ..   reference* introduces a dangling reference once the outer frame returns.
 ..   Therefore, only capture locals *by value*.
 
-Sending Data
-~~~~~~~~~~~~
-
-The API for sending data is the same for blocking and non-blocking endpoints.
-In Broker, a *message* is a *topic*-*data* pair. That is, endpoints *publish*
-data under a *topic* to send a message to all subscribers:
-
-.. literalinclude:: _examples/comm.cc
-   :start-after: --publish-start
-   :end-before: --publish-end
-
-.. note::
-
-  Publishing a message can be no-op if there exists no subscriber. Because
-  Broker has fire-and-forget messaging semantics, the runtime does not generate
-  a notification if no subscribers exist.
-
-
-One can also explicitly create a ``publisher`` for a specific topic
-first, and then use that to send subsequent messages:
-
-.. literalinclude:: _examples/comm.cc
-   :start-after: --publisher-start
-   :end-before: --publisher-end
-
-This approach better suited for high-volume streams, as it leverages
-CAF's demand management internally.
-
-Finally, there's also a streaming version that pulls messages from a
-producer as capacity becomes available on the output channel; see
-``endpoint::publish_all`` and ``endpoint::publish_all_no_sync``.
-
-See :ref:`data-model` for a detailed discussion on how to construct various
-types of ``data``.
-
-Peerings
---------
-
-In order to publish messages to elsewhere, an endpoint needs to
-peer with other endpoints. A peering is a bidirectional relationship between
-two endpoints. Peering endpoints exchange subscriptions and forward messages
-accordingly. This allows for creating flexible communication topologies that
-use topic-based message routing.
-
-An endpoint can either create peering itself by connecting to remote
-locations, or wait for an incoming request:
-
-.. literalinclude:: _examples/comm.cc
-   :start-after: --peering-start
-   :end-before: --peering-end
-
-.. note::
-
-    Currently subscriptions are not propagated across hops, and Broker
-    does not yet route messages. Support for topic-based routing will
-    come soon.
-
-
 .. _status-error-messages:
 
 Status and Error Messages
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Broker presents runtime connective changes to the user as ``status``
-messages. For failures, there exists a separate ``error`` type. To get
-access to either one creates a ``status_subscriber``, which provides a
-similar synchronous ``get/available/poll`` API as the standard message
-subscriber. By default, a ``status_subscriber`` returns only errors:
+Broker informs client about any communcation errors---and optionally
+also about non-critical connectivity changes---through separate
+``status`` messages.  To get access to that information, one creates a
+``status_subscriber``, which provides a similar synchronous
+``get/available/poll`` API as the standard message subscriber. By
+default, a ``status_subscriber`` returns only errors:
+
 
 .. literalinclude:: _examples/comm.cc
    :start-after: --status-subscriber-err-start
@@ -213,3 +226,22 @@ is dependent on the status code enum ``sc``. For example, all
 ``sc::peer_*`` status codes include an ``endpoint_info`` context as
 well as a message.
 
+Exchanging Bro Events
+---------------------
+
+The communication model discussed so far remains generic for all
+Broker clients in that it doesn't associate any semantics with the
+values exchanged through messages. In practice, however, senders and
+receivers will need to agree on a specific data layout for the values
+exchanged, so that they interpret them in the same way. This is in
+particular true for exchanging events with Bro---one of the main
+applications for Broker in the first place. To support that, Broker
+provides built-in support for sending and receiving Bro events through
+a small Bro-specific shim on top of the generic message model. The
+shim encapsulates Bro events and takes care of converting them into
+the expected lower-level message layout that gets transmitted. This
+way, Bro events can easily be exchanging between between an external
+Broker client and Bro itself---and even independent of any Bro
+instances as well, just between Broker clients.
+
+.. todo: Show how Bro events work.

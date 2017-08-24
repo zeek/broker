@@ -10,10 +10,11 @@ block, which is a type-erased variant structure that can hold many different
 values.
 
 There exists a total ordering on ``data``, induced first by the type
-discriminator and then its value domain. For a example, an ``integer`` will
-always be smaller than a ``count``. Only when comparing two values of the same
-type, a meaningful ordering exists. The total ordering makes it possible to use
-``data`` as index in associative containers.
+discriminator and then its value domain. For a example, an ``integer``
+will always be smaller than a ``count``. While a meaningful ordering
+exists only when comparing two values of the same type, the total
+ordering makes it possible to use ``data`` as index in associative
+containers.
 
 Types
 *****
@@ -64,15 +65,9 @@ faciliates. In fact, they are concrete specializations of the time types in
 
 .. code-block:: cpp
 
-  namespace broker {
-
-  using clock = std::chrono::system_clock;
-  using timespan = std::chrono::duration<int64_t, std::nano>;
-  using timestamp = std::chrono::time_point<clock, duration>;
-
-  timestamp now();
-
-  } // namespace broker
+    using clock = std::chrono::system_clock;
+    using timespan = std::chrono::duration<int64_t, std::nano>;
+    using timestamp = std::chrono::time_point<clock, timespan>;
 
 .. |std_chrono| replace:: ``std::chrono``
 .. _std_chrono: http://en.cppreference.com/w/cpp/chrono
@@ -166,7 +161,7 @@ Interface
 The ``data`` abstraction offers two ways of interacting with the contained type
 instance:
 
-1. Querying a specific type ``T``. As C++17's ``std::variant``, the function
+1. Querying a specific type ``T``. Similar to C++17's ``std::variant``, the function
    ``get_if<T>`` returns either a ``T*`` if the contained type is ``T`` and
    ``nullptr`` otherwise:
 
@@ -176,9 +171,9 @@ instance:
      if (auto i = get_if<integer>(x))
        f(*i); // safe use of x
 
-    Alternatively, the function ``get<T>`` returns a reference of type ``T&``
-    or ``const T&``, based on whether the given ``data`` argument is
-    const-qualified:
+   Alternatively, the function ``get<T>`` returns a reference of type
+   ``T&`` or ``const T&``, based on whether the given ``data``
+   argument is const-qualified:
 
    .. code-block:: cpp
 

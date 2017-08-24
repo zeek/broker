@@ -25,7 +25,7 @@ if ( sub.available() )
 
 for ( auto m : sub.poll() ) // Iterate over all available messages
     std::cout << "topic: " << m.first << " data: " << m.second << std::endl;
-// --pool-end
+// --poll-end
 
 ///
 
@@ -46,7 +46,7 @@ if (n == 1 && p.revents & POLLIN) {
 
 // --publish-start
 ep.publish("/topic/test", "42"); // Message is a single number.
-ep.publish("/topic/test", vector{1, 2, 3}); // Message is a vector.
+ep.publish("/topic/test", vector{1, 2, 3}); // Message is a vector of values.
 // --publish-end
 
 ///
@@ -62,14 +62,14 @@ pub.publish(vector{1, 2, 3}); // Message is a vector.
 // --peering-start
 // Open port and subscribe to 'foo' with all
 // incoming peerings.
-endpoint ep0;
-auto sub0 = ep0.make_subscriber({"/topic/test"});
-ep0.listen("127.0.0.1", 9999);
-
 // Establish outgoing peering and subscribe to 'bar'.
 endpoint ep1;
 auto sub1 = ep1.make_subscriber({"/topic/test"});
 ep1.peer("127.0.0.1", 9999);
+
+endpoint ep0;
+auto sub0 = ep0.make_subscriber({"/topic/test"});
+ep0.listen("127.0.0.1", 9999);
 // --peering-end
 
 // --status-subscriber-err-start

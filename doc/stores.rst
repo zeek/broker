@@ -5,7 +5,7 @@ Data Stores
 
 In addition to transmitting :ref:`data <data-model>` via publish/subscribe
 communication, Broker also offers a mechanism to store this very data.
-Data stores provide a distributed key-value interface that leverage the
+Data stores provide a distributed key-value interface that leverages the
 existing :ref:`peer communication channels <communication>`.
 
 Aspects
@@ -47,12 +47,12 @@ Backend
 The master can choose to keep its data in various backends:
 
 1. **Memory**. This backend uses a hash-table to keep its data in memory. It is
-   the fastest of all backends, but offers limited scalability and (currently)
+   the fastest of all backends, but offers limited scalability and
    does not support persistence.
 
 2. `SQLite <https://www.sqlite.org>`_. The SQLite backend stores its data in a
-   SQLite3 format on disk. While offering persistence, it does not scale very
-   well.
+   SQLite3 format on disk. While offering persistence, it does not scale
+   well to large volumes.
 
 3. `RocksDB <http://rocksdb.org>`_. This backend relies on an
    industrial-strength, high-performance database with a variety of tuning
@@ -71,26 +71,24 @@ Construction
 The example below illustrates how to attach a master frontend with a memory
 backend:
 
-.. code-block:: cpp
+.. literalinclude:: _examples/stores.cc
+   :start-after: --attach-master-start
+   :end-before: --attach-master-end
 
-  context ctx;
-  auto ep = ctx.spawn<nonblocking>();
-  // attach a master with memory backend
-  auto ds = ep.attach<master, memory>("foo");
-  if (ds)
-
-The factory function ``endpoint::attach`` has the following signature:
+The factory function ``endpoint::attach_master`` has the following signature:
 
 .. code-block:: cpp
 
-  attach<F, B>(const std::string& name, backend_options opts = {})
+  expected<store> attach_master(std::string name, backend type,
+                                backend_options opts=backend_options());
 
-The two template parameters ``F`` and ``B`` denote the respective frontend and
-backend types, where ``B`` defaults to ``memory``.  The function takes as first
-argument the name of the store and as second argument optionally a set of
-backend options, such as the path where to keep the backend on the filesystem.
-The function returns a ``expected<store>`` which encapsulates a type-erased
-reference to the data store.
+The function takes as first argument the global name of the store, as
+second argument the type of store
+(``broker::{memory,sqlite,rocksdb}``), and as third argument
+optionally a set of backend options, such as the path where to keep
+the backend on the filesystem. The function returns a
+``expected<store>`` which encapsulates a type-erased reference to the
+data store.
 
 .. note::
 
@@ -108,77 +106,123 @@ reference to the data store.
     else
       std::cout << to_string(x.error()) << std::endl;
 
-  In the failure case, the ``expected<T>::error()`` holds an ``error``.
+In the failure case, the ``expected<T>::error()`` holds an ``error``.
 
 Modification
 ~~~~~~~~~~~~
 
 Data stores support the following mutating operations:
 
-1. ``put(key, value)``: stores ``value`` at ``key``, overwriting a potentially
-   previously existing value at ``key``.
+``void put(data key, data value, optional<timespan> expiry = {}) const;``
+    Stores the ``value`` at ``key``, overwriting a potentially previously
+    existing value at that location. If ``expiry`` is given, the new
+    entry will automatically be removed after that amount of time.
 
-   .. code-block:: cpp
+``void erase(data key) const;``
+    Removes the value for the given key, if it exists.
 
-     ds.put(42, set{1, 2, 3});
-     ds.put("foo", 4.2);
+``void clear() const;``
+    Removes *all* current store values.
 
-2. ``erase(key)``: removes the value for the given key, if ``key`` exists
+``void increment(data key, data amount, optional<timespan> expiry = {}) const;``
+    Increments the existing value at ``key`` by the given amount. This
+    is supported for numerical data types and for timestamps. If
+    ``expiry`` is given, the modified entry's expirtation time will be
+    updated accordingly.
 
-   .. code-block:: cpp
+``void decrement(data key, data amount, optional<timespan> expiry = {}) const;``
+    Decrements the existing value at ``key`` by the given amount. This
+    is supported for numerical data types and for timestamps. If
+    ``expiry`` is given, the modified entry's expirtation time will be
+    updated accordingly.
 
-     ds.erase(42);    // removes set{1, 2, 3}, which got inserted above
-     ds.erase("bar"); // nop: key does not exist
+``void append(data key, data str, optional<timespan> expiry = {}) const;``
+    Appends a new string ``str`` to an existing string value at
+    ``key``. If ``expiry`` is given, the modified entry's expirtation
+    time will be updated accordingly.
 
-.. note:: TODO: Document type-specific ``add`` and ``remove``.
+``void insert_into(data key, data index, optional<timespan> expiry = {}) const;``
+    For an existing set value at stored at ``key``, inserts the value ``index``
+    into it. If ``expiry`` is given, the modified entry's expirtation
+    time will be updated accordingly.
 
+``void insert_into(data key, data index, data value, optional<timespan> expiry = {}) const;``
+    For an existing vector or table value stored at ``key``, inserts
+    ``value`` at ``index`` into it. If ``expiry`` is given, the
+    modified entry's expirtation time will be updated accordingly.
+
+``void remove_from(data key, data index, optional<timespan> expiry = {}) const;``
+    For an existing vector, set or table value stored at ``key``,
+    removes the value at ``index`` from it. If ``expiry`` is given,
+    the modified entry's expirtation time will be updated accordingly.
+
+``void push(data key, data value, optional<timespan> expiry = {}) const;``
+    For an existing vector at ``key``, appends ``value`` to its end. If
+    ``expiry`` is given, the modified entry's expirtation time will be
+    updated accordingly.
+
+``void pop(data key, optional<timespan> expiry = {}) const;``
+    For an existing vector at ``key``, removes its last value. If
+    ``expiry`` is given, the modified entry's expirtation time will be
+    updated accordingly.
+    
 Direct Retrieval
 ~~~~~~~~~~~~~~~~
 
-The function ``get(const data& key)`` retrieves a value in a blocking
-manner and returns an instance of ``expected<data>``.
+Data stores support the following retrieval methods:
 
-.. code-block:: cpp
+``expected<data> get(data key) const;``
+    Retrieves the value at ``key``. If the key does not exists,
+    returns an error ``ec::no_such_key``.
 
-  auto result = ds->get("foo");
-  if (result)
-    std::cout << *result << std::endl; // may print 4.2
-  else if (result.error() == ec::no_such_key)
-    std::cout << "key 'foo' does not exist'" << std::endl;
-  else if (result.error() == ec::backend_failure)
-    std::cout << "something went wrong with the backend" << std::endl;
-  else
-    std::cout << "could not retrieve value at key 'foo'" << std::endl;
+    .. literalinclude:: _examples/stores.cc
+       :start-after: --get-with-error-start
+       :end-before: --get-with-error-end
+
+``expected<data> exists(data key) const;``
+    Returns a ``boolean`` data value indicating whether ``key`` exists
+    in the store.
+
+``expected<data> get_index_from_value(data key, data index) const;``
+  For containers values (sets, tables, vectors) at ``key``, retrieves
+  a specific ``index`` from the value. For sets, the returned value is
+  a ``boolean`` data instance indicating whether the index exits in
+  the set. If ``key`` does not exists, returns an error
+  ``ec::no_such_key``.
+
+``expected<data> keys() const``
+  Retrieves a copy of all the store's current keys, returned as a set.
+  Note that this is a potentially expensive operation if the store is
+  large.
+
+All these methods share the property that they will return the
+corresponding result directly. Due to Broker's asynchronous operation
+internally, this means that they may block for short amounts of time
+until the result becomes available. If that's a problem, you can
+receive results back asynchroulsy as well, see next section.
+
+Note, however, that even with this direct interface, results may
+sometimes take a bit to reflect operations that clients perform
+(including the same client!). This effect is most pronounced when
+working through a clone: any local manipulations will need to go
+through the master before they become visible to the clone.
 
 Proxy Retrieval
 ~~~~~~~~~~~~~~~
 
-When integrating data store queries into an event loop, the direct retrieval
-API does not prove a good fit: there's no descriptor that we can poll, and
-request and response are coupled at lookup time. Therefore, Broker offers a
-second mechanism to lookup values in data stores. A ``store::proxy``
-decouples lookup requests from responses and exposes a mailbox to integrate
-into event loops---exactly like blocking endpoints. Each request has a unique,
-monotonically increasing 64-bit ID that is hauled through the response:
+When integrating data store queries into an event loop, the direct
+retrieval API may not prove a good fit: request and response are
+coupled at lookup time, leading to potentially blocking operations.
+Therefore, Broker offers a second mechanism to lookup values in data
+stores. A ``store::proxy`` decouples lookup requests from responses
+and exposes a *mailbox* to integrate into event loops. When a using a
+proxy, each request receives a unique, monotonically increasing 64-bit
+ID that is hauled through the response:
 
-.. code-block:: cpp
+.. literalinclude:: _examples/stores.cc
+   :start-after: --proxy-start
+   :end-before: --proxy-end
 
-  // Add a value to a data store (master or clone).
-  ds->put("foo", 42);
-  // Create a proxy.
-  auto proxy = store::proxy{*ds};
-  // Perform an asynchyronous request to look up a value.
-  auto id = proxy.get("foo");
-  // Get a file descriptor for event loops.
-  auto fd = proxy.mailbox().fd();
-  // Receive results or block until the result is available.
-  auto response = proxy.receive();
-  assert(response.id == id)
-  // Check whether we got data or an error.
-  if (response.answer)
-    std::cout << *result.answer << std::endl; // may print 42
-  else if (response.answer.error() == ec::no_such_key)
-    std::cout << "no such key: 'foo'" << std::endl;
-  else
-    std::cout << "failed to retrieve value at key 'foo'" << std::endl;
-
+The proxy provides the same set of retrieval methods as the direct
+interface, with all of them returning the corresponding ID to retrieve
+the result once it has come in.

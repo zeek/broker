@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.abspath('@CMAKE_CURRENT_SOURCE_DIR@'),
 extensions = [
     'numsec',
     'sphinx.ext.autodoc',
+    'sphinx.ext.todo',
     'rst2pdf.pdfbuilder'
 ]
 
@@ -104,8 +105,8 @@ highlight_language = 'C++'
 # keep_warnings = False
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
-todo_include_todos = False
-
+todo_include_todos = True
+todo_emit_warnings = True
 
 # -- Options for HTML output ----------------------------------------------
 
