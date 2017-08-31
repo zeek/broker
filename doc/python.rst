@@ -52,6 +52,26 @@ equivalent, including ``available`` for checking for pending messages,
 for retrieving select-able file descriptor, and ``{add,remove}_topic``
 for changing the subscription list.
 
+Exchanging Bro Events
+---------------------
+
+The Broker Python bindings come with support for representing Bro
+events as well. Here's the Python version of the :ref:`C++ ping example
+shown earlier <bro_events_cpp>`:
+
+.. literalinclude:: _examples/ping.bro
+
+.. literalinclude:: _examples/ping.py
+
+.. code-block:: bash
+
+    # python3 ping.py
+    received pong[0]
+    received pong[1]
+    received pong[2]
+    received pong[3]
+    received pong[4]
+
 Data Model
 ----------
 
@@ -109,7 +129,7 @@ similar to the C++ interface:
 .. literalinclude:: ../tests/python/communication.py
    :language: python
    :start-after: --error-start
-   :lines: 1-3,5-7
+   :lines: 1-3,5-6
    :end-before: --error-end
 
 .. literalinclude:: ../tests/python/communication.py

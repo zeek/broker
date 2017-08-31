@@ -151,6 +151,7 @@ descriptor that signals whether messages are available:
 Asynchronous API
 ****************
 
+TODO: Document.
 
 .. todo: Add docs for asynchronous API.
 
@@ -226,6 +227,8 @@ is dependent on the status code enum ``sc``. For example, all
 ``sc::peer_*`` status codes include an ``endpoint_info`` context as
 well as a message.
 
+.. _bro_events_cpp:
+
 Exchanging Bro Events
 ---------------------
 
@@ -234,14 +237,30 @@ Broker clients in that it doesn't associate any semantics with the
 values exchanged through messages. In practice, however, senders and
 receivers will need to agree on a specific data layout for the values
 exchanged, so that they interpret them in the same way. This is in
-particular true for exchanging events with Bro---one of the main
-applications for Broker in the first place. To support that, Broker
-provides built-in support for sending and receiving Bro events through
-a small Bro-specific shim on top of the generic message model. The
-shim encapsulates Bro events and takes care of converting them into
-the expected lower-level message layout that gets transmitted. This
-way, Bro events can easily be exchanging between between an external
-Broker client and Bro itself---and even independent of any Bro
-instances as well, just between Broker clients.
+particular true for exchanging events with Bro---which is one of the
+main applications for Broker in the first place. To support that,
+Broker provides built-in support for sending and receiving Bro events
+through a small Bro-specific shim on top of the generic message model.
+The shim encapsulates Bro events and takes care of converting them
+into the expected lower-level message layout that gets transmitted.
+This way, Bro events can be exchanged between between an external
+Broker client and Bro itself---and also even just between Broker
+clients without any Bro instances at all.
 
-.. todo: Show how Bro events work.
+Here's a complete ping/ping example between a C++ Broker client and
+Bro:
+
+.. literalinclude:: _examples/ping.bro
+
+.. literalinclude:: _examples/ping.cc
+
+.. code-block:: bash
+
+    # g++ -std=c++11 -lbroker -lcaf_core -lcaf_io -lcaf_openssl -o ping ping.cc
+    # bro ping.bro &
+    # ./ping
+    received pong[0]
+    received pong[1]
+    received pong[2]
+    received pong[3]
+    received pong[4]
