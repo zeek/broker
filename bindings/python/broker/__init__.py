@@ -8,8 +8,6 @@ import datetime
 import ipaddress
 import collections
 
-from . import bro
-
 Version = _broker.Version
 Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
@@ -302,6 +300,8 @@ class Endpoint(_broker.Endpoint):
 class Message:
     def to_broker(self):
         assert False and "method not overridden"
+
+from . import bro
 
 class Data(_broker.Data):
     def __init__(self, x = None):
