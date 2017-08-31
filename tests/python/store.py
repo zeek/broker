@@ -36,10 +36,13 @@ def create_stores():
 
 class TestStore(unittest.TestCase):
     def test_basic(self):
+        # --master-start
         ep1 = broker.Endpoint()
         m = ep1.attach_master("test", broker.Backend.Memory)
         m.put("key", "value")
         x = m.get("key")
+        # x == "value"
+        # --master-end
         self.assertEqual(x, "value")
         self.assertEqual(m.name(), "test")
 
@@ -89,6 +92,7 @@ class TestStore(unittest.TestCase):
         m.put("set", set([1, 2]))
         m.put("table", {1: "A", "2": "C"})
 
+        # --ops-start
         m.increment("e", 1)
         m.decrement("f", 1)
         m.append("str", "ar")
@@ -99,6 +103,7 @@ class TestStore(unittest.TestCase):
         m.push("vec", 3)
         m.push("vec", 4)
         m.pop("vec")
+        # --ops-end
 
         time.sleep(.5)
 

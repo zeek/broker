@@ -8,15 +8,22 @@ import broker
 
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
+        # --peer-start
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
-        s1 = ep1.make_subscriber("/test")
-        s2 = ep2.make_subscriber("/test")
+
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
+        s1 = ep1.make_subscriber("/test")
+        s2 = ep2.make_subscriber("/test")
+        # --peer-end
+
+        # --ping-start
         ep2.publish("/test", ["ping"])
         (t, d) = s1.get()
+        # t == "/test", d == ["ping"]
+        # --ping-end
         self.assertEqual(t, "/test")
         self.assertEqual(d[0], "ping")
 
@@ -36,11 +43,13 @@ class TestCommunication(unittest.TestCase):
         ep2.peer("127.0.0.1", port, 1.0)
 
         msg0 = ("/test/1", [])
-        msg1 = ("/test/2", [1, 2, 3])
-        msg2 = ("/test/3", [42, "foo", {"a": "A", "b": broker.Port(1947, broker.Port.Protocol.TCP)}])
-
         ep2.publish(*msg0)
+
+        # --messages-start
+        msg1 = ("/test/2", [1, 2, 3])
+        msg2 = ("/test/3", [42, "foo", {"a": "A", "b": ipaddress.IPv4Address('1.2.3.4')}])
         ep2.publish_batch(msg1, msg2)
+        # --messages-end
 
         msgs = s1.get(3)
         self.assertFalse(s1.available())
@@ -74,15 +83,17 @@ class TestCommunication(unittest.TestCase):
         ep2.shutdown()
 
     def test_status_subscriber(self):
+        # --status-start
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
         es1 = ep1.make_status_subscriber(True)
         es2 = ep2.make_status_subscriber(True)
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
-
         st1 = es1.get()
         st2 = es2.get()
+        # st1.code() == broker.SC.PeerAdded, st2.code() == broker.SC.PeerAdded
+        # --status-end
 
         self.assertEqual(st1.code(), broker.SC.PeerAdded)
         self.assertEqual(st1.context().network.get().address, "127.0.0.1")
@@ -93,13 +104,14 @@ class TestCommunication(unittest.TestCase):
         ep2.shutdown()
 
     def test_status_subscriber_error(self):
+        # --error-start
         ep1 = broker.Endpoint()
         es1 = ep1.make_status_subscriber()
-
-        # Sync version.
-        r = ep1.peer("127.0.0.1", 1947, 0.0)
-        self.assertEqual(r, False)
+        r = ep1.peer("127.0.0.1", 1947) # Try unavailable port
+        self.assertEqual(r, False) # Not shown in docs.
         st1 = es1.get()
+        # s1.code() == broker.EC.PeerUnavailable
+        # --error-end
         self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
         # Async version.
