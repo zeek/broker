@@ -31,6 +31,7 @@ PeerInfo = _broker.PeerInfo
 Topic = _broker.Topic
 Status = _broker.Status
 Configuration = _broker.Configuration
+BrokerOptions = _broker.BrokerOptions
 
 # Broker's (or better: CAF's) EC code is an integer. Add support
 # for comparision against the enum.
@@ -70,6 +71,12 @@ class Subscriber:
 
         if msg is None:
             return None
+
+        if isinstance(msg, _broker.OptionalSubscriberBaseValueType):
+            if not msg.is_set():
+                return None
+
+            msg = msg.get();
 
         if isinstance(msg, tuple):
             return (msg[0].string(), Data.to_py(msg[1]))

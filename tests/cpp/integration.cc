@@ -23,7 +23,9 @@ using data_vector = std::vector<endpoint::value_type>;
 namespace {
 
 configuration make_config() {
-  configuration cfg(true);
+  broker_options options;
+  options.disable_ssl = true;
+  configuration cfg(options);
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
   cfg.middleman_network_backend = caf::atom("testing");
   cfg.scheduler_policy = caf::atom("testing");

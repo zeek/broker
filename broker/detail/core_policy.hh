@@ -33,6 +33,9 @@ public:
   /// Configures the input policy in use.
   using gatherer_type = caf::random_gatherer;
 
+  /// Type to store a TTL for messages forwarded to peers.
+  using ttl = uint16_t;
+
   /// A batch received from another peer.
   using peer_batch = std::vector<caf::message>;
 

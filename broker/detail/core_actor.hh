@@ -20,6 +20,7 @@
 #include "broker/optional.hh"
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
+#include "broker/configuration.hh"
 
 #include "broker/detail/core_policy.hh"
 #include "broker/detail/filter_type.hh"
@@ -52,7 +53,7 @@ struct core_state {
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(filter_type initial_filter, bool use_ssl);
+  void init(filter_type initial_filter, broker_options opts);
 
   // --- message introspection -------------------------------------------------
 
@@ -138,6 +139,9 @@ struct core_state {
 
   // --- member variables ------------------------------------------------------
 
+  /// A copy of the current Broker configuration options.
+  broker_options options;
+
   /// Stores all master actors created by this core.
   std::unordered_map<std::string, caf::actor> masters;
 
@@ -181,7 +185,7 @@ struct core_state {
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter, bool use_ssl);
+                         filter_type initial_filter, broker_options opts);
 
 } // namespace detail
 } // namespace broker

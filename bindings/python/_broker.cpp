@@ -94,11 +94,18 @@ PYBIND11_PLUGIN(_broker) {
 
   py::bind_vector<std::vector<subscriber_base::value_type>>(m, "VectorPairTopicData");
 
+  py::class_<broker::optional<subscriber_base::value_type>>(m, "OptionalSubscriberBaseValueType")
+    .def("is_set",
+         [](broker::optional<subscriber_base::value_type>& i) { return static_cast<bool>(i);})
+    .def("get",
+         [](broker::optional<subscriber_base::value_type>& i) { return *i; })
+    .def("__repr__", [](const broker::optional<subscriber_base::value_type>& i) { return to_string(i); });
+
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get", (subscriber_base::value_type (subscriber_base::*)()) &subscriber_base::get)
     .def("get",
          [](subscriber_base& ep, double secs) -> broker::optional<subscriber_base::value_type> {
-	   return ep.get(broker::to_duration(secs)); })
+	  return ep.get(broker::to_duration(secs)); })
     .def("get",
          [](subscriber_base& ep, size_t num) -> std::vector<subscriber_base::value_type> {
 	   return ep.get(num); })
@@ -160,13 +167,19 @@ PYBIND11_PLUGIN(_broker) {
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
+  py::class_<broker::broker_options>(m, "BrokerOptions")
+    .def(py::init<>())
+    .def_readwrite("disable_ssl", &broker::broker_options::disable_ssl)
+    .def_readwrite("ttl", &broker::broker_options::ttl)
+    .def_readwrite("forward", &broker::broker_options::forward);
+
   // We need a configuration class here that's separate from
   // broker::configuration. When creating an endpoint one has to instantiate
   // the standard class right at that point, one cannot pass an already
   // created one in, which is unfortunate.
   struct Configuration {
-    Configuration(bool disable_ssl=false) : disable_ssl(disable_ssl) {}
-    bool disable_ssl;
+    Configuration(broker::broker_options opts) : options(std::move(opts)) {}
+    broker::broker_options options;
     std::string openssl_cafile;
     std::string openssl_capath;
     std::string openssl_certificate;
@@ -175,8 +188,7 @@ PYBIND11_PLUGIN(_broker) {
   };
 
   py::class_<Configuration>(m, "Configuration")
-    .def(py::init<>())
-    .def(py::init<bool>())
+    .def(py::init<broker::broker_options>())
     .def_readwrite("openssl_cafile", &Configuration::openssl_cafile)
     .def_readwrite("openssl_capath", &Configuration::openssl_capath)
     .def_readwrite("openssl_certificate", &Configuration::openssl_certificate)
@@ -188,7 +200,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("__init__",
        [](broker::endpoint& ep, Configuration cfg) {
        auto make_config = [&]() {
-           broker::configuration bcfg;
+           broker::configuration bcfg(cfg.options);
 	   bcfg.openssl_capath = cfg.openssl_capath;
 	   bcfg.openssl_passphrase = cfg.openssl_passphrase;
            bcfg.openssl_cafile = cfg.openssl_cafile;

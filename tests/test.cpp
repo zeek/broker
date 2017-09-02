@@ -18,7 +18,9 @@ base_fixture::base_fixture(bool fake_network)
 }
 
 configuration base_fixture::make_config(bool fake_network) {
-  configuration cfg{fake_network};
+  broker_options options;
+  options.disable_ssl = fake_network;
+  configuration cfg{options};
   cfg.parse(test::engine::argc(), test::engine::argv());
   cfg.middleman_detach_utility_actors = false;
   cfg.scheduler_policy = caf::atom("testing");

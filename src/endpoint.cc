@@ -40,10 +40,10 @@ endpoint::endpoint(configuration config)
     await_stores_on_shutdown_(false),
     destroyed_(false) {
   new (&system_) caf::actor_system(config_);
-  if (config.using_ssl() && !system_.has_openssl_manager())
+  if ((! config_.options().disable_ssl) && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config.using_ssl());
+  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config_.options());
 }
 
 endpoint::~endpoint() {
@@ -76,13 +76,13 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.using_ssl() ? "(SSL)" : "(no SSL)"));
+  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   expected<uint16_t> res = caf::error{};
-  if (config_.using_ssl())
-    res = caf::openssl::publish(core(), port, addr, true);
-  else
+  if (config_.options().disable_ssl)
     res = system_.middleman().publish(core(), port, addr, true);
+  else
+    res = caf::openssl::publish(core(), port, addr, true);
   return res ? *res : 0;
 }
 

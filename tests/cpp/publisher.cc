@@ -63,8 +63,10 @@ CAF_TEST_FIXTURE_SCOPE(publisher_tests, base_fixture)
 
 CAF_TEST(blocking_publishers) {
   // Spawn/get/configure core actors.
+  broker_options options;
+  options.disable_ssl = true;
   auto core1 = ep.core();
-  auto core2 = sys.spawn(core_actor, filter_type{"a"}, false);
+  auto core2 = sys.spawn(core_actor, filter_type{"a"}, options);
   anon_send(core1, atom::subscribe::value, filter_type{"a"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
@@ -117,8 +119,10 @@ CAF_TEST(blocking_publishers) {
 
 CAF_TEST(nonblocking_publishers) {
   // Spawn/get/configure core actors.
+  broker_options options;
+  options.disable_ssl = true;
   auto core1 = ep.core();
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, false);
+  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
   anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);

@@ -41,16 +41,32 @@ void core_policy::handle_batch(message& xs) {
     // Only received from other peers. Extract content for to local workers
     // or stores and then forward to other peers.
     for (auto& msg : xs.get_mutable_as<peer_batch>(0)) {
-      // Extract worker messages.
-      if (msg.match_elements<topic, data>())
-      {
-        workers().push(msg.get_as<topic>(0), msg.get_as<data>(1));
+      if (msg.size() < 2 || !msg.match_element<topic>(0)) {
+        BROKER_WARNING("unexpected message format" << msg);
+        continue;
       }
+      // Extract worker messages.
+      if (msg.match_element<data>(1))
+        workers().push(msg.get_as<topic>(0), msg.get_as<data>(1));
       // Extract store messages.
-      if (msg.match_elements<topic, internal_command>())
+      if (msg.match_element<internal_command>(1))
         stores().push(msg.get_as<topic>(0), msg.get_as<internal_command>(1));
-      // Forward to other peers.
-      peers().push(std::move(msg));
+      // Check if forwarding is on.
+      if (!state_->options.forward)
+        continue;
+      // Either decrease TTL if message has one aready, or add one.
+      if (msg.size() < 3)
+        // Does not have a TTL yet.
+        msg += make_message(state_->options.ttl - 1); // We're hop 1 already.
+      else {
+        auto& ttl = msg.get_mutable_as<core_policy::ttl>(2);
+        if (--ttl <= 0) {
+          BROKER_WARNING("dropping message with expired time-to-live");
+          continue;
+        }
+      }
+    // Forward to other peers.
+    peers().push(std::move(msg));
     }
     return;
   }
