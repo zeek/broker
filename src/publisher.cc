@@ -1,3 +1,4 @@
+#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/publisher.hh"
 
 #include <caf/event_based_actor.hpp>
@@ -140,6 +141,7 @@ void publisher::drop_all_on_destruction() {
 }
 
 void publisher::publish(data x) {
+  BROKER_INFO("publishing" << std::make_pair(topic_, x));
   if (queue_->produce(topic_, std::move(x)))
     anon_send(worker_, atom::resume::value);
 }
@@ -150,6 +152,12 @@ void publisher::publish(std::vector<data> xs) {
   auto e = xs.end();
   while (i != e) {
     auto j = i + std::min(std::distance(i, e), t);
+#ifdef DEBUG
+    BROKER_INFO("publishing batch of size" << (j - i));
+    for (auto l = i; l < j; l++) {
+      BROKER_INFO("publishing" << std::make_pair(topic_, *l));
+    }
+#endif
     if (queue_->produce(topic_, i, j))
       anon_send(worker_, atom::resume::value);
     i = j;
