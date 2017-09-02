@@ -65,14 +65,13 @@ class TestDataConstruction(unittest.TestCase):
         self.assertEqual(broker.Timespan(10**3 + 10**6), broker.Timespan(to_ns(td)))
         # Data
         neg42 = datetime.timedelta(milliseconds = -42 * 10**3)
-        self.check_to_broker_and_back(broker.Timespan(to_ns(neg42)), '-42000000000ns', broker.Data.Type.Timespan)
-        self.check_to_broker_and_back(broker.Timespan(to_ns(td)), '1001000ns', broker.Data.Type.Timespan)
+        self.check_to_broker_and_back(neg42, '-42000000000ns', broker.Data.Type.Timespan)
+        self.check_to_broker_and_back(td, '1001000ns', broker.Data.Type.Timespan)
 
     def test_timestamp(self):
         self.check_to_broker(broker.now(), None, broker.Data.Type.Timestamp)
         today = datetime.datetime.today()
-        time_since_epoch = (today - datetime.datetime(1970, 1, 1)).total_seconds()
-        self.check_to_broker_and_back(broker.Timestamp(time_since_epoch), None, broker.Data.Type.Timestamp)
+        self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
 
     def test_string(self):
         self.check_to_broker_and_back('', '', broker.Data.Type.String)

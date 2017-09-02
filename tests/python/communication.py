@@ -3,6 +3,7 @@ import unittest
 import multiprocessing
 import sys
 import time
+import ipaddress
 
 import broker
 
@@ -12,11 +13,12 @@ class TestCommunication(unittest.TestCase):
         ep1 = broker.Endpoint()
         ep2 = broker.Endpoint()
 
+        s1 = ep1.make_subscriber("/test")
+        s2 = ep2.make_subscriber("/test")
+
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
-        s1 = ep1.make_subscriber("/test")
-        s2 = ep2.make_subscriber("/test")
         # --peer-end
 
         # --ping-start
@@ -107,7 +109,7 @@ class TestCommunication(unittest.TestCase):
         # --error-start
         ep1 = broker.Endpoint()
         es1 = ep1.make_status_subscriber()
-        r = ep1.peer("127.0.0.1", 1947) # Try unavailable port
+        r = ep1.peer("127.0.0.1", 1947, 0.0) # Try unavailable port, no retry
         self.assertEqual(r, False) # Not shown in docs.
         st1 = es1.get()
         # s1.code() == broker.EC.PeerUnavailable

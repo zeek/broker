@@ -324,8 +324,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, _broker.Timespan(ns))
 
         elif isinstance(x, datetime.datetime):
-            time_since_epoch = (x - datetime.datetime(1970, 1, 1)).total_seconds()
-            _broker.Data.__init__(self, _broker.Timestamp(time_since_epoch))
+            _broker.Data.__init__(self, _broker.Timestamp(x.timestamp()))
 
         elif isinstance(x, ipaddress.IPv4Address):
             _broker.Data.__init__(self, _broker.Address(x.packed, 4))
@@ -402,8 +401,8 @@ class Data(_broker.Data):
             Data.Type.String: lambda: d.as_string(),
             Data.Type.Subnet: lambda: to_subnet(d.as_subnet()),
             Data.Type.Table: lambda: to_table(d.as_table()),
-            Data.Type.Timespan: lambda: d.as_timespan(),
-            Data.Type.Timestamp: lambda: d.as_timestamp(),
+            Data.Type.Timespan: lambda: datetime.timedelta(seconds=d.as_timespan()),
+            Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(d.as_timestamp()),
             Data.Type.Vector: lambda: to_vector(d.as_vector())
             }
 

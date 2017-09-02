@@ -195,8 +195,16 @@ void init_data(py::module& m) {
     .def("as_string", [](const broker::data& d) { return broker::get<std::string>(d); })
     .def("as_subnet", [](const broker::data& d) { return broker::get<broker::subnet>(d); })
     .def("as_table", [](const broker::data& d) { return broker::get<broker::table>(d); })
-    .def("as_timespan", [](const broker::data& d) { return broker::get<broker::timespan>(d); })
-    .def("as_timestamp", [](const broker::data& d) { return broker::get<broker::timestamp>(d); })
+    .def("as_timespan", [](const broker::data& d) {
+        double s;
+        broker::convert(broker::get<broker::timespan>(d), s);
+	return s;
+	})
+    .def("as_timestamp", [](const broker::data& d) {
+        double s;
+        broker::convert(broker::get<broker::timestamp>(d), s);
+	return s;
+	})
     .def("as_vector", [](const broker::data& d) { return broker::get<broker::vector>(d); })
     .def("get_type", &broker::data::get_type)
     .def("__str__", [](const broker::data& d) { return broker::to_string(d); })
