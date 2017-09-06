@@ -188,6 +188,11 @@ public:
   /// (optionally) status events.
   status_subscriber make_status_subscriber(bool receive_statuses = false);
 
+  // --- forwarding events -----------------------------------------------------
+
+  // Forward remote events for given topics even if no local subscriber.
+  void forward(std::vector<topic> ts);
+
   // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.

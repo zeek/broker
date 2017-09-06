@@ -58,6 +58,18 @@ Vector = _broker.Vector
 def _make_topic(t):
     return (Topic(t) if not isinstance(t, Topic) else t)
 
+def _make_topics(ts):
+    if isinstance(ts, Topic):
+        ts = [ts]
+    elif isinstance(ts, str):
+        ts = [Topic(ts)]
+    elif isinstance(ts, collections.Iterable):
+        ts = [_make_topic(t) for t in ts]
+    else:
+        ts = [Topic(ts)]
+
+    return _broker.VectorTopic(ts)
+
 # This class does not derive from the internal class because we
 # need to pass in existign instances. That means we need to
 # wrap all methods, even those that just reuse the internal
@@ -262,16 +274,8 @@ class Store:
 
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
-        if isinstance(topics, Topic):
-            topics = [topics]
-        elif isinstance(topics, str):
-            topics = [Topic(topics)]
-        elif isinstance(topics, collections.Iterable):
-            topics = [_make_topic(t) for t in topics]
-        else:
-            topics = [Topic(topics)]
-
-        s = _broker.Endpoint.make_subscriber(self, _broker.VectorTopic(topics), qsize)
+        topics = _make_topics(topics)
+        s = _broker.Endpoint.make_subscriber(self, topics, qsize)
         return Subscriber(s)
 
     def make_status_subscriber(self, receive_statuses=False):
@@ -282,6 +286,10 @@ class Endpoint(_broker.Endpoint):
         topic = _make_topic(topic)
         p = _broker.Endpoint.make_publisher(self, topic)
         return Publisher(p)
+
+    def forward(self, topics):
+        topics = _make_topics(topics)
+        _broker.Endpoint.forward(self, topics)
 
     def publish(self, topic, data):
         topic = _make_topic(topic)

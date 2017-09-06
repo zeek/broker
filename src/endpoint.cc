@@ -170,6 +170,13 @@ std::vector<topic> endpoint::peer_subscriptions() const {
   return result;
 }
 
+void endpoint::forward(std::vector<topic> ts)
+{
+for ( auto t : ts )
+  BROKER_INFO("forwarding topics" << ts);
+  caf::anon_send(core(), atom::subscribe::value, std::move(ts));
+}
+
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
   caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));

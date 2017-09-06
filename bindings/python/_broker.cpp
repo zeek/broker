@@ -224,6 +224,7 @@ PYBIND11_PLUGIN(_broker) {
     .def("unpeer", &broker::endpoint::peer)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
+    .def("forward", &broker::endpoint::forward)
     .def("publish", (void (broker::endpoint::*)(broker::topic t, broker::data d)) &broker::endpoint::publish)
     .def("publish", (void (broker::endpoint::*)(const broker::endpoint_info& dst, broker::topic t, broker::data d)) &broker::endpoint::publish)
     .def("publish_batch",
