@@ -14,6 +14,7 @@ public:
     Event = 1,
     LogCreate = 2,
     LogWrite = 3,
+    IdentifierUpdate = 4,
   };
 
   Message(data msg);
@@ -110,6 +111,16 @@ struct ArgsWrite {
 /// A Bro log-write message. Note that at the moment this should be used only
 /// by Bro itself as the arguments aren't pulbically defined.
 using LogWrite = SpecificMessage<Message::Type::LogWrite, ArgsWrite>;
+
+struct ArgsIdentifierUpdate {
+  std::string id_name;
+  data id_value;
+};
+
+/// A Bro id update message. Note that at the moment this should be used only
+/// by Bro itself as the arguments aren't pulbically defined.
+using IdentifierUpdate = SpecificMessage<Message::Type::IdentifierUpdate,
+                                         ArgsIdentifierUpdate>;
 
 } // namespace broker
 } // namespace bro

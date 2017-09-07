@@ -36,6 +36,9 @@ Message::Message(data x) {
     case Type::LogWrite:
       type_ = Type::LogWrite;
       break;
+    case Type::IdentifierUpdate:
+      type_ = Type::IdentifierUpdate;
+      break;
     default:
       throw std::runtime_error("unsupported Bro message type");
   };
@@ -114,6 +117,29 @@ data LogWrite::as_data() const {
   auto args
     = vector{args_.stream_id, args_.writer_id, args_.path, args_.vals_data};
   return vector{std::move(hdr), std::move(args)};
+}
+
+template <>
+void IdentifierUpdate::init() {
+  if (type_ != Type::IdentifierUpdate)
+    throw std::runtime_error("not a Bro IdentifierUpdate");
+
+  if (content_.size() != 2)
+    throw std::runtime_error("broken Bro IdentifierUpdate");
+
+  try {
+    args_.id_name = get<std::string>(content_[0]);
+    args_.id_value = content_[1];
+  } catch (const bad_variant_access& e) {
+    throw std::runtime_error("unexpected Bro IdentifierUpdate arguments");
+  }
+}
+
+template <>
+data IdentifierUpdate::as_data() const {
+  auto hdr = vector{ProtocolVersion, static_cast<count>(Type::IdentifierUpdate)};
+  auto content = vector{args_.id_name, args_.id_value};
+  return vector{std::move(hdr), std::move(content)};
 }
 }
 }
