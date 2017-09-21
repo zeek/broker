@@ -137,7 +137,7 @@ struct retriever {
       i = *x;
     else {
       auto y = get_if<integer>(aspect);
-      if (!y || y < 0)
+      if (!y || *y < 0)
         return ec::type_clash;
       i = static_cast<count>(*y);
     }
