@@ -49,8 +49,10 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   if (! options_.disable_ssl)
     load<caf::openssl::manager>();
   logger_file_name = "broker_[PID]_[TIMESTAMP].log";
+  /*
   logger_verbosity = caf::atom("INFO");
   logger_component_filter = "broker";
+  */
 
   if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
     if (*env && *env != '0') {

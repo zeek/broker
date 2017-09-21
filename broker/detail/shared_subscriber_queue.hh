@@ -33,10 +33,12 @@ public:
   // Called to pull up to `num` items out of the queue. Returns the number of
   // consumed elements.
   template <class F>
-  size_t consume(size_t num, F fun) {
+  size_t consume(size_t num, size_t* size_before_consume, F fun) {
     guard_type guard{this->mtx_};
     if (this->xs_.empty())
       return 0;
+    if (size_before_consume)
+      *size_before_consume = this->xs_.size();
     auto n = std::min(num, this->xs_.size());
     if (n == this->xs_.size()) {
       for (auto& x : this->xs_)

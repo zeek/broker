@@ -1,6 +1,7 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/subscriber.hh"
 
+#include <cassert>
 #include <chrono>
 #include <numeric>
 
@@ -134,11 +135,17 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
       BROKER_ASSERT(qptr != nullptr);
       auto sid = in.id();
       auto nop = [](subscriber_sink&) {};
-      self->make_sink_impl<subscriber_sink>(in, nop, &self->state,
-                                            qptr, max_qsize);
+      auto mgr = self->make_sink_impl<subscriber_sink>(in, nop, &self->state,
+                                                       qptr, max_qsize).ptr();
       self->set_default_handler(print_and_drop);
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
       self->become(
+        [=](atom::resume) {
+          assert(mgr->out().buffered() == 0);
+          auto c = mgr->out().credit();
+          if (c > 0)
+            mgr->in().assign_credit(c);
+        },
         [=](atom::join a0, atom::update a1, filter_type& f) {
           self->send(ep->core(), a0, a1, sid, std::move(f));
         },
@@ -155,7 +162,8 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 
 } // namespace <anonymous>
 
-subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize) {
+subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize)
+  : super(max_qsize) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
                                max_qsize);
@@ -187,6 +195,10 @@ void subscriber::remove_topic(topic x) {
     filter_.erase(i);
     anon_send(worker_, atom::join::value, atom::update::value, filter_);
   }
+}
+
+void subscriber::became_not_full() {
+  anon_send(worker_, atom::resume::value);
 }
 
 } // namespace broker

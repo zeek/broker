@@ -26,6 +26,10 @@ public:
 
   friend class endpoint;
 
+  // --- nested types ----------------------------------------------------------
+
+  using super = subscriber_base<detail::variant<none, error, status>>;
+
   // --- constructors and destructors ------------------------------------------
 
   status_subscriber(status_subscriber&&) = default;

@@ -24,6 +24,10 @@ public:
 
   friend class endpoint;
 
+  // --- nested types ----------------------------------------------------------
+
+  using super = subscriber_base<std::pair<topic, data>>;
+
   // --- constructors and destructors ------------------------------------------
 
   subscriber(subscriber&&) = default;
@@ -41,6 +45,9 @@ public:
   void add_topic(topic x);
 
   void remove_topic(topic x);
+
+protected:
+  void became_not_full() override;
 
 private:
   // -- force users to use `endpoint::make_status_subscriber` -------------------

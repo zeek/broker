@@ -2,6 +2,7 @@
 #include "broker/status_subscriber.hh"
 
 #include <chrono>
+#include <limits>
 
 #include <caf/message.hpp>
 #include <caf/send.hpp>
@@ -36,7 +37,8 @@ behavior status_subscriber_worker(event_based_actor* self,
 
 } // namespace <anonymous>
 
-status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses) {
+status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
+  : super(std::numeric_limits<long>::max()) {
   worker_ = ep.system().spawn(status_subscriber_worker, receive_statuses,
                               queue_);
 }

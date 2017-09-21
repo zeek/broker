@@ -44,7 +44,7 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  subscriber_base()
+  subscriber_base(long max_qsize)
     : queue_(detail::make_shared_subscriber_queue<value_type>()) {
     // nop
   }
@@ -101,20 +101,27 @@ public:
         queue_->wait_on_flare();
       else if (!queue_->wait_on_flare_abs(t0))
         return result;
-      queue_->consume(num - result.size(), [&](value_type&& x) {
+      size_t prev_size = 0;
+      queue_->consume(num - result.size(), &prev_size, [&](value_type&& x) {
         CAF_LOG_INFO("received" << x);
         result.emplace_back(std::move(x));
       });
-      if (result.size() == num)
+      if (prev_size >= static_cast<size_t>(max_qsize_))
+        became_not_full();
+      if (result.size() == num) {
         return result;
+      }
     }
   }
 
   /// Returns all currently available values without blocking.
   std::vector<value_type> poll() {
     std::vector<value_type> result;
-    queue_->consume(std::numeric_limits<size_t>::max(),
+    size_t prev_size = 0;
+    queue_->consume(std::numeric_limits<size_t>::max(), &prev_size,
                     [&](value_type&& x) { result.emplace_back(std::move(x)); });
+    if (prev_size >= static_cast<size_t>(max_qsize_))
+      became_not_full();
     return result;
   }
 
@@ -133,7 +140,15 @@ public:
   }
 
 protected:
+  /// This hook allows subclasses to perform some action if the queue changed
+  /// state from full to not-full. This allows subscribers to make sure new
+  /// credit gets emitted in case no credit was available previously.
+  virtual void became_not_full() {
+    // nop
+  }
+
   queue_ptr queue_;
+  long max_qsize_;
 };
 
 } // namespace broker
