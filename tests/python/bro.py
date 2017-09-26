@@ -12,12 +12,12 @@ import broker.bro
 
 def run_bro_path():
     base = os.path.realpath(__file__)
-    for d in (os.path.join(os.path.join(os.path.dirname(base), "../../build")), os.getcwd()):
+    for d in (os.path.join(os.path.dirname(base), "../../build"), os.getcwd()):
         run_bro = os.path.abspath(os.path.join(d, "tests/python/run-bro"))
         if os.path.exists(run_bro):
             return run_bro
 
-    return "bro" # # Hope for the best ...
+    return "bro" # Hope for the best ...
 
 BroPing = """
 redef Broker::default_connect_retry=1secs;
@@ -77,7 +77,7 @@ class TestCommunication(unittest.TestCase):
         port = ep.listen("127.0.0.1", 0)
 
         p = multiprocessing.Process(target=RunBro, args=(BroPing, port))
-        p.daemon=True
+        p.daemon = True
         p.start()
 
         for i in range(0, 6):

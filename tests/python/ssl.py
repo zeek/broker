@@ -1,4 +1,3 @@
-\
 import unittest
 import multiprocessing
 import sys
@@ -24,10 +23,10 @@ class TestSSL(unittest.TestCase):
         self.assertEqual(d[0], "pong")
 
     def test_ssl_auth_success_ca(self):
-        cfg = broker.Configuration()
+        cfg = broker.Configuration(broker.BrokerOptions())
         cfg.openssl_certificate = data_path("cert.1.pem")
         cfg.openssl_key = data_path("key.1.pem")
-        cfg.openssl_cafile = data_path("ca.pem");
+        cfg.openssl_cafile = data_path("ca.pem")
 
         ep1 = broker.Endpoint(cfg)
         ep2 = broker.Endpoint(cfg)
@@ -43,10 +42,10 @@ class TestSSL(unittest.TestCase):
         ep2.shutdown()
 
     def test_ssl_auth_success_ca_pw(self):
-        cfg = broker.Configuration()
+        cfg = broker.Configuration(broker.BrokerOptions())
         cfg.openssl_certificate = data_path("cert.1.pem")
         cfg.openssl_key = data_path("key.1.enc.pem")
-        cfg.openssl_cafile = data_path("ca.pem");
+        cfg.openssl_cafile = data_path("ca.pem")
         cfg.openssl_passphrase = "12345"
 
         ep1 = broker.Endpoint(cfg)
@@ -63,7 +62,7 @@ class TestSSL(unittest.TestCase):
         ep2.shutdown()
 
     def test_ssl_auth_success_self_signed(self):
-        cfg = broker.Configuration()
+        cfg = broker.Configuration(broker.BrokerOptions())
         cfg.openssl_certificate = data_path("cert.self-signed.pem")
         cfg.openssl_key = data_path("key.self-signed.pem")
         cfg.openssl_cafile = data_path("cert.self-signed.pem")
@@ -82,12 +81,12 @@ class TestSSL(unittest.TestCase):
         ep2.shutdown()
 
     def test_ssl_auth_failure_self_signed(self):
-        cfg1 = broker.Configuration()
+        cfg1 = broker.Configuration(broker.BrokerOptions())
         cfg1.openssl_certificate = data_path("cert.1.pem")
         cfg1.openssl_key = data_path("key.1.pem")
-        cfg1.openssl_cafile = data_path("ca.pem");
+        cfg1.openssl_cafile = data_path("ca.pem")
 
-        cfg2 = broker.Configuration()
+        cfg2 = broker.Configuration(broker.BrokerOptions())
         cfg2.openssl_certificate = data_path("cert.self-signed.pem")
         cfg2.openssl_key = data_path("key.self-signed.pem")
         cfg2.openssl_cafile = data_path("cert.self-signed.pem")
@@ -108,12 +107,12 @@ class TestSSL(unittest.TestCase):
         ep2.shutdown()
 
     def test_ssl_auth_failure_no_auth(self):
-        cfg1 = broker.Configuration()
+        cfg1 = broker.Configuration(broker.BrokerOptions())
         cfg1.openssl_certificate = data_path("cert.1.pem")
         cfg1.openssl_key = data_path("key.1.pem")
-        cfg1.openssl_cafile = data_path("ca.pem");
+        cfg1.openssl_cafile = data_path("ca.pem")
 
-        cfg2 = broker.Configuration()
+        cfg2 = broker.Configuration(broker.BrokerOptions())
 
         ep1 = broker.Endpoint(cfg1)
         ep2 = broker.Endpoint(cfg2)
@@ -128,12 +127,12 @@ class TestSSL(unittest.TestCase):
         self.assertEqual(r, False)
 
     def test_ssl_auth_failure_no_ssl(self):
-        cfg1 = broker.Configuration()
+        cfg1 = broker.Configuration(broker.BrokerOptions())
         cfg1.openssl_certificate = data_path("cert.1.pem")
         cfg1.openssl_key = data_path("key.1.pem")
-        cfg1.openssl_cafile = data_path("ca.pem");
+        cfg1.openssl_cafile = data_path("ca.pem")
 
-        cfg2 = broker.Configuration(False)
+        cfg2 = broker.Configuration(broker.BrokerOptions())
 
         ep1 = broker.Endpoint(cfg1)
         ep2 = broker.Endpoint(cfg2)
@@ -148,10 +147,10 @@ class TestSSL(unittest.TestCase):
         self.assertEqual(r, False)
 
     def XXXtest_ssl_auth_failure_ca_pw(self):
-        cfg = broker.Configuration()
+        cfg = broker.Configuration(broker.BrokerOptions())
         cfg.openssl_certificate = data_path("cert.1.pem")
         cfg.openssl_key = data_path("key.1.enc.pem")
-        cfg.openssl_cafile = data_path("ca.pem");
+        cfg.openssl_cafile = data_path("ca.pem")
         cfg.openssl_passphrase = "WRONG PASSWORD"
 
         ep1 = broker.Endpoint(cfg)

@@ -1,7 +1,7 @@
 #
 # Testing the data conversion back and forth between broker.Data and Python.
 # Note that the user will rarely see broker.Data instances directly. We make
-# sure he that the transparent conversion works as expected.
+# sure that the transparent conversion works as expected.
 #
 
 import datetime
