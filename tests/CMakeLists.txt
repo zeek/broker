@@ -81,3 +81,9 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(store)
   make_python_test(topic)
 endif ()
+
+## -- Benchmark
+
+add_executable(broker-benchmark benchmark/broker-benchmark.cc)
+target_link_libraries(broker-benchmark ${libbroker})
+
