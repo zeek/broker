@@ -4,8 +4,9 @@ project(broker C CXX)
 cmake_minimum_required(VERSION 2.8)
 include(cmake/CommonCMakeConfig.cmake)
 
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 # -- Dependencies -------------------------------------------------------------
 
@@ -137,7 +138,7 @@ endif(ENABLE_ADDRESS_SANITIZER)
 # Append our extra flags to the existing value of CXXFLAGS.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
-install(DIRECTORY broker DESTINATION include)
+install(DIRECTORY broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -148,6 +149,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
 
 set(BROKER_SRC
   src/address.cc
