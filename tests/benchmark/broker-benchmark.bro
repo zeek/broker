@@ -17,6 +17,21 @@ event event_1(i: int, s: string)
 	stats$num_events += 1;
 	}
 
+event event_2(ts: time, uid: string, id: conn_id, proto: transport_proto, service: string, duration: interval, orig_bytes: count, resp_bytes: count, conn_state: string, local_orig: bool, local_resp: bool, missed_bytes: count, history: string, orig_pkts: count, orig_ip_bytes: count, resp_pkts: count, resp_ip_bytes: count, tunnel_parents: set[string])
+	{
+	stats$num_events += 1;
+	}
+
+event event_3(ts: time, t: table[string] of set[string])
+	{
+	stats$num_events += 1;
+	}
+
+event quit_benchmark()
+	{
+	terminate();
+	}
+
 function clear_stats()
 	{
 	local s: Stats;
@@ -36,6 +51,7 @@ event send_stats()
 event bro_init()
 	{
 	Broker::subscribe("/benchmark/events");
+	Broker::subscribe("/benchmark/terminate");
 	Broker::listen("127.0.0.1");
 	clear_stats();
 	schedule 1secs { send_stats() };
