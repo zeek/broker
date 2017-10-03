@@ -10,8 +10,7 @@ transparent conversion between Python values and Broker values. In the
 following we demonstrate the main parts of the Python API, assuming a
 general understanding of Broker's concepts and the C++ interface.
 
-.. note:: Currently Broker's Python binding require Python 3. Python
-   2.x is not supported.
+.. note:: Broker's Python bindings require Python 2.7 or Python 3.
 
 Communication
 -------------

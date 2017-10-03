@@ -4,9 +4,19 @@ try:
 except ImportError:
     import _broker
 
+import sys
 import datetime
+import time
 import ipaddress
 import collections
+
+# Check the Python version
+py2 = (sys.version_info.major < 3)
+
+# Python 2/3 compatibility: Make sure the "long" and "unicode" types are defined
+if not py2:
+    long = int
+    unicode = str
 
 Version = _broker.Version
 Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
@@ -37,7 +47,7 @@ BrokerOptions = _broker.BrokerOptions
 # for comparision against the enum.
 _EC_eq = _broker.EC.__eq__
 def _our_EC_eq(self, other):
-    if isinstance(other, int):
+    if isinstance(other, (int, long)):
         return other == int(self)
     else:
         return _EC_eq(self, other)
@@ -329,7 +339,7 @@ class Data(_broker.Data):
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
 
-        elif isinstance(x, (bool, int, float, str,
+        elif isinstance(x, (bool, int, long, float, str, unicode,
                             Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
             _broker.Data.__init__(self, x)
 
@@ -339,7 +349,12 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, _broker.Timespan(ns))
 
         elif isinstance(x, datetime.datetime):
-            _broker.Data.__init__(self, _broker.Timestamp(x.timestamp()))
+            if py2:
+                secs = time.mktime(x.timetuple()) + x.microsecond/1e6
+            else:
+                secs = x.timestamp()
+
+            _broker.Data.__init__(self, _broker.Timestamp(secs))
 
         elif isinstance(x, ipaddress.IPv4Address):
             _broker.Data.__init__(self, _broker.Address(x.packed, 4))
