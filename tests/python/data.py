@@ -11,6 +11,10 @@ import unittest
 
 import broker
 
+# Check the Python version
+py2 = (sys.version_info.major < 3)
+
+
 class TestDataConstruction(unittest.TestCase):
 
     # Given a Python value 'p' and expected broker type 't', convert 'p' to
@@ -35,6 +39,17 @@ class TestDataConstruction(unittest.TestCase):
         b2p = broker.Data.to_py(b)
         #print("[to_py] data({} / {}) -> ({} / {})".format(str(b), b.get_type(), b2p, type(b2p)))
 
+        if py2:
+            # Python 2.7 compatibility: convert objects of type 'int' to 'long'
+            # to match the type returned by broker.Data.to_py(b)
+            if isinstance(p, int) and not isinstance(p, bool):
+                p = long(p)
+
+            # Python 2.7 compatibility: convert objects of type 'str' to
+            # 'unicode' to match the type returned by broker.Data.to_py(b)
+            if isinstance(p, str):
+                p = unicode(p)
+
         self.assertIsInstance(b2p, type(p))
         self.assertEqual(b2p, p)
 
@@ -56,12 +71,20 @@ class TestDataConstruction(unittest.TestCase):
         # 32-bit python 2.x systems, this will be type 'long')
         self.check_to_broker_and_back(5123123123, '5123123123', broker.Data.Type.Integer)
 
+        if py2:
+            # Explicitly pass a 'long' value (this is not relevant for python 3)
+            self.check_to_broker_and_back(long(5), '5', broker.Data.Type.Integer)
+
     def test_count(self):
         self.check_to_broker_and_back(broker.Count(42), '42', broker.Data.Type.Count)
 
         # Test a value that is beyond range of unsigned 32-bit integer (on
         # 32-bit python 2.x systems, this will be type 'long')
         self.check_to_broker_and_back(broker.Count(5123123123), '5123123123', broker.Data.Type.Count)
+
+        if py2:
+            # Explicitly pass a 'long' value (this is not relevant for python 3)
+            self.check_to_broker_and_back(broker.Count(long(5)), '5', broker.Data.Type.Count)
 
     def test_count_overflow(self):
         with self.assertRaises(Exception) as context:
@@ -254,7 +277,7 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_py(v1[0], [True])
 
         self.check_to_broker(v[2], '::1', broker.Data.Type.Address)
-        self.check_to_py(v[2], ipaddress.IPv6Address(u"::1"))
+        self.check_to_py(v[2], ipaddress.IPv6Address("::1"))
 
         self.check_to_broker(v[3], 'nil', broker.Data.Type.Nil)
 
