@@ -10,7 +10,10 @@ transparent conversion between Python values and Broker values. In the
 following we demonstrate the main parts of the Python API, assuming a
 general understanding of Broker's concepts and the C++ interface.
 
-.. note:: Broker's Python bindings require Python 2.7 or Python 3.
+.. note:: Broker's Python bindings require Python 2.7 or Python 3.  If you
+    are using Python 2.7, then you will need to install
+    the `ipaddress <https://pypi.python.org/pypi/ipaddress>`_ module from
+    PyPI (one way to do this is to run "pip install ipaddress").
 
 Communication
 -------------
