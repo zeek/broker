@@ -4,6 +4,9 @@
 # sure that the transparent conversion works as expected.
 #
 
+# This is needed in order to use the "ipaddress" module on Python 2.7.
+from __future__ import unicode_literals
+
 import datetime
 import ipaddress
 import sys
@@ -149,6 +152,17 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_broker_and_back('foo', 'foo', broker.Data.Type.String)
         self.check_to_broker_and_back('\ttab', '\ttab', broker.Data.Type.String)
         self.check_to_broker_and_back('new\n', 'new\n', broker.Data.Type.String)
+
+        if py2:
+            # These test cases are not relevant for Python 3
+
+            # Explicitly pass a 'unicode' value (this is relevant in case
+            # unicode_literals isn't imported)
+            self.check_to_broker_and_back(u'foo2', 'foo2', broker.Data.Type.String)
+
+            # Explicitly pass a 'str' value (this is relevant in case
+            # unicode_literals is imported)
+            self.check_to_broker_and_back(str('foo3'), 'foo3', broker.Data.Type.String)
 
     def test_address_v4(self):
         addr = ipaddress.IPv4Address('0.0.0.0')

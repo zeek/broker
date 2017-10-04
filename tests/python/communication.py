@@ -1,4 +1,7 @@
 
+# This is needed in order to use the "ipaddress" module on Python 2.7.
+from __future__ import unicode_literals
+
 import unittest
 import multiprocessing
 import sys
