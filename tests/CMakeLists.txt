@@ -35,8 +35,7 @@ target_link_libraries(broker-test ${libbroker})
 
 macro(make_cpp_test suite)
   string(REPLACE " " "_" test_name ${suite})
-  set(broker_test ${EXECUTABLE_OUTPUT_PATH}/broker-test)
-  add_test(${test_name} ${broker_test} -v 3 -s "${suite}" ${ARGN})
+  add_test(NAME ${test_name} COMMAND broker-test -v 3 -s "${suite}" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
 endmacro()
 
