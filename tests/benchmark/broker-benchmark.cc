@@ -13,6 +13,7 @@ static int batch_size = 1;
 static double rate_increase_interval = 0;
 static double rate_increase_amount = 0;
 static uint64_t max_received = 0;
+static uint64_t max_in_flight = 0;
 static int server = 0;
 static int disable_ssl = 0;
 
@@ -26,9 +27,10 @@ static struct option long_options[] = {
     {"event-type",             required_argument, 0, 't'},
     {"batch-rate",             required_argument, 0, 'r'},
     {"batch-size",             required_argument, 0, 's'},
-    {"rate-increase-interval", required_argument, 0, 'i'},
-    {"rate-increase-amount",   required_argument, 0, 'a'},
+    {"batch-size-increase-interval", required_argument, 0, 'i'},
+    {"batch-size-increase-amount",   required_argument, 0, 'a'},
     {"max-received",           required_argument, 0, 'm'},
+    {"max-in-flight",          required_argument, 0, 'f'},
     {"server",                 no_argument, &server, 1},
     {"disable-ssl",            no_argument, &disable_ssl, 1},
     {0, 0, 0, 0}
@@ -40,12 +42,14 @@ static void usage() {
     std::cerr <<
             "Usage: " << prog << " [<options>] <bro-host>[:<port>] | [--disable-ssl] --server <interface>:port\n"
             "\n"
-            "   --event-type <1|2|3>            (default: 1)\n"
-            "   --batch-rate <batches/sec>      (default: 1)\n"
-            "   --rate-increase-interval <secs> (default: 0, off)\n"
-            "   --rate-increase-amount   <size> (default: 0, off)\n"
-            "   --max-received <num-events>     (default: 0, off)\n"
-            "   --disable-ssl                   (default: on)\n"
+            "   --event-type <1|2|3>                  (default: 1)\n"
+            "   --batch-rate <batches/sec>            (default: 1)\n"
+            "   --batch-size <num-events>             (default: 1)\n"
+            "   --batch-size-increase-interval <secs> (default: 0, off)\n"
+            "   --batch-size-increase-amount   <size> (default: 0, off)\n"
+            "   --max-received <num-events>           (default: 0, off)\n"
+            "   --max-in-flight <num-events>          (default: 0, off)\n"
+            "   --disable-ssl                         (default: on)\n"
             "\n";
 
     exit(1);
@@ -175,11 +179,12 @@ void receivedStats(broker::endpoint& ep, broker::data x)
 
     auto recv_rate = (double(all_recv) / dt_recv);
     auto send_rate = double(total_sent - last_sent) / dt_sent;
+    auto in_flight = (total_sent - total_recv);
 
     std::cerr
         << broker::to_string(t) << " "
         << "[batch_size=" << batch_size << "] "
-        << "in_flight=" << (total_sent - total_recv) << " "
+        << "in_flight=" << in_flight << " "
         << "d_t=" << dt_recv << " "
         << "d_recv=" << all_recv << " "
         << "d_sent=" << all_sent << " "
@@ -197,6 +202,18 @@ void receivedStats(broker::endpoint& ep, broker::data x)
         sleep(2); // Give clients a bit.
         exit(0);
     }
+
+    static int max_exceeded_counter = 0;
+    if ( max_in_flight && in_flight > max_in_flight ) {
+
+        if ( ++max_exceeded_counter >= 5 ) {
+            std::cerr << "max-in-flight exceeded for 5 subsequent batches" << std::endl;
+            exit(1);
+        }
+    }
+    else
+        max_exceeded_counter = 0;
+
 }
 
 void clientMode(const char* host, int port) {
@@ -327,6 +344,10 @@ int main(int argc, char** argv) {
 
          case 'm':
             max_received = atoi(optarg);
+            break;
+
+         case 'f':
+            max_in_flight = atoi(optarg);
             break;
 
          default:
