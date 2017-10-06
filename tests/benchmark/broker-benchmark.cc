@@ -14,6 +14,7 @@ static double rate_increase_interval = 0;
 static double rate_increase_amount = 0;
 static uint64_t max_received = 0;
 static int server = 0;
+static int disable_ssl = 0;
 
 // Global state
 static unsigned long total_recv;
@@ -28,7 +29,8 @@ static struct option long_options[] = {
     {"rate-increase-interval", required_argument, 0, 'i'},
     {"rate-increase-amount",   required_argument, 0, 'a'},
     {"max-received",           required_argument, 0, 'm'},
-    {"server",                 no_argument, &server, 'S'},
+    {"server",                 no_argument, &server, 1},
+    {"disable-ssl",            no_argument, &disable_ssl, 1},
     {0, 0, 0, 0}
 };
 
@@ -36,13 +38,14 @@ const char* prog = 0;
 
 static void usage() {
     std::cerr <<
-            "Usage: " << prog << " [<options>] <bro-host>[:<port>] | --server <interface>:port\n"
+            "Usage: " << prog << " [<options>] <bro-host>[:<port>] | [--disable-ssl] --server <interface>:port\n"
             "\n"
             "   --event-type <1|2|3>            (default: 1)\n"
             "   --batch-rate <batches/sec>      (default: 1)\n"
             "   --rate-increase-interval <secs> (default: 0, off)\n"
             "   --rate-increase-amount   <size> (default: 0, off)\n"
             "   --max-received <num-events>     (default: 0, off)\n"
+            "   --disable-ssl                   (default: on)\n"
             "\n";
 
     exit(1);
@@ -198,6 +201,7 @@ void receivedStats(broker::endpoint& ep, broker::data x)
 
 void clientMode(const char* host, int port) {
     broker::broker_options options;
+    options.disable_ssl = disable_ssl;
     broker::configuration cfg{options};
     broker::endpoint ep(std::move(cfg));
     auto ss = ep.make_status_subscriber(true);
@@ -230,8 +234,8 @@ void clientMode(const char* host, int port) {
 
 void serverMode(const char* iface, int port) {
     // This mimics what benchmark.bro does.
-
     broker::broker_options options;
+    options.disable_ssl = disable_ssl;
     broker::configuration cfg{options};
     broker::endpoint ep(std::move(cfg));
     ep.listen(iface, port);
@@ -291,14 +295,16 @@ int main(int argc, char** argv) {
     while( true ) {
         auto c = getopt_long(argc, argv, "", long_options, &option_index);
 
-        if ( long_options[option_index].flag != 0 )
-            break;
-
         /* Detect the end of the options. */
         if ( c == -1 )
             break;
 
         switch (c) {
+	case 0:
+	case 1:
+	    // Flag
+	    break;
+
          case 't':
             event_type = atoi(optarg);
             break;
