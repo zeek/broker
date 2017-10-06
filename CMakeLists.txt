@@ -23,7 +23,7 @@ set(CAF_VERSION
     "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
 # Check for required CAF version.
-set(CAF_VERSION_REQUIRED 0.15.3)
+set(CAF_VERSION_REQUIRED 0.15.4)
 if (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED})
   message(FATAL_ERROR "Broker requires at least CAF version"
     " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
