@@ -28,7 +28,7 @@ int main() {
 
         // Wait for "pong" reply event.
         auto msg = sub.get();
-	bro::Event pong(msg.second);
+	bro::Event pong(std::move(msg.second));
         std::cout << "received " << pong.name() << pong.args() << std::endl;
     }
 

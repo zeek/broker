@@ -334,6 +334,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self)
 
         elif isinstance(x, bro.Event):
+            print(repr(x))
             _broker.Data.__init__(self, x.as_data())
 
         elif isinstance(x, _broker.Data):

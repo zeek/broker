@@ -16,12 +16,15 @@ static uint64_t max_received = 0;
 static uint64_t max_in_flight = 0;
 static int server = 0;
 static int disable_ssl = 0;
+static int use_bro_batches = 0;
 
 // Global state
 static unsigned long total_recv;
 static unsigned long total_sent;
 static unsigned long last_sent;
 static double last_t;
+static uint64_t num_events;
+static std::mutex lock;
 
 static struct option long_options[] = {
     {"event-type",             required_argument, 0, 't'},
@@ -33,6 +36,7 @@ static struct option long_options[] = {
     {"max-in-flight",          required_argument, 0, 'f'},
     {"server",                 no_argument, &server, 1},
     {"disable-ssl",            no_argument, &disable_ssl, 1},
+    {"use-bro-batches",        no_argument, &use_bro_batches, 1},
     {0, 0, 0, 0}
 };
 
@@ -62,28 +66,30 @@ double current_time() {
 }
 
 static std::string random_string(int n) {
-    auto randchar = []() -> char {
-        const char charset[] =
+    static unsigned int i = 0;
+    const char charset[] =
         "0123456789"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz";
-        const size_t max_index = (sizeof(charset) - 1);
-        return charset[rand() % max_index];
-    };
-    std::string str(n, 0);
-    std::generate_n(str.begin(), n, randchar);
-    return std::move(str);
+
+     const size_t max_index = (sizeof(charset) - 1);
+     char buffer[11];
+     for ( unsigned int j = 0; j < sizeof(buffer) - 1; j++ )
+	buffer[j] = charset[++i % max_index];
+     buffer[sizeof(buffer) - 1] = '\0';
+
+     return buffer;
 }
 
 static uint64_t random_count() {
-    return rand() % 100000;
+    static uint64_t i = 0;
+    return ++i;
 }
 
-broker::bro::Event createEvent() {
+broker::vector createEventArgs() {
     switch ( event_type ) {
      case 1: {
-        broker::bro::Event ev("event_1", std::vector<broker::data>{42, "test"});
-        return std::move(ev);
+         return std::vector<broker::data>{42, "test"};
      }
 
      case 2: {
@@ -93,7 +99,7 @@ broker::bro::Event createEvent() {
          broker::convert("1.2.3.4", a1);
          broker::convert("3.4.5.6", a2);
 
-         broker::vector args{
+         return broker::vector{
              broker::now(),
              random_string(10),
              broker::vector{
@@ -118,8 +124,6 @@ broker::bro::Event createEvent() {
              random_count(),
              broker::set({random_string(10), random_string(10)})
         };
-        broker::bro::Event ev("event_2", args);
-        return std::move(ev);
      }
 
      case 3: {
@@ -132,8 +136,7 @@ broker::bro::Event createEvent() {
              m[random_string(15)] = s;
          }
 
-         broker::bro::Event ev("event_3", broker::vector{broker::now(), m});
-         return std::move(ev);
+         return broker::vector{broker::now(), m};
      }
 
      default:
@@ -142,23 +145,37 @@ broker::bro::Event createEvent() {
     }
 }
 
-void sendBatch(broker::endpoint& ep, broker::publisher& p) {
-    std::vector<broker::data> batch(batch_size);
-    std::generate(batch.begin(), batch.end(), []() { return createEvent(); });
-    p.publish(batch);
+void sendBroBatch(broker::endpoint& ep, broker::publisher& p)
+{
+    auto name = std::string("event_") + std::to_string(event_type);
+
+    broker::vector batch;
+    for ( int i = 0; i < batch_size; i++ ) {
+	auto ev = broker::bro::Event(std::string(name), createEventArgs());
+	batch.emplace_back(std::move(ev));
+	}
+
     total_sent += batch.size();
+    p.publish(broker::bro::Batch(std::move(batch)));
 }
 
-void sendEvents(broker::endpoint& ep, broker::publisher& p) {
-    while ( true ) {
-        sendBatch(ep, p);
-        usleep(1e6 / batch_rate);
-    }
+void sendBrokerBatch(broker::endpoint& ep, broker::publisher& p)
+{
+    auto name = std::string("event_") + std::to_string(event_type);
+
+    std::vector<broker::data> batch;
+    for ( int i = 0; i < batch_size; i++ ) {
+	auto ev = broker::bro::Event(std::string(name), createEventArgs());
+	batch.emplace_back(std::move(ev));
+	}
+
+    total_sent += batch.size();
+    p.publish(std::move(batch));
 }
 
 void receivedStats(broker::endpoint& ep, broker::data x)
 {
-    auto args = broker::bro::Event(x).args()[0];
+    auto args = broker::bro::Event(std::move(x)).args()[0];
     auto rec = broker::get<broker::vector>(args);
 
     double t;
@@ -239,7 +256,11 @@ void clientMode(const char* host, int port) {
     double next_increase = current_time() + rate_increase_interval;
 
     while ( true ) {
-        sendBatch(ep, p);
+        if ( use_bro_batches )
+            sendBroBatch(ep, p);
+	else
+            sendBrokerBatch(ep, p);
+
         usleep(1e6 / batch_rate);
 
         if ( rate_increase_interval && rate_increase_amount && current_time() > next_increase ) {
@@ -249,6 +270,12 @@ void clientMode(const char* host, int port) {
     }
 }
 
+void processEvent(broker::bro::Event& ev) {
+    lock.lock();
+    num_events++;
+    lock.unlock();
+    }
+
 void serverMode(const char* iface, int port) {
     // This mimics what benchmark.bro does.
     broker::broker_options options;
@@ -257,19 +284,33 @@ void serverMode(const char* iface, int port) {
     broker::endpoint ep(std::move(cfg));
     ep.listen(iface, port);
 
-    uint64_t num_events;
-    std::mutex lock;
-
     bool terminate = false;
 
     ep.subscribe_nosync({"/benchmark/events"},
                         [](caf::unit_t&) {
                         },
                         [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
-                            lock.lock();
-			    num_events++;
-                            lock.unlock();
+			    auto& msg = x.second;
+
+			    if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Event ) {
+				broker::bro::Event ev(std::move(msg));
+			        processEvent(ev);
+			    }
+
+			    else if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Batch ) {
+				broker::bro::Batch batch(std::move(msg));
+			        for ( auto msg : batch.batch() ) {
+				    broker::bro::Event ev(std::move(msg));
+                                    processEvent(ev);
+                                }
+                            }
+
+                            else {
+                                std::cerr << "unexpected message type" << std::endl;
+                                exit(1);
+                            }
                         },
+
                         [](caf::unit_t&) {
                             // nop
 			});

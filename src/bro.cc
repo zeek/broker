@@ -4,46 +4,7 @@
 namespace broker {
 namespace bro {
 
-static const count ProtocolVersion = 1;
-
-Message::Message(Type type) : type_(type) {
-}
-
-Message::Message(data x) {
-  auto v = get<vector>(x);
-
-  if (v.size() != 2)
-    throw std::runtime_error("broken Bro message header");
-
-  auto hdr = get<vector>(v[0]);
-  content_ = get<vector>(v[1]);
-
-  if (hdr.size() != 2)
-    throw std::runtime_error("broken Bro message header");
-
-  version_ = get<count>(hdr[0]);
-
-  if (version_ != ProtocolVersion)
-    throw std::runtime_error("unsupported Bro message version");
-
-  switch (get<count>(hdr[1])) {
-    case Type::Event:
-      type_ = Type::Event;
-      break;
-    case Type::LogCreate:
-      type_ = Type::LogCreate;
-      break;
-    case Type::LogWrite:
-      type_ = Type::LogWrite;
-      break;
-    case Type::IdentifierUpdate:
-      type_ = Type::IdentifierUpdate;
-      break;
-    default:
-      throw std::runtime_error("unsupported Bro message type");
-  };
-}
-
+#if 0
 template <>
 void EventBase::init() {
   if (type_ != Type::Event)
@@ -53,8 +14,8 @@ void EventBase::init() {
     throw std::runtime_error("broken Bro event");
 
   try {
-    args_.name = get<std::string>(content_[0]);
-    args_.args = get<vector>(content_[1]);
+    args_.name = std::move(get<std::string>(content_[0]));
+    args_.args = std::move(get<vector>(content_[1]));
   } catch (const bad_variant_access& e) {
     throw std::runtime_error("unexpected Bro event arguments");
   }
@@ -63,7 +24,7 @@ void EventBase::init() {
 template <>
 data EventBase::as_data() const {
   auto hdr = vector{ProtocolVersion, static_cast<count>(Type::Event)};
-  auto content = vector{args_.name, args_.args};
+  auto content = vector{args_.name, std::move(args_.args)};
   return vector{std::move(hdr), std::move(content)};
 }
 
@@ -141,5 +102,22 @@ data IdentifierUpdate::as_data() const {
   auto content = vector{args_.id_name, args_.id_value};
   return vector{std::move(hdr), std::move(content)};
 }
+
+template <>
+void Batch::init() {
+  if (type_ != Type::Batch)
+    throw std::runtime_error("not a Bro Batch");
+
+  args_.messages = std::move(content_);
+}
+
+template <>
+data Batch::as_data() const {
+  auto hdr = vector{ProtocolVersion, static_cast<count>(Type::Batch)};
+  return vector{std::move(hdr), std::move(args_.messages)};
+}
+#endif
+
+
 }
 }
