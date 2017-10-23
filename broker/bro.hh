@@ -37,10 +37,10 @@ public:
   }
 
 protected:
-  Message(Type type, vector&& content)
+  Message(Type type, vector content)
     : msg_({ProtocolVersion, count(type), content}) {
   }
-  Message(data&& msg) : msg_(get<vector>(msg)) {
+  Message(data msg) : msg_(get<vector>(msg)) {
   }
 
   vector msg_;
@@ -49,9 +49,9 @@ protected:
 /// A Bro event.
 class Event : public Message {
   public:
-  Event(std::string&& name, vector&& args)
+  Event(std::string name, vector args)
     : Message(Message::Type::Event, {name, std::move(args)}) {}
-  Event(data&& msg) : Message(std::move(msg)) {}
+  Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
     return get<std::string>(get<vector>(msg_[2])[0]);
@@ -65,9 +65,9 @@ class Event : public Message {
 /// A batch of other messages.
 class Batch : public Message {
   public:
-  Batch(vector&& msgs)
+  Batch(vector msgs)
     : Message(Message::Type::Batch, std::move(msgs)) {}
-  Batch(data&& msg) : Message(std::move(msg)) {}
+  Batch(data msg) : Message(std::move(msg)) {}
 
   const vector& batch() const {
     return get<vector>(msg_[2]);
@@ -78,13 +78,13 @@ class Batch : public Message {
 /// only by Bro itself as the arguments aren't pulbically defined.
 class LogCreate : public Message {
 public:
-  LogCreate(enum_value&& stream_id, enum_value&& writer_id, data&& writer_info,
-            data&& fields_data)
+  LogCreate(enum_value stream_id, enum_value writer_id, data writer_info,
+            data fields_data)
     : Message(Message::Type::LogCreate,
               {stream_id, writer_id, writer_info, fields_data}) {
   }
 
-  LogCreate(data&& msg) : Message(std::move(msg)) {
+  LogCreate(data msg) : Message(std::move(msg)) {
   }
 
   const enum_value& stream_id() const {
@@ -105,13 +105,13 @@ public:
 /// by Bro itself as the arguments aren't pulbically defined.
 class LogWrite : public Message {
 public:
-  LogWrite(enum_value&& stream_id, enum_value&& writer_id, data&& path,
-            data&& vals_data)
+  LogWrite(enum_value stream_id, enum_value writer_id, data path,
+	   data vals_data)
     : Message(Message::Type::LogWrite,
               {stream_id, writer_id, path, vals_data}) {
   }
 
-  LogWrite(data&& msg) : Message(std::move(msg)) {
+  LogWrite(data msg) : Message(std::move(msg)) {
   }
 
   const enum_value& stream_id() const {
@@ -130,11 +130,11 @@ public:
 
 class IdentifierUpdate : public Message {
 public:
-  IdentifierUpdate(std::string&& id_name, data&& id_value)
+  IdentifierUpdate(std::string id_name, data id_value)
     : Message(Message::Type::IdentifierUpdate, {id_name, id_value}) {
   }
 
-  IdentifierUpdate(data&& msg) : Message(std::move(msg)) {
+  IdentifierUpdate(data msg) : Message(std::move(msg)) {
   }
 
   const std::string& id_name() const {
