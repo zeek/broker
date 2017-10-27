@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include <caf/node_id.hpp>
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
 
@@ -61,8 +62,8 @@ public:
   ///          undefined behavior.
   void shutdown();
 
-  /// @returns Information about this endpoint.
-  endpoint_info info() const;
+  /// @returns a unique node id for this endpoint.
+  caf::node_id node_id() const;
 
   // --- peer management -------------------------------------------------------
 

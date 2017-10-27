@@ -19,20 +19,8 @@
 
 namespace broker {
 
-endpoint_info endpoint::info() const {
-  auto result = endpoint_info{core()->node(), {}};
-  caf::scoped_actor self{core()->home_system()};
-  self->request(core(), timeout::core, atom::network::value,
-                atom::get::value).receive(
-    [&](std::string& address, uint16_t port) {
-      if (port > 0)
-        result.network = network_info{std::move(address), port};
-    },
-    [](const caf::error& e) {
-      detail::die("failed to get endpoint network info:", to_string(e));
-    }
-  );
-  return result;
+caf::node_id endpoint::node_id() const {
+  return core()->node();
 }
 
 endpoint::endpoint(configuration config)
