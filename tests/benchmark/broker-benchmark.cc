@@ -7,6 +7,10 @@
 #include <broker/broker.hh>
 #include <broker/bro.hh>
 
+#include "readerwriterqueue/readerwriterqueue.h"
+
+using EventQueue = moodycamel::ReaderWriterQueue<broker::bro::Event>;
+
 static int event_type = 1;
 static double batch_rate = 1;
 static int batch_size = 1;
@@ -17,6 +21,7 @@ static uint64_t max_in_flight = 0;
 static int server = 0;
 static int disable_ssl = 0;
 static int use_bro_batches = 0;
+static int use_non_blocking = 0;
 
 // Global state
 static unsigned long total_recv;
@@ -37,6 +42,7 @@ static struct option long_options[] = {
     {"server",                 no_argument, &server, 1},
     {"disable-ssl",            no_argument, &disable_ssl, 1},
     {"use-bro-batches",        no_argument, &use_bro_batches, 1},
+    {"use-non-blocking",       no_argument, &use_non_blocking, 1},
     {0, 0, 0, 0}
 };
 
@@ -75,7 +81,7 @@ static std::string random_string(int n) {
      const size_t max_index = (sizeof(charset) - 1);
      char buffer[11];
      for ( unsigned int j = 0; j < sizeof(buffer) - 1; j++ )
-	buffer[j] = charset[++i % max_index];
+    buffer[j] = charset[++i % max_index];
      buffer[sizeof(buffer) - 1] = '\0';
 
      return buffer;
@@ -151,26 +157,38 @@ void sendBroBatch(broker::endpoint& ep, broker::publisher& p)
 
     broker::vector batch;
     for ( int i = 0; i < batch_size; i++ ) {
-	auto ev = broker::bro::Event(std::string(name), createEventArgs());
-	batch.emplace_back(std::move(ev));
-	}
+    auto ev = broker::bro::Event(std::string(name), createEventArgs());
+    batch.emplace_back(std::move(ev));
+    }
 
     total_sent += batch.size();
     p.publish(broker::bro::Batch(std::move(batch)));
 }
 
-void sendBrokerBatch(broker::endpoint& ep, broker::publisher& p)
+void sendBrokerBatchBlocking(broker::endpoint& ep, broker::publisher& p)
 {
     auto name = std::string("event_") + std::to_string(event_type);
 
     std::vector<broker::data> batch;
     for ( int i = 0; i < batch_size; i++ ) {
-	auto ev = broker::bro::Event(std::string(name), createEventArgs());
-	batch.emplace_back(std::move(ev));
-	}
+    auto ev = broker::bro::Event(std::string(name), createEventArgs());
+    batch.emplace_back(std::move(ev));
+    }
 
     total_sent += batch.size();
     p.publish(std::move(batch));
+}
+
+void sendBrokerBatchNonBlocking(broker::endpoint& ep, EventQueue& q)
+{
+    auto name = std::string("event_") + std::to_string(event_type);
+
+    for ( int i = 0; i < batch_size; i++ ) {
+        auto ev = broker::bro::Event(std::string(name), createEventArgs());
+        q.emplace(std::move(ev));
+    }
+
+    std::cerr << "buffered now: " << q.size_approx() << std::endl;
 }
 
 void receivedStats(broker::endpoint& ep, broker::data x)
@@ -240,6 +258,7 @@ void clientMode(const char* host, int port) {
     broker::endpoint ep(std::move(cfg));
     auto ss = ep.make_status_subscriber(true);
     auto p = ep.make_publisher("/benchmark/events");
+    EventQueue q;
 
     ep.subscribe_nosync({"/benchmark/stats"},
                         [](caf::unit_t&) {
@@ -249,7 +268,28 @@ void clientMode(const char* host, int port) {
                         },
                         [](caf::unit_t&) {
                             // nop
-			});
+            });
+
+    if ( use_non_blocking ) {
+        using value_type = std::pair<broker::topic, broker::data>;
+        ep.publish_all(
+                       [](caf::unit_t&) {
+                           // nop
+                       },
+                       [&](caf::unit_t&, caf::downstream<value_type>& out, size_t num) {
+                           const broker::bro::Event* ev;
+			   std::cerr << "can publish " << num << ", have " << q.size_approx() << std::endl;
+                           while ( num-- && (ev = q.peek()) ) {
+                               out.push("/benchmark/events", std::move(*ev));
+			       q.pop();
+                               ++total_sent;
+                           }
+                       },
+                       [](const caf::unit_t&) { return false; },
+                       [](caf::expected<void>) {
+                           // nop
+                       });
+    }
 
     ep.peer(host, port, broker::timeout::seconds(1));
 
@@ -258,8 +298,10 @@ void clientMode(const char* host, int port) {
     while ( true ) {
         if ( use_bro_batches )
             sendBroBatch(ep, p);
+        else if ( use_non_blocking )
+            sendBrokerBatchNonBlocking(ep, q);
 	else
-            sendBrokerBatch(ep, p);
+            sendBrokerBatchBlocking(ep, p);
 
         usleep(1e6 / batch_rate);
 
@@ -290,17 +332,17 @@ void serverMode(const char* iface, int port) {
                         [](caf::unit_t&) {
                         },
                         [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
-			    auto& msg = x.second;
+                auto& msg = x.second;
 
-			    if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Event ) {
-				broker::bro::Event ev(std::move(msg));
-			        processEvent(ev);
-			    }
+                if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Event ) {
+                broker::bro::Event ev(std::move(msg));
+                    processEvent(ev);
+                }
 
-			    else if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Batch ) {
-				broker::bro::Batch batch(std::move(msg));
-			        for ( auto msg : batch.batch() ) {
-				    broker::bro::Event ev(std::move(msg));
+                else if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Batch ) {
+                broker::bro::Batch batch(std::move(msg));
+                    for ( auto msg : batch.batch() ) {
+                    broker::bro::Event ev(std::move(msg));
                                     processEvent(ev);
                                 }
                             }
@@ -313,7 +355,7 @@ void serverMode(const char* iface, int port) {
 
                         [](caf::unit_t&) {
                             // nop
-			});
+            });
 
     ep.subscribe_nosync({"/benchmark/terminate"},
                         [](caf::unit_t&) {
@@ -323,7 +365,7 @@ void serverMode(const char* iface, int port) {
                         },
                         [](caf::unit_t&) {
                             // nop
-			});
+            });
 
     auto last_t = broker::now();
 
@@ -358,10 +400,10 @@ int main(int argc, char** argv) {
             break;
 
         switch (c) {
-	case 0:
-	case 1:
-	    // Flag
-	    break;
+    case 0:
+    case 1:
+        // Flag
+        break;
 
          case 't':
             event_type = atoi(optarg);
