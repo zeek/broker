@@ -18,6 +18,7 @@ public:
     LogWrite = 3,
     IdentifierUpdate = 4,
     Batch = 5,
+    RelayEvent = 6,
   };
 
   Type type() const {
@@ -50,7 +51,7 @@ protected:
 class Event : public Message {
   public:
   Event(std::string name, vector args)
-    : Message(Message::Type::Event, {name, std::move(args)}) {}
+    : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
   Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
@@ -61,6 +62,30 @@ class Event : public Message {
     return get<vector>(get<vector>(msg_[2])[1]);
   }
 };
+
+/// A Bro relayed event (automatically republished after a single hop).
+class RelayEvent : public Message {
+  public:
+  RelayEvent(set relay_topics, std::string name, vector args)
+    : Message(Message::Type::RelayEvent, {std::move(relay_topics),
+    		                              std::move(name),
+    		                              std::move(args)})
+    	{}
+  RelayEvent(data msg) : Message(std::move(msg)) {}
+
+  const set& topics() const {
+    return get<set>(get<vector>(msg_[2])[0]);
+  }
+
+  const std::string& name() const {
+    return get<std::string>(get<vector>(msg_[2])[1]);
+  }
+
+  const vector& args() const {
+    return get<vector>(get<vector>(msg_[2])[2]);
+  }
+};
+
 
 /// A batch of other messages.
 class Batch : public Message {
@@ -81,7 +106,8 @@ public:
   LogCreate(enum_value stream_id, enum_value writer_id, data writer_info,
             data fields_data)
     : Message(Message::Type::LogCreate,
-              {stream_id, writer_id, writer_info, fields_data}) {
+              {std::move(stream_id), std::move(writer_id),
+               std::move(writer_info), std::move(fields_data)}) {
   }
 
   LogCreate(data msg) : Message(std::move(msg)) {
@@ -108,7 +134,8 @@ public:
   LogWrite(enum_value stream_id, enum_value writer_id, data path,
 	   data vals_data)
     : Message(Message::Type::LogWrite,
-              {stream_id, writer_id, path, vals_data}) {
+              {std::move(stream_id), std::move(writer_id),
+               std::move(path), std::move(vals_data)}) {
   }
 
   LogWrite(data msg) : Message(std::move(msg)) {
@@ -131,7 +158,8 @@ public:
 class IdentifierUpdate : public Message {
 public:
   IdentifierUpdate(std::string id_name, data id_value)
-    : Message(Message::Type::IdentifierUpdate, {id_name, id_value}) {
+    : Message(Message::Type::IdentifierUpdate, {std::move(id_name),
+    		                                    std::move(id_value)}) {
   }
 
   IdentifierUpdate(data msg) : Message(std::move(msg)) {
