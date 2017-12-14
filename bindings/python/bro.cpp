@@ -20,7 +20,11 @@ void init_bro(py::module& m) {
        [](broker::bro::Event& ev, std::string name, broker::data args) {
        new (&ev) broker::bro::Event(std::move(name), std::move(broker::get<broker::vector>(args)));
        })
-    .def("name", &broker::bro::Event::name)
-    .def("args", &broker::bro::Event::args);
+    .def("name",
+          static_cast<const std::string& (broker::bro::Event::*)() const>
+          (&broker::bro::Event::name))
+    .def("args",
+         static_cast<const broker::vector& (broker::bro::Event::*)() const>
+         (&broker::bro::Event::args));
 }
 

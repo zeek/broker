@@ -57,8 +57,14 @@ class Event : public Message {
   const std::string& name() const {
     return get<std::string>(get<vector>(msg_[2])[0]);
   }
+  std::string& name() {
+    return get<std::string>(get<vector>(msg_[2])[0]);
+  }
 
   const vector& args() const {
+    return get<vector>(get<vector>(msg_[2])[1]);
+  }
+  vector& args() {
     return get<vector>(get<vector>(msg_[2])[1]);
   }
 };
@@ -76,12 +82,21 @@ class RelayEvent : public Message {
   const set& topics() const {
     return get<set>(get<vector>(msg_[2])[0]);
   }
+  set& topics() {
+    return get<set>(get<vector>(msg_[2])[0]);
+  }
 
   const std::string& name() const {
     return get<std::string>(get<vector>(msg_[2])[1]);
   }
+  std::string& name() {
+    return get<std::string>(get<vector>(msg_[2])[1]);
+  }
 
   const vector& args() const {
+    return get<vector>(get<vector>(msg_[2])[2]);
+  }
+  vector& args() {
     return get<vector>(get<vector>(msg_[2])[2]);
   }
 };
@@ -95,6 +110,9 @@ class Batch : public Message {
   Batch(data msg) : Message(std::move(msg)) {}
 
   const vector& batch() const {
+    return get<vector>(msg_[2]);
+  }
+  vector& batch() {
     return get<vector>(msg_[2]);
   }
 };
@@ -116,13 +134,28 @@ public:
   const enum_value& stream_id() const {
     return get<enum_value>(get<vector>(msg_[2])[0]);
   };
+  enum_value& stream_id() {
+    return get<enum_value>(get<vector>(msg_[2])[0]);
+  };
+
   const enum_value& writer_id() const {
     return get<enum_value>(get<vector>(msg_[2])[1]);
   };
+  enum_value& writer_id() {
+    return get<enum_value>(get<vector>(msg_[2])[1]);
+  };
+
   const data& writer_info() const {
     return get<vector>(msg_[2])[2];
   };
+  data& writer_info() {
+    return get<vector>(msg_[2])[2];
+  };
+
   const data& fields_data() const {
+    return get<vector>(msg_[2])[3];
+  };
+  data& fields_data() {
     return get<vector>(msg_[2])[3];
   };
 };
@@ -144,13 +177,28 @@ public:
   const enum_value& stream_id() const {
     return get<enum_value>(get<vector>(msg_[2])[0]);
   };
+  enum_value& stream_id() {
+    return get<enum_value>(get<vector>(msg_[2])[0]);
+  };
+
   const enum_value& writer_id() const {
     return get<enum_value>(get<vector>(msg_[2])[1]);
   };
+  enum_value& writer_id() {
+    return get<enum_value>(get<vector>(msg_[2])[1]);
+  };
+
   const data& path() const {
     return get<vector>(msg_[2])[2];
   };
+  data& path() {
+    return get<vector>(msg_[2])[2];
+  };
+
   const data& vals_data() const {
+    return get<vector>(msg_[2])[3];
+  };
+  data& vals_data() {
     return get<vector>(msg_[2])[3];
   };
 };
@@ -168,8 +216,14 @@ public:
   const std::string& id_name() const {
     return get<std::string>(get<vector>(msg_[2])[0]);
   };
+  std::string& id_name() {
+    return get<std::string>(get<vector>(msg_[2])[0]);
+  };
 
   const data& id_value() const {
+    return get<vector>(msg_[2])[1];
+  };
+  data& id_value() {
     return get<vector>(msg_[2])[1];
   };
 };
