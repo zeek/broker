@@ -65,19 +65,8 @@ store::response store::proxy::receive() {
 }
 
 
-std::string store::name() const {
-  std::string result;
-  caf::scoped_actor self{frontend_->home_system()};
-  self->request(frontend_, timeout::frontend, atom::get::value,
-                atom::name::value).receive(
-    [&](std::string& name) {
-      result = name;
-    },
-    [&](caf::error& e) {
-      die("failed to retrieve store name:", to_string(e));
-    }
-  );
-  return result;
+const std::string& store::name() const {
+  return name_;
 }
 
 expected<data> store::exists(data key) const {
@@ -124,7 +113,8 @@ void store::clear() const {
             make_internal_command<clear_command>());
 }
 
-store::store(caf::actor actor) : frontend_{std::move(actor)} {
+store::store(caf::actor actor, std::string name)
+  : frontend_{std::move(actor)}, name_{std::move(name)} {
   // nop
 }
 

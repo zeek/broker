@@ -89,7 +89,7 @@ public:
 
   /// Retrieves the name of the store.
   /// @returns The store name.
-  std::string name() const;
+  const std::string& name() const;
 
   /// Checks whether a key exists in the store.
   /// @returns A boolean that's if the key exists.
@@ -199,7 +199,7 @@ public:
   }
 
 private:
-  store(caf::actor actor);
+  store(caf::actor actor, std::string name);
 
   /// Adds a value to another one, with a type-specific meaning of
   /// "add". This is the backend for a number of the modifiers methods.
@@ -234,6 +234,7 @@ private:
   }
 
   caf::actor frontend_;
+  std::string name_;
 };
 
 } // namespace broker

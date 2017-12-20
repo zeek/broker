@@ -221,10 +221,10 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
   self->request(core(), caf::infinite, atom::store::value, atom::master::value,
-                atom::attach::value, std::move(name), type, std::move(opts))
+                atom::attach::value, name, type, std::move(opts))
   .receive(
     [&](caf::actor& master) {
-      res = store{std::move(master)};
+      res = store{std::move(master), std::move(name)};
     },
     [&](caf::error& e) {
       res = std::move(e);
@@ -238,9 +238,9 @@ expected<store> endpoint::attach_clone(std::string name) {
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
-                atom::attach::value, std::move(name)).receive(
+                atom::attach::value, name).receive(
     [&](caf::actor& clone) {
-      res = store{std::move(clone)};
+      res = store{std::move(clone), std::move(name)};
     },
     [&](caf::error& e) {
       res = std::move(e);
