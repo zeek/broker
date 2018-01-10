@@ -28,6 +28,7 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   name = std::move(nm);
   master_topic = name / topics::reserved / topics::master;
   core = std::move(parent);
+  master = nullptr;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -98,9 +99,8 @@ data clone_state::keys() const {
 }
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
-                          caf::actor core, caf::actor master,
-                          std::string name) {
-  self->monitor(master);
+                          caf::actor core, std::string name,
+                          double resync_interval) {
   self->monitor(core);
   self->state.init(self, std::move(name), std::move(core));
   self->set_down_handler(
@@ -110,15 +110,45 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         self->quit(msg.reason);
       } else {
         BROKER_INFO("lost master");
-        self->quit(msg.reason);
+        self->state.master = nullptr;
+        self->send(self, atom::master::value, atom::resolve::value);
+        // TODO: need to dump the local cache after some period of time
       }
     }
   );
+  self->send(self, atom::master::value, atom::resolve::value);
   return {
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& x) {
       // forward all commands to the master
       self->state.forward(std::move(x));
+    },
+    [=](atom::master, atom::resolve) {
+      if ( self->state.master )
+        return;
+
+      BROKER_INFO("request master resolve");
+      self->send(self->state.core, atom::store::value, atom::master::value,
+                 atom::resolve::value, self->state.name, self);
+      auto ri = std::chrono::duration<double>(resync_interval);
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(ri);
+      self->delayed_send(self, ms, atom::master::value, atom::resolve::value);
+    },
+    [=](atom::master, caf::actor& master) {
+      if ( self->state.master )
+        return;
+
+      BROKER_INFO("resolved master");
+      self->state.master = std::move(master);
+      self->monitor(self->state.master);
+      self->send(self->state.core, atom::store::value, atom::master::value,
+                 atom::snapshot::value, self->state.name);
+    },
+    [=](atom::master, caf::error err) {
+      if ( self->state.master )
+        return;
+
+      BROKER_INFO("error resolving master " << caf::to_string(err));
     },
     [=](atom::get, atom::keys) -> data {
       auto x = self->state.keys();

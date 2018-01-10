@@ -504,78 +504,48 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return ms;
     },
     [=](atom::store, atom::clone, atom::attach,
-        std::string& name) -> caf::result<caf::actor> {
+        std::string& name, double resync_interval) -> caf::result<caf::actor> {
       BROKER_INFO("attaching clone:" << name);
+
+      auto i = self->state.masters.find(name);
+
+      if ( i != self->state.masters.end() && self->node() == i->second->node() )
+        {
+        BROKER_WARNING("attempted to run clone & master on the same endpoint");
+        return ec::no_such_master;
+        }
+
       // Sanity check: this message must be a point-to-point message.
       auto& cme = *self->current_mailbox_element();
+
       if (!cme.stages.empty())
         return ec::unspecified;
+
       auto stages = std::move(cme.stages);
-      auto spawn_clone = [=](const caf::actor& master)
-                         -> caf::expected<caf::actor> {
-        BROKER_INFO("spawning new clone");
-        auto clone = self->spawn<linked + lazy_init>(clone_actor, self,
-                                                     master, name);
-        auto cptr = actor_cast<strong_actor_ptr>(clone);
-        auto& st = self->state;
-        st.clones.emplace(name, clone);
-        // Subscribe to updates.
-        std::tuple<> token;
-        auto sid = self->make_stream_id();
-        if (!self->add_sink<store::stream_type::value_type>(
-              st.governor, sid, nullptr, cptr, std::move(stages),
-              message_id::make(), stream_priority::normal, token)) {
-          BROKER_ERROR("attaching master failed: self->add_sink returned false.");
-          return caf::sec::cannot_add_downstream;
-        }
-        // Subscribe to messages directly targeted at the clone.
-        filter_type filter{name / topics::reserved / topics::clone};
-        st.add_to_filter(filter);
-        st.policy().stores().set_filter(sid, cptr, std::move(filter));
-        self->streams().emplace(sid, st.governor);
-        // Instruct master to generate a snapshot.
-        self->state.policy().push(
-          name / topics::reserved / topics::master,
-          make_internal_command<snapshot_command>(self));
-        return clone;
-      };
-      auto peers = self->state.policy().get_peer_handles();
-      if (peers.empty()) {
-        BROKER_INFO("no peers to ask for the master");
-        return ec::no_such_master;
+      BROKER_INFO("spawning new clone");
+      auto clone = self->spawn<linked + lazy_init>(clone_actor, self, name,
+                                                   resync_interval);
+      auto cptr = actor_cast<strong_actor_ptr>(clone);
+      auto& st = self->state;
+      st.clones.emplace(name, clone);
+
+      // Subscribe to updates.
+      std::tuple<> token;
+      auto sid = self->make_stream_id();
+
+      if (!self->add_sink<store::stream_type::value_type>(
+            st.governor, sid, nullptr, cptr, std::move(stages),
+            message_id::make(), stream_priority::normal, token)) {
+        BROKER_ERROR("attaching master failed: self->add_sink returned false.");
+        return caf::sec::cannot_add_downstream;
       }
-      auto i = self->state.masters.find(name);
-      if (i != self->state.masters.end()) {
-        // We don't run clone and master on the same endpoint.
-        if (self->node() == i->second.node()) {
-          BROKER_WARNING("attempted to run clone & master on the same endpoint");
-          return ec::no_such_master;
-        }
-        BROKER_INFO("found master in map");
-        return spawn_clone(i->second);
-      }
-      auto resolv = self->spawn<caf::lazy_init>(master_resolver);
-      auto rp = self->make_response_promise<caf::actor>();
-      self->request(resolv, caf::infinite, std::move(peers), std::move(name))
-      .then(
-        [=](actor& master) mutable {
-          BROKER_INFO("received result from resolver:" << master);
-          self->state.masters.emplace(name, master);
-          auto cl = spawn_clone(std::move(master));
-          if (cl)
-            rp.deliver(std::move(*cl));
-          else
-            rp.deliver(std::move(cl.error()));
-        },
-        [=](caf::error& err) mutable {
-          BROKER_INFO("received error from resolver:" << err);
-          rp.deliver(std::move(err));
-        }
-      );
-      return rp;
 
-
-
+      // Subscribe to messages directly targeted at the clone.
+      filter_type filter{name / topics::reserved / topics::clone};
+      st.add_to_filter(filter);
+      st.policy().stores().set_filter(sid, cptr, std::move(filter));
+      self->streams().emplace(sid, st.governor);
+      return clone;
 
       return caf::sec::invalid_stream_state; /* FIXME:
       auto spawn_clone = [=](const caf::actor& master) -> caf::actor {
@@ -635,6 +605,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return rp;
       */
     },
+    [=](atom::store, atom::master, atom::snapshot,
+        const std::string& name) {
+      // Instruct master to generate a snapshot.
+      self->state.policy().push(
+        name / topics::reserved / topics::master,
+        make_internal_command<snapshot_command>(self));
+    },
     [=](atom::store, atom::master, atom::get,
         const std::string& name) -> result<actor> {
       auto i = self->state.masters.find(name);
@@ -643,31 +620,25 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return ec::no_such_master;
     },
     [=](atom::store, atom::master, atom::resolve,
-        const std::string& name) -> result<actor> {
+        std::string& name, actor& who_asked) {
       auto i = self->state.masters.find(name);
+
       if (i != self->state.masters.end()) {
         BROKER_INFO("found local master, using direct link");
-        return i->second;
+        self->send(who_asked, atom::master::value, i->second);
       }
+
+      auto peers = self->state.policy().get_peer_handles();
+
+      if (peers.empty()) {
+        BROKER_INFO("no peers to ask for the master");
+        self->send(who_asked, atom::master::value,
+                   make_error(ec::no_such_master, "no peers"));
+      }
+
       auto resolv = self->spawn<caf::lazy_init>(master_resolver);
-      auto rp = self->make_response_promise<caf::actor>();
-      std::vector<caf::actor> tmp;
-      self->state.policy().for_each_peer([&](const actor& x) {
-        tmp.emplace_back(x);
-      });
-      self->request(resolv, caf::infinite, std::move(tmp), std::move(name))
-      .then(
-        [=](actor& master) mutable {
-          BROKER_INFO("received result from resolver:" << master);
-          self->state.masters.emplace(name, master);
-          rp.deliver(master);
-        },
-        [=](caf::error& err) mutable {
-          BROKER_INFO("received error from resolver:" << err);
-          rp.deliver(std::move(err));
-        }
-      );
-      return rp;
+      self->send(resolv, std::move(peers), std::move(name),
+                 std::move(who_asked));
     },
     // --- accessors -----------------------------------------------------------
     [=](atom::get, atom::peer) {

@@ -253,9 +253,12 @@ public:
 
   /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
+  /// @param resync_interval The frequency at which the clone will attempt to
+  //                         reconnect/resynchronize with its master in the
+  //                         event that it becomes disconnected (in seconds).
   /// @returns A handle to the frontend representing the clone, or an error if
   ///          a master *name* could not be found.
-  expected<store> attach_clone(std::string name);
+  expected<store> attach_clone(std::string name, double resync_interval=10.0);
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
   inline bool await_stores_on_shutdown() const {

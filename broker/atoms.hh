@@ -44,11 +44,11 @@ using default_ = caf::atom_constant<caf::atom("default")>;
 using shutdown = caf::atom_constant<caf::atom("shutdown")>;
 using retry = caf::atom_constant<caf::atom("retry")>;
 
-/// --- communiation with workers ----------------------------------------------
+/// --- communication with workers ---------------------------------------------
 
 using resume = caf::atom_constant<caf::atom("resume")>;
 
-/// --- communiation with stores -----------------------------------------------
+/// --- communication with stores ----------------------------------------------
 
 using attach = caf::atom_constant<caf::atom("attach")>;
 using clear = caf::atom_constant<caf::atom("clear")>;
@@ -65,10 +65,11 @@ using subtract = caf::atom_constant<caf::atom("subtract")>;
 using local = caf::atom_constant<caf::atom("local")>;
 using resolve = caf::atom_constant<caf::atom("resolve")>;
 
-/// --- communiation with core actor -------------------------------------------
+/// --- communciation with core actor ------------------------------------------
 
 using no_events = caf::atom_constant<caf::atom("noEvents")>;
 using subscriptions = caf::atom_constant<caf::atom("subs")>;
+using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 
 } // namespace atom
 } // namespace broker

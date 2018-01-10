@@ -14,7 +14,7 @@ namespace detail {
 
 struct master_resolver_state {
   size_t remaining_responses;
-  caf::response_promise rp;
+  caf::actor who_asked;
 };
 
 /// Queries each peer in `peers`.

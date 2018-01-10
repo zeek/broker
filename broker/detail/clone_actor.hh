@@ -62,12 +62,14 @@ public:
 
   caf::actor core;
 
+  caf::actor master;
+
   std::unordered_map<data, data> store;
 };
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
-                          caf::actor core, caf::actor master,
-                          std::string name);
+                          caf::actor core, std::string name,
+                          double resync_interval);
 
 } // namespace detail
 } // namespace broker

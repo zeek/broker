@@ -141,19 +141,6 @@ CAF_TEST(master_with_clone) {
             from(_).to(core1).with(_, _, _, _, false));
   // Make sure there is no communication pending at this point.
   exec_all();
-  // --- phase 7: resolve master for foo proactively ---------------------------
-  CAF_MESSAGE("resolve master on mars");
-  anon_send(core2, atom::store::value, atom::master::value,
-            atom::resolve::value, "foo");
-  expect_on(mars, (atom_value, atom_value, atom_value, std::string),
-            from(_).to(core2).with(_, _, _, "foo"));
-  mars.sched.run_once(); // run resolver
-  network_traffic();
-  expect_on(earth, (atom::store, atom::master, atom::get, std::string),
-            from(_).to(core1).with(_, _, _, "foo"));
-  network_traffic();
-  mars.sched.run_once(); // run resolver
-  expect_on(mars, (actor), from(_).to(core2).with(_));
   // --- phase 7: attach a clone on mars ---------------------------------------
   mars.sched.inline_next_enqueue();
   CAF_MESSAGE("attach a clone on mars");
@@ -173,9 +160,6 @@ CAF_TEST(master_with_clone) {
   network_traffic();
   expect_on(earth, (atom::update, filter_type),
             from(_).to(core1).with(_, filter_type{foo_clone}));
-  // ... and requests the master to generate a new snapshot
-  forward_stream_traffic();
-  expect_on(earth, (stream_msg::batch), from(_).to(core1).with(1, _, 0));
   // -- phase 8: run it all & check results ------------------------------------
   exec_all();
   CAF_MESSAGE("put 'user' -> 'neverlord'");

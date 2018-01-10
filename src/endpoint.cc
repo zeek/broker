@@ -216,7 +216,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
 }
 
 expected<store> endpoint::attach_master(std::string name, backend type,
-                                      backend_options opts) {
+                                        backend_options opts) {
   BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
@@ -233,12 +233,13 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   return res;
 }
 
-expected<store> endpoint::attach_clone(std::string name) {
+expected<store> endpoint::attach_clone(std::string name,
+                                       double resync_interval) {
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
-                atom::attach::value, name).receive(
+                atom::attach::value, name, resync_interval).receive(
     [&](caf::actor& clone) {
       res = store{std::move(clone), std::move(name)};
     },

@@ -139,7 +139,7 @@ void master_state::operator()(set_command& x) {
 }
 
 void master_state::operator()(clear_command& x) {
-  BROKER_ERROR("CLEAR");
+  BROKER_INFO("CLEAR" << x);
   auto res = backend->clear();
   if (!res)
     die("failed to clear master");

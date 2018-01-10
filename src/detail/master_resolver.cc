@@ -25,22 +25,27 @@ behavior master_resolver(stateful_actor<master_resolver_state>* self) {
   self->set_error_handler([=](error&) {
     if (--self->state.remaining_responses == 0) {
       CAF_LOG_DEBUG("resolver failed to find a master");
-      self->state.rp.deliver(ec::no_such_master);
+      self->send(self->state.who_asked, atom::master::value,
+                 make_error(ec::no_such_master, "no master on peers"));
       self->quit();
     }
   });
   return {
-    [=](const std::vector<actor>& peers, const std::string& name) {
+    [=](const std::vector<actor>& peers, const std::string& name,
+        actor& who_asked) {
       CAF_LOG_DEBUG("resolver starts looking for:" << name);
+
       for (auto& peer : peers)
         self->send(peer, atom::store::value, atom::master::value,
                    atom::get::value, name);
-      self->state.rp = self->make_response_promise();
+
       self->state.remaining_responses = peers.size();
+      self->state.who_asked = std::move(who_asked);
     },
     [=](caf::actor& master) {
       CAF_LOG_DEBUG("resolver found master:" << master);
-      self->state.rp.deliver(std::move(master));
+      self->send(self->state.who_asked, atom::master::value,
+                 std::move(master));
       self->quit();
     }
   };
