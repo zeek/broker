@@ -254,18 +254,30 @@ public:
   /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
   /// @param resync_interval The frequency at which the clone will attempt to
-  //                         reconnect/resynchronize with its master in the
-  //                         event that it becomes disconnected (in seconds).
-  //  @param stale_interval The duration of time after which a clone that is
-  //                        disconnected from its master will start to treat
-  //                        its local cache as stale.  In the stale state, it
-  //                        responds to queries with an error.  A value of
-  //                        less than zero here means the local cache never
-  //                        goes stale.
+  ///                        reconnect/resynchronize with its master in the
+  ///                        event that it becomes disconnected (in seconds).
+  /// @param stale_interval The amount of time (seconds) after which a clone
+  ///                       that is disconnected from its master will start
+  ///                       to treat its local cache as stale.  In the stale
+  ///                       state, it responds to queries with an error.  A
+  ///                       negative value here means the local cache never
+  ///                       goes stale.
+  /// @param mutation_buffer_interval The maximum amount of time (seconds)
+  ///                                 that a disconnected clone will buffer
+  ///                                 data store mutation commands.  If the
+  ///                                 clone reconnects before this time, it
+  ///                                 will replay all stored commands.  Note
+  ///                                 that this doesn't completely prevent
+  ///                                 the loss of store updates: all mutation
+  ///                                 messages are fire-and-forget and not
+  ///                                 explicitly acknowledged by the master.
+  ///                                 A negative/zero value here indicates to
+  ///                                 never buffer commands.
   /// @returns A handle to the frontend representing the clone, or an error if
   ///          a master *name* could not be found.
   expected<store> attach_clone(std::string name, double resync_interval=10.0,
-                               double stale_interval=300.0);
+                               double stale_interval=300.0,
+                               double mutation_buffer_interval=120.0);
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
   inline bool await_stores_on_shutdown() const {

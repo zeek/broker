@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_CLONE_ACTOR_HH
 
 #include <unordered_map>
+#include <vector>
 
 #include <caf/actor.hpp>
 #include <caf/stateful_actor.hpp>
@@ -69,11 +70,16 @@ public:
   bool is_stale;
 
   double stale_time;
+
+  double unmutable_time;
+
+  std::vector<internal_command> mutation_buffer;
 };
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
-                          double resync_interval, double stale_interval);
+                          double resync_interval, double stale_interval,
+                          double mutation_buffer_interval);
 
 } // namespace detail
 } // namespace broker

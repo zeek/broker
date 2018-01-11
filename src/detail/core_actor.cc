@@ -504,8 +504,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return ms;
     },
     [=](atom::store, atom::clone, atom::attach,
-        std::string& name, double resync_interval,
-        double stale_interval) -> caf::result<caf::actor> {
+        std::string& name, double resync_interval, double stale_interval,
+        double mutation_buffer_interval) -> caf::result<caf::actor> {
       BROKER_INFO("attaching clone:" << name);
 
       auto i = self->state.masters.find(name);
@@ -526,7 +526,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       BROKER_INFO("spawning new clone");
       auto clone = self->spawn<linked + lazy_init>(clone_actor, self, name,
                                                    resync_interval,
-                                                   stale_interval);
+                                                   stale_interval,
+                                                   mutation_buffer_interval);
       auto cptr = actor_cast<strong_actor_ptr>(clone);
       auto& st = self->state;
       st.clones.emplace(name, clone);

@@ -19,6 +19,13 @@
 namespace broker {
 namespace detail {
 
+static double now()
+  {
+  using namespace std::chrono;
+  auto d = system_clock::now().time_since_epoch();
+  return duration_cast<duration<double>>(d).count();
+  }
+
 clone_state::clone_state() : self(nullptr) {
   // nop
 }
@@ -33,6 +40,7 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   master = nullptr;
   is_stale = true;
   stale_time = -1.0;
+  unmutable_time = -1.0;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -102,16 +110,10 @@ data clone_state::keys() const {
   return result;
 }
 
-static double now()
-  {
-  using namespace std::chrono;
-  auto d = system_clock::now().time_since_epoch();
-  return duration_cast<duration<double>>(d).count();
-  }
-
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
-                          double resync_interval, double stale_interval) {
+                          double resync_interval, double stale_interval,
+                          double mutation_buffer_interval) {
   self->monitor(core);
   self->state.init(self, std::move(name), std::move(core));
   self->set_down_handler(
@@ -124,22 +126,55 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         self->state.master = nullptr;
         self->send(self, atom::master::value, atom::resolve::value);
 
-        if ( stale_interval < 0 )
-          return;
+        if ( stale_interval >= 0 )
+          {
+          self->state.stale_time = now() + stale_interval;
+          auto si = std::chrono::duration<double>(stale_interval);
+          auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
+          self->delayed_send(self, ms, atom::tick::value,
+                             atom::stale_check::value);
+          }
 
-        self->state.stale_time = now() + stale_interval;
-        auto si = std::chrono::duration<double>(stale_interval);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
-        self->delayed_send(self, ms, atom::tick::value);
+        if ( mutation_buffer_interval > 0 )
+          { 
+          self->state.unmutable_time = now() + mutation_buffer_interval;
+          auto si = std::chrono::duration<double>(mutation_buffer_interval);
+          auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
+          self->delayed_send(self, ms, atom::tick::value,
+                             atom::mutable_check::value);
+          } 
       }
     }
   );
+
+  if ( mutation_buffer_interval > 0 )
+    { 
+    self->state.unmutable_time = now() + mutation_buffer_interval;
+    auto si = std::chrono::duration<double>(mutation_buffer_interval);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
+    self->delayed_send(self, ms, atom::tick::value,
+                       atom::mutable_check::value);
+    } 
+
   self->send(self, atom::master::value, atom::resolve::value);
+
   return {
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& x) {
-      // forward all commands to the master
-      self->state.forward(std::move(x));
+      if ( self->state.master )
+        {
+        // forward all commands to the master
+        self->state.forward(std::move(x));
+        return;
+        }
+
+      if ( mutation_buffer_interval <= 0 )
+        return;
+
+      if ( now() >= self->state.unmutable_time )
+        return;
+
+      self->state.mutation_buffer.emplace_back(std::move(x));
     },
     [=](atom::master, atom::resolve) {
       if ( self->state.master )
@@ -160,7 +195,15 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.master = std::move(master);
       self->state.is_stale = false;
       self->state.stale_time = -1.0;
+      self->state.unmutable_time = -1.0;
       self->monitor(self->state.master);
+
+      for ( auto& cmd : self->state.mutation_buffer )
+        self->state.forward(std::move(cmd));
+
+      self->state.mutation_buffer.clear();
+      self->state.mutation_buffer.shrink_to_fit();
+
       self->send(self->state.core, atom::store::value, atom::master::value,
                  atom::snapshot::value, self->state.name);
     },
@@ -170,7 +213,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       BROKER_INFO("error resolving master " << caf::to_string(err));
     },
-    [=](atom::tick) {
+    [=](atom::tick, atom::stale_check) {
       if ( self->state.stale_time < 0 )
         return;
 
@@ -181,6 +224,16 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         return;
 
       self->state.is_stale = true;
+    },
+    [=](atom::tick, atom::mutable_check) {
+      if ( self->state.unmutable_time < 0 )
+        return;
+
+      if ( now() < self->state.unmutable_time )
+        return;
+
+      self->state.mutation_buffer.clear();
+      self->state.mutation_buffer.shrink_to_fit();
     },
     [=](atom::get, atom::keys) -> expected<data> {
       if ( self->state.is_stale )

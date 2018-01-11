@@ -64,6 +64,8 @@ using store = caf::atom_constant<caf::atom("store")>;
 using subtract = caf::atom_constant<caf::atom("subtract")>;
 using local = caf::atom_constant<caf::atom("local")>;
 using resolve = caf::atom_constant<caf::atom("resolve")>;
+using stale_check = caf::atom_constant<caf::atom("stale")>;
+using mutable_check = caf::atom_constant<caf::atom("mutable")>;
 
 /// --- communciation with core actor ------------------------------------------
 

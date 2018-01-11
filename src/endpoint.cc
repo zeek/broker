@@ -235,12 +235,14 @@ expected<store> endpoint::attach_master(std::string name, backend type,
 
 expected<store> endpoint::attach_clone(std::string name,
                                        double resync_interval,
-                                       double stale_interval) {
+                                       double stale_interval,
+                                       double mutation_buffer_interval) {
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
-                atom::attach::value, name, resync_interval, stale_interval).receive(
+                atom::attach::value, name, resync_interval, stale_interval,
+                mutation_buffer_interval).receive(
     [&](caf::actor& clone) {
       res = store{std::move(clone), std::move(name)};
     },
