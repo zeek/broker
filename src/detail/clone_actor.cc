@@ -14,6 +14,8 @@
 #include "broker/detail/clone_actor.hh"
 #include "broker/detail/filter_type.hh"
 
+#include <chrono>
+
 namespace broker {
 namespace detail {
 
@@ -29,6 +31,8 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   master_topic = name / topics::reserved / topics::master;
   core = std::move(parent);
   master = nullptr;
+  is_stale = true;
+  stale_time = -1.0;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -98,9 +102,16 @@ data clone_state::keys() const {
   return result;
 }
 
+static double now()
+  {
+  using namespace std::chrono;
+  auto d = system_clock::now().time_since_epoch();
+  return duration_cast<duration<double>>(d).count();
+  }
+
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
-                          double resync_interval) {
+                          double resync_interval, double stale_interval) {
   self->monitor(core);
   self->state.init(self, std::move(name), std::move(core));
   self->set_down_handler(
@@ -112,7 +123,14 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         BROKER_INFO("lost master");
         self->state.master = nullptr;
         self->send(self, atom::master::value, atom::resolve::value);
-        // TODO: need to dump the local cache after some period of time
+
+        if ( stale_interval < 0 )
+          return;
+
+        self->state.stale_time = now() + stale_interval;
+        auto si = std::chrono::duration<double>(stale_interval);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
+        self->delayed_send(self, ms, atom::tick::value);
       }
     }
   );
@@ -140,6 +158,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       BROKER_INFO("resolved master");
       self->state.master = std::move(master);
+      self->state.is_stale = false;
+      self->state.stale_time = -1.0;
       self->monitor(self->state.master);
       self->send(self->state.core, atom::store::value, atom::master::value,
                  atom::snapshot::value, self->state.name);
@@ -150,28 +170,55 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       BROKER_INFO("error resolving master " << caf::to_string(err));
     },
-    [=](atom::get, atom::keys) -> data {
+    [=](atom::tick) {
+      if ( self->state.stale_time < 0 )
+        return;
+
+      // Checking the timestamp is needed in the case there are multiple
+      // connects/disconnects within a short period of time (we don't want
+      // to go stale too early).
+      if ( now() < self->state.stale_time )
+        return;
+
+      self->state.is_stale = true;
+    },
+    [=](atom::get, atom::keys) -> expected<data> {
+      if ( self->state.is_stale )
+        return {ec::stale_data};
+
       auto x = self->state.keys();
       BROKER_INFO("KEYS ->" << x);
-      return x;
+      return {x};
     },
     [=](atom::get, atom::keys, request_id id) {
+      if ( self->state.is_stale )
+        return caf::make_message(make_error(ec::stale_data), id);
+
       auto x = self->state.keys();
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
       return caf::make_message(x, id);
     },
     [=](atom::exists, const data& key) -> expected<data> {
+      if ( self->state.is_stale )
+        return {ec::stale_data};
+
       auto result = (self->state.store.find(key) != self->state.store.end());
       BROKER_INFO("EXISTS" << key << "->" << result);
       return {result};
     },
     [=](atom::exists, const data& key, request_id id) {
+      if ( self->state.is_stale )
+        return caf::make_message(make_error(ec::stale_data), id);
+
       auto r = (self->state.store.find(key) != self->state.store.end());
       auto result = caf::make_message(data{r}, id);
       BROKER_INFO("EXISTS" << key << "with id" << id << "->" << result.take(1));
       return result;
     },
     [=](atom::get, const data& key) -> expected<data> {
+      if ( self->state.is_stale )
+        return {ec::stale_data};
+
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -180,6 +227,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, const data& key, const data& aspect) -> expected<data> {
+      if ( self->state.is_stale )
+        return {ec::stale_data};
+
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -188,6 +238,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, const data& key, request_id id) {
+      if ( self->state.is_stale )
+        return caf::make_message(make_error(ec::stale_data), id);
+
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -198,6 +251,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, const data& key, const data& aspect, request_id id) {
+      if ( self->state.is_stale )
+        return caf::make_message(make_error(ec::stale_data), id);
+
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {

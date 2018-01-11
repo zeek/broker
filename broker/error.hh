@@ -6,7 +6,7 @@
 // When updating this file, make sure to update doc/comm.rst as well because it
 // copies parts of this file verbatim.
 //
-// Included lines: 25-48
+// Included lines: 23-51
 
 #include <string>
 #include <tuple>
@@ -45,6 +45,9 @@ enum class ec : uint8_t {
   invalid_data,
   /// The storage backend failed to execute the operation.
   backend_failure,
+  /// The clone store has not yet synchronized with its master, or it has
+  /// been disconnected for too long.
+  stale_data,
 };
 
 /// @relates ec

@@ -33,6 +33,8 @@ const char* to_string(ec code) {
       return "invalid_data";
     case ec::backend_failure:
       return "backend_failure";
+    case ec::stale_data:
+      return "stale_data";
   }
 }
 

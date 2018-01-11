@@ -65,11 +65,15 @@ public:
   caf::actor master;
 
   std::unordered_map<data, data> store;
+
+  bool is_stale;
+
+  double stale_time;
 };
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
-                          double resync_interval);
+                          double resync_interval, double stale_interval);
 
 } // namespace detail
 } // namespace broker

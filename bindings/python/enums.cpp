@@ -18,7 +18,8 @@ void init_enums(py::module& m) {
     .value("RequestTimeOut", broker::ec::request_timeout)
     .value("TypeClash", broker::ec::type_clash)
     .value("InvalidData", broker::ec::invalid_data)
-    .value("BackendFailure", broker::ec::backend_failure);
+    .value("BackendFailure", broker::ec::backend_failure)
+    .value("StaleData", broker::ec::stale_data);
 
   py::enum_<broker::sc>(m, "SC")
     .value("Unspecified", broker::sc::unspecified)
