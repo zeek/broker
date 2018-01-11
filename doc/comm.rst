@@ -49,7 +49,7 @@ together, as there exists no global library state.
 Peerings
 ~~~~~~~~
 
-In order to publish, or receive, messages an endpoint needs to peer with other
+In order to publish or receive messages an endpoint needs to peer with other
 endpoints. A peering is a bidirectional relationship between two
 endpoints. Peering endpoints exchange subscriptions and then forward
 messages accordingly. This allows for creating flexible communication
@@ -94,7 +94,7 @@ channel; see ``endpoint::publish_all`` and
 ``endpoint::publish_all_no_sync``.
 
 See :ref:`data-model` for a detailed discussion on how to construct
-values for messgea in the form of various types of ``data`` instaces.
+values for messages in the form of various types of ``data`` instances.
 
 Receiving Data
 ~~~~~~~~~~~~~~
@@ -196,7 +196,7 @@ codes:
 
 .. literalinclude:: ../broker/error.hh
    :language: cpp
-   :lines: 23-48
+   :lines: 23-51
 
 To receive non-critical status messages as well, specify that when
 creating the ``status_subscriber``:

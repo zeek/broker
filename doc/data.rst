@@ -142,7 +142,7 @@ It is a type alias for ``std::vector<data>``.
 Set
 ~~~
 
-A ``set`` is a mathemtical set with elements of type ``data``. A fixed ``data``
+A ``set`` is a mathematical set with elements of type ``data``. A fixed ``data``
 value can occur at most once in a ``set``.
 
 It is a type alias for ``std::set<data>``.
@@ -150,7 +150,7 @@ It is a type alias for ``std::set<data>``.
 Table
 ~~~~~
 
-A ``set`` is associative array with keys and values of typ ``data``. That is,
+A ``set`` is associative array with keys and values of type ``data``. That is,
 it maps ``data`` to ``data``.
 
 It is a type alias for ``std::map<data, data>``.

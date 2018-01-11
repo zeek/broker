@@ -30,7 +30,7 @@ store *frontend*, which is either an authoritative *master* or a
 <http://rocksdb.org>`_.
 
 :ref:`python` discusses the Broker's Python bindings, which
-transparently expose all of the libraries functionality to Python
+transparently expose all of the library's functionality to Python
 scripts. 
 
 Synopsis

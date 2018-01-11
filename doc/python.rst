@@ -115,9 +115,9 @@ each other:
      - ``broker.Port(x, broker.Port.{TCP,UDP,ICMP})``
    * - ``vector``
      - ``list``
-   * - ``Set``
+   * - ``set``
      - ``set``
-   * - ``Table``
+   * - ``table``
      - ``dict``
 
 

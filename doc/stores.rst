@@ -127,43 +127,43 @@ Data stores support the following mutating operations:
 ``void increment(data key, data amount, optional<timespan> expiry = {}) const;``
     Increments the existing value at ``key`` by the given amount. This
     is supported for numerical data types and for timestamps. If
-    ``expiry`` is given, the modified entry's expirtation time will be
+    ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
 
 ``void decrement(data key, data amount, optional<timespan> expiry = {}) const;``
     Decrements the existing value at ``key`` by the given amount. This
     is supported for numerical data types and for timestamps. If
-    ``expiry`` is given, the modified entry's expirtation time will be
+    ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
 
 ``void append(data key, data str, optional<timespan> expiry = {}) const;``
     Appends a new string ``str`` to an existing string value at
-    ``key``. If ``expiry`` is given, the modified entry's expirtation
+    ``key``. If ``expiry`` is given, the modified entry's expiration
     time will be updated accordingly.
 
 ``void insert_into(data key, data index, optional<timespan> expiry = {}) const;``
-    For an existing set value at stored at ``key``, inserts the value ``index``
-    into it. If ``expiry`` is given, the modified entry's expirtation
+    For an existing set value stored at ``key``, inserts the value ``index``
+    into it. If ``expiry`` is given, the modified entry's expiration
     time will be updated accordingly.
 
 ``void insert_into(data key, data index, data value, optional<timespan> expiry = {}) const;``
     For an existing vector or table value stored at ``key``, inserts
-    ``value`` at ``index`` into it. If ``expiry`` is given, the
-    modified entry's expirtation time will be updated accordingly.
+    ``value`` into it at ``index``. If ``expiry`` is given, the
+    modified entry's expiration time will be updated accordingly.
 
 ``void remove_from(data key, data index, optional<timespan> expiry = {}) const;``
     For an existing vector, set or table value stored at ``key``,
     removes the value at ``index`` from it. If ``expiry`` is given,
-    the modified entry's expirtation time will be updated accordingly.
+    the modified entry's expiration time will be updated accordingly.
 
 ``void push(data key, data value, optional<timespan> expiry = {}) const;``
     For an existing vector at ``key``, appends ``value`` to its end. If
-    ``expiry`` is given, the modified entry's expirtation time will be
+    ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
 
 ``void pop(data key, optional<timespan> expiry = {}) const;``
     For an existing vector at ``key``, removes its last value. If
-    ``expiry`` is given, the modified entry's expirtation time will be
+    ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
     
 Direct Retrieval
@@ -194,6 +194,12 @@ Data stores support the following retrieval methods:
   Retrieves a copy of all the store's current keys, returned as a set.
   Note that this is a potentially expensive operation if the store is
   large.
+
+All of these methods may return the ``ec::stale_data`` error when
+querying a clone if it has yet to ever synchronize with its master or
+if has been disconnected from its master for too long of a time period.
+The length of time before a clone's cache is deemed stale depends on
+an argument given to the ``endpoint::attach_clone`` method.
 
 All these methods share the property that they will return the
 corresponding result directly. Due to Broker's asynchronous operation
