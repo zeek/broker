@@ -56,6 +56,15 @@ public:
     /// response.
     request_id get(data key);
 
+    /// Inserts a value if the key does not already exist.
+    /// @param key The key of the key-value pair.
+    /// @param value The value of the key-value pair.
+    /// @param expiry An optional expiration time for *key*.
+    /// @returns A unique identifier for this request to correlate it with a
+    /// response.
+    request_id put_unique(data key, data value,
+                          optional<timespan> expiry = {});
+
     /// For containers values, retrieves a specific index from the value. This
     /// is supported for sets, tables, and vectors.
     /// @param key The key of the container value to retrieve from.
@@ -99,6 +108,14 @@ public:
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
   expected<data> get(data key) const;
+
+  /// Inserts a value if the key does not already exist.
+  /// @param key The key of the key-value pair.
+  /// @param value The value of the key-value pair.
+  /// @param expiry An optional expiration time for *key*.
+  /// @returns A true data value if inserted or false if key already existed.
+  expected<data> put_unique(data key, data value,
+                            optional<timespan> expiry = {}) const;
 
   /// For containers values, retrieves a specific index from the value. This
   /// is supported for sets, tables, and vectors.

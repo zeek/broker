@@ -30,6 +30,21 @@ typename Inspector::result_type inspect(Inspector& f, put_command& x) {
   return f(caf::meta::type_name("put"), x.key, x.value, x.expiry);
 }
 
+/// Sets a value in the key-value store if its key does not already exist.
+struct put_unique_command {
+  data key;
+  data value;
+  caf::optional<timespan> expiry;
+  caf::actor who;
+  request_id req_id;
+};
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, put_unique_command& x) {
+  return f(caf::meta::type_name("put_unique"), x.key, x.value, x.expiry,
+           x.who, x.req_id);
+}
+
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
@@ -97,9 +112,9 @@ typename Inspector::result_type inspect(Inspector& f, clear_command&) {
 class internal_command {
 public:
   using variant_type
-    = caf::variant<none, put_command, erase_command, add_command,
-                   subtract_command, snapshot_command, set_command,
-                   clear_command>;
+    = caf::variant<none, put_command, put_unique_command, erase_command,
+                   add_command, subtract_command, snapshot_command,
+                   set_command, clear_command>;
 
   variant_type content;
 

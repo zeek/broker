@@ -32,6 +32,15 @@ request_id store::proxy::get(data key) {
   return id_;
 }
 
+request_id store::proxy::put_unique(data key, data val, optional<timespan> expiry) {
+  if (!frontend_)
+    return 0;
+  send_as(proxy_, frontend_, atom::local::value,
+          make_internal_command<put_unique_command>(
+          std::move(key), std::move(val), expiry, proxy_, ++id_));
+  return id_;
+}
+
 request_id store::proxy::get_index_from_value(data key, data index) {
   if (!frontend_)
     return 0;
@@ -75,6 +84,33 @@ expected<data> store::exists(data key) const {
 
 expected<data> store::get(data key) const {
   return request<data>(atom::get::value, std::move(key));
+}
+
+expected<data> store::put_unique(data key, data val, optional<timespan> expiry) const {
+  if (!frontend_)
+    return make_error(ec::unspecified, "store not initialized");
+
+  expected<data> res{ec::unspecified};
+  caf::scoped_actor self{frontend_->home_system()};
+  auto cmd = make_internal_command<put_unique_command>(std::move(key),
+                                                       std::move(val), expiry,
+                                                       self, request_id(-1));
+  auto msg = caf::make_message(atom::local::value, std::move(cmd));
+
+  self->send(frontend_, std::move(msg));
+  self->delayed_send(self, timeout::frontend, atom::tick::value);
+  self->receive(
+    [&](data& x, request_id) {
+      res = std::move(x);
+    },
+    [&](atom::tick) {
+    },
+    [&](caf::error& e) {
+      res = std::move(e);
+    }
+  );
+
+  return res;
 }
 
 expected<data> store::get_index_from_value(data key, data index) const {

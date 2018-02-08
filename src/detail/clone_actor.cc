@@ -64,6 +64,11 @@ void clone_state::operator()(put_command& x) {
     store.emplace(std::move(x.key), std::move(x.value));
 }
 
+void clone_state::operator()(put_unique_command& x) {
+  BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << x.expiry);
+  store.emplace(std::move(x.key), std::move(x.value));
+}
+
 void clone_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
   store.erase(x.key);

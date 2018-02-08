@@ -49,6 +49,8 @@ public:
 
   void operator()(put_command&);
 
+  void operator()(put_unique_command&);
+
   void operator()(erase_command&);
 
   void operator()(add_command&);

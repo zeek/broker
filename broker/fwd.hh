@@ -19,6 +19,7 @@ class topic;
 struct add_command;
 struct erase_command;
 struct put_command;
+struct put_unique_command;
 struct set_command;
 struct snapshot_command;
 struct subtract_command;

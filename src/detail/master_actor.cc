@@ -77,6 +77,39 @@ void master_state::operator()(put_command& x) {
   broadcast_from(x);
 }
 
+void master_state::operator()(put_unique_command& x) {
+  BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
+
+  auto exists_result = backend->exists(x.key);
+
+  if (!exists_result) {
+    BROKER_WARNING("failed to put_unique existence check" << x.key << "->" << x.value);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+
+  if (*exists_result) {
+    // Note that we don't bother broadcasting this operation to clones since
+    // no change took place.
+    self->send(x.who, caf::make_message(data{false}, x.req_id));
+    return;
+  }
+
+  self->send(x.who, caf::make_message(data{true}, x.req_id));
+  auto result = backend->put(x.key, x.value, x.expiry);
+
+  if (!result) {
+    BROKER_WARNING("failed to put_unique" << x.key << "->" << x.value);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
+
+  if (x.expiry)
+    remind(*x.expiry, x.key);
+
+  // Note that we could just broadcast a regular "put" command here instead
+  // since clones shouldn't have to do their own existence check.
+  broadcast_from(x);
+}
+
 void master_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
   auto result = backend->erase(x.key);
