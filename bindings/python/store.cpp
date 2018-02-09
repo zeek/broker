@@ -37,6 +37,7 @@ void init_store(py::module& m) {
     .def("get_index_from_value", (broker::expected<broker::data> (broker::store::*)(broker::data d, broker::data index) const) &broker::store::get_index_from_value)
     .def("keys", &broker::store::keys)
     .def("put", &broker::store::put)
+    .def("put_unique", &broker::store::put_unique)
     .def("erase", &broker::store::erase)
     .def("clear", &broker::store::clear)
     .def("increment", &broker::store::increment)

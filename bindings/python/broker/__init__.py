@@ -226,6 +226,13 @@ class Store:
         expiry = self._to_expiry(expiry)
         return self._store.put(key, value, expiry)
 
+    def put_unique(self, key, value, expiry=None):
+        key = Data.from_py(key)
+        value = Data.from_py(value)
+        expiry = self._to_expiry(expiry)
+        rval = self._store.put_unique(key, value, expiry)
+        return Data.to_py(rval.get()) if rval.is_valid() else None
+
     def erase(self, data):
         data = Data.from_py(data)
         return self._store.erase(data)

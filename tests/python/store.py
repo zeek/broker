@@ -60,6 +60,9 @@ class TestStore(unittest.TestCase):
         m.put("b", v2)
         m.put("c", v3)
         m.put("d", v4)
+        self.assertEqual(c2.put_unique("e", "first"), True)
+        self.assertEqual(c2.put_unique("e", "second"), False)
+        self.assertEqual(c2.put_unique("e", "third"), False)
         time.sleep(.5)
 
         def checkAccessors(x):
@@ -67,6 +70,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("b"), v2)
             self.assertEqual(x.get("c"), v3)
             self.assertEqual(x.get("d"), v4)
+            self.assertEqual(x.get("e"), "first")
             self.assertEqual(x.get("X"), None)
             self.assertEqual(x.exists("d"), True)
             self.assertEqual(x.exists("X"), False)
@@ -76,7 +80,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get_index_from_value("c", 10), None)
             self.assertEqual(x.get_index_from_value("d", 1), "B")
             self.assertEqual(x.get_index_from_value("d", 10), None)
-            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd'})
+            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd', 'e'})
 
         checkAccessors(m)
         checkAccessors(c1)
@@ -142,6 +146,9 @@ class TestStore(unittest.TestCase):
         c1.put("b", v2)
         c2.put("c", v3)
         c2.put("d", v4)
+        self.assertEqual(c2.put_unique("e", "first"), True)
+        self.assertEqual(c2.put_unique("e", "second"), False)
+        self.assertEqual(c2.put_unique("e", "third"), False)
         time.sleep(.5)
 
         def checkAccessors(x):
@@ -149,6 +156,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("b"), v2)
             self.assertEqual(x.get("c"), v3)
             self.assertEqual(x.get("d"), v4)
+            self.assertEqual(x.get("e"), "first")
             self.assertEqual(x.get("X"), None)
             self.assertEqual(x.exists("d"), True)
             self.assertEqual(x.exists("X"), False)
@@ -158,7 +166,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get_index_from_value("c", 10), None)
             self.assertEqual(x.get_index_from_value("d", 1), "B")
             self.assertEqual(x.get_index_from_value("d", 10), None)
-            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd'})
+            self.assertEqual(x.keys(), {'a', 'b', 'c', 'd', 'e'})
 
         checkAccessors(m)
         checkAccessors(c1)
