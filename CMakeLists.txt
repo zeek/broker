@@ -32,6 +32,10 @@ endif ()
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
+# OpenSSL
+find_package(OpenSSL REQUIRED)
+set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
+
 # RocksDB
 find_package(RocksDB)
 if (ROCKSDB_FOUND)
