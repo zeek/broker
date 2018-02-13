@@ -52,8 +52,7 @@ void master_state::expire(data& key) {
   else if (!*result)
     BROKER_WARNING("ignoring stale expiration reminder");
   else {
-    erase_command cmd{std::move(key)};
-    broadcast_from(cmd);
+    broadcast_cmd_to_clones(erase_command{std::move(key)});
   }
 }
 
@@ -74,7 +73,7 @@ void master_state::operator()(put_command& x) {
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(put_unique_command& x) {
@@ -107,7 +106,7 @@ void master_state::operator()(put_unique_command& x) {
 
   // Note that we could just broadcast a regular "put" command here instead
   // since clones shouldn't have to do their own existence check.
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(erase_command& x) {
@@ -117,7 +116,7 @@ void master_state::operator()(erase_command& x) {
     BROKER_WARNING("failed to erase" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(add_command& x) {
@@ -129,7 +128,7 @@ void master_state::operator()(add_command& x) {
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(subtract_command& x) {
@@ -141,7 +140,7 @@ void master_state::operator()(subtract_command& x) {
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(snapshot_command& x) {
@@ -163,8 +162,7 @@ void master_state::operator()(snapshot_command& x) {
   //       network-friendlier protocol would require to annotate each command
   //       with a version in order to allow clones to figure out the correct
   //       ordering of events.
-  set_command cmd{std::move(*ss)};
-  broadcast_from(cmd);
+  broadcast_cmd_to_clones(set_command{std::move(*ss)});
 }
 
 void master_state::operator()(set_command& x) {
@@ -176,7 +174,7 @@ void master_state::operator()(clear_command& x) {
   auto res = backend->clear();
   if (!res)
     die("failed to clear master");
-  broadcast_from(x);
+  broadcast_cmd_to_clones(std::move(x));
 }
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,

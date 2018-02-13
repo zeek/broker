@@ -34,9 +34,9 @@ public:
   void broadcast(internal_command&& x);
 
   template <class T>
-  void broadcast_from(T& x) {
+  void broadcast_cmd_to_clones(T cmd) {
     if (!clones.empty())
-      broadcast(make_internal_command<T>(std::move(x)));
+      broadcast(internal_command{std::move(cmd)});
   }
 
   void remind(timespan expiry, const data& key);

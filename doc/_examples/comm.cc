@@ -31,7 +31,7 @@ for ( auto m : sub.poll() ) // Iterate over all available messages
 
 // --fd-start
 auto fd = sub.fd();
-::pollfd p = {fd, POLLIN, {}};
+::pollfd p = {fd, POLLIN, 0};
 auto n = ::poll(&p, 1, -1);
 if (n < 0)
     std::terminate(); // poll failed

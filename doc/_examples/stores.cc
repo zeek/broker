@@ -38,7 +38,7 @@ auto id = proxy.get("foo");
 // Get a file descriptor for event loops.
 auto fd = proxy.mailbox().descriptor();
 // Wait for result.
-::pollfd p = {fd, POLLIN, {}};
+::pollfd p = {fd, POLLIN, 0};
 auto n = ::poll(&p, 1, -1);
 if (n < 0)
     std::terminate(); // poll failed
