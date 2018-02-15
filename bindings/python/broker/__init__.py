@@ -143,6 +143,12 @@ class StatusSubscriber(_broker.Subscriber):
         return self._subscriber.fd()
 
     def _to_result(self, x):
+        if isinstance(x, _broker.VectorStatusSubscriberValueType):
+            return [self._to_error_or_status(xi) for xi in x]
+
+        return self._to_error_or_status(x)
+
+    def _to_error_or_status(self, x):
         if x.is_error():
             return x.get_error()
 
@@ -341,7 +347,6 @@ class Data(_broker.Data):
             _broker.Data.__init__(self)
 
         elif isinstance(x, bro.Event):
-            print(repr(x))
             _broker.Data.__init__(self, x.as_data())
 
         elif isinstance(x, _broker.Data):
