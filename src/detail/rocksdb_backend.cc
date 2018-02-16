@@ -9,6 +9,7 @@
 #include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/blob.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/rocksdb_backend.hh"
 
@@ -160,6 +161,15 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
 }
 
 bool rocksdb_backend::open_db() {
+  auto dir = detail::dirname(impl_->path);
+
+  if ( ! dir.empty() ) {
+    if ( ! detail::mkdirs(dir) ) {
+      BROKER_ERROR("failed to create database dir:" << impl_->path);
+      return false;
+    }
+  }
+
   rocksdb::Options rocks_opts;
   rocks_opts.create_if_missing = true;
   auto status = rocksdb::DB::Open(rocks_opts, impl_->path.c_str(), &impl_->db);

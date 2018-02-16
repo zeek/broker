@@ -10,6 +10,7 @@
 #include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/blob.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/detail/make_unique.hh"
 #include "broker/detail/sqlite_backend.hh"
 
@@ -48,6 +49,15 @@ struct sqlite_backend::impl {
   }
 
   bool open(const std::string& path) {
+    auto dir = detail::dirname(path);
+
+    if ( ! dir.empty() ) {
+      if ( ! detail::mkdirs(dir) ) {
+        BROKER_ERROR("failed to create database dir:" << path);
+        return false;
+      }
+    }
+
     // Initialize database.
     auto result = sqlite3_open(path.c_str(), &db);
     if (result != SQLITE_OK) {
