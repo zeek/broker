@@ -43,6 +43,7 @@ void endpoint::shutdown() {
   BROKER_INFO("shutting down endpoint");
   if (destroyed_)
     return;
+  destroyed_ = true;
   if (!await_stores_on_shutdown_) {
     CAF_LOG_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
@@ -60,7 +61,6 @@ void endpoint::shutdown() {
   anon_send(core_, atom::shutdown::value);
   core_ = nullptr;
   system_.~actor_system();
-  destroyed_ = true;
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {

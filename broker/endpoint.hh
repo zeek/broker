@@ -289,6 +289,10 @@ public:
     await_stores_on_shutdown_ = x;
   }
 
+  inline bool is_shutdown() const {
+    return destroyed_;
+  }
+
   // --- access to CAF state ---------------------------------------------------
 
   inline caf::actor_system& system() {
