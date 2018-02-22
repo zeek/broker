@@ -8,11 +8,10 @@ Broker: Bro's Messaging Library
 The Broker library implements Bro's high-level communication patterns:
 
     - remote logging
-    - remote printing
     - remote events
     - distributed data stores
 
-Logging, printing, and events all follow a pub/sub communication model
+Remote logging and events all follow a pub/sub communication model
 between Broker endpoints that are directly peered with each other.  An
 endpoint also has the option of subscribing to its own messages.
 Subscriptions are matched prefix-wise and endpoints have the capability
