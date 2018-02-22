@@ -4,6 +4,70 @@
 namespace broker {
 
 struct type_name_getter {
+  using result_type = const char*;
+
+  result_type operator()(broker::address) {
+    return "address";
+  }
+
+  result_type operator()(broker::boolean) {
+    return "boolean";
+  }
+
+  result_type operator()(broker::count) {
+    return "count";
+  }
+
+  result_type operator()(broker::enum_value) {
+    return "enum value";
+  }
+
+  result_type operator()(broker::integer) {
+    return "integer";
+  }
+
+  result_type operator()(broker::none) {
+    return "none";
+  }
+
+  result_type operator()(broker::port) {
+    return "port";
+  }
+
+  result_type operator()(broker::real) {
+    return "real";
+  }
+
+  result_type operator()(broker::set) {
+    return "set";
+  }
+
+  result_type operator()(std::string) {
+    return "string";
+  }
+
+  result_type operator()(broker::subnet) {
+    return "subnet";
+  }
+
+  result_type operator()(broker::table) {
+    return "table";
+  }
+
+  result_type operator()(broker::timespan) {
+    return "timespan";
+  }
+
+  result_type operator()(broker::timestamp) {
+    return "timestamp";
+  }
+
+  result_type operator()(broker::vector) {
+    return "vector";
+  }
+};
+
+struct type_getter {
   using result_type = data::type;
 
   result_type operator()(broker::address) {
@@ -68,6 +132,10 @@ struct type_name_getter {
 };
 
 data::type data::get_type() const {
+  return visit(type_getter(), *this);
+}
+
+const char* data::get_type_name() const {
   return visit(type_name_getter(), *this);
 }
 

@@ -145,6 +145,9 @@ public:
 	}
 
   /// Returns a string representation of the stored type.
+  const char* get_type_name() const;
+
+  /// Returns the type tag of the stored type.
   type get_type() const;
 };
 
