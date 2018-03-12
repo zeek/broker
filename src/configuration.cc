@@ -45,9 +45,16 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     "broker::endpoint::stream_type::value_type");
   add_message_type<std::vector<endpoint::stream_type::value_type>>(
     "std::vector<broker::endpoint::stream_type::value_type>");
+
   load<caf::io::middleman>();
+
   if (! options_.disable_ssl)
     load<caf::openssl::manager>();
+
+  if (options_.use_custom_clock) {
+    load<broker::coordinator<caf::policy::work_stealing>>();
+  }
+
   logger_file_name = "broker_[PID]_[TIMESTAMP].log";
   /*
   logger_verbosity = caf::atom("INFO");

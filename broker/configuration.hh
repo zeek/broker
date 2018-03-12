@@ -15,7 +15,8 @@ struct broker_options {
   /// receiver inserts the TTL (not the sender!). The 1st receiver does
   /// already count against the TTL.
   unsigned int ttl = 20;
-
+  /// Whether you want to manually control the endpoint's flow of time.
+  bool use_custom_clock = false;
   broker_options() {}
 };
 

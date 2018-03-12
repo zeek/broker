@@ -9,6 +9,7 @@
 #include <caf/node_id.hpp>
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/policy/work_stealing.hpp>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -23,6 +24,7 @@
 #include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
+#include "broker/coordinator.hh"
 
 #include "broker/detail/filter_type.hh"
 #include "broker/detail/operators.hh"
@@ -301,6 +303,15 @@ public:
 
   inline const caf::actor& core() const {
     return core_;
+  }
+
+  /// Returns a clock that may be used to manually advance time, if that
+  /// configuration has been enabled.  If custom time hasn't been
+  /// toggled on in the configuration, then this returns a null pointer.
+  inline custom_clock* clock() const {
+    using coordinator_type = coordinator<caf::policy::work_stealing>;
+    auto c = dynamic_cast<coordinator_type*>(&system_.scheduler());
+    return c ? &c->clock() : nullptr;
   }
 
 protected:
