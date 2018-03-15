@@ -245,7 +245,7 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     auto i = peer_to_opath_.find(hdl);
     if (i != e) {
       ++performed_erases;
-      peers().remove_path(i->second, reason, silent);
+      out().remove_path(i->second, reason, silent);
       opath_to_peer_.erase(i->second);
       peer_to_opath_.erase(i);
     }
