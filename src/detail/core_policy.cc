@@ -84,6 +84,9 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
 
 void core_policy::after_handle_batch(stream_slot, const strong_actor_ptr&) {
   CAF_LOG_TRACE("");
+  // Make sure the content of the buffer is pushed to the outbound paths while
+  // the sender filter is still active.
+  peers().fan_out_flush();
   peers().selector().active_sender = nullptr;
 }
 
