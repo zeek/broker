@@ -90,7 +90,7 @@ struct peer_fixture {
   std::vector<accept_handle> acceptors;
 
   // Stores all received items for subscribed topics.
-  data_vector data; 
+  data_vector data;
 
   // Initializes this peer and registers it at parent.
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
@@ -142,7 +142,7 @@ struct peer_fixture {
       [=](unit_t&, endpoint::value_type x) {
         data.emplace_back(std::move(x));
       },
-      [](unit_t&) {
+      [](unit_t&, const caf::error&) {
         // nop
       }
     );
@@ -167,9 +167,6 @@ struct peer_fixture {
       },
       [=](const unit_t&) {
         return buf->empty();
-      },
-      [](expected<void>) {
-        // nop
       }
     );
     parent->exec_loop();

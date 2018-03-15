@@ -10,8 +10,6 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
-#include <caf/detail/stream_distribution_tree.hpp>
-
 #include "broker/atoms.hh"
 #include "broker/logger.hh"
 #include "broker/endpoint_info.hh"
@@ -38,7 +36,7 @@ struct core_state {
   using governor_ptr = caf::intrusive_ptr<governor_type>;
 
   struct pending_peer_state {
-    caf::stream_id sid;
+    caf::stream_slot slot;
     caf::response_promise rp;
   };
 
@@ -46,20 +44,14 @@ struct core_state {
 
   /// Identifies the two individual streams forming a bidirectional channel.
   /// The first ID denotes the *input*  and the second ID denotes the *output*.
-  using stream_id_pair = std::pair<caf::stream_id, caf::stream_id>;
+  using stream_id_pair = std::pair<caf::stream_slot, caf::stream_slot>;
 
   // --- construction ----------------------------------------------------------
-  
+
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
   void init(filter_type initial_filter, broker_options opts);
-
-  // --- message introspection -------------------------------------------------
-
-  /// Returns the peer that sent the current message.
-  /// @pre `xs.match_elements<stream_msg>()`
-  caf::strong_actor_ptr prev_peer_from_handshake();
 
   // --- filter management -----------------------------------------------------
 
@@ -78,6 +70,7 @@ struct core_state {
   /// peers.
   bool has_remote_master(const std::string& name);
 
+  /// Returns the policy object.
   core_policy& policy();
 
   // --- convenience functions for sending errors and events -------------------
@@ -150,7 +143,7 @@ struct core_state {
 
   /// Requested topics on this core.
   filter_type filter;
- 
+
   /// Multiplexes local streams and streams for peers.
   governor_ptr governor;
 
@@ -178,10 +171,6 @@ struct core_state {
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
-
-  /// Stores which stream sources are local actors. Storing the actor handle is
-  /// sufficient, because we assign the same stream ID to all of our sources.
-  std::unordered_map<caf::stream_id, caf::strong_actor_ptr> local_sources;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

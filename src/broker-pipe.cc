@@ -115,10 +115,6 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     },
     [=](const size_t& msgs) {
       return msgs == cap;
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   );
   scoped_actor self{ep.system()};
@@ -165,7 +161,7 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
       if (++msgs >= cap)
         throw std::runtime_error("Reached cap");
     },
-    [](size_t&) {
+    [=](size_t&, const caf::error&) {
       // nop
     }
   );

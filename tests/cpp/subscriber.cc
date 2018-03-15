@@ -42,10 +42,6 @@ void driver(event_based_actor* self, const actor& sink) {
     // Did we reach the end?.
     [](const buf_type& xs) {
       return xs.empty();
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   );
 }
@@ -114,7 +110,7 @@ CAF_TEST(nonblocking_subscriber) {
     [&](unit_t&, value_type x) {
       result.emplace_back(std::move(x));
     },
-    [](unit_t&) {
+    [](unit_t&, const error&) {
       // nop
     }
   );

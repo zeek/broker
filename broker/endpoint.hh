@@ -147,8 +147,8 @@ public:
   /// Starts a background worker from the given set of functions that publishes
   /// a series of messages. The worker will run in the background, but `init`
   /// is guaranteed to be called before the function returns.
-  template <class Init, class GetNext, class AtEnd, class ResultHandler>
-  caf::actor publish_all(Init init, GetNext f, AtEnd pred, ResultHandler rf) {
+  template <class Init, class GetNext, class AtEnd>
+  caf::actor publish_all(Init init, GetNext f, AtEnd pred) {
     std::mutex mx;
     std::condition_variable cv;
     auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
@@ -156,8 +156,7 @@ public:
         core(),
         init,
         f,
-        pred,
-        rf 
+        pred
       );
       std::unique_lock<std::mutex> guard{mx};
       cv.notify_one();
@@ -169,16 +168,14 @@ public:
 
   /// Identical to ::publish_all, but does not guarantee that `init` is called
   /// before the function returns.
-  template <class Init, class GetNext, class AtEnd, class ResultHandler>
-  caf::actor publish_all_nosync(Init init, GetNext f, AtEnd pred,
-                                ResultHandler rf) {
+  template <class Init, class GetNext, class AtEnd>
+  caf::actor publish_all_nosync(Init init, GetNext f, AtEnd pred) {
     return make_actor([=](caf::event_based_actor* self) {
       self->make_source(
         core(),
         init,
         f,
-        pred,
-        rf 
+        pred
       );
     });
   }

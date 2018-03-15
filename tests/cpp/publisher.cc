@@ -46,7 +46,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
-        [](unit_t&) {
+        [](unit_t&, const caf::error&) {
           // nop
         }
       );
@@ -150,10 +150,6 @@ CAF_TEST(nonblocking_publishers) {
     // Did we reach the end?.
     [](const buf_type& xs) {
       return xs.empty();
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   );
   // Communication is identical to the driver-driven test in test/cpp/core.cc

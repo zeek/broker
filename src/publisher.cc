@@ -69,9 +69,6 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
     },
     [=](const unit_t&) {
       return self->state.shutting_down && qptr->buffer_size() == 0;
-    },
-    [](expected<void>) {
-      // nop
     }
   ).ptr();
   //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);

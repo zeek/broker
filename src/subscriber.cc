@@ -6,10 +6,8 @@
 #include <numeric>
 
 #include <caf/message.hpp>
-#include <caf/random_gatherer.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/send.hpp>
-#include <caf/terminal_stream_scatterer.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
@@ -52,76 +50,46 @@ struct subscriber_worker_state {
 
 const char* subscriber_worker_state::name = "subscriber_worker";
 
-class subscriber_term : public terminal_stream_scatterer {
+using input_type = std::pair<topic, data>;
+
+class subscriber_sink : public stream_sink<input_type> {
 public:
+  using super = stream_sink<input_type>;
+
   using queue_ptr = detail::shared_subscriber_queue_ptr<>;
 
-  subscriber_term(queue_ptr qptr, long max_qsize)
-    : queue_(std::move(qptr)),
+  subscriber_sink(scheduled_actor* self, subscriber_worker_state* state,
+                  queue_ptr qptr, long max_qsize)
+    : stream_manager(self),
+      super(self),
+      state_(state),
+      queue_(std::move(qptr)),
       max_qsize_(max_qsize) {
     // nop
   }
 
-  long credit() const override {
-    return max_qsize_ - static_cast<long>(queue_->buffer_size());
-  }
-
-  queue_ptr& queue() {
-    return queue_;
-  }
-
-private:
-  queue_ptr queue_;
-  long max_qsize_;
-};
-
-class subscriber_sink : public stream_manager {
-public:
-  using input_type = std::pair<topic, data>;
-
-  using output_type = void;
-
-  subscriber_sink(scheduled_actor* self, subscriber_worker_state* state,
-                  subscriber_term::queue_ptr qptr, long max_qsize)
-    : in_(self),
-      out_(std::move(qptr), max_qsize),
-      state_(state) {
-    // nop
-  }
-
-  random_gatherer& in() override {
-    return in_;
-  }
-
-  subscriber_term& out() override {
-    return out_;
-  }
-
-  bool done() const override {
-    return in_.closed();
+  bool congested() const noexcept override {
+    return queue_->buffer_size() >= max_qsize_;
   }
 
 protected:
-  error process_batch(message& msg) override {
-    CAF_LOG_TRACE(CAF_ARG(msg));
-    if (!msg.match_elements<std::vector<input_type>>())
-      return sec::unexpected_message;
-    auto& ys = msg.get_mutable_as<std::vector<input_type>>(0);
-    auto ys_size = ys.size();
-    state_->counter += ys_size;
-    out_.queue()->produce(ys_size, std::make_move_iterator(ys.begin()),
-                          std::make_move_iterator(ys.end()));
-    return caf::none;
-  }
-
-  message make_final_result() override {
-    return make_message();
+   void handle(inbound_path*, downstream_msg::batch& x) override {
+    CAF_LOG_TRACE(CAF_ARG(x));
+    using vec_type = std::vector<input_type>;
+    if (x.xs.match_elements<vec_type>()) {
+      auto& xs = x.xs.get_mutable_as<vec_type>(0);
+      auto xs_size = xs.size();
+      state_->counter += xs_size;
+      queue_->produce(xs_size, std::make_move_iterator(xs.begin()),
+                      std::make_move_iterator(xs.end()));
+    }
+    CAF_LOG_ERROR("received unexpected batch type (dropped)");
   }
 
 private:
-  random_gatherer in_;
-  subscriber_term out_;
   subscriber_worker_state* state_;
+  queue_ptr queue_;
+  long max_qsize_;
 };
 
 behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
@@ -133,21 +101,27 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
   return {
     [=](const endpoint::stream_type& in) {
       BROKER_ASSERT(qptr != nullptr);
-      auto sid = in.id();
-      auto nop = [](subscriber_sink&) {};
-      auto mgr = self->make_sink_impl<subscriber_sink>(in, nop, &self->state,
-                                                       qptr, max_qsize).ptr();
+      auto mgr = make_counted<subscriber_sink>(self, &self->state, qptr,
+                                               max_qsize);
+      auto slot = mgr->add_unchecked_inbound_path(in);
+      if (slot == invalid_stream_slot) {
+        BROKER_WARNING("failed to init stream to subscriber_worker");
+        return;
+      }
+      auto path = mgr->get_inbound_path(slot);
+      BROKER_ASSERT(path != nullptr);
+      auto slot_at_sender = path->slots.sender;
       self->set_default_handler(print_and_drop);
       self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
       self->become(
         [=](atom::resume) {
-          assert(mgr->out().buffered() == 0);
-          auto c = mgr->out().credit();
-          if (c > 0)
-            mgr->in().assign_credit(c);
+          // TODO: nop ?
+          // Triggering the actor should be enough to have it check its mailbox
+          // again in order to handle batches from a previously congested
+          // manager.
         },
         [=](atom::join a0, atom::update a1, filter_type& f) {
-          self->send(ep->core(), a0, a1, sid, std::move(f));
+          self->send(ep->core(), a0, a1, slot_at_sender, std::move(f));
         },
         [=](atom::tick) {
           auto& st = self->state;

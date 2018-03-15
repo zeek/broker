@@ -6,11 +6,13 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
+#include <caf/broadcast_downstream_manager.hpp>
+#include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
+#include <caf/output_stream.hpp>
 
-#include <caf/broadcast_topic_scatterer.hpp>
-#include <caf/stream_id.hpp>
+#include <caf/detail/stream_distribution_tree.hpp>
 
 #include "broker/data.hh"
 #include "broker/internal_command.hh"
@@ -30,74 +32,88 @@ class core_policy {
 public:
   // -- member types -----------------------------------------------------------
 
-  /// Configures the input policy in use.
-  using gatherer_type = caf::random_gatherer;
-
   /// Type to store a TTL for messages forwarded to peers.
   using ttl = uint16_t;
 
-  /// A batch received from another peer.
-  using peer_batch = std::vector<caf::message>;
+  /// Helper trait for defining streaming-related types for local actors
+  /// (workers and stores).
+  template <class T>
+  struct local_trait {
+    /// Type of a single element in the stream.
+    using element = std::pair<topic, T>;
 
-  /// A batch received from local actors for regular workers.
-  using worker_batch = std::vector<std::pair<topic, data>>;
+    /// Type of a full batch in the stream.
+    using batch = std::vector<element>;
 
-  /// A batch received from local actors for store masters and clones.
-  using store_batch = std::vector<std::pair<topic, internal_command>>;
+    /// Type of the downstream_manager that broadcasts data to local actors.
+    using manager = caf::broadcast_downstream_manager<element, filter_type,
+                                                      prefix_matcher>;
+  };
 
-  /// Identifier for a single up- or downstream path.
-  using path_id = std::pair<caf::stream_id, caf::actor_addr>;
+  /// Streaming-related types for workers.
+  using worker_trait = local_trait<data>;
+
+  /// Streaming-related types for stores.
+  using store_trait = local_trait<internal_command>;
+
+  /// Streaming-related types for peers.
+  struct peer_trait {
+    /// Type of a single element in the stream.
+    using element = caf::message;
+
+    /// Type of a full batch in the stream.
+    using batch = std::vector<element>;
+
+    /// Type of the downstream_manager that broadcasts data to local actors.
+    using manager = caf::broadcast_downstream_manager<element, peer_filter,
+                                                      peer_filter_matcher>;
+  };
 
   /// Maps actor handles to path IDs.
-  using peer_to_path_map = std::map<caf::actor, path_id>;
+  using peer_to_path_map = std::map<caf::actor, caf::stream_slot>;
 
   /// Maps path IDs to actor handles.
-  using path_to_peer_map = std::map<path_id, caf::actor>;
+  using path_to_peer_map = std::map<caf::stream_slot, caf::actor>;
 
-  /// Scatterer for dispatching data to remote peers.
-  using main_stream_t = caf::broadcast_topic_scatterer<caf::message,
-                                                       peer_filter,
-                                                       peer_filter_matcher>;
+  /// Composed downstream_manager type for bundled dispatching.
+  using downstream_manager_type
+    = caf::fused_downstream_manager<peer_trait::manager, worker_trait::manager,
+                                    store_trait::manager>;
 
-  /// Scatterer for dispatching data to local actors (workers or stores).
-  template <class T>
-  using substream_t = caf::broadcast_topic_scatterer<std::pair<topic, T>,
-                                                     filter_type,
-                                                     prefix_matcher>;
+  /// Stream handshake in step 1 that includes our own filter. The receiver
+  /// replies with a step2 handshake.
+  using step1_handshake = caf::outbound_stream_slot<caf::message, filter_type,
+                                                    caf::actor>;
 
-  /// Composed scatterer type for bundled dispatching.
-  using scatterer_type = caf::fused_scatterer<main_stream_t, substream_t<data>,
-                                              substream_t<internal_command>>;
+  /// Stream handshake in step 2. The receiver already has our filter
+  /// installed.
+  using step2_handshake = caf::outbound_stream_slot<caf::message,
+                                                    caf::atom_value,
+                                                    caf::actor>;
 
   core_policy(caf::detail::stream_distribution_tree<core_policy>* parent,
               core_state* state, filter_type filter);
 
-  /// Returns true if 1) `shutting_down()`, 2) there is no more
-  /// active local data source, and 3) there is no pending data to any peer.
-  bool at_end() const;
-
   bool substream_local_data() const;
 
-  void before_handle_batch(const caf::stream_id&, const caf::actor_addr& hdl,
-                           long, caf::message&, int64_t);
+  void before_handle_batch(caf::stream_slot slot,
+                           const caf::strong_actor_ptr& hdl);
 
-  void handle_batch(caf::message& xs);
+  void handle_batch(caf::stream_slot slot, const caf::strong_actor_ptr& hdl,
+                    caf::message& xs);
 
-  void after_handle_batch(const caf::stream_id&, const caf::actor_addr&,
-                          int64_t);
+  void after_handle_batch(caf::stream_slot slot,
+                          const caf::strong_actor_ptr& hdl);
 
-  void ack_open_success(const caf::stream_id& sid,
+  void ack_open_success(caf::stream_slot slot,
                         const caf::actor_addr& rebind_from,
                         caf::strong_actor_ptr rebind_to);
 
-  void ack_open_failure(const caf::stream_id& sid,
+  void ack_open_failure(caf::stream_slot slot,
                         const caf::actor_addr& rebind_from,
-                        caf::strong_actor_ptr rebind_to, const caf::error&);
+                        caf::strong_actor_ptr rebind_to);
 
   void push_to_substreams(std::vector<caf::message> vec);
-
-  caf::optional<caf::error> batch(const caf::stream_id&, const caf::actor_addr&,
-                                  long, caf::message& xs, int64_t);
 
   // -- status updates to the state --------------------------------------------
 
@@ -107,16 +123,17 @@ public:
 
   // -- callbacks for close/drop events ----------------------------------------
 
-  caf::error path_closed(const caf::stream_id& sid, const caf::actor_addr& hdl);
+  /// Output path gracefully closes.
+  void path_closed(caf::stream_slot slot);
 
-  caf::error path_force_closed(const caf::stream_id& sid,
-                               const caf::actor_addr& hdl, caf::error reason);
+  /// Output path fails with an error.
+  void path_force_closed(caf::stream_slot slot, caf::error reason);
 
-  caf::error path_dropped(const caf::stream_id& sid,
-                          const caf::actor_addr& hdl);
+  /// Input path gracefully closes.
+  void path_dropped(caf::stream_slot slot);
 
-  caf::error path_force_dropped(const caf::stream_id& sid,
-                                const caf::actor_addr& hdl, caf::error reason);
+  /// Input path fails with an error.
+  void path_force_dropped(caf::stream_slot slot, caf::error reason);
 
   // -- state required by the distribution tree --------------------------------
 
@@ -125,28 +142,72 @@ public:
   void shutting_down(bool value);
 
   // -- peer management --------------------------------------------------------
-  
+
   /// Queries whether `hdl` is a known peer.
   bool has_peer(const caf::actor& hdl) const;
 
-  /// Adds a new peer that isn't fully initialized yet. A peer is fully
-  /// initialized if there is an upstream ID associated to it.
-  bool add_peer(const caf::stream_id& sid,
-                const caf::strong_actor_ptr& downstream_handle,
-                const caf::actor& peer_handle, filter_type filter);
+  /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
+  /// @returns `false` if the peer is already connected, `true` otherwise.
+  /// @param peer_hdl Handle to the peering (remote) core actor.
+  /// @param peer_filter Filter of our peer.
+  /// @param send_own_filter Sends a `(filter, self)` handshake if `true`,
+  ///                        `('ok', self)` otherwise.
+  /// @pre `current_sender() != nullptr`
+  template <bool SendOwnFilter>
+  typename std::conditional<
+    SendOwnFilter,
+    step1_handshake,
+    step2_handshake
+  >::type
+  start_peering(const caf::actor& peer_hdl, filter_type peer_filter) {
+    CAF_LOG_TRACE(CAF_ARG(peer_hdl) << CAF_ARG(peer_filter));
+    // Token for static dispatch of add().
+    std::integral_constant<bool, SendOwnFilter> send_own_filter_token;
+    // Check whether we already send outbound traffic to the peer. Could use
+    // `CAF_ASSERT` instead, because this must'nt get called for known peers.
+    if (peer_to_opath_.count(peer_hdl) != 0) {
+      CAF_LOG_ERROR("peer already connected");
+      return {};
+    }
+    // Add outbound path to the peer.
+    auto slot = add(send_own_filter_token, peer_hdl);
+    // Make sure the peer receives the correct traffic.
+    out().assign<peer_trait::manager>(slot);
+    peers().set_filter(slot,
+                       std::make_pair(peer_hdl.address(),
+                                      std::move(peer_filter)));
+    // Add bookkeeping state for our new peer.
+    add_opath(slot, peer_hdl);
+    return slot;
+  }
 
-  /// Fully initializes a peer by setting an upstream ID and inserting it into
-  /// the `input_to_peer_`  map.
-  bool init_peer(const caf::stream_id& sid,
-                 const caf::strong_actor_ptr& upstream_handle,
-                 const caf::actor& peer_handle);
+  /// Acknowledges an incoming peering request (step #2/3 in core_actor.cc).
+  /// @param peer_hdl Handle to the peering (remote) core actor.
+  /// @returns `false` if the peer is already connected, `true` otherwise.
+  /// @pre Current message is an `open_stream_msg`.
+  void ack_peering(const caf::stream<caf::message>& in,
+                   const caf::actor& peer_hdl);
 
-  /// Removes a peer, aborting any stream to & from that peer.
+  /// Queries whether we have an outbound path to `hdl`.
+  bool has_outbound_path_to(const caf::actor& peer_hdl);
+
+  /// Queries whether we have an inbound path from `hdl`.
+  bool has_inbound_path_from(const caf::actor& peer_hdl);
+
+  /// Removes a peer, aborting any stream to and from that peer.
   bool remove_peer(const caf::actor& hdl, caf::error reason, bool silent,
                    bool graceful_removal);
 
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);
+
+  // -- management of worker and storage streams -------------------------------
+
+  /// Adds the sender of the current message as worker by starting an output
+  /// stream to it.
+  /// @pre `current_sender() != nullptr`
+  caf::outbound_stream_slot<worker_trait::element>
+  add_worker(filter_type filter);
 
   // -- selectively pushing data into the streams ------------------------------
 
@@ -165,20 +226,39 @@ public:
   /// Pushes data to peers and stores.
   void push(topic x, internal_command y);
 
-  // -- state accessors --------------------------------------------------------
+  // -- properties -------------------------------------------------------------
 
-  main_stream_t& peers();
+  /// Returns the fused downstream_manager of the parent.
+  downstream_manager_type& out() noexcept;
 
-  const main_stream_t& peers() const;
+  /// Returns the fused downstream_manager of the parent.
+  const downstream_manager_type& out() const noexcept;
 
-  substream_t<data>& workers();
+  /// Returns the downstream_manager for peer traffic.
+  peer_trait::manager& peers() noexcept;
 
-  const substream_t<data>& workers() const;
+  /// Returns the downstream_manager for peer traffic.
+  const peer_trait::manager& peers() const noexcept;
 
-  substream_t<internal_command>& stores();
+  /// Returns the downstream_manager for worker traffic.
+  worker_trait::manager& workers() noexcept;
 
-  const substream_t<internal_command>& stores() const;
+  /// Returns the downstream_manager for worker traffic.
+  const worker_trait::manager& workers() const noexcept;
 
+  /// Returns the downstream_manager for store traffic.
+  store_trait::manager& stores() noexcept;
+
+  /// Returns the downstream_manager for store traffic.
+  const store_trait::manager& stores() const noexcept;
+
+  /// Returns a pointer to the owning actor.
+  caf::scheduled_actor* self();
+
+  /// Returns a pointer to the owning actor.
+  const caf::scheduled_actor* self() const;
+
+  /// Applies `f` to each peer.
   template <class F>
   void for_each_peer(F f) {
     // visit all peers that have at least one path still connected
@@ -186,8 +266,10 @@ public:
     std::for_each(peers.begin(), peers.end(), std::move(f));
   }
 
+  /// Returns all known peers.
   std::vector<caf::actor> get_peer_handles();
 
+  /// Finds the first peer handle that satisfies the predicate.
   template <class Predicate>
   caf::actor find_output_peer_hdl(Predicate pred) {
     for (auto& kvp : peer_to_opath_)
@@ -196,40 +278,27 @@ public:
     return nullptr;
   }
 
+  /// Applies `f` to each filter.
   template <class F>
   void for_each_filter(F f) {
-    for (auto& kvp : peers().lanes()) {
-      f(kvp.first.second);
-    }
-  }
-
-  template <class F>
-  void for_each_peer_filter(F f) {
-    // This is a three-step process:
-    // 1. Iterate all peer handles
-    // 2. Get the path for each peer because the path handle can differ from
-    //    the peer handle
-    // 3. Select the lane for this peer and extract the filter.
-    using lane_kvp = typename main_stream_t::lanes_map::value_type;
-    auto& lanes = peers().lanes();
-    auto e = lanes.end();
-    // #1
-    for (auto& kvp : peer_to_opath_) {
-      // #2
-      auto path = peers().find(kvp.second.first, kvp.second.second);
-      if (!path)
-        continue;
-      // #3
-      auto i = std::find_if(lanes.begin(), e, [&](const lane_kvp& x) {
-        return x.first.first == path->hdl;
-      });
-      if (i == e)
-        continue;
-      f(kvp.first, i->first.second);
+    for (auto& kvp : peers().states()) {
+      f(kvp.second.filter);
     }
   }
 
 private:
+  /// Adds entries to `peer_to_ipath_` and `ipath_to_peer_`.
+  void add_ipath(caf::stream_slot slot, const caf::actor& peer_hdl);
+
+  /// Adds entries to `peer_to_opath_` and `opath_to_peer_`.
+  void add_opath(caf::stream_slot slot, const caf::actor& peer_hdl);
+
+  /// Sends a handshake with filter in step #1.
+  step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl);
+
+  /// Sends a handshake with 'ok' in step #2.
+  step2_handshake add(std::false_type send_own_filter, const caf::actor& hdl);
+
   /// Pointer to the parent.
   caf::detail::stream_distribution_tree<core_policy>* parent_;
 

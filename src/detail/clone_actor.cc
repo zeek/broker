@@ -141,25 +141,25 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           }
 
         if ( mutation_buffer_interval > 0 )
-          { 
+          {
           self->state.unmutable_time = now() + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
           self->delayed_send(self, ms, atom::tick::value,
                              atom::mutable_check::value);
-          } 
+          }
       }
     }
   );
 
   if ( mutation_buffer_interval > 0 )
-    { 
+    {
     self->state.unmutable_time = now() + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(si);
     self->delayed_send(self, ms, atom::tick::value,
                        atom::mutable_check::value);
-    } 
+    }
 
   self->send(self, atom::master::value, atom::resolve::value);
 
@@ -342,10 +342,6 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         // processing step
         [=](caf::unit_t&, store::stream_type::value_type y) {
           self->state.command(y.second);
-        },
-        // cleanup and produce result message
-        [](caf::unit_t&) {
-          // nop
         }
       );
     }

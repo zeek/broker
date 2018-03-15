@@ -264,8 +264,8 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         [=](caf::unit_t&, store::stream_type::value_type y) {
           self->state.command(y.second);
         },
-        // cleanup and produce result message
-        [](caf::unit_t&) {
+        // cleanup
+        [](caf::unit_t&, const caf::error&) {
           // nop
         }
       );

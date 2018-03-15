@@ -55,10 +55,6 @@ behavior driver(stateful_actor<driver_state>* self, const actor& sink) {
     [=](const unit_t&) {
       auto& st = self->state;
       return !st.restartable && st.xs.empty();
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   ).ptr();
   return {
@@ -133,7 +129,7 @@ CAF_TEST(local_peers) {
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   sched.run();
-  // Connect a consumer (leaf) to core2.
+  CAF_MESSAGE("connect a consumer (leaf) to core2");
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
@@ -157,7 +153,7 @@ CAF_TEST(local_peers) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Run handshake between peers.
+  CAF_MESSAGE("run handshake between peers");
   sched.run();
   // Check if core1 & core2 both report each other as peered.
   CAF_MESSAGE("query peer information from core1");
@@ -182,11 +178,11 @@ CAF_TEST(local_peers) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Spin up driver on core1.
+  CAF_MESSAGE("spin up driver on core1");
   auto d1 = sys.spawn(driver, core1);
-  CAF_MESSAGE("d1: " << to_string(d1));
-  sched.run();
-  // Check log of the consumer after receiving all items from driver.
+  CAF_MESSAGE("driver: " << to_string(d1));
+  sched.run_dispatch_loop(streaming_cycle);
+  CAF_MESSAGE("check log of the consumer after the driver is done");
   using buf = std::vector<element_type>;
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
@@ -581,7 +577,7 @@ CAF_TEST(failed_handshake_stage2) {
   expect((atom::peer, filter_type, actor),
          from(_).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   anon_send_exit(core2, exit_reason::kill);
-  expect((stream_msg::open), from(_).to(core1).with(_, _, _, _, _, false));
+  expect((open_stream_msg), from(_).to(core1).with(_, _, _, _, _, false));
   sched.run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
@@ -593,9 +589,9 @@ CAF_TEST(failed_handshake_stage3) {
   expect((atom::peer, actor), from(self).to(core2).with(_, core1));
   expect((atom::peer, filter_type, actor),
          from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
-  expect((stream_msg::open), from(_).to(core2).with(_, core1, _, _, false));
+  expect((open_stream_msg), from(_).to(core2).with(_, core1, _, _, false));
   anon_send_exit(core2, exit_reason::kill);
-  expect((stream_msg::open), from(_).to(core1).with(_, core2, _, _, false));
+  expect((open_stream_msg), from(_).to(core1).with(_, core2, _, _, false));
   sched.run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
