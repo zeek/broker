@@ -22,6 +22,7 @@ static int server = 0;
 static int disable_ssl = 0;
 static int use_bro_batches = 0;
 static int use_non_blocking = 0;
+static int verbose = 0;
 
 // Global state
 static unsigned long total_recv;
@@ -43,6 +44,7 @@ static struct option long_options[] = {
     {"disable-ssl",            no_argument, &disable_ssl, 1},
     {"use-bro-batches",        no_argument, &use_bro_batches, 1},
     {"use-non-blocking",       no_argument, &use_non_blocking, 1},
+    {"verbose",                no_argument, &verbose, 1},
     {0, 0, 0, 0}
 };
 
@@ -60,6 +62,7 @@ static void usage() {
             "   --max-received <num-events>           (default: 0, off)\n"
             "   --max-in-flight <num-events>          (default: 0, off)\n"
             "   --disable-ssl                         (default: on)\n"
+            "   --verbose                             (default: off)\n"
             "\n";
 
     exit(1);
@@ -67,7 +70,7 @@ static void usage() {
 
 double current_time() {
     struct timeval tv;
-    gettimeofday(&tv, 0) < 0;
+    gettimeofday(&tv, 0);
     return  double(tv.tv_sec) + double(tv.tv_usec) / 1e6;
 }
 
@@ -91,6 +94,17 @@ static uint64_t random_count() {
     static uint64_t i = 0;
     return ++i;
 }
+
+struct printer_t {
+  using result_type = void;
+
+  template <class T>
+  void operator()(const T& x) const {
+    std::cout << caf::deep_to_string(x);
+  }
+};
+
+static constexpr printer_t printer = printer_t{};
 
 broker::vector createEventArgs() {
     switch ( event_type ) {
@@ -291,7 +305,18 @@ void clientMode(const char* host, int port) {
                        });
     }
 
-    ep.peer(host, port, broker::timeout::seconds(1));
+    if (verbose)
+      std::cout << "*** init peering: host = " << host << ", port = " << port
+                << std::endl;
+    auto res = ep.peer(host, port, broker::timeout::seconds(1));
+
+    if (!res) {
+      std::cerr << "unable to peer to " << host << " on port " << port
+                << std::endl;
+      return;
+    } else if (verbose) {
+      std::cout << "*** endpoint is now peering to remote" << std::endl;
+    }
 
     double next_increase = current_time() + rate_increase_interval;
 
@@ -309,6 +334,13 @@ void clientMode(const char* host, int port) {
             batch_size += rate_increase_amount;
             next_increase = current_time() + rate_increase_interval;
         }
+        auto status_events = ss.poll();
+        if (verbose) {
+          for (auto& ev : status_events) {
+            visit(printer, ev);
+            std::cout << std::endl;
+          }
+        }
     }
 }
 
@@ -324,6 +356,7 @@ void serverMode(const char* iface, int port) {
     options.disable_ssl = disable_ssl;
     broker::configuration cfg{options};
     broker::endpoint ep(std::move(cfg));
+    auto ss = ep.make_status_subscriber(true);
     ep.listen(iface, port);
 
     bool terminate = false;
@@ -380,10 +413,20 @@ void serverMode(const char* iface, int port) {
         lock.unlock();
 
         auto stats = broker::vector{t, dt, broker::count{num}};
-        broker::bro::Event ev("stats_update", std::vector<broker::data>{stats});
+        if (verbose) {
+          std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
+        }
+        broker::bro::Event ev("stats_update",
+                              std::vector<broker::data>{stats});
         ep.publish("/benchmark/stats", ev);
-
         last_t = t;
+        auto status_events = ss.poll();
+        if (verbose) {
+          for (auto& ev : status_events) {
+            visit(printer, ev);
+            std::cout << std::endl;
+          }
+        }
     }
 }
 
