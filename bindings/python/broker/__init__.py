@@ -433,6 +433,7 @@ class Data(_broker.Data):
             return [Data.to_py(i) for i in v]
 
         converters = {
+            Data.Type.Nil: lambda: None,
             Data.Type.Address: lambda: to_ipaddress(d.as_address()),
             Data.Type.Boolean: lambda: d.as_boolean(),
             Data.Type.Count: lambda: Count(d.as_count()),
