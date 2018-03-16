@@ -570,15 +570,18 @@ CAF_TEST(failed_handshake_stage1) {
 
 // Simulates a connection abort after sending 'peer' message ("stage #0").
 CAF_TEST(failed_handshake_stage2) {
-  // Spawn core actors and disable events.
-  // Initiate handshake between core1 and core2, but kill core2 right away.
+  CAF_MESSAGE("initiate handshake between core1 and core2");
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
   expect((atom::peer, filter_type, actor),
          from(_).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
+  CAF_MESSAGE("send kill to core2");
   anon_send_exit(core2, exit_reason::kill);
+  CAF_MESSAGE("have core1 handle the pending handshake");
   expect((open_stream_msg), from(_).to(core1).with(_, _, _, _, _, false));
+  CAF_MESSAGE("run remaining messages");
   sched.run();
+  CAF_MESSAGE("check log of the event subscriber");
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
