@@ -87,10 +87,10 @@ CAF_TEST(blocking_publishers) {
     using buf = std::vector<value_type>;
     // First, set of published messages gets filtered out at core2.
     pub1.publish(0);
-    sched.run();
+    sched.run_dispatch_loop();
     // Second, set of published messages gets delivered to leaf.
     pub2.publish(true);
-    sched.run();
+    sched.run_dispatch_loop();
     // Third, set of published messages gets again filtered out at core2.
     pub1.publish({1, 2, 3});
     sched.run();
