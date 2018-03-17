@@ -37,14 +37,17 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
                                message& xs) {
   CAF_LOG_TRACE(CAF_ARG(xs));
   if (xs.match_elements<peer_trait::batch>()) {
-    CAF_LOG_DEBUG("forward batch from peers to other peers and local actors");
     auto num_workers = workers().num_paths();
     auto num_stores = stores().num_paths();
+    CAF_LOG_DEBUG("forward batch from peers;" << CAF_ARG(num_workers)
+                  << CAF_ARG(num_stores));
     // Only received from other peers. Extract content for to local workers
     // or stores and then forward to other peers.
     for (auto& msg : xs.get_mutable_as<peer_trait::batch>(0)) {
-      if (msg.size() < 2 || !msg.match_element<topic>(0))
+      if (msg.size() < 2 || !msg.match_element<topic>(0)) {
+        CAF_LOG_DEBUG("dropped unexpected message type");
         continue;
+      }
       // Either decrease TTL if message has one already, or add one.
       if (msg.size() < 3) {
         // Does not have a TTL yet, set a TTL of 5.
@@ -134,6 +137,7 @@ void core_policy::push_to_substreams(std::vector<message> xs) {
 // -- status updates to the state ----------------------------------------------
 
 void core_policy::peer_lost(const actor& hdl) {
+  CAF_LOG_TRACE(CAF_ARG(hdl));
   state_->emit_status<sc::peer_lost>(hdl, "lost remote peer");
   if (shutting_down())
     return;
@@ -146,6 +150,7 @@ void core_policy::peer_lost(const actor& hdl) {
 }
 
 void core_policy::peer_removed(const actor& hdl) {
+  CAF_LOG_TRACE(CAF_ARG(hdl));
   state_->emit_status<sc::peer_removed>(hdl, "removed peering");
 }
 
@@ -153,51 +158,46 @@ void core_policy::peer_removed(const actor& hdl) {
 
 void core_policy::path_closed(stream_slot slot) {
   CAF_LOG_TRACE(CAF_ARG(slot));
-  auto i = ipath_to_peer_.find(slot);
-  if (i == ipath_to_peer_.end())
-    return;
-  auto peer_hdl = i->second;
-  // Remove peer entirely if no more path to it exists, otherwise remove only
-  // input path state.
-  if (peer_to_opath_.count(peer_hdl) == 0) {
-    remove_peer(peer_hdl, caf::none, true, false);
-  } else {
-    peer_to_ipath_.erase(peer_hdl);
-    ipath_to_peer_.erase(i);
-  }
+  remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_, caf::none);
 }
 
 void core_policy::path_force_closed(stream_slot slot, error reason) {
   CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(reason));
-  auto i = ipath_to_peer_.find(slot);
-  if (i == ipath_to_peer_.end())
-    return;
-  auto peer_hdl = i->second;
-  remove_peer(peer_hdl, std::move(reason), true, false);
+  remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_,
+            std::move(reason));
 }
 
 void core_policy::path_dropped(stream_slot slot) {
   CAF_LOG_TRACE(CAF_ARG(slot));
-  auto i = opath_to_peer_.find(slot);
-  if (i == opath_to_peer_.end())
-    return;
-  auto peer_hdl = i->second;
-  // Remove peer entirely if no more path to it exists, otherwise only drop
-  // input path state.
-  if (peer_to_ipath_.count(peer_hdl) == 0) {
-    remove_peer(peer_hdl, caf::none, true, false);
-  } else {
-    peer_to_opath_.erase(peer_hdl);
-    opath_to_peer_.erase(i);
-  }
+  remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_, caf::none);
 }
 
 void core_policy::path_force_dropped(stream_slot slot, error reason) {
   CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(reason));
-  auto i = opath_to_peer_.find(slot);
-  if (i == opath_to_peer_.end())
+  remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_,
+            std::move(reason));
+}
+
+void core_policy::remove_cb(stream_slot slot, path_to_peer_map& xs,
+                            peer_to_path_map& ys, peer_to_path_map& zs,
+                            error reason) {
+  CAF_LOG_TRACE(CAF_ARG(slot));
+  auto i = xs.find(slot);
+  if (i == xs.end()) {
+    CAF_LOG_DEBUG("no entry in xs found for slot" << slot);
     return;
+  }
   auto peer_hdl = i->second;
+  // If we didn't receive an error and the other path to/from peer is still
+  // open, then we assume an orderly shutdown. In this case, we simply remove
+  // this path, but don't escalate to `remove_peer`.
+  if (!reason && zs.count(peer_hdl) != 0) {
+    CAF_LOG_DEBUG("orderly shutdown started, close first path");
+    ys.erase(peer_hdl);
+    xs.erase(i);
+    return;
+  }
+  // In any other case we escalate to `remove_peer`.
   remove_peer(peer_hdl, std::move(reason), true, false);
 }
 

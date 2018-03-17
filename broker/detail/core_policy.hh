@@ -293,6 +293,13 @@ private:
   /// Adds entries to `peer_to_opath_` and `opath_to_peer_`.
   void add_opath(caf::stream_slot slot, const caf::actor& peer_hdl);
 
+  /// Path `slot` in `xs` was dropped or closed. Removes the entry in `xs` as
+  /// well as the associated entry in `ys`. Also removes the entries from `as`
+  /// and `bs` if `reason` is not default constructed. Calls `remove_peer` if
+  /// no entry for a peer exists afterwards.
+  void remove_cb(caf::stream_slot slot, path_to_peer_map& xs,
+                 peer_to_path_map& ys, peer_to_path_map& zs, caf::error reason);
+
   /// Sends a handshake with filter in step #1.
   step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl);
 
