@@ -193,7 +193,7 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
-  // Send a message "directly" from core1 to core2, bypassing the stream.
+  CAF_MESSAGE("send message 'directly' from core1 to core2 (bypass streaming)");
   anon_send(core1, atom::publish::value, endpoint_info{core2.node(), caf::none},
             topic("b"), data{true});
   expect((atom::publish, endpoint_info, topic, data),
@@ -201,7 +201,7 @@ CAF_TEST(local_peers) {
   expect((atom::publish, atom::local, topic, data),
          from(core1).to(core2).with(_, _, topic("b"), data{true}));
   sched.run();
-  // Check log of the consumer one last time.
+  CAF_MESSAGE("check log of the consumer again");
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
   sched.run_once();
@@ -212,12 +212,10 @@ CAF_TEST(local_peers) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
-  // Tell core1 to unpeer from core2
   CAF_MESSAGE("unpeer core1 from core2");
   anon_send(core1, atom::unpeer::value, core2);
   sched.run();
-  // Check if core1 and core2 reports no more peers.
-  CAF_MESSAGE("query peer information from core1");
+  CAF_MESSAGE("check whether both core1 and core2 report no more peers");
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
     [&](const std::vector<peer_info>& xs) {
@@ -236,8 +234,7 @@ CAF_TEST(local_peers) {
       CAF_FAIL(sys.render(err));
     }
   );
-  // Shutdown.
-  CAF_MESSAGE("Shutdown core actors.");
+  CAF_MESSAGE("shutdown core actors");
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
@@ -245,7 +242,7 @@ CAF_TEST(local_peers) {
   sched.inline_all_enqueues();
 }
 
-// Simulates a simple triance setup where core1 peers with core2, and core2
+// Simulates a simple triangle setup where core1 peers with core2, and core2
 // peers with core3. Data flows from core1 to core2 and core3.
 CAF_TEST(triangle_peering) {
   // Spawn core actors and disable events.
@@ -495,8 +492,10 @@ struct error_signaling_fixture : base_fixture {
     broker_options options;
     options.disable_ssl = true;
     core1 = ep.core();
+    CAF_MESSAGE(CAF_ARG(core1));
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
     core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+    CAF_MESSAGE(CAF_ARG(core2));
     anon_send(core2, atom::no_events::value);
     sched.run();
   }
@@ -601,17 +600,18 @@ CAF_TEST(failed_handshake_stage3) {
 
 // Checks emitted events in case we unpeer from a remote peer.
 CAF_TEST(unpeer_core1_from_core2) {
-  // Initiate handshake between core1 and core2.
+  CAF_MESSAGE("initiate handshake between core1 and core2");
   anon_send(core1, atom::peer::value, core2);
   sched.run();
+  CAF_MESSAGE("unpeer core1 and core2");
   anon_send(core1, atom::unpeer::value, core2);
   sched.run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_removed);
-  // Try unpeering again and check if we receive a `peer_invalid` error.
+  CAF_MESSAGE("unpeering again emits peer_invalid");
   anon_send(core1, atom::unpeer::value, core2);
   sched.run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
-  // Try unpeering from an unconnected network address.
+  CAF_MESSAGE("unpeering from an unconnected network emits peer_invalid");
   anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
   sched.run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
