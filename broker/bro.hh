@@ -39,9 +39,9 @@ public:
 
 protected:
   Message(Type type, vector content)
-    : msg_({ProtocolVersion, count(type), content}) {
+    : msg_({ProtocolVersion, count(type), std::move(content)}) {
   }
-  Message(data msg) : msg_(get<vector>(msg)) {
+  Message(data msg) : msg_(std::move(get<vector>(msg))) {
   }
 
   vector msg_;
@@ -161,14 +161,14 @@ public:
 };
 
 /// A Bro log-write message. Note that at the moment this should be used only
-/// by Bro itself as the arguments aren't pulbically defined.
+/// by Bro itself as the arguments aren't publicly defined.
 class LogWrite : public Message {
 public:
   LogWrite(enum_value stream_id, enum_value writer_id, data path,
-	   data vals_data)
+           data serial_data)
     : Message(Message::Type::LogWrite,
               {std::move(stream_id), std::move(writer_id),
-               std::move(path), std::move(vals_data)}) {
+               std::move(path), std::move(serial_data)}) {
   }
 
   LogWrite(data msg) : Message(std::move(msg)) {
@@ -195,10 +195,10 @@ public:
     return get<vector>(msg_[2])[2];
   };
 
-  const data& vals_data() const {
+  const data& serial_data() const {
     return get<vector>(msg_[2])[3];
   };
-  data& vals_data() {
+  data& serial_data() {
     return get<vector>(msg_[2])[3];
   };
 };

@@ -72,7 +72,7 @@ expected<data> memory_backend::keys() const {
   set keys;
   for ( auto i = store_.begin(); i != store_.end(); i++ )
     keys.insert(i->first);
-  return std::move(keys);
+  return expected<data>(std::move(keys));
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {

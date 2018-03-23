@@ -70,7 +70,7 @@ public:
     BROKER_ASSERT(tmp.size() == 1);
     auto x = std::move(tmp.front());
     CAF_LOG_INFO("received" << x);
-    return std::move(x);
+    return x;
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
@@ -80,7 +80,7 @@ public:
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
       CAF_LOG_INFO("received" << x);
-      return std::move(x);
+      return caf::optional<value_type>(std::move(x));
     }
     return caf::none;
   }
@@ -117,6 +117,7 @@ public:
   /// Returns all currently available values without blocking.
   std::vector<value_type> poll() {
     std::vector<value_type> result;
+    result.reserve(queue_->buffer_size());
     size_t prev_size = 0;
     queue_->consume(std::numeric_limits<size_t>::max(), &prev_size,
                     [&](value_type&& x) { result.emplace_back(std::move(x)); });

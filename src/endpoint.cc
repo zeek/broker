@@ -160,7 +160,6 @@ std::vector<topic> endpoint::peer_subscriptions() const {
 
 void endpoint::forward(std::vector<topic> ts)
 {
-for ( auto t : ts )
   BROKER_INFO("forwarding topics" << ts);
   caf::anon_send(core(), atom::subscribe::value, std::move(ts));
 }
@@ -176,7 +175,7 @@ void endpoint::publish(const endpoint_info& dst, topic t, data d) {
 }
 
 void endpoint::publish(std::vector<value_type> xs) {
-  for ( auto x : xs ) {
+  for ( auto& x : xs ) {
     BROKER_INFO("publishing" << x);
     caf::anon_send(core(), atom::publish::value, std::move(x.first), std::move(x.second));
   }
