@@ -97,10 +97,10 @@ struct sqlite_backend::impl {
     // Prepare statements.
     std::vector<std::pair<sqlite3_stmt**, const char*>> statements{
       {&replace, "replace into store(key, value, expiry) values(?, ?, ?);"},
-      {&update, "update store set value = ? where key = ?;"},
-      {&update_expiry, "update store set value = ?, expiry = ? where key = ?;"},
+      {&update, "update store set value = ?, expiry = ? where key = ?;"},
       {&erase, "delete from store where key = ?;"},
       {&expire, "delete from store where key = ? and expiry <= ?;"},
+
       {&lookup, "select value from store where key = ?;"},
       {&exists, "select 1 from store where key = ?;"},
       {&size, "select count(*) from store;"},
@@ -124,47 +124,41 @@ struct sqlite_backend::impl {
               optional<timespan> expiry) {
     auto key_blob = to_blob(key);
     auto value_blob = to_blob(value);
+    auto guard = make_statement_guard(update);
+
+    // Bind value.
+    auto result = sqlite3_bind_blob64(update, 1, value_blob.data(),
+                                      value_blob.size(), SQLITE_STATIC);
+
+    if (result != SQLITE_OK)
+      return false;
+
     if (expiry) {
-      auto guard = make_statement_guard(update_expiry);
-      // Bind value.
-      auto result = sqlite3_bind_blob64(update_expiry, 1, value_blob.data(),
-                                        value_blob.size(), SQLITE_STATIC);
-      if (result != SQLITE_OK)
-        return false;
       // Bind expiry.
-      result = sqlite3_bind_int64(update_expiry, 2,
-                                  expiry_time(expiry)->time_since_epoch().count());
-      if (result != SQLITE_OK)
-        return false;
-      // Bind key.
-      result = sqlite3_bind_blob64(update_expiry, 3, key_blob.data(),
-                                   key_blob.size(), SQLITE_STATIC);
-      if (result != SQLITE_OK)
-        return false;
-      // Execute statement.
-      return sqlite3_step(update_expiry) == SQLITE_DONE;
+      auto t = expiry_time(expiry)->time_since_epoch().count();
+      result = sqlite3_bind_int64(update, 2, t);
     } else {
-      auto guard = make_statement_guard(update);
-      // Bind value.
-      auto result = sqlite3_bind_blob64(update, 1, value_blob.data(),
-                                        value_blob.size(), SQLITE_STATIC);
-      if (result != SQLITE_OK)
-        return false;
-      // Bind key.
-      result = sqlite3_bind_blob64(update, 2, key_blob.data(), key_blob.size(),
-                                   SQLITE_STATIC);
-      if (result != SQLITE_OK)
-        return false;
-      // Execute statement.
-      return sqlite3_step(update) == SQLITE_DONE;
+      result = sqlite3_bind_null(update, 2);
     }
+
+    if (result != SQLITE_OK)
+      return false;
+
+    // Bind key.
+    result = sqlite3_bind_blob64(update, 3, key_blob.data(),
+                                 key_blob.size(), SQLITE_STATIC);
+
+    if (result != SQLITE_OK)
+      return false;
+
+    // Execute statement.
+    return sqlite3_step(update) == SQLITE_DONE;
   }
 
   backend_options options;
   sqlite3* db = nullptr;
   sqlite3_stmt* replace = nullptr;
   sqlite3_stmt* update = nullptr;
-  sqlite3_stmt* update_expiry = nullptr;
   sqlite3_stmt* erase = nullptr;
   sqlite3_stmt* expire = nullptr;
   sqlite3_stmt* lookup = nullptr;
