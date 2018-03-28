@@ -20,7 +20,7 @@ namespace detail {
 // prefix to emulate different tables:
 //
 //   - 'm' for meta data
-//   - 'a' for application data
+//   - 'd' for application data
 //   - 'e' for expiration values
 //
 namespace {
@@ -321,7 +321,7 @@ expected<data> rocksdb_backend::keys() const {
     BROKER_ERROR("failed to get keys:" << i->status().ToString());
     return ec::backend_failure;
   }
-  return result;
+  return {std::move(result)};
 }
 
 expected<bool> rocksdb_backend::exists(const data& key) const {
@@ -372,7 +372,30 @@ expected<snapshot> rocksdb_backend::snapshot() const {
     BROKER_ERROR("failed to compute size:" << i->status().ToString());
     return ec::backend_failure;
   }
-  return result;
+  return {std::move(result)};
+}
+
+expected<expirables> rocksdb_backend::expiries() const {
+  if (!impl_->db)
+    return ec::backend_failure;
+  expirables result;
+  rocksdb::ReadOptions opts;
+  opts.fill_cache = false;
+  auto i = std::unique_ptr<rocksdb::Iterator>{impl_->db->NewIterator(opts)};
+  static const auto pfx = static_cast<char>(prefix::expiry);
+  i->Seek(rocksdb::Slice{&pfx, 1}); // initializes iterator
+  while (i->Valid() && i->key()[0] == pfx) {
+    auto key = from_key_blob<prefix::expiry>(i->key().data(), i->key().size());
+    auto expiry = from_blob<timestamp>(i->value().data(), i->value().size());
+    auto e = expirable(std::move(key), std::move(expiry));
+    result.emplace_back(std::move(e));
+    i->Next();
+  }
+  if (!i->status().ok()) {
+    BROKER_ERROR("failed to compute size:" << i->status().ToString());
+    return ec::backend_failure;
+  }
+  return {std::move(result)};
 }
 
 } // namespace detail

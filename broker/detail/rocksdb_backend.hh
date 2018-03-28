@@ -54,6 +54,8 @@ public:
 
   expected<broker::snapshot> snapshot() const override;
 
+  expected<expirables> expiries() const override;
+
 private:
   bool open_db();
 

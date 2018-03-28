@@ -104,7 +104,8 @@ struct sqlite_backend::impl {
       {&lookup, "select value from store where key = ?;"},
       {&exists, "select 1 from store where key = ?;"},
       {&size, "select count(*) from store;"},
-      {&snapshot, "select key, value, expiry from store;"},
+      {&snapshot, "select key, value from store;"},
+      {&expiries, "select key, expiry from store where expiry is not null;"},
       {&clear, "delete from store;"},
       {&keys, "select key from store;"},
     };
@@ -165,6 +166,7 @@ struct sqlite_backend::impl {
   sqlite3_stmt* exists = nullptr;
   sqlite3_stmt* size = nullptr;
   sqlite3_stmt* snapshot = nullptr;
+  sqlite3_stmt* expiries = nullptr;
   sqlite3_stmt* clear = nullptr;
   sqlite3_stmt* keys = nullptr;
   std::vector<sqlite3_stmt*> finalize;
@@ -313,7 +315,7 @@ expected<data> sqlite_backend::keys() const {
     keys.insert(std::move(key));
   }
   if (result == SQLITE_DONE)
-    return keys;
+    return {std::move(keys)};
   return ec::backend_failure;
 }
 
@@ -361,7 +363,31 @@ expected<snapshot> sqlite_backend::snapshot() const {
     ss.emplace(std::move(key), std::move(value));
   }
   if (result == SQLITE_DONE)
-    return ss;
+    return {std::move(ss)};
+  return ec::backend_failure;
+}
+
+expected<expirables> sqlite_backend::expiries() const {
+  if (!impl_->db)
+    return ec::backend_failure;
+
+  auto guard = make_statement_guard(impl_->expiries);
+  expirables rval;
+  auto result = SQLITE_DONE;
+
+  while ((result = sqlite3_step(impl_->expiries)) == SQLITE_ROW) {
+    auto key = from_blob<data>(sqlite3_column_blob(impl_->expiries, 0),
+                               sqlite3_column_bytes(impl_->expiries, 0));
+    auto expiry_count = sqlite3_column_int64(impl_->expiries, 1);
+    auto duration = timespan(expiry_count);
+    auto expiry = timestamp(duration);
+    auto e = expirable(std::move(key), std::move(expiry));
+    rval.emplace_back(std::move(e));
+  }
+
+  if (result == SQLITE_DONE)
+    return {std::move(rval)};
+
   return ec::backend_failure;
 }
 

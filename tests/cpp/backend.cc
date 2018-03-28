@@ -143,6 +143,14 @@ public:
     );
   }
 
+  expected<broker::detail::expirables> expiries() const override {
+    return perform<broker::detail::expirables>(
+      [](detail::abstract_backend& backend) {
+        return backend.expiries();
+      }
+    );
+  }
+
 private:
   template <class T, class F>
   expected<T> perform(F f) {

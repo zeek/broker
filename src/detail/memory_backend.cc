@@ -97,7 +97,18 @@ expected<snapshot> memory_backend::snapshot() const {
   broker::snapshot ss;
   for (auto& p : store_)
     ss.emplace(p.first, p.second.first);
-  return ss;
+  return {std::move(ss)};
+}
+
+expected<expirables> memory_backend::expiries() const {
+  expirables rval;
+
+  for (auto& p : store_) {
+    if (p.second.second)
+      rval.emplace_back(expirable(p.first, *p.second.second));
+  }
+
+  return {std::move(rval)};
 }
 
 } // namespace detail

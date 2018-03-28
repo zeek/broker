@@ -44,6 +44,8 @@ public:
 
   expected<broker::snapshot> snapshot() const override;
 
+  expected<expirables> expiries() const override;
+
 private:
   backend_options options_;
   std::unordered_map<data, std::pair<data, optional<timestamp>>> store_;

@@ -45,6 +45,8 @@ public:
 
   expected<broker::snapshot> snapshot() const override;
 
+  expected<expirables> expiries() const override;
+
 private:
   struct impl;
   std::unique_ptr<impl> impl_;

@@ -6,8 +6,13 @@
 #include "broker/optional.hh"
 #include "broker/snapshot.hh"
 
+#include <deque>
+
 namespace broker {
 namespace detail {
+
+using expirable = std::pair<broker::data, timestamp>;
+using expirables = std::deque<expirable>;
 
 /// Helper function to convert a relative expiration interval
 /// to an absolute time, taking the current point as base.
@@ -106,6 +111,9 @@ public:
   /// Retrieves all key-value pairs.
   /// @returns A snapshot of the store that includes its content.
   virtual expected<broker::snapshot> snapshot() const = 0;
+
+  /// @returns the set of all keys that have expiry times.
+  virtual expected<expirables> expiries() const = 0;
 };
 
 } // namespace detail

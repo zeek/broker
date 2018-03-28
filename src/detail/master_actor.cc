@@ -33,6 +33,20 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
   clones_topic = id / topics::reserved / topics::clone;
   backend = std::move(bp);
   core = std::move(parent);
+
+  auto es = backend->expiries();
+
+  if (!es)
+    die("failed to get master expiries while initializing");
+
+  for (auto& e : *es) {
+    auto& key = e.first;
+    auto& expire_time = e.second;
+    auto n = broker::now();
+    auto dur = expire_time - n;
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(dur);
+    self->delayed_send(self, us, atom::expire::value, std::move(key));
+  }
 }
 
 void master_state::broadcast(internal_command&& x) {
