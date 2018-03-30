@@ -30,19 +30,19 @@ public:
   ~rocksdb_backend();
 
   expected<void> put(const data& key, data value,
-                     optional<timespan> expiry) override;
+                     optional<timestamp> expiry) override;
 
   expected<void> add(const data& key, const data& value,
-                     optional<timespan> expiry) override;
+                     optional<timestamp> expiry) override;
 
   expected<void> subtract(const data& key, const data& value,
-                          optional<timespan> expiry) override;
+                          optional<timestamp> expiry) override;
 
   expected<void> erase(const data& key) override;
 
   expected<void> clear() override;
 
-  expected<bool> expire(const data& key) override;
+  expected<bool> expire(const data& key, timestamp current_time) override;
 
   expected<data> get(const data& key) const override;
 

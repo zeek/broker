@@ -45,7 +45,7 @@ public:
   }
 
   expected<void> put(const data& key, data value,
-                     optional<timespan> expiry) override {
+                     optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.put(key, value, expiry);
@@ -54,7 +54,7 @@ public:
   }
 
   expected<void> add(const data& key, const data& value,
-                     optional<timespan> expiry) override {
+                     optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.add(key, value, expiry);
@@ -63,7 +63,7 @@ public:
   }
 
   expected<void> subtract(const data& key, const data& value,
-                        optional<timespan> expiry) override {
+                        optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.subtract(key, value, expiry);
@@ -87,10 +87,10 @@ public:
     );
   }
 
-  expected<bool> expire(const data& key) override {
+  expected<bool> expire(const data& key, timestamp ts) override {
     return perform<bool>(
       [&](detail::abstract_backend& backend) {
-        return backend.expire(key);
+        return backend.expire(key, ts);
       }
     );
   }
@@ -238,7 +238,7 @@ TEST(erase/exists) {
   CHECK(!*exists);
   auto erase = backend->erase("foo");
   REQUIRE(erase); // succeeds independent of key existence
-  auto put = backend->put("foo", "bar", seconds{42});
+  auto put = backend->put("foo", "bar", broker::now() + seconds{42});
   REQUIRE(put);
   exists = backend->exists("foo");
   REQUIRE(exists);
@@ -275,17 +275,17 @@ TEST(clear/keys) {
 
 TEST(expiration with expiry) {
   using namespace std::chrono;
-  auto put = backend->put("foo", "bar", milliseconds(50));
+  auto put = backend->put("foo", "bar", broker::now() + milliseconds(50));
   REQUIRE(put);
   std::this_thread::sleep_for(milliseconds(10));
-  auto expire = backend->expire("foo");
+  auto expire = backend->expire("foo", broker::now());
   REQUIRE(expire);
   CHECK(!*expire); // too early
   auto exists = backend->exists("foo");
   REQUIRE(exists);
   CHECK(*exists);
   std::this_thread::sleep_for(milliseconds(40));
-  expire = backend->expire("foo");
+  expire = backend->expire("foo", broker::now());
   REQUIRE(expire);
   CHECK(*expire); // success: time of call > expiry
   exists = backend->exists("foo");
@@ -296,7 +296,7 @@ TEST(expiration with expiry) {
 TEST(expiration without expiry) {
   auto put = backend->put("foo", 4.2);
   REQUIRE(put);
-  auto expire = backend->expire("foo");
+  auto expire = backend->expire("foo", broker::now());
   REQUIRE(expire);
   REQUIRE(!*expire); // no expiry with key associated
 }
@@ -305,7 +305,7 @@ TEST(size/snapshot) {
   using namespace std::chrono;
   auto put = backend->put("foo", "bar");
   REQUIRE(put);
-  put = backend->put("bar", 4.2, seconds{10});
+  put = backend->put("bar", 4.2, broker::now() + seconds{10});
   REQUIRE(put);
   put = backend->put("baz", table{{"foo", true}, {"bar", false}});
   REQUIRE(put);

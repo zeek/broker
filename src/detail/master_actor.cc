@@ -19,6 +19,11 @@
 namespace broker {
 namespace detail {
 
+static inline optional<timestamp> to_opt_timestamp(timestamp ts,
+                                                   optional<timespan> span) {
+  return span ? ts + *span : optional<timestamp>();
+}
+
 const char* master_state::name = "master_actor";
 
 master_state::master_state() : self(nullptr) {
@@ -26,13 +31,15 @@ master_state::master_state() : self(nullptr) {
 }
 
 void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
-                        backend_pointer&& bp, caf::actor&& parent) {
+                        backend_pointer&& bp, caf::actor&& parent,
+                        endpoint* endp) {
 
   self = ptr;
   id = std::move(nm);
   clones_topic = id / topics::reserved / topics::clone;
   backend = std::move(bp);
   core = std::move(parent);
+  ep = endp;
 
   auto es = backend->expiries();
 
@@ -42,10 +49,10 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
   for (auto& e : *es) {
     auto& key = e.first;
     auto& expire_time = e.second;
-    auto n = broker::now();
+    auto n = ep->now();
     auto dur = expire_time - n;
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(dur);
-    self->delayed_send(self, us, atom::expire::value, std::move(key));
+    auto msg = caf::make_message(atom::expire::value, std::move(key));
+    ep->send_later(self, dur, std::move(msg));
   }
 }
 
@@ -54,13 +61,13 @@ void master_state::broadcast(internal_command&& x) {
 }
 
 void master_state::remind(timespan expiry, const data& key) {
-  auto us = std::chrono::duration_cast<std::chrono::microseconds>(expiry);
-  self->delayed_send(self, us, atom::expire::value, key);
+  auto msg = caf::make_message(atom::expire::value, key);
+  ep->send_later(self, expiry, std::move(msg));
 }
 
 void master_state::expire(data& key) {
   BROKER_INFO("EXPIRE" << key);
-  auto result = backend->expire(key);
+  auto result = backend->expire(key, ep->now());
   if (!result)
     BROKER_ERROR("failed to expire key:" << to_string(result.error()));
   else if (!*result)
@@ -80,7 +87,8 @@ void master_state::operator()(none) {
 
 void master_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
-  auto result = backend->put(x.key, x.value, x.expiry);
+  auto et = to_opt_timestamp(ep->now(), x.expiry);
+  auto result = backend->put(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
     return; // TODO: propagate failure? to all clones? as status msg?
@@ -108,7 +116,8 @@ void master_state::operator()(put_unique_command& x) {
   }
 
   self->send(x.who, caf::make_message(data{true}, x.req_id));
-  auto result = backend->put(x.key, x.value, x.expiry);
+  auto et = to_opt_timestamp(ep->now(), x.expiry);
+  auto result = backend->put(x.key, x.value, et);
 
   if (!result) {
     BROKER_WARNING("failed to put_unique" << x.key << "->" << x.value);
@@ -135,7 +144,8 @@ void master_state::operator()(erase_command& x) {
 
 void master_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x);
-  auto result = backend->add(x.key, x.value, x.expiry);
+  auto et = to_opt_timestamp(ep->now(), x.expiry);
+  auto result = backend->add(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
@@ -147,7 +157,8 @@ void master_state::operator()(add_command& x) {
 
 void master_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x);
-  auto result = backend->subtract(x.key, x.value, x.expiry);
+  auto et = to_opt_timestamp(ep->now(), x.expiry);
+  auto result = backend->subtract(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
@@ -193,9 +204,11 @@ void master_state::operator()(clear_command& x) {
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string id,
-                           master_state::backend_pointer backend) {
+                           master_state::backend_pointer backend,
+                           endpoint* ep) {
   self->monitor(core);
-  self->state.init(self, std::move(id), std::move(backend), std::move(core));
+  self->state.init(self, std::move(id), std::move(backend), std::move(core),
+                   ep);
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -212,6 +225,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     [=](atom::local, internal_command& x) {
       // treat locally and remotely received commands in the same way
       self->state.command(x);
+    },
+    [=](atom::sync_point, caf::actor& who) {
+      self->send(who, atom::sync_point::value);
     },
     [=](atom::expire, data& key) {
       self->state.expire(key);

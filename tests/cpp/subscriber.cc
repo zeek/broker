@@ -58,7 +58,7 @@ CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   auto core2 = ep.core();
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
@@ -96,7 +96,7 @@ CAF_TEST(nonblocking_subscriber) {
   // Spawn/get/configure core actors.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   auto core2 = ep.core();
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);

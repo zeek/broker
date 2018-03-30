@@ -66,6 +66,7 @@ using local = caf::atom_constant<caf::atom("local")>;
 using resolve = caf::atom_constant<caf::atom("resolve")>;
 using stale_check = caf::atom_constant<caf::atom("stale")>;
 using mutable_check = caf::atom_constant<caf::atom("mutable")>;
+using sync_point = caf::atom_constant<caf::atom("sync_point")>;
 
 /// --- communciation with core actor ------------------------------------------
 

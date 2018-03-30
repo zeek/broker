@@ -13,30 +13,30 @@ memory_backend::memory_backend(backend_options opts)
 }
 
 expected<void>
-memory_backend::put(const data& key, data value, optional<timespan> expiry) {
-  store_[key] = {std::move(value), expiry_time(expiry)};
+memory_backend::put(const data& key, data value, optional<timestamp> expiry) {
+  store_[key] = {std::move(value), std::move(expiry)};
   return {};
 }
 
 expected<void> memory_backend::add(const data& key, const data& value,
-                                   optional<timespan> expiry) {
+                                   optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
   auto result = visit(adder{value}, i->second.first);
   if (result)
-    i->second.second = expiry_time(expiry);
+    i->second.second = std::move(expiry);
   return result;
 }
 
 expected<void> memory_backend::subtract(const data& key, const data& value,
-                                        optional<timespan> expiry) {
+                                        optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
   auto result = visit(remover{value}, i->second.first);
   if (result)
-    i->second.second = expiry_time(expiry);
+    i->second.second = std::move(expiry);
   return result;
 }
 
@@ -50,8 +50,7 @@ expected<void> memory_backend::clear() {
    return {};
 }
 
-expected<bool> memory_backend::expire(const data& key) {
-  auto ts = now();
+expected<bool> memory_backend::expire(const data& key, timestamp ts) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;

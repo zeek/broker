@@ -14,6 +14,7 @@
 
 #include "broker/atoms.hh"
 #include "broker/logger.hh"
+#include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
 #include "broker/network_info.hh"
@@ -53,7 +54,7 @@ struct core_state {
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(filter_type initial_filter, broker_options opts);
+  void init(filter_type initial_filter, broker_options opts, endpoint* ep);
 
   // --- message introspection -------------------------------------------------
 
@@ -179,13 +180,17 @@ struct core_state {
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
 
+  /// The endpoint which spawned this core actor.
+  endpoint* ep;
+
   /// Stores which stream sources are local actors. Storing the actor handle is
   /// sufficient, because we assign the same stream ID to all of our sources.
   std::unordered_map<caf::stream_id, caf::strong_actor_ptr> local_sources;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter, broker_options opts);
+                         filter_type initial_filter, broker_options opts,
+                         endpoint* ep);
 
 } // namespace detail
 } // namespace broker

@@ -128,8 +128,8 @@ CAF_TEST(local_peers) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   sched.run();
@@ -255,9 +255,9 @@ CAF_TEST(triangle_peering) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
-  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
@@ -386,9 +386,9 @@ CAF_TEST(sequenced_peering) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
-  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
@@ -500,7 +500,7 @@ struct error_signaling_fixture : base_fixture {
     options.disable_ssl = true;
     core1 = ep.core();
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
-    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
     anon_send(core2, atom::no_events::value);
     sched.run();
   }

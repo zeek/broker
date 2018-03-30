@@ -14,22 +14,6 @@ namespace detail {
 using expirable = std::pair<broker::data, timestamp>;
 using expirables = std::deque<expirable>;
 
-/// Helper function to convert a relative expiration interval
-/// to an absolute time, taking the current point as base.
-/// @parem e the interval to convert
-/// @returns the time, or an unset value if *expiry* is unset.
-inline optional<timestamp> expiry_time(optional<timespan> e) {
-  return e ? now() + *e : optional<timestamp>();
-}
-
-/// Helper function to convert a relative expiration interval
-/// to an absolute time, taking the current point as base.
-/// @parem e the interval to convert
-/// @returns the time
-inline timestamp expiry_time(timespan e) {
-  return now() + e;
-}
-
 /// Abstract base class for a key-value storage backend.
 class abstract_backend {
 public:
@@ -45,7 +29,7 @@ public:
   /// @param expiry An optional expiration time for the entry.
   /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
-                             optional<timespan> expiry = {}) = 0;
+                             optional<timestamp> expiry = {}) = 0;
 
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
@@ -53,7 +37,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
-                             optional<timespan> expiry = {});
+                             optional<timestamp> expiry = {});
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to subtract from.
@@ -61,7 +45,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> subtract(const data& key, const data& value,
-                                  optional<timespan> expiry = {});
+                                  optional<timestamp> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.
@@ -76,10 +60,13 @@ public:
   /// Removes a key and its associated value from the store, if it exists and
   /// has an expiration in the past.
   /// @param key The key to expire.
+  /// @param current_time The time used to compare whether to actual
+  /// expire the given key.
   /// @returns `true` if *key* was expired (and deleted) successfully, and
   /// `false` if the value cannot be expired yet, i.e., the existing expiry
   /// time lies in the future.
-  virtual expected<bool> expire(const data& key) = 0;
+  virtual expected<bool> expire(const data& key,
+                                timestamp current_time) = 0;
 
   // --- inspectors -----------------------------------------------------------
 

@@ -122,7 +122,7 @@ struct sqlite_backend::impl {
   }
 
   bool modify(const data& key, const data& value,
-              optional<timespan> expiry) {
+              optional<timestamp> expiry) {
     auto key_blob = to_blob(key);
     auto value_blob = to_blob(value);
     auto guard = make_statement_guard(update);
@@ -136,7 +136,7 @@ struct sqlite_backend::impl {
 
     if (expiry) {
       // Bind expiry.
-      auto t = expiry_time(expiry)->time_since_epoch().count();
+      auto t = expiry->time_since_epoch().count();
       result = sqlite3_bind_int64(update, 2, t);
     } else {
       result = sqlite3_bind_null(update, 2);
@@ -181,7 +181,7 @@ sqlite_backend::~sqlite_backend() {
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
-                                   optional<timespan> expiry) {
+                                   optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -199,7 +199,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
     return ec::backend_failure;
   if (expiry)
     result = sqlite3_bind_int64(impl_->replace, 3,
-                                expiry_time(expiry)->time_since_epoch().count());
+                                expiry->time_since_epoch().count());
   else
     result = sqlite3_bind_null(impl_->replace, 3);
   if (result != SQLITE_OK)
@@ -211,7 +211,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
 }
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
-                                   optional<timespan> expiry) {
+                                   optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -224,7 +224,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 }
 
 expected<void> sqlite_backend::subtract(const data& key, const data& value,
-                                        optional<timespan> expiry) {
+                                        optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -263,10 +263,9 @@ expected<void> sqlite_backend::clear() {
   return {};
 }
 
-expected<bool> sqlite_backend::expire(const data& key) {
+expected<bool> sqlite_backend::expire(const data& key, timestamp ts) {
   if (!impl_->db)
     return ec::backend_failure;
-  auto ts = now();
   auto guard = make_statement_guard(impl_->expire);
   // Bind key.
 	auto key_blob = to_blob(key);

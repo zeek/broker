@@ -15,6 +15,9 @@ struct broker_options {
   /// receiver inserts the TTL (not the sender!). The 1st receiver does
   /// already count against the TTL.
   unsigned int ttl = 20;
+  /// Whether to use real/wall clock time for data store time-keeping
+  /// tasks or whether the application will simulate time on its own.
+  bool use_real_time = true;
 
   broker_options() {}
 };

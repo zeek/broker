@@ -59,7 +59,7 @@ struct rocksdb_backend::impl {
   }
 
   template <class Key, class Value>
-  bool put(Key& key, const Value& value, optional<timespan> expiry) {
+  bool put(Key& key, const Value& value, optional<timestamp> expiry) {
     if (!db)
       return false;
     rocksdb::WriteBatch batch;
@@ -68,7 +68,7 @@ struct rocksdb_backend::impl {
     if (expiry) {
       BROKER_ASSERT(key.size() > 1);
       key[0] = static_cast<char>(prefix::expiry); // reuse key blob
-      auto blob = to_blob(expiry_time(*expiry));
+      auto blob = to_blob(*expiry);
       batch.Put(key, blob);
     }
     auto status = db->Write({}, &batch);
@@ -196,7 +196,7 @@ rocksdb_backend::~rocksdb_backend() {
 }
 
 expected<void> rocksdb_backend::put(const data& key, data value,
-                                    optional<timespan> expiry) {
+                                    optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto key_blob = to_key_blob<prefix::data>(key);
@@ -207,7 +207,7 @@ expected<void> rocksdb_backend::put(const data& key, data value,
 }
 
 expected<void> rocksdb_backend::add(const data& key, const data& value,
-                                   optional<timespan> expiry) {
+                                   optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -223,7 +223,7 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
 }
 
 expected<void> rocksdb_backend::subtract(const data& key, const data& value,
-                                         optional<timespan> expiry) {
+                                         optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
   if (!value_blob)
@@ -233,7 +233,7 @@ expected<void> rocksdb_backend::subtract(const data& key, const data& value,
   if (!result)
     return result;
   *value_blob = to_blob(v);
-  if (!impl_->put(key_blob, *value_blob,expiry))
+  if (!impl_->put(key_blob, *value_blob, expiry))
     return ec::backend_failure;
   return {};
 }
@@ -272,8 +272,7 @@ expected<void> rocksdb_backend::clear() {
   return {};
 }
 
-expected<bool> rocksdb_backend::expire(const data& key) {
-  auto ts = now();
+expected<bool> rocksdb_backend::expire(const data& key, timestamp ts) {
   auto key_blob = to_key_blob<prefix::expiry>(key);
   auto expiry_blob = impl_->get(key_blob);
   if (!expiry_blob) {

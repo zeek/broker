@@ -46,7 +46,7 @@ bool convert(double secs, timespan& i);
 /// @relates timespan
 bool convert(double secs, timestamp& ts);
 
-/// @returns the current point in time.
+/// @returns the current point in time (always real/wall clock time).
 timestamp now();
 
 /// @relates broker::timespan

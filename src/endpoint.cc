@@ -1,5 +1,7 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 
+#include <unordered_set>
+
 #include <caf/all.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/all.hpp>
@@ -26,12 +28,13 @@ caf::node_id endpoint::node_id() const {
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
-    destroyed_(false) {
+    destroyed_(false),
+    use_real_time_(config_.options().use_real_time) {
   new (&system_) caf::actor_system(config_);
   if ((! config_.options().disable_ssl) && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config_.options());
+  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config_.options(), this);
 }
 
 endpoint::~endpoint() {
@@ -250,6 +253,67 @@ expected<store> endpoint::attach_clone(std::string name,
     }
   );
   return res;
+}
+
+timestamp endpoint::now() const {
+  if (use_real_time_)
+    return broker::now();
+
+  std::unique_lock<time_mutex_type> lock(time_mutex);
+  return current_time_;
+}
+
+void endpoint::advance_time(timestamp t) {
+  if (use_real_time_)
+    return;
+
+  std::unique_lock<time_mutex_type> time_lock(time_mutex);
+
+  if (t > current_time_) {
+    current_time_ = t;
+
+    std::unique_lock<pending_msgs_mutex_type> msg_lock(pending_msgs_mutex);
+    auto it = pending_msgs_map.begin();
+    std::unordered_set<caf::actor> sync_with_actors;
+
+    while (it != pending_msgs_map.end() && it->first <= current_time_) {
+      pending_msg& pm = it->second;
+      caf::anon_send(pm.first, std::move(pm.second));
+      sync_with_actors.emplace(pm.first);
+      it = pending_msgs_map.erase(it);
+    }
+
+    time_lock.unlock();
+    msg_lock.unlock();
+
+    caf::scoped_actor self{system_};
+
+    for (auto& who : sync_with_actors) {
+      self->send(who, atom::sync_point::value, self);
+      self->delayed_send(self, timeout::frontend, atom::tick::value);
+      self->receive(
+        [&](atom::sync_point) {
+        },
+        [&](atom::tick) {
+        },
+        [&](caf::error& e) {
+        }
+      );
+    }
+  }
+}
+
+void endpoint::send_later(caf::actor who, timespan after, caf::message msg) {
+  if (use_real_time_) {
+    caf::scoped_actor self{system_};
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(after);
+    self->delayed_anon_send(std::move(who), std::move(us), std::move(msg));
+    return;
+  }
+
+  timestamp t = this->now() + after;
+  std::unique_lock<pending_msgs_mutex_type> lock(pending_msgs_mutex);
+  pending_msgs_map.emplace(t, pending_msg(std::move(who), std::move(msg)));
 }
 
 } // namespace broker

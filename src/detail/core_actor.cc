@@ -36,12 +36,15 @@ const char* core_state::name = "core";
 core_state::core_state(caf::event_based_actor* ptr)
   : self(ptr),
     cache(ptr),
-    shutting_down(false) {
+    shutting_down(false),
+    ep(nullptr) {
   errors_ = self->system().groups().get_local("broker/errors");
   statuses_ = self->system().groups().get_local("broker/statuses");
 }
 
-void core_state::init(filter_type initial_filter, broker_options opts) {
+void core_state::init(filter_type initial_filter, broker_options opts,
+                      endpoint* e) {
+  ep = e; 
   options = std::move(opts);
   filter = std::move(initial_filter);
   cache.set_use_ssl(! options.disable_ssl);
@@ -162,8 +165,9 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
 }
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter, broker_options options) {
-  self->state.init(std::move(initial_filter), std::move(options));
+                         filter_type initial_filter, broker_options options,
+                         endpoint* ep) {
+  self->state.init(std::move(initial_filter), std::move(options), ep);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
@@ -457,8 +461,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type,
-        backend_options& opts) -> caf::result<caf::actor> {
+        backend backend_type, backend_options& opts) -> caf::result<caf::actor> {
       CAF_LOG_TRACE(CAF_ARG(name) << CAF_ARG(backend_type) << CAF_ARG(opts));
       BROKER_INFO("attaching master:" << name);
       // Sanity check: this message must be a point-to-point message.
@@ -481,8 +484,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto ptr = make_backend(backend_type, std::move(opts));
       BROKER_ASSERT(ptr);
       BROKER_INFO("spawning new master");
-      auto ms = self->spawn<caf::linked + caf::lazy_init>(master_actor, self,
-                                                          name, std::move(ptr));
+      auto ms = self->spawn<caf::linked + caf::lazy_init>(
+              master_actor, self, name, std::move(ptr), self->state.ep);
       st.masters.emplace(name, ms);
       // fwd_stream_handshake expects the next stage in cme.stages
       auto ms_ptr = actor_cast<strong_actor_ptr>(ms);
@@ -524,10 +527,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
 
       auto stages = std::move(cme.stages);
       BROKER_INFO("spawning new clone");
-      auto clone = self->spawn<linked + lazy_init>(clone_actor, self, name,
-                                                   resync_interval,
-                                                   stale_interval,
-                                                   mutation_buffer_interval);
+      auto clone = self->spawn<linked + lazy_init>(
+              clone_actor, self, name, resync_interval, stale_interval,
+              mutation_buffer_interval, self->state.ep);
       auto cptr = actor_cast<strong_actor_ptr>(clone);
       auto& st = self->state;
       st.clones.emplace(name, clone);

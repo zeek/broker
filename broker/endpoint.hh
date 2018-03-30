@@ -5,6 +5,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <map>
+#include <mutex>
 
 #include <caf/node_id.hpp>
 #include <caf/actor.hpp>
@@ -23,6 +25,7 @@
 #include "broker/status.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
+#include "broker/time.hh"
 
 #include "broker/detail/filter_type.hh"
 #include "broker/detail/operators.hh"
@@ -293,6 +296,16 @@ public:
     return destroyed_;
   }
 
+  inline bool use_real_time() const {
+    return use_real_time_;
+  }
+
+  timestamp now() const;
+
+  void advance_time(timestamp t);
+
+  void send_later(caf::actor who, timespan after, caf::message msg);
+
   // --- access to CAF state ---------------------------------------------------
 
   inline caf::actor_system& system() {
@@ -317,6 +330,21 @@ private:
   bool await_stores_on_shutdown_;
   std::vector<caf::actor> children_;
   bool destroyed_;
+
+  const bool use_real_time_; // may be read from multiple threads
+  timestamp current_time_;
+
+  // TODO: use shared_mutex (C++17) and shared_lock for readers
+  using time_mutex_type = std::mutex;
+  mutable time_mutex_type time_mutex;
+
+  using pending_msgs_mutex_type = std::mutex;
+  pending_msgs_mutex_type pending_msgs_mutex;
+
+  using pending_msg = std::pair<caf::actor, caf::message>;
+
+  using pending_msgs_map_type = std::multimap<timestamp, pending_msg>;
+  pending_msgs_map_type pending_msgs_map;
 };
 
 } // namespace broker

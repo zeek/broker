@@ -10,6 +10,7 @@
 #include "broker/data.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
+#include "broker/endpoint.hh"
 
 namespace broker {
 namespace detail {
@@ -24,7 +25,7 @@ public:
 
   /// Initializes the object.
   void init(caf::event_based_actor* ptr, std::string&& nm,
-            caf::actor&& parent);
+            caf::actor&& parent, endpoint* ep);
 
   /// Sends `x` to the master.
   void forward(internal_command&& x);
@@ -76,12 +77,15 @@ public:
   double unmutable_time;
 
   std::vector<internal_command> mutation_buffer;
+
+  endpoint* ep;
 };
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
                           double resync_interval, double stale_interval,
-                          double mutation_buffer_interval);
+                          double mutation_buffer_interval,
+                          endpoint* ep);
 
 } // namespace detail
 } // namespace broker

@@ -9,6 +9,7 @@
 #include "broker/fwd.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
+#include "broker/endpoint.hh"
 
 namespace broker {
 namespace detail {
@@ -28,7 +29,7 @@ public:
 
   /// Initializes the object.
   void init(caf::event_based_actor* ptr, std::string&& nm,
-            backend_pointer&& bp, caf::actor&& parent);
+            backend_pointer&& bp, caf::actor&& parent, endpoint* ep);
 
   /// Sends `x` to all clones.
   void broadcast(internal_command&& x);
@@ -76,11 +77,14 @@ public:
   std::unordered_set<caf::actor_addr> clones;
 
   static const char* name;
+
+  endpoint* ep;
 };
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string id,
-                           master_state::backend_pointer backend);
+                           master_state::backend_pointer backend,
+                           endpoint* ep);
 
 } // namespace detail
 } // namespace broker

@@ -5,7 +5,7 @@ namespace broker {
 namespace detail {
 
 expected<void> abstract_backend::add(const data& key, const data& value,
-                                     optional<timespan> expiry) {
+                                     optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
@@ -16,7 +16,7 @@ expected<void> abstract_backend::add(const data& key, const data& value,
 }
 
 expected<void> abstract_backend::subtract(const data& key, const data& value,
-                                          optional<timespan> expiry) {
+                                          optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
