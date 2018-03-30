@@ -5,10 +5,15 @@ namespace broker {
 namespace detail {
 
 expected<void> abstract_backend::add(const data& key, const data& value,
+                                     data::type init_type,
                                      optional<timestamp> expiry) {
   auto v = get(key);
-  if (!v)
-    return v.error();
+  if (!v) {
+    if (v.error() != ec::no_such_key)
+      return v.error();
+  v = {data::from_type(init_type)};
+  }
+
   auto result = visit(adder{value}, *v);
   if (!result)
     return result;

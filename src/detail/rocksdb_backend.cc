@@ -207,17 +207,22 @@ expected<void> rocksdb_backend::put(const data& key, data value,
 }
 
 expected<void> rocksdb_backend::add(const data& key, const data& value,
-                                   optional<timestamp> expiry) {
+                                    data::type init_type,
+                                    optional<timestamp> expiry) {
   auto key_blob = to_key_blob<prefix::data>(key);
   auto value_blob = impl_->get(key_blob);
-  if (!value_blob)
-    return value_blob.error();
-  auto v = from_blob<data>(*value_blob);
+  broker::data v;
+  if (!value_blob) {
+    if (value_blob.error() != ec::no_such_key)
+      return value_blob.error();
+    v = data::from_type(init_type);
+  } else {
+    v = from_blob<data>(*value_blob);
+  }
   auto result = visit(adder{value}, v);
   if (!result)
     return result;
-  *value_blob = to_blob(v);
-  if (!impl_->put(key_blob, *value_blob, expiry))
+  if (!impl_->put(key_blob, to_blob(v), expiry))
     return ec::backend_failure;
   return {};
 }

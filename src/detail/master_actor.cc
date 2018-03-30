@@ -145,7 +145,7 @@ void master_state::operator()(erase_command& x) {
 void master_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x);
   auto et = to_opt_timestamp(ep->now(), x.expiry);
-  auto result = backend->add(x.key, x.value, et);
+  auto result = backend->add(x.key, x.value, x.init_type, et);
   if (!result) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?

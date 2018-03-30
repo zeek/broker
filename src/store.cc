@@ -132,10 +132,11 @@ void store::erase(data key) const {
             make_internal_command<erase_command>(std::move(key)));
 }
 
-void store::add(data key, data value, optional<timespan> expiry) const {
+void store::add(data key, data value, data::type init_type,
+                optional<timespan> expiry) const {
   anon_send(frontend_, atom::local::value,
             make_internal_command<add_command>(std::move(key), std::move(value),
-                                               expiry));
+                                               init_type, expiry));
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) const {

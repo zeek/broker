@@ -78,9 +78,8 @@ void clone_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i == store.end())
-    store.emplace(std::move(x.key), std::move(x.value));
-  else
-    visit(adder{x.value}, i->second);
+    i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
+  visit(adder{x.value}, i->second);
 }
 
 void clone_state::operator()(subtract_command& x) {

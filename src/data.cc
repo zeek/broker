@@ -1,5 +1,6 @@
 #include "broker/data.hh"
 #include "broker/convert.hh"
+#include "broker/detail/die.hh"
 
 namespace broker {
 
@@ -133,6 +134,43 @@ struct type_getter {
 
 data::type data::get_type() const {
   return visit(type_getter(), *this);
+}
+
+data data::from_type(data::type t) {
+  switch ( t ) {
+  case data::type::address:
+    return broker::address{};
+  case data::type::boolean:
+    return broker::boolean{};
+  case data::type::count:
+    return broker::count{};
+  case data::type::enum_value:
+    return broker::enum_value{};
+  case data::type::integer:
+    return broker::integer{};
+  case data::type::none:
+    return broker::data{};
+  case data::type::port:
+    return broker::port{};
+  case data::type::real:
+    return broker::real{};
+  case data::type::set:
+    return broker::set{};
+  case data::type::string:
+    return std::string{};
+  case data::type::subnet:
+    return broker::subnet{};
+  case data::type::table:
+    return broker::table{};
+  case data::type::timespan:
+    return broker::timespan{};
+  case data::type::timestamp:
+    return broker::timestamp{};
+  case data::type::vector:
+    return broker::vector{};
+  default:
+    return data{};
+  }
 }
 
 const char* data::get_type_name() const {

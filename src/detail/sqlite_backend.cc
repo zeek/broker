@@ -211,16 +211,21 @@ expected<void> sqlite_backend::put(const data& key, data value,
 }
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
+                                   data::type init_type,
                                    optional<timestamp> expiry) {
   auto v = get(key);
-  if (!v)
-    return v.error();
-  auto result = visit(adder{value}, *v);
+  data vv;
+  if (!v) {
+    if (v.error() != ec::no_such_key)
+      return v.error();
+    vv = data::from_type(init_type);
+  } else {
+    vv = std::move(*v);
+  }
+  auto result = visit(adder{value}, vv);
   if (!result)
     return result;
-  if (!impl_->modify(key, *v, expiry))
-    return ec::backend_failure;
-  return {};
+  return put(key, std::move(vv), expiry);
 }
 
 expected<void> sqlite_backend::subtract(const data& key, const data& value,

@@ -34,9 +34,11 @@ public:
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
   /// @param value The value to add on top of the existing value at *key*.
+  /// @param init_type The type of data to initialize when the key doesn't exist.
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
+                             data::type init_type,
                              optional<timestamp> expiry = {});
 
   /// Removes one value from another value.

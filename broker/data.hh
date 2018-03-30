@@ -149,6 +149,8 @@ public:
 
   /// Returns the type tag of the stored type.
   type get_type() const;
+
+  static data from_type(type);
 };
 
 // C++17 variant compliance.

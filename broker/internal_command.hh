@@ -59,12 +59,13 @@ typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
 struct add_command {
   data key;
   data value;
+  data::type init_type;
   caf::optional<timespan> expiry;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, add_command& x) {
-  return f(caf::meta::type_name("add"), x.key, x.value, x.expiry);
+  return f(caf::meta::type_name("add"), x.key, x.value, x.init_type, x.expiry);
 }
 
 /// Subtracts a value to the existing value.

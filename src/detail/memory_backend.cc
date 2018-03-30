@@ -19,10 +19,15 @@ memory_backend::put(const data& key, data value, optional<timestamp> expiry) {
 }
 
 expected<void> memory_backend::add(const data& key, const data& value,
+								   data::type init_type,
                                    optional<timestamp> expiry) {
   auto i = store_.find(key);
-  if (i == store_.end())
-    return ec::no_such_key;
+  if (i == store_.end()) {
+    if (init_type == data::type::none)
+      return ec::type_clash;
+    auto newv = std::make_pair(data::from_type(init_type), expiry);
+    i = store_.emplace(std::move(key), std::move(newv)).first;
+  }
   auto result = visit(adder{value}, i->second.first);
   if (result)
     i->second.second = std::move(expiry);

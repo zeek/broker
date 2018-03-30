@@ -53,11 +53,11 @@ public:
     );
   }
 
-  expected<void> add(const data& key, const data& value,
+  expected<void> add(const data& key, const data& value, data::type init_type,
                      optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
-        return backend.add(key, value, expiry);
+        return backend.add(key, value, init_type, expiry);
       }
     );
   }
@@ -207,17 +207,24 @@ TEST(put/get) {
 }
 
 TEST(add/remove) {
-  auto add = backend->add("foo", 42);
-  REQUIRE(!add);
-  CHECK_EQUAL(add, ec::no_such_key);
+  auto add = backend->add("foo", 42, data::type::integer);
+  REQUIRE(add);
+  auto get = backend->get("foo");
+  REQUIRE(get);
+  CHECK_EQUAL(*get, data{42});
+
+  auto erase = backend->erase("foo");
+  REQUIRE(erase); // succeeds independent of key existence
+
   auto remove = backend->subtract("foo", 42);
   REQUIRE(!remove);
   CHECK_EQUAL(remove, ec::no_such_key);
+
   auto put = backend->put("foo", 42);
   MESSAGE("add");
-  add = backend->add("foo", 2);
+  add = backend->add("foo", 2, data::type::integer);
   REQUIRE(add);
-  auto get = backend->get("foo");
+  get = backend->get("foo");
   REQUIRE(get);
   CHECK_EQUAL(*get, data{44});
   MESSAGE("remove");

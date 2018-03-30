@@ -30,17 +30,18 @@ TEST(master operations) {
   MESSAGE("erase");
   ds->erase("foo");
   REQUIRE_EQUAL(ds->get("foo"), error{ec::no_such_key});
+
   MESSAGE("increment");
-  ds->increment("foo", 1u); // key did not exist, operation fails
-  REQUIRE(!ds->get("foo"));
-  ds->put("foo", 0u);
-  ds->increment("foo", 1u); // key exists now, operation succeeds
-  REQUIRE_EQUAL(ds->get("foo"), data{1u});
-  ds->increment("foo", 41u); // adding on top of existing value
-  REQUIRE_EQUAL(ds->get("foo"), data{42u});
+  ds->increment("foo", 13u);
+  REQUIRE_EQUAL(ds->get("foo"), data{13u});
+
+  ds->increment("foo", 1u);
+  REQUIRE_EQUAL(ds->get("foo"), data{14u});
+
   MESSAGE("decrement");
   ds->decrement("foo", 1u);
-  REQUIRE_EQUAL(ds->get("foo"), data{41u});
+  REQUIRE_EQUAL(ds->get("foo"), data{13u});
+
   MESSAGE("append");
   ds->put("foo", "b");
   ds->append("foo", "a");
