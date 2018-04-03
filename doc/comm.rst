@@ -9,12 +9,10 @@ specific topic, and receive data by subscribing to topics of interest. The
 asynchronous nature of publish/subscribe makes it a popular choice for loosely
 coupled, distributed systems.
 
-Broker is the successor of `Broccoli
-<https://www.bro.org/sphinx/components/broccoli/broccoli-manual.html>`_, Bro's
-client communications library. Broccoli enables arbitrary applications to
-communicate in Bro's data model. In this chapter, we first
-describe generic Broker communication between peers that don't assume
-any specific message layout. Afterwards, we show how to exchange
+Broker is the successor of Broccoli.  Broker enables arbitrary
+applications to communicate in Bro's data model. In this chapter, we
+first describe generic Broker communication between peers that don't
+assume any specific message layout. Afterwards, we show how to exchange
 events with Bro through an additional Bro-specific shim on top of
 Broker's generic messages.
 
