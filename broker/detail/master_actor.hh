@@ -60,6 +60,8 @@ public:
 
   void operator()(snapshot_command&);
 
+  void operator()(snapshot_sync_command&);
+
   void operator()(set_command&);
 
   void operator()(clear_command&);
@@ -74,7 +76,7 @@ public:
 
   caf::actor core;
 
-  std::unordered_set<caf::actor_addr> clones;
+  std::unordered_map<caf::actor_addr, caf::actor> clones;
 
   static const char* name;
 

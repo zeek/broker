@@ -22,6 +22,7 @@ struct put_command;
 struct put_unique_command;
 struct set_command;
 struct snapshot_command;
+struct snapshot_sync_command;
 struct subtract_command;
 
 struct network_info;

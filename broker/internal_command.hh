@@ -80,14 +80,27 @@ typename Inspector::result_type inspect(Inspector& f, subtract_command& x) {
   return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry);
 }
 
-/// Forces the master to create and broadcast a new snapshot of its state.
+/// Causes the master to reply with a snapshot of its state.
 struct snapshot_command {
-  caf::actor clone;
+  caf::actor remote_core;
+  caf::actor remote_clone;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, snapshot_command& x) {
-  return f(caf::meta::type_name("snapshot"), x.clone);
+  return f(caf::meta::type_name("snapshot"), x.remote_core, x.remote_clone);
+}
+
+/// Since snapshots are sent to clones on a different channel, this allows
+/// clones to coordinate the reception of snapshots with the stream of
+/// updates that the master may have independently made to it.
+struct snapshot_sync_command {
+  caf::actor remote_clone;
+};
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, snapshot_sync_command& x) {
+  return f(caf::meta::type_name("snapshot_sync"), x.remote_clone);
 }
 
 /// Sets the full state of all receiving replicates to the included snapshot.
@@ -115,7 +128,7 @@ public:
   using variant_type
     = caf::variant<none, put_command, put_unique_command, erase_command,
                    add_command, subtract_command, snapshot_command,
-                   set_command, clear_command>;
+                   snapshot_sync_command, set_command, clear_command>;
 
   variant_type content;
 

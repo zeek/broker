@@ -169,25 +169,40 @@ void master_state::operator()(subtract_command& x) {
 }
 
 void master_state::operator()(snapshot_command& x) {
-  BROKER_INFO("SNAPSHOT from" << to_string(x.clone));
-  if (x.clone == nullptr) {
+  BROKER_INFO("SNAPSHOT from" << to_string(x.remote_core));
+  if (x.remote_core == nullptr || x.remote_clone == nullptr) {
     BROKER_INFO("snapshot command with invalid address received");
     return;
   }
   auto ss = backend->snapshot();
   if (!ss)
     die("failed to snapshot master");
-  self->monitor(x.clone);
-  clones.insert(x.clone->address());
-  // TODO: While sending the full state to all replicas is wasteful, it is the
-  //       only way to make sure new replicas reach a consistent state. This is
-  //       because sending an asynchronous message here uses a separate channel
-  //       to clone. Since ordering is of upmost importance in our protocol, we
-  //       cannot have new commands arrive before the snapshot or vice versa. A
-  //       network-friendlier protocol would require to annotate each command
-  //       with a version in order to allow clones to figure out the correct
-  //       ordering of events.
-  broadcast_cmd_to_clones(set_command{std::move(*ss)});
+  self->monitor(x.remote_core);
+  clones.emplace(x.remote_core->address(), x.remote_clone);
+
+  // The snapshot gets sent over a different channel than updates,
+  // so we send a "sync" point over the update channel that target clone
+  // can use in order to apply any updates that arrived before it
+  // received the now-outdated snapshot.
+  broadcast_cmd_to_clones(snapshot_sync_command{x.remote_clone});
+
+  // TODO: possible improvements to do here
+  // (1) Use a separate *streaming* channel to send the snapshot.
+  //     A benefit of that would potentially be less latent queries
+  //     that go directly against the master store.
+  // (2) Always keep an updated snapshot in memory on the master to
+  //     avoid numerous expensive retrievals from persistent backends
+  //     in quick succession (e.g. at startup).
+  // (3) As an alternative to (2), give backends an API to stream
+  //     key-value pairs without ever needing the full snapshot in
+  //     memory.  Note that this would require halting the application
+  //     of updates on the master while there are any snapshot streams
+  //     still underway.
+  self->send(x.remote_clone, set_command{std::move(*ss)});
+}
+
+void master_state::operator()(snapshot_sync_command&) {
+  BROKER_ERROR("received a snapshot_sync_command in master actor");
 }
 
 void master_state::operator()(set_command& x) {

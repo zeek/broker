@@ -41,6 +41,8 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   stale_time = -1.0;
   unmutable_time = -1.0;
   ep = e;
+  awaiting_snapshot = true;
+  awaiting_snapshot_sync = true;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -97,6 +99,12 @@ void clone_state::operator()(snapshot_command&) {
   BROKER_ERROR("received SNAPSHOT");
 }
 
+void clone_state::operator()(snapshot_sync_command& x) {
+  if ( x.remote_clone == self ) {
+    awaiting_snapshot_sync = false;
+  }
+}
+
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
   store = std::move(x.state);
@@ -129,6 +137,10 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       } else {
         BROKER_INFO("lost master");
         self->state.master = nullptr;
+        self->state.awaiting_snapshot = true;
+        self->state.awaiting_snapshot_sync = true;
+        self->state.pending_remote_updates.clear();
+        self->state.pending_remote_updates.shrink_to_fit();
         self->send(self, atom::master::value, atom::resolve::value);
 
         if ( stale_interval >= 0 )
@@ -184,6 +196,18 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       self->state.mutation_buffer.emplace_back(std::move(x));
     },
+    [=](set_command& x) {
+      self->state.store = std::move(x.state);
+      self->state.awaiting_snapshot = false;
+
+      if ( ! self->state.awaiting_snapshot_sync ) {
+        for ( auto& update : self->state.pending_remote_updates )
+          self->state.command(update);
+
+        self->state.pending_remote_updates.clear();
+        self->state.pending_remote_updates.shrink_to_fit();
+      }
+    },
     [=](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point::value);
     },
@@ -217,7 +241,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.shrink_to_fit();
 
       self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::snapshot::value, self->state.name);
+                 atom::snapshot::value, self->state.name, self);
     },
     [=](atom::master, caf::error err) {
       if ( self->state.master )
@@ -348,6 +372,19 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         },
         // processing step
         [=](caf::unit_t&, store::stream_type::value_type y) {
+          if ( y.second.content.is<snapshot_sync_command>() ) {
+            self->state.command(y.second);
+            return;
+          }
+
+          if ( self->state.awaiting_snapshot_sync )
+            return;
+
+          if ( self->state.awaiting_snapshot ) {
+            self->state.pending_remote_updates.emplace_back(std::move(y.second));
+            return;
+          }
+
           self->state.command(y.second);
         },
         // cleanup and produce result message

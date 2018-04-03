@@ -37,6 +37,7 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   add_message_type<optional<timespan>>("broker::optional<broker::timespan>");
   add_message_type<snapshot>("broker::snapshot");
   add_message_type<internal_command>("broker::internal_command");
+  add_message_type<set_command>("broker::set_command");
   add_message_type<store::stream_type::value_type>(
     "broker::store::stream_type::value_type");
   add_message_type<std::vector<store::stream_type::value_type>>(

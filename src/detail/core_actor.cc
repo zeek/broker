@@ -611,11 +611,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       */
     },
     [=](atom::store, atom::master, atom::snapshot,
-        const std::string& name) {
+        const std::string& name, caf::actor& clone) {
       // Instruct master to generate a snapshot.
       self->state.policy().push(
         name / topics::reserved / topics::master,
-        make_internal_command<snapshot_command>(self));
+        make_internal_command<snapshot_command>(self, std::move(clone)));
     },
     [=](atom::store, atom::master, atom::get,
         const std::string& name) -> result<actor> {

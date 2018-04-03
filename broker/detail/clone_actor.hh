@@ -52,6 +52,8 @@ public:
 
   void operator()(snapshot_command&);
 
+  void operator()(snapshot_sync_command&);
+
   void operator()(set_command&);
 
   void operator()(clear_command&);
@@ -77,6 +79,12 @@ public:
   double unmutable_time;
 
   std::vector<internal_command> mutation_buffer;
+
+  std::vector<internal_command> pending_remote_updates;
+
+  bool awaiting_snapshot;
+
+  bool awaiting_snapshot_sync;
 
   endpoint* ep;
 };
