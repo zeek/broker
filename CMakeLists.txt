@@ -154,6 +154,9 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/version.hh.in
+               ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh DESTINATION include/broker)
 
 set(BROKER_SRC
   src/address.cc
