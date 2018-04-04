@@ -17,8 +17,8 @@ PYBIND11_MAKE_OPAQUE(broker::set);
 PYBIND11_MAKE_OPAQUE(broker::table);
 PYBIND11_MAKE_OPAQUE(broker::vector);
 
-PYBIND11_PLUGIN(_broker) {
-  py::module m{"_broker", "Broker python bindings"};
+PYBIND11_MODULE(_broker, m) {
+  m.doc() = "Broker python bindings";
   py::module mb = m.def_submodule("bro", "Bro-specific bindings");
 
   init_bro(mb);
@@ -243,7 +243,5 @@ PYBIND11_PLUGIN(_broker) {
 	        return ep.attach_clone(name);
 	    })
    ;
-
-  return m.ptr();
 }
 

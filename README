@@ -47,11 +47,6 @@ installed:
         for how to use it to build this distribution.  CMake generates
         native Makefiles that depend on GNU Make by default.
 
-And optionally:
-
-    SWIG 3.0.3+, http://www.swig.org/
-        SWIG is used to optionally build Python bindings for Broker.
-
 Compiling/Installing
 --------------------
 
