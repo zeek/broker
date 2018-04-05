@@ -1,7 +1,7 @@
 # -- Project Setup ------------------------------------------------------------
 
 project(broker C CXX)
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.0.2)
 include(cmake/CommonCMakeConfig.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -10,8 +10,96 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 # -- Dependencies -------------------------------------------------------------
 
-# Extract CAF version.
-find_package(CAF COMPONENTS core io test openssl REQUIRED)
+if ( CAF_ROOT_DIR )
+  find_package(CAF COMPONENTS core io test openssl REQUIRED)
+
+  set(caf_dir ${CAF_LIBRARY_CORE})
+
+  get_filename_component(caf_dir ${caf_dir} PATH)
+
+  if (EXISTS "${caf_dir}/../libcaf_core")
+    get_filename_component(caf_dir ${caf_dir} PATH)
+  else ()
+    set(caf_dir ${CAF_INCLUDE_DIR_CORE})
+  endif ()
+else ()
+  include(ExternalProject)
+  set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
+  set(caf_ep "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
+  set(caf_build "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
+  set(caf_install "${CMAKE_INSTALL_PREFIX}")
+  set(shared_ext ${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(static_ext ${CMAKE_STATIC_LIBRARY_SUFFIX})
+
+  # For now, if you want to build a static lib, just go through
+  # the --with-caf path and point to separate, custom-built CAF.
+  ExternalProject_Add(project_caf
+    PREFIX "${caf_ep}"
+    BINARY_DIR "${caf_build}"
+    URL "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf"
+    CMAKE_CACHE_ARGS
+      -DCAF_NO_UNIT_TESTS:bool=yes
+      -DCAF_NO_EXAMPLES:bool=yes
+      -DCAF_NO_TOOLS:bool=yes
+      -DCAF_NO_BENCHMARKS:bool=yes
+      -DCAF_NO_PYTHON:bool=yes
+      -DCAF_NO_OPENCL:bool=yes
+      # Sticking CAF libs in the same output dir as libbroker is a bit
+      # of a hack until CMake 3.8, which has BUILD_RPATH that can instead
+      # be set on libbroker.
+      -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+      -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
+      -DCMAKE_INSTALL_PREFIX:path=${caf_install}
+    INSTALL_COMMAND cmake -E echo "Skip CAF external project install."
+    # Build byproducts is just required by the Ninja generator
+    # though it's not available before CMake 3.2 ...
+    BUILD_BYPRODUCTS
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${static_ext}
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
+      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
+  )
+  install(CODE "execute_process(
+    COMMAND ${CMAKE_MAKE_PROGRAM} install
+    WORKING_DIRECTORY ${caf_build}
+    )"
+  )
+
+  add_library(libcaf_core_shared SHARED IMPORTED)
+  add_library(libcaf_io_shared SHARED IMPORTED)
+  add_library(libcaf_openssl_shared SHARED IMPORTED)
+  set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
+  set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext})
+  set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext})
+  add_dependencies(libcaf_core_shared project_caf)
+  add_dependencies(libcaf_io_shared project_caf)
+  add_dependencies(libcaf_openssl_shared project_caf)
+
+  set(CAF_FOUND true)
+  set(CAF_LIBRARIES
+      libcaf_core_shared libcaf_io_shared libcaf_openssl_shared
+      CACHE STRING "CAF libs" FORCE)
+
+  set(CAF_INCLUDE_DIRS
+      "${caf_dir}/libcaf_core"
+      "${caf_dir}/libcaf_io"
+      "${caf_dir}/libcaf_openssl"
+      "${caf_dir}/libcaf_test"
+      CACHE STRING "CAF includes" FORCE)
+
+  set(CAF_INCLUDE_DIR_CORE "${caf_dir}/libcaf_core"
+      CACHE PATH "CAF core headers" FORCE)
+  set(CAF_INCLUDE_DIR_IO "${caf_dir}/libcaf_io"
+      CACHE PATH "CAF io headers" FORCE)
+  set(CAF_INCLUDE_DIR_OPENSSL "${caf_dir}/libcaf_openssl"
+      CACHE PATH "CAF openssl headers" FORCE)
+endif ()
+
 file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
@@ -22,8 +110,8 @@ math(EXPR caf_version_patch "${caf_version_int} % 100")
 set(CAF_VERSION
     "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
-# Check for required CAF version.
-set(CAF_VERSION_REQUIRED 0.15.4)
+set(CAF_VERSION_REQUIRED 0.15.5)
+
 if (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED})
   message(FATAL_ERROR "Broker requires at least CAF version"
     " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
@@ -145,8 +233,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 install(DIRECTORY broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
 
-set_source_files_properties(src/detail/sqlite3.c PROPERTIES COMPILE_FLAGS
+set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -195,7 +284,8 @@ set(BROKER_SRC
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
 
-  src/detail/sqlite3.c
+  3rdparty/sqlite3.c
+
   ${OPTIONAL_SRC}
 )
 
@@ -221,10 +311,6 @@ if (ENABLE_SHARED)
                         SOVERSION ${BROKER_SOVERSION}
                         VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
                         MACOSX_RPATH true
-                        # INSTALL_NAME_DIR can be removed when
-                        # CMake 2.8.12 is required (redundant with
-                        # MACOSX_RPATH).
-                        INSTALL_NAME_DIR "@rpath"
                         OUTPUT_NAME broker)
   target_link_libraries(broker ${LINK_LIBS})
   install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
@@ -323,15 +409,6 @@ macro(display test desc summary)
     set(${summary} no)
   endif()
 endmacro()
-
-set(caf_dir ${CAF_LIBRARY_CORE})
-
-get_filename_component(caf_dir ${caf_dir} PATH)
-if (EXISTS "${caf_dir}/../libcaf_core")
-  get_filename_component(caf_dir ${caf_dir} PATH)
-else ()
-  set(caf_dir ${CAF_INCLUDE_DIR_CORE})
-endif ()
 
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)

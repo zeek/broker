@@ -37,9 +37,6 @@ installed:
 
     A C++11 capable compiler (GCC 4.8+ or Clang 3.3+)
 
-    CAF (C++ Actor Framework) version 0.14+
-        https://github.com/actor-framework/actor-framework
-
     CMake 2.8.12+
         CMake is a cross-platform, open-source build system, typically
         not installed by default.  See http://www.cmake.org for more
