@@ -41,16 +41,12 @@ template <typename Set, typename Class_>
 void set_modifiers(enable_if_t<std::is_copy_constructible<typename Set::value_type>::value, Class_> &cl) {
     using T = typename Set::value_type;
 
-    cl.def("__init__", [](Set &s, iterable it) {
-        new (&s) Set();
-        try {
-            for (handle h : it)
-               s.insert(h.cast<T>());
-        } catch (...) {
-            s.~Set();
-            throw;
-        }
-    });
+    cl.def(init([](iterable it) {
+        Set rval;
+        for (handle h : it)
+            rval.insert(h.cast<T>());
+        return rval;
+        }));
 
     cl.def("add",
         [](Set &s, const T &x) {

@@ -12,14 +12,12 @@ void init_bro(py::module& m) {
     .def("as_data", &broker::bro::Message::as_data);
 
   py::class_<broker::bro::Event, broker::bro::Message>(m, "Event")
-    .def("__init__",
-       [](broker::bro::Event& ev, broker::data data) {
-       new (&ev) broker::bro::Event(std::move(data));
-       })
-    .def("__init__",
-       [](broker::bro::Event& ev, std::string name, broker::data args) {
-       new (&ev) broker::bro::Event(std::move(name), std::move(broker::get<broker::vector>(args)));
-       })
+    .def(py::init([](broker::data data) {
+       return broker::bro::Event(std::move(data));
+       }))
+    .def(py::init([](std::string name, broker::data args) {
+       return broker::bro::Event(std::move(name), std::move(broker::get<broker::vector>(args)));
+       }))
     .def("name",
           static_cast<const std::string& (broker::bro::Event::*)() const>
           (&broker::bro::Event::name))

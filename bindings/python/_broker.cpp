@@ -6,6 +6,8 @@
 
 #include "broker/broker.hh"
 
+#include <memory>
+
 namespace py = pybind11;
 
 extern void init_bro(py::module& m);
@@ -197,19 +199,18 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
-    .def("__init__",
-       [](broker::endpoint& ep, Configuration cfg) {
-       auto make_config = [&]() {
+    .def(py::init([](Configuration cfg) {
+        auto make_config = [&]() {
            broker::configuration bcfg(cfg.options);
-	   bcfg.openssl_capath = cfg.openssl_capath;
-	   bcfg.openssl_passphrase = cfg.openssl_passphrase;
+           bcfg.openssl_capath = cfg.openssl_capath;
+           bcfg.openssl_passphrase = cfg.openssl_passphrase;
            bcfg.openssl_cafile = cfg.openssl_cafile;
            bcfg.openssl_certificate = cfg.openssl_certificate;
            bcfg.openssl_key = cfg.openssl_key;
            return bcfg;
-	   };
-       new (&ep) broker::endpoint(make_config());
-       })
+           };
+        return std::unique_ptr<broker::endpoint>(new broker::endpoint(make_config()));
+        }))
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {

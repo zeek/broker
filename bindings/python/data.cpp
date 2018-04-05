@@ -1,4 +1,5 @@
 
+
 #include <pybind11/pybind11.h>
 
 #include "set_bind.h"
@@ -12,16 +13,14 @@ void init_data(py::module& m) {
 
   py::class_<broker::address> address_type{m, "Address"};
   address_type.def(py::init<>())
-    .def("__init__",
-         [](broker::address& instance, const py::bytes& bytes, int family) {
-           BROKER_ASSERT(family == 4 || family == 6);
-           auto str = static_cast<std::string>(bytes);
-           auto ptr = reinterpret_cast<const uint32_t*>(str.data());
-           auto f = family == 4 ? broker::address::family::ipv4 :
-                                  broker::address::family::ipv6;
-           new (&instance)
-             broker::address{ptr, f, broker::address::byte_order::network};
-         })
+    .def(py::init([](const py::bytes& bytes, int family) {
+        BROKER_ASSERT(family == 4 || family == 6);
+        auto str = static_cast<std::string>(bytes);
+        auto ptr = reinterpret_cast<const uint32_t*>(str.data());
+        auto f = family == 4 ? broker::address::family::ipv4 :
+                               broker::address::family::ipv6;
+        return broker::address{ptr, f, broker::address::byte_order::network};
+        }))
     .def("mask", &broker::address::mask, "top_bits_to_keep"_a)
     .def("is_v4", &broker::address::is_v4)
     .def("is_v6", &broker::address::is_v6)
@@ -106,10 +105,9 @@ void init_data(py::module& m) {
 
   py::class_<broker::subnet>(m, "Subnet")
     .def(py::init<>())
-    .def("__init__",
-         [](broker::subnet& instance, broker::address addr, uint8_t length) {
-           new (&instance) broker::subnet{std::move(addr), length};
-         })
+    .def(py::init([](broker::address addr, uint8_t length) {
+        return broker::subnet(std::move(addr), length);
+        }))
     .def("contains", &broker::subnet::contains, "addr"_a)
     .def("network", &broker::subnet::network)
     .def("length", &broker::subnet::length)
@@ -124,10 +122,9 @@ void init_data(py::module& m) {
   py::class_<broker::timespan>(m, "Timespan")
     .def(py::init<>())
     .def(py::init<broker::integer>())
-    .def("__init__",
-         [](broker::timespan& instance, double secs) {
-           new (&instance) broker::timespan{broker::to_timespan(secs)};
-         })
+    .def(py::init([](double secs) {
+        return broker::to_timespan(secs);
+        }))
     .def("count", &broker::timespan::count)
     .def("__repr__", [](const broker::timespan& s) { return broker::to_string(s); })
     .def(py::self + py::self)
@@ -148,10 +145,9 @@ void init_data(py::module& m) {
   py::class_<broker::timestamp>(m, "Timestamp")
     .def(py::init<>())
     .def(py::init<broker::timespan>())
-    .def("__init__",
-         [](broker::timestamp& instance, double secs) {
-           new (&instance) broker::timespan{broker::to_timespan(secs)};
-         })
+    .def(py::init([](double secs) {
+        return broker::to_timestamp(secs);
+        }))
     .def("time_since_epoch", &broker::timestamp::time_since_epoch)
     .def("__repr__", [](const broker::timestamp& ts) { return broker::to_string(ts); })
     .def(py::self < py::self)
@@ -169,10 +165,12 @@ void init_data(py::module& m) {
     .def(py::init<broker::data>())
     .def(py::init<broker::address>())
     .def(py::init<broker::boolean>())
-    .def("__init__",
-         [](broker::data& instance, count_type c) { new (&instance) broker::data{c.value}; })
-    .def("__init__",
-         [](broker::data& instance, broker::enum_value e) { new (&instance) broker::data{e}; })
+    .def(py::init([](count_type c) {
+         return broker::data{c.value};
+         }))
+    .def(py::init([](broker::enum_value e) {
+         return broker::data{e};
+         }))
     .def(py::init<broker::integer>())
     .def(py::init<broker::port>())
     .def(py::init<broker::real>())
