@@ -11,7 +11,7 @@ expected<void> abstract_backend::add(const data& key, const data& value,
   if (!v) {
     if (v.error() != ec::no_such_key)
       return v.error();
-  v = {data::from_type(init_type)};
+  v = expected<data>{data::from_type(init_type)};
   }
 
   auto result = visit(adder{value}, *v);
