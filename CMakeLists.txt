@@ -12,31 +12,34 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 if ( CAF_ROOT_DIR )
   find_package(CAF COMPONENTS core io test openssl REQUIRED)
-
-  set(caf_dir ${CAF_LIBRARY_CORE})
-
+  set(caf_dir    "${CAF_LIBRARY_CORE}")
+  set(caf_config "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp")
   get_filename_component(caf_dir ${caf_dir} PATH)
 
   if (EXISTS "${caf_dir}/../libcaf_core")
     get_filename_component(caf_dir ${caf_dir} PATH)
   else ()
-    set(caf_dir ${CAF_INCLUDE_DIR_CORE})
+    set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
   endif ()
 else ()
   include(ExternalProject)
-  set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
-  set(caf_ep "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
-  set(caf_build "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
+  set(caf_module  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
+  set(caf_ep      "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
+  set(caf_build   "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
+  set(caf_src     "${CMAKE_CURRENT_BINARY_DIR}/caf-src")
+  set(caf_dir     "${caf_module}")
   set(caf_install "${CMAKE_INSTALL_PREFIX}")
-  set(shared_ext ${CMAKE_SHARED_LIBRARY_SUFFIX})
-  set(static_ext ${CMAKE_STATIC_LIBRARY_SUFFIX})
+  set(shared_ext  "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  set(static_ext  "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(caf_config  "${caf_module}/libcaf_core/caf/config.hpp")
 
   # For now, if you want to build a static lib, just go through
   # the --with-caf path and point to separate, custom-built CAF.
   ExternalProject_Add(project_caf
-    PREFIX "${caf_ep}"
+    PREFIX     "${caf_ep}"
     BINARY_DIR "${caf_build}"
-    URL "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf"
+    SOURCE_DIR "${caf_src}"
+    URL        "${caf_module}"
     CMAKE_CACHE_ARGS
       -DCAF_NO_UNIT_TESTS:bool=yes
       -DCAF_NO_EXAMPLES:bool=yes
@@ -46,7 +49,9 @@ else ()
       -DCAF_NO_OPENCL:bool=yes
       # Sticking CAF libs in the same output dir as libbroker is a bit
       # of a hack until CMake 3.8, which has BUILD_RPATH that can instead
-      # be set on libbroker.
+      # be set on libbroker.  The problem here is that broker unit tests
+      # will fail if linker can't locate CAF libs (e.g. via build-tree
+      # RPATH).
       -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
       -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
       -DCMAKE_INSTALL_PREFIX:path=${caf_install}
@@ -86,21 +91,21 @@ else ()
       CACHE STRING "CAF libs" FORCE)
 
   set(CAF_INCLUDE_DIRS
-      "${caf_dir}/libcaf_core"
-      "${caf_dir}/libcaf_io"
-      "${caf_dir}/libcaf_openssl"
-      "${caf_dir}/libcaf_test"
+      "${caf_src}/libcaf_core"
+      "${caf_src}/libcaf_io"
+      "${caf_src}/libcaf_openssl"
+      "${caf_src}/libcaf_test"
       CACHE STRING "CAF includes" FORCE)
 
-  set(CAF_INCLUDE_DIR_CORE "${caf_dir}/libcaf_core"
-      CACHE PATH "CAF core headers" FORCE)
-  set(CAF_INCLUDE_DIR_IO "${caf_dir}/libcaf_io"
-      CACHE PATH "CAF io headers" FORCE)
-  set(CAF_INCLUDE_DIR_OPENSSL "${caf_dir}/libcaf_openssl"
-      CACHE PATH "CAF openssl headers" FORCE)
+  set(CAF_INCLUDE_DIR_CORE
+      "${caf_src}/libcaf_core" CACHE PATH "CAF core headers" FORCE)
+  set(CAF_INCLUDE_DIR_IO
+      "${caf_src}/libcaf_io" CACHE PATH "CAF io headers" FORCE)
+  set(CAF_INCLUDE_DIR_OPENSSL
+      "${caf_src}/libcaf_openssl" CACHE PATH "CAF openssl headers" FORCE)
 endif ()
 
-file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
+file(READ "${caf_config}" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
 string(REGEX MATCH "[0-9]+" caf_version_int "${caf_version_line}")
