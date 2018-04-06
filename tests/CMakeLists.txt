@@ -73,7 +73,7 @@ if (BROKER_PYTHON_BINDINGS)
              WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
-                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR} BROKER_TEST_DIR=${BROKER_TEST_DIR}")
+                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR};BROKER_TEST_DIR=${BROKER_TEST_DIR}")
   endmacro()
 
   make_python_test(bro)
