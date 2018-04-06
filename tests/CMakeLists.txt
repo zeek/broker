@@ -33,10 +33,14 @@ endif ()
 add_executable(broker-test ${tests})
 target_link_libraries(broker-test ${libbroker})
 
+set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
 macro(make_cpp_test suite)
   string(REPLACE " " "_" test_name ${suite})
   add_test(NAME ${test_name} COMMAND broker-test -v 3 -s "${suite}" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+  set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
+                       "BROKER_TEST_DIR=${BROKER_TEST_DIR}")
 endmacro()
 
 # Find all test suites.
@@ -69,7 +73,7 @@ if (BROKER_PYTHON_BINDINGS)
              WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
-                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR}")
+                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR} BROKER_TEST_DIR=${BROKER_TEST_DIR}")
   endmacro()
 
   make_python_test(bro)

@@ -2,6 +2,7 @@
 #define SUITE ssl
 
 #include <limits.h>
+#include <cstdlib>
 
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
@@ -12,17 +13,6 @@ using namespace broker;
 
 namespace {
 
-static std::string data_dir() {
-  std::string path{::caf::test::engine::path()};
-  path = path.substr(0, path.find_last_of("/"));
-  // TODO: https://github.com/actor-framework/actor-framework/issues/555
-  path += "/../../tests/cpp";
-  char rpath[PATH_MAX];
-  auto rp = realpath(path.c_str(), rpath);
-  CAF_REQUIRE(rp && *rp);
-  return rp;
-}
-
 configuration make_config(std::string cert_id) {
   configuration cfg;
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
@@ -31,7 +21,9 @@ configuration make_config(std::string cert_id) {
 
 //  cfg.scheduler_policy = caf::atom("testing");
   if ( cert_id.size() ) {
-    auto cd = data_dir() + "/certs/";
+    auto test_dir = getenv("BROKER_TEST_DIR");
+    CAF_REQUIRE(test_dir);
+    auto cd = std::string(test_dir) + "/cpp/certs/";
     cfg.openssl_cafile = cd + "ca.pem";
     cfg.openssl_certificate = cd + "cert." + cert_id + ".pem";
     cfg.openssl_key = cd + "key." + cert_id + ".pem";
