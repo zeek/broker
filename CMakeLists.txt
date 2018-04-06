@@ -379,13 +379,12 @@ endif ()
 
 # -- Bro ----------------------------------------------------------------------
 
-
 if (NOT "${BRO_EXECUTABLE}" STREQUAL "")
     set(BRO_FOUND true)
     set(BRO_FOUND_MSG "${BRO_EXECUTABLE}")
 else ()
     set(BRO_FOUND false)
-    find_file(BRO_PATH_DEV bro-path-dev.sh PATHS ${CMAKE_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
+    find_file(BRO_PATH_DEV bro-path-dev.sh PATHS ${CMAKE_CURRENT_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
     if (EXISTS ${BRO_PATH_DEV})
       set(BRO_FOUND true)
       set(BRO_FOUND_MSG "${BRO_PATH_DEV}")
