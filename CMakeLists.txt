@@ -38,24 +38,10 @@ else ()
   ExternalProject_Add(project_caf
     PREFIX     "${caf_ep}"
     BINARY_DIR "${caf_build}"
-    SOURCE_DIR "${caf_src}"
-    URL        "${caf_module}"
-    CMAKE_CACHE_ARGS
-      -DCAF_NO_UNIT_TESTS:bool=yes
-      -DCAF_NO_EXAMPLES:bool=yes
-      -DCAF_NO_TOOLS:bool=yes
-      -DCAF_NO_BENCHMARKS:bool=yes
-      -DCAF_NO_PYTHON:bool=yes
-      -DCAF_NO_OPENCL:bool=yes
-      # Sticking CAF libs in the same output dir as libbroker is a bit
-      # of a hack until CMake 3.8, which has BUILD_RPATH that can instead
-      # be set on libbroker.  The problem here is that broker unit tests
-      # will fail if linker can't locate CAF libs (e.g. via build-tree
-      # RPATH).
-      -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-      -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
-      -DCMAKE_INSTALL_PREFIX:path=${caf_install}
-    INSTALL_COMMAND cmake -E echo "Skip CAF external project install."
+    DOWNLOAD_COMMAND  ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND     ""
+    INSTALL_COMMAND   ""
     # Build byproducts is just required by the Ninja generator
     # though it's not available before CMake 3.2 ...
     BUILD_BYPRODUCTS
@@ -66,11 +52,53 @@ else ()
       ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
       ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
   )
+  ExternalProject_Add_Step(project_caf project_caf_build_step
+    COMMAND ${CMAKE_MAKE_PROGRAM}
+    COMMENT "Building CAF"
+    WORKING_DIRECTORY ${caf_build}
+    ALWAYS 1
+  )
   install(CODE "execute_process(
     COMMAND ${CMAKE_MAKE_PROGRAM} install
     WORKING_DIRECTORY ${caf_build}
     )"
   )
+  execute_process(
+      COMMAND
+        ${CMAKE_COMMAND} -E create_symlink ${caf_module} ${caf_src}
+      COMMAND
+        ${CMAKE_COMMAND}
+        -G${CMAKE_GENERATOR}
+        -DCAF_NO_UNIT_TESTS:bool=yes
+        -DCAF_NO_EXAMPLES:bool=yes
+        -DCAF_NO_TOOLS:bool=yes
+        -DCAF_NO_BENCHMARKS:bool=yes
+        -DCAF_NO_PYTHON:bool=yes
+        -DCAF_NO_OPENCL:bool=yes
+        # Sticking CAF libs in the same output dir as libbroker is a bit of a
+        # hack until CMake 3.8, which has BUILD_RPATH that can instead be set
+        # on libbroker.  The problem here is that broker unit tests will fail
+        # if linker can't locate CAF libs (e.g. via build-tree RPATH).
+        -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
+        -DCMAKE_INSTALL_PREFIX:path=${caf_install}
+        ${caf_module}
+      WORKING_DIRECTORY ${caf_build}
+      RESULT_VARIABLE caf_cmake_result
+      ERROR_VARIABLE CAF_CMAKE_OUTPUT
+      OUTPUT_VARIABLE CAF_CMAKE_OUTPUT
+      ERROR_STRIP_TRAILING_WHITESPACE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  message("\n********** Begin CAF External Project CMake Output ************")
+  message("\n${CAF_CMAKE_OUTPUT}")
+  message("\n*********** End CAF External Project CMake Output *************")
+  message("\n")
+
+  if (caf_cmake_result)
+    message(FATAL_ERROR "CAF CMake configuration failed")
+  endif ()
 
   add_library(libcaf_core_shared SHARED IMPORTED)
   add_library(libcaf_io_shared SHARED IMPORTED)
