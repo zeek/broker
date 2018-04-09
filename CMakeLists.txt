@@ -23,15 +23,14 @@ if ( CAF_ROOT_DIR )
   endif ()
 else ()
   include(ExternalProject)
-  set(caf_module  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
+  set(caf_src     "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
   set(caf_ep      "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
   set(caf_build   "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
-  set(caf_src     "${CMAKE_CURRENT_BINARY_DIR}/caf-src")
-  set(caf_dir     "${caf_module}")
+  set(caf_dir     "${caf_src}")
   set(caf_install "${CMAKE_INSTALL_PREFIX}")
   set(shared_ext  "${CMAKE_SHARED_LIBRARY_SUFFIX}")
   set(static_ext  "${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  set(caf_config  "${caf_module}/libcaf_core/caf/config.hpp")
+  set(caf_config  "${caf_src}/libcaf_core/caf/config.hpp")
 
   # For now, if you want to build a static lib, just go through
   # the --with-caf path and point to separate, custom-built CAF.
@@ -65,8 +64,6 @@ else ()
   )
   execute_process(
       COMMAND
-        ${CMAKE_COMMAND} -E create_symlink ${caf_module} ${caf_src}
-      COMMAND
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
         -DCAF_NO_UNIT_TESTS:bool=yes
@@ -82,7 +79,7 @@ else ()
         -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
         -DCMAKE_INSTALL_PREFIX:path=${caf_install}
-        ${caf_module}
+        ${caf_src}
       WORKING_DIRECTORY ${caf_build}
       RESULT_VARIABLE caf_cmake_result
       ERROR_VARIABLE CAF_CMAKE_OUTPUT
