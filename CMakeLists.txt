@@ -78,6 +78,7 @@ else ()
         # if linker can't locate CAF libs (e.g. via build-tree RPATH).
         -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
+        -DCMAKE_BUILD_TYPE:string=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX:path=${caf_install}
         ${caf_src}
       WORKING_DIRECTORY ${caf_build}
