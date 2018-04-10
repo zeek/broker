@@ -114,9 +114,6 @@ while [ $# -ne 0 ]; do
         --build-type=*)
             append_cache_entry CMAKE_BUILD_TYPE     STRING $optarg
             ;;
-        --no-auto-libc++)
-            append_cache_entry NO_AUTO_LIBCPP BOOL yes
-            ;;
         --enable-debug)
             append_cache_entry ENABLE_DEBUG         BOOL   true
             ;;

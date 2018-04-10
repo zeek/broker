@@ -35,14 +35,18 @@ Dependencies
 Compiling Broker requires the following libraries/tools to already be
 installed:
 
-    A C++11 capable compiler (GCC 4.8+ or Clang 3.3+)
+    * C++ compiler with C++11 support    (GCC 4.8+ or Clang 3.3+)
+    * OpenSSL headers/libraries          (http://www.openssl.org)
+    * CMake 3.0.2 or greater             (https://cmake.org)
 
-    CMake 2.8.12+
-        CMake is a cross-platform, open-source build system, typically
-        not installed by default.  See http://www.cmake.org for more
-        information regarding CMake and the installation steps below
-        for how to use it to build this distribution.  CMake generates
-        native Makefiles that depend on GNU Make by default.
+The optional python bindings also require Python 2.7 or greater
+along with Python development packages.  For Python 2.7, you'll
+also need the ``ipaddress`` backport from Python 3.
+
+By default, Broker will also use an integrated version of the C++
+Actor Framework (https://actor-framework.org), though there's still
+the option to specify a particular version via the ``--with-caf=``
+configure script option.
 
 Compiling/Installing
 --------------------
