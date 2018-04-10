@@ -37,7 +37,11 @@ set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 macro(make_cpp_test suite)
   string(REPLACE " " "_" test_name ${suite})
-  add_test(NAME ${test_name} COMMAND broker-test -v 3 -s "${suite}" ${ARGN})
+  set(test_verbosity 4)
+  if (${test_name} STREQUAL radix_tree)
+    set(test_verbosity 3)  # otherwise it just produces way too much output
+  endif ()
+  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "${suite}" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
   set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
                        "BROKER_TEST_DIR=${BROKER_TEST_DIR}")
@@ -76,7 +80,10 @@ if (BROKER_PYTHON_BINDINGS)
                          "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR};BROKER_TEST_DIR=${BROKER_TEST_DIR}")
   endmacro()
 
-  make_python_test(bro)
+  if (BRO_FOUND)
+    make_python_test(bro)
+  endif ()
+
   make_python_test(communication)
   make_python_test(data)
   make_python_test(forwarding)
