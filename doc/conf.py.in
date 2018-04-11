@@ -20,7 +20,7 @@ extensions = [
     'numsec',
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
-    'rst2pdf.pdfbuilder'
+    #'rst2pdf.pdfbuilder'  # disabled for now due to rst2pdf Python3 issues
 ]
 
 # Add any paths that contain templates here, relative to this directory.

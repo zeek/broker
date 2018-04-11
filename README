@@ -1,6 +1,3 @@
-.. image:: https://travis-ci.org/bro/broker.svg
-    :target: https://travis-ci.org/bro/broker
-
 ===============================
 Broker: Bro's Messaging Library
 ===============================
