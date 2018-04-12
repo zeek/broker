@@ -84,14 +84,14 @@ TEST(expiration) {
   endpoint ep;
   auto m = ep.attach_master("grubby", memory);
   REQUIRE(m);
-  auto expiry = milliseconds(100);
+  auto expiry = milliseconds(600);
   m->put("foo", 42, expiry);
   // Check within validity interval.
   std::this_thread::sleep_for(milliseconds(50));
   auto v = m->get("foo");
   REQUIRE(v);
   CHECK_EQUAL(v, data{42});
-  std::this_thread::sleep_for(milliseconds(50));
+  std::this_thread::sleep_for(milliseconds(1000));
   // Check after expiration.
   v = m->get("foo");
   REQUIRE(!v);
