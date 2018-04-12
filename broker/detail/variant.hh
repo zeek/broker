@@ -35,6 +35,7 @@
 #include <set>
 #include <string>
 #include <type_traits>
+#include <cstdint>
 
 #include <caf/deserializer.hpp>
 #include <caf/serializer.hpp>
@@ -157,7 +158,7 @@ public:
   }
 
   /// @returns the index of the active variant type.
-  size_t index() const {
+  uint8_t index() const {
     return index_;
   }
 
@@ -191,7 +192,7 @@ private:
     aligned_storage_t<max<Sizeof, Ts...>(), max<Alignof, Ts...>()>;
 
   storage_type storage_;
-  size_t index_;
+  uint8_t index_;
 
   struct copy_ctor {
     using result_type = void;
@@ -241,7 +242,7 @@ private:
     }
 
     variant& self;
-    size_t rhs_index;
+    uint8_t rhs_index;
   };
 
   template <class T>
@@ -267,7 +268,7 @@ private:
   struct move_assigner {
     using result_type = void;
 
-    move_assigner(variant& self, size_t rhs_index)
+    move_assigner(variant& self, uint8_t rhs_index)
       : self(self), rhs_index(rhs_index) {
     }
 
@@ -285,7 +286,7 @@ private:
     }
 
     variant& self;
-    size_t rhs_index;
+    uint8_t rhs_index;
   };
 
   struct dtor {
@@ -299,10 +300,10 @@ private:
     }
   };
 
-  template <size_t TT, class... Tail>
+  template <uint8_t TT, class... Tail>
   struct initializer;
 
-  template <size_t TT, class T, class... Tail>
+  template <uint8_t TT, class T, class... Tail>
   struct initializer<TT, T, Tail...> : public initializer<TT + 1, Tail...> {
     using base = initializer<TT + 1, Tail...>;
     using base::initialize;
@@ -318,7 +319,7 @@ private:
     }
   };
 
-  template <size_t TT>
+  template <uint8_t TT>
   struct initializer<TT> {
     void initialize(); // this should never match
   };
@@ -338,15 +339,14 @@ private:
 
   template <class Storage, class Visitor, class... Args>
   static typename remove_reference_t<Visitor>::result_type
-  visit_impl(size_t which_active, Storage&& storage,
+  visit_impl(uint8_t which_active, Storage&& storage,
              Visitor&& visitor, Args&&... args) {
     using result_type = typename remove_reference_t<Visitor>::result_type;
     using fn = result_type (*)(Storage&&, Visitor&&, Args&&...);
     static constexpr fn callers[sizeof...(Ts)]
       = {&invoke<Ts, Storage, Visitor, Args...>...};
-    BROKER_ASSERT(static_cast<size_t>(which_active) >= 0
-                  && static_cast<size_t>(which_active) < sizeof...(Ts));
-    return (*callers[static_cast<size_t>(which_active)])(
+    BROKER_ASSERT(which_active < sizeof...(Ts));
+    return (*callers[which_active])(
       std::forward<Storage>(storage), std::forward<Visitor>(visitor),
       std::forward<Args>(args)...);
   }
