@@ -54,7 +54,23 @@ class TestDataConstruction(unittest.TestCase):
                 p = unicode(p)
 
         self.assertIsInstance(b2p, type(p))
-        self.assertEqual(b2p, p)
+
+        if isinstance(p, datetime.datetime):
+            # Some pythons may have rounding issues converting datetime to
+            # timestamp and back again.  https://bugs.python.org/issue23517
+            self.assertEqual(b2p.year, p.year)
+            self.assertEqual(b2p.month, p.month)
+            self.assertEqual(b2p.day, p.day)
+            self.assertEqual(b2p.hour, p.hour)
+            self.assertEqual(b2p.minute, p.minute)
+            self.assertEqual(b2p.second, p.second)
+            self.assertEqual(b2p.tzinfo, p.tzinfo)
+            us_equal = (b2p.microsecond == p.microsecond or
+                        b2p.microsecond == p.microsecond - 1 or
+                        b2p.microsecond == p.microsecond + 1)
+            self.assertTrue(us_equal)
+        else:
+            self.assertEqual(b2p, p)
 
     def check_to_broker_and_back(self, p, s, t):
         b = self.check_to_broker(p, s, t)
