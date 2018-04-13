@@ -1,8 +1,11 @@
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl_bind.h>
+#pragma GCC diagnostic pop
 
 #include "broker/broker.hh"
 

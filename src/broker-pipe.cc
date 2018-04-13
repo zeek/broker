@@ -10,6 +10,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <caf/all.hpp>
 #pragma GCC diagnostic pop
 

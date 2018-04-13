@@ -1,6 +1,9 @@
 
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/pybind11.h>
+#pragma GCC diagnostic pop
 
 #include "set_bind.h"
 
