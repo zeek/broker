@@ -207,8 +207,8 @@ if (NOT BROKER_APPLE)
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
 endif ()
 
-# Incrase warnings.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -pedantic")
+# Increase warnings.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
 
 # Increase maximum number of instantiations.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")

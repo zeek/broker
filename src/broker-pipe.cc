@@ -8,7 +8,10 @@
 #include <cassert>
 #include <iostream>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated"
 #include <caf/all.hpp>
+#pragma GCC diagnostic pop
 
 #include "broker/broker.hh"
 

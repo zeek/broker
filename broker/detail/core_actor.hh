@@ -10,6 +10,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include <caf/fused_scatterer.hpp>
 #include <caf/detail/stream_distribution_tree.hpp>
 
 #include "broker/atoms.hh"

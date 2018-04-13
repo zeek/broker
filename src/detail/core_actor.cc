@@ -258,7 +258,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto remote_core_ptr = actor_cast<caf::strong_actor_ptr>(remote_core);
       auto handshake_data = std::make_tuple(st.filter, caf::actor{self});
       if (!self->add_sink<message>(st.governor, sid, nullptr, remote_core_ptr,
-                                   caf::no_stages, message_id::make(),
+                                   caf::no_stages, caf::make_message_id(),
                                    stream_priority::normal,
                                    std::move(handshake_data))) {
         CAF_LOG_WARNING("Unable to add sink state for streaming to peer.");
@@ -298,7 +298,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto remote_core_ptr = actor_cast<caf::strong_actor_ptr>(remote_core);
       auto handshake_data = std::make_tuple(ok_atom::value, caf::actor{self});
       if (!self->add_sink<message>(st.governor, sid, nullptr, remote_core_ptr,
-                                   caf::no_stages, message_id::make(),
+                                   caf::no_stages, caf::make_message_id(),
                                    stream_priority::normal,
                                    std::move(handshake_data))) {
         CAF_LOG_WARNING("Unable to add sink state for streaming to peer.");
@@ -394,7 +394,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       std::tuple<> token;
       if (!self->add_sink<endpoint::value_type>(
             st.governor, sid, nullptr, cs, std::move(stages),
-            message_id::make(), stream_priority::normal, token)) {
+            caf::make_message_id(), stream_priority::normal, token)) {
         CAF_LOG_ERROR("Join failed: self->add_sink returned false.");
         return caf::sec::cannot_add_downstream;
       }
@@ -495,7 +495,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       std::tuple<> token;
       if (!self->add_sink<store::stream_type::value_type>(
             st.governor, sid, nullptr, ms_ptr, std::move(cme.stages),
-            message_id::make(), stream_priority::normal, token)) {
+            caf::make_message_id(), stream_priority::normal, token)) {
         BROKER_ERROR("attaching master failed: self->add_sink returned false.");
         return caf::sec::cannot_add_downstream;
       }
@@ -540,7 +540,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
 
       if (!self->add_sink<store::stream_type::value_type>(
             st.governor, sid, nullptr, cptr, std::move(stages),
-            message_id::make(), stream_priority::normal, token)) {
+            caf::make_message_id(), stream_priority::normal, token)) {
         BROKER_ERROR("attaching master failed: self->add_sink returned false.");
         return caf::sec::cannot_add_downstream;
       }

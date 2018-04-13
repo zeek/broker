@@ -2,7 +2,15 @@
 
 #include <unordered_set>
 
-#include <caf/all.hpp>
+#include <caf/node_id.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/error.hpp>
+#include <caf/duration.hpp>
+#include <caf/send.hpp>
+#include <caf/actor.hpp>
+#include <caf/message.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/all.hpp>
 

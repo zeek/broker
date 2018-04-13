@@ -1,7 +1,10 @@
 #ifndef BROKER_CONFIGURATION_HH
 #define BROKER_CONFIGURATION_HH
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated"
 #include <caf/actor_system_config.hpp>
+#pragma GCC diagnostic pop
 
 namespace broker {
 
