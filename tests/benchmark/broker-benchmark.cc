@@ -207,8 +207,11 @@ void sendBrokerBatchNonBlocking(broker::endpoint& ep, EventQueue& q)
 
 void receivedStats(broker::endpoint& ep, broker::data x)
 {
-    auto args = broker::bro::Event(std::move(x)).args()[0];
-    auto rec = broker::get<broker::vector>(args);
+    // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
+    // We are only interested in the '[1ns, 1ns, 0]' part.
+    auto xvec = broker::get<broker::vector>(x);
+    auto yvec = broker::get<broker::vector>(xvec[2]);
+    auto rec = broker::get<broker::vector>(yvec[1]);
 
     double t;
     broker::convert(broker::get<broker::timestamp>(rec[0]), t);
