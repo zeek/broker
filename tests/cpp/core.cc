@@ -615,6 +615,9 @@ CAF_TEST(unpeer_core1_from_core2) {
   anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
   sched.run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
+  anon_send_exit(core1, exit_reason::user_shutdown);
+  anon_send_exit(core2, exit_reason::user_shutdown);
+  sched.run();
 }
 
 // Checks emitted events in case a remote peer unpeers.
@@ -633,6 +636,9 @@ CAF_TEST(unpeer_core2_from_core1) {
   anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
   sched.run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
+  anon_send_exit(core1, exit_reason::user_shutdown);
+  anon_send_exit(core2, exit_reason::user_shutdown);
+  sched.run();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
