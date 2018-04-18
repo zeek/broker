@@ -247,6 +247,7 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     auto e = peer_to_opath_.end();
     auto i = peer_to_opath_.find(hdl);
     if (i != e) {
+      CAF_LOG_DEBUG("remove outbound path to peer:" << hdl);
       ++performed_erases;
       out().remove_path(i->second, reason, silent);
       opath_to_peer_.erase(i->second);
@@ -257,14 +258,17 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     auto e = peer_to_ipath_.end();
     auto i = peer_to_ipath_.find(hdl);
     if (i != e) {
+      CAF_LOG_DEBUG("remove inbound path to peer:" << hdl);
       ++performed_erases;
       parent_->remove_input_path(i->second, reason, silent);
       ipath_to_peer_.erase(i->second);
       peer_to_ipath_.erase(i);
     }
   }
-  if (performed_erases == 0)
+  if (performed_erases == 0) {
+    CAF_LOG_DEBUG("no path was removed for peer:" << hdl);
     return false;
+  }
   if (graceful_removal)
     peer_removed(hdl);
   else
