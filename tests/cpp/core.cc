@@ -13,7 +13,6 @@ using element_type = endpoint::stream_type::value_type;
 
 namespace {
 
-using make_restartable_atom = caf::atom_constant<caf::atom("mkRstrtbl")>;
 using restart_atom = caf::atom_constant<caf::atom("restart")>;
 
 struct driver_state {
@@ -33,7 +32,9 @@ struct driver_state {
 
 const char* driver_state::name = "driver";
 
-behavior driver(stateful_actor<driver_state>* self, const actor& sink) {
+behavior driver(stateful_actor<driver_state>* self, const actor& sink,
+                bool restartable) {
+  self->state.restartable = restartable;
   auto ptr = self->make_source(
     // Destination.
     sink,
@@ -58,14 +59,10 @@ behavior driver(stateful_actor<driver_state>* self, const actor& sink) {
     }
   ).ptr();
   return {
-    [=](make_restartable_atom) {
-      self->state.restartable = true;
-    },
     [=](restart_atom) {
       self->state.reset();
       self->state.restartable = false;
-      if (ptr->generate_messages())
-        ptr->push();
+      ptr->push();
     }
   };
 }
@@ -179,7 +176,7 @@ CAF_TEST(local_peers) {
     }
   );
   CAF_MESSAGE("spin up driver on core1");
-  auto d1 = sys.spawn(driver, core1);
+  auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("driver: " << to_string(d1));
   sched.run_dispatch_loop(streaming_cycle);
   CAF_MESSAGE("check log of the consumer after the driver is done");
@@ -337,7 +334,7 @@ CAF_TEST(triangle_peering) {
     }
   );
   // Spin up driver on core1.
-  auto d1 = sys.spawn(driver, core1);
+  auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
   sched.run_dispatch_loop(streaming_cycle);
   // Check log of the consumers.
@@ -382,15 +379,20 @@ CAF_TEST(sequenced_peering) {
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
   auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options);
+  CAF_MESSAGE(CAF_ARG(core1));
+  CAF_MESSAGE(CAF_ARG(core2));
+  CAF_MESSAGE(CAF_ARG(core3));
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
   sched.run();
   // Connect a consumer (leaf) to core2.
   auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core2);
+  CAF_MESSAGE(CAF_ARG(leaf1));
   sched.run();
   // Connect a consumer (leaf) to core3.
   auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core3);
+  CAF_MESSAGE(CAF_ARG(leaf2));
   sched.run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
@@ -410,10 +412,9 @@ CAF_TEST(sequenced_peering) {
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   sched.run();
-  // Spin up driver and transmit first half of the data.
-  auto d1 = sys.spawn(driver, core1);
-  anon_send(d1, make_restartable_atom::value);
-  CAF_MESSAGE("d1: " << to_string(d1));
+  CAF_MESSAGE("spin up driver and transmit first half of the data");
+  auto d1 = sys.spawn(driver, core1, true);
+  CAF_MESSAGE(CAF_ARG(d1));
   sched.run_dispatch_loop(streaming_cycle);
   // Check log of the consumer on core2.
   using buf = std::vector<element_type>;
@@ -458,7 +459,7 @@ CAF_TEST(sequenced_peering) {
   expect((atom::peer, filter_type, actor),
          from(core1).to(core3).with(_, filter_type{"a", "b", "c"}, core1));
   sched.run();
-  // Restart driver and send second half of the data.
+  CAF_MESSAGE("restart driver and send second half of the data");
   anon_send(d1, restart_atom::value);
   sched.run_dispatch_loop(streaming_cycle);
   // Check log of the consumer on core3.
@@ -685,7 +686,7 @@ CAF_TEST(remote_peers_setup1) {
   earth.self->send(core1, atom::peer::value, core2_proxy);
   exec_all();
   // Spin up driver on core1.
-  auto d1 = earth.sys.spawn(driver, core1);
+  auto d1 = earth.sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
   exec_all();
   // Check log of the consumer.
@@ -746,7 +747,7 @@ CAF_TEST(remote_peers_setup2) {
   exec_all();
   // Spin up driver on core2. Data flows from driver to core2 to core1 and
   // finally to leaf.
-  auto d1 = mars.sys.spawn(driver, core2);
+  auto d1 = mars.sys.spawn(driver, core2, false);
   CAF_MESSAGE("d1: " << to_string(d1));
   exec_all();
   // Check log of the consumer.
