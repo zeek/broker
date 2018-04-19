@@ -379,6 +379,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Subscribe to messages directly targeted at the master.
       filter_type filter{name / topics::reserved / topics::master};
       st.add_to_filter(filter);
+      // Move the slot to the stores downstream manager and set filter.
+      st.governor->out().assign<core_policy::store_trait::manager>(slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       // Done.
       return ms;
@@ -421,6 +423,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Subscribe to messages directly targeted at the clone.
       filter_type filter{name / topics::reserved / topics::clone};
       st.add_to_filter(filter);
+      // Move the slot to the stores downstream manager and set filter.
+      st.governor->out().assign<core_policy::store_trait::manager>(slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       return clone;
       /* FIXME:

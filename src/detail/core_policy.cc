@@ -323,7 +323,8 @@ void core_policy::local_push(topic x, data y) {
 
 /// Pushes data to stores without forwarding it to peers.
 void core_policy::local_push(topic x, internal_command y) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
+  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y) <<
+                CAF_ARG2("num_paths", stores().num_paths()));
   if (stores().num_paths() > 0) {
     stores().push(std::move(x), std::move(y));
     stores().emit_batches();

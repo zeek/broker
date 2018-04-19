@@ -32,7 +32,7 @@ CAF_TEST(local_master) {
   sched.run();
   // test putting something into the store
   ds.put("hello", "world");
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(ds.get("hello"), data{"world"});
@@ -44,7 +44,7 @@ CAF_TEST(local_master) {
   anon_send(core, atom::publish::value, atom::local::value,
             n / topics::reserved / topics::master,
             make_internal_command<put_command>("hello", "universe"));
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(ds.get("hello"), data{"universe"});
