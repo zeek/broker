@@ -129,7 +129,7 @@ CAF_TEST(nonblocking_publishers) {
   self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
@@ -153,7 +153,7 @@ CAF_TEST(nonblocking_publishers) {
     }
   );
   // Communication is identical to the driver-driven test in test/cpp/core.cc
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // Check log of the consumer.
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
