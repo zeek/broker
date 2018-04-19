@@ -13,7 +13,8 @@ base_fixture::base_fixture(bool fake_network)
     : ep(make_config(fake_network)),
       sys(ep.system()),
       self(sys),
-      sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
+      sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
+      credit_round_interval(sys.config().streaming_credit_round_interval()) {
   // nop
 }
 
