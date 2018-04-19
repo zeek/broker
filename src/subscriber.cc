@@ -29,6 +29,8 @@ struct subscriber_worker_state {
   std::vector<size_t> buf;
   size_t counter = 0;
 
+  bool calculate_rate = true;
+
   static const char* name;
 
   void tick() {
@@ -127,7 +129,18 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
           auto& st = self->state;
           st.tick();
           qptr->rate(st.rate());
-          self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+          if (st.calculate_rate)
+            self->delayed_send(self, std::chrono::seconds(1),
+                               atom::tick::value);
+        },
+        [=](atom::tick, bool x) {
+          auto& st = self->state;
+          if (st.calculate_rate == x)
+            return;
+          st.calculate_rate = x;
+          if (x)
+            self->delayed_send(self, std::chrono::seconds(1),
+                               atom::tick::value);
         }
       );
     }
@@ -169,6 +182,10 @@ void subscriber::remove_topic(topic x) {
     filter_.erase(i);
     anon_send(worker_, atom::join::value, atom::update::value, filter_);
   }
+}
+
+void subscriber::set_rate_calculation(bool x) {
+  anon_send(worker_, atom::tick::value, x);
 }
 
 void subscriber::became_not_full() {

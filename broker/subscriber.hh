@@ -46,6 +46,9 @@ public:
 
   void remove_topic(topic x);
 
+  /// Enables or disables rate calculation. On by default.
+  void set_rate_calculation(bool x);
+
 protected:
   void became_not_full() override;
 
