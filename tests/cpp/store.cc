@@ -101,9 +101,12 @@ TEST(proxy) {
   endpoint ep;
   auto m = ep.attach_master("puneta", memory);
   REQUIRE(m);
+  auto proxy = store::proxy{*m};
+  if (!proxy.mailbox().empty())
+    // Shouldn't get here.
+    proxy.receive();
   m->put("foo", 42);
   MESSAGE("master: issue queries");
-  auto proxy = store::proxy{*m};
   auto id = proxy.get("foo");
   CHECK_EQUAL(id, 1u);
   id = proxy.get("bar");
