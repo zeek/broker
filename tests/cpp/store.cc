@@ -102,9 +102,8 @@ TEST(proxy) {
   auto m = ep.attach_master("puneta", memory);
   REQUIRE(m);
   auto proxy = store::proxy{*m};
-  if (!proxy.mailbox().empty())
-    // Shouldn't get here.
-    proxy.receive();
+  REQUIRE(proxy.mailbox().empty());
+  REQUIRE_EQUAL(proxy.mailbox().size(), 0u);
   m->put("foo", 42);
   MESSAGE("master: issue queries");
   auto id = proxy.get("foo");
