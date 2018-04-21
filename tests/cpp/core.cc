@@ -178,7 +178,7 @@ CAF_TEST(local_peers) {
   CAF_MESSAGE("spin up driver on core1");
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("driver: " << to_string(d1));
-  sched.run_dispatch_loop(streaming_cycle);
+  run_exhaustively();
   CAF_MESSAGE("check log of the consumer after the driver is done");
   using buf = std::vector<element_type>;
   self->send(leaf, atom::get::value);
@@ -336,7 +336,7 @@ CAF_TEST(triangle_peering) {
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
-  sched.run_dispatch_loop(streaming_cycle);
+  run_exhaustively();
   // Check log of the consumers.
   using buf = std::vector<element_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -415,7 +415,7 @@ CAF_TEST(sequenced_peering) {
   CAF_MESSAGE("spin up driver and transmit first half of the data");
   auto d1 = sys.spawn(driver, core1, true);
   CAF_MESSAGE(CAF_ARG(d1));
-  sched.run_dispatch_loop(streaming_cycle);
+  run_exhaustively();
   // Check log of the consumer on core2.
   using buf = std::vector<element_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -461,7 +461,7 @@ CAF_TEST(sequenced_peering) {
   sched.run();
   CAF_MESSAGE("restart driver and send second half of the data");
   anon_send(d1, restart_atom::value);
-  sched.run_dispatch_loop(streaming_cycle);
+  run_exhaustively();
   // Check log of the consumer on core3.
   sched.inline_next_enqueue();
   self->request(leaf2, infinite, atom::get::value).receive(
