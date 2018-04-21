@@ -29,11 +29,11 @@ public:
   /// Checks whether the mailbox is empty.
   bool empty();
 
-  /// Counts the number of messages in the mailbox, up to given maximum
-  /// @warn This is not a constant-time operations, hence the name `count`
-  ///       as opposed to `size`. The function takes time *O(n)* where *n*
-  ///       is the size of the mailbox.
-  size_t count(size_t max = std::numeric_limits<size_t>::max());
+  /// Returns the number of messages in the mailbox.
+  size_t size();
+
+  /// Returns `size()` (backward compatibility).
+  size_t count(size_t = 0);
 
 private:
   explicit mailbox(detail::flare_actor* actor);
