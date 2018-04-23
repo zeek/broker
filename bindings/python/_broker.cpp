@@ -176,7 +176,8 @@ PYBIND11_MODULE(_broker, m) {
     .def(py::init<>())
     .def_readwrite("disable_ssl", &broker::broker_options::disable_ssl)
     .def_readwrite("ttl", &broker::broker_options::ttl)
-    .def_readwrite("forward", &broker::broker_options::forward);
+    .def_readwrite("forward", &broker::broker_options::forward)
+    .def_readwrite("use_real_time", &broker::broker_options::use_real_time);
 
   // We need a configuration class here that's separate from
   // broker::configuration. When creating an endpoint one has to instantiate
