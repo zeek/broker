@@ -16,11 +16,19 @@ int mailbox::descriptor() {
 }
 
 bool mailbox::empty() {
-  return actor_->mailbox().empty();
+  // Make sure to not access fifo_inbox::empty when blocked.
+  auto& mbox = actor_->mailbox();
+  return mbox.blocked() ? mbox.queue().empty() : mbox.empty();
 }
 
-size_t mailbox::count(size_t max) {
-  return actor_->mailbox().count(max);
+size_t mailbox::size() {
+  // Make sure to not access fifo_inbox::size when blocked.
+  auto& mbox = actor_->mailbox();
+  return mbox.blocked() ? mbox.queue().total_task_size() : mbox.size();
+}
+
+size_t mailbox::count(size_t) {
+  return size();
 }
 
 mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {

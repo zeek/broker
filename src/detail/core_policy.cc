@@ -48,18 +48,15 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
         CAF_LOG_DEBUG("dropped unexpected message type");
         continue;
       }
-
       // Extract worker messages.
       if (num_workers > 0 && msg.match_element<data>(1))
         workers().push(msg.get_as<topic>(0), msg.get_as<data>(1));
       // Extract store messages.
       if (num_stores > 0 && msg.match_element<internal_command>(1))
         stores().push(msg.get_as<topic>(0), msg.get_as<internal_command>(1));
-
       // Check if forwarding is on.
       if (!state_->options.forward)
         continue;
-
       // Either decrease TTL if message has one already, or add one.
       if (msg.size() < 3) {
         // Does not have a TTL yet, set a TTL of 5.
@@ -71,7 +68,6 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
           continue;
         }
       }
-
       // Forward to other peers.
       peers().push(std::move(msg));
     }
