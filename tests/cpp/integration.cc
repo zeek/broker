@@ -39,6 +39,7 @@ struct peer_fixture;
 struct global_fixture {
   // Maps host names to peers.
   using peers_map = std::map<std::string, peer_fixture*>;
+
   peers_map peers;
 
   ~global_fixture() {
@@ -54,10 +55,7 @@ struct global_fixture {
   bool try_exec();
 
   // Progresses actors messages and network traffic as much as possible.
-  void exec_loop() {
-    while (try_exec())
-      ; // rinse and repeat
-  }
+  void exec_loop();
 };
 
 // Holds state for individual peers. We use one fixture per simulated peer.
@@ -90,7 +88,10 @@ struct peer_fixture {
   std::vector<accept_handle> acceptors;
 
   // Stores all received items for subscribed topics.
-  data_vector data; 
+  data_vector data;
+
+  // Stores the interval between two credit rounds.
+  caf::timespan credit_round_interval;
 
   // Initializes this peer and registers it at parent.
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
@@ -100,7 +101,8 @@ struct peer_fixture {
       sys(ep.system()),
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
-      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())) {
+      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
+      credit_round_interval(sys.config().streaming_credit_round_interval()) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code
@@ -142,7 +144,7 @@ struct peer_fixture {
       [=](unit_t&, endpoint::value_type x) {
         data.emplace_back(std::move(x));
       },
-      [](unit_t&) {
+      [](unit_t&, const caf::error&) {
         // nop
       }
     );
@@ -167,9 +169,6 @@ struct peer_fixture {
       },
       [=](const unit_t&) {
         return buf->empty();
-      },
-      [](expected<void>) {
-        // nop
       }
     );
     parent->exec_loop();
@@ -206,6 +205,18 @@ bool global_fixture::try_exec() {
                      [](const peers_map::value_type& kvp) {
                        return kvp.second->try_exec();
                      });
+}
+
+void global_fixture::exec_loop() {
+  /*
+  while (try_exec())
+    ; // rinse and repeat
+  // */
+  std::vector<peer_fixture*> xs;
+  for (auto& kvp : peers)
+    xs.emplace_back(kvp.second);
+  exec_all_fixtures(xs.begin(), xs.end());
+  // */
 }
 
 // A fixture for simple setups consisting of three nodes.
@@ -329,10 +340,14 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   MESSAGE("subscribe to 'bro/events' on venus");
   auto venus_s1 = venus.ep.make_subscriber({"bro/events"});
   auto venus_s2 = venus.ep.make_subscriber({"bro/events"});
+  venus_s1.set_rate_calculation(false);
+  venus_s2.set_rate_calculation(false);
   exec_loop();
   MESSAGE("subscribe to 'bro/events/failures' on earth");
   auto earth_s1 = earth.ep.make_subscriber({"bro/events/failures"});
   auto earth_s2 = earth.ep.make_subscriber({"bro/events/failures"});
+  earth_s1.set_rate_calculation(false);
+  earth_s2.set_rate_calculation(false);
   exec_loop();
   MESSAGE("verify subscriptions");
   auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
@@ -467,25 +482,32 @@ CAF_TEST(connection_retry) {
   auto venus_es = venus.ep.make_status_subscriber(true);
   MESSAGE("initiate peering from venus to mercury (will fail)");
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
-  exec_loop();
-  MESSAGE("start listening on mercury:4040");
-  auto server_handle = mercury.make_accept_handle();
-  mercury.mpx.prepare_connection(server_handle,
-                                 mercury.make_connection_handle(), venus.mpx,
-                                 "mercury", 4040,
-                                 venus.make_connection_handle());
-  // We need to connect venus while mercury is blocked on ep.listen() in order
-  // to avoid a "deadlock" in `ep.listen()`.
-  mercury.sched.after_next_enqueue([&] {
-    exec_loop();
-    MESSAGE("peer venus to mercury:4040 by triggering the retry timeout");
-    CAF_CHECK_EQUAL(venus.sched.dispatch(), 1u);
-    exec_loop();
+  MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
+  mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
+    self->delayed_send(self, std::chrono::seconds(2), caf::ok_atom::value);
+    return {
+      [&](caf::ok_atom) {
+        MESSAGE("start listening on mercury:4040");
+        auto server_handle = mercury.make_accept_handle();
+        mercury.mpx.prepare_connection(server_handle,
+                                       mercury.make_connection_handle(),
+                                       venus.mpx, "mercury", 4040,
+                                       venus.make_connection_handle());
+        // We need to connect venus while mercury is blocked on ep.listen() in
+        // order to avoid a "deadlock" in `ep.listen()`.
+        mercury.sched.after_next_enqueue([&] {
+          MESSAGE("peer venus to mercury:4040 by triggering the retry timeout");
+          exec_loop();
+        });
+        mercury.ep.listen("", 4040);
+      }
+    };
   });
-  mercury.ep.listen("", 4040);
+  exec_loop();
   MESSAGE("check event logs");
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_added}));
-  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_unavailable, sc::peer_added}));
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()),
+                  event_log({ec::peer_unavailable, sc::peer_added}));
   MESSAGE("disconnect venus from mercury");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);

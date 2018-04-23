@@ -386,10 +386,6 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           }
 
           self->state.command(y.second);
-        },
-        // cleanup and produce result message
-        [](caf::unit_t&) {
-          // nop
         }
       );
     }

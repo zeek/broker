@@ -32,7 +32,7 @@ CAF_TEST(local_master) {
   sched.run();
   // test putting something into the store
   ds.put("hello", "world");
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(ds.get("hello"), data{"world"});
@@ -44,7 +44,7 @@ CAF_TEST(local_master) {
   anon_send(core, atom::publish::value, atom::local::value,
             n / topics::reserved / topics::master,
             make_internal_command<put_command>("hello", "universe"));
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(ds.get("hello"), data{"universe"});
@@ -103,9 +103,7 @@ CAF_TEST(master_with_clone) {
   auto ms_earth = ds_earth.frontend();
   // the core adds the master immediately to the topic and sends a stream
   // handshake
-  expect_on(earth, (stream_msg::open),
-            from(_).to(ms_earth).with(_, core1, _, _, _, _, false));
-  exec_all(); // skip remaining handshake
+  exec_all(); // skip handshake
   // Store some test data in the master.
   expected_ds_earth->put("test", 123);
   expect_on(earth , (atom_value, internal_command),
@@ -123,22 +121,17 @@ CAF_TEST(master_with_clone) {
   forward_stream_traffic();
   expect_on(mars, (atom::peer, filter_type, actor),
             from(_).to(core2).with(_, filter_type{foo_master}, _));
-  // Step #2: core1  <---   (stream_msg::open)   <--- core2
+  // Step #2: core1  <---   (open_stream_msg)   <--- core2
   forward_stream_traffic();
-  expect_on(earth, (stream_msg::open),
-            from(_).to(core1).with(
-              std::make_tuple(_, filter_type{}, core2_proxy), _, _, _, false));
-  // Step #3: core1  --->   (stream_msg::open)   ---> core2
-  //          core1  ---> (stream_msg::ack_open) ---> core2
+  expect_on(earth, (open_stream_msg), from(_).to(core1));
+  // Step #3: core1  --->   (open_stream_msg)   ---> core2
+  //          core1  ---> (upstream_msg::ack_open) ---> core2
   forward_stream_traffic();
-  expect_on(mars, (stream_msg::open),
-            from(_).to(core2).with(_, _, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
-            from(_).to(core2).with(_, _, _, _, false));
-  // Step #4: core1  <--- (stream_msg::ack_open) <--- core2
+  expect_on(mars, (open_stream_msg), from(_).to(core2));
+  expect_on(mars, (upstream_msg::ack_open), from(_).to(core2));
+  // Step #4: core1  <--- (upstream_msg::ack_open) <--- core2
   forward_stream_traffic();
-  expect_on(earth, (stream_msg::ack_open),
-            from(_).to(core1).with(_, _, _, _, false));
+  expect_on(earth, (upstream_msg::ack_open), from(_).to(core1));
   // Make sure there is no communication pending at this point.
   exec_all();
   // --- phase 7: attach a clone on mars ---------------------------------------
@@ -152,9 +145,8 @@ CAF_TEST(master_with_clone) {
   // the core adds the clone immediately to the topic and sends a stream
   // handshake
   auto foo_clone = "foo" / topics::reserved / topics::clone;
-  expect_on(mars, (stream_msg::open),
-            from(_).to(ms_mars).with(_, core2, _, _, _, _, false));
-  expect_on(mars, (stream_msg::ack_open),
+  expect_on(mars, (open_stream_msg), from(_).to(ms_mars));
+  expect_on(mars, (upstream_msg::ack_open),
             from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();

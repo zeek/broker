@@ -283,7 +283,7 @@ void clientMode(const char* host, int port) {
                         [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
                             receivedStats(ep, std::move(x.second));
                         },
-                        [](caf::unit_t&) {
+                        [](caf::unit_t&, const caf::error&) {
                             // nop
             });
 
@@ -302,10 +302,7 @@ void clientMode(const char* host, int port) {
                                ++total_sent;
                            }
                        },
-                       [](const caf::unit_t&) { return false; },
-                       [](caf::expected<void>) {
-                           // nop
-                       });
+                       [](const caf::unit_t&) { return false; });
     }
 
     if (verbose)
@@ -389,7 +386,7 @@ void serverMode(const char* iface, int port) {
                             }
                         },
 
-                        [](caf::unit_t&) {
+                        [](caf::unit_t&, const caf::error&) {
                             // nop
             });
 
@@ -399,7 +396,7 @@ void serverMode(const char* iface, int port) {
                         [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
                             terminate = true;
                         },
-                        [](caf::unit_t&) {
+                        [](caf::unit_t&, const caf::error&) {
                             // nop
             });
 

@@ -42,10 +42,6 @@ void driver(event_based_actor* self, const actor& sink) {
     // Did we reach the end?.
     [](const buf_type& xs) {
       return xs.empty();
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   );
 }
@@ -63,21 +59,22 @@ CAF_TEST(blocking_subscriber) {
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   auto sub = ep.make_subscriber(filter_type{"b"});
+  sub.set_rate_calculation(false);
   auto leaf = sub.worker();
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   CAF_MESSAGE("driver: " << to_string(d1));
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   CAF_MESSAGE("check content of the subscriber's buffer");
   using buf = std::vector<value_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -102,7 +99,7 @@ CAF_TEST(nonblocking_subscriber) {
   anon_send(core2, atom::no_events::value);
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   self->send(core1, atom::peer::value, core2);
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<value_type>;
   buf result;
@@ -114,14 +111,14 @@ CAF_TEST(nonblocking_subscriber) {
     [&](unit_t&, value_type x) {
       result.emplace_back(std::move(x));
     },
-    [](unit_t&) {
+    [](unit_t&, const error&) {
       // nop
     }
   );
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   // Communication is identical to the consumer-centric test in test/cpp/core.cc
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
   CAF_REQUIRE_EQUAL(result, expected);
   // Shutdown.

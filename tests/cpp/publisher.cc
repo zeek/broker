@@ -46,7 +46,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
-        [](unit_t&) {
+        [](unit_t&, const caf::error&) {
           // nop
         }
       );
@@ -87,10 +87,10 @@ CAF_TEST(blocking_publishers) {
     using buf = std::vector<value_type>;
     // First, set of published messages gets filtered out at core2.
     pub1.publish(0);
-    sched.run();
+    sched.run_dispatch_loop();
     // Second, set of published messages gets delivered to leaf.
     pub2.publish(true);
-    sched.run();
+    sched.run_dispatch_loop();
     // Third, set of published messages gets again filtered out at core2.
     pub1.publish({1, 2, 3});
     sched.run();
@@ -129,7 +129,7 @@ CAF_TEST(nonblocking_publishers) {
   self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
@@ -150,14 +150,10 @@ CAF_TEST(nonblocking_publishers) {
     // Did we reach the end?.
     [](const buf_type& xs) {
       return xs.empty();
-    },
-    // Handle result of the stream.
-    [](expected<void>) {
-      // nop
     }
   );
   // Communication is identical to the driver-driven test in test/cpp/core.cc
-  sched.run();
+  sched.run_dispatch_loop(credit_round_interval);
   // Check log of the consumer.
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);

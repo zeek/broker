@@ -62,6 +62,7 @@ public:
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
+  caf::timespan credit_round_interval;
 
 private:
   static broker::configuration make_config(bool fake_network);
