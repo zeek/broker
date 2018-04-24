@@ -204,7 +204,7 @@ status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
   return result;
 }
 
-subscriber endpoint::make_subscriber(std::vector<topic> ts, long max_qsize) {
+subscriber endpoint::make_subscriber(std::vector<topic> ts, size_t max_qsize) {
   subscriber result{*this, std::move(ts), max_qsize};
   children_.emplace_back(result.worker());
   return result;

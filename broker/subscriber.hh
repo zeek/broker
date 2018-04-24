@@ -54,7 +54,7 @@ protected:
 
 private:
   // -- force users to use `endpoint::make_status_subscriber` -------------------
-  subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize);
+  subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize);
 
   caf::actor worker_;
   std::vector<topic> filter_;

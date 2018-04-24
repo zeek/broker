@@ -61,7 +61,7 @@ public:
   using queue_ptr = detail::shared_subscriber_queue_ptr<>;
 
   subscriber_sink(scheduled_actor* self, subscriber_worker_state* state,
-                  queue_ptr qptr, long max_qsize)
+                  queue_ptr qptr, size_t max_qsize)
     : stream_manager(self),
       super(self),
       state_(state),
@@ -91,13 +91,13 @@ protected:
 private:
   subscriber_worker_state* state_;
   queue_ptr queue_;
-  long max_qsize_;
+  size_t max_qsize_;
 };
 
 behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
                            endpoint* ep,
                            detail::shared_subscriber_queue_ptr<> qptr,
-                           std::vector<topic> ts, long max_qsize) {
+                           std::vector<topic> ts, size_t max_qsize) {
   self->send(self * ep->core(), atom::join::value, std::move(ts));
   self->set_default_handler(skip);
   return {
@@ -149,7 +149,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 
 } // namespace <anonymous>
 
-subscriber::subscriber(endpoint& ep, std::vector<topic> ts, long max_qsize)
+subscriber::subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize)
   : super(max_qsize) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
   worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),

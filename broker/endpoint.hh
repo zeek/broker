@@ -197,7 +197,7 @@ public:
   // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
-  subscriber make_subscriber(std::vector<topic> ts, long max_qsize = 20);
+  subscriber make_subscriber(std::vector<topic> ts, size_t max_qsize = 20u);
 
   /// Starts a background worker from the given set of function that consumes
   /// incoming messages. The worker will run in the background, but `init` is
