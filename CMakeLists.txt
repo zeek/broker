@@ -34,29 +34,46 @@ else ()
 
   # For now, if you want to build a static lib, just go through
   # the --with-caf path and point to separate, custom-built CAF.
-  ExternalProject_Add(project_caf
-    PREFIX     "${caf_ep}"
-    BINARY_DIR "${caf_build}"
-    DOWNLOAD_COMMAND  ""
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND     ""
-    INSTALL_COMMAND   ""
+
+  if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
+    if ( ${CMAKE_GENERATOR} STREQUAL Ninja )
+      message(FATAL_ERROR "Ninja generator requires CMake >= 3.2")
+    endif ()
     # Build byproducts is just required by the Ninja generator
     # though it's not available before CMake 3.2 ...
-    BUILD_BYPRODUCTS
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${static_ext}
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
-      ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
-  )
+    ExternalProject_Add(project_caf
+      PREFIX            "${caf_ep}"
+      BINARY_DIR        "${caf_build}"
+      DOWNLOAD_COMMAND  ""
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND     ""
+      INSTALL_COMMAND   ""
+    )
+  else ()
+    ExternalProject_Add(project_caf
+      PREFIX            "${caf_ep}"
+      BINARY_DIR        "${caf_build}"
+      DOWNLOAD_COMMAND  ""
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND     ""
+      INSTALL_COMMAND   ""
+      BUILD_BYPRODUCTS
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${static_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
+    )
+  endif ()
+
   ExternalProject_Add_Step(project_caf project_caf_build_step
     COMMAND ${CMAKE_MAKE_PROGRAM}
     COMMENT "Building CAF"
     WORKING_DIRECTORY ${caf_build}
     ALWAYS 1
   )
+
   install(CODE "execute_process(
     COMMAND ${CMAKE_MAKE_PROGRAM} install
     WORKING_DIRECTORY ${caf_build}
