@@ -79,10 +79,16 @@ else ()
     WORKING_DIRECTORY ${caf_build}
     )"
   )
+
+  if ( CMAKE_TOOLCHAIN_FILE )
+    set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+  endif ()
+
   execute_process(
       COMMAND
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
+        ${toolchain_arg}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes
         -DCAF_NO_TOOLS:bool=yes
