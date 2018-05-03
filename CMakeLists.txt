@@ -1,7 +1,7 @@
 # -- Project Setup ------------------------------------------------------------
 
 project(broker C CXX)
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 2.8.12)
 include(cmake/CommonCMakeConfig.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
