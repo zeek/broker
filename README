@@ -36,19 +36,19 @@ installed:
     * OpenSSL headers/libraries          (http://www.openssl.org)
     * CMake 2.8.12 or greater            (https://cmake.org)
 
-The optional python bindings also require Python 2.7 or greater
+The optional Python bindings also require Python 2.7 or greater
 along with Python development packages.  For Python 2.7, you'll
 also need the ``ipaddress`` backport from Python 3.
 
-By default, Broker will also use an integrated version of the C++
-Actor Framework (https://actor-framework.org), though there's still
-the option to specify a particular version via the ``--with-caf=``
+By default, Broker will use an integrated version of the C++ Actor
+Framework (CAF; https://actor-framework.org), though there's still the
+option to specify an exernal CAF version via the ``--with-caf=``
 configure script option.
 
 Compiling/Installing
 --------------------
 
-To compile and install in to ``/usr/local``::
+To compile and install into ``/usr/local``::
 
     ./configure
     make

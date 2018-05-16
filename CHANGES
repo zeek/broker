@@ -1,4 +1,12 @@
 
+1.0.0 | 2018-05-21 19:47:19 +0000
+
+  * New Broker version incorporating a completely reworked API, along
+    with major implementation changes. Please see the new Broker user
+    manual for more information about this version. (Jon Siwek,
+    Matthias Vallentin, Robin Sommer, Dominik Charousset. Integration
+    supported by Corelight.)
+
 0.7 | 2017-05-26 08:28:56 -0500
 
   * Release 0.7.
