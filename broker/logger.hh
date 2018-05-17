@@ -1,0 +1,13 @@
+#ifndef BROKER_LOGGER_HH
+#define BROKER_LOGGER_HH
+
+#undef CAF_LOG_COMPONENT
+#define CAF_LOG_COMPONENT "broker"
+#include <caf/logger.hpp>
+
+#define BROKER_DEBUG CAF_LOG_DEBUG
+#define BROKER_INFO CAF_LOG_INFO
+#define BROKER_WARNING CAF_LOG_WARNING
+#define BROKER_ERROR CAF_LOG_ERROR
+
+#endif // BROKER_LOGGER_HH

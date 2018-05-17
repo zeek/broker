@@ -1,1 +1,3 @@
 build
+*.sw[op]
+*.pyc

@@ -1,0 +1,10 @@
+#ifndef BROKER_CONFIG_HH
+#define BROKER_CONFIG_HH
+
+#cmakedefine BROKER_HAVE_ROCKSDB
+
+#cmakedefine BROKER_APPLE
+#cmakedefine BROKER_FREEBSD
+#cmakedefine BROKER_LINUX
+
+#endif // BROKER_CONFIG_HH

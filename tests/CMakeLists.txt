@@ -1,73 +1,102 @@
-if ( ENABLE_SHARED )
-    set(libbroker broker)
+# -- Global test harness setup ------------------------------------------------
+
+set(BROKER_TEST_TIMEOUT 20)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+# -- C++ ----------------------------------------------------------------------
+
+set(tests
+  cpp/backend.cc
+  cpp/bro.cc
+  cpp/core.cc
+  cpp/data.cc
+  cpp/status_subscriber.cc
+  cpp/integration.cc
+  cpp/master.cc
+  cpp/publisher.cc
+  cpp/radix_tree.cc
+  cpp/ssl.cc
+  cpp/store.cc
+  cpp/subscriber.cc
+  cpp/topic.cc
+  cpp/variant.cc
+  test.cpp
+)
+
+# Setup correct broker library (static/shared).
+if (ENABLE_SHARED)
+  set(libbroker broker)
 else ()
-    set(libbroker brokerStatic)
+  set(libbroker broker_static)
 endif ()
+add_executable(broker-test ${tests})
+target_link_libraries(broker-test ${libbroker})
 
-set(BROKER_TEST_TIMEOUT 10)
+set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
-macro(unit_test name)
-    if ( BROKER_TEST_C_API )
-        add_executable(${name} ${name}.c)
-    else ()
-        add_executable(${name} ${name}.cc)
-    endif ()
-
-    target_link_libraries(${name} ${libbroker})
-
-    if ( ${ARGC} EQUAL 1 )
-        add_test(NAME ${name} COMMAND ${name})
-        set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
-    else ()
-        foreach ( _arg ${ARGN} )
-            add_test(NAME ${name}_${_arg} COMMAND ${name} ${_arg})
-            set_tests_properties(${name}_${_arg} PROPERTIES TIMEOUT
-                                 ${BROKER_TEST_TIMEOUT})
-        endforeach ()
-    endif ()
+macro(make_cpp_test suite)
+  string(REPLACE " " "_" test_name ${suite})
+  set(test_verbosity 4)
+  if (${test_name} STREQUAL radix_tree)
+    set(test_verbosity 3)  # otherwise it just produces way too much output
+  endif ()
+  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "${suite}" ${ARGN})
+  set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+  set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
+                       "BROKER_TEST_DIR=${BROKER_TEST_DIR}")
 endmacro()
 
-macro(unit_test_python script)
-    if ( BROKER_PYTHON_BINDINGS )
-        add_test(NAME ${script} COMMAND ${PYTHON_EXECUTABLE}
-                                        ${CMAKE_CURRENT_SOURCE_DIR}/${script})
-        set_tests_properties(${name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
-        set_tests_properties(${script} PROPERTIES ENVIRONMENT
-                 "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/../bindings/python")
-    endif ()
-endmacro()
+# Find all test suites.
+foreach(test ${tests})
+  file(STRINGS ${test} contents)
+  foreach(line ${contents})
+    if ("${line}" MATCHES "SUITE")
+      string(REGEX REPLACE ".* SUITE (.*)" "\\1" suite ${line})
+      list(APPEND suites ${suite})
+    endif()
+  endforeach()
+endforeach()
+list(REMOVE_DUPLICATES suites)
 
-set(backends memory;sqlite)
+foreach(suite ${suites})
+  make_cpp_test("${suite}")
+endforeach ()
 
-if ( ROCKSDB_FOUND )
-    add_definitions(-DHAVE_ROCKSDB)
-    set(backends ${backends} rocksdb)
+# -- Python -------------------------------------------------------------------
+
+if (BROKER_PYTHON_BINDINGS)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-bro.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-bro)
+
+  macro(make_python_test name)
+    set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
+    set(test_name python-${name})
+    add_test(NAME ${test_name}
+             COMMAND ${PYTHON_EXECUTABLE} ${script}
+             WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
+    set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
+    set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
+                         "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR};BROKER_TEST_DIR=${BROKER_TEST_DIR}")
+  endmacro()
+
+  if (BRO_FOUND)
+    make_python_test(bro)
+  endif ()
+
+  make_python_test(communication)
+  make_python_test(data)
+  make_python_test(forwarding)
+  make_python_test(ssl)
+  make_python_test(store)
+  make_python_test(topic)
 endif ()
 
-unit_test(test_print)
-unit_test(test_print_remote)
-unit_test(test_event local;remote)
-unit_test(test_log   local;remote)
-unit_test(test_store_master)
-unit_test(test_store_clone)
-unit_test(test_store_frontend)
-unit_test(test_store_remote)
-unit_test(test_store_backend ${backends})
-unit_test(test_store_expiry ${backends})
-unit_test(test_subscription_matching)
-unit_test(test_variant)
-unit_test(test_optional)
-unit_test(test_data)
-unit_test(test_network_types)
-unit_test(test_radix_tree)
+## -- Benchmark
 
-unit_test_python(test_messages.py)
-unit_test_python(test_store.py)
+add_executable(broker-benchmark benchmark/broker-benchmark.cc)
+target_link_libraries(broker-benchmark ${libbroker})
 
-set(BROKER_TEST_C_API true)
+add_executable(broker-stream-benchmark benchmark/broker-stream-benchmark.cc)
+target_link_libraries(broker-stream-benchmark ${libbroker})
 
-unit_test(test_data_c)
-unit_test(test_print_c)
-unit_test(test_print_remote_c)
-unit_test(test_network_types_c)
-unit_test(test_store_c)

@@ -1,13 +1,167 @@
+# -- Project Setup ------------------------------------------------------------
+
 project(broker C CXX)
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 include(cmake/CommonCMakeConfig.cmake)
 
-find_package(CAF COMPONENTS core io REQUIRED)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
-# Check for required CAF version.
-set(CAF_VERSION_REQUIRED 0.14)
-set(CAF_VERSION_LAST 0.14.99)
-file(READ "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp" caf_config_hpp)
+# -- Dependencies -------------------------------------------------------------
+
+if ( CAF_ROOT_DIR )
+  find_package(CAF COMPONENTS core io test openssl REQUIRED)
+  set(caf_dir    "${CAF_LIBRARY_CORE}")
+  set(caf_config "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp")
+  get_filename_component(caf_dir ${caf_dir} PATH)
+
+  if (EXISTS "${caf_dir}/../libcaf_core")
+    get_filename_component(caf_dir ${caf_dir} PATH)
+  else ()
+    set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
+  endif ()
+else ()
+  include(ExternalProject)
+  set(caf_src     "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
+  set(caf_ep      "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
+  set(caf_build   "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
+  set(caf_dir     "${caf_src}")
+  set(caf_install "${CMAKE_INSTALL_PREFIX}")
+  set(shared_ext  "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  set(static_ext  "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(caf_config  "${caf_src}/libcaf_core/caf/config.hpp")
+
+  # For now, if you want to build a static lib, just go through
+  # the --with-caf path and point to separate, custom-built CAF.
+
+  if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
+    if ( ${CMAKE_GENERATOR} STREQUAL Ninja )
+      message(FATAL_ERROR "Ninja generator requires CMake >= 3.2")
+    endif ()
+    # Build byproducts is just required by the Ninja generator
+    # though it's not available before CMake 3.2 ...
+    ExternalProject_Add(project_caf
+      PREFIX            "${caf_ep}"
+      BINARY_DIR        "${caf_build}"
+      DOWNLOAD_COMMAND  ""
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND     ""
+      INSTALL_COMMAND   ""
+    )
+  else ()
+    ExternalProject_Add(project_caf
+      PREFIX            "${caf_ep}"
+      BINARY_DIR        "${caf_build}"
+      DOWNLOAD_COMMAND  ""
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND     ""
+      INSTALL_COMMAND   ""
+      BUILD_BYPRODUCTS
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${static_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
+    )
+  endif ()
+
+  if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
+    set(use_terminal_arg)
+  else ()
+    set(use_terminal_arg USES_TERMINAL 1)
+  endif ()
+
+  ExternalProject_Add_Step(project_caf project_caf_build_step
+    COMMAND ${CMAKE_MAKE_PROGRAM}
+    COMMENT "Building CAF"
+    WORKING_DIRECTORY ${caf_build}
+    ALWAYS 1
+    ${use_terminal_arg}
+  )
+
+  install(CODE "execute_process(
+    COMMAND ${CMAKE_MAKE_PROGRAM} install
+    WORKING_DIRECTORY ${caf_build}
+    )"
+  )
+
+  if ( CMAKE_TOOLCHAIN_FILE )
+    set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+  endif ()
+
+  execute_process(
+      COMMAND
+        ${CMAKE_COMMAND}
+        -G${CMAKE_GENERATOR}
+        ${toolchain_arg}
+        -DCAF_NO_UNIT_TESTS:bool=yes
+        -DCAF_NO_EXAMPLES:bool=yes
+        -DCAF_NO_TOOLS:bool=yes
+        -DCAF_NO_BENCHMARKS:bool=yes
+        -DCAF_NO_PYTHON:bool=yes
+        -DCAF_NO_OPENCL:bool=yes
+        # Sticking CAF libs in the same output dir as libbroker is a bit of a
+        # hack until CMake 3.8, which has BUILD_RPATH that can instead be set
+        # on libbroker.  The problem here is that broker unit tests will fail
+        # if linker can't locate CAF libs (e.g. via build-tree RPATH).
+        -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
+        -DCMAKE_BUILD_TYPE:string=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX:path=${caf_install}
+        ${caf_src}
+      WORKING_DIRECTORY ${caf_build}
+      RESULT_VARIABLE caf_cmake_result
+      ERROR_VARIABLE CAF_CMAKE_OUTPUT
+      OUTPUT_VARIABLE CAF_CMAKE_OUTPUT
+      ERROR_STRIP_TRAILING_WHITESPACE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  message("\n********** Begin CAF External Project CMake Output ************")
+  message("\n${CAF_CMAKE_OUTPUT}")
+  message("\n*********** End CAF External Project CMake Output *************")
+  message("\n")
+
+  if (caf_cmake_result)
+    message(FATAL_ERROR "CAF CMake configuration failed")
+  endif ()
+
+  add_library(libcaf_core_shared SHARED IMPORTED)
+  add_library(libcaf_io_shared SHARED IMPORTED)
+  add_library(libcaf_openssl_shared SHARED IMPORTED)
+  set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
+  set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext})
+  set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
+               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext})
+  add_dependencies(libcaf_core_shared project_caf)
+  add_dependencies(libcaf_io_shared project_caf)
+  add_dependencies(libcaf_openssl_shared project_caf)
+
+  set(CAF_FOUND true)
+  set(CAF_LIBRARIES
+      libcaf_core_shared libcaf_io_shared libcaf_openssl_shared
+      CACHE STRING "CAF libs" FORCE)
+
+  set(CAF_INCLUDE_DIRS
+      "${caf_src}/libcaf_core"
+      "${caf_src}/libcaf_io"
+      "${caf_src}/libcaf_openssl"
+      "${caf_src}/libcaf_test"
+      CACHE STRING "CAF includes" FORCE)
+
+  set(CAF_INCLUDE_DIR_CORE
+      "${caf_src}/libcaf_core" CACHE PATH "CAF core headers" FORCE)
+  set(CAF_INCLUDE_DIR_IO
+      "${caf_src}/libcaf_io" CACHE PATH "CAF io headers" FORCE)
+  set(CAF_INCLUDE_DIR_OPENSSL
+      "${caf_src}/libcaf_openssl" CACHE PATH "CAF openssl headers" FORCE)
+endif ()
+
+file(READ "${caf_config}" caf_config_hpp)
 string(REGEX MATCH "#define CAF_VERSION [0-9]+"
        caf_version_line "${caf_config_hpp}")
 string(REGEX MATCH "[0-9]+" caf_version_int "${caf_version_line}")
@@ -17,33 +171,42 @@ math(EXPR caf_version_patch "${caf_version_int} % 100")
 set(CAF_VERSION
     "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
-if ( ( CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED} ) OR ( CAF_VERSION VERSION_GREATER ${CAF_VERSION_LAST} ) )
-    message(FATAL_ERROR "Broker requires CAF version"
-            " ${CAF_VERSION_REQUIRED}, older and newer versions are not supported. Detected version: ${CAF_VERSION}")
+set(CAF_VERSION_REQUIRED 0.15.5)
+
+if (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED})
+  message(FATAL_ERROR "Broker requires at least CAF version"
+    " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
-find_package(RocksDB)
+# OpenSSL
+find_package(OpenSSL REQUIRED)
+set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-if ( ROCKSDB_FOUND )
-    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
-    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/store/rocksdb_backend.cc)
+# RocksDB
+find_package(RocksDB)
+if (ROCKSDB_FOUND)
+  set(BROKER_HAVE_ROCKSDB true)
+  include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
+  set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
+  set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
 endif ()
 
+# -- libroker -----------------------------------------------------------------
+
+# Extract Broker version
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION LIMIT_COUNT 1)
 string(REPLACE "." " " _version_numbers ${VERSION})
 separate_arguments(_version_numbers)
 list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
 list(GET _version_numbers 1 BROKER_VERSION_MINOR)
 list(LENGTH _version_numbers _version_length)
-
-if ( _version_length LESS 3 )
-    set(BROKER_VERSION_PATCH 0)
+if (_version_length LESS 3)
+  set(BROKER_VERSION_PATCH 0)
 else ()
-    list(GET _version_numbers 2 BROKER_VERSION_PATCH)
+  list(GET _version_numbers 2 BROKER_VERSION_PATCH)
 endif ()
 
 set(BROKER_VERSION
@@ -52,68 +215,107 @@ set(BROKER_VERSION
 set(BROKER_SOVERSION 0)
 set(ENABLE_SHARED true)
 
-if ( ENABLE_STATIC_ONLY )
-    set(ENABLE_STATIC true)
-    set(ENABLE_SHARED false)
+if (ENABLE_STATIC_ONLY)
+  set(ENABLE_STATIC true)
+  set(ENABLE_SHARED false)
+endif ()
+
+# -- compiler -----------------------------------------------------------------
+
+if (APPLE)
+  set(BROKER_APPLE true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(BROKER_LINUX true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(BROKER_FREEBSD)
 endif ()
 
 include(RequireCXX11)
 
-install(DIRECTORY broker DESTINATION include)
+# Mac OS ignores -pthread but other platforms require it
+if (NOT BROKER_APPLE)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+endif ()
+
+# Increase warnings.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
+
+# Increase maximum number of instantiations.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+
+# Reduce the number of template instantiations shown in backtrace.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+
+if (ENABLE_ADDRESS_SANITIZER)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+  # Some Linux distributions have apparently cannot pick the right linker
+  # properly. See: http://stackoverflow.com/q/37603238/1170277
+  if (BROKER_LINUX)
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
+  endif ()
+endif(ENABLE_ADDRESS_SANITIZER)
+
+# Append our extra flags to the existing value of CXXFLAGS.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+
+install(DIRECTORY broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
 
-# A convienience to add non-compiled files to IDEs - CMake doesn't add
-# such files unless they appear in either add_executable or add_library.
-file(GLOB_RECURSE BROKER_HDR *.h *.hh)
-
-set_source_files_properties(src/store/sqlite3.c PROPERTIES COMPILE_FLAGS
+set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
+               ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/version.hh.in
+               ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh DESTINATION include/broker)
+
 set(BROKER_SRC
-    src/address.cc
-    src/broker.cc
-    src/data.cc
-    src/endpoint.cc
-    src/enum_value.cc
-    src/incoming_connection_status.cc
-    src/message_queue.cc
-    src/outgoing_connection_status.cc
-    src/peering.cc
-    src/persistables.cc
-    src/port.cc
-    src/queue.cc
-    src/record.cc
-    src/report.cc
-    src/set.cc
-    src/string.cc
-    src/subnet.cc
-    src/subscription.cc
-    src/table.cc
-    src/time_duration.cc
-    src/time_point.cc
-    src/vector.cc
+  src/address.cc
+  src/bro.cc
+  src/configuration.cc
+  src/data.cc
+  src/endpoint.cc
+  src/error.cc
+  src/status_subscriber.cc
+  src/internal_command.cc
+  src/mailbox.cc
+  src/network_info.cc
+  src/peer_status.cc
+  src/port.cc
+  src/publisher.cc
+  src/status.cc
+  src/store.cc
+  src/subnet.cc
+  src/subscriber.cc
+  src/time.cc
+  src/topic.cc
+  src/version.cc
 
-    src/store/backend.cc
-    src/store/clone.cc
-    src/store/expiration_time.cc
-    src/store/frontend.cc
-    src/store/master.cc
-    src/store/memory_backend.cc
-    src/store/query.cc
-    src/store/response.cc
-    src/store/result.cc
-    src/store/sequence_num.cc
-    src/store/sqlite3.c
-    src/store/sqlite_backend.cc
+  src/detail/abstract_backend.cc
+  src/detail/clone_actor.cc
+  src/detail/core_actor.cc
+  src/detail/core_policy.cc
+  src/detail/filesystem.cc
+  src/detail/flare.cc
+  src/detail/flare_actor.cc
+  src/detail/make_backend.cc
+  src/detail/master_actor.cc
+  src/detail/master_resolver.cc
+  src/detail/memory_backend.cc
+  src/detail/network_cache.cc
+  src/detail/prefix_matcher.cc
+  src/detail/sqlite_backend.cc
 
-    src/util/misc.cc
-    src/util/persist.cc
-    src/util/pipe.cc
-    src/util/flare.cc
+  3rdparty/sqlite3.c
 
-    ${OPTIONAL_SRC}
-    ${BROKER_HDR})
+  ${OPTIONAL_SRC}
+)
 
 include(TestBigEndian)
 test_big_endian(BROKER_BIG_ENDIAN)
@@ -123,77 +325,127 @@ set(CMAKE_REQUIRED_FLAGS -msse2)
 check_include_files(emmintrin.h HAVE_SSE2)
 set(CMAKE_REQUIRED_FLAGS)
 
-if ( HAVE_SSE2 )
-    add_definitions(-DBROKER_USE_SSE2 -msse2)
+if (HAVE_SSE2)
+  add_definitions(-DBROKER_USE_SSE2 -msse2)
 endif ()
 
-if ( BROKER_BIG_ENDIAN )
-    set_source_files_properties(src/util/persist.c PROPERTIES COMPILE_FLAGS
-                                -DBROKER_BIG_ENDIAN)
+if (NOT INSTALL_LIB_DIR)
+  set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 endif ()
 
-if ( NOT INSTALL_LIB_DIR )
-    set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
+if (ENABLE_SHARED)
+  add_library(broker SHARED ${BROKER_SRC})
+  set_target_properties(broker PROPERTIES
+                        SOVERSION ${BROKER_SOVERSION}
+                        VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
+                        MACOSX_RPATH true
+                        OUTPUT_NAME broker)
+  target_link_libraries(broker ${LINK_LIBS})
+  install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
-if ( ENABLE_SHARED )
-    add_library(broker SHARED ${BROKER_SRC})
-    set_target_properties(broker PROPERTIES
-                          SOVERSION ${BROKER_SOVERSION}
-                          VERSION ${BROKER_VERSION}
-                          MACOSX_RPATH true
-                          # INSTALL_NAME_DIR can be removed when
-                          # CMake 2.8.12 is required (redundant with
-                          # MACOSX_RPATH).
-                          INSTALL_NAME_DIR "@rpath"
-                          OUTPUT_NAME broker)
-    target_link_libraries(broker ${LINK_LIBS})
-    install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
+if (ENABLE_STATIC)
+  add_library(broker_static STATIC ${BROKER_SRC})
+  set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
+  target_link_libraries(broker_static ${LINK_LIBS})
+  install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
 endif ()
 
-if ( ENABLE_STATIC )
-    add_library(brokerStatic STATIC ${BROKER_SRC})
-    set_target_properties(brokerStatic PROPERTIES OUTPUT_NAME broker)
-    target_link_libraries(brokerStatic ${LINK_LIBS})
-    install(TARGETS brokerStatic DESTINATION ${INSTALL_LIB_DIR})
+# -- Tools --------------------------------------------------------------------
+
+macro(add_tool name)
+  add_executable(${name} src/${name}.cc ${ARGN})
+  if (ENABLE_SHARED)
+    target_link_libraries(${name} ${LINK_LIBS} broker)
+    add_dependencies(${name} broker)
+  else()
+    target_link_libraries(${name} ${LINK_LIBS} broker_static)
+    add_dependencies(${name} broker_static)
+  endif()
+endmacro()
+
+add_tool(broker-pipe)
+
+# -- Bindings -----------------------------------------------------------------
+
+if (NOT DISABLE_PYTHON_BINDINGS)
+  find_package(PythonInterp)
+  if (NOT PYTHONINTERP_FOUND)
+    message(STATUS "Skipping Python bindings: Python interpreter not found")
+  endif ()
+
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/3rdparty/pybind11/CMakeLists.txt")
+    message(WARNING "Skipping Python bindings: pybind11 submodule not available")
+    set(PYTHONINTERP_FOUND false)
+  endif ()
+
+  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 2.7)
+    message(WARNING "Skipping Python bindings: Python 2.7 or Python 3 required")
+    set(PYTHONINTERP_FOUND false)
+  endif ()
+
+  find_package(PythonDev)
+  if (PYTHONDEV_FOUND)
+    # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
+    set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
+  else ()
+    message(STATUS
+            "Skipping Python bindings: Python includes/libraries not found")
+  endif ()
+
+  if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND)
+    set (BROKER_PYTHON_BINDINGS true)
+    set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
+    add_subdirectory(bindings/python)
+  endif ()
 endif ()
 
-add_subdirectory(bindings)
+# -- Bro ----------------------------------------------------------------------
+
+if (NOT "${BRO_EXECUTABLE}" STREQUAL "")
+    set(BRO_FOUND true)
+    set(BRO_FOUND_MSG "${BRO_EXECUTABLE}")
+else ()
+    set(BRO_FOUND false)
+    find_file(BRO_PATH_DEV bro-path-dev.sh PATHS ${CMAKE_CURRENT_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
+    if (EXISTS ${BRO_PATH_DEV})
+      set(BRO_FOUND true)
+      set(BRO_FOUND_MSG "${BRO_PATH_DEV}")
+    endif ()
+endif ()
+
+# -- Unit Tests ---------------------------------------------------------------
 
 enable_testing()
 add_subdirectory(tests)
 
+# -- Documentation ------------------------------------------------------------
+
+if (NOT BROKER_DISABLE_DOCS)
+  add_subdirectory(doc)
+endif ()
+
+# -- Build Summary ------------------------------------------------------------
+
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
-#------------------------------------------------------------------------------
-#                                Build Summary
-#------------------------------------------------------------------------------
-
 macro(display test desc summary)
-    if ( ${test} )
-        set(${summary} ${desc})
-    else ()
-        set(${summary} no)
-    endif()
+  if ( ${test} )
+    set(${summary} ${desc})
+  else ()
+    set(${summary} no)
+  endif()
 endmacro()
-
-set(caf_dir ${CAF_LIBRARY_CORE})
-
-get_filename_component(caf_dir ${caf_dir} PATH)
-if ( EXISTS "${caf_dir}/../libcaf_core" )
-    get_filename_component(caf_dir ${caf_dir} PATH)
-else ()
-    set(caf_dir ${CAF_INCLUDE_DIR_CORE})
-endif ()
 
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
-display(ROCKSDB_FOUND ${ROCKSDB_INCLUDE_DIRS} rocksdb_summary)
-display(BROKER_PYTHON_BINDINGS ${BROKER_PYTHON_BINDINGS} pybindings_summary)
+display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
+display(BROKER_PYTHON_BINDINGS yes python_summary)
+display(BRO_FOUND "${BRO_FOUND_MSG}" bro_summary)
 
-message(
-    "\n==================|  broker Config Summary  |===================="
+set(summary
+    "==================|  Broker Config Summary  |===================="
     "\nVersion:         ${BROKER_VERSION}"
     "\nSO version:      ${BROKER_SOVERSION}"
     "\n"
@@ -210,7 +462,11 @@ message(
     "\n"
     "\nCAF:             ${caf_summary}"
     "\nRocksDB:         ${rocksdb_summary}"
-    "\nPython bindings: ${pybindings_summary}"
+    "\nPython bindings: ${python_summary}"
+    "\nBro:             ${bro_summary}"
     "\n=================================================================")
+
+message("\n" ${summary} "\n")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/config.summary ${summary})
 
 include(UserChangedWarning)

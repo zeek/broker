@@ -1,142 +1,88 @@
-#include "broker/port.hh"
-#include "broker/util/hash.hh"
-#include <tuple>
+#include <cerrno>
+#include <cstring>
 #include <sstream>
+#include <tuple>
 #include <type_traits>
 
-broker::port::port()
-	: num(0), proto(protocol::unknown)
-	{}
+#include "broker/port.hh"
+#include "broker/detail/hash.hh"
 
-broker::port::port(number_type n, protocol p)
-	: num(n), proto(p)
-	{}
+namespace broker {
 
-broker::port::number_type broker::port::number() const
-	{ return num; }
+port::port() : num_{0}, proto_{protocol::unknown} {
+}
 
-broker::port::protocol broker::port::type() const
-	{ return proto; }
+port::port(number_type n, protocol p) : num_{n}, proto_{p} {
+}
 
-std::string broker::to_string(const port& p)
-	{
-	std::ostringstream oss;
-	oss << p.num;
+port::number_type port::number() const {
+  return num_;
+}
 
-	switch ( p.proto ) {
-	case port::protocol::unknown:
-		oss << "unknown";
-		break;
-	case port::protocol::tcp:
-		oss << "tcp";
-		break;
-	case port::protocol::udp:
-		oss << "udp";
-		break;
-	case port::protocol::icmp:
-		oss << "icmp";
-		break;
-	default:
-		oss << "?";
-		break;
-	}
+port::protocol port::type() const {
+  return proto_;
+}
 
-	return oss.str();
-	}
+bool operator==(const port& lhs, const port& rhs) {
+  return lhs.proto_ == rhs.proto_ && lhs.num_ == rhs.num_;
+}
 
-std::ostream& broker::operator<<(std::ostream& out, const port& p)
-	{ return out << to_string(p); }
+bool operator<(const port& lhs, const port& rhs) {
+  return std::tie(lhs.num_, lhs.proto_) < std::tie(rhs.num_, rhs.proto_);
+}
 
-bool broker::operator==(const port& lhs, const port& rhs)
-	{ return lhs.proto == rhs.proto && lhs.num == rhs.num; }
+bool convert(const port& p, std::string& str) {
+  std::ostringstream ss;
+  ss << p.number();
+  ss << '/';
+  switch (p.type()) {
+    default:
+      ss << "?";
+      break;
+    case port::protocol::tcp:
+      ss << "tcp";
+      break;
+    case port::protocol::udp:
+      ss << "udp";
+      break;
+    case port::protocol::icmp:
+      ss << "icmp";
+      break;
+  }
+  str = ss.str();
+  return true;
+}
 
-bool broker::operator<(const port& lhs, const port& rhs)
-	{ return std::tie(lhs.num, lhs.proto) < std::tie(rhs.num, rhs.proto); }
+bool convert(const std::string& str, port& p) {
+  auto i = str.find('/');
+  if (i == std::string::npos)
+    return false;
+  char* end;
+  auto num = std::strtoul(str.data(), &end, 10);
+  if (errno == ERANGE)
+    return false;
+  auto slash = std::strchr(end, '/');
+  if (slash == nullptr)
+    return false;
+  // Both strings are NUL-terminated, so strcmp is safe.
+  auto proto = port::protocol::unknown;
+  if (std::strcmp(slash + 1, "tcp") == 0)
+    proto = port::protocol::tcp;
+  else if (std::strcmp(slash + 1, "udp") == 0)
+    proto = port::protocol::udp;
+  else if (std::strcmp(slash + 1, "icmp") == 0)
+    proto = port::protocol::icmp;
+  p = {static_cast<port::number_type>(num), proto};
+  return true;
+}
 
-size_t std::hash<broker::port>::operator()(const broker::port& v) const
-	{
-	using broker::port;
-	size_t rval = 0;
-	broker::util::hash_combine(rval, v.number());
-	auto p = static_cast<std::underlying_type<port::protocol>::type>(v.type());
-	broker::util::hash_combine(rval, p);
-	return rval;
-	}
+} // namespace broker
 
-// Begin C API
-#include "broker/broker.h"
-using std::nothrow;
-
-broker_port* broker_port_create()
-	{ return reinterpret_cast<broker_port*>(new (nothrow) broker::port()); }
-
-void broker_port_delete(broker_port* p)
-	{ delete reinterpret_cast<broker::port*>(p); }
-
-broker_port* broker_port_copy(const broker_port* p)
-	{
-	auto pp = reinterpret_cast<const broker::port*>(p);
-	return reinterpret_cast<broker_port*>(new (nothrow) broker::port(*pp));
-	}
-
-broker_port* broker_port_from(uint16_t num, broker_port_protocol p)
-	{
-	auto rval = new (nothrow)
-	            broker::port(num, static_cast<broker::port::protocol>(p));
-	return reinterpret_cast<broker_port*>(rval);
-	}
-
-void broker_port_set_number(broker_port* dst, uint16_t num)
-	{
-	auto d = reinterpret_cast<broker::port*>(dst);
-	*d = broker::port(num, d->type());
-	}
-
-void broker_port_set_protocol(broker_port* dst, broker_port_protocol p)
-	{
-	auto d = reinterpret_cast<broker::port*>(dst);
-	*d = broker::port(d->number(), static_cast<broker::port::protocol>(p));
-	}
-
-uint16_t broker_port_number(const broker_port* p)
-	{ return reinterpret_cast<const broker::port*>(p)->number(); }
-
-broker_port_protocol broker_port_type(const broker_port* p)
-	{
-	auto pp = reinterpret_cast<const broker::port*>(p);
-	return static_cast<broker_port_protocol>(pp->type());
-	}
-
-broker_string* broker_port_to_string(const broker_port* p)
-	{
-	auto pp = reinterpret_cast<const broker::port*>(p);
-
-	try
-		{
-		auto rval = broker::to_string(*pp);
-		return reinterpret_cast<broker_string*>(
-		            new std::string(std::move(rval)));
-		}
-	catch ( std::bad_alloc& )
-		{ return nullptr; }
-	}
-
-int broker_port_eq(const broker_port* a, const broker_port* b)
-	{
-	auto aa = reinterpret_cast<const broker::port*>(a);
-	auto bb = reinterpret_cast<const broker::port*>(b);
-	return *aa == *bb;
-	}
-
-int broker_port_lt(const broker_port* a, const broker_port* b)
-	{
-	auto aa = reinterpret_cast<const broker::port*>(a);
-	auto bb = reinterpret_cast<const broker::port*>(b);
-	return *aa < *bb;
-	}
-
-size_t broker_port_hash(const broker_port* p)
-	{
-	auto pp = reinterpret_cast<const broker::port*>(p);
-	return std::hash<broker::port>{}(*pp);
-	}
+size_t std::hash<broker::port>::operator()(const broker::port& v) const {
+  using broker::port;
+  auto result = size_t{0};
+  broker::detail::hash_combine(result, v.number());
+  auto p = static_cast<std::underlying_type<port::protocol>::type>(v.type());
+  broker::detail::hash_combine(result, p);
+  return result;
+}

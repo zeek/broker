@@ -1,521 +1,327 @@
-#include "broker/broker.hh"
-#include "endpoint_impl.hh"
-#include <caf/io/publish.hpp>
+#include "broker/logger.hh" // Must come before any CAF include.
+
+#include <unordered_set>
+
+#include <caf/node_id.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/error.hpp>
+#include <caf/duration.hpp>
 #include <caf/send.hpp>
-
-static inline caf::actor& handle_to_actor(void* h)
-	{ return *static_cast<caf::actor*>(h); }
-
-broker::endpoint::endpoint(std::string name, int flags)
-    : pimpl(new impl(this, std::move(name), flags))
-	{
-	}
-
-broker::endpoint::~endpoint() = default;
-
-broker::endpoint::endpoint(endpoint&& other) = default;
-
-broker::endpoint& broker::endpoint::operator=(endpoint&& other) = default;
-
-const std::string& broker::endpoint::name() const
-	{
-	return pimpl->name;
-	}
-
-int broker::endpoint::flags() const
-	{
-	return pimpl->flags;
-	}
-
-void broker::endpoint::set_flags(int flags)
-	{
-	pimpl->flags = flags;
-	caf::anon_send(pimpl->actor, flags_atom::value, flags);
-	}
-
-int broker::endpoint::last_errno() const
-	{
-	return pimpl->last_errno;
-	}
-
-const std::string& broker::endpoint::last_error() const
-	{
-	return pimpl->last_error;
-	}
-
-bool broker::endpoint::listen(uint16_t port, const char* addr, bool reuse_addr)
-	{
-	try
-		{
-		caf::io::publish(pimpl->actor, port, addr, reuse_addr);
-		}
-	catch ( const std::exception& e )
-		{
-		pimpl->last_errno = 0;
-		pimpl->last_error = e.what();
-		return false;
-		}
-
-	return true;
-	}
-
-broker::peering broker::endpoint::peer(std::string addr, uint16_t port,
-                                       std::chrono::duration<double> retry)
-	{
-	auto port_addr = std::pair<std::string, uint16_t>(addr, port);
-	peering rval;
-
-	for ( const auto& peer : pimpl->peers )
-		if ( peer.remote() && port_addr == peer.remote_tuple() )
-			{
-			rval = peer;
-			break;
-			}
-
-	if ( rval )
-		caf::anon_send(rval.pimpl->peer_actor, peerstat_atom::value);
-	else
-		{
-		auto h = handle_to_actor(pimpl->outgoing_conns.handle());
-		auto a = caf::spawn<endpoint_proxy_actor>(pimpl->actor, pimpl->name,
-		                                          addr, port, retry, h);
-		a->link_to(pimpl->self);
-		rval = peering(std::unique_ptr<peering::impl>(
-	                   new peering::impl(pimpl->actor, std::move(a),
-	                                     true, port_addr)));
-		pimpl->peers.insert(rval);
-		}
-
-	return rval;
-	}
-
-broker::peering broker::endpoint::peer(const endpoint& e)
-	{
-	if ( this == &e )
-		return {};
-
-	peering p(std::unique_ptr<peering::impl>(
-	              new peering::impl(pimpl->actor, e.pimpl->actor)));
-	pimpl->peers.insert(p);
-	caf::anon_send(pimpl->actor, peer_atom::value, e.pimpl->actor,
-	               *p.pimpl.get());
-	return p;
-	}
-
-bool broker::endpoint::unpeer(broker::peering p)
-	{
-	if ( ! p )
-		return false;
-
-	auto it = pimpl->peers.find(p);
-
-	if ( it == pimpl->peers.end() )
-		return false;
-
-	pimpl->peers.erase(it);
-
-	if ( p.remote() )
-		// The proxy actor initiates unpeer messages.
-		caf::anon_send(p.pimpl->peer_actor, quit_atom::value);
-	else
-		{
-		caf::anon_send(pimpl->actor, unpeer_atom::value, p.pimpl->peer_actor);
-		caf::anon_send(p.pimpl->peer_actor, unpeer_atom::value, pimpl->actor);
-		}
-
-	return true;
-	}
-
-const broker::outgoing_connection_status_queue&
-broker::endpoint::outgoing_connection_status() const
-	{
-	return pimpl->outgoing_conns;
-	}
-
-const broker::incoming_connection_status_queue&
-broker::endpoint::incoming_connection_status() const
-	{
-	return pimpl->incoming_conns;
-	}
-
-void broker::endpoint::send(topic t, message msg, int flags) const
-	{
-	caf::anon_send(pimpl->actor, std::move(t), std::move(msg), flags);
-	}
-
-void broker::endpoint::publish(topic t)
-	{
-	caf::anon_send(pimpl->actor, acl_pub_atom::value, t);
-	}
-
-void broker::endpoint::unpublish(topic t)
-	{
-	caf::anon_send(pimpl->actor, acl_unpub_atom::value, t);
-	}
-
-void broker::endpoint::advertise(topic t)
-	{
-	caf::anon_send(pimpl->actor, advert_atom::value, t);
-	}
-
-void broker::endpoint::unadvertise(topic t)
-	{
-	caf::anon_send(pimpl->actor, unadvert_atom::value, t);
-	}
-
-void* broker::endpoint::handle() const
-	{
-	return &pimpl->actor;
-	}
-
-// Begin C API
-#include "broker/broker.h"
-using std::nothrow;
-
-void broker_deque_of_incoming_connection_status_delete(
-        broker_deque_of_incoming_connection_status* d)
-	{
-	delete reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
-	}
-
-size_t broker_deque_of_incoming_connection_status_size(
-        const broker_deque_of_incoming_connection_status* d)
-	{
-	auto dd = reinterpret_cast<const std::deque<broker::incoming_connection_status>*>(d);
-	return dd->size();
-	}
-
-broker_incoming_connection_status*
-broker_deque_of_incoming_connection_status_at(
-        broker_deque_of_incoming_connection_status* d, size_t idx)
-	{
-	auto dd = reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
-	return reinterpret_cast<broker_incoming_connection_status*>(&(*dd)[idx]);
-	}
-
-void broker_deque_of_incoming_connection_status_erase(
-        broker_deque_of_incoming_connection_status* d, size_t idx)
-	{
-	auto dd = reinterpret_cast<std::deque<broker::incoming_connection_status>*>(d);
-	dd->erase(dd->begin() + idx);
-	}
-
-int broker_incoming_connection_status_queue_fd(
-        const broker_incoming_connection_status_queue* q)
-	{
-	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
-	return qq->fd();
-	}
-
-broker_deque_of_incoming_connection_status*
-broker_incoming_connection_status_queue_want_pop(
-        const broker_incoming_connection_status_queue* q)
-	{
-	auto rval = new (nothrow) std::deque<broker::incoming_connection_status>;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
-	*rval = qq->want_pop();
-	return reinterpret_cast<broker_deque_of_incoming_connection_status*>(rval);
-	}
-
-broker_deque_of_incoming_connection_status*
-broker_incoming_connection_status_queue_need_pop(
-        const broker_incoming_connection_status_queue* q)
-	{
-	auto rval = new (nothrow) std::deque<broker::incoming_connection_status>;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto qq = reinterpret_cast<const broker::incoming_connection_status_queue*>(q);
-	*rval = qq->need_pop();
-	return reinterpret_cast<broker_deque_of_incoming_connection_status*>(rval);
-	}
-
-void broker_deque_of_outgoing_connection_status_delete(
-        broker_deque_of_outgoing_connection_status* d)
-	{
-	delete reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
-	}
-
-size_t broker_deque_of_outgoing_connection_status_size(
-        const broker_deque_of_outgoing_connection_status* d)
-	{
-	auto dd = reinterpret_cast<const std::deque<broker::outgoing_connection_status>*>(d);
-	return dd->size();
-	}
-
-broker_outgoing_connection_status*
-broker_deque_of_outgoing_connection_status_at(
-        broker_deque_of_outgoing_connection_status* d, size_t idx)
-	{
-	auto dd = reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
-	return reinterpret_cast<broker_outgoing_connection_status*>(&(*dd)[idx]);
-	}
-
-void broker_deque_of_outgoing_connection_status_erase(
-        broker_deque_of_outgoing_connection_status* d, size_t idx)
-	{
-	auto dd = reinterpret_cast<std::deque<broker::outgoing_connection_status>*>(d);
-	dd->erase(dd->begin() + idx);
-	}
-
-int broker_outgoing_connection_status_queue_fd(
-        const broker_outgoing_connection_status_queue* q)
-	{
-	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
-	return qq->fd();
-	}
-
-broker_deque_of_outgoing_connection_status*
-broker_outgoing_connection_status_queue_want_pop(
-        const broker_outgoing_connection_status_queue* q)
-	{
-	auto rval = new (nothrow) std::deque<broker::outgoing_connection_status>;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
-	*rval = qq->want_pop();
-	return reinterpret_cast<broker_deque_of_outgoing_connection_status*>(rval);
-	}
-
-broker_deque_of_outgoing_connection_status*
-broker_outgoing_connection_status_queue_need_pop(
-        const broker_outgoing_connection_status_queue* q)
-	{
-	auto rval = new (nothrow) std::deque<broker::outgoing_connection_status>;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto qq = reinterpret_cast<const broker::outgoing_connection_status_queue*>(q);
-	*rval = qq->need_pop();
-	return reinterpret_cast<broker_deque_of_outgoing_connection_status*>(rval);
-	}
-
-broker_endpoint* broker_endpoint_create(const char* name)
-	{
-	try
-		{
-		auto rval = new broker::endpoint(name);
-		return reinterpret_cast<broker_endpoint*>(rval);
-		}
-	catch ( std::bad_alloc& )
-		{ return nullptr; }
-	}
-
-broker_endpoint* broker_endpoint_create_with_flags(const char* name, int flags)
-	{
-	try
-		{
-		auto rval = new broker::endpoint(name, flags);
-		return reinterpret_cast<broker_endpoint*>(rval);
-		}
-	catch ( std::bad_alloc& )
-		{ return nullptr; }
-	}
-
-void broker_endpoint_delete(broker_endpoint* e)
-	{
-	delete reinterpret_cast<broker::endpoint*>(e);
-	}
-
-const char* broker_endpoint_name(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return ee->name().data();
-	}
-
-int broker_endpoint_flags(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return ee->flags();
-	}
-
-void broker_endpoint_set_flags(broker_endpoint* e, int flags)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	return ee->set_flags(flags);
-	}
-
-int broker_endpoint_last_errno(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return ee->last_errno();
-	}
-
-const char* broker_endpoint_last_error(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return ee->last_error().data();
-	}
-
-int broker_endpoint_listen(broker_endpoint* e, uint16_t port, const char* addr,
-                           int reuse_addr)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	return ee->listen(port, addr, reuse_addr);
-	}
-
-broker_peering* broker_endpoint_peer_remotely(broker_endpoint* e,
-                                              const char* addr, uint16_t port,
-                                              double retry_interval)
-	{
-	auto rval = new (nothrow) broker::peering;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto retry = std::chrono::duration<double>(retry_interval);
-
-	try
-		{
-		*rval = ee->peer(addr, port, retry);
-		}
-	catch ( std::bad_alloc& )
-		{
-		delete rval;
-		return nullptr;
-		}
-
-	return reinterpret_cast<broker_peering*>(rval);
-	}
-
-broker_peering* broker_endpoint_peer_locally(broker_endpoint* self,
-                                             const broker_endpoint* other)
-	{
-	auto rval = new (nothrow) broker::peering;
-
-	if ( ! rval )
-		return nullptr;
-
-	auto s = reinterpret_cast<broker::endpoint*>(self);
-	auto o = reinterpret_cast<const broker::endpoint*>(other);
-	*rval = s->peer(*o);
-	return reinterpret_cast<broker_peering*>(rval);
-	}
-
-int broker_endpoint_unpeer(broker_endpoint* e, const broker_peering* p)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto pp = reinterpret_cast<const broker::peering*>(p);
-	return ee->unpeer(*pp);
-	}
-
-const broker_outgoing_connection_status_queue*
-broker_endpoint_outgoing_connection_status(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return reinterpret_cast<const broker_outgoing_connection_status_queue*>(
-	            &ee->outgoing_connection_status());
-	}
-
-const broker_incoming_connection_status_queue*
-broker_endpoint_incoming_connection_status(const broker_endpoint* e)
-	{
-	auto ee = reinterpret_cast<const broker::endpoint*>(e);
-	return reinterpret_cast<const broker_incoming_connection_status_queue*>(
-	            &ee->incoming_connection_status());
-	}
-
-int broker_endpoint_send(broker_endpoint* e, const broker_string* topic,
-                         const broker_message* msg)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-	auto mm = reinterpret_cast<const broker::message*>(msg);
-
-	try
-		{
-		ee->send(*tt, *mm);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
-
-int broker_endpoint_send_with_flags(broker_endpoint* e,
-                                    const broker_string* topic,
-                                    const broker_message* msg, int flags)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-	auto mm = reinterpret_cast<const broker::message*>(msg);
-
-	try
-		{
-		ee->send(*tt, *mm, flags);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
-
-int broker_endpoint_publish(broker_endpoint* e, const broker_string* topic)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-
-	try
-		{
-		ee->publish(*tt);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
-
-int broker_endpoint_unpublish(broker_endpoint* e, const broker_string* topic)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-
-	try
-		{
-		ee->unpublish(*tt);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
-
-int broker_endpoint_advertise(broker_endpoint* e, const broker_string* topic)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-
-	try
-		{
-		ee->advertise(*tt);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
-
-int broker_endpoint_unadvertise(broker_endpoint* e,
-                                const broker_string* topic)
-	{
-	auto ee = reinterpret_cast<broker::endpoint*>(e);
-	auto tt = reinterpret_cast<const std::string*>(topic);
-
-	try
-		{
-		ee->unadvertise(*tt);
-		}
-	catch ( std::bad_alloc& )
-		{ return 0; }
-
-	return 1;
-	}
+#include <caf/actor.hpp>
+#include <caf/message.hpp>
+#include <caf/io/middleman.hpp>
+#include <caf/openssl/all.hpp>
+
+#include "broker/atoms.hh"
+#include "broker/endpoint.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/subscriber.hh"
+#include "broker/timeout.hh"
+
+#include "broker/detail/assert.hh"
+#include "broker/detail/core_actor.hh"
+#include "broker/detail/die.hh"
+
+
+namespace broker {
+
+caf::node_id endpoint::node_id() const {
+  return core()->node();
+}
+
+endpoint::endpoint(configuration config)
+  : config_(std::move(config)),
+    await_stores_on_shutdown_(false),
+    destroyed_(false),
+    use_real_time_(config_.options().use_real_time) {
+  new (&system_) caf::actor_system(config_);
+  if ((! config_.options().disable_ssl) && !system_.has_openssl_manager())
+      detail::die("CAF OpenSSL manager is not available");
+  BROKER_INFO("creating endpoint");
+  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config_.options(), this);
+}
+
+endpoint::~endpoint() {
+  BROKER_INFO("destroying endpoint");
+  shutdown();
+}
+
+void endpoint::shutdown() {
+  BROKER_INFO("shutting down endpoint");
+  if (destroyed_)
+    return;
+  destroyed_ = true;
+  if (!await_stores_on_shutdown_) {
+    CAF_LOG_DEBUG("tell core actor to terminate stores");
+    anon_send(core_, atom::shutdown::value, atom::store::value);
+  }
+  if (!children_.empty()) {
+    caf::scoped_actor self{system_};
+    CAF_LOG_DEBUG("send exit messages to all children");
+    for (auto& child : children_)
+      self->send_exit(child, caf::exit_reason::user_shutdown);
+    CAF_LOG_DEBUG("wait until all children have terminated");
+    self->wait_for(children_);
+    children_.clear();
+  }
+  CAF_LOG_DEBUG("send shutdown message to core actor");
+  anon_send(core_, atom::shutdown::value);
+  core_ = nullptr;
+  system_.~actor_system();
+}
+
+uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
+  char const* addr = address.empty() ? nullptr : address.c_str();
+  expected<uint16_t> res = caf::error{};
+  if (config_.options().disable_ssl)
+    res = system_.middleman().publish(core(), port, addr, true);
+  else
+    res = caf::openssl::publish(core(), port, addr, true);
+  return res ? *res : 0;
+}
+
+bool endpoint::peer(const std::string& address, uint16_t port,
+                    timeout::seconds retry) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
+  bool result = false;
+  caf::scoped_actor self{system_};
+  self->request(core_, caf::infinite, atom::peer::value,
+                network_info{address, port, retry})
+  .receive(
+    [&](const caf::actor&) {
+      result = true;
+    },
+    [&](caf::error& err) {
+      CAF_LOG_DEBUG("Cannot peer to" << address << "on port"
+                    << port << ":" << err);
+    }
+  );
+  return result;
+}
+
+void endpoint::peer_nosync(const std::string& address, uint16_t port,
+			   timeout::seconds retry) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
+  caf::anon_send(core(), atom::peer::value, network_info{address, port, retry});
+}
+
+bool endpoint::unpeer(const std::string& address, uint16_t port) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  BROKER_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
+  bool result = false;
+  caf::scoped_actor self{system_};
+  self->request(core_, caf::infinite, atom::unpeer::value,
+                network_info{address, port})
+  .receive(
+    [&](void) {
+      result = true;
+    },
+    [&](caf::error& err) {
+      CAF_LOG_DEBUG("Cannot unpeer from" << address << "on port"
+                    << port << ":" << err);
+    }
+  );
+
+  return result;
+}
+
+void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
+  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
+  BROKER_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
+  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
+}
+
+std::vector<peer_info> endpoint::peers() const {
+  std::vector<peer_info> result;
+  caf::scoped_actor self{system_};
+  self->request(core(), timeout::core, atom::get::value, atom::peer::value)
+  .receive(
+    [&](std::vector<peer_info>& peers) {
+      result = std::move(peers);
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get peers:", to_string(e));
+    }
+  );
+  return result;
+}
+
+std::vector<topic> endpoint::peer_subscriptions() const {
+  std::vector<topic> result;
+  caf::scoped_actor self{system_};
+  self->request(core(), timeout::core, atom::get::value,
+                atom::peer::value, atom::subscriptions::value)
+  .receive(
+    [&](std::vector<topic>& ts) {
+      result = std::move(ts);
+    },
+    [](const caf::error& e) {
+      detail::die("failed to get peers:", to_string(e));
+    }
+  );
+  return result;
+}
+
+void endpoint::forward(std::vector<topic> ts)
+{
+  BROKER_INFO("forwarding topics" << ts);
+  caf::anon_send(core(), atom::subscribe::value, std::move(ts));
+}
+
+void endpoint::publish(topic t, data d) {
+  BROKER_INFO("publishing" << std::make_pair(t, d));
+  caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
+}
+
+void endpoint::publish(const endpoint_info& dst, topic t, data d) {
+  BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
+  caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
+}
+
+void endpoint::publish(std::vector<value_type> xs) {
+  for ( auto& x : xs ) {
+    BROKER_INFO("publishing" << x);
+    caf::anon_send(core(), atom::publish::value, std::move(x.first), std::move(x.second));
+  }
+}
+
+publisher endpoint::make_publisher(topic ts) {
+  publisher result{*this, std::move(ts)};
+  children_.emplace_back(result.worker());
+  return result;
+}
+
+status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
+  status_subscriber result{*this, receive_statuses};
+  children_.emplace_back(result.worker());
+  return result;
+}
+
+subscriber endpoint::make_subscriber(std::vector<topic> ts, size_t max_qsize) {
+  subscriber result{*this, std::move(ts), max_qsize};
+  children_.emplace_back(result.worker());
+  return result;
+}
+
+caf::actor endpoint::make_actor(actor_init_fun f) {
+  auto hdl = system_.spawn([=](caf::event_based_actor* self) {
+    // "Hide" unhandled-exception warning if users throw.
+    self->set_exception_handler(
+      [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
+        return caf::exit_reason::unhandled_exception;
+      }
+    );
+    // Run callback.
+    f(self);
+  });
+  children_.emplace_back(hdl);
+  return hdl;
+}
+
+expected<store> endpoint::attach_master(std::string name, backend type,
+                                        backend_options opts) {
+  BROKER_INFO("attaching master store" << name << "of type" << type);
+  expected<store> res{ec::unspecified};
+  caf::scoped_actor self{system_};
+  self->request(core(), caf::infinite, atom::store::value, atom::master::value,
+                atom::attach::value, name, type, std::move(opts))
+  .receive(
+    [&](caf::actor& master) {
+      res = store{std::move(master), std::move(name)};
+    },
+    [&](caf::error& e) {
+      res = std::move(e);
+    }
+  );
+  return res;
+}
+
+expected<store> endpoint::attach_clone(std::string name,
+                                       double resync_interval,
+                                       double stale_interval,
+                                       double mutation_buffer_interval) {
+  BROKER_INFO("attaching clone store" << name);
+  expected<store> res{ec::unspecified};
+  caf::scoped_actor self{core()->home_system()};
+  self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
+                atom::attach::value, name, resync_interval, stale_interval,
+                mutation_buffer_interval).receive(
+    [&](caf::actor& clone) {
+      res = store{std::move(clone), std::move(name)};
+    },
+    [&](caf::error& e) {
+      res = std::move(e);
+    }
+  );
+  return res;
+}
+
+timestamp endpoint::now() const {
+  if (use_real_time_)
+    return broker::now();
+
+  std::unique_lock<time_mutex_type> lock(time_mutex);
+  return current_time_;
+}
+
+void endpoint::advance_time(timestamp t) {
+  if (use_real_time_)
+    return;
+
+  std::unique_lock<time_mutex_type> time_lock(time_mutex);
+
+  if (t > current_time_) {
+    current_time_ = t;
+
+    std::unique_lock<pending_msgs_mutex_type> msg_lock(pending_msgs_mutex);
+    auto it = pending_msgs_map.begin();
+    std::unordered_set<caf::actor> sync_with_actors;
+
+    while (it != pending_msgs_map.end() && it->first <= current_time_) {
+      pending_msg& pm = it->second;
+      caf::anon_send(pm.first, std::move(pm.second));
+      sync_with_actors.emplace(pm.first);
+      it = pending_msgs_map.erase(it);
+    }
+
+    time_lock.unlock();
+    msg_lock.unlock();
+
+    caf::scoped_actor self{system_};
+
+    for (auto& who : sync_with_actors) {
+      self->send(who, atom::sync_point::value, self);
+      self->delayed_send(self, timeout::frontend, atom::tick::value);
+      self->receive(
+        [&](atom::sync_point) {
+        },
+        [&](atom::tick) {
+        },
+        [&](caf::error& e) {
+        }
+      );
+    }
+  }
+}
+
+void endpoint::send_later(caf::actor who, timespan after, caf::message msg) {
+  if (use_real_time_) {
+    caf::scoped_actor self{system_};
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(after);
+    self->delayed_anon_send(std::move(who), std::move(us), std::move(msg));
+    return;
+  }
+
+  timestamp t = this->now() + after;
+  std::unique_lock<pending_msgs_mutex_type> lock(pending_msgs_mutex);
+  pending_msgs_map.emplace(t, pending_msg(std::move(who), std::move(msg)));
+}
+
+} // namespace broker
