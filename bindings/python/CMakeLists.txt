@@ -66,19 +66,21 @@ if (CMAKE_STRIP)
   endif()
 endif ()
 
-# Figure out Python module install directory.
-if (BROKER_PYTHON_PREFIX)
-  set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
-  set(PY_MOD_INSTALL_DIR
-      ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
-elseif (BROKER_PYTHON_HOME)
-  set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
-else ()
-  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
-    "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-    OUTPUT_VARIABLE python_site_packages
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  set(PY_MOD_INSTALL_DIR ${python_site_packages})
+if ( NOT PY_MOD_INSTALL_DIR )
+  # Figure out Python module install directory.
+  if (BROKER_PYTHON_PREFIX)
+    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+    set(PY_MOD_INSTALL_DIR
+        ${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages)
+  elseif (BROKER_PYTHON_HOME)
+    set(PY_MOD_INSTALL_DIR ${BROKER_PYTHON_HOME}/lib/python)
+  else ()
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
+      "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
+      OUTPUT_VARIABLE python_site_packages
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(PY_MOD_INSTALL_DIR ${python_site_packages})
+  endif ()
 endif ()
 message(STATUS "Python bindings will be built and installed to:")
 message(STATUS "  ${PY_MOD_INSTALL_DIR}")
