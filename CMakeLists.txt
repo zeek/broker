@@ -67,11 +67,18 @@ else ()
     )
   endif ()
 
+  if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
+    set(use_terminal_arg)
+  else ()
+    set(use_terminal_arg USES_TERMINAL 1)
+  endif ()
+
   ExternalProject_Add_Step(project_caf project_caf_build_step
     COMMAND ${CMAKE_MAKE_PROGRAM}
     COMMENT "Building CAF"
     WORKING_DIRECTORY ${caf_build}
     ALWAYS 1
+    ${use_terminal_arg}
   )
 
   install(CODE "execute_process(
