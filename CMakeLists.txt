@@ -91,17 +91,16 @@ else ()
     set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
   endif ()
 
-  if ( OPENSSL_ROOT_DIR )
-    set(openssl_root_dir_arg -DOPENSSL_ROOT_DIR:path=${OPENSSL_ROOT_DIR})
-  else ()
-    set(openssl_root_dir_arg)
-  endif ()
+  find_package(OpenSSL REQUIRED)
+  get_filename_component(derived_openssl_root_dir ${OPENSSL_INCLUDE_DIR}
+                         DIRECTORY)
 
   execute_process(
       COMMAND
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
         ${toolchain_arg}
+        -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         ${openssl_root_dir_arg}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes

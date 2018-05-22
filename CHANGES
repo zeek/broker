@@ -1,4 +1,9 @@
 
+1.0.0-2 | 2018-05-22 13:27:37 -0500
+
+  * Add OpenSSL requirement check and pass results to external CAF
+    (Corelight)
+
 1.0.0-1 | 2018-05-22 09:47:07 -0500
 
   * Pass OpenSSL root dir hint through to CAF external project (Corelight)
