@@ -1,4 +1,8 @@
 
+1.0.0-1 | 2018-05-22 09:47:07 -0500
+
+  * Pass OpenSSL root dir hint through to CAF external project (Corelight)
+
 1.0.0 | 2018-05-21 19:47:19 +0000
 
   * New Broker version incorporating a completely reworked API, along
