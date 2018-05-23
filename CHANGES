@@ -1,4 +1,8 @@
 
+1.0.0-7 | 2018-05-23 16:12:09 -0500
+
+  * Update user manual link in README (Corelight)
+
 1.0.0-6 | 2018-05-23 15:44:59 -0500
 
   * Workaround bug in RtD requirements.txt location (Corelight)

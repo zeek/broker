@@ -1,3 +1,5 @@
+.. _User Manual: https://bro-broker.readthedocs.io
+
 ===============================
 Broker: Bro's Messaging Library
 ===============================
@@ -25,6 +27,9 @@ them to all clones.
 
 Applications which integrate the Broker library may communicate with
 each other using the above-mentioned patterns which are common to Bro.
+
+See the `User Manual`_ for more information.  For offline reading, it's
+also available in the ``doc/`` directory of the source tree.
 
 Dependencies
 ------------
@@ -55,9 +60,3 @@ To compile and install into ``/usr/local``::
     make install
 
 See ``./configure --help`` for more advanced configuration options.
-
-Documentation
--------------
-
-Please see the `Broker User Manual <./doc/index.rst>`_ for more
-documentation and examples of how to use the library.
