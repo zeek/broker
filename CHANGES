@@ -1,4 +1,8 @@
 
+1.0.0-3 | 2018-05-23 12:58:11 -0500
+
+  * Update documentation build targets (Corelight)
+
 1.0.0-2 | 2018-05-22 13:27:37 -0500
 
   * Add OpenSSL requirement check and pass results to external CAF

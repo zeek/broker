@@ -14,6 +14,9 @@ test: configured all
 clean: configured
 	$(MAKE) -C $(BUILD) $@
 
+doc: configured
+	$(MAKE) -C $(BUILD) $@
+
 dist:
 	@rm -rf $(VERSION) $(VERSION).tgz
 	@git clone --recursive . $(VERSION) >/dev/null 2>&1
@@ -27,4 +30,4 @@ configured:
 	@test -d $(BUILD) || ( echo "Error: No build/ directory found. Did you run configure?" && exit 1 )
 	@test -e $(BUILD)/Makefile || ( echo "Error: No build/Makefile found. Did you run configure?" && exit 1 )
 
-.PHONY : all install test clean distclean configured
+.PHONY : all install test clean doc distclean configured
