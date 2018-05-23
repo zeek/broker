@@ -1,0 +1,3 @@
+# Python dependencies needed for building docs
+Sphinx
+sphinx_rtd_theme
