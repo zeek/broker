@@ -8,6 +8,18 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
+if ( ENABLE_CCACHE )
+  find_program(CCACHE_PROGRAM ccache)
+
+  if ( NOT CCACHE_PROGRAM )
+    message(FATAL_ERROR "ccache not found")
+  endif ()
+
+  message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+  set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+endif ()
+
 # -- Dependencies -------------------------------------------------------------
 
 if ( CAF_ROOT_DIR )
@@ -99,6 +111,8 @@ else ()
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
         ${toolchain_arg}
+        -DCMAKE_C_COMPILER_LAUNCHER:path=${CMAKE_C_COMPILER_LAUNCHER}
+        -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes
