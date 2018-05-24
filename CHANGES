@@ -1,4 +1,10 @@
 
+1.0.0-11 | 2018-05-24 09:38:31 -0500
+
+  * Enable Travis CI email notifications (Corelight)
+
+  * Add --ccache configure option (Corelight)
+
 1.0.0-8 | 2018-05-24 08:39:11 -0500
 
   * Simplify CAF's external CMake project arguments (Corelight)
