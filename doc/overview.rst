@@ -36,6 +36,13 @@ The following figure illustrates an exemplary topology.
 .. figure:: _images/high-level-comm.png
   :align: center
 
+A process hosts one or more endpoints.  Endpoints can communicate within
+or across processes as well as machine boundaries.
+
+The fundamental unit of exchange is a *message*, which consists of a
+*topic* and *data*.  Endpoints may choose to forward received messages
+to their own peers that share a matching topic.
+
 The API allows for both synchronous and asynchronous
 communication. Internally, Broker operates entirely asynchronously by
 leveraging the `C++ Actor Framework (CAF) <http://www.actor-framework.org>`_.
