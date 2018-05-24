@@ -36,28 +36,15 @@ else ()
   # the --with-caf path and point to separate, custom-built CAF.
 
   if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
+    # Build byproducts is just required by the Ninja generator
+    # though it's not available before CMake 3.2 ...
     if ( ${CMAKE_GENERATOR} STREQUAL Ninja )
       message(FATAL_ERROR "Ninja generator requires CMake >= 3.2")
     endif ()
-    # Build byproducts is just required by the Ninja generator
-    # though it's not available before CMake 3.2 ...
-    ExternalProject_Add(project_caf
-      PREFIX            "${caf_ep}"
-      BINARY_DIR        "${caf_build}"
-      DOWNLOAD_COMMAND  ""
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND     ""
-      INSTALL_COMMAND   ""
-    )
+
+    set(build_byproducts_arg)
   else ()
-    ExternalProject_Add(project_caf
-      PREFIX            "${caf_ep}"
-      BINARY_DIR        "${caf_build}"
-      DOWNLOAD_COMMAND  ""
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND     ""
-      INSTALL_COMMAND   ""
-      BUILD_BYPRODUCTS
+    set(build_byproducts_arg
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
@@ -66,6 +53,16 @@ else ()
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
     )
   endif ()
+
+  ExternalProject_Add(project_caf
+    PREFIX            "${caf_ep}"
+    BINARY_DIR        "${caf_build}"
+    DOWNLOAD_COMMAND  ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND     ""
+    INSTALL_COMMAND   ""
+    BUILD_BYPRODUCTS ${build_byproducts_arg}
+  )
 
   if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
     set(use_terminal_arg)
@@ -89,6 +86,8 @@ else ()
 
   if ( CMAKE_TOOLCHAIN_FILE )
     set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+  else ()
+    set(toolchain_arg)
   endif ()
 
   find_package(OpenSSL REQUIRED)
@@ -101,7 +100,6 @@ else ()
         -G${CMAKE_GENERATOR}
         ${toolchain_arg}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
-        ${openssl_root_dir_arg}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes
         -DCAF_NO_TOOLS:bool=yes

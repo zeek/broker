@@ -1,4 +1,8 @@
 
+1.0.0-8 | 2018-05-24 08:39:11 -0500
+
+  * Simplify CAF's external CMake project arguments (Corelight)
+
 1.0.0-7 | 2018-05-23 16:12:09 -0500
 
   * Update user manual link in README (Corelight)
