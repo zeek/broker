@@ -56,7 +56,7 @@ else ()
 
     set(build_byproducts_arg)
   else ()
-    set(build_byproducts_arg
+    set(build_byproducts_arg BUILD_BYPRODUCTS
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
@@ -73,7 +73,7 @@ else ()
     CONFIGURE_COMMAND ""
     BUILD_COMMAND     ""
     INSTALL_COMMAND   ""
-    BUILD_BYPRODUCTS ${build_byproducts_arg}
+    ${build_byproducts_arg}
   )
 
   if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
@@ -106,13 +106,27 @@ else ()
   get_filename_component(derived_openssl_root_dir ${OPENSSL_INCLUDE_DIR}
                          DIRECTORY)
 
+  if ( CMAKE_C_COMPILER_LAUNCHER )
+    set(cmake_c_compiler_launcher_arg
+        -DCMAKE_C_COMPILER_LAUNCHER:path=${CMAKE_C_COMPILER_LAUNCHER})
+  else ()
+    set(cmake_c_compiler_launcher_arg)
+  endif ()
+
+  if ( CMAKE_CXX_COMPILER_LAUNCHER )
+    set(cmake_cxx_ompiler_launcher_arg
+        -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER})
+  else ()
+    set(cmake_cxx_compiler_launcher_arg)
+  endif ()
+
   execute_process(
       COMMAND
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
         ${toolchain_arg}
-        -DCMAKE_C_COMPILER_LAUNCHER:path=${CMAKE_C_COMPILER_LAUNCHER}
-        -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER}
+        ${cmake_c_compiler_launcher_arg}
+        ${cmake_cxx_compiler_launcher_arg}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes

@@ -1,4 +1,9 @@
 
+1.0.0-13 | 2018-05-25 08:53:10 -0500
+
+  * Fix external CAF arguments: build byproducts / compiler launcher
+    (Corelight)
+
 1.0.0-12 | 2018-05-24 12:03:06 -0500
 
   * Update documentation/diagrams (Corelight)
