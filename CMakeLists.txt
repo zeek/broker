@@ -228,21 +228,6 @@ endif ()
 
 # -- libroker -----------------------------------------------------------------
 
-# Extract Broker version
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION LIMIT_COUNT 1)
-string(REPLACE "." " " _version_numbers ${VERSION})
-separate_arguments(_version_numbers)
-list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
-list(GET _version_numbers 1 BROKER_VERSION_MINOR)
-list(LENGTH _version_numbers _version_length)
-if (_version_length LESS 3)
-  set(BROKER_VERSION_PATCH 0)
-else ()
-  list(GET _version_numbers 2 BROKER_VERSION_PATCH)
-endif ()
-
-set(BROKER_VERSION
-    ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}.${BROKER_VERSION_PATCH})
 # The SO number shall increase only if binary interface changes.
 set(BROKER_SOVERSION 0)
 set(ENABLE_SHARED true)
@@ -303,9 +288,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/version.hh.in
-               ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh @ONLY)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh DESTINATION include/broker)
 
 set(BROKER_SRC
   src/address.cc
@@ -459,6 +441,7 @@ endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BROKER_VERSION LIMIT_COUNT 1)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
 macro(display test desc summary)

@@ -1,4 +1,10 @@
 
+1.0.0-15 | 2018-05-25 12:08:51 -0500
+
+  * Improve version number automation of version.hh (Corelight)
+
+  * Fix compiling a test on older GCCs (Corelight)
+
 1.0.0-13 | 2018-05-25 08:53:10 -0500
 
   * Fix external CAF arguments: build byproducts / compiler launcher
