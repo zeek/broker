@@ -1,4 +1,8 @@
 
+1.0.1 | 2018-05-25 12:10:24 -0500
+
+  * Release 1.0.1.
+
 1.0.0-15 | 2018-05-25 12:08:51 -0500
 
   * Improve version number automation of version.hh (Corelight)
