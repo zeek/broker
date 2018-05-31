@@ -19,6 +19,7 @@ public:
     IdentifierUpdate = 4,
     Batch = 5,
     RelayEvent = 6,
+    HandleAndRelayEvent = 7,
   };
 
   Type type() const {
@@ -69,15 +70,49 @@ class Event : public Message {
   }
 };
 
-/// A Bro relayed event (automatically republished after a single hop).
+/// A Bro relayed event (automatically republished after a single hop
+/// without calling event handlers).
 class RelayEvent : public Message {
   public:
   RelayEvent(set relay_topics, std::string name, vector args)
     : Message(Message::Type::RelayEvent, {std::move(relay_topics),
-    		                              std::move(name),
-    		                              std::move(args)})
-    	{}
+                                          std::move(name),
+                                          std::move(args)})
+    {}
   RelayEvent(data msg) : Message(std::move(msg)) {}
+
+  const set& topics() const {
+    return get<set>(get<vector>(msg_[2])[0]);
+  }
+  set& topics() {
+    return get<set>(get<vector>(msg_[2])[0]);
+  }
+
+  const std::string& name() const {
+    return get<std::string>(get<vector>(msg_[2])[1]);
+  }
+  std::string& name() {
+    return get<std::string>(get<vector>(msg_[2])[1]);
+  }
+
+  const vector& args() const {
+    return get<vector>(get<vector>(msg_[2])[2]);
+  }
+  vector& args() {
+    return get<vector>(get<vector>(msg_[2])[2]);
+  }
+};
+
+/// A Bro handled-and-relayed event (automatically republished after a
+/// single hop, with event handlers called on the relaying-node)
+class HandleAndRelayEvent : public Message {
+  public:
+  HandleAndRelayEvent(set relay_topics, std::string name, vector args)
+    : Message(Message::Type::HandleAndRelayEvent, {std::move(relay_topics),
+                                                   std::move(name),
+                                                   std::move(args)})
+   {}
+  HandleAndRelayEvent(data msg) : Message(std::move(msg)) {}
 
   const set& topics() const {
     return get<set>(get<vector>(msg_[2])[0]);
