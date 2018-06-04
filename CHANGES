@@ -1,4 +1,8 @@
 
+1.0.1-3 | 2018-06-04 09:18:47 -0700
+
+  * Add Bro message type for handling + relaying events (Corelight)
+
 1.0.1 | 2018-05-25 12:10:24 -0500
 
   * Release 1.0.1.
