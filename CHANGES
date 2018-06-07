@@ -1,4 +1,8 @@
 
+1.0.1-4 | 2018-06-07 16:55:23 -0500
+
+  * Optimize endpoint::advance_time() (Corelight)
+
 1.0.1-3 | 2018-06-04 09:18:47 -0700
 
   * Add Bro message type for handling + relaying events (Corelight)

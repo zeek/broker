@@ -281,7 +281,15 @@ void endpoint::advance_time(timestamp t) {
     current_time_ = t;
 
     std::unique_lock<pending_msgs_mutex_type> msg_lock(pending_msgs_mutex);
+
+    if ( pending_msgs_map.empty() )
+      return;
+
     auto it = pending_msgs_map.begin();
+
+    if ( it->first > current_time_ )
+      return;
+
     std::unordered_set<caf::actor> sync_with_actors;
 
     while (it != pending_msgs_map.end() && it->first <= current_time_) {
