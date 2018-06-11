@@ -191,16 +191,6 @@ void core_policy::remove_cb(stream_slot slot, path_to_peer_map& xs,
     return;
   }
   auto peer_hdl = i->second;
-  // If we didn't receive an error and the other path to/from peer is still
-  // open, then we assume an orderly shutdown. In this case, we simply remove
-  // this path, but don't escalate to `remove_peer`.
-  if (!reason && zs.count(peer_hdl) != 0) {
-    CAF_LOG_DEBUG("orderly shutdown started, close first path");
-    ys.erase(peer_hdl);
-    xs.erase(i);
-    return;
-  }
-  // In any other case we escalate to `remove_peer`.
   remove_peer(peer_hdl, std::move(reason), true, false);
 }
 

@@ -1,4 +1,8 @@
 
+1.0.1-5 | 2018-06-11 10:36:48 -0500
+
+  * Fix "peer_lost" status notification sometimes getting lost (Corelight)
+
 1.0.1-4 | 2018-06-07 16:55:23 -0500
 
   * Optimize endpoint::advance_time() (Corelight)
