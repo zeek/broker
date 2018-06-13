@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include <atomic>
 
 #include <caf/node_id.hpp>
 #include <caf/actor.hpp>
@@ -329,11 +330,9 @@ private:
   bool destroyed_;
 
   const bool use_real_time_; // may be read from multiple threads
-  timestamp current_time_;
+  std::atomic<timestamp> current_time_;
 
-  // TODO: use shared_mutex (C++17) and shared_lock for readers
-  using time_mutex_type = std::mutex;
-  mutable time_mutex_type time_mutex;
+  std::atomic<size_t> pending_msg_count_;
 
   using pending_msgs_mutex_type = std::mutex;
   pending_msgs_mutex_type pending_msgs_mutex;
