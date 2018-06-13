@@ -37,7 +37,9 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false),
-    use_real_time_(config_.options().use_real_time) {
+    use_real_time_(config_.options().use_real_time),
+    current_time_since_epoch_(),
+    pending_msg_count_() {
   new (&system_) caf::actor_system(config_);
   if ((! config_.options().disable_ssl) && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
@@ -267,39 +269,36 @@ timestamp endpoint::now() const {
   if (use_real_time_)
     return broker::now();
 
-  std::unique_lock<time_mutex_type> lock(time_mutex);
-  return current_time_;
+  return timestamp{current_time_since_epoch_};
 }
 
 void endpoint::advance_time(timestamp t) {
   if (use_real_time_)
     return;
 
-  std::unique_lock<time_mutex_type> time_lock(time_mutex);
+  if (t > timestamp{current_time_since_epoch_}) {
+    current_time_since_epoch_ = t.time_since_epoch();
 
-  if (t > current_time_) {
-    current_time_ = t;
+    if (pending_msg_count_ == 0)
+      return;
 
     std::unique_lock<pending_msgs_mutex_type> msg_lock(pending_msgs_mutex);
 
-    if ( pending_msgs_map.empty() )
-      return;
-
     auto it = pending_msgs_map.begin();
 
-    if ( it->first > current_time_ )
+    if (it->first > t)
       return;
 
     std::unordered_set<caf::actor> sync_with_actors;
 
-    while (it != pending_msgs_map.end() && it->first <= current_time_) {
+    while (it != pending_msgs_map.end() && it->first <= t) {
       pending_msg& pm = it->second;
       caf::anon_send(pm.first, std::move(pm.second));
       sync_with_actors.emplace(pm.first);
       it = pending_msgs_map.erase(it);
+      --pending_msg_count_;
     }
 
-    time_lock.unlock();
     msg_lock.unlock();
 
     caf::scoped_actor self{system_};
@@ -330,6 +329,7 @@ void endpoint::send_later(caf::actor who, timespan after, caf::message msg) {
   timestamp t = this->now() + after;
   std::unique_lock<pending_msgs_mutex_type> lock(pending_msgs_mutex);
   pending_msgs_map.emplace(t, pending_msg(std::move(who), std::move(msg)));
+  ++pending_msg_count_;
 }
 
 } // namespace broker

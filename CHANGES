@@ -1,4 +1,8 @@
 
+1.0.1-8 | 2018-06-13 14:47:48 -0500
+
+  * Use atomics in endpoint::advance_time implementation (Corelight)
+
 1.0.1-5 | 2018-06-11 10:36:48 -0500
 
   * Fix "peer_lost" status notification sometimes getting lost (Corelight)
