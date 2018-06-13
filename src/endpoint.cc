@@ -38,7 +38,7 @@ endpoint::endpoint(configuration config)
     await_stores_on_shutdown_(false),
     destroyed_(false),
     use_real_time_(config_.options().use_real_time),
-    current_time_(),
+    current_time_since_epoch_(),
     pending_msg_count_() {
   new (&system_) caf::actor_system(config_);
   if ((! config_.options().disable_ssl) && !system_.has_openssl_manager())
@@ -269,15 +269,15 @@ timestamp endpoint::now() const {
   if (use_real_time_)
     return broker::now();
 
-  return current_time_;
+  return timestamp{current_time_since_epoch_};
 }
 
 void endpoint::advance_time(timestamp t) {
   if (use_real_time_)
     return;
 
-  if (t > current_time_.load()) {
-    current_time_ = t;
+  if (t > timestamp{current_time_since_epoch_}) {
+    current_time_since_epoch_ = t.time_since_epoch();
 
     if (pending_msg_count_ == 0)
       return;

@@ -330,7 +330,9 @@ private:
   bool destroyed_;
 
   const bool use_real_time_; // may be read from multiple threads
-  std::atomic<timestamp> current_time_;
+
+  // atomic<timestamp> isn't supported everywhere, so use timespan instead
+  std::atomic<timespan> current_time_since_epoch_;
 
   std::atomic<size_t> pending_msg_count_;
 
