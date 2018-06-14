@@ -143,7 +143,7 @@ void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
   caf::scoped_actor self{system_};
-  self->request(core(), timeout::core, atom::get::value, atom::peer::value)
+  self->request(core(), caf::infinite, atom::get::value, atom::peer::value)
   .receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
@@ -158,14 +158,14 @@ std::vector<peer_info> endpoint::peers() const {
 std::vector<topic> endpoint::peer_subscriptions() const {
   std::vector<topic> result;
   caf::scoped_actor self{system_};
-  self->request(core(), timeout::core, atom::get::value,
+  self->request(core(), caf::infinite, atom::get::value,
                 atom::peer::value, atom::subscriptions::value)
   .receive(
     [&](std::vector<topic>& ts) {
       result = std::move(ts);
     },
     [](const caf::error& e) {
-      detail::die("failed to get peers:", to_string(e));
+      detail::die("failed to get peer subscriptions:", to_string(e));
     }
   );
   return result;

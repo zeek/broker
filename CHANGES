@@ -1,4 +1,9 @@
 
+1.0.1-9 | 2018-06-14 16:27:12 -0500
+
+  * Remove timeout in endpoint::peers() and endpoint::peer_subscriptions()
+    (Corelight)
+
 1.0.1-8 | 2018-06-13 14:47:48 -0500
 
   * Use atomics in endpoint::advance_time implementation (Corelight)
