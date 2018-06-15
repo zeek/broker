@@ -1,4 +1,8 @@
 
+1.0.1-12 | 2018-06-15 15:15:22 -0500
+
+  * Add --disable-tests configure flag (Corelight)
+
 1.0.1-9 | 2018-06-14 16:27:12 -0500
 
   * Remove timeout in endpoint::peers() and endpoint::peer_subscriptions()

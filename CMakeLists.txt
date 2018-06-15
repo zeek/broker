@@ -430,8 +430,10 @@ endif ()
 
 # -- Unit Tests ---------------------------------------------------------------
 
-enable_testing()
-add_subdirectory(tests)
+if ( NOT BROKER_DISABLE_TESTS )
+  enable_testing()
+  add_subdirectory(tests)
+endif ()
 
 # -- Documentation ------------------------------------------------------------
 
