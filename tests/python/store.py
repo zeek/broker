@@ -191,6 +191,7 @@ class TestStore(unittest.TestCase):
         c1.insert_into("table", 3, "D")
         c2.remove_from("table", 1)
         c1.push("vec", 3)
+        time.sleep(.5)
         c2.push("vec", 4)
         c2.pop("vec")
         time.sleep(.5)
