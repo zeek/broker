@@ -1,19 +1,14 @@
 #ifndef BROKER_DATA_HH
 #define BROKER_DATA_HH
 
+#include <utility>
+#include <type_traits>
 #include <cstdint>
 #include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <caf/actor.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
-#include <caf/variant.hpp>
-
-#include <caf/detail/comparable.hpp>
 
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
@@ -26,6 +21,7 @@
 
 #include "broker/detail/hash.hh"
 #include "broker/detail/variant.hh"
+#include "broker/detail/type_traits.hh"
 
 namespace broker {
 

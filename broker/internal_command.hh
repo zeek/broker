@@ -1,18 +1,15 @@
 #ifndef BROKER_INTERNAL_COMMAND_HH
 #define BROKER_INTERNAL_COMMAND_HH
 
-#include <cstdint>
-#include <map>
-#include <set>
-#include <string>
+#include <utility>
 #include <unordered_map>
-#include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
 #include <caf/variant.hpp>
+#include <caf/optional.hpp>
+#include <caf/meta/type_name.hpp>
 
+#include "broker/fwd.hh"
 #include "broker/data.hh"
 #include "broker/time.hh"
 

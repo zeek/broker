@@ -1,11 +1,11 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/subscriber.hh"
 
-#include <cassert>
+#include <cstddef>
+#include <utility>
 #include <chrono>
 #include <numeric>
 
-#include <caf/message.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/send.hpp>
 

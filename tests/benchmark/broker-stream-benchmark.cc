@@ -1,6 +1,21 @@
+#include <cstdint>
+#include <cstdlib>
+#include <atomic>
+#include <chrono>
 #include <iostream>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
-#include <broker/broker.hh>
+#include <caf/atom.hpp>
+#include <caf/downstream.hpp>
+#include <caf/scoped_actor.hpp>
+
+#include "broker/configuration.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/topic.hh"
 
 using std::cout;
 using std::cerr;

@@ -1,4 +1,11 @@
 
+#include <cstddef>
+#include <cstdint>
+#include <chrono>
+#include <string>
+#include <utility>
+#include <vector>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/functional.h>
@@ -7,7 +14,28 @@
 #include <pybind11/stl_bind.h>
 #pragma GCC diagnostic pop
 
-#include "broker/broker.hh"
+#include "broker/backend.hh"
+#include "broker/backend_options.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/detail/shared_queue.hh"
+#include "broker/detail/variant.hh"
+#include "broker/endpoint.hh"
+#include "broker/endpoint_info.hh"
+#include "broker/network_info.hh"
+#include "broker/peer_flags.hh"
+#include "broker/peer_info.hh"
+#include "broker/peer_status.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/store.hh"
+#include "broker/subscriber.hh"
+#include "broker/subscriber_base.hh"
+#include "broker/time.hh"
+#include "broker/topic.hh"
+#include "broker/version.hh"
 
 #include <memory>
 

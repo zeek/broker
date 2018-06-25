@@ -1,4 +1,7 @@
 
+#include <cstdint>
+#include <utility>
+#include <array>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -7,7 +10,10 @@
 
 #include "set_bind.h"
 
-#include "broker/broker.hh"
+#include "broker/data.hh"
+#include "broker/convert.hh"
+#include "broker/detail/assert.hh"
+#include "broker/detail/operators.hh"
 
 namespace py = pybind11;
 using namespace pybind11::literals;

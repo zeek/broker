@@ -6,9 +6,42 @@
 #define SUITE integration
 
 #include "test.hpp"
-#include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
+#include <cstddef>
+#include <cstdint>
+#include <algorithm>
+#include <chrono>
+#include <deque>
+#include <initializer_list>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <caf/test/io_dsl.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/atom.hpp>
+#include <caf/behavior.hpp>
+#include <caf/downstream.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/io/accept_handle.hpp>
+#include <caf/io/connection_handle.hpp>
+#include <caf/io/middleman.hpp>
+#include <caf/io/network/test_multiplexer.hpp>
+#include <caf/logger.hpp>
+#include <caf/scheduler/test_coordinator.hpp>
+#include <caf/timestamp.hpp>
+
+#include "broker/configuration.hh"
+#include "broker/endpoint.hh"
+#include "broker/error.hh"
+#include "broker/peer_info.hh"
+#include "broker/peer_status.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 using namespace broker;
 

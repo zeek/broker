@@ -1,4 +1,10 @@
 
+1.0.1-15 | 2018-06-25 15:43:42 -0500
+
+  * Clean up broker headers / includes (Corelight)
+
+  * Improve python-store test reliability (Corelight)
+
 1.0.1-12 | 2018-06-15 15:15:22 -0500
 
   * Add --disable-tests configure flag (Corelight)

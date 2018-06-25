@@ -2,7 +2,6 @@
 #define BROKER_MAILBOX_HH
 
 #include <cstddef>
-#include <limits>
 
 namespace broker {
 
@@ -14,8 +13,6 @@ class flare_actor;
 broker::mailbox make_mailbox(flare_actor* actor);
 
 } // namsespace detail
-
-class blocking_endpoint;
 
 /// A proxy object that represents the mailbox of a blocking endpoint.
 struct mailbox {

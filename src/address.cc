@@ -1,4 +1,3 @@
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -6,9 +5,12 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <cstdint>
+#include <cstdio>
+#include <string>
+#include <array>
 
 #include "broker/address.hh"
-#include "broker/convert.hh"
 #include "broker/detail/hash.hh"
 
 namespace broker {

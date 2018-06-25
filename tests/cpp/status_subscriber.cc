@@ -1,11 +1,19 @@
 #define SUITE status_subscriber
 #include "test.hpp"
-#include <caf/test/dsl.hpp>
 
-#include "broker/broker.hh"
+#include <iostream>
+#include <string>
+#include <utility>
 
-#include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
+#include <caf/exit_reason.hpp>
+#include <caf/group.hpp>
+#include <caf/send.hpp>
+
+#include "broker/atoms.hh"
+#include "broker/endpoint.hh"
+#include "broker/error.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
 
 using std::cout;
 using std::endl;

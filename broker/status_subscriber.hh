@@ -4,9 +4,6 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/duration.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
 
 #include "broker/error.hh"
 #include "broker/fwd.hh"

@@ -291,7 +291,6 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/b
 
 set(BROKER_SRC
   src/address.cc
-  src/bro.cc
   src/configuration.cc
   src/data.cc
   src/endpoint.cc

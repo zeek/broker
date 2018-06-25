@@ -10,7 +10,7 @@
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
-#include <caf/output_stream.hpp>
+#include <caf/stream_slot.hpp>
 
 #include <caf/detail/stream_distribution_tree.hpp>
 

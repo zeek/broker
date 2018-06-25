@@ -6,6 +6,8 @@
 
 #include <caf/actor.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/behavior.hpp>
 
 #include "broker/data.hh"
 #include "broker/internal_command.hh"

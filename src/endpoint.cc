@@ -12,17 +12,15 @@
 #include <caf/actor.hpp>
 #include <caf/message.hpp>
 #include <caf/io/middleman.hpp>
-#include <caf/openssl/all.hpp>
+#include <caf/openssl/publish.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/publisher.hh"
-#include "broker/status.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
 
-#include "broker/detail/assert.hh"
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
 

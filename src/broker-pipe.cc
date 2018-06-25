@@ -1,20 +1,40 @@
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <map>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <sys/select.h>
+#include <utility>
+#include <algorithm>
+#include <exception>
+#include <iterator>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <vector>
 #include <mutex>
-#include <thread>
 #include <cassert>
 #include <iostream>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <caf/all.hpp>
+#include <caf/atom.hpp>
+#include <caf/behavior.hpp>
+#include <caf/deep_to_string.hpp>
+#include <caf/downstream.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/send.hpp>
 #pragma GCC diagnostic pop
 
-#include "broker/broker.hh"
+#include "broker/atoms.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 using broker::data;
 using broker::topic;

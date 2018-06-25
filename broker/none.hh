@@ -4,7 +4,7 @@
 #include <functional>
 #include <string>
 
-#include "caf/none.hpp"
+#include <caf/none.hpp>
 
 namespace broker {
 

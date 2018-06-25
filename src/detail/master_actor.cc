@@ -1,20 +1,25 @@
 #include "broker/logger.hh" // Needs to come before CAF includes.
 
-#include <caf/all.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/actor.hpp>
+#include <caf/make_message.hpp>
+#include <caf/sum_type.hpp>
+#include <caf/behavior.hpp>
+#include <caf/stateful_actor.hpp>
+#include <caf/system_messages.hpp>
+#include <caf/unit.hpp>
+#include <caf/error.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/snapshot.hh"
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/die.hh"
-#include "broker/detail/filter_type.hh"
 #include "broker/detail/master_actor.hh"
-#include "broker/detail/type_traits.hh"
 
 namespace broker {
 namespace detail {

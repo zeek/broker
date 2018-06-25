@@ -1,6 +1,5 @@
 #include "broker/data.hh"
 #include "broker/convert.hh"
-#include "broker/detail/die.hh"
 
 namespace broker {
 

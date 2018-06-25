@@ -1,13 +1,18 @@
 // This suite is a test ensuring SSL authentication works as expected.
 #define SUITE ssl
 
-#include <limits.h>
-#include <cstdlib>
-
 #include "test.hpp"
-#include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
+#include <cstdlib>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "broker/configuration.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 using namespace broker;
 
@@ -31,8 +36,6 @@ configuration make_config(std::string cert_id) {
   }
   return cfg;
 }
-
-struct peer_fixture;
 
 // Holds state for individual peers. We use one fixture per simulated peer.
 struct peer_fixture {

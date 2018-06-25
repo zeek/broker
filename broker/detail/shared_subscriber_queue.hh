@@ -1,7 +1,7 @@
 #ifndef BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 #define BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 
-#include <caf/duration.hpp>
+#include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
 
 #include "broker/detail/shared_queue.hh"

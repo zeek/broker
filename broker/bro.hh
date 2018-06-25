@@ -1,7 +1,6 @@
 #ifndef BROKER_BRO_HH
 #define BROKER_BRO_HH
 
-#include "broker/atoms.hh"
 #include "broker/data.hh"
 
 namespace broker {

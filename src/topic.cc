@@ -1,5 +1,4 @@
 #include "broker/topic.hh"
-#include <iostream>
 
 namespace broker {
 

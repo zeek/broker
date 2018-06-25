@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <exception>
+#include <algorithm>
 
 #include "broker/logger.hh"
 

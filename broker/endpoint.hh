@@ -10,7 +10,9 @@
 #include <atomic>
 
 #include <caf/node_id.hpp>
+#include <caf/stream.hpp>
 #include <caf/actor.hpp>
+#include <caf/message.hpp>
 #include <caf/event_based_actor.hpp>
 
 #include "broker/backend.hh"
@@ -27,9 +29,6 @@
 #include "broker/store.hh"
 #include "broker/topic.hh"
 #include "broker/time.hh"
-
-#include "broker/detail/filter_type.hh"
-#include "broker/detail/operators.hh"
 
 namespace broker {
 

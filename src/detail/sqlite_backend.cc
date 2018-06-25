@@ -1,12 +1,18 @@
 #include "broker/logger.hh"
 
 #include <cstdio> // std::snprintf
+#include <utility>
+#include <cstdint>
+#include <set>
+#include <string>
+#include <vector>
 
 #include <caf/detail/scope_guard.hpp>
 
-#include "broker/status.hh"
 #include "broker/version.hh"
-
+#include "broker/error.hh"
+#include "broker/expected.hh"
+#include "broker/optional.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/blob.hh"

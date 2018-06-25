@@ -3,7 +3,10 @@
 
 #include <unordered_set>
 
+#include <caf/actor.hpp>
+#include <caf/behavior.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/event_based_actor.hpp>
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"

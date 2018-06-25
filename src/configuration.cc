@@ -1,21 +1,26 @@
-#include <caf/io/middleman.hpp>
-#include <caf/openssl/all.hpp>
+#include <cstdlib>
+#include <cstring>
+#include <utility>
+#include <vector>
 
-#include "broker/address.hh"
-#include "broker/configuration.hh"
+#include <caf/io/middleman.hpp>
+#include <caf/openssl/manager.hpp>
+#include <caf/atom.hpp>
+
+#include "broker/version.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/snapshot.hh"
+#include "broker/store.hh"
+#include "broker/time.hh"
+#include "broker/address.hh"
 #include "broker/internal_command.hh"
 #include "broker/port.hh"
-#include "broker/snapshot.hh"
 #include "broker/status.hh"
-#include "broker/store.hh"
 #include "broker/subnet.hh"
-#include "broker/time.hh"
 #include "broker/topic.hh"
-#include "broker/version.hh"
 
-#include "broker/detail/filter_type.hh"
+#include "broker/configuration.hh"
 
 namespace broker {
 

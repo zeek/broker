@@ -1,10 +1,18 @@
 
+#include <utility>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/pybind11.h>
 #pragma GCC diagnostic pop
 
-#include "broker/broker.hh"
+#include "broker/api_flags.hh"
+#include "broker/backend.hh"
+#include "broker/error.hh"
+#include "broker/frontend.hh"
+#include "broker/peer_flags.hh"
+#include "broker/peer_status.hh"
+#include "broker/status.hh"
 
 namespace py = pybind11;
 

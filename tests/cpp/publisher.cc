@@ -3,9 +3,24 @@
 
 #define SUITE publisher
 #include "test.hpp"
-#include <caf/test/dsl.hpp>
 
-#include "broker/broker.hh"
+#include <caf/actor.hpp>
+#include <caf/behavior.hpp>
+#include <caf/downstream.hpp>
+#include <caf/error.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/send.hpp>
+#include <caf/stateful_actor.hpp>
+#include <caf/stream.hpp>
+
+#include "broker/atoms.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/publisher.hh"
+#include "broker/topic.hh"
 
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/filter_type.hh"

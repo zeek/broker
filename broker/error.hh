@@ -8,9 +8,10 @@
 //
 // Included lines: 23-51
 
-#include <string>
-#include <tuple>
+#include <cstdint>
+#include <utility>
 
+#include <caf/atom.hpp>
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
 

@@ -1,4 +1,13 @@
-#include "broker/broker.hh"
+#include <cstdint>
+#include <chrono>
+#include <map>
+#include <string>
+#include <type_traits>
+#include <utility>
+
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/optional.hh"
 
 #define SUITE data
 #include "test.hpp"

@@ -5,8 +5,8 @@
 
 #include <caf/actor.hpp>
 #include <caf/duration.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
+#include <caf/optional.hpp>
+#include <caf/none.hpp>
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"

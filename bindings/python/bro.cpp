@@ -1,11 +1,14 @@
 
+#include <utility>
+#include <string>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/pybind11.h>
 #pragma GCC diagnostic pop
 
-#include "broker/broker.hh"
 #include "broker/bro.hh"
+#include "broker/data.hh"
 
 namespace py = pybind11;
 using namespace pybind11::literals;

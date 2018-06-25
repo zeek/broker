@@ -3,9 +3,20 @@
 
 #define SUITE subscriber
 #include "test.hpp"
-#include <caf/test/dsl.hpp>
 
-#include "broker/broker.hh"
+#include <caf/actor.hpp>
+#include <caf/downstream.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/send.hpp>
+
+#include "broker/atoms.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 #include "broker/detail/core_actor.hh"
 #include "broker/detail/filter_type.hh"

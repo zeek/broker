@@ -1,6 +1,8 @@
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
+#include <string>
 #include <tuple>
 #include <type_traits>
 

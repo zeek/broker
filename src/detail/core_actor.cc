@@ -2,9 +2,26 @@
 
 #include "broker/detail/core_actor.hh"
 
-#include <caf/all.hpp>
-
-#include <caf/io/middleman.hpp>
+#include <caf/actor.hpp>
+#include <caf/actor_cast.hpp>
+#include <caf/allowed_unsafe_message_type.hpp>
+#include <caf/atom.hpp>
+#include <caf/behavior.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/exit_reason.hpp>
+#include <caf/group.hpp>
+#include <caf/make_counted.hpp>
+#include <caf/none.hpp>
+#include <caf/response_promise.hpp>
+#include <caf/result.hpp>
+#include <caf/sec.hpp>
+#include <caf/spawn_options.hpp>
+#include <caf/stateful_actor.hpp>
+#include <caf/stream.hpp>
+#include <caf/stream_slot.hpp>
+#include <caf/system_messages.hpp>
+#include <caf/unit.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/backend.hh"
@@ -14,15 +31,11 @@
 #include "broker/error.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
-#include "broker/timeout.hh"
 #include "broker/topic.hh"
-#include "broker/version.hh"
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/clone_actor.hh"
-#include "broker/detail/die.hh"
 #include "broker/detail/make_backend.hh"
-#include "broker/detail/make_unique.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/master_resolver.hh"
 

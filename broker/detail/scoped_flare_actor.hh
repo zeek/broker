@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
 
 #include <caf/message.hpp>
+#include <caf/actor_system.hpp>
 #include <caf/scoped_execution_unit.hpp>
 
 namespace broker {

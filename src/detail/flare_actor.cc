@@ -1,11 +1,10 @@
-#include <poll.h>
-
 #include "broker/logger.hh" // Needs to come before CAF includes
 
-#include <caf/all.hpp>
+#include <caf/execution_unit.hpp>
+#include <caf/mailbox_element.hpp>
+#include <caf/detail/enqueue_result.hpp>
 #include <caf/detail/sync_request_bouncer.hpp>
 
-#include "broker/detail/assert.hh"
 #include "broker/detail/flare_actor.hh"
 
 namespace broker {

@@ -1,7 +1,11 @@
 #include <algorithm>
+#include <functional>
 #include <string>
+#include <vector>
 
+#include "broker/data.hh"
 #include "broker/detail/variant.hh"
+#include "broker/detail/operators.hh"
 
 #define SUITE variant
 #include "test.hpp"

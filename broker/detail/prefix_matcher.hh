@@ -8,8 +8,6 @@
 
 #include "broker/topic.hh"
 
-#include "broker/detail/prefix_matcher.hh"
-
 namespace broker {
 namespace detail {
 

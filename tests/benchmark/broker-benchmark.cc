@@ -1,11 +1,29 @@
 
 #include <getopt.h>
-#include <unistd.h>
-#include <mutex>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <sys/time.h>
+#include <unistd.h>
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include <broker/broker.hh>
-#include <broker/bro.hh>
+#include <caf/deep_to_string.hpp>
+#include <caf/downstream.hpp>
+
+#include "broker/bro.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/topic.hh"
 
 #include "readerwriterqueue/readerwriterqueue.h"
 

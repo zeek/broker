@@ -6,7 +6,6 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/duration.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/fwd.hh"

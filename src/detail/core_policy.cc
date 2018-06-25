@@ -1,6 +1,5 @@
 #include "broker/detail/core_policy.hh"
 
-#include <caf/fused_downstream_manager.hpp>
 #include <caf/none.hpp>
 
 #include <caf/detail/stream_distribution_tree.hpp>
