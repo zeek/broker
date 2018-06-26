@@ -22,9 +22,9 @@ configuration base_fixture::make_config(bool fake_network) {
   broker_options options;
   options.disable_ssl = fake_network;
   configuration cfg{options};
-  cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_verbosity = caf::atom("TRACE");
-  cfg.middleman_detach_utility_actors = false;
+  cfg.set("scheduler.policy", caf::atom("testing"));
+  cfg.set("logger.verbosity", caf::atom("TRACE"));
+  cfg.set("middleman.detach-utility-actors", false);
   cfg.parse(test::engine::argc(), test::engine::argv());
   if (fake_network)
     cfg.load<io::middleman, io::network::test_multiplexer>();

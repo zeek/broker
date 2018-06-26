@@ -24,6 +24,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/send.hpp>
+#include <caf/config_option_adder.hpp>
 #pragma GCC diagnostic pop
 
 #include "broker/atoms.hh"

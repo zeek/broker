@@ -21,17 +21,17 @@ namespace {
 configuration make_config(std::string cert_id) {
   configuration cfg;
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  // cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_inline_output = true;
+  // cfg.set("scheduler.policy", caf::atom("testing"));
+  cfg.set("logger.inline-output",  true);
 
 //  cfg.scheduler_policy = caf::atom("testing");
   if ( cert_id.size() ) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
     auto cd = std::string(test_dir) + "/cpp/certs/";
-    cfg.openssl_cafile = cd + "ca.pem";
-    cfg.openssl_certificate = cd + "cert." + cert_id + ".pem";
-    cfg.openssl_key = cd + "key." + cert_id + ".pem";
+    cfg.set("openssl.cafile", cd + "ca.pem");
+    cfg.set("openssl.certificate", cd + "cert." + cert_id + ".pem");
+    cfg.set("openssl.key", cd + "key." + cert_id + ".pem");
     MESSAGE("using certififcate " << cfg.openssl_certificate << ", key " << cfg.openssl_key);
   }
   return cfg;

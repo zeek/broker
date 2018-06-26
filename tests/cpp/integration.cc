@@ -60,9 +60,9 @@ configuration make_config() {
   options.disable_ssl = true;
   configuration cfg(options);
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  cfg.middleman_network_backend = caf::atom("testing");
-  cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_inline_output = true;
+  cfg.set("middleman.network-backend", caf::atom("testing"));
+  cfg.set("scheduler.policy", caf::atom("testing"));
+  cfg.set("logger.inline-output", true);
   return cfg;
 }
 

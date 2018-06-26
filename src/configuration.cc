@@ -54,16 +54,17 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   load<caf::io::middleman>();
   if (! options_.disable_ssl)
     load<caf::openssl::manager>();
-  logger_file_name = "broker_[PID]_[TIMESTAMP].log";
+
+  set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   /*
-  logger_verbosity = caf::atom("INFO");
-  logger_component_filter = "broker";
+  set("logger.verbosity", caf::atom("INFO"));
+  set("logger.component-filter", "broker");
   */
 
   if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
     if (*env && *env != '0') {
-      logger_verbosity = caf::atom("DEBUG");
-      logger_component_filter = "";
+      set("logger.verbosity", caf::atom("DEBUG"));
+      set("logger.component-filter", "");
     }
   }
 
@@ -71,14 +72,15 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     char level[10];
     strncpy(level, env, sizeof(level));
     level[sizeof(level) - 1] = '\0';
-    logger_verbosity = caf::atom(level);
+    set("logger.verbosity", caf::atom(level));
   }
 
   if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER")) {
-    logger_component_filter = env;
+    set("logger.component-filter", env);
   }
 
-  middleman_app_identifier = "broker.v" + std::to_string(version::protocol);
+  set("middleman.app-identifier",
+      "broker.v" + std::to_string(version::protocol));
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {

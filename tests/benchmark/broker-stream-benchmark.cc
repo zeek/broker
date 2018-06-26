@@ -11,6 +11,7 @@
 #include <caf/atom.hpp>
 #include <caf/downstream.hpp>
 #include <caf/scoped_actor.hpp>
+#include <caf/config_option_adder.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/data.hh"

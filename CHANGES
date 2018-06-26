@@ -1,4 +1,8 @@
 
+1.0.1-16 | 2018-06-26 15:04:07 -0500
+
+  * Fix deprecated actor_system_config field usages (Corelight)
+
 1.0.1-15 | 2018-06-25 15:43:42 -0500
 
   * Clean up broker headers / includes (Corelight)
