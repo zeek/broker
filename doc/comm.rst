@@ -20,7 +20,7 @@ Exchanging Broker Messages
 --------------------------
 
 We start with a discussion of generic message exchange between Broker
-clients. At the Broker-level level, messages are just arbitrary values
+clients. At the Broker level, messages are just arbitrary values
 that have no further semantics attached. It's up to senders and
 receivers to agree on a specific layout of messages (e.g., a set of
 doubles for a measurement series).
@@ -73,13 +73,13 @@ them to interested subscribers:
 
 .. note::
 
-  Publishing a message can be no-op if there exists no subscriber. Because
+  Publishing a message can be a no-op if there exists no subscriber. Because
   Broker has fire-and-forget messaging semantics, the runtime does not generate
   a notification if no subscribers exist.
 
 One can also explicitly create a dedicated ``publisher`` for a
 specific topic first, and then use that to send subsequent messages.
-This approach better suited for high-volume streams, as it leverages
+This approach is better suited for high-volume streams, as it leverages
 CAF's demand management internally:
 
 .. literalinclude:: _examples/comm.cc
@@ -101,14 +101,14 @@ Endpoints receive data by creating a ``subscriber`` attached to the
 topics of interest. Subscriptions are prefix-based, matching all
 topics that start with a given string. A ``subscriber`` can either
 retrieve incoming messages explicitly by calling ``get`` or ``poll``
-(synchronous API), or spawning a background worker to process messages
+(synchronous API), or spawn a background worker to process messages
 as they come in (asynchronous API).
 
 Synchronous API
 ***************
     
 The synchronous API exists for applications that want to poll for
-messages explicitly. Once a subscribers is registered for topics,
+messages explicitly. Once a subscriber is registered for topics,
 calling ``get`` will wait for a new message:
 
 .. literalinclude:: _examples/comm.cc
@@ -124,7 +124,7 @@ message's payload in the form of an arbitray Broker value, (i.e., a
 
 Blocking indefinitely until messages arrive often won't work well, in
 particular not in combination with existing event loops or polling.
-Therfore, `get` takes an additional optional timeout parameter to wait
+Therefore, ``get`` takes an additional optional timeout parameter to wait
 only for a certain amount of time. Alternatively, one can also use
 ``available`` to explicitly check for available messages, or ``poll``
 to extract just all currently pending messages (which may be none):
@@ -133,7 +133,7 @@ to extract just all currently pending messages (which may be none):
    :start-after: --poll-start
    :end-before: --poll-end
 
-For integration into event loops, `subscriber` also provides a file
+For integration into event loops, ``subscriber`` also provides a file
 descriptor that signals whether messages are available:
 
 .. literalinclude:: _examples/comm.cc
@@ -176,7 +176,7 @@ TODO: Document.
 Status and Error Messages
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Broker informs client about any communcation errors---and optionally
+Broker informs clients about any communication errors---and optionally
 also about non-critical connectivity changes---through separate
 ``status`` messages.  To get access to that information, one creates a
 ``status_subscriber``, which provides a similar synchronous
@@ -189,7 +189,7 @@ default, a ``status_subscriber`` returns only errors:
    :end-before: --status-subscriber-err-end
 
 Errors reflect failures that may impact the correctness of operation.
-`err.code()`` returns an enum ``ec`` that codifies existing error
+``err.code()`` returns an enum ``ec`` that codifies existing error
 codes:
 
 .. literalinclude:: ../broker/error.hh
@@ -230,9 +230,9 @@ independent of the local subscription status, through the method
 forwarding of remote messages altogether through the Broker
 configuration option ``forward`` when creating an endpoint.
 
-When forwarding messages Broker assumes all connected endpoints to
+When forwarding messages Broker assumes all connected endpoints
 form a tree topology without any loops. Still, to avoid messages
-circling indefinitly if a loop happens accidentally, Broker's message
+circling indefinitely if a loop happens accidentally, Broker's message
 forwarding adds a TTL value to messages, and drops any that have
 traversed that many hops. The default TTL is 20; it can be changed by
 setting the Broker configuration option ``ttl``. Note that it is the
@@ -255,7 +255,7 @@ Broker provides built-in support for sending and receiving Bro events
 through a small Bro-specific shim on top of the generic message model.
 The shim encapsulates Bro events and takes care of converting them
 into the expected lower-level message layout that gets transmitted.
-This way, Bro events can be exchanged between between an external
+This way, Bro events can be exchanged between an external
 Broker client and Bro itself---and also even just between Broker
 clients without any Bro instances at all.
 

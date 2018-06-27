@@ -45,7 +45,7 @@ A ``count`` is a 64-bit *unsigned* integer and type alias for ``uint64_t``.
 Integer
 ~~~~~~~
 
-A ``integer`` is a 64-bit *signed* integer and type alias for ``int64_t``.
+An ``integer`` is a 64-bit *signed* integer and type alias for ``int64_t``.
 
 Real
 ~~~~
@@ -59,8 +59,8 @@ Time
 Broker offers two data types for expressing time: ``timespan`` and
 ``timestamp``.
 
-Both types seemlessly interoperate with the C++ standard library time
-faciliates. In fact, they are concrete specializations of the time types in
+Both types seamlessly interoperate with the C++ standard library time
+facilities. In fact, they are concrete specializations of the time types in
 |std_chrono|_:
 
 .. code-block:: cpp
@@ -75,8 +75,8 @@ faciliates. In fact, they are concrete specializations of the time types in
 Timespan
 ~~~~~~~~
 
-An ``timespan`` represents relative time duration in nanoseconds. Given that
-the internal reprsentation is a 64-bit signed integer, this allows for
+A ``timespan`` represents relative time duration in nanoseconds. Given that
+the internal representation is a 64-bit signed integer, this allows for
 representing approximately 292 years.
 
 Timestamp
@@ -150,8 +150,8 @@ It is a type alias for ``std::set<data>``.
 Table
 ~~~~~
 
-A ``set`` is associative array with keys and values of type ``data``. That is,
-it maps ``data`` to ``data``.
+A ``set`` is an associative array with keys and values of type ``data``. That
+is, it maps ``data`` to ``data``.
 
 It is a type alias for ``std::map<data, data>``.
 
@@ -182,7 +182,7 @@ instance:
      f(str); // safe use of x
 
 2. Applying a *visitor*. Since ``data`` is a variant type, one can apply a
-   visitor to it, i.e., dispatch a function call based on the type discrimantor
+   visitor to it, i.e., dispatch a function call based on the type discriminator
    to the active type. A visitor is a polymorphic function object with
    overloaded ``operator()`` and a ``result_type`` type alias:
 
