@@ -68,6 +68,7 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
         }
       }
       // Forward to other peers.
+      // TODO check which peers subscribed to the topic
       peers().push(std::move(msg));
     }
     return;
@@ -209,6 +210,45 @@ bool core_policy::has_peer(const actor& hdl) const {
   return peer_to_opath_.count(hdl) != 0 || peer_to_ipath_.count(hdl) != 0;
 }
 
+peer_filter& core_policy::get_filter(const caf::actor& hdl) {
+  caf::stream_slot slot;
+  auto i = peer_to_opath_.find(hdl);
+  if (i != peer_to_opath_.end())
+    return peers().filter(i->second);
+  auto j = peer_to_ipath_.find(hdl);
+  BROKER_ASSERT(j != peer_to_ipath_.end());
+  return peers().filter(j->second);
+}
+
+filter_type core_policy::get_all_filter(const std::set<caf::actor>& skip) {
+  filter_type return_filter;
+  // add filter of all outbound peers
+  for (auto p : peer_to_opath_) {
+    if(skip.find(p.first) == skip.end()) {
+      filter_type& pf = this->get_filter(p.first).second;
+      return_filter.insert(return_filter.end(), pf.begin(), pf.end());
+    }
+  }
+  // add filter of all inbound peers
+  /* for (auto p : peer_to_ipath_) {
+    if (skip.find(p.first) == skip.end()) {
+      filter_type &pf = this->get_filter(p.first).second;
+      return_filter.insert(return_filter.end(), pf.begin(), pf.end());
+    }
+  }*/
+
+  // add filter of local peer
+  return_filter.insert(return_filter.end(), state_->filter.begin(), state_->filter.end());
+
+  std::sort(return_filter.begin(), return_filter.end());
+  auto e = std::unique(return_filter.begin(), return_filter.end());
+  if (e != return_filter.end())
+    return_filter.erase(e, return_filter.end());
+
+  return return_filter;
+}
+
+
 void core_policy::ack_peering(const stream<message>& in,
                               const actor& peer_hdl) {
   CAF_LOG_TRACE(CAF_ARG(peer_hdl));
@@ -218,6 +258,7 @@ void core_policy::ack_peering(const stream<message>& in,
     CAF_LOG_ERROR("peer already connected");
     return;
   }
+
   // Add inbound path for our peer.
   auto slot = parent_->add_unchecked_inbound_path(in);
   add_ipath(slot, peer_hdl);
@@ -279,14 +320,58 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
 /// Updates the filter of an existing peer.
 bool core_policy::update_peer(const actor& hdl, filter_type filter) {
   CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(filter));
+  CAF_LOG_DEBUG("Update Peer " << hdl << " with filter " << filter);
   auto e = peer_to_opath_.end();
   auto i = peer_to_opath_.find(hdl);
   if (i == e) {
     CAF_LOG_DEBUG("cannot update filter on unknown peer");
     return false;
   }
+
+  // update all peers in case of subscribes/unsubscribes
+  update_routing(hdl, filter);
+
   peers().filter(i->second).second = std::move(filter);
   return true;
+}
+
+bool core_policy::update_routing(const actor& hdl, filter_type filter) {
+  CAF_LOG_DEBUG("Update routing for actor " << hdl << " with filter " << filter);
+  bool update = false;
+  // Iterate over all peers and check if the update causes an update for them as well
+  for_each_peer([&](const actor& p) {
+    CAF_LOG_DEBUG("Check for routing update for peer" << p);
+    if(p != hdl) {
+      // 1. get topics of local peer and all neighbors,
+      //    except the currently observed neighbor
+      //    in own sorted vector BEFORE update
+      std::set<caf::actor> skip;
+      skip.insert(p);
+      filter_type all_old_topics = get_all_filter(skip);
+
+      // 2. get topics of local peer and neighbors,
+      //    except the currently observed neighbor
+      //    in own sorted vector AFTER update
+      skip.insert(hdl);
+      filter_type all_new_topics = get_all_filter(skip);
+      all_new_topics.insert(all_new_topics.end(), filter.begin(), filter.end());
+      std::sort(all_new_topics.begin(), all_new_topics.end());
+      auto e = std::unique(all_new_topics.begin(), all_new_topics.end());
+      if (e != all_new_topics.end())
+        all_new_topics.erase(e, all_new_topics.end());
+
+      // 3. Compare the two data structures
+      // and in case they do not match: send update to respective peer
+      if (all_old_topics != all_new_topics) {
+        CAF_LOG_DEBUG("Send routing update to " << p << " with filter " << all_new_topics);
+        state_->self->send(p, atom::update::value, all_new_topics);
+        update = true;
+      } else {
+        CAF_LOG_DEBUG("No routing update to " << p << " as nothing changed ");
+      }
+    }
+  });
+  return update;
 }
 
 // -- management of worker and storage streams -------------------------------

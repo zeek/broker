@@ -67,12 +67,19 @@ void core_state::init(filter_type initial_filter, broker_options opts,
 void core_state::update_filter_on_peers() {
   CAF_LOG_TRACE("");
   policy().for_each_peer([&](const actor& hdl) {
-    self->send(hdl, atom::update::value, filter);
+    std::set<caf::actor> skip;
+    filter_type complete_filter = policy().get_all_filter(skip);
+    skip.insert(hdl);
+    filter_type send_filter = policy().get_all_filter(skip);
+    CAF_LOG_DEBUG("Send updated filter " << send_filter << " instead " << complete_filter <<" to peer " << hdl);
+    self->send(hdl, atom::update::value, send_filter);
   });
 }
 
 void core_state::add_to_filter(filter_type xs) {
   CAF_LOG_TRACE(CAF_ARG(xs));
+  CAF_LOG_DEBUG("add_to_filter " << xs << " to old filter " << filter);
+  // FIXME This would not catch the case that a new topic was added and another one was deleted!
   // Get initial size of our filter.
   auto s0 = filter.size();
   // Insert new elements then remove duplicates with sort and unique.
@@ -246,6 +253,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       }
       CAF_LOG_DEBUG("received handshake step #1" << CAF_ARG(peer_hdl)
                     << CAF_ARG(actor{self}));
+
       // Start CAF stream.
       return st.policy().start_peering<true>(peer_hdl, std::move(peer_ts));
     },
@@ -271,6 +279,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         i->second.rp.deliver(peer_hdl);
         st.pending_peers.erase(i);
       }
+      // TODO update peers on new or deleted topics
     },
     // Step #3: - A establishes a stream to B
     //          - B has a stream to A and vice versa now

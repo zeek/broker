@@ -146,6 +146,14 @@ public:
   /// Queries whether `hdl` is a known peer.
   bool has_peer(const caf::actor& hdl) const;
 
+  /// Returns the filter for `hdl`
+  /// @pre `has_peer(hdl)`
+  peer_filter& get_filter(const caf::actor& hdl);
+
+  /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
+  /// except the filters in set skip
+  filter_type get_all_filter(const std::set<caf::actor>& skip);
+
   /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
   /// @returns `false` if the peer is already connected, `true` otherwise.
   /// @param peer_hdl Handle to the peering (remote) core actor.
@@ -173,6 +181,9 @@ public:
     auto slot = add(send_own_filter_token, peer_hdl);
     // Make sure the peer receives the correct traffic.
     out().assign<peer_trait::manager>(slot);
+    // Update neighbors
+    CAF_LOG_DEBUG("Start Peering and Update Routing for peer " << peer_hdl);
+    update_routing(peer_hdl, peer_filter);
     peers().set_filter(slot,
                        std::make_pair(peer_hdl.address(),
                                       std::move(peer_filter)));
@@ -200,6 +211,9 @@ public:
 
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter);
+
+  /// Updates the filter of all our neighbors
+  bool update_routing(const caf::actor& hdl, filter_type filter);
 
   // -- management of worker and storage streams -------------------------------
 
