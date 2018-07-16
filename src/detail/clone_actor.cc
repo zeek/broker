@@ -88,14 +88,14 @@ void clone_state::operator()(add_command& x) {
   auto i = store.find(x.key);
   if (i == store.end())
     i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
-  visit(adder{x.value}, i->second);
+  caf::visit(adder{x.value}, i->second);
 }
 
 void clone_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
-    visit(remover{x.value}, i->second);
+    caf::visit(remover{x.value}, i->second);
   } else {
     // can happen if we joined a stream but did not yet receive set_command
     BROKER_WARNING("received substract_command for unknown key");
@@ -161,27 +161,27 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           }
 
         if ( mutation_buffer_interval > 0 )
-          { 
+          {
           self->state.unmutable_time = now(ep) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
           auto msg = caf::make_message(atom::tick::value,
                                        atom::mutable_check::value);
           self->state.ep->send_later(self, ts, std::move(msg));
-          } 
+          }
       }
     }
   );
 
   if ( mutation_buffer_interval > 0 )
-    { 
+    {
     self->state.unmutable_time = now(ep) + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ts = std::chrono::duration_cast<timespan>(si);
     auto msg = caf::make_message(atom::tick::value,
                                  atom::mutable_check::value);
     self->state.ep->send_later(self, ts, std::move(msg));
-    } 
+    }
 
   self->send(self, atom::master::value, atom::resolve::value);
 
@@ -329,7 +329,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
-        result = visit(retriever{aspect}, i->second);
+        result = caf::visit(retriever{aspect}, i->second);
       BROKER_INFO("GET" << key << aspect << "->" << result);
       return result;
     },
@@ -353,7 +353,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {
-        auto x = visit(retriever{aspect}, i->second);
+        auto x = caf::visit(retriever{aspect}, i->second);
         if (x)
           result = caf::make_message(*x, id);
         else

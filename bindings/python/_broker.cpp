@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include <caf/variant.hpp>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/functional.h>
@@ -20,7 +22,6 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/detail/shared_queue.hh"
-#include "broker/detail/variant.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/network_info.hh"
@@ -190,13 +191,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return caf::get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return caf::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 

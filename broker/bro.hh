@@ -22,7 +22,7 @@ public:
   };
 
   Type type() const {
-    return Type(get<count>(msg_[1]));
+    return Type(caf::get<count>(msg_[1]));
   }
 
   data as_data() const {
@@ -34,14 +34,15 @@ public:
   }
 
   static Type type(const data& msg) {
-    return Type(get<count>(get<vector>(msg)[1]));
+    return Type(caf::get<count>(caf::get<vector>(msg)[1]));
   }
 
 protected:
   Message(Type type, vector content)
     : msg_({ProtocolVersion, count(type), std::move(content)}) {
   }
-  Message(data msg) : msg_(std::move(get<vector>(msg))) {
+
+  Message(data msg) : msg_(std::move(caf::get<vector>(msg))) {
   }
 
   vector msg_;
@@ -52,20 +53,23 @@ class Event : public Message {
   public:
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
+
   Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
-    return get<std::string>(get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
   }
+
   std::string& name() {
-    return get<std::string>(get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
   }
 
   const vector& args() const {
-    return get<vector>(get<vector>(msg_[2])[1]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[1]);
   }
+
   vector& args() {
-    return get<vector>(get<vector>(msg_[2])[1]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[1]);
   }
 };
 
@@ -78,27 +82,31 @@ class RelayEvent : public Message {
                                           std::move(name),
                                           std::move(args)})
     {}
+
   RelayEvent(data msg) : Message(std::move(msg)) {}
 
   const set& topics() const {
-    return get<set>(get<vector>(msg_[2])[0]);
+    return caf::get<set>(caf::get<vector>(msg_[2])[0]);
   }
+
   set& topics() {
-    return get<set>(get<vector>(msg_[2])[0]);
+    return caf::get<set>(caf::get<vector>(msg_[2])[0]);
   }
 
   const std::string& name() const {
-    return get<std::string>(get<vector>(msg_[2])[1]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[1]);
   }
+
   std::string& name() {
-    return get<std::string>(get<vector>(msg_[2])[1]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[1]);
   }
 
   const vector& args() const {
-    return get<vector>(get<vector>(msg_[2])[2]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[2]);
   }
+
   vector& args() {
-    return get<vector>(get<vector>(msg_[2])[2]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[2]);
   }
 };
 
@@ -111,27 +119,31 @@ class HandleAndRelayEvent : public Message {
                                                    std::move(name),
                                                    std::move(args)})
    {}
+
   HandleAndRelayEvent(data msg) : Message(std::move(msg)) {}
 
   const set& topics() const {
-    return get<set>(get<vector>(msg_[2])[0]);
+    return caf::get<set>(caf::get<vector>(msg_[2])[0]);
   }
+
   set& topics() {
-    return get<set>(get<vector>(msg_[2])[0]);
+    return caf::get<set>(caf::get<vector>(msg_[2])[0]);
   }
 
   const std::string& name() const {
-    return get<std::string>(get<vector>(msg_[2])[1]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[1]);
   }
+
   std::string& name() {
-    return get<std::string>(get<vector>(msg_[2])[1]);
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[1]);
   }
 
   const vector& args() const {
-    return get<vector>(get<vector>(msg_[2])[2]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[2]);
   }
+
   vector& args() {
-    return get<vector>(get<vector>(msg_[2])[2]);
+    return caf::get<vector>(caf::get<vector>(msg_[2])[2]);
   }
 };
 
@@ -141,13 +153,15 @@ class Batch : public Message {
   public:
   Batch(vector msgs)
     : Message(Message::Type::Batch, std::move(msgs)) {}
+
   Batch(data msg) : Message(std::move(msg)) {}
 
   const vector& batch() const {
-    return get<vector>(msg_[2]);
+    return caf::get<vector>(msg_[2]);
   }
+
   vector& batch() {
-    return get<vector>(msg_[2]);
+    return caf::get<vector>(msg_[2]);
   }
 };
 
@@ -166,32 +180,36 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return get<enum_value>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+  }
+
   enum_value& stream_id() {
-    return get<enum_value>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+  }
 
   const enum_value& writer_id() const {
-    return get<enum_value>(get<vector>(msg_[2])[1]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+  }
+
   enum_value& writer_id() {
-    return get<enum_value>(get<vector>(msg_[2])[1]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+  }
 
   const data& writer_info() const {
-    return get<vector>(msg_[2])[2];
-  };
+    return caf::get<vector>(msg_[2])[2];
+  }
+
   data& writer_info() {
-    return get<vector>(msg_[2])[2];
-  };
+    return caf::get<vector>(msg_[2])[2];
+  }
 
   const data& fields_data() const {
-    return get<vector>(msg_[2])[3];
-  };
+    return caf::get<vector>(msg_[2])[3];
+  }
+
   data& fields_data() {
-    return get<vector>(msg_[2])[3];
-  };
+    return caf::get<vector>(msg_[2])[3];
+  }
 };
 
 /// A Bro log-write message. Note that at the moment this should be used only
@@ -209,32 +227,36 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return get<enum_value>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+  }
+
   enum_value& stream_id() {
-    return get<enum_value>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+  }
 
   const enum_value& writer_id() const {
-    return get<enum_value>(get<vector>(msg_[2])[1]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+  }
+
   enum_value& writer_id() {
-    return get<enum_value>(get<vector>(msg_[2])[1]);
-  };
+    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+  }
 
   const data& path() const {
-    return get<vector>(msg_[2])[2];
-  };
+    return caf::get<vector>(msg_[2])[2];
+  }
+
   data& path() {
-    return get<vector>(msg_[2])[2];
+    return caf::get<vector>(msg_[2])[2];
   };
 
   const data& serial_data() const {
-    return get<vector>(msg_[2])[3];
-  };
+    return caf::get<vector>(msg_[2])[3];
+  }
+
   data& serial_data() {
-    return get<vector>(msg_[2])[3];
-  };
+    return caf::get<vector>(msg_[2])[3];
+  }
 };
 
 class IdentifierUpdate : public Message {
@@ -248,18 +270,20 @@ public:
   }
 
   const std::string& id_name() const {
-    return get<std::string>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+  }
+
   std::string& id_name() {
-    return get<std::string>(get<vector>(msg_[2])[0]);
-  };
+    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+  }
 
   const data& id_value() const {
-    return get<vector>(msg_[2])[1];
-  };
+    return caf::get<vector>(msg_[2])[1];
+  }
+
   data& id_value() {
-    return get<vector>(msg_[2])[1];
-  };
+    return caf::get<vector>(msg_[2])[1];
+  }
 };
 
 } // namespace broker

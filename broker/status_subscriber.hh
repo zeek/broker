@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/variant.hpp>
 
 #include "broker/error.hh"
 #include "broker/fwd.hh"
@@ -11,13 +12,12 @@
 #include "broker/subscriber_base.hh"
 
 #include "broker/detail/shared_subscriber_queue.hh"
-#include "broker/detail/variant.hh"
 
 namespace broker {
 
 /// Provides blocking access to a stream of endpoint events.
 class status_subscriber
-  : public subscriber_base<detail::variant<none, error, status>> {
+  : public subscriber_base<caf::variant<none, error, status>> {
 public:
   // --- friend declarations ---------------------------------------------------
 
@@ -25,7 +25,7 @@ public:
 
   // --- nested types ----------------------------------------------------------
 
-  using super = subscriber_base<detail::variant<none, error, status>>;
+  using super = subscriber_base<caf::variant<none, error, status>>;
 
   // --- constructors and destructors ------------------------------------------
 
