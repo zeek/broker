@@ -74,4 +74,19 @@ public:
   fake_network_fixture();
 };
 
+inline broker::data value_of(caf::expected<broker::data> x) {
+  if (!x) {
+    FAIL("cannot unbox expected<data>: " << to_string(x.error()));
+  }
+  return std::move(*x);
+}
+
+inline caf::error error_of(caf::expected<broker::data> x) {
+  if (x) {
+    FAIL("cannot get error of expected<data>, contains value: "
+         << to_string(*x));
+  }
+  return std::move(x.error());
+}
+
 #endif

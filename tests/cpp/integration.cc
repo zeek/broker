@@ -32,6 +32,7 @@
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/timestamp.hpp>
+#include <caf/variant.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
@@ -429,19 +430,19 @@ struct code {
   }
 
   code(const event_value& x) {
-    if (broker::detail::holds_alternative<error>(x))
-      value = static_cast<ec>(broker::detail::get<error>(x).code());
+    if (caf::holds_alternative<error>(x))
+      value = static_cast<ec>(caf::get<error>(x).code());
     else
-      value = broker::detail::get<status>(x).code();
+      value = caf::get<status>(x).code();
   }
 
-  detail::variant<sc, ec> value;
+  caf::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return broker::detail::holds_alternative<sc>(x.value)
-         ? to_string(broker::detail::get<sc>(x.value))
-         : to_string(broker::detail::get<ec>(x.value));
+  return caf::holds_alternative<sc>(x.value)
+         ? to_string(caf::get<sc>(x.value))
+         : to_string(caf::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {

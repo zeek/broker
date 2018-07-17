@@ -132,7 +132,7 @@ struct type_getter {
 };
 
 data::type data::get_type() const {
-  return visit(type_getter(), *this);
+  return caf::visit(type_getter(), get_data());
 }
 
 data data::from_type(data::type t) {
@@ -173,7 +173,7 @@ data data::from_type(data::type t) {
 }
 
 const char* data::get_type_name() const {
-  return visit(type_name_getter(), *this);
+  return caf::visit(type_name_getter(), *this);
 }
 
 namespace {
@@ -237,8 +237,32 @@ bool convert(const table& t, std::string& str) {
 }
 
 bool convert(const data& d, std::string& str) {
-  visit(data_converter{str}, d);
+  caf::visit(data_converter{str}, d);
   return true;
 }
 
 } // namespace broker
+
+namespace std {
+
+namespace {
+
+struct hasher {
+  using result_type = size_t;
+
+  template <class T>
+  result_type operator()(const T& x) const {
+    return std::hash<T>{}(x);
+  }
+};
+
+} // namespace <anonymous>
+
+size_t hash<broker::data>::operator()(const broker::data& v) const {
+  size_t result = 0;
+  broker::detail::hash_combine(result, v.get_data().index());
+  broker::detail::hash_combine(result, caf::visit(hasher{}, v));
+  return result;
+}
+
+} // namespace std

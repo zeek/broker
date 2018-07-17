@@ -13,6 +13,7 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/data.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/memory_backend.hh"
 #include "broker/detail/rocksdb_backend.hh"
@@ -43,17 +44,17 @@ class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(memory, opts));
-    auto path = get_if<std::string>(opts["path"]);
-    auto base = *path;
+    auto& path = caf::get<std::string>(opts["path"]);
+    auto base = path;
     // Make sure both backends have their own filesystem storage to work with.
-    *path += ".sqlite";
-    paths_.push_back(*path);
-    detail::remove_all(*path);
+    path += ".sqlite";
+    paths_.push_back(path);
+    detail::remove_all(path);
     backends_.push_back(detail::make_backend(sqlite, opts));
 #ifdef BROKER_HAVE_ROCKSDB
-    *path = base + ".rocksdb";
-    paths_.push_back(*path);
-    detail::remove_all(*path);
+    path = base + ".rocksdb";
+    paths_.push_back(path);
+    detail::remove_all(path);
     backends_.push_back(detail::make_backend(rocksdb, opts));
 #endif
   }
@@ -226,6 +227,7 @@ TEST(put/get) {
 }
 
 TEST(add/remove) {
+  backend->put("foo", 0);
   auto add = backend->add("foo", 42, data::type::integer);
   REQUIRE(add);
   auto get = backend->get("foo");

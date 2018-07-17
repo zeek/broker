@@ -41,7 +41,7 @@ CAF_TEST(local_master) {
   sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  CAF_CHECK_EQUAL(ds.get("hello"), data{"world"});
+  CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"world"});
   // check the name of the master
   sched.inline_next_enqueue(); // ds.name talks to the master_actor (blocking)
   auto n = ds.name();
@@ -53,11 +53,11 @@ CAF_TEST(local_master) {
   sched.run_dispatch_loop(credit_round_interval);
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  CAF_CHECK_EQUAL(ds.get("hello"), data{"universe"});
+  CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"universe"});
   ds.clear();
   sched.run();
   sched.inline_next_enqueue();
-  CAF_CHECK_EQUAL(ds.get("hello"), caf::error{ec::no_such_key});
+  CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
   sched.run();
@@ -116,7 +116,7 @@ CAF_TEST(master_with_clone) {
             from(_).to(ms_earth).with(_, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_earth.get("test"), data{123});
+  CAF_CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
   auto foo_master = "foo" / topics::reserved / topics::master;
   // Initiate handshake between core1 and core2.
@@ -168,11 +168,11 @@ CAF_TEST(master_with_clone) {
             from(_).to(mars.ep.core()).with(atom::publish::value, _, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_earth.get("user"), data{"neverlord"});
+  CAF_CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});
   mars.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_mars.get("test"), data{123});
+  CAF_CHECK_EQUAL(value_of(ds_mars.get("test")), data{123});
   mars.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_mars.get("user"), data{"neverlord"});
+  CAF_CHECK_EQUAL(value_of(ds_mars.get("user")), data{"neverlord"});
   // done
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);

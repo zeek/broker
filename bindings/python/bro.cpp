@@ -22,7 +22,7 @@ void init_bro(py::module& m) {
        return broker::bro::Event(std::move(data));
        }))
     .def(py::init([](std::string name, broker::data args) {
-       return broker::bro::Event(std::move(name), std::move(broker::get<broker::vector>(args)));
+       return broker::bro::Event(std::move(name), std::move(caf::get<broker::vector>(args)));
        }))
     .def("name",
           static_cast<const std::string& (broker::bro::Event::*)() const>

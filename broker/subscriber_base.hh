@@ -12,6 +12,7 @@
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/shared_subscriber_queue.hh"
 
 #ifdef CAF_LOG_COMPONENT

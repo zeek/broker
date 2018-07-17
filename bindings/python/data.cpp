@@ -190,29 +190,29 @@ void init_data(py::module& m) {
     .def(py::init<broker::timespan>())
     .def(py::init<broker::timestamp>())
     .def(py::init<broker::vector>())
-    .def("as_address", [](const broker::data& d) { return broker::get<broker::address>(d); })
-    .def("as_boolean", [](const broker::data& d) { return broker::get<broker::boolean>(d); })
-    .def("as_count", [](const broker::data& d) { return broker::get<broker::count>(d); })
-    .def("as_enum_value", [](const broker::data& d) { return broker::get<broker::enum_value>(d); })
-    .def("as_integer", [](const broker::data& d) { return broker::get<broker::integer>(d); })
-    .def("as_none", [](const broker::data& d) { return broker::get<broker::none>(d); })
-    .def("as_port", [](const broker::data& d) { return broker::get<broker::port>(d); })
-    .def("as_real", [](const broker::data& d) { return broker::get<broker::real>(d); })
-    .def("as_set", [](const broker::data& d) { return broker::get<broker::set>(d); })
-    .def("as_string", [](const broker::data& d) { return broker::get<std::string>(d); })
-    .def("as_subnet", [](const broker::data& d) { return broker::get<broker::subnet>(d); })
-    .def("as_table", [](const broker::data& d) { return broker::get<broker::table>(d); })
+    .def("as_address", [](const broker::data& d) { return caf::get<broker::address>(d); })
+    .def("as_boolean", [](const broker::data& d) { return caf::get<broker::boolean>(d); })
+    .def("as_count", [](const broker::data& d) { return caf::get<broker::count>(d); })
+    .def("as_enum_value", [](const broker::data& d) { return caf::get<broker::enum_value>(d); })
+    .def("as_integer", [](const broker::data& d) { return caf::get<broker::integer>(d); })
+    .def("as_none", [](const broker::data& d) { return caf::get<broker::none>(d); })
+    .def("as_port", [](const broker::data& d) { return caf::get<broker::port>(d); })
+    .def("as_real", [](const broker::data& d) { return caf::get<broker::real>(d); })
+    .def("as_set", [](const broker::data& d) { return caf::get<broker::set>(d); })
+    .def("as_string", [](const broker::data& d) { return caf::get<std::string>(d); })
+    .def("as_subnet", [](const broker::data& d) { return caf::get<broker::subnet>(d); })
+    .def("as_table", [](const broker::data& d) { return caf::get<broker::table>(d); })
     .def("as_timespan", [](const broker::data& d) {
         double s;
-        broker::convert(broker::get<broker::timespan>(d), s);
+        broker::convert(caf::get<broker::timespan>(d), s);
 	return s;
 	})
     .def("as_timestamp", [](const broker::data& d) {
         double s;
-        broker::convert(broker::get<broker::timestamp>(d), s);
+        broker::convert(caf::get<broker::timestamp>(d), s);
 	return s;
 	})
-    .def("as_vector", [](const broker::data& d) { return broker::get<broker::vector>(d); })
+    .def("as_vector", [](const broker::data& d) { return caf::get<broker::vector>(d); })
     .def("get_type", &broker::data::get_type)
     .def("__str__", [](const broker::data& d) { return broker::to_string(d); })
     .def(py::self < py::self)

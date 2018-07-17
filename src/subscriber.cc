@@ -12,6 +12,7 @@
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/filter_type.hh"
 
 using namespace caf;

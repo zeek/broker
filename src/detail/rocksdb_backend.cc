@@ -144,14 +144,14 @@ rocksdb_backend::rocksdb_backend(backend_options opts)
   auto i = opts.find("path");
   if (i == opts.end())
     return;
-  auto path = get_if<std::string>(i->second);
+  auto path = caf::get_if<std::string>(&i->second);
   if (!path)
     return;
   impl_->path = *path;
   // Parse optional options.
   i = opts.find("exact-size-threshold");
   if (i != opts.end()) {
-    if (auto exact_size_threshold = get_if<count>(i->second))
+    if (auto exact_size_threshold = caf::get_if<count>(&i->second))
       impl_->exact_size_threshold = *exact_size_threshold;
     else
       BROKER_ERROR("exact-size-threshold must be of type count");
@@ -219,7 +219,7 @@ expected<void> rocksdb_backend::add(const data& key, const data& value,
   } else {
     v = from_blob<data>(*value_blob);
   }
-  auto result = visit(adder{value}, v);
+  auto result = caf::visit(adder{value}, v);
   if (!result)
     return result;
   if (!impl_->put(key_blob, to_blob(v), expiry))
@@ -234,7 +234,7 @@ expected<void> rocksdb_backend::subtract(const data& key, const data& value,
   if (!value_blob)
     return value_blob.error();
   auto v = from_blob<data>(*value_blob);
-  auto result = visit(remover{value}, v);
+  auto result = caf::visit(remover{value}, v);
   if (!result)
     return result;
   *value_blob = to_blob(v);
