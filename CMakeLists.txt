@@ -114,7 +114,7 @@ else ()
   endif ()
 
   if ( CMAKE_CXX_COMPILER_LAUNCHER )
-    set(cmake_cxx_ompiler_launcher_arg
+    set(cmake_cxx_compiler_launcher_arg
         -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER})
   else ()
     set(cmake_cxx_compiler_launcher_arg)
