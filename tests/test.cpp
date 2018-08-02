@@ -18,17 +18,36 @@ base_fixture::base_fixture(bool fake_network)
   // nop
 }
 
+base_fixture::~base_fixture() {
+  run();
+  // Our core might do some messaging in its dtor, hence we need to make sure
+  // messages are handled when enqueued to avoid blocking.
+  sched.inline_all_enqueues();
+}
+
 configuration base_fixture::make_config(bool fake_network) {
   broker_options options;
   options.disable_ssl = fake_network;
   configuration cfg{options};
   cfg.set("scheduler.policy", caf::atom("testing"));
   cfg.set("logger.verbosity", caf::atom("TRACE"));
-  cfg.set("middleman.detach-utility-actors", false);
+  cfg.set("middleman.attach-utility-actors", true);
   cfg.parse(test::engine::argc(), test::engine::argv());
   if (fake_network)
     cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
+}
+
+void base_fixture::run() {
+  while (sched.has_job() || sched.has_pending_timeout()) {
+    sched.run();
+    sched.trigger_timeouts();
+  }
+}
+
+void base_fixture::consume_message() {
+  if (!sched.try_run_once())
+    CAF_FAIL("no message to consume");
 }
 
 fake_network_fixture::fake_network_fixture() : base_fixture(true) {

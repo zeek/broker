@@ -56,13 +56,19 @@ class base_fixture {
 public:
   using scheduler_type = caf::scheduler::test_coordinator;
 
-  base_fixture(bool fake_network = false);
+  explicit base_fixture(bool fake_network = false);
+
+  virtual ~base_fixture();
 
   broker::endpoint ep;
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
   caf::timespan credit_round_interval;
+
+  void run();
+
+  void consume_message();
 
 private:
   static broker::configuration make_config(bool fake_network);

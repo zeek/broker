@@ -70,7 +70,7 @@ CAF_TEST(blocking_subscriber) {
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   auto sub = ep.make_subscriber(filter_type{"b"});
@@ -81,11 +81,11 @@ CAF_TEST(blocking_subscriber) {
   CAF_MESSAGE("leaf: " << to_string(leaf));
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   CAF_MESSAGE("driver: " << to_string(d1));
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   CAF_MESSAGE("check content of the subscriber's buffer");
   using buf = std::vector<value_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -96,8 +96,6 @@ CAF_TEST(blocking_subscriber) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   anon_send_exit(d1, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST(nonblocking_subscriber) {
@@ -110,7 +108,7 @@ CAF_TEST(nonblocking_subscriber) {
   anon_send(core2, atom::no_events::value);
   anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
   self->send(core1, atom::peer::value, core2);
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<value_type>;
   buf result;
@@ -129,15 +127,13 @@ CAF_TEST(nonblocking_subscriber) {
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1);
   // Communication is identical to the consumer-centric test in test/cpp/core.cc
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
   CAF_REQUIRE_EQUAL(result, expected);
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

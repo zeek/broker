@@ -26,7 +26,7 @@ CAF_TEST_FIXTURE_SCOPE(local_store_master, base_fixture)
 
 CAF_TEST(local_master) {
   auto core = ep.core();
-  sched.run();
+  run();
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
   auto expected_ds = ep.attach_master("foo", memory);
@@ -35,10 +35,10 @@ CAF_TEST(local_master) {
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream
   // handshake
-  sched.run();
+  run();
   // test putting something into the store
   ds.put("hello", "world");
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"world"});
@@ -50,18 +50,16 @@ CAF_TEST(local_master) {
   anon_send(core, atom::publish::value, atom::local::value,
             n / topics::reserved / topics::master,
             make_internal_command<put_command>("hello", "universe"));
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
   CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"universe"});
   ds.clear();
-  sched.run();
+  run();
   sched.inline_next_enqueue();
   CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -177,8 +175,6 @@ CAF_TEST(master_with_clone) {
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_all_enqueues();
-  earth.sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
