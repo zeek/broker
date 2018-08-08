@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/defaults.hpp>
 #include <caf/test/io_dsl.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/atom.hpp>
@@ -136,7 +137,9 @@ struct peer_fixture {
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
       mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
-      credit_round_interval(sys.config().streaming_credit_round_interval()) {
+      credit_round_interval(get_or(sys.config(),
+                            "stream.credit-round-interval",
+                            caf::defaults::stream::credit_round_interval)) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code

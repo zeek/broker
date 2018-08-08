@@ -3,6 +3,7 @@
 
 #include "test.hpp"
 
+#include <caf/defaults.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/io/network/test_multiplexer.hpp>
 
@@ -14,7 +15,9 @@ base_fixture::base_fixture(bool fake_network)
       sys(ep.system()),
       self(sys),
       sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
-      credit_round_interval(sys.config().streaming_credit_round_interval()) {
+      credit_round_interval(get_or(sys.config(),
+                            "stream.credit-round-interval",
+                            caf::defaults::stream::credit_round_interval)) {
   // nop
 }
 
