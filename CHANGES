@@ -1,4 +1,10 @@
 
+1.0.1-31 | 2018-08-08 09:41:49 -0500
+
+  * Fix pedantic compiler warnings (Jon Siwek, Corelight)
+
+  * Fix deprecated warnings, cleanup test fixtures (Dominik Charousset)
+
 1.0.1-25 | 2018-07-25 15:07:54 -0500
 
   * Fix enabling use of ccache in embedded CAF (Jon Siwek, Corelight)

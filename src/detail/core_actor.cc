@@ -127,7 +127,7 @@ result<void> init_peering(caf::stateful_actor<core_state>* self,
   self->send(self * remote_core, atom::peer::value, st.filter, self);
   self->monitor(remote_core);
   return rp;
-};
+}
 
 struct retry_state {
   network_info addr;

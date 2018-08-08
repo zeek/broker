@@ -47,9 +47,9 @@ extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
 extern void init_store(py::module& m);
 
-PYBIND11_MAKE_OPAQUE(broker::set);
-PYBIND11_MAKE_OPAQUE(broker::table);
-PYBIND11_MAKE_OPAQUE(broker::vector);
+PYBIND11_MAKE_OPAQUE(broker::set)
+PYBIND11_MAKE_OPAQUE(broker::table)
+PYBIND11_MAKE_OPAQUE(broker::vector)
 
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
