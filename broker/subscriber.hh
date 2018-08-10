@@ -39,9 +39,9 @@ public:
     return worker_;
   }
 
-  void add_topic(topic x);
+  void add_topic(topic x, bool block = false);
 
-  void remove_topic(topic x);
+  void remove_topic(topic x, bool block = false);
 
   /// Enables or disables rate calculation. On by default.
   void set_rate_calculation(bool x);
@@ -55,6 +55,7 @@ private:
 
   caf::actor worker_;
   std::vector<topic> filter_;
+  endpoint& ep_;
 };
 
 } // namespace broker

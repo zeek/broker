@@ -1,4 +1,13 @@
 
+1.0.1-38 | 2018-08-10 16:47:53 -0500
+
+  * Add ability to do blocking subscription modifications
+    (Jon Siwek, Corelight)
+
+  * Fix an issue that could cause message loss (Jon Siwek, Corelight)
+
+  * Fix two debug logging macros (Jon Siwek, Corelight)
+
 1.0.1-33 | 2018-08-08 12:43:52 -0500
 
   * Update pybind11 to latest master (Jon Siwek, Corelight)

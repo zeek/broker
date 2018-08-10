@@ -312,6 +312,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.add_to_filter(filter);
       st.policy().workers().set_filter(slot, std::move(filter));
     },
+    [=](atom::join, atom::update, stream_slot slot, filter_type& filter,
+        caf::actor& who_asked) {
+      auto& st = self->state;
+      st.add_to_filter(filter);
+      st.policy().workers().set_filter(slot, std::move(filter));
+      self->send(who_asked, true);
+    },
     [=](const endpoint::stream_type& in) {
       CAF_LOG_TRACE(CAF_ARG(in));
       auto& st = self->state;
