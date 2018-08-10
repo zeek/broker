@@ -29,6 +29,14 @@ bool core_policy::substream_local_data() const {
 void core_policy::before_handle_batch(stream_slot,
                                       const strong_actor_ptr& hdl) {
   CAF_LOG_TRACE(CAF_ARG(hdl));
+  // If there's anything in the central buffer at this point, it's
+  // stuff that we're sending out ourselves (as opposed to forwarding),
+  // so we flush it out to each path's own cache now to make sure the
+  // subsequent flush in after_handle_batch doesn't accidentally filter
+  // out messages where the outband path of previously-buffered messagesi
+  // happens to match the path of the inbound data we are handling here.
+  peers().selector().active_sender = nullptr;
+  peers().fan_out_flush();
   peers().selector().active_sender = actor_cast<actor_addr>(hdl);
 }
 
