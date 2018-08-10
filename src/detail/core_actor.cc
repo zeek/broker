@@ -156,9 +156,7 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
                             self->state.emit_error<ec::peer_unavailable>(
                               cpy.addr, desc);
                             if (cpy.addr.retry.count() > 0) {
-                              BROKER_INFO("retrying"
-                                          << cpy.addr << "in"
-                                          << to_string(cpy.addr.retry));
+                              BROKER_INFO("retrying" << cpy.addr << "in" << to_string(cpy.addr.retry));
                               self->delayed_send(self, cpy.addr.retry, cpy);
                             } else
                               cpy.rp.deliver(sec::cannot_connect_to_node);
