@@ -292,6 +292,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/b
 set(BROKER_SRC
   src/address.cc
   src/configuration.cc
+  src/core_actor.cc
   src/data.cc
   src/endpoint.cc
   src/error.cc
@@ -312,7 +313,6 @@ set(BROKER_SRC
 
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
-  src/detail/core_actor.cc
   src/detail/core_policy.cc
   src/detail/filesystem.cc
   src/detail/flare.cc

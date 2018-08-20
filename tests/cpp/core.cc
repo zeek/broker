@@ -6,8 +6,8 @@
 #include <caf/test/io_dsl.hpp>
 #pragma GCC diagnostic pop
 
+#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
-#include "broker/detail/core_actor.hh"
 
 using namespace caf;
 using namespace broker;

@@ -17,13 +17,12 @@
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
+#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 #include "broker/publisher.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
 
 using std::cout;
 using std::endl;
@@ -34,7 +33,6 @@ using namespace broker::detail;
 
 using namespace caf;
 
-using filter_type = ::broker::detail::filter_type;
 using value_type = std::pair<topic, data>;
 using stream_type = stream<std::pair<topic, data>>;
 

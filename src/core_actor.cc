@@ -1,6 +1,6 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 
-#include "broker/detail/core_actor.hh"
+#include "broker/core_actor.hh"
 
 #include <caf/actor.hpp>
 #include <caf/actor_cast.hpp>
@@ -43,6 +43,60 @@ using namespace caf;
 
 namespace broker {
 namespace detail {
+
+result<void> init_peering(caf::stateful_actor<core_state>* self,
+                          actor remote_core, response_promise rp) {
+  CAF_LOG_TRACE(CAF_ARG(remote_core));
+  auto& st = self->state;
+  // Sanity checking.
+  if (remote_core == nullptr) {
+    rp.deliver(sec::invalid_argument);
+    return rp;
+  }
+  // Ignore repeated peering requests without error.
+  if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core)) {
+    rp.deliver(caf::unit);
+    return rp;
+  }
+  // Create necessary state and send message to remote core.
+  st.pending_peers.emplace(remote_core,
+                           core_state::pending_peer_state{0, rp});
+  self->send(self * remote_core, atom::peer::value, st.filter, self);
+  self->monitor(remote_core);
+  return rp;
+}
+
+struct retry_state {
+  network_info addr;
+  response_promise rp;
+
+  void try_once(caf::stateful_actor<core_state>* self) {
+    auto cpy = std::move(*this);
+    self->state.cache.fetch(
+      cpy.addr,
+      [self, cpy](actor x) mutable {
+        init_peering(self, std::move(x), std::move(cpy.rp));
+      },
+      [self, cpy](error) mutable {
+        auto desc = "remote endpoint unavailable";
+        BROKER_ERROR(desc);
+        self->state.emit_error<ec::peer_unavailable>(cpy.addr, desc);
+        if (cpy.addr.retry.count() > 0) {
+          BROKER_INFO("retrying" << cpy.addr << "in"
+                                 << to_string(cpy.addr.retry));
+          self->delayed_send(self, cpy.addr.retry, cpy);
+        } else
+          cpy.rp.deliver(sec::cannot_connect_to_node);
+      });
+  }
+};
+
+} // namespace detail
+} // namespace broker
+
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
+
+namespace broker {
 
 const char* core_state::name = "core";
 
@@ -103,64 +157,8 @@ bool core_state::has_remote_master(const std::string& name) {
   });
 }
 
-core_policy& core_state::policy() {
+detail::core_policy& core_state::policy() {
   return governor->policy();
-}
-
-result<void> init_peering(caf::stateful_actor<core_state>* self,
-                          actor remote_core, response_promise rp) {
-  CAF_LOG_TRACE(CAF_ARG(remote_core));
-  auto& st = self->state;
-  // Sanity checking.
-  if (remote_core == nullptr) {
-    rp.deliver(sec::invalid_argument);
-    return rp;
-  }
-  // Ignore repeated peering requests without error.
-  if (st.pending_peers.count(remote_core) > 0 || st.has_peer(remote_core)) {
-    rp.deliver(caf::unit);
-    return rp;
-  }
-  // Create necessary state and send message to remote core.
-  st.pending_peers.emplace(remote_core,
-                           core_state::pending_peer_state{0, rp});
-  self->send(self * remote_core, atom::peer::value, st.filter, self);
-  self->monitor(remote_core);
-  return rp;
-}
-
-struct retry_state {
-  network_info addr;
-  response_promise rp;
-
-  void try_once(caf::stateful_actor<core_state>* self);
-};
-
-} // namespace detail
-} // namespace broker
-
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
-
-namespace broker {
-namespace detail {
-
-void retry_state::try_once(caf::stateful_actor<core_state>* self) {
-  auto cpy = std::move(*this);
-  self->state.cache.fetch(cpy.addr,
-                          [self, cpy](actor x) mutable {
-                            init_peering(self, std::move(x), std::move(cpy.rp));
-                          },
-                          [self, cpy](error) mutable {
-                            auto desc = "remote endpoint unavailable";
-                            BROKER_ERROR(desc);
-                            self->state.emit_error<ec::peer_unavailable>(
-                              cpy.addr, desc);
-                            if (cpy.addr.retry.count() > 0) {
-                              BROKER_INFO("retrying" << cpy.addr << "in" << to_string(cpy.addr.retry));
-                              self->delayed_send(self, cpy.addr.retry, cpy);
-                            } else
-                              cpy.rp.deliver(sec::cannot_connect_to_node);
-                          });
 }
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
@@ -210,20 +208,20 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) -> result<void> {
-      return init_peering(self, std::move(remote_core),
-                          self->make_response_promise());
+      return detail::init_peering(self, std::move(remote_core),
+                                  self->make_response_promise());
     },
     [=](atom::peer, network_info& addr) -> result<void> {
       auto rp = self->make_response_promise();
-      retry_state rt{std::move(addr), rp};
+      detail::retry_state rt{std::move(addr), rp};
       rt.try_once(self);
       return rp;
     },
     [=](atom::peer, atom::retry, network_info& addr) {
-      retry_state rt{std::move(addr), {}};
+      detail::retry_state rt{std::move(addr), {}};
       rt.try_once(self);
     },
-    [=](retry_state& rt) { rt.try_once(self); },
+    [=](detail::retry_state& rt) { rt.try_once(self); },
     // --- 3-way handshake for establishing peering streams between A and B ----
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
     // Step #1: - A demands B shall establish a stream back to A
@@ -364,7 +362,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type, backend_options& opts) -> caf::result<caf::actor> {
+        backend backend_type,
+        backend_options& opts) -> caf::result<caf::actor> {
       CAF_LOG_TRACE(CAF_ARG(name) << CAF_ARG(backend_type) << CAF_ARG(opts));
       BROKER_INFO("attaching master:" << name);
       // Sanity check: this message must be a point-to-point message.
@@ -384,11 +383,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return ec::master_exists;
       }
       BROKER_INFO("instantiating backend");
-      auto ptr = make_backend(backend_type, std::move(opts));
+      auto ptr = detail::make_backend(backend_type, std::move(opts));
       BROKER_ASSERT(ptr);
       BROKER_INFO("spawning new master");
       auto ms = self->spawn<caf::linked + caf::lazy_init>(
-              master_actor, self, name, std::move(ptr), clock);
+              detail::master_actor, self, name, std::move(ptr), clock);
       st.masters.emplace(name, ms);
       // Initiate stream handshake and add subscriber to the governor.
       using value_type = store::stream_type::value_type;
@@ -401,13 +400,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       filter_type filter{name / topics::reserved / topics::master};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
-      st.governor->out().assign<core_policy::store_trait::manager>(slot);
+      st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       // Done.
       return ms;
     },
-    [=](atom::store, atom::clone, atom::attach,
-        std::string& name, double resync_interval, double stale_interval,
+    [=](atom::store, atom::clone, atom::attach, std::string& name,
+        double resync_interval, double stale_interval,
         double mutation_buffer_interval) -> caf::result<caf::actor> {
       BROKER_INFO("attaching clone:" << name);
 
@@ -417,7 +416,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         {
         BROKER_WARNING("attempted to run clone & master on the same endpoint");
         return ec::no_such_master;
-        }
+      }
 
       // Sanity check: this message must be a point-to-point message.
       auto& cme = *self->current_mailbox_element();
@@ -428,7 +427,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto stages = std::move(cme.stages);
       BROKER_INFO("spawning new clone");
       auto clone = self->spawn<linked + lazy_init>(
-              clone_actor, self, name, resync_interval, stale_interval,
+              detail::clone_actor, self, name, resync_interval, stale_interval,
               mutation_buffer_interval, clock);
       auto cptr = actor_cast<strong_actor_ptr>(clone);
       auto& st = self->state;
@@ -444,7 +443,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       filter_type filter{name / topics::reserved / topics::clone};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
-      st.governor->out().assign<core_policy::store_trait::manager>(slot);
+      st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       return clone;
       /* FIXME:
@@ -505,8 +504,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return rp;
       */
     },
-    [=](atom::store, atom::master, atom::snapshot,
-        const std::string& name, caf::actor& clone) {
+    [=](atom::store, atom::master, atom::snapshot, const std::string& name,
+        caf::actor& clone) {
       // Instruct master to generate a snapshot.
       self->state.policy().push(
         name / topics::reserved / topics::master,
@@ -519,8 +518,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return i->second;
       return ec::no_such_master;
     },
-    [=](atom::store, atom::master, atom::resolve,
-        std::string& name, actor& who_asked) {
+    [=](atom::store, atom::master, atom::resolve, std::string& name,
+        actor& who_asked) {
       auto i = self->state.masters.find(name);
 
       if (i != self->state.masters.end()) {
@@ -536,7 +535,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                    make_error(ec::no_such_master, "no peers"));
       }
 
-      auto resolv = self->spawn<caf::lazy_init>(master_resolver);
+      auto resolv = self->spawn<caf::lazy_init>(detail::master_resolver);
       self->send(resolv, std::move(peers), std::move(name),
                  std::move(who_asked));
     },
@@ -638,5 +637,4 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     }};
 }
 
-} // namespace detail
 } // namespace broker

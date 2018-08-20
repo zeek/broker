@@ -13,13 +13,12 @@
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
+#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
 
 using std::cout;
 using std::endl;

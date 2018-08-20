@@ -15,15 +15,14 @@
 #include <caf/openssl/publish.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
-#include "broker/status_subscriber.hh"
 #include "broker/publisher.hh"
+#include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
 
-#include "broker/detail/core_actor.hh"
 #include "broker/detail/die.hh"
-
 
 namespace broker {
 
@@ -108,7 +107,7 @@ endpoint::endpoint(configuration config)
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(detail::core_actor, detail::filter_type{}, config_.options(), &clock_);
+  core_ = system_.spawn(core_actor, filter_type{}, config_.options(), &clock_);
 }
 
 endpoint::~endpoint() {
