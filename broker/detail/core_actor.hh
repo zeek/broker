@@ -52,7 +52,8 @@ struct core_state {
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(filter_type initial_filter, broker_options opts, endpoint* ep);
+  void init(filter_type initial_filter, broker_options opts,
+            endpoint::clock* ep_clock);
 
   // --- filter management -----------------------------------------------------
 
@@ -173,13 +174,13 @@ struct core_state {
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
 
-  /// The endpoint which spawned this core actor.
-  endpoint* ep;
+  /// Required when spawning data stores.
+  endpoint::clock* clock;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter, broker_options opts,
-                         endpoint* ep);
+                         endpoint::clock* clock);
 
 } // namespace detail
 } // namespace broker

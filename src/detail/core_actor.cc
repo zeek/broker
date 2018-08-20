@@ -50,18 +50,18 @@ core_state::core_state(caf::event_based_actor* ptr)
   : self(ptr),
     cache(ptr),
     shutting_down(false),
-    ep(nullptr) {
+    clock(nullptr) {
   errors_ = self->system().groups().get_local("broker/errors");
   statuses_ = self->system().groups().get_local("broker/statuses");
 }
 
 void core_state::init(filter_type initial_filter, broker_options opts,
-                      endpoint* e) {
-  ep = e; 
+                      endpoint::clock* ep_clock) {
   options = std::move(opts);
   filter = std::move(initial_filter);
   cache.set_use_ssl(! options.disable_ssl);
   governor = caf::make_counted<governor_type>(self, this, filter);
+  clock = ep_clock;
 }
 
 void core_state::update_filter_on_peers() {
@@ -165,8 +165,8 @@ void retry_state::try_once(caf::stateful_actor<core_state>* self) {
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter, broker_options options,
-                         endpoint* ep) {
-  self->state.init(std::move(initial_filter), std::move(options), ep);
+                         endpoint::clock* clock) {
+  self->state.init(std::move(initial_filter), std::move(options), clock);
   // We monitor remote inbound peerings and local outbound peerings.
   self->set_down_handler(
     [=](const caf::down_msg& down) {
@@ -388,7 +388,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       BROKER_ASSERT(ptr);
       BROKER_INFO("spawning new master");
       auto ms = self->spawn<caf::linked + caf::lazy_init>(
-              master_actor, self, name, std::move(ptr), self->state.ep);
+              master_actor, self, name, std::move(ptr), clock);
       st.masters.emplace(name, ms);
       // Initiate stream handshake and add subscriber to the governor.
       using value_type = store::stream_type::value_type;
@@ -429,7 +429,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       BROKER_INFO("spawning new clone");
       auto clone = self->spawn<linked + lazy_init>(
               clone_actor, self, name, resync_interval, stale_interval,
-              mutation_buffer_interval, self->state.ep);
+              mutation_buffer_interval, clock);
       auto cptr = actor_cast<strong_actor_ptr>(clone);
       auto& st = self->state;
       st.clones.emplace(name, clone);

@@ -26,9 +26,9 @@
 namespace broker {
 namespace detail {
 
-static double now(endpoint* ep)
+static double now(endpoint::clock* clock)
   {
-  auto d = ep->now().time_since_epoch();
+  auto d = clock->now().time_since_epoch();
   return std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
   }
 
@@ -37,7 +37,7 @@ clone_state::clone_state() : self(nullptr) {
 }
 
 void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
-                       caf::actor&& parent, endpoint* e) {
+                       caf::actor&& parent, endpoint::clock* ep_clock) {
 
   self = ptr;
   name = std::move(nm);
@@ -47,7 +47,7 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
   is_stale = true;
   stale_time = -1.0;
   unmutable_time = -1.0;
-  ep = e;
+  clock = ep_clock;
   awaiting_snapshot = true;
   awaiting_snapshot_sync = true;
 }
@@ -133,9 +133,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
                           double resync_interval, double stale_interval,
                           double mutation_buffer_interval,
-                          endpoint* ep) {
+                          endpoint::clock* clock) {
   self->monitor(core);
-  self->state.init(self, std::move(name), std::move(core), ep);
+  self->state.init(self, std::move(name), std::move(core), clock);
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -152,22 +152,22 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
         if ( stale_interval >= 0 )
           {
-          self->state.stale_time = now(ep) + stale_interval;
+          self->state.stale_time = now(clock) + stale_interval;
           auto si = std::chrono::duration<double>(stale_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
           auto msg = caf::make_message(atom::tick::value,
                                        atom::stale_check::value);
-          self->state.ep->send_later(self, ts, std::move(msg));
+          clock->send_later(self, ts, std::move(msg));
           }
 
         if ( mutation_buffer_interval > 0 )
           {
-          self->state.unmutable_time = now(ep) + mutation_buffer_interval;
+          self->state.unmutable_time = now(clock) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
           auto msg = caf::make_message(atom::tick::value,
                                        atom::mutable_check::value);
-          self->state.ep->send_later(self, ts, std::move(msg));
+          clock->send_later(self, ts, std::move(msg));
           }
       }
     }
@@ -175,12 +175,12 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
   if ( mutation_buffer_interval > 0 )
     {
-    self->state.unmutable_time = now(ep) + mutation_buffer_interval;
+    self->state.unmutable_time = now(clock) + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ts = std::chrono::duration_cast<timespan>(si);
     auto msg = caf::make_message(atom::tick::value,
                                  atom::mutable_check::value);
-    self->state.ep->send_later(self, ts, std::move(msg));
+    clock->send_later(self, ts, std::move(msg));
     }
 
   self->send(self, atom::master::value, atom::resolve::value);
@@ -198,7 +198,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if ( mutation_buffer_interval <= 0 )
         return;
 
-      if ( now(ep) >= self->state.unmutable_time )
+      if ( now(clock) >= self->state.unmutable_time )
         return;
 
       self->state.mutation_buffer.emplace_back(std::move(x));
@@ -228,7 +228,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       auto ri = std::chrono::duration<double>(resync_interval);
       auto ts = std::chrono::duration_cast<timespan>(ri);
       auto msg = caf::make_message(atom::master::value, atom::resolve::value);
-      self->state.ep->send_later(self, ts, std::move(msg));
+      clock->send_later(self, ts, std::move(msg));
     },
     [=](atom::master, caf::actor& master) {
       if ( self->state.master )
@@ -263,7 +263,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       // Checking the timestamp is needed in the case there are multiple
       // connects/disconnects within a short period of time (we don't want
       // to go stale too early).
-      if ( now(ep) < self->state.stale_time )
+      if ( now(clock) < self->state.stale_time )
         return;
 
       self->state.is_stale = true;
@@ -272,7 +272,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if ( self->state.unmutable_time < 0 )
         return;
 
-      if ( now(ep) < self->state.unmutable_time )
+      if ( now(clock) < self->state.unmutable_time )
         return;
 
       self->state.mutation_buffer.clear();
