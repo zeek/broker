@@ -3,16 +3,15 @@
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 
-#include "broker/data.hh"
 #include "broker/atoms.hh"
 #include "broker/backend.hh"
+#include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
+#include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/filter_type.hh"
 
 using std::cout;
 using std::endl;

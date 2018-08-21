@@ -32,7 +32,7 @@ public:
 
   /// Initializes the object.
   void init(caf::event_based_actor* ptr, std::string&& nm,
-            backend_pointer&& bp, caf::actor&& parent, endpoint* ep);
+            backend_pointer&& bp, caf::actor&& parent, endpoint::clock* clock);
 
   /// Sends `x` to all clones.
   void broadcast(internal_command&& x);
@@ -81,15 +81,15 @@ public:
 
   std::unordered_map<caf::actor_addr, caf::actor> clones;
 
-  static const char* name;
+  endpoint::clock* clock;
 
-  endpoint* ep;
+  static const char* name;
 };
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            caf::actor core, std::string id,
                            master_state::backend_pointer backend,
-                           endpoint* ep);
+                           endpoint::clock* clock);
 
 } // namespace detail
 } // namespace broker

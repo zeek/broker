@@ -11,17 +11,15 @@
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 
 #include "broker/detail/assert.hh"
-#include "broker/detail/filter_type.hh"
 
 using namespace caf;
 
 namespace broker {
 
 namespace {
-
-using detail::filter_type;
 
 /// Defines how many seconds are averaged for the computation of the send rate.
 constexpr size_t sample_size = 10;

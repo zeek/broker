@@ -1,4 +1,10 @@
 
+1.0.1-42 | 2018-08-21 09:59:54 -0500
+
+  * Move core actor to public namespace (Dominik Charousset)
+
+  * Decouple clock component of the endpoint (Dominik Charousset)
+
 1.0.1-38 | 2018-08-10 16:47:53 -0500
 
   * Add ability to do blocking subscription modifications

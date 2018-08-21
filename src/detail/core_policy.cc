@@ -4,7 +4,7 @@
 
 #include <caf/detail/stream_distribution_tree.hpp>
 
-#include "broker/detail/core_actor.hh"
+#include "broker/core_actor.hh"
 
 using caf::detail::stream_distribution_tree;
 
