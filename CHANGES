@@ -1,4 +1,8 @@
 
+1.0.1-44 | 2018-08-22 10:55:34 -0500
+
+  * Bring back a minor advance_time optimization (Jon Siwek, Corelight)
+
 1.0.1-42 | 2018-08-21 09:59:54 -0500
 
   * Move core actor to public namespace (Dominik Charousset)

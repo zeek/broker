@@ -31,9 +31,11 @@ namespace broker {
 endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
   : sys_(sys),
     real_time_(use_real_time),
-    time_since_epoch_() {
-  // Note: sys_ points to an uninitialized actor system at this point
-  //       -> do not derefence!
+    time_since_epoch_(),
+    mtx_(),
+    pending_(),
+    pending_count_() {
+  // nop
 }
 
 timestamp endpoint::clock::now() const noexcept {
@@ -47,15 +49,16 @@ void endpoint::clock::advance_time(timestamp t) {
   if (t <= timestamp{time_since_epoch_})
     return;
 
-  lock_type guard{mtx_};
   time_since_epoch_ = t.time_since_epoch();
 
-  if (pending_.empty())
+  if (pending_count_ == 0)
     return;
 
-  auto b = pending_.begin();
+  lock_type guard{mtx_};
 
-  if (b->first > t)
+  auto it = pending_.begin();
+
+  if (it->first > t)
     return;
 
   // Note: this function is performance-sensitive in the case of Bro
@@ -63,11 +66,12 @@ void endpoint::clock::advance_time(timestamp t) {
   // it's actually going to be used.
   std::unordered_set<caf::actor> sync_with_actors;
 
-  for (auto i = b; i != pending_.end() && i->first <= t;
-       i = pending_.erase(i)) {
-    auto& pm = i->second;
+  while (it != pending_.end() && it->first <= t) {
+    auto& pm = it->second;
     caf::anon_send(pm.first, std::move(pm.second));
     sync_with_actors.emplace(pm.first);
+    it = pending_.erase(it);
+    --pending_count_;
   }
 
   guard.unlock();
@@ -81,10 +85,10 @@ void endpoint::clock::advance_time(timestamp t) {
         // nop
       },
       [&](atom::tick) {
-        // nop
+        CAF_LOG_DEBUG("advance_time actor syncing timed out");
       },
       [&](caf::error& e) {
-        // nop
+        CAF_LOG_DEBUG("advance_time actor syncing failed");
       }
     );
   }
@@ -104,6 +108,7 @@ void endpoint::clock::send_later(caf::actor dest, timespan after,
   lock_type guard{mtx_};
   auto t = this->now() + after;
   pending_.emplace(t, pending_msg_type{std::move(dest), std::move(msg)});
+  ++pending_count_;
 }
 
 // --- endpoint class ----------------------------------------------------------

@@ -95,6 +95,12 @@ public:
 
     /// Stores pending messages until they time out.
     pending_msgs_map_type pending_;
+
+    /// Stores number of items in pending_.  We track it separately as
+    /// a micro-optimization -- checking pending_.size() would require
+    /// obtaining a lock for mtx_, but instead checking this atomic avoids
+    /// that locking expense in the common case.
+    std::atomic<size_t> pending_count_;
   };
 
   // --- construction and destruction ------------------------------------------
