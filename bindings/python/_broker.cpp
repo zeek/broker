@@ -77,7 +77,8 @@ PYBIND11_MODULE(_broker, m) {
   py::class_<broker::endpoint_info>(m, "EndpointInfo")
     .def_readwrite("node", &broker::endpoint_info::node)
     // TODO: Can we convert this optional<network_info> directly into network_info or None?
-    .def_readwrite("network", &broker::endpoint_info::network);
+    .def_readwrite("network", &broker::endpoint_info::network)
+    .def("__repr__", [](const broker::endpoint_info& e) { return to_string(e.node); });
 
   py::class_<broker::network_info>(m, "NetworkInfo")
     .def_readwrite("address", &broker::network_info::address)
