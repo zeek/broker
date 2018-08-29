@@ -1,4 +1,11 @@
 
+1.0.1-49 | 2018-08-29 23:43:32 +0000
+
+  * Add Python __repr__ binding for broker::endpoint_info. It
+    translates to a unique node ID string. (Jon Siwek, Corelight)
+
+  * Remove Bro-specific "relay" messages. (Jon Siwek, Corelight)
+
 1.0.1-44 | 2018-08-22 10:55:34 -0500
 
   * Bring back a minor advance_time optimization (Jon Siwek, Corelight)
