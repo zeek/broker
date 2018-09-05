@@ -1,4 +1,10 @@
 
+1.0.1-53 | 2018-09-05 09:57:44 -0500
+
+  * Make blocking flags available to Python wrapper (Matthias Vallentin)
+
+  * Improve `make dist` (Jon Siwek, Corelight)
+
 1.0.1-49 | 2018-08-29 23:43:32 +0000
 
   * Add Python __repr__ binding for broker::endpoint_info. It

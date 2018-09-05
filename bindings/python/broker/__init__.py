@@ -118,11 +118,11 @@ class Subscriber:
     def fd(self):
         return self._subscriber.fd()
 
-    def add_topic(self, topic):
-        return self._subscriber.add_topic(_make_topic(topic))
+    def add_topic(self, topic, block=False):
+        return self._subscriber.add_topic(_make_topic(topic), block)
 
-    def remove_topic(self, topic):
-        return self._subscriber.remove_topic(_make_topic(topic))
+    def remove_topic(self, topic, block=False):
+        return self._subscriber.remove_topic(_make_topic(topic), block)
 
 class StatusSubscriber(_broker.Subscriber):
     def __init__(self, internal_subscriber):
