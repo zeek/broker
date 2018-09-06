@@ -41,7 +41,7 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
 
   self = ptr;
   name = std::move(nm);
-  master_topic = name / topics::reserved / topics::master;
+  master_topic = name / topics::master_suffix;
   core = std::move(parent);
   master = nullptr;
   is_stale = true;

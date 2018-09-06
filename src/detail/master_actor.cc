@@ -41,7 +41,7 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
   BROKER_ASSERT(ep_clock != nullptr);
   self = ptr;
   id = std::move(nm);
-  clones_topic = id / topics::reserved / topics::clone;
+  clones_topic = id / topics::clone_suffix;
   backend = std::move(bp);
   core = std::move(parent);
   clock = ep_clock;

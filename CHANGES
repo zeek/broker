@@ -1,4 +1,9 @@
 
+1.0.1-54 | 2018-09-06 18:19:34 -0500
+
+  * Prevent data store clone messages from being forwarded
+    (Jon Siwek, Corelight)
+
 1.0.1-53 | 2018-09-05 09:57:44 -0500
 
   * Make blocking flags available to Python wrapper (Matthias Vallentin)

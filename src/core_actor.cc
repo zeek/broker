@@ -150,7 +150,7 @@ bool core_state::has_peer(const caf::actor& x) {
 bool core_state::has_remote_master(const std::string& name) {
   // If we don't have a master recorded locally, we could still have a
   // propagated subscription to a remote core hosting a master.
-  auto x = name / topics::reserved / topics::master;
+  auto x = name / topics::master_suffix;
   return policy().peers().any_filter([&](const peer_filter& filter) {
     auto e = filter.second.end();
     return std::find(filter.second.begin(), e, x) != e;
@@ -397,7 +397,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::sec::cannot_add_downstream;
       }
       // Subscribe to messages directly targeted at the master.
-      filter_type filter{name / topics::reserved / topics::master};
+      filter_type filter{name / topics::master_suffix};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
       st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
@@ -440,7 +440,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return caf::sec::cannot_add_downstream;
       }
       // Subscribe to messages directly targeted at the clone.
-      filter_type filter{name / topics::reserved / topics::clone};
+      filter_type filter{name / topics::clone_suffix};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
       st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
@@ -508,7 +508,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         caf::actor& clone) {
       // Instruct master to generate a snapshot.
       self->state.policy().push(
-        name / topics::reserved / topics::master,
+        name / topics::master_suffix,
         make_internal_command<snapshot_command>(self, std::move(clone)));
     },
     [=](atom::store, atom::master, atom::get,

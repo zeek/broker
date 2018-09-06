@@ -47,7 +47,7 @@ CAF_TEST(local_master) {
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
   anon_send(core, atom::publish::value, atom::local::value,
-            n / topics::reserved / topics::master,
+            n / topics::master_suffix,
             make_internal_command<put_command>("hello", "universe"));
   run();
   // read back what we have written
@@ -115,7 +115,7 @@ CAF_TEST(master_with_clone) {
   earth.sched.inline_next_enqueue(); // .get talks to the master
   CAF_CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
-  auto foo_master = "foo" / topics::reserved / topics::master;
+  auto foo_master = "foo" / topics::master_suffix;
   // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer::value, core2_proxy);
   expect_on(earth, (atom::peer, actor),
@@ -147,7 +147,7 @@ CAF_TEST(master_with_clone) {
   auto& ms_mars = ds_mars.frontend();
   // the core adds the clone immediately to the topic and sends a stream
   // handshake
-  auto foo_clone = "foo" / topics::reserved / topics::clone;
+  auto foo_clone = "foo" / topics::clone_suffix;
   expect_on(mars, (open_stream_msg), from(_).to(ms_mars));
   expect_on(mars, (upstream_msg::ack_open),
             from(ms_mars).to(core2).with(_, _, _, false));

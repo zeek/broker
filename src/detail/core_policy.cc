@@ -6,6 +6,8 @@
 
 #include "broker/core_actor.hh"
 
+#include <algorithm>
+
 using caf::detail::stream_distribution_tree;
 
 using namespace caf;
@@ -40,6 +42,12 @@ void core_policy::before_handle_batch(stream_slot,
   peers().selector().active_sender = actor_cast<actor_addr>(hdl);
 }
 
+static bool ends_with(const std::string& s, const std::string& ending) {
+  if (ending.size() > s.size())
+    return false;
+  return std::equal(ending.rbegin(), ending.rend(), s.rbegin());
+}
+
 void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
                                message& xs) {
   CAF_LOG_TRACE(CAF_ARG(xs));
@@ -63,6 +71,10 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
         stores().push(msg.get_as<topic>(0), msg.get_as<internal_command>(1));
       // Check if forwarding is on.
       if (!state_->options.forward)
+        continue;
+      // Somewhat hacky, but don't forward data store clone messages.
+      if (ends_with(msg.get_as<topic>(0).string(),
+          topics::clone_suffix.string()))
         continue;
       // Either decrease TTL if message has one already, or add one.
       if (msg.size() < 3) {
