@@ -1,4 +1,8 @@
 
+1.0.1-55 | 2018-09-10 14:43:15 -0500
+
+  * GH-11: fix ambiguous broker.Event constructor (Jon Siwek, Corelight)
+
 1.0.1-54 | 2018-09-06 18:19:34 -0500
 
   * Prevent data store clone messages from being forwarded
