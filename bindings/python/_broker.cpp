@@ -97,6 +97,8 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("flags", &broker::peer_info::flags)
     .def_readwrite("status", &broker::peer_info::status);
 
+  py::bind_vector<std::vector<broker::peer_info>>(m, "VectorPeerInfo");
+
   py::class_<broker::topic>(m, "Topic")
     .def(py::init<std::string>())
     .def(py::self /= py::self,

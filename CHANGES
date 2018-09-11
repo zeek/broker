@@ -1,4 +1,11 @@
 
+1.0.1-58 | 2018-09-11 14:24:03 -0500
+
+  * GH-12: fix Endpoint.peers() python binding (Jon Siwek, Corelight)
+
+  * GH-12: add python method "node_id" for Endpoint and EndpointInfo
+    This returns a unique node ID string. (Jon Siwek, Corelight)
+
 1.0.1-56 | 2018-09-11 13:17:25 -0500
 
   * GH-13: fix incorrect "unpeer" python binding (Jon Siwek, Corelight)
