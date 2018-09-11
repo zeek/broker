@@ -75,9 +75,9 @@ PYBIND11_MODULE(_broker, m) {
   m.def("now", &broker::now, "Get the current wallclock time");
 
   py::class_<broker::endpoint_info>(m, "EndpointInfo")
-    .def_readwrite("node", &broker::endpoint_info::node)
     // TODO: Can we convert this optional<network_info> directly into network_info or None?
     .def_readwrite("network", &broker::endpoint_info::network)
+    .def("node_id", [](const broker::endpoint_info& e) { return to_string(e.node); })
     .def("__repr__", [](const broker::endpoint_info& e) { return to_string(e.node); });
 
   py::class_<broker::network_info>(m, "NetworkInfo")
@@ -245,6 +245,8 @@ PYBIND11_MODULE(_broker, m) {
            };
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(make_config()));
         }))
+    .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
+    .def("node_id", [](const broker::endpoint& e) { return to_string(e.node_id()); })
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
