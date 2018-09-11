@@ -256,7 +256,7 @@ PYBIND11_MODULE(_broker, m) {
 	 ep.peer_nosync(addr, port, std::chrono::seconds((int)retry));},
          py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
          )
-    .def("unpeer", &broker::endpoint::peer)
+    .def("unpeer", &broker::endpoint::unpeer)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)

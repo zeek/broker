@@ -1,4 +1,8 @@
 
+1.0.1-56 | 2018-09-11 13:17:25 -0500
+
+  * GH-13: fix incorrect "unpeer" python binding (Jon Siwek, Corelight)
+
 1.0.1-55 | 2018-09-10 14:43:15 -0500
 
   * GH-11: fix ambiguous broker.Event constructor (Jon Siwek, Corelight)
