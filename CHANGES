@@ -1,4 +1,8 @@
 
+1.0.1-59 | 2018-09-11 16:11:10 -0500
+
+  * Update pybind11 to v2.2.4 release (Jon Siwek, Corelight)
+
 1.0.1-58 | 2018-09-11 14:24:03 -0500
 
   * GH-12: fix Endpoint.peers() python binding (Jon Siwek, Corelight)
