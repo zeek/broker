@@ -1,4 +1,8 @@
 
+1.0.1-61 | 2018-09-12 10:54:38 -0500
+
+  * Remove unused warnings and variables (Matthias Vallentin)
+
 1.0.1-59 | 2018-09-11 16:11:10 -0500
 
   * Update pybind11 to v2.2.4 release (Jon Siwek, Corelight)

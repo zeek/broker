@@ -32,8 +32,7 @@ behavior status_subscriber_worker(event_based_actor* self,
 
 } // namespace <anonymous>
 
-status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
-  : super(std::numeric_limits<long>::max()) {
+status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses) {
   worker_ = ep.system().spawn(status_subscriber_worker, receive_statuses,
                               queue_);
 }
