@@ -58,6 +58,7 @@ public:
   // Inserts the range `[i, e)` into the queue.
   template <class Iter>
   void produce(size_t num, Iter i, Iter e) {
+    CAF_IGNORE_UNUSED(num);
     CAF_ASSERT(num == std::distance(i, e));
     guard_type guard{this->mtx_};
     if (this->xs_.empty())
