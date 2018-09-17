@@ -1,4 +1,12 @@
 
+1.0.1-62 | 2018-09-17 10:54:29 -0500
+
+  * GH-15: change broker.Error type in python bindings (Jon Siwek, Corelight)
+
+    This was only used as an exception type for Data conversions, which
+    are now TypeError, and broker.Error is now bound to broker::error
+    as is expected since broker.Status is bound to broker::status.
+
 1.0.1-61 | 2018-09-12 10:54:38 -0500
 
   * Remove unused warnings and variables (Matthias Vallentin)
