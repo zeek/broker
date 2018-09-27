@@ -45,8 +45,9 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  subscriber_base()
-    : queue_(detail::make_shared_subscriber_queue<value_type>()) {
+  subscriber_base(long max_qsize)
+    : queue_(detail::make_shared_subscriber_queue<value_type>()),
+      max_qsize_(max_qsize) {
     // nop
   }
 

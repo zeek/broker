@@ -153,7 +153,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 } // namespace <anonymous>
 
 subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
-  : ep_(e) {
+  : super(max_qsize), ep_(e) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
   worker_ = ep_.system().spawn(subscriber_worker, &ep_, queue_, std::move(ts),
                                max_qsize);
