@@ -378,6 +378,7 @@ macro(add_tool name)
 endmacro()
 
 add_tool(broker-pipe)
+add_tool(broker-node)
 
 # -- Bindings -----------------------------------------------------------------
 
