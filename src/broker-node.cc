@@ -107,7 +107,7 @@ std::atomic<bool> enabled;
 template <class... Ts>
 void println(Ts&&... xs) {
   if (enabled)
-    detail::println(std::cout, caf::term::blue, std::forward<Ts>(xs)...);
+    detail::println(std::clog, caf::term::blue, std::forward<Ts>(xs)...);
 }
 
 } // namespace verbose
@@ -249,10 +249,11 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
     } while (!done);
     auto t1 = std::chrono::system_clock::now();
     xs.emplace_back(t1 - t0);
-    out::println(xs.back());
+    out::println(xs.back().count());
   }
   auto avg = std::accumulate(xs.begin(), xs.end(), timespan{}) / xs.size();
-  out::println("AVG: ", avg);
+  verbose::println("AVG: ", avg);
+  abort();
 }
 
 void pong_mode(broker::endpoint& ep, broker::topic topic) {
