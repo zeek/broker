@@ -149,7 +149,6 @@ void endpoint::shutdown() {
     for (auto& child : children_)
       self->send_exit(child, caf::exit_reason::user_shutdown);
     CAF_LOG_DEBUG("wait until all children have terminated");
-    self->wait_for(children_);
     children_.clear();
   }
   CAF_LOG_DEBUG("send shutdown message to core actor");
