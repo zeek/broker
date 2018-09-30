@@ -150,6 +150,8 @@ public:
       .add<string>("topic,t", "topic for sending/receiving messages")
       .add<atom_value>("mode,m", "set mode: 'relay', 'ping', or 'pong'")
       .add<atom_value>("impl,i", "mode: 'ping', 'pong', or 'relay'")
+      .add<size_t>("payload-size,s",
+                   "additional number of bytes for the ping message")
       .add<size_t>(
         "num-pings,n",
         "number of pings (default: 10), ignored in pong and relay mode)")
@@ -178,8 +180,13 @@ auto get_if(broker::endpoint* d, string_view key)
 // -- message creation and introspection ---------------------------------------
 
 bool is_ping_msg(const broker::data& x) {
-  auto str = caf::get_if<string>(&x);
-  return str && *str == "ping";
+  if (auto vec = caf::get_if<broker::vector>(&x)) {
+    if (vec->size() == 2) {
+      auto str = caf::get_if<string>(&vec->front());
+      return str && *str == "ping";
+    }
+  }
+  return false;
 }
 
 bool is_pong_msg(const broker::data& x) {
@@ -192,8 +199,8 @@ bool is_stop_msg(const broker::data& x) {
   return str && *str == "stop";
 }
 
-broker::data make_ping_msg() {
-  return "ping";
+broker::data make_ping_msg(size_t payload_size) {
+  return broker::vector{"ping", std::string(payload_size, 'x')};
 }
 
 broker::data make_pong_msg() {
@@ -226,6 +233,7 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
   verbose::println("send pings to topic ", topic);
   std::vector<timespan> xs;
   auto n = get_or(ep, "num-pings", size_t{10});
+  auto s = get_or(ep, "payload-size", size_t{1});
   if (n == 0) {
     err::println("send no pings: n = 0");
     return;
@@ -234,7 +242,7 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
   for (size_t i = 0; i < n; ++i) {
     bool done = false;
     auto t0 = std::chrono::system_clock::now();
-    ep.publish(topic, make_ping_msg());
+    ep.publish(topic, make_ping_msg(s));
     do {
       auto x = in.get();
       done = is_pong_msg(x.second);
