@@ -31,7 +31,7 @@ static inline optional<timestamp> to_opt_timestamp(timestamp ts,
 
 const char* master_state::name = "master_actor";
 
-master_state::master_state() : self(nullptr) {
+master_state::master_state() : self(nullptr), clock(nullptr) {
   // nop
 }
 
