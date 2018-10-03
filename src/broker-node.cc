@@ -36,8 +36,17 @@
 
 using std::string;
 
+using broker::count;
 using broker::data;
 using broker::topic;
+
+// -- process-wide state -------------------------------------------------------
+
+namespace {
+
+string node_name;
+
+} // namespace <anonymous>
 
 // -- I/O utility --------------------------------------------------------------
 
@@ -91,7 +100,8 @@ namespace err {
 
 template <class... Ts>
 void println(Ts&&... xs) {
-  detail::println(std::cerr, caf::term::red, std::forward<Ts>(xs)...);
+  detail::println(std::cerr, caf::term::red, node_name, ": ",
+                  std::forward<Ts>(xs)...);
 }
 
 } // namespace err
@@ -107,7 +117,9 @@ std::atomic<bool> enabled;
 template <class... Ts>
 void println(Ts&&... xs) {
   if (enabled)
-    detail::println(std::clog, caf::term::blue, std::forward<Ts>(xs)...);
+    detail::println(std::clog, caf::term::blue,
+                    std::chrono::system_clock::now(), " ", node_name, ": ",
+                    std::forward<Ts>(xs)...);
 }
 
 } // namespace verbose
@@ -117,6 +129,14 @@ void println(Ts&&... xs) {
 using namespace caf;
 
 namespace {
+
+// -- constants ----------------------------------------------------------------
+
+size_t default_payload_size = 0;
+
+timespan default_rendezvous_retry = std::chrono::milliseconds(250);
+
+size_t default_ping_count = 100;
 
 // -- atom constants -----------------------------------------------------------
 
@@ -147,14 +167,18 @@ public:
   config() {
     opt_group{custom_options_, "global"}
       .add<bool>("verbose,v", "print status and debug output")
+      .add<string>("name,N", "set node name in verbose output")
       .add<string>("topic,t", "topic for sending/receiving messages")
       .add<atom_value>("mode,m", "set mode: 'relay', 'ping', or 'pong'")
       .add<atom_value>("impl,i", "mode: 'ping', 'pong', or 'relay'")
       .add<size_t>("payload-size,s",
                    "additional number of bytes for the ping message")
+      .add<timespan>("rendezvous-retry",
+                     "timeout before repeating the first rendezvous ping "
+                     "message (default: 50ms)")
       .add<size_t>(
         "num-pings,n",
-        "number of pings (default: 10), ignored in pong and relay mode)")
+        "number of pings (default: 100), ignored in pong and relay mode)")
       .add<uri_list>("peers,p",
                      "list of peers we connect to on startup in "
                      "<tcp://$host:$port> notation")
@@ -179,19 +203,38 @@ auto get_if(broker::endpoint* d, string_view key)
 
 // -- message creation and introspection ---------------------------------------
 
+/// @pre `is_ping_msg(x) || is_pong_msg(x)`
+count msg_id(const broker::data& x) {
+  auto& vec = caf::get<broker::vector>(x);
+  return caf::get<count>(vec[1]);
+}
+
 bool is_ping_msg(const broker::data& x) {
   if (auto vec = caf::get_if<broker::vector>(&x)) {
-    if (vec->size() == 2) {
-      auto str = caf::get_if<string>(&vec->front());
-      return str && *str == "ping";
+    if (vec->size() == 3) {
+      auto& xs = *vec;
+      auto str = caf::get_if<string>(&xs[0]);
+      return str && *str == "ping"
+             && caf::holds_alternative<count>(xs[1])
+             && caf::holds_alternative<string>(xs[2]);
     }
   }
   return false;
 }
 
 bool is_pong_msg(const broker::data& x) {
-  auto str = caf::get_if<string>(&x);
-  return str && *str == "pong";
+  if (auto vec = caf::get_if<broker::vector>(&x)) {
+    if (vec->size() == 2) {
+      auto& xs = *vec;
+      auto str = caf::get_if<string>(&xs[0]);
+      return str && *str == "pong" && caf::holds_alternative<count>(xs[1]);
+    }
+  }
+  return false;
+}
+
+bool is_pong_msg(const broker::data& x, count id) {
+  return is_pong_msg(x) && msg_id(x) == id;
 }
 
 bool is_stop_msg(const broker::data& x) {
@@ -199,12 +242,12 @@ bool is_stop_msg(const broker::data& x) {
   return str && *str == "stop";
 }
 
-broker::data make_ping_msg(size_t payload_size) {
-  return broker::vector{"ping", std::string(payload_size, 'x')};
+broker::data make_ping_msg(count id, size_t payload_size) {
+  return broker::vector{"ping", id, string(payload_size, 'x')};
 }
 
-broker::data make_pong_msg() {
-  return "pong";
+broker::data make_pong_msg(count id) {
+  return broker::vector{"pong", id};
 }
 
 broker::data make_stop_msg() {
@@ -219,11 +262,11 @@ void relay_mode(broker::endpoint& ep, broker::topic topic) {
   for (;;) {
     auto x = in.get();
     if (is_ping_msg(x.second)) {
-      verbose::println(ep.system().clock().now(), " received a ping");
+      verbose::println("received ping ", msg_id(x.second));
     } else if (is_pong_msg(x.second)) {
-      verbose::println(ep.system().clock().now(), " received a pong");
+      verbose::println("received pong ", msg_id(x.second));
     } else if (is_stop_msg(x.second)) {
-      verbose::println(ep.system().clock().now(), " received stop");
+      verbose::println("received stop");
       return;
     }
   }
@@ -232,28 +275,45 @@ void relay_mode(broker::endpoint& ep, broker::topic topic) {
 void ping_mode(broker::endpoint& ep, broker::topic topic) {
   verbose::println("send pings to topic ", topic);
   std::vector<timespan> xs;
-  auto n = get_or(ep, "num-pings", size_t{10});
-  auto s = get_or(ep, "payload-size", size_t{1});
+  auto n = get_or(ep, "num-pings", default_ping_count);
+  auto s = get_or(ep, "payload-size", default_payload_size);
   if (n == 0) {
     err::println("send no pings: n = 0");
     return;
   }
   auto in = ep.make_subscriber({topic});
-  for (size_t i = 0; i < n; ++i) {
+  // Rendezvous between ping and pong. The first ping (id 0) is not part of our
+  // measurement. We repeat this initial message until we receive a pong to
+  // make sure all broker nodes are up and running.
+  bool connected = false;
+  auto retry_timeout = get_or(ep, "rendezvous-retry", default_rendezvous_retry);
+  ep.publish(topic, make_ping_msg(0, 0));
+  while (!connected) {
+    auto x = in.get(caf::duration{retry_timeout});
+    if (x && is_pong_msg(x->second, 0))
+      connected = true;
+    else
+      ep.publish(topic, make_ping_msg(0, 0));
+  }
+  // Measurement.
+  timespan total_time{0};
+  for (count i = 1; i <= n; ++i) {
     bool done = false;
     auto t0 = std::chrono::system_clock::now();
-    ep.publish(topic, make_ping_msg(s));
+    ep.publish(topic, make_ping_msg(i, s));
     do {
       auto x = in.get();
-      done = is_pong_msg(x.second);
+      done = is_pong_msg(x.second, i);
     } while (!done);
     auto t1 = std::chrono::system_clock::now();
-    xs.emplace_back(t1 - t0);
-    out::println(xs.back().count());
+    auto roundtrip = std::chrono::duration_cast<timespan>(t1 - t0);
+    total_time += roundtrip;
+    out::println(roundtrip.count());
   }
-  auto avg = std::accumulate(xs.begin(), xs.end(), timespan{}) / xs.size();
-  verbose::println("AVG: ", avg);
-  abort();
+  verbose::println("AVG: ", total_time / n);
+  // TODO: this should not be necessary, but Broker currently doesn't properly
+  //       shutdown when just leaving this function
+  exit(0);
 }
 
 void pong_mode(broker::endpoint& ep, broker::topic topic) {
@@ -262,10 +322,10 @@ void pong_mode(broker::endpoint& ep, broker::topic topic) {
   for (;;) {
     auto x = in.get();
     if (is_ping_msg(x.second)) {
-      verbose::println(ep.system().clock().now(), " received a ping");
-      ep.publish(topic, make_pong_msg());
+      verbose::println("received ping ", msg_id(x.second));
+      ep.publish(topic, make_pong_msg(msg_id(x.second)));
     } else if (is_stop_msg(x.second)) {
-      verbose::println(ep.system().clock().now(), " received stop");
+      verbose::println("received stop");
       return;
     }
   }
@@ -280,6 +340,18 @@ int main(int argc, char** argv) {
   config cfg;
   cfg.parse(argc, argv);
   broker::endpoint ep{std::move(cfg)};
+  // Get mode (mandatory).
+  auto mode = get_if<atom_value>(&ep, "mode");
+  if (!mode) {
+    node_name = "unnamed-node";
+    err::println("no mode specified");
+    return EXIT_FAILURE;
+  }
+  // Get process name, using the mode name as fallback.
+  if (auto cfg_name = get_if<string>(&ep, "name"))
+    node_name = *cfg_name;
+  else
+    node_name = to_string(*mode);
   // Get topic (mandatory).
   auto topic = get_if<string>(&ep, "topic");
   if (!topic) {
@@ -296,13 +368,12 @@ int main(int argc, char** argv) {
     auto g1 = groups.get_local("broker/errors");
     auto g2 = groups.get_local("broker/statuses");
     sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) -> behavior {
-      auto ts = [=] { return self->system().clock().now(); };
       return {
         [=](broker::atom::local, broker::error& x) {
-          verbose::println(ts(), " ", x);
+          verbose::println(x);
         },
         [=](broker::atom::local, broker::status& x) {
-          verbose::println(ts(), " ", x);
+          verbose::println(x);
         }
       };
     });
@@ -313,11 +384,6 @@ int main(int argc, char** argv) {
     ep.listen({}, *local_port);
   }
   // Select function f based on the mode.
-  auto mode = get_if<atom_value>(&ep, "mode");
-  if (!mode) {
-    err::println("no mode specified");
-    return EXIT_FAILURE;
-  }
   mode_fun f = nullptr;
   switch (static_cast<uint64_t>(*mode)) {
     case relay_atom::uint_value():
