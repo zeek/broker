@@ -292,7 +292,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       auto x = self->state.keys();
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
-      return caf::make_message(x, id);
+      return caf::make_message(std::move(x), id);
     },
     [=](atom::exists, const data& key) -> expected<data> {
       if ( self->state.is_stale )

@@ -1,4 +1,8 @@
 
+1.1.0-4 | 2018-10-03 18:11:05 -0500
+
+  * Use move() in to avoid a few copies (Jon Siwek, Corelight)
+
 1.1.0-3 | 2018-10-03 17:15:33 -0500
 
   * Check results of flare fcntl calls (Jon Siwek, Corelight)

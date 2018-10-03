@@ -353,14 +353,14 @@ void core_policy::remote_push(message msg) {
 /// Pushes data to peers and workers.
 void core_policy::push(topic x, data y) {
   CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(x, y));
+  remote_push(make_message(std::move(x), std::move(y)));
   //local_push(std::move(x), std::move(y));
 }
 
 /// Pushes data to peers and stores.
 void core_policy::push(topic x, internal_command y) {
   CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(x, y));
+  remote_push(make_message(std::move(x), std::move(y)));
   //local_push(std::move(x), std::move(y));
 }
 
