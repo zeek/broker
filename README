@@ -60,3 +60,14 @@ To compile and install into ``/usr/local``::
     make install
 
 See ``./configure --help`` for more advanced configuration options.
+
+Acknowledgements
+----------------
+
+The history from the `topic/actor-system branch
+<https://github.com/bro/bro/tree/topic/actor-system>`_ is not included
+in the master branch, but credit is due to contributors over the course
+of 2016-2018:
+
+    * Matthias Vallentin: ~94k LOC changed
+    * Dominik Charousset: ~18k LOC changed

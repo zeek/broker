@@ -1,4 +1,8 @@
 
+1.1.0-7 | 2018-10-04 11:05:26 -0500
+
+  * Add acknowledgements to README (Jon Siwek, Corelight)
+
 1.1.0-6 | 2018-10-03 19:15:44 -0500
 
   * Initialize clone_state members in ctor (Jon Siwek, Corelight)
