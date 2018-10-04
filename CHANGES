@@ -1,4 +1,8 @@
 
+1.1.0-5 | 2018-10-03 19:10:57 -0500
+
+  * Fix uninitialized status member (Jon Siwek, Corelight)
+
 1.1.0-4 | 2018-10-03 18:11:05 -0500
 
   * Use move() in to avoid a few copies (Jon Siwek, Corelight)

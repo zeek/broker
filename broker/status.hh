@@ -107,7 +107,7 @@ public:
   }
 
 private:
-  sc code_;
+  sc code_ = {};
   caf::message context_;
 };
 
