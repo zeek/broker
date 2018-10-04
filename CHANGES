@@ -1,4 +1,8 @@
 
+1.1.0-6 | 2018-10-03 19:15:44 -0500
+
+  * Initialize clone_state members in ctor (Jon Siwek, Corelight)
+
 1.1.0-5 | 2018-10-03 19:10:57 -0500
 
   * Fix uninitialized status member (Jon Siwek, Corelight)

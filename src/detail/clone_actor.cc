@@ -32,7 +32,10 @@ static double now(endpoint::clock* clock)
   return std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
   }
 
-clone_state::clone_state() : self(nullptr) {
+clone_state::clone_state() : self(nullptr), name(), master_topic(), core(),
+  master(), store(), is_stale(), stale_time(), unmutable_time(),
+  mutation_buffer(), pending_remote_updates(), awaiting_snapshot(),
+  awaiting_snapshot_sync(), clock() {
   // nop
 }
 
