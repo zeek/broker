@@ -1,4 +1,8 @@
 
+1.1.0-454 | 2018-10-05 11:41:01 -0500
+
+  * GH-19: add endpoint::unpeer_nosync python binding (Jon Siwek, Corelight)
+
 1.1.0-453 | 2018-10-05 09:30:16 -0500
 
   * Remove README acknowledgements as missing commits are now in master

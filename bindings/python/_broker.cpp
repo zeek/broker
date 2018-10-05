@@ -261,6 +261,7 @@ PYBIND11_MODULE(_broker, m) {
          py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
          )
     .def("unpeer", &broker::endpoint::unpeer)
+    .def("unpeer_nosync", &broker::endpoint::unpeer_nosync)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)
