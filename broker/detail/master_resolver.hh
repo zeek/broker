@@ -4,8 +4,7 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/response_promise.hpp>
+#include <caf/behavior.hpp>
 #include <caf/stateful_actor.hpp>
 
 

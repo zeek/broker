@@ -3,10 +3,15 @@
 #include "test.hpp"
 #include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
-
-#include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
+#include "broker/atoms.hh"
+#include "broker/backend.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/error.hh"
+#include "broker/filter_type.hh"
+#include "broker/internal_command.hh"
+#include "broker/store.hh"
+#include "broker/topic.hh"
 
 using std::cout;
 using std::endl;
@@ -20,7 +25,7 @@ CAF_TEST_FIXTURE_SCOPE(local_store_master, base_fixture)
 
 CAF_TEST(local_master) {
   auto core = ep.core();
-  sched.run();
+  run();
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
   auto expected_ds = ep.attach_master("foo", memory);
@@ -29,33 +34,31 @@ CAF_TEST(local_master) {
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream
   // handshake
-  sched.run();
+  run();
   // test putting something into the store
   ds.put("hello", "world");
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  CAF_CHECK_EQUAL(ds.get("hello"), data{"world"});
+  CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"world"});
   // check the name of the master
   sched.inline_next_enqueue(); // ds.name talks to the master_actor (blocking)
   auto n = ds.name();
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
   anon_send(core, atom::publish::value, atom::local::value,
-            n / topics::reserved / topics::master,
+            n / topics::master_suffix,
             make_internal_command<put_command>("hello", "universe"));
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
-  CAF_CHECK_EQUAL(ds.get("hello"), data{"universe"});
+  CAF_CHECK_EQUAL(value_of(ds.get("hello")), data{"universe"});
   ds.clear();
-  sched.run();
+  run();
   sched.inline_next_enqueue();
-  CAF_CHECK_EQUAL(ds.get("hello"), caf::error{ec::no_such_key});
+  CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -110,9 +113,9 @@ CAF_TEST(master_with_clone) {
             from(_).to(ms_earth).with(_, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_earth.get("test"), data{123});
+  CAF_CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
-  auto foo_master = "foo" / topics::reserved / topics::master;
+  auto foo_master = "foo" / topics::master_suffix;
   // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer::value, core2_proxy);
   expect_on(earth, (atom::peer, actor),
@@ -144,7 +147,7 @@ CAF_TEST(master_with_clone) {
   auto& ms_mars = ds_mars.frontend();
   // the core adds the clone immediately to the topic and sends a stream
   // handshake
-  auto foo_clone = "foo" / topics::reserved / topics::clone;
+  auto foo_clone = "foo" / topics::clone_suffix;
   expect_on(mars, (open_stream_msg), from(_).to(ms_mars));
   expect_on(mars, (upstream_msg::ack_open),
             from(ms_mars).to(core2).with(_, _, _, false));
@@ -162,17 +165,15 @@ CAF_TEST(master_with_clone) {
             from(_).to(mars.ep.core()).with(atom::publish::value, _, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_earth.get("user"), data{"neverlord"});
+  CAF_CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});
   mars.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_mars.get("test"), data{123});
+  CAF_CHECK_EQUAL(value_of(ds_mars.get("test")), data{123});
   mars.sched.inline_next_enqueue(); // .get talks to the master
-  CAF_CHECK_EQUAL(ds_mars.get("user"), data{"neverlord"});
+  CAF_CHECK_EQUAL(value_of(ds_mars.get("user")), data{"neverlord"});
   // done
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_all_enqueues();
-  earth.sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

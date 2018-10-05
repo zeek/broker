@@ -15,7 +15,7 @@ TEST(cleaning) {
   auto sep3 = sep + sep + sep;
   CHECK_EQUAL(topic{sep3}, ""_t);
   auto t = topic{"foo" + sep3};
-  CHECK_EQUAL(t, "foo"_t);
+  CHECK_EQUAL(t, "foo");
   t = sep3 + "foo";
   CHECK_EQUAL(t, sep + "foo");
   t = sep3 + "foo" + sep3;
@@ -25,7 +25,7 @@ TEST(cleaning) {
 TEST(concatenation) {
   topic t;
   t /= "foo";
-  CHECK_EQUAL(t, "foo"_t);
+  CHECK_EQUAL(t, "foo");
   t /= "bar";
   CHECK_EQUAL(t, "foo" + sep + "bar");
   t /= "/baz";

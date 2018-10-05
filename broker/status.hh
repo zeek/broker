@@ -9,7 +9,7 @@
 // Included lines: 26-37
 
 #include <string>
-#include <tuple>
+#include <utility>
 
 #include <caf/message.hpp>
 #include <caf/make_message.hpp>
@@ -107,7 +107,7 @@ public:
   }
 
 private:
-  sc code_;
+  sc code_ = {};
   caf::message context_;
 };
 

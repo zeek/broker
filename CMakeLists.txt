@@ -8,6 +8,18 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
+if ( ENABLE_CCACHE )
+  find_program(CCACHE_PROGRAM ccache)
+
+  if ( NOT CCACHE_PROGRAM )
+    message(FATAL_ERROR "ccache not found")
+  endif ()
+
+  message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+  set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+endif ()
+
 # -- Dependencies -------------------------------------------------------------
 
 if ( CAF_ROOT_DIR )
@@ -36,28 +48,15 @@ else ()
   # the --with-caf path and point to separate, custom-built CAF.
 
   if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
+    # Build byproducts is just required by the Ninja generator
+    # though it's not available before CMake 3.2 ...
     if ( ${CMAKE_GENERATOR} STREQUAL Ninja )
       message(FATAL_ERROR "Ninja generator requires CMake >= 3.2")
     endif ()
-    # Build byproducts is just required by the Ninja generator
-    # though it's not available before CMake 3.2 ...
-    ExternalProject_Add(project_caf
-      PREFIX            "${caf_ep}"
-      BINARY_DIR        "${caf_build}"
-      DOWNLOAD_COMMAND  ""
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND     ""
-      INSTALL_COMMAND   ""
-    )
+
+    set(build_byproducts_arg)
   else ()
-    ExternalProject_Add(project_caf
-      PREFIX            "${caf_ep}"
-      BINARY_DIR        "${caf_build}"
-      DOWNLOAD_COMMAND  ""
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND     ""
-      INSTALL_COMMAND   ""
-      BUILD_BYPRODUCTS
+    set(build_byproducts_arg BUILD_BYPRODUCTS
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
@@ -66,6 +65,16 @@ else ()
         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
     )
   endif ()
+
+  ExternalProject_Add(project_caf
+    PREFIX            "${caf_ep}"
+    BINARY_DIR        "${caf_build}"
+    DOWNLOAD_COMMAND  ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND     ""
+    INSTALL_COMMAND   ""
+    ${build_byproducts_arg}
+  )
 
   if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
     set(use_terminal_arg)
@@ -89,6 +98,26 @@ else ()
 
   if ( CMAKE_TOOLCHAIN_FILE )
     set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+  else ()
+    set(toolchain_arg)
+  endif ()
+
+  find_package(OpenSSL REQUIRED)
+  get_filename_component(derived_openssl_root_dir ${OPENSSL_INCLUDE_DIR}
+                         DIRECTORY)
+
+  if ( CMAKE_C_COMPILER_LAUNCHER )
+    set(cmake_c_compiler_launcher_arg
+        -DCMAKE_C_COMPILER_LAUNCHER:path=${CMAKE_C_COMPILER_LAUNCHER})
+  else ()
+    set(cmake_c_compiler_launcher_arg)
+  endif ()
+
+  if ( CMAKE_CXX_COMPILER_LAUNCHER )
+    set(cmake_cxx_compiler_launcher_arg
+        -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER})
+  else ()
+    set(cmake_cxx_compiler_launcher_arg)
   endif ()
 
   execute_process(
@@ -96,6 +125,9 @@ else ()
         ${CMAKE_COMMAND}
         -G${CMAKE_GENERATOR}
         ${toolchain_arg}
+        ${cmake_c_compiler_launcher_arg}
+        ${cmake_cxx_compiler_launcher_arg}
+        -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes
         -DCAF_NO_TOOLS:bool=yes
@@ -196,21 +228,6 @@ endif ()
 
 # -- libroker -----------------------------------------------------------------
 
-# Extract Broker version
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION LIMIT_COUNT 1)
-string(REPLACE "." " " _version_numbers ${VERSION})
-separate_arguments(_version_numbers)
-list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
-list(GET _version_numbers 1 BROKER_VERSION_MINOR)
-list(LENGTH _version_numbers _version_length)
-if (_version_length LESS 3)
-  set(BROKER_VERSION_PATCH 0)
-else ()
-  list(GET _version_numbers 2 BROKER_VERSION_PATCH)
-endif ()
-
-set(BROKER_VERSION
-    ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}.${BROKER_VERSION_PATCH})
 # The SO number shall increase only if binary interface changes.
 set(BROKER_SOVERSION 0)
 set(ENABLE_SHARED true)
@@ -271,14 +288,11 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/version.hh.in
-               ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh @ONLY)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/version.hh DESTINATION include/broker)
 
 set(BROKER_SRC
   src/address.cc
-  src/bro.cc
   src/configuration.cc
+  src/core_actor.cc
   src/data.cc
   src/endpoint.cc
   src/error.cc
@@ -299,7 +313,6 @@ set(BROKER_SRC
 
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
-  src/detail/core_actor.cc
   src/detail/core_policy.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
@@ -416,8 +429,10 @@ endif ()
 
 # -- Unit Tests ---------------------------------------------------------------
 
-enable_testing()
-add_subdirectory(tests)
+if ( NOT BROKER_DISABLE_TESTS )
+  enable_testing()
+  add_subdirectory(tests)
+endif ()
 
 # -- Documentation ------------------------------------------------------------
 
@@ -427,6 +442,7 @@ endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BROKER_VERSION LIMIT_COUNT 1)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
 macro(display test desc summary)

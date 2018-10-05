@@ -1,4 +1,13 @@
-#include "broker/broker.hh"
+#include <cstdint>
+#include <chrono>
+#include <map>
+#include <string>
+#include <type_traits>
+#include <utility>
+
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/optional.hh"
 
 #define SUITE data
 #include "test.hpp"
@@ -82,20 +91,20 @@ TEST(subnet) {
 TEST(data - construction) {
   MESSAGE("default construction");
   data d;
-  CHECK(get_if<none>(d));
+  CHECK(caf::get_if<none>(&d));
 }
 
 TEST(data - assignment) {
   data d;
   d = 42;
-  auto i = get_if<integer>(d);
+  auto i = caf::get_if<integer>(&d);
   REQUIRE(i);
   CHECK_EQUAL(*i, 42);
   d = data{7};
-  i = get_if<integer>(d);
+  i = caf::get_if<integer>(&d);
   CHECK_EQUAL(*i, 7);
   d = "foo";
-  auto s = get_if<std::string>(d);
+  auto s = caf::get_if<std::string>(&d);
   REQUIRE(s);
   CHECK_EQUAL(*s, "foo");
 }

@@ -7,10 +7,16 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include <atomic>
 
-#include <caf/node_id.hpp>
 #include <caf/actor.hpp>
+#include <caf/actor_clock.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/message.hpp>
+#include <caf/node_id.hpp>
+#include <caf/stream.hpp>
+#include <caf/timespan.hpp>
+#include <caf/timestamp.hpp>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -27,9 +33,6 @@
 #include "broker/topic.hh"
 #include "broker/time.hh"
 
-#include "broker/detail/filter_type.hh"
-#include "broker/detail/operators.hh"
-
 namespace broker {
 
 /// The main publish/subscribe abstraction. Endpoints can *peer* which each
@@ -44,6 +47,61 @@ public:
   using stream_type = caf::stream<value_type>;
 
   using actor_init_fun = std::function<void (caf::event_based_actor*)>;
+
+  /// Custom clock for either running in realtime mode or advancing time
+  /// manually.
+  class clock {
+  public:
+    // -- member types ---------------------------------------------------------
+
+    using mutex_type = std::mutex;
+
+    using lock_type = std::unique_lock<mutex_type>;
+
+    using pending_msg_type = std::pair<caf::actor, caf::message>;
+
+    using pending_msgs_map_type = std::multimap<timestamp, pending_msg_type>;
+
+    // --- construction and destruction ----------------------------------------
+
+    clock(caf::actor_system* sys, bool use_real_time);
+
+    // -- accessors ------------------------------------------------------------
+
+    timestamp now() const noexcept;
+
+    bool real_time() const noexcept {
+      return real_time_;
+    }
+
+    // -- mutators -------------------------------------------------------------
+
+    void advance_time(timestamp t);
+
+    void send_later(caf::actor dest, timespan after, caf::message msg);
+
+  private:
+    /// Points to the host system.
+    caf::actor_system* sys_;
+
+    /// May be read from multiple threads.
+    const bool real_time_;
+
+    /// Nanoseconds since start of the epoch.
+    std::atomic<timespan> time_since_epoch_;
+
+    /// Guards pending_.
+    mutex_type mtx_;
+
+    /// Stores pending messages until they time out.
+    pending_msgs_map_type pending_;
+
+    /// Stores number of items in pending_.  We track it separately as
+    /// a micro-optimization -- checking pending_.size() would require
+    /// obtaining a lock for mtx_, but instead checking this atomic avoids
+    /// that locking expense in the common case.
+    std::atomic<size_t> pending_count_;
+  };
 
   // --- construction and destruction ------------------------------------------
 
@@ -293,15 +351,21 @@ public:
     return destroyed_;
   }
 
-  inline bool use_real_time() const {
-    return use_real_time_;
+  bool use_real_time() const {
+    return clock_->real_time();
   }
 
-  timestamp now() const;
+  timestamp now() const {
+    return clock_->now();
+  }
 
-  void advance_time(timestamp t);
+  void advance_time(timestamp t) {
+    clock_->advance_time(t);
+  }
 
-  void send_later(caf::actor who, timespan after, caf::message msg);
+  void send_later(caf::actor who, timespan after, caf::message msg) {
+    clock_->send_later(std::move(who), after, std::move(msg));
+  }
 
   // --- access to CAF state ---------------------------------------------------
 
@@ -327,21 +391,7 @@ private:
   bool await_stores_on_shutdown_;
   std::vector<caf::actor> children_;
   bool destroyed_;
-
-  const bool use_real_time_; // may be read from multiple threads
-  timestamp current_time_;
-
-  // TODO: use shared_mutex (C++17) and shared_lock for readers
-  using time_mutex_type = std::mutex;
-  mutable time_mutex_type time_mutex;
-
-  using pending_msgs_mutex_type = std::mutex;
-  pending_msgs_mutex_type pending_msgs_mutex;
-
-  using pending_msg = std::pair<caf::actor, caf::message>;
-
-  using pending_msgs_map_type = std::multimap<timestamp, pending_msg>;
-  pending_msgs_map_type pending_msgs_map;
+  clock* clock_;
 };
 
 } // namespace broker

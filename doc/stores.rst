@@ -29,7 +29,7 @@ visible at the clone.
 It is possible to attach one or more data stores to an endpoint, but each store
 must have a unique master name. For example, two peers cannot both have a
 master with the same name. When a clone connects to its master, it receives
-full dump of the store:
+a full dump of the store:
 
 .. figure:: _images/store-attach.png
   :align: center
@@ -172,7 +172,7 @@ Direct Retrieval
 Data stores support the following retrieval methods:
 
 ``expected<data> get(data key) const;``
-    Retrieves the value at ``key``. If the key does not exists,
+    Retrieves the value at ``key``. If the key does not exist,
     returns an error ``ec::no_such_key``.
 
     .. literalinclude:: _examples/stores.cc
@@ -186,8 +186,8 @@ Data stores support the following retrieval methods:
 ``expected<data> get_index_from_value(data key, data index) const;``
   For containers values (sets, tables, vectors) at ``key``, retrieves
   a specific ``index`` from the value. For sets, the returned value is
-  a ``boolean`` data instance indicating whether the index exits in
-  the set. If ``key`` does not exists, returns an error
+  a ``boolean`` data instance indicating whether the index exists in
+  the set. If ``key`` does not exist, returns an error
   ``ec::no_such_key``.
 
 ``expected<data> keys() const``
@@ -205,7 +205,7 @@ All these methods share the property that they will return the
 corresponding result directly. Due to Broker's asynchronous operation
 internally, this means that they may block for short amounts of time
 until the result becomes available. If that's a problem, you can
-receive results back asynchroulsy as well, see next section.
+receive results back asynchronously as well, see next section.
 
 Note, however, that even with this direct interface, results may
 sometimes take a bit to reflect operations that clients perform

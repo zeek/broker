@@ -1,6 +1,8 @@
 #ifndef BROKER_DATA_HH
 #define BROKER_DATA_HH
 
+#include <utility>
+#include <type_traits>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -8,12 +10,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <caf/actor.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
+#include <caf/default_sum_type_access.hpp>
+#include <caf/sum_type_access.hpp>
 #include <caf/variant.hpp>
-
-#include <caf/detail/comparable.hpp>
 
 #include "broker/address.hh"
 #include "broker/enum_value.hh"
@@ -23,9 +22,10 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
+#include "broker/bad_variant_access.hh"
 
 #include "broker/detail/hash.hh"
-#include "broker/detail/variant.hh"
+#include "broker/detail/type_traits.hh"
 
 namespace broker {
 
@@ -49,7 +49,7 @@ using table = std::map<data, data>;
 /// @relates table
 bool convert(const table& t, std::string& str);
 
-using data_variant = detail::variant<
+using data_variant = caf::variant<
   none,
   boolean,
   count,
@@ -69,25 +69,27 @@ using data_variant = detail::variant<
 
 /// A variant class that may store the data associated with one of several
 /// different primitive or compound types.
-class data : public data_variant {
+class data {
 public:
-    enum class type : uint8_t {
-      address,
-      boolean,
-      count,
-      enum_value,
-      integer,
-      none,
-      port,
-      real,
-      set,
-      string,
-      subnet,
-      table,
-      timespan,
-      timestamp,
-      vector
-    };
+  using types = typename data_variant::types;
+
+  enum class type : uint8_t {
+    address,
+    boolean,
+    count,
+    enum_value,
+    integer,
+    none,
+    port,
+    real,
+    set,
+    string,
+    subnet,
+    table,
+    timespan,
+    timestamp,
+    vector
+  };
 
 	template <class T>
 	using from = detail::conditional_t<
@@ -112,7 +114,7 @@ public:
 	                  || std::is_same<T, address>::value
                     || std::is_same<T, subnet>::value
                     || std::is_same<T, port>::value
-                    || std::is_same<T, set>::value
+                    || std::is_same<T, broker::set>::value
                     || std::is_same<T, table>::value
                     || std::is_same<T, vector>::value,
                   T,
@@ -140,7 +142,7 @@ public:
                    >::value
             >
 	>
-	data(T&& x) : data_variant(from<detail::decay_t<T>>(std::forward<T>(x))) {
+	data(T&& x) : data_(from<detail::decay_t<T>>(std::forward<T>(x))) {
 	  // nop
 	}
 
@@ -151,29 +153,24 @@ public:
   type get_type() const;
 
   static data from_type(type);
+
+  // Needed by caf::default_variant_access.
+  inline data_variant& get_data() {
+    return data_;
+  }
+
+  // Needed by caf::default_variant_access.
+  inline const data_variant& get_data() const {
+    return data_;
+  }
+
+private:
+  data_variant data_;
 };
 
-// C++17 variant compliance.
-using detail::get;
-using detail::get_if;
-using detail::is;
-
-using detail::bad_variant_access;
-
-/// Perform multiple dispatch on data instances.
-/// @tparam Visitor The visitor type.
-/// @param visitor The visitor to instance.
-/// @param xs The data instances that *visitor* should visit.
-/// @returns The return value of `Visitor::operator()`.
-/// @relates data
-template <class Visitor, class... Ts>
-auto visit(Visitor&& visitor, Ts&&... xs)
--> detail::enable_if_t<
-  detail::are_same<data, detail::decay_t<Ts>...>::value,
-  typename Visitor::result_type
-> {
-  return detail::visit(std::forward<Visitor>(visitor),
-                       std::forward<Ts>(xs)...);
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, data& x) {
+  return inspect(f, x.get_data());
 }
 
 /// @relates data
@@ -186,7 +183,77 @@ inline std::string to_string(const broker::data& d) {
   return s;
 }
 
+inline bool operator<(const data& x, const data& y) {
+  return x.get_data() < y.get_data();
+}
+
+inline bool operator<=(const data& x, const data& y) {
+  return x.get_data() <= y.get_data();
+}
+
+inline bool operator>(const data& x, const data& y) {
+  return x.get_data() > y.get_data();
+}
+
+inline bool operator>=(const data& x, const data& y) {
+  return x.get_data() >= y.get_data();
+}
+
+inline bool operator==(const data& x, const data& y) {
+  return x.get_data() == y.get_data();
+}
+
+inline bool operator!=(const data& x, const data& y) {
+  return x.get_data() != y.get_data();
+}
+
+// --- compatibility/wrapper functionality (may be removed later) -----------
+
+template <class T>
+inline bool is(const data& v) {
+  return caf::holds_alternative<T>(v);
+}
+
+template <class T>
+inline T* get_if(data& d) {
+  return caf::get_if<T>(&d);
+}
+
+template <class T>
+inline const T* get_if(const data& d) {
+  return caf::get_if<T>(&d);
+}
+
+template <class T>
+inline T& get(data& d) {
+  if ( auto rval = caf::get_if<T>(&d) )
+    return *rval;
+  throw bad_variant_access{};
+}
+
+template <class T>
+inline const T& get(const data& d) {
+  if ( auto rval = caf::get_if<T>(&d) )
+    return *rval;
+  throw bad_variant_access{};
+}
+
+template <class Visitor>
+typename detail::remove_reference_t<Visitor>::result_type
+inline visit(Visitor&& visitor, data d) {
+  return caf::visit(std::forward<Visitor>(visitor), std::move(d));
+}
+
 } // namespace broker
+
+// --- treat data as sum type (equivalent to variant) --------------------------
+
+namespace caf {
+
+template <>
+struct sum_type_access<broker::data> : default_sum_type_access<broker::data> {};
+
+} // namespace caf
 
 // --- implementations of std::hash --------------------------------------------
 
@@ -194,11 +261,7 @@ namespace std {
 
 template <>
 struct hash<broker::data> {
-  using result_type = typename std::hash<broker::data_variant>::result_type;
-
-  inline result_type operator()(const broker::data& d) const {
-    return std::hash<broker::data_variant>{}(d);
-  }
+  size_t operator()(const broker::data& d) const;
 };
 
 template <>
@@ -211,10 +274,8 @@ struct hash<broker::vector>
 
 template <>
 struct hash<broker::table::value_type> {
-  using result_type = typename std::hash<broker::data>::result_type;
-
-  inline result_type operator()(const broker::table::value_type& p) const {
-    auto result = result_type{0};
+  inline size_t operator()(const broker::table::value_type& p) const {
+    size_t result = 0;
     broker::detail::hash_combine(result, p.first);
     broker::detail::hash_combine(result, p.second);
     return result;

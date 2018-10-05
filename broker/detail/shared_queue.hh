@@ -8,7 +8,6 @@
 #include <condition_variable>
 
 #include <caf/duration.hpp>
-#include <caf/intrusive_ptr.hpp>
 #include <caf/ref_counted.hpp>
 
 #include "broker/data.hh"

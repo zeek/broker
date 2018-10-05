@@ -36,6 +36,13 @@ The following figure illustrates an exemplary topology.
 .. figure:: _images/high-level-comm.png
   :align: center
 
+A process hosts one or more endpoints.  Endpoints can communicate within
+or across processes as well as machine boundaries.
+
+The fundamental unit of exchange is a *message*, which consists of a
+*topic* and *data*.  Endpoints may choose to forward received messages
+to their own peers that share a matching topic.
+
 The API allows for both synchronous and asynchronous
 communication. Internally, Broker operates entirely asynchronously by
 leveraging the `C++ Actor Framework (CAF) <http://www.actor-framework.org>`_.
@@ -72,7 +79,7 @@ types:
 From these data units, one then composes *messages* to be exchanged.
 Broker does generally not impose any further structure on messages,
 it's up to sender and receiver to agree. For communication with Bro,
-however, Broker provide an additional *event* abstraction that defines
+however, Broker provides an additional *event* abstraction that defines
 the specific message layout that Bro expects for exchanging Bro
 events.
 
@@ -82,7 +89,7 @@ Data Stores
 Data stores complement endpoint communication with a distributed key-value
 abstraction operating in the full data model. One can attach one or more data
 stores to an endpoint. A data store has a *frontend*, which determines its
-behavior, and a *backend*, which represent the type of database for storing
+behavior, and a *backend*, which represents the type of database for storing
 data. There exist two types of frontends: *master* and *clone*. A master is the
 authoritative source for the key-value store, whereas a clone represents a
 local cache. Only the master can perform mutating operations on the store,

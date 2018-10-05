@@ -1,4 +1,13 @@
 
+#include <cstddef>
+#include <cstdint>
+#include <chrono>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <caf/variant.hpp>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/functional.h>
@@ -7,7 +16,27 @@
 #include <pybind11/stl_bind.h>
 #pragma GCC diagnostic pop
 
-#include "broker/broker.hh"
+#include "broker/backend.hh"
+#include "broker/backend_options.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/detail/shared_queue.hh"
+#include "broker/endpoint.hh"
+#include "broker/endpoint_info.hh"
+#include "broker/network_info.hh"
+#include "broker/peer_flags.hh"
+#include "broker/peer_info.hh"
+#include "broker/peer_status.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/store.hh"
+#include "broker/subscriber.hh"
+#include "broker/subscriber_base.hh"
+#include "broker/time.hh"
+#include "broker/topic.hh"
+#include "broker/version.hh"
 
 #include <memory>
 
@@ -18,9 +47,9 @@ extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
 extern void init_store(py::module& m);
 
-PYBIND11_MAKE_OPAQUE(broker::set);
-PYBIND11_MAKE_OPAQUE(broker::table);
-PYBIND11_MAKE_OPAQUE(broker::vector);
+PYBIND11_MAKE_OPAQUE(broker::set)
+PYBIND11_MAKE_OPAQUE(broker::table)
+PYBIND11_MAKE_OPAQUE(broker::vector)
 
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
@@ -46,9 +75,10 @@ PYBIND11_MODULE(_broker, m) {
   m.def("now", &broker::now, "Get the current wallclock time");
 
   py::class_<broker::endpoint_info>(m, "EndpointInfo")
-    .def_readwrite("node", &broker::endpoint_info::node)
     // TODO: Can we convert this optional<network_info> directly into network_info or None?
-    .def_readwrite("network", &broker::endpoint_info::network);
+    .def_readwrite("network", &broker::endpoint_info::network)
+    .def("node_id", [](const broker::endpoint_info& e) { return to_string(e.node); })
+    .def("__repr__", [](const broker::endpoint_info& e) { return to_string(e.node); });
 
   py::class_<broker::network_info>(m, "NetworkInfo")
     .def_readwrite("address", &broker::network_info::address)
@@ -66,6 +96,8 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("peer", &broker::peer_info::peer)
     .def_readwrite("flags", &broker::peer_info::flags)
     .def_readwrite("status", &broker::peer_info::status);
+
+  py::bind_vector<std::vector<broker::peer_info>>(m, "VectorPeerInfo");
 
   py::class_<broker::topic>(m, "Topic")
     .def(py::init<std::string>())
@@ -162,13 +194,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return caf::get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return caf::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
@@ -215,6 +247,8 @@ PYBIND11_MODULE(_broker, m) {
            };
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(make_config()));
         }))
+    .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
+    .def("node_id", [](const broker::endpoint& e) { return to_string(e.node_id()); })
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
@@ -226,7 +260,7 @@ PYBIND11_MODULE(_broker, m) {
 	 ep.peer_nosync(addr, port, std::chrono::seconds((int)retry));},
          py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
          )
-    .def("unpeer", &broker::endpoint::peer)
+    .def("unpeer", &broker::endpoint::unpeer)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)

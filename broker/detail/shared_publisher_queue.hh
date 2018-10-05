@@ -1,8 +1,10 @@
 #ifndef BROKER_DETAIL_SHARED_PUBLISHER_QUEUE_HH
 #define BROKER_DETAIL_SHARED_PUBLISHER_QUEUE_HH
 
-#include <caf/duration.hpp>
+#include <caf/intrusive_ptr.hpp>
+#include <caf/make_counted.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/shared_queue.hh"
 
 namespace broker {

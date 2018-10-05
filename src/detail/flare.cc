@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <exception>
+#include <algorithm>
 
 #include "broker/logger.hh"
 
@@ -19,11 +20,30 @@ constexpr size_t stack_buffer_size = 256;
 } // namespace <anonymous>
 
 flare::flare() {
-  if (::pipe(fds_) == -1)
+  if (::pipe(fds_) == -1) {
+    BROKER_ERROR("failed to create flare pipe");
     std::terminate();
-  ::fcntl(fds_[0], F_SETFD, ::fcntl(fds_[0], F_GETFD) | FD_CLOEXEC);
-  ::fcntl(fds_[1], F_SETFD, ::fcntl(fds_[1], F_GETFD) | FD_CLOEXEC);
-  ::fcntl(fds_[0], F_SETFL, ::fcntl(fds_[0], F_GETFL) | O_NONBLOCK);
+  }
+
+  int res;
+
+  res = ::fcntl(fds_[0], F_SETFD, ::fcntl(fds_[0], F_GETFD) | FD_CLOEXEC);
+
+  if (res == -1)
+    BROKER_ERROR("failed to set flare fd 0 CLOEXEC");
+
+  res = ::fcntl(fds_[1], F_SETFD, ::fcntl(fds_[1], F_GETFD) | FD_CLOEXEC);
+
+  if (res == -1)
+    BROKER_ERROR("failed to set flare fd 1 CLOEXEC");
+
+  res = ::fcntl(fds_[0], F_SETFL, ::fcntl(fds_[0], F_GETFL) | O_NONBLOCK);
+
+  if (res == -1) {
+    BROKER_ERROR("failed to set flare fd 0 NONBLOCK");
+    std::terminate();
+  }
+
   // Do not set the write handle to nonblock, because we want the producer to
   // slow down in case the consumer cannot keep up emptying the pipe.
   //::fcntl(fds_[1], F_SETFL, ::fcntl(fds_[1], F_GETFL) | O_NONBLOCK);

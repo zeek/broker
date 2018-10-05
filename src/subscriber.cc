@@ -1,26 +1,25 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/subscriber.hh"
 
-#include <cassert>
+#include <cstddef>
+#include <utility>
 #include <chrono>
 #include <numeric>
 
-#include <caf/message.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/send.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 
-#include "broker/detail/filter_type.hh"
+#include "broker/detail/assert.hh"
 
 using namespace caf;
 
 namespace broker {
 
 namespace {
-
-using detail::filter_type;
 
 /// Defines how many seconds are averaged for the computation of the send rate.
 constexpr size_t sample_size = 10;
@@ -125,6 +124,10 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
         [=](atom::join a0, atom::update a1, filter_type& f) {
           self->send(ep->core(), a0, a1, slot_at_sender, std::move(f));
         },
+        [=](atom::join a0, atom::update a1, filter_type& f, caf::actor& who) {
+          self->send(ep->core(), a0, a1, slot_at_sender, std::move(f),
+                     std::move(who));
+        },
         [=](atom::tick) {
           auto& st = self->state;
           st.tick();
@@ -149,10 +152,10 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 
 } // namespace <anonymous>
 
-subscriber::subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize)
-  : super(max_qsize) {
+subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
+  : super(max_qsize), ep_(e) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
-  worker_ = ep.system().spawn(subscriber_worker, &ep, queue_, std::move(ts),
+  worker_ = ep_.system().spawn(subscriber_worker, &ep_, queue_, std::move(ts),
                                max_qsize);
 }
 
@@ -164,23 +167,35 @@ size_t subscriber::rate() const {
   return queue_->rate();
 }
 
-void subscriber::add_topic(topic x) {
+void subscriber::add_topic(topic x, bool block) {
   BROKER_INFO("adding topic" << x << "to subscriber");
   auto e = filter_.end();
   auto i = std::find(filter_.begin(), e, x);
   if (i == e) {
     filter_.emplace_back(std::move(x));
-    anon_send(worker_, atom::join::value, atom::update::value, filter_);
+    if (block) {
+      caf::scoped_actor self{ep_.system()};
+      self->send(worker_, atom::join::value, atom::update::value, filter_, self);
+      self->receive([&](bool){});
+    } else {
+      anon_send(worker_, atom::join::value, atom::update::value, filter_);
+    }
   }
 }
 
-void subscriber::remove_topic(topic x) {
+void subscriber::remove_topic(topic x, bool block) {
   BROKER_INFO("removing topic" << x << "from subscriber");
   auto e = filter_.end();
   auto i = std::find(filter_.begin(), e, x);
   if (i != filter_.end()) {
     filter_.erase(i);
-    anon_send(worker_, atom::join::value, atom::update::value, filter_);
+    if (block) {
+      caf::scoped_actor self{ep_.system()};
+      self->send(worker_, atom::join::value, atom::update::value, filter_, self);
+      self->receive([&](bool){});
+    } else {
+      anon_send(worker_, atom::join::value, atom::update::value, filter_);
+    }
   }
 }
 

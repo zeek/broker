@@ -1,6 +1,8 @@
 #ifndef BROKER_TOPIC_HH
 #define BROKER_TOPIC_HH
 
+#include <utility>
+#include <cstddef>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -83,6 +85,8 @@ namespace topics {
 const topic reserved = topic{topic::reserved};
 const topic master = topic{"data"} / "master";
 const topic clone = topic{"data"} / "clone";
+const topic master_suffix = reserved / master;
+const topic clone_suffix = reserved / clone;
 
 } // namespace topics
 } // namespace broker

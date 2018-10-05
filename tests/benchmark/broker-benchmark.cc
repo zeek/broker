@@ -1,11 +1,29 @@
 
 #include <getopt.h>
-#include <unistd.h>
-#include <mutex>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <sys/time.h>
+#include <unistd.h>
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include <broker/broker.hh>
-#include <broker/bro.hh>
+#include <caf/deep_to_string.hpp>
+#include <caf/downstream.hpp>
+
+#include "broker/bro.hh"
+#include "broker/configuration.hh"
+#include "broker/convert.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/publisher.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/topic.hh"
 
 #include "readerwriterqueue/readerwriterqueue.h"
 
@@ -209,17 +227,17 @@ void receivedStats(broker::endpoint& ep, broker::data x)
 {
     // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
     // We are only interested in the '[1ns, 1ns, 0]' part.
-    auto xvec = broker::get<broker::vector>(x);
-    auto yvec = broker::get<broker::vector>(xvec[2]);
-    auto rec = broker::get<broker::vector>(yvec[1]);
+    auto xvec = caf::get<broker::vector>(x);
+    auto yvec = caf::get<broker::vector>(xvec[2]);
+    auto rec = caf::get<broker::vector>(yvec[1]);
 
     double t;
-    broker::convert(broker::get<broker::timestamp>(rec[0]), t);
+    broker::convert(caf::get<broker::timestamp>(rec[0]), t);
 
     double dt_recv;
-    broker::convert(broker::get<broker::timespan>(rec[1]), dt_recv);
+    broker::convert(caf::get<broker::timespan>(rec[1]), dt_recv);
 
-    auto ev1 = broker::get<broker::count>(rec[2]);
+    auto ev1 = caf::get<broker::count>(rec[2]);
     auto all_recv = ev1;
     total_recv += ev1;
 

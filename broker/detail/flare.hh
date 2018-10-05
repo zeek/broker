@@ -1,6 +1,8 @@
 #ifndef BROKER_DETAIL_FLARE_HH
 #define BROKER_DETAIL_FLARE_HH
 
+#include <cstddef>
+#include <chrono>
 #include "broker/time.hh"
 
 namespace broker {

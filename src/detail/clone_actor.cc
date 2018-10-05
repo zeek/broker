@@ -1,46 +1,56 @@
 #include "broker/logger.hh" // Needs to come before CAF includes.
 
-#include <caf/all.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/actor.hpp>
+#include <caf/error.hpp>
+#include <caf/message.hpp>
+#include <caf/unit.hpp>
+#include <caf/sum_type.hpp>
+#include <caf/behavior.hpp>
+#include <caf/make_message.hpp>
+#include <caf/system_messages.hpp>
+#include <caf/stateful_actor.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/error.hh"
-#include "broker/snapshot.hh"
 #include "broker/store.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/appliers.hh"
 #include "broker/detail/clone_actor.hh"
-#include "broker/detail/filter_type.hh"
 
 #include <chrono>
 
 namespace broker {
 namespace detail {
 
-static double now(endpoint* ep)
+static double now(endpoint::clock* clock)
   {
-  auto d = ep->now().time_since_epoch();
+  auto d = clock->now().time_since_epoch();
   return std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
   }
 
-clone_state::clone_state() : self(nullptr) {
+clone_state::clone_state() : self(nullptr), name(), master_topic(), core(),
+  master(), store(), is_stale(), stale_time(), unmutable_time(),
+  mutation_buffer(), pending_remote_updates(), awaiting_snapshot(),
+  awaiting_snapshot_sync(), clock() {
   // nop
 }
 
 void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
-                       caf::actor&& parent, endpoint* e) {
+                       caf::actor&& parent, endpoint::clock* ep_clock) {
 
   self = ptr;
   name = std::move(nm);
-  master_topic = name / topics::reserved / topics::master;
+  master_topic = name / topics::master_suffix;
   core = std::move(parent);
   master = nullptr;
   is_stale = true;
   stale_time = -1.0;
   unmutable_time = -1.0;
-  ep = e;
+  clock = ep_clock;
   awaiting_snapshot = true;
   awaiting_snapshot_sync = true;
 }
@@ -81,14 +91,14 @@ void clone_state::operator()(add_command& x) {
   auto i = store.find(x.key);
   if (i == store.end())
     i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
-  visit(adder{x.value}, i->second);
+  caf::visit(adder{x.value}, i->second);
 }
 
 void clone_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
-    visit(remover{x.value}, i->second);
+    caf::visit(remover{x.value}, i->second);
   } else {
     // can happen if we joined a stream but did not yet receive set_command
     BROKER_WARNING("received substract_command for unknown key");
@@ -126,9 +136,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                           caf::actor core, std::string name,
                           double resync_interval, double stale_interval,
                           double mutation_buffer_interval,
-                          endpoint* ep) {
+                          endpoint::clock* clock) {
   self->monitor(core);
-  self->state.init(self, std::move(name), std::move(core), ep);
+  self->state.init(self, std::move(name), std::move(core), clock);
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -145,36 +155,36 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
         if ( stale_interval >= 0 )
           {
-          self->state.stale_time = now(ep) + stale_interval;
+          self->state.stale_time = now(clock) + stale_interval;
           auto si = std::chrono::duration<double>(stale_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
           auto msg = caf::make_message(atom::tick::value,
                                        atom::stale_check::value);
-          self->state.ep->send_later(self, ts, std::move(msg));
+          clock->send_later(self, ts, std::move(msg));
           }
 
         if ( mutation_buffer_interval > 0 )
-          { 
-          self->state.unmutable_time = now(ep) + mutation_buffer_interval;
+          {
+          self->state.unmutable_time = now(clock) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
           auto msg = caf::make_message(atom::tick::value,
                                        atom::mutable_check::value);
-          self->state.ep->send_later(self, ts, std::move(msg));
-          } 
+          clock->send_later(self, ts, std::move(msg));
+          }
       }
     }
   );
 
   if ( mutation_buffer_interval > 0 )
-    { 
-    self->state.unmutable_time = now(ep) + mutation_buffer_interval;
+    {
+    self->state.unmutable_time = now(clock) + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ts = std::chrono::duration_cast<timespan>(si);
     auto msg = caf::make_message(atom::tick::value,
                                  atom::mutable_check::value);
-    self->state.ep->send_later(self, ts, std::move(msg));
-    } 
+    clock->send_later(self, ts, std::move(msg));
+    }
 
   self->send(self, atom::master::value, atom::resolve::value);
 
@@ -191,7 +201,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if ( mutation_buffer_interval <= 0 )
         return;
 
-      if ( now(ep) >= self->state.unmutable_time )
+      if ( now(clock) >= self->state.unmutable_time )
         return;
 
       self->state.mutation_buffer.emplace_back(std::move(x));
@@ -221,7 +231,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       auto ri = std::chrono::duration<double>(resync_interval);
       auto ts = std::chrono::duration_cast<timespan>(ri);
       auto msg = caf::make_message(atom::master::value, atom::resolve::value);
-      self->state.ep->send_later(self, ts, std::move(msg));
+      clock->send_later(self, ts, std::move(msg));
     },
     [=](atom::master, caf::actor& master) {
       if ( self->state.master )
@@ -256,7 +266,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       // Checking the timestamp is needed in the case there are multiple
       // connects/disconnects within a short period of time (we don't want
       // to go stale too early).
-      if ( now(ep) < self->state.stale_time )
+      if ( now(clock) < self->state.stale_time )
         return;
 
       self->state.is_stale = true;
@@ -265,7 +275,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       if ( self->state.unmutable_time < 0 )
         return;
 
-      if ( now(ep) < self->state.unmutable_time )
+      if ( now(clock) < self->state.unmutable_time )
         return;
 
       self->state.mutation_buffer.clear();
@@ -285,7 +295,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       auto x = self->state.keys();
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
-      return caf::make_message(x, id);
+      return caf::make_message(std::move(x), id);
     },
     [=](atom::exists, const data& key) -> expected<data> {
       if ( self->state.is_stale )
@@ -322,7 +332,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
-        result = visit(retriever{aspect}, i->second);
+        result = caf::visit(retriever{aspect}, i->second);
       BROKER_INFO("GET" << key << aspect << "->" << result);
       return result;
     },
@@ -346,7 +356,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {
-        auto x = visit(retriever{aspect}, i->second);
+        auto x = caf::visit(retriever{aspect}, i->second);
         if (x)
           result = caf::make_message(*x, id);
         else
@@ -354,8 +364,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
       else
         result = caf::make_message(make_error(ec::no_such_key), id);
-      BROKER_INFO("GET" << key << aspect << "with id" << id
-                  << "->" << result.take(1));
+      BROKER_INFO("GET" << key << aspect << "with id" << id << "->" << result.take(1));
       return result;
     },
     [=](atom::get, atom::name) {

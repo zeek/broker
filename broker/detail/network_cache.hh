@@ -1,12 +1,16 @@
 #ifndef BROKER_DETAIL_NETWORK_CACHE_HPP
 #define BROKER_DETAIL_NETWORK_CACHE_HPP
 
+#include <cstdint>
+#include <utility>
+#include <set>
+#include <string>
 #include <unordered_map>
-#include <unordered_set>
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/optional.hpp>
+#include <caf/result.hpp>
 
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/manager.hpp>

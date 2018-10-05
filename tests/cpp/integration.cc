@@ -6,9 +6,44 @@
 #define SUITE integration
 
 #include "test.hpp"
-#include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
+#include <cstddef>
+#include <cstdint>
+#include <algorithm>
+#include <chrono>
+#include <deque>
+#include <initializer_list>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <caf/defaults.hpp>
+#include <caf/test/io_dsl.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/atom.hpp>
+#include <caf/behavior.hpp>
+#include <caf/downstream.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/io/accept_handle.hpp>
+#include <caf/io/connection_handle.hpp>
+#include <caf/io/middleman.hpp>
+#include <caf/io/network/test_multiplexer.hpp>
+#include <caf/logger.hpp>
+#include <caf/scheduler/test_coordinator.hpp>
+#include <caf/timestamp.hpp>
+#include <caf/variant.hpp>
+
+#include "broker/configuration.hh"
+#include "broker/endpoint.hh"
+#include "broker/error.hh"
+#include "broker/peer_info.hh"
+#include "broker/peer_status.hh"
+#include "broker/status.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 using namespace broker;
 
@@ -27,9 +62,9 @@ configuration make_config() {
   options.disable_ssl = true;
   configuration cfg(options);
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  cfg.middleman_network_backend = caf::atom("testing");
-  cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_inline_output = true;
+  cfg.set("middleman.network-backend", caf::atom("testing"));
+  cfg.set("scheduler.policy", caf::atom("testing"));
+  cfg.set("logger.inline-output", true);
   return cfg;
 }
 
@@ -102,7 +137,9 @@ struct peer_fixture {
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
       mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
-      credit_round_interval(sys.config().streaming_credit_round_interval()) {
+      credit_round_interval(get_or(sys.config(),
+                            "stream.credit-round-interval",
+                            caf::defaults::stream::credit_round_interval)) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code
@@ -396,19 +433,19 @@ struct code {
   }
 
   code(const event_value& x) {
-    if (broker::detail::holds_alternative<error>(x))
-      value = static_cast<ec>(broker::detail::get<error>(x).code());
+    if (caf::holds_alternative<error>(x))
+      value = static_cast<ec>(caf::get<error>(x).code());
     else
-      value = broker::detail::get<status>(x).code();
+      value = caf::get<status>(x).code();
   }
 
-  detail::variant<sc, ec> value;
+  caf::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return broker::detail::holds_alternative<sc>(x.value)
-         ? to_string(broker::detail::get<sc>(x.value))
-         : to_string(broker::detail::get<ec>(x.value));
+  return caf::holds_alternative<sc>(x.value)
+         ? to_string(caf::get<sc>(x.value))
+         : to_string(caf::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {

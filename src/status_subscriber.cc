@@ -1,17 +1,12 @@
-#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/status_subscriber.hh"
 
-#include <chrono>
 #include <limits>
 
-#include <caf/message.hpp>
 #include <caf/send.hpp>
 #include <caf/event_based_actor.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
-
-#include "broker/detail/filter_type.hh"
 
 using namespace caf;
 

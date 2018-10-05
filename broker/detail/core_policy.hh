@@ -10,21 +10,21 @@
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
-#include <caf/output_stream.hpp>
+#include <caf/stream_slot.hpp>
 
 #include <caf/detail/stream_distribution_tree.hpp>
 
 #include "broker/data.hh"
+#include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/peer_filter.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/filter_type.hh"
-#include "broker/detail/peer_filter.hh"
-
 namespace broker {
-namespace detail {
 
 struct core_state;
+
+namespace detail {
 
 /// Sets up a configurable stream manager to act as a distribution tree for
 /// Broker.

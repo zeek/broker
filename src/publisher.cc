@@ -1,14 +1,11 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/publisher.hh"
 
-#include <caf/event_based_actor.hpp>
 #include <caf/send.hpp>
 
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/filter_type.hh"
 
 using namespace caf;
 

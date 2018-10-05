@@ -1,13 +1,18 @@
 // This suite is a test ensuring SSL authentication works as expected.
 #define SUITE ssl
 
-#include <limits.h>
-#include <cstdlib>
-
 #include "test.hpp"
-#include <caf/test/io_dsl.hpp>
 
-#include "broker/broker.hh"
+#include <cstdlib>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "broker/configuration.hh"
+#include "broker/data.hh"
+#include "broker/endpoint.hh"
+#include "broker/subscriber.hh"
+#include "broker/topic.hh"
 
 using namespace broker;
 
@@ -16,23 +21,21 @@ namespace {
 configuration make_config(std::string cert_id) {
   configuration cfg;
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  // cfg.scheduler_policy = caf::atom("testing");
-  cfg.logger_inline_output = true;
+  // cfg.set("scheduler.policy", caf::atom("testing"));
+  cfg.set("logger.inline-output",  true);
 
 //  cfg.scheduler_policy = caf::atom("testing");
   if ( cert_id.size() ) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
     auto cd = std::string(test_dir) + "/cpp/certs/";
-    cfg.openssl_cafile = cd + "ca.pem";
-    cfg.openssl_certificate = cd + "cert." + cert_id + ".pem";
-    cfg.openssl_key = cd + "key." + cert_id + ".pem";
+    cfg.set("openssl.cafile", cd + "ca.pem");
+    cfg.set("openssl.certificate", cd + "cert." + cert_id + ".pem");
+    cfg.set("openssl.key", cd + "key." + cert_id + ".pem");
     MESSAGE("using certififcate " << cfg.openssl_certificate << ", key " << cfg.openssl_key);
   }
   return cfg;
 }
-
-struct peer_fixture;
 
 // Holds state for individual peers. We use one fixture per simulated peer.
 struct peer_fixture {

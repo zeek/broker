@@ -26,9 +26,9 @@ create subscriber for the topics of interest:
    :start-after: --peer-start
    :end-before: --peer-end
 
-You can then start publishing messages. In Python in a message is just
-a list of values, along with the corresponding topic to publish too.
-The following publishes a simple messages consisting of just one
+You can then start publishing messages. In Python a message is just
+a list of values, along with the corresponding topic.
+The following publishes a simple message consisting of just one
 string, and then has the receiving endpoint wait for it to arrive:
 
 .. literalinclude:: ../tests/python/communication.py
@@ -37,7 +37,7 @@ string, and then has the receiving endpoint wait for it to arrive:
    :end-before: --ping-end
 
 Example of publishing a small batch of two slightly more complex
-messages two separate topics:
+messages with two separate topics:
 
 .. literalinclude:: ../tests/python/communication.py
    :language: python
@@ -51,7 +51,7 @@ model section below for more.
 The subscriber instances have more methods matching their C++
 equivalent, including ``available`` for checking for pending messages,
 ``poll()`` for getting available messages without blocking, ``fd()``
-for retrieving select-able file descriptor, and ``{add,remove}_topic``
+for retrieving a select-able file descriptor, and ``{add,remove}_topic``
 for changing the subscription list.
 
 Exchanging Bro Events
@@ -82,10 +82,10 @@ all Broker types that have a direct mapping to a Python type,
 conversion is handled transparently as values are passed into, or
 retrieved from, Broker.  For example, the message ``[1, 2, 3]`` above
 is automatically converted into a Broker list of three Broker integer
-values. In cases where there is not direct Python equivalent for a
+values. In cases where there is not a direct Python equivalent for a
 Broker type (e.g., for ``count``; Python does not have an unsigned
 integer class), the Broker module provides wrapper classes. The
-following table summarizes how Broker and Python values are mappend to
+following table summarizes how Broker and Python values are mapped to
 each other:
 
 .. list-table::

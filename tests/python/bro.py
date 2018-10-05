@@ -89,7 +89,7 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(s, "x" + "Xx" * i)
             self.assertEqual(c, i)
 
-            ev = broker.bro.Event("pong", (s + "X", c))
+            ev = broker.bro.Event("pong", s + "X", c)
             ep.publish("/test", ev)
 
         ep.shutdown()

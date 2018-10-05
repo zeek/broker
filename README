@@ -1,3 +1,5 @@
+.. _User Manual: https://bro-broker.readthedocs.io
+
 ===============================
 Broker: Bro's Messaging Library
 ===============================
@@ -26,6 +28,9 @@ them to all clones.
 Applications which integrate the Broker library may communicate with
 each other using the above-mentioned patterns which are common to Bro.
 
+See the `User Manual`_ for more information.  For offline reading, it's
+also available in the ``doc/`` directory of the source tree.
+
 Dependencies
 ------------
 
@@ -36,19 +41,19 @@ installed:
     * OpenSSL headers/libraries          (http://www.openssl.org)
     * CMake 2.8.12 or greater            (https://cmake.org)
 
-The optional python bindings also require Python 2.7 or greater
+The optional Python bindings also require Python 2.7 or greater
 along with Python development packages.  For Python 2.7, you'll
 also need the ``ipaddress`` backport from Python 3.
 
-By default, Broker will also use an integrated version of the C++
-Actor Framework (https://actor-framework.org), though there's still
-the option to specify a particular version via the ``--with-caf=``
+By default, Broker will use an integrated version of the C++ Actor
+Framework (CAF; https://actor-framework.org), though there's still the
+option to specify an exernal CAF version via the ``--with-caf=``
 configure script option.
 
 Compiling/Installing
 --------------------
 
-To compile and install in to ``/usr/local``::
+To compile and install into ``/usr/local``::
 
     ./configure
     make
@@ -56,8 +61,13 @@ To compile and install in to ``/usr/local``::
 
 See ``./configure --help`` for more advanced configuration options.
 
-Documentation
--------------
+Acknowledgements
+----------------
 
-Please see the `Broker User Manual <./doc/index.rst>`_ for more
-documentation and examples of how to use the library.
+The history from the `topic/actor-system branch
+<https://github.com/bro/broker/tree/topic/actor-system>`_ is not
+included in the master branch, but credit is due to contributors over
+the course of 2016-2018:
+
+    * Matthias Vallentin: ~94k LOC changed
+    * Dominik Charousset: ~18k LOC changed

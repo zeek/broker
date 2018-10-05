@@ -5,17 +5,24 @@
 
 namespace broker {
 
-class blocking_endpoint;
-class context;
-class data;
+class configuration;
+
 class endpoint;
-class internal_command;
-class nonblocking_endpoint;
+struct endpoint_info;
+struct network_info;
+struct peer_info;
+
 class publisher;
-class status;
-class store;
 class subscriber;
 class topic;
+
+class data;
+class status;
+
+class store;
+
+class internal_command;
+
 struct add_command;
 struct erase_command;
 struct put_command;
@@ -25,8 +32,6 @@ struct snapshot_command;
 struct snapshot_sync_command;
 struct subtract_command;
 
-struct network_info;
-
 /// A monotonic identifier to represent a specific lookup request.
 using request_id = uint64_t;
 
@@ -35,6 +40,17 @@ using boolean = bool;
 using count = uint64_t;
 using integer = int64_t;
 using real = double;
+
+namespace bro {
+
+class Event;
+class RelayEvent;
+class HandleAndRelayEvent;
+class LogCreate;
+class LogWrite;
+class IdentifierUpdate;
+
+} // namespace bro
 
 namespace detail {
 

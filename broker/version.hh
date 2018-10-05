@@ -9,9 +9,10 @@ namespace version {
 /// The type used for version numbers.
 using type = unsigned;
 
-constexpr type major = @BROKER_VERSION_MAJOR@;
-constexpr type minor = @BROKER_VERSION_MINOR@;
-constexpr type patch = @BROKER_VERSION_PATCH@;
+constexpr type major = 1;
+constexpr type minor = 1;
+constexpr type patch = 0;
+constexpr auto suffix = "-8";
 
 constexpr type protocol = 1;
 

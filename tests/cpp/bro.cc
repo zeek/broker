@@ -3,8 +3,9 @@
 // we just check that the messages are constructed and parsed correctly.
 //
 
-#include "broker/broker.hh"
+#include <utility>
 #include "broker/bro.hh"
+#include "broker/data.hh"
 
 #define SUITE bro
 #include "test.hpp"

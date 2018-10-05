@@ -56,13 +56,19 @@ class base_fixture {
 public:
   using scheduler_type = caf::scheduler::test_coordinator;
 
-  base_fixture(bool fake_network = false);
+  explicit base_fixture(bool fake_network = false);
+
+  virtual ~base_fixture();
 
   broker::endpoint ep;
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
   caf::timespan credit_round_interval;
+
+  void run();
+
+  void consume_message();
 
 private:
   static broker::configuration make_config(bool fake_network);
@@ -73,5 +79,20 @@ class fake_network_fixture : public base_fixture {
 public:
   fake_network_fixture();
 };
+
+inline broker::data value_of(caf::expected<broker::data> x) {
+  if (!x) {
+    FAIL("cannot unbox expected<data>: " << to_string(x.error()));
+  }
+  return std::move(*x);
+}
+
+inline caf::error error_of(caf::expected<broker::data> x) {
+  if (x) {
+    FAIL("cannot get error of expected<data>, contains value: "
+         << to_string(*x));
+  }
+  return std::move(x.error());
+}
 
 #endif

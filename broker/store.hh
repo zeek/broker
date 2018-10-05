@@ -3,9 +3,11 @@
 
 #include <string>
 
-#include <caf/event_based_actor.hpp>
+#include <caf/actor.hpp>
+#include <caf/stream.hpp>
+#include <caf/error.hpp>
+#include <caf/make_message.hpp>
 #include <caf/scoped_actor.hpp>
-#include <caf/detail/type_traits.hpp>
 
 #include "broker/api_flags.hh"
 #include "broker/atoms.hh"

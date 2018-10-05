@@ -5,7 +5,7 @@
 
 #include <type_traits>
 
-#include "caf/detail/type_traits.hpp"
+#include <caf/detail/type_traits.hpp>
 
 namespace broker {
 

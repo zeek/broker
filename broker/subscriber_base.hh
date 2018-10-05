@@ -5,13 +5,14 @@
 
 #include <caf/actor.hpp>
 #include <caf/duration.hpp>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/ref_counted.hpp>
+#include <caf/optional.hpp>
+#include <caf/none.hpp>
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/shared_subscriber_queue.hh"
 
 #ifdef CAF_LOG_COMPONENT
@@ -45,7 +46,8 @@ public:
   // --- constructors and destructors ------------------------------------------
 
   subscriber_base(long max_qsize)
-    : queue_(detail::make_shared_subscriber_queue<value_type>()) {
+    : queue_(detail::make_shared_subscriber_queue<value_type>()),
+      max_qsize_(max_qsize) {
     // nop
   }
 

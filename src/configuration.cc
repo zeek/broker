@@ -1,21 +1,26 @@
-#include <caf/io/middleman.hpp>
-#include <caf/openssl/all.hpp>
+#include <cstdlib>
+#include <cstring>
+#include <utility>
+#include <vector>
 
-#include "broker/address.hh"
-#include "broker/configuration.hh"
+#include <caf/io/middleman.hpp>
+#include <caf/openssl/manager.hpp>
+#include <caf/atom.hpp>
+
+#include "broker/version.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/snapshot.hh"
+#include "broker/store.hh"
+#include "broker/time.hh"
+#include "broker/address.hh"
 #include "broker/internal_command.hh"
 #include "broker/port.hh"
-#include "broker/snapshot.hh"
 #include "broker/status.hh"
-#include "broker/store.hh"
 #include "broker/subnet.hh"
-#include "broker/time.hh"
 #include "broker/topic.hh"
-#include "broker/version.hh"
 
-#include "broker/detail/filter_type.hh"
+#include "broker/configuration.hh"
 
 namespace broker {
 
@@ -49,16 +54,17 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   load<caf::io::middleman>();
   if (! options_.disable_ssl)
     load<caf::openssl::manager>();
-  logger_file_name = "broker_[PID]_[TIMESTAMP].log";
+
+  set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   /*
-  logger_verbosity = caf::atom("INFO");
-  logger_component_filter = "broker";
+  set("logger.verbosity", caf::atom("INFO"));
+  set("logger.component-filter", "broker");
   */
 
   if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
     if (*env && *env != '0') {
-      logger_verbosity = caf::atom("DEBUG");
-      logger_component_filter = "";
+      set("logger.verbosity", caf::atom("DEBUG"));
+      set("logger.component-filter", "");
     }
   }
 
@@ -66,14 +72,15 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     char level[10];
     strncpy(level, env, sizeof(level));
     level[sizeof(level) - 1] = '\0';
-    logger_verbosity = caf::atom(level);
+    set("logger.verbosity", caf::atom(level));
   }
 
   if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER")) {
-    logger_component_filter = env;
+    set("logger.component-filter", env);
   }
 
-  middleman_app_identifier = "broker.v" + std::to_string(version::protocol);
+  set("middleman.app-identifier",
+      "broker.v" + std::to_string(version::protocol));
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {
