@@ -1,4 +1,9 @@
 
+1.1.0-453 | 2018-10-05 09:30:16 -0500
+
+  * Remove README acknowledgements as missing commits are now in master
+    (Jon Siwek, Corelight)
+
 1.1.0-8 | 2018-10-04 11:08:07 -0500
 
   * Update actor-system branch link in README (Jon Siwek, Corelight)
