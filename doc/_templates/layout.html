@@ -1,0 +1,62 @@
+{% extends "!layout.html" %}
+
+{% set bootswatch_css_custom = ['_static/custom.css'] %}
+
+{% block content %}
+
+{{ navBar() }}
+
+<div class="container">
+  <div class="row">
+    {%- block sidebar1 %}{{ bsidebar() }}{% endblock %}
+    <div class="{{ bs_span_prefix }}{{ bs_content_width }} content">
+      {% block body %}{% endblock %}
+
+      {%- if prev %}
+        <a href="{{ prev.link|e }}" title="{{ prev.title|striptags }}">
+          <span class="glyphicon glyphicon-chevron-left visible-sm-inline"></span>
+          <span class="hidden-sm hidden-tablet">{{ "&laquo;"|safe }}Previous</span>
+        </a>
+      {%- endif %}
+
+      {%- if next %}
+        <a href="{{ next.link|e }}" title="{{ next.title|striptags }}" class="float-right">
+          <span class="glyphicon glyphicon-chevron-right visible-sm-inline"></span>
+          <span class="hidden-sm hidden-tablet">Next{{ "&raquo;"|safe }}</span>
+        </a>
+        <br/>
+      {%- endif %}
+
+      <footer class="footer">
+        <p class="pull-right">
+          <a href="#">Back to top</a>
+          {% if theme_source_link_position == "footer" %}
+            <br/>
+            {% include "sourcelink.html" %}
+          {% endif %}
+        </p>
+        <p>
+        {%- if show_copyright %}
+          {%- if hasdoc('copyright') %}
+            {% trans path=pathto('copyright'), copyright=copyright|e %}&copy; <a href="{{ path }}">Copyright</a> {{ copyright }}.{% endtrans %}<br/>
+          {%- else %}
+            {% trans copyright=copyright|e %}&copy; Copyright {{ copyright }}.{% endtrans %}<br/>
+          {%- endif %}
+        {%- endif %}
+        {%- if last_updated %}
+          {% trans last_updated=last_updated|e %}Last updated on {{ last_updated }}.{% endtrans %}<br/>
+        {%- endif %}
+        {%- if show_sphinx %}
+          {% trans sphinx_version=sphinx_version|e %}Created using <a href="http://sphinx-doc.org/">Sphinx</a> {{ sphinx_version }}.{% endtrans %}<br/>
+        {%- endif %}
+        </p>
+      </footer>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block footer %}
+{% endblock %}

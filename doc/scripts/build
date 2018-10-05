@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# This script wraps sphinx-build and applies a fix that prevents the search
+# index from being generated for HTML output.
+
+deps="sphinx-bootstrap-theme rst2pdf"
+
+format="$1"
+source="$2"
+build="$3"
+
+set -e
+
+if ! which -s sphinx-build > /dev/null; then
+  echo sphinx-build not found
+  echo try: pip install sphinx $deps
+  exit 1
+fi
+
+# Sphinx has an issue with updating its searchindex.js file, which contains the
+# inverted index for the search: the only way to trigger a rebuild is by nuking
+# the source directory. See https://github.com/sphinx-doc/sphinx/issues/2821
+# for details. 
+#
+# Our workaround first deletes searchindex.js and then calls sphinx-build with
+# the -a flag to rebuild all (not just changed) files.
+if [ "$format" = "html" ]; then
+  echo deleting searchindex.js
+  rm -f "$build/searchindex.js"
+fi
+
+sphinx-build -a -b "$format" -c "$build" "$source" "$build/$format"

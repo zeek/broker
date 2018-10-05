@@ -1,0 +1,42 @@
+#define CAF_TEST_NO_MAIN
+#include <caf/test/unit_test_impl.hpp>
+
+#include "test.hpp"
+
+#include <caf/io/middleman.hpp>
+#include <caf/io/network/test_multiplexer.hpp>
+
+using namespace caf;
+using namespace broker;
+
+base_fixture::base_fixture(bool fake_network)
+    : ep(make_config(fake_network)),
+      sys(ep.system()),
+      self(sys),
+      sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
+      credit_round_interval(sys.config().streaming_credit_round_interval()) {
+  // nop
+}
+
+configuration base_fixture::make_config(bool fake_network) {
+  broker_options options;
+  options.disable_ssl = fake_network;
+  configuration cfg{options};
+  cfg.scheduler_policy = caf::atom("testing");
+  cfg.logger_verbosity = caf::atom("TRACE");
+  cfg.middleman_detach_utility_actors = false;
+  cfg.parse(test::engine::argc(), test::engine::argv());
+  if (fake_network)
+    cfg.load<io::middleman, io::network::test_multiplexer>();
+  return cfg;
+}
+
+fake_network_fixture::fake_network_fixture() : base_fixture(true) {
+  // nop
+}
+
+int main(int argc, char** argv) {
+  //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
+  //  return 1;
+  return test::main(argc, argv);
+}

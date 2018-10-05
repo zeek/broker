@@ -1,0 +1,27 @@
+#!/bin/sh
+
+html=html
+pdf=pdf
+
+set -e
+
+if [ ! -d "$html/.git" ]; then
+  echo web root not initialized
+  exit 1
+fi
+
+if [ ! -f "$html/index.html" ]; then
+  echo not a valid web root
+  exit 1
+fi
+
+# Put most recent PDF version of documentation into webroot
+cp "$pdf/user-manual.pdf" "$html"
+
+sha=$(git rev-parse --short HEAD)
+
+cd "$html"
+
+git add -A
+git commit -m "Automatic deployment of commit $sha"
+git push origin HEAD

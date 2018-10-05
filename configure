@@ -25,6 +25,12 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                              - Release: optimizations on, debugging off
                              - RelWithDebInfo: optimizations on,
                                    debug symbols on, debug flags off
+    --enable-debug         compile in debugging mode (like --build-type=Debug)
+    --enable-asan          enable AddressSanitizer
+    --enable-static        build static libraries (in addition to shared)
+    --enable-static-only   only build static libraries, not shared
+    --no-auto-libc++       do not automatically use libc++ with Clang
+
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -37,15 +43,15 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                            [PATH/lib/python<Python Version>/site-packages]
 
   Optional Features:
-    --enable-debug         compile in debugging mode (like --build-type=Debug)
-    --enable-static        build static libraries (in addition to shared)
-    --enable-static-only   only build static libraries, not shared
-    --disable-pybroker     don't try to build python bindings
+    --disable-python       don't try to build python bindings
+    --disable-docs         don't try to build local documentation
     --with-rocksdb=PATH    path to RocksDB installation
-    --with-swig=PATH       path to SWIG executable (builds python bindings)
+    --with-python=PATH     path to Python executable
+    --with-bro=PATH        path to Bro executable for interoperability tests
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
+    --with-openssl=PATH    path to OpenSSL install root
 
   Influential Environment Variables (only on first invocation
   per build directory):
@@ -71,7 +77,7 @@ builddir=build
 prefix=/usr/local
 CMakeCacheEntries=""
 append_cache_entry CMAKE_INSTALL_PREFIX PATH     $prefix
-append_cache_entry BROKER_PYTHON_BINDINGS BOOL false
+append_cache_entry BROKER_DISABLE_DOCS BOOL false
 
 # parse arguments
 while [ $# -ne 0 ]; do
@@ -111,27 +117,35 @@ while [ $# -ne 0 ]; do
         --enable-debug)
             append_cache_entry ENABLE_DEBUG         BOOL   true
             ;;
+        --enable-asan)
+            append_cache_entry ENABLE_ADDRESS_SANITIZER BOOL true
+            ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true
             ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
-        --disable-pybroker)
-            append_cache_entry DISABLE_PYBROKER     BOOL   true
+        --disable-python)
+            append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
+            ;;
+        --disable-docs)
+            append_cache_entry BROKER_DISABLE_DOCS  BOOL   true
             ;;
         --with-caf=*)
             append_cache_entry CAF_ROOT_DIR      PATH   $optarg
             ;;
-        --with-libcaf=*)
-            echo "warning: --with-libcaf deprecated, use --with-caf instead"
-            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
+        --with-openssl=*)
+            append_cache_entry OPENSSL_ROOT_DIR  PATH $optarg
             ;;
         --with-rocksdb=*)
             append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
             ;;
-        --with-swig=*)
-            append_cache_entry SWIG_EXECUTABLE      PATH    $optarg
+        --with-python=*)
+            append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
+            ;;
+        --with-bro=*)
+            append_cache_entry BRO_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
@@ -163,6 +177,18 @@ else
     cmake $CMakeCacheEntries $sourcedir
 fi
 
-echo "# This is the command used to configure this build" > config.status
-echo $command >> config.status
+printf "#!/bin/sh\n\n" > config.status
+printf "# Switch to the source of this build directory.\n" >> config.status
+printf "cd \"$sourcedir\"\n\n" >> config.status
+printf "# Invoke the command to configure this build.\n" >> config.status
+if [ -n "$CC" ]; then
+  printf 'CC="%s" ' "$CC" >> config.status
+fi
+if [ -n "$CXX" ]; then
+  printf 'CXX="%s" ' "$CXX" >> config.status
+fi
+if [ -n "$CXXFLAGS" ]; then
+  printf 'CXXFLAGS="%s" ' "$CXXFLAGS" >> config.status
+fi
+printf "$command\n" $@ >> config.status
 chmod u+x config.status
