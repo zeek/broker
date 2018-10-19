@@ -161,6 +161,21 @@ detail::core_policy& core_state::policy() {
   return governor->policy();
 }
 
+void core_state::sync_with_status_subscribers() {
+  for ( auto& ss : status_subscribers ) {
+    auto to = caf::infinite;
+    //auto to = timeout::subscribe;
+    self->request(ss, to, atom::sync_point::value).await(
+      [&](atom::sync_point) {
+        // nop
+      },
+      [&](caf::error& e) {
+        status_subscribers.erase(ss);
+      }
+    );
+  }
+}
+
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter, broker_options options,
                          endpoint::clock* clock) {
@@ -261,6 +276,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       // Emit peer added event.
       st.emit_status<sc::peer_added>(peer_hdl,
                                      "received handshake from remote core");
+      st.sync_with_status_subscribers();
       // Send handle to the actor that initiated a peering (if available).
       auto i = st.pending_peers.find(peer_hdl);
       if (i != st.pending_peers.end()) {
@@ -282,6 +298,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         return;
       }
       st.emit_status<sc::peer_added>(peer_hdl, "handshake successful");
+      st.sync_with_status_subscribers();
       st.policy().ack_peering(in, peer_hdl);
     },
     // --- asynchronous communication to peers ---------------------------------
@@ -634,7 +651,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       for (auto& kvp : st.policy().stores().paths())
         self->send_exit(kvp.second->hdl, caf::exit_reason::user_shutdown);
-    }};
+    },
+    [=](atom::add, atom::status, caf::actor& ss) {
+      self->state.status_subscribers.emplace(std::move(ss));
+    }
+  };
 }
 
 } // namespace broker

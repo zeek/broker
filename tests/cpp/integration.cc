@@ -509,6 +509,7 @@ CAF_TEST(unpeering_without_connections) {
   auto venus_es = venus.ep.make_status_subscriber(true);
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
+  exec_loop();
   venus.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_invalid}));
 }

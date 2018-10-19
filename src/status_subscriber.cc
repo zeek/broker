@@ -26,6 +26,9 @@ behavior status_subscriber_worker(event_based_actor* self,
     },
     [=](atom::local, status& x) {
       qptr->produce(std::move(x));
+    },
+    [=](atom::sync_point) -> decltype(atom::sync_point::value) {
+      return atom::sync_point::value;
     }
   };
 }
@@ -36,6 +39,7 @@ status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
   : super(std::numeric_limits<long>::max()) {
   worker_ = ep.system().spawn(status_subscriber_worker, receive_statuses,
                               queue_);
+  anon_send(ep.core(), atom::add::value, atom::status::value, worker_);
 }
 
 status_subscriber::~status_subscriber() {

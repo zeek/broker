@@ -131,6 +131,8 @@ struct core_state {
     emit_status<StatusCode>(caf::actor_cast<caf::actor>(std::move(hdl)), msg);
   }
 
+  void sync_with_status_subscribers();
+
   // --- member variables ------------------------------------------------------
 
   /// A copy of the current Broker configuration options.
@@ -175,6 +177,8 @@ struct core_state {
 
   /// Required when spawning data stores.
   endpoint::clock* clock;
+
+  std::unordered_set<caf::actor> status_subscribers;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
