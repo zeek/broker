@@ -224,6 +224,7 @@ PYBIND11_MODULE(_broker, m) {
     std::string openssl_certificate;
     std::string openssl_key;
     std::string openssl_passphrase;
+    int max_threads = 0;
   };
 
   py::class_<Configuration>(m, "Configuration")
@@ -233,7 +234,8 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("openssl_capath", &Configuration::openssl_capath)
     .def_readwrite("openssl_certificate", &Configuration::openssl_certificate)
     .def_readwrite("openssl_key", &Configuration::openssl_key)
-    .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase);
+    .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase)
+    .def_readwrite("max_threads", &Configuration::max_threads);
 
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
@@ -244,6 +246,8 @@ PYBIND11_MODULE(_broker, m) {
         bcfg.openssl_cafile = cfg.openssl_cafile;
         bcfg.openssl_certificate = cfg.openssl_certificate;
         bcfg.openssl_key = cfg.openssl_key;
+        if ( cfg.max_threads > 0 )
+          bcfg.set("scheduler.max-threads", cfg.max_threads);
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
