@@ -216,8 +216,9 @@ PYBIND11_MODULE(_broker, m) {
   // the standard class right at that point, one cannot pass an already
   // created one in, which is unfortunate.
   struct Configuration {
+    Configuration() {};
     Configuration(broker::broker_options opts) : options(std::move(opts)) {}
-    broker::broker_options options;
+    broker::broker_options options = {};
     std::string openssl_cafile;
     std::string openssl_capath;
     std::string openssl_certificate;
@@ -226,6 +227,7 @@ PYBIND11_MODULE(_broker, m) {
   };
 
   py::class_<Configuration>(m, "Configuration")
+    .def(py::init<>())
     .def(py::init<broker::broker_options>())
     .def_readwrite("openssl_cafile", &Configuration::openssl_cafile)
     .def_readwrite("openssl_capath", &Configuration::openssl_capath)
@@ -236,16 +238,13 @@ PYBIND11_MODULE(_broker, m) {
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
     .def(py::init([](Configuration cfg) {
-        auto make_config = [&]() {
-           broker::configuration bcfg(cfg.options);
-           bcfg.openssl_capath = cfg.openssl_capath;
-           bcfg.openssl_passphrase = cfg.openssl_passphrase;
-           bcfg.openssl_cafile = cfg.openssl_cafile;
-           bcfg.openssl_certificate = cfg.openssl_certificate;
-           bcfg.openssl_key = cfg.openssl_key;
-           return bcfg;
-           };
-        return std::unique_ptr<broker::endpoint>(new broker::endpoint(make_config()));
+        broker::configuration bcfg(cfg.options);
+        bcfg.openssl_capath = cfg.openssl_capath;
+        bcfg.openssl_passphrase = cfg.openssl_passphrase;
+        bcfg.openssl_cafile = cfg.openssl_cafile;
+        bcfg.openssl_certificate = cfg.openssl_certificate;
+        bcfg.openssl_key = cfg.openssl_key;
+        return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
     .def("node_id", [](const broker::endpoint& e) { return to_string(e.node_id()); })
