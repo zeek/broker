@@ -161,6 +161,63 @@ detail::core_policy& core_state::policy() {
   return governor->policy();
 }
 
+static void sync_peer_status(core_state* st, caf::actor new_peer) {
+  auto it = st->peers_awaiting_status_sync.find(new_peer);
+
+  if ( it == st->peers_awaiting_status_sync.end() )
+    return;
+
+  auto& c = it->second;
+  --c;
+
+  if ( c > 0 )
+    return;
+
+  st->peers_awaiting_status_sync.erase(new_peer);
+  st->policy().unblock_peer(std::move(new_peer));
+}
+
+void core_state::sync_with_status_subscribers(caf::actor new_peer) {
+  if ( status_subscribers.empty() ) {
+    // Just in case it was blocked, then status subscribers got removed
+    // before reaching here.
+    policy().unblock_peer(new_peer);
+    return;
+  }
+
+  peers_awaiting_status_sync[new_peer] = status_subscribers.size();
+
+  for ( auto& ss : status_subscribers ) {
+    auto to = caf::infinite;
+    self->request(ss, to, atom::sync_point::value).then(
+      [&, new_peer](atom::sync_point) {
+        sync_peer_status(this, std::move(new_peer));
+      },
+      [&, ss, new_peer](caf::error& e) {
+        status_subscribers.erase(ss);
+        sync_peer_status(this, std::move(new_peer));
+      }
+    );
+  }
+}
+
+void core_state::emit_peer_added_status(caf::actor hdl, const char* msg) {
+  auto emit = [=](network_info x) {
+    BROKER_INFO("status" << sc::peer_added << x);
+    self->send(statuses_, atom::local::value,
+               status::make<sc::peer_added>(
+               endpoint_info{hdl.node(), std::move(x)}, msg));
+    sync_with_status_subscribers(hdl);
+  };
+
+  if (self->node() != hdl.node())
+    cache.fetch(hdl,
+                [=](network_info x) { emit(x); },
+                [=](caf::error) { emit({}); });
+  else
+    emit({});
+}
+
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter, broker_options options,
                          endpoint::clock* clock) {
@@ -256,11 +313,12 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_WARNING("Received unexpected or repeated step #2 handshake.");
         return;
       }
+      if ( ! st.status_subscribers.empty() )
+        st.policy().block_peer(peer_hdl);
       st.policy().ack_peering(in, peer_hdl);
       st.policy().start_peering<false>(peer_hdl, std::move(filter));
       // Emit peer added event.
-      st.emit_status<sc::peer_added>(peer_hdl,
-                                     "received handshake from remote core");
+      st.emit_peer_added_status(peer_hdl, "received handshake from remote core");
       // Send handle to the actor that initiated a peering (if available).
       auto i = st.pending_peers.find(peer_hdl);
       if (i != st.pending_peers.end()) {
@@ -281,7 +339,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         CAF_LOG_DEBUG("Drop repeated step #3 handshake.");
         return;
       }
-      st.emit_status<sc::peer_added>(peer_hdl, "handshake successful");
+      if ( ! st.status_subscribers.empty() )
+        st.policy().block_peer(peer_hdl);
+      st.emit_peer_added_status(peer_hdl, "handshake successful");
       st.policy().ack_peering(in, peer_hdl);
     },
     // --- asynchronous communication to peers ---------------------------------
@@ -634,7 +694,11 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       for (auto& kvp : st.policy().stores().paths())
         self->send_exit(kvp.second->hdl, caf::exit_reason::user_shutdown);
-    }};
+    },
+    [=](atom::add, atom::status, caf::actor& ss) {
+      self->state.status_subscribers.emplace(std::move(ss));
+    }
+  };
 }
 
 } // namespace broker

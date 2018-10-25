@@ -1,4 +1,9 @@
 
+1.1.0-459 | 2018-10-25 13:34:42 -0500
+
+  * GH-20: Buffer received batches until peer_added status is available
+    (Jon Siwek, Corelight)
+
 1.1.0-456 | 2018-10-24 15:50:15 -0500
 
   * Add max_threads property to broker.Configuration python binding (Jon Siwek, Corelight)
