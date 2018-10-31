@@ -180,13 +180,16 @@ else ()
 
   set(CAF_INCLUDE_DIRS
       "${caf_src}/libcaf_core"
+      "${caf_build}/libcaf_core"
       "${caf_src}/libcaf_io"
       "${caf_src}/libcaf_openssl"
       "${caf_src}/libcaf_test"
       CACHE STRING "CAF includes" FORCE)
 
   set(CAF_INCLUDE_DIR_CORE
-      "${caf_src}/libcaf_core" CACHE PATH "CAF core headers" FORCE)
+      ${caf_src}/libcaf_core
+      ${caf_build}/libcaf_core
+      CACHE PATH "CAF core headers" FORCE)
   set(CAF_INCLUDE_DIR_IO
       "${caf_src}/libcaf_io" CACHE PATH "CAF io headers" FORCE)
   set(CAF_INCLUDE_DIR_OPENSSL

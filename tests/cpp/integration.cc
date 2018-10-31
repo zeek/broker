@@ -352,6 +352,10 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
                                     {"bro/events/logging", 456}}));
   CAF_CHECK_EQUAL(earth.data, data({{"bro/events/failures", "oops"},
                                     {"bro/events/failures", "sorry!"}}));
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 // Checks whether topic subscriptions are prefix-based using the synchronous
@@ -417,6 +421,10 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   CAF_CHECK_EQUAL(earth_s2.poll(), data({{"bro/events/failures", "oops"},
                                          {"bro/events/failures", "sorry!"}}));
   exec_loop();
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 // -- unpeering of nodes and emitted status/error messages ---------------------
@@ -501,7 +509,10 @@ CAF_TEST(unpeering) {
   CAF_CHECK(mercury.peers().empty());
   CAF_CHECK(venus.peers().empty());
   CAF_CHECK(earth.peers().empty());
-
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 CAF_TEST(unpeering_without_connections) {

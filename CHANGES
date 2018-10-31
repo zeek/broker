@@ -1,4 +1,9 @@
 
+1.1.0-461 | 2018-10-31 18:35:10 -0500
+
+  * Fix CMake script and a unit test to work with CAF 0.16.1,
+    which is now the default/embedded version (Jon Siwek, Corelight)
+
 1.1.0-459 | 2018-10-25 13:34:42 -0500
 
   * GH-20: Buffer received batches until peer_added status is available
