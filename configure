@@ -18,7 +18,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
 
   Build Options:
     --generator=GENERATOR  CMake generator to use (see 'cmake --help')
-    --builddir=DIR         place build files in directory [build]
+    --build-dir=DIR         place build files in directory [build]
     --build-type=TYPE      set CMake build type [RelWithDebInfo]:
                              - Debug: optimizations off, debug symbols + flags
                              - MinSizeRel: size optimizations, debugging off
@@ -100,6 +100,10 @@ while [ $# -ne 0 ]; do
         --ccache)
             append_cache_entry ENABLE_CCACHE         BOOL   true
             ;;
+        --build-dir=*)
+            builddir=$optarg
+            ;;
+        # backwards compatibility
         --builddir=*)
             builddir=$optarg
             ;;
