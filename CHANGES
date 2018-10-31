@@ -1,4 +1,12 @@
 
+1.1.0-469 | 2018-10-31 18:39:30 -0500
+
+  * Fix shutdown issue with CAF 0.16.1 (Dominik Charousset)
+
+  * Implement broker-node tool for latency measurement (Dominik Charousset)
+
+  * Support more idiomatic build-dir syntax (Dominik Charousset)
+
 1.1.0-461 | 2018-10-31 18:35:10 -0500
 
   * Fix CMake script and a unit test to work with CAF 0.16.1,
