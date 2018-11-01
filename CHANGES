@@ -1,4 +1,8 @@
 
+1.1.0-470 | 2018-11-01 16:53:12 -0500
+
+  * Disable clang test for Travis Trusty (Jon Siwek, Corelight)
+
 1.1.0-469 | 2018-10-31 18:39:30 -0500
 
   * Fix shutdown issue with CAF 0.16.1 (Dominik Charousset)
