@@ -367,7 +367,7 @@ int main(int argc, char** argv) {
     auto& groups = sys.groups();
     auto g1 = groups.get_local("broker/errors");
     auto g2 = groups.get_local("broker/statuses");
-    sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) -> behavior {
+    verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) -> behavior {
       return {
         [=](broker::atom::local, broker::error& x) {
           verbose::println(x);

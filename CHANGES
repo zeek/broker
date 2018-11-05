@@ -1,4 +1,8 @@
 
+1.1.0-473 | 2018-11-05 14:47:24 -0600
+
+  * Fix broker-node shutdown in verbose mode (Jon Siwek, Corelight)
+
 1.1.0-471 | 2018-11-02 07:59:56 -0500
 
   * Fix endpoint shutdown behavior (Jon Siwek, Corelight)
