@@ -311,9 +311,6 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
     out::println(roundtrip.count());
   }
   verbose::println("AVG: ", total_time / n);
-  // TODO: this should not be necessary, but Broker currently doesn't properly
-  //       shutdown when just leaving this function
-  exit(0);
 }
 
 void pong_mode(broker::endpoint& ep, broker::topic topic) {
