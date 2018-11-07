@@ -658,6 +658,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.statuses_ = caf::group{};
     },
     [=](atom::shutdown) {
+      auto& peers = self->state.policy().peers();
+      peers.selector().active_sender = nullptr;
+      peers.fan_out_flush();
       self->quit(exit_reason::user_shutdown);
       /* -- To consider:
          -- Terminating the actor after receiving shutdown unconditionally can

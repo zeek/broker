@@ -1,4 +1,8 @@
 
+1.1.0-475 | 2018-11-06 18:41:53 -0600
+
+  * Prevent rare hangs on shutdown with CAF 0.16.1+ (Jon Siwek, Corelight)
+
 1.1.0-474 | 2018-11-05 14:52:46 -0600
 
   * Remove a broker-node TODO (Jon Siwek, Corelight)
