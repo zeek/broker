@@ -1,7 +1,11 @@
 
+1.1.0-477 | 2018-11-13 19:43:51 -0600
+
+  * Adjust an attribution (Jon Siwek, Corelight)
+
 1.1.0-476 | 2018-11-13 10:58:03 -0600
 
-  * Fix ping.py example (Jon Siwek, Corelight)
+  * Fix ping.py example (reported by Jeff Atkinson, Salesforce)
 
 1.1.0-475 | 2018-11-06 18:41:53 -0600
 
