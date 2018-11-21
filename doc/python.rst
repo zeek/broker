@@ -15,6 +15,23 @@ general understanding of Broker's concepts and the C++ interface.
     the `ipaddress <https://pypi.python.org/pypi/ipaddress>`_ module from
     PyPI (one way to do this is to run "pip install ipaddress").
 
+Installation in a Virtual Environment
+-------------
+
+To install Broker's python bindings in a virtual environment, the **prefix**
+and **python-prefix** configuration options should be specified and the 
+python header files must be on the system for the version of python in the
+virtual environment.
+
+.. code-block:: bash
+   
+    $ virtualenv -p python3 /Users/user/sandbox/broker/venv
+    $ /Users/user/sandbox/broker/venv/bin/activate
+    $ ./configure --prefix=/Users/user/sandbox/broker --python-prefix=$(python -c 'import sys; print(sys.exec_prefix)')
+    $ make install
+    $ python -c 'import broker; print(broker.__file__)'
+    /Users/user/sandbox/broker/venv/lib/python3.7/site-packages/broker/__init__.py
+    
 Communication
 -------------
 
