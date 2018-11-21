@@ -1,4 +1,8 @@
 
+1.1.0-479 | 2018-11-21 09:15:51 -0600
+
+  * Improve python bindings virtualenv installation docs (hosom)
+
 1.1.0-477 | 2018-11-13 19:43:51 -0600
 
   * Adjust an attribution (Jon Siwek, Corelight)
