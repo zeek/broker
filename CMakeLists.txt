@@ -268,11 +268,6 @@ set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
 
 if (ENABLE_ADDRESS_SANITIZER)
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
-  # Some Linux distributions have apparently cannot pick the right linker
-  # properly. See: http://stackoverflow.com/q/37603238/1170277
-  if (BROKER_LINUX)
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
-  endif ()
 endif(ENABLE_ADDRESS_SANITIZER)
 
 # Append our extra flags to the existing value of CXXFLAGS.
