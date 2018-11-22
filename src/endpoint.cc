@@ -2,6 +2,7 @@
 
 #include <unordered_set>
 
+#include <caf/config.hpp>
 #include <caf/node_id.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/scoped_actor.hpp>
@@ -298,12 +299,14 @@ subscriber endpoint::make_subscriber(std::vector<topic> ts, size_t max_qsize) {
 
 caf::actor endpoint::make_actor(actor_init_fun f) {
   auto hdl = system_.spawn([=](caf::event_based_actor* self) {
+#ifndef CAF_NO_EXCEPTION
     // "Hide" unhandled-exception warning if users throw.
     self->set_exception_handler(
       [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
         return caf::exit_reason::unhandled_exception;
       }
     );
+#endif // CAF_NO_EXCEPTION
     // Run callback.
     f(self);
   });
