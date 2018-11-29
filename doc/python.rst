@@ -131,7 +131,7 @@ each other:
    * - ``subnet``
      - ``ipaddress.IPv4Network``/``ipaddress.IPv6Network``
    * - ``port``
-     - ``broker.Port(x, broker.Port.{TCP,UDP,ICMP})``
+     - ``broker.Port(x, broker.Port.{TCP,UDP,ICMP,Unknown})``
    * - ``vector``
      - ``list``
    * - ``set``
