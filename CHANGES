@@ -1,4 +1,8 @@
 
+1.1.0-483 | 2018-11-29 09:50:54 -0600
+
+  * Add `broker.Port.Unknown` to python binding docs (hosom)
+
 1.1.0-481 | 2018-11-22 06:55:13 -0600
 
   * Fix build with CAF_NO_EXCEPTION defined (Dominik Charousset)
