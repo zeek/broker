@@ -1,4 +1,8 @@
 
+1.1.1 | 2018-11-29 09:52:01 -0600
+
+  * Release 1.1.1.
+
 1.1.0-483 | 2018-11-29 09:50:54 -0600
 
   * Add `broker.Port.Unknown` to python binding docs (hosom)
