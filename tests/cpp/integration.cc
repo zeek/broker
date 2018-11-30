@@ -52,9 +52,6 @@ using caf::unit_t;
 using caf::io::accept_handle;
 using caf::io::connection_handle;
 
-// Useful type aliases.
-using data_vector = std::vector<endpoint::value_type>;
-
 namespace {
 
 configuration make_config() {
@@ -123,7 +120,7 @@ struct peer_fixture {
   std::vector<accept_handle> acceptors;
 
   // Stores all received items for subscribed topics.
-  data_vector data;
+  std::vector<data_message> data;
 
   // Stores the interval between two credit rounds.
   caf::timespan credit_round_interval;
@@ -178,7 +175,7 @@ struct peer_fixture {
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, endpoint::value_type x) {
+      [=](unit_t&, data_message x) {
         data.emplace_back(std::move(x));
       },
       [](unit_t&, const caf::error&) {
@@ -191,13 +188,14 @@ struct peer_fixture {
   // Publishes all `(t, xs)...` tuples.
   template <class... Ts>
   void publish(topic t, Ts... xs) {
-    using buf_t = std::deque<endpoint::value_type>;
-    auto buf = std::make_shared<buf_t>(buf_t{std::make_pair(t, std::move(xs))...});
+    using buf_t = std::deque<data_message>;
+    auto buf
+      = std::make_shared<buf_t>(buf_t{make_data_message(t, std::move(xs))...});
     ep.publish_all_nosync(
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, caf::downstream<endpoint::value_type>& out, size_t num) {
+      [=](unit_t&, caf::downstream<data_message>& out, size_t num) {
         auto n = std::min(num, buf->size());
         CAF_MESSAGE("push" << n << "values downstream");
         for (size_t i = 0u; i < n; ++i)
@@ -342,16 +340,13 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   mercury.publish("bro/events/failures", "oops", "sorry!");
   mercury.publish("bro/events/logging", 123, 456);
   MESSAGE("verify published data");
-  auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
-    return xs;
-  };
-  CAF_CHECK_EQUAL(mercury.data, data({}));
-  CAF_CHECK_EQUAL(venus.data, data({{"bro/events/failures", "oops"},
-                                    {"bro/events/failures", "sorry!"},
-                                    {"bro/events/logging", 123},
-                                    {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(earth.data, data({{"bro/events/failures", "oops"},
-                                    {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(mercury.data, data_msgs({}));
+  CAF_CHECK_EQUAL(venus.data, data_msgs({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"},
+                                         {"bro/events/logging", 123},
+                                         {"bro/events/logging", 456}}));
+  CAF_CHECK_EQUAL(earth.data, data_msgs({{"bro/events/failures", "oops"},
+                                         {"bro/events/failures", "sorry!"}}));
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   earth.loop_after_next_enqueue();
@@ -405,21 +400,22 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   mercury.publish("bro/events/failures", "oops", "sorry!");
   mercury.publish("bro/events/logging", 123, 456);
   MESSAGE("verify published data");
-  auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
-    return xs;
-  };
-  CAF_CHECK_EQUAL(venus_s1.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"},
-                                         {"bro/events/logging", 123},
-                                         {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(venus_s2.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"},
-                                         {"bro/events/logging", 123},
-                                         {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(earth_s1.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"}}));
-  CAF_CHECK_EQUAL(earth_s2.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(venus_s1.poll(),
+                  data_msgs({{"bro/events/failures", "oops"},
+                             {"bro/events/failures", "sorry!"},
+                             {"bro/events/logging", 123},
+                             {"bro/events/logging", 456}}));
+  CAF_CHECK_EQUAL(venus_s2.poll(),
+                  data_msgs({{"bro/events/failures", "oops"},
+                             {"bro/events/failures", "sorry!"},
+                             {"bro/events/logging", 123},
+                             {"bro/events/logging", 456}}));
+  CAF_CHECK_EQUAL(earth_s1.poll(),
+                  data_msgs({{"bro/events/failures", "oops"},
+                             {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(earth_s2.poll(),
+                  data_msgs({{"bro/events/failures", "oops"},
+                             {"bro/events/failures", "sorry!"}}));
   exec_loop();
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);

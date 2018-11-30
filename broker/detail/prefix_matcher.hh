@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/cow_tuple.hpp>
 #include <caf/message.hpp>
 
 #include "broker/topic.hh"
@@ -17,13 +18,8 @@ struct prefix_matcher {
   bool operator()(const filter_type& filter, const topic& t) const;
 
   template <class T>
-  bool operator()(const filter_type& filter,
-                  const std::pair<topic, T>& x) const {
-    return (*this)(filter, x.first);
-  }
-
-  bool operator()(const filter_type& filter, const caf::message& msg) const {
-    return msg.match_element<topic>(0) && (*this)(filter, msg.get_as<topic>(0));
+  bool operator()(const filter_type& filter, const T& x) const {
+    return (*this)(filter, get_topic(x));
   }
 };
 

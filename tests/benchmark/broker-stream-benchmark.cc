@@ -53,7 +53,7 @@ void subscribe_mode(broker::endpoint& ep, const std::string& topic_str) {
     [](caf::unit_t&) {
       // nop
     },
-    [=](caf::unit_t&, std::vector<std::pair<topic, data>>& xs) {
+    [=](caf::unit_t&, std::vector<data_message>& xs) {
       global_count += xs.size();
     },
     [=](caf::unit_t&, const caf::error&) {
@@ -70,9 +70,9 @@ void publish_mode(broker::endpoint& ep, const std::string& topic_str) {
     [](caf::unit_t&) {
       // nop
     },
-    [=](caf::unit_t&, downstream<std::pair<topic, data>>& out, size_t num) {
+    [=](caf::unit_t&, downstream<data_message>& out, size_t num) {
       for (size_t i = 0; i < num; ++i)
-        out.push(std::make_pair(topic_str, "Lorem ipsum dolor sit amet."));
+        out.push(make_data_message(topic_str, "Lorem ipsum dolor sit amet."));
       global_count += num;
     },
     [=](const caf::unit_t&) {

@@ -271,7 +271,7 @@ PYBIND11_MODULE(_broker, m) {
     .def("publish", (void (broker::endpoint::*)(broker::topic t, broker::data d)) &broker::endpoint::publish)
     .def("publish", (void (broker::endpoint::*)(const broker::endpoint_info& dst, broker::topic t, broker::data d)) &broker::endpoint::publish)
     .def("publish_batch",
-       [](broker::endpoint& ep, std::vector<broker::endpoint::value_type> xs) { ep.publish(xs); })
+       [](broker::endpoint& ep, std::vector<broker::data_message> xs) { ep.publish(xs); })
     .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
     .def("make_status_subscriber", &broker::endpoint::make_status_subscriber, py::arg("receive_statuses") = false)

@@ -9,6 +9,7 @@
 
 #include "broker/atoms.hh"
 #include "broker/fwd.hh"
+#include "broker/message.hh"
 
 #include "broker/detail/shared_publisher_queue.hh"
 
@@ -23,7 +24,7 @@ public:
 
   // --- nested types ----------------------------------------------------------
 
-  using value_type = std::pair<topic, data>;
+  using value_type = data_message;
 
   using guard_type = std::unique_lock<std::mutex>;
 
@@ -72,13 +73,13 @@ public:
   }
 
   // --- mutators --------------------------------------------------------------
-  
+
   /// Forces the publisher to drop all remaining items from the queue when the
   /// destructor gets called.
   void drop_all_on_destruction();
-  
+
   // --- messaging -------------------------------------------------------------
-  
+
   /// Sends `x` to all subscribers.
   void publish(data x);
 

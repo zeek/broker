@@ -38,6 +38,8 @@ public:
     forward(make_internal_command<T>(std::move(x)));
   }
 
+  void command(internal_command::variant_type& cmd);
+
   void command(internal_command& cmd);
 
   void operator()(none);
