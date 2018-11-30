@@ -22,16 +22,17 @@
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/endpoint_info.hh"
-#include "broker/status_subscriber.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
+#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
+#include "broker/status_subscriber.hh"
 #include "broker/store.hh"
-#include "broker/topic.hh"
 #include "broker/time.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 
@@ -42,9 +43,7 @@ class endpoint {
 public:
   // --- member types ----------------------------------------------------------
 
-  using value_type = std::pair<topic, data>;
-
-  using stream_type = caf::stream<value_type>;
+  using stream_type = caf::stream<data_message>;
 
   using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
@@ -201,7 +200,7 @@ public:
   void publish(topic t, std::initializer_list<data> xs);
 
   // Publishes all messages in `xs`.
-  void publish(std::vector<value_type> xs);
+  void publish(std::vector<data_message> xs);
 
   publisher make_publisher(topic ts);
 

@@ -6,6 +6,7 @@
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/shared_queue.hh"
+#include "broker/message.hh"
 
 namespace broker {
 namespace detail {
@@ -21,7 +22,7 @@ namespace detail {
 /// - consume() fires the flare when it removes items from xs_ and less than 20
 ///   items remain
 /// - produce() extinguishes the flare it adds items to xs_, exceeding 20
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 class shared_publisher_queue : public shared_queue<ValueType> {
 public:
   using value_type = ValueType;
@@ -124,16 +125,15 @@ private:
   const size_t capacity_;
 };
 
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 using shared_publisher_queue_ptr
   = caf::intrusive_ptr<shared_publisher_queue<ValueType>>;
 
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 shared_publisher_queue_ptr<ValueType>
 make_shared_publisher_queue(size_t buffer_size) {
   return caf::make_counted<shared_publisher_queue<ValueType>>(buffer_size);
 }
-
 
 } // namespace detail
 } // namespace broker

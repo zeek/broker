@@ -49,6 +49,8 @@ public:
 
   void command(internal_command& cmd);
 
+  void command(internal_command::variant_type& cmd);
+
   void operator()(none);
 
   void operator()(put_command&);

@@ -5,6 +5,7 @@
 
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 
 using namespace caf;
@@ -55,9 +56,9 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
     [](unit_t&) {
       // nop
     },
-    [=](unit_t&, downstream<endpoint::value_type>& out, size_t num) {
+    [=](unit_t&, downstream<data_message>& out, size_t num) {
       auto& st = self->state;
-      auto consumed = qptr->consume(num, [&](std::pair<topic, data>&& x) {
+      auto consumed = qptr->consume(num, [&](data_message&& x) {
         out.push(std::move(x));
       });
       if (consumed > 0) {

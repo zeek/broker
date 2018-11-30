@@ -9,16 +9,17 @@
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
 #include <caf/broadcast_downstream_manager.hpp>
+#include <caf/cow_tuple.hpp>
+#include <caf/detail/stream_distribution_tree.hpp>
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
 #include <caf/stream_slot.hpp>
 
-#include <caf/detail/stream_distribution_tree.hpp>
-
 #include "broker/data.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/message.hh"
 #include "broker/peer_filter.hh"
 #include "broker/topic.hh"
 
@@ -42,7 +43,7 @@ public:
   template <class T>
   struct local_trait {
     /// Type of a single element in the stream.
-    using element = std::pair<topic, T>;
+    using element = caf::cow_tuple<topic, T>;
 
     /// Type of a full batch in the stream.
     using batch = std::vector<element>;
@@ -61,9 +62,8 @@ public:
   /// Streaming-related types for peers.
   struct peer_trait {
     /// Type of a single element in the stream.
-    using element = caf::message;
+    using element = node_message;
 
-    /// Type of a full batch in the stream.
     using batch = std::vector<element>;
 
     /// Type of the downstream_manager that broadcasts data to local actors.
@@ -84,12 +84,13 @@ public:
 
   /// Stream handshake in step 1 that includes our own filter. The receiver
   /// replies with a step2 handshake.
-  using step1_handshake = caf::outbound_stream_slot<caf::message, filter_type,
+  using step1_handshake = caf::outbound_stream_slot<node_message,
+                                                    filter_type,
                                                     caf::actor>;
 
   /// Stream handshake in step 2. The receiver already has our filter
   /// installed.
-  using step2_handshake = caf::outbound_stream_slot<caf::message,
+  using step2_handshake = caf::outbound_stream_slot<node_message,
                                                     caf::atom_value,
                                                     caf::actor>;
 
@@ -193,7 +194,7 @@ public:
   /// @param peer_hdl Handle to the peering (remote) core actor.
   /// @returns `false` if the peer is already connected, `true` otherwise.
   /// @pre Current message is an `open_stream_msg`.
-  void ack_peering(const caf::stream<caf::message>& in,
+  void ack_peering(const caf::stream<node_message>& in,
                    const caf::actor& peer_hdl);
 
   /// Queries whether we have an outbound path to `hdl`.
@@ -220,19 +221,19 @@ public:
   // -- selectively pushing data into the streams ------------------------------
 
   /// Pushes data to workers without forwarding it to peers.
-  void local_push(topic x, data y);
+  void local_push(data_message x);
 
   /// Pushes data to stores without forwarding it to peers.
-  void local_push(topic x, internal_command y);
+  void local_push(command_message x);
 
   /// Pushes data to peers only without forwarding it to local substreams.
-  void remote_push(caf::message msg);
+  void remote_push(node_message x);
 
   /// Pushes data to peers and workers.
-  void push(topic x, data y);
+  void push(data_message msg);
 
   /// Pushes data to peers and stores.
-  void push(topic x, internal_command y);
+  void push(command_message msg);
 
   // -- properties -------------------------------------------------------------
 

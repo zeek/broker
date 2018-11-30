@@ -5,13 +5,14 @@
 #include <caf/make_counted.hpp>
 
 #include "broker/detail/shared_queue.hh"
+#include "broker/message.hh"
 
 namespace broker {
 namespace detail {
 
 /// Synchronizes a publisher with a background worker. Uses the `pending` flag
 /// and the `flare` to signalize demand to the user. Users can write as long as
-/// the flare remains active. The user consumes items, while the worker 
+/// the flare remains active. The user consumes items, while the worker
 /// produces them.
 ///
 /// The protocol on the flare is as follows:
@@ -19,12 +20,12 @@ namespace detail {
 /// - the flare is active as long as xs_ has more than one item
 /// - produce() fires the flare when it adds items to xs_ and xs_ was empty
 /// - consume() extinguishes the flare when it removes the last item from xs_
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 class shared_subscriber_queue : public shared_queue<ValueType> {
 public:
   using value_type = ValueType;
 
-  using super = shared_queue<ValueType>;
+  using super = shared_queue<value_type>;
 
   using guard_type = typename super::guard_type;
 
@@ -75,11 +76,11 @@ public:
   }
 };
 
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 using shared_subscriber_queue_ptr
   = caf::intrusive_ptr<shared_subscriber_queue<ValueType>>;
 
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 shared_subscriber_queue_ptr<ValueType> make_shared_subscriber_queue() {
   return caf::make_counted<shared_subscriber_queue<ValueType>>();
 }

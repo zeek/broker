@@ -21,6 +21,7 @@
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/message.hh"
 #include "broker/publisher.hh"
 #include "broker/topic.hh"
 
@@ -33,13 +34,12 @@ using namespace broker::detail;
 
 using namespace caf;
 
-using value_type = std::pair<topic, data>;
-using stream_type = stream<std::pair<topic, data>>;
+using stream_type = stream<data_message>;
 
 namespace {
 
 struct consumer_state {
-  std::vector<value_type> xs;
+  std::vector<data_message> xs;
 };
 
 behavior consumer(stateful_actor<consumer_state>* self,
@@ -55,7 +55,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
           // nop
         },
         // Process single element.
-        [=](unit_t&, value_type x) {
+        [=](unit_t&, data_message x) {
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
@@ -97,7 +97,7 @@ CAF_TEST(blocking_publishers) {
     auto d2 = pub2.worker();
     run();
     // Data flows from our publishers to core1 to core2 and finally to leaf.
-    using buf = std::vector<value_type>;
+    using buf = std::vector<data_message>;
     // First, set of published messages gets filtered out at core2.
     pub1.publish(0);
     run();
@@ -116,7 +116,8 @@ CAF_TEST(blocking_publishers) {
     consume_message();
     self->receive(
       [](const buf& xs) {
-        buf expected{{"a/b", true}, {"a/b", false}, {"a/b", true}};
+        auto expected = data_msgs({{"a/b", true}, {"a/b", false},
+                                   {"a/b", true}});
         CAF_REQUIRE_EQUAL(xs, expected);
       }
     );
@@ -144,15 +145,16 @@ CAF_TEST(nonblocking_publishers) {
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
-  using buf_type = std::vector<value_type>;
+  using buf_type = std::vector<data_message>;
   ep.publish_all_nosync(
     // Initialize send buffer with 10 elements.
     [](buf_type& xs) {
-      xs = buf_type{{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false},
-                    {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}};
+      xs = data_msgs({{"a", 0}, {"b", true}, {"a", 1}, {"a", 2},
+                      {"b", false}, {"b", true}, {"a", 3},
+                      {"b", false}, {"a", 4}, {"a", 5}});
     },
     // Get next element.
-    [](buf_type& xs, downstream<value_type>& out, size_t num) {
+    [](buf_type& xs, downstream<data_message>& out, size_t num) {
       auto n = std::min(num, xs.size());
       for (size_t i = 0u; i < n; ++i)
         out.push(xs[i]);
@@ -171,7 +173,8 @@ CAF_TEST(nonblocking_publishers) {
   consume_message();
   self->receive(
     [](const buf_type& xs) {
-      buf_type expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+      auto expected = data_msgs({{"b", true}, {"b", false},
+                                 {"b", true}, {"b", false}});
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );

@@ -81,9 +81,8 @@ MESSAGE("prepare authenticated connection");
   auto b = venus_auth.ep.peer("127.0.0.1", p);
   CAF_REQUIRE(b);
 
-  using value_type = std::pair<topic, data>;
-  value_type ping{"/broker/test", "ping"};
-  value_type pong{"/broker/test", "pong"};
+  data_message ping{"/broker/test", "ping"};
+  data_message pong{"/broker/test", "pong"};
 
   MESSAGE("mercury_auth sending ping");
   mercury_auth.ep.publish({ping});

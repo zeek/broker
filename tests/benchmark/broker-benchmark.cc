@@ -298,20 +298,19 @@ void clientMode(const char* host, int port) {
     ep.subscribe_nosync({"/benchmark/stats"},
                         [](caf::unit_t&) {
                         },
-                        [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
-                            receivedStats(ep, std::move(x.second));
+                        [&](caf::unit_t&, broker::data_message x) {
+                            receivedStats(ep, move_data(x));
                         },
                         [](caf::unit_t&, const caf::error&) {
                             // nop
             });
 
     if ( use_non_blocking ) {
-        using value_type = std::pair<broker::topic, broker::data>;
         ep.publish_all(
                        [](caf::unit_t&) {
                            // nop
                        },
-                       [&](caf::unit_t&, caf::downstream<value_type>& out, size_t num) {
+                       [&](caf::unit_t&, caf::downstream<broker::data_message>& out, size_t num) {
                            const broker::bro::Event* ev;
 			   std::cerr << "can publish " << num << ", have " << q.size_approx() << std::endl;
                            while ( num-- && (ev = q.peek()) ) {
@@ -382,8 +381,8 @@ void serverMode(const char* iface, int port) {
     ep.subscribe_nosync({"/benchmark/events"},
                         [](caf::unit_t&) {
                         },
-                        [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
-                auto& msg = x.second;
+                        [&](caf::unit_t&, broker::data_message x) {
+                auto msg = move_data(x);
 
                 if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Event ) {
                 broker::bro::Event ev(std::move(msg));
@@ -411,7 +410,7 @@ void serverMode(const char* iface, int port) {
     ep.subscribe_nosync({"/benchmark/terminate"},
                         [](caf::unit_t&) {
                         },
-                        [&](caf::unit_t&, std::pair<broker::topic, broker::data> x) {
+                        [&](caf::unit_t&, broker::data_message x) {
                             terminate = true;
                         },
                         [](caf::unit_t&, const caf::error&) {

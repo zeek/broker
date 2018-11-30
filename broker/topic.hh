@@ -1,10 +1,10 @@
 #ifndef BROKER_TOPIC_HH
 #define BROKER_TOPIC_HH
 
-#include <utility>
 #include <cstddef>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "broker/detail/operators.hh"
