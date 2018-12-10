@@ -23,7 +23,7 @@ endif ()
 # -- Dependencies -------------------------------------------------------------
 
 if ( CAF_ROOT_DIR )
-  find_package(CAF COMPONENTS core io test openssl REQUIRED)
+  find_package(CAF COMPONENTS openssl test io core REQUIRED)
   set(caf_dir    "${CAF_LIBRARY_CORE}")
   set(caf_config "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp")
   get_filename_component(caf_dir ${caf_dir} PATH)
@@ -44,9 +44,6 @@ else ()
   set(static_ext  "${CMAKE_STATIC_LIBRARY_SUFFIX}")
   set(caf_config  "${caf_src}/libcaf_core/caf/config.hpp")
 
-  # For now, if you want to build a static lib, just go through
-  # the --with-caf path and point to separate, custom-built CAF.
-
   if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
     # Build byproducts is just required by the Ninja generator
     # though it's not available before CMake 3.2 ...
@@ -56,14 +53,22 @@ else ()
 
     set(build_byproducts_arg)
   else ()
-    set(build_byproducts_arg BUILD_BYPRODUCTS
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${static_ext}
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${static_ext}
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${static_ext}
-    )
+    if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
+        set(build_byproducts_arg BUILD_BYPRODUCTS
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext}
+        )
+    else ()
+        set(build_byproducts_arg BUILD_BYPRODUCTS
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext}
+            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext}
+        )
+      endif()
   endif ()
 
   ExternalProject_Add(project_caf
@@ -134,6 +139,8 @@ else ()
         -DCAF_NO_BENCHMARKS:bool=yes
         -DCAF_NO_PYTHON:bool=yes
         -DCAF_NO_OPENCL:bool=yes
+        -DCAF_BUILD_STATIC:bool=${ENABLE_STATIC}
+        -DCAF_BUILD_STATIC_ONLY:bool=${ENABLE_STATIC_ONLY}
         # Sticking CAF libs in the same output dir as libbroker is a bit of a
         # hack until CMake 3.8, which has BUILD_RPATH that can instead be set
         # on libbroker.  The problem here is that broker unit tests will fail
@@ -160,23 +167,47 @@ else ()
     message(FATAL_ERROR "CAF CMake configuration failed")
   endif ()
 
-  add_library(libcaf_core_shared SHARED IMPORTED)
-  add_library(libcaf_io_shared SHARED IMPORTED)
-  add_library(libcaf_openssl_shared SHARED IMPORTED)
-  set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
-               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
-  set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
-               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext})
-  set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
-               ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext})
-  add_dependencies(libcaf_core_shared project_caf)
-  add_dependencies(libcaf_io_shared project_caf)
-  add_dependencies(libcaf_openssl_shared project_caf)
+  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
+    add_library(libcaf_openssl_static STATIC IMPORTED)
+    add_library(libcaf_core_static STATIC IMPORTED)
+    add_library(libcaf_io_static STATIC IMPORTED)
+    set_property(TARGET libcaf_core_static PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext})
+    set_property(TARGET libcaf_io_static PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext})
+    set_property(TARGET libcaf_openssl_static PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext})
+  else ()
+    add_library(libcaf_core_shared SHARED IMPORTED)
+    add_library(libcaf_io_shared SHARED IMPORTED)
+    add_library(libcaf_openssl_shared SHARED IMPORTED)
+    set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
+    set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext})
+    set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
+                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext})
+  endif ()
+  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
+    add_dependencies(libcaf_openssl_static project_caf)
+    add_dependencies(libcaf_io_static project_caf)
+    add_dependencies(libcaf_core_static project_caf)
+  else()
+    add_dependencies(libcaf_core_shared project_caf)
+    add_dependencies(libcaf_io_shared project_caf)
+    add_dependencies(libcaf_openssl_shared project_caf)
+  endif()
 
   set(CAF_FOUND true)
-  set(CAF_LIBRARIES
+  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
+    set(CAF_LIBRARIES
+			libcaf_openssl_static libcaf_io_static libcaf_core_static
+			CACHE STRING "CAF libs" FORCE)
+  else ()
+    set(CAF_LIBRARIES
       libcaf_core_shared libcaf_io_shared libcaf_openssl_shared
       CACHE STRING "CAF libs" FORCE)
+  endif ()
 
   set(CAF_INCLUDE_DIRS
       "${caf_src}/libcaf_core"
@@ -363,6 +394,9 @@ endif ()
 if (ENABLE_STATIC)
   add_library(broker_static STATIC ${BROKER_SRC})
   set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
+  if (NOT DISABLE_PYTHON_BINDINGS)
+    set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endif()
   target_link_libraries(broker_static ${LINK_LIBS})
   install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
 endif ()

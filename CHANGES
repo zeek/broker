@@ -1,4 +1,15 @@
 
+1.1.1-4 | 2018-12-10 11:11:48 -0600
+
+  * Propagate --build-static and --build-static-only to CAF (Johanna Amann)
+
+  * Make --enable-static-only work when CAF is static (Johanna Amann)
+
+    Changes the ordering of the CAF libraries in the link command and
+    adds fPIC to python bindings.
+
+  * Update submodules to use github.com/zeek (Jon Siwek, Corelight)
+
 1.1.1 | 2018-11-29 09:52:01 -0600
 
   * Release 1.1.1.
