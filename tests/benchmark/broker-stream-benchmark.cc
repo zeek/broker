@@ -9,13 +9,16 @@
 #include <vector>
 
 #include <caf/atom.hpp>
-#include <caf/downstream.hpp>
-#include <caf/scoped_actor.hpp>
 #include <caf/config_option_adder.hpp>
+#include <caf/downstream.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
 
 #include "broker/configuration.hh"
+#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 #include "broker/topic.hh"
 
 using std::cout;
@@ -26,9 +29,6 @@ using namespace broker;
 
 namespace {
 
-using sink_atom = caf::atom_constant<caf::atom("sink")>;
-using source_atom = caf::atom_constant<caf::atom("source")>;
-
 class config : public configuration {
 public:
   uint16_t port = 0;
@@ -37,19 +37,18 @@ public:
 
   config() {
     opt_group{custom_options_, "global"}
-    .add(mode, "mode,m", "one of 'sink' or 'source'")
+    .add(mode, "mode,m", "one of 'sink', 'source', 'both', or 'fused'")
     .add(port, "port,p", "sets the port for listening or peering")
     .add(host, "host,o", "sets the peering with the sink");
   }
 };
 
-std::atomic<bool> stop_rate_calculator;
 std::atomic<size_t> global_count;
 
-void subscribe_mode(broker::endpoint& ep, const std::string& topic_str) {
+void sink_mode(broker::endpoint& ep, topic t) {
   using namespace caf;
   auto worker = ep.subscribe(
-    {topic_str},
+    {t},
     [](caf::unit_t&) {
       // nop
     },
@@ -64,16 +63,16 @@ void subscribe_mode(broker::endpoint& ep, const std::string& topic_str) {
   self->wait_for(worker);
 }
 
-void publish_mode(broker::endpoint& ep, const std::string& topic_str) {
+void source_mode(broker::endpoint& ep, topic t) {
   using namespace caf;
+  auto msg = std::make_pair(std::move(t), data{"Lorem ipsum dolor sit amet."});
   auto worker = ep.publish_all(
     [](caf::unit_t&) {
       // nop
     },
     [=](caf::unit_t&, downstream<std::pair<topic, data>>& out, size_t num) {
       for (size_t i = 0; i < num; ++i)
-        out.push(std::make_pair(topic_str, "Lorem ipsum dolor sit amet."));
-      global_count += num;
+        out.push(msg);
     },
     [=](const caf::unit_t&) {
       return false;
@@ -83,18 +82,64 @@ void publish_mode(broker::endpoint& ep, const std::string& topic_str) {
   self->wait_for(worker);
 }
 
+void sender(caf::event_based_actor* self, caf::actor core, broker::topic t) {
+  auto msg = std::make_pair(t, data{"Lorem ipsum dolor sit amet."});
+  self->make_source(
+    // Destination.
+    core,
+    // Initializer.
+    [](caf::unit_t&) {},
+    // Generator.
+    [=](caf::unit_t&, caf::downstream<std::pair<topic, data>>& out, size_t n) {
+      for (size_t i = 0; i < n; ++i)
+        out.push(msg);
+    },
+    // Done predicate.
+    [=](const caf::unit_t& msgs) { return false; });
+}
+
+caf::behavior receiver(caf::event_based_actor* self, caf::actor core,
+                       broker::topic t) {
+  self->send(core, broker::atom::join::value,
+             broker::filter_type{std::move(t)});
+  return {[=](caf::stream<std::pair<topic, data>> in) {
+    return self->make_sink(
+      // Source.
+      in,
+      // Initializer.
+      [](caf::unit_t&) {
+        // nop
+      },
+      // Consumer.
+      [=](caf::unit_t&, std::vector<std::pair<topic, data>>& xs) {
+        global_count += xs.size();
+      },
+      // Cleanup.
+      [](caf::unit_t&, const caf::error&) {
+        // nop
+      }
+
+    );
+  }};
+}
+
 void rate_calculator() {
-  using namespace std::chrono;
-  auto t = system_clock::now();
-  t += seconds(1);
-  while (!stop_rate_calculator.load()) {
+  // Counts consecutive rates that are 0.
+  size_t zero_rates = 0;
+  // Keeps track of the message count in our last iteration.
+  size_t last_count = 0;
+  // Used to compute absolute timeouts.
+  auto t = std::chrono::steady_clock::now();
+  // Stop after 2s of no activity.
+  while (zero_rates < 2) {
+    t += std::chrono::seconds(1);
     std::this_thread::sleep_until(t);
-    auto cnt = global_count.load();
-    while (!global_count.compare_exchange_strong(cnt, 0)) {
-      // repeat
-    }
-    std::cout << cnt << " messages/s" << std::endl;
-    t += seconds(1);
+    auto count = global_count.load();
+    auto rate = count - last_count;
+    std::cout << rate << " msgs/s\n";
+    last_count = count;
+    if (rate == 0)
+      ++zero_rates;
   }
 }
 
@@ -104,34 +149,66 @@ void rate_calculator() {
 int main(int argc, char** argv) {
   config cfg;
   cfg.parse(argc, argv);
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
   auto mode = cfg.mode;
   auto port = cfg.port;
   auto host = cfg.host;
-  broker::endpoint ep{std::move(cfg)};
-  std::string topic{"foobar"};
+  topic foobar{"foo/bar"};
   std::thread t{rate_calculator};
-  auto g = caf::detail::make_scope_guard([&] {
-    std::cout << "*** stop rate calculator";
-    stop_rate_calculator = true;
-    t.join();
-  });
-  switch (static_cast<uint64_t>(mode)) {
+  switch (caf::atom_uint(mode)) {
     default:
       std::cerr << "invalid mode: " << to_string(mode) << endl;
       return EXIT_FAILURE;
-    case source_atom::uint_value():
+    case caf::atom_uint("source"): {
+      broker::endpoint ep{std::move(cfg)};
       if (!ep.peer(host, port)) {
-        std::cerr << "cannot peer to node: " << to_string(host)
-                  << " on port " << port << endl;
+        std::cerr << "cannot peer to node: " << to_string(host) << " on port "
+                  << port << endl;
         return EXIT_FAILURE;
       }
-      publish_mode(ep, topic);
-      break;
-    case sink_atom::uint_value(): {
-      ep.listen({}, port);
-      subscribe_mode(ep, topic);
+      source_mode(ep, foobar);
       break;
     }
+    case caf::atom_uint("sink"): {
+      broker::endpoint ep{std::move(cfg)};
+      ep.listen({}, port);
+      sink_mode(ep, foobar);
+      break;
+    }
+    case caf::atom_uint("both"): {
+      broker::endpoint ep1{std::move(cfg)};
+      auto snk_port = ep1.listen({}, 0);
+      std::thread source_thread{[argc, argv, host, snk_port, foobar] {
+        config cfg2;
+        cfg2.parse(argc, argv);
+        broker::endpoint ep2{std::move(cfg2)};
+        if (!ep2.peer(host, snk_port)) {
+          std::cerr << "cannot peer to node: " << to_string(host) << " on port "
+                    << snk_port << endl;
+          return;
+        }
+        source_mode(ep2, foobar);
+      }};
+      sink_mode(ep1, foobar);
+      source_thread.join();
+      break;
+    }
+    case caf::atom_uint("fused"): {
+      caf::actor_system sys{cfg};
+      endpoint::clock clock{&sys, true};
+      filter_type filter{foobar};
+      auto core1 = sys.spawn(broker::core_actor, filter,
+                             broker::broker_options{}, &clock);
+      auto core2 = sys.spawn(broker::core_actor, filter,
+                             broker::broker_options{}, &clock);
+      anon_send(core1, atom::peer::value, core2);
+      sys.spawn(sender, core1, foobar);
+      sys.spawn(receiver, core2, foobar);
+      caf::scoped_actor self{sys};
+      self->wait_for(core1, core2);
+    }
   }
+  t.join();
   return EXIT_SUCCESS;
 }

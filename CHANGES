@@ -1,4 +1,10 @@
 
+1.1.1-9 | 2018-12-12 16:14:55 -0600
+
+  * Add benchmark for no-network, core-to-core setup (Dominik Charousset)
+
+  * Add stream benchmark mode for running sink + source in one process (Dominik Charousset)
+
 1.1.1-4 | 2018-12-10 11:11:48 -0600
 
   * Propagate --build-static and --build-static-only to CAF (Johanna Amann)
