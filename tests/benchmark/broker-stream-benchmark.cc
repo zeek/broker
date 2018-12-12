@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
   auto host = cfg.host;
   topic foobar{"foo/bar"};
   std::thread t{rate_calculator};
-  switch (caf::atom_uint(caf::to_lowercase(mode))) {
+  switch (caf::atom_uint(mode)) {
     default:
       std::cerr << "invalid mode: " << to_string(mode) << endl;
       return EXIT_FAILURE;
