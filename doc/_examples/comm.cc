@@ -12,8 +12,8 @@ void f1() {
 endpoint ep;
 auto sub = ep.make_subscriber({"/topic/test"});
 auto msg = sub.get();
-auto topic = msg.first;
-auto data_ = msg.second;
+auto topic = get_topic(msg);
+auto data_ = get_data(msg);
 std::cout << "topic: " << topic << " data: " << data_ << std::endl;
 // --get-end
 
@@ -24,7 +24,7 @@ if ( sub.available() )
     msg = sub.get(); // Won't block now.
 
 for ( auto m : sub.poll() ) // Iterate over all available messages
-    std::cout << "topic: " << m.first << " data: " << m.second << std::endl;
+    std::cout << "topic: " << get_topic(m) << " data: " << get_data(m) << std::endl;
 // --poll-end
 
 ///

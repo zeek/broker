@@ -19,7 +19,7 @@ int main() {
     auto st = caf::get_if<status>(&ss_res);
     if ( ! (st && st->code() == sc::peer_added) ) {
         std::cerr << "could not connect" << std::endl;
-	return 1;
+	      return 1;
     }
 
     for ( int n = 0; n < 5; n++ ) {
@@ -29,7 +29,7 @@ int main() {
 
         // Wait for "pong" reply event.
         auto msg = sub.get();
-	bro::Event pong(std::move(msg.second));
+       	bro::Event pong(move_data(msg));
         std::cout << "received " << pong.name() << pong.args() << std::endl;
     }
 
