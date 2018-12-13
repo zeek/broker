@@ -12,7 +12,7 @@ using type = unsigned;
 constexpr type major = 1;
 constexpr type minor = 1;
 constexpr type patch = 1;
-constexpr auto suffix = "-9";
+constexpr auto suffix = "-10";
 
 constexpr type protocol = 1;
 

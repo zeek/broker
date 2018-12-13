@@ -1,4 +1,8 @@
 
+1.1.1-10 | 2018-12-13 10:42:53 -0600
+
+  * GH-31: fix python binding broker.Store.keys() method (Jon Siwek, Corelight)
+
 1.1.1-9 | 2018-12-12 16:14:55 -0600
 
   * Add benchmark for no-network, core-to-core setup (Dominik Charousset)

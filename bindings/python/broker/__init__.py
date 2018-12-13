@@ -220,7 +220,7 @@ class Store:
         if keys is None:
             return None
 
-        return Data.to_py(keys.get())
+        return Data.to_py(keys.get()) if keys.is_valid() else None
 
     def put(self, key, value, expiry=None):
         key = Data.from_py(key)
