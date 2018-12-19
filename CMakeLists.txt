@@ -262,6 +262,12 @@ endif ()
 
 # -- libroker -----------------------------------------------------------------
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BROKER_VERSION LIMIT_COUNT 1)
+string(REPLACE "." " " _version_numbers ${BROKER_VERSION})
+separate_arguments(_version_numbers)
+list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
+list(GET _version_numbers 1 BROKER_VERSION_MINOR)
+
 # The SO number shall increase only if binary interface changes.
 set(BROKER_SOVERSION 0)
 set(ENABLE_SHARED true)
@@ -480,7 +486,6 @@ endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BROKER_VERSION LIMIT_COUNT 1)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
 
 macro(display test desc summary)

@@ -1,4 +1,8 @@
 
+1.1.2-1 | 2018-12-19 15:11:27 -0600
+
+  * Fix broker shared library build version (Jon Siwek, Corelight)
+
 1.1.2 | 2018-12-19 09:47:51 -0600
 
   * Release 1.1.2
