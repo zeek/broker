@@ -1,4 +1,10 @@
 
+1.1.2 | 2018-12-19 09:47:51 -0600
+
+  * Release 1.1.2
+
+  * Update embedded SQLite to 3.26.0 (Jon Siwek, Corelight)
+
 1.1.1-10 | 2018-12-13 10:42:53 -0600
 
   * GH-31: fix python binding broker.Store.keys() method (Jon Siwek, Corelight)
