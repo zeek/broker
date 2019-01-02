@@ -1,15 +1,18 @@
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <sys/select.h>
 #include <utility>
 #include <algorithm>
+#include <chrono>
 #include <exception>
 #include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <thread>
 #include <mutex>
 #include <cassert>
 #include <iostream>
@@ -55,6 +58,9 @@ std::mutex cout_mtx;
 
 using guard_type = std::unique_lock<std::mutex>;
 
+bool rate = false;
+std::atomic<size_t> msg_count{0};
+
 void print_line(std::ostream& out, const std::string& line) {
   guard_type guard{cout_mtx};
   out << line << std::endl;
@@ -70,6 +76,9 @@ public:
   size_t message_cap = std::numeric_limits<size_t>::max();
   config() {
     opt_group{custom_options_, "global"}
+    .add<bool>(rate, "rate,r",
+               "print the rate of messages once per second instead of the "
+               "message content")
     .add(peers, "peers,p",
          "list of peers we connect to on startup (host:port notation)")
     .add(local_port, "local-port,l",
@@ -90,8 +99,10 @@ void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   auto out = ep.make_publisher(topic_str);
   std::string line;
   size_t i = 0;
-  while (std::getline(std::cin, line) && i++ < cap)
+  while (std::getline(std::cin, line) && i++ < cap) {
     out.publish(std::move(line));
+    ++msg_count;
+  }
 }
 
 void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
@@ -116,6 +127,7 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
       else
         out.publish(std::move(line));
     i += num;
+    msg_count += num;
   }
 }
 
@@ -137,6 +149,7 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
           out.push(std::make_pair(topic_str, std::move(line)));
         }
       msgs += num;
+      msg_count += num;
     },
     [=](const size_t& msgs) {
       return msgs == cap;
@@ -150,8 +163,12 @@ void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
   auto in = ep.make_subscriber({topic_str});
   std::string line;
-  for (size_t i = 0; i < cap; ++i)
-    print_line(std::cout, deep_to_string(in.get()));
+  for (size_t i = 0; i < cap; ++i) {
+    auto msg = in.get();
+    if (!rate)
+      print_line(std::cout, deep_to_string(std::move(msg)));
+    ++msg_count;
+  }
 }
 
 void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
@@ -168,9 +185,13 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
       return;
     }
     auto num = std::min(cap - i, in.available());
-    for (size_t j = 0; j < num; ++j)
-      print_line(std::cout, deep_to_string(in.get()));
+    for (size_t j = 0; j < num; ++j) {
+      auto msg = in.get();
+      if (!rate)
+        print_line(std::cout, deep_to_string(std::move(msg)));
+    }
     i += num;
+    msg_count += num;
   }
 }
 
@@ -182,7 +203,9 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
       msgs = 0;
     },
     [=](size_t& msgs, std::pair<topic, data> x) {
-      print_line(std::cout, deep_to_string(x));
+      ++msg_count;
+      if (!rate)
+        print_line(std::cout, deep_to_string(x));
       if (++msgs >= cap)
         throw std::runtime_error("Reached cap");
     },
@@ -248,6 +271,18 @@ int main(int argc, char** argv) {
     guard_type guard{cout_mtx};
     std::cerr << "*** invalid mode or implementation setting\n";
   };
+  if (rate) {
+    auto rate_printer = std::thread{[]{
+        size_t msg_count_prev = msg_count;
+        while (true) {
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+          size_t current = msg_count;
+          std::cout << current - msg_count_prev << std::endl;
+          msg_count_prev = current;
+        }
+    }};
+    rate_printer.detach();
+  }
   using mode_fun = void (*)(broker::endpoint&, const std::string&, size_t);
   mode_fun fs[] = {
     publish_mode_blocking,
@@ -272,4 +307,3 @@ int main(int argc, char** argv) {
   f(ep, cfg.topic, cfg.message_cap);
   anon_send_exit(el, exit_reason::user_shutdown);
 }
-

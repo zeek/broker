@@ -1,4 +1,12 @@
 
+1.1.2-3 | 2019-01-02 11:22:02 -0600
+
+  * Add --rate option to broker-pipe
+
+    Calling broker-pipe in subscriber mode with the rate option
+    suppresses the normal output and prints the number of received
+    messages to stdout every second instead. (Tobias Mayer)
+
 1.1.2-1 | 2018-12-19 15:11:27 -0600
 
   * Fix broker shared library build version (Jon Siwek, Corelight)
