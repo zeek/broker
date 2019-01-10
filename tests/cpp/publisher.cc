@@ -17,13 +17,12 @@
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
+#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
 #include "broker/publisher.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/core_actor.hh"
-#include "broker/detail/filter_type.hh"
 
 using std::cout;
 using std::endl;
@@ -34,7 +33,6 @@ using namespace broker::detail;
 
 using namespace caf;
 
-using filter_type = ::broker::detail::filter_type;
 using value_type = std::pair<topic, data>;
 using stream_type = stream<std::pair<topic, data>>;
 
@@ -88,7 +86,7 @@ CAF_TEST(blocking_publishers) {
   self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
   auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
-  sched.run();
+  run();
   { // Lifetime scope of our publishers.
     // Spin up two publishers: one for "a" and one for "a/b".
     auto pub1 = ep.make_publisher("a");
@@ -97,25 +95,25 @@ CAF_TEST(blocking_publishers) {
     pub2.drop_all_on_destruction();
     auto d1 = pub1.worker();
     auto d2 = pub2.worker();
-    sched.run();
+    run();
     // Data flows from our publishers to core1 to core2 and finally to leaf.
     using buf = std::vector<value_type>;
     // First, set of published messages gets filtered out at core2.
     pub1.publish(0);
-    sched.run_dispatch_loop();
+    run();
     // Second, set of published messages gets delivered to leaf.
     pub2.publish(true);
-    sched.run_dispatch_loop();
+    run();
     // Third, set of published messages gets again filtered out at core2.
     pub1.publish({1, 2, 3});
-    sched.run();
+    run();
     // Fourth, set of published messages gets delivered to leaf again.
     pub2.publish({false, true});
-    sched.run();
+    run();
     // Check log of the consumer.
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
-    sched.run_once();
+    consume_message();
     self->receive(
       [](const buf& xs) {
         buf expected{{"a/b", true}, {"a/b", false}, {"a/b", true}};
@@ -128,8 +126,6 @@ CAF_TEST(blocking_publishers) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST(nonblocking_publishers) {
@@ -144,7 +140,7 @@ CAF_TEST(nonblocking_publishers) {
   self->send(core1, atom::peer::value, core2);
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // publish_all uses thread communication which would deadlock when using our
   // test_scheduler. We avoid this by pushing the call to publish_all to its
   // own thread.
@@ -168,11 +164,11 @@ CAF_TEST(nonblocking_publishers) {
     }
   );
   // Communication is identical to the driver-driven test in test/cpp/core.cc
-  sched.run_dispatch_loop(credit_round_interval);
+  run();
   // Check log of the consumer.
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
-  sched.run_once();
+  consume_message();
   self->receive(
     [](const buf_type& xs) {
       buf_type expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -184,8 +180,6 @@ CAF_TEST(nonblocking_publishers) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

@@ -23,11 +23,6 @@ Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PAT
 
 now = _broker.now
 
-# Broker will only raise exceptions of type broker.Error
-class Error(Exception):
-  """A Broker-specific error."""
-  pass
-
 APIFlags = _broker.APIFlags
 EC = _broker.EC
 SC = _broker.SC
@@ -40,6 +35,7 @@ EndpointInfo = _broker.EndpointInfo
 PeerInfo = _broker.PeerInfo
 Topic = _broker.Topic
 Status = _broker.Status
+Error = _broker.Error
 Configuration = _broker.Configuration
 BrokerOptions = _broker.BrokerOptions
 
@@ -118,11 +114,11 @@ class Subscriber:
     def fd(self):
         return self._subscriber.fd()
 
-    def add_topic(self, topic):
-        return self._subscriber.add_topic(_make_topic(topic))
+    def add_topic(self, topic, block=False):
+        return self._subscriber.add_topic(_make_topic(topic), block)
 
-    def remove_topic(self, topic):
-        return self._subscriber.remove_topic(_make_topic(topic))
+    def remove_topic(self, topic, block=False):
+        return self._subscriber.remove_topic(_make_topic(topic), block)
 
 class StatusSubscriber(_broker.Subscriber):
     def __init__(self, internal_subscriber):
@@ -224,7 +220,7 @@ class Store:
         if keys is None:
             return None
 
-        return Data.to_py(keys.get())
+        return Data.to_py(keys.get()) if keys.is_valid() else None
 
     def put(self, key, value, expiry=None):
         key = Data.from_py(key)
@@ -401,7 +397,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, t)
 
         else:
-            raise Error("unsupported data type: " + str(type(x)))
+            raise TypeError("unsupported data type: " + str(type(x)))
 
     @staticmethod
     def from_py(x):
@@ -453,7 +449,7 @@ class Data(_broker.Data):
         try:
             return converters[d.get_type()]()
         except KeyError:
-            raise Error("unsupported data type: " + str(d.get_type()))
+            raise TypeError("unsupported data type: " + str(d.get_type()))
 
 ####### TODO: Updated to new Broker API until here.
 

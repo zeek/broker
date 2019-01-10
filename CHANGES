@@ -1,4 +1,252 @@
 
+1.1.2-3 | 2019-01-02 11:22:02 -0600
+
+  * Add --rate option to broker-pipe
+
+    Calling broker-pipe in subscriber mode with the rate option
+    suppresses the normal output and prints the number of received
+    messages to stdout every second instead. (Tobias Mayer)
+
+1.1.2-1 | 2018-12-19 15:11:27 -0600
+
+  * Fix broker shared library build version (Jon Siwek, Corelight)
+
+1.1.2 | 2018-12-19 09:47:51 -0600
+
+  * Release 1.1.2
+
+  * Update embedded SQLite to 3.26.0 (Jon Siwek, Corelight)
+
+1.1.1-10 | 2018-12-13 10:42:53 -0600
+
+  * GH-31: fix python binding broker.Store.keys() method (Jon Siwek, Corelight)
+
+1.1.1-9 | 2018-12-12 16:14:55 -0600
+
+  * Add benchmark for no-network, core-to-core setup (Dominik Charousset)
+
+  * Add stream benchmark mode for running sink + source in one process (Dominik Charousset)
+
+1.1.1-4 | 2018-12-10 11:11:48 -0600
+
+  * Propagate --build-static and --build-static-only to CAF (Johanna Amann)
+
+  * Make --enable-static-only work when CAF is static (Johanna Amann)
+
+    Changes the ordering of the CAF libraries in the link command and
+    adds fPIC to python bindings.
+
+  * Update submodules to use github.com/zeek (Jon Siwek, Corelight)
+
+1.1.1 | 2018-11-29 09:52:01 -0600
+
+  * Release 1.1.1.
+
+1.1.0-483 | 2018-11-29 09:50:54 -0600
+
+  * Add `broker.Port.Unknown` to python binding docs (hosom)
+
+1.1.0-481 | 2018-11-22 06:55:13 -0600
+
+  * Fix build with CAF_NO_EXCEPTION defined (Dominik Charousset)
+
+1.1.0-479 | 2018-11-21 09:15:51 -0600
+
+  * Improve python bindings virtualenv installation docs (hosom)
+
+1.1.0-477 | 2018-11-13 19:43:51 -0600
+
+  * Adjust an attribution (Jon Siwek, Corelight)
+
+1.1.0-476 | 2018-11-13 10:58:03 -0600
+
+  * Fix ping.py example (reported by Jeff Atkinson, Salesforce)
+
+1.1.0-475 | 2018-11-06 18:41:53 -0600
+
+  * Prevent rare hangs on shutdown with CAF 0.16.1+ (Jon Siwek, Corelight)
+
+1.1.0-474 | 2018-11-05 14:52:46 -0600
+
+  * Remove a broker-node TODO (Jon Siwek, Corelight)
+
+1.1.0-473 | 2018-11-05 14:47:24 -0600
+
+  * Fix broker-node shutdown in verbose mode (Jon Siwek, Corelight)
+
+1.1.0-471 | 2018-11-02 07:59:56 -0500
+
+  * Fix endpoint shutdown behavior (Jon Siwek, Corelight)
+
+1.1.0-470 | 2018-11-01 16:53:12 -0500
+
+  * Disable clang test for Travis Trusty (Jon Siwek, Corelight)
+
+1.1.0-469 | 2018-10-31 18:39:30 -0500
+
+  * Fix shutdown issue with CAF 0.16.1 (Dominik Charousset)
+
+  * Implement broker-node tool for latency measurement (Dominik Charousset)
+
+  * Support more idiomatic build-dir syntax (Dominik Charousset)
+
+1.1.0-461 | 2018-10-31 18:35:10 -0500
+
+  * Fix CMake script and a unit test to work with CAF 0.16.1,
+    which is now the default/embedded version (Jon Siwek, Corelight)
+
+1.1.0-459 | 2018-10-25 13:34:42 -0500
+
+  * GH-20: Buffer received batches until peer_added status is available
+    (Jon Siwek, Corelight)
+
+1.1.0-456 | 2018-10-24 15:50:15 -0500
+
+  * Add max_threads property to broker.Configuration python binding (Jon Siwek, Corelight)
+
+  * Add default broker.Configuration() ctor to python bindings (Jon Siwek, Corelight)
+
+1.1.0-454 | 2018-10-05 11:41:01 -0500
+
+  * GH-19: add endpoint::unpeer_nosync python binding (Jon Siwek, Corelight)
+
+1.1.0-453 | 2018-10-05 09:30:16 -0500
+
+  * Remove README acknowledgements as missing commits are now in master
+    (Jon Siwek, Corelight)
+
+1.1.0-8 | 2018-10-04 11:08:07 -0500
+
+  * Update actor-system branch link in README (Jon Siwek, Corelight)
+
+1.1.0-7 | 2018-10-04 11:05:26 -0500
+
+  * Add acknowledgements to README (Jon Siwek, Corelight)
+
+1.1.0-6 | 2018-10-03 19:15:44 -0500
+
+  * Initialize clone_state members in ctor (Jon Siwek, Corelight)
+
+1.1.0-5 | 2018-10-03 19:10:57 -0500
+
+  * Fix uninitialized status member (Jon Siwek, Corelight)
+
+1.1.0-4 | 2018-10-03 18:11:05 -0500
+
+  * Use move() in to avoid a few copies (Jon Siwek, Corelight)
+
+1.1.0-3 | 2018-10-03 17:15:33 -0500
+
+  * Check results of flare fcntl calls (Jon Siwek, Corelight)
+
+1.1.0-2 | 2018-10-03 16:58:55 -0500
+
+  * Fix uninitialized master_actor member (Jon Siwek, Corelight)
+
+1.1.0-1 | 2018-09-27 14:02:12 -0500
+
+  * Fix unitialized subscriber_base::max_qsize_ member (Jon Siwek, Corelight)
+
+1.1.0 | 2018-09-17 10:55:56 -0500
+
+  * Release 1.1.0.
+
+1.0.1-62 | 2018-09-17 10:54:29 -0500
+
+  * GH-15: change broker.Error type in python bindings (Jon Siwek, Corelight)
+
+    This was only used as an exception type for Data conversions, which
+    are now TypeError, and broker.Error is now bound to broker::error
+    as is expected since broker.Status is bound to broker::status.
+
+1.0.1-61 | 2018-09-12 10:54:38 -0500
+
+  * Remove unused warnings and variables (Matthias Vallentin)
+
+1.0.1-59 | 2018-09-11 16:11:10 -0500
+
+  * Update pybind11 to v2.2.4 release (Jon Siwek, Corelight)
+
+1.0.1-58 | 2018-09-11 14:24:03 -0500
+
+  * GH-12: fix Endpoint.peers() python binding (Jon Siwek, Corelight)
+
+  * GH-12: add python method "node_id" for Endpoint and EndpointInfo
+    This returns a unique node ID string. (Jon Siwek, Corelight)
+
+1.0.1-56 | 2018-09-11 13:17:25 -0500
+
+  * GH-13: fix incorrect "unpeer" python binding (Jon Siwek, Corelight)
+
+1.0.1-55 | 2018-09-10 14:43:15 -0500
+
+  * GH-11: fix ambiguous broker.Event constructor (Jon Siwek, Corelight)
+
+1.0.1-54 | 2018-09-06 18:19:34 -0500
+
+  * Prevent data store clone messages from being forwarded
+    (Jon Siwek, Corelight)
+
+1.0.1-53 | 2018-09-05 09:57:44 -0500
+
+  * Make blocking flags available to Python wrapper (Matthias Vallentin)
+
+  * Improve `make dist` (Jon Siwek, Corelight)
+
+1.0.1-49 | 2018-08-29 23:43:32 +0000
+
+  * Add Python __repr__ binding for broker::endpoint_info. It
+    translates to a unique node ID string. (Jon Siwek, Corelight)
+
+  * Remove Bro-specific "relay" messages. (Jon Siwek, Corelight)
+
+1.0.1-44 | 2018-08-22 10:55:34 -0500
+
+  * Bring back a minor advance_time optimization (Jon Siwek, Corelight)
+
+1.0.1-42 | 2018-08-21 09:59:54 -0500
+
+  * Move core actor to public namespace (Dominik Charousset)
+
+  * Decouple clock component of the endpoint (Dominik Charousset)
+
+1.0.1-38 | 2018-08-10 16:47:53 -0500
+
+  * Add ability to do blocking subscription modifications
+    (Jon Siwek, Corelight)
+
+  * Fix an issue that could cause message loss (Jon Siwek, Corelight)
+
+  * Fix two debug logging macros (Jon Siwek, Corelight)
+
+1.0.1-33 | 2018-08-08 12:43:52 -0500
+
+  * Update pybind11 to latest master (Jon Siwek, Corelight)
+
+  * Fix CAF deprecation warnings (Jon Siwek, Corelight)
+
+1.0.1-31 | 2018-08-08 09:41:49 -0500
+
+  * Fix pedantic compiler warnings (Jon Siwek, Corelight)
+
+  * Fix deprecated warnings, cleanup test fixtures (Dominik Charousset)
+
+1.0.1-25 | 2018-07-25 15:07:54 -0500
+
+  * Fix enabling use of ccache in embedded CAF (Jon Siwek, Corelight)
+
+1.0.1-21 | 2018-07-17 14:12:22 -0500
+
+  * Add compatibility/wrapper functions which call the equivalent within
+    the "caf" namespace (Jon Siwek, Corelight)
+
+      - broker::is
+      - broker::get
+      - broker::get_if
+      - broker::visit
+
+  * Use caf::variant, remove broker::detail::variant (Dominik Charousset)
+
 1.0.1-18 | 2018-06-27 20:01:47 -0500
 
   * Fix some typos in the Broker User Manual (Daniel Thayer)

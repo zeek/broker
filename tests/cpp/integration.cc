@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/defaults.hpp>
 #include <caf/test/io_dsl.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/atom.hpp>
@@ -32,6 +33,7 @@
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/timestamp.hpp>
+#include <caf/variant.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
@@ -135,7 +137,9 @@ struct peer_fixture {
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
       mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
-      credit_round_interval(sys.config().streaming_credit_round_interval()) {
+      credit_round_interval(get_or(sys.config(),
+                            "stream.credit-round-interval",
+                            caf::defaults::stream::credit_round_interval)) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code
@@ -348,6 +352,10 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
                                     {"bro/events/logging", 456}}));
   CAF_CHECK_EQUAL(earth.data, data({{"bro/events/failures", "oops"},
                                     {"bro/events/failures", "sorry!"}}));
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 // Checks whether topic subscriptions are prefix-based using the synchronous
@@ -413,6 +421,10 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   CAF_CHECK_EQUAL(earth_s2.poll(), data({{"bro/events/failures", "oops"},
                                          {"bro/events/failures", "sorry!"}}));
   exec_loop();
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 // -- unpeering of nodes and emitted status/error messages ---------------------
@@ -429,19 +441,19 @@ struct code {
   }
 
   code(const event_value& x) {
-    if (broker::detail::holds_alternative<error>(x))
-      value = static_cast<ec>(broker::detail::get<error>(x).code());
+    if (caf::holds_alternative<error>(x))
+      value = static_cast<ec>(caf::get<error>(x).code());
     else
-      value = broker::detail::get<status>(x).code();
+      value = caf::get<status>(x).code();
   }
 
-  detail::variant<sc, ec> value;
+  caf::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return broker::detail::holds_alternative<sc>(x.value)
-         ? to_string(broker::detail::get<sc>(x.value))
-         : to_string(broker::detail::get<ec>(x.value));
+  return caf::holds_alternative<sc>(x.value)
+         ? to_string(caf::get<sc>(x.value))
+         : to_string(caf::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {
@@ -497,7 +509,10 @@ CAF_TEST(unpeering) {
   CAF_CHECK(mercury.peers().empty());
   CAF_CHECK(venus.peers().empty());
   CAF_CHECK(earth.peers().empty());
-
+  venus.loop_after_next_enqueue();
+  venus.ep.unpeer("mercury", 4040);
+  earth.loop_after_next_enqueue();
+  earth.ep.unpeer("mercury", 4040);
 }
 
 CAF_TEST(unpeering_without_connections) {
@@ -505,6 +520,7 @@ CAF_TEST(unpeering_without_connections) {
   auto venus_es = venus.ep.make_status_subscriber(true);
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
+  exec_loop();
   venus.ep.unpeer("mercury", 4040);
   CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({ec::peer_invalid}));
 }

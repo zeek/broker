@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include <caf/variant.hpp>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <pybind11/functional.h>
@@ -20,7 +22,6 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/detail/shared_queue.hh"
-#include "broker/detail/variant.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/network_info.hh"
@@ -46,9 +47,9 @@ extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
 extern void init_store(py::module& m);
 
-PYBIND11_MAKE_OPAQUE(broker::set);
-PYBIND11_MAKE_OPAQUE(broker::table);
-PYBIND11_MAKE_OPAQUE(broker::vector);
+PYBIND11_MAKE_OPAQUE(broker::set)
+PYBIND11_MAKE_OPAQUE(broker::table)
+PYBIND11_MAKE_OPAQUE(broker::vector)
 
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
@@ -74,9 +75,10 @@ PYBIND11_MODULE(_broker, m) {
   m.def("now", &broker::now, "Get the current wallclock time");
 
   py::class_<broker::endpoint_info>(m, "EndpointInfo")
-    .def_readwrite("node", &broker::endpoint_info::node)
     // TODO: Can we convert this optional<network_info> directly into network_info or None?
-    .def_readwrite("network", &broker::endpoint_info::network);
+    .def_readwrite("network", &broker::endpoint_info::network)
+    .def("node_id", [](const broker::endpoint_info& e) { return to_string(e.node); })
+    .def("__repr__", [](const broker::endpoint_info& e) { return to_string(e.node); });
 
   py::class_<broker::network_info>(m, "NetworkInfo")
     .def_readwrite("address", &broker::network_info::address)
@@ -94,6 +96,8 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("peer", &broker::peer_info::peer)
     .def_readwrite("flags", &broker::peer_info::flags)
     .def_readwrite("status", &broker::peer_info::status);
+
+  py::bind_vector<std::vector<broker::peer_info>>(m, "VectorPeerInfo");
 
   py::class_<broker::topic>(m, "Topic")
     .def(py::init<std::string>())
@@ -190,13 +194,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return broker::is<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return broker::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return caf::get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return broker::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return caf::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
@@ -212,37 +216,42 @@ PYBIND11_MODULE(_broker, m) {
   // the standard class right at that point, one cannot pass an already
   // created one in, which is unfortunate.
   struct Configuration {
+    Configuration() {};
     Configuration(broker::broker_options opts) : options(std::move(opts)) {}
-    broker::broker_options options;
+    broker::broker_options options = {};
     std::string openssl_cafile;
     std::string openssl_capath;
     std::string openssl_certificate;
     std::string openssl_key;
     std::string openssl_passphrase;
+    int max_threads = 0;
   };
 
   py::class_<Configuration>(m, "Configuration")
+    .def(py::init<>())
     .def(py::init<broker::broker_options>())
     .def_readwrite("openssl_cafile", &Configuration::openssl_cafile)
     .def_readwrite("openssl_capath", &Configuration::openssl_capath)
     .def_readwrite("openssl_certificate", &Configuration::openssl_certificate)
     .def_readwrite("openssl_key", &Configuration::openssl_key)
-    .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase);
+    .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase)
+    .def_readwrite("max_threads", &Configuration::max_threads);
 
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
     .def(py::init([](Configuration cfg) {
-        auto make_config = [&]() {
-           broker::configuration bcfg(cfg.options);
-           bcfg.openssl_capath = cfg.openssl_capath;
-           bcfg.openssl_passphrase = cfg.openssl_passphrase;
-           bcfg.openssl_cafile = cfg.openssl_cafile;
-           bcfg.openssl_certificate = cfg.openssl_certificate;
-           bcfg.openssl_key = cfg.openssl_key;
-           return bcfg;
-           };
-        return std::unique_ptr<broker::endpoint>(new broker::endpoint(make_config()));
+        broker::configuration bcfg(cfg.options);
+        bcfg.openssl_capath = cfg.openssl_capath;
+        bcfg.openssl_passphrase = cfg.openssl_passphrase;
+        bcfg.openssl_cafile = cfg.openssl_cafile;
+        bcfg.openssl_certificate = cfg.openssl_certificate;
+        bcfg.openssl_key = cfg.openssl_key;
+        if ( cfg.max_threads > 0 )
+          bcfg.set("scheduler.max-threads", cfg.max_threads);
+        return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
+    .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
+    .def("node_id", [](const broker::endpoint& e) { return to_string(e.node_id()); })
     .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
@@ -254,7 +263,8 @@ PYBIND11_MODULE(_broker, m) {
 	 ep.peer_nosync(addr, port, std::chrono::seconds((int)retry));},
          py::arg("addr"), py::arg("port"), py::arg("retry") = 10.0
          )
-    .def("unpeer", &broker::endpoint::peer)
+    .def("unpeer", &broker::endpoint::unpeer)
+    .def("unpeer_nosync", &broker::endpoint::unpeer_nosync)
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)

@@ -4,6 +4,7 @@
 #include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/shared_queue.hh"
 
 namespace broker {

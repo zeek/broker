@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <utility>
+#include <unordered_set>
+#include <unordered_map>
 
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
@@ -15,16 +17,16 @@
 #include <caf/detail/stream_distribution_tree.hpp>
 
 #include "broker/data.hh"
+#include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/peer_filter.hh"
 #include "broker/topic.hh"
 
-#include "broker/detail/filter_type.hh"
-#include "broker/detail/peer_filter.hh"
-
 namespace broker {
-namespace detail {
 
 struct core_state;
+
+namespace detail {
 
 /// Sets up a configurable stream manager to act as a distribution tree for
 /// Broker.
@@ -153,6 +155,12 @@ public:
   /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
   /// except the filters in set skip
   filter_type get_all_filter(const std::set<caf::actor>& skip);
+
+  /// Block peer messages from being handled.  They are buffered until unblocked.
+  void block_peer(caf::actor peer);
+
+  /// Unblock peer messages and flush any buffered messages immediately.
+  void unblock_peer(caf::actor peer);
 
   /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
   /// @returns `false` if the peer is already connected, `true` otherwise.
@@ -337,6 +345,12 @@ private:
 
   /// Maps input path IDs to peer handles.
   path_to_peer_map ipath_to_peer_;
+
+  /// Peers that are currently blocked (messages buffered until unblocked).
+  std::unordered_set<caf::actor> blocked_peers;
+
+  /// Messages that are currently buffered.
+  std::unordered_map<caf::actor, std::vector<caf::message>> blocked_msgs;
 };
 
 } // namespace detail

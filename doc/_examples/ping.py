@@ -18,7 +18,7 @@ if not (type(st) == broker.Status and st.code() == broker.SC.PeerAdded):
 
 for n in range(5):
     # Send event "ping(n)".
-    ping = broker.bro.Event("ping", [n]);
+    ping = broker.bro.Event("ping", n);
     ep.publish("/topic/test", ping);
 
     # Wait for "pong" reply event.

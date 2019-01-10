@@ -1,9 +1,13 @@
 #define SUITE core
 #include "test.hpp"
-#include <caf/test/io_dsl.hpp>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#include <caf/test/io_dsl.hpp>
+#pragma GCC diagnostic pop
+
+#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
-#include "broker/detail/core_actor.hh"
 
 using namespace caf;
 using namespace broker;
@@ -125,16 +129,16 @@ CAF_TEST(local_peers) {
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
-  sched.run();
+  run();
   CAF_MESSAGE("connect a consumer (leaf) to core2");
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
-  sched.run_once();
+  consume_message();
   expect((atom_value, filter_type),
          from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
-  sched.run();
+  run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
@@ -151,7 +155,7 @@ CAF_TEST(local_peers) {
     }
   );
   CAF_MESSAGE("run handshake between peers");
-  sched.run();
+  run();
   // Check if core1 & core2 both report each other as peered.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
@@ -178,12 +182,12 @@ CAF_TEST(local_peers) {
   CAF_MESSAGE("spin up driver on core1");
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("driver: " << to_string(d1));
-  run_exhaustively();
+  run();
   CAF_MESSAGE("check log of the consumer after the driver is done");
   using buf = std::vector<element_type>;
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
-  sched.run_once();
+  consume_message();
   self->receive(
     [](const buf& xs) {
       buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -197,11 +201,11 @@ CAF_TEST(local_peers) {
          from(_).to(core1).with(_, _, _, _));
   expect((atom::publish, atom::local, topic, data),
          from(core1).to(core2).with(_, _, topic("b"), data{true}));
-  sched.run();
+  run();
   CAF_MESSAGE("check log of the consumer again");
   self->send(leaf, atom::get::value);
   sched.prioritize(leaf);
-  sched.run_once();
+  consume_message();
   self->receive(
     [](const buf& xs) {
       buf expected{{"b", true}, {"b", false}, {"b", true},
@@ -211,7 +215,7 @@ CAF_TEST(local_peers) {
   );
   CAF_MESSAGE("unpeer core1 from core2");
   anon_send(core1, atom::unpeer::value, core2);
-  sched.run();
+  run();
   CAF_MESSAGE("check whether both core1 and core2 report no more peers");
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
@@ -235,8 +239,6 @@ CAF_TEST(local_peers) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 // Simulates a simple triangle setup where core1 peers with core2, and core2
@@ -251,16 +253,16 @@ CAF_TEST(triangle_peering) {
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
-  sched.run();
+  run();
   // Connect a consumer (leaf) to core1 (this consumer never receives data,
   // because data isn't forwarded to local subscribers).
   auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core1);
   // Connect a consumer (leaf) to core2.
   auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core2);
-  sched.run();
+  run();
   // Connect a consumer (leaf) to core3.
   auto leaf3 = sys.spawn(consumer, filter_type{"b"}, core3);
-  sched.run();
+  run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
@@ -279,7 +281,7 @@ CAF_TEST(triangle_peering) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  sched.run();
+  run();
   // Initiate handshake between core2 and core3.
   self->send(core2, atom::peer::value, core3);
   expect((atom::peer, actor), from(self).to(core2).with(_, core3));
@@ -297,7 +299,7 @@ CAF_TEST(triangle_peering) {
     }
   );
   // Perform further handshake steps.
-  sched.run();
+  run();
   // Check if all cores properly report peering setup.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
@@ -336,14 +338,14 @@ CAF_TEST(triangle_peering) {
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
-  run_exhaustively();
+  run();
   // Check log of the consumers.
   using buf = std::vector<element_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
   for (auto& leaf : {leaf2, leaf3}) {
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
-    sched.run_once();
+    consume_message();
     self->receive(
       [&](const buf& xs) {
         CAF_REQUIRE_EQUAL(xs, expected);
@@ -353,7 +355,7 @@ CAF_TEST(triangle_peering) {
   // Make sure leaf1 never received any data.
   self->send(leaf1, atom::get::value);
   sched.prioritize(leaf1);
-  sched.run_once();
+  consume_message();
   self->receive(
     [&](const buf& xs) {
       CAF_REQUIRE(xs.empty());
@@ -364,8 +366,6 @@ CAF_TEST(triangle_peering) {
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(core3, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 // Simulates a simple setup where core1 peers with core2 and starts sending
@@ -385,15 +385,15 @@ CAF_TEST(sequenced_peering) {
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
-  sched.run();
+  run();
   // Connect a consumer (leaf) to core2.
   auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core2);
   CAF_MESSAGE(CAF_ARG(leaf1));
-  sched.run();
+  run();
   // Connect a consumer (leaf) to core3.
   auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core3);
   CAF_MESSAGE(CAF_ARG(leaf2));
-  sched.run();
+  run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
@@ -411,17 +411,17 @@ CAF_TEST(sequenced_peering) {
   );
   expect((atom::peer, filter_type, actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
-  sched.run();
+  run();
   CAF_MESSAGE("spin up driver and transmit first half of the data");
   auto d1 = sys.spawn(driver, core1, true);
   CAF_MESSAGE(CAF_ARG(d1));
-  run_exhaustively();
+  run();
   // Check log of the consumer on core2.
   using buf = std::vector<element_type>;
   buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
   self->send(leaf1, atom::get::value);
   sched.prioritize(leaf1);
-  sched.run_once();
+  consume_message();
   self->receive(
     [&](const buf& xs) {
       CAF_REQUIRE_EQUAL(xs, expected);
@@ -429,7 +429,7 @@ CAF_TEST(sequenced_peering) {
   );
   CAF_MESSAGE("kill core2");
   anon_send_exit(core2, exit_reason::user_shutdown);
-  sched.run();
+  run();
   CAF_MESSAGE("make sure core1 sees no peer anymore");
   sched.inline_next_enqueue();
   self->request(core1, infinite, atom::get::value, atom::peer::value).receive(
@@ -458,10 +458,10 @@ CAF_TEST(sequenced_peering) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core3
   expect((atom::peer, filter_type, actor),
          from(core1).to(core3).with(_, filter_type{"a", "b", "c"}, core1));
-  sched.run();
+  run();
   CAF_MESSAGE("restart driver and send second half of the data");
   anon_send(d1, restart_atom::value);
-  run_exhaustively();
+  run();
   // Check log of the consumer on core3.
   sched.inline_next_enqueue();
   self->request(leaf2, infinite, atom::get::value).receive(
@@ -476,8 +476,6 @@ CAF_TEST(sequenced_peering) {
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core3, exit_reason::user_shutdown);
-  sched.run();
-  sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -498,11 +496,7 @@ struct error_signaling_fixture : base_fixture {
     core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
     CAF_MESSAGE(CAF_ARG(core2));
     anon_send(core2, atom::no_events::value);
-    sched.run();
-  }
-
-  ~error_signaling_fixture() {
-    sched.inline_all_enqueues();
+    run();
   }
 };
 
@@ -552,7 +546,7 @@ CAF_TEST(failed_handshake_stage0) {
   self->send(core1, atom::peer::value, core2);
   anon_send_exit(core2, exit_reason::kill);
   expect((atom::peer, actor), from(self).to(core1).with(_, core2));
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_unavailable);
 }
 
@@ -564,7 +558,7 @@ CAF_TEST(failed_handshake_stage1) {
   expect((atom::peer, filter_type, actor),
          from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
   anon_send_exit(core2, exit_reason::kill);
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
@@ -580,7 +574,7 @@ CAF_TEST(failed_handshake_stage2) {
   CAF_MESSAGE("have core1 handle the pending handshake");
   expect((open_stream_msg), from(_).to(core1).with(_, _, _, _, _, false));
   CAF_MESSAGE("run remaining messages");
-  sched.run();
+  run();
   CAF_MESSAGE("check log of the event subscriber");
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
@@ -595,7 +589,7 @@ CAF_TEST(failed_handshake_stage3) {
   expect((open_stream_msg), from(_).to(core2).with(_, core1, _, _, false));
   anon_send_exit(core2, exit_reason::kill);
   expect((open_stream_msg), from(_).to(core1).with(_, core2, _, _, false));
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
 
@@ -603,43 +597,41 @@ CAF_TEST(failed_handshake_stage3) {
 CAF_TEST(unpeer_core1_from_core2) {
   CAF_MESSAGE("initiate handshake between core1 and core2");
   anon_send(core1, atom::peer::value, core2);
-  sched.run();
+  run();
   CAF_MESSAGE("unpeer core1 and core2");
   anon_send(core1, atom::unpeer::value, core2);
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_removed);
   CAF_MESSAGE("unpeering again emits peer_invalid");
   anon_send(core1, atom::unpeer::value, core2);
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
   CAF_MESSAGE("unpeering from an unconnected network emits peer_invalid");
   anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
-  sched.run();
 }
 
 // Checks emitted events in case a remote peer unpeers.
 CAF_TEST(unpeer_core2_from_core1) {
   // Initiate handshake between core1 and core2.
   anon_send(core2, atom::peer::value, core1);
-  sched.run();
+  run();
   anon_send(core2, atom::unpeer::value, core1);
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
   // Try unpeering again, this time on core1.
   anon_send(core1, atom::unpeer::value, core2);
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
   // Try unpeering from an unconnected network address.
   anon_send(core1, atom::unpeer::value, network_info{"localhost", 8080});
-  sched.run();
+  run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
   anon_send_exit(core1, exit_reason::user_shutdown);
   anon_send_exit(core2, exit_reason::user_shutdown);
-  sched.run();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -703,8 +695,6 @@ CAF_TEST(remote_peers_setup1) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_all_enqueues();
-  earth.sched.inline_all_enqueues();
 }
 
 // Setup: driver -> mars.core -> earth.core -> leaf
@@ -754,7 +744,7 @@ CAF_TEST(remote_peers_setup2) {
   using buf = std::vector<element_type>;
   mars.self->send(leaf, atom::get::value);
   mars.sched.prioritize(leaf);
-  mars.sched.run_once();
+  mars.consume_message();
   mars.self->receive(
     [](const buf& xs) {
       buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
@@ -766,8 +756,6 @@ CAF_TEST(remote_peers_setup2) {
   anon_send_exit(core2, exit_reason::user_shutdown);
   anon_send_exit(leaf, exit_reason::user_shutdown);
   exec_all();
-  mars.sched.inline_all_enqueues();
-  earth.sched.inline_all_enqueues();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

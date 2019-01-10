@@ -4,7 +4,9 @@
 
 #include <caf/detail/stream_distribution_tree.hpp>
 
-#include "broker/detail/core_actor.hh"
+#include "broker/core_actor.hh"
+
+#include <algorithm>
 
 using caf::detail::stream_distribution_tree;
 
@@ -29,13 +31,72 @@ bool core_policy::substream_local_data() const {
 void core_policy::before_handle_batch(stream_slot,
                                       const strong_actor_ptr& hdl) {
   CAF_LOG_TRACE(CAF_ARG(hdl));
+  // If there's anything in the central buffer at this point, it's
+  // stuff that we're sending out ourselves (as opposed to forwarding),
+  // so we flush it out to each path's own cache now to make sure the
+  // subsequent flush in after_handle_batch doesn't accidentally filter
+  // out messages where the outband path of previously-buffered messagesi
+  // happens to match the path of the inbound data we are handling here.
+  peers().selector().active_sender = nullptr;
+  peers().fan_out_flush();
   peers().selector().active_sender = actor_cast<actor_addr>(hdl);
 }
 
-void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
+void core_policy::block_peer(caf::actor peer) {
+  blocked_peers.emplace(std::move(peer));
+}
+
+void core_policy::unblock_peer(caf::actor peer) {
+  blocked_peers.erase(peer);
+
+  auto it = blocked_msgs.find(peer);
+
+  if ( it == blocked_msgs.end() )
+    return;
+
+  auto pit = peer_to_ipath_.find(peer);
+
+  if ( pit == peer_to_ipath_.end() ) {
+    blocked_msgs.erase(it);
+    CAF_LOG_DEBUG("dropped batches after unblocking peer: path no longer exists" << peer);
+    return;
+  }
+
+  auto& slot = pit->second;
+  auto sap = actor_cast<strong_actor_ptr>(peer);
+
+  for ( auto& batch : it->second ) {
+    CAF_LOG_DEBUG("handle blocked batch" << peer);
+    before_handle_batch(slot, sap);
+    handle_batch(slot, sap, batch);
+    after_handle_batch(slot, sap);
+  }
+
+  blocked_msgs.erase(it);
+}
+
+static bool ends_with(const std::string& s, const std::string& ending) {
+  if (ending.size() > s.size())
+    return false;
+  return std::equal(ending.rbegin(), ending.rend(), s.rbegin());
+}
+
+void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
                                message& xs) {
   CAF_LOG_TRACE(CAF_ARG(xs));
+
   if (xs.match_elements<peer_trait::batch>()) {
+
+    auto peer_actor = caf::actor_cast<actor>(peer);
+    auto it = blocked_peers.find(peer_actor);
+
+    if ( it != blocked_peers.end() ) {
+      CAF_LOG_DEBUG("buffer batch from blocked peer" << peer);
+      auto& bmsgs = blocked_msgs[peer_actor];
+      bmsgs.emplace_back(std::move(xs));
+      return;
+    }
+
     auto num_workers = workers().num_paths();
     auto num_stores = stores().num_paths();
     CAF_LOG_DEBUG("forward batch from peers;" << CAF_ARG(num_workers)
@@ -55,6 +116,10 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr&,
         stores().push(msg.get_as<topic>(0), msg.get_as<internal_command>(1));
       // Check if forwarding is on.
       if (!state_->options.forward)
+        continue;
+      // Somewhat hacky, but don't forward data store clone messages.
+      if (ends_with(msg.get_as<topic>(0).string(),
+          topics::clone_suffix.string()))
         continue;
       // Either decrease TTL if message has one already, or add one.
       if (msg.size() < 3) {
@@ -418,14 +483,14 @@ void core_policy::remote_push(message msg) {
 /// Pushes data to peers and workers.
 void core_policy::push(topic x, data y) {
   CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(x, y));
+  remote_push(make_message(std::move(x), std::move(y)));
   //local_push(std::move(x), std::move(y));
 }
 
 /// Pushes data to peers and stores.
 void core_policy::push(topic x, internal_command y) {
   CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(x, y));
+  remote_push(make_message(std::move(x), std::move(y)));
   //local_push(std::move(x), std::move(y));
 }
 

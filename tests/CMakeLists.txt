@@ -20,7 +20,6 @@ set(tests
   cpp/store.cc
   cpp/subscriber.cc
   cpp/topic.cc
-  cpp/variant.cc
   test.cpp
 )
 

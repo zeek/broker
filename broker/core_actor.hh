@@ -1,5 +1,5 @@
-#ifndef BROKER_DETAIL_CORE_ACTOR_HH
-#define BROKER_DETAIL_CORE_ACTOR_HH
+#ifndef BROKER_CORE_ACTOR_HH
+#define BROKER_CORE_ACTOR_HH
 
 #include <map>
 #include <unordered_map>
@@ -11,28 +11,27 @@
 #include <caf/stateful_actor.hpp>
 
 #include "broker/atoms.hh"
-#include "broker/logger.hh"
+#include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
+#include "broker/filter_type.hh"
+#include "broker/logger.hh"
 #include "broker/network_info.hh"
 #include "broker/optional.hh"
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
-#include "broker/configuration.hh"
 
 #include "broker/detail/core_policy.hh"
-#include "broker/detail/filter_type.hh"
 #include "broker/detail/network_cache.hh"
 #include "broker/detail/radix_tree.hh"
 
 namespace broker {
-namespace detail {
 
 struct core_state {
   // --- nested types ----------------------------------------------------------
 
-  using governor_type = caf::detail::stream_distribution_tree<core_policy>;
+  using governor_type = caf::detail::stream_distribution_tree<detail::core_policy>;
 
   using governor_ptr = caf::intrusive_ptr<governor_type>;
 
@@ -52,7 +51,8 @@ struct core_state {
   core_state(caf::event_based_actor* ptr);
 
   /// Establishes all invariants.
-  void init(filter_type initial_filter, broker_options opts, endpoint* ep);
+  void init(filter_type initial_filter, broker_options opts,
+            endpoint::clock* ep_clock);
 
   // --- filter management -----------------------------------------------------
 
@@ -72,7 +72,7 @@ struct core_state {
   bool has_remote_master(const std::string& name);
 
   /// Returns the policy object.
-  core_policy& policy();
+  detail::core_policy& policy();
 
   // --- convenience functions for sending errors and events -------------------
 
@@ -112,6 +112,8 @@ struct core_state {
 
   template <sc StatusCode>
   void emit_status(caf::actor hdl, const char* msg) {
+    static_assert(StatusCode != sc::peer_added,
+                  "Use emit_peer_added_status instead");
     auto emit = [=](network_info x) {
       BROKER_INFO("status" << StatusCode << x);
       self->send(statuses_, atom::local::value,
@@ -126,10 +128,14 @@ struct core_state {
       emit({});
   }
 
+  void emit_peer_added_status(caf::actor hdl, const char* msg);
+
   template <sc StatusCode>
   void emit_status(caf::strong_actor_ptr hdl, const char* msg) {
     emit_status<StatusCode>(caf::actor_cast<caf::actor>(std::move(hdl)), msg);
   }
+
+  void sync_with_status_subscribers(caf::actor new_peer);
 
   // --- member variables ------------------------------------------------------
 
@@ -159,7 +165,7 @@ struct core_state {
   caf::event_based_actor* self;
 
   /// Associates network addresses to remote actor handles and vice versa.
-  network_cache cache;
+  detail::network_cache cache;
 
   /// Caches the CAF group for error messages.
   caf::group errors_;
@@ -173,15 +179,17 @@ struct core_state {
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
 
-  /// The endpoint which spawned this core actor.
-  endpoint* ep;
+  /// Required when spawning data stores.
+  endpoint::clock* clock;
+
+  std::unordered_set<caf::actor> status_subscribers;
+  std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          filter_type initial_filter, broker_options opts,
-                         endpoint* ep);
+                         endpoint::clock* clock);
 
-} // namespace detail
 } // namespace broker
 
-#endif // BROKER_DETAIL_CORE_ACTOR_HH
+#endif // BROKER_CORE_ACTOR_HH
