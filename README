@@ -1,8 +1,8 @@
 .. _User Manual: https://docs.zeek.org/projects/broker
 
-===============================
+================================
 Broker: Zeek's Messaging Library
-===============================
+================================
 
 The Broker library implements Zeek's high-level communication patterns:
 
