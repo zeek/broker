@@ -199,7 +199,7 @@ void init_data(py::module& m) {
     .def("as_port", [](const broker::data& d) { return caf::get<broker::port>(d); })
     .def("as_real", [](const broker::data& d) { return caf::get<broker::real>(d); })
     .def("as_set", [](const broker::data& d) { return caf::get<broker::set>(d); })
-    .def("as_string", [](const broker::data& d) { return caf::get<std::string>(d); })
+    .def("as_string", [](const broker::data& d) { return py::bytes(caf::get<std::string>(d)); })
     .def("as_subnet", [](const broker::data& d) { return caf::get<broker::subnet>(d); })
     .def("as_table", [](const broker::data& d) { return caf::get<broker::table>(d); })
     .def("as_timespan", [](const broker::data& d) {
