@@ -1,4 +1,8 @@
 
+1.1.2-10 | 2019-01-22 15:05:55 -0600
+
+  * Update embedded CAF to 0.16.3 (Jon Siwek, Corelight)
+
 1.1.2-8 | 2019-01-16 09:02:18 -0600
 
   * Fix python bindings unicode decode exceptions (Jon Siwek, Corelight)

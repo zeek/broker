@@ -136,7 +136,6 @@ else ()
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes
         -DCAF_NO_TOOLS:bool=yes
-        -DCAF_NO_BENCHMARKS:bool=yes
         -DCAF_NO_PYTHON:bool=yes
         -DCAF_NO_OPENCL:bool=yes
         -DCAF_BUILD_STATIC:bool=${ENABLE_STATIC}
