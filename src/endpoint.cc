@@ -122,6 +122,10 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
+  if (CAF_LOG_LEVEL == 0)
+    // Work around a bug in CAF 0.16.3 that causes empty log files to
+    // be produced even when CAF is not build with debug logging.
+    config_.set("logger.verbosity", caf::atom("quiet"));
   new (&system_) caf::actor_system(config_);
   clock_ = new clock(&system_, config_.options().use_real_time);
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())

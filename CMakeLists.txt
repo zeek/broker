@@ -34,6 +34,7 @@ if ( CAF_ROOT_DIR )
     set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
   endif ()
 else ()
+
   include(ExternalProject)
   set(caf_src     "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
   set(caf_ep      "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
@@ -125,6 +126,10 @@ else ()
     set(cmake_cxx_compiler_launcher_arg)
   endif ()
 
+  if ( NOT CAF_LOG_LEVEL )
+    set(CAF_LOG_LEVEL "QUIET")
+  endif ()
+
   execute_process(
       COMMAND
         ${CMAKE_COMMAND}
@@ -132,6 +137,7 @@ else ()
         ${toolchain_arg}
         ${cmake_c_compiler_launcher_arg}
         ${cmake_cxx_compiler_launcher_arg}
+        -DCAF_LOG_LEVEL:string=${CAF_LOG_LEVEL}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
         -DCAF_NO_EXAMPLES:bool=yes

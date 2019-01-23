@@ -31,8 +31,8 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-asan          enable AddressSanitizer
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
-    --no-auto-libc++       do not automatically use libc++ with Clang
-
+    --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
+                             ERROR, WARNING, INFO, DEBUG, TRACE
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -135,6 +135,9 @@ while [ $# -ne 0 ]; do
             ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
+            ;;
+        --with-log-level=*)
+            append_cache_entry CAF_LOG_LEVEL STRING "$optarg"
             ;;
         --disable-python)
             append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
