@@ -348,7 +348,7 @@ class Data(_broker.Data):
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
 
-        elif isinstance(x, (bool, int, long, float, str, unicode,
+        elif isinstance(x, (bool, int, long, float, str, unicode, bytes,
                             Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
             _broker.Data.__init__(self, x)
 
@@ -428,6 +428,12 @@ class Data(_broker.Data):
         def to_vector(v):
             return [Data.to_py(i) for i in v]
 
+        def _try_bytes_decode(b):
+            try:
+                return b.decode('utf-8')
+            except:
+                return b
+
         converters = {
             Data.Type.Nil: lambda: None,
             Data.Type.Address: lambda: to_ipaddress(d.as_address()),
@@ -438,7 +444,7 @@ class Data(_broker.Data):
             Data.Type.Port: lambda: d.as_port(),
             Data.Type.Real: lambda: d.as_real(),
             Data.Type.Set: lambda: to_set(d.as_set()),
-            Data.Type.String: lambda: d.as_string(),
+            Data.Type.String: lambda: _try_bytes_decode(d.as_string()),
             Data.Type.Subnet: lambda: to_subnet(d.as_subnet()),
             Data.Type.Table: lambda: to_table(d.as_table()),
             Data.Type.Timespan: lambda: datetime.timedelta(seconds=d.as_timespan()),

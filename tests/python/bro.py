@@ -37,6 +37,10 @@ event bro_init()
 function send_event(s: string)
     {
     s += "x";
+
+    if ( event_count == 5 )
+        s += "\\x82";
+
     local e = Broker::make_event(ping, s, event_count);
     Broker::publish("/test", e);
     ++event_count;
@@ -84,12 +88,22 @@ class TestCommunication(unittest.TestCase):
             (t, msg) = sub.get()
             ev = broker.bro.Event(msg)
             (s, c) = ev.args()
+            expected_arg = "x" + "Xx" * i
+
+            if i == 5:
+                expected_arg = expected_arg.encode('utf-8') + b'\x82'
 
             self.assertEqual(ev.name(), "ping")
-            self.assertEqual(s, "x" + "Xx" * i)
+            self.assertEqual(s, expected_arg)
             self.assertEqual(c, i)
 
-            ev = broker.bro.Event("pong", s + "X", c)
+            if i < 3:
+                ev = broker.bro.Event("pong", s + "X", c)
+            elif i < 5:
+                ev = broker.bro.Event("pong", s.encode('utf-8') + b'X', c)
+            else:
+                ev = broker.bro.Event("pong", 'done', c)
+
             ep.publish("/test", ev)
 
         ep.shutdown()

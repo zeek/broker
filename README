@@ -1,10 +1,10 @@
-.. _User Manual: https://bro-broker.readthedocs.io
+.. _User Manual: https://docs.zeek.org/projects/broker
 
-===============================
-Broker: Bro's Messaging Library
-===============================
+================================
+Broker: Zeek's Messaging Library
+================================
 
-The Broker library implements Bro's high-level communication patterns:
+The Broker library implements Zeek's high-level communication patterns:
 
     - remote logging
     - remote events
@@ -26,7 +26,7 @@ to the centralized master store which applies them and then broadcasts
 them to all clones.
 
 Applications which integrate the Broker library may communicate with
-each other using the above-mentioned patterns which are common to Bro.
+each other using the above-mentioned patterns which are common to Zeek.
 
 See the `User Manual`_ for more information.  For offline reading, it's
 also available in the ``doc/`` directory of the source tree.
