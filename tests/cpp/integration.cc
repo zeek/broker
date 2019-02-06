@@ -335,9 +335,9 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
                   filter({"bro/events", "bro/events/failures"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"bro/events"}));
   MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
   mercury.publish("bro/events/failures", "oops", "sorry!");
   mercury.publish("bro/events/logging", 123, 456);
@@ -398,9 +398,9 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
                   filter({"bro/events", "bro/events/failures"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"bro/events"}));
   MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
   mercury.publish("bro/events/failures", "oops", "sorry!");
   mercury.publish("bro/events/logging", 123, 456);

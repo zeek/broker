@@ -61,7 +61,7 @@ result<void> init_peering(caf::stateful_actor<core_state>* self,
   // Create necessary state and send message to remote core.
   st.pending_peers.emplace(remote_core,
                            core_state::pending_peer_state{0, rp});
-  self->send(self * remote_core, atom::peer::value, st.filter, self);
+  self->send(self * remote_core, atom::peer::value, st.policy().get_all_filter(), self);
   self->monitor(remote_core);
   return rp;
 }

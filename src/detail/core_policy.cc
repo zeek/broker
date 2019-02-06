@@ -285,6 +285,11 @@ peer_filter& core_policy::get_filter(const caf::actor& hdl) {
   return peers().filter(j->second);
 }
 
+filter_type core_policy::get_all_filter() {
+  std::set<caf::actor> skip;
+  return get_all_filter(skip);
+}
+
 filter_type core_policy::get_all_filter(const std::set<caf::actor>& skip) {
   filter_type return_filter;
   // add filter of all outbound peers
