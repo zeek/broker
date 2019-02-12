@@ -12,15 +12,28 @@ const count ProtocolVersion = 1;
 class Message {
 public:
   enum Type {
+    Invalid = 0,
     Event = 1,
     LogCreate = 2,
     LogWrite = 3,
     IdentifierUpdate = 4,
     Batch = 5,
+    MAX = Batch,
   };
 
   Type type() const {
-    return Type(caf::get<count>(msg_[1]));
+    if ( msg_.size() < 2 )
+      return Type::Invalid;
+
+    auto cp = caf::get_if<count>(&msg_[1]);
+
+    if ( ! cp )
+      return Type::Invalid;
+
+    if ( *cp > Type::MAX )
+      return Type::Invalid;
+
+    return Type(*cp);
   }
 
   data as_data() const {
@@ -32,7 +45,25 @@ public:
   }
 
   static Type type(const data& msg) {
-    return Type(caf::get<count>(caf::get<vector>(msg)[1]));
+    auto vp = caf::get_if<vector>(&msg);
+
+    if ( ! vp )
+      return Type::Invalid;
+
+    auto& v = *vp;
+
+    if ( v.size() < 2 )
+      return Type::Invalid;
+
+    auto cp = caf::get_if<count>(&v[1]);
+
+    if ( ! cp )
+      return Type::Invalid;
+
+    if ( *cp > Type::MAX )
+      return Type::Invalid;
+
+    return Type(*cp);
   }
 
 protected:
@@ -69,6 +100,33 @@ class Event : public Message {
   vector& args() {
     return caf::get<vector>(caf::get<vector>(msg_[2])[1]);
   }
+
+  bool valid() const {
+    if ( msg_.size() < 3 )
+      return false;
+
+    auto vp = caf::get_if<vector>(&(msg_[2]));
+
+    if ( ! vp )
+      return false;
+
+    auto& v = *vp;
+
+    if ( v.size() < 2 )
+      return false;
+
+    auto name_ptr = caf::get_if<std::string>(&v[0]);
+
+    if ( ! name_ptr )
+      return false;
+
+    auto args_ptr = caf::get_if<vector>(&v[1]);
+
+    if ( ! args_ptr )
+      return false;
+
+    return true;
+  }
 };
 
 /// A batch of other messages.
@@ -85,6 +143,18 @@ class Batch : public Message {
 
   vector& batch() {
     return caf::get<vector>(msg_[2]);
+  }
+
+  bool valid() const {
+    if ( msg_.size() < 3 )
+      return false;
+
+    auto vp = caf::get_if<vector>(&(msg_[2]));
+
+    if ( ! vp )
+      return false;
+
+    return true;
   }
 };
 
@@ -133,6 +203,29 @@ public:
   data& fields_data() {
     return caf::get<vector>(msg_[2])[3];
   }
+
+  bool valid() const {
+    if ( msg_.size() < 3 )
+      return false;
+
+    auto vp = caf::get_if<vector>(&(msg_[2]));
+
+    if ( ! vp )
+      return false;
+
+    auto& v = *vp;
+
+    if ( v.size() < 4 )
+      return false;
+
+    if ( ! caf::get_if<enum_value>(&v[0]) )
+      return false;
+
+    if ( ! caf::get_if<enum_value>(&v[1]) )
+      return false;
+
+    return true;
+  }
 };
 
 /// A Bro log-write message. Note that at the moment this should be used only
@@ -180,6 +273,29 @@ public:
   data& serial_data() {
     return caf::get<vector>(msg_[2])[3];
   }
+
+  bool valid() const {
+    if ( msg_.size() < 3 )
+      return false;
+
+    auto vp = caf::get_if<vector>(&(msg_[2]));
+
+    if ( ! vp )
+      return false;
+
+    auto& v = *vp;
+
+    if ( v.size() < 4 )
+      return false;
+
+    if ( ! caf::get_if<enum_value>(&v[0]) )
+      return false;
+
+    if ( ! caf::get_if<enum_value>(&v[1]) )
+      return false;
+
+    return true;
+  }
 };
 
 class IdentifierUpdate : public Message {
@@ -206,6 +322,26 @@ public:
 
   data& id_value() {
     return caf::get<vector>(msg_[2])[1];
+  }
+
+  bool valid() const {
+    if ( msg_.size() < 3 )
+      return false;
+
+    auto vp = caf::get_if<vector>(&(msg_[2]));
+
+    if ( ! vp )
+      return false;
+
+    auto& v = *vp;
+
+    if ( v.size() < 2 )
+      return false;
+
+    if ( ! caf::get_if<std::string>(&v[0]) )
+      return false;
+
+    return true;
   }
 };
 
