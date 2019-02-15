@@ -49,6 +49,11 @@ flare::flare() {
   //::fcntl(fds_[1], F_SETFL, ::fcntl(fds_[1], F_GETFL) | O_NONBLOCK);
 }
 
+flare::~flare() {
+  close(fds_[0]);
+  close(fds_[1]);
+}
+
 int flare::fd() const {
   return fds_[0];
 }

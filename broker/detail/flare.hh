@@ -20,6 +20,9 @@ public:
   /// Constructs a flare by opening a UNIX pipe.
   flare();
 
+  /// Destructs the flare, closing the UNIX pipe's file descriptors.
+  ~flare();
+
   flare(const flare&) = delete;
   flare& operator=(const flare&) = delete;
 

@@ -1,4 +1,12 @@
 
+1.1.2-13 | 2019-02-15 13:53:38 -0600
+
+  * zeek/GH-273: Fix file descriptor leak in subscribers (Jon Siwek, Corelight)
+
+    Specifically, endpoint::make_status_subscriber() and
+    endpoint::make_subscriber() methods because the "flare" class was
+    missing a dtor to close its FDs.
+
 1.1.2-12 | 2019-02-06 13:15:57 -0600
 
   * Add validity-checking functions for Bro-specific messages (Jon Siwek, Corelight)
