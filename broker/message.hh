@@ -1,5 +1,5 @@
-#ifndef BROKER_EVENT_HH
-#define BROKER_EVENT_HH
+#ifndef BROKER_MESSAGE_HH
+#define BROKER_MESSAGE_HH
 
 #include <cstdint>
 
@@ -27,6 +27,16 @@ struct node_message {
   /// Time-to-life counter.
   uint16_t ttl;
 };
+
+/// Returns whether `x` contains a ::node_message.
+inline bool is_data_message(const node_message& x) {
+  return caf::holds_alternative<data_message>(x.content);
+}
+
+/// Returns whether `x` contains a ::command_message.
+inline bool is_command_message(const node_message& x) {
+  return caf::holds_alternative<command_message>(x.content);
+}
 
 /// @relates node_message
 template <class Inspector>
@@ -68,27 +78,27 @@ inline const topic& get_topic(const command_message& x) {
 
 /// Retrieves the topic from a ::generic_message.
 inline const topic& get_topic(const node_message& x) {
-  if(caf::holds_alternative<data_message>(x.content))
+  if (is_data_message(x))
     return get_topic(caf::get<data_message>(x.content));
   return get_topic(caf::get<command_message>(x.content));
 }
 
-/// Moves the topic out of a ::data_message, copying it if more than one
-/// reference exists..
+/// Moves the topic out of a ::data_message. Causes `x` to make a lazy copy of
+/// its content if other ::data_message objects hold references to it.
 inline topic&& move_topic(data_message& x) {
   return std::move(get<0>(x.unshared()));
 }
 
-/// Moves the topic out of a ::command_message, copying it if more than one
-/// reference exists..
+/// Moves the topic out of a ::command_message. Causes `x` to make a lazy copy
+/// of its content if other ::command_message objects hold references to it.
 inline topic&& move_topic(command_message& x) {
   return std::move(get<0>(x.unshared()));
 }
 
-/// Moves the topic out of a ::generic_message, copying it if more than one
-/// reference exists..
+/// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
+/// its content if other ::node_message objects hold references to it.
 inline topic&& move_topic(node_message& x) {
-  if( caf::holds_alternative<data_message>(x.content))
+  if (is_data_message(x))
     return move_topic(caf::get<data_message>(x.content));
   return move_topic(caf::get<command_message>(x.content));
 }
@@ -98,34 +108,25 @@ inline const data& get_data(const data_message& x) {
   return get<1>(x);
 }
 
-/// Moves the data out of a ::data_message, copying it if more than one
-/// reference exists.
-inline const data&& move_data(data_message& x) {
+/// Moves the data out of a ::data_message. Causes `x` to make a lazy copy of
+/// its content if other ::data_message objects hold references to it.
+inline data&& move_data(data_message& x) {
   return std::move(get<1>(x.unshared()));
 }
-/// Retrieves the command from a ::command_message.
+
+/// Retrieves the command content from a ::command_message.
 inline const internal_command::variant_type&
 get_command(const command_message& x) {
   return get<1>(x).content;
 }
 
-/// Moves the command out of a ::command_message, copying it if more than one
-/// reference exists.
-inline internal_command::variant_type
-move_command(command_message& x) {
+/// Moves the command content out of a ::command_message. Causes `x` to make a
+/// lazy copy of its content if other ::command_message objects hold references
+/// to it.
+inline internal_command::variant_type&& move_command(command_message& x) {
   return std::move(get<1>(x.unshared()).content);
-}
-
-/// Returns whether `x` contains a ::node_message.
-inline bool is_data_message(const node_message& x) {
-  return caf::holds_alternative<data_message>(x.content);
-}
-
-/// Returns whether `x` contains a ::command_message.
-inline bool is_command_message(const node_message& x) {
-  return caf::holds_alternative<command_message>(x.content);
 }
 
 } // namespace broker
 
-#endif // BROKER_EVENT_HH
+#endif // BROKER_MESSAGE_HH
