@@ -51,11 +51,9 @@ struct subscriber_worker_state {
 
 const char* subscriber_worker_state::name = "subscriber_worker";
 
-using input_type = std::pair<topic, data>;
-
-class subscriber_sink : public stream_sink<input_type> {
+class subscriber_sink : public stream_sink<data_message> {
 public:
-  using super = stream_sink<input_type>;
+  using super = stream_sink<data_message>;
 
   using queue_ptr = detail::shared_subscriber_queue_ptr<>;
 
@@ -76,7 +74,7 @@ public:
 protected:
    void handle(inbound_path*, downstream_msg::batch& x) override {
     CAF_LOG_TRACE(CAF_ARG(x));
-    using vec_type = std::vector<input_type>;
+    using vec_type = std::vector<data_message>;
     if (x.xs.match_elements<vec_type>()) {
       auto& xs = x.xs.get_mutable_as<vec_type>(0);
       auto xs_size = xs.size();

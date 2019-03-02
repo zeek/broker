@@ -25,9 +25,8 @@ struct driver_state {
   buf_type xs;
   static const char* name;
   void reset() {
-    xs
-      = buf_type{{"a", 0},    {"b", true}, {"a", 1},     {"a", 2}, {"b", false},
-                 {"b", true}, {"a", 3},    {"b", false}, {"a", 4}, {"a", 5}};
+    xs = data_msgs({{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false},
+                    {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}});
   }
   driver_state() {
     reset();
@@ -190,17 +189,19 @@ CAF_TEST(local_peers) {
   consume_message();
   self->receive(
     [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+      auto expected = data_msgs({{"b", true}, {"b", false},
+                                 {"b", true}, {"b", false}});
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
   CAF_MESSAGE("send message 'directly' from core1 to core2 (bypass streaming)");
   anon_send(core1, atom::publish::value, endpoint_info{core2.node(), caf::none},
-            topic("b"), data{true});
-  expect((atom::publish, endpoint_info, topic, data),
-         from(_).to(core1).with(_, _, _, _));
-  expect((atom::publish, atom::local, topic, data),
-         from(core1).to(core2).with(_, _, topic("b"), data{true}));
+            make_data_message(topic("b"), data{true}));
+  expect((atom::publish, endpoint_info, data_message),
+         from(_).to(core1).with(_, _, _));
+  expect((atom::publish, atom::local, data_message),
+         from(core1).to(core2).with(_, _,
+                                    make_data_message(topic("b"), data{true})));
   run();
   CAF_MESSAGE("check log of the consumer again");
   self->send(leaf, atom::get::value);
@@ -208,8 +209,8 @@ CAF_TEST(local_peers) {
   consume_message();
   self->receive(
     [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}, {"b", true},
-                   {"b", false}, {"b", true}};
+      auto expected = data_msgs({{"b", true}, {"b", false}, {"b", true},
+                                 {"b", false}, {"b", true}});
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
@@ -341,7 +342,8 @@ CAF_TEST(triangle_peering) {
   run();
   // Check log of the consumers.
   using buf = std::vector<element_type>;
-  buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+  auto expected = data_msgs({{"b", true}, {"b", false},
+                             {"b", true}, {"b", false}});
   for (auto& leaf : {leaf2, leaf3}) {
     self->send(leaf, atom::get::value);
     sched.prioritize(leaf);
@@ -418,7 +420,8 @@ CAF_TEST(sequenced_peering) {
   run();
   // Check log of the consumer on core2.
   using buf = std::vector<element_type>;
-  buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+  auto expected = data_msgs({{"b", true}, {"b", false},
+                             {"b", true}, {"b", false}});
   self->send(leaf1, atom::get::value);
   sched.prioritize(leaf1);
   consume_message();
@@ -687,7 +690,8 @@ CAF_TEST(remote_peers_setup1) {
   exec_all();
   earth.self->receive(
     [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+      auto expected = data_msgs({{"b", true}, {"b", false},
+                                 {"b", true}, {"b", false}});
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
@@ -747,7 +751,8 @@ CAF_TEST(remote_peers_setup2) {
   mars.consume_message();
   mars.self->receive(
     [](const buf& xs) {
-      buf expected{{"b", true}, {"b", false}, {"b", true}, {"b", false}};
+      auto expected = data_msgs({{"b", true}, {"b", false},
+                                 {"b", true}, {"b", false}});
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );

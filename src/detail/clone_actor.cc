@@ -56,11 +56,16 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
 }
 
 void clone_state::forward(internal_command&& x) {
-  self->send(core, atom::publish::value, master_topic, std::move(x));
+  self->send(core, atom::publish::value,
+             make_command_message(master_topic, std::move(x)));
+}
+
+void clone_state::command(internal_command::variant_type& cmd) {
+  caf::visit(*this, cmd);
 }
 
 void clone_state::command(internal_command& cmd) {
-  caf::visit(*this, cmd.content);
+  command(cmd.content);
 }
 
 void clone_state::operator()(none) {
@@ -381,8 +386,11 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         },
         // processing step
         [=](caf::unit_t&, store::stream_type::value_type y) {
-          if ( y.second.content.is<snapshot_sync_command>() ) {
-            self->state.command(y.second);
+          // TODO: our operator() overloads require mutable references, but
+          //       only a fraction actually benefit from it.
+          auto cmd = move_command(y);
+          if (caf::holds_alternative<snapshot_sync_command>(cmd)) {
+            self->state.command(cmd);
             return;
           }
 
@@ -390,11 +398,11 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
             return;
 
           if ( self->state.awaiting_snapshot ) {
-            self->state.pending_remote_updates.emplace_back(std::move(y.second));
+            self->state.pending_remote_updates.emplace_back(std::move(cmd));
             return;
           }
 
-          self->state.command(y.second);
+          self->state.command(cmd);
         }
       );
     }

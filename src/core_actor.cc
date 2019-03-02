@@ -303,7 +303,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       return st.policy().start_peering<true>(peer_hdl, std::move(peer_ts));
     },
     // Step #2: B establishes a stream to A and sends its own filter
-    [=](const stream<message>& in, filter_type& filter, caf::actor& peer_hdl) {
+    [=](const stream<node_message>& in, filter_type& filter,
+        caf::actor& peer_hdl) {
       CAF_LOG_TRACE(CAF_ARG(in) << CAF_ARG(filter) << peer_hdl);
       auto& st = self->state;
       CAF_LOG_DEBUG("received handshake step #2 from" << peer_hdl
@@ -328,7 +329,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     // Step #3: - A establishes a stream to B
     //          - B has a stream to A and vice versa now
-    [=](const stream<message>& in, ok_atom, caf::actor& peer_hdl) {
+    [=](const stream<node_message>& in, ok_atom, caf::actor& peer_hdl) {
       CAF_LOG_TRACE(CAF_ARG(in) << CAF_ARG(peer_hdl));
       auto& st = self->state;
       if (!st.policy().has_outbound_path_to(peer_hdl)) {
@@ -382,26 +383,26 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       auto& st = self->state;
       st.governor->add_unchecked_inbound_path(in);
     },
-    [=](atom::publish, topic& t, data& x) {
-      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-      self->state.policy().push(std::move(t), std::move(x));
+    [=](atom::publish, data_message& x) {
+      CAF_LOG_TRACE(CAF_ARG(x));
+      self->state.policy().push(std::move(x));
     },
-    [=](atom::publish, topic& t, internal_command& x) {
-      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-      self->state.policy().push(std::move(t), std::move(x));
+    [=](atom::publish, command_message& x) {
+      CAF_LOG_TRACE(CAF_ARG(x));
+      self->state.policy().push(std::move(x));
     },
     // --- communication to local actors only, i.e., never forward to peers ----
-    [=](atom::publish, atom::local, topic& t, data& x) {
-      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-      self->state.policy().local_push(std::move(t), std::move(x));
+    [=](atom::publish, atom::local, data_message& x) {
+      CAF_LOG_TRACE(CAF_ARG(x));
+      self->state.policy().local_push(std::move(x));
     },
-    [=](atom::publish, atom::local, topic& t, internal_command& x) {
-      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
-      self->state.policy().local_push(std::move(t), std::move(x));
+    [=](atom::publish, atom::local, command_message& x) {
+      CAF_LOG_TRACE(CAF_ARG(x));
+      self->state.policy().local_push(std::move(x));
     },
     // --- "one-to-one" communication that bypasses streaming entirely ---------
-    [=](atom::publish, endpoint_info& e, topic& t, data& x) {
-      CAF_LOG_TRACE(CAF_ARG(t) << CAF_ARG(x));
+    [=](atom::publish, endpoint_info& e, data_message& x) {
+      CAF_LOG_TRACE(CAF_ARG(e) << CAF_ARG(x));
       auto& st = self->state;
       actor hdl;
       if (e.network) {
@@ -417,8 +418,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           return;
         }
       }
-      self->send(hdl, atom::publish::value, atom::local::value,
-                 std::move(t), std::move(x));
+      self->send(hdl, atom::publish::value, atom::local::value, std::move(x));
     },
     // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
@@ -567,9 +567,9 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     [=](atom::store, atom::master, atom::snapshot, const std::string& name,
         caf::actor& clone) {
       // Instruct master to generate a snapshot.
-      self->state.policy().push(
+      self->state.policy().push(make_command_message(
         name / topics::master_suffix,
-        make_internal_command<snapshot_command>(self, std::move(clone)));
+        make_internal_command<snapshot_command>(self, std::move(clone))));
     },
     [=](atom::store, atom::master, atom::get,
         const std::string& name) -> result<actor> {

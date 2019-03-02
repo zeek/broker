@@ -268,18 +268,21 @@ void endpoint::forward(std::vector<topic> ts)
 
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
-  caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
+  caf::anon_send(core(), atom::publish::value,
+                 make_data_message(std::move(t), std::move(d)));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
-  caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
+  caf::anon_send(core(), atom::publish::value, dst,
+                 make_data_message(std::move(t), std::move(d)));
 }
 
-void endpoint::publish(std::vector<value_type> xs) {
+void endpoint::publish(std::vector<data_message> xs) {
   for ( auto& x : xs ) {
     BROKER_INFO("publishing" << x);
-    caf::anon_send(core(), atom::publish::value, std::move(x.first), std::move(x.second));
+    auto& tup = x.unshared();
+    caf::anon_send(core(), atom::publish::value, std::move(x));
   }
 }
 

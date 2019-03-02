@@ -14,7 +14,7 @@ int main()
 
     auto sub = ep.make_subscriber({"/test/t2"}); // Subscribe to incoming messages for topic.
     auto msg = sub.get(); // Wait for one incoming message.
-    std::cout << "got data for topic " << msg.first << ": " << msg.second << std::endl;
+    std::cout << "got data for topic " << get_topic(msg) << ": " << get_data(msg) << std::endl;
 
     // Data stores
 

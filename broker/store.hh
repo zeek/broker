@@ -4,10 +4,11 @@
 #include <string>
 
 #include <caf/actor.hpp>
-#include <caf/stream.hpp>
+#include <caf/cow_tuple.hpp>
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
 #include <caf/scoped_actor.hpp>
+#include <caf/stream.hpp>
 
 #include "broker/api_flags.hh"
 #include "broker/atoms.hh"
@@ -30,7 +31,7 @@ class store {
 public:
   friend class endpoint;
 
-  using stream_type = caf::stream<std::pair<topic, internal_command>>;
+  using stream_type = caf::stream<caf::cow_tuple<topic, internal_command>>;
 
   /// A response to a lookup request issued by a ::proxy.
   struct response {
