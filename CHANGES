@@ -1,4 +1,8 @@
 
+1.1.2-15 | 2019-03-07 18:39:46 -0800
+
+    - Add --with-python-config configure option (Jarry Shaw)
+
 1.1.2-13 | 2019-02-15 13:53:38 -0600
 
   * zeek/GH-273: Fix file descriptor leak in subscribers (Jon Siwek, Corelight)

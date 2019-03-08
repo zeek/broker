@@ -18,7 +18,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
 
   Build Options:
     --generator=GENERATOR  CMake generator to use (see 'cmake --help')
-    --build-dir=DIR         place build files in directory [build]
+    --build-dir=DIR        place build files in directory [build]
     --build-type=TYPE      set CMake build type [RelWithDebInfo]:
                              - Debug: optimizations off, debug symbols + flags
                              - MinSizeRel: size optimizations, debugging off
@@ -50,6 +50,8 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --disable-tests        don't try to build unit tests
     --with-rocksdb=PATH    path to RocksDB installation
     --with-python=PATH     path to Python executable
+    --with-python-config=PATH
+                           path to python-config executable
     --with-bro=PATH        path to Bro executable for interoperability tests
 
   Required Packages in Non-Standard Locations:
@@ -79,8 +81,8 @@ append_cache_entry () {
 builddir=build
 prefix=/usr/local
 CMakeCacheEntries=""
-append_cache_entry CMAKE_INSTALL_PREFIX PATH     $prefix
-append_cache_entry BROKER_DISABLE_DOCS BOOL false
+append_cache_entry CMAKE_INSTALL_PREFIX PATH    $prefix
+append_cache_entry BROKER_DISABLE_DOCS  BOOL    false
 
 # parse arguments
 while [ $# -ne 0 ]; do
@@ -98,7 +100,7 @@ while [ $# -ne 0 ]; do
             CMakeGenerator="$optarg"
             ;;
         --ccache)
-            append_cache_entry ENABLE_CCACHE         BOOL   true
+            append_cache_entry ENABLE_CCACHE        BOOL   true
             ;;
         --build-dir=*)
             builddir=$optarg
@@ -137,31 +139,34 @@ while [ $# -ne 0 ]; do
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
         --with-log-level=*)
-            append_cache_entry CAF_LOG_LEVEL STRING "$optarg"
+            append_cache_entry CAF_LOG_LEVEL        STRING  $optarg
             ;;
         --disable-python)
-            append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
+            append_cache_entry DISABLE_PYTHON_BINDINGS BOOL true
             ;;
         --disable-docs)
-            append_cache_entry BROKER_DISABLE_DOCS  BOOL   true
+            append_cache_entry BROKER_DISABLE_DOCS  BOOL    true
             ;;
         --disable-tests)
-            append_cache_entry BROKER_DISABLE_TESTS  BOOL   true
+            append_cache_entry BROKER_DISABLE_TESTS BOOL    true
             ;;
         --with-caf=*)
-            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
+            append_cache_entry CAF_ROOT_DIR         PATH    $optarg
             ;;
         --with-openssl=*)
-            append_cache_entry OPENSSL_ROOT_DIR  PATH $optarg
+            append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg
             ;;
         --with-rocksdb=*)
-            append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
+            append_cache_entry ROCKSDB_ROOT_DIR     PATH    $optarg
             ;;
         --with-python=*)
-            append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
+            append_cache_entry PYTHON_EXECUTABLE    PATH    $optarg
+            ;;
+        --with-python-config=*)
+            append_cache_entry PYTHON_CONFIG        PATH    $optarg
             ;;
         --with-bro=*)
-            append_cache_entry BRO_EXECUTABLE      PATH    $optarg
+            append_cache_entry BRO_EXECUTABLE       PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
