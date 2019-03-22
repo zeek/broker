@@ -1,4 +1,8 @@
 
+1.1.2-18 | 2019-03-22 12:48:04 -0700
+
+  * GH-40: use TZ-aware (UTC) datetimes in python bindings (Jon Siwek, Corelight)
+
 1.1.2-15 | 2019-03-07 18:39:46 -0800
 
     - Add --with-python-config configure option (Jarry Shaw)
