@@ -12,9 +12,9 @@ using type = unsigned;
 constexpr type major = 1;
 constexpr type minor = 1;
 constexpr type patch = 2;
-constexpr auto suffix = "-18";
+constexpr auto suffix = "-23";
 
-constexpr type protocol = 1;
+constexpr type protocol = 2;
 
 /// Determines whether two Broker protocol versions are compatible.
 /// @param v The version of the other broker.

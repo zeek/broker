@@ -104,49 +104,46 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
     // Only received from other peers. Extract content for to local workers
     // or stores and then forward to other peers.
     for (auto& msg : xs.get_mutable_as<peer_trait::batch>(0)) {
-      if (msg.size() < 2 || !msg.match_element<topic>(0)) {
-        CAF_LOG_DEBUG("dropped unexpected message type");
-        continue;
+      const topic* t;
+      // Dispatch to local workers or stores messages.
+      if (is_data_message(msg)) {
+        auto& dm = get<data_message>(msg.content);
+        t = &get_topic(dm);
+        if (num_workers > 0)
+          workers().push(dm);
+      } else {
+        auto& cm = get<command_message>(msg.content);
+        t = &get_topic(cm);
+        if (num_stores > 0)
+          stores().push(cm);
       }
-      // Extract worker messages.
-      if (num_workers > 0 && msg.match_element<data>(1))
-        workers().push(msg.get_as<topic>(0), msg.get_as<data>(1));
-      // Extract store messages.
-      if (num_stores > 0 && msg.match_element<internal_command>(1))
-        stores().push(msg.get_as<topic>(0), msg.get_as<internal_command>(1));
       // Check if forwarding is on.
       if (!state_->options.forward)
         continue;
       // Somewhat hacky, but don't forward data store clone messages.
-      if (ends_with(msg.get_as<topic>(0).string(),
-          topics::clone_suffix.string()))
+      if (ends_with(t->string(), topics::clone_suffix.string()))
         continue;
       // Either decrease TTL if message has one already, or add one.
-      if (msg.size() < 3) {
-        // Does not have a TTL yet, set a TTL of 5.
-        msg += make_message(state_->options.ttl - 1); // We're hop 1 already.
-      } else {
-        auto& ttl = msg.get_mutable_as<core_policy::ttl>(2);
-        if (--ttl <= 0) {
-          CAF_LOG_WARNING("dropped a message with expired TTL");
-          continue;
-        }
+      if (--msg.ttl == 0) {
+        CAF_LOG_WARNING("dropped a message with expired TTL");
+        continue;
       }
       // Forward to other peers.
       peers().push(std::move(msg));
     }
     return;
   }
+  auto ttl = state_->options.ttl;
   if (xs.match_elements<worker_trait::batch>()) {
     CAF_LOG_DEBUG("forward batch from local workers to peers");
     for (auto& x : xs.get_mutable_as<worker_trait::batch>(0))
-      peers().push(make_message(std::move(x.first), std::move(x.second)));
+      peers().push(make_node_message(std::move(x), ttl));
     return;
   }
   if (xs.match_elements<store_trait::batch>()) {
     CAF_LOG_DEBUG("forward batch from local stores to peers");
     for (auto& x : xs.get_mutable_as<store_trait::batch>(0))
-      peers().push(make_message(std::move(x.first), std::move(x.second)));
+      peers().push(make_node_message(std::move(x), ttl));
     return;
   }
   CAF_LOG_ERROR("unexpected batch:" << deep_to_string(xs));
@@ -274,7 +271,7 @@ bool core_policy::has_peer(const actor& hdl) const {
   return peer_to_opath_.count(hdl) != 0 || peer_to_ipath_.count(hdl) != 0;
 }
 
-void core_policy::ack_peering(const stream<message>& in,
+void core_policy::ack_peering(const stream<node_message>& in,
                               const actor& peer_hdl) {
   CAF_LOG_TRACE(CAF_ARG(peer_hdl));
   // Check whether we already receive inbound traffic from the peer. Could use
@@ -370,42 +367,41 @@ auto core_policy::add_worker(filter_type filter)
 // -- selectively pushing data into the streams ------------------------------
 
 /// Pushes data to workers without forwarding it to peers.
-void core_policy::local_push(topic x, data y) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
+void core_policy::local_push(data_message x) {
+  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG2("num_paths", workers().num_paths()));
   if (workers().num_paths() > 0) {
-    workers().push(std::move(x), std::move(y));
+    workers().push(std::move(x));
     workers().emit_batches();
   }
 }
 
 /// Pushes data to stores without forwarding it to peers.
-void core_policy::local_push(topic x, internal_command y) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y) <<
-                CAF_ARG2("num_paths", stores().num_paths()));
+void core_policy::local_push(command_message x) {
+  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG2("num_paths", stores().num_paths()));
   if (stores().num_paths() > 0) {
-    stores().push(std::move(x), std::move(y));
+    stores().push(std::move(x));
     stores().emit_batches();
   }
 }
 
 /// Pushes data to peers only without forwarding it to local substreams.
-void core_policy::remote_push(message msg) {
+void core_policy::remote_push(node_message msg) {
   CAF_LOG_TRACE(CAF_ARG(msg));
   peers().push(std::move(msg));
   peers().emit_batches();
 }
 
 /// Pushes data to peers and workers.
-void core_policy::push(topic x, data y) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(std::move(x), std::move(y)));
+void core_policy::push(data_message msg) {
+  CAF_LOG_TRACE(CAF_ARG(msg));
+  remote_push(make_node_message(std::move(msg), state_->options.ttl));
   //local_push(std::move(x), std::move(y));
 }
 
 /// Pushes data to peers and stores.
-void core_policy::push(topic x, internal_command y) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG(y));
-  remote_push(make_message(std::move(x), std::move(y)));
+void core_policy::push(command_message msg) {
+  CAF_LOG_TRACE(CAF_ARG(msg));
+  remote_push(make_node_message(std::move(msg), state_->options.ttl));
   //local_push(std::move(x), std::move(y));
 }
 
@@ -498,13 +494,13 @@ void core_policy::add_opath(stream_slot slot, const actor& peer_hdl) {
 
 auto core_policy::add(std::true_type, const actor& hdl) -> step1_handshake {
   auto xs = std::make_tuple(state_->filter, actor_cast<actor>(self()));
-  return parent_->add_unchecked_outbound_path<message>(hdl, std::move(xs));
+  return parent_->add_unchecked_outbound_path<node_message>(hdl, std::move(xs));
 }
 
 auto core_policy::add(std::false_type, const actor& hdl) -> step2_handshake {
   atom_value ok = ok_atom::value;
   auto xs = std::make_tuple(ok, actor_cast<actor>(self()));
-  return parent_->add_unchecked_outbound_path<message>(hdl, std::move(xs));
+  return parent_->add_unchecked_outbound_path<node_message>(hdl, std::move(xs));
 }
 
 } // namespace detail

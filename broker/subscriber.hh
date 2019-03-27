@@ -7,15 +7,16 @@
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"
-#include "broker/topic.hh"
+#include "broker/message.hh"
 #include "broker/subscriber_base.hh"
+#include "broker/topic.hh"
 
 #include "broker/detail/shared_subscriber_queue.hh"
 
 namespace broker {
 
 /// Provides blocking access to a stream of data.
-class subscriber : public subscriber_base<std::pair<topic, data>> {
+class subscriber : public subscriber_base<data_message> {
 public:
   // --- friend declarations ---------------------------------------------------
 
@@ -23,7 +24,7 @@ public:
 
   // --- nested types ----------------------------------------------------------
 
-  using super = subscriber_base<std::pair<topic, data>>;
+  using super = subscriber_base<data_message>;
 
   // --- constructors and destructors ------------------------------------------
 

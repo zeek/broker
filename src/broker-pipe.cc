@@ -22,12 +22,12 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <caf/atom.hpp>
 #include <caf/behavior.hpp>
+#include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/send.hpp>
-#include <caf/config_option_adder.hpp>
 #pragma GCC diagnostic pop
 
 #include "broker/atoms.hh"
@@ -41,6 +41,8 @@
 #include "broker/topic.hh"
 
 using broker::data;
+using broker::data_message;
+using broker::make_data_message;
 using broker::topic;
 
 using namespace caf;
@@ -137,7 +139,8 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     [](size_t& msgs) {
       msgs = 0;
     },
-    [=](size_t& msgs, downstream<std::pair<topic, data>>& out, size_t hint) {
+    [=](size_t& msgs, downstream<data_message>& out,
+        size_t hint) {
       auto num = std::min(cap - msgs, hint);
       std::string line;
       for (size_t i = 0; i < num; ++i)
@@ -146,7 +149,7 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
           msgs = cap;
           return;
         } else {
-          out.push(std::make_pair(topic_str, std::move(line)));
+          out.push(make_data_message(topic_str, std::move(line)));
         }
       msgs += num;
       msg_count += num;
@@ -202,7 +205,7 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     [](size_t& msgs) {
       msgs = 0;
     },
-    [=](size_t& msgs, std::pair<topic, data> x) {
+    [=](size_t& msgs, data_message x) {
       ++msg_count;
       if (!rate)
         print_line(std::cout, deep_to_string(x));

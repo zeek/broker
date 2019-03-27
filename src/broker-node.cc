@@ -261,11 +261,12 @@ void relay_mode(broker::endpoint& ep, broker::topic topic) {
   auto in = ep.make_subscriber({topic});
   for (;;) {
     auto x = in.get();
-    if (is_ping_msg(x.second)) {
-      verbose::println("received ping ", msg_id(x.second));
-    } else if (is_pong_msg(x.second)) {
-      verbose::println("received pong ", msg_id(x.second));
-    } else if (is_stop_msg(x.second)) {
+    auto& val = get_data(x);
+    if (is_ping_msg(val)) {
+      verbose::println("received ping ", msg_id(val));
+    } else if (is_pong_msg(val)) {
+      verbose::println("received pong ", msg_id(val));
+    } else if (is_stop_msg(val)) {
       verbose::println("received stop");
       return;
     }
@@ -290,7 +291,7 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
   ep.publish(topic, make_ping_msg(0, 0));
   while (!connected) {
     auto x = in.get(caf::duration{retry_timeout});
-    if (x && is_pong_msg(x->second, 0))
+    if (x && is_pong_msg(get_data(*x), 0))
       connected = true;
     else
       ep.publish(topic, make_ping_msg(0, 0));
@@ -303,7 +304,7 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
     ep.publish(topic, make_ping_msg(i, s));
     do {
       auto x = in.get();
-      done = is_pong_msg(x.second, i);
+      done = is_pong_msg(get_data(x), i);
     } while (!done);
     auto t1 = std::chrono::system_clock::now();
     auto roundtrip = std::chrono::duration_cast<timespan>(t1 - t0);
@@ -318,10 +319,11 @@ void pong_mode(broker::endpoint& ep, broker::topic topic) {
   auto in = ep.make_subscriber({topic});
   for (;;) {
     auto x = in.get();
-    if (is_ping_msg(x.second)) {
-      verbose::println("received ping ", msg_id(x.second));
-      ep.publish(topic, make_pong_msg(msg_id(x.second)));
-    } else if (is_stop_msg(x.second)) {
+    auto& val = get_data(x);
+    if (is_ping_msg(val)) {
+      verbose::println("received ping ", msg_id(val));
+      ep.publish(topic, make_pong_msg(msg_id(val)));
+    } else if (is_stop_msg(val)) {
       verbose::println("received stop");
       return;
     }

@@ -79,10 +79,9 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, None)
 
     def test_two_hops_ttl(self):
-        # Note the 1st receiver's TTL value is the one that's applied.
-        ttl2 = broker.BrokerOptions()
-        ttl2.ttl = 2
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(opts2=ttl2)
+        ttl1 = broker.BrokerOptions()
+        ttl1.ttl = 2
+        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(opts1=ttl1)
 
         ep1.publish("/test/foo", "Foo!")
 

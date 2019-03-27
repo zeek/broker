@@ -23,8 +23,6 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-using value_type = std::pair<topic, data>;
-
 namespace {
 
 struct fixture : base_fixture {

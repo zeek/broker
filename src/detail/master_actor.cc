@@ -59,7 +59,8 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
 }
 
 void master_state::broadcast(internal_command&& x) {
-  self->send(core, atom::publish::value, clones_topic, std::move(x));
+  self->send(core, atom::publish::value,
+             make_command_message(clones_topic, std::move(x)));
 }
 
 void master_state::remind(timespan expiry, const data& key) {
@@ -80,7 +81,11 @@ void master_state::expire(data& key) {
 }
 
 void master_state::command(internal_command& cmd) {
-  caf::visit(*this, cmd.content);
+  command(cmd.content);
+}
+
+void master_state::command(internal_command::variant_type& cmd) {
+  caf::visit(*this, cmd);
 }
 
 void master_state::operator()(none) {
@@ -310,7 +315,10 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         },
         // processing step
         [=](caf::unit_t&, store::stream_type::value_type y) {
-          self->state.command(y.second);
+          // TODO: our operator() overloads require mutable references, but
+          //       only a fraction actually benefit from it.
+          auto cmd = move_command(y);
+          self->state.command(cmd);
         },
         // cleanup
         [](caf::unit_t&, const caf::error&) {

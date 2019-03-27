@@ -11,6 +11,7 @@
 #include <caf/ref_counted.hpp>
 
 #include "broker/data.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/flare.hh"
@@ -19,7 +20,7 @@ namespace broker {
 namespace detail {
 
 /// Base class for `shared_publisher_queue` and `shared_subscriber_queue`.
-template <class ValueType = std::pair<topic, data>>
+template <class ValueType = data_message>
 class shared_queue : public caf::ref_counted {
 public:
   using value_type = ValueType;

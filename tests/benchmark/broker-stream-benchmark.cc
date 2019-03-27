@@ -52,7 +52,7 @@ void sink_mode(broker::endpoint& ep, topic t) {
     [](caf::unit_t&) {
       // nop
     },
-    [=](caf::unit_t&, std::vector<std::pair<topic, data>>& xs) {
+    [=](caf::unit_t&, std::vector<data_message>& xs) {
       global_count += xs.size();
     },
     [=](caf::unit_t&, const caf::error&) {
@@ -65,14 +65,15 @@ void sink_mode(broker::endpoint& ep, topic t) {
 
 void source_mode(broker::endpoint& ep, topic t) {
   using namespace caf;
-  auto msg = std::make_pair(std::move(t), data{"Lorem ipsum dolor sit amet."});
+  auto msg = make_data_message(t, "Lorem ipsum dolor sit amet.");
   auto worker = ep.publish_all(
     [](caf::unit_t&) {
       // nop
     },
-    [=](caf::unit_t&, downstream<std::pair<topic, data>>& out, size_t num) {
+    [=](caf::unit_t&, downstream<data_message>& out, size_t num) {
       for (size_t i = 0; i < num; ++i)
         out.push(msg);
+      global_count += num;
     },
     [=](const caf::unit_t&) {
       return false;

@@ -95,4 +95,14 @@ inline caf::error error_of(caf::expected<broker::data> x) {
   return std::move(x.error());
 }
 
+/// Convenience function for creating a vector of events from topic and data
+/// pairs.
+inline std::vector<broker::data_message>
+data_msgs(std::initializer_list<std::pair<broker::topic, broker::data>> xs) {
+  std::vector<broker::data_message> result;
+  for (auto& x : xs)
+    result.emplace_back(x.first, x.second);
+  return result;
+}
+
 #endif

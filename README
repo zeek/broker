@@ -31,6 +31,9 @@ each other using the above-mentioned patterns which are common to Zeek.
 See the `User Manual`_ for more information.  For offline reading, it's
 also available in the ``doc/`` directory of the source tree.
 
+See the NEWS file for the most important release notes and the CHANGES
+file for the complete history of changes.
+
 Dependencies
 ------------
 
