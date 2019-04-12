@@ -1,4 +1,8 @@
 
+1.1.2-24 | 2019-04-12 13:19:59 -0700
+
+  * Add repr/str methods to python bindings Count type (Jon Siwek, Corelight)
+
 1.1.2-23 | 2019-03-27 10:40:00 -0700
 
   * Deploy copy-on-write for more efficient messaging (Dominik Charousset)
