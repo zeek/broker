@@ -9,7 +9,7 @@ event ping(n: int)
 	event pong(n);
 	}
 
-event bro_init()
+event zeek_init()
 	{
 	Broker::subscribe("/topic/test");
 	Broker::listen("127.0.0.1", 9999/tcp);
