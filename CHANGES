@@ -1,4 +1,8 @@
 
+1.1.2-30 | 2019-04-19 11:08:52 -0700
+
+  * Replace bro_init/bro_done usages with zeek_init/zeek_done (Seth Hall, Corelight)
+
 1.1.2-27 | 2019-04-16 12:42:43 -0700
 
   * Update usage of a deprecated Sphinx API (Jon Siwek, Corelight)

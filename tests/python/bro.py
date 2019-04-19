@@ -28,7 +28,7 @@ global event_count: int = 0;
 
 global ping: event(s: string, c: int);
 
-event bro_init()
+event zeek_init()
     {
     Broker::subscribe("/test");
     Broker::peer("127.0.0.1", __PORT__/tcp);
