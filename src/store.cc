@@ -78,6 +78,23 @@ store::response store::proxy::receive() {
   return resp;
 }
 
+std::vector<store::response> store::proxy::receive(size_t n) {
+  std::vector<store::response> rval;
+  rval.reserve(n);
+  size_t i = 0;
+
+  caf::actor_cast<caf::blocking_actor*>(proxy_)->receive_for(i, n) (
+    [&](data& x, request_id id) {
+      rval.emplace_back(store::response{std::move(x), id});
+    },
+    [&](caf::error& e, request_id id) {
+      BROKER_ERROR("proxy failed to receive response from store" << id);
+      rval.emplace_back(store::response{std::move(e), id});
+    }
+  );
+
+  return rval;
+}
 
 const std::string& store::name() const {
   return name_;
