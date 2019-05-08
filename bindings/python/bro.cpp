@@ -15,7 +15,9 @@ using namespace pybind11::literals;
 
 void init_bro(py::module& m) {
   py::class_<broker::bro::Message>(m, "Message")
-    .def("as_data", &broker::bro::Message::as_data);
+    .def("as_data",
+         static_cast<const broker::data& (broker::bro::Message::*)() const>
+         (&broker::bro::Message::as_data));
 
   py::class_<broker::bro::Event, broker::bro::Message>(m, "Event")
     .def(py::init([](broker::data data) {

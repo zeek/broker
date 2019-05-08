@@ -22,10 +22,10 @@ public:
   };
 
   Type type() const {
-    if ( msg_.size() < 2 )
+    if ( as_vector().size() < 2 )
       return Type::Invalid;
 
-    auto cp = caf::get_if<count>(&msg_[1]);
+    auto cp = caf::get_if<count>(&as_vector()[1]);
 
     if ( ! cp )
       return Type::Invalid;
@@ -36,8 +36,24 @@ public:
     return Type(*cp);
   }
 
-  data as_data() const {
-    return msg_;
+  data&& move_data() {
+    return std::move(data_);
+  }
+
+  const data& as_data() const {
+    return data_;
+  }
+
+  data& as_data() {
+    return data_;
+  }
+
+  const vector& as_vector() const {
+    return caf::get<vector>(data_);
+  }
+
+  vector& as_vector() {
+    return caf::get<vector>(data_);
   }
 
   operator data() const {
@@ -68,13 +84,13 @@ public:
 
 protected:
   Message(Type type, vector content)
-    : msg_({ProtocolVersion, count(type), std::move(content)}) {
+    : data_(vector{ProtocolVersion, count(type), std::move(content)}) {
   }
 
-  Message(data msg) : msg_(std::move(caf::get<vector>(msg))) {
+  Message(data msg) : data_(std::move(msg)) {
   }
 
-  vector msg_;
+  data data_;
 };
 
 /// A Bro event.
@@ -86,26 +102,26 @@ class Event : public Message {
   Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
-    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   std::string& name() {
-    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   const vector& args() const {
-    return caf::get<vector>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   vector& args() {
-    return caf::get<vector>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   bool valid() const {
-    if ( msg_.size() < 3 )
+    if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(msg_[2]));
+    auto vp = caf::get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -138,18 +154,18 @@ class Batch : public Message {
   Batch(data msg) : Message(std::move(msg)) {}
 
   const vector& batch() const {
-    return caf::get<vector>(msg_[2]);
+    return caf::get<vector>(as_vector()[2]);
   }
 
   vector& batch() {
-    return caf::get<vector>(msg_[2]);
+    return caf::get<vector>(as_vector()[2]);
   }
 
   bool valid() const {
-    if ( msg_.size() < 3 )
+    if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(msg_[2]));
+    auto vp = caf::get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -173,42 +189,42 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   const data& writer_info() const {
-    return caf::get<vector>(msg_[2])[2];
+    return caf::get<vector>(as_vector()[2])[2];
   }
 
   data& writer_info() {
-    return caf::get<vector>(msg_[2])[2];
+    return caf::get<vector>(as_vector()[2])[2];
   }
 
   const data& fields_data() const {
-    return caf::get<vector>(msg_[2])[3];
+    return caf::get<vector>(as_vector()[2])[3];
   }
 
   data& fields_data() {
-    return caf::get<vector>(msg_[2])[3];
+    return caf::get<vector>(as_vector()[2])[3];
   }
 
   bool valid() const {
-    if ( msg_.size() < 3 )
+    if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(msg_[2]));
+    auto vp = caf::get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -243,42 +259,42 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(msg_[2])[1]);
+    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
   }
 
   const data& path() const {
-    return caf::get<vector>(msg_[2])[2];
+    return caf::get<vector>(as_vector()[2])[2];
   }
 
   data& path() {
-    return caf::get<vector>(msg_[2])[2];
+    return caf::get<vector>(as_vector()[2])[2];
   };
 
   const data& serial_data() const {
-    return caf::get<vector>(msg_[2])[3];
+    return caf::get<vector>(as_vector()[2])[3];
   }
 
   data& serial_data() {
-    return caf::get<vector>(msg_[2])[3];
+    return caf::get<vector>(as_vector()[2])[3];
   }
 
   bool valid() const {
-    if ( msg_.size() < 3 )
+    if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(msg_[2]));
+    auto vp = caf::get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -309,26 +325,26 @@ public:
   }
 
   const std::string& id_name() const {
-    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   std::string& id_name() {
-    return caf::get<std::string>(caf::get<vector>(msg_[2])[0]);
+    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
   }
 
   const data& id_value() const {
-    return caf::get<vector>(msg_[2])[1];
+    return caf::get<vector>(as_vector()[2])[1];
   }
 
   data& id_value() {
-    return caf::get<vector>(msg_[2])[1];
+    return caf::get<vector>(as_vector()[2])[1];
   }
 
   bool valid() const {
-    if ( msg_.size() < 3 )
+    if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(msg_[2]));
+    auto vp = caf::get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
