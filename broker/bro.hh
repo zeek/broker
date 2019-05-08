@@ -23,6 +23,10 @@ public:
     return Type(caf::get<count>(msg_[1]));
   }
 
+  data move_data() {
+    return broker::data(std::move(msg_));
+  }
+
   data as_data() const {
     return msg_;
   }
