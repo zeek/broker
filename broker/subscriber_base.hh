@@ -118,14 +118,12 @@ public:
 
   /// Returns all currently available values without blocking.
   std::vector<value_type> poll() {
-    std::vector<value_type> result;
-    result.reserve(queue_->buffer_size());
-    size_t prev_size = 0;
-    queue_->consume(std::numeric_limits<size_t>::max(), &prev_size,
-                    [&](value_type&& x) { result.emplace_back(std::move(x)); });
-    if (prev_size >= static_cast<size_t>(max_qsize_))
+    auto rval = queue_->consume_all();
+
+    if ( rval.size() >= static_cast<size_t>(max_qsize_) )
       became_not_full();
-    return result;
+
+    return rval;
   }
 
   // --- accessors -------------------------------------------------------------

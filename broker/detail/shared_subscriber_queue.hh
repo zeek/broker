@@ -1,6 +1,7 @@
 #ifndef BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 #define BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 
+#include <vector>
 #include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
 
@@ -54,6 +55,25 @@ public:
       this->xs_.erase(b, e);
     }
     return n;
+  }
+
+  std::vector<value_type> consume_all() {
+    guard_type guard{this->mtx_};
+
+    std::vector<value_type> rval;
+
+    if (this->xs_.empty())
+      return rval;
+
+    rval.reserve(this->xs_.size());
+
+    for (auto& x : this->xs_)
+      rval.emplace_back(std::move(x));
+
+    this->xs_.clear();
+    this->fx_.extinguish_one();
+
+    return rval;
   }
 
   // Inserts the range `[i, e)` into the queue.
