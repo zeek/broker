@@ -96,6 +96,7 @@ public:
     std::vector<value_type> result;
     if (num == 0)
       return result;
+    result.reserve(num);
     auto t0 = std::chrono::high_resolution_clock::now();
     t0 += timeout;
     for (;;) {
@@ -104,11 +105,12 @@ public:
       else if (!queue_->wait_on_flare_abs(t0))
         return result;
       size_t prev_size = 0;
-      queue_->consume(num - result.size(), &prev_size, [&](value_type&& x) {
+      auto got = queue_->consume(num - result.size(), &prev_size, [&](value_type&& x) {
         CAF_LOG_INFO("received" << x);
         result.emplace_back(std::move(x));
       });
-      if (prev_size >= static_cast<size_t>(max_qsize_))
+      if (prev_size >= static_cast<size_t>(max_qsize_) &&
+          prev_size - got < static_cast<size_t>(max_qsize_))
         became_not_full();
       if (result.size() == num) {
         return result;
