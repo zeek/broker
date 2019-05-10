@@ -12,9 +12,7 @@ namespace detail {
 
 flare_actor::flare_actor(caf::actor_config& sys)
     : blocking_actor{sys},
-      await_flare_{true} {
-  // Ensure that the first enqueue operation returns unblocked_reader.
-  mailbox().try_block();
+      flare_count_{0} {
 }
 
 void flare_actor::launch(caf::execution_unit*, bool, bool) {
@@ -29,19 +27,16 @@ void flare_actor::act() {
 
 void flare_actor::await_data() {
   CAF_LOG_DEBUG("awaiting data");
-  if (! await_flare_)
+  if (flare_count_ > 0 )
     return;
-  await_flare_ = false;
   flare_.await_one();
 }
 
 bool flare_actor::await_data(timeout_type timeout) {
   CAF_LOG_DEBUG("awaiting data with timeout");
-  if (! await_flare_)
+  if (flare_count_ > 0)
     return true;
   auto res = flare_.await_one(timeout);
-  if (res)
-    await_flare_ = false;
   return res;
 }
 
@@ -52,6 +47,7 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
     case caf::detail::enqueue_result::unblocked_reader: {
       CAF_LOG_DEBUG("firing flare");
       flare_.fire();
+      ++flare_count_;
       break;
     }
     case caf::detail::enqueue_result::queue_closed:
@@ -60,23 +56,31 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
         bouncer(sender, mid);
       }
       break;
-    case caf::detail::enqueue_result::success:
+    case caf::detail::enqueue_result::success: {
+      flare_.fire();
+      ++flare_count_;
       break;
+    }
   }
 }
 
 caf::mailbox_element_ptr flare_actor::dequeue() {
-  auto msg = next_message();
-  if (!has_next_message() && mailbox().try_block()) {
-    auto extinguished = flare_.extinguish_one();
-    CAF_ASSERT(extinguished);
-    await_flare_ = true;
-  }
-  return msg;
+  auto rval = blocking_actor::dequeue();
+
+  if (rval)
+    this->extinguish_one();
+
+  return rval;
 }
 
 const char* flare_actor::name() const {
   return "flare_actor";
+}
+
+void flare_actor::extinguish_one() {
+  auto extinguished = flare_.extinguish_one();
+  CAF_ASSERT(extinguished);
+  --flare_count_;
 }
 
 int flare_actor::descriptor() const {

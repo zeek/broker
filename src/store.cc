@@ -66,13 +66,16 @@ mailbox store::proxy::mailbox() {
 
 store::response store::proxy::receive() {
   auto resp = response{error{}, 0};
-  caf::actor_cast<caf::blocking_actor*>(proxy_)->receive(
+  auto fa = caf::actor_cast<broker::detail::flare_actor*>(proxy_);
+  fa->receive(
     [&](data& x, request_id id) {
       resp = {std::move(x), id};
+      fa->extinguish_one();
     },
     [&](caf::error& e, request_id id) {
       BROKER_ERROR("proxy failed to receive response from store" << id);
       resp = {std::move(e), id};
+      fa->extinguish_one();
     }
   );
   return resp;
@@ -82,14 +85,17 @@ std::vector<store::response> store::proxy::receive(size_t n) {
   std::vector<store::response> rval;
   rval.reserve(n);
   size_t i = 0;
+  auto fa = caf::actor_cast<broker::detail::flare_actor*>(proxy_);
 
-  caf::actor_cast<caf::blocking_actor*>(proxy_)->receive_for(i, n) (
+  fa->receive_for(i, n) (
     [&](data& x, request_id id) {
       rval.emplace_back(store::response{std::move(x), id});
+      fa->extinguish_one();
     },
     [&](caf::error& e, request_id id) {
       BROKER_ERROR("proxy failed to receive response from store" << id);
       rval.emplace_back(store::response{std::move(e), id});
+      fa->extinguish_one();
     }
   );
 
