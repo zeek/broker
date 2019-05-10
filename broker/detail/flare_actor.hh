@@ -1,6 +1,7 @@
 #ifndef BROKER_DETAIL_FLARE_ACTOR_HH
 #define BROKER_DETAIL_FLARE_ACTOR_HH
 
+#include <atomic>
 #include <chrono>
 #include <limits>
 
@@ -46,11 +47,13 @@ public:
 
   const char* name() const override;
 
+  void extinguish_one();
+
   int descriptor() const;
 
 private:
   flare flare_;
-  bool await_flare_;
+  std::atomic<int> flare_count_;
 };
 
 } // namespace detail
