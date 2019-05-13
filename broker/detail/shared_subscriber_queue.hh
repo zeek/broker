@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
 
 #include <vector>
+#include <chrono>
 #include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
 
@@ -60,6 +61,28 @@ public:
     guard_type guard{this->mtx_};
 
     std::vector<value_type> rval;
+
+    if (this->xs_.empty())
+      return rval;
+
+    rval.reserve(this->xs_.size());
+
+    for (auto& x : this->xs_)
+      rval.emplace_back(std::move(x));
+
+    this->xs_.clear();
+    this->fx_.extinguish_one();
+
+    return rval;
+  }
+
+  std::vector<value_type> consume_all(std::chrono::microseconds timeout) {
+    std::vector<value_type> rval;
+
+    guard_type guard{this->mtx_, std::defer_lock};
+
+    if (! guard.try_lock_for(timeout))
+        return rval;
 
     if (this->xs_.empty())
       return rval;

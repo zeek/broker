@@ -118,9 +118,21 @@ public:
     }
   }
 
-  /// Returns all currently available values without blocking.
+  /// Returns all currently available values, but may block on mutex
+  /// acquisition.
   std::vector<value_type> poll() {
     auto rval = queue_->consume_all();
+
+    if ( rval.size() >= static_cast<size_t>(max_qsize_) )
+      became_not_full();
+
+    return rval;
+  }
+
+  /// Returns all currently available values, only blocking on mutex
+  /// acquisition for the given duration.
+  std::vector<value_type> timed_poll(std::chrono::microseconds timeout) {
+    auto rval = queue_->consume_all(timeout);
 
     if ( rval.size() >= static_cast<size_t>(max_qsize_) )
       became_not_full();

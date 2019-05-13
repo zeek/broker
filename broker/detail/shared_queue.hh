@@ -24,7 +24,9 @@ class shared_queue : public caf::ref_counted {
 public:
   using value_type = ValueType;
 
-  using guard_type = std::unique_lock<std::mutex>;
+  using mutex_type = std::timed_mutex;
+
+  using guard_type = std::unique_lock<mutex_type>;
 
   // --- accessors -------------------------------------------------------------
 
@@ -80,7 +82,7 @@ protected:
   }
 
   /// Guards access to `xs`.
-  mutable std::mutex mtx_;
+  mutable mutex_type mtx_;
 
   /// Signals to users when data can be read or written.
   mutable flare fx_;
