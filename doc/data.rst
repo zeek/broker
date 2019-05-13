@@ -3,8 +3,8 @@
 Data Model
 ==========
 
-Broker offers a data model that is rich in types, closely modeled after `Bro
-<https://www.bro.org>`_. Both :ref:`endpoints <communication>` and :ref:`data
+Broker offers a data model that is rich in types, closely modeled after `Zeek
+<https://www.zeek.org>`_. Both :ref:`endpoints <communication>` and :ref:`data
 stores <data-stores>` operate with the ``data`` abstraction as basic building
 block, which is a type-erased variant structure that can hold many different
 values.

@@ -36,7 +36,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Broker'
-author = u'The Bro Project'
+author = u'The Zeek Project'
 copyright = str(date.today().year) + ', ' + author
 
 # The version info for the project you're documenting, acts as replacement for
@@ -175,7 +175,7 @@ htmlhelp_basename = 'broker-doc'
 # -- Options for PDF output -----------------------------------------------
 
 pdf_documents = [
-    ('index', u'user-manual', u'Broker', u'The Bro Project'),
+    ('index', u'user-manual', u'Broker', u'The Zeek Project'),
 ]
 
 pdf_stylesheets = ['sphinx', 'kerning', 'letter']

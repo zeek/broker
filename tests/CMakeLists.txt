@@ -79,7 +79,7 @@ if (BROKER_PYTHON_BINDINGS)
                          "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR};BROKER_TEST_DIR=${BROKER_TEST_DIR}")
   endmacro()
 
-  if (BRO_FOUND)
+  if (ZEEK_FOUND)
     make_python_test(zeek)
   endif ()
 

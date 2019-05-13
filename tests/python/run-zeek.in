@@ -1,10 +1,10 @@
 #! /usr/bin/env bash
 
-if [ -n "${BRO_EXECUTABLE}" ]; then
-    exec "${BRO_EXECUTABLE}" $@
+if [ -n "${ZEEK_EXECUTABLE}" ]; then
+    exec "${ZEEK_EXECUTABLE}" $@
 
-elif [ -n "${BRO_PATH_DEV}" ]; then
-    source "${BRO_PATH_DEV}"
+elif [ -n "${ZEEK_PATH_DEV}" ]; then
+    source "${ZEEK_PATH_DEV}"
     exec zeek $@
 
 else

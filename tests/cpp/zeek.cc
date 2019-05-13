@@ -14,8 +14,8 @@ using namespace broker;
 
 TEST(event) {
   auto args = vector{1, "s", port(42, port::protocol::tcp)};
-  bro::Event ev("test", vector(args));
-  bro::Event ev2(std::move(ev));
+  zeek::Event ev("test", vector(args));
+  zeek::Event ev2(std::move(ev));
   CHECK_EQUAL(ev2.name(), "test");
   CHECK_EQUAL(ev2.args(), args);
 }

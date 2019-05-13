@@ -62,7 +62,7 @@ void endpoint::clock::advance_time(timestamp t) {
   if (it->first > t)
     return;
 
-  // Note: this function is performance-sensitive in the case of Bro
+  // Note: this function is performance-sensitive in the case of Zeek
   // reading pcaps and it's important to not construct this set unless
   // it's actually going to be used.
   std::unordered_set<caf::actor> sync_with_actors;

@@ -41,7 +41,7 @@ using count = uint64_t;
 using integer = int64_t;
 using real = double;
 
-namespace bro {
+namespace zeek {
 
 class Event;
 class RelayEvent;
@@ -50,7 +50,7 @@ class LogCreate;
 class LogWrite;
 class IdentifierUpdate;
 
-} // namespace bro
+} // namespace zeek
 
 namespace detail {
 

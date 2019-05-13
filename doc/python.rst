@@ -73,14 +73,14 @@ equivalent, including ``available`` for checking for pending messages,
 for retrieving a select-able file descriptor, and ``{add,remove}_topic``
 for changing the subscription list.
 
-Exchanging Bro Events
----------------------
+Exchanging Zeek Events
+----------------------
 
-The Broker Python bindings come with support for representing Bro
+The Broker Python bindings come with support for representing Zeek
 events as well. Here's the Python version of the :ref:`C++ ping example
-shown earlier <bro_events_cpp>`:
+shown earlier <zeek_events_cpp>`:
 
-.. literalinclude:: _examples/ping.bro
+.. literalinclude:: _examples/ping.zeek
 
 .. literalinclude:: _examples/ping.py
 

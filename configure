@@ -52,7 +52,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-python=PATH     path to Python executable
     --with-python-config=PATH
                            path to python-config executable
-    --with-bro=PATH        path to Bro executable for interoperability tests
+    --with-zeek=PATH       path to Zeek executable for interoperability tests
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -165,8 +165,8 @@ while [ $# -ne 0 ]; do
         --with-python-config=*)
             append_cache_entry PYTHON_CONFIG        PATH    $optarg
             ;;
-        --with-bro=*)
-            append_cache_entry BRO_EXECUTABLE       PATH    $optarg
+        --with-zeek=*)
+            append_cache_entry ZEEK_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
