@@ -15,7 +15,7 @@
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 
-#include "broker/bro.hh"
+#include "broker/zeek.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"

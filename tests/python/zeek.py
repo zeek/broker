@@ -8,16 +8,16 @@ import sys
 import time
 
 import broker
-import broker.bro
+import broker.zeek
 
 def run_bro_path():
     base = os.path.realpath(__file__)
     for d in (os.path.join(os.path.dirname(base), "../../build"), os.getcwd()):
-        run_bro = os.path.abspath(os.path.join(d, "tests/python/run-bro"))
+        run_bro = os.path.abspath(os.path.join(d, "tests/python/run-zeek"))
         if os.path.exists(run_bro):
             return run_bro
 
-    return "bro" # Hope for the best ...
+    return "zeek" # Hope for the best ...
 
 BroPing = """
 redef Broker::default_connect_retry=1secs;
@@ -86,7 +86,7 @@ class TestCommunication(unittest.TestCase):
 
         for i in range(0, 6):
             (t, msg) = sub.get()
-            ev = broker.bro.Event(msg)
+            ev = broker.zeek.Event(msg)
             (s, c) = ev.args()
             expected_arg = "x" + "Xx" * i
 
@@ -98,11 +98,11 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(c, i)
 
             if i < 3:
-                ev = broker.bro.Event("pong", s + "X", c)
+                ev = broker.zeek.Event("pong", s + "X", c)
             elif i < 5:
-                ev = broker.bro.Event("pong", s.encode('utf-8') + b'X', c)
+                ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c)
             else:
-                ev = broker.bro.Event("pong", 'done', c)
+                ev = broker.zeek.Event("pong", 'done', c)
 
             ep.publish("/test", ev)
 

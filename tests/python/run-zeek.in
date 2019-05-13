@@ -5,9 +5,9 @@ if [ -n "${BRO_EXECUTABLE}" ]; then
 
 elif [ -n "${BRO_PATH_DEV}" ]; then
     source "${BRO_PATH_DEV}"
-    exec bro $@
+    exec zeek $@
 
 else
-    echo "No Bro executable available" >&2
+    echo "No Zeek executable available" >&2
     exit 1
 fi

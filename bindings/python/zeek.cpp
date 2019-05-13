@@ -7,7 +7,7 @@
 #include <pybind11/pybind11.h>
 #pragma GCC diagnostic pop
 
-#include "broker/bro.hh"
+#include "broker/zeek.hh"
 #include "broker/data.hh"
 
 namespace py = pybind11;
