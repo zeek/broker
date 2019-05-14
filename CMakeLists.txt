@@ -462,17 +462,17 @@ if (NOT DISABLE_PYTHON_BINDINGS)
   endif ()
 endif ()
 
-# -- Bro ----------------------------------------------------------------------
+# -- Zeek ----------------------------------------------------------------------
 
-if (NOT "${BRO_EXECUTABLE}" STREQUAL "")
-    set(BRO_FOUND true)
-    set(BRO_FOUND_MSG "${BRO_EXECUTABLE}")
+if (NOT "${ZEEK_EXECUTABLE}" STREQUAL "")
+    set(ZEEK_FOUND true)
+    set(ZEEK_FOUND_MSG "${ZEEK_EXECUTABLE}")
 else ()
-    set(BRO_FOUND false)
-    find_file(BRO_PATH_DEV bro-path-dev.sh PATHS ${CMAKE_CURRENT_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
-    if (EXISTS ${BRO_PATH_DEV})
-      set(BRO_FOUND true)
-      set(BRO_FOUND_MSG "${BRO_PATH_DEV}")
+    set(ZEEK_FOUND false)
+    find_file(ZEEK_PATH_DEV zeek-path-dev.sh PATHS ${CMAKE_CURRENT_BINARY_DIR}/../../../build NO_DEFAULT_PATH)
+    if (EXISTS ${ZEEK_PATH_DEV})
+      set(ZEEK_FOUND true)
+      set(ZEEK_FOUND_MSG "${ZEEK_PATH_DEV}")
     endif ()
 endif ()
 
@@ -506,7 +506,7 @@ display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
-display(BRO_FOUND "${BRO_FOUND_MSG}" bro_summary)
+display(ZEEK_FOUND "${ZEEK_FOUND_MSG}" zeek_summary)
 
 set(summary
     "==================|  Broker Config Summary  |===================="
@@ -527,7 +527,7 @@ set(summary
     "\nCAF:             ${caf_summary}"
     "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
-    "\nBro:             ${bro_summary}"
+    "\nZeek:            ${zeek_summary}"
     "\n=================================================================")
 
 message("\n" ${summary} "\n")
