@@ -15,7 +15,7 @@
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 
-#include "broker/bro.hh"
+#include "broker/zeek.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
@@ -27,7 +27,7 @@
 
 #include "readerwriterqueue/readerwriterqueue.h"
 
-using EventQueue = moodycamel::ReaderWriterQueue<broker::bro::Event>;
+using EventQueue = moodycamel::ReaderWriterQueue<broker::zeek::Event>;
 
 static int event_type = 1;
 static double batch_rate = 1;
@@ -38,7 +38,7 @@ static uint64_t max_received = 0;
 static uint64_t max_in_flight = 0;
 static int server = 0;
 static int disable_ssl = 0;
-static int use_bro_batches = 0;
+static int use_zeek_batches = 0;
 static int use_non_blocking = 0;
 static int verbose = 0;
 
@@ -60,7 +60,7 @@ static struct option long_options[] = {
     {"max-in-flight",          required_argument, 0, 'f'},
     {"server",                 no_argument, &server, 1},
     {"disable-ssl",            no_argument, &disable_ssl, 1},
-    {"use-bro-batches",        no_argument, &use_bro_batches, 1},
+    {"use-zeek-batches",       no_argument, &use_zeek_batches, 1},
     {"use-non-blocking",       no_argument, &use_non_blocking, 1},
     {"verbose",                no_argument, &verbose, 1},
     {0, 0, 0, 0}
@@ -70,7 +70,7 @@ const char* prog = 0;
 
 static void usage() {
     std::cerr <<
-            "Usage: " << prog << " [<options>] <bro-host>[:<port>] | [--disable-ssl] --server <interface>:port\n"
+            "Usage: " << prog << " [<options>] <zeek-host>[:<port>] | [--disable-ssl] --server <interface>:port\n"
             "\n"
             "   --event-type <1|2|3>                  (default: 1)\n"
             "   --batch-rate <batches/sec>            (default: 1)\n"
@@ -183,18 +183,18 @@ broker::vector createEventArgs() {
     }
 }
 
-void sendBroBatch(broker::endpoint& ep, broker::publisher& p)
+void sendZeekBatch(broker::endpoint& ep, broker::publisher& p)
 {
     auto name = std::string("event_") + std::to_string(event_type);
 
     broker::vector batch;
     for ( int i = 0; i < batch_size; i++ ) {
-    auto ev = broker::bro::Event(std::string(name), createEventArgs());
+    auto ev = broker::zeek::Event(std::string(name), createEventArgs());
     batch.emplace_back(std::move(ev));
     }
 
     total_sent += batch.size();
-    p.publish(broker::bro::Batch(std::move(batch)));
+    p.publish(broker::zeek::Batch(std::move(batch)));
 }
 
 void sendBrokerBatchBlocking(broker::endpoint& ep, broker::publisher& p)
@@ -203,7 +203,7 @@ void sendBrokerBatchBlocking(broker::endpoint& ep, broker::publisher& p)
 
     std::vector<broker::data> batch;
     for ( int i = 0; i < batch_size; i++ ) {
-    auto ev = broker::bro::Event(std::string(name), createEventArgs());
+    auto ev = broker::zeek::Event(std::string(name), createEventArgs());
     batch.emplace_back(std::move(ev));
     }
 
@@ -216,7 +216,7 @@ void sendBrokerBatchNonBlocking(broker::endpoint& ep, EventQueue& q)
     auto name = std::string("event_") + std::to_string(event_type);
 
     for ( int i = 0; i < batch_size; i++ ) {
-        auto ev = broker::bro::Event(std::string(name), createEventArgs());
+        auto ev = broker::zeek::Event(std::string(name), createEventArgs());
         q.emplace(std::move(ev));
     }
 
@@ -267,7 +267,7 @@ void receivedStats(broker::endpoint& ep, broker::data x)
     last_sent = total_sent;
 
     if ( max_received && total_recv > max_received ) {
-        broker::bro::Event ev("quit_benchmark", std::vector<broker::data>{});
+        broker::zeek::Event ev("quit_benchmark", std::vector<broker::data>{});
         ep.publish("/benchmark/terminate", ev);
         sleep(2); // Give clients a bit.
         exit(0);
@@ -311,7 +311,7 @@ void clientMode(const char* host, int port) {
                            // nop
                        },
                        [&](caf::unit_t&, caf::downstream<broker::data_message>& out, size_t num) {
-                           const broker::bro::Event* ev;
+                           const broker::zeek::Event* ev;
 			   std::cerr << "can publish " << num << ", have " << q.size_approx() << std::endl;
                            while ( num-- && (ev = q.peek()) ) {
                                out.push("/benchmark/events", std::move(*ev));
@@ -338,8 +338,8 @@ void clientMode(const char* host, int port) {
     double next_increase = current_time() + rate_increase_interval;
 
     while ( true ) {
-        if ( use_bro_batches )
-            sendBroBatch(ep, p);
+        if ( use_zeek_batches )
+            sendZeekBatch(ep, p);
         else if ( use_non_blocking )
             sendBrokerBatchNonBlocking(ep, q);
 	else
@@ -361,7 +361,7 @@ void clientMode(const char* host, int port) {
     }
 }
 
-void processEvent(broker::bro::Event& ev) {
+void processEvent(broker::zeek::Event& ev) {
     lock.lock();
     num_events++;
     lock.unlock();
@@ -384,15 +384,15 @@ void serverMode(const char* iface, int port) {
                         [&](caf::unit_t&, broker::data_message x) {
                 auto msg = move_data(x);
 
-                if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Event ) {
-                broker::bro::Event ev(std::move(msg));
+                if ( broker::zeek::Message::type(msg) == broker::zeek::Message::Type::Event ) {
+                broker::zeek::Event ev(std::move(msg));
                     processEvent(ev);
                 }
 
-                else if ( broker::bro::Message::type(msg) == broker::bro::Message::Type::Batch ) {
-                broker::bro::Batch batch(std::move(msg));
+                else if ( broker::zeek::Message::type(msg) == broker::zeek::Message::Type::Batch ) {
+                broker::zeek::Batch batch(std::move(msg));
                     for ( auto msg : batch.batch() ) {
-                    broker::bro::Event ev(std::move(msg));
+                    broker::zeek::Event ev(std::move(msg));
                                     processEvent(ev);
                                 }
                             }
@@ -433,7 +433,7 @@ void serverMode(const char* iface, int port) {
         if (verbose) {
           std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
         }
-        broker::bro::Event ev("stats_update",
+        broker::zeek::Event ev("stats_update",
                               std::vector<broker::data>{stats});
         ep.publish("/benchmark/stats", ev);
         last_t = t;

@@ -8,7 +8,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(tests
   cpp/backend.cc
-  cpp/bro.cc
   cpp/core.cc
   cpp/data.cc
   cpp/status_subscriber.cc
@@ -20,6 +19,7 @@ set(tests
   cpp/store.cc
   cpp/subscriber.cc
   cpp/topic.cc
+  cpp/zeek.cc
   test.cpp
 )
 
@@ -65,8 +65,8 @@ endforeach ()
 # -- Python -------------------------------------------------------------------
 
 if (BROKER_PYTHON_BINDINGS)
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-bro.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-bro)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-zeek.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-zeek)
 
   macro(make_python_test name)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
@@ -80,7 +80,7 @@ if (BROKER_PYTHON_BINDINGS)
   endmacro()
 
   if (ZEEK_FOUND)
-    make_python_test(bro)
+    make_python_test(zeek)
   endif ()
 
   make_python_test(communication)

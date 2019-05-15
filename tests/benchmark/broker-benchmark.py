@@ -32,7 +32,7 @@ def printStats(stats):
     print("{} dt={} ev{}={} (total {} of {}) {}".format(t, dt, event, ev1, total_recv_ev1, total_sent_ev1, rate))
 
 def sendBatch(p, num):
-    event_1s = [broker.bro.Event("event_{}".format(event), [i, "test"]) for i in range(num)]
+    event_1s = [broker.zeek.Event("event_{}".format(event), [i, "test"]) for i in range(num)]
     for e in event_1s:
         p.publish(e)
 
@@ -46,7 +46,7 @@ def wait(s, t):
         msgs = s.poll()
 
         for m in msgs:
-            e = broker.bro.Event(m[1])
+            e = broker.zeek.Event(m[1])
             if e.name() == "stats_update":
                 printStats(e.args()[0])
 

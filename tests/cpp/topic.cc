@@ -49,11 +49,11 @@ TEST(join) {
 }
 
 TEST(prefix) {
-  topic t0 = "/bro/";
-  topic t1 = "/bro/events/";
-  topic t2 = "/bro/events/debugging/";
-  topic t3 = "/bro/stores/";
-  topic t4 = "/bro/stores/masters/";
+  topic t0 = "/zeek/";
+  topic t1 = "/zeek/events/";
+  topic t2 = "/zeek/events/debugging/";
+  topic t3 = "/zeek/stores/";
+  topic t4 = "/zeek/stores/masters/";
   topic t5 = "/";
   // t0 is a prefix of all topics except t5
   CAF_CHECK( t0.prefix_of(t0));
@@ -62,7 +62,7 @@ TEST(prefix) {
   CAF_CHECK( t0.prefix_of(t3));
   CAF_CHECK( t0.prefix_of(t4));
   CAF_CHECK(!t0.prefix_of(t5));
-  // t1 is a prefix of itself and t3
+  // t1 is a prefix of itself and t2
   CAF_CHECK(!t1.prefix_of(t0));
   CAF_CHECK( t1.prefix_of(t1));
   CAF_CHECK( t1.prefix_of(t2));

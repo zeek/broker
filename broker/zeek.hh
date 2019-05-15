@@ -1,14 +1,14 @@
-#ifndef BROKER_BRO_HH
-#define BROKER_BRO_HH
+#ifndef BROKER_ZEEK_HH
+#define BROKER_ZEEK_HH
 
 #include "broker/data.hh"
 
 namespace broker {
-namespace bro {
+namespace zeek {
 
 const count ProtocolVersion = 1;
 
-/// Generic Bro-level message.
+/// Generic Zeek-level message.
 class Message {
 public:
   enum Type {
@@ -77,7 +77,7 @@ protected:
   vector msg_;
 };
 
-/// A Bro event.
+/// A Zeek event.
 class Event : public Message {
   public:
   Event(std::string name, vector args)
@@ -158,8 +158,8 @@ class Batch : public Message {
   }
 };
 
-/// A Bro log-create message. Note that at the moment this should be used
-/// only by Bro itself as the arguments aren't pulbically defined.
+/// A Zeek log-create message. Note that at the moment this should be used
+/// only by Zeek itself as the arguments aren't pulbically defined.
 class LogCreate : public Message {
 public:
   LogCreate(enum_value stream_id, enum_value writer_id, data writer_info,
@@ -228,8 +228,8 @@ public:
   }
 };
 
-/// A Bro log-write message. Note that at the moment this should be used only
-/// by Bro itself as the arguments aren't publicly defined.
+/// A Zeek log-write message. Note that at the moment this should be used only
+/// by Zeek itself as the arguments aren't publicly defined.
 class LogWrite : public Message {
 public:
   LogWrite(enum_value stream_id, enum_value writer_id, data path,
@@ -346,6 +346,6 @@ public:
 };
 
 } // namespace broker
-} // namespace bro
+} // namespace zeek
 
-#endif // BROKER_BRO_HH
+#endif // BROKER_ZEEK_HH

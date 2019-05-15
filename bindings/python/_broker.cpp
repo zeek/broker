@@ -42,7 +42,7 @@
 
 namespace py = pybind11;
 
-extern void init_bro(py::module& m);
+extern void init_zeek(py::module& m);
 extern void init_data(py::module& m);
 extern void init_enums(py::module& m);
 extern void init_store(py::module& m);
@@ -53,9 +53,9 @@ PYBIND11_MAKE_OPAQUE(broker::vector)
 
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
-  py::module mb = m.def_submodule("bro", "Bro-specific bindings");
+  py::module mb = m.def_submodule("zeek", "Zeek-specific bindings");
 
-  init_bro(mb);
+  init_zeek(mb);
   init_enums(m);
   init_data(m);
   init_store(m);

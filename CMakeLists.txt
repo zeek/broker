@@ -462,7 +462,7 @@ if (NOT DISABLE_PYTHON_BINDINGS)
   endif ()
 endif ()
 
-# -- Zeek ----------------------------------------------------------------------
+# -- Zeek ---------------------------------------------------------------------
 
 if (NOT "${ZEEK_EXECUTABLE}" STREQUAL "")
     set(ZEEK_FOUND true)

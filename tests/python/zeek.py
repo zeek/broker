@@ -8,18 +8,18 @@ import sys
 import time
 
 import broker
-import broker.bro
+import broker.zeek
 
-def run_bro_path():
+def run_zeek_path():
     base = os.path.realpath(__file__)
     for d in (os.path.join(os.path.dirname(base), "../../build"), os.getcwd()):
-        run_bro = os.path.abspath(os.path.join(d, "tests/python/run-bro"))
-        if os.path.exists(run_bro):
-            return run_bro
+        run_zeek = os.path.abspath(os.path.join(d, "tests/python/run-zeek"))
+        if os.path.exists(run_zeek):
+            return run_zeek
 
-    return "bro" # Hope for the best ...
+    return "zeek" # Hope for the best ...
 
-BroPing = """
+ZeekPing = """
 redef Broker::default_connect_retry=1secs;
 redef Broker::default_listen_retry=1secs;
 redef exit_only_after_terminate = T;
@@ -62,12 +62,12 @@ event pong(s: string, n: int)
     }
 """
 
-def RunBro(script, port):
+def RunZeek(script, port):
     try:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".bro", delete=False)
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".zeek", delete=False)
         print(script.replace("__PORT__", str(port)), file=tmp)
         tmp.close()
-        subprocess.check_call([run_bro_path(), "-b", "-B", "broker", tmp.name])
+        subprocess.check_call([run_zeek_path(), "-b", "-B", "broker", tmp.name])
         return True
     except subprocess.CalledProcessError:
         return False
@@ -80,13 +80,13 @@ class TestCommunication(unittest.TestCase):
         sub = ep.make_subscriber("/test")
         port = ep.listen("127.0.0.1", 0)
 
-        p = multiprocessing.Process(target=RunBro, args=(BroPing, port))
+        p = multiprocessing.Process(target=RunZeek, args=(ZeekPing, port))
         p.daemon = True
         p.start()
 
         for i in range(0, 6):
             (t, msg) = sub.get()
-            ev = broker.bro.Event(msg)
+            ev = broker.zeek.Event(msg)
             (s, c) = ev.args()
             expected_arg = "x" + "Xx" * i
 
@@ -98,11 +98,11 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(c, i)
 
             if i < 3:
-                ev = broker.bro.Event("pong", s + "X", c)
+                ev = broker.zeek.Event("pong", s + "X", c)
             elif i < 5:
-                ev = broker.bro.Event("pong", s.encode('utf-8') + b'X', c)
+                ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c)
             else:
-                ev = broker.bro.Event("pong", 'done', c)
+                ev = broker.zeek.Event("pong", 'done', c)
 
             ep.publish("/test", ev)
 

@@ -2,7 +2,7 @@ Broker User Manual
 ==================
 
 **Broker** is a library for type-rich publish/subscribe communication in
-`Bro <https://bro.org>`_'s data model.
+`Zeek <https://www.zeek.org>`_'s data model.
 
 Outline
 --------

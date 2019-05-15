@@ -3,7 +3,7 @@
 Overview
 ========
 
-The **Broker** library enables applications to communicate in Bro_'s
+The **Broker** library enables applications to communicate in Zeek_'s
 type-rich :ref:`data model <data-model>` via publish/subscribe messaging.
 Moreover, Broker offers distributed :ref:`key-value stores <data-stores>` to
 facilitate unified data management and persistence.
@@ -55,7 +55,7 @@ Data Model
 ----------
 
 Broker comes with a rich data model, since the library's primary objective
-involves communication with Bro_ and related applications. The fundamental unit
+involves communication with Zeek_ and related applications. The fundamental unit
 of communication is ``data``, which can hold any of the following concrete
 types:
 
@@ -78,9 +78,9 @@ types:
 
 From these data units, one then composes *messages* to be exchanged.
 Broker does generally not impose any further structure on messages,
-it's up to sender and receiver to agree. For communication with Bro,
+it's up to sender and receiver to agree. For communication with Zeek,
 however, Broker provides an additional *event* abstraction that defines
-the specific message layout that Bro expects for exchanging Bro
+the specific message layout that Zeek expects for exchanging Zeek
 events.
 
 Data Stores
@@ -109,4 +109,4 @@ backends, which are currently: in-memory, `SQLite <https://www.sqlite.org>`_, an
 
 :ref:`data-stores` illustrates how to use data stores in different settings.
 
-.. _Bro: https://bro.org
+.. _Zeek: https://www.zeek.org
