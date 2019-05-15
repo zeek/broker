@@ -1,6 +1,7 @@
+from __future__ import print_function
+
 from . import zeek
 
-import warnings
 import traceback
 import sys
 
