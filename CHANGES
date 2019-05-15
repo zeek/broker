@@ -1,4 +1,14 @@
 
+1.1.2-37 | 2019-05-15 14:36:24 -0700
+
+  * Add bro.py compatibility module with deprecation warnings (Jon Siwek, Corelight)
+
+  * Add bro.hh compatibility header with deprecation warnings (Jon Siwek, Corelight)
+
+  * Replace "bro" with "zeek" in tests, docs, and src code (Daniel Thayer)
+
+  * Rename files from "bro" to "zeek" (Daniel Thayer)
+
 1.1.2-32 | 2019-05-14 12:21:59 -0700
 
   * Update unit test to use zeek executable, not bro (Jon Siwek, Corelight)

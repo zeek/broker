@@ -373,6 +373,7 @@ class Message:
         assert False and "method not overridden"
 
 from . import zeek
+from . import bro
 
 class Data(_broker.Data):
     def __init__(self, x = None):
