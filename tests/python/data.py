@@ -313,21 +313,28 @@ class TestDataConstruction(unittest.TestCase):
             self.check_to_py(v, i + 1)
 
         # Test a table that contains different data types
-        p = {True: 42, broker.Port(22, broker.Port.TCP): False}
-        d = self.check_to_broker(p, '{T -> 42, 22/tcp -> F}', broker.Data.Type.Table)
+        p = {True: 42, broker.Port(22, broker.Port.TCP): False, (1,2,3): [4,5,6]}
+        d = self.check_to_broker(p, '{T -> 42, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}', broker.Data.Type.Table)
 
         t = d.as_table()
+
         self.check_to_broker(t[broker.Data(True)], "42", broker.Data.Type.Integer)
         self.check_to_py(t[broker.Data(True)], 42)
+
         self.check_to_broker(t[broker.Data(broker.Port(22, broker.Port.TCP))], "F", broker.Data.Type.Boolean)
         self.check_to_py(t[broker.Data(broker.Port(22, broker.Port.TCP))], False)
 
+        self.check_to_broker(t[broker.Data((1, 2, 3))], "(4, 5, 6)", broker.Data.Type.Vector)
+        self.check_to_py(t[broker.Data([1, 2, 3])], (4, 5, 6))
+
     def test_vector(self):
         # Test an empty vector
-        self.check_to_broker_and_back([], '[]', broker.Data.Type.Vector)
+        self.check_to_broker_and_back((), '()', broker.Data.Type.Vector)
 
         # Test a simple vector
-        d = self.check_to_broker([1, 2, 3], '[1, 2, 3]', broker.Data.Type.Vector)
+        d = self.check_to_broker((1, 2, 3), '(1, 2, 3)', broker.Data.Type.Vector)
+        # Either a list or a tuple are mapped to a Broker vector.
+        d = self.check_to_broker([1, 2, 3], '(1, 2, 3)', broker.Data.Type.Vector)
 
         for (i, x) in enumerate(d.as_vector()):
             self.check_to_broker(x, str(i + 1), broker.Data.Type.Integer)
@@ -340,10 +347,10 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_py(v[0], 'foo')
 
         v1 = v[1].as_vector()
-        self.check_to_broker(v1, '[[T]]', broker.Data.Type.Vector)
-        self.check_to_py(v[1], [[True]])
-        self.check_to_broker(v1[0], '[T]', broker.Data.Type.Vector)
-        self.check_to_py(v1[0], [True])
+        self.check_to_broker(v1, '((T))', broker.Data.Type.Vector)
+        self.check_to_py(v[1], ((True,),))
+        self.check_to_broker(v1[0], '(T)', broker.Data.Type.Vector)
+        self.check_to_py(v1[0], (True,))
 
         self.check_to_broker(v[2], '::1', broker.Data.Type.Address)
         self.check_to_py(v[2], ipaddress.IPv6Address("::1"))

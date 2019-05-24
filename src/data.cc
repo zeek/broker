@@ -222,7 +222,7 @@ bool convert(const table::value_type& e, std::string& str) {
 }
 
 bool convert(const vector& v, std::string& str) {
-  container_convert(v, str, "[", "]");
+  container_convert(v, str, "(", ")");
   return true;
 }
 

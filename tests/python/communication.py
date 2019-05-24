@@ -47,12 +47,12 @@ class TestCommunication(unittest.TestCase):
         port = ep1.listen("127.0.0.1", 0)
         ep2.peer("127.0.0.1", port, 1.0)
 
-        msg0 = ("/test/1", [])
+        msg0 = ("/test/1", ())
         ep2.publish(*msg0)
 
         # --messages-start
-        msg1 = ("/test/2", [1, 2, 3])
-        msg2 = ("/test/3", [42, "foo", {"a": "A", "b": ipaddress.IPv4Address('1.2.3.4')}])
+        msg1 = ("/test/2", (1, 2, 3))
+        msg2 = ("/test/3", (42, "foo", {"a": "A", "b": ipaddress.IPv4Address('1.2.3.4')}))
         ep2.publish_batch(msg1, msg2)
         # --messages-end
 
@@ -80,9 +80,9 @@ class TestCommunication(unittest.TestCase):
         msgs = s1.get(3)
         self.assertFalse(s1.available())
 
-        self.assertEqual(msgs[0], ("/test", [1, 2, 3]))
-        self.assertEqual(msgs[1], ("/test", ["a", "b", "c"]))
-        self.assertEqual(msgs[2], ("/test", [True, False]))
+        self.assertEqual(msgs[0], ("/test", (1, 2, 3)))
+        self.assertEqual(msgs[1], ("/test", ("a", "b", "c")))
+        self.assertEqual(msgs[2], ("/test", (True, False)))
 
         ep1.shutdown()
         ep2.shutdown()

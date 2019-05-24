@@ -54,7 +54,7 @@ class TestStore(unittest.TestCase):
         v1 = "A"
         v2 = {"A", "B", "C"}
         v3 = {1: "A", 2: "B", 3: "C"}
-        v4 = ["A", "B", "C"]
+        v4 = ("A", "B", "C")
 
         m.put("a", v1)
         m.put("b", v2)
@@ -92,7 +92,7 @@ class TestStore(unittest.TestCase):
         m.put("g", v5, 0.1)
         m.put("h", v5, 2)
         m.put("str", "b")
-        m.put("vec", [1, 2])
+        m.put("vec", (1, 2))
         m.put("set", set([1, 2]))
         m.put("table", {1: "A", "2": "C"})
 
@@ -119,7 +119,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("str"), "bar")
             self.assertEqual(x.get("set"), set([2, 3]))
             self.assertEqual(x.get("table"), {3: "D", "2": "C"})
-            self.assertEqual(x.get("vec"), [1, 2, 3])
+            self.assertEqual(x.get("vec"), (1, 2, 3))
 
         checkModifiers(m)
         checkModifiers(c1)
@@ -140,7 +140,7 @@ class TestStore(unittest.TestCase):
         v1 = "A"
         v2 = {"A", "B", "C"}
         v3 = {1: "A", 2: "B", 3: "C"}
-        v4 = ["A", "B", "C"]
+        v4 = ("A", "B", "C")
 
         c1.put("a", v1)
         c1.put("b", v2)
@@ -204,7 +204,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(x.get("str"), "bar")
             self.assertEqual(x.get("set"), set([2, 3]))
             self.assertEqual(x.get("table"), {3: "D", "2": "C"})
-            self.assertEqual(x.get("vec"), [1, 2, 3])
+            self.assertEqual(x.get("vec"), (1, 2, 3))
 
         checkModifiers(m)
         checkModifiers(c1)

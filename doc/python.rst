@@ -133,13 +133,21 @@ each other:
    * - ``port``
      - ``broker.Port(x, broker.Port.{TCP,UDP,ICMP,Unknown})``
    * - ``vector``
-     - ``list``
+     - ``tuple``
    * - ``set``
      - ``set``
    * - ``table``
      - ``dict``
 
-
+Note that either a Python ``tuple`` or Python ``list`` may convert
+to a Broker ``vector``, but the canonical Python type representing
+a ``vector`` is a tuple.  That is, whenever converting a Broker
+``vector`` value into a Python value, you will get a ``tuple``.
+A ``tuple`` is the canonical type here because it is an immutable type,
+but a ``list`` is mutable --  we need to be able to represent tables
+indexed by vectors, tables are mapped to Python dictionaries, Python
+dictionaries only allow immutable index types, and so we must use a
+``tuple`` to represent a ``vector``.
 
 Status and Error Messages
 -------------------------

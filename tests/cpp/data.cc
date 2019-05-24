@@ -122,7 +122,7 @@ TEST(data - vector) {
   vector v{42, 43, 44};
   REQUIRE_EQUAL(v.size(), 3u);
   CHECK_EQUAL(v[1], data{43});
-  CHECK_EQUAL(to_string(v), "[42, 43, 44]");
+  CHECK_EQUAL(to_string(v), "(42, 43, 44)");
 }
 
 TEST(data - set) {

@@ -468,7 +468,7 @@ class Data(_broker.Data):
             return {Data.to_py(k): Data.to_py(v) for (k, v) in t.items()}
 
         def to_vector(v):
-            return [Data.to_py(i) for i in v]
+            return tuple(Data.to_py(i) for i in v)
 
         def _try_bytes_decode(b):
             try:
