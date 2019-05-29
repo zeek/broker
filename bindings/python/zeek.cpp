@@ -15,7 +15,9 @@ using namespace pybind11::literals;
 
 void init_zeek(py::module& m) {
   py::class_<broker::zeek::Message>(m, "Message")
-    .def("as_data", &broker::zeek::Message::as_data);
+    .def("as_data",
+         static_cast<const broker::data& (broker::zeek::Message::*)() const>
+         (&broker::zeek::Message::as_data));
 
   py::class_<broker::zeek::Event, broker::zeek::Message>(m, "Event")
     .def(py::init([](broker::data data) {
