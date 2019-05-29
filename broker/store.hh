@@ -2,6 +2,7 @@
 #define BROKER_STORE_HH
 
 #include <string>
+#include <vector>
 
 #include <caf/actor.hpp>
 #include <caf/cow_tuple.hpp>
@@ -88,6 +89,10 @@ public:
     /// Consumes the next response or blocks until one arrives.
     /// @returns The next response in the proxy's mailbox.
     response receive();
+
+    /// Consumes the next N responses or blocks until N responses arrive.
+    /// @returns The next N responses in the proxy's mailbox.
+    std::vector<response> receive(size_t n);
 
   private:
     request_id id_ = 0;
