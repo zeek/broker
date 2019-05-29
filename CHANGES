@@ -1,4 +1,29 @@
 
+1.1.2-48 | 2019-05-28 17:39:41 -0700
+
+  * Fix subscriber_base::get(n, timeout) congestion tracking (Jon Siwek, Corelight)
+
+    This could call became_not_full() in cases where the underlying queue
+    size did not actually transition to below the congestion limit.
+
+  * Fix race in subscriber_base::poll() leading to vector realloc (Jon Siwek, Corelight)
+
+    The value used to reserve the initial vector capacity may
+    be underestimated due to unlocking a mutex between the call
+    to buffer_size() and consume(), leading to unnecessary vector
+    re-allocation.
+
+  * Improve broker::bro::Message API to help avoid copies (Jon Siwek, Corelight)
+
+  * Fix flare_actor always reporting readiness (Jon Siwek, Corelight)
+
+    Since mailbox elements get taken via receive(), not dequeue(),
+    the flare which signalled readiness never got extinguished.
+
+  * Add broker::store::proxy::receive(n) (Jon Siwek, Corelight)
+
+    For receiving N data store responses at a time.
+
 1.1.2-40 | 2019-05-23 17:57:57 -0700
 
   * GH-43: use Python tuples to represent Broker vectors (Jon Siwek, Corelight)
