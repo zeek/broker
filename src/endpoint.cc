@@ -152,7 +152,11 @@ void endpoint::shutdown() {
     caf::scoped_actor self{system_};
     CAF_LOG_DEBUG("send exit messages to all children");
     for (auto& child : children_)
-      self->send_exit(child, caf::exit_reason::user_shutdown);
+      // exit_reason::kill seems more reliable than
+      // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
+      // possibly due to the former having more explicit logic that will
+      // shut down streams.
+      self->send_exit(child, caf::exit_reason::kill);
     CAF_LOG_DEBUG("wait until all children have terminated");
     self->wait_for(children_);
     children_.clear();

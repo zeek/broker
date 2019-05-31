@@ -1,4 +1,12 @@
 
+1.1.2-49 | 2019-05-30 21:32:58 -0700
+
+  * Improve shutdown behavior (Jon Siwek, Corelight)
+
+    Sending the "kill" exit reason to CAF actors seems to more reliably
+    avoid deadlock/hang issues on shutting down, likely due to it having
+    more explicit logic to shut down streams.
+
 1.1.2-48 | 2019-05-28 17:39:41 -0700
 
   * Fix subscriber_base::get(n, timeout) congestion tracking (Jon Siwek, Corelight)
