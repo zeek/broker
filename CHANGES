@@ -1,4 +1,8 @@
 
+1.1.2-51 | 2019-06-07 09:13:22 -0700
+
+  * Add enum_value documentation (synnick)
+
 1.1.2-49 | 2019-05-30 21:32:58 -0700
 
   * Improve shutdown behavior (Jon Siwek, Corelight)

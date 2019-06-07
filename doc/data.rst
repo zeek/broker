@@ -95,6 +95,13 @@ Broker directly supports |std_string|_ as one possible type of ``data``.
 .. |std_string| replace:: ``std::string``
 .. _std_string: http://en.cppreference.com/w/cpp/string/basic_string
 
+Enum Value
+~~~~~~~~~~
+
+An ``enum_value`` wraps enum types defined by Zeek by storing the enum
+value's name as a ``std::string``.  The receiver is responsible for
+knowing how to map the name to the actual numeric value if it needs
+that information.
 
 Networking
 ----------
