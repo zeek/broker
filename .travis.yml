@@ -16,7 +16,7 @@ branches:
 notifications:
   email:
     recipients:
-    - bro-commits-internal@bro.org
+    - zeek-commits-internal@zeek.org
 
 before_script: ./configure --with-python=`which python3` && make -j4
 
