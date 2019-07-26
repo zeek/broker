@@ -1,4 +1,8 @@
 
+1.1.2-57 | 2019-07-26 16:03:53 -0700
+
+  * Link libatomic when necessary (Jon Siwek, Corelight)
+
 1.1.2-55 | 2019-06-17 20:18:29 -0700
 
   * Update Travis config for bro to zeek renaming (Daniel Thayer)

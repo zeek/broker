@@ -387,6 +387,26 @@ if (HAVE_SSE2)
   add_definitions(-DBROKER_USE_SSE2 -msse2)
 endif ()
 
+set(atomic_64bit_ops_test "
+  #include <atomic>
+  struct s64 { char a, b, c, d, e, f, g, h; };
+  int main() { std::atomic<s64> x; x.store({}); x.load(); return 0; }
+")
+check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_builtin)
+
+if ( NOT atomic64_builtin )
+  set(CMAKE_REQUIRED_LIBRARIES atomic)
+  check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_with_lib)
+  set(CMAKE_REQUIRED_LIBRARIES)
+
+  if ( atomic64_with_lib )
+    set(LINK_LIBS ${LINK_LIBS} atomic)
+  else ()
+    # Guess we'll find out for sure when we compile/link.
+    message(WARNING "build may fail due to missing 64-bit atomic support")
+  endif ()
+endif ()
+
 if (NOT INSTALL_LIB_DIR)
   set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 endif ()
