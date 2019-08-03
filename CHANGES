@@ -1,4 +1,8 @@
 
+1.1.2-58 | 2019-08-02 18:23:46 -0700
+
+  * Adjust unit tests to work with CAF 0.17.0 (Jon Siwek, Corelight)
+
 1.1.2-57 | 2019-07-26 16:03:53 -0700
 
   * Link libatomic when necessary (Jon Siwek, Corelight)
