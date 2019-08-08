@@ -1,4 +1,8 @@
 
+1.2.0 | 2019-08-02 18:24:15 -0700
+
+  * Release 1.2.0.
+
 1.1.2-58 | 2019-08-02 18:23:46 -0700
 
   * Adjust unit tests to work with CAF 0.17.0 (Jon Siwek, Corelight)
