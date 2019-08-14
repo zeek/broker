@@ -37,6 +37,9 @@ public:
 
   const broker_options& options() const { return options_; }
 
+  /// Adds all Broker message types to `cfg`.
+  static void add_message_types(caf::actor_system_config& cfg);
+
 private:
   const broker_options options_;
 };

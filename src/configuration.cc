@@ -25,35 +25,7 @@
 namespace broker {
 
 configuration::configuration(broker_options opts) : options_(std::move(opts)) {
-  add_message_type<data>("broker::data");
-  add_message_type<address>("broker::address");
-  add_message_type<subnet>("broker::subnet");
-  add_message_type<port>("broker::port");
-  add_message_type<timespan>("broker::timespan");
-  add_message_type<timestamp>("broker::timestamp");
-  add_message_type<enum_value>("broker::enum_value");
-  add_message_type<vector>("broker::vector");
-  add_message_type<broker::set>("broker::set");
-  add_message_type<status>("broker::status");
-  add_message_type<table>("broker::table");
-  add_message_type<topic>("broker::topic");
-  add_message_type<std::vector<topic>>("std::vector<broker::topic>");
-  add_message_type<optional<timestamp>>("broker::optional<broker::timestamp>");
-  add_message_type<optional<timespan>>("broker::optional<broker::timespan>");
-  add_message_type<snapshot>("broker::snapshot");
-  add_message_type<internal_command>("broker::internal_command");
-  add_message_type<command_message>("broker::command_message");
-  add_message_type<data_message>("broker::data_message");
-  add_message_type<node_message>("broker::node_message");
-  add_message_type<set_command>("broker::set_command");
-  add_message_type<store::stream_type::value_type>(
-    "broker::store::stream_type::value_type");
-  add_message_type<std::vector<store::stream_type::value_type>>(
-    "std::vector<broker::store::stream_type::value_type>");
-  add_message_type<endpoint::stream_type::value_type>(
-    "broker::endpoint::stream_type::value_type");
-  add_message_type<std::vector<endpoint::stream_type::value_type>>(
-    "std::vector<broker::endpoint::stream_type::value_type>");
+  add_message_types(*this);
   load<caf::io::middleman>();
   if (! options_.disable_ssl)
     load<caf::openssl::manager>();
@@ -89,5 +61,38 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
 configuration::configuration(int argc, char** argv) : configuration{} {
   parse(argc, argv);
 }
+
+#define ADD_MSG_TYPE(name) cfg.add_message_type<name>(#name)
+
+void configuration::add_message_types(caf::actor_system_config& cfg) {
+  ADD_MSG_TYPE(broker::data);
+  ADD_MSG_TYPE(broker::data);
+  ADD_MSG_TYPE(broker::address);
+  ADD_MSG_TYPE(broker::subnet);
+  ADD_MSG_TYPE(broker::port);
+  ADD_MSG_TYPE(broker::timespan);
+  ADD_MSG_TYPE(broker::timestamp);
+  ADD_MSG_TYPE(broker::enum_value);
+  ADD_MSG_TYPE(broker::vector);
+  ADD_MSG_TYPE(broker::set);
+  ADD_MSG_TYPE(broker::status);
+  ADD_MSG_TYPE(broker::table);
+  ADD_MSG_TYPE(broker::topic);
+  ADD_MSG_TYPE(std::vector<broker::topic>);
+  ADD_MSG_TYPE(broker::optional<broker::timestamp>);
+  ADD_MSG_TYPE(broker::optional<broker::timespan>);
+  ADD_MSG_TYPE(broker::snapshot);
+  ADD_MSG_TYPE(broker::internal_command);
+  ADD_MSG_TYPE(broker::command_message);
+  ADD_MSG_TYPE(broker::data_message);
+  ADD_MSG_TYPE(broker::node_message);
+  ADD_MSG_TYPE(broker::set_command);
+  ADD_MSG_TYPE(broker::store::stream_type::value_type);
+  ADD_MSG_TYPE(std::vector<broker::store::stream_type::value_type>);
+  ADD_MSG_TYPE(broker::endpoint::stream_type::value_type);
+  ADD_MSG_TYPE(std::vector<broker::endpoint::stream_type::value_type>);
+}
+
+#undef ADD_MSG_TYPE
 
 } // namespace broker
