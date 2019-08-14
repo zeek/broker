@@ -6,6 +6,7 @@
 #include <caf/test/io_dsl.hpp>
 #pragma GCC diagnostic pop
 
+#include "broker/configuration.hh"
 #include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
 
@@ -108,6 +109,7 @@ behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
 struct config : actor_system_config {
 public:
   config() {
+    configuration::add_message_types(*this);
     add_message_type<element_type>("element");
   }
 };
