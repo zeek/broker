@@ -1,4 +1,8 @@
 
+1.2.0-4 | 2019-08-14 09:54:48 -0700
+
+  * Properly announce message types in core unit test (Dominik Charousset)
+
 1.2.0 | 2019-08-02 18:24:15 -0700
 
   * Release 1.2.0.
