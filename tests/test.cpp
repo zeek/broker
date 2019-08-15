@@ -34,7 +34,11 @@ configuration base_fixture::make_config(bool fake_network) {
   configuration cfg{options};
   cfg.set("scheduler.policy", caf::atom("testing"));
   cfg.set("logger.verbosity", caf::atom("TRACE"));
+  cfg.set("logger.inline-output", true);
   cfg.set("middleman.attach-utility-actors", true);
+#if CAF_VERSION >= 1700
+  cfg.set("middleman.workers", size_t{0});
+#endif
   cfg.parse(test::engine::argc(), test::engine::argv());
   if (fake_network)
     cfg.load<io::middleman, io::network::test_multiplexer>();
