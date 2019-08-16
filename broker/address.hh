@@ -49,7 +49,11 @@ public:
   /// @returns true if the address is IPv6.
   bool is_v6() const;
 
-  /// @returns the raw bytes of the address in network order.  For IPv4
+  /// @returns the raw bytes of the address in network order. For IPv4
+  /// addresses, this uses the IPv4-mapped IPv6 address representation.
+  std::array<uint8_t, 16>& bytes();
+
+  /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
   const std::array<uint8_t, 16>& bytes() const;
 

@@ -10,6 +10,7 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
+  cpp/detail/data_generator.cc
   cpp/detail/meta_data_writer.cc
   cpp/integration.cc
   cpp/master.cc

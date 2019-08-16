@@ -344,6 +344,7 @@ set(BROKER_SRC
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
   src/detail/core_policy.cc
+  src/detail/data_generator.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc

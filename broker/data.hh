@@ -155,12 +155,12 @@ public:
   static data from_type(type);
 
   // Needed by caf::default_variant_access.
-  inline data_variant& get_data() {
+  data_variant& get_data() {
     return data_;
   }
 
   // Needed by caf::default_variant_access.
-  inline const data_variant& get_data() const {
+  const data_variant& get_data() const {
     return data_;
   }
 
@@ -168,6 +168,48 @@ private:
   data_variant data_;
 };
 
+namespace detail {
+
+template <data::type Value>
+using type_tag_token = std::integral_constant<data::type, Value>;
+
+template <class T>
+struct type_tag_oracle;
+
+template <>
+struct type_tag_oracle<std::string> : type_tag_token<data::type::string> {};
+
+#define TYPE_TAG_ORACLE(type_name)                                             \
+  template <>                                                                  \
+  struct type_tag_oracle<type_name> : type_tag_token<data::type::type_name> {}
+
+TYPE_TAG_ORACLE(none);
+TYPE_TAG_ORACLE(boolean);
+TYPE_TAG_ORACLE(count);
+TYPE_TAG_ORACLE(integer);
+TYPE_TAG_ORACLE(real);
+TYPE_TAG_ORACLE(address);
+TYPE_TAG_ORACLE(subnet);
+TYPE_TAG_ORACLE(port);
+TYPE_TAG_ORACLE(timestamp);
+TYPE_TAG_ORACLE(timespan);
+TYPE_TAG_ORACLE(enum_value);
+TYPE_TAG_ORACLE(set);
+TYPE_TAG_ORACLE(table);
+TYPE_TAG_ORACLE(vector);
+
+#undef TYPE_TAG_ORACLE
+
+} // namespace detail
+
+/// Returns the `data::type` tag for `T`.
+/// @relates data
+template <class T>
+constexpr data::type type_tag() {
+  return detail::type_tag_oracle<T>::value;
+}
+
+/// @relates data
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, data& x) {
   return inspect(f, x.get_data());
