@@ -10,12 +10,13 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
-  cpp/status_subscriber.cc
+  cpp/detail/meta_data_writer.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
+  cpp/status_subscriber.cc
   cpp/store.cc
   cpp/subscriber.cc
   cpp/topic.cc
