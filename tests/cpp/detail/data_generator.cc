@@ -4,12 +4,16 @@
 
 #include "test.hpp"
 
+#include <unistd.h>
+
 #include <cctype>
 #include <vector>
 
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 
+#include "broker/detail/generator_file_reader.hh"
+#include "broker/detail/meta_data_file_writer.hh"
 #include "broker/detail/meta_data_writer.hh"
 
 using namespace broker;
@@ -239,6 +243,35 @@ TEST(roundtrip with meta_data_writer) {
   CHECK_EQUAL(get<std::string>(x[2]).size(), get<std::string>(y[2]).size());
   REQUIRE(holds_alternative<std::string>(y[3]));
   CHECK_EQUAL(get<std::string>(x[3]).size(), get<std::string>(y[3]).size());
+}
+
+TEST(roundtrip with meta_data_file_writer) {
+  // Write something to read.
+  char fname[] = "/tmp/broker.test.XXXXXX";
+  mktemp(fname);
+  if (fname[0] == '\0')
+    FAIL("unable to gernate a temporary file name");
+  auto guard = caf::detail::make_scope_guard([&] { unlink(fname); });
+  auto x = vector{1, 2, "a", "bc"};
+  {
+    auto out = detail::make_meta_data_file_writer(fname);
+    *out << x;
+  }
+  // Read back from file.
+  auto reader = detail::make_generator_file_reader(fname);
+  REQUIRE_NOT_EQUAL(reader, nullptr);
+  data y_data;
+  CHECK_EQUAL(reader->read(y_data), true);
+  CHECK_EQUAL(reader->at_end(), true);
+  auto& y = get<vector>(y_data);
+  REQUIRE_EQUAL(x.size(), y.size());
+  CHECK(holds_alternative<integer>(y[0]));
+  CHECK(holds_alternative<integer>(y[1]));
+  REQUIRE(holds_alternative<std::string>(y[2]));
+  CHECK_EQUAL(get<std::string>(x[2]).size(), get<std::string>(y[2]).size());
+  REQUIRE(holds_alternative<std::string>(y[3]));
+  CHECK_EQUAL(get<std::string>(x[3]).size(), get<std::string>(y[3]).size());
+  CHECK_EQUAL(reader->read(y_data), false);
 }
 
 FIXTURE_SCOPE_END()

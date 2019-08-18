@@ -348,10 +348,12 @@ set(BROKER_SRC
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
+  src/detail/generator_file_reader.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
+  src/detail/meta_data_file_writer.cc
   src/detail/meta_data_writer.cc
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
