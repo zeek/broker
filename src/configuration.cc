@@ -63,6 +63,17 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     set("logger.component-filter", env);
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE"))
     set("broker.output-generator-file", env);
+  if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
+    try {
+      auto value = static_cast<size_t>(std::stoi(env));
+      if (value < 0)
+        throw std::runtime_error("expected a positive number");
+      set("broker.output-generator-file", static_cast<size_t>(value));
+    } catch (...) {
+      std::cerr << "*** invalid value for BROKER_OUTPUT_GENERATOR_FILE_CAP: "
+                << env << " (expected a positive number)";
+    }
+  }
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {
