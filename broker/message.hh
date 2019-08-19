@@ -21,21 +21,34 @@ using command_message = caf::cow_tuple<topic, internal_command>;
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
 struct node_message {
+  /// Content type of the message.
+  using value_type = caf::variant<data_message, command_message>;
+
   /// Content of the message.
-  caf::variant<data_message, command_message> content;
+  value_type content;
 
   /// Time-to-life counter.
   uint16_t ttl;
 };
 
 /// Returns whether `x` contains a ::node_message.
+inline bool is_data_message(const node_message::value_type& x) {
+  return caf::holds_alternative<data_message>(x);
+}
+
+/// Returns whether `x` contains a ::node_message.
 inline bool is_data_message(const node_message& x) {
-  return caf::holds_alternative<data_message>(x.content);
+  return is_data_message(x.content);
+}
+
+/// Returns whether `x` contains a ::command_message.
+inline bool is_command_message(const node_message::value_type& x) {
+  return caf::holds_alternative<command_message>(x);
 }
 
 /// Returns whether `x` contains a ::command_message.
 inline bool is_command_message(const node_message& x) {
-  return caf::holds_alternative<command_message>(x.content);
+  return is_command_message(x.content);
 }
 
 /// @relates node_message
@@ -77,10 +90,15 @@ inline const topic& get_topic(const command_message& x) {
 }
 
 /// Retrieves the topic from a ::generic_message.
-inline const topic& get_topic(const node_message& x) {
+inline const topic& get_topic(const node_message::value_type& x) {
   if (is_data_message(x))
-    return get_topic(caf::get<data_message>(x.content));
-  return get_topic(caf::get<command_message>(x.content));
+    return get_topic(caf::get<data_message>(x));
+  return get_topic(caf::get<command_message>(x));
+}
+
+/// Retrieves the topic from a ::generic_message.
+inline const topic& get_topic(const node_message& x) {
+  return get_topic(x.content);
 }
 
 /// Moves the topic out of a ::data_message. Causes `x` to make a lazy copy of
@@ -97,11 +115,18 @@ inline topic&& move_topic(command_message& x) {
 
 /// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
 /// its content if other ::node_message objects hold references to it.
-inline topic&& move_topic(node_message& x) {
+inline topic&& move_topic(node_message::value_type& x) {
   if (is_data_message(x))
-    return move_topic(caf::get<data_message>(x.content));
-  return move_topic(caf::get<command_message>(x.content));
+    return move_topic(caf::get<data_message>(x));
+  return move_topic(caf::get<command_message>(x));
 }
+
+/// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
+/// its content if other ::node_message objects hold references to it.
+inline topic&& move_topic(node_message& x) {
+  return move_topic(x.content);
+}
+
 
 /// Retrieves the data from a ::data_message.
 inline const data& get_data(const data_message& x) {

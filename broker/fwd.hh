@@ -3,6 +3,15 @@
 
 #include <cstdint>
 
+// We actually should simply include `caf/fwd.hpp` here instead. However,
+// cow_tuple is missing from that header as of CAF 0.17.
+namespace caf {
+
+template <class... Ts>
+class cow_tuple;
+
+} // namespace caf
+
 namespace broker {
 
 class configuration;
@@ -31,6 +40,10 @@ struct set_command;
 struct snapshot_command;
 struct snapshot_sync_command;
 struct subtract_command;
+
+using data_message = caf::cow_tuple<topic, data>;
+
+using command_message = caf::cow_tuple<topic, internal_command>;
 
 /// A monotonic identifier to represent a specific lookup request.
 using request_id = uint64_t;

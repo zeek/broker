@@ -49,6 +49,14 @@ enum class ec : uint8_t {
   /// The clone store has not yet synchronized with its master, or it has
   /// been disconnected for too long.
   stale_data,
+  /// Opening a file failed.
+  cannot_open_file,
+  /// Writing to an open file failed.
+  cannot_write_file,
+  /// Received an unknown key for a topic.
+  invalid_topic_key,
+  /// Reached the end of an input file.
+  end_of_file,
 };
 
 /// @relates ec

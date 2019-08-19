@@ -13,7 +13,9 @@
 #include <caf/none.hpp>
 
 #include "broker/detail/meta_data_file_writer.hh"
+#include "broker/error.hh"
 #include "broker/logger.hh"
+#include "broker/message.hh"
 
 namespace broker {
 namespace detail {
@@ -39,8 +41,41 @@ bool generator_file_reader::at_end() const {
   return source_.remaining() == 0;
 }
 
-bool generator_file_reader::read(data& x) {
-  return generator_(x) == caf::none;
+caf::error generator_file_reader::read(value_type& x) {
+  if (at_end())
+    return ec::end_of_file;
+  using entry_type = meta_data_file_writer::format::entry_type;
+  // Read until we got a data_message, a command_message, or an error.
+  for (;;) {
+    uint8_t entry = 0;
+    if (auto err = source_(entry))
+      return err;
+    switch (static_cast<entry_type>(entry)) {
+      case entry_type::new_topic:{
+        std::string str;
+        if (auto err = source_(str))
+          return err;
+        topic_table_.emplace_back(str);
+        break;
+      }
+      case entry_type::data_message: {
+        uint16_t topic_id;
+        data value;
+        if (auto err = source_(topic_id))
+          return err;
+        if (topic_id >= topic_table_.size())
+          return ec::invalid_topic_key;
+        if (auto err = generator_(value))
+          return err;
+        x = make_data_message(topic_table_[topic_id], std::move(value));
+        return caf::none;
+      }
+      case entry_type::command_message: {
+        // TODO: implement me
+        throw std::runtime_error("unimplemented");
+      }
+    }
+  }
 }
 
 generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {

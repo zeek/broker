@@ -25,6 +25,12 @@ public:
     static constexpr uint8_t version = 1;
 
     static constexpr size_t header_size = sizeof(magic) + sizeof(version);
+
+    enum class entry_type : uint8_t {
+      new_topic,
+      data_message,
+      command_message,
+    };
   };
 
   meta_data_file_writer();
@@ -39,11 +45,11 @@ public:
 
   ~meta_data_file_writer();
 
-  caf::error open(const std::string& file_name);
+  caf::error open(std::string file_name);
 
-  void write(const data& x);
+  caf::error write(const data_message& x);
 
-  void flush();
+  caf::error flush();
 
   size_t flush_threshold() const noexcept {
     return flush_threshold_;
@@ -53,19 +59,28 @@ public:
     flush_threshold_ = x;
   }
 
+  bool operator!() const;
+
+  explicit operator bool() const;
+
 private:
+  caf::error topic_id(const topic& x, uint16_t& id);
+
   std::vector<char> buf_;
   caf::binary_serializer sink_;
   meta_data_writer writer_;
   std::ofstream f_;
   size_t flush_threshold_;
+  std::vector<topic> topic_table_;
+  std::string file_name_;
 };
 
 using meta_data_file_writer_ptr = std::unique_ptr<meta_data_file_writer>;
 
 meta_data_file_writer_ptr make_meta_data_file_writer(const std::string& fname);
 
-meta_data_file_writer& operator<<(meta_data_file_writer& out, const data& x);
+meta_data_file_writer& operator<<(meta_data_file_writer& out,
+                                  const data_message& x);
 
 } // namespace detail
 } // namespace broker
