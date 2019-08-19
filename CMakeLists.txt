@@ -341,6 +341,7 @@ set(BROKER_SRC
   src/configuration.cc
   src/core_actor.cc
   src/data.cc
+  src/defaults.cc
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
   src/detail/core_policy.cc

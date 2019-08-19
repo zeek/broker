@@ -1,61 +1,68 @@
+#include "broker/configuration.hh"
+
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include <caf/atom.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/manager.hpp>
-#include <caf/atom.hpp>
 
-#include "broker/version.hh"
+#include "broker/address.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
-#include "broker/snapshot.hh"
-#include "broker/store.hh"
-#include "broker/time.hh"
-#include "broker/address.hh"
 #include "broker/internal_command.hh"
 #include "broker/port.hh"
+#include "broker/snapshot.hh"
 #include "broker/status.hh"
+#include "broker/store.hh"
 #include "broker/subnet.hh"
+#include "broker/time.hh"
 #include "broker/topic.hh"
-
-#include "broker/configuration.hh"
+#include "broker/version.hh"
 
 namespace broker {
 
 configuration::configuration(broker_options opts) : options_(std::move(opts)) {
+  // Add runtime type information for Broker types.
   add_message_types(*this);
+  // Load CAF modules.
   load<caf::io::middleman>();
-  if (! options_.disable_ssl)
+  if (not options_.disable_ssl)
     load<caf::openssl::manager>();
-
+  // Ensure that we're only talking to compatible Broker instances.
+  set("middleman.app-identifier",
+      "broker.v" + std::to_string(version::protocol));
+  // Add custom options to the CAF parser.
+  opt_group{custom_options_, "?broker"}
+    .add(options_.disable_ssl, "disable_ssl",
+         "forces Broker to use unencrypted communication")
+    .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
+    .add<std::string>("output-generator-file",
+                      "records meta information for each published message")
+    .add<size_t>("output-generator-file-cap",
+                 "maximum number of entries when recording published messages");
+  // Override CAF default file names.
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
-  /*
-  set("logger.verbosity", caf::atom("INFO"));
-  set("logger.component-filter", "broker");
-  */
-
+  // Check for supported environment variables.
   if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
     if (*env && *env != '0') {
       set("logger.verbosity", caf::atom("DEBUG"));
       set("logger.component-filter", "");
     }
   }
-
   if (auto env = getenv("BROKER_DEBUG_LEVEL")) {
     char level[10];
     strncpy(level, env, sizeof(level));
     level[sizeof(level) - 1] = '\0';
     set("logger.verbosity", caf::atom(level));
   }
-
-  if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER")) {
+  if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER"))
     set("logger.component-filter", env);
-  }
-
-  set("middleman.app-identifier",
-      "broker.v" + std::to_string(version::protocol));
+  if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE"))
+    set("broker.output-generator-file", env);
 }
 
 configuration::configuration(int argc, char** argv) : configuration{} {
