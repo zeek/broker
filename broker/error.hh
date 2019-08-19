@@ -12,6 +12,7 @@
 #include <utility>
 
 #include <caf/atom.hpp>
+#include <caf/detail/pp.hpp>
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
 
@@ -57,6 +58,8 @@ enum class ec : uint8_t {
   invalid_topic_key,
   /// Reached the end of an input file.
   end_of_file,
+  /// Received an unknown type tag value.
+  invalid_tag,
 };
 
 /// @relates ec
@@ -67,6 +70,46 @@ error make_error(ec x, Ts&&... xs) {
   return {static_cast<uint8_t>(x), caf::atom("broker"),
           caf::make_message(std::forward<Ts>(xs)...)};
 }
+
+#define BROKER_TRY_IMPL(statement)                                                  \
+  if (auto err = statement)                                                    \
+    return err
+
+#define BROKER_TRY_1(x1) BROKER_TRY_IMPL(x1)
+
+#define BROKER_TRY_2(x1, x2)                                                   \
+  BROKER_TRY_1(x1);                                                            \
+  BROKER_TRY_IMPL(x2)
+
+#define BROKER_TRY_3(x1, x2, x3)                                               \
+  BROKER_TRY_2(x1, x2);                                                        \
+  BROKER_TRY_IMPL(x3)
+
+#define BROKER_TRY_4(x1, x2, x3, x4)                                           \
+  BROKER_TRY_3(x1, x2, x3);                                                    \
+  BROKER_TRY_IMPL(x4)
+
+#define BROKER_TRY_5(x1, x2, x3, x4, x5)                                       \
+  BROKER_TRY_4(x1, x2, x3, x4);                                                \
+  BROKER_TRY_IMPL(x5)
+
+#define BROKER_TRY_6(x1, x2, x3, x4, x5, x6)                                   \
+  BROKER_TRY_5(x1, x2, x3, x4, x5);                                            \
+  BROKER_TRY_IMPL(x6)
+
+#define BROKER_TRY_7(x1, x2, x3, x4, x5, x6, x7)                               \
+  BROKER_TRY_6(x1, x2, x3, x4, x5, x6);                                        \
+  BROKER_TRY_IMPL(x7)
+
+#define BROKER_TRY_8(x1, x2, x3, x4, x5, x6, x7, x8)                           \
+  BROKER_TRY_7(x1, x2, x3, x4, x5, x6, x7);                                    \
+  BROKER_TRY_IMPL(x8)
+
+#define BROKER_TRY_9(x1, x2, x3, x4, x5, x6, x7, x8, x9)                       \
+  BROKER_TRY_8(x1, x2, x3, x4, x5, x6, x7, x8);                                \
+  BROKER_TRY_IMPL(x9)
+
+#define BROKER_TRY(...) CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
 
 } // namespace broker
 

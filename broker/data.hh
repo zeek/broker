@@ -1,13 +1,12 @@
 #ifndef BROKER_DATA_HH
 #define BROKER_DATA_HH
 
-#include <utility>
-#include <type_traits>
 #include <cstdint>
 #include <map>
 #include <set>
 #include <string>
-#include <unordered_map>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <caf/default_sum_type_access.hpp>
@@ -171,42 +170,42 @@ private:
 namespace detail {
 
 template <data::type Value>
-using type_tag_token = std::integral_constant<data::type, Value>;
+using data_tag_token = std::integral_constant<data::type, Value>;
 
 template <class T>
-struct type_tag_oracle;
+struct data_tag_oracle;
 
 template <>
-struct type_tag_oracle<std::string> : type_tag_token<data::type::string> {};
+struct data_tag_oracle<std::string> : data_tag_token<data::type::string> {};
 
-#define TYPE_TAG_ORACLE(type_name)                                             \
+#define DATA_TAG_ORACLE(type_name)                                             \
   template <>                                                                  \
-  struct type_tag_oracle<type_name> : type_tag_token<data::type::type_name> {}
+  struct data_tag_oracle<type_name> : data_tag_token<data::type::type_name> {}
 
-TYPE_TAG_ORACLE(none);
-TYPE_TAG_ORACLE(boolean);
-TYPE_TAG_ORACLE(count);
-TYPE_TAG_ORACLE(integer);
-TYPE_TAG_ORACLE(real);
-TYPE_TAG_ORACLE(address);
-TYPE_TAG_ORACLE(subnet);
-TYPE_TAG_ORACLE(port);
-TYPE_TAG_ORACLE(timestamp);
-TYPE_TAG_ORACLE(timespan);
-TYPE_TAG_ORACLE(enum_value);
-TYPE_TAG_ORACLE(set);
-TYPE_TAG_ORACLE(table);
-TYPE_TAG_ORACLE(vector);
+DATA_TAG_ORACLE(none);
+DATA_TAG_ORACLE(boolean);
+DATA_TAG_ORACLE(count);
+DATA_TAG_ORACLE(integer);
+DATA_TAG_ORACLE(real);
+DATA_TAG_ORACLE(address);
+DATA_TAG_ORACLE(subnet);
+DATA_TAG_ORACLE(port);
+DATA_TAG_ORACLE(timestamp);
+DATA_TAG_ORACLE(timespan);
+DATA_TAG_ORACLE(enum_value);
+DATA_TAG_ORACLE(set);
+DATA_TAG_ORACLE(table);
+DATA_TAG_ORACLE(vector);
 
-#undef TYPE_TAG_ORACLE
+#undef DATA_TAG_ORACLE
 
 } // namespace detail
 
 /// Returns the `data::type` tag for `T`.
 /// @relates data
 template <class T>
-constexpr data::type type_tag() {
-  return detail::type_tag_oracle<T>::value;
+constexpr data::type data_tag() {
+  return detail::data_tag_oracle<T>::value;
 }
 
 /// @relates data

@@ -1,5 +1,5 @@
-#ifndef BROKER_DETAIL_META_DATA_FILE_WRITER_HH
-#define BROKER_DETAIL_META_DATA_FILE_WRITER_HH
+#ifndef BROKER_DETAIL_GENERATOR_FILE_WRITER_HH
+#define BROKER_DETAIL_GENERATOR_FILE_WRITER_HH
 
 #include <cstddef>
 #include <cstdint>
@@ -11,13 +11,12 @@
 #include <caf/binary_serializer.hpp>
 #include <caf/fwd.hpp>
 
-#include "broker/detail/meta_data_writer.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
 namespace detail {
 
-class meta_data_file_writer {
+class generator_file_writer {
 public:
   struct format {
     static constexpr uint32_t magic = 0x2EECC0DE;
@@ -33,21 +32,23 @@ public:
     };
   };
 
-  meta_data_file_writer();
+  generator_file_writer();
 
-  meta_data_file_writer(meta_data_file_writer&&) = delete;
+  generator_file_writer(generator_file_writer&&) = delete;
 
-  meta_data_file_writer(const meta_data_file_writer&) = delete;
+  generator_file_writer(const generator_file_writer&) = delete;
 
-  meta_data_file_writer& operator=(meta_data_file_writer&&) = delete;
+  generator_file_writer& operator=(generator_file_writer&&) = delete;
 
-  meta_data_file_writer& operator=(const meta_data_file_writer&) = delete;
+  generator_file_writer& operator=(const generator_file_writer&) = delete;
 
-  ~meta_data_file_writer();
+  ~generator_file_writer();
 
   caf::error open(std::string file_name);
 
   caf::error write(const data_message& x);
+
+  caf::error write(const command_message& x);
 
   caf::error flush();
 
@@ -68,21 +69,20 @@ private:
 
   std::vector<char> buf_;
   caf::binary_serializer sink_;
-  meta_data_writer writer_;
   std::ofstream f_;
   size_t flush_threshold_;
   std::vector<topic> topic_table_;
   std::string file_name_;
 };
 
-using meta_data_file_writer_ptr = std::unique_ptr<meta_data_file_writer>;
+using generator_file_writer_ptr = std::unique_ptr<generator_file_writer>;
 
-meta_data_file_writer_ptr make_meta_data_file_writer(const std::string& fname);
+generator_file_writer_ptr make_generator_file_writer(const std::string& fname);
 
-meta_data_file_writer& operator<<(meta_data_file_writer& out,
+generator_file_writer& operator<<(generator_file_writer& out,
                                   const data_message& x);
 
 } // namespace detail
 } // namespace broker
 
-#endif // BROKER_DETAIL_META_DATA_FILE_WRITER_HH
+#endif // BROKER_DETAIL_GENERATOR_FILE_WRITER_HH

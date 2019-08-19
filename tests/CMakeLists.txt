@@ -11,7 +11,8 @@ set(tests
   cpp/core.cc
   cpp/data.cc
   cpp/detail/data_generator.cc
-  cpp/detail/meta_data_file_writer.cc
+  cpp/detail/generator_file_writer.cc
+  cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
   cpp/integration.cc
   cpp/master.cc

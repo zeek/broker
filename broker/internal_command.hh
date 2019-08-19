@@ -122,6 +122,19 @@ typename Inspector::result_type inspect(Inspector& f, clear_command&) {
 
 class internal_command {
 public:
+  enum class type : uint8_t {
+    none,
+    put_command,
+    put_unique_command,
+    erase_command,
+    add_command,
+    subtract_command,
+    snapshot_command,
+    snapshot_sync_command,
+    set_command,
+    clear_command,
+  };
+
   using variant_type
     = caf::variant<none, put_command, put_unique_command, erase_command,
                    add_command, subtract_command, snapshot_command,
@@ -146,6 +159,49 @@ internal_command make_internal_command(Ts&&... xs) {
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, internal_command& x) {
   return f(caf::meta::type_name("internal_command"), x.content);
+}
+
+namespace detail {
+
+template <internal_command::type Value>
+using internal_command_tag_token
+  = std::integral_constant<internal_command::type, Value>;
+
+template <class T>
+struct internal_command_tag_oracle;
+
+#define INTERNAL_COMMAND_TAG_ORACLE(type_name)                                 \
+  template <>                                                                  \
+  struct internal_command_tag_oracle<type_name>                                \
+    : internal_command_tag_token<internal_command::type::type_name> {}
+
+INTERNAL_COMMAND_TAG_ORACLE(none);
+INTERNAL_COMMAND_TAG_ORACLE(put_command);
+INTERNAL_COMMAND_TAG_ORACLE(put_unique_command);
+INTERNAL_COMMAND_TAG_ORACLE(erase_command);
+INTERNAL_COMMAND_TAG_ORACLE(add_command);
+INTERNAL_COMMAND_TAG_ORACLE(subtract_command);
+INTERNAL_COMMAND_TAG_ORACLE(snapshot_command);
+INTERNAL_COMMAND_TAG_ORACLE(snapshot_sync_command);
+INTERNAL_COMMAND_TAG_ORACLE(set_command);
+INTERNAL_COMMAND_TAG_ORACLE(clear_command);
+
+#undef INTERNAL_COMMAND_TAG_ORACLE
+
+} // namespace detail
+
+/// Returns the `internal_command::type` tag for `T`.
+/// @relates internal_internal_command
+template <class T>
+constexpr internal_command::type internal_command_tag() {
+  return detail::internal_command_tag_oracle<T>::value;
+}
+
+/// Returns the `internal_command::type` tag for `T` as `uint8_t`.
+/// @relates internal_internal_command
+template <class T>
+constexpr uint8_t internal_command_uint_tag() {
+  return static_cast<uint8_t>(detail::internal_command_tag_oracle<T>::value);
 }
 
 } // namespace broker

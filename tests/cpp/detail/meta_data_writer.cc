@@ -30,11 +30,11 @@ struct fixture {
 
   template <class T>
   T pull() {
-    auto first = buf.data() + read_pos;
-    caf::binary_deserializer source{nullptr, first, buf.size() - read_pos};
+    caf::binary_deserializer source{nullptr, buf.data() + read_pos,
+                                    buf.size() - read_pos};
     T result;
     CHECK_EQUAL(source(result), caf::none);
-    read_pos += source.current() - first;
+    read_pos = buf.size() - source.remaining();
     return result;
   }
 

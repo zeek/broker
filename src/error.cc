@@ -23,6 +23,9 @@ const char* ec_names[] = {
   "stale_data",
   "cannot_open_file",
   "cannot_write_file",
+  "invalid_topic_key",
+  "end_of_file",
+  "invalid_tag",
 };
 
 } // namespace

@@ -1,6 +1,6 @@
-#define CAF_SUITE meta_data_file_writer
+#define CAF_SUITE generator_file_writer
 
-#include "broker/detail/meta_data_file_writer.hh"
+#include "broker/detail/generator_file_writer.hh"
 
 #include "test.hpp"
 
@@ -35,13 +35,13 @@ struct fixture {
 
 } // namespace
 
-CAF_TEST_FIXTURE_SCOPE(meta_data_file_writer_tests, fixture)
+CAF_TEST_FIXTURE_SCOPE(generator_file_writer_tests, fixture)
 
 CAF_TEST(data_message roundtrip with generator_file_reader) {
   auto x = vector{1, 2, "a", "bc"};
   auto x_msg = make_data_message("foo/bar", x);
   {
-    auto out = detail::make_meta_data_file_writer(file_name);
+    auto out = detail::make_generator_file_writer(file_name);
     *out << x_msg;
   }
   // Read back from file.
@@ -69,7 +69,7 @@ CAF_TEST(command_message roundtrip with generator_file_reader) {
   auto x = vector{1, 2, "a", "bc"};
   auto x_msg = make_data_message("foo/bar", x);
   {
-    auto out = detail::make_meta_data_file_writer(file_name);
+    auto out = detail::make_generator_file_writer(file_name);
     *out << x_msg;
   }
   // Read back from file.

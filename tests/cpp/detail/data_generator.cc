@@ -47,6 +47,13 @@ struct fixture {
   }
 };
 
+template <class T>
+struct holds {
+  bool operator()(const data& x) const noexcept {
+    return holds_alternative<T>(x);
+  }
+};
+
 } // namespace
 
 FIXTURE_SCOPE(data_generator_tests, fixture)
@@ -144,17 +151,6 @@ TEST(enum_value data) {
   CHECK_EQUAL(x.name.size(), 42u);
   CHECK_EQUAL(generate(), x);
 }
-
-namespace {
-
-template <class T>
-struct holds {
-  bool operator()(const data& x) const noexcept {
-    return holds_alternative<T>(x);
-  }
-};
-
-} // namespace
 
 TEST(set data) {
   add_meta(data::type::set, 3);

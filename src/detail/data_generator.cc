@@ -66,10 +66,14 @@ caf::error data_generator::operator()(data& x) {
   return generate(x);
 }
 
+caf::error data_generator::operator()(internal_command& x) {
+  return generate(x);
+}
+
 caf::error data_generator::generate(data& x) {
-  data::type tt;
-  READ(tt);
-  return generate(tt, x);
+  data::type tag;
+  READ(tag);
+  return generate(tag, x);
 }
 
 caf::error data_generator::generate(data::type tag, data& x) {
@@ -91,6 +95,83 @@ caf::error data_generator::generate(data::type tag, data& x) {
     GENERATE_CASE(vector)
     default:
       return caf::sec::invalid_argument;
+  }
+  return caf::none;
+}
+
+caf::error data_generator::generate(internal_command& x) {
+  internal_command::type tag;
+  READ(tag);
+  return generate(tag, x);
+}
+
+caf::error data_generator::generate(internal_command::type tag,
+                                    internal_command& x) {
+  using tag_type = internal_command::type;
+  switch (tag) {
+    case tag_type::none:
+      break;
+    case tag_type::put_command: {
+      data key;
+      data val;
+      GENERATE(key);
+      GENERATE(val);
+      x.content = put_command{std::move(key), std::move(val), nil};
+      break;
+    }
+    case tag_type::put_unique_command: {
+      data key;
+      data val;
+      GENERATE(key);
+      GENERATE(val);
+      x.content
+        = put_unique_command{std::move(key), std::move(val), nil, nullptr, 0};
+      break;
+    }
+    case tag_type::erase_command: {
+      data key;
+      GENERATE(key);
+      x.content = erase_command{std::move(key)};
+      break;
+    }
+    case tag_type::add_command: {
+      data key;
+      data val;
+      data::type init_type;
+      GENERATE(key);
+      GENERATE(val);
+      READ(init_type);
+      x.content = add_command{std::move(key), std::move(val), init_type, nil};
+      break;
+    }
+    case tag_type::subtract_command: {
+      data key;
+      data val;
+      GENERATE(key);
+      GENERATE(val);
+      x.content = subtract_command{std::move(key), std::move(val)};
+      break;
+    }
+    case tag_type::snapshot_command: {
+      x.content = snapshot_command{nullptr, nullptr};
+      break;
+    }
+    case tag_type::snapshot_sync_command: {
+      x.content = snapshot_sync_command{};
+      break;
+    }
+    case tag_type::set_command: {
+      std::unordered_map<data, data> xs;
+      GENERATE(xs);
+      x.content = set_command{std::move(xs)};
+      break;
+    }
+    case tag_type::clear_command: {
+      x.content = clear_command{};
+      break;
+    }
+    default:
+      return ec::invalid_tag;
   }
   return caf::none;
 }
@@ -119,6 +200,20 @@ caf::error data_generator::generate(set& xs) {
 }
 
 caf::error data_generator::generate(table& xs) {
+  uint32_t size = 0;
+  READ(size);
+  data key;
+  data value;
+  for (size_t i = 0; i < size; ++i) {
+    GENERATE(key);
+    GENERATE(value);
+    while (!xs.emplace(key, value).second)
+      shuffle(key);
+  }
+  return caf::none;
+}
+
+caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
   uint32_t size = 0;
   READ(size);
   data key;

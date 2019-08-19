@@ -2,11 +2,13 @@
 #define BROKER_DETAIL_DATA_GENERATOR_HH
 
 #include <random>
+#include <unordered_map>
 
 #include <caf/error.hpp>
 #include <caf/fwd.hpp>
 
 #include "broker/data.hh"
+#include "broker/internal_command.hh"
 
 namespace broker {
 namespace detail {
@@ -28,15 +30,23 @@ public:
 
   caf::error operator()(data& x);
 
+  caf::error operator()(internal_command& x);
+
   caf::error generate(data& x);
 
   caf::error generate(data::type tag, data& x);
+
+  caf::error generate(internal_command& x);
+
+  caf::error generate(internal_command::type tag, internal_command& x);
 
   caf::error generate(vector& xs);
 
   caf::error generate(set& xs);
 
   caf::error generate(table& xs);
+
+  caf::error generate(std::unordered_map<data, data>& xs);
 
   template <class T>
   caf::error generate(T& x) {

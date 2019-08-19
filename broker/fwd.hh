@@ -33,6 +33,7 @@ class store;
 class internal_command;
 
 struct add_command;
+struct clear_command;
 struct erase_command;
 struct put_command;
 struct put_unique_command;

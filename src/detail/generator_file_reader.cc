@@ -12,7 +12,7 @@
 #include <caf/error.hpp>
 #include <caf/none.hpp>
 
-#include "broker/detail/meta_data_file_writer.hh"
+#include "broker/detail/generator_file_writer.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
@@ -28,8 +28,8 @@ generator_file_reader::generator_file_reader(int fd, void* addr,
     source_(nullptr, reinterpret_cast<char*>(addr), file_size),
     generator_(source_) {
   // We've already verified the file header in make_generator_file_reader.
-  source_.skip(sizeof(meta_data_file_writer::format::magic)
-               + sizeof(meta_data_file_writer::format::version));
+  source_.skip(sizeof(generator_file_writer::format::magic)
+               + sizeof(generator_file_writer::format::version));
 }
 
 generator_file_reader::~generator_file_reader() {
@@ -44,35 +44,37 @@ bool generator_file_reader::at_end() const {
 caf::error generator_file_reader::read(value_type& x) {
   if (at_end())
     return ec::end_of_file;
-  using entry_type = meta_data_file_writer::format::entry_type;
+  using entry_type = generator_file_writer::format::entry_type;
   // Read until we got a data_message, a command_message, or an error.
   for (;;) {
-    uint8_t entry = 0;
-    if (auto err = source_(entry))
-      return err;
-    switch (static_cast<entry_type>(entry)) {
-      case entry_type::new_topic:{
+    entry_type entry;
+    BROKER_TRY(source_(entry));
+    switch (entry) {
+      case entry_type::new_topic: {
         std::string str;
-        if (auto err = source_(str))
-          return err;
+        BROKER_TRY(source_(str));
         topic_table_.emplace_back(str);
         break;
       }
       case entry_type::data_message: {
         uint16_t topic_id;
-        data value;
-        if (auto err = source_(topic_id))
-          return err;
+        BROKER_TRY(source_(topic_id));
         if (topic_id >= topic_table_.size())
           return ec::invalid_topic_key;
-        if (auto err = generator_(value))
-          return err;
+        data value;
+        BROKER_TRY(generator_(value));
         x = make_data_message(topic_table_[topic_id], std::move(value));
         return caf::none;
       }
       case entry_type::command_message: {
-        // TODO: implement me
-        throw std::runtime_error("unimplemented");
+        uint16_t topic_id;
+        BROKER_TRY(source_(topic_id));
+        if (topic_id >= topic_table_.size())
+          return ec::invalid_topic_key;
+        internal_command cmd;
+        BROKER_TRY(generator_(cmd));
+        x = make_command_message(topic_table_[topic_id], std::move(cmd));
+        return caf::none;
       }
     }
   }
@@ -94,13 +96,13 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {
   }
   // Read and verify file size.
   auto file_size = static_cast<size_t>(sb.st_size);
-  if (file_size < sizeof(meta_data_file_writer::format::header_size)) {
+  if (file_size < sizeof(generator_file_writer::format::header_size)) {
     BROKER_ERROR("cannot read file header (file too small):" << fname);
     return nullptr;
   }
   // Memory map file.
   auto addr = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (addr == nullptr){
+  if (addr == nullptr) {
     BROKER_ERROR("unable to open file (mmap failed):" << fname);
     return nullptr;
   }
@@ -111,11 +113,11 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {
   memcpy(&magic, addr, sizeof(magic));
   memcpy(&version, reinterpret_cast<char*>(addr) + sizeof(magic),
          sizeof(version));
-  if (magic != meta_data_file_writer::format::magic) {
+  if (magic != generator_file_writer::format::magic) {
     BROKER_ERROR("unexpected file header (magic mismatch):" << fname);
     return nullptr;
   }
-  if (version != meta_data_file_writer::format::version) {
+  if (version != generator_file_writer::format::version) {
     BROKER_ERROR("unexpected file header (version mismatch):" << fname);
     return nullptr;
   }

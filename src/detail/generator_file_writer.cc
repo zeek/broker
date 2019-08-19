@@ -1,8 +1,10 @@
-#include "broker/detail/meta_data_file_writer.hh"
+#include "broker/detail/generator_file_writer.hh"
 
 #include <caf/error.hpp>
 #include <caf/sec.hpp>
 
+#include "broker/detail/meta_command_writer.hh"
+#include "broker/detail/meta_data_writer.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
@@ -10,16 +12,17 @@
 namespace broker {
 namespace detail {
 
-meta_data_file_writer::meta_data_file_writer()
-  : sink_(nullptr, buf_), writer_(sink_), flush_threshold_(1024) {
-  // nop
+generator_file_writer::generator_file_writer()
+  : sink_(nullptr, buf_), flush_threshold_(1024) {
+  buf_.reserve(2028);
 }
 
-meta_data_file_writer::~meta_data_file_writer() {
-  flush();
+generator_file_writer::~generator_file_writer() {
+  if (auto err = flush())
+    CAF_LOG_ERROR("flushing file in destructor failed:" << err);
 }
 
-caf::error meta_data_file_writer::open(std::string file_name) {
+caf::error generator_file_writer::open(std::string file_name) {
   if (auto err = flush()) {
     // Log the error, but ignore it otherwise.
     CAF_LOG_ERROR("flushing previous file failed:" << err);
@@ -46,7 +49,7 @@ caf::error meta_data_file_writer::open(std::string file_name) {
   return caf::none;
 }
 
-caf::error meta_data_file_writer::flush() {
+caf::error generator_file_writer::flush() {
   if (!f_.is_open() || buf_.empty())
     return caf::none;
   if (!f_.write(buf_.data(), buf_.size()))
@@ -55,21 +58,29 @@ caf::error meta_data_file_writer::flush() {
   return caf::none;
 }
 
-caf::error meta_data_file_writer::write(const data_message& x) {
+caf::error generator_file_writer::write(const data_message& x) {
+  meta_data_writer writer{sink_};
   uint16_t tid;
-  if (auto err = topic_id(get_topic(x), tid))
-    return err;
   auto entry = format::entry_type::data_message;
-  if (auto err = sink_(entry, tid))
-    return err;
-  if (auto err = writer_(get_data(x)))
-    return err;
+  BROKER_TRY(topic_id(get_topic(x), tid), sink_(entry, tid),
+             writer(get_data(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
   return caf::none;
 }
 
-caf::error meta_data_file_writer::topic_id(const topic& x, uint16_t& id) {
+caf::error generator_file_writer::write(const command_message& x) {
+  meta_command_writer writer{sink_};
+  uint16_t tid;
+  auto entry = format::entry_type::command_message;
+  BROKER_TRY(topic_id(get_topic(x), tid), sink_(entry, tid),
+             writer(get_command(x)));
+  if (buf_.size() >= flush_threshold())
+    return flush();
+  return caf::none;
+}
+
+caf::error generator_file_writer::topic_id(const topic& x, uint16_t& id) {
   auto e = topic_table_.end();
   auto i = std::find(topic_table_.begin(), e, x);
   if (i == e) {
@@ -85,22 +96,22 @@ caf::error meta_data_file_writer::topic_id(const topic& x, uint16_t& id) {
   return caf::none;
 }
 
-bool meta_data_file_writer::operator!() const{
+bool generator_file_writer::operator!() const {
   return !f_;
 }
 
-meta_data_file_writer::operator bool() const {
+generator_file_writer::operator bool() const {
   return static_cast<bool>(f_);
 }
 
-meta_data_file_writer_ptr make_meta_data_file_writer(const std::string& fname) {
-  meta_data_file_writer_ptr result{new meta_data_file_writer};
+generator_file_writer_ptr make_generator_file_writer(const std::string& fname) {
+  generator_file_writer_ptr result{new generator_file_writer};
   if (result->open(fname) != caf::none)
     return nullptr;
   return result;
 }
 
-meta_data_file_writer& operator<<(meta_data_file_writer& out,
+generator_file_writer& operator<<(generator_file_writer& out,
                                   const data_message& x) {
   out.write(x);
   return out;

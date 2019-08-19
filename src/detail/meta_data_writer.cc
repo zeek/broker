@@ -13,8 +13,8 @@ caf::error meta_data_writer::apply(data::type tag) {
   return sink_(tag);
 }
 
-caf::error meta_data_writer::apply(data::type tag, size_t container_size){
-  return sink_(tag, static_cast<uint32_t>(container_size));
+caf::error meta_data_writer::apply(size_t container_size){
+  return sink_(static_cast<uint32_t>(container_size));
 }
 
 } // namespace detail
