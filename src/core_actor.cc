@@ -378,8 +378,13 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.policy().workers().set_filter(slot, std::move(filter));
       self->send(who_asked, true);
     },
-    [=](const endpoint::stream_type& in) {
-      CAF_LOG_TRACE(CAF_ARG(in));
+    [=](endpoint::stream_type in) {
+      CAF_LOG_TRACE("add data_message input stream");
+      auto& st = self->state;
+      st.governor->add_unchecked_inbound_path(in);
+    },
+    [=](stream<node_message::value_type> in) {
+      CAF_LOG_TRACE("add node_message::value_type input stream");
       auto& st = self->state;
       st.governor->add_unchecked_inbound_path(in);
     },
@@ -700,8 +705,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     },
     [=](atom::add, atom::status, caf::actor& ss) {
       self->state.status_subscribers.emplace(std::move(ss));
-    }
-  };
+    }};
 }
 
 } // namespace broker

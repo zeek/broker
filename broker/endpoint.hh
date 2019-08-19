@@ -199,6 +199,9 @@ public:
   /// @param xs The contents of the messages.
   void publish(topic t, std::initializer_list<data> xs);
 
+  // Publishes the messages `x`.
+  void publish(data_message x);
+
   // Publishes all messages in `xs`.
   void publish(std::vector<data_message> xs);
 

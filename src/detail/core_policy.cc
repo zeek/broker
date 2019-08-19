@@ -133,7 +133,7 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
     }
     return;
   }
-  auto ttl = state_->options.ttl;
+  auto ttl = static_cast<uint16_t>(state_->options.ttl);
   if (xs.match_elements<worker_trait::batch>()) {
     CAF_LOG_DEBUG("forward batch from local workers to peers");
     for (auto& x : xs.get_mutable_as<worker_trait::batch>(0))
@@ -144,6 +144,13 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
     CAF_LOG_DEBUG("forward batch from local stores to peers");
     for (auto& x : xs.get_mutable_as<store_trait::batch>(0))
       peers().push(make_node_message(std::move(x), ttl));
+    return;
+  }
+  using variant_batch = std::vector<node_message::value_type>;
+  if (xs.match_elements<variant_batch>()) {
+    CAF_LOG_DEBUG("forward batch from custom actors to peers");
+    for (auto& x : xs.get_mutable_as<variant_batch>(0))
+      peers().push(node_message{std::move(x), ttl});
     return;
   }
   CAF_LOG_ERROR("unexpected batch:" << deep_to_string(xs));

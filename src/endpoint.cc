@@ -282,12 +282,16 @@ void endpoint::publish(const endpoint_info& dst, topic t, data d) {
                  make_data_message(std::move(t), std::move(d)));
 }
 
+void endpoint::publish(data_message x){
+  BROKER_INFO("publishing" << x);
+  caf::anon_send(core(), atom::publish::value, std::move(x));
+}
+
+
 void endpoint::publish(std::vector<data_message> xs) {
-  for ( auto& x : xs ) {
-    BROKER_INFO("publishing" << x);
-    auto& tup = x.unshared();
-    caf::anon_send(core(), atom::publish::value, std::move(x));
-  }
+  BROKER_INFO("publishing" << xs.size() << "messages");
+  for (auto& x : xs)
+    publish(std::move(x));
 }
 
 publisher endpoint::make_publisher(topic ts) {
