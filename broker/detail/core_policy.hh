@@ -17,8 +17,10 @@
 #include <caf/stream_slot.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/generator_file_writer.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/peer_filter.hh"
 #include "broker/topic.hh"
@@ -296,6 +298,57 @@ public:
   }
 
 private:
+  template <class T>
+  bool try_handle(caf::message& msg, const char* debug_msg) {
+    CAF_IGNORE_UNUSED(debug_msg);
+    if (msg.match_elements<T>()) {
+      using iterator_type = typename T::iterator;
+      auto ttl0 = initial_ttl();
+      auto push_unrecorded = [&](iterator_type first, iterator_type last) {
+        for (auto i = first; i != last; ++i)
+          peers().push(make_node_message(std::move(*i), ttl0));
+      };
+      auto push_recorded = [&](iterator_type first, iterator_type last) {
+        for (auto i = first; i != last; ++i) {
+          if (auto err = recorder_->write(*i)) {
+            BROKER_WARNING("unable to write to generator file:" << err);
+            recorder_ = nullptr;
+            remaining_records_ = 0;
+            return i;
+          }
+          peers().push(make_node_message(std::move(*i), ttl0));
+        }
+        return last;
+      };
+      CAF_LOG_DEBUG(debug_msg);
+      auto& xs = msg.get_mutable_as<T>(0);
+      if (recorder_ == nullptr) {
+        push_unrecorded(xs.begin(), xs.end());
+      } else {
+        auto n = std::min(remaining_records_, xs.size());
+        auto first = xs.begin();
+        auto last = xs.end();
+        auto i = push_recorded(first, first + n);
+        if (i != last)
+          push_unrecorded(i, last);
+        if (recorder_ != nullptr) {
+          if (xs.size() >= remaining_records_) {
+            BROKER_DEBUG("reached recording cap, close file");
+            recorder_ = nullptr;
+            remaining_records_ = 0;
+          } else {
+            remaining_records_ -= xs.size();
+          }
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Returns the initial TTL value when publishing data.
+  ttl initial_ttl() const;
+
   /// Adds entries to `peer_to_ipath_` and `ipath_to_peer_`.
   void add_ipath(caf::stream_slot slot, const caf::actor& peer_hdl);
 
@@ -338,6 +391,12 @@ private:
 
   /// Messages that are currently buffered.
   std::unordered_map<caf::actor, std::vector<caf::message>> blocked_msgs;
+
+  /// Helper for recording meta data of published messages.
+  detail::generator_file_writer_ptr recorder_;
+
+  /// Counts down when using a `recorder_` to cap maximum file entries.
+  size_t remaining_records_;
 };
 
 } // namespace detail

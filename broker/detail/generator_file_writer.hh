@@ -10,6 +10,7 @@
 
 #include <caf/binary_serializer.hpp>
 #include <caf/fwd.hpp>
+#include <caf/variant.hpp>
 
 #include "broker/fwd.hh"
 
@@ -32,6 +33,8 @@ public:
     };
   };
 
+  using data_or_command_message = caf::variant<data_message, command_message>;
+
   generator_file_writer();
 
   generator_file_writer(generator_file_writer&&) = delete;
@@ -49,6 +52,8 @@ public:
   caf::error write(const data_message& x);
 
   caf::error write(const command_message& x);
+
+  caf::error write(const data_or_command_message& x);
 
   caf::error flush();
 

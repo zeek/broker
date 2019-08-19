@@ -79,6 +79,12 @@ inline node_message make_node_message(command_message msg, uint16_t ttl) {
   return {std::move(msg), ttl};
 }
 
+/// Generates a broker ::node_message.
+inline node_message make_node_message(node_message::value_type msg,
+                                      uint16_t ttl) {
+  return {std::move(msg), ttl};
+}
+
 /// Retrieves the topic from a ::data_message.
 inline const topic& get_topic(const data_message& x) {
   return get<0>(x);

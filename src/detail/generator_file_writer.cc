@@ -80,6 +80,12 @@ caf::error generator_file_writer::write(const command_message& x) {
   return caf::none;
 }
 
+caf::error generator_file_writer::write(const data_or_command_message& x) {
+  if (caf::holds_alternative<data_message>(x))
+    return write(caf::get<data_message>(x));
+  return write(caf::get<command_message>(x));
+}
+
 caf::error generator_file_writer::topic_id(const topic& x, uint16_t& id) {
   auto e = topic_table_.end();
   auto i = std::find(topic_table_.begin(), e, x);
