@@ -290,6 +290,11 @@ void clientMode(const char* host, int port) {
     broker::broker_options options;
     options.disable_ssl = disable_ssl;
     broker::configuration cfg{options};
+    if (auto err = cfg.parse(0, nullptr)) {
+      std::cerr << "error while reading config: " << cfg.render(err)
+                << std::endl;
+      return;
+    }
     broker::endpoint ep(std::move(cfg));
     auto ss = ep.make_status_subscriber(true);
     auto p = ep.make_publisher("/benchmark/events");
@@ -372,6 +377,11 @@ void serverMode(const char* iface, int port) {
     broker::broker_options options;
     options.disable_ssl = disable_ssl;
     broker::configuration cfg{options};
+    if (auto err = cfg.parse(0, nullptr)) {
+      std::cerr << "error while reading config: " << cfg.render(err)
+                << std::endl;
+      return;
+    }
     broker::endpoint ep(std::move(cfg));
     auto ss = ep.make_status_subscriber(true);
     ep.listen(iface, port);

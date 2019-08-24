@@ -403,7 +403,12 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
-  cfg.parse(argc, argv);
+  if (auto err = cfg.parse(argc, argv)) {
+    err::println("error while reading config: ", cfg.render(err));
+    return EXIT_FAILURE;
+  }
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
   // Get mode (mandatory).
   auto mode = get_if<atom_value>(&ep, "mode");
