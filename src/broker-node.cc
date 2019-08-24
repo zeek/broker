@@ -147,6 +147,8 @@ using pong_atom = atom_constant<atom("pong")>;
 
 using relay_atom = atom_constant<atom("relay")>;
 
+using generate_atom = atom_constant<atom("generate")>;
+
 using blocking_atom = atom_constant<atom("blocking")>;
 
 using stream_atom = atom_constant<atom("stream")>;
@@ -172,6 +174,7 @@ public:
   config() {
     opt_group{custom_options_, "global"}
       .add<bool>("verbose,v", "print status and debug output")
+      .add<bool>("rate,r", "print receive rate ('relay' mode only)")
       .add<string>("name,N", "set node name in verbose output")
       .add<string_list>("topics,t", "topics for sending/receiving messages")
       .add<atom_value>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
@@ -263,9 +266,7 @@ broker::data make_stop_msg() {
 
 void relay_mode(broker::endpoint& ep, topic_list topics) {
   verbose::println("relay messages");
-  auto in = ep.make_subscriber(topics);
-  for (;;) {
-    auto x = in.get();
+  auto handle_message = [&](const broker::data_message& x) {
     auto& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
@@ -273,9 +274,33 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
       verbose::println("received pong ", msg_id(val));
     } else if (is_stop_msg(val)) {
       verbose::println("received stop");
-      return;
-    } else {
-      verbose::println("received: ", val);
+      return false;
+    }
+    return true;
+  };
+  auto in = ep.make_subscriber(topics);
+  auto& cfg = ep.system().config();
+  if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
+    auto timeout = std::chrono::system_clock::now();
+    timeout += std::chrono::seconds(1);
+    size_t received = 0;
+    for (;;) {
+      auto x = in.get(timeout);
+      if (x) {
+        if (!handle_message(*x))
+          return;
+        ++received;
+      } else {
+        verbose::println(received, "/s");
+        timeout += std::chrono::seconds(1);
+        received = 0;
+      }
+    }
+  } else {
+    for (;;) {
+      auto x = in.get();
+      if (!handle_message(x))
+        return;
     }
   }
 }
@@ -332,7 +357,7 @@ void generate_mode(broker::endpoint& ep, topic_list) {
   auto delta = t1 - t0;
   using fractional_seconds = std::chrono::duration<double>;
   auto delta_s = std::chrono::duration_cast<fractional_seconds>(delta);
-  verbose::println("shipped ", *count, "messages in ", delta_s.count(), "s");
+  verbose::println("shipped ", *count, " messages in ", delta_s.count(), "s");
   verbose::println("AVG: ", *count / delta_s.count());
 }
 
@@ -426,7 +451,7 @@ int main(int argc, char** argv) {
   topic_list topics;
   { // Lifetime scope of temporary variables.
     auto topic_names = get_or(ep, "topics", string_list{});
-    if (topics.empty()) {
+    if (topic_names.empty()) {
       err::println("no topics specified");
       return EXIT_FAILURE;
     }
@@ -470,6 +495,9 @@ int main(int argc, char** argv) {
       break;
     case pong_atom::uint_value():
       f = pong_mode;
+      break;
+    case generate_atom::uint_value():
+      f = generate_mode;
       break;
     default:
       err::println("invalid mode: ", mode);
