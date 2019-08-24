@@ -55,6 +55,7 @@ caf::error generator_file_writer::flush() {
   if (!f_.write(buf_.data(), buf_.size()))
     return make_error(ec::cannot_write_file, file_name_);
   buf_.clear();
+  sink_.seek(0);
   return caf::none;
 }
 
