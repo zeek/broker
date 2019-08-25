@@ -2,19 +2,19 @@
 #define BROKER_DETAIL_NETWORK_CACHE_HPP
 
 #include <cstdint>
-#include <utility>
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/io/middleman.hpp>
+#include <caf/openssl/manager.hpp>
 #include <caf/optional.hpp>
 #include <caf/result.hpp>
 
-#include <caf/io/middleman.hpp>
-#include <caf/openssl/manager.hpp>
-
+#include "broker/logger.hh"
 #include "broker/network_info.hh"
 
 namespace broker {
@@ -42,7 +42,9 @@ public:
       f(*y);
       return;
     }
-    CAF_LOG_INFO("initiating connection to" << (x.address + ":" + std::to_string(x.port)) << (use_ssl ? "(SSL)" : "(no SSL)"));
+    BROKER_INFO("initiating connection to"
+                << (x.address + ":" + std::to_string(x.port))
+                << (use_ssl ? "(SSL)" : "(no SSL)"));
     auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
                         : self->home_system().middleman().actor_handle());
     self->request(hdl, infinite,
@@ -75,7 +77,8 @@ public:
       f(*y);
       return;
     }
-    CAF_LOG_INFO("retrieving connection for" << x << (use_ssl ? "(SSL)" : "(no SSL)"));
+    BROKER_INFO("retrieving connection for"
+                << x << (use_ssl ? "(SSL)" : "(no SSL)"));
     auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
                         : self->home_system().middleman().actor_handle());
     self->request(hdl, infinite,

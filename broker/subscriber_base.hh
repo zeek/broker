@@ -9,17 +9,11 @@
 #include <caf/none.hpp>
 
 #include "broker/data.hh"
-#include "broker/fwd.hh"
-#include "broker/topic.hh"
-
 #include "broker/detail/assert.hh"
 #include "broker/detail/shared_subscriber_queue.hh"
-
-#ifdef CAF_LOG_COMPONENT
-#undef CAF_LOG_COMPONENT
-#endif
-
-#define CAF_LOG_COMPONENT "broker"
+#include "broker/fwd.hh"
+#include "broker/logger.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 
@@ -71,7 +65,7 @@ public:
     auto tmp = get(1);
     BROKER_ASSERT(tmp.size() == 1);
     auto x = std::move(tmp.front());
-    CAF_LOG_INFO("received" << x);
+    BROKER_INFO("received" << x);
     return x;
   }
 
@@ -81,7 +75,7 @@ public:
     auto tmp = get(1, timeout);
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
-      CAF_LOG_INFO("received" << x);
+      BROKER_INFO("received" << x);
       return caf::optional<value_type>(std::move(x));
     }
     return caf::none;
@@ -106,7 +100,7 @@ public:
         return result;
       size_t prev_size = 0;
       auto got = queue_->consume(num - result.size(), &prev_size, [&](value_type&& x) {
-        CAF_LOG_INFO("received" << x);
+        BROKER_INFO("received" << x);
         result.emplace_back(std::move(x));
       });
       if (prev_size >= static_cast<size_t>(max_qsize_) &&

@@ -19,6 +19,7 @@
 #include "broker/data.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/peer_filter.hh"
 #include "broker/topic.hh"
@@ -169,13 +170,13 @@ public:
     step2_handshake
   >::type
   start_peering(const caf::actor& peer_hdl, filter_type peer_filter) {
-    CAF_LOG_TRACE(CAF_ARG(peer_hdl) << CAF_ARG(peer_filter));
+    BROKER_TRACE(BROKER_ARG(peer_hdl) << BROKER_ARG(peer_filter));
     // Token for static dispatch of add().
     std::integral_constant<bool, SendOwnFilter> send_own_filter_token;
     // Check whether we already send outbound traffic to the peer. Could use
     // `CAF_ASSERT` instead, because this must'nt get called for known peers.
     if (peer_to_opath_.count(peer_hdl) != 0) {
-      CAF_LOG_ERROR("peer already connected");
+      BROKER_ERROR("peer already connected");
       return {};
     }
     // Add outbound path to the peer.

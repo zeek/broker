@@ -1,8 +1,5 @@
 #define SUITE status_subscriber
 
-// TODO: status_subscriber silently depends on caf/logger.hpp
-#include "broker/logger.hh"
-
 #include "broker/status_subscriber.hh"
 
 #include "test.hh"
