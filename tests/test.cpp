@@ -6,6 +6,7 @@
 #include <caf/defaults.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/io/network/test_multiplexer.hpp>
+#include <caf/test/dsl.hpp>
 
 using namespace caf;
 using namespace broker;
@@ -32,14 +33,8 @@ configuration base_fixture::make_config(bool fake_network) {
   broker_options options;
   options.disable_ssl = fake_network;
   configuration cfg{options};
-  cfg.set("scheduler.policy", caf::atom("testing"));
+  test_coordinator_fixture<configuration>::init_config(cfg);
   cfg.set("logger.verbosity", caf::atom("TRACE"));
-  cfg.set("logger.inline-output", true);
-  cfg.set("middleman.attach-utility-actors", true);
-#if CAF_VERSION >= 1700
-  cfg.set("middleman.workers", size_t{0});
-#endif
-  cfg.parse(test::engine::argc(), test::engine::argv());
   if (fake_network)
     cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
