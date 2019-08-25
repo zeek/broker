@@ -1,14 +1,15 @@
-#include <string>
-#include <utility>
-#include <iterator>
-#include <deque>
-#include <set>
-#include <sstream>
+#define SUITE radix_tree
 
 #include "broker/detail/radix_tree.hh"
 
-#define SUITE radix_tree
-#include "test.hpp"
+#include "test.hh"
+
+#include <deque>
+#include <iterator>
+#include <set>
+#include <sstream>
+#include <string>
+#include <utility>
 
 using namespace std;
 using namespace broker;

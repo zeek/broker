@@ -5,12 +5,12 @@
 // checking for an expected outcome.
 #define SUITE integration
 
-#include "test.hpp"
+#include "test.hh"
 
-#include <cstddef>
-#include <cstdint>
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <initializer_list>
 #include <map>
@@ -18,11 +18,10 @@
 #include <utility>
 #include <vector>
 
-#include <caf/defaults.hpp>
-#include <caf/test/io_dsl.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/atom.hpp>
 #include <caf/behavior.hpp>
+#include <caf/defaults.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
@@ -32,6 +31,7 @@
 #include <caf/io/network/test_multiplexer.hpp>
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
+#include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
 #include <caf/variant.hpp>
 

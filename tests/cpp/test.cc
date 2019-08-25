@@ -1,7 +1,7 @@
 #define CAF_TEST_NO_MAIN
 #include <caf/test/unit_test_impl.hpp>
 
-#include "test.hpp"
+#include "test.hh"
 
 #include <caf/defaults.hpp>
 #include <caf/io/middleman.hpp>

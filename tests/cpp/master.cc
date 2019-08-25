@@ -1,6 +1,9 @@
 #define SUITE master
 
-#include "test.hpp"
+#include "broker/store.hh"
+
+#include "test.hh"
+
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/atoms.hh"
@@ -10,7 +13,6 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
-#include "broker/store.hh"
 #include "broker/topic.hh"
 
 using std::cout;

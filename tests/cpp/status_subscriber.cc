@@ -1,5 +1,11 @@
 #define SUITE status_subscriber
-#include "test.hpp"
+
+// TODO: status_subscriber silently depends on caf/logger.hpp
+#include "broker/logger.hh"
+
+#include "broker/status_subscriber.hh"
+
+#include "test.hh"
 
 #include <iostream>
 #include <string>
@@ -13,7 +19,6 @@
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/status.hh"
-#include "broker/status_subscriber.hh"
 
 using std::cout;
 using std::endl;

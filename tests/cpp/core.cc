@@ -1,13 +1,12 @@
 #define SUITE core
-#include "test.hpp"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#include "broker/core_actor.hh"
+
+#include "test.hh"
+
 #include <caf/test/io_dsl.hpp>
-#pragma GCC diagnostic pop
 
 #include "broker/configuration.hh"
-#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
 
 using namespace caf;
