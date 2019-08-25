@@ -31,6 +31,8 @@ public:
 
   bool at_end() const;
 
+  void rewind();
+
   caf::error read(value_type& x);
 
 private:

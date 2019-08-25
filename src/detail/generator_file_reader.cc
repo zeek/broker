@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <caf/byte.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/error.hpp>
 #include <caf/none.hpp>
@@ -25,7 +26,8 @@ generator_file_reader::generator_file_reader(int fd, void* addr,
   : fd_(fd),
     addr_(addr),
     file_size_(file_size),
-    source_(nullptr, reinterpret_cast<char*>(addr), file_size),
+    source_(nullptr,
+            caf::make_span(reinterpret_cast<caf::byte*>(addr), file_size)),
     generator_(source_) {
   // We've already verified the file header in make_generator_file_reader.
   source_.skip(sizeof(generator_file_writer::format::magic)
@@ -39,6 +41,12 @@ generator_file_reader::~generator_file_reader() {
 
 bool generator_file_reader::at_end() const {
   return source_.remaining() == 0;
+}
+
+void generator_file_reader::rewind() {
+  source_.reset({reinterpret_cast<caf::byte*>(addr_), file_size_});
+  source_.skip(sizeof(generator_file_writer::format::magic)
+               + sizeof(generator_file_writer::format::version));
 }
 
 caf::error generator_file_reader::read(value_type& x) {

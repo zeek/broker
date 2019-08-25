@@ -47,7 +47,7 @@ namespace {
 
 string node_name;
 
-} // namespace <anonymous>
+} // namespace
 
 // -- I/O utility --------------------------------------------------------------
 
@@ -57,7 +57,7 @@ namespace {
 
 std::mutex ostream_mtx;
 
-} // namespace <anonymous>
+} // namespace
 
 int print_impl(std::ostream& ostr, const char* x) {
   ostr << x;
@@ -113,7 +113,7 @@ namespace {
 
 std::atomic<bool> enabled;
 
-} // namespace <anonymous>
+} // namespace
 
 template <class... Ts>
 void println(Ts&&... xs) {
@@ -185,7 +185,7 @@ public:
       .add<timespan>("rendezvous-retry",
                      "timeout before repeating the first rendezvous ping "
                      "message (default: 50ms)")
-      .add<size_t>("num-pings,n",
+      .add<size_t>("num-messages,n",
                    "number of pings (default: 100, 'ping' mode only)")
       .add<uri_list>("peers,p",
                      "list of peers we connect to on startup in "
@@ -199,13 +199,13 @@ public:
 
 template <class T>
 auto get_or(broker::endpoint& d, string_view key, const T& default_value)
--> decltype(caf::get_or(d.system().config(), key, default_value)) {
+  -> decltype(caf::get_or(d.system().config(), key, default_value)) {
   return caf::get_or(d.system().config(), key, default_value);
 }
 
 template <class T>
 auto get_if(broker::endpoint* d, string_view key)
--> decltype(caf::get_if<T>(&(d->system().config()), key)) {
+  -> decltype(caf::get_if<T>(&(d->system().config()), key)) {
   return caf::get_if<T>(&(d->system().config()), key);
 }
 
@@ -222,8 +222,7 @@ bool is_ping_msg(const broker::data& x) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
-      return str && *str == "ping"
-             && caf::holds_alternative<count>(xs[1])
+      return str && *str == "ping" && caf::holds_alternative<count>(xs[1])
              && caf::holds_alternative<string>(xs[2]);
     }
   }
@@ -310,33 +309,69 @@ void generator(caf::event_based_actor* self, caf::actor core,
                broker::detail::generator_file_reader_ptr ptr) {
   using generator_ptr = broker::detail::generator_file_reader_ptr;
   using value_type = broker::node_message::value_type;
-  self->make_source(
-    core,
-    [&](generator_ptr& g) {
-      // Take ownership of `ptr`.
-      g = std::move(ptr);
-    },
-    [=](generator_ptr& g, caf::downstream<value_type>& out, size_t hint) {
-      if (g == nullptr || g->at_end())
-        return;
-      for (size_t i = 0; i < hint; ++i) {
-        if (g->at_end()) {
-          *count += i;
+  if (auto limit = get_if<size_t>(&self->config(), "num-messages")) {
+    struct state {
+      generator_ptr gptr;
+      size_t remaining;
+    };
+    self->make_source(
+      core,
+      [&](state& st) {
+        // Take ownership of `ptr`.
+        st.gptr = std::move(ptr);
+        st.remaining = *limit;
+      },
+      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+        if (st.gptr == nullptr)
           return;
+        auto n = std::min(hint, st.remaining);
+        for (size_t i = 0; i < n; ++i) {
+          if (st.gptr->at_end())
+            st.gptr->rewind();
+          value_type x;
+          if (auto err = st.gptr->read(x)) {
+            err::println("error while parsing ", file_name, ": ",
+                         self->system().render(err));
+            st.gptr = nullptr;
+            st.remaining = 0;
+            *count += i;
+            return;
+          }
+          out.push(std::move(x));
         }
-        value_type x;
-        if (auto err = g->read(x)) {
-          err::println("error while parsing ", file_name, ": ",
-                       self->system().render(err));
-          g = nullptr;
-          *count += i;
+        st.remaining -= n;
+        *count += n;
+      },
+      [](const state& st) { return st.remaining == 0; });
+  } else {
+    self->make_source(
+      core,
+      [&](generator_ptr& g) {
+        // Take ownership of `ptr`.
+        g = std::move(ptr);
+      },
+      [=](generator_ptr& g, caf::downstream<value_type>& out, size_t hint) {
+        if (g == nullptr || g->at_end())
           return;
+        for (size_t i = 0; i < hint; ++i) {
+          if (g->at_end()) {
+            *count += i;
+            return;
+          }
+          value_type x;
+          if (auto err = g->read(x)) {
+            err::println("error while parsing ", file_name, ": ",
+                         self->system().render(err));
+            g = nullptr;
+            *count += i;
+            return;
+          }
+          out.push(std::move(x));
         }
-        out.push(std::move(x));
-      }
-      *count += hint;
-    },
-    [](const generator_ptr& g) { return g == nullptr || g->at_end(); });
+        *count += hint;
+      },
+      [](const generator_ptr& g) { return g == nullptr || g->at_end(); });
+  }
 }
 
 void generate_mode(broker::endpoint& ep, topic_list) {
@@ -366,7 +401,7 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
   auto topic = topics[0];
   verbose::println("send pings to topic ", topic);
   std::vector<timespan> xs;
-  auto n = get_or(ep, "num-pings", default_ping_count);
+  auto n = get_or(ep, "num-messages", default_ping_count);
   auto s = get_or(ep, "payload-size", default_payload_size);
   if (n == 0) {
     err::println("send no pings: n = 0");
@@ -421,7 +456,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
   }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 // -- main function ------------------------------------------------------------
 
@@ -470,13 +505,8 @@ int main(int argc, char** argv) {
     auto g2 = groups.get_local("broker/statuses");
     verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) {
       return behavior{
-        [=](broker::atom::local, broker::error& x) {
-          verbose::println(x);
-        },
-        [=](broker::atom::local, broker::status& x) {
-          verbose::println(x);
-        }
-      };
+        [=](broker::atom::local, broker::error& x) { verbose::println(x); },
+        [=](broker::atom::local, broker::status& x) { verbose::println(x); }};
     });
   }
   // Publish endpoint at demanded port.
