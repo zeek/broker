@@ -91,7 +91,15 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(topic)
 endif ()
 
-## -- Benchmark
+## -- Benchmarks
+
+find_package(benchmark QUIET)
+if(benchmark_FOUND)
+  add_executable(broker-micro-benchmark benchmark/broker-micro-benchmark.cc)
+  target_link_libraries(broker-micro-benchmark ${libbroker} benchmark::benchmark_main)
+else()
+  message(STATUS "could NOT find google-benchmark")
+endif()
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
