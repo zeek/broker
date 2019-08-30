@@ -1,7 +1,6 @@
 #include <atomic>
-#include <condition_variable>
+#include <chrono>
 #include <iostream>
-#include <mutex>
 #include <string>
 #include <thread>
 
@@ -16,7 +15,9 @@
 #include "caf/term.hpp"
 
 #include "broker/atoms.hh"
+#include "broker/detail/generator_file_reader.hh"
 #include "broker/endpoint.hh"
+#include "broker/subscriber.hh"
 
 using caf::expected;
 using caf::get_if;
@@ -133,14 +134,6 @@ bool exists(const string& filename) {
 
 } // namespace
 
-// -- data structures for the cluster setup ------------------------------------
-
-namespace {
-
-using init_atom = caf::atom_constant<caf::atom("init")>;
-
-} // namespace
-
 // -- configuration setup ------------------------------------------------------
 
 namespace {
@@ -180,16 +173,42 @@ struct node {
   /// Optionally stores a path to a generator file.
   std::string generator_file;
 
+  /// Stores how many messages we expect on this node during measurement.
+  size_t num_inputs = 0;
+
+  /// Stores how many messages we produce using the gernerator file. If `none`,
+  // we produce the number of messages in the generator file.
+  caf::optional<size_t> num_outputs;
+
   /// Stores parent nodes in the pub/sub topology.
   std::vector<node*> left;
 
   /// Stores child nodes in the pub/sub topology. These nodes are our peers we
-  //connect to at startup.
+  // connect to at startup.
   std::vector<node*> right;
 
   /// Points to an actor that manages the Broker endpoint.
   caf::actor mgr;
 };
+
+bool is_sender(const node& x) {
+  return !x.generator_file.empty();
+}
+
+bool is_receiver(const node& x) {
+  return x.num_inputs > 0;
+}
+
+bool is_sender_and_receiver(const node& x) {
+  return is_sender(x) && is_receiver(x);
+}
+
+std::vector<broker::topic> topics(const node& x) {
+  std::vector<broker::topic> result;
+  for (auto& t : x.topics)
+    result.emplace_back(t);
+  return result;
+}
 
 size_t max_left_depth(const node& x, size_t interim = 0) {
   if (interim > max_nodes)
@@ -209,11 +228,22 @@ size_t max_right_depth(const node& x, size_t interim = 0) {
   return result;
 }
 
+template <class T>
+struct strip_optional {
+  using type = T;
+};
+
+template <class T>
+struct strip_optional<caf::optional<T>> {
+  using type = T;
+};
+
 #define SET_FIELD(field, qualifier)                                            \
   {                                                                            \
     std::string field_name = #field;                                           \
     caf::replace_all(field_name, "_", "-");                                    \
-    if (auto value = get_if<decltype(result.field)>(&parameters, field_name))  \
+    using field_type = typename strip_optional<decltype(result.field)>::type;  \
+    if (auto value = get_if<field_type>(&parameters, field_name))              \
       result.field = std::move(*value);                                        \
     else if (auto type_erased_value = get_if(&parameters, field_name))         \
       return make_error(caf::sec::invalid_argument, result.name,               \
@@ -230,39 +260,147 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(peers, optional);
   SET_FIELD(topics, mandatory);
   SET_FIELD(generator_file, optional);
+  SET_FIELD(num_inputs, optional);
+  SET_FIELD(num_outputs, optional);
   if (!result.generator_file.empty() && !exists(result.generator_file))
     return make_error(caf::sec::invalid_argument, result.name,
                       "generator file does not exist", result.generator_file);
-
   return result;
 }
 
 struct node_manager_state {
-  ~node_manager_state() {
-    verbose::println("node ", this_node->name, " terminated");
-  }
   node* this_node = nullptr;
   broker::endpoint ep;
+  broker::detail::generator_file_reader_ptr generator;
 };
 
-caf::behavior node_manager(caf::stateful_actor<node_manager_state>* self,
-                           node* this_node) {
+using node_manager_actor = caf::stateful_actor<node_manager_state>;
+
+void generator(caf::event_based_actor* self, node* this_node, caf::actor core,
+               broker::detail::generator_file_reader_ptr ptr) {
+  using generator_ptr = broker::detail::generator_file_reader_ptr;
+  using value_type = broker::node_message::value_type;
+  if (this_node->num_outputs != caf::none) {
+    struct state {
+      generator_ptr gptr;
+      size_t remaining;
+      size_t pushed = 0;
+    };
+    self->make_source(
+      core,
+      [&](state& st) {
+        // Take ownership of `ptr`.
+        st.gptr = std::move(ptr);
+        st.remaining = *this_node->num_outputs;
+      },
+      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+        if (st.gptr == nullptr)
+          return;
+        auto n = std::min(hint, st.remaining);
+        for (size_t i = 0; i < n; ++i) {
+          if (st.gptr->at_end())
+            st.gptr->rewind();
+          value_type x;
+          if (auto err = st.gptr->read(x)) {
+            err::println("error while parsing ", this_node->generator_file,
+                         ": ", self->system().render(err));
+            st.gptr = nullptr;
+            st.remaining = 0;
+            return;
+          }
+          out.push(std::move(x));
+        }
+        st.remaining -= n;
+        if (st.pushed / 1000 != (st.pushed + n) / 1000)
+          verbose::println(this_node->name, " pushed ", st.pushed + n,
+                           " messages");
+        st.pushed += n;
+      },
+      [](const state& st) { return st.remaining == 0; });
+  } else {
+    struct state {
+      generator_ptr gptr;
+      size_t pushed = 0;
+    };
+    self->make_source(
+      core,
+      [&](state& st) {
+        // Take ownership of `ptr`.
+        st.gptr = std::move(ptr);
+      },
+      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+        if (st.gptr == nullptr || st.gptr->at_end())
+          return;
+        for (size_t i = 0; i < hint; ++i) {
+          if (st.gptr->at_end())
+            return;
+          value_type x;
+          if (auto err = st.gptr->read(x)) {
+            err::println("error while parsing ", this_node->generator_file,
+                         ": ", self->system().render(err));
+            st.gptr = nullptr;
+            return;
+          }
+          out.push(std::move(x));
+          if (st.pushed / 1000 != (st.pushed + hint) / 1000)
+            verbose::println(this_node->name, " pushed ", st.pushed + hint,
+                             " messages");
+          st.pushed += hint;
+        }
+      },
+      [](const state& st) { return st.gptr == nullptr || st.gptr->at_end(); });
+  }
+}
+
+void run_send_mode(node_manager_actor* self, caf::actor observer) {
+  auto this_node = self->state.this_node;
+  verbose::println(this_node->name, " starts publishing");
+  auto t0 = std::chrono::system_clock::now();
+  auto g = self->spawn(generator, this_node, self->state.ep.core(),
+                       std::move(self->state.generator));
+  g->attach_functor([this_node, t0, observer]() mutable {
+    anon_send(observer, broker::atom::ok::value);
+    auto t1 = std::chrono::system_clock::now();
+    verbose::println(this_node->name, " is done sending after ", t1 - t0);
+  });
+}
+
+void run_receive_mode(node_manager_actor* self, caf::actor observer) {
+  auto t0 = std::chrono::system_clock::now();
+  size_t received = 0;
+  auto this_node = self->state.this_node;
+  auto in = self->state.ep.make_subscriber(topics(*this_node));
+  self->send(observer, broker::atom::ack::value);
+  verbose::println(this_node->name, " waits for messages");
+  while (received < this_node->num_inputs) {
+    in.get();
+    ++received;
+    // Make some noise every 1k messages.
+    if (received % 1000 == 0)
+      verbose::println(this_node->name, " got ", received, " messages");
+  }
+  auto t1 = std::chrono::system_clock::now();
+  verbose::println(this_node->name, " is done receiving after ", t1 - t0);
+  self->send(observer, broker::atom::ok::value);
+}
+
+caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   self->state.this_node = this_node;
-  std::vector<broker::topic> ts;
-  for (const auto& t : this_node->topics)
-    ts.emplace_back(t);
-  self->state.ep.forward(std::move(ts));
+  self->state.ep.forward(topics(*this_node));
   return caf::behavior(
-    [=](init_atom) {
+    [=](broker::atom::init) -> caf::result<caf::atom_value> {
       // Open up the ports and start peering.
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
         auto& authority = this_node->id.authority();
         verbose::println(this_node->name, " starts listening at ", authority);
         auto port = st.ep.listen(to_string(authority.host), authority.port);
-        if (port != authority.port)
+        if (port != authority.port) {
           err::println(this_node->name, " opened port ", port, " instead of ",
                        authority.port);
+          return make_error(caf::sec::runtime_error, this_node->name,
+                            "listening failed");
+        }
       }
       for (const auto* peer : this_node->right) {
         verbose::println(this_node->name, " starts peering to ",
@@ -270,11 +408,27 @@ caf::behavior node_manager(caf::stateful_actor<node_manager_state>* self,
         st.ep.peer(to_string(peer->id.authority().host),
                    peer->id.authority().port);
       }
+      if (is_sender(*this_node)) {
+        using broker::detail::make_generator_file_reader;
+        st.generator = make_generator_file_reader(this_node->generator_file);
+        if (st.generator == nullptr)
+          return make_error(caf::sec::cannot_open_file,
+                            this_node->generator_file);
+      }
       verbose::println(this_node->name, " up and running");
+      return broker::atom::ok::value;
     },
-    [=](broker::atom::shutdown) {
+    [=](broker::atom::run, caf::actor observer) {
+      if (is_sender(*this_node))
+        run_send_mode(self, observer);
+      else
+        run_receive_mode(self, observer);
+    },
+    [=](broker::atom::shutdown) -> caf::result<caf::atom_value> {
       // Tell broker to shutdown. This is a blocking function call.
       self->state.ep.shutdown();
+      verbose::println(this_node->name, " down");
+      return broker::atom::ok::value;
     });
 }
 
@@ -366,7 +520,7 @@ int main(int argc, char** argv) {
   }
   // Sanity check: each node must be part of the multi-root tree.
   for (auto& x : nodes) {
-    if (x.left.empty() && x.right.empty()){
+    if (x.left.empty() && x.right.empty()) {
       err::println(x.name, " has no peers");
       return EXIT_FAILURE;
     }
@@ -376,6 +530,25 @@ int main(int argc, char** argv) {
   for (auto& x : nodes) {
     if (max_left_depth(x) > max_depth || max_right_depth(x) > max_depth) {
       err::println("starting at node '", x.name, "' results in a loop");
+      return EXIT_FAILURE;
+    }
+  }
+  // Sanity check: there must at least one receiver.
+  if (std::none_of(nodes.begin(), nodes.end(), is_receiver)) {
+    err::println("no node expects to receive any data");
+    return EXIT_FAILURE;
+  }
+  // Sanity check: there must at least one sender.
+  if (std::none_of(nodes.begin(), nodes.end(), is_sender)) {
+    err::println("no node has a generator file for publishing data");
+    return EXIT_FAILURE;
+  }
+  // Sanity check: nodes can't play sender and receiver at the same time (yet).
+  { // Lifetime scope of i.
+    auto i = std::find_if(nodes.begin(), nodes.end(), is_sender_and_receiver);
+    if (i != nodes.end()) {
+      err::println(i->name,
+                   " is configured to send at receive at the same time");
       return EXIT_FAILURE;
     }
   }
@@ -395,6 +568,57 @@ int main(int argc, char** argv) {
   for (auto& x : nodes)
     launch(sys, x);
   caf::scoped_actor self{sys};
+  auto wait_for_ack_messages = [&](size_t num) {
+    size_t i = 0;
+    self->receive_for(i, num)(
+      [](broker::atom::ack) {
+        // All is well.
+      },
+      [&](const caf::error& err) {
+        err::println("eror while waiting for ACK messages: ", sys.render(err));
+      });
+  };
+  auto wait_for_ok_messages = [&]() {
+    size_t i = 0;
+    self->receive_for(i, nodes.size())(
+      [](broker::atom::ok) {
+        // All is well.
+      },
+      [&](const caf::error& err) {
+        err::println("eror while waiting for OK messages: ", sys.render(err));
+      });
+  };
+  // Initialize all nodes.
   for (auto& x : nodes)
-    self->send(x.mgr, init_atom::value);
+    self->send(x.mgr, broker::atom::init::value);
+  wait_for_ok_messages();
+  verbose::println("all nodes are up and running, run benchmark");
+  // First, we spin up all readers to make sure they receive published data.
+  size_t receiver_acks = 0;
+  for (auto& x : nodes)
+    if (is_receiver(x)) {
+      self->send(x.mgr, broker::atom::run::value, self);
+      ++receiver_acks;
+    }
+  wait_for_ack_messages(receiver_acks);
+  // Start actual benchmark by spinning up all senders.
+  auto t0 = std::chrono::system_clock::now();
+  for (auto& x : nodes)
+    if (is_sender(x))
+      self->send(x.mgr, broker::atom::run::value, self);
+  wait_for_ok_messages();
+  auto t1 = std::chrono::system_clock::now();
+  out::println(t1 - t0);
+  // Shutdown all endpoints.
+  verbose::println("shut down all nodes");
+  for (auto& x : nodes)
+    self->send(x.mgr, broker::atom::shutdown::value);
+  wait_for_ok_messages();
+  for (auto& x : nodes)
+    self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
+  for (auto& x : nodes) {
+    self->wait_for(x.mgr);
+    x.mgr = nullptr;
+  }
+  verbose::println("all nodes done, bye 👋");
 }

@@ -35,14 +35,17 @@ using update = caf::update_atom;
 
 /// --- generic communication --------------------------------------------------
 
+using ack = caf::atom_constant<caf::atom("ack")>;
+using default_ = caf::atom_constant<caf::atom("default")>;
+using init = caf::atom_constant<caf::atom("init")>;
 using name = caf::atom_constant<caf::atom("name")>;
 using network = caf::atom_constant<caf::atom("network")>;
 using peer = caf::atom_constant<caf::atom("peer")>;
+using retry = caf::atom_constant<caf::atom("retry")>;
+using run = caf::atom_constant<caf::atom("run")>;
+using shutdown = caf::atom_constant<caf::atom("shutdown")>;
 using status = caf::atom_constant<caf::atom("status")>;
 using unpeer = caf::atom_constant<caf::atom("unpeer")>;
-using default_ = caf::atom_constant<caf::atom("default")>;
-using shutdown = caf::atom_constant<caf::atom("shutdown")>;
-using retry = caf::atom_constant<caf::atom("retry")>;
 
 /// --- communication with workers ---------------------------------------------
 
