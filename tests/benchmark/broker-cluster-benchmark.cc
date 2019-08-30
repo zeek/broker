@@ -608,7 +608,8 @@ int main(int argc, char** argv) {
       self->send(x.mgr, broker::atom::run::value, self);
   wait_for_ok_messages();
   auto t1 = std::chrono::system_clock::now();
-  out::println(t1 - t0);
+  using fractional_seconds = std::chrono::duration<double>;
+  out::println(std::chrono::duration_cast<fractional_seconds>(t1 - t0));
   // Shutdown all endpoints.
   verbose::println("shut down all nodes");
   for (auto& x : nodes)
