@@ -1,12 +1,22 @@
 #include <atomic>
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 #include <string>
+#include <thread>
 
+#include <unistd.h>
+
+#include "caf/actor_system.hpp"
 #include "caf/actor_system_config.hpp"
+#include "caf/event_based_actor.hpp"
 #include "caf/settings.hpp"
+#include "caf/stateful_actor.hpp"
+#include "caf/string_algorithms.hpp"
 #include "caf/term.hpp"
 
-#include "broker/broker.hh"
+#include "broker/atoms.hh"
+#include "broker/endpoint.hh"
 
 using caf::expected;
 using caf::get_if;
@@ -109,6 +119,28 @@ void println(Ts&&... xs) {
 
 } // namespace verbose
 
+// -- utility functions --------------------------------------------------------
+
+namespace {
+
+bool exists(const char* filename) {
+  return access(filename, F_OK) != -1;
+}
+
+bool exists(const string& filename) {
+  return exists(filename.c_str());
+}
+
+} // namespace
+
+// -- data structures for the cluster setup ------------------------------------
+
+namespace {
+
+using init_atom = caf::atom_constant<caf::atom("init")>;
+
+} // namespace
+
 // -- configuration setup ------------------------------------------------------
 
 namespace {
@@ -119,6 +151,7 @@ struct config : caf::actor_system_config {
     opts.add<std::string>("cluster-config-file,c",
                           "path to the cluster configuration file");
     opts.add<bool>("verbose,v", "enable verbose output");
+    set("scheduler.max-threads", 1);
   }
 
   string usage() {
@@ -128,36 +161,35 @@ struct config : caf::actor_system_config {
 
 } // namespace
 
-// -- main ---------------------------------------------------------------------
+// -- data structures for the cluster setup ------------------------------------
 
-// A node in the Broker publish/subscribe layer.
+/// A node in the Broker publish/subscribe layer.
 struct node {
+  /// Stores the unique name of this node.
   std::string name;
+
+  /// Stores the network-wide identifier for this node.
   caf::uri id;
+
+  /// Stores the names of all Broker endpoints we connect to at startup.
   std::vector<std::string> peers;
+
+  /// Stores the topics we subscribe to at startup.
   std::vector<std::string> topics;
+
+  /// Optionally stores a path to a generator file.
+  std::string generator_file;
+
+  /// Stores parent nodes in the pub/sub topology.
   std::vector<node*> left;
+
+  /// Stores child nodes in the pub/sub topology. These nodes are our peers we
+  //connect to at startup.
   std::vector<node*> right;
+
+  /// Points to an actor that manages the Broker endpoint.
+  caf::actor mgr;
 };
-
-#define SET_FIELD(field, qualifier)                                            \
-  if (auto value = get_if<decltype(result.field)>(&parameters, #field))        \
-    result.field = std::move(*value);                                          \
-  else if (auto type_erased_value = get_if(&parameters, #field))               \
-    return make_error(caf::sec::invalid_argument,                              \
-                      "illegal type for " + name + "." #field);                \
-  else if (strcmp(#qualifier, "mandatory") == 0)                               \
-    return make_error(caf::sec::invalid_argument,                              \
-                      "no entry for mandatory field " #field);
-
-expected<node> make_node(const string& name, const caf::settings& parameters) {
-  node result;
-  result.name = name;
-  SET_FIELD(id, mandatory);
-  SET_FIELD(peers, optional);
-  SET_FIELD(topics, mandatory);
-  return result;
-}
 
 size_t max_left_depth(const node& x, size_t interim = 0) {
   if (interim > max_nodes)
@@ -176,6 +208,81 @@ size_t max_right_depth(const node& x, size_t interim = 0) {
     result = std::max(result, max_right_depth(*y, interim + 1));
   return result;
 }
+
+#define SET_FIELD(field, qualifier)                                            \
+  {                                                                            \
+    std::string field_name = #field;                                           \
+    caf::replace_all(field_name, "_", "-");                                    \
+    if (auto value = get_if<decltype(result.field)>(&parameters, field_name))  \
+      result.field = std::move(*value);                                        \
+    else if (auto type_erased_value = get_if(&parameters, field_name))         \
+      return make_error(caf::sec::invalid_argument, result.name,               \
+                        "illegal type for field", field_name);                 \
+    else if (strcmp(#qualifier, "mandatory") == 0)                             \
+      return make_error(caf::sec::invalid_argument, result.name,               \
+                        "no entry for mandatory field", field_name);           \
+  }
+
+expected<node> make_node(const string& name, const caf::settings& parameters) {
+  node result;
+  result.name = name;
+  SET_FIELD(id, mandatory);
+  SET_FIELD(peers, optional);
+  SET_FIELD(topics, mandatory);
+  SET_FIELD(generator_file, optional);
+  if (!result.generator_file.empty() && !exists(result.generator_file))
+    return make_error(caf::sec::invalid_argument, result.name,
+                      "generator file does not exist", result.generator_file);
+
+  return result;
+}
+
+struct node_manager_state {
+  ~node_manager_state() {
+    verbose::println("node ", this_node->name, " terminated");
+  }
+  node* this_node = nullptr;
+  broker::endpoint ep;
+};
+
+caf::behavior node_manager(caf::stateful_actor<node_manager_state>* self,
+                           node* this_node) {
+  self->state.this_node = this_node;
+  std::vector<broker::topic> ts;
+  for (const auto& t : this_node->topics)
+    ts.emplace_back(t);
+  self->state.ep.forward(std::move(ts));
+  return caf::behavior(
+    [=](init_atom) {
+      // Open up the ports and start peering.
+      auto& st = self->state;
+      if (this_node->id.scheme() == "tcp") {
+        auto& authority = this_node->id.authority();
+        verbose::println(this_node->name, " starts listening at ", authority);
+        auto port = st.ep.listen(to_string(authority.host), authority.port);
+        if (port != authority.port)
+          err::println(this_node->name, " opened port ", port, " instead of ",
+                       authority.port);
+      }
+      for (const auto* peer : this_node->right) {
+        verbose::println(this_node->name, " starts peering to ",
+                         peer->id.authority(), " (", peer->name, ")");
+        st.ep.peer(to_string(peer->id.authority().host),
+                   peer->id.authority().port);
+      }
+      verbose::println(this_node->name, " up and running");
+    },
+    [=](broker::atom::shutdown) {
+      // Tell broker to shutdown. This is a blocking function call.
+      self->state.ep.shutdown();
+    });
+}
+
+void launch(caf::actor_system& sys, node& x) {
+  x.mgr = sys.spawn<caf::detached>(node_manager, &x);
+}
+
+// -- main ---------------------------------------------------------------------
 
 void print_peering_node(const std::string& prefix, const node& x,
                         bool is_last) {
@@ -203,7 +310,7 @@ int main(int argc, char** argv) {
   // Read cluster config.
   caf::settings cluster_config;
   if (auto path = get_if<string>(&cfg, "cluster-config-file")) {
-    if (auto file_content = config::parse_config_file(*path)) {
+    if (auto file_content = config::parse_config_file(path->c_str())) {
       cluster_config = std::move(*file_content);
     } else {
       err::println("unable to parse cluster config file: ",
@@ -283,5 +390,11 @@ int main(int argc, char** argv) {
       print_peering_node("", *x, true);
     verbose::println();
   }
-  return EXIT_SUCCESS;
+  // Get rollin'.
+  caf::actor_system sys{cfg};
+  for (auto& x : nodes)
+    launch(sys, x);
+  caf::scoped_actor self{sys};
+  for (auto& x : nodes)
+    self->send(x.mgr, init_atom::value);
 }
