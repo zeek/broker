@@ -392,6 +392,8 @@ void core_policy::local_push(command_message x) {
 /// Pushes data to peers only without forwarding it to local substreams.
 void core_policy::remote_push(node_message msg) {
   CAF_LOG_TRACE(CAF_ARG(msg));
+  if (recorder_ != nullptr)
+    try_record(msg);
   peers().push(std::move(msg));
   peers().emit_batches();
 }

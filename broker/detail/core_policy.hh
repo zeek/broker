@@ -17,6 +17,7 @@
 #include <caf/stream_slot.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/generator_file_writer.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
@@ -298,6 +299,28 @@ public:
   }
 
 private:
+  /// @pre `recorder_ != nullptr`
+  template <class T>
+  bool try_record(const T& x) {
+    BROKER_ASSERT(recorder_ != nullptr);
+    BROKER_ASSERT(remaining_records_ > 0);
+    if (auto err = recorder_->write(x)) {
+      BROKER_WARNING("unable to write to generator file:" << err);
+      recorder_ = nullptr;
+      remaining_records_ = 0;
+      return false;
+    }
+    if (--remaining_records_ == 0) {
+      BROKER_DEBUG("reached recording cap, close file");
+      recorder_ = nullptr;
+    }
+    return true;
+  }
+
+  bool try_record(const node_message& x) {
+    return try_record(x.content);
+  }
+
   template <class T>
   bool try_handle(caf::message& msg, const char* debug_msg) {
     CAF_IGNORE_UNUSED(debug_msg);
@@ -310,12 +333,8 @@ private:
       };
       auto push_recorded = [&](iterator_type first, iterator_type last) {
         for (auto i = first; i != last; ++i) {
-          if (auto err = recorder_->write(*i)) {
-            BROKER_WARNING("unable to write to generator file:" << err);
-            recorder_ = nullptr;
-            remaining_records_ = 0;
+          if (!try_record(*i))
             return i;
-          }
           peers().push(make_node_message(std::move(*i), ttl0));
         }
         return last;
@@ -331,15 +350,6 @@ private:
         auto i = push_recorded(first, first + n);
         if (i != last)
           push_unrecorded(i, last);
-        if (recorder_ != nullptr) {
-          if (xs.size() >= remaining_records_) {
-            BROKER_DEBUG("reached recording cap, close file");
-            recorder_ = nullptr;
-            remaining_records_ = 0;
-          } else {
-            remaining_records_ -= xs.size();
-          }
-        }
       }
       return true;
     }
