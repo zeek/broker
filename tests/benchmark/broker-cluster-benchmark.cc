@@ -143,6 +143,8 @@ struct config : caf::actor_system_config {
     opt_group opts{custom_options_, "global"};
     opts.add<std::string>("cluster-config-file,c",
                           "path to the cluster configuration file");
+    opts.add<bool>("dump-stats", "prints stats for all given generator files");
+    opts.add<bool>("verbose,v", "enable verbose output");
     opts.add<bool>("verbose,v", "enable verbose output");
     set("scheduler.max-threads", 1);
   }
@@ -459,6 +461,38 @@ int main(int argc, char** argv) {
     err::println("unable to parse CAF config: ", cfg.render(err));
     return EXIT_FAILURE;
   }
+  // Exit for `--help` etc.
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
+  // Check for dump-stats mode.
+  if (get_or(cfg, "dump-stats", false)) {
+    if (cfg.remainder.empty()) {
+      err::println("no generator files given");
+      return EXIT_FAILURE;
+    }
+    for (const auto& filename : cfg.remainder) {
+      auto gptr = broker::detail::make_generator_file_reader(filename);
+      if (gptr == nullptr) {
+        err::println("unable to open generator file: ", filename);
+      } else {
+        if (auto err = gptr->skip_to_end()) {
+          err::println("error while parsing generator file: ", cfg.render(err));
+          continue;
+        }
+        const auto& topics = gptr->topics();
+        out::println(filename);
+        out::println("├── entries: ", gptr->entries());
+        out::println("└── topics:");
+        if (!topics.empty()) {
+          for (size_t i = 0; i < topics.size() - 1; ++i)
+            out::println("    ├── ", topics[i].string());
+          out::println("    └── ", topics.back().string());
+        }
+      }
+    }
+    return EXIT_SUCCESS;
+  }
+  // Enable global flags.
   if (get_or(cfg, "verbose", false))
     verbose::is_enabled = true;
   // Read cluster config.

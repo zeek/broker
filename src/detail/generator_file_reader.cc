@@ -13,6 +13,7 @@
 #include <caf/error.hpp>
 #include <caf/none.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/generator_file_writer.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
@@ -28,7 +29,9 @@ generator_file_reader::generator_file_reader(int fd, void* addr,
     file_size_(file_size),
     source_(nullptr,
             caf::make_span(reinterpret_cast<caf::byte*>(addr), file_size)),
-    generator_(source_) {
+    generator_(source_),
+    entries_(0),
+    sealed_(false) {
   // We've already verified the file header in make_generator_file_reader.
   source_.skip(sizeof(generator_file_writer::format::magic)
                + sizeof(generator_file_writer::format::version));
@@ -44,6 +47,8 @@ bool generator_file_reader::at_end() const {
 }
 
 void generator_file_reader::rewind() {
+  BROKER_ASSERT(at_end());
+  sealed_ = true;
   source_.reset({reinterpret_cast<caf::byte*>(addr_), file_size_});
   source_.skip(sizeof(generator_file_writer::format::magic)
                + sizeof(generator_file_writer::format::version));
@@ -61,7 +66,8 @@ caf::error generator_file_reader::read(value_type& x) {
       case entry_type::new_topic: {
         std::string str;
         BROKER_TRY(source_(str));
-        topic_table_.emplace_back(str);
+        if (!sealed_)
+          topic_table_.emplace_back(str);
         break;
       }
       case entry_type::data_message: {
@@ -72,6 +78,8 @@ caf::error generator_file_reader::read(value_type& x) {
         data value;
         BROKER_TRY(generator_(value));
         x = make_data_message(topic_table_[topic_id], std::move(value));
+        if (!sealed_)
+          ++entries_;
         return caf::none;
       }
       case entry_type::command_message: {
@@ -82,10 +90,26 @@ caf::error generator_file_reader::read(value_type& x) {
         internal_command cmd;
         BROKER_TRY(generator_(cmd));
         x = make_command_message(topic_table_[topic_id], std::move(cmd));
+        if (!sealed_)
+          ++entries_;
         return caf::none;
       }
     }
   }
+}
+
+caf::error generator_file_reader::skip() {
+  if (at_end())
+    return ec::end_of_file;
+  value_type tmp;
+  return read(tmp);
+}
+
+caf::error generator_file_reader::skip_to_end() {
+  while (!at_end())
+    if (auto err = skip())
+      return err;
+  return caf::none;
 }
 
 generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {

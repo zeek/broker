@@ -31,9 +31,22 @@ public:
 
   bool at_end() const;
 
+  /// @pre `at_end()`
   void rewind();
 
   caf::error read(value_type& x);
+
+  caf::error skip();
+
+  caf::error skip_to_end();
+
+  const std::vector<topic>& topics() const noexcept {
+    return topic_table_;
+  }
+
+  size_t entries() const noexcept {
+    return entries_;
+  }
 
 private:
   int fd_;
@@ -42,6 +55,8 @@ private:
   caf::binary_deserializer source_;
   data_generator generator_;
   std::vector<topic> topic_table_;
+  size_t entries_;
+  bool sealed_;
 };
 
 using generator_file_reader_ptr = std::unique_ptr<generator_file_reader>;
