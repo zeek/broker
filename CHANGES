@@ -1,4 +1,19 @@
 
+1.2.0-6 | 2019-09-03 11:32:35 -0700
+
+  * Review broker-benchmark, remove dead/unsafe code (Dominik Charousset)
+
+    - Remove 'use-non-blocking' mode, since it is unsafe. Once the queue gets
+      exhausted, CAF will halt the nonblocking producer. However, there is no logic
+      to trigger it again (see `publisher_worker` in `publisher.cc`). On a bigger
+      picture, this nonblocking mode mimics what the publisher does internally, so
+      it serves no purpose from a benchmarking perspective.
+
+    - Remove 'use-zeek-batches' mode. This mode caused the benchmark to use the
+      function `sendZeekBatch` for generating events. However, the implementation
+      was identical to sendBrokerBatch (the default). Consequently, this mode was a
+      fancy no-op.
+
 1.2.0-4 | 2019-08-14 09:54:48 -0700
 
   * Properly announce message types in core unit test (Dominik Charousset)
