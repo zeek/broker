@@ -320,19 +320,19 @@ endif(ENABLE_ADDRESS_SANITIZER)
 # Append our extra flags to the existing value of CXXFLAGS.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
-install(DIRECTORY broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
+install(DIRECTORY include/broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
 
 set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
                             -DSQLITE_OMIT_LOAD_EXTENSION)
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
-               ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/broker/config.hh.in
+               ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh DESTINATION include/broker)
 
 set(BROKER_SRC
   ${OPTIONAL_SRC}
