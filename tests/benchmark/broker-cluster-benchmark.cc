@@ -370,23 +370,40 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
   });
 }
 
+caf::behavior consumer(caf::event_based_actor* self, node* this_node,
+                       caf::actor core, caf::actor observer) {
+  self->send(self * core, broker::atom::join::value, topics(*this_node));
+  return caf::behavior{[=](caf::stream<broker::data_message> in) {
+    self->send(observer, broker::atom::ack::value);
+    verbose::println(this_node->name, " waits for messages");
+    self->make_sink(
+      in,
+      [](size_t& received) {
+        // Count how many messages we've received so far.
+        received = 0;
+      },
+      [=](size_t& received, broker::data_message) {
+        ++received;
+        // Make some noise every 1k messages.
+        if (received % 1000 == 0)
+          verbose::println(this_node->name, " got ", received, " messages");
+        // Stop when receiving the node's limit.
+        if (received == this_node->num_inputs)
+          self->quit();
+      });
+    self->unbecome();
+  }};
+}
+
 void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   auto t0 = std::chrono::system_clock::now();
-  size_t received = 0;
   auto this_node = self->state.this_node;
-  auto in = self->state.ep.make_subscriber(topics(*this_node));
-  self->send(observer, broker::atom::ack::value);
-  verbose::println(this_node->name, " waits for messages");
-  while (received < this_node->num_inputs) {
-    in.get();
-    ++received;
-    // Make some noise every 1k messages.
-    if (received % 1000 == 0)
-      verbose::println(this_node->name, " got ", received, " messages");
-  }
-  auto t1 = std::chrono::system_clock::now();
-  anon_send(observer, broker::atom::ok::value, this_node->name,
-            duration_cast<caf::timespan>(t1 - t0));
+  auto c = self->spawn(consumer, this_node, self->state.ep.core(), observer);
+  c->attach_functor([this_node, t0, observer]() mutable {
+    auto t1 = std::chrono::system_clock::now();
+    anon_send(observer, broker::atom::ok::value, this_node->name,
+              duration_cast<caf::timespan>(t1 - t0));
+  });
 }
 
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
