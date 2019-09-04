@@ -20,7 +20,9 @@
 #include "broker/subscriber.hh"
 
 using caf::expected;
+using caf::get;
 using caf::get_if;
+using caf::holds_alternative;
 using std::string;
 using std::chrono::duration_cast;
 
@@ -514,34 +516,6 @@ int main(int argc, char** argv) {
   // Exit for `--help` etc.
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
-  // Check for dump-stats mode.
-  if (get_or(cfg, "dump-stats", false)) {
-    if (cfg.remainder.empty()) {
-      err::println("no generator files given");
-      return EXIT_FAILURE;
-    }
-    for (const auto& filename : cfg.remainder) {
-      auto gptr = broker::detail::make_generator_file_reader(filename);
-      if (gptr == nullptr) {
-        err::println("unable to open generator file: ", filename);
-      } else {
-        if (auto err = gptr->skip_to_end()) {
-          err::println("error while parsing generator file: ", cfg.render(err));
-          continue;
-        }
-        const auto& topics = gptr->topics();
-        out::println(filename);
-        out::println("├── entries: ", gptr->entries());
-        out::println("└── topics:");
-        if (!topics.empty()) {
-          for (size_t i = 0; i < topics.size() - 1; ++i)
-            out::println("    ├── ", topics[i].string());
-          out::println("    └── ", topics.back().string());
-        }
-      }
-    }
-    return EXIT_SUCCESS;
-  }
   // Enable global flags.
   if (get_or(cfg, "verbose", false))
     verbose::is_enabled = true;
@@ -560,6 +534,49 @@ int main(int argc, char** argv) {
     out::println();
     out::println(cfg.usage());
     return EXIT_FAILURE;
+  }
+  // Check for dump-stats mode.
+  if (get_or(cfg, "dump-stats", false)) {
+    std::vector<string> file_names;
+    std::function<void(const caf::settings&)> read_file_names;
+    read_file_names = [&](const caf::settings& xs) {
+      for (const auto& kvp : xs) {
+        if (kvp.first == "generator-file"
+            && holds_alternative<string>(kvp.second)) {
+          file_names.emplace_back(get<string>(kvp.second));
+        } else if (auto submap = get_if<caf::settings>(&kvp.second)) {
+          read_file_names(*submap);
+        }
+      }
+    };
+    read_file_names(cluster_config["nodes"].as_dictionary());
+    if (file_names.empty()) {
+      err::println("no generator files found in config");
+      return EXIT_FAILURE;
+    }
+    for (const auto& file_name : file_names) {
+      auto gptr = broker::detail::make_generator_file_reader(file_name);
+      if (gptr == nullptr) {
+        err::println("unable to open generator file: ", file_name);
+      } else {
+        if (auto err = gptr->skip_to_end()) {
+          err::println("error while parsing generator file: ", cfg.render(err));
+          continue;
+        }
+        const auto& topics = gptr->topics();
+        out::println(file_name);
+        out::println("├── entries: ", gptr->entries());
+        out::println("|   ├── data-entries: ", gptr->data_entries());
+        out::println("|   └── command-entries: ", gptr->command_entries());
+        out::println("└── topics:");
+        if (!topics.empty()) {
+          for (size_t i = 0; i < topics.size() - 1; ++i)
+            out::println("    ├── ", topics[i].string());
+          out::println("    └── ", topics.back().string());
+        }
+      }
+    }
+    return EXIT_SUCCESS;
   }
   // Generate nodes from cluster config.
   std::vector<node> nodes;
