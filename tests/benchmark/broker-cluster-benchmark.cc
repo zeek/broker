@@ -375,29 +375,54 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
   });
 }
 
-caf::behavior consumer(caf::event_based_actor* self, node* this_node,
-                       caf::actor core, caf::actor observer) {
-  self->send(self * core, broker::atom::join::value, topics(*this_node));
-  return caf::behavior{[=](caf::stream<broker::data_message> in) {
-    self->send(observer, broker::atom::ack::value);
-    verbose::println(this_node->name, " waits for messages");
+struct consumer_state {
+  consumer_state(caf::event_based_actor* self) : self(self) {
+    // nop
+  }
+
+  void handle_messages(size_t n) {
+    // Make some noise every 1k messages.
+    if (received / 1000 != (received + n) / 1000)
+      verbose::println(this_node->name, " got ", received, " messages");
+    received += n;
+    // Stop when receiving the node's limit.
+    if (received == this_node->num_inputs)
+      self->quit();
+  }
+
+  template <class T>
+  void attach_sink(caf::stream<T> in, caf::actor observer) {
+    if (++connected_streams == 2) {
+      self->send(observer, broker::atom::ack::value);
+      verbose::println(this_node->name, " waits for messages");
+    }
     self->make_sink(
       in,
-      [](size_t& received) {
-        // Count how many messages we've received so far.
-        received = 0;
+      [](caf::unit_t&) {
+        // nop
       },
-      [=](size_t& received, broker::data_message) {
-        ++received;
-        // Make some noise every 1k messages.
-        if (received % 1000 == 0)
-          verbose::println(this_node->name, " got ", received, " messages");
-        // Stop when receiving the node's limit.
-        if (received == this_node->num_inputs)
-          self->quit();
-      });
-    self->unbecome();
-  }};
+      [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); });
+  }
+
+  size_t received = 0;
+  node* this_node;
+  caf::event_based_actor* self;
+  size_t connected_streams = 0;
+};
+
+caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
+                       node* this_node, caf::actor core, caf::actor observer) {
+  self->state.this_node = this_node;
+  self->send(self * core, broker::atom::join::value, topics(*this_node));
+  self->send(self * core, broker::atom::join::value, broker::atom::store::value,
+             topics(*this_node));
+  return caf::behavior(
+    [=](caf::stream<broker::data_message> in) {
+      self->state.attach_sink(in, observer);
+    },
+    [=](caf::stream<broker::command_message> in) {
+      self->state.attach_sink(in, observer);
+    });
 }
 
 void run_receive_mode(node_manager_actor* self, caf::actor observer) {
