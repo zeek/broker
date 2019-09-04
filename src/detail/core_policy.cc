@@ -369,6 +369,17 @@ auto core_policy::add_worker(filter_type filter)
   return slot;
 }
 
+auto core_policy::add_store(filter_type filter)
+-> outbound_stream_slot<store_trait::element> {
+  CAF_LOG_TRACE(CAF_ARG(filter));
+  auto slot = parent_->add_unchecked_outbound_path<store_trait::element>();
+  if (slot != invalid_stream_slot) {
+    out().assign<store_trait::manager>(slot);
+    stores().set_filter(slot, std::move(filter));
+  }
+  return slot;
+}
+
 // -- selectively pushing data into the streams ------------------------------
 
 /// Pushes data to workers without forwarding it to peers.

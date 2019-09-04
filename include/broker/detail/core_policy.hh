@@ -221,6 +221,12 @@ public:
   caf::outbound_stream_slot<worker_trait::element>
   add_worker(filter_type filter);
 
+  /// Adds the sender of the current message as store by starting an output
+  /// stream to it.
+  /// @pre `current_sender() != nullptr`
+  caf::outbound_stream_slot<store_trait::element>
+  add_store(filter_type filter);
+
   // -- selectively pushing data into the streams ------------------------------
 
   /// Pushes data to workers without forwarding it to peers.

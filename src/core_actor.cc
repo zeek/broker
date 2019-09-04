@@ -376,6 +376,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.policy().workers().set_filter(slot, std::move(filter));
       self->send(who_asked, true);
     },
+    [=](atom::join, atom::store, filter_type& filter) {
+      // Tap into data store messages.
+      auto& st = self->state;
+      auto result = st.governor->policy().add_store(filter);
+      if (result != invalid_stream_slot)
+        st.add_to_filter(std::move(filter));
+      return result;
+    },
     [=](endpoint::stream_type in) {
       BROKER_TRACE("add data_message input stream");
       auto& st = self->state;
