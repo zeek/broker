@@ -22,6 +22,7 @@
 using caf::expected;
 using caf::get_if;
 using std::string;
+using std::chrono::duration_cast;
 
 // -- global constants ---------------------------------------------------------
 
@@ -157,6 +158,8 @@ struct config : caf::actor_system_config {
 } // namespace
 
 // -- data structures for the cluster setup ------------------------------------
+
+using fractional_seconds = std::chrono::duration<double>;
 
 /// A node in the Broker publish/subscribe layer.
 struct node {
@@ -361,9 +364,9 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
   auto g = self->spawn(generator, this_node, self->state.ep.core(),
                        std::move(self->state.generator));
   g->attach_functor([this_node, t0, observer]() mutable {
-    anon_send(observer, broker::atom::ok::value);
     auto t1 = std::chrono::system_clock::now();
-    verbose::println(this_node->name, " is done sending after ", t1 - t0);
+    anon_send(observer, broker::atom::ok::value, this_node->name,
+              duration_cast<caf::timespan>(t1 - t0));
   });
 }
 
@@ -382,8 +385,8 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
       verbose::println(this_node->name, " got ", received, " messages");
   }
   auto t1 = std::chrono::system_clock::now();
-  verbose::println(this_node->name, " is done receiving after ", t1 - t0);
-  self->send(observer, broker::atom::ok::value);
+  anon_send(observer, broker::atom::ok::value, this_node->name,
+            duration_cast<caf::timespan>(t1 - t0));
 }
 
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
@@ -618,6 +621,11 @@ int main(int argc, char** argv) {
       [](broker::atom::ok) {
         // All is well.
       },
+      [](broker::atom::ok, const std::string& node_name,
+         caf::timespan runtime) {
+        out::println(node_name, ": ",
+                     duration_cast<fractional_seconds>(runtime));
+      },
       [&](const caf::error& err) {
         err::println("eror while waiting for OK messages: ", sys.render(err));
       });
@@ -642,8 +650,7 @@ int main(int argc, char** argv) {
       self->send(x.mgr, broker::atom::run::value, self);
   wait_for_ok_messages();
   auto t1 = std::chrono::system_clock::now();
-  using fractional_seconds = std::chrono::duration<double>;
-  out::println(std::chrono::duration_cast<fractional_seconds>(t1 - t0));
+  out::println("system: ", duration_cast<fractional_seconds>(t1 - t0));
   // Shutdown all endpoints.
   verbose::println("shut down all nodes");
   for (auto& x : nodes)
