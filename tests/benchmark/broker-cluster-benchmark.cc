@@ -327,6 +327,11 @@ void generator(caf::event_based_actor* self, node* this_node, caf::actor core,
       generator_ptr gptr;
       size_t pushed = 0;
     };
+    auto done = [](const state& st) {
+      // We are done when gptr becomes null as result of an error or when
+      // reacing the end of the generator file.
+      return st.gptr == nullptr || st.gptr->at_end();
+    };
     self->make_source(
       core,
       [&](state& st) {
@@ -334,26 +339,26 @@ void generator(caf::event_based_actor* self, node* this_node, caf::actor core,
         st.gptr = std::move(ptr);
       },
       [=](state& st, caf::downstream<value_type>& out, size_t hint) {
-        if (st.gptr == nullptr || st.gptr->at_end())
-          return;
-        for (size_t i = 0; i < hint; ++i) {
-          if (st.gptr->at_end())
-            return;
+        size_t n = 0;
+        for (; n < hint; ++n) {
+          if (done(st))
+            break;
           value_type x;
           if (auto err = st.gptr->read(x)) {
             err::println("error while parsing ", this_node->generator_file,
                          ": ", self->system().render(err));
             st.gptr = nullptr;
-            return;
+            break;
           }
           out.push(std::move(x));
-          if (st.pushed / 1000 != (st.pushed + hint) / 1000)
-            verbose::println(this_node->name, " pushed ", st.pushed + hint,
-                             " messages");
-          st.pushed += hint;
         }
+        // Make some noise every 1k messages or when done.
+        if (done(st) || st.pushed / 1000 != (st.pushed + n) / 1000)
+          verbose::println(this_node->name, " pushed ", st.pushed + n,
+                           " messages");
+        st.pushed += n;
       },
-      [](const state& st) { return st.gptr == nullptr || st.gptr->at_end(); });
+      done);
   }
 }
 
