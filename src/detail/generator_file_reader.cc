@@ -29,9 +29,7 @@ generator_file_reader::generator_file_reader(int fd, void* addr,
     file_size_(file_size),
     source_(nullptr,
             caf::make_span(reinterpret_cast<caf::byte*>(addr), file_size)),
-    generator_(source_),
-    entries_(0),
-    sealed_(false) {
+    generator_(source_) {
   // We've already verified the file header in make_generator_file_reader.
   source_.skip(sizeof(generator_file_writer::format::magic)
                + sizeof(generator_file_writer::format::version));
@@ -79,7 +77,7 @@ caf::error generator_file_reader::read(value_type& x) {
         BROKER_TRY(generator_(value));
         x = make_data_message(topic_table_[topic_id], std::move(value));
         if (!sealed_)
-          ++entries_;
+          ++data_entries_;
         return caf::none;
       }
       case entry_type::command_message: {
@@ -91,7 +89,7 @@ caf::error generator_file_reader::read(value_type& x) {
         BROKER_TRY(generator_(cmd));
         x = make_command_message(topic_table_[topic_id], std::move(cmd));
         if (!sealed_)
-          ++entries_;
+          ++command_entries_;
         return caf::none;
       }
     }
