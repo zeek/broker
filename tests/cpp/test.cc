@@ -11,14 +11,14 @@
 using namespace caf;
 using namespace broker;
 
-base_fixture::base_fixture(bool fake_network)
-    : ep(make_config(fake_network)),
-      sys(ep.system()),
-      self(sys),
-      sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
-      credit_round_interval(get_or(sys.config(),
-                            "stream.credit-round-interval",
-                            caf::defaults::stream::credit_round_interval)) {
+base_fixture::base_fixture()
+  : ep(make_config()),
+    sys(ep.system()),
+    self(sys),
+    sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
+    credit_round_interval(
+      get_or(sys.config(), "stream.credit-round-interval",
+             caf::defaults::stream::credit_round_interval)) {
   // nop
 }
 
@@ -29,14 +29,13 @@ base_fixture::~base_fixture() {
   sched.inline_all_enqueues();
 }
 
-configuration base_fixture::make_config(bool fake_network) {
+configuration base_fixture::make_config() {
   broker_options options;
-  options.disable_ssl = fake_network;
+  options.disable_ssl = true;
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
   cfg.set("logger.verbosity", caf::atom("TRACE"));
-  if (fake_network)
-    cfg.load<io::middleman, io::network::test_multiplexer>();
+  cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
 }
 
@@ -50,10 +49,6 @@ void base_fixture::run() {
 void base_fixture::consume_message() {
   if (!sched.try_run_once())
     CAF_FAIL("no message to consume");
-}
-
-fake_network_fixture::fake_network_fixture() : base_fixture(true) {
-  // nop
 }
 
 int main(int argc, char** argv) {

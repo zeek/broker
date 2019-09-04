@@ -493,12 +493,11 @@ struct error_signaling_fixture : base_fixture {
   status_subscriber es;
 
   error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
-    broker_options options;
-    options.disable_ssl = true;
     core1 = ep.core();
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
-    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"},
+                      ep.config().options(), nullptr);
     CAF_MESSAGE(BROKER_ARG(core2));
     anon_send(core2, atom::no_events::value);
     run();
@@ -641,8 +640,7 @@ CAF_TEST(unpeer_core2_from_core1) {
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(distributed_peers,
-                       point_to_point_fixture<fake_network_fixture>)
+CAF_TEST_FIXTURE_SCOPE(distributed_peers, point_to_point_fixture<base_fixture>)
 
 // Setup: driver -> earth.core -> mars.core -> leaf
 CAF_TEST(remote_peers_setup1) {

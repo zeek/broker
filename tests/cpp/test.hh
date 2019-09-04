@@ -56,7 +56,7 @@ class base_fixture {
 public:
   using scheduler_type = caf::scheduler::test_coordinator;
 
-  explicit base_fixture(bool fake_network = false);
+  base_fixture();
 
   virtual ~base_fixture();
 
@@ -71,13 +71,7 @@ public:
   void consume_message();
 
 private:
-  static broker::configuration make_config(bool fake_network);
-};
-
-/// Extends the base fixture with fake networking.
-class fake_network_fixture : public base_fixture {
-public:
-  fake_network_fixture();
+  static broker::configuration make_config();
 };
 
 inline broker::data value_of(caf::expected<broker::data> x) {

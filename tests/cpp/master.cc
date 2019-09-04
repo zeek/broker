@@ -66,8 +66,7 @@ CAF_TEST(local_master) {
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(store_master,
-                       point_to_point_fixture<fake_network_fixture>)
+CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<base_fixture>)
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
