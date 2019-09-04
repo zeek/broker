@@ -1,13 +1,12 @@
 #ifndef BROKER_DATA_HH
 #define BROKER_DATA_HH
 
-#include <utility>
-#include <type_traits>
 #include <cstdint>
 #include <map>
 #include <set>
 #include <string>
-#include <unordered_map>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <caf/default_sum_type_access.hpp>
@@ -155,12 +154,12 @@ public:
   static data from_type(type);
 
   // Needed by caf::default_variant_access.
-  inline data_variant& get_data() {
+  data_variant& get_data() {
     return data_;
   }
 
   // Needed by caf::default_variant_access.
-  inline const data_variant& get_data() const {
+  const data_variant& get_data() const {
     return data_;
   }
 
@@ -168,6 +167,48 @@ private:
   data_variant data_;
 };
 
+namespace detail {
+
+template <data::type Value>
+using data_tag_token = std::integral_constant<data::type, Value>;
+
+template <class T>
+struct data_tag_oracle;
+
+template <>
+struct data_tag_oracle<std::string> : data_tag_token<data::type::string> {};
+
+#define DATA_TAG_ORACLE(type_name)                                             \
+  template <>                                                                  \
+  struct data_tag_oracle<type_name> : data_tag_token<data::type::type_name> {}
+
+DATA_TAG_ORACLE(none);
+DATA_TAG_ORACLE(boolean);
+DATA_TAG_ORACLE(count);
+DATA_TAG_ORACLE(integer);
+DATA_TAG_ORACLE(real);
+DATA_TAG_ORACLE(address);
+DATA_TAG_ORACLE(subnet);
+DATA_TAG_ORACLE(port);
+DATA_TAG_ORACLE(timestamp);
+DATA_TAG_ORACLE(timespan);
+DATA_TAG_ORACLE(enum_value);
+DATA_TAG_ORACLE(set);
+DATA_TAG_ORACLE(table);
+DATA_TAG_ORACLE(vector);
+
+#undef DATA_TAG_ORACLE
+
+} // namespace detail
+
+/// Returns the `data::type` tag for `T`.
+/// @relates data
+template <class T>
+constexpr data::type data_tag() {
+  return detail::data_tag_oracle<T>::value;
+}
+
+/// @relates data
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, data& x) {
   return inspect(f, x.get_data());

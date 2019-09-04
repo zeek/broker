@@ -1,4 +1,10 @@
 
+1.2.0-31 | 2019-09-04 15:30:51 -0700
+
+  * Allow subscribers to use absolute timeouts (Dominik Charousset)
+
+  * Add option to record metadata for published messages (Dominik Charousset)
+
 1.2.0-12 | 2019-09-04 13:38:42 -0700
 
   * Always disable OpenSSL in test fixture (Dominik Charousset)

@@ -69,6 +69,10 @@ bool address::is_v6() const {
   return !is_v4();
 }
 
+std::array<uint8_t, 16>& address::bytes() {
+  return bytes_;
+}
+
 const std::array<uint8_t, 16>& address::bytes() const {
   return bytes_;
 }

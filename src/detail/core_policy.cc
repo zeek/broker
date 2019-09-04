@@ -7,6 +7,7 @@
 
 #include "broker/core_actor.hh"
 #include "broker/logger.hh"
+#include "broker/defaults.hh"
 
 using caf::detail::stream_distribution_tree;
 
@@ -17,11 +18,23 @@ namespace detail {
 
 core_policy::core_policy(caf::detail::stream_distribution_tree<core_policy>* p,
                          core_state* state, filter_type filter)
-  : parent_(p),
-    state_(state) {
+  : parent_(p), state_(state), remaining_records_(0) {
   // TODO: use filter
   BROKER_ASSERT(parent_ != nullptr);
   BROKER_ASSERT(state_ != nullptr);
+  auto& cfg = state->self->system().config();
+  auto file_name = get_or(cfg, "broker.output-generator-file",
+                          defaults::output_generator_file);
+  if (!file_name.empty()) {
+    recorder_ = make_generator_file_writer(file_name);
+    if (recorder_ == nullptr) {
+      BROKER_WARNING("cannot open recording file" << file_name);
+    } else {
+      BROKER_DEBUG("opened file for recording:" << file_name);
+      remaining_records_ = get_or(cfg, "broker.output-generator-file-cap",
+                                  defaults::output_generator_file_cap);
+    }
+  }
 }
 
 bool core_policy::substream_local_data() const {
@@ -133,19 +146,11 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
     }
     return;
   }
-  auto ttl = state_->options.ttl;
-  if (xs.match_elements<worker_trait::batch>()) {
-    BROKER_DEBUG("forward batch from local workers to peers");
-    for (auto& x : xs.get_mutable_as<worker_trait::batch>(0))
-      peers().push(make_node_message(std::move(x), ttl));
+  using variant_batch = std::vector<node_message::value_type>;
+  if (try_handle<worker_trait::batch>(xs, "publish from local workers")
+      || try_handle<store_trait::batch>(xs, "publish from local stores")
+      || try_handle<variant_batch>(xs, "publish from custom actors"))
     return;
-  }
-  if (xs.match_elements<store_trait::batch>()) {
-    BROKER_DEBUG("forward batch from local stores to peers");
-    for (auto& x : xs.get_mutable_as<store_trait::batch>(0))
-      peers().push(make_node_message(std::move(x), ttl));
-    return;
-  }
   BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
 }
 
@@ -387,6 +392,8 @@ void core_policy::local_push(command_message x) {
 /// Pushes data to peers only without forwarding it to local substreams.
 void core_policy::remote_push(node_message msg) {
   BROKER_TRACE(BROKER_ARG(msg));
+  if (recorder_ != nullptr)
+    try_record(msg);
   peers().push(std::move(msg));
   peers().emit_batches();
 }
@@ -458,6 +465,10 @@ std::vector<caf::actor> core_policy::get_peer_handles() {
   if (p != e)
     peers.erase(p, e);
   return peers;
+}
+
+core_policy::ttl core_policy::initial_ttl() const {
+  return static_cast<ttl>(state_->options.ttl);
 }
 
 void core_policy::add_ipath(stream_slot slot, const actor& peer_hdl) {

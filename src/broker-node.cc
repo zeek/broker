@@ -28,6 +28,7 @@
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
+#include "broker/detail/generator_file_reader.hh"
 #include "broker/endpoint.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -46,7 +47,7 @@ namespace {
 
 string node_name;
 
-} // namespace <anonymous>
+} // namespace
 
 // -- I/O utility --------------------------------------------------------------
 
@@ -56,7 +57,7 @@ namespace {
 
 std::mutex ostream_mtx;
 
-} // namespace <anonymous>
+} // namespace
 
 int print_impl(std::ostream& ostr, const char* x) {
   ostr << x;
@@ -112,7 +113,7 @@ namespace {
 
 std::atomic<bool> enabled;
 
-} // namespace <anonymous>
+} // namespace
 
 template <class... Ts>
 void println(Ts&&... xs) {
@@ -146,6 +147,8 @@ using pong_atom = atom_constant<atom("pong")>;
 
 using relay_atom = atom_constant<atom("relay")>;
 
+using generate_atom = atom_constant<atom("generate")>;
+
 using blocking_atom = atom_constant<atom("blocking")>;
 
 using stream_atom = atom_constant<atom("stream")>;
@@ -154,7 +157,11 @@ using stream_atom = atom_constant<atom("stream")>;
 
 using uri_list = std::vector<uri>;
 
-using mode_fun = void (*)(broker::endpoint&, broker::topic);
+using topic_list = std::vector<topic>;
+
+using string_list = std::vector<string>;
+
+using mode_fun = void (*)(broker::endpoint&, topic_list);
 
 // -- constants ----------------------------------------------------------------
 
@@ -167,18 +174,19 @@ public:
   config() {
     opt_group{custom_options_, "global"}
       .add<bool>("verbose,v", "print status and debug output")
+      .add<bool>("rate,r", "print receive rate ('relay' mode only)")
       .add<string>("name,N", "set node name in verbose output")
-      .add<string>("topic,t", "topic for sending/receiving messages")
-      .add<atom_value>("mode,m", "set mode: 'relay', 'ping', or 'pong'")
-      .add<atom_value>("impl,i", "mode: 'ping', 'pong', or 'relay'")
+      .add<string_list>("topics,t", "topics for sending/receiving messages")
+      .add<atom_value>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
+      .add<string>("generator-file,g",
+                   "path to a generator file ('generate' mode only)")
       .add<size_t>("payload-size,s",
                    "additional number of bytes for the ping message")
       .add<timespan>("rendezvous-retry",
                      "timeout before repeating the first rendezvous ping "
                      "message (default: 50ms)")
-      .add<size_t>(
-        "num-pings,n",
-        "number of pings (default: 100), ignored in pong and relay mode)")
+      .add<size_t>("num-messages,n",
+                   "number of pings (default: 100, 'ping' mode only)")
       .add<uri_list>("peers,p",
                      "list of peers we connect to on startup in "
                      "<tcp://$host:$port> notation")
@@ -191,13 +199,13 @@ public:
 
 template <class T>
 auto get_or(broker::endpoint& d, string_view key, const T& default_value)
--> decltype(caf::get_or(d.system().config(), key, default_value)) {
+  -> decltype(caf::get_or(d.system().config(), key, default_value)) {
   return caf::get_or(d.system().config(), key, default_value);
 }
 
 template <class T>
 auto get_if(broker::endpoint* d, string_view key)
--> decltype(caf::get_if<T>(&(d->system().config()), key)) {
+  -> decltype(caf::get_if<T>(&(d->system().config()), key)) {
   return caf::get_if<T>(&(d->system().config()), key);
 }
 
@@ -214,8 +222,7 @@ bool is_ping_msg(const broker::data& x) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
-      return str && *str == "ping"
-             && caf::holds_alternative<count>(xs[1])
+      return str && *str == "ping" && caf::holds_alternative<count>(xs[1])
              && caf::holds_alternative<string>(xs[2]);
     }
   }
@@ -256,11 +263,9 @@ broker::data make_stop_msg() {
 
 // -- mode implementations -----------------------------------------------------
 
-void relay_mode(broker::endpoint& ep, broker::topic topic) {
+void relay_mode(broker::endpoint& ep, topic_list topics) {
   verbose::println("relay messages");
-  auto in = ep.make_subscriber({topic});
-  for (;;) {
-    auto x = in.get();
+  auto handle_message = [&](const broker::data_message& x) {
     auto& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
@@ -268,15 +273,135 @@ void relay_mode(broker::endpoint& ep, broker::topic topic) {
       verbose::println("received pong ", msg_id(val));
     } else if (is_stop_msg(val)) {
       verbose::println("received stop");
-      return;
+      return false;
+    }
+    return true;
+  };
+  auto in = ep.make_subscriber(topics);
+  auto& cfg = ep.system().config();
+  if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
+    auto timeout = std::chrono::system_clock::now();
+    timeout += std::chrono::seconds(1);
+    size_t received = 0;
+    for (;;) {
+      auto x = in.get(timeout);
+      if (x) {
+        if (!handle_message(*x))
+          return;
+        ++received;
+      } else {
+        verbose::println(received, "/s");
+        timeout += std::chrono::seconds(1);
+        received = 0;
+      }
+    }
+  } else {
+    for (;;) {
+      auto x = in.get();
+      if (!handle_message(x))
+        return;
     }
   }
 }
 
-void ping_mode(broker::endpoint& ep, broker::topic topic) {
+void generator(caf::event_based_actor* self, caf::actor core,
+               std::shared_ptr<size_t> count, const std::string& file_name,
+               broker::detail::generator_file_reader_ptr ptr) {
+  using generator_ptr = broker::detail::generator_file_reader_ptr;
+  using value_type = broker::node_message::value_type;
+  if (auto limit = get_if<size_t>(&self->config(), "num-messages")) {
+    struct state {
+      generator_ptr gptr;
+      size_t remaining;
+    };
+    self->make_source(
+      core,
+      [&](state& st) {
+        // Take ownership of `ptr`.
+        st.gptr = std::move(ptr);
+        st.remaining = *limit;
+      },
+      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+        if (st.gptr == nullptr)
+          return;
+        auto n = std::min(hint, st.remaining);
+        for (size_t i = 0; i < n; ++i) {
+          if (st.gptr->at_end())
+            st.gptr->rewind();
+          value_type x;
+          if (auto err = st.gptr->read(x)) {
+            err::println("error while parsing ", file_name, ": ",
+                         self->system().render(err));
+            st.gptr = nullptr;
+            st.remaining = 0;
+            *count += i;
+            return;
+          }
+          out.push(std::move(x));
+        }
+        st.remaining -= n;
+        *count += n;
+      },
+      [](const state& st) { return st.remaining == 0; });
+  } else {
+    self->make_source(
+      core,
+      [&](generator_ptr& g) {
+        // Take ownership of `ptr`.
+        g = std::move(ptr);
+      },
+      [=](generator_ptr& g, caf::downstream<value_type>& out, size_t hint) {
+        if (g == nullptr || g->at_end())
+          return;
+        for (size_t i = 0; i < hint; ++i) {
+          if (g->at_end()) {
+            *count += i;
+            return;
+          }
+          value_type x;
+          if (auto err = g->read(x)) {
+            err::println("error while parsing ", file_name, ": ",
+                         self->system().render(err));
+            g = nullptr;
+            *count += i;
+            return;
+          }
+          out.push(std::move(x));
+        }
+        *count += hint;
+      },
+      [](const generator_ptr& g) { return g == nullptr || g->at_end(); });
+  }
+}
+
+void generate_mode(broker::endpoint& ep, topic_list) {
+  auto file_name = get_or(ep, "generator-file", "");
+  if (file_name.empty())
+    return err::println("got no path to a generator file");
+  verbose::println("generate messages from: ", file_name);
+  auto generator_ptr = broker::detail::make_generator_file_reader(file_name);
+  if (generator_ptr == nullptr)
+    return err::println("unable to open generator file: ", file_name);
+  auto count = std::make_shared<size_t>(0u);
+  caf::scoped_actor self{ep.system()};
+  auto t0 = std::chrono::system_clock::now();
+  auto g = self->spawn(generator, ep.core(), count, file_name,
+                       std::move(generator_ptr));
+  self->wait_for(g);
+  auto t1 = std::chrono::system_clock::now();
+  auto delta = t1 - t0;
+  using fractional_seconds = std::chrono::duration<double>;
+  auto delta_s = std::chrono::duration_cast<fractional_seconds>(delta);
+  verbose::println("shipped ", *count, " messages in ", delta_s.count(), "s");
+  verbose::println("AVG: ", *count / delta_s.count());
+}
+
+void ping_mode(broker::endpoint& ep, topic_list topics) {
+  assert(topics.size() > 0);
+  auto topic = topics[0];
   verbose::println("send pings to topic ", topic);
   std::vector<timespan> xs;
-  auto n = get_or(ep, "num-pings", default_ping_count);
+  auto n = get_or(ep, "num-messages", default_ping_count);
   auto s = get_or(ep, "payload-size", default_payload_size);
   if (n == 0) {
     err::println("send no pings: n = 0");
@@ -314,15 +439,16 @@ void ping_mode(broker::endpoint& ep, broker::topic topic) {
   verbose::println("AVG: ", total_time / n);
 }
 
-void pong_mode(broker::endpoint& ep, broker::topic topic) {
-  verbose::println("receive pings from topic ", topic);
-  auto in = ep.make_subscriber({topic});
+void pong_mode(broker::endpoint& ep, topic_list topics) {
+  assert(topics.size() > 0);
+  verbose::println("receive pings from topics ", topics);
+  auto in = ep.make_subscriber(topics);
   for (;;) {
     auto x = in.get();
     auto& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
-      ep.publish(topic, make_pong_msg(msg_id(val)));
+      ep.publish(get_topic(x), make_pong_msg(msg_id(val)));
     } else if (is_stop_msg(val)) {
       verbose::println("received stop");
       return;
@@ -330,14 +456,19 @@ void pong_mode(broker::endpoint& ep, broker::topic topic) {
   }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
-  cfg.parse(argc, argv);
+  if (auto err = cfg.parse(argc, argv)) {
+    err::println("error while reading config: ", cfg.render(err));
+    return EXIT_FAILURE;
+  }
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
   // Get mode (mandatory).
   auto mode = get_if<atom_value>(&ep, "mode");
@@ -351,12 +482,18 @@ int main(int argc, char** argv) {
     node_name = *cfg_name;
   else
     node_name = to_string(*mode);
-  // Get topic (mandatory).
-  auto topic = get_if<string>(&ep, "topic");
-  if (!topic) {
-    err::println("no topic specified");
-    return EXIT_FAILURE;
+  // Get topics (mandatory) and make sure this endpoint at least forwards them.
+  topic_list topics;
+  { // Lifetime scope of temporary variables.
+    auto topic_names = get_or(ep, "topics", string_list{});
+    if (topic_names.empty()) {
+      err::println("no topics specified");
+      return EXIT_FAILURE;
+    }
+    for (auto& topic_name : topic_names)
+      topics.emplace_back(std::move(topic_name));
   }
+  ep.forward(topics);
   // Enable verbose output if demanded by user.
   actor verbose_logger;
   if (get_or(ep, "verbose", false)) {
@@ -366,15 +503,10 @@ int main(int argc, char** argv) {
     auto& groups = sys.groups();
     auto g1 = groups.get_local("broker/errors");
     auto g2 = groups.get_local("broker/statuses");
-    verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) -> behavior {
-      return {
-        [=](broker::atom::local, broker::error& x) {
-          verbose::println(x);
-        },
-        [=](broker::atom::local, broker::status& x) {
-          verbose::println(x);
-        }
-      };
+    verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) {
+      return behavior{
+        [=](broker::atom::local, broker::error& x) { verbose::println(x); },
+        [=](broker::atom::local, broker::status& x) { verbose::println(x); }};
     });
   }
   // Publish endpoint at demanded port.
@@ -393,6 +525,9 @@ int main(int argc, char** argv) {
       break;
     case pong_atom::uint_value():
       f = pong_mode;
+      break;
+    case generate_atom::uint_value():
+      f = generate_mode;
       break;
     default:
       err::println("invalid mode: ", mode);
@@ -413,7 +548,7 @@ int main(int argc, char** argv) {
       ep.peer(host, port);
     }
   }
-  f(ep, *topic);
+  f(ep, std::move(topics));
   // Disconnect from peers.
   for (auto& peer : peers) {
     auto& auth = peer.authority();

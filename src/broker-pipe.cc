@@ -244,6 +244,13 @@ behavior event_listener(event_based_actor* self) {
 int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
+  if (auto err = cfg.parse(argc, argv)) {
+    std::cerr << "*** error while reading config: " << cfg.render(err)
+              << std::endl;
+    return EXIT_FAILURE;
+  }
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
   cfg.parse(argc, argv);
   broker::endpoint ep{std::move(cfg)};
   auto el = ep.system().spawn(event_listener);

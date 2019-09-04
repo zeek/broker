@@ -335,13 +335,33 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
 
 set(BROKER_SRC
+  ${OPTIONAL_SRC}
+  3rdparty/sqlite3.c
   src/address.cc
   src/configuration.cc
   src/core_actor.cc
   src/data.cc
+  src/defaults.cc
+  src/detail/abstract_backend.cc
+  src/detail/clone_actor.cc
+  src/detail/core_policy.cc
+  src/detail/data_generator.cc
+  src/detail/filesystem.cc
+  src/detail/flare.cc
+  src/detail/flare_actor.cc
+  src/detail/generator_file_reader.cc
+  src/detail/generator_file_writer.cc
+  src/detail/make_backend.cc
+  src/detail/master_actor.cc
+  src/detail/master_resolver.cc
+  src/detail/memory_backend.cc
+  src/detail/meta_command_writer.cc
+  src/detail/meta_data_writer.cc
+  src/detail/network_cache.cc
+  src/detail/prefix_matcher.cc
+  src/detail/sqlite_backend.cc
   src/endpoint.cc
   src/error.cc
-  src/status_subscriber.cc
   src/internal_command.cc
   src/mailbox.cc
   src/network_info.cc
@@ -349,30 +369,13 @@ set(BROKER_SRC
   src/port.cc
   src/publisher.cc
   src/status.cc
+  src/status_subscriber.cc
   src/store.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc
   src/topic.cc
   src/version.cc
-
-  src/detail/abstract_backend.cc
-  src/detail/clone_actor.cc
-  src/detail/core_policy.cc
-  src/detail/filesystem.cc
-  src/detail/flare.cc
-  src/detail/flare_actor.cc
-  src/detail/make_backend.cc
-  src/detail/master_actor.cc
-  src/detail/master_resolver.cc
-  src/detail/memory_backend.cc
-  src/detail/network_cache.cc
-  src/detail/prefix_matcher.cc
-  src/detail/sqlite_backend.cc
-
-  3rdparty/sqlite3.c
-
-  ${OPTIONAL_SRC}
 )
 
 include(TestBigEndian)

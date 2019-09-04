@@ -35,13 +35,16 @@ public:
   /// Constructs a configuration from the command line.
   configuration(int argc, char** argv);
 
-  const broker_options& options() const { return options_; }
+  /// Returns default Broker options and flags.
+  const broker_options& options() const {
+    return options_;
+  }
 
   /// Adds all Broker message types to `cfg`.
   static void add_message_types(caf::actor_system_config& cfg);
 
 private:
-  const broker_options options_;
+  broker_options options_;
 };
 
 } // namespace broker

@@ -65,17 +65,29 @@ public:
     auto tmp = get(1);
     BROKER_ASSERT(tmp.size() == 1);
     auto x = std::move(tmp.front());
-    BROKER_INFO("received" << x);
+    BROKER_DEBUG("received" << x);
     return x;
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
-  caf::optional<value_type> get(duration timeout) {
+  caf::optional<value_type> get(caf::timestamp timeout) {
     auto tmp = get(1, timeout);
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
-      BROKER_INFO("received" << x);
+      BROKER_DEBUG("received" << x);
+      return caf::optional<value_type>(std::move(x));
+    }
+    return caf::none;
+  }
+
+  /// Pulls a single value out of the stream. Blocks the current thread until
+  /// at least one value becomes available or a timeout occurred.
+  caf::optional<value_type> get(duration relative_timeout) {
+    auto tmp = get(1, relative_timeout);
+    if (tmp.size() == 1) {
+      auto x = std::move(tmp.front());
+      BROKER_DEBUG("received" << x);
       return caf::optional<value_type>(std::move(x));
     }
     return caf::none;
@@ -85,40 +97,66 @@ public:
   /// `num` elements are available or a timeout occurs. Returns a partially
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
+  std::vector<value_type> get(size_t num, caf::timestamp timeout) {
+    std::vector<value_type> result;
+    if (num == 0)
+      return result;
+    if (timeout <= std::chrono::system_clock::now())
+      return result;
+    result.reserve(num);
+    for (;;) {
+      if (!queue_->wait_on_flare_abs(timeout))
+        return result;
+      size_t prev_size = 0;
+      auto remaining = num - result.size();
+      auto got = queue_->consume(remaining, &prev_size, [&](value_type&& x) {
+        BROKER_DEBUG("received" << x);
+        result.emplace_back(std::move(x));
+      });
+      if (prev_size >= static_cast<size_t>(max_qsize_)
+          && prev_size - got < static_cast<size_t>(max_qsize_))
+        became_not_full();
+      if (result.size() == num)
+        return result;
+    }
+  }
+
+  /// Pulls `num` values out of the stream. Blocks the current thread until
+  /// `num` elements are available or a timeout occurs. Returns a partially
+  /// filled or empty vector on timeout, otherwise a vector containing exactly
+  /// `num` elements.
   std::vector<value_type> get(size_t num,
-                              duration timeout = infinite) {
+                              duration relative_timeout = infinite) {
+    if (relative_timeout.valid()) {
+      timestamp timeout = std::chrono::system_clock::now();
+      timeout += relative_timeout;
+      return get(num, timeout);
+    }
     std::vector<value_type> result;
     if (num == 0)
       return result;
     result.reserve(num);
-    auto t0 = std::chrono::high_resolution_clock::now();
-    t0 += timeout;
     for (;;) {
-      if (!timeout.valid())
-        queue_->wait_on_flare();
-      else if (!queue_->wait_on_flare_abs(t0))
-        return result;
+      queue_->wait_on_flare();
       size_t prev_size = 0;
-      auto got = queue_->consume(num - result.size(), &prev_size, [&](value_type&& x) {
-        BROKER_INFO("received" << x);
+      auto remaining = num - result.size();
+      auto got = queue_->consume(remaining, &prev_size, [&](value_type&& x) {
+        BROKER_DEBUG("received" << x);
         result.emplace_back(std::move(x));
       });
-      if (prev_size >= static_cast<size_t>(max_qsize_) &&
-          prev_size - got < static_cast<size_t>(max_qsize_))
+      if (prev_size >= static_cast<size_t>(max_qsize_)
+          && prev_size - got < static_cast<size_t>(max_qsize_))
         became_not_full();
-      if (result.size() == num) {
+      if (result.size() == num)
         return result;
-      }
     }
   }
 
   /// Returns all currently available values without blocking.
   std::vector<value_type> poll() {
     auto rval = queue_->consume_all();
-
-    if ( rval.size() >= static_cast<size_t>(max_qsize_) )
+    if (rval.size() >= static_cast<size_t>(max_qsize_))
       became_not_full();
-
     return rval;
   }
 
