@@ -1,14 +1,15 @@
-//
-// We leave testing the actual communication with Zeek to Python tests. Here
-// we just check that the messages are constructed and parsed correctly.
-//
-
-#include <utility>
-#include "broker/zeek.hh"
-#include "broker/data.hh"
+// We leave testing the actual communication with Zeek to Python tests. Here we
+// just check that the messages are constructed and parsed correctly.
 
 #define SUITE zeek
-#include "test.hpp"
+
+#include "broker/zeek.hh"
+
+#include "test.hh"
+
+#include <utility>
+
+#include "broker/data.hh"
 
 using namespace broker;
 

@@ -1,6 +1,9 @@
 #define SUITE master
 
-#include "test.hpp"
+#include "broker/store.hh"
+
+#include "test.hh"
+
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/atoms.hh"
@@ -10,7 +13,6 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
-#include "broker/store.hh"
 #include "broker/topic.hh"
 
 using std::cout;
@@ -64,8 +66,7 @@ CAF_TEST(local_master) {
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(store_master,
-                       point_to_point_fixture<fake_network_fixture>)
+CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<base_fixture>)
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
@@ -119,28 +120,23 @@ CAF_TEST(master_with_clone) {
   auto foo_master = "foo" / topics::master_suffix;
   // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer::value, core2_proxy);
-  // TODO: most of the expect_on tests for the stream handshake
-  // work in CAF 0.16.3, but fail with CAF 0.17.0, but I don't think it's
-  // important for us to be testing the internals of how the handshake
-  // actually gets established, as long as the real functionality of
-  // the data stores end up working.
-  /* expect_on(earth, (atom::peer, actor), */
-  /*           from(earth.self).to(core1).with(_, core2_proxy)); */
+  expect_on(earth, (atom::peer, actor),
+            from(earth.self).to(core1).with(_, core2_proxy));
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   forward_stream_traffic();
-  /* expect_on(mars, (atom::peer, filter_type, actor), */
-  /*           from(_).to(core2).with(_, filter_type{foo_master}, _)); */
+  expect_on(mars, (atom::peer, filter_type, actor),
+            from(_).to(core2).with(_, filter_type{foo_master}, _));
   // Step #2: core1  <---   (open_stream_msg)   <--- core2
   forward_stream_traffic();
-  /* expect_on(earth, (open_stream_msg), from(_).to(core1)); */
+  expect_on(earth, (open_stream_msg), from(_).to(core1));
   // Step #3: core1  --->   (open_stream_msg)   ---> core2
   //          core1  ---> (upstream_msg::ack_open) ---> core2
   forward_stream_traffic();
-  /* expect_on(mars, (open_stream_msg), from(_).to(core2)); */
-  /* expect_on(mars, (upstream_msg::ack_open), from(_).to(core2)); */
+  expect_on(mars, (open_stream_msg), from(_).to(core2));
+  expect_on(mars, (upstream_msg::ack_open), from(_).to(core2));
   // Step #4: core1  <--- (upstream_msg::ack_open) <--- core2
   forward_stream_traffic();
-  /* expect_on(earth, (upstream_msg::ack_open), from(_).to(core1)); */
+  expect_on(earth, (upstream_msg::ack_open), from(_).to(core1));
   // Make sure there is no communication pending at this point.
   exec_all();
   // --- phase 7: attach a clone on mars ---------------------------------------
@@ -159,8 +155,8 @@ CAF_TEST(master_with_clone) {
             from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();
-  /* expect_on(earth, (atom::update, filter_type), */
-  /*           from(_).to(core1).with(_, filter_type{foo_clone})); */
+  expect_on(earth, (atom::update, filter_type),
+            from(_).to(core1).with(_, filter_type{foo_clone}));
   // -- phase 8: run it all & check results ------------------------------------
   exec_all();
   CAF_MESSAGE("put 'user' -> 'neverlord'");

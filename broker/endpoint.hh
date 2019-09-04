@@ -336,17 +336,25 @@ public:
                                double stale_interval=300.0,
                                double mutation_buffer_interval=120.0);
 
+  // --- messaging -------------------------------------------------------------
+
+  void send_later(caf::actor who, timespan after, caf::message msg) {
+    clock_->send_later(std::move(who), after, std::move(msg));
+  }
+
+  // --- properties ------------------------------------------------------------
+
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
-  inline bool await_stores_on_shutdown() const {
+  bool await_stores_on_shutdown() const {
     return await_stores_on_shutdown_;
   }
 
   /// Sets whether the endpoint waits for masters and slaves on shutdown.
-  inline void await_stores_on_shutdown(bool x) {
+  void await_stores_on_shutdown(bool x) {
     await_stores_on_shutdown_ = x;
   }
 
-  inline bool is_shutdown() const {
+  bool is_shutdown() const {
     return destroyed_;
   }
 
@@ -362,18 +370,16 @@ public:
     clock_->advance_time(t);
   }
 
-  void send_later(caf::actor who, timespan after, caf::message msg) {
-    clock_->send_later(std::move(who), after, std::move(msg));
-  }
-
-  // --- access to CAF state ---------------------------------------------------
-
-  inline caf::actor_system& system() {
+  caf::actor_system& system() {
     return system_;
   }
 
-  inline const caf::actor& core() const {
+  const caf::actor& core() const {
     return core_;
+  }
+
+  const configuration& config() const {
+    return config_;
   }
 
 protected:

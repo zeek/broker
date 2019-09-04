@@ -1,4 +1,24 @@
 
+1.2.0-12 | 2019-09-04 13:38:42 -0700
+
+  * Always disable OpenSSL in test fixture (Dominik Charousset)
+
+  * Make logging code more robust (Dominik Charousset)
+
+    Setting CAF_LOG_COMPONENT is very brittle and CAF is moving away from
+    this design for that reason. Instead, we now dispatch directly to
+    CAF_LOG_IMPL with the proper log component and level.
+
+    Also, we no longer use CAF_LOG_* macros directly and instead always use
+    the Broker macros in order to make sure log entries are properly
+    attributed to either CAF or Broker code.
+
+  * Rename test.[hc]pp according to naming convention (Dominik Charousset)
+
+  * Let CAF set proper config option in base_fixture (Dominik Charousset)
+
+  * Revert 90a7ab3 and adjust base_fixture to CAF 0.17 (Dominik Charousset)
+
 1.2.0-6 | 2019-09-03 11:32:35 -0700
 
   * Review broker-benchmark, remove dead/unsafe code (Dominik Charousset)

@@ -96,10 +96,10 @@ bool flare::extinguish_one() {
 }
 
 void flare::await_one() {
-  CAF_LOG_TRACE("");
+  BROKER_TRACE("");
   pollfd p = {fds_[0], POLLIN, 0};
   for (;;) {
-    CAF_LOG_DEBUG("polling");
+    BROKER_DEBUG("polling");
     auto n = ::poll(&p, 1, -1);
     if (n < 0 && errno != EAGAIN)
       std::terminate();
@@ -111,7 +111,7 @@ void flare::await_one() {
 }
 
 bool flare::await_one_impl(int ms_timeout) {
-  CAF_LOG_TRACE("");
+  BROKER_TRACE("");
   pollfd p = {fds_[0], POLLIN, 0};
   auto n = ::poll(&p, 1, ms_timeout);
   if (n < 0 && errno != EAGAIN)

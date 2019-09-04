@@ -1,7 +1,8 @@
+#define SUITE topic
+
 #include "broker/topic.hh"
 
-#define SUITE topic
-#include "test.hpp"
+#include "test.hh"
 
 using namespace broker;
 

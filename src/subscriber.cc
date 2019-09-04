@@ -12,6 +12,7 @@
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/logger.hh"
 
 #include "broker/detail/assert.hh"
 
@@ -73,7 +74,7 @@ public:
 
 protected:
    void handle(inbound_path*, downstream_msg::batch& x) override {
-    CAF_LOG_TRACE(CAF_ARG(x));
+    BROKER_TRACE(BROKER_ARG(x));
     using vec_type = std::vector<data_message>;
     if (x.xs.match_elements<vec_type>()) {
       auto& xs = x.xs.get_mutable_as<vec_type>(0);
@@ -82,7 +83,7 @@ protected:
       queue_->produce(xs_size, std::make_move_iterator(xs.begin()),
                       std::make_move_iterator(xs.end()));
     }
-    CAF_LOG_ERROR("received unexpected batch type (dropped)");
+    BROKER_ERROR("received unexpected batch type (dropped)");
   }
 
 private:

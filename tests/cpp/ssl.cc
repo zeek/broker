@@ -1,7 +1,7 @@
 // This suite is a test ensuring SSL authentication works as expected.
 #define SUITE ssl
 
-#include "test.hpp"
+#include "test.hh"
 
 #include <cstdlib>
 #include <string>

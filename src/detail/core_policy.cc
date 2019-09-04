@@ -1,12 +1,12 @@
 #include "broker/detail/core_policy.hh"
 
-#include <caf/none.hpp>
+#include <algorithm>
 
 #include <caf/detail/stream_distribution_tree.hpp>
+#include <caf/none.hpp>
 
 #include "broker/core_actor.hh"
-
-#include <algorithm>
+#include "broker/logger.hh"
 
 using caf::detail::stream_distribution_tree;
 
@@ -30,7 +30,7 @@ bool core_policy::substream_local_data() const {
 
 void core_policy::before_handle_batch(stream_slot,
                                       const strong_actor_ptr& hdl) {
-  CAF_LOG_TRACE(CAF_ARG(hdl));
+  BROKER_TRACE(BROKER_ARG(hdl));
   // If there's anything in the central buffer at this point, it's
   // stuff that we're sending out ourselves (as opposed to forwarding),
   // so we flush it out to each path's own cache now to make sure the
@@ -58,7 +58,7 @@ void core_policy::unblock_peer(caf::actor peer) {
 
   if ( pit == peer_to_ipath_.end() ) {
     blocked_msgs.erase(it);
-    CAF_LOG_DEBUG("dropped batches after unblocking peer: path no longer exists" << peer);
+    BROKER_DEBUG("dropped batches after unblocking peer: path no longer exists" << peer);
     return;
   }
 
@@ -66,7 +66,7 @@ void core_policy::unblock_peer(caf::actor peer) {
   auto sap = actor_cast<strong_actor_ptr>(peer);
 
   for ( auto& batch : it->second ) {
-    CAF_LOG_DEBUG("handle blocked batch" << peer);
+    BROKER_DEBUG("handle blocked batch" << peer);
     before_handle_batch(slot, sap);
     handle_batch(slot, sap, batch);
     after_handle_batch(slot, sap);
@@ -83,7 +83,7 @@ static bool ends_with(const std::string& s, const std::string& ending) {
 
 void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
                                message& xs) {
-  CAF_LOG_TRACE(CAF_ARG(xs));
+  BROKER_TRACE(BROKER_ARG(xs));
 
   if (xs.match_elements<peer_trait::batch>()) {
 
@@ -91,7 +91,7 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
     auto it = blocked_peers.find(peer_actor);
 
     if ( it != blocked_peers.end() ) {
-      CAF_LOG_DEBUG("buffer batch from blocked peer" << peer);
+      BROKER_DEBUG("buffer batch from blocked peer" << peer);
       auto& bmsgs = blocked_msgs[peer_actor];
       bmsgs.emplace_back(std::move(xs));
       return;
@@ -99,8 +99,8 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
 
     auto num_workers = workers().num_paths();
     auto num_stores = stores().num_paths();
-    CAF_LOG_DEBUG("forward batch from peers;" << CAF_ARG(num_workers)
-                  << CAF_ARG(num_stores));
+    BROKER_DEBUG("forward batch from peers;" << BROKER_ARG(num_workers)
+                  << BROKER_ARG(num_stores));
     // Only received from other peers. Extract content for to local workers
     // or stores and then forward to other peers.
     for (auto& msg : xs.get_mutable_as<peer_trait::batch>(0)) {
@@ -125,7 +125,7 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
         continue;
       // Either decrease TTL if message has one already, or add one.
       if (--msg.ttl == 0) {
-        CAF_LOG_WARNING("dropped a message with expired TTL");
+        BROKER_WARNING("dropped a message with expired TTL");
         continue;
       }
       // Forward to other peers.
@@ -135,22 +135,22 @@ void core_policy::handle_batch(stream_slot, const strong_actor_ptr& peer,
   }
   auto ttl = state_->options.ttl;
   if (xs.match_elements<worker_trait::batch>()) {
-    CAF_LOG_DEBUG("forward batch from local workers to peers");
+    BROKER_DEBUG("forward batch from local workers to peers");
     for (auto& x : xs.get_mutable_as<worker_trait::batch>(0))
       peers().push(make_node_message(std::move(x), ttl));
     return;
   }
   if (xs.match_elements<store_trait::batch>()) {
-    CAF_LOG_DEBUG("forward batch from local stores to peers");
+    BROKER_DEBUG("forward batch from local stores to peers");
     for (auto& x : xs.get_mutable_as<store_trait::batch>(0))
       peers().push(make_node_message(std::move(x), ttl));
     return;
   }
-  CAF_LOG_ERROR("unexpected batch:" << deep_to_string(xs));
+  BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
 }
 
 void core_policy::after_handle_batch(stream_slot, const strong_actor_ptr&) {
-  CAF_LOG_TRACE("");
+  BROKER_TRACE("");
   // Make sure the content of the buffer is pushed to the outbound paths while
   // the sender filter is still active.
   peers().fan_out_flush();
@@ -160,10 +160,10 @@ void core_policy::after_handle_batch(stream_slot, const strong_actor_ptr&) {
 void core_policy::ack_open_success(stream_slot slot,
                                    const actor_addr& rebind_from,
                                    strong_actor_ptr rebind_to) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(rebind_from) << CAF_ARG(rebind_to));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(rebind_from) << BROKER_ARG(rebind_to));
   if (rebind_from != rebind_to) {
-    CAF_LOG_DEBUG("rebind occurred" << CAF_ARG(slot) << CAF_ARG(rebind_from)
-                  << CAF_ARG(rebind_to));
+    BROKER_DEBUG("rebind occurred" << BROKER_ARG(slot) << BROKER_ARG(rebind_from)
+                  << BROKER_ARG(rebind_to));
     peers().filter(slot).first = actor_cast<actor_addr>(rebind_to);
   }
 }
@@ -171,7 +171,7 @@ void core_policy::ack_open_success(stream_slot slot,
 void core_policy::ack_open_failure(stream_slot slot,
                                    const actor_addr& rebind_from,
                                    strong_actor_ptr rebind_to) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(rebind_from) << CAF_ARG(rebind_to));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(rebind_from) << BROKER_ARG(rebind_to));
   CAF_IGNORE_UNUSED(rebind_from);
   CAF_IGNORE_UNUSED(rebind_to);
   auto i = opath_to_peer_.find(slot);
@@ -201,7 +201,7 @@ void core_policy::push_to_substreams(std::vector<message> xs) {
 // -- status updates to the state ----------------------------------------------
 
 void core_policy::peer_lost(const actor& hdl) {
-  CAF_LOG_TRACE(CAF_ARG(hdl));
+  BROKER_TRACE(BROKER_ARG(hdl));
   state_->emit_status<sc::peer_lost>(hdl, "lost remote peer");
   if (shutting_down())
     return;
@@ -214,30 +214,30 @@ void core_policy::peer_lost(const actor& hdl) {
 }
 
 void core_policy::peer_removed(const actor& hdl) {
-  CAF_LOG_TRACE(CAF_ARG(hdl));
+  BROKER_TRACE(BROKER_ARG(hdl));
   state_->emit_status<sc::peer_removed>(hdl, "removed peering");
 }
 
 // -- callbacks for close/drop events ------------------------------------------
 
 void core_policy::path_closed(stream_slot slot) {
-  CAF_LOG_TRACE(CAF_ARG(slot));
+  BROKER_TRACE(BROKER_ARG(slot));
   remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_, caf::none);
 }
 
 void core_policy::path_force_closed(stream_slot slot, error reason) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(reason));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(reason));
   remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_,
             std::move(reason));
 }
 
 void core_policy::path_dropped(stream_slot slot) {
-  CAF_LOG_TRACE(CAF_ARG(slot));
+  BROKER_TRACE(BROKER_ARG(slot));
   remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_, caf::none);
 }
 
 void core_policy::path_force_dropped(stream_slot slot, error reason) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(reason));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(reason));
   remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_,
             std::move(reason));
 }
@@ -245,10 +245,10 @@ void core_policy::path_force_dropped(stream_slot slot, error reason) {
 void core_policy::remove_cb(stream_slot slot, path_to_peer_map& xs,
                             peer_to_path_map& ys, peer_to_path_map& zs,
                             error reason) {
-  CAF_LOG_TRACE(CAF_ARG(slot));
+  BROKER_TRACE(BROKER_ARG(slot));
   auto i = xs.find(slot);
   if (i == xs.end()) {
-    CAF_LOG_DEBUG("no entry in xs found for slot" << slot);
+    BROKER_DEBUG("no entry in xs found for slot" << slot);
     return;
   }
   auto peer_hdl = i->second;
@@ -273,11 +273,11 @@ bool core_policy::has_peer(const actor& hdl) const {
 
 void core_policy::ack_peering(const stream<node_message>& in,
                               const actor& peer_hdl) {
-  CAF_LOG_TRACE(CAF_ARG(peer_hdl));
+  BROKER_TRACE(BROKER_ARG(peer_hdl));
   // Check whether we already receive inbound traffic from the peer. Could use
   // `CAF_ASSERT` instead, because this must'nt get called for known peers.
   if (peer_to_ipath_.count(peer_hdl) != 0) {
-    CAF_LOG_ERROR("peer already connected");
+    BROKER_ERROR("peer already connected");
     return;
   }
   // Add inbound path for our peer.
@@ -295,13 +295,13 @@ bool core_policy::has_inbound_path_from(const caf::actor& peer_hdl) {
 
 bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
                               bool graceful_removal) {
-  CAF_LOG_TRACE(CAF_ARG(hdl));
+  BROKER_TRACE(BROKER_ARG(hdl));
   int performed_erases = 0;
   { // lifetime scope of first iterator pair
     auto e = peer_to_opath_.end();
     auto i = peer_to_opath_.find(hdl);
     if (i != e) {
-      CAF_LOG_DEBUG("remove outbound path to peer:" << hdl);
+      BROKER_DEBUG("remove outbound path to peer:" << hdl);
       ++performed_erases;
       out().remove_path(i->second, reason, silent);
       opath_to_peer_.erase(i->second);
@@ -312,7 +312,7 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     auto e = peer_to_ipath_.end();
     auto i = peer_to_ipath_.find(hdl);
     if (i != e) {
-      CAF_LOG_DEBUG("remove inbound path to peer:" << hdl);
+      BROKER_DEBUG("remove inbound path to peer:" << hdl);
       ++performed_erases;
       parent_->remove_input_path(i->second, reason, silent);
       ipath_to_peer_.erase(i->second);
@@ -320,7 +320,7 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
     }
   }
   if (performed_erases == 0) {
-    CAF_LOG_DEBUG("no path was removed for peer:" << hdl);
+    BROKER_DEBUG("no path was removed for peer:" << hdl);
     return false;
   }
   if (graceful_removal)
@@ -340,11 +340,11 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
 
 /// Updates the filter of an existing peer.
 bool core_policy::update_peer(const actor& hdl, filter_type filter) {
-  CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(filter));
+  BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(filter));
   auto e = peer_to_opath_.end();
   auto i = peer_to_opath_.find(hdl);
   if (i == e) {
-    CAF_LOG_DEBUG("cannot update filter on unknown peer");
+    BROKER_DEBUG("cannot update filter on unknown peer");
     return false;
   }
   peers().filter(i->second).second = std::move(filter);
@@ -355,7 +355,7 @@ bool core_policy::update_peer(const actor& hdl, filter_type filter) {
 
 auto core_policy::add_worker(filter_type filter)
 -> outbound_stream_slot<worker_trait::element> {
-  CAF_LOG_TRACE(CAF_ARG(filter));
+  BROKER_TRACE(BROKER_ARG(filter));
   auto slot = parent_->add_unchecked_outbound_path<worker_trait::element>();
   if (slot != invalid_stream_slot) {
     out().assign<worker_trait::manager>(slot);
@@ -368,7 +368,7 @@ auto core_policy::add_worker(filter_type filter)
 
 /// Pushes data to workers without forwarding it to peers.
 void core_policy::local_push(data_message x) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG2("num_paths", workers().num_paths()));
+  BROKER_TRACE(BROKER_ARG(x) << BROKER_ARG2("num_paths", workers().num_paths()));
   if (workers().num_paths() > 0) {
     workers().push(std::move(x));
     workers().emit_batches();
@@ -377,7 +377,7 @@ void core_policy::local_push(data_message x) {
 
 /// Pushes data to stores without forwarding it to peers.
 void core_policy::local_push(command_message x) {
-  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG2("num_paths", stores().num_paths()));
+  BROKER_TRACE(BROKER_ARG(x) << BROKER_ARG2("num_paths", stores().num_paths()));
   if (stores().num_paths() > 0) {
     stores().push(std::move(x));
     stores().emit_batches();
@@ -386,21 +386,21 @@ void core_policy::local_push(command_message x) {
 
 /// Pushes data to peers only without forwarding it to local substreams.
 void core_policy::remote_push(node_message msg) {
-  CAF_LOG_TRACE(CAF_ARG(msg));
+  BROKER_TRACE(BROKER_ARG(msg));
   peers().push(std::move(msg));
   peers().emit_batches();
 }
 
 /// Pushes data to peers and workers.
 void core_policy::push(data_message msg) {
-  CAF_LOG_TRACE(CAF_ARG(msg));
+  BROKER_TRACE(BROKER_ARG(msg));
   remote_push(make_node_message(std::move(msg), state_->options.ttl));
   //local_push(std::move(x), std::move(y));
 }
 
 /// Pushes data to peers and stores.
 void core_policy::push(command_message msg) {
-  CAF_LOG_TRACE(CAF_ARG(msg));
+  BROKER_TRACE(BROKER_ARG(msg));
   remote_push(make_node_message(std::move(msg), state_->options.ttl));
   //local_push(std::move(x), std::move(y));
 }
@@ -461,33 +461,33 @@ std::vector<caf::actor> core_policy::get_peer_handles() {
 }
 
 void core_policy::add_ipath(stream_slot slot, const actor& peer_hdl) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(peer_hdl));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(peer_hdl));
   if (slot == invalid_stream_slot) {
-    CAF_LOG_ERROR("tried to add an invalid inbound path");
+    BROKER_ERROR("tried to add an invalid inbound path");
     return;
   }
   if (!ipath_to_peer_.emplace(slot, peer_hdl).second) {
-    CAF_LOG_ERROR("ipath_to_peer entry already exists");
+    BROKER_ERROR("ipath_to_peer entry already exists");
     return;
   }
   if (!peer_to_ipath_.emplace(peer_hdl, slot).second) {
-    CAF_LOG_ERROR("peer_to_ipath entry already exists");
+    BROKER_ERROR("peer_to_ipath entry already exists");
     return;
   }
 }
 
 void core_policy::add_opath(stream_slot slot, const actor& peer_hdl) {
-  CAF_LOG_TRACE(CAF_ARG(slot) << CAF_ARG(peer_hdl));
+  BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(peer_hdl));
   if (slot == invalid_stream_slot) {
-    CAF_LOG_ERROR("tried to add an invalid outbound path");
+    BROKER_ERROR("tried to add an invalid outbound path");
     return;
   }
   if (!opath_to_peer_.emplace(slot, peer_hdl).second) {
-    CAF_LOG_ERROR("opath_to_peer entry already exists");
+    BROKER_ERROR("opath_to_peer entry already exists");
     return;
   }
   if (!peer_to_opath_.emplace(peer_hdl, slot).second) {
-    CAF_LOG_ERROR("peer_to_opath entry already exists");
+    BROKER_ERROR("peer_to_opath entry already exists");
     return;
   }
 }

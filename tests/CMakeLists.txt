@@ -2,7 +2,7 @@
 
 set(BROKER_TEST_TIMEOUT 20)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
 # -- C++ ----------------------------------------------------------------------
 
@@ -10,17 +10,17 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
-  cpp/status_subscriber.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
+  cpp/status_subscriber.cc
   cpp/store.cc
   cpp/subscriber.cc
+  cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
-  test.cpp
 )
 
 # Setup correct broker library (static/shared).

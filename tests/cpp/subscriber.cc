@@ -2,7 +2,10 @@
 // `subscriber` instead of an event-based `consumer` actor.
 
 #define SUITE subscriber
-#include "test.hpp"
+
+#include "broker/subscriber.hh"
+
+#include "test.hh"
 
 #include <caf/actor.hpp>
 #include <caf/downstream.hpp>
@@ -18,7 +21,6 @@
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
 #include "broker/message.hh"
-#include "broker/subscriber.hh"
 #include "broker/topic.hh"
 
 using std::cout;

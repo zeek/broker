@@ -5,12 +5,12 @@
 // checking for an expected outcome.
 #define SUITE integration
 
-#include "test.hpp"
+#include "test.hh"
 
-#include <cstddef>
-#include <cstdint>
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <initializer_list>
 #include <map>
@@ -18,11 +18,10 @@
 #include <utility>
 #include <vector>
 
-#include <caf/defaults.hpp>
-#include <caf/test/io_dsl.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/atom.hpp>
 #include <caf/behavior.hpp>
+#include <caf/defaults.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
@@ -32,6 +31,7 @@
 #include <caf/io/network/test_multiplexer.hpp>
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
+#include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
 #include <caf/variant.hpp>
 
@@ -92,8 +92,6 @@ struct global_fixture {
 
 // Holds state for individual peers. We use one fixture per simulated peer.
 struct peer_fixture {
-  bool shutting_down;
-
   // Pointer to the global state.
   global_fixture* parent;
 
@@ -129,8 +127,7 @@ struct peer_fixture {
 
   // Initializes this peer and registers it at parent.
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
-    : shutting_down(),
-      parent(parent_ptr),
+    : parent(parent_ptr),
       name(std::move(peer_name)),
       ep(make_config()),
       sys(ep.system()),
@@ -147,7 +144,6 @@ struct peer_fixture {
   }
 
   ~peer_fixture() {
-    shutting_down = true;
     CAF_SET_LOGGER_SYS(&ep.system());
     MESSAGE("shut down " << name);
     loop_after_all_enqueues();
@@ -215,12 +211,6 @@ struct peer_fixture {
 
   // Tries to advance actor messages or network data on this peer.
   bool try_exec() {
-    if ( shutting_down )
-      // TODO: starting in CAF 0.17.0, the test gets stuck in
-      // ~peer_fixture unless we bypass the multiplexer like this,
-      // don't really know why, should maybe try to find out more ...
-      return sched.try_run_once();
-
     return sched.try_run_once() || mpx.try_read_data()
            || mpx.try_exec_runnable() || mpx.try_accept_connection();
   }

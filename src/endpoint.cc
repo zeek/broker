@@ -17,13 +17,13 @@
 
 #include "broker/atoms.hh"
 #include "broker/core_actor.hh"
+#include "broker/detail/die.hh"
 #include "broker/endpoint.hh"
+#include "broker/logger.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
-
-#include "broker/detail/die.hh"
 
 namespace broker {
 
@@ -86,10 +86,10 @@ void endpoint::clock::advance_time(timestamp t) {
         // nop
       },
       [&](atom::tick) {
-        CAF_LOG_DEBUG("advance_time actor syncing timed out");
+        BROKER_DEBUG("advance_time actor syncing timed out");
       },
       [&](caf::error& e) {
-        CAF_LOG_DEBUG("advance_time actor syncing failed");
+        BROKER_DEBUG("advance_time actor syncing failed");
       }
     );
   }
@@ -122,10 +122,6 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
-  if (CAF_LOG_LEVEL == 0)
-    // Work around a bug in CAF 0.16.3 that causes empty log files to
-    // be produced even when CAF is not build with debug logging.
-    config_.set("logger.verbosity", caf::atom("quiet"));
   new (&system_) caf::actor_system(config_);
   clock_ = new clock(&system_, config_.options().use_real_time);
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())
@@ -145,23 +141,23 @@ void endpoint::shutdown() {
     return;
   destroyed_ = true;
   if (!await_stores_on_shutdown_) {
-    CAF_LOG_DEBUG("tell core actor to terminate stores");
+    BROKER_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
   }
   if (!children_.empty()) {
     caf::scoped_actor self{system_};
-    CAF_LOG_DEBUG("send exit messages to all children");
+    BROKER_DEBUG("send exit messages to all children");
     for (auto& child : children_)
       // exit_reason::kill seems more reliable than
       // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
       // possibly due to the former having more explicit logic that will
       // shut down streams.
       self->send_exit(child, caf::exit_reason::kill);
-    CAF_LOG_DEBUG("wait until all children have terminated");
+    BROKER_DEBUG("wait until all children have terminated");
     self->wait_for(children_);
     children_.clear();
   }
-  CAF_LOG_DEBUG("send shutdown message to core actor");
+  BROKER_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown::value);
   core_ = nullptr;
   system_.~actor_system();
@@ -170,7 +166,9 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
+  BROKER_INFO("listening on"
+              << (address + ":" + std::to_string(port))
+              << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   expected<uint16_t> res = caf::error{};
   if (config_.options().disable_ssl)
@@ -182,8 +180,10 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 
 bool endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
-  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port) << BROKER_ARG(retry));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
+                                      << "retry:" << to_string(retry)
+                                      << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
@@ -193,7 +193,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
       result = true;
     },
     [&](caf::error& err) {
-      CAF_LOG_DEBUG("Cannot peer to" << address << "on port"
+      BROKER_DEBUG("Cannot peer to" << address << "on port"
                     << port << ":" << err);
     }
   );
@@ -202,14 +202,17 @@ bool endpoint::peer(const std::string& address, uint16_t port,
 
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
+                                      << "retry:" << to_string(retry)
+                                      << "[asynchronous]");
   caf::anon_send(core(), atom::peer::value, network_info{address, port, retry});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("stopping to peer with" << address << ":" << port
+                                      << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::unpeer::value,
@@ -219,7 +222,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
       result = true;
     },
     [&](caf::error& err) {
-      CAF_LOG_DEBUG("Cannot unpeer from" << address << "on port"
+      BROKER_DEBUG("Cannot unpeer from" << address << "on port"
                     << port << ":" << err);
     }
   );
@@ -228,8 +231,9 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
 }
 
 void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("stopping to peer with " << address << ":" << port
+                                       << "[asynchronous]");
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 

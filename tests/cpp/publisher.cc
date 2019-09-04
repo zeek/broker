@@ -2,7 +2,10 @@
 // `publisher` instead of an event-based `driver` actor.
 
 #define SUITE publisher
-#include "test.hpp"
+
+#include "broker/publisher.hh"
+
+#include "test.hh"
 
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
@@ -22,7 +25,6 @@
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
 #include "broker/message.hh"
-#include "broker/publisher.hh"
 #include "broker/topic.hh"
 
 using std::cout;

@@ -1,11 +1,11 @@
-#include "broker/logger.hh" // Needs to come before CAF includes
+#include "broker/detail/flare_actor.hh"
 
-#include <caf/execution_unit.hpp>
-#include <caf/mailbox_element.hpp>
 #include <caf/detail/enqueue_result.hpp>
 #include <caf/detail/sync_request_bouncer.hpp>
+#include <caf/execution_unit.hpp>
+#include <caf/mailbox_element.hpp>
 
-#include "broker/detail/flare_actor.hh"
+#include "broker/logger.hh"
 
 namespace broker {
 namespace detail {
@@ -26,14 +26,14 @@ void flare_actor::act() {
 }
 
 void flare_actor::await_data() {
-  CAF_LOG_DEBUG("awaiting data");
+  BROKER_DEBUG("awaiting data");
   if (flare_count_ > 0 )
     return;
   flare_.await_one();
 }
 
 bool flare_actor::await_data(timeout_type timeout) {
-  CAF_LOG_DEBUG("awaiting data with timeout");
+  BROKER_DEBUG("awaiting data with timeout");
   if (flare_count_ > 0)
     return true;
   auto res = flare_.await_one(timeout);
@@ -45,7 +45,7 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto sender = ptr->sender;
   switch (mailbox().enqueue(ptr.release())) {
     case caf::detail::enqueue_result::unblocked_reader: {
-      CAF_LOG_DEBUG("firing flare");
+      BROKER_DEBUG("firing flare");
       flare_.fire();
       ++flare_count_;
       break;

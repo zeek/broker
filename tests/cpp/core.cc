@@ -1,14 +1,14 @@
 #define SUITE core
-#include "test.hpp"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#include "broker/core_actor.hh"
+
+#include "test.hh"
+
 #include <caf/test/io_dsl.hpp>
-#pragma GCC diagnostic pop
 
 #include "broker/configuration.hh"
-#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
+#include "broker/logger.hh"
 
 using namespace caf;
 using namespace broker;
@@ -383,20 +383,20 @@ CAF_TEST(sequenced_peering) {
   auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
   auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  CAF_MESSAGE(CAF_ARG(core1));
-  CAF_MESSAGE(CAF_ARG(core2));
-  CAF_MESSAGE(CAF_ARG(core3));
+  CAF_MESSAGE(BROKER_ARG(core1));
+  CAF_MESSAGE(BROKER_ARG(core2));
+  CAF_MESSAGE(BROKER_ARG(core3));
   anon_send(core1, atom::no_events::value);
   anon_send(core2, atom::no_events::value);
   anon_send(core3, atom::no_events::value);
   run();
   // Connect a consumer (leaf) to core2.
   auto leaf1 = sys.spawn(consumer, filter_type{"b"}, core2);
-  CAF_MESSAGE(CAF_ARG(leaf1));
+  CAF_MESSAGE(BROKER_ARG(leaf1));
   run();
   // Connect a consumer (leaf) to core3.
   auto leaf2 = sys.spawn(consumer, filter_type{"b"}, core3);
-  CAF_MESSAGE(CAF_ARG(leaf2));
+  CAF_MESSAGE(BROKER_ARG(leaf2));
   run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer::value, core2);
@@ -418,7 +418,7 @@ CAF_TEST(sequenced_peering) {
   run();
   CAF_MESSAGE("spin up driver and transmit first half of the data");
   auto d1 = sys.spawn(driver, core1, true);
-  CAF_MESSAGE(CAF_ARG(d1));
+  CAF_MESSAGE(BROKER_ARG(d1));
   run();
   // Check log of the consumer on core2.
   using buf = std::vector<element_type>;
@@ -493,13 +493,12 @@ struct error_signaling_fixture : base_fixture {
   status_subscriber es;
 
   error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
-    broker_options options;
-    options.disable_ssl = true;
     core1 = ep.core();
-    CAF_MESSAGE(CAF_ARG(core1));
+    CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
-    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-    CAF_MESSAGE(CAF_ARG(core2));
+    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"},
+                      ep.config().options(), nullptr);
+    CAF_MESSAGE(BROKER_ARG(core2));
     anon_send(core2, atom::no_events::value);
     run();
   }
@@ -641,8 +640,7 @@ CAF_TEST(unpeer_core2_from_core1) {
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(distributed_peers,
-                       point_to_point_fixture<fake_network_fixture>)
+CAF_TEST_FIXTURE_SCOPE(distributed_peers, point_to_point_fixture<base_fixture>)
 
 // Setup: driver -> earth.core -> mars.core -> leaf
 CAF_TEST(remote_peers_setup1) {
