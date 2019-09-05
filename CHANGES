@@ -1,4 +1,16 @@
 
+1.2.0-34 | 2019-09-04 19:04:06 -0700
+
+  * Fix update-changes config due to version.hh moving (Jon Siwek, Corelight)
+
+  * Fix ambiguous overload compile error in ssl test (Jon Siwek, Corelight)
+
+  * GH-51: move Broker header files into include/ subdir (Jon Siwek, Corelight)
+
+    So that project root directory doesn't need to be in search path
+    (which potentially has non-header files whose name may collide with
+    the intended header file from standard).
+
 1.2.0-31 | 2019-09-04 15:30:51 -0700
 
   * Allow subscribers to use absolute timeouts (Dominik Charousset)
