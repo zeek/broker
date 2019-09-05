@@ -46,10 +46,13 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
                  "maximum number of entries when recording published messages");
   // Override CAF default file names.
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
+  set("logger.file-verbosity", caf::atom("quiet"));
+  set("logger.console-verbosity", caf::atom("quiet"));
   // Check for supported environment variables.
   if (auto env = getenv("BROKER_DEBUG_VERBOSE")) {
     if (*env && *env != '0') {
-      set("logger.verbosity", caf::atom("DEBUG"));
+      set("logger.file-verbosity", caf::atom("DEBUG"));
+      set("logger.console-verbosity", caf::atom("DEBUG"));
       set("logger.component-filter", "");
     }
   }
@@ -57,7 +60,8 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     char level[10];
     strncpy(level, env, sizeof(level));
     level[sizeof(level) - 1] = '\0';
-    set("logger.verbosity", caf::atom(level));
+    set("logger.file-verbosity", caf::atom(level));
+    set("logger.console-verbosity", caf::atom(level));
   }
   if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER"))
     set("logger.component-filter", env);
