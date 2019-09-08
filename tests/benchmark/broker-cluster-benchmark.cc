@@ -150,6 +150,7 @@ struct config : caf::actor_system_config {
     opts.add<bool>("verbose,v", "enable verbose output");
     opts.add<bool>("verbose,v", "enable verbose output");
     set("scheduler.max-threads", 1);
+    broker::configuration::add_message_types(*this);
   }
 
   string usage() {
@@ -283,8 +284,14 @@ struct node_manager_state {
 
 using node_manager_actor = caf::stateful_actor<node_manager_state>;
 
-void generator(caf::event_based_actor* self, node* this_node, caf::actor core,
-               broker::detail::generator_file_reader_ptr ptr) {
+struct generator_state {
+  static const char* name;
+};
+
+const char* generator_state::name = "generator";
+
+void generator(caf::stateful_actor<generator_state>* self, node* this_node,
+               caf::actor core, broker::detail::generator_file_reader_ptr ptr) {
   using generator_ptr = broker::detail::generator_file_reader_ptr;
   using value_type = broker::node_message::value_type;
   if (this_node->num_outputs != caf::none) {
@@ -410,7 +417,10 @@ struct consumer_state {
   node* this_node;
   caf::event_based_actor* self;
   size_t connected_streams = 0;
+  static const char* name;
 };
+
+const char* consumer_state::name = "consumer";
 
 caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
