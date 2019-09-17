@@ -97,10 +97,9 @@ General
 Header
 ------
 
-- Header filenames end in `.h` and implementation filenames in `.cc`.
+- Header filenames end in `.hh` and implementation filenames in `.cc`.
 
-- All header files should use #define guards to prevent multiple inclusion. The
-  format of the symbol name should be `BROKER_<PATH>_<TO>_<FILE>_H`.
+- All header files should use `#pragma once` to prevent multiple inclusion.
 
 - Don't use `#include` when a forward declarations suffices. It can make sense
   to outsource forward declarations into a separate file per module. The file
@@ -119,7 +118,7 @@ Header
   ```
 
   Within each section the order should be alphabetical. Broker includes should
-  always be in doublequotes and relative to the source directory, whereas
+  always be in double quotes and relative to the source directory, whereas
   system-wide includes in angle brackets.
 
 - As in the standard library, the order of parameters when declaring a function
