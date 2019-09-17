@@ -1,5 +1,4 @@
-#ifndef BROKER_NONE_HH
-#define BROKER_NONE_HH
+#pragma once
 
 #include <functional>
 #include <string>
@@ -64,6 +63,4 @@ struct hash<broker::none> {
   }
 };
 
-}
-
-#endif // BROKER_NONE_HH
+} // namespace std

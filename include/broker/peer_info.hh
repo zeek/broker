@@ -1,5 +1,4 @@
-#ifndef BROKER_PEER_INFO_HH
-#define BROKER_PEER_INFO_HH
+#pragma once
 
 #include "broker/endpoint_info.hh"
 #include "broker/peer_flags.hh"
@@ -21,5 +20,3 @@ typename Inspector::result_type inspect(Inspector& f, peer_info& pi) {
 }
 
 } // namespace broker
-
-#endif // BROKER_PEER_INFO_HH

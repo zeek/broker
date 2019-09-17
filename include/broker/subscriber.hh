@@ -1,5 +1,4 @@
-#ifndef BROKER_SUBSCRIBER_HH
-#define BROKER_SUBSCRIBER_HH
+#pragma once
 
 #include <vector>
 
@@ -60,5 +59,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_SUBSCRIBER_HH

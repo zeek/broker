@@ -1,5 +1,4 @@
-#ifndef BROKER_DATA_HH
-#define BROKER_DATA_HH
+#pragma once
 
 #include <cstdint>
 #include <map>
@@ -328,5 +327,3 @@ struct hash<broker::table>
   : broker::detail::container_hasher<broker::table> {};
 
 } // namespace std
-
-#endif // BROKER_DATA_HH

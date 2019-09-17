@@ -1,5 +1,4 @@
-#ifndef BROKER_PORT_HH
-#define BROKER_PORT_HH
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -65,5 +64,3 @@ struct hash<broker::port> {
   size_t operator()(const broker::port&) const;
 };
 } // namespace std;
-
-#endif // BROKER_PORT_HH

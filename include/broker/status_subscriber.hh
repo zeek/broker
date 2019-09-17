@@ -1,5 +1,4 @@
-#ifndef BROKER_EVENT_SUBSCRIBER_HH
-#define BROKER_EVENT_SUBSCRIBER_HH
+#pragma once
 
 #include <vector>
 
@@ -81,5 +80,3 @@ inline const T& get(const status_variant& d) {
 }
 
 } // namespace broker
-
-#endif // BROKER_EVENT_SUBSCRIBER_HH

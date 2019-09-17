@@ -1,5 +1,4 @@
-#ifndef BROKER_FRONTEND_HH
-#define BROKER_FRONTEND_HH
+#pragma once
 
 namespace broker {
 
@@ -16,5 +15,3 @@ enum frontend {
 };
 
 } // namespace broker
-
-#endif // BROKER_FRONTEND_HH

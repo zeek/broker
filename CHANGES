@@ -1,4 +1,10 @@
 
+1.2.0-39 | 2019-09-17 10:07:15 -0700
+
+  * Update contribution guide (Dominik Charousset)
+
+  * Switch from header guards to pragma once (Dominik Charousset)
+
 1.2.0-36 | 2019-09-06 12:56:49 -0700
 
   * Ensure default logging level of "quiet" (Jon Siwek, Corelight)

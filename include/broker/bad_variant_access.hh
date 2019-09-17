@@ -1,5 +1,4 @@
-#ifndef BROKER_BAD_VARIANT_ACCESS_HH
-#define BROKER_BAD_VARIANT_ACCESS_HH
+#pragma once
 
 #include <exception>
 
@@ -15,5 +14,3 @@ public:
 };
 
 } // namespace broker
-
-#endif // BROKER_BAD_VARIANT_ACCESS_HH

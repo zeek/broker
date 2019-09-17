@@ -1,5 +1,4 @@
-#ifndef BROKER_SUBSCRIBER_BASE_HH
-#define BROKER_SUBSCRIBER_BASE_HH
+#pragma once
 
 #include <vector>
 
@@ -187,5 +186,3 @@ protected:
 };
 
 } // namespace broker
-
-#endif // BROKER_SUBSCRIBER_BASE_HH

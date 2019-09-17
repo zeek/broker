@@ -29,8 +29,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef BROKER_DETAIL_RADIX_TREE_HH
-#define BROKER_DETAIL_RADIX_TREE_HH
+#pragma once
 
 #include <cstdint>
 #include <cstdlib>
@@ -1453,5 +1452,3 @@ void serialize(caf::deserializer& source, radix_tree<T, N>& rt,
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_RADIX_TREE_HH

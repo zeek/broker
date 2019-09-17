@@ -1,5 +1,4 @@
-#ifndef BROKER_VERSION_HH
-#define BROKER_VERSION_HH
+#pragma once
 
 #include <string>
 
@@ -12,7 +11,7 @@ using type = unsigned;
 constexpr type major = 1;
 constexpr type minor = 2;
 constexpr type patch = 0;
-constexpr auto suffix = "-36";
+constexpr auto suffix = "-39";
 
 constexpr type protocol = 2;
 
@@ -29,5 +28,3 @@ std::string string();
 
 } // namespace version
 } // namespace broker
-
-#endif // BROKER_VERSION_HH

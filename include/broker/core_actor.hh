@@ -1,5 +1,4 @@
-#ifndef BROKER_CORE_ACTOR_HH
-#define BROKER_CORE_ACTOR_HH
+#pragma once
 
 #include <map>
 #include <unordered_map>
@@ -191,5 +190,3 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
                          endpoint::clock* clock);
 
 } // namespace broker
-
-#endif // BROKER_CORE_ACTOR_HH

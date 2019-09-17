@@ -1,5 +1,4 @@
-#ifndef BROKER_API_FLAGS_HH
-#define BROKER_API_FLAGS_HH
+#pragma once
 
 namespace broker {
 
@@ -25,5 +24,3 @@ constexpr bool has_api_flags(api_flags haystack, api_flags needle) {
 }
 
 } // namespace broker
-
-#endif // BROKER_API_FLAGS_HH

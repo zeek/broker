@@ -1,5 +1,4 @@
-#ifndef BROKER_PEER_STATUS_HH
-#define BROKER_PEER_STATUS_HH
+#pragma once
 
 namespace broker {
 
@@ -19,5 +18,3 @@ enum class peer_status {
 const char* to_string(peer_status);
 
 } // namespace broker
-
-#endif // BROKER_PEER_STATUS_HH

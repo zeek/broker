@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SQLITE_BACKEND_HH
-#define BROKER_DETAIL_SQLITE_BACKEND_HH
+#pragma once
 
 #include "broker/backend_options.hh"
 
@@ -54,5 +53,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SQLITE_BACKEND_HH

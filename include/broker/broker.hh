@@ -1,5 +1,4 @@
-#ifndef BROKER_BROKER_HH
-#define BROKER_BROKER_HH
+#pragma once
 
 #include "broker/address.hh"
 #include "broker/atoms.hh"
@@ -16,5 +15,3 @@
 #include "broker/subscriber.hh"
 #include "broker/time.hh"
 #include "broker/version.hh"
-
-#endif // BROKER_BROKER_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_ENDPOINT_INFO_HH
-#define BROKER_ENDPOINT_INFO_HH
+#pragma once
 
 #include <caf/node_id.hpp>
 
@@ -24,5 +23,3 @@ typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
 }
 
 } // namespace broker
-
-#endif // BROKER_ENDPOINT_INFO_HH

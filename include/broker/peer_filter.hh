@@ -1,5 +1,4 @@
-#ifndef BROKER_PEER_FILTER_HH
-#define BROKER_PEER_FILTER_HH
+#pragma once
 
 #include <utility>
 #include <vector>
@@ -24,5 +23,3 @@ struct peer_filter_matcher {
 };
 
 } // namespace broker
-
-#endif // BROKER_PEER_FILTER_HH

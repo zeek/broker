@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_ABSTRACT_BACKEND_HH
-#define BROKER_DETAIL_ABSTRACT_BACKEND_HH
+#pragma once
 
 #include "broker/data.hh"
 #include "broker/expected.hh"
@@ -107,5 +106,3 @@ public:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_ABSTRACT_BACKEND_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_NETWORK_CACHE_HPP
-#define BROKER_DETAIL_NETWORK_CACHE_HPP
+#pragma once
 
 #include <cstdint>
 #include <set>
@@ -125,5 +124,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_NETWORK_CACHE_HPP

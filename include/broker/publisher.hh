@@ -1,5 +1,4 @@
-#ifndef BROKER_PUBLISHER_HH
-#define BROKER_PUBLISHER_HH
+#pragma once
 
 #include <chrono>
 #include <cstddef>
@@ -97,5 +96,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_PUBLISHER_HH

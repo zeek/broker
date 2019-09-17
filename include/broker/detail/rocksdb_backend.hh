@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_ROCKSDB_BACKEND_HH
-#define BROKER_DETAIL_ROCKSDB_BACKEND_HH
+#pragma once
 
 #include <string>
 
@@ -66,5 +65,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_ROCKSDB_BACKEND_HH

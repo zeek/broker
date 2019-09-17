@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_MAKE_UNIQUE_HH
-#define BROKER_DETAIL_MAKE_UNIQUE_HH
+#pragma once
 
 #include <memory>
 
@@ -12,5 +11,3 @@ unique_ptr<T> make_unique(Ts&&... xs) {
 }
 
 } // namespace std
-
-#endif // BROKER_DETAIL_MAKE_UNIQUE_HH

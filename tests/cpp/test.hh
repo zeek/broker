@@ -1,5 +1,4 @@
-#ifndef TEST_HPP
-#define TEST_HPP
+#pragma once
 
 #ifdef SUITE
 #define CAF_SUITE SUITE
@@ -98,5 +97,3 @@ data_msgs(std::initializer_list<std::pair<broker::topic, broker::data>> xs) {
     result.emplace_back(x.first, x.second);
   return result;
 }
-
-#endif

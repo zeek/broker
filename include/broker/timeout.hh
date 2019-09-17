@@ -1,5 +1,4 @@
-#ifndef BROKER_TIMEOUT_HH
-#define BROKER_TIMEOUT_HH
+#pragma once
 
 #include <chrono>
 
@@ -26,5 +25,3 @@ constexpr auto infinite = caf::infinite;
 
 } // namespace timeout
 } // namespace broker
-
-#endif // BROKER_TIMEOUT_HH

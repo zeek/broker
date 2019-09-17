@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
-#define BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH
+#pragma once
 
 #include <vector>
 #include <caf/intrusive_ptr.hpp>
@@ -107,5 +106,3 @@ shared_subscriber_queue_ptr<ValueType> make_shared_subscriber_queue() {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SHARED_SUBSCRIBER_QUEUE_HH

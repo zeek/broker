@@ -1,5 +1,4 @@
-#ifndef BROKER_ATOMS_HH
-#define BROKER_ATOMS_HH
+#pragma once
 
 #include <caf/atom.hpp>
 
@@ -76,5 +75,3 @@ using snapshot = caf::atom_constant<caf::atom("snapshot")>;
 
 } // namespace atom
 } // namespace broker
-
-#endif // BROKER_ATOMS_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_EXPECTED_HH
-#define BROKER_EXPECTED_HH
+#pragma once
 
 #include <caf/expected.hpp>
 
@@ -8,5 +7,3 @@ namespace broker {
 using caf::expected;
 
 } // namespace broker
-
-#endif // BROKER_EXPECTED_HH

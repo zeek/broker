@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_CORE_POLICY_HH
-#define BROKER_DETAIL_CORE_POLICY_HH
+#pragma once
 
 #include <vector>
 #include <utility>
@@ -411,5 +410,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_CORE_POLICY_HH

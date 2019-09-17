@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SUBSCRIPTION_HH
-#define BROKER_DETAIL_SUBSCRIPTION_HH
+#pragma once
 
 #include <cstdint>
 #include <deque>
@@ -99,5 +98,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SUBSCRIPTION_HH

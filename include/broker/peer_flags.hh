@@ -1,5 +1,4 @@
-#ifndef BROKER_PEER_FLAGS_HH
-#define BROKER_PEER_FLAGS_HH
+#pragma once
 
 namespace broker {
 
@@ -43,5 +42,3 @@ constexpr bool is_inbound(peer_flags p) {
 }
 
 } // namespace broker
-
-#endif // BROKER_PEER_FLAGS_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_FILESYSTEM_HH
-#define BROKER_DETAIL_FILESYSTEM_HH
+#pragma once
 
 #include <string>
 
@@ -38,5 +37,3 @@ bool remove_all(const path& p);
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_FILESYSTEM_HH

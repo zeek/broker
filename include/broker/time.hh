@@ -1,5 +1,4 @@
-#ifndef BROKER_TIME_HH
-#define BROKER_TIME_HH
+#pragma once
 
 #include <chrono>
 #include <cstdint>
@@ -97,5 +96,3 @@ struct hash<broker::timestamp> {
 };
 
 } // namespace std
-
-#endif // BROKER_TIME_HH

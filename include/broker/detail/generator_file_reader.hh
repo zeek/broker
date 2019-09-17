@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_GENERATOR_FILE_READER_HH
-#define BROKER_DETAIL_GENERATOR_FILE_READER_HH
+#pragma once
 
 #include <memory>
 #include <cstddef>
@@ -50,5 +49,3 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname);
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_GENERATOR_FILE_READER_HH

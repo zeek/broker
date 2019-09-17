@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_FLARE_HH
-#define BROKER_DETAIL_FLARE_HH
+#pragma once
 
 #include <cstddef>
 #include <chrono>
@@ -74,5 +73,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_FLARE_HH

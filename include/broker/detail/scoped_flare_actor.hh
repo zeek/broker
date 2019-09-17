@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
-#define BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH
+#pragma once
 
 #include <caf/message.hpp>
 #include <caf/actor_system.hpp>
@@ -50,5 +49,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SCOPED_FLARE_ACTOR_HH

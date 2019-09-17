@@ -1,5 +1,4 @@
-#ifndef BROKER_ZEEK_HH
-#define BROKER_ZEEK_HH
+#pragma once
 
 #include "broker/data.hh"
 
@@ -363,5 +362,3 @@ public:
 
 } // namespace broker
 } // namespace zeek
-
-#endif // BROKER_ZEEK_HH

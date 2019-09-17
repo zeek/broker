@@ -1,5 +1,4 @@
-#ifndef BROKER_INTERNAL_COMMAND_HH
-#define BROKER_INTERNAL_COMMAND_HH
+#pragma once
 
 #include <utility>
 #include <unordered_map>
@@ -205,5 +204,3 @@ constexpr uint8_t internal_command_uint_tag() {
 }
 
 } // namespace broker
-
-#endif // BROKER_INTERNAL_COMMAND_HH
