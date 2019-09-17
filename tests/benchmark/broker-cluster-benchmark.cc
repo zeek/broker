@@ -26,9 +26,11 @@ using caf::holds_alternative;
 using std::string;
 using std::chrono::duration_cast;
 
-// -- global constants ---------------------------------------------------------
+// -- global constants and type aliases ----------------------------------------
 
 namespace {
+
+using fractional_seconds = std::chrono::duration<double>;
 
 constexpr size_t max_nodes = 500;
 
@@ -51,6 +53,12 @@ int print_impl(std::ostream& ostr, const char* x) {
 
 int print_impl(std::ostream& ostr, const string& x) {
   ostr << x;
+  return 0;
+}
+
+int print_impl(std::ostream& ostr, const fractional_seconds& x) {
+  ostr << x.count();
+  ostr << "s";
   return 0;
 }
 
@@ -161,8 +169,6 @@ struct config : caf::actor_system_config {
 } // namespace
 
 // -- data structures for the cluster setup ------------------------------------
-
-using fractional_seconds = std::chrono::duration<double>;
 
 /// A node in the Broker publish/subscribe layer.
 struct node {
@@ -280,6 +286,10 @@ struct node_manager_state {
   node* this_node = nullptr;
   broker::endpoint ep;
   broker::detail::generator_file_reader_ptr generator;
+
+  node_manager_state() : ep(broker::configuration{0, nullptr}) {
+    // nop
+  }
 };
 
 using node_manager_actor = caf::stateful_actor<node_manager_state>;
@@ -392,11 +402,13 @@ struct consumer_state {
   void handle_messages(size_t n) {
     // Make some noise every 1k messages.
     if (received / 1000 != (received + n) / 1000)
-      verbose::println(this_node->name, " got ", received, " messages");
+      verbose::println(this_node->name, " got ", received + n, " messages");
     received += n;
     // Stop when receiving the node's limit.
-    if (received == this_node->num_inputs)
+    if (received == this_node->num_inputs) {
+      verbose::println(this_node->name, " reached its limit: quit");
       self->quit();
+    }
   }
 
   template <class T>
@@ -410,7 +422,12 @@ struct consumer_state {
       [](caf::unit_t&) {
         // nop
       },
-      [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); });
+      [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
+      [=](caf::unit_t&, const caf::error& err) {
+        auto& types = self->system().types();
+        verbose::println("done receiving ",
+                         types.portable_name(caf::make_rtti_pair<T>()));
+      });
   }
 
   size_t received = 0;
@@ -428,13 +445,14 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   self->send(self * core, broker::atom::join::value, topics(*this_node));
   self->send(self * core, broker::atom::join::value, broker::atom::store::value,
              topics(*this_node));
-  return caf::behavior(
+  return {
     [=](caf::stream<broker::data_message> in) {
       self->state.attach_sink(in, observer);
     },
     [=](caf::stream<broker::command_message> in) {
       self->state.attach_sink(in, observer);
-    });
+    },
+  };
 }
 
 void run_receive_mode(node_manager_actor* self, caf::actor observer) {
@@ -451,7 +469,7 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   self->state.this_node = this_node;
   self->state.ep.forward(topics(*this_node));
-  return caf::behavior(
+  return {
     [=](broker::atom::init) -> caf::result<caf::atom_value> {
       // Open up the ports and start peering.
       auto& st = self->state;
@@ -493,7 +511,8 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       self->state.ep.shutdown();
       verbose::println(this_node->name, " down");
       return broker::atom::ok::value;
-    });
+    },
+  };
 }
 
 void launch(caf::actor_system& sys, node& x) {
