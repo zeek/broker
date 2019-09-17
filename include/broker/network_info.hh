@@ -1,5 +1,4 @@
-#ifndef BROKER_NETWORK_INFO_HH
-#define BROKER_NETWORK_INFO_HH
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -51,5 +50,3 @@ struct hash<broker::network_info> {
 };
 
 } // namespace std
-
-#endif // BROKER_NETWORK_INFO_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_TYPE_TRAITS_HH
-#define BROKER_DETAIL_TYPE_TRAITS_HH
+#pragma once
 
 #include <cstddef>
 
@@ -167,5 +166,3 @@ void verify_status_callback() {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_TYPE_TRAITS_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_HASH_HH
-#define BROKER_DETAIL_HASH_HH
+#pragma once
 
 #include <functional>
 
@@ -45,5 +44,3 @@ struct container_hasher {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_HASH_HH

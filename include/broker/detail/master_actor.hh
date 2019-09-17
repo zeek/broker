@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_MASTER_ACTOR_HH
-#define BROKER_DETAIL_MASTER_ACTOR_HH
+#pragma once
 
 #include <unordered_set>
 
@@ -95,5 +94,3 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_MASTER_ACTOR_HH

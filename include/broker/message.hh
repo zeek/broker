@@ -1,5 +1,4 @@
-#ifndef BROKER_MESSAGE_HH
-#define BROKER_MESSAGE_HH
+#pragma once
 
 #include <cstdint>
 
@@ -159,5 +158,3 @@ inline internal_command::variant_type&& move_command(command_message& x) {
 }
 
 } // namespace broker
-
-#endif // BROKER_MESSAGE_HH

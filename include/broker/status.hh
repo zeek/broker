@@ -1,5 +1,4 @@
-#ifndef BROKER_STATUS_HH
-#define BROKER_STATUS_HH
+#pragma once
 
 // ATTENTION
 // ---------
@@ -117,5 +116,3 @@ status make_status(Ts&&... xs) {
 }
 
 } // namespace broker
-
-#endif // BROKER_STATUS_HH

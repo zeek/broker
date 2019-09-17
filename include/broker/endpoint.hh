@@ -1,5 +1,4 @@
-#ifndef BROKER_ENDPOINT_HH
-#define BROKER_ENDPOINT_HH
+#pragma once
 
 #include <cstdint>
 #include <functional>
@@ -403,5 +402,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_ENDPOINT_HH

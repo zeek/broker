@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_META_COMMAND_WRITER_HH
-#define BROKER_DETAIL_META_COMMAND_WRITER_HH
+#pragma once
 
 #include <cstdint>
 
@@ -46,5 +45,3 @@ private:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_META_COMMAND_WRITER_HH

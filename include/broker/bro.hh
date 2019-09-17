@@ -1,5 +1,4 @@
-#ifndef BROKER_BRO_HH
-#define BROKER_BRO_HH
+#pragma once
 
 #pragma message("Warning: bro.hh header is deprecated, use zeek.hh instead")
 
@@ -40,5 +39,3 @@ using IdentifierUpdate
 
 } // namespace broker
 } // namespace bro
-
-#endif // BROKER_BRO_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_SNAPSHOT_HH
-#define BROKER_SNAPSHOT_HH
+#pragma once
 
 #include <unordered_map>
 
@@ -11,5 +10,3 @@ namespace broker {
 using snapshot = std::unordered_map<data, data>;
 
 } // namespace broker
-
-#endif // BROKER_SNAPSHOT_HH

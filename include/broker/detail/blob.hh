@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_BLOB_HH
-#define BROKER_DETAIL_BLOB_HH
+#pragma once
 
 #include <string>
 #include <vector>
@@ -36,5 +35,3 @@ T from_blob(const std::string& str) {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_BLOB_HH

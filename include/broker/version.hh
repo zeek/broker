@@ -1,5 +1,4 @@
-#ifndef BROKER_VERSION_HH
-#define BROKER_VERSION_HH
+#pragma once
 
 #include <string>
 
@@ -29,5 +28,3 @@ std::string string();
 
 } // namespace version
 } // namespace broker
-
-#endif // BROKER_VERSION_HH

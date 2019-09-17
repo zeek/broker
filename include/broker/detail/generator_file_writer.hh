@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_GENERATOR_FILE_WRITER_HH
-#define BROKER_DETAIL_GENERATOR_FILE_WRITER_HH
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -89,5 +88,3 @@ generator_file_writer& operator<<(generator_file_writer& out,
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_GENERATOR_FILE_WRITER_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_FWD_HH
-#define BROKER_FWD_HH
+#pragma once
 
 #include <cstdint>
 
@@ -74,5 +73,3 @@ class mailbox;
 } // namespace detail
 
 } // namespace broker
-
-#endif // BROKER_FWD_HH

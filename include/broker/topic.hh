@@ -1,5 +1,4 @@
-#ifndef BROKER_TOPIC_HH
-#define BROKER_TOPIC_HH
+#pragma once
 
 #include <cstddef>
 #include <string>
@@ -106,5 +105,3 @@ struct hash<broker::topic> {
 };
 
 } // namespace std
-
-#endif // BROKER_TOPIC_HH

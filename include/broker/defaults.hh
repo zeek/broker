@@ -1,5 +1,4 @@
-#ifndef BROKER_DEFAULTS_HH
-#define BROKER_DEFAULTS_HH
+#pragma once
 
 #include "caf/string_view.hpp"
 
@@ -14,5 +13,3 @@ extern const size_t output_generator_file_cap;
 
 } // namespace defaults
 } // namespace broker
-
-#endif // BROKER_DEFAULTS_HH

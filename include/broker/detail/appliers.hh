@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_APPLIERS_HH
-#define BROKER_DETAIL_APPLIERS_HH
+#pragma once
 
 #include "broker/data.hh"
 #include "broker/error.hh"
@@ -162,5 +161,3 @@ struct retriever {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_APPLIERS_HH

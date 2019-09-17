@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_MASTER_RESOLVER_HH
-#define BROKER_DETAIL_MASTER_RESOLVER_HH
+#pragma once
 
 #include <vector>
 
@@ -23,5 +22,3 @@ caf::behavior master_resolver(master_resolver_actor* self);
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_MASTER_RESOLVER_HH

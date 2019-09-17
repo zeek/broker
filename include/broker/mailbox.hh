@@ -1,5 +1,4 @@
-#ifndef BROKER_MAILBOX_HH
-#define BROKER_MAILBOX_HH
+#pragma once
 
 #include <cstddef>
 
@@ -39,5 +38,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_MAILBOX_HH

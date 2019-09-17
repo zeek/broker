@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SHARED_QUEUE_HH
-#define BROKER_DETAIL_SHARED_QUEUE_HH
+#pragma once
 
 #include <atomic>
 #include <deque>
@@ -99,5 +98,3 @@ protected:
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SHARED_QUEUE_HH

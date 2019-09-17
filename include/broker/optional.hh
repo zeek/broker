@@ -1,5 +1,4 @@
-#ifndef BROKER_OPTIONAL_HH
-#define BROKER_OPTIONAL_HH
+#pragma once
 
 #include <caf/optional.hpp>
 
@@ -26,5 +25,3 @@ struct hash<broker::optional<T>> {
 };
 
 } // namespace std
-
-#endif // BROKER_OPTIONAL_HH

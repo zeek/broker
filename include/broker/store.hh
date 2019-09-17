@@ -1,5 +1,4 @@
-#ifndef BROKER_STORE_HH
-#define BROKER_STORE_HH
+#pragma once
 
 #include <string>
 #include <vector>
@@ -284,5 +283,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_STORE_HH

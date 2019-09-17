@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_SHARED_PUBLISHER_QUEUE_HH
-#define BROKER_DETAIL_SHARED_PUBLISHER_QUEUE_HH
+#pragma once
 
 #include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
@@ -137,5 +136,3 @@ make_shared_publisher_queue(size_t buffer_size) {
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_SHARED_PUBLISHER_QUEUE_HH

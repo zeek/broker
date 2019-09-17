@@ -1,5 +1,4 @@
-#ifndef BROKER_LOGGER_HH
-#define BROKER_LOGGER_HH
+#pragma once
 
 #include <caf/logger.hpp>
 
@@ -23,5 +22,3 @@
 #define BROKER_ARG2 CAF_ARG2
 
 #define BROKER_ARG3 CAF_ARG3
-
-#endif // BROKER_LOGGER_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_CONFIGURATION_HH
-#define BROKER_CONFIGURATION_HH
+#pragma once
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
@@ -48,5 +47,3 @@ private:
 };
 
 } // namespace broker
-
-#endif // BROKER_CONFIGURATION_HH

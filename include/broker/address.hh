@@ -1,5 +1,4 @@
-#ifndef BROKER_ADDRESS_HH
-#define BROKER_ADDRESS_HH
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -93,5 +92,3 @@ struct hash<broker::address> {
 };
 
 } // namespace std;
-
-#endif // BROKER_ADDRESS_HH

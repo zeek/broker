@@ -1,5 +1,4 @@
-#ifndef BROKER_ERROR_HH
-#define BROKER_ERROR_HH
+#pragma once
 
 // ATTENTION
 // ---------
@@ -112,5 +111,3 @@ error make_error(ec x, Ts&&... xs) {
 #define BROKER_TRY(...) CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
 
 } // namespace broker
-
-#endif // BROKER_ERROR_HH

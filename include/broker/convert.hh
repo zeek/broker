@@ -1,5 +1,4 @@
-#ifndef BROKER_CONVERT_HH
-#define BROKER_CONVERT_HH
+#pragma once
 
 #include <chrono>
 #include <ostream>
@@ -106,5 +105,3 @@ auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
 }
 
 } // namespace broker
-
-#endif // BROKER_CONVERT_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_SUBNET_HH
-#define BROKER_SUBNET_HH
+#pragma once
 
 #include "broker/address.hh"
 
@@ -55,5 +54,3 @@ struct hash<broker::subnet> {
   size_t operator()(const broker::subnet&) const;
 };
 } // namespace std;
-
-#endif // BROKER_SUBNET_HH

@@ -1,5 +1,4 @@
-#ifndef BROKER_ENUM_VALUE_HH
-#define BROKER_ENUM_VALUE_HH
+#pragma once
 
 #include <functional>
 #include <ostream>
@@ -57,5 +56,3 @@ struct hash<broker::enum_value> {
 };
 
 } // namespace std;
-
-#endif // BROKER_ENUM_VALUE_HH

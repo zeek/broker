@@ -1,5 +1,4 @@
-#ifndef BROKER_DETAIL_CLONE_ACTOR_HH
-#define BROKER_DETAIL_CLONE_ACTOR_HH
+#pragma once
 
 #include <unordered_map>
 #include <vector>
@@ -101,5 +100,3 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
 } // namespace detail
 } // namespace broker
-
-#endif // BROKER_DETAIL_CLONE_ACTOR_HH
