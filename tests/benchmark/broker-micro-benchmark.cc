@@ -231,7 +231,7 @@ public:
   template <class T>
   typename std::enable_if<
     caf::detail::is_inspectable<noexcept_serializer, T>::value
-      && !caf::detail::has_serialize<T>::value,
+      && !caf::detail::has_serialize<T>::value && !std::is_empty<T>::value,
     decltype(inspect(std::declval<noexcept_serializer&>(),
                      std::declval<T&>()))>::type
   apply(T& x) {
@@ -605,7 +605,7 @@ public:
   template <class T>
   typename std::enable_if<
     caf::detail::is_inspectable<noexcept_sec_serializer, T>::value
-      && !caf::detail::has_serialize<T>::value,
+      && !caf::detail::has_serialize<T>::value && !std::is_empty<T>::value,
     decltype(inspect(std::declval<noexcept_sec_serializer&>(),
                      std::declval<T&>()))>::type
   apply(T& x) {
@@ -938,7 +938,7 @@ public:
   template <class T>
   typename std::enable_if<
     caf::detail::is_inspectable<custom_serializer, T>::value
-      && !caf::detail::has_serialize<T>::value,
+      && !caf::detail::has_serialize<T>::value && !std::is_empty<T>::value,
     decltype(inspect(std::declval<custom_serializer&>(),
                      std::declval<T&>()))>::type
   apply(T& x) {
