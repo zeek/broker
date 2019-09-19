@@ -1,4 +1,8 @@
 
+1.2.0-40 | 2019-09-19 16:38:30 -0700
+
+  * Update header include guard in broker/config.hh (Jon Siwek, Corelight)
+
 1.2.0-39 | 2019-09-17 10:07:15 -0700
 
   * Update contribution guide (Dominik Charousset)
