@@ -100,8 +100,5 @@ endif ()
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
 
-add_executable(broker-stream-benchmark benchmark/broker-stream-benchmark.cc)
-target_link_libraries(broker-stream-benchmark ${libbroker})
-
 add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
 target_link_libraries(broker-cluster-benchmark ${libbroker})
