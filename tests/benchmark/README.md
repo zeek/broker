@@ -107,6 +107,9 @@ configured topology is safe to deploy:
 - A node cannot send and receive at the same time.
 - Each node must set the mandatory fields `id` and `topics`.
 
+Broker's source distribution includes a working setup to get started at
+`tests/benchmark/cluster-example.zip`.
+
 ### Inspecting Generator Files
 
 If you're unsure which topics appear in a generator file or how many messages
