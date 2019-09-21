@@ -1,4 +1,12 @@
 
+1.2.2 | 2019-09-21 12:17:44 -0700
+
+  * Release 1.2.2.
+
+  * Change 3rdparty submodule to match Zeek's (Jon Siwek, Corelight)
+
+    No functional change
+
 1.2.1 | 2019-09-21 11:00:37 -0700
 
   * Release 1.2.1.
