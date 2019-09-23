@@ -1,4 +1,10 @@
 
+1.2.3 | 2019-09-23 09:58:08 -0700
+
+  * Release 1.2.3.
+
+  * Update embedded CAF to 2nd 0.16.4, fixes a compiler warning (Jon Siwek, Corelight)
+
 1.2.2 | 2019-09-21 12:17:44 -0700
 
   * Release 1.2.2.
