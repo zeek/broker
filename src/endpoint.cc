@@ -40,6 +40,8 @@ endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(sys_->config(), "broker.recording-directory",
                          defaults::recording_directory);
+  if (detail::is_directory(meta_dir))
+    detail::remove_all(meta_dir);
   if (!detail::mkdirs(meta_dir))
     std::cerr << "WARNING: unable to create \"" << meta_dir
               << "\" for recording meta data\n";

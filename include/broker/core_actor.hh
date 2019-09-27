@@ -191,6 +191,9 @@ struct core_state {
 
   /// Handle for recording all subscribed topics (if enabled).
   std::ofstream topics_file;
+
+  /// Handle for recording all peers (if enabled).
+  std::ofstream peers_file;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

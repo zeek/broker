@@ -58,6 +58,8 @@ result<void> init_peering(caf::stateful_actor<core_state>* self,
     rp.deliver(caf::unit);
     return rp;
   }
+  if (st.peers_file)
+    st.peers_file << to_string(remote_core.node()) << std::endl;
   // Create necessary state and send message to remote core.
   st.pending_peers.emplace(remote_core,
                            core_state::pending_peer_state{0, rp});
@@ -134,6 +136,11 @@ void core_state::init(filter_type initial_filter, broker_options opts,
     } else {
       BROKER_WARNING("cannot open recording file" << file_name);
     }
+    peers_file.open(meta_dir + "/peers.txt");
+    if (!peers_file.is_open())
+      BROKER_WARNING("cannot open recording file" << file_name);
+    std::ofstream id_file{meta_dir + "/id.txt"};
+    id_file << to_string(self->node()) << '\n';
   }
 }
 
