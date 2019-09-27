@@ -4,8 +4,6 @@
 #include <string>
 #include <thread>
 
-#include <unistd.h>
-
 #include "caf/actor_system.hpp"
 #include "caf/actor_system_config.hpp"
 #include "caf/event_based_actor.hpp"
@@ -145,12 +143,11 @@ void println(Ts&&... xs) {
 
 namespace {
 
-bool exists(const char* filename) {
-  return access(filename, F_OK) != -1;
-}
-
-bool exists(const string& filename) {
-  return exists(filename.c_str());
+std::string trim(std::string x){
+  auto predicate = [](int ch) { return !std::isspace(ch); };
+  x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
+  x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
+  return x;
 }
 
 } // namespace
@@ -176,6 +173,11 @@ struct config : caf::actor_system_config {
     return custom_options_.help_text(true);
   }
 };
+
+using broker::detail::is_directory;
+using broker::detail::is_file;
+using broker::detail::read;
+using broker::detail::readlines;
 
 } // namespace
 
@@ -287,7 +289,7 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(generator_file, optional);
   SET_FIELD(num_inputs, optional);
   SET_FIELD(num_outputs, optional);
-  if (!result.generator_file.empty() && !exists(result.generator_file))
+  if (!result.generator_file.empty() && !is_file(result.generator_file))
     return make_error(caf::sec::invalid_argument, result.name,
                       "generator file does not exist", result.generator_file);
   return result;
@@ -532,9 +534,78 @@ void launch(caf::actor_system& sys, node& x) {
 
 // -- utility functions --------------------------------------------------------
 
+node* node_by_name(std::vector<node>& nodes, const string& name) {
+  auto predicate = [&](const node& x) { return x.name == name; };
+  auto i = std::find_if(nodes.begin(), nodes.end(), predicate);
+  if (i == nodes.end())
+    return nullptr;
+  return &(*i);
+}
+
+bool build_node_tree(std::vector<node>& nodes) {
+  for (auto& x : nodes) {
+    for (auto& peer_name : x.peers) {
+      auto peer = node_by_name(nodes, peer_name);
+      if (peer == nullptr) {
+        err::println(x.name, " cannot peer to unknown node ", peer_name);
+        return false;
+      }
+      if (&x == peer) {
+        err::println(x.name, " cannot peer with itself");
+        return false;
+      }
+      x.right.emplace_back(peer);
+      peer->left.emplace_back(&x);
+    }
+  }
+  // Sanity check: each node must be part of the multi-root tree.
+  for (auto& x : nodes) {
+    if (x.left.empty() && x.right.empty()) {
+      err::println(x.name, " has no peers");
+      return false;
+    }
+  }
+  // Sanity check: there must be no loop.
+  auto max_depth = nodes.size() - 1;
+  for (auto& x : nodes) {
+    if (max_left_depth(x) > max_depth || max_right_depth(x) > max_depth) {
+      err::println("starting at node '", x.name, "' results in a loop");
+      return false;
+    }
+  }
+  return true;
+}
+
+bool verify_node_tree(std::vector<node>& nodes) {
+  // Sanity check: there must at least one receiver.
+  if (std::none_of(nodes.begin(), nodes.end(), is_receiver)) {
+    err::println("no node expects to receive any data");
+    return false;
+  }
+  // Sanity check: there must at least one sender.
+  if (std::none_of(nodes.begin(), nodes.end(), is_sender)) {
+    err::println("no node has a generator file for publishing data");
+    return false;
+  }
+  // Sanity check: nodes can't play sender and receiver at the same time (yet).
+  { // Lifetime scope of i.
+    auto i = std::find_if(nodes.begin(), nodes.end(), is_sender_and_receiver);
+    if (i != nodes.end()) {
+      err::println(i->name,
+                   " is configured to send at receive at the same time");
+      return false;
+    }
+  }
+  return true;
+}
+
 int generate_config(std::vector<std::string> directories) {
-  using broker::detail::is_directory;
-  using broker::detail::is_file;
+  constexpr const char* required_files[] = {
+    "/id.txt",
+    "/messages.dat",
+    "/peers.txt",
+    "/topics.txt",
+  };
   // Remove trailing slashes to make working with the directories easier.
   for (auto& directory : directories) {
     while (caf::ends_with(directory, "/"))
@@ -545,44 +616,107 @@ int generate_config(std::vector<std::string> directories) {
     }
   }
   // Use the directory name as node name and read directory contents.
-  std::map<std::string, node> nodes;
+  std::map<std::string, std::string> node_to_handle;
+  std::map<std::string, std::string> handle_to_node;
+  std::vector<node> nodes;
   for (const auto& directory : directories) {
-    std::string node_name;
+    // Sanity check.
+    for (auto fname : required_files) {
+      auto fpath = directory + fname;
+      if (!is_file(fpath)) {
+        err::println("missing file: ", fpath);
+        return EXIT_FAILURE;
+      }
+    }
+    // Extract the node name and check uniqueness.
+    std::string name;
     auto sep = directory.find_last_of('/');
     if (sep != std::string::npos)
-      node_name = directory.substr(sep + 1);
+      name = directory.substr(sep + 1);
     else
-      node_name = directory;
-    if (nodes.count(node_name) > 0) {
-      err::println("node name \"", node_name, "\" appears twice");
+      name = directory;
+    if (node_by_name(nodes, name) != nullptr) {
+      err::println("node name \"", name, "\" appears twice");
       return EXIT_FAILURE;
     }
-    auto& node = nodes.emplace(node_name, ::node{}).first->second;
-    auto generator_file = directory + "/messages.dat";
-    if (is_file(generator_file))
-      node.generator_file = std::move(generator_file);
+    nodes.emplace_back();
+    auto& node = nodes.back();
+    node.name = name;
+    // Get the node_id for this node and make sure its unique.
+    auto handle = trim(read(directory + "/id.txt"));
+    if (handle.empty()) {
+      err::println("empty file: ", directory + "/id.txt");
+      return EXIT_FAILURE;
+    }
+    auto predicate = [&](const std::pair<const std::string, std::string>& x) {
+      return x.second == handle;
+    };
+    if (handle_to_node.count(handle) != 0) {
+      err::println("node ID: ", handle, " appears twice");
+      return EXIT_FAILURE;
+    }
+    node_to_handle.emplace(name, handle);
+    handle_to_node.emplace(handle, name);
+    // Set various node fields.
+    node.generator_file = directory + "/messages.dat";
+    node.peers = readlines(directory + "/peers.txt", false);
     // Read and de-duplicate topics.
-    std::string topic;
-    std::ifstream topics_file{directory + "/topics.txt"};
-    while (std::getline(topics_file, topic))
-      if (!topic.empty())
-        node.topics.emplace_back(topic);
+    node.topics = readlines(directory + "/topics.txt", false);
     std::sort(node.topics.begin(), node.topics.end());
     auto e = std::unique(node.topics.begin(), node.topics.end());
     if (e != node.topics.end())
       node.topics.erase(e, node.topics.end());
   }
-  // Print generated config and return.
-  out::println("nodes {");
-  for (const auto& kvp : nodes) {
-    auto& node = kvp.second;
-    out::println("  ", kvp.first, " {");
-    if (!node.topics.empty()) {
-      out::println("    topics = [");
-      for (const auto& topic : node.topics)
-        out::println("      ", quoted{topic}, ",");
-      out::println("    ]");
+  // We are done with our first pass. Now, we resolve all the peer handles.
+  for (auto& node : nodes) {
+    for (auto& peer : node.peers) {
+      if (handle_to_node.count(peer) == 0) {
+        err::println("missing data: cannot resolve peer ID ", peer);
+        return EXIT_FAILURE;
+      }
+      auto peer_name = handle_to_node[peer];
+      if (peer_name == node.name) {
+        err::println("corrupted data: ", peer, " cannot peer with itself");
+        return EXIT_FAILURE;
+      }
+      peer = peer_name;
     }
+  }
+  // Check whether our nodes connect to a valid tree.
+  if (!build_node_tree(nodes))
+    return EXIT_FAILURE;
+  // Finally, we need to assign IDs. We simply use localhost with increasing
+  // port number for any node with incoming connections.
+  uint16_t port = 8000;
+  for (auto& node : nodes) {
+    std::string uri_str;
+    if (node.left.empty()) {
+      uri_str += "local:";
+      uri_str += node.name;
+    } else {
+      uri_str += "tcp://[::1]:";
+      uri_str += std::to_string(port++);
+    }
+    if (auto err = caf::parse(uri_str, node.id)) {
+      err::println("generated invalid URI ID: \"", uri_str, "\"");
+      return EXIT_FAILURE;
+    }
+  }
+  // Print generated config and return.
+  auto print_field = [&](const char* name, const std::vector<std::string>& xs) {
+    if (xs.empty())
+      return;
+    out::println("    ", name, " = [");
+    for (const auto& x : xs)
+      out::println("      ", quoted{x}, ",");
+    out::println("    ]");
+  };
+  out::println("nodes {");
+  for (const auto& node : nodes) {
+    out::println("  ", node.name, " {");
+    out::println("    id = <", node.id, ">");
+    print_field("topics", node.topics);
+    print_field("peers", node.peers);
     if (!node.generator_file.empty())
       out::println("    generator-file = ", quoted{node.generator_file});
     out::println("  }");
@@ -703,60 +837,8 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   // Build the node tree.
-  auto node_by_name = [&](const string& name) -> node* {
-    auto predicate = [&](const node& x) { return x.name == name; };
-    auto i = std::find_if(nodes.begin(), nodes.end(), predicate);
-    if (i == nodes.end()) {
-      err::println("invalid node name: ", name);
-      exit(EXIT_FAILURE);
-    }
-    return &(*i);
-  };
-  for (auto& x : nodes) {
-    for (auto& peer_name : x.peers) {
-      auto peer = node_by_name(peer_name);
-      if (&x == peer) {
-        err::println(x.name, " cannot peer with itself");
-        return EXIT_FAILURE;
-      }
-      x.right.emplace_back(peer);
-      peer->left.emplace_back(&x);
-    }
-  }
-  // Sanity check: each node must be part of the multi-root tree.
-  for (auto& x : nodes) {
-    if (x.left.empty() && x.right.empty()) {
-      err::println(x.name, " has no peers");
-      return EXIT_FAILURE;
-    }
-  }
-  // Sanity check: there must be no loop.
-  auto max_depth = nodes.size() - 1;
-  for (auto& x : nodes) {
-    if (max_left_depth(x) > max_depth || max_right_depth(x) > max_depth) {
-      err::println("starting at node '", x.name, "' results in a loop");
-      return EXIT_FAILURE;
-    }
-  }
-  // Sanity check: there must at least one receiver.
-  if (std::none_of(nodes.begin(), nodes.end(), is_receiver)) {
-    err::println("no node expects to receive any data");
+  if (!build_node_tree(nodes) || !verify_node_tree(nodes))
     return EXIT_FAILURE;
-  }
-  // Sanity check: there must at least one sender.
-  if (std::none_of(nodes.begin(), nodes.end(), is_sender)) {
-    err::println("no node has a generator file for publishing data");
-    return EXIT_FAILURE;
-  }
-  // Sanity check: nodes can't play sender and receiver at the same time (yet).
-  { // Lifetime scope of i.
-    auto i = std::find_if(nodes.begin(), nodes.end(), is_sender_and_receiver);
-    if (i != nodes.end()) {
-      err::println(i->name,
-                   " is configured to send at receive at the same time");
-      return EXIT_FAILURE;
-    }
-  }
   // Print the node setup in verbose mode.
   if (verbose::enabled()) {
     verbose::println("Peering tree (multiple roots are allowed):");

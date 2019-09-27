@@ -2,6 +2,7 @@
 #define BROKER_DETAIL_FILESYSTEM_HH
 
 #include <string>
+#include <vector>
 
 namespace broker {
 namespace detail {
@@ -47,6 +48,17 @@ bool remove(const path& p);
 /// @param p The path to remove.
 /// @returns `true` iff *p* was deleted successfully.
 bool remove_all(const path& p);
+
+/// Reads an entire file and returns its contents as list of lines.
+/// @param p The path to read.
+/// @param keep_empties Configures whether to drop empty lines.
+/// @returns a `std::vector` containing one string for each line in the file.
+std::vector<std::string> readlines(const path& p, bool keep_empties = true);
+
+/// Reads an entire file and returns its contents as string.
+/// @param p The path to read.
+/// @returns a string containing the content of the file.
+std::string read(const path& p);
 
 } // namespace detail
 } // namespace broker
