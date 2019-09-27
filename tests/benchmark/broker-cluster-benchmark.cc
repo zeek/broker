@@ -607,6 +607,7 @@ int generate_config(std::vector<std::string> directories) {
     "/topics.txt",
   };
   // Remove trailing slashes to make working with the directories easier.
+  verbose::println("scan ", directories.size(), " directories");
   for (auto& directory : directories) {
     while (caf::ends_with(directory, "/"))
       directory.pop_back();
@@ -616,6 +617,7 @@ int generate_config(std::vector<std::string> directories) {
     }
   }
   // Use the directory name as node name and read directory contents.
+  verbose::println("read recorded files and build node tree");
   std::map<std::string, std::string> node_to_handle;
   std::map<std::string, std::string> handle_to_node;
   std::vector<node> nodes;
@@ -685,8 +687,68 @@ int generate_config(std::vector<std::string> directories) {
   // Check whether our nodes connect to a valid tree.
   if (!build_node_tree(nodes))
     return EXIT_FAILURE;
+  // Compute for each node how many messages it produces per topic.
+  verbose::println("read generator files and compute outputs per node",
+                   " (may take a while)");
+  using output_map = std::map<std::string, size_t>;
+  std::map<std::string, output_map> outputs;
+  for (const auto& node : nodes) {
+    auto gptr = broker::detail::make_generator_file_reader(node.generator_file);
+    if (gptr == nullptr) {
+      err::println("unable to open generator file: ", node.generator_file);
+      return EXIT_FAILURE;
+    }
+    auto& out = outputs[node.name];
+    broker::detail::generator_file_reader::value_type value;
+    while (!gptr->at_end()) {
+      if (auto err = gptr->read(value)) {
+        err::println("error while reading generator file ", node.generator_file,
+                     ": ", to_string(err));
+        return EXIT_FAILURE;
+      }
+      out[get_topic(value).string()] += 1;
+    }
+  }
+  // Now we compute the inputs at each node.
+  using filter = std::vector<std::string>;
+  auto concat_filters = [](const filter& x, const filter& y) {
+    filter result;
+    std::set_intersection(x.begin(), x.end(), y.begin(), y.end(),
+                          std::back_inserter(result));
+    return result;
+  };
+  auto step = [](node& n, const output_map& out, const filter& f) {
+    for (const auto& topic : f) {
+      auto i = out.find(topic);
+      if (i != out.end())
+        n.num_inputs += i->second;
+    }
+  };
+  using walk_fun = std::function<std::vector<node*>(const node&)>;
+  walk_fun walk_left = [](const node& n) { return n.left; };
+  walk_fun walk_right = [](const node& n) { return n.right; };
+  using traverse_t = void(node&, const output_map&, const filter&, walk_fun);
+  std::function<traverse_t> traverse;
+  traverse
+    = [&](node& n, const output_map& out, const filter& f, walk_fun walk) {
+        step(n, out, f);
+        for (auto peer : walk(n)) {
+          auto f_peer = concat_filters(f, peer->topics);
+          if (!f_peer.empty())
+            traverse(*peer, out, f, walk);
+        }
+      };
+  for (auto& node : nodes) {
+    const auto& out = outputs[node.name];
+    for (auto peer : node.left)
+      traverse(*peer, out, peer->topics, walk_left);
+    for (auto peer : node.right)
+      traverse(*peer, out, peer->topics, walk_right);
+  }
+  verbose::println("compute inputs per node");
   // Finally, we need to assign IDs. We simply use localhost with increasing
   // port number for any node with incoming connections.
+  verbose::println("generate IDs for all nodes");
   uint16_t port = 8000;
   for (auto& node : nodes) {
     std::string uri_str;
@@ -703,6 +765,7 @@ int generate_config(std::vector<std::string> directories) {
     }
   }
   // Print generated config and return.
+  verbose::println("done 🎉");
   auto print_field = [&](const char* name, const std::vector<std::string>& xs) {
     if (xs.empty())
       return;
@@ -715,6 +778,7 @@ int generate_config(std::vector<std::string> directories) {
   for (const auto& node : nodes) {
     out::println("  ", node.name, " {");
     out::println("    id = <", node.id, ">");
+    out::println("    num-inputs = ", node.num_inputs);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
     if (!node.generator_file.empty())
