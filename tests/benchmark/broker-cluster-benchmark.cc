@@ -15,6 +15,7 @@
 #include "caf/term.hpp"
 
 #include "broker/atoms.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
 #include "broker/endpoint.hh"
 #include "broker/subscriber.hh"
@@ -33,6 +34,10 @@ namespace {
 using fractional_seconds = std::chrono::duration<double>;
 
 constexpr size_t max_nodes = 500;
+
+struct quoted {
+  caf::string_view str;
+};
 
 } // namespace
 
@@ -53,6 +58,11 @@ int print_impl(std::ostream& ostr, const char* x) {
 
 int print_impl(std::ostream& ostr, const string& x) {
   ostr << x;
+  return 0;
+}
+
+int print_impl(std::ostream& ostr, const quoted& x) {
+  ostr << '"' << x.str << '"';
   return 0;
 }
 
@@ -151,12 +161,13 @@ namespace {
 
 struct config : caf::actor_system_config {
   config() {
-    opt_group opts{custom_options_, "global"};
-    opts.add<std::string>("cluster-config-file,c",
-                          "path to the cluster configuration file");
-    opts.add<bool>("dump-stats", "prints stats for all given generator files");
-    opts.add<bool>("verbose,v", "enable verbose output");
-    opts.add<bool>("verbose,v", "enable verbose output");
+    opt_group{custom_options_, "global"}
+      .add<std::string>("cluster-config-file,c",
+                        "path to the cluster configuration file")
+      .add<bool>("dump-stats", "prints stats for all given generator files")
+      .add<bool>("verbose,v", "enable verbose output")
+      .add<bool>("generate-config",
+                 "creates a config file from given recording directories");
     set("scheduler.max-threads", 1);
     broker::configuration::add_message_types(*this);
   }
@@ -519,6 +530,67 @@ void launch(caf::actor_system& sys, node& x) {
   x.mgr = sys.spawn<caf::detached>(node_manager, &x);
 }
 
+// -- utility functions --------------------------------------------------------
+
+int generate_config(std::vector<std::string> directories) {
+  using broker::detail::is_directory;
+  using broker::detail::is_file;
+  // Remove trailing slashes to make working with the directories easier.
+  for (auto& directory : directories) {
+    while (caf::ends_with(directory, "/"))
+      directory.pop_back();
+    if (!is_directory(directory)) {
+      err::println('\"', directory, "\" is not a directory");
+      return EXIT_FAILURE;
+    }
+  }
+  // Use the directory name as node name and read directory contents.
+  std::map<std::string, node> nodes;
+  for (const auto& directory : directories) {
+    std::string node_name;
+    auto sep = directory.find_last_of('/');
+    if (sep != std::string::npos)
+      node_name = directory.substr(sep + 1);
+    else
+      node_name = directory;
+    if (nodes.count(node_name) > 0) {
+      err::println("node name \"", node_name, "\" appears twice");
+      return EXIT_FAILURE;
+    }
+    auto& node = nodes.emplace(node_name, ::node{}).first->second;
+    auto generator_file = directory + "/messages.dat";
+    if (is_file(generator_file))
+      node.generator_file = std::move(generator_file);
+    // Read and de-duplicate topics.
+    std::string topic;
+    std::ifstream topics_file{directory + "/topics.txt"};
+    while (std::getline(topics_file, topic))
+      if (!topic.empty())
+        node.topics.emplace_back(topic);
+    std::sort(node.topics.begin(), node.topics.end());
+    auto e = std::unique(node.topics.begin(), node.topics.end());
+    if (e != node.topics.end())
+      node.topics.erase(e, node.topics.end());
+  }
+  // Print generated config and return.
+  out::println("nodes {");
+  for (const auto& kvp : nodes) {
+    auto& node = kvp.second;
+    out::println("  ", kvp.first, " {");
+    if (!node.topics.empty()) {
+      out::println("    topics = [");
+      for (const auto& topic : node.topics)
+        out::println("      ", quoted{topic}, ",");
+      out::println("    ]");
+    }
+    if (!node.generator_file.empty())
+      out::println("    generator-file = ", quoted{node.generator_file});
+    out::println("  }");
+  }
+  out::println("}");
+  return EXIT_SUCCESS;
+}
+
 // -- main ---------------------------------------------------------------------
 
 void print_peering_node(const std::string& prefix, const node& x,
@@ -548,6 +620,9 @@ int main(int argc, char** argv) {
   // Enable global flags.
   if (get_or(cfg, "verbose", false))
     verbose::is_enabled = true;
+  // Generate config file when demanded.
+  if (get_or(cfg, "generate-config", false))
+    return generate_config(cfg.remainder);
   // Read cluster config.
   caf::settings cluster_config;
   if (auto path = get_if<string>(&cfg, "cluster-config-file")) {
