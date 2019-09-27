@@ -58,13 +58,13 @@ exactly that amount of messages. The node will ignore additional messages in
 the generator file if it contains more than `num-outputs` entries or loop
 through the file if it contains less entries.
 
-### Recording Generator Files
+### Recording Meta Data
 
-Setting the configuration parameter `broker.output-generator-file` (or setting
-the environment variable `BROKER_OUTPUT_GENERATOR_FILE`) to a file path
-triggers Broker to record meta data published at this endpoint. The meta data
-is about 2MB for each 1M recorded messages (depending on the structure of the
-data).
+Setting the configuration parameter `broker.recording-directory` (or setting
+the environment variable `BROKER_RECORDING_DIRECTORY`) to a non-empty path
+triggers Broker to record meta data such as subscriptions, peerings, and
+published data at this endpoint. The meta data is about 2MB for each 1M
+recorded messages (depending on the structure of the data).
 
 Setting the configuration parameter `broker.output-generator-file-cap` (or
 setting the environment variable `BROKER_OUTPUT_GENERATOR_FILE_CAP`) to an

@@ -1,5 +1,4 @@
-#include "broker/logger.hh" // Must come before any CAF include.
-
+#include <iostream>
 #include <unordered_set>
 
 #include <caf/config.hpp>
@@ -17,7 +16,9 @@
 
 #include "broker/atoms.hh"
 #include "broker/core_actor.hh"
+#include "broker/defaults.hh"
 #include "broker/detail/die.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/endpoint.hh"
 #include "broker/logger.hh"
 #include "broker/publisher.hh"
@@ -36,7 +37,12 @@ endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
     mtx_(),
     pending_(),
     pending_count_() {
-  // nop
+  // Create a directory for storing the meta data if requested.
+  auto meta_dir = get_or(sys_->config(), "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!detail::mkdirs(meta_dir))
+    std::cerr << "WARNING: unable to create \"" << meta_dir
+              << "\" for recording meta data\n";
 }
 
 timestamp endpoint::clock::now() const noexcept {

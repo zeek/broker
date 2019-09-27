@@ -40,8 +40,8 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     .add(options_.disable_ssl, "disable_ssl",
          "forces Broker to use unencrypted communication")
     .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
-    .add<std::string>("output-generator-file",
-                      "records meta information for each published message")
+    .add<std::string>("recording-directory",
+                      "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
   // Override CAF default file names.
@@ -65,8 +65,8 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   }
   if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER"))
     set("logger.component-filter", env);
-  if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE"))
-    set("broker.output-generator-file", env);
+  if (auto env = getenv("BROKER_RECORDING_DIRECTORY"))
+    set("broker.recording-directory", env);
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     try {
       auto value = static_cast<size_t>(std::stoi(env));

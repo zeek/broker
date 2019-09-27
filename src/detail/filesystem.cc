@@ -24,6 +24,11 @@ bool exists(const path& p) {
   return ::lstat(p.c_str(), &st) == 0;
 }
 
+bool is_directory(const path& p) {
+  struct stat sb;
+  return stat(p.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode);
+}
+
 namespace {
 
 std::vector<std::string> tokenize(std::string input, const std::string delim) {
@@ -54,13 +59,11 @@ bool mkdirs(const path& p) {
     dir_to_make += "/";
 
     if ( ::mkdir(dir_to_make.c_str(), perms) < 0 ) {
-      struct stat filestat;
 
       if ( errno == EISDIR )
           continue;
 
-      if ( errno == EEXIST && stat(dir_to_make.c_str(), &filestat) == 0 &&
-           S_ISDIR(filestat.st_mode) )
+      if ( errno == EEXIST && is_directory(dir_to_make) )
         continue;
 
       return false;
