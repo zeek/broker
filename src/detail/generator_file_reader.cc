@@ -126,7 +126,7 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {
   }
   // Read and verify file size.
   auto file_size = static_cast<size_t>(sb.st_size);
-  if (file_size < sizeof(generator_file_writer::format::header_size)) {
+  if (file_size < generator_file_writer::format::header_size) {
     BROKER_ERROR("cannot read file header (file too small):" << fname);
     return nullptr;
   }
