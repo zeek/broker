@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <functional>
 
 #include <caf/actor.hpp>
 
@@ -55,7 +56,7 @@ private:
 
   caf::actor worker_;
   std::vector<topic> filter_;
-  endpoint& ep_;
+  std::reference_wrapper<endpoint> ep_;
 };
 
 } // namespace broker
