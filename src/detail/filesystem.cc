@@ -29,6 +29,11 @@ bool is_directory(const path& p) {
   return stat(p.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode);
 }
 
+bool is_file(const path& p) {
+  struct stat sb;
+  return stat(p.c_str(), &sb) == 0 && S_ISREG(sb.st_mode);
+}
+
 namespace {
 
 std::vector<std::string> tokenize(std::string input, const std::string delim) {

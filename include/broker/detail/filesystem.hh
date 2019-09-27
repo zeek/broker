@@ -20,6 +20,12 @@ bool exists(const path& p);
 ///          directory, `false` otherwise.
 bool is_directory(const path& p);
 
+/// Checks whether a given path exists and is a file.
+/// @param p The path to examine.
+/// @returns `true` if the given path or file status corresponds to an existing
+///          file, `false` otherwise.
+bool is_file(const path& p);
+
 /// Like `mkdir -p`.
 /// @param p The director to create.
 /// @returns `false` if the given path cannot be created, else `true`.
