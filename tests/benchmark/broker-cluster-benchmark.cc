@@ -719,7 +719,10 @@ int generate_config(std::vector<std::string> directories) {
   };
   auto step = [](node& n, const output_map& out, const filter& f) {
     for (const auto& topic : f) {
-      auto i = out.find(topic);
+      auto predicate = [&](const output_map::value_type& x) {
+        return caf::starts_with(x.first, topic);
+      };
+      auto i = std::find_if(out.begin(), out.end(), predicate);
       if (i != out.end())
         n.num_inputs += i->second;
     }
