@@ -781,10 +781,11 @@ int generate_config(std::vector<std::string> directories) {
   for (const auto& node : nodes) {
     out::println("  ", node.name, " {");
     out::println("    id = <", node.id, ">");
-    out::println("    num-inputs = ", node.num_inputs);
+    if (node.num_inputs > 0)
+      out::println("    num-inputs = ", node.num_inputs);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
-    if (!node.generator_file.empty())
+    if (!node.generator_file.empty() && !outputs[node.name].empty())
       out::println("    generator-file = ", quoted{node.generator_file});
     out::println("  }");
   }
@@ -797,15 +798,15 @@ int generate_config(std::vector<std::string> directories) {
 void print_peering_node(const std::string& prefix, const node& x,
                         bool is_last) {
   std::string next_prefix;
-  if (x.left.empty()) {
+  if (x.right.empty()) {
     verbose::println(prefix, x.name, ", topics: ", x.topics);
   } else {
     verbose::println(prefix, is_last ? "└── " : "├── ", x.name,
                      ", topics: ", x.topics);
     next_prefix = prefix + (is_last ? "    " : "│   ");
   }
-  for (size_t i = 0; i < x.right.size(); ++i)
-    print_peering_node(next_prefix, *x.right[i], i == x.right.size() - 1);
+  for (size_t i = 0; i < x.left.size(); ++i)
+    print_peering_node(next_prefix, *x.left[i], i == x.left.size() - 1);
 }
 
 int main(int argc, char** argv) {
@@ -911,7 +912,7 @@ int main(int argc, char** argv) {
     verbose::println("Peering tree (multiple roots are allowed):");
     std::vector<const node*> root_nodes;
     for (const auto& x : nodes)
-      if (x.left.empty())
+      if (x.right.empty())
         root_nodes.emplace_back(&x);
     for (const auto x : root_nodes)
       print_peering_node("", *x, true);
