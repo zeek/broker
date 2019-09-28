@@ -402,8 +402,8 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
                        std::move(self->state.generator));
   g->attach_functor([this_node, t0, observer]() mutable {
     auto t1 = std::chrono::system_clock::now();
-    anon_send(observer, broker::atom::ok::value, this_node->name,
-              duration_cast<caf::timespan>(t1 - t0));
+    anon_send(observer, broker::atom::ok::value, broker::atom::write::value,
+              this_node->name, duration_cast<caf::timespan>(t1 - t0));
   });
 }
 
@@ -438,7 +438,7 @@ struct consumer_state {
       [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
       [=](caf::unit_t&, const caf::error& err) {
         auto& types = self->system().types();
-        verbose::println("done receiving ",
+        verbose::println(this_node->name, " stops receiving ",
                          types.portable_name(caf::make_rtti_pair<T>()));
       });
   }
@@ -474,8 +474,8 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   auto c = self->spawn(consumer, this_node, self->state.ep.core(), observer);
   c->attach_functor([this_node, t0, observer]() mutable {
     auto t1 = std::chrono::system_clock::now();
-    anon_send(observer, broker::atom::ok::value, this_node->name,
-              duration_cast<caf::timespan>(t1 - t0));
+    anon_send(observer, broker::atom::ok::value, broker::atom::read::value,
+              this_node->name, duration_cast<caf::timespan>(t1 - t0));
   });
 }
 
@@ -513,11 +513,11 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       verbose::println(this_node->name, " up and running");
       return broker::atom::ok::value;
     },
-    [=](broker::atom::run, caf::actor observer) {
-      if (is_sender(*this_node))
-        run_send_mode(self, observer);
-      else
-        run_receive_mode(self, observer);
+    [=](broker::atom::read, caf::actor observer) {
+      run_receive_mode(self, observer);
+    },
+    [=](broker::atom::write, caf::actor observer) {
+      run_send_mode(self, observer);
     },
     [=](broker::atom::shutdown) -> caf::result<caf::atom_value> {
       // Tell broker to shutdown. This is a blocking function call.
@@ -587,12 +587,12 @@ bool verify_node_tree(std::vector<node>& nodes) {
     err::println("no node has a generator file for publishing data");
     return false;
   }
-  // Sanity check: nodes can't play sender and receiver at the same time (yet).
+  // Sanity check: each nodes must send and/or receive.
+  auto predicate = [](const node& n) { return is_sender(n) || is_receiver(n); };
   { // Lifetime scope of i.
-    auto i = std::find_if(nodes.begin(), nodes.end(), is_sender_and_receiver);
+    auto i = std::find_if_not(nodes.begin(), nodes.end(), predicate);
     if (i != nodes.end()) {
-      err::println(i->name,
-                   " is configured to send at receive at the same time");
+      err::println(i->name, " neither receives nor sends");
       return false;
     }
   }
@@ -933,15 +933,20 @@ int main(int argc, char** argv) {
         err::println("eror while waiting for ACK messages: ", sys.render(err));
       });
   };
-  auto wait_for_ok_messages = [&]() {
+  auto wait_for_ok_messages = [&](size_t num) {
     size_t i = 0;
-    self->receive_for(i, nodes.size())(
+    self->receive_for(i, num)(
       [](broker::atom::ok) {
         // All is well.
       },
-      [](broker::atom::ok, const std::string& node_name,
+      [](broker::atom::ok, broker::atom::write, const std::string& node_name,
          caf::timespan runtime) {
-        out::println(node_name, ": ",
+        out::println(node_name, " (sending): ",
+                     duration_cast<fractional_seconds>(runtime));
+      },
+      [](broker::atom::ok, broker::atom::read, const std::string& node_name,
+         caf::timespan runtime) {
+        out::println(node_name, " (receiving): ",
                      duration_cast<fractional_seconds>(runtime));
       },
       [&](const caf::error& err) {
@@ -951,13 +956,13 @@ int main(int argc, char** argv) {
   // Initialize all nodes.
   for (auto& x : nodes)
     self->send(x.mgr, broker::atom::init::value);
-  wait_for_ok_messages();
+  wait_for_ok_messages(nodes.size());
   verbose::println("all nodes are up and running, run benchmark");
   // First, we spin up all readers to make sure they receive published data.
   size_t receiver_acks = 0;
   for (auto& x : nodes)
     if (is_receiver(x)) {
-      self->send(x.mgr, broker::atom::run::value, self);
+      self->send(x.mgr, broker::atom::read::value, self);
       ++receiver_acks;
     }
   wait_for_ack_messages(receiver_acks);
@@ -965,15 +970,19 @@ int main(int argc, char** argv) {
   auto t0 = std::chrono::system_clock::now();
   for (auto& x : nodes)
     if (is_sender(x))
-      self->send(x.mgr, broker::atom::run::value, self);
-  wait_for_ok_messages();
+      self->send(x.mgr, broker::atom::write::value, self);
+  auto ok_count = [](size_t interim, const node& x) {
+    return interim + (is_sender_and_receiver(x) ? 2 : 1);
+  };
+  wait_for_ok_messages(
+    std::accumulate(nodes.begin(), nodes.end(), size_t{0}, ok_count));
   auto t1 = std::chrono::system_clock::now();
   out::println("system: ", duration_cast<fractional_seconds>(t1 - t0));
   // Shutdown all endpoints.
   verbose::println("shut down all nodes");
   for (auto& x : nodes)
     self->send(x.mgr, broker::atom::shutdown::value);
-  wait_for_ok_messages();
+  wait_for_ok_messages(nodes.size());
   for (auto& x : nodes)
     self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
   for (auto& x : nodes) {
