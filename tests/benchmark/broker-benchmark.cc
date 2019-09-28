@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <getopt.h>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -36,9 +35,8 @@ double rate_increase_interval = 0;
 double rate_increase_amount = 0;
 uint64_t max_received = 0;
 uint64_t max_in_flight = 0;
-int server = 0;
-int disable_ssl = 0;
-int verbose = 0;
+bool server = false;
+bool verbose = false;
 
 // Global state
 unsigned long total_recv;
@@ -55,40 +53,6 @@ size_t reset_num_events() {
   for (;;)
     if (num_events.compare_exchange_strong(result, 0))
       return result;
-}
-
-struct option long_options[] = {
-    {"event-type",             required_argument, 0, 't'},
-    {"batch-rate",             required_argument, 0, 'r'},
-    {"batch-size",             required_argument, 0, 's'},
-    {"batch-size-increase-interval", required_argument, 0, 'i'},
-    {"batch-size-increase-amount",   required_argument, 0, 'a'},
-    {"max-received",           required_argument, 0, 'm'},
-    {"max-in-flight",          required_argument, 0, 'f'},
-    {"server",                 no_argument, &server, 1},
-    {"disable-ssl",            no_argument, &disable_ssl, 1},
-    {"verbose",                no_argument, &verbose, 1},
-    {0, 0, 0, 0}
-};
-
-} // namespace
-
-void usage(const char* prog) {
-  std::cerr << "Usage: " << prog
-            << " [<options>] <zeek-host>[:<port>] | [--disable-ssl] --server "
-               "<interface>:port\n"
-               "\n"
-               "   --event-type <1|2|3>                  (default: 1)\n"
-               "   --batch-rate <batches/sec>            (default: 1)\n"
-               "   --batch-size <num-events>             (default: 1)\n"
-               "   --batch-size-increase-interval <secs> (default: 0, off)\n"
-               "   --batch-size-increase-amount   <size> (default: 0, off)\n"
-               "   --max-received <num-events>           (default: 0, off)\n"
-               "   --max-in-flight <num-events>          (default: 0, off)\n"
-               "   --disable-ssl                         (default: on)\n"
-               "   --verbose                             (default: off)\n"
-               "\n";
-
 }
 
 double current_time() {
@@ -380,82 +344,75 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
   std::cout << "received stop message on /benchmark/terminate" << std::endl;
 }
 
+struct config : configuration {
+  config(){
+    opt_group{custom_options_, "global"}
+      .add(event_type, "event-type,t",
+           "1 (vector, default) | 2 (conn log entry) | 3 (table)")
+      .add(batch_rate, "batch-rate,r", "batches/sec (default: 1)")
+      .add(batch_size, "batch-size,s", "events per batch (default: 1)")
+      .add(rate_increase_interval, "batch-size-increase-interval,i",
+           "interval for increasing the batch size (in seconds)")
+      .add(rate_increase_amount, "batch-size-increase-amount,a",
+           "additional batch size per interval")
+      .add(max_received, "max-received,m", "stop benchmark after given count")
+      .add(max_in_flight, "max-in-flight,f", "report when exceeding this count")
+      .add(server, "server", "run in server mode")
+      .add(verbose, "verbose", "enable status output");
+  }
+
+  std::string help_text() const {
+    return custom_options_.help_text();
+  }
+};
+
+void usage(const config& cfg, const char* cmd_name) {
+  std::cerr << "Usage: " << cmd_name
+            << " [<options>] <zeek-host>[:<port>] | [--disable-ssl] --server "
+               "<interface>:port\n\n"
+            << cfg.help_text();
+}
+
+} // namespace
+
 int main(int argc, char** argv) {
-  // Local variables configurable via CLI.
-  std::string host;
-  uint16_t port = 9999;
-  // Utility funciton for printing usage on error.
-  auto usage = [argv] {
-    ::usage(argv[0]);
+  config cfg;
+  if (auto err = cfg.parse(argc,argv)){
+    std::cerr << "*** invalid command line: " << cfg.render(err) << "\n\n";
+    usage(cfg, argv[0]);
     return EXIT_FAILURE;
-  };
-  // Parse CLI.
+  }
+  if (cfg.cli_helptext_printed)
+    return EXIT_SUCCESS;
+  if (cfg.remainder.size() != 1) {
+    std::cerr << "*** too many arguments\n\n";
+    usage(cfg, argv[0]);
+    return EXIT_FAILURE;
+  }
+  // Local variables configurable via CLI.
+  auto arg = cfg.remainder[0];
+  auto separator = arg.find(':');
+  if (separator == std::string::npos) {
+    std::cerr << "*** invalid argument\n\n";
+    usage(cfg, argv[0]);
+    return EXIT_FAILURE;
+  }
+  std::string host = arg.substr(0, separator);
+  uint16_t port = 9999;
   try {
-    // Consume CLI options.
-    int option_index = 0;
-    auto pull = [&] {
-      // Fetch next option via getopt().
-      return getopt_long(argc, argv, "", long_options, &option_index);
-    };
-    for (auto c = pull(); c != -1; c = pull()) {
-      switch (c) {
-        case 0:
-        case 1:
-          // Flag
-          break;
-
-        case 't':
-          event_type = std::stoi(optarg);
-          break;
-
-        case 'r':
-          batch_rate = std::stof(optarg);
-          break;
-
-        case 's':
-          batch_size = std::stoi(optarg);
-          break;
-
-        case 'i':
-          rate_increase_interval = std::stof(optarg);
-          break;
-
-        case 'a':
-          rate_increase_amount = std::stof(optarg);
-          break;
-
-        case 'm':
-          max_received = std::stoi(optarg);
-          break;
-
-        case 'f':
-          max_in_flight = std::stoi(optarg);
-          break;
-
-        default:
-          return usage();
-      }
+    auto str_port = arg.substr(separator + 1);
+    if (!str_port.empty()) {
+      auto int_port = std::stoi(str_port);
+      if (int_port < 0 || int_port > std::numeric_limits<uint16_t>::max())
+        throw std::out_of_range("not an uint16_t");
+      port = static_cast<uint16_t>(int_port);
     }
-    if (optind != argc - 1)
-      return usage();
-    // Parse host and port.
-    auto arg = argv[optind];
-    if (auto p = strchr(arg, ':')) {
-      host.assign(arg, p);
-      auto lport = std::stoul(p + 1);
-      if (lport > std::numeric_limits<uint16_t>::max())
-        throw std::out_of_range("port out of range");
-      port = static_cast<uint16_t>(lport);
-    } else {
-      host = arg;
-    }
-  } catch (...) {
-    return usage();
+  } catch (std::exception& e) {
+    std::cerr << "*** invalid port: " << e.what() << "\n\n";
+    usage(cfg, argv[0]);
+    return EXIT_FAILURE;
   }
   // Run benchmark.
-  broker_options options;
-  options.disable_ssl = disable_ssl;
-  configuration cfg{options};
   endpoint ep(std::move(cfg));
   if (server)
     server_mode(ep, host, port);
@@ -463,4 +420,3 @@ int main(int argc, char** argv) {
     client_mode(ep, host, port);
   return EXIT_SUCCESS;
 }
-
