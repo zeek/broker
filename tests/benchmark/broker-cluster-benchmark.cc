@@ -703,7 +703,7 @@ int generate_config(std::vector<std::string> directories) {
     while (!gptr->at_end()) {
       if (auto err = gptr->read(value)) {
         err::println("error while reading generator file ", node.generator_file,
-                     ": ", to_string(err));
+                     ": ", err);
         return EXIT_FAILURE;
       }
       out[get_topic(value).string()] += 1;
