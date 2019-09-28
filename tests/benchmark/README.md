@@ -70,12 +70,50 @@ Setting the configuration parameter `broker.output-generator-file-cap` (or
 setting the environment variable `BROKER_OUTPUT_GENERATOR_FILE_CAP`) to an
 unsigned integer limits recording to that many published messages.
 
+### Generating Config Files from Recorded Meta Data
+
+After recording meta data for *all* Broker nodes, the tool
+`broker-cluster-benchmark` can automatically generate a cluster configuration
+by analyzing the recorded files. The generated config file uses the directory
+names as node names and establishes the recorded peering relations.
+
+The tool generates configure files when passing the `--generate-config` option
+by scanning all specified directories. For example, the following command
+prints a configuration for a recorded Broker session with two endpoints:
+
+```sh
+broker-cluster-benchmark --generate-config recordings/server recordings/client
+```
+
+The tool assumes the directories `server` and `client` to contain the following
+files:
+
+```
+recordings/
+├── client
+│   ├── id.txt
+│   ├── messages.dat
+│   ├── peers.txt
+│   └── topics.txt
+└── server
+    ├── id.txt
+    ├── messages.dat
+    ├── peers.txt
+    └── topics.txt
+```
+
+The produced configuration will contain two nodes: `client` and `server`. All
+other fields and peering relations are automatically generated from the file
+contents. It is worth mentioning that the tool does a linear scan over all
+`messages.dat` files to compute the number of expected messages in the system.
+This step may take some time.
+
 ### Running the Benchmark
 
-The tool `broker-cluster-benchmark.cc` expects at least `-c $configFile`.
-Passing `-v` also enables verbose output to get a glimpse into the program
-state at runtime. When running a configuration for the first time, we strongly
-recommend running in verbose mode:
+The tool `broker-cluster-benchmark` expects at least `-c $configFile`. Passing
+`-v` also enables verbose output to get a glimpse into the program state at
+runtime. When running a configuration for the first time, we strongly recommend
+running in verbose mode:
 
 ```sh
 broker-cluster-benchmark -c cluster.conf -v
@@ -85,8 +123,8 @@ Running in verbose mode prints various state messages to the console:
 
 ```sh
 Peering tree (multiple roots are allowed):
-earth, topics: ["/benchmark/events"]
-└── mars, topics: ["/benchmark/events"]
+mars, topics: ["/benchmark/events"]
+└── earth, topics: ["/benchmark/events"]
 
 mars starts listening at [::1]:8001
 mars up and running
@@ -102,9 +140,6 @@ Before the tool spins up all Broker endpoints, it makes sure that the
 configured topology is safe to deploy:
 
 - No loops allowed.
-- At least one node must send data.
-- At least one node must receive data.
-- A node cannot send and receive at the same time.
 - Each node must set the mandatory fields `id` and `topics`.
 
 Broker's source distribution includes a working setup to get started at
