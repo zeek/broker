@@ -1,4 +1,12 @@
 
+1.2.0-49 | 2019-09-30 10:09:24 -0700
+
+  * Let CAF parse the CLI of broker-benchmark instead of using getopt (Dominik Charousset)
+
+  * Remove YCM file (Dominik Charousset)
+
+  * Move config.hh.in out of the include directory (Dominik Charousset)
+
 1.2.0-42 | 2019-09-27 08:30:53 -0700
 
   * Fix Xcode warnings about subscriber move-assignment (Jon Siwek, Corelight)
