@@ -59,6 +59,11 @@ int print_impl(std::ostream& ostr, const string& x) {
   return 0;
 }
 
+int print_impl(std::ostream& ostr, const caf::string_view& x) {
+  ostr.write(x.data(), x.size());
+  return 0;
+}
+
 int print_impl(std::ostream& ostr, const quoted& x) {
   ostr << '"' << x.str << '"';
   return 0;
@@ -795,18 +800,47 @@ int generate_config(std::vector<std::string> directories) {
 
 // -- main ---------------------------------------------------------------------
 
-void print_peering_node(const std::string& prefix, const node& x,
-                        bool is_last) {
-  std::string next_prefix;
+void print_peering_node(const std::string& prefix, const node& x, bool is_last,
+                        std::set<std::string>& printed_nodes) {
+  caf::string_view first_prefix;
+  caf::string_view inner_prefix;
+  auto print_topics = [&] {
+    if (printed_nodes.count(x.name) != 0) {
+      verbose::println(prefix, inner_prefix, "│   └── (see above)");
+      return;
+    }
+    auto num_topics = x.topics.size();
+    if (num_topics > 0) {
+      for (size_t i = 0; i < num_topics - 1; ++i)
+        verbose::println(prefix, inner_prefix, "│   ├── ", x.topics[i]);
+      verbose::println(prefix, inner_prefix, "│   └── ",
+                       x.topics[num_topics - 1]);
+    }
+  };
+  std::string next_prefix = prefix;
   if (x.right.empty()) {
-    verbose::println(prefix, x.name, ", topics: ", x.topics);
+    next_prefix += "    ";
+  } else if (is_last) {
+    first_prefix = "└── ";
+    inner_prefix = "    ";
+    next_prefix += "        ";
   } else {
-    verbose::println(prefix, is_last ? "└── " : "├── ", x.name,
-                     ", topics: ", x.topics);
-    next_prefix = prefix + (is_last ? "    " : "│   ");
+    first_prefix = "├── ";
+    inner_prefix = "│   ";
+    next_prefix += "│       ";
+  }
+  verbose::println(prefix, first_prefix, x.name);
+  verbose::println(prefix, inner_prefix, "├── topics:");
+  print_topics();
+  verbose::println(prefix, inner_prefix, "└── peers:");
+  printed_nodes.emplace(x.name);
+  if (x.left.empty()) {
+    verbose::println(next_prefix, "└── (none)");
+    return;
   }
   for (size_t i = 0; i < x.left.size(); ++i)
-    print_peering_node(next_prefix, *x.left[i], i == x.left.size() - 1);
+    print_peering_node(next_prefix, *x.left[i], i == x.left.size() - 1,
+                       printed_nodes);
 }
 
 int main(int argc, char** argv) {
@@ -914,8 +948,9 @@ int main(int argc, char** argv) {
     for (const auto& x : nodes)
       if (x.right.empty())
         root_nodes.emplace_back(&x);
+    std::set<std::string> tmp;
     for (const auto x : root_nodes)
-      print_peering_node("", *x, true);
+      print_peering_node("", *x, true, tmp);
     verbose::println();
   }
   // Get rollin'.
