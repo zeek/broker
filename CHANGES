@@ -1,4 +1,8 @@
 
+1.2.0-54 | 2019-10-02 10:44:57 -0700
+
+  * Extend visibility of imported CAF library targets (Dominik Charousset, Corelight)
+
 1.2.0-49 | 2019-09-30 10:09:24 -0700
 
   * Let CAF parse the CLI of broker-benchmark instead of using getopt (Dominik Charousset)

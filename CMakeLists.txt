@@ -173,9 +173,9 @@ else ()
   endif ()
 
   if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
-    add_library(libcaf_openssl_static STATIC IMPORTED)
-    add_library(libcaf_core_static STATIC IMPORTED)
-    add_library(libcaf_io_static STATIC IMPORTED)
+    add_library(libcaf_openssl_static STATIC IMPORTED GLOBAL)
+    add_library(libcaf_core_static STATIC IMPORTED GLOBAL)
+    add_library(libcaf_io_static STATIC IMPORTED GLOBAL)
     set_property(TARGET libcaf_core_static PROPERTY IMPORTED_LOCATION
                  ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext})
     set_property(TARGET libcaf_io_static PROPERTY IMPORTED_LOCATION
@@ -183,9 +183,9 @@ else ()
     set_property(TARGET libcaf_openssl_static PROPERTY IMPORTED_LOCATION
                  ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext})
   else ()
-    add_library(libcaf_core_shared SHARED IMPORTED)
-    add_library(libcaf_io_shared SHARED IMPORTED)
-    add_library(libcaf_openssl_shared SHARED IMPORTED)
+    add_library(libcaf_core_shared SHARED IMPORTED GLOBAL)
+    add_library(libcaf_io_shared SHARED IMPORTED GLOBAL)
+    add_library(libcaf_openssl_shared SHARED IMPORTED GLOBAL)
     set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
                  ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
     set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
