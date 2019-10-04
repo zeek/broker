@@ -42,9 +42,15 @@ endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
                          defaults::recording_directory);
   if (detail::is_directory(meta_dir))
     detail::remove_all(meta_dir);
-  if (!detail::mkdirs(meta_dir))
+  if (detail::mkdirs(meta_dir)) {
+    auto dump = sys->config().dump_content();
+    std::fstream conf_file{meta_dir + "/broker.conf"};
+    if (!(conf_file << caf::deep_to_string(dump)))
+      BROKER_WARNING("failed to write to config file");
+  } else {
     std::cerr << "WARNING: unable to create \"" << meta_dir
               << "\" for recording meta data\n";
+  }
 }
 
 timestamp endpoint::clock::now() const noexcept {

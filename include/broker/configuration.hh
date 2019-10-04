@@ -29,6 +29,8 @@ struct broker_options {
 /// Provides an execution context for brokers.
 class configuration : public caf::actor_system_config {
 public:
+  using super = caf::actor_system_config;
+
   /// Default-constructs a configuration.
   configuration(broker_options opts = broker_options());
 
@@ -39,6 +41,8 @@ public:
   const broker_options& options() const {
     return options_;
   }
+
+  caf::settings dump_content() const override;
 
   /// Adds all Broker message types to `cfg`.
   static void add_message_types(caf::actor_system_config& cfg);

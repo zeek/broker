@@ -84,6 +84,19 @@ configuration::configuration(int argc, char** argv) : configuration{} {
   parse(argc, argv);
 }
 
+caf::settings configuration::dump_content() const {
+  auto result = super::dump_content();
+  auto& grp = result["broker"].as_dictionary();
+  put_missing(grp, "disable_ssl", options_.disable_ssl);
+  put_missing(grp, "ttl", options_.ttl);
+  put_missing(grp, "forward", options_.forward);
+  if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
+    put_missing(grp, "recording-directory", *path);
+  if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
+    put_missing(grp, "output-generator-file-cap", *cap);
+  return result;
+}
+
 #define ADD_MSG_TYPE(name) cfg.add_message_type<name>(#name)
 
 void configuration::add_message_types(caf::actor_system_config& cfg) {
