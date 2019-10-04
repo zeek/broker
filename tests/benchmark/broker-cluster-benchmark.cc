@@ -18,12 +18,13 @@
 #include "broker/endpoint.hh"
 #include "broker/subscriber.hh"
 
+using caf::actor_system_config;
 using caf::expected;
 using caf::get;
 using caf::get_if;
 using caf::holds_alternative;
-using std::string;
 using std::chrono::duration_cast;
+using std::string;
 
 // -- global constants and type aliases ----------------------------------------
 
@@ -161,7 +162,7 @@ std::string trim(std::string x){
 
 namespace {
 
-struct config : caf::actor_system_config {
+struct config : actor_system_config {
   config() {
     opt_group{custom_options_, "global"}
       .add<std::string>("cluster-config-file,c",
@@ -207,6 +208,9 @@ struct node {
 
   /// Stores how many messages we expect on this node during measurement.
   size_t num_inputs = 0;
+
+  /// Stores whether this node regularly forwards Broker events.
+  bool forward = true;
 
   /// Stores how many messages we produce using the gernerator file. If `none`,
   // we produce the number of messages in the generator file.
@@ -293,6 +297,7 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(topics, mandatory);
   SET_FIELD(generator_file, optional);
   SET_FIELD(num_inputs, optional);
+  SET_FIELD(forward, optional);
   SET_FIELD(num_outputs, optional);
   if (!result.generator_file.empty() && !is_file(result.generator_file))
     return make_error(caf::sec::invalid_argument, result.name,
@@ -302,11 +307,31 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
 
 struct node_manager_state {
   node* this_node = nullptr;
-  broker::endpoint ep;
+  union {
+    broker::endpoint ep;
+  };
   broker::detail::generator_file_reader_ptr generator;
+  std::vector<caf::actor> children;
 
-  node_manager_state() : ep(broker::configuration{0, nullptr}) {
+  node_manager_state() {
     // nop
+  }
+
+  ~node_manager_state() {
+    ep.~endpoint();
+  }
+
+  void init(node* this_node_ptr) {
+    BROKER_ASSERT(this_node_ptr != nullptr);
+    this_node = this_node_ptr;
+    broker::broker_options opts;
+    opts.forward = this_node_ptr->forward;
+    opts.disable_ssl = true;
+    broker::configuration cfg{opts};
+    cfg.set("middleman.workers", 0);
+    cfg.set("logger.file-name", this_node->name + ".log");
+    cfg.set("logger.file-verbosity", caf::atom("trace"));
+    new (&ep) broker::endpoint(std::move(cfg));
   }
 };
 
@@ -402,11 +427,11 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
 void run_send_mode(node_manager_actor* self, caf::actor observer) {
   auto this_node = self->state.this_node;
   verbose::println(this_node->name, " starts publishing");
-  auto t0 = std::chrono::system_clock::now();
+  auto t0 = std::chrono::steady_clock::now();
   auto g = self->spawn(generator, this_node, self->state.ep.core(),
                        std::move(self->state.generator));
   g->attach_functor([this_node, t0, observer]() mutable {
-    auto t1 = std::chrono::system_clock::now();
+    auto t1 = std::chrono::steady_clock::now();
     anon_send(observer, broker::atom::ok::value, broker::atom::write::value,
               this_node->name, duration_cast<caf::timespan>(t1 - t0));
   });
@@ -414,19 +439,28 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
 
 struct consumer_state {
   consumer_state(caf::event_based_actor* self) : self(self) {
-    // nop
+    start = std::chrono::steady_clock::now();
+  }
+
+  ~consumer_state() {
+    if (received > this_node->num_inputs)
+      warn::println(this_node->name, " received ", received,
+                    " messages but only expected ", this_node->num_inputs);
   }
 
   void handle_messages(size_t n) {
     // Make some noise every 1k messages.
     if (received / 1000 != (received + n) / 1000)
       verbose::println(this_node->name, " got ", received + n, " messages");
-    received += n;
-    // Stop when receiving the node's limit.
-    if (received == this_node->num_inputs) {
-      verbose::println(this_node->name, " reached its limit: quit");
-      self->quit();
+    // Inform the observer when reaching the node's limit.
+    auto limit = this_node->num_inputs;
+    if (received < limit && received + n >= limit) {
+      auto stop = std::chrono::steady_clock::now();
+      anon_send(observer, broker::atom::ok::value, broker::atom::read::value,
+                this_node->name, duration_cast<caf::timespan>(stop - start));
+      verbose::println(this_node->name, " reached its limit");
     }
+    received += n;
   }
 
   template <class T>
@@ -453,6 +487,8 @@ struct consumer_state {
   caf::event_based_actor* self;
   size_t connected_streams = 0;
   static const char* name;
+  std::chrono::steady_clock::time_point start;
+  caf::actor observer;
 };
 
 const char* consumer_state::name = "consumer";
@@ -460,9 +496,20 @@ const char* consumer_state::name = "consumer";
 caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
   self->state.this_node = this_node;
+  self->state.observer = observer;
   self->send(self * core, broker::atom::join::value, topics(*this_node));
   self->send(self * core, broker::atom::join::value, broker::atom::store::value,
              topics(*this_node));
+  if (!verbose::enabled())
+    return {
+      [=](caf::stream<broker::data_message> in) {
+        self->state.attach_sink(in, observer);
+      },
+      [=](caf::stream<broker::command_message> in) {
+        self->state.attach_sink(in, observer);
+      },
+    };
+  size_t last_printed_count = 0;
   return {
     [=](caf::stream<broker::data_message> in) {
       self->state.attach_sink(in, observer);
@@ -470,23 +517,28 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
     [=](caf::stream<broker::command_message> in) {
       self->state.attach_sink(in, observer);
     },
+    caf::after(std::chrono::seconds(1)) >>
+      [=]() mutable {
+        if (last_printed_count != self->state.received) {
+          verbose::println(
+            this_node->name,
+            " received nothing for 1s, last count: ", self->state.received);
+          last_printed_count = self->state.received;
+        }
+      },
   };
 }
 
 void run_receive_mode(node_manager_actor* self, caf::actor observer) {
-  auto t0 = std::chrono::system_clock::now();
   auto this_node = self->state.this_node;
-  auto c = self->spawn(consumer, this_node, self->state.ep.core(), observer);
-  c->attach_functor([this_node, t0, observer]() mutable {
-    auto t1 = std::chrono::system_clock::now();
-    anon_send(observer, broker::atom::ok::value, broker::atom::read::value,
-              this_node->name, duration_cast<caf::timespan>(t1 - t0));
-  });
+  auto core = self->state.ep.core();
+  auto c = self->spawn(consumer, this_node, core, observer);
+  self->state.children.emplace_back(c);
 }
 
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
-  self->state.this_node = this_node;
-  self->state.ep.forward(topics(*this_node));
+  self->state.init(this_node);
+  //self->state.ep.forward(topics(*this_node));
   return {
     [=](broker::atom::init) -> caf::result<caf::atom_value> {
       // Open up the ports and start peering.
@@ -525,6 +577,8 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       run_send_mode(self, observer);
     },
     [=](broker::atom::shutdown) -> caf::result<caf::atom_value> {
+      for (auto& child : self->state.children)
+        self->send_exit(child, caf::exit_reason::user_shutdown);
       // Tell broker to shutdown. This is a blocking function call.
       self->state.ep.shutdown();
       verbose::println(this_node->name, " down");
@@ -610,6 +664,7 @@ int generate_config(std::vector<std::string> directories) {
     "/messages.dat",
     "/peers.txt",
     "/topics.txt",
+    "/broker.conf",
   };
   // Remove trailing slashes to make working with the directories easier.
   verbose::println("scan ", directories.size(), " directories");
@@ -673,6 +728,15 @@ int generate_config(std::vector<std::string> directories) {
     auto e = std::unique(node.topics.begin(), node.topics.end());
     if (e != node.topics.end())
       node.topics.erase(e, node.topics.end());
+    // Fetch crucial config parameters.
+    auto conf_file = directory + "/broker.conf";
+    if (auto conf = actor_system_config::parse_config_file(conf_file.c_str())) {
+      node.forward = caf::get_or(*conf, "broker.forward", true);
+    } else {
+      err::println("unable to parse ", quoted{conf_file}, ": ",
+                   actor_system_config::render(conf.error()));
+      return EXIT_FAILURE;
+    }
   }
   // We are done with our first pass. Now, we resolve all the peer handles.
   for (auto& node : nodes) {
@@ -722,36 +786,47 @@ int generate_config(std::vector<std::string> directories) {
                           std::back_inserter(result));
     return result;
   };
-  auto step = [](node& n, const output_map& out, const filter& f) {
+  auto step = [](node& src, node& dst, const output_map& out, const filter& f) {
+    size_t num_inputs = 0;
     for (const auto& topic : f) {
       auto predicate = [&](const output_map::value_type& x) {
         return caf::starts_with(x.first, topic);
       };
       auto i = std::find_if(out.begin(), out.end(), predicate);
       if (i != out.end())
-        n.num_inputs += i->second;
+        num_inputs += i->second;
+    }
+    if (num_inputs > 0) {
+      dst.num_inputs += num_inputs;
+      verbose::println(src.name, " sends ", num_inputs, " messages to ",
+                       dst.name);
     }
   };
   using walk_fun = std::function<std::vector<node*>(const node&)>;
   walk_fun walk_left = [](const node& n) { return n.left; };
   walk_fun walk_right = [](const node& n) { return n.right; };
-  using traverse_t = void(node&, const output_map&, const filter&, walk_fun);
+  using traverse_t
+    = void(node&, node&, const output_map&, const filter&, walk_fun);
   std::function<traverse_t> traverse;
-  traverse
-    = [&](node& n, const output_map& out, const filter& f, walk_fun walk) {
-        step(n, out, f);
-        for (auto peer : walk(n)) {
-          auto f_peer = concat_filters(f, peer->topics);
-          if (!f_peer.empty())
-            traverse(*peer, out, f, walk);
-        }
-      };
+  traverse = [&](node& src, node& dst, const output_map& out, const filter& f,
+                 walk_fun walk) {
+    step(src, dst, out, f);
+    if (!dst.forward)
+      return;
+    // TODO: take TTL counter into consideration
+    for (auto peer : walk(dst)) {
+      auto f_peer = concat_filters(f, peer->topics);
+      if (!f_peer.empty())
+        traverse(src, *peer, out, f, walk);
+    }
+  };
   for (auto& node : nodes) {
     const auto& out = outputs[node.name];
+    step(node, node, out, node.topics);
     for (auto peer : node.left)
-      traverse(*peer, out, peer->topics, walk_left);
+      traverse(node, *peer, out, peer->topics, walk_left);
     for (auto peer : node.right)
-      traverse(*peer, out, peer->topics, walk_right);
+      traverse(node, *peer, out, peer->topics, walk_right);
   }
   verbose::println("compute inputs per node");
   // Finally, we need to assign IDs. We simply use localhost with increasing
@@ -788,6 +863,7 @@ int generate_config(std::vector<std::string> directories) {
     out::println("    id = <", node.id, ">");
     if (node.num_inputs > 0)
       out::println("    num-inputs = ", node.num_inputs);
+    out::println("    forward = ", node.forward);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
     if (!node.generator_file.empty() && !outputs[node.name].empty())
@@ -1002,7 +1078,7 @@ int main(int argc, char** argv) {
     }
   wait_for_ack_messages(receiver_acks);
   // Start actual benchmark by spinning up all senders.
-  auto t0 = std::chrono::system_clock::now();
+  auto t0 = std::chrono::steady_clock::now();
   for (auto& x : nodes)
     if (is_sender(x))
       self->send(x.mgr, broker::atom::write::value, self);
@@ -1011,7 +1087,7 @@ int main(int argc, char** argv) {
   };
   wait_for_ok_messages(
     std::accumulate(nodes.begin(), nodes.end(), size_t{0}, ok_count));
-  auto t1 = std::chrono::system_clock::now();
+  auto t1 = std::chrono::steady_clock::now();
   out::println("system: ", duration_cast<fractional_seconds>(t1 - t0));
   // Shutdown all endpoints.
   verbose::println("shut down all nodes");
