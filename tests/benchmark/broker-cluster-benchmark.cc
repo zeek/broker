@@ -26,6 +26,8 @@ using caf::holds_alternative;
 using std::chrono::duration_cast;
 using std::string;
 
+using string_list = std::vector<string>;
+
 // -- global constants and type aliases ----------------------------------------
 
 namespace {
@@ -170,7 +172,9 @@ struct config : actor_system_config {
       .add<bool>("dump-stats", "prints stats for all given generator files")
       .add<bool>("verbose,v", "enable verbose output")
       .add<bool>("generate-config",
-                 "creates a config file from given recording directories");
+                 "creates a config file from given recording directories")
+      .add<string_list>("excluded-nodes,e",
+                        "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
     broker::configuration::add_message_types(*this);
   }
@@ -188,6 +192,8 @@ using broker::detail::readlines;
 } // namespace
 
 // -- data structures for the cluster setup ------------------------------------
+
+using inputs_by_node_map = std::map<std::string, size_t>;
 
 /// A node in the Broker publish/subscribe layer.
 struct node {
@@ -225,6 +231,9 @@ struct node {
 
   /// Points to an actor that manages the Broker endpoint.
   caf::actor mgr;
+
+  /// Stores how many inputs we receive per node.
+  inputs_by_node_map inputs_by_node;
 };
 
 bool is_sender(const node& x) {
@@ -299,9 +308,20 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(num_inputs, optional);
   SET_FIELD(forward, optional);
   SET_FIELD(num_outputs, optional);
+  SET_FIELD(inputs_by_node, optional);
   if (!result.generator_file.empty() && !is_file(result.generator_file))
     return make_error(caf::sec::invalid_argument, result.name,
                       "generator file does not exist", result.generator_file);
+  if (!result.inputs_by_node.empty()) {
+    auto plus = [](size_t n, const inputs_by_node_map::value_type& kvp) {
+      return n + kvp.second;
+    };
+    auto total = std::accumulate(result.inputs_by_node.begin(),
+                                 result.inputs_by_node.end(), size_t{0}, plus);
+    if (total != result.num_inputs)
+      warn::println("inconsistent data: ", name, " expects ", result.num_inputs,
+                    " messages but inputs-by-node only sums up to ", total);
+  }
   return result;
 }
 
@@ -798,8 +818,7 @@ int generate_config(std::vector<std::string> directories) {
     }
     if (num_inputs > 0) {
       dst.num_inputs += num_inputs;
-      verbose::println(src.name, " sends ", num_inputs, " messages to ",
-                       dst.name);
+      dst.inputs_by_node[src.name] += num_inputs;
     }
   };
   using walk_fun = std::function<std::vector<node*>(const node&)>;
@@ -861,8 +880,13 @@ int generate_config(std::vector<std::string> directories) {
   for (const auto& node : nodes) {
     out::println("  ", node.name, " {");
     out::println("    id = <", node.id, ">");
-    if (node.num_inputs > 0)
+    if (node.num_inputs > 0) {
       out::println("    num-inputs = ", node.num_inputs);
+      out::println("    inputs-by-node {");
+      for (auto& kvp : node.inputs_by_node)
+        out::println("      ", kvp.first, " = ", kvp.second);
+      out::println("    }");
+    }
     out::println("    forward = ", node.forward);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
@@ -936,6 +960,11 @@ int main(int argc, char** argv) {
   if (get_or(cfg, "generate-config", false))
     return generate_config(cfg.remainder);
   // Read cluster config.
+  auto excluded_nodes = get_or(cfg, "excluded-nodes", string_list{});
+  auto is_excluded = [&](const string& node_name) {
+    auto e = excluded_nodes.end();
+    return std::find(excluded_nodes.begin(), e, node_name) != e;
+  };
   caf::settings cluster_config;
   if (auto path = get_if<string>(&cfg, "cluster-config-file")) {
     if (auto file_content = config::parse_config_file(path->c_str())) {
@@ -997,12 +1026,37 @@ int main(int argc, char** argv) {
   // Generate nodes from cluster config.
   std::vector<node> nodes;
   for (auto& kvp : cluster_config["nodes"].as_dictionary()) {
+    if (is_excluded(kvp.first))
+      continue;
     if (auto x = make_node(kvp.first, kvp.second.as_dictionary())) {
       nodes.emplace_back(std::move(*x));
     } else {
       err::println("invalid config for node '", kvp.first,
                    "': ", cfg.render(x.error()));
       return EXIT_FAILURE;
+    }
+  }
+  // Fix settings when running only a partial setup.
+  if (!excluded_nodes.empty()) {
+    if (nodes.empty()) {
+      err::println("no nodes left after applying node filter");
+      return EXIT_FAILURE;
+    }
+    auto plus = [&](size_t n, const inputs_by_node_map::value_type& kvp) {
+      if (is_excluded(kvp.first))
+        return n;
+      return n + kvp.second;
+    };
+    for (auto& n : nodes) {
+      if (n.num_inputs > 0 && n.inputs_by_node.empty()) {
+        err::println("cannot run partial setup without inputs-by-node fields");
+        return EXIT_FAILURE;
+      }
+      auto new_total = std::accumulate(n.inputs_by_node.begin(),
+                                       n.inputs_by_node.end(), size_t{0}, plus);
+      n.num_inputs = new_total;
+      n.peers.erase(std::remove_if(n.peers.begin(), n.peers.end(), is_excluded),
+                    n.peers.end());
     }
   }
   // Sanity check: we need to have at least two nodes.
