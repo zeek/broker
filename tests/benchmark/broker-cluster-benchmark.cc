@@ -807,14 +807,12 @@ int generate_config(std::vector<std::string> directories) {
     return result;
   };
   auto step = [](node& src, node& dst, const output_map& out, const filter& f) {
+    using caf::starts_with;
     size_t num_inputs = 0;
-    for (const auto& topic : f) {
-      auto predicate = [&](const output_map::value_type& x) {
-        return caf::starts_with(x.first, topic);
-      };
-      auto i = std::find_if(out.begin(), out.end(), predicate);
-      if (i != out.end())
-        num_inputs += i->second;
+    for (auto& kvp : out) {
+      auto matches = [&](const string& x) { return starts_with(kvp.first, x); };
+      if (std::any_of(f.begin(), f.end(), matches))
+        num_inputs += kvp.second;
     }
     if (num_inputs > 0) {
       dst.num_inputs += num_inputs;
@@ -1003,22 +1001,37 @@ int main(int argc, char** argv) {
       auto gptr = broker::detail::make_generator_file_reader(file_name);
       if (gptr == nullptr) {
         err::println("unable to open generator file: ", file_name);
-      } else {
-        if (auto err = gptr->skip_to_end()) {
-          err::println("error while parsing generator file: ", cfg.render(err));
-          continue;
+        continue;
+      }
+      size_t total_entries = 0;
+      size_t data_entries = 0;
+      size_t command_entries = 0;
+      std::map<broker::topic, size_t> entries_by_topic;
+      broker::node_message::value_type x;
+      while (!gptr->at_end()) {
+        if (auto err = gptr->read(x)) {
+          err::println("error while parsing ", file_name, ": ",
+                       cfg.render(err));
+          return EXIT_FAILURE;
         }
-        const auto& topics = gptr->topics();
-        out::println(file_name);
-        out::println("├── entries: ", gptr->entries());
-        out::println("|   ├── data-entries: ", gptr->data_entries());
-        out::println("|   └── command-entries: ", gptr->command_entries());
-        out::println("└── topics:");
-        if (!topics.empty()) {
-          for (size_t i = 0; i < topics.size() - 1; ++i)
-            out::println("    ├── ", topics[i].string());
-          out::println("    └── ", topics.back().string());
-        }
+        ++total_entries;
+        if (is_data_message(x))
+          ++data_entries;
+        else
+          ++ command_entries;
+        entries_by_topic[get_topic(x)] += 1;
+      }
+      out::println(file_name);
+      out::println("├── entries: ", total_entries);
+      out::println("|   ├── data-entries: ", data_entries);
+      out::println("|   └── command-entries: ", command_entries);
+      out::println("└── topics:");
+      if (!entries_by_topic.empty()) {
+        auto i = entries_by_topic.begin();
+        auto e = std::prev(entries_by_topic.end());
+        for (; i != e; ++i)
+          out::println("    ├── ", i->first.string(), " (", i->second, ")");
+        out::println("    └── ", i->first.string(), " (", i->second, ")");
       }
     }
     return EXIT_SUCCESS;
