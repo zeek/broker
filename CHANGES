@@ -1,4 +1,8 @@
 
+1.2.0-56 | 2019-10-16 10:01:19 -0700
+
+  * Update to pybind11 v2.4.3 (Jon Siwek, Corelight)
+
 1.2.0-54 | 2019-10-02 10:44:57 -0700
 
   * Extend visibility of imported CAF library targets (Dominik Charousset, Corelight)
