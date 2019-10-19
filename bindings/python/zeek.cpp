@@ -1,4 +1,5 @@
 
+#include <stdexcept>
 #include <utility>
 #include <string>
 
@@ -21,7 +22,9 @@ void init_zeek(py::module& m) {
 
   py::class_<broker::zeek::Event, broker::zeek::Message>(m, "Event")
     .def(py::init([](broker::data data) {
-       return broker::zeek::Event(std::move(data));
+       if (!broker::zeek::Event::valid(data))
+         throw std::invalid_argument("invalid data for broker::zeek::Event");
+       return broker::zeek::Event::from(std::move(data));
        }))
     .def(py::init([](std::string name, broker::data args) {
        return broker::zeek::Event(std::move(name), std::move(caf::get<broker::vector>(args)));
