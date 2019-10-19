@@ -146,7 +146,7 @@ void send_batch(endpoint& ep, publisher& p) {
   vector batch;
   for (int i = 0; i < batch_size; i++) {
     auto ev = zeek::Event(std::string(name), createEventArgs());
-    batch.emplace_back(std::move(ev));
+    batch.emplace_back(ev.move_data());
   }
   total_sent += batch.size();
   p.publish(std::move(batch));
@@ -195,7 +195,7 @@ void receivedStats(endpoint& ep, data x) {
 
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("/benchmark/terminate", ev);
+    ep.publish("/benchmark/terminate", ev.move_data());
     sleep(2); // Give clients a bit.
     exit(0);
   }
@@ -292,9 +292,6 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
       // Count number of events (counts each element in a batch as one event).
       if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
         ++num_events;
-      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
-        zeek::Batch batch(std::move(msg));
-        num_events += batch.batch().size();
       } else {
         std::cerr << "unexpected message type" << std::endl;
         exit(1);
@@ -329,11 +326,12 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     std::this_thread::sleep_until(timeout);
     // Generate and publish zeek event.
     timestamp now = std::chrono::system_clock::now();
-    auto stats = vector{now, now - last_time, count{reset_num_events()}};
+    auto msgs = count{reset_num_events()};
+    auto stats = vector{now, now - last_time, msgs};
     if (verbose)
-      std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
+      std::cout << msgs << " messages/s\n";
     zeek::Event ev("stats_update", vector{std::move(stats)});
-    ep.publish("/benchmark/stats", std::move(ev));
+    ep.publish("/benchmark/stats", ev.move_data());
     // Advance time and print status events.
     last_time = now;
     auto status_events = ss.poll();
