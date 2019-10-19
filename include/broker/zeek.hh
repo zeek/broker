@@ -16,8 +16,7 @@ public:
     LogCreate = 2,
     LogWrite = 3,
     IdentifierUpdate = 4,
-    Batch = 5,
-    MAX = Batch,
+    MAX = IdentifierUpdate,
   };
 
   Type type() const {
@@ -55,8 +54,12 @@ public:
     return caf::get<vector>(data_);
    }
 
-  operator data() const {
-    return as_data();
+  const vector& content() const {
+    return caf::get<vector>(caf::get<vector>(data_)[2]);
+  }
+
+  vector& content() {
+    return caf::get<vector>(caf::get<vector>(data_)[2]);
   }
 
   static Type type(const data& msg) {
@@ -81,12 +84,34 @@ public:
     return Type(*cp);
   }
 
+  static bool valid(const broker::data& raw) {
+    if (auto vec = caf::get_if<vector>(&raw)) {
+      if (vec->size() < 3)
+        return false;
+      if (auto version = caf::get_if<count>(&(*vec)[0])) {
+        if (*version != ProtocolVersion)
+          return false;
+      } else {
+        return false;
+      }
+      if (auto type = caf::get_if<count>(&(*vec)[1])) {
+        if (*type == 0 || *type > static_cast<count>(MAX))
+          return false;
+      } else {
+        return false;
+      }
+      return caf::holds_alternative<vector>((*vec)[2]);
+    }
+    return false;
+  }
+
 protected:
   Message(Type type, vector content)
     : data_(vector{ProtocolVersion, count(type), std::move(content)}) {
   }
 
-  Message(data msg) : data_(std::move(msg)) {
+  explicit Message(data&& raw) : data_(std::move(raw)) {
+    // nop
   }
 
   data data_;
@@ -94,82 +119,44 @@ protected:
 
 /// A Zeek event.
 class Event : public Message {
-  public:
+public:
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
 
-  Event(data msg) : Message(std::move(msg)) {}
-
   const std::string& name() const {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<std::string>(content()[0]);
   }
 
   std::string& name() {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<std::string>(content()[0]);
   }
 
   const vector& args() const {
-    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<vector>(content()[1]);
   }
 
   vector& args() {
-    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<vector>(content()[1]);
   }
 
-  bool valid() const {
-    if ( as_vector().size() < 3 )
+  static bool valid(const broker::data& raw) noexcept {
+    if (!Message::valid(raw))
       return false;
-
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
-
-    if ( ! vp )
+    auto& vec = caf::get<vector>(caf::get<vector>(raw)[2]);
+    if (vec.size() != 2)
       return false;
-
-    auto& v = *vp;
-
-    if ( v.size() < 2 )
-      return false;
-
-    auto name_ptr = caf::get_if<std::string>(&v[0]);
-
-    if ( ! name_ptr )
-      return false;
-
-    auto args_ptr = caf::get_if<vector>(&v[1]);
-
-    if ( ! args_ptr )
-      return false;
-
-    return true;
-  }
-};
-
-/// A batch of other messages.
-class Batch : public Message {
-  public:
-  Batch(vector msgs)
-    : Message(Message::Type::Batch, std::move(msgs)) {}
-
-  Batch(data msg) : Message(std::move(msg)) {}
-
-  const vector& batch() const {
-    return caf::get<vector>(as_vector()[2]);
+    return caf::holds_alternative<std::string>(vec[0])
+           && caf::holds_alternative<vector>(vec[1]);
   }
 
-  vector& batch() {
-    return caf::get<vector>(as_vector()[2]);
+  /// @pre @c valid(raw)
+  static Event from(data&& raw) {
+    return Event{std::move(raw)};
   }
 
-  bool valid() const {
-    if ( as_vector().size() < 3 )
-      return false;
-
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
-
-    if ( ! vp )
-      return false;
-
-    return true;
+private:
+  explicit Event(data&& raw) : Message(std::move(raw)) {
+    // nop
   }
 };
 
@@ -184,62 +171,56 @@ public:
                std::move(writer_info), std::move(fields_data)}) {
   }
 
-  LogCreate(data msg) : Message(std::move(msg)) {
-  }
-
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<enum_value>(content()[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<enum_value>(content()[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<enum_value>(content()[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<enum_value>(content()[1]);
   }
 
   const data& writer_info() const {
-    return caf::get<vector>(as_vector()[2])[2];
+    return content()[2];
   }
 
   data& writer_info() {
-    return caf::get<vector>(as_vector()[2])[2];
+    return content()[2];
   }
 
   const data& fields_data() const {
-    return caf::get<vector>(as_vector()[2])[3];
+    return content()[3];
   }
 
   data& fields_data() {
-    return caf::get<vector>(as_vector()[2])[3];
+    return content()[3];
   }
 
-  bool valid() const {
-    if ( as_vector().size() < 3 )
+  static bool valid(const data& raw) noexcept {
+    if (!Message::valid(raw))
       return false;
-
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
-
-    if ( ! vp )
+    auto& vec = caf::get<vector>(caf::get<vector>(raw)[2]);
+    if (vec.size() != 4)
       return false;
+    return caf::holds_alternative<enum_value>(vec[0])
+           && caf::holds_alternative<enum_value>(vec[1]);
+  }
 
-    auto& v = *vp;
+  /// @pre @c valid(raw)
+  static LogCreate from(data&& raw) {
+    return LogCreate{std::move(raw)};
+  }
 
-    if ( v.size() < 4 )
-      return false;
-
-    if ( ! caf::get_if<enum_value>(&v[0]) )
-      return false;
-
-    if ( ! caf::get_if<enum_value>(&v[1]) )
-      return false;
-
-    return true;
+private:
+  explicit LogCreate(data&& raw) : Message(std::move(raw)) {
+    // nop
   }
 };
 
@@ -247,69 +228,65 @@ public:
 /// by Zeek itself as the arguments aren't publicly defined.
 class LogWrite : public Message {
 public:
-  LogWrite(enum_value stream_id, enum_value writer_id, data path,
-           data serial_data)
+  LogWrite(enum_value stream_id, enum_value writer_id, std::string path,
+           vector values)
     : Message(Message::Type::LogWrite,
               {std::move(stream_id), std::move(writer_id),
-               std::move(path), std::move(serial_data)}) {
-  }
-
-  LogWrite(data msg) : Message(std::move(msg)) {
+               std::move(path), std::move(values)}) {
   }
 
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<enum_value>(content()[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<enum_value>(content()[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<enum_value>(content()[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return caf::get<enum_value>(content()[1]);
   }
 
-  const data& path() const {
-    return caf::get<vector>(as_vector()[2])[2];
+  const std::string& path() const {
+    return caf::get<std::string>(content()[2]);
   }
 
-  data& path() {
-    return caf::get<vector>(as_vector()[2])[2];
+  std::string& path() {
+    return caf::get<std::string>(content()[2]);
   };
 
-  const data& serial_data() const {
-    return caf::get<vector>(as_vector()[2])[3];
+  vector& values() {
+    return caf::get<vector>(content()[3]);
   }
 
-  data& serial_data() {
-    return caf::get<vector>(as_vector()[2])[3];
+  const vector& values() const {
+    return caf::get<vector>(content()[3]);
   }
 
-  bool valid() const {
-    if ( as_vector().size() < 3 )
+  static bool valid(const data& raw) noexcept {
+    if (!Message::valid(raw))
       return false;
-
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
-
-    if ( ! vp )
+    auto& vec = caf::get<vector>(caf::get<vector>(raw)[2]);
+    if (vec.size() != 4)
       return false;
+    return caf::holds_alternative<enum_value>(vec[0])
+           && caf::holds_alternative<enum_value>(vec[1])
+           && caf::holds_alternative<std::string>(vec[2])
+           && caf::holds_alternative<vector>(vec[3]);
+  }
 
-    auto& v = *vp;
+  /// @pre @c valid(raw)
+  static LogWrite from(data&& raw) {
+    return LogWrite{std::move(raw)};
+  }
 
-    if ( v.size() < 4 )
-      return false;
-
-    if ( ! caf::get_if<enum_value>(&v[0]) )
-      return false;
-
-    if ( ! caf::get_if<enum_value>(&v[1]) )
-      return false;
-
-    return true;
+private:
+  explicit LogWrite(data&& raw) : Message(std::move(raw)) {
+    // nop
   }
 };
 
@@ -320,43 +297,40 @@ public:
     		                                    std::move(id_value)}) {
   }
 
-  IdentifierUpdate(data msg) : Message(std::move(msg)) {
-  }
-
   const std::string& id_name() const {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<std::string>(content()[0]);
   }
 
   std::string& id_name() {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return caf::get<std::string>(content()[0]);
   }
 
   const data& id_value() const {
-    return caf::get<vector>(as_vector()[2])[1];
+    return content()[1];
   }
 
   data& id_value() {
-    return caf::get<vector>(as_vector()[2])[1];
+    return content()[1];
   }
 
-  bool valid() const {
-    if ( as_vector().size() < 3 )
+  static bool valid(const data& raw) noexcept {
+    if (!Message::valid(raw))
       return false;
-
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
-
-    if ( ! vp )
+    auto& vec = caf::get<vector>(caf::get<vector>(raw)[2]);
+    if (vec.size() != 2)
       return false;
+    return caf::holds_alternative<std::string>(vec[0]);
+  }
 
-    auto& v = *vp;
 
-    if ( v.size() < 2 )
-      return false;
+  /// @pre @c valid(raw)
+  static IdentifierUpdate from(data&& raw) {
+    return IdentifierUpdate{std::move(raw)};
+  }
 
-    if ( ! caf::get_if<std::string>(&v[0]) )
-      return false;
-
-    return true;
+private:
+  explicit IdentifierUpdate(data&& raw) : Message(std::move(raw)) {
+    // nop
   }
 };
 
