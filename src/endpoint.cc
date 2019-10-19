@@ -37,20 +37,7 @@ endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
     mtx_(),
     pending_(),
     pending_count_() {
-  // Create a directory for storing the meta data if requested.
-  auto meta_dir = get_or(sys_->config(), "broker.recording-directory",
-                         defaults::recording_directory);
-  if (detail::is_directory(meta_dir))
-    detail::remove_all(meta_dir);
-  if (detail::mkdirs(meta_dir)) {
-    auto dump = sys->config().dump_content();
-    std::fstream conf_file{meta_dir + "/broker.conf"};
-    if (!(conf_file << caf::deep_to_string(dump)))
-      BROKER_WARNING("failed to write to config file");
-  } else {
-    std::cerr << "WARNING: unable to create \"" << meta_dir
-              << "\" for recording meta data\n";
-  }
+  // nop
 }
 
 timestamp endpoint::clock::now() const noexcept {
@@ -136,6 +123,23 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
+  // Create a directory for storing the meta data if requested.
+  auto meta_dir = get_or(config_, "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!meta_dir.empty()) {
+    if (detail::is_directory(meta_dir))
+      detail::remove_all(meta_dir);
+    if (detail::mkdirs(meta_dir)) {
+      auto dump = config_.dump_content();
+      std::ofstream conf_file{meta_dir + "/broker.conf"};
+      if (!(conf_file << caf::deep_to_string(dump)))
+        BROKER_WARNING("failed to write to config file");
+    } else {
+      std::cerr << "WARNING: unable to create \"" << meta_dir
+                << "\" for recording meta data\n";
+    }
+  }
+  // Initialize remaining state.
   new (&system_) caf::actor_system(config_);
   clock_ = new clock(&system_, config_.options().use_real_time);
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())

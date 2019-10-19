@@ -120,7 +120,7 @@ void core_state::init(filter_type initial_filter, broker_options opts,
   clock = ep_clock;
   auto meta_dir = get_or(self->config(), "broker.recording-directory",
                          defaults::recording_directory);
-  if (detail::is_directory(meta_dir)) {
+  if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
     auto file_name = meta_dir + "/topics.txt";
     topics_file.open(file_name);
     if (topics_file.is_open()) {

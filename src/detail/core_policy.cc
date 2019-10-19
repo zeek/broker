@@ -26,7 +26,7 @@ core_policy::core_policy(caf::detail::stream_distribution_tree<core_policy>* p,
   auto& cfg = state->self->system().config();
   auto meta_dir = get_or(cfg, "broker.recording-directory",
                          defaults::recording_directory);
-  if (detail::is_directory(meta_dir)) {
+  if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
     auto file_name = meta_dir + "/messages.dat";
     recorder_ = make_generator_file_writer(file_name);
     if (recorder_ == nullptr) {
