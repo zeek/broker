@@ -1,4 +1,10 @@
 
+1.2.0-59 | 2019-10-21 11:41:35 +0200
+
+  * Fix check for cmake commands on POSIX shells (Dominik Charousset, Corelight)
+
+  * Prefer cmake3 command, add --cmake=PATH option (Dominik Charousset, Corelight)
+
 1.2.0-56 | 2019-10-16 10:01:19 -0700
 
   * Update to pybind11 v2.4.3 (Jon Siwek, Corelight)
