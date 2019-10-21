@@ -1,4 +1,8 @@
 
+1.2.0-60 | 2019-10-21 09:33:35 -0700
+
+  * Update embedded CAF to 0.17.2 (Jon Siwek, Corelight)
+
 1.2.0-59 | 2019-10-21 11:41:35 +0200
 
   * Fix check for cmake commands on POSIX shells (Dominik Charousset, Corelight)
