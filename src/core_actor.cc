@@ -25,8 +25,10 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/convert.hh"
+#include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/clone_actor.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/master_actor.hh"
 #include "broker/detail/master_resolver.hh"
@@ -56,6 +58,8 @@ result<void> init_peering(caf::stateful_actor<core_state>* self,
     rp.deliver(caf::unit);
     return rp;
   }
+  if (st.peers_file)
+    st.peers_file << to_string(remote_core.node()) << std::endl;
   // Create necessary state and send message to remote core.
   st.pending_peers.emplace(remote_core,
                            core_state::pending_peer_state{0, rp});
@@ -114,6 +118,30 @@ void core_state::init(filter_type initial_filter, broker_options opts,
   cache.set_use_ssl(! options.disable_ssl);
   governor = caf::make_counted<governor_type>(self, this, filter);
   clock = ep_clock;
+  auto meta_dir = get_or(self->config(), "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
+    auto file_name = meta_dir + "/topics.txt";
+    topics_file.open(file_name);
+    if (topics_file.is_open()) {
+      BROKER_DEBUG("opened file for recording:" << file_name);
+      for (const auto& x : filter) {
+        if (!(topics_file << x.string() << '\n')) {
+          BROKER_WARNING("failed to write to topics file");
+          topics_file.close();
+          break;
+        }
+      }
+      topics_file.flush();
+    } else {
+      BROKER_WARNING("cannot open recording file" << file_name);
+    }
+    peers_file.open(meta_dir + "/peers.txt");
+    if (!peers_file.is_open())
+      BROKER_WARNING("cannot open recording file" << file_name);
+    std::ofstream id_file{meta_dir + "/id.txt"};
+    id_file << to_string(self->node()) << '\n';
+  }
 }
 
 void core_state::update_filter_on_peers() {
@@ -125,6 +153,17 @@ void core_state::update_filter_on_peers() {
 
 void core_state::add_to_filter(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
+  // Simply append to topics without de-duplication.
+  if (topics_file.is_open()) {
+    for (const auto& x : xs) {
+      if (!(topics_file << x.string() << '\n')) {
+        BROKER_WARNING("failed to write to topics file");
+        topics_file.close();
+        break;
+      }
+    }
+    topics_file.flush();
+  }
   // Get initial size of our filter.
   auto s0 = filter.size();
   // Insert new elements then remove duplicates with sort and unique.
@@ -375,6 +414,14 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       st.add_to_filter(filter);
       st.policy().workers().set_filter(slot, std::move(filter));
       self->send(who_asked, true);
+    },
+    [=](atom::join, atom::store, filter_type& filter) {
+      // Tap into data store messages.
+      auto& st = self->state;
+      auto result = st.governor->policy().add_store(filter);
+      if (result != invalid_stream_slot)
+        st.add_to_filter(std::move(filter));
+      return result;
     },
     [=](endpoint::stream_type in) {
       BROKER_TRACE("add data_message input stream");

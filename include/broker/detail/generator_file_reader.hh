@@ -30,9 +30,30 @@ public:
 
   bool at_end() const;
 
+  /// @pre `at_end()`
   void rewind();
 
   caf::error read(value_type& x);
+
+  caf::error skip();
+
+  caf::error skip_to_end();
+
+  const std::vector<topic>& topics() const noexcept {
+    return topic_table_;
+  }
+
+  size_t entries() const noexcept {
+    return data_entries_ + command_entries_;
+  }
+
+  size_t data_entries() const noexcept {
+    return data_entries_;
+  }
+
+  size_t command_entries() const noexcept {
+    return command_entries_;
+  }
 
 private:
   int fd_;
@@ -41,6 +62,9 @@ private:
   caf::binary_deserializer source_;
   data_generator generator_;
   std::vector<topic> topic_table_;
+  size_t data_entries_ = 0;
+  size_t command_entries_ = 0;
+  bool sealed_ = false;
 };
 
 using generator_file_reader_ptr = std::unique_ptr<generator_file_reader>;

@@ -40,8 +40,8 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
     .add(options_.disable_ssl, "disable_ssl",
          "forces Broker to use unencrypted communication")
     .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
-    .add<std::string>("output-generator-file",
-                      "records meta information for each published message")
+    .add<std::string>("recording-directory",
+                      "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
   // Override CAF default file names.
@@ -65,8 +65,8 @@ configuration::configuration(broker_options opts) : options_(std::move(opts)) {
   }
   if (auto env = getenv("BROKER_DEBUG_COMPONENT_FILTER"))
     set("logger.component-filter", env);
-  if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE"))
-    set("broker.output-generator-file", env);
+  if (auto env = getenv("BROKER_RECORDING_DIRECTORY"))
+    set("broker.recording-directory", env);
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     try {
       auto value = static_cast<size_t>(std::stoi(env));
@@ -84,10 +84,22 @@ configuration::configuration(int argc, char** argv) : configuration{} {
   parse(argc, argv);
 }
 
+caf::settings configuration::dump_content() const {
+  auto result = super::dump_content();
+  auto& grp = result["broker"].as_dictionary();
+  put_missing(grp, "disable_ssl", options_.disable_ssl);
+  put_missing(grp, "ttl", options_.ttl);
+  put_missing(grp, "forward", options_.forward);
+  if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
+    put_missing(grp, "recording-directory", *path);
+  if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
+    put_missing(grp, "output-generator-file-cap", *cap);
+  return result;
+}
+
 #define ADD_MSG_TYPE(name) cfg.add_message_type<name>(#name)
 
 void configuration::add_message_types(caf::actor_system_config& cfg) {
-  ADD_MSG_TYPE(broker::data);
   ADD_MSG_TYPE(broker::data);
   ADD_MSG_TYPE(broker::address);
   ADD_MSG_TYPE(broker::subnet);
@@ -100,7 +112,6 @@ void configuration::add_message_types(caf::actor_system_config& cfg) {
   ADD_MSG_TYPE(broker::status);
   ADD_MSG_TYPE(broker::table);
   ADD_MSG_TYPE(broker::topic);
-  ADD_MSG_TYPE(std::vector<broker::topic>);
   ADD_MSG_TYPE(broker::optional<broker::timestamp>);
   ADD_MSG_TYPE(broker::optional<broker::timespan>);
   ADD_MSG_TYPE(broker::snapshot);
@@ -108,11 +119,9 @@ void configuration::add_message_types(caf::actor_system_config& cfg) {
   ADD_MSG_TYPE(broker::command_message);
   ADD_MSG_TYPE(broker::data_message);
   ADD_MSG_TYPE(broker::node_message);
+  ADD_MSG_TYPE(broker::node_message::value_type);
   ADD_MSG_TYPE(broker::set_command);
   ADD_MSG_TYPE(broker::store::stream_type::value_type);
-  ADD_MSG_TYPE(std::vector<broker::store::stream_type::value_type>);
-  ADD_MSG_TYPE(broker::endpoint::stream_type::value_type);
-  ADD_MSG_TYPE(std::vector<broker::endpoint::stream_type::value_type>);
 }
 
 #undef ADD_MSG_TYPE

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fstream>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -181,8 +182,17 @@ struct core_state {
   /// Required when spawning data stores.
   endpoint::clock* clock;
 
+  /// Keeps track of all actors that subscribed to status updates.
   std::unordered_set<caf::actor> status_subscribers;
+
+  /// Keeps track of all actors that currently wait for handshakes to complete.
   std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync;
+
+  /// Handle for recording all subscribed topics (if enabled).
+  std::ofstream topics_file;
+
+  /// Handle for recording all peers (if enabled).
+  std::ofstream peers_file;
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

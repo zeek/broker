@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace broker {
 namespace detail {
@@ -12,6 +13,18 @@ using path = std::string;
 /// @returns `true` if the given path or file status corresponds to an existing
 /// file or directory, `false` otherwise.
 bool exists(const path& p);
+
+/// Checks whether a given path exists and is a directory.
+/// @param p The path to examine.
+/// @returns `true` if the given path or file status corresponds to an existing
+///          directory, `false` otherwise.
+bool is_directory(const path& p);
+
+/// Checks whether a given path exists and is a file.
+/// @param p The path to examine.
+/// @returns `true` if the given path or file status corresponds to an existing
+///          file, `false` otherwise.
+bool is_file(const path& p);
 
 /// Like `mkdir -p`.
 /// @param p The director to create.
@@ -34,6 +47,17 @@ bool remove(const path& p);
 /// @param p The path to remove.
 /// @returns `true` iff *p* was deleted successfully.
 bool remove_all(const path& p);
+
+/// Reads an entire file and returns its contents as list of lines.
+/// @param p The path to read.
+/// @param keep_empties Configures whether to drop empty lines.
+/// @returns a `std::vector` containing one string for each line in the file.
+std::vector<std::string> readlines(const path& p, bool keep_empties = true);
+
+/// Reads an entire file and returns its contents as string.
+/// @param p The path to read.
+/// @returns a string containing the content of the file.
+std::string read(const path& p);
 
 } // namespace detail
 } // namespace broker

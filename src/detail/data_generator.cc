@@ -230,8 +230,7 @@ caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
 caf::error data_generator::generate(std::string& x) {
   uint32_t string_size = 0;
   READ(string_size);
-  x.resize(string_size);
-  shuffle(x);
+  x.insert(x.end(), string_size, 'x');
   return caf::none;
 }
 

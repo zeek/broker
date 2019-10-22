@@ -6,8 +6,9 @@
 #include <caf/none.hpp>
 
 #include "broker/core_actor.hh"
-#include "broker/logger.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/filesystem.hh"
+#include "broker/logger.hh"
 
 using caf::detail::stream_distribution_tree;
 
@@ -23,9 +24,10 @@ core_policy::core_policy(caf::detail::stream_distribution_tree<core_policy>* p,
   BROKER_ASSERT(parent_ != nullptr);
   BROKER_ASSERT(state_ != nullptr);
   auto& cfg = state->self->system().config();
-  auto file_name = get_or(cfg, "broker.output-generator-file",
-                          defaults::output_generator_file);
-  if (!file_name.empty()) {
+  auto meta_dir = get_or(cfg, "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
+    auto file_name = meta_dir + "/messages.dat";
     recorder_ = make_generator_file_writer(file_name);
     if (recorder_ == nullptr) {
       BROKER_WARNING("cannot open recording file" << file_name);
@@ -365,6 +367,17 @@ auto core_policy::add_worker(filter_type filter)
   if (slot != invalid_stream_slot) {
     out().assign<worker_trait::manager>(slot);
     workers().set_filter(slot, std::move(filter));
+  }
+  return slot;
+}
+
+auto core_policy::add_store(filter_type filter)
+-> outbound_stream_slot<store_trait::element> {
+  CAF_LOG_TRACE(CAF_ARG(filter));
+  auto slot = parent_->add_unchecked_outbound_path<store_trait::element>();
+  if (slot != invalid_stream_slot) {
+    out().assign<store_trait::manager>(slot);
+    stores().set_filter(slot, std::move(filter));
   }
   return slot;
 }

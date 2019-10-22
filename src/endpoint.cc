@@ -1,5 +1,4 @@
-#include "broker/logger.hh" // Must come before any CAF include.
-
+#include <iostream>
 #include <unordered_set>
 
 #include <caf/config.hpp>
@@ -17,7 +16,9 @@
 
 #include "broker/atoms.hh"
 #include "broker/core_actor.hh"
+#include "broker/defaults.hh"
 #include "broker/detail/die.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/endpoint.hh"
 #include "broker/logger.hh"
 #include "broker/publisher.hh"
@@ -118,10 +119,75 @@ caf::node_id endpoint::node_id() const {
   return core()->node();
 }
 
+namespace {
+
+struct indentation {
+  size_t size;
+};
+
+indentation operator+(indentation x, size_t y) noexcept {
+  return {x.size + y};
+}
+
+std::ostream& operator<<(std::ostream& out, indentation indent) {
+  for (size_t i = 0; i < indent.size; ++i)
+    out.put(' ');
+  return out;
+}
+
+// TODO: this function replicates code in CAF for --dump-config; consider making
+//       it a public API function in CAF.
+void pretty_print(std::ostream& out, const caf::settings& xs,
+                  indentation indent) {
+  using std::cout;
+  for (const auto& kvp : xs) {
+    if (kvp.first == "dump-config")
+      continue;
+    if (auto submap = caf::get_if<caf::config_value::dictionary>(&kvp.second)) {
+      out << indent << kvp.first << " {\n";
+      pretty_print(out, *submap, indent + 2);
+      out << indent << "}\n";
+    } else if (auto lst = caf::get_if<caf::config_value::list>(&kvp.second)) {
+      if (lst->empty()) {
+        out << indent << kvp.first << " = []\n";
+      } else {
+        out << indent << kvp.first << " = [\n";
+        auto list_indent = indent + 2;
+        for (auto& x : *lst)
+          out << list_indent << to_string(x) << ",\n";
+        out << indent << "]\n";
+      }
+    } else {
+      out << indent << kvp.first << " = " << to_string(kvp.second) << '\n';
+    }
+  }
+}
+
+} // namespace
+
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
+  // Create a directory for storing the meta data if requested.
+  auto meta_dir = get_or(config_, "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!meta_dir.empty()) {
+    if (detail::is_directory(meta_dir))
+      detail::remove_all(meta_dir);
+    if (detail::mkdirs(meta_dir)) {
+      auto dump = config_.dump_content();
+      std::ofstream conf_file{meta_dir + "/broker.conf"};
+      if (!conf_file)
+        BROKER_WARNING("failed to write to config file");
+      else
+        pretty_print(conf_file, dump, {0});
+    } else {
+      std::cerr << "WARNING: unable to create \"" << meta_dir
+                << "\" for recording meta data\n";
+    }
+  }
+  // Initialize remaining state.
   new (&system_) caf::actor_system(config_);
   clock_ = new clock(&system_, config_.options().use_real_time);
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())

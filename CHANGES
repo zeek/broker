@@ -1,4 +1,24 @@
 
+1.2.0-100 | 2019-10-21 17:35:16 -0700
+
+  * Add broker-cluster-benchmark tool (Dominik Charousset, Corelight)
+
+    Allows benchmarking arbitrary Broker networks based on previously
+    recorded data.  e.g. can record all Broker messages in a Zeek cluster
+    and then replay them later in a simulated network for benchmarking
+    purposes.  See tests/benchmark/README.md for details.
+
+  * Add new is_file utility function (Dominik Charousset, Corelight)
+
+  * Remove obsolete benchmark (Dominik Charousset, Corelight)
+
+    The old broker-stream-benchmark is very low level and no longer provides
+    any value with broker-cluster-benchmark in the mix.
+
+  * Give recognizable names to custom actor types (Dominik Charousset, Corelight)
+
+  * Streamline announcement of types (Dominik Charousset, Corelight)
+
 1.2.0-60 | 2019-10-21 09:33:35 -0700
 
   * Update embedded CAF to 0.17.2 (Jon Siwek, Corelight)
