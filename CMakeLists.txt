@@ -144,6 +144,7 @@ else ()
         -DCAF_NO_TOOLS:bool=yes
         -DCAF_NO_PYTHON:bool=yes
         -DCAF_NO_OPENCL:bool=yes
+        -DCAF_NO_AUTO_LIBCPP:bool=yes
         -DCAF_BUILD_STATIC:bool=${ENABLE_STATIC}
         -DCAF_BUILD_STATIC_ONLY:bool=${ENABLE_STATIC_ONLY}
         # Sticking CAF libs in the same output dir as libbroker is a bit of a
