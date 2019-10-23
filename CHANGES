@@ -1,4 +1,13 @@
 
+1.2.0-102 | 2019-10-23 09:16:09 -0700
+
+  * Add -DNO_AUTO_LIBCPP when building CAF. (Robin Sommer, Corelight)
+
+    When setting the C++ compiler to clang, CAF by default switches to
+    compiling with -stdlib=libc++. As Broker doesn't do that, the two end
+    up linking against different libaries. Setting NO_AUTO_LIBCPP lets CAF
+    use the same library settings as Broker.
+
 1.2.0-100 | 2019-10-21 17:35:16 -0700
 
   * Add broker-cluster-benchmark tool (Dominik Charousset, Corelight)
