@@ -40,7 +40,7 @@ Dependencies
 Compiling Broker requires the following libraries/tools to already be
 installed:
 
-    * C++ compiler with C++11 support    (GCC 4.8+ or Clang 3.3+)
+    * C++ compiler with C++17 support    (GCC 7+ or Clang 4+)
     * OpenSSL headers/libraries          (http://www.openssl.org)
     * CMake 2.8.12 or greater            (https://cmake.org)
 

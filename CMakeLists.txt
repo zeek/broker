@@ -293,7 +293,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
   set(BROKER_FREEBSD)
 endif ()
 
-include(RequireCXX11)
+include(RequireCXX17)
 
 # Mac OS ignores -pthread but other platforms require it
 if (NOT BROKER_APPLE)

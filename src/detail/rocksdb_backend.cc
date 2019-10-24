@@ -10,7 +10,6 @@
 #include "broker/detail/appliers.hh"
 #include "broker/detail/blob.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/detail/make_unique.hh"
 #include "broker/detail/rocksdb_backend.hh"
 
 namespace broker {
