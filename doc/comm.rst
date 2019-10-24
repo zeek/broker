@@ -271,8 +271,8 @@ Zeek:
     # g++ -std=c++11 -lbroker -lcaf_core -lcaf_io -lcaf_openssl -o ping ping.cc
     # zeek ping.zeek &
     # ./ping
-    received pong[0]
-    received pong[1]
-    received pong[2]
-    received pong[3]
-    received pong[4]
+    received pong(0)
+    received pong(1)
+    received pong(2)
+    received pong(3)
+    received pong(4)
