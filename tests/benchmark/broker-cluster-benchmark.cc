@@ -176,6 +176,7 @@ struct config : actor_system_config {
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
+    set("logger.file-verbosity", caf::atom("quiet"));
     broker::configuration::add_message_types(*this);
   }
 
