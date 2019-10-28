@@ -587,7 +587,12 @@ caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
 
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   self->state.init(this_node);
-  //self->state.ep.forward(topics(*this_node));
+  // Make sure we subscribe to all topics locally *before* we initiate peering.
+  // Otherwise, we get a race on the topics and can "loose" initial messages.
+  // Despite its name, endpoint::forward does not force any forwarding. It only
+  // makes sure that the topic is in our local filter.
+  if (is_receiver(*this_node) || this_node->forward)
+    self->state.ep.forward(topics(*this_node));
   return {
     [=](broker::atom::init) -> caf::result<caf::atom_value> {
       // Open up the ports and start peering.
