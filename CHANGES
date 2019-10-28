@@ -1,4 +1,13 @@
 
+1.2.0-108 | 2019-10-28 16:08:14 -0700
+
+  * Use Ubuntu 18.04 (Bionic) for Travis CI (Jon Siwek, Corelight)
+
+    Mostly as a simple way to get a C++17-capable compiler in the default
+    build environment.
+
+  * Require C++17 (Jon Siwek, Corelight)
+
 1.2.0-102 | 2019-10-23 09:16:09 -0700
 
   * Add -DNO_AUTO_LIBCPP when building CAF. (Robin Sommer, Corelight)
