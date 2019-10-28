@@ -1,4 +1,15 @@
 
+1.2.0-115 | 2019-10-28 16:53:41 -0700
+
+  * Require CMake 3 (Dominik Charousset, Corelight)
+
+  * Fix position of CMake project() (Dominik Charousset, Corelight)
+
+    The call to `project` must come after `cmake_minimum_required` in CMake
+    in order to get the correct policy settings.
+
+  * Fix conditions where broker-cluster-benchmark may hang (Dominik Charousset, Corelight)
+
 1.2.0-108 | 2019-10-28 16:08:14 -0700
 
   * Use Ubuntu 18.04 (Bionic) for Travis CI (Jon Siwek, Corelight)
