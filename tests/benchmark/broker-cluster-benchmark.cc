@@ -556,6 +556,35 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   self->state.children.emplace_back(c);
 }
 
+caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
+                       const node* this_node, const node* peer) {
+  const auto& authority = peer->id.authority();
+  auto host = to_string(authority.host);
+  ep.peer(host, authority.port, broker::timeout::seconds(1));
+  for (;;) {
+    auto ss_res = ss.get();
+    using namespace broker;
+    if (holds_alternative<none>(ss_res))
+      continue;
+    if (auto err = get_if<error>(&ss_res))
+      return std::move(*err);
+    BROKER_ASSERT(holds_alternative<status>(ss_res));
+    auto& ss_stat = get<status>(ss_res);
+    auto code = ss_stat.code();
+    if (code == sc::unspecified)
+      continue;
+    if (code == sc::peer_removed || code == sc::peer_lost)
+      return make_error(caf::sec::runtime_error, this_node->name,
+                        "lost connection to a peer");
+    BROKER_ASSERT(code == sc::peer_added);
+    if (auto ctx = ss_stat.context<endpoint_info>()) {
+      auto& net = ctx->network;
+      if (net && net->address == host && net->port == authority.port)
+        return caf::none;
+    }
+  }
+}
+
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   self->state.init(this_node);
   //self->state.ep.forward(topics(*this_node));
@@ -574,11 +603,33 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
                             "listening failed");
         }
       }
-      for (const auto* peer : this_node->right) {
-        verbose::println(this_node->name, " starts peering to ",
-                         peer->id.authority(), " (", peer->name, ")");
-        st.ep.peer(to_string(peer->id.authority().host),
-                   peer->id.authority().port);
+      // Connect to all peers and wait for handshake success.
+      if (!this_node->right.empty()) {
+        auto ss = st.ep.make_status_subscriber(true);
+        for (const auto* peer : this_node->right) {
+          verbose::println(this_node->name, " starts peering to ",
+                           peer->id.authority(), " (", peer->name, ")");
+          // Try to connect up to 5 times per peer before giving up.
+          auto connected = false;
+          for (int i = 1; !connected && i <= 5; ++i) {
+            if (auto err = try_connect(st.ep, ss, this_node, peer)) {
+              if (i == 5) {
+                err::println(this_node->name,
+                             " received an error while trying to peer to ",
+                             peer->name, " on the 5th try: ", err);
+                return std::move(err);
+              } else {
+                verbose::println(this_node->name,
+                                 " received an error while trying to peer to ",
+                                 peer->name, " (try again): ", err);
+              }
+            } else {
+              verbose::println(this_node->name, " successfully peered to ",
+                               peer->id, " (", peer->name, ")");
+              connected = true;
+            }
+          }
+        }
       }
       if (is_sender(*this_node)) {
         using broker::detail::make_generator_file_reader;
@@ -1107,8 +1158,8 @@ int main(int argc, char** argv) {
       [](broker::atom::ack) {
         // All is well.
       },
-      [&](const caf::error& err) {
-        err::println("eror while waiting for ACK messages: ", sys.render(err));
+      [&](caf::error& err) {
+        throw std::move(err);
       });
   };
   auto wait_for_ok_messages = [&](size_t num) {
@@ -1127,45 +1178,56 @@ int main(int argc, char** argv) {
         out::println(node_name, " (receiving): ",
                      duration_cast<fractional_seconds>(runtime));
       },
-      [&](const caf::error& err) {
-        err::println("eror while waiting for OK messages: ", sys.render(err));
+      [&](caf::error& err) {
+        throw std::move(err);
       });
   };
-  // Initialize all nodes.
-  for (auto& x : nodes)
-    self->send(x.mgr, broker::atom::init::value);
-  wait_for_ok_messages(nodes.size());
-  verbose::println("all nodes are up and running, run benchmark");
-  // First, we spin up all readers to make sure they receive published data.
-  size_t receiver_acks = 0;
-  for (auto& x : nodes)
-    if (is_receiver(x)) {
-      self->send(x.mgr, broker::atom::read::value, self);
-      ++receiver_acks;
+  try {
+    // Initialize all nodes.
+    for (auto& x : nodes)
+      self->send(x.mgr, broker::atom::init::value);
+    wait_for_ok_messages(nodes.size());
+    verbose::println("all nodes are up and running, run benchmark");
+    // First, we spin up all readers to make sure they receive published data.
+    size_t receiver_acks = 0;
+    for (auto& x : nodes)
+      if (is_receiver(x)) {
+        self->send(x.mgr, broker::atom::read::value, self);
+        ++receiver_acks;
+      }
+    wait_for_ack_messages(receiver_acks);
+    // Start actual benchmark by spinning up all senders.
+    auto t0 = std::chrono::steady_clock::now();
+    for (auto& x : nodes)
+      if (is_sender(x))
+        self->send(x.mgr, broker::atom::write::value, self);
+    auto ok_count = [](size_t interim, const node& x) {
+      return interim + (is_sender_and_receiver(x) ? 2 : 1);
+    };
+    wait_for_ok_messages(
+      std::accumulate(nodes.begin(), nodes.end(), size_t{0}, ok_count));
+    auto t1 = std::chrono::steady_clock::now();
+    out::println("system: ", duration_cast<fractional_seconds>(t1 - t0));
+    // Shutdown all endpoints.
+    verbose::println("shut down all nodes");
+    for (auto& x : nodes)
+      self->send(x.mgr, broker::atom::shutdown::value);
+    wait_for_ok_messages(nodes.size());
+    for (auto& x : nodes)
+      self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
+    for (auto& x : nodes) {
+      self->wait_for(x.mgr);
+      x.mgr = nullptr;
     }
-  wait_for_ack_messages(receiver_acks);
-  // Start actual benchmark by spinning up all senders.
-  auto t0 = std::chrono::steady_clock::now();
-  for (auto& x : nodes)
-    if (is_sender(x))
-      self->send(x.mgr, broker::atom::write::value, self);
-  auto ok_count = [](size_t interim, const node& x) {
-    return interim + (is_sender_and_receiver(x) ? 2 : 1);
-  };
-  wait_for_ok_messages(
-    std::accumulate(nodes.begin(), nodes.end(), size_t{0}, ok_count));
-  auto t1 = std::chrono::steady_clock::now();
-  out::println("system: ", duration_cast<fractional_seconds>(t1 - t0));
-  // Shutdown all endpoints.
-  verbose::println("shut down all nodes");
-  for (auto& x : nodes)
-    self->send(x.mgr, broker::atom::shutdown::value);
-  wait_for_ok_messages(nodes.size());
-  for (auto& x : nodes)
-    self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
-  for (auto& x : nodes) {
-    self->wait_for(x.mgr);
-    x.mgr = nullptr;
+    verbose::println("all nodes done, bye 👋");
+  } catch (caf::error err) {
+    err::println("fatal eror: ", sys.render(err));
+    for (auto& x : nodes)
+      self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
+    for (auto& x : nodes) {
+      self->wait_for(x.mgr);
+      x.mgr = nullptr;
+    }
+    return EXIT_FAILURE;
   }
-  verbose::println("all nodes done, bye 👋");
 }
