@@ -556,6 +556,35 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   self->state.children.emplace_back(c);
 }
 
+caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
+                       const node* this_node, const node* peer) {
+  const auto& authority = peer->id.authority();
+  auto host = to_string(authority.host);
+  ep.peer(host, authority.port, broker::timeout::seconds(1));
+  for (;;) {
+    auto ss_res = ss.get();
+    using namespace broker;
+    if (holds_alternative<none>(ss_res))
+      continue;
+    if (auto err = get_if<error>(&ss_res))
+      return std::move(*err);
+    BROKER_ASSERT(holds_alternative<status>(ss_res));
+    auto& ss_stat = get<status>(ss_res);
+    auto code = ss_stat.code();
+    if (code == sc::unspecified)
+      continue;
+    if (code == sc::peer_removed || code == sc::peer_lost)
+      return make_error(caf::sec::runtime_error, this_node->name,
+                        "lost connection to a peer");
+    BROKER_ASSERT(code == sc::peer_added);
+    if (auto ctx = ss_stat.context<endpoint_info>()) {
+      auto& net = ctx->network;
+      if (net && net->address == host && net->port == authority.port)
+        return caf::none;
+    }
+  }
+}
+
 caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   self->state.init(this_node);
   //self->state.ep.forward(topics(*this_node));
@@ -578,40 +607,26 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       if (!this_node->right.empty()) {
         auto ss = st.ep.make_status_subscriber(true);
         for (const auto* peer : this_node->right) {
-          const auto& authority = peer->id.authority();
           verbose::println(this_node->name, " starts peering to ",
-                           authority, " (", peer->name, ")");
-          auto host = to_string(authority.host);
-          st.ep.peer(host, authority.port);
-          bool done_waiting = false;
-          // Wait until we see a peer_added status update.
-          for (;;) {
-            auto ss_res = ss.get();
-            using namespace broker;
-            if (holds_alternative<none>(ss_res))
-              continue;
-            if (auto err = get_if<error>(&ss_res)) {
-              err::println(this_node->name,
-                           " received an error while trying to peer to ",
-                           peer->name, ": ", *err);
-              return std::move(*err);
-            }
-            BROKER_ASSERT(holds_alternative<status>(ss_res));
-            auto& ss_stat = get<status>(ss_res);
-            auto code = ss_stat.code();
-            if (code == sc::unspecified)
-              continue;
-            if (code == sc::peer_removed || code == sc::peer_lost)
-              return make_error(caf::sec::runtime_error, this_node->name,
-                                "lost connection to a peer");
-            BROKER_ASSERT(code == sc::peer_added);
-            if (auto ctx = ss_stat.context<endpoint_info>()) {
-              auto& net = ctx->network;
-              if (net && net->address == host && net->port == authority.port) {
-                verbose::println(this_node->name, " successfully peered to ",
-                                 peer->id, " (", peer->name, ")");
-                break;
+                           peer->id.authority(), " (", peer->name, ")");
+          // Try to connect up to 5 times per peer before giving up.
+          auto connected = false;
+          for (int i = 1; !connected && i <= 5; ++i) {
+            if (auto err = try_connect(st.ep, ss, this_node, peer)) {
+              if (i == 5) {
+                err::println(this_node->name,
+                             " received an error while trying to peer to ",
+                             peer->name, " on the 5th try: ", err);
+                return std::move(err);
+              } else {
+                verbose::println(this_node->name,
+                                 " received an error while trying to peer to ",
+                                 peer->name, " (try again): ", err);
               }
+            } else {
+              verbose::println(this_node->name, " successfully peered to ",
+                               peer->id, " (", peer->name, ")");
+              connected = true;
             }
           }
         }
