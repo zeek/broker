@@ -42,7 +42,7 @@ installed:
 
     * C++ compiler with C++17 support    (GCC 7+ or Clang 4+)
     * OpenSSL headers/libraries          (http://www.openssl.org)
-    * CMake 2.8.12 or greater            (https://cmake.org)
+    * CMake 3.0 or greater               (https://cmake.org)
 
 The optional Python bindings also require Python 2.7 or greater
 along with Python development packages.  For Python 2.7, you'll

@@ -1,4 +1,8 @@
 
+1.2.0-117 | 2019-10-28 18:06:57 -0700
+
+  * Update README to reflect CMake 3.0+ requirement (Jon Siwek, Corelight)
+
 1.2.0-115 | 2019-10-28 16:53:41 -0700
 
   * Require CMake 3 (Dominik Charousset, Corelight)
