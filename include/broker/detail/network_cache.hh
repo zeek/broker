@@ -56,10 +56,10 @@ public:
         else if (res == nullptr)
           g(sec::no_actor_published_at_port);
         else {
-          auto hdl = actor_cast<actor>(std::move(res));
-          hdls_.emplace(x, hdl);
-          addrs_.emplace(hdl, x);
-          f(std::move(hdl));
+          auto res_hdl = actor_cast<actor>(std::move(res));
+          hdls_.emplace(x, res_hdl);
+          addrs_.emplace(res_hdl, x);
+          f(std::move(res_hdl));
         }
       },
       [=](error& err) mutable {

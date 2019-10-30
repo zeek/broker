@@ -149,7 +149,7 @@ caf::error data_generator::generate(internal_command::type tag,
       data val;
       GENERATE(key);
       GENERATE(val);
-      x.content = subtract_command{std::move(key), std::move(val)};
+      x.content = subtract_command{std::move(key), std::move(val), nil};
       break;
     }
     case tag_type::snapshot_command: {

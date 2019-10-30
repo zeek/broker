@@ -21,7 +21,6 @@ if ( ENABLE_CCACHE )
 endif ()
 
 # -- Dependencies -------------------------------------------------------------
-
 if ( CAF_ROOT_DIR )
   find_package(CAF COMPONENTS openssl test io core REQUIRED)
   set(caf_dir    "${CAF_LIBRARY_CORE}")

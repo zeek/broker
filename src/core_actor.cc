@@ -145,13 +145,13 @@ bool core_state::has_peer(const caf::actor& x) {
   return pending_peers.count(x) > 0 || policy().has_peer(x);
 }
 
-bool core_state::has_remote_master(const std::string& name) {
+bool core_state::has_remote_master(const std::string& core_state_name) {
   // If we don't have a master recorded locally, we could still have a
   // propagated subscription to a remote core hosting a master.
-  auto x = name / topics::master_suffix;
-  return policy().peers().any_filter([&](const peer_filter& filter) {
-    auto e = filter.second.end();
-    return std::find(filter.second.begin(), e, x) != e;
+  auto x = core_state_name / topics::master_suffix;
+  return policy().peers().any_filter([&](const peer_filter& given_filter) {
+    auto e = given_filter.second.end();
+    return std::find(given_filter.second.begin(), e, x) != e;
   });
 }
 
@@ -414,7 +414,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
           hdl = std::move(*tmp);
       }
       if (!hdl) {
-        auto predicate = [&](const actor& x) { return x.node() == e.node; };
+        auto predicate = [&](const actor& a) { return a.node() == e.node; };
         hdl = st.policy().find_output_peer_hdl(std::move(predicate));
         if (!hdl) {
           BROKER_ERROR("no node found for endpoint info" << e);

@@ -343,8 +343,7 @@ expected<bool> sqlite_backend::exists(const data& key) const {
 	  return false;
 	if (result != SQLITE_ROW)
     return ec::backend_failure;
-  auto n = sqlite3_column_int(impl_->exists, 0);
-  BROKER_ASSERT(n == 1);
+  BROKER_ASSERT(sqlite3_column_int(impl_->exists, 0) == 1);
 	return true;
 
 }

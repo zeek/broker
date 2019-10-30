@@ -78,8 +78,7 @@ const char* flare_actor::name() const {
 }
 
 void flare_actor::extinguish_one() {
-  auto extinguished = flare_.extinguish_one();
-  CAF_ASSERT(extinguished);
+  CAF_ASSERT(flare_.extinguish_one());
   --flare_count_;
 }
 

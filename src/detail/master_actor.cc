@@ -259,22 +259,22 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       BROKER_INFO("KEYS ->" << x);
       return x;
     },
-    [=](atom::get, atom::keys, request_id id) {
+    [=](atom::get, atom::keys, request_id req_id) {
       auto x = self->state.backend->keys();
-      BROKER_INFO("KEYS" << "with id:" << id << "->" << x);
+      BROKER_INFO("KEYS" << "with id:" << req_id << "->" << x);
       if (x)
-        return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
+        return caf::make_message(std::move(*x), req_id);
+      return caf::make_message(std::move(x.error()), req_id);
     },
     [=](atom::exists, const data& key) -> expected<data> {
       auto x = self->state.backend->exists(key);
       BROKER_INFO("EXISTS" << key << "->" << x);
       return {data{std::move(*x)}};
     },
-    [=](atom::exists, const data& key, request_id id) {
+    [=](atom::exists, const data& key, request_id req_id) {
       auto x = self->state.backend->exists(key);
-      BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
-      return caf::make_message(data{std::move(*x)}, id);
+      BROKER_INFO("EXISTS" << key << "with id:" << req_id << "->" << x);
+      return caf::make_message(data{std::move(*x)}, req_id);
     },
     [=](atom::get, const data& key) -> expected<data> {
       auto x = self->state.backend->get(key);
@@ -286,19 +286,19 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       BROKER_INFO("GET" << key << aspect << "->" << x);
       return x;
     },
-    [=](atom::get, const data& key, request_id id) {
+    [=](atom::get, const data& key, request_id req_id) {
       auto x = self->state.backend->get(key);
-      BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
+      BROKER_INFO("GET" << key << "with id:" << req_id << "->" << x);
       if (x)
-        return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
+        return caf::make_message(std::move(*x), req_id);
+      return caf::make_message(std::move(x.error()), req_id);
     },
-    [=](atom::get, const data& key, const data& value, request_id id) {
+    [=](atom::get, const data& key, const data& value, request_id req_id) {
       auto x = self->state.backend->get(key, value);
-      BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->" << x);
+      BROKER_INFO("GET" << key << "->" << value << "with id:" << req_id << "->" << x);
       if (x)
-        return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
+        return caf::make_message(std::move(*x), req_id);
+      return caf::make_message(std::move(x.error()), req_id);
     },
     [=](atom::get, atom::name) {
       return self->state.id;

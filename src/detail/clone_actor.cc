@@ -163,9 +163,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.stale_time = now(clock) + stale_interval;
           auto si = std::chrono::duration<double>(stale_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick::value,
+          auto caf_msg = caf::make_message(atom::tick::value,
                                        atom::stale_check::value);
-          clock->send_later(self, ts, std::move(msg));
+          clock->send_later(self, ts, std::move(caf_msg));
           }
 
         if ( mutation_buffer_interval > 0 )
@@ -173,9 +173,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.unmutable_time = now(clock) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick::value,
+          auto caf_msg = caf::make_message(atom::tick::value,
                                        atom::mutable_check::value);
-          clock->send_later(self, ts, std::move(msg));
+          clock->send_later(self, ts, std::move(caf_msg));
           }
       }
     }
@@ -186,9 +186,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     self->state.unmutable_time = now(clock) + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ts = std::chrono::duration_cast<timespan>(si);
-    auto msg = caf::make_message(atom::tick::value,
+    auto caf_msg = caf::make_message(atom::tick::value,
                                  atom::mutable_check::value);
-    clock->send_later(self, ts, std::move(msg));
+    clock->send_later(self, ts, std::move(caf_msg));
     }
 
   self->send(self, atom::master::value, atom::resolve::value);
@@ -294,13 +294,13 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("KEYS ->" << x);
       return {x};
     },
-    [=](atom::get, atom::keys, request_id id) {
+    [=](atom::get, atom::keys, request_id req_id) {
       if ( self->state.is_stale )
-        return caf::make_message(make_error(ec::stale_data), id);
+        return caf::make_message(make_error(ec::stale_data), req_id);
 
       auto x = self->state.keys();
-      BROKER_INFO("KEYS" << "with id" << id << "->" << x);
-      return caf::make_message(std::move(x), id);
+      BROKER_INFO("KEYS" << "with id" << req_id << "->" << x);
+      return caf::make_message(std::move(x), req_id);
     },
     [=](atom::exists, const data& key) -> expected<data> {
       if ( self->state.is_stale )
@@ -310,13 +310,13 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("EXISTS" << key << "->" << result);
       return {result};
     },
-    [=](atom::exists, const data& key, request_id id) {
+    [=](atom::exists, const data& key, request_id req_id) {
       if ( self->state.is_stale )
-        return caf::make_message(make_error(ec::stale_data), id);
+        return caf::make_message(make_error(ec::stale_data), req_id);
 
       auto r = (self->state.store.find(key) != self->state.store.end());
-      auto result = caf::make_message(data{r}, id);
-      BROKER_INFO("EXISTS" << key << "with id" << id << "->" << result.take(1));
+      auto result = caf::make_message(data{r}, req_id);
+      BROKER_INFO("EXISTS" << key << "with id" << req_id << "->" << result.take(1));
       return result;
     },
     [=](atom::get, const data& key) -> expected<data> {
@@ -341,35 +341,35 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("GET" << key << aspect << "->" << result);
       return result;
     },
-    [=](atom::get, const data& key, request_id id) {
+    [=](atom::get, const data& key, request_id req_id) {
       if ( self->state.is_stale )
-        return caf::make_message(make_error(ec::stale_data), id);
+        return caf::make_message(make_error(ec::stale_data), req_id);
 
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
-        result = caf::make_message(i->second, id);
+        result = caf::make_message(i->second, req_id);
       else
-        result = caf::make_message(make_error(ec::no_such_key), id);
-      BROKER_INFO("GET" << key << "with id" << id << "->" << result.take(1));
+        result = caf::make_message(make_error(ec::no_such_key), req_id);
+      BROKER_INFO("GET" << key << "with id" << req_id << "->" << result.take(1));
       return result;
     },
-    [=](atom::get, const data& key, const data& aspect, request_id id) {
+    [=](atom::get, const data& key, const data& aspect, request_id req_id) {
       if ( self->state.is_stale )
-        return caf::make_message(make_error(ec::stale_data), id);
+        return caf::make_message(make_error(ec::stale_data), req_id);
 
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {
         auto x = caf::visit(retriever{aspect}, i->second);
         if (x)
-          result = caf::make_message(*x, id);
+          result = caf::make_message(*x, req_id);
         else
-          result = caf::make_message(std::move(x.error()), id);
+          result = caf::make_message(std::move(x.error()), req_id);
       }
       else
-        result = caf::make_message(make_error(ec::no_such_key), id);
-      BROKER_INFO("GET" << key << aspect << "with id" << id << "->" << result.take(1));
+        result = caf::make_message(make_error(ec::no_such_key), req_id);
+      BROKER_INFO("GET" << key << aspect << "with id" << req_id << "->" << result.take(1));
       return result;
     },
     [=](atom::get, atom::name) {

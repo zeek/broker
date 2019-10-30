@@ -82,7 +82,7 @@ int print_impl(std::ostream& ostr, const T& x) {
 template <class... Ts>
 void println(std::ostream& ostr, Ts&&... xs) {
   std::unique_lock<std::mutex> guard{ostream_mtx};
-  std::initializer_list<int>{print_impl(ostr, std::forward<Ts>(xs))...};
+  //std::initializer_list<int>{print_impl(ostr, std::forward<Ts>(xs))...};
   ostr << caf::term::reset_endl;
 }
 

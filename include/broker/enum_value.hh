@@ -15,7 +15,7 @@ struct enum_value : detail::totally_ordered<enum_value> {
   enum_value() = default;
 
   /// Construct enum value from a string.
-  explicit enum_value(std::string name) : name{std::move(name)} {
+  explicit enum_value(std::string given_name) : name{std::move(given_name)} {
     // nop
   }
 
