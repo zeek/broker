@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(broker C CXX)
 include(cmake/CommonCMakeConfig.cmake)
+include(GNUInstallDirs)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -126,6 +127,12 @@ else ()
     set(cmake_cxx_compiler_launcher_arg)
   endif ()
 
+  if ( CMAKE_INSTALL_LIBDIR )
+    set(cmake_install_libdir_arg -DCMAKE_INSTALL_LIBDIR:path=${CMAKE_INSTALL_LIBDIR})
+  else()
+    set(cmake_install_libdir_arg)
+  endif()
+
   if ( NOT CAF_LOG_LEVEL )
     set(CAF_LOG_LEVEL "QUIET")
   endif ()
@@ -137,6 +144,7 @@ else ()
         ${toolchain_arg}
         ${cmake_c_compiler_launcher_arg}
         ${cmake_cxx_compiler_launcher_arg}
+        ${cmake_install_libdir_arg}
         -DCAF_LOG_LEVEL:string=${CAF_LOG_LEVEL}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
@@ -411,10 +419,6 @@ if ( NOT atomic64_builtin )
   endif ()
 endif ()
 
-if (NOT INSTALL_LIB_DIR)
-  set(INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
-endif ()
-
 if (ENABLE_SHARED)
   add_library(broker SHARED ${BROKER_SRC})
   set_target_properties(broker PROPERTIES
@@ -423,7 +427,7 @@ if (ENABLE_SHARED)
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
   target_link_libraries(broker ${LINK_LIBS})
-  install(TARGETS broker DESTINATION ${INSTALL_LIB_DIR})
+  install(TARGETS broker DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
 if (ENABLE_STATIC)
@@ -433,7 +437,7 @@ if (ENABLE_STATIC)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
   target_link_libraries(broker_static ${LINK_LIBS})
-  install(TARGETS broker_static DESTINATION ${INSTALL_LIB_DIR})
+  install(TARGETS broker_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
 # -- Tools --------------------------------------------------------------------
@@ -539,7 +543,7 @@ set(summary
     "\n"
     "\nBuild Type:      ${CMAKE_BUILD_TYPE}"
     "\nInstall prefix:  ${CMAKE_INSTALL_PREFIX}"
-    "\nLibrary prefix:  ${INSTALL_LIB_DIR}"
+    "\nLibrary prefix:  ${CMAKE_INSTALL_LIBDIR}"
     "\nShared libs:     ${shared_summary}"
     "\nStatic libs:     ${static_summary}"
     "\n"

@@ -1,4 +1,11 @@
 
+1.2.0-120 | 2019-10-30 13:22:30 -0700
+
+  * Set CMAKE_INSTALL_LIBDIR in CAF if set in broker/zeek (Johanna Amann, Corelight)
+
+    The INSTALL_LIB_DIR CMake variable was also removed in favor of
+    CMAKE_INSTALL_LIBDIR.
+
 1.2.0-117 | 2019-10-28 18:06:57 -0700
 
   * Update README to reflect CMake 3.0+ requirement (Jon Siwek, Corelight)

@@ -106,11 +106,11 @@ while [ $# -ne 0 ]; do
             ;;
         --prefix=*)
             append_cache_entry CMAKE_INSTALL_PREFIX PATH   $optarg
-            append_cache_entry INSTALL_LIB_DIR      PATH   $optarg/lib
+            append_cache_entry CMAKE_INSTALL_LIBDIR PATH   $optarg/lib
             append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
             ;;
         --libdir=*)
-            append_cache_entry INSTALL_LIB_DIR      PATH   $optarg
+            append_cache_entry CMAKE_INSTALL_LIBDIR PATH   $optarg
             ;;
         --python-home=*)
             append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
