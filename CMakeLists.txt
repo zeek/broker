@@ -126,6 +126,12 @@ else ()
     set(cmake_cxx_compiler_launcher_arg)
   endif ()
 
+  if ( CMAKE_INSTALL_LIBDIR )
+    set(cmake_install_libdir_arg -DCMAKE_INSTALL_LIBDIR:path=${CMAKE_INSTALL_LIBDIR})
+  else()
+    set(cmake_install_libdir_arg)
+  endif()
+
   if ( NOT CAF_LOG_LEVEL )
     set(CAF_LOG_LEVEL "QUIET")
   endif ()
@@ -137,6 +143,7 @@ else ()
         ${toolchain_arg}
         ${cmake_c_compiler_launcher_arg}
         ${cmake_cxx_compiler_launcher_arg}
+        ${cmake_install_libdir_arg}
         -DCAF_LOG_LEVEL:string=${CAF_LOG_LEVEL}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
