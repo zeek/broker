@@ -176,6 +176,7 @@ struct config : actor_system_config {
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
+    set("logger.file-verbosity", caf::atom("quiet"));
     broker::configuration::add_message_types(*this);
   }
 
@@ -234,6 +235,9 @@ struct node {
 
   /// Stores how many inputs we receive per node.
   inputs_by_node_map inputs_by_node;
+
+  /// Stores the CAF log level for this node.
+  caf::atom_value log_verbosity = caf::atom("quiet");
 };
 
 bool is_sender(const node& x) {
@@ -309,6 +313,7 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(forward, optional);
   SET_FIELD(num_outputs, optional);
   SET_FIELD(inputs_by_node, optional);
+  SET_FIELD(log_verbosity, optional);
   if (!result.generator_file.empty() && !is_file(result.generator_file))
     return make_error(caf::sec::invalid_argument, result.name,
                       "generator file does not exist", result.generator_file);
@@ -350,7 +355,7 @@ struct node_manager_state {
     broker::configuration cfg{opts};
     cfg.set("middleman.workers", 0);
     cfg.set("logger.file-name", this_node->name + ".log");
-    cfg.set("logger.file-verbosity", caf::atom("trace"));
+    cfg.set("logger.file-verbosity", this_node->log_verbosity);
     new (&ep) broker::endpoint(std::move(cfg));
   }
 };

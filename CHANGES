@@ -1,4 +1,10 @@
 
+1.2.0-126 | 2019-11-11 13:47:17 -0800
+
+  * Make broker-cluster-benchmark log output configurable (Dominik Charousset, Corelight)
+
+    Also makes "quiet" log level the default.
+
 1.2.0-123 | 2019-11-11 13:36:46 -0800
 
   * Update embedded CAF to 0.17.3 (Jon Siwek, Corelight)
