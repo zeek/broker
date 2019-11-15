@@ -89,8 +89,15 @@ else ()
     set(use_terminal_arg USES_TERMINAL 1)
   endif ()
 
+  set(caf_make "${CMAKE_MAKE_PROGRAM}")
+  if ( ${CMAKE_GENERATOR} STREQUAL "Unix Makefiles")
+    # Use $(MAKE) instead of ${CMAKE_MAKE_PROGRAM} to pass the -j parameter to project_caf
+    # See http://cmake.3232098.n2.nabble.com/How-would-I-use-parallel-make-on-ExternalProjects-td5609078.html
+    set(caf_make "$(MAKE)")
+  endif ()
+
   ExternalProject_Add_Step(project_caf project_caf_build_step
-    COMMAND ${CMAKE_MAKE_PROGRAM}
+    COMMAND ${caf_make}
     COMMENT "Building CAF"
     WORKING_DIRECTORY ${caf_build}
     ALWAYS 1
