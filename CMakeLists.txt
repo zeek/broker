@@ -8,6 +8,7 @@ include(GNUInstallDirs)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(caf_lib_output_dir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_CFG_INTDIR})
 
 if ( ENABLE_CCACHE )
   find_program(CCACHE_PROGRAM ccache)
@@ -57,18 +58,18 @@ else ()
   else ()
     if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
         set(build_byproducts_arg BUILD_BYPRODUCTS
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_core_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_io_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_openssl_static${static_ext}
         )
     else ()
         set(build_byproducts_arg BUILD_BYPRODUCTS
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext}
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_core${shared_ext}
+            ${caf_lib_output_dir}/libcaf_io${shared_ext}
+            ${caf_lib_output_dir}/libcaf_openssl${shared_ext}
+            ${caf_lib_output_dir}/libcaf_core_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_io_static${static_ext}
+            ${caf_lib_output_dir}/libcaf_openssl_static${static_ext}
         )
       endif()
   endif ()
@@ -186,21 +187,21 @@ else ()
     add_library(libcaf_core_static STATIC IMPORTED GLOBAL)
     add_library(libcaf_io_static STATIC IMPORTED GLOBAL)
     set_property(TARGET libcaf_core_static PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core_static${static_ext})
+                 ${caf_lib_output_dir}/libcaf_core_static${static_ext})
     set_property(TARGET libcaf_io_static PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io_static${static_ext})
+                 ${caf_lib_output_dir}/libcaf_io_static${static_ext})
     set_property(TARGET libcaf_openssl_static PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl_static${static_ext})
+                 ${caf_lib_output_dir}/libcaf_openssl_static${static_ext})
   else ()
     add_library(libcaf_core_shared SHARED IMPORTED GLOBAL)
     add_library(libcaf_io_shared SHARED IMPORTED GLOBAL)
     add_library(libcaf_openssl_shared SHARED IMPORTED GLOBAL)
     set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_core${shared_ext})
+                 ${caf_lib_output_dir}/libcaf_core${shared_ext})
     set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_io${shared_ext})
+                 ${caf_lib_output_dir}/libcaf_io${shared_ext})
     set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
-                 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libcaf_openssl${shared_ext})
+                 ${caf_lib_output_dir}/libcaf_openssl${shared_ext})
   endif ()
   if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
     add_dependencies(libcaf_openssl_static project_caf)
