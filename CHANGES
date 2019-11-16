@@ -1,4 +1,10 @@
 
+1.2.0-131 | 2019-11-15 17:49:37 -0800
+
+  * Add workaround to enable parallel Unix make for external project_caf (Simon Hardy-Francis, Corelight)
+
+  * Fix build for multi-config CMake generators (e.g. Xcode) (Jon Siwek, Corelight)
+
 1.2.0-126 | 2019-11-11 13:47:17 -0800
 
   * Make broker-cluster-benchmark log output configurable (Dominik Charousset, Corelight)
