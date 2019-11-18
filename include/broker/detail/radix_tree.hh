@@ -1427,27 +1427,28 @@ operator=(iterator rhs) {
   return *this;
 }
 
-template <class T, size_t N>
-void serialize(caf::serializer& sink, const radix_tree<T, N>& rt,
-               const unsigned) {
-  auto n = rt.size();
-  sink.begin_sequence(n);
-  for (auto& ts : rt)
-    sink << ts.first;
-  sink.end_sequence();
-}
-
-template <class T, size_t N>
-void serialize(caf::deserializer& source, radix_tree<T, N>& rt,
-               const unsigned) {
-  size_t n = 0;
-  source.begin_sequence(n);
-  for (size_t i = 0; i < n; ++i) {
-    std::string str;
-    source >> str;
-    rt.insert({std::move(str), true});
+template <class Inspector, class T, size_t N>
+auto inspect(Inspector& f, const radix_tree<T, N>& rt) {
+  if constexpr (Inspector::reads_state) {
+    auto n = rt.size();
+    if (auto err = f.begin_sequence(n))
+      return err;
+    for (auto& ts : rt)
+      if (auto err = f(ts.first))
+        return err;
+    return f.end_sequence();
+  } else {
+    size_t n = 0;
+    if (auto err = f.begin_sequence(n))
+      return err;
+    for (size_t i = 0; i < n; ++i) {
+      std::string str;
+      if (auto err = f(str))
+        return err;
+      rt.insert({std::move(str), true});
+    }
+    return f.end_sequence();
   }
-  source.end_sequence();
 }
 
 } // namespace detail

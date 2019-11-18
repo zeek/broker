@@ -52,7 +52,7 @@ caf::error generator_file_writer::open(std::string file_name) {
 caf::error generator_file_writer::flush() {
   if (!f_.is_open() || buf_.empty())
     return caf::none;
-  if (!f_.write(buf_.data(), buf_.size()))
+  if (!f_.write(reinterpret_cast<const char*>(buf_.data()), buf_.size()))
     return make_error(ec::cannot_write_file, file_name_);
   buf_.clear();
   sink_.seek(0);
