@@ -1428,7 +1428,7 @@ operator=(iterator rhs) {
 }
 
 template <class Inspector, class T, size_t N>
-auto inspect(Inspector& f, const radix_tree<T, N>& rt) {
+auto inspect(Inspector& f, radix_tree<T, N>& rt) {
   if constexpr (Inspector::reads_state) {
     auto n = rt.size();
     if (auto err = f.begin_sequence(n))
