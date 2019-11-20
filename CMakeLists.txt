@@ -22,6 +22,46 @@ if ( ENABLE_CCACHE )
   set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
 endif ()
 
+include(TestBigEndian)
+test_big_endian(BROKER_BIG_ENDIAN)
+
+# Mac OS ignores -pthread but other platforms require it
+if (NOT BROKER_APPLE)
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+endif ()
+
+# Increase warnings.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
+
+# Increase maximum number of instantiations.
+set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+
+option(ENABLE_ADDRESS_SANITIZER "Set to ON to enable the sanitizers")
+
+if ( ENABLE_ADDRESS_SANITIZER )
+  set(additional_flags "-fsanitize=address,undefined -fno-omit-frame-pointer")
+
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} ${additional_flags}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${additional_flags}")
+  set(CAF_CMAKE_EXE_LINKER_FLAGS "-DCMAKE_EXE_LINKER_FLAGS=${additional_flags}")
+
+  # Some Linux distributions may not always select the correct linker
+  # http://stackoverflow.com/q/37603238/1170277
+  if (BROKER_LINUX)
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
+  endif ()
+
+  if ( NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
+    message(WARNING "ENABLE_ADDRESS_SANITIZER requires the build type to be set to Debug")
+  endif ()
+
+  if ( NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND
+       NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang" )
+
+    message(WARNING "ENABLE_ADDRESS_SANITIZER requires the compiler to be set to Clang")
+  endif ()
+endif ()
+
 # -- Dependencies -------------------------------------------------------------
 
 if ( CAF_ROOT_DIR )
@@ -163,6 +203,8 @@ else ()
         -DCAF_NO_AUTO_LIBCPP:bool=yes
         -DCAF_BUILD_STATIC:bool=${ENABLE_STATIC}
         -DCAF_BUILD_STATIC_ONLY:bool=${ENABLE_STATIC_ONLY}
+        "-DEXTRA_FLAGS:string=${EXTRA_FLAGS}"
+        ${CAF_CMAKE_EXE_LINKER_FLAGS}
         # Sticking CAF libs in the same output dir as libbroker is a bit of a
         # hack until CMake 3.8, which has BUILD_RPATH that can instead be set
         # on libbroker.  The problem here is that broker unit tests will fail
@@ -311,31 +353,12 @@ endif ()
 
 include(RequireCXX17)
 
-# Mac OS ignores -pthread but other platforms require it
-if (NOT BROKER_APPLE)
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
-endif ()
-
-# Increase warnings.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
-
-# Increase maximum number of instantiations.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+# Append our extra flags to the existing value of CXXFLAGS and CFLAGS.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_FLAGS}")
 
 # Reduce the number of template instantiations shown in backtrace.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
-
-if (ENABLE_ADDRESS_SANITIZER)
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
-  # Some Linux distributions have apparently cannot pick the right linker
-  # properly. See: http://stackoverflow.com/q/37603238/1170277
-  if (BROKER_LINUX)
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
-  endif ()
-endif(ENABLE_ADDRESS_SANITIZER)
-
-# Append our extra flags to the existing value of CXXFLAGS.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=3")
 
 install(DIRECTORY include/broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
@@ -395,9 +418,6 @@ set(BROKER_SRC
   src/version.cc
 )
 
-include(TestBigEndian)
-test_big_endian(BROKER_BIG_ENDIAN)
-
 include(CheckIncludeFiles)
 set(CMAKE_REQUIRED_FLAGS -msse2)
 check_include_files(emmintrin.h HAVE_SSE2)
@@ -407,6 +427,7 @@ if (HAVE_SSE2)
   add_definitions(-DBROKER_USE_SSE2 -msse2)
 endif ()
 
+include(CheckCXXSourceCompiles)
 set(atomic_64bit_ops_test "
   #include <atomic>
   struct s64 { char a, b, c, d, e, f, g, h; };
