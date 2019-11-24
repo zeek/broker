@@ -71,7 +71,7 @@ public:
 private:
   caf::error topic_id(const topic& x, uint16_t& id);
 
-  std::vector<char> buf_;
+  caf::binary_serializer::container_type buf_;
   caf::binary_serializer sink_;
   std::ofstream f_;
   size_t flush_threshold_;

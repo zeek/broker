@@ -36,7 +36,7 @@ namespace {
 
 template <class T>
 void recreate(data_generator& self, T& xs) {
-  std::vector<char> buf;
+  caf::binary_serializer::container_type buf;
   caf::binary_serializer sink{nullptr, buf};
   meta_data_writer writer{sink};
   if (auto err = writer(xs)) {

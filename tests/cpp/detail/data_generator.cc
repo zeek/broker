@@ -21,7 +21,7 @@ using caf::holds_alternative;
 namespace {
 
 struct fixture {
-  std::vector<char> buf;
+  caf::binary_serializer::container_type buf;
   caf::binary_serializer sink;
   size_t read_pos;
 

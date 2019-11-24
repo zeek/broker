@@ -1,4 +1,20 @@
 
+1.2.0-135 | 2019-11-24 10:13:37 -0800
+
+  * Use binary serializers, prepare for CAF changes (Dominik Charousset, Corelight)
+
+    - The stream serializers perform poorly and probably disappear in the
+      next CAF release. Consequently, always using the binary serializers
+      improves performance and also makes sure Broker is "future proof".
+    - Legacy support for serialize() functions probably fades away and
+      mixing `inspect` and `serialize` functions in Broker only has historic
+      reasons anyway. Sicking to one abstraction (`inspect`) is overdue.
+    - The binary_serializer might use any buffer type in future releases.
+      Instead of hardcoding `vector<char>`, we now ask the serializer for
+      its container type.
+
+  * Avoid using soon-to-be-removed message::take (Dominik Charousset, Corelight)
+
 1.2.0-131 | 2019-11-15 17:49:37 -0800
 
   * Add workaround to enable parallel Unix make for external project_caf (Simon Hardy-Francis, Corelight)
