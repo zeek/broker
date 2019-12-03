@@ -229,7 +229,6 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
       // nop
     });
   // Publish events to /benchmark/events.
-  auto p = ep.make_publisher("/benchmark/events");
   // Connect to remote peer.
   if (verbose)
     std::cout << "*** init peering: host = " << host << ", port = " << port
@@ -242,9 +241,29 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
   if (verbose)
     std::cout << "*** endpoint is now peering to remote" << std::endl;
+  if (batch_rate == 0) {
+    ep.publish_all(
+      [](caf::unit_t&) {},
+      [](caf::unit_t&, caf::downstream<data_message>& out, size_t hint) {
+      for (size_t i = 0; i < hint; ++i) {
+      auto name = "event_" + std::to_string(event_type);
+      out.push(data_message{"/benchmark/events",
+               zeek::Event(std::move(name), createEventArgs())});
+      }
+      },
+      [](const caf::unit_t&) { return false; }
+      );
+    for (;;) {
+      // Print status events.
+      auto ev = ss.get();
+      if (verbose)
+        std::cout << caf::deep_to_string(ev) << std::endl;
+    }
+  }
   // Publish one message per interval.
   using std::chrono::duration_cast;
   using fractional_second = std::chrono::duration<double>;
+  auto p = ep.make_publisher("/benchmark/events");
   fractional_second fractional_inc_interval{rate_increase_interval};
   auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
   timestamp timeout = std::chrono::system_clock::now();
@@ -349,7 +368,8 @@ struct config : configuration {
     opt_group{custom_options_, "global"}
       .add(event_type, "event-type,t",
            "1 (vector, default) | 2 (conn log entry) | 3 (table)")
-      .add(batch_rate, "batch-rate,r", "batches/sec (default: 1)")
+      .add(batch_rate, "batch-rate,r",
+           "batches/sec (default: 1, set to 0 for infinite)")
       .add(batch_size, "batch-size,s", "events per batch (default: 1)")
       .add(rate_increase_interval, "batch-size-increase-interval,i",
            "interval for increasing the batch size (in seconds)")
