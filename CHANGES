@@ -1,4 +1,19 @@
 
+1.2.4 | 2019-11-26 09:29:18 -0800
+
+  * Update embedded CAF to 0.16.5 for OpenBSD fixes (Jon Siwek, Corelight)
+
+  * Add -DNO_AUTO_LIBCPP when building CAF. (Robin Sommer, Corelight)
+
+    When setting the C++ compiler to clang, CAF by default switches to
+    compiling with -stdlib=libc++. As Broker doesn't do that, the two end
+    up linking against different libaries. Setting NO_AUTO_LIBCPP lets CAF
+    use the same library settings as Broker.
+
+    (cherry picked from commit aea24d73d6fc505876fa60d250ced6a16f47eef0)
+
+  * Fix Xcode warnings about subscriber move-assignment (Jon Siwek, Corelight)
+
 1.2.3 | 2019-09-23 09:58:08 -0700
 
   * Release 1.2.3.
