@@ -41,7 +41,7 @@ public:
     >::type
   >
   topic(T&& x) : str_(std::forward<T>(x)) {
-    // nop
+    clean();
   }
 
   /// Appends a topic components with a separator.
@@ -61,6 +61,7 @@ public:
   }
 
 private:
+  void clean();
 
   std::string str_;
 };
@@ -77,6 +78,11 @@ topic operator/(const topic& lhs, const topic& rhs);
 /// @relates topic
 bool convert(const topic& t, std::string& str);
 
+/// Checks whether a topic is internal, i.e., messages on this topic are always
+/// only visible locally and never forwarded to peers.
+/// @relates topic
+bool is_internal(const topic& x);
+
 /// Topics with a special meaning.
 namespace topics {
 
@@ -85,8 +91,8 @@ const topic master = topic{"data"} / "master";
 const topic clone = topic{"data"} / "clone";
 const topic master_suffix = reserved / master;
 const topic clone_suffix = reserved / clone;
-const topic errors = reserved / "data/errors";
-const topic statuses = reserved / "data/statuses";
+const topic errors = reserved / "local/data/errors";
+const topic statuses = reserved / "local/data/statuses";
 
 } // namespace topics
 } // namespace broker

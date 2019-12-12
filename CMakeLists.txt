@@ -304,6 +304,7 @@ set(BROKER_SRC
   src/endpoint.cc
   src/endpoint_info.cc
   src/error.cc
+  src/filter_type.cc
   src/internal_command.cc
   src/mailbox.cc
   src/network_info.cc

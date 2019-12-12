@@ -170,17 +170,7 @@ void core_state::add_to_filter(filter_type xs) {
     }
     topics_file.flush();
   }
-  // Get initial size of our filter.
-  auto s0 = filter.size();
-  // Insert new elements then remove duplicates with sort and unique.
-  filter.insert(filter.end(), std::make_move_iterator(xs.begin()),
-                std::make_move_iterator(xs.end()));
-  std::sort(filter.begin(), filter.end());
-  auto e = std::unique(filter.begin(), filter.end());
-  if (e != filter.end())
-    filter.erase(e, filter.end());
-  // Update our peers if we have actually changed our filter.
-  if (s0 != filter.size()) {
+  if (filter_extend(filter, xs)) {
     BROKER_DEBUG("Changed filter to " << filter);
     update_filter_on_peers();
   }
