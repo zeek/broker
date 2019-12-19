@@ -9,6 +9,7 @@
 
 #include <caf/detail/scope_guard.hpp>
 
+#include "broker/config.hh"
 #include "broker/version.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -63,8 +64,11 @@ struct sqlite_backend::impl {
       }
     }
 
-    // Initialize database.
+    // Initialize database.  SQLite has a bit of custom memory management
+    // that seems to cause some LSANs to lose track and report a leak.
+    BROKER_LSAN_DISABLE();
     auto result = sqlite3_open(path.c_str(), &db);
+    BROKER_LSAN_ENABLE();
     if (result != SQLITE_OK) {
       sqlite3_close(db);
       BROKER_ERROR("failed to open database:" << path);
