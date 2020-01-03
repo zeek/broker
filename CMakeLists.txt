@@ -22,6 +22,37 @@ if ( ENABLE_CCACHE )
   set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
 endif ()
 
+if ( BROKER_SANITIZERS )
+    # Check the thread library info early as setting compiler flags seems to
+    # interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
+    # include -lpthread when it should.
+    find_package(Threads)
+    set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
+    set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
+    set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
+
+    if ( NOT DEFINED ENV{NO_OPTIMIZATIONS} )
+      # Using -O1 is generally the suggestion to get more reasonable
+      # performance.  The one downside is it that the compiler may optimize out
+      # code that otherwise generates an error/leak in a -O0 build, but that
+      # should be rare and users mostly will not be running unoptimized builds
+      # in production anyway.
+      set(_sanitizer_flags "${_sanitizer_flags} -O1")
+    endif ()
+
+    # Technically, then we also need to use the compiler to drive linking and
+    # give the sanitizer flags there, too.  However, CMake, by default, uses
+    # the compiler for linking and so the flags automatically get used.  See
+    # https://cmake.org/pipermail/cmake/2014-August/058268.html
+    set(CAF_EXTRA_FLAGS "${_sanitizer_flags}")
+
+    # Set EXTRA_FLAGS if broker isn't being built as part of a Zeek build.
+    # The Zeek build sets it otherwise.
+    if ( NOT ZEEK_SANITIZERS )
+      set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
+    endif ()
+endif()
+
 # -- Dependencies -------------------------------------------------------------
 
 if ( CAF_ROOT_DIR )
@@ -141,6 +172,12 @@ else ()
     set(cmake_install_libdir_arg)
   endif()
 
+  if ( CAF_EXTRA_FLAGS )
+    set(extra_flags_arg -DEXTRA_FLAGS:string=${CAF_EXTRA_FLAGS})
+  else ()
+    set(extra_flags_arg)
+  endif ()
+
   if ( NOT CAF_LOG_LEVEL )
     set(CAF_LOG_LEVEL "QUIET")
   endif ()
@@ -153,6 +190,7 @@ else ()
         ${cmake_c_compiler_launcher_arg}
         ${cmake_cxx_compiler_launcher_arg}
         ${cmake_install_libdir_arg}
+        ${extra_flags_arg}
         -DCAF_LOG_LEVEL:string=${CAF_LOG_LEVEL}
         -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
         -DCAF_NO_UNIT_TESTS:bool=yes
@@ -324,15 +362,6 @@ set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
 
 # Reduce the number of template instantiations shown in backtrace.
 set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
-
-if (ENABLE_ADDRESS_SANITIZER)
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
-  # Some Linux distributions have apparently cannot pick the right linker
-  # properly. See: http://stackoverflow.com/q/37603238/1170277
-  if (BROKER_LINUX)
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -fuse-ld=gold")
-  endif ()
-endif(ENABLE_ADDRESS_SANITIZER)
 
 # Append our extra flags to the existing value of CXXFLAGS.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")

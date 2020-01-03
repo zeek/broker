@@ -1,4 +1,27 @@
 
+1.2.0-140 | 2020-01-03 10:45:38 -0700
+
+  * Add LeakSanitizer instrumentation macros
+
+    And disable checking LSAN leaks of sqlite3_open which seems to be a
+    false positive. (Jon Siwek, Corelight)
+
+  * Improve convenience options for enabling sanitizers
+
+    * Removes --enable-asan configure flag
+    * Removes ENABLE_ADDRESS_SANITIZER CMake variable
+    * Adds --sanitizers configure flag
+    * Adds BROKER_SANITIZERS CMake variable
+    * Sets C++ compiler flags according to the new options and also passes
+      them to the embedded CAF project
+
+    These new options would typically be used with the Debug build type and
+    also automatically sets -O1 unless NO_OPTIMIZATIONS environment variable
+    exists.
+
+    Related to https://github.com/zeek/broker/pull/77 (Jon Siwek, Corelight)
+
+
 1.2.0-137 | 2019-12-02 16:29:47 -0800
 
   * Add infinite-send-rate feature to broker-benchmark (Dominik Charousset, Corelight)
