@@ -1,4 +1,8 @@
 
+1.2.0-141 | 2020-01-07 20:45:15 -0800
+
+  * Preserve optimization setting for sanitizer build (Jon Siwek, Corelight)
+
 1.2.0-140 | 2020-01-03 10:45:38 -0700
 
   * Add LeakSanitizer instrumentation macros
