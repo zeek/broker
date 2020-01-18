@@ -11,18 +11,28 @@ namespace broker {
 struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
+
   /// If true, endpoints will forward incoming messages to peers.
   bool forward = true;
+
   /// TTL to insert into forwarded messages. Messages will be droppped once
   /// they have traversed more than this many hops. Note that the 1st
   /// receiver inserts the TTL (not the sender!). The 1st receiver does
   /// already count against the TTL.
   unsigned int ttl = 20;
+
   /// Whether to use real/wall clock time for data store time-keeping
   /// tasks or whether the application will simulate time on its own.
   bool use_real_time = true;
 
-  broker_options() {}
+  /// Whether to ignore the `broker.conf` file.
+  bool ignore_broker_conf = false;
+
+  broker_options() = default;
+
+  broker_options(const broker_options&) = default;
+
+  broker_options& operator=(const broker_options&) = default;
 };
 
 /// Configures an ::endpoint.
@@ -55,6 +65,10 @@ class configuration : public caf::actor_system_config {
 public:
   using super = caf::actor_system_config;
 
+  struct skip_init_t {};
+
+  static constexpr skip_init_t skip_init = skip_init_t{};
+
   /// Default-constructs a configuration.
   configuration();
 
@@ -74,9 +88,15 @@ public:
   /// Adds all Broker message types to `cfg`.
   static void add_message_types(caf::actor_system_config& cfg);
 
-private:
+protected:
+  /// Allows subtypes to add custom options before the configuration reads
+  /// `broker.conf` or command line arguments. Requires the subtype to call
+  /// `init` manually.
+  explicit configuration(skip_init_t);
+
   void init(int argc, char** argv);
 
+private:
   broker_options options_;
 };
 

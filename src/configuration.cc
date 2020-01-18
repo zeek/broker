@@ -71,28 +71,12 @@ optional<caf::atom_value> to_log_level(const char* cstr) {
 
 } // namespace
 
-configuration::configuration(broker_options opts) : options_(std::move(opts)) {
-  init(0, nullptr);
-}
-
-configuration::configuration() : configuration(broker_options{}) {
-  // nop
-}
-
-configuration::configuration(int argc, char** argv) {
-  init(argc, argv);
-}
-
-void configuration::init(int argc, char** argv) {
+configuration::configuration(skip_init_t) {
   // Add runtime type information for Broker types.
   add_message_types(*this);
-  // Load CAF modules.
-  load<caf::io::middleman>();
-  if (not options_.disable_ssl)
-    load<caf::openssl::manager>();
   // Ensure that we're only talking to compatible Broker instances.
-  set("middleman.app-identifier",
-      "broker.v" + std::to_string(version::protocol));
+  std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
+  set("middleman.app-identifiers", std::move(ids));
   // Add custom options to the CAF parser.
   opt_group{custom_options_, "?broker"}
     .add(options_.disable_ssl, "disable_ssl",
@@ -102,7 +86,7 @@ void configuration::init(int argc, char** argv) {
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
-  // Phase "0": Override CAF defaults.
+  // Override CAF defaults.
   using caf::atom;
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   set("logger.file-verbosity", atom("quiet"));
@@ -119,10 +103,33 @@ void configuration::init(int argc, char** argv) {
                                          atom("caf_net"), atom("caf_flow"),
                                          atom("caf_stream")};
   set("logger.component-blacklist", std::move(blacklist));
+}
+
+
+configuration::configuration(broker_options opts) : configuration(skip_init) {
+  options_ = opts;
+  init(0, nullptr);
+}
+
+configuration::configuration() : configuration(skip_init) {
+  init(0, nullptr);
+}
+
+configuration::configuration(int argc, char** argv) : configuration(skip_init) {
+  init(argc, argv);
+}
+
+void configuration::init(int argc, char** argv) {
+  // Load CAF modules.
+  load<caf::io::middleman>();
+  if (not options_.disable_ssl)
+    load<caf::openssl::manager>();
   // Phase 1: parse broker.conf (overrides hard-coded defaults).
-  if (auto err = parse(0, nullptr, conf_file)) {
-    auto what = concat("Error while reading ", conf_file, ": ", render(err));
-    throw std::runtime_error(what);
+  if (!options_.ignore_broker_conf) {
+    if (auto err = parse(0, nullptr, conf_file)) {
+      auto what = concat("Error while reading ", conf_file, ": ", render(err));
+      throw std::runtime_error(what);
+    }
   }
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
@@ -152,7 +159,7 @@ void configuration::init(int argc, char** argv) {
     set("broker.output-generator-file-cap", static_cast<size_t>(value));
   }
   // Phase 3: parse command line arguments.
-  if (argc == 0)
+  if (argc == 0 || argv == nullptr)
     return;
   std::stringstream dummy;
   if (auto err = parse(argc, argv, dummy)) {

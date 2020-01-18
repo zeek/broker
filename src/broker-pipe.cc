@@ -70,6 +70,8 @@ void print_line(std::ostream& out, const std::string& line) {
 
 class config : public broker::configuration {
 public:
+  using super = broker::configuration;
+
   atom_value mode = atom("");
   atom_value impl = atom("blocking");
   std::string topic;
