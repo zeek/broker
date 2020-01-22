@@ -173,6 +173,13 @@ The environment variables take precedence over configuration file entries
 Broker is based on CAF_, so *experienced* users can also use the ``broker.conf``
 to  `tweak various settings
 <https://actor-framework.readthedocs.io/en/stable/ConfiguringActorApplications.html>`_.
+Making use of advanced features is most helpful for developers that contribute
+to Broker's CAF-based C++ source code. For seeing the "full picture", including
+CAF log output, developers can build CAF with log level ``debug`` or ``trace``
+(either by calling ``configure --with-log-level=LVL`` or passing
+``CAF_LOG_LEVEL=LVL`` to CMake directly when using the embedded CAF version) and
+add the entry ``component-blacklist = []`` to the ``logger`` section of the
+``broker.conf`` file.
 
 .. _Zeek: https://www.zeek.org
 .. _CAF: https://actor-framework.org
