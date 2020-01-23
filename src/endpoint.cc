@@ -169,6 +169,9 @@ endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
+  // Stop immediately if any helptext was printed.
+  if (config_.cli_helptext_printed)
+    exit(0);
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(config_, "broker.recording-directory",
                          defaults::recording_directory);

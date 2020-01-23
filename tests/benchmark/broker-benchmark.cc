@@ -364,7 +364,9 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
 }
 
 struct config : configuration {
-  config(){
+  using super = configuration;
+
+  config() : configuration(skip_init) {
     opt_group{custom_options_, "global"}
       .add(event_type, "event-type,t",
            "1 (vector, default) | 2 (conn log entry) | 3 (table)")
@@ -380,6 +382,8 @@ struct config : configuration {
       .add(server, "server", "run in server mode")
       .add(verbose, "verbose", "enable status output");
   }
+
+  using super::init;
 
   std::string help_text() const {
     return custom_options_.help_text();
@@ -397,8 +401,10 @@ void usage(const config& cfg, const char* cmd_name) {
 
 int main(int argc, char** argv) {
   config cfg;
-  if (auto err = cfg.parse(argc,argv)){
-    std::cerr << "*** invalid command line: " << cfg.render(err) << "\n\n";
+  try {
+    cfg.init(argc, argv);
+  } catch (std::exception& ex) {
+    std::cerr << ex.what() << "\n\n";
     usage(cfg, argv[0]);
     return EXIT_FAILURE;
   }

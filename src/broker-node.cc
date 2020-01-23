@@ -171,7 +171,9 @@ constexpr size_t max_cap = std::numeric_limits<size_t>::max();
 
 class config : public broker::configuration {
 public:
-  config() {
+  using super = broker::configuration;
+
+  config() : super(skip_init) {
     opt_group{custom_options_, "global"}
       .add<bool>("verbose,v", "print status and debug output")
       .add<bool>("rate,r", "print receive rate ('relay' mode only)")
@@ -193,6 +195,8 @@ public:
       .add<uint16_t>("local-port,l",
                      "local port for publishing this endpoint at");
   }
+
+  using super::init;
 };
 
 // -- convenience get_or and get_if overloads for enpoint ----------------------
@@ -463,8 +467,10 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
-  if (auto err = cfg.parse(argc, argv)) {
-    err::println("error while reading config: ", cfg.render(err));
+  try {
+    cfg.init(argc, argv);
+  } catch (std::exception& ex) {
+    err::println(ex.what());
     return EXIT_FAILURE;
   }
   if (cfg.cli_helptext_printed)

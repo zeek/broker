@@ -352,6 +352,7 @@ struct node_manager_state {
     broker::broker_options opts;
     opts.forward = this_node_ptr->forward;
     opts.disable_ssl = true;
+    opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
     cfg.set("middleman.workers", 0);
     cfg.set("logger.file-name", this_node->name + ".log");

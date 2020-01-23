@@ -1,4 +1,38 @@
 
+1.2.0-147 | 2020-01-23 13:33:04 +0000
+
+  * Redesign Broker's configuration setup. (Dominik Charousset, Corelight)
+
+    The environment variables BROKER_DEBUG_VERBOSE and
+    BROKER_DEBUG_LEVEL overlapped and provided fuzzy semantics for a
+    user. This commit replaces the previous variables with
+    BROKER_CONSOLE_VERBOSITY and BROKER_FILE_VERBOSITY:
+
+    - set `BROKER_CONSOLE_VERBOSITY=info` for seeing high-level events such
+      as new connections, incoming peerings, etc.
+    - set `BROKER_CONSOLE_VERBOSITY=debug` for tapping into exchanged
+      messages and other low-level events (slow)
+
+    When debugging a distributed Broker setup, users can instead use
+    BROKER_FILE_VERBOSITY to record a test run and then collect the files
+    from all endpoints.
+
+    In all cases, Broker now omits CAF output. Advanced features are only
+    accessible from the (new) `broker.conf`. Here, experienced users can
+    remove the component files, tweak format strings, and so on.
+
+    The initialization process now also fixes ordering of the various
+    configuration parameters:
+
+    - `broker.conf` overrides hard-coded defaults
+    - environment variables override `broker.conf` entires
+    - command line arguments override environment variables
+
+    Finally, Broker now throws exceptions on invalid configuration entries
+    rather than silently dropping them. Also, the `endpoint` checks whether
+    the user asked for a help text and stops immediately instead of carrying
+    on normally.
+
 1.2.0-141 | 2020-01-07 20:45:15 -0800
 
   * Preserve optimization setting for sanitizer build (Jon Siwek, Corelight)

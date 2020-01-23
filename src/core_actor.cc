@@ -79,10 +79,10 @@ struct retry_state {
       [self, cpy](actor x) mutable {
         init_peering(self, std::move(x), std::move(cpy.rp));
       },
-      [self, cpy](error) mutable {
-        auto desc = "remote endpoint unavailable";
+      [self, cpy](error err) mutable {
+        auto desc = "remote endpoint unavailable: " + self->system().render(err);
         BROKER_ERROR(desc);
-        self->state.emit_error<ec::peer_unavailable>(cpy.addr, desc);
+        self->state.emit_error<ec::peer_unavailable>(cpy.addr, desc.c_str());
         if (cpy.addr.retry.count() > 0) {
           BROKER_INFO("retrying" << cpy.addr << "in"
                                  << to_string(cpy.addr.retry));

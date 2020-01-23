@@ -109,4 +109,77 @@ backends, which are currently: in-memory, `SQLite <https://www.sqlite.org>`_, an
 
 :ref:`data-stores` illustrates how to use data stores in different settings.
 
+Troubleshooting
+---------------
+
+By default, Broker keeps console output to a minimum. When running a Broker
+cluster, this bare minimum may omit too much information for troubleshooting.
+
+Users can enable more output either by setting environment variables or by
+providing a ``broker.conf`` file. Custom Broker appliations also may support
+passing command line arguments (Zeek_ does not forward command line arguments to
+Broker).
+
+In order to get a high-level view of what Broker is doing internally, we
+recommend settting:
+
+::
+
+    BROKER_CONSOLE_VERBOSITY=info
+
+Settings this environment variable before running Zeek_ (or any other Broker
+application) prints high-level events such as new network connections, peering
+requests, etc. The runtime cost of enabling this option and the volume of
+printed lines is moderate.
+
+Troubleshooting a Broker application (or Zeek_ scripts that communicate over
+Broker) sometimes requries tapping into the exchanged messages directly. Setting
+the verbosity to debug instead will provide such details:
+
+::
+
+    BROKER_CONSOLE_VERBOSITY=debug
+
+Note that using this verbosity level will slow down Broker and produce a high
+volume of printed output.
+
+Setting ``BROKER_FILE_VERBOSITY`` instead (or in addition) causes Broker to
+print the output to a file. This is particularly useful when troubleshooting a
+cluster, since it allows to run a test setup first and then collect all files
+for the analysis.
+
+The file output is also more detailled than the console output, as it includes
+information such as source file locations, timestamps, and functions names.
+
+In case setting environment variables is impossible or file-based configuration
+is simply more convenient, creating a file called ``broker.conf`` in the working
+directory of the application (before running it) provides an alternative way of
+configuring Broker.
+
+A minimal configuration file that sets console and file verbosity looks like
+this:
+
+::
+
+    logger {
+      ; note the single quotes!
+      console-verbosity = 'info'
+      file-verbosity = 'debug'
+    }
+
+The environment variables take precedence over configuration file entries
+(but command line arguments have the highest priority).
+
+Broker is based on CAF_, so *experienced* users can also use the ``broker.conf``
+to  `tweak various settings
+<https://actor-framework.readthedocs.io/en/stable/ConfiguringActorApplications.html>`_.
+Making use of advanced features is most helpful for developers that contribute
+to Broker's CAF-based C++ source code. For seeing the "full picture", including
+CAF log output, developers can build CAF with log level ``debug`` or ``trace``
+(either by calling ``configure --with-log-level=LVL`` or passing
+``CAF_LOG_LEVEL=LVL`` to CMake directly when using the embedded CAF version) and
+add the entry ``component-blacklist = []`` to the ``logger`` section of the
+``broker.conf`` file.
+
 .. _Zeek: https://www.zeek.org
+.. _CAF: https://actor-framework.org
