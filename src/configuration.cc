@@ -90,6 +90,7 @@ configuration::configuration(skip_init_t) {
   using caf::atom;
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   set("logger.file-verbosity", atom("quiet"));
+  set("logger.console-format", "[%c/%p] %d %m");
   // Enable console output (and color it if stdout is a TTY) but set verbosty to
   // quiet. This allows users to only care about the environment variable
   // BROKER_CONSOLE_VERBOSITY.
