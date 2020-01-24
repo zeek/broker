@@ -1,4 +1,10 @@
 
+1.2.0-151 | 2020-01-24 12:04:26 -0800
+
+  * Fix accidential error/log output (Dominik Charousset, Corelight)
+
+  * Extend log output format on the console (Dominik Charousset, Corelight)
+
 1.2.0-147 | 2020-01-23 13:33:04 +0000
 
   * Redesign Broker's configuration setup. (Dominik Charousset, Corelight)

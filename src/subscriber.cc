@@ -82,6 +82,7 @@ protected:
       state_->counter += xs_size;
       queue_->produce(xs_size, std::make_move_iterator(xs.begin()),
                       std::make_move_iterator(xs.end()));
+      return;
     }
     BROKER_ERROR("received unexpected batch type (dropped)");
   }
