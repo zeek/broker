@@ -5,63 +5,147 @@ project(broker C CXX)
 include(cmake/CommonCMakeConfig.cmake)
 include(GNUInstallDirs)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(caf_lib_output_dir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_CFG_INTDIR})
+get_directory_property(parent_dir PARENT_DIRECTORY)
+if(parent_dir)
+  set(broker_is_subproject ON)
+else()
+  set(broker_is_subproject OFF)
+endif()
+unset(parent_dir)
 
-if ( ENABLE_CCACHE )
-  find_program(CCACHE_PROGRAM ccache)
+# leave all compiler flags alone when building as sub directory
+if (NOT broker_is_subproject)
 
-  if ( NOT CCACHE_PROGRAM )
-    message(FATAL_ERROR "ccache not found")
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+  set(caf_lib_output_dir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_CFG_INTDIR})
+
+  if ( ENABLE_CCACHE )
+    find_program(CCACHE_PROGRAM ccache)
+
+    if ( NOT CCACHE_PROGRAM )
+      message(FATAL_ERROR "ccache not found")
+    endif ()
+
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
   endif ()
 
-  message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
-  set(CMAKE_C_COMPILER_LAUNCHER   ${CCACHE_PROGRAM})
-  set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-endif ()
+  if ( BROKER_SANITIZERS )
+      # Check the thread library info early as setting compiler flags seems to
+      # interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
+      # include -lpthread when it should.
+      find_package(Threads)
+      set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
+      set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
+      set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
 
-if ( BROKER_SANITIZERS )
-    # Check the thread library info early as setting compiler flags seems to
-    # interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
-    # include -lpthread when it should.
-    find_package(Threads)
-    set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
-    set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
-    set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
-
-    if ( NOT DEFINED BROKER_SANITIZER_OPTIMIZATIONS )
-      if ( DEFINED ENV{NO_OPTIMIZATIONS} )
-        # Using -O1 is generally the suggestion to get more reasonable
-        # performance.  The one downside is it that the compiler may optimize
-        # out code that otherwise generates an error/leak in a -O0 build, but
-        # that should be rare and users mostly will not be running unoptimized
-        # builds in production anyway.
-        set(BROKER_SANITIZER_OPTIMIZATIONS false CACHE INTERNAL "" FORCE)
-      else ()
-        set(BROKER_SANITIZER_OPTIMIZATIONS true CACHE INTERNAL "" FORCE)
+      if ( NOT DEFINED BROKER_SANITIZER_OPTIMIZATIONS )
+        if ( DEFINED ENV{NO_OPTIMIZATIONS} )
+          # Using -O1 is generally the suggestion to get more reasonable
+          # performance.  The one downside is it that the compiler may optimize
+          # out code that otherwise generates an error/leak in a -O0 build, but
+          # that should be rare and users mostly will not be running unoptimized
+          # builds in production anyway.
+          set(BROKER_SANITIZER_OPTIMIZATIONS false CACHE INTERNAL "" FORCE)
+        else ()
+          set(BROKER_SANITIZER_OPTIMIZATIONS true CACHE INTERNAL "" FORCE)
+        endif ()
       endif ()
-    endif ()
 
-    if ( BROKER_SANITIZER_OPTIMIZATIONS )
-      set(_sanitizer_flags "${_sanitizer_flags} -O1")
-    endif ()
+      if ( BROKER_SANITIZER_OPTIMIZATIONS )
+        set(_sanitizer_flags "${_sanitizer_flags} -O1")
+      endif ()
 
-    # Technically, then we also need to use the compiler to drive linking and
-    # give the sanitizer flags there, too.  However, CMake, by default, uses
-    # the compiler for linking and so the flags automatically get used.  See
-    # https://cmake.org/pipermail/cmake/2014-August/058268.html
-    set(CAF_EXTRA_FLAGS "${_sanitizer_flags}")
+      # Technically, then we also need to use the compiler to drive linking and
+      # give the sanitizer flags there, too.  However, CMake, by default, uses
+      # the compiler for linking and so the flags automatically get used.  See
+      # https://cmake.org/pipermail/cmake/2014-August/058268.html
+      set(CAF_EXTRA_FLAGS "${_sanitizer_flags}")
 
-    # Set EXTRA_FLAGS if broker isn't being built as part of a Zeek build.
-    # The Zeek build sets it otherwise.
-    if ( NOT ZEEK_SANITIZERS )
-      set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
+      # Set EXTRA_FLAGS if broker isn't being built as part of a Zeek build.
+      # The Zeek build sets it otherwise.
+      if ( NOT ZEEK_SANITIZERS )
+        set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
+      endif ()
+  endif()
+
+  # -- Compiler Setup ----------------------------------------------------------
+
+  if (APPLE)
+    set(BROKER_APPLE true)
+  elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(BROKER_LINUX true)
+  elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    set(BROKER_FREEBSD)
+  endif ()
+
+  include(RequireCXX17)
+
+  # Mac OS ignores -pthread but other platforms require it
+  if (NOT BROKER_APPLE)
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+  endif ()
+
+  # Increase warnings.
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
+
+  # Increase maximum number of instantiations.
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+
+  # Reduce the number of template instantiations shown in backtrace.
+  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+
+  # Append our extra flags to the existing value of CXXFLAGS.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+
+  include(CheckIncludeFiles)
+  set(CMAKE_REQUIRED_FLAGS -msse2)
+  check_include_files(emmintrin.h HAVE_SSE2)
+  set(CMAKE_REQUIRED_FLAGS)
+
+  if (HAVE_SSE2)
+    add_definitions(-DBROKER_USE_SSE2 -msse2)
+  endif ()
+
+  set(atomic_64bit_ops_test "
+    #include <atomic>
+    struct s64 { char a, b, c, d, e, f, g, h; };
+    int main() { std::atomic<s64> x; x.store({}); x.load(); return 0; }
+  ")
+  check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_builtin)
+
+  if ( NOT atomic64_builtin )
+    set(CMAKE_REQUIRED_LIBRARIES atomic)
+    check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_with_lib)
+    set(CMAKE_REQUIRED_LIBRARIES)
+
+    if ( atomic64_with_lib )
+      set(LINK_LIBS ${LINK_LIBS} atomic)
+    else ()
+      # Guess we'll find out for sure when we compile/link.
+      message(WARNING "build may fail due to missing 64-bit atomic support")
     endif ()
+  endif ()
+
 endif()
 
+# -- Platform Setup ----------------------------------------------------------
+
+include(TestBigEndian)
+test_big_endian(BROKER_BIG_ENDIAN)
+
+
 # -- Dependencies -------------------------------------------------------------
+
+# Search for OpenSSL if not already provided by parent project
+if(NOT OPENSSL_LIBRARIES)
+  find_package(OpenSSL REQUIRED)
+  include_directories(BEFORE ${OPENSSL_INCLUDE_DIR})
+endif()
+set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
 if ( CAF_ROOT_DIR )
   find_package(CAF COMPONENTS openssl test io core REQUIRED)
@@ -75,249 +159,28 @@ if ( CAF_ROOT_DIR )
     set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
   endif ()
 else ()
-
-  include(ExternalProject)
-  set(caf_src     "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/caf")
-  set(caf_ep      "${CMAKE_CURRENT_BINARY_DIR}/caf-ep")
-  set(caf_build   "${CMAKE_CURRENT_BINARY_DIR}/caf-build")
-  set(caf_dir     "${caf_src}")
-  set(caf_install "${CMAKE_INSTALL_PREFIX}")
-  set(shared_ext  "${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  set(static_ext  "${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  set(caf_config  "${caf_src}/libcaf_core/caf/config.hpp")
-
-  if ( ${CMAKE_VERSION} VERSION_LESS "3.2.0" )
-    # Build byproducts is just required by the Ninja generator
-    # though it's not available before CMake 3.2 ...
-    if ( ${CMAKE_GENERATOR} STREQUAL Ninja )
-      message(FATAL_ERROR "Ninja generator requires CMake >= 3.2")
-    endif ()
-
-    set(build_byproducts_arg)
-  else ()
-    if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
-        set(build_byproducts_arg BUILD_BYPRODUCTS
-            ${caf_lib_output_dir}/libcaf_core_static${static_ext}
-            ${caf_lib_output_dir}/libcaf_io_static${static_ext}
-            ${caf_lib_output_dir}/libcaf_openssl_static${static_ext}
-        )
-    else ()
-        set(build_byproducts_arg BUILD_BYPRODUCTS
-            ${caf_lib_output_dir}/libcaf_core${shared_ext}
-            ${caf_lib_output_dir}/libcaf_io${shared_ext}
-            ${caf_lib_output_dir}/libcaf_openssl${shared_ext}
-            ${caf_lib_output_dir}/libcaf_core_static${static_ext}
-            ${caf_lib_output_dir}/libcaf_io_static${static_ext}
-            ${caf_lib_output_dir}/libcaf_openssl_static${static_ext}
-        )
-      endif()
+  set(CAF_NO_COMPILER_CHECK ON)
+  set(CAF_NO_EXAMPLES ON)
+  set(CAF_NO_OPENCL ON)
+  set(CAF_NO_TOOLS ON)
+  set(CAF_NO_UNIT_TESTS ON)
+  if (ENABLE_STATIC)
+    set(CAF_BUILD_STATIC ON)
+  elseif (ENABLE_STATIC_ONLY)
+    set(CAF_BUILD_STATIC_ONLY ON)
   endif ()
-
-  ExternalProject_Add(project_caf
-    PREFIX            "${caf_ep}"
-    BINARY_DIR        "${caf_build}"
-    DOWNLOAD_COMMAND  ""
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND     ""
-    INSTALL_COMMAND   ""
-    ${build_byproducts_arg}
-  )
-
-  if ( ${CMAKE_VERSION} VERSION_LESS "3.4.0" )
-    set(use_terminal_arg)
-  else ()
-    set(use_terminal_arg USES_TERMINAL 1)
-  endif ()
-
-  set(caf_make "${CMAKE_MAKE_PROGRAM}")
-  if ( ${CMAKE_GENERATOR} STREQUAL "Unix Makefiles")
-    # Use $(MAKE) instead of ${CMAKE_MAKE_PROGRAM} to pass the -j parameter to project_caf
-    # See http://cmake.3232098.n2.nabble.com/How-would-I-use-parallel-make-on-ExternalProjects-td5609078.html
-    set(caf_make "$(MAKE)")
-  endif ()
-
-  ExternalProject_Add_Step(project_caf project_caf_build_step
-    COMMAND ${caf_make}
-    COMMENT "Building CAF"
-    WORKING_DIRECTORY ${caf_build}
-    ALWAYS 1
-    ${use_terminal_arg}
-  )
-
-  install(CODE "execute_process(
-    COMMAND ${CMAKE_MAKE_PROGRAM} install
-    WORKING_DIRECTORY ${caf_build}
-    )"
-  )
-
-  if ( CMAKE_TOOLCHAIN_FILE )
-    set(toolchain_arg -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
-  else ()
-    set(toolchain_arg)
-  endif ()
-
-  find_package(OpenSSL REQUIRED)
-  get_filename_component(derived_openssl_root_dir ${OPENSSL_INCLUDE_DIR}
-                         DIRECTORY)
-
-  if ( CMAKE_C_COMPILER_LAUNCHER )
-    set(cmake_c_compiler_launcher_arg
-        -DCMAKE_C_COMPILER_LAUNCHER:path=${CMAKE_C_COMPILER_LAUNCHER})
-  else ()
-    set(cmake_c_compiler_launcher_arg)
-  endif ()
-
-  if ( CMAKE_CXX_COMPILER_LAUNCHER )
-    set(cmake_cxx_compiler_launcher_arg
-        -DCMAKE_CXX_COMPILER_LAUNCHER:path=${CMAKE_CXX_COMPILER_LAUNCHER})
-  else ()
-    set(cmake_cxx_compiler_launcher_arg)
-  endif ()
-
-  if ( CMAKE_INSTALL_LIBDIR )
-    set(cmake_install_libdir_arg -DCMAKE_INSTALL_LIBDIR:path=${CMAKE_INSTALL_LIBDIR})
-  else()
-    set(cmake_install_libdir_arg)
-  endif()
-
-  if ( CAF_EXTRA_FLAGS )
-    set(extra_flags_arg -DEXTRA_FLAGS:string=${CAF_EXTRA_FLAGS})
-  else ()
-    set(extra_flags_arg)
-  endif ()
-
-  if ( NOT CAF_LOG_LEVEL )
-    set(CAF_LOG_LEVEL "QUIET")
-  endif ()
-
-  execute_process(
-      COMMAND
-        ${CMAKE_COMMAND}
-        -G${CMAKE_GENERATOR}
-        ${toolchain_arg}
-        ${cmake_c_compiler_launcher_arg}
-        ${cmake_cxx_compiler_launcher_arg}
-        ${cmake_install_libdir_arg}
-        ${extra_flags_arg}
-        -DCAF_LOG_LEVEL:string=${CAF_LOG_LEVEL}
-        -DOPENSSL_ROOT_DIR:path=${derived_openssl_root_dir}
-        -DCAF_NO_UNIT_TESTS:bool=yes
-        -DCAF_NO_EXAMPLES:bool=yes
-        -DCAF_NO_TOOLS:bool=yes
-        -DCAF_NO_PYTHON:bool=yes
-        -DCAF_NO_OPENCL:bool=yes
-        -DCAF_NO_AUTO_LIBCPP:bool=yes
-        -DCAF_BUILD_STATIC:bool=${ENABLE_STATIC}
-        -DCAF_BUILD_STATIC_ONLY:bool=${ENABLE_STATIC_ONLY}
-        # Sticking CAF libs in the same output dir as libbroker is a bit of a
-        # hack until CMake 3.8, which has BUILD_RPATH that can instead be set
-        # on libbroker.  The problem here is that broker unit tests will fail
-        # if linker can't locate CAF libs (e.g. via build-tree RPATH).
-        -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:path=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
-        -DCMAKE_BUILD_TYPE:string=${CMAKE_BUILD_TYPE}
-        -DCMAKE_INSTALL_PREFIX:path=${caf_install}
-        ${caf_src}
-      WORKING_DIRECTORY ${caf_build}
-      RESULT_VARIABLE caf_cmake_result
-      ERROR_VARIABLE CAF_CMAKE_OUTPUT
-      OUTPUT_VARIABLE CAF_CMAKE_OUTPUT
-      ERROR_STRIP_TRAILING_WHITESPACE
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-
-  message("\n********** Begin CAF External Project CMake Output ************")
-  message("\n${CAF_CMAKE_OUTPUT}")
-  message("\n*********** End CAF External Project CMake Output *************")
-  message("\n")
-
-  if (caf_cmake_result)
-    message(FATAL_ERROR "CAF CMake configuration failed")
-  endif ()
-
-  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
-    add_library(libcaf_openssl_static STATIC IMPORTED GLOBAL)
-    add_library(libcaf_core_static STATIC IMPORTED GLOBAL)
-    add_library(libcaf_io_static STATIC IMPORTED GLOBAL)
-    set_property(TARGET libcaf_core_static PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_core_static${static_ext})
-    set_property(TARGET libcaf_io_static PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_io_static${static_ext})
-    set_property(TARGET libcaf_openssl_static PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_openssl_static${static_ext})
-  else ()
-    add_library(libcaf_core_shared SHARED IMPORTED GLOBAL)
-    add_library(libcaf_io_shared SHARED IMPORTED GLOBAL)
-    add_library(libcaf_openssl_shared SHARED IMPORTED GLOBAL)
-    set_property(TARGET libcaf_core_shared PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_core${shared_ext})
-    set_property(TARGET libcaf_io_shared PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_io${shared_ext})
-    set_property(TARGET libcaf_openssl_shared PROPERTY IMPORTED_LOCATION
-                 ${caf_lib_output_dir}/libcaf_openssl${shared_ext})
-  endif ()
-  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
-    add_dependencies(libcaf_openssl_static project_caf)
-    add_dependencies(libcaf_io_static project_caf)
-    add_dependencies(libcaf_core_static project_caf)
-  else()
-    add_dependencies(libcaf_core_shared project_caf)
-    add_dependencies(libcaf_io_shared project_caf)
-    add_dependencies(libcaf_openssl_shared project_caf)
-  endif()
-
-  set(CAF_FOUND true)
-  if ( ENABLE_STATIC OR ENABLE_STATIC_ONLY )
-    set(CAF_LIBRARIES
-			libcaf_openssl_static libcaf_io_static libcaf_core_static
-			CACHE STRING "CAF libs" FORCE)
-  else ()
-    set(CAF_LIBRARIES
-      libcaf_core_shared libcaf_io_shared libcaf_openssl_shared
-      CACHE STRING "CAF libs" FORCE)
-  endif ()
-
-  set(CAF_INCLUDE_DIRS
-      "${caf_src}/libcaf_core"
-      "${caf_build}/libcaf_core"
-      "${caf_src}/libcaf_io"
-      "${caf_src}/libcaf_openssl"
-      "${caf_src}/libcaf_test"
-      CACHE STRING "CAF includes" FORCE)
-
-  set(CAF_INCLUDE_DIR_CORE
-      ${caf_src}/libcaf_core
-      ${caf_build}/libcaf_core
-      CACHE PATH "CAF core headers" FORCE)
-  set(CAF_INCLUDE_DIR_IO
-      "${caf_src}/libcaf_io" CACHE PATH "CAF io headers" FORCE)
-  set(CAF_INCLUDE_DIR_OPENSSL
-      "${caf_src}/libcaf_openssl" CACHE PATH "CAF openssl headers" FORCE)
+  add_subdirectory(3rdparty/caf)
 endif ()
-
-file(READ "${caf_config}" caf_config_hpp)
-string(REGEX MATCH "#define CAF_VERSION [0-9]+"
-       caf_version_line "${caf_config_hpp}")
-string(REGEX MATCH "[0-9]+" caf_version_int "${caf_version_line}")
-math(EXPR caf_version_major "${caf_version_int} / 10000")
-math(EXPR caf_version_minor "( ${caf_version_int} / 100) % 100")
-math(EXPR caf_version_patch "${caf_version_int} % 100")
-set(CAF_VERSION
-    "${caf_version_major}.${caf_version_minor}.${caf_version_patch}")
 
 set(CAF_VERSION_REQUIRED 0.15.5)
 
-if (CAF_VERSION VERSION_LESS ${CAF_VERSION_REQUIRED})
+if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
   message(FATAL_ERROR "Broker requires at least CAF version"
     " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
-
-# OpenSSL
-find_package(OpenSSL REQUIRED)
-set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
 # RocksDB
 find_package(RocksDB)
@@ -344,35 +207,6 @@ if (ENABLE_STATIC_ONLY)
   set(ENABLE_STATIC true)
   set(ENABLE_SHARED false)
 endif ()
-
-# -- compiler -----------------------------------------------------------------
-
-if (APPLE)
-  set(BROKER_APPLE true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  set(BROKER_LINUX true)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(BROKER_FREEBSD)
-endif ()
-
-include(RequireCXX17)
-
-# Mac OS ignores -pthread but other platforms require it
-if (NOT BROKER_APPLE)
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
-endif ()
-
-# Increase warnings.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
-
-# Increase maximum number of instantiations.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
-
-# Reduce the number of template instantiations shown in backtrace.
-set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
-
-# Append our extra flags to the existing value of CXXFLAGS.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
 install(DIRECTORY include/broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
@@ -432,38 +266,6 @@ set(BROKER_SRC
   src/version.cc
 )
 
-include(TestBigEndian)
-test_big_endian(BROKER_BIG_ENDIAN)
-
-include(CheckIncludeFiles)
-set(CMAKE_REQUIRED_FLAGS -msse2)
-check_include_files(emmintrin.h HAVE_SSE2)
-set(CMAKE_REQUIRED_FLAGS)
-
-if (HAVE_SSE2)
-  add_definitions(-DBROKER_USE_SSE2 -msse2)
-endif ()
-
-set(atomic_64bit_ops_test "
-  #include <atomic>
-  struct s64 { char a, b, c, d, e, f, g, h; };
-  int main() { std::atomic<s64> x; x.store({}); x.load(); return 0; }
-")
-check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_builtin)
-
-if ( NOT atomic64_builtin )
-  set(CMAKE_REQUIRED_LIBRARIES atomic)
-  check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_with_lib)
-  set(CMAKE_REQUIRED_LIBRARIES)
-
-  if ( atomic64_with_lib )
-    set(LINK_LIBS ${LINK_LIBS} atomic)
-  else ()
-    # Guess we'll find out for sure when we compile/link.
-    message(WARNING "build may fail due to missing 64-bit atomic support")
-  endif ()
-endif ()
-
 if (ENABLE_SHARED)
   add_library(broker SHARED ${BROKER_SRC})
   set_target_properties(broker PROPERTIES
@@ -498,8 +300,10 @@ macro(add_tool name)
   endif()
 endmacro()
 
-add_tool(broker-pipe)
-add_tool(broker-node)
+if (NOT BROKER_DISABLE_TOOLS)
+  add_tool(broker-pipe)
+  add_tool(broker-node)
+endif ()
 
 # -- Bindings -----------------------------------------------------------------
 
