@@ -169,7 +169,7 @@ else ()
   elseif (ENABLE_STATIC_ONLY)
     set(CAF_BUILD_STATIC_ONLY ON)
   endif ()
-  add_subdirectory(3rdparty/caf)
+  add_subdirectory(3rdparty/caf EXCLUDE_FROM_ALL)
 endif ()
 
 set(CAF_VERSION_REQUIRED 0.15.5)
