@@ -245,14 +245,13 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     ep.publish_all(
       [](caf::unit_t&) {},
       [](caf::unit_t&, caf::downstream<data_message>& out, size_t hint) {
-      for (size_t i = 0; i < hint; ++i) {
-      auto name = "event_" + std::to_string(event_type);
-      out.push(data_message{"/benchmark/events",
-               zeek::Event(std::move(name), createEventArgs())});
-      }
+        for (size_t i = 0; i < hint; ++i) {
+          auto name = "event_" + std::to_string(event_type);
+          zeek::Event event{std::move(name), createEventArgs()};
+          out.push(data_message{"/benchmark/events", event.move_data()});
+        }
       },
-      [](const caf::unit_t&) { return false; }
-      );
+      [](const caf::unit_t&) { return false; });
     for (;;) {
       // Print status events.
       auto ev = ss.get();
