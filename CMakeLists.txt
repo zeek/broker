@@ -211,10 +211,6 @@ endif ()
 install(DIRECTORY include/broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
-
-set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
-                            -DSQLITE_OMIT_LOAD_EXTENSION)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
@@ -222,9 +218,17 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.hh.in
                ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh DESTINATION include/broker)
 
+if (NOT BROKER_EXTERNAL_SQLITE_TARGET)
+  include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
+  set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
+                              -DSQLITE_OMIT_LOAD_EXTENSION)
+  list(APPEND OPTIONAL_SRC 3rdparty/sqlite3.c)
+else()
+  list(APPEND LINK_LIBS ${BROKER_EXTERNAL_SQLITE_TARGET})
+endif()
+
 set(BROKER_SRC
   ${OPTIONAL_SRC}
-  3rdparty/sqlite3.c
   src/address.cc
   src/configuration.cc
   src/core_actor.cc
