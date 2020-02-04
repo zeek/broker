@@ -1,6 +1,7 @@
 
 #include <utility>
 #include <string>
+#include <stdexcept>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -26,11 +27,32 @@ void init_zeek(py::module& m) {
     .def(py::init([](std::string name, broker::data args) {
        return broker::zeek::Event(std::move(name), std::move(caf::get<broker::vector>(args)));
        }))
-    .def("name",
-          static_cast<const std::string& (broker::zeek::Event::*)() const>
-          (&broker::zeek::Event::name))
-    .def("args",
-         static_cast<const broker::vector& (broker::zeek::Event::*)() const>
-         (&broker::zeek::Event::args));
+    .def("valid", [](const broker::zeek::Event& ev) -> bool {
+         auto t = broker::zeek::Message::type(ev.as_data());
+         if ( t != broker::zeek::Message::Type::Event )
+           return false;
+         return ev.valid();
+         })
+    .def("name", [](const broker::zeek::Event& ev) -> const std::string& {
+         auto t = broker::zeek::Message::type(ev.as_data());
+         if ( t != broker::zeek::Message::Type::Event ) {
+           throw std::invalid_argument("invalid Event data/type");
+         }
+         if ( ! ev.valid() ) {
+           throw std::invalid_argument("invalid Event data");
+         }
+         return ev.name();
+         })
+    .def("args", [](const broker::zeek::Event& ev) -> const broker::vector& {
+         auto t = broker::zeek::Message::type(ev.as_data());
+         if ( t != broker::zeek::Message::Type::Event ) {
+           throw std::invalid_argument("invalid Event data/type");
+         }
+         if ( ! ev.valid() ) {
+           throw std::invalid_argument("invalid Event data");
+         }
+         return ev.args();
+         })
+    ;
 }
 

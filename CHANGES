@@ -1,4 +1,17 @@
 
+1.2.0-154 | 2020-02-04 11:33:03 +0000
+
+  * GH-85: Improve Python bindings Event validity checks. (Jon Siwek,
+    Corelight)
+
+    This adds a valid() method to broker.zeek.Event objects that may be
+    called after creating them to check if the data it parsed was valid
+    event data.
+
+    Also extended the name() and args() methods of broker.zeek.Event to
+    first check for validity to avoid segfaulting.  If the validity check
+    fails, a ValueError exception is now thrown.
+
 1.2.0-151 | 2020-01-24 12:04:26 -0800
 
   * Fix accidential error/log output (Dominik Charousset, Corelight)
