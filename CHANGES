@@ -1,4 +1,8 @@
 
+1.2.0-155 | 2020-02-05 21:46:17 -0800
+
+  * Update CAF to current 0.17.4 release branch (Jon Siwek, Corelight)
+
 1.2.0-154 | 2020-02-04 11:33:03 +0000
 
   * GH-85: Improve Python bindings Event validity checks. (Jon Siwek,
