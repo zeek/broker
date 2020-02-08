@@ -13,7 +13,7 @@ else()
 endif()
 unset(parent_dir)
 
-# leave all compiler flags alone when building as sub directory
+# Leave most compiler flags alone when building as subdirectory.
 if (NOT broker_is_subproject)
 
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -74,14 +74,6 @@ if (NOT broker_is_subproject)
 
   # -- Compiler Setup ----------------------------------------------------------
 
-  if (APPLE)
-    set(BROKER_APPLE true)
-  elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(BROKER_LINUX true)
-  elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-    set(BROKER_FREEBSD)
-  endif ()
-
   include(RequireCXX17)
 
   # Mac OS ignores -pthread but other platforms require it
@@ -101,6 +93,10 @@ if (NOT broker_is_subproject)
   # Append our extra flags to the existing value of CXXFLAGS.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
+endif()
+
+if (NOT BROKER_DISABLE_SSE2_CHECK)
+
   include(CheckIncludeFiles)
   set(CMAKE_REQUIRED_FLAGS -msse2)
   check_include_files(emmintrin.h HAVE_SSE2)
@@ -109,6 +105,10 @@ if (NOT broker_is_subproject)
   if (HAVE_SSE2)
     add_definitions(-DBROKER_USE_SSE2 -msse2)
   endif ()
+
+endif ()
+
+if (NOT BROKER_DISABLE_ATOMICS_CHECK)
 
   set(atomic_64bit_ops_test "
     #include <atomic>
@@ -130,13 +130,20 @@ if (NOT broker_is_subproject)
     endif ()
   endif ()
 
-endif()
+endif ()
 
 # -- Platform Setup ----------------------------------------------------------
 
+if (APPLE)
+  set(BROKER_APPLE true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(BROKER_LINUX true)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(BROKER_FREEBSD)
+endif ()
+
 include(TestBigEndian)
 test_big_endian(BROKER_BIG_ENDIAN)
-
 
 # -- Dependencies -------------------------------------------------------------
 
@@ -163,13 +170,14 @@ else ()
   set(CAF_NO_EXAMPLES ON)
   set(CAF_NO_OPENCL ON)
   set(CAF_NO_TOOLS ON)
+  set(CAF_NO_PYTHON ON)
   set(CAF_NO_UNIT_TESTS ON)
   if (ENABLE_STATIC)
     set(CAF_BUILD_STATIC ON)
   elseif (ENABLE_STATIC_ONLY)
     set(CAF_BUILD_STATIC_ONLY ON)
   endif ()
-  add_subdirectory(3rdparty/caf EXCLUDE_FROM_ALL)
+  add_subdirectory(3rdparty/caf)
 endif ()
 
 set(CAF_VERSION_REQUIRED 0.15.5)
