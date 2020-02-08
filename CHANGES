@@ -1,4 +1,8 @@
 
+1.2.0-156 | 2020-02-07 21:05:22 -0800
+
+  * Update NEWS (Jon Siwek, Corelight)
+
 1.2.0-155 | 2020-02-05 21:46:17 -0800
 
   * Update CAF to current 0.17.4 release branch (Jon Siwek, Corelight)
