@@ -2,8 +2,8 @@
 
 {% if READTHEDOCS and current_version %}
   {% if current_version == "latest" or current_version == "stable" or
-     if current_version == "master" or current_version == "lts" or
-     if current_version == "current" %}
+     or current_version == "master" or current_version == "lts" or
+     or current_version == "current" %}
     {% set current_version = current_version ~ " (" ~ version ~ ")" %}
   {% endif %}
 {% endif %}
