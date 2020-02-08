@@ -1,4 +1,8 @@
 
+1.2.0-161 | 2020-02-08 11:01:43 -0800
+
+  * Update RTD version labeling for LTS (Jon Siwek, Corelight)
+
 1.2.0-160 | 2020-02-08 10:41:13 -0800
 
   * Fix RTD version number/label template (Jon Siwek, Corelight)
