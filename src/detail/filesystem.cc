@@ -1,3 +1,11 @@
+#include "broker/detail/filesystem.hh"
+
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+
+#if ! __has_include(<filesystem>)
+
 #include <sys/stat.h>
 #include <ftw.h>
 #include <unistd.h>
@@ -9,16 +17,11 @@
 #endif
 
 #include <cerrno>
-#include <fstream>
 #include <mutex>
-#include <string>
-#include <vector>
 
 #include "broker/detail/die.hh"
-#include "broker/detail/filesystem.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 bool exists(const path& p) {
   struct stat st;
@@ -134,6 +137,12 @@ bool remove_all(const path& p) {
     return ::remove(p.c_str()) == 0;
 }
 
+} // namespace broker::detail
+
+#endif
+
+namespace broker::detail {
+
 std::vector<std::string> readlines(const path& p, bool keep_empties) {
   std::vector<std::string> result;
   std::string line;
@@ -150,5 +159,18 @@ std::string read(const path& p) {
                      std::istreambuf_iterator<char>()};
 }
 
-} // namespace detail
-} // namespace broker
+std::string make_temp_file_name() {
+#ifdef _MSC_VER
+  char file_name[L_tmpnam_s];
+  if (tmpnam_s(file_name, L_tmpnam_s)) {
+    fprintf(stderr, "Unable to create unique filename.\n");
+    exit(1);
+  }
+  return file_name;
+#else
+  char fname[] = "/tmp/broker.test.XXXXXX";
+  return mktemp(fname);
+#endif
+}
+
+} // namespace broker::detail
