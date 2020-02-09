@@ -108,6 +108,16 @@ error make_error(ec x, Ts&&... xs) {
   BROKER_TRY_8(x1, x2, x3, x4, x5, x6, x7, x8);                                \
   BROKER_TRY_IMPL(x9)
 
+#ifdef _MSC_VER
+
+#define BROKER_TRY(...)                                                        \
+  CAF_PP_CAT(CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),           \
+             CAF_PP_EMPTY())
+
+#else // _MSVC_VER
+
 #define BROKER_TRY(...) CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
+
+#endif // _MSVC_VER
 
 } // namespace broker
