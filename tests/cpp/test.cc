@@ -1,12 +1,19 @@
 #define CAF_TEST_NO_MAIN
-#include <caf/test/unit_test_impl.hpp>
 
 #include "test.hh"
+
+#include <caf/test/unit_test_impl.hpp>
 
 #include <caf/defaults.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/io/network/test_multiplexer.hpp>
 #include <caf/test/dsl.hpp>
+
+#include "broker/config.hh"
+
+#ifdef BROKER_WINDOWS
+#include "Winsock2.h"
+#endif
 
 using namespace caf;
 using namespace broker;
@@ -19,7 +26,7 @@ base_fixture::base_fixture()
     credit_round_interval(
       get_or(sys.config(), "stream.credit-round-interval",
              caf::defaults::stream::credit_round_interval)) {
-  // nop
+  init_socket_api();
 }
 
 base_fixture::~base_fixture() {
@@ -27,6 +34,23 @@ base_fixture::~base_fixture() {
   // Our core might do some messaging in its dtor, hence we need to make sure
   // messages are handled when enqueued to avoid blocking.
   sched.inline_all_enqueues();
+  deinit_socket_api();
+}
+
+void base_fixture::init_socket_api() {
+#ifdef BROKER_WINDOWS
+  WSADATA WinsockData;
+  if (WSAStartup(MAKEWORD(2, 2), &WinsockData) != 0) {
+    fprintf(stderr, "WSAStartup failed\n");
+    abort();
+  }
+#endif
+}
+
+void base_fixture::deinit_socket_api() {
+#ifdef BROKER_WINDOWS
+  WSACleanup();
+#endif
 }
 
 configuration base_fixture::make_config() {

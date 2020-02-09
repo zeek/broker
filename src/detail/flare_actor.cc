@@ -83,9 +83,5 @@ void flare_actor::extinguish_one() {
   --flare_count_;
 }
 
-int flare_actor::descriptor() const {
-  return flare_.fd();
-}
-
 } // namespace detail
 } // namespace broker
