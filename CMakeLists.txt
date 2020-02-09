@@ -13,6 +13,12 @@ else()
 endif()
 unset(parent_dir)
 
+if (WIN32)
+  message(STATUS "Broker currently only supports static bulids on Windows")
+  message(STATUS "Note: continue with ENABLE_STATIC_ONLY")
+  set(ENABLE_STATIC_ONLY ON)
+endif ()
+
 # Leave most compiler flags alone when building as subdirectory.
 if (NOT broker_is_subproject)
 
@@ -76,33 +82,41 @@ if (NOT broker_is_subproject)
   include(RequireCXX17)
 
   # Mac OS ignores -pthread but other platforms require it
-  if (NOT BROKER_APPLE)
+  if (NOT APPLE AND NOT WIN32)
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
   endif ()
 
-  # Increase warnings.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
-
-  # Increase maximum number of instantiations.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
-
-  # Reduce the number of template instantiations shown in backtrace.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+  if (MSVC)
+    # Allow more sections in object files, otherwise Broker fails to compile.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} /bigobj")
+  else ()
+    # Increase warnings.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
+    # Increase maximum number of instantiations.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+    # Reduce the number of template instantiations shown in backtrace.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+  endif ()
 
   # Append our extra flags to the existing value of CXXFLAGS.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
 endif()
 
-if (NOT BROKER_DISABLE_SSE2_CHECK)
+if (MSVC)
+
+  # SSE2 is a default flag on MSVC.
+  set(BROKER_USE_SSE2 ON)
+
+elseif (NOT BROKER_DISABLE_SSE2_CHECK)
 
   include(CheckIncludeFiles)
   set(CMAKE_REQUIRED_FLAGS -msse2)
-  check_include_files(emmintrin.h HAVE_SSE2)
+  check_include_files(emmintrin.h BROKER_USE_SSE2)
   set(CMAKE_REQUIRED_FLAGS)
 
-  if (HAVE_SSE2)
-    add_definitions(-DBROKER_USE_SSE2 -msse2)
+  if (BROKER_USE_SSE2)
+    add_definitions(-msse2)
   endif ()
 
 endif ()
@@ -114,6 +128,7 @@ if (NOT BROKER_DISABLE_ATOMICS_CHECK)
     struct s64 { char a, b, c, d, e, f, g, h; };
     int main() { std::atomic<s64> x; x.store({}); x.load(); return 0; }
   ")
+  include(CheckCXXSourceCompiles)
   check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_builtin)
 
   if ( NOT atomic64_builtin )
@@ -138,7 +153,9 @@ if (APPLE)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(BROKER_LINUX true)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(BROKER_FREEBSD)
+  set(BROKER_FREEBSD true)
+elseif(WIN32)
+  set(BROKER_WINDOWS true)
 endif ()
 
 include(TestBigEndian)
@@ -146,8 +163,12 @@ test_big_endian(BROKER_BIG_ENDIAN)
 
 # -- Dependencies -------------------------------------------------------------
 
+if (WIN32)
+  set(LINK_LIBS ${LINK_LIBS} ws2_32 iphlpapi)
+endif ()
+
 # Search for OpenSSL if not already provided by parent project
-if(NOT OPENSSL_LIBRARIES)
+if (NOT OPENSSL_LIBRARIES)
   find_package(OpenSSL REQUIRED)
   include_directories(BEFORE ${OPENSSL_INCLUDE_DIR})
 endif()
@@ -373,13 +394,15 @@ endif ()
 
 # -- Documentation ------------------------------------------------------------
 
-if (NOT BROKER_DISABLE_DOCS)
+if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
   add_subdirectory(doc)
 endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
-string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
+if (BuildType)
+  string(TOUPPER CMAKE_BUILD_TYPE BuildType)
+endif ()
 
 macro(display test desc summary)
   if ( ${test} )
