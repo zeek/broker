@@ -4,8 +4,6 @@
 
 #include "test.hh"
 
-#include <unistd.h>
-
 #include <cctype>
 #include <vector>
 
