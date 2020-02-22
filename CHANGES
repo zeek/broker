@@ -1,4 +1,10 @@
 
+1.4.0-dev.4 | 2020-02-22 11:54:14 -0800
+
+  * Fix various "maybe uninitialized" warnings (Jon Siwek, Corelight)
+
+  * Switch to using [[deprecated]] attribute (Jon Siwek, Corelight)
+
 1.4.0-dev | 2020-02-08 11:47:27 -0800
 
   * Update NEWS/VERSION for v1.4.0-dev (Jon Siwek, Corelight)

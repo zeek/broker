@@ -71,7 +71,7 @@ caf::error data_generator::operator()(internal_command& x) {
 }
 
 caf::error data_generator::generate(data& x) {
-  data::type tag;
+  data::type tag{};
   READ(tag);
   return generate(tag, x);
 }
@@ -100,7 +100,7 @@ caf::error data_generator::generate(data::type tag, data& x) {
 }
 
 caf::error data_generator::generate(internal_command& x) {
-  internal_command::type tag;
+  internal_command::type tag{};
   READ(tag);
   return generate(tag, x);
 }
@@ -137,7 +137,7 @@ caf::error data_generator::generate(internal_command::type tag,
     case tag_type::add_command: {
       data key;
       data val;
-      data::type init_type;
+      data::type init_type{};
       GENERATE(key);
       GENERATE(val);
       READ(init_type);

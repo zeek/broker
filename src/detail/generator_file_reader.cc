@@ -58,7 +58,7 @@ caf::error generator_file_reader::read(value_type& x) {
   using entry_type = generator_file_writer::format::entry_type;
   // Read until we got a data_message, a command_message, or an error.
   for (;;) {
-    entry_type entry;
+    entry_type entry{};
     BROKER_TRY(source_(entry));
     switch (entry) {
       case entry_type::new_topic: {
