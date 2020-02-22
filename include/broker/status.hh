@@ -13,6 +13,7 @@
 #include <caf/message.hpp>
 #include <caf/make_message.hpp>
 
+#include "broker/convert.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/fwd.hh"
 #include "broker/optional.hh"
@@ -39,7 +40,7 @@ enum class sc : uint8_t {
 const char* to_string(sc code);
 
 /// @relates sc
-optional<sc> sc_from_string(const std::string& str);
+bool convert(const std::string& str, sc& code);
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,

@@ -21,15 +21,17 @@ const char* to_string(sc code) {
 }
 
 #define BROKER_SC_FROM_STRING(value)                                           \
-  if (str == #value)                                                           \
-    return sc::value
+  if (str == #value) {                                                         \
+    code = sc::value;                                                          \
+    return true;                                                               \
+  }
 
-optional<sc> sc_from_string(const std::string& str) {
-  BROKER_SC_FROM_STRING(unspecified);
-  BROKER_SC_FROM_STRING(peer_added);
-  BROKER_SC_FROM_STRING(peer_removed);
-  BROKER_SC_FROM_STRING(peer_lost);
-  return nil;
+bool convert(const std::string& str, sc& code){
+  BROKER_SC_FROM_STRING(unspecified)
+  BROKER_SC_FROM_STRING(peer_added)
+  BROKER_SC_FROM_STRING(peer_removed)
+  BROKER_SC_FROM_STRING(peer_lost)
+  return false;
 }
 
 sc status::code() const {
