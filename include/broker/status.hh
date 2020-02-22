@@ -14,6 +14,8 @@
 #include <caf/make_message.hpp>
 
 #include "broker/endpoint_info.hh"
+#include "broker/fwd.hh"
+#include "broker/optional.hh"
 
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
@@ -35,6 +37,9 @@ enum class sc : uint8_t {
 
 /// @relates sc
 const char* to_string(sc code);
+
+/// @relates sc
+optional<sc> sc_from_string(const std::string& str);
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,

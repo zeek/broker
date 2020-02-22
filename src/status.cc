@@ -10,7 +10,7 @@ const char* to_string(sc code) {
       BROKER_ASSERT(!"missing to_string implementation");
       return "<unknown>";
     case sc::unspecified:
-      return "<unspecified>";
+      return "unspecified";
     case sc::peer_added:
       return "peer_added";
     case sc::peer_removed:
@@ -18,6 +18,18 @@ const char* to_string(sc code) {
     case sc::peer_lost:
       return "peer_lost";
   }
+}
+
+#define BROKER_SC_FROM_STRING(value)                                           \
+  if (str == #value)                                                           \
+    return sc::value
+
+optional<sc> sc_from_string(const std::string& str) {
+  BROKER_SC_FROM_STRING(unspecified);
+  BROKER_SC_FROM_STRING(peer_added);
+  BROKER_SC_FROM_STRING(peer_removed);
+  BROKER_SC_FROM_STRING(peer_lost);
+  return nil;
 }
 
 sc status::code() const {
