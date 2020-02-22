@@ -36,4 +36,15 @@ const char* to_string(ec code) {
   return ec_names[index];
 }
 
+bool convert(const std::string& str, ec& code) {
+  auto predicate = [&](const char* cstr) { return cstr == str; };
+  auto begin = std::begin(ec_names);
+  auto end = std::end(ec_names);
+  auto i = std::find_if(begin, end, predicate);
+  if (i == begin || i == end)
+    return false;
+  code = static_cast<ec>(std::distance(begin, i));
+  return true;
+}
+
 } // namespace broker

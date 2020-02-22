@@ -1,12 +1,5 @@
 #pragma once
 
-// ATTENTION
-// ---------
-// When updating this file, make sure to update doc/comm.rst as well because it
-// copies parts of this file verbatim.
-//
-// Included lines: 23-51
-
 #include <cstdint>
 #include <utility>
 
@@ -15,12 +8,14 @@
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
 
+#include "broker/fwd.hh"
+
 namespace broker {
 
 using caf::error;
 
-/// Broker's status codes.
-/// @relates status
+/// Broker's error codes.
+// -- ec-enum-start
 enum class ec : uint8_t {
   /// The unspecified default error code.
   unspecified = 1,
@@ -60,19 +55,30 @@ enum class ec : uint8_t {
   /// Received an unknown type tag value.
   invalid_tag,
 };
+// -- ec-enum-end
 
 /// @relates ec
 const char* to_string(ec code);
 
+/// @relates ec
+bool convert(const std::string& str, ec& code);
+
+/// @relates ec
 template <class... Ts>
 error make_error(ec x, Ts&&... xs) {
   return {static_cast<uint8_t>(x), caf::atom("broker"),
           caf::make_message(std::forward<Ts>(xs)...)};
 }
 
-#define BROKER_TRY_IMPL(statement)                                                  \
+/// @relates data
+bool convert(const error& src, data& dst);
+
+/// @relates data
+bool convert(const data& src, error& dst);
+
+#define BROKER_TRY_IMPL(statement)                                             \
   if (auto err = statement)                                                    \
-    return err
+  return err
 
 #define BROKER_TRY_1(x1) BROKER_TRY_IMPL(x1)
 

@@ -194,7 +194,8 @@ codes:
 
 .. literalinclude:: ../broker/error.hh
    :language: cpp
-   :lines: 23-51
+   :start-after: --ec-enum-start
+   :end-before: --ec-enum-end
 
 To receive non-critical status messages as well, specify that when
 creating the ``status_subscriber``:
