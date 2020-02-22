@@ -75,6 +75,13 @@ TEST(status is convertible to and from data) {
   CHECK_EQUAL(force_to<data>(status::make<sc::unspecified>("text")),
               make_data_status(sc::unspecified, {nil, "text"}));
   CHECK_EQUAL(
+    force_to<data>(status::make<sc::peer_added>({uri_id, nil}, "text")),
+    make_data_status(sc::peer_added,
+                     {vector{uri_id_str, nil, nil, nil}, "text"}));
+  CHECK_EQUAL(force_to<status>(make_data_status(
+                sc::peer_added, {vector{uri_id_str, nil, nil, nil}, "text"})),
+              status::make<sc::peer_added>({uri_id, nil}, "text"));
+  CHECK_EQUAL(
     force_to<data>(status::make<sc::peer_added>({def_id, nil}, "text")),
     make_data_status(sc::peer_added,
                      {vector{def_id_str, nil, nil, nil}, "text"}));
@@ -95,6 +102,19 @@ TEST(status is convertible to and from data) {
        "text"})),
     status::make<sc::peer_added>(
       {def_id, network_info{"foo", 8080, timeout::seconds{42}}}, "text"));
+}
+
+TEST(status views operate directly on raw data) {
+  data raw{vector{"status"s, enum_value{"peer_added"},
+                  vector{vector{def_id_str, "foo"s,
+                                port{8080, port::protocol::tcp}, count{42}},
+                         "text"s}}};
+  auto view = make_status_view(raw);
+  REQUIRE(view.valid());
+  CHECK_EQUAL(view.code(), sc::peer_added);
+  CHECK_EQUAL(*view.message(), "text"s);
+  auto cxt = view.context();
+  CHECK_EQUAL(cxt->node, def_id);
 }
 
 FIXTURE_SCOPE_END()

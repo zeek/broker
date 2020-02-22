@@ -75,7 +75,9 @@ std::string to_string(const status& s) {
   return result;
 }
 
-bool convert(const data& src, status& dst) {
+namespace {
+
+bool convertible_to_status(const data& src) {
   if (!is<vector>(src))
     return false;
   auto& xs = get<vector>(src);
@@ -89,39 +91,60 @@ bool convert(const data& src, status& dst) {
   if (!convert(get<enum_value>(xs[1]).name, code))
     return false;
   if (code == sc::unspecified) {
-    if (is<none>(xs[2])) {
-      dst.code_ = code;
-      dst.context_ = caf::make_message();
+    if (is<none>(xs[2]))
       return true;
-    }
     if (is<vector>(xs[2])) {
-      auto ctx = get<vector>(xs[2]);
+      auto& ctx = get<vector>(xs[2]);
       if (ctx.size() != 2)
         return false;
       if (!is<none>(ctx[0]))
         return false;
       if (!is<std::string>(ctx[1]))
         return false;
-      dst.code_ = code;
-      dst.context_ = caf::make_message(get<std::string>(ctx[1]));
       return true;
     }
   } else {
     if (!is<vector>(xs[2]))
       return false;
-    auto ctx = get<vector>(xs[2]);
+    auto& ctx = get<vector>(xs[2]);
     if (ctx.size() != 2)
       return false;
+    // TODO: add a lightweight check whether `ctx[0]` is convertible.
     endpoint_info ei;
     if (!convert(ctx[0], ei))
       return false;
     if (!is<std::string>(ctx[1]))
       return false;
-    dst.code_ = code;
-    dst.context_ = caf::make_message(std::move(ei), get<std::string>(ctx[1]));
     return true;
   }
   return false;
+}
+
+} // namespace
+
+bool convert(const data& src, status& dst) {
+  if (!convertible_to_status(src))
+    return false;
+  auto& xs = get<vector>(src);
+  sc code;
+  convert(get<enum_value>(xs[1]).name, code);
+  if (code == sc::unspecified) {
+    if (is<none>(xs[2])) {
+      dst.code_ = code;
+      dst.context_ = caf::make_message();
+      return true;
+    }
+    auto& ctx = get<vector>(xs[2]);
+    dst.code_ = code;
+    dst.context_ = caf::make_message(get<std::string>(ctx[1]));
+    return true;
+  }
+  auto& ctx = get<vector>(xs[2]);
+  endpoint_info ei;
+  convert(ctx[0], ei);
+  dst.code_ = code;
+  dst.context_ = caf::make_message(std::move(ei), get<std::string>(ctx[1]));
+  return true;
 }
 
 bool convert(const status& src, data& dst) {
@@ -144,6 +167,43 @@ bool convert(const status& src, data& dst) {
   }
   dst = std::move(result);
   return true;
+}
+
+sc status_view::code() const {
+  BROKER_ASSERT(data_ != nullptr);
+  auto& xs = get<vector>(*data_);
+  sc code;
+  convert(get<enum_value>(xs[1]).name, code);
+  return code;
+}
+
+const std::string* status_view::message() const {
+  BROKER_ASSERT(data_ != nullptr);
+  auto& xs = get<vector>(*data_);
+  if (is<none>(xs[2]))
+    return nullptr;
+  auto& ctx = get<vector>(xs[2]);
+  return &get<std::string>(ctx[1]);
+}
+
+optional<endpoint_info> status_view::context() const {
+  BROKER_ASSERT(data_ != nullptr);
+  auto& xs = get<vector>(*data_);
+  if (is<none>(xs[2]))
+    return nil;
+  auto& ctx = get<vector>(xs[2]);
+  if (is<none>(ctx[1]))
+    return nil;
+  endpoint_info ei;
+  if (!convert(ctx[0], ei))
+    return nil;
+  return {std::move(ei)};
+}
+
+status_view status_view::make(const data& src) {
+  if (convertible_to_status(src))
+    return status_view{&src};
+  return status_view{nullptr};
 }
 
 } // namespace broker

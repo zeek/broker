@@ -111,21 +111,65 @@ public:
     return f(s.code_, s.context_);
   }
 
-  friend bool convert(const data& src, status& dst);
-
   /// Maps `src` to `["status", code, context]`, whereas `code` is ::code
   /// encoded as an ::enum_value and `context` is a ::vector holding contextual
   /// information, if available.
   friend bool convert(const status& src, data& dst);
+
+  /// Converts data in the format `["status", code, context]` back to a status.
+  friend bool convert(const data& src, status& dst);
 
 private:
   sc code_ = {};
   caf::message context_;
 };
 
+/// @relates status
 template <sc S, class... Ts>
 status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
+}
+
+/// Creates a view into a ::data that is convertible to ::status.
+class status_view {
+public:
+  status_view(const status_view&) noexcept = default;
+
+  status_view& operator=(const status_view&) noexcept = default;
+
+  bool valid() const noexcept {
+    return data_ != nullptr;
+  }
+
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+  /// @copydoc status::code
+  /// @pre `valid()`
+  sc code() const;
+
+  /// @copydoc status::code
+  const std::string* message() const;
+
+  /// Retrieves additional contextual information, if available.
+  optional<endpoint_info> context() const;
+
+  /// Creates a view for given data.
+  /// @returns A ::valid view on success, an invalid view otherwise.
+  static status_view make(const data& src);
+
+private:
+  explicit status_view(const data* ptr) noexcept : data_(ptr) {
+    // nop
+  }
+
+  const data* data_;
+};
+
+/// @relates status_view
+inline status_view make_status_view(const data& src) {
+  return status_view::make(src);
 }
 
 } // namespace broker
