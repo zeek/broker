@@ -111,6 +111,13 @@ public:
     return f(s.code_, s.context_);
   }
 
+  friend bool convert(const data& src, status& dst);
+
+  /// Maps `src` to `["status", code, context]`, whereas `code` is ::code
+  /// encoded as an ::enum_value and `context` is a ::vector holding contextual
+  /// information, if available.
+  friend bool convert(const status& src, data& dst);
+
 private:
   sc code_ = {};
   caf::message context_;

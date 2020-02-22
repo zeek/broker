@@ -17,9 +17,16 @@ struct endpoint_info {
   optional<network_info> network; ///< Optional network-level information.
 };
 
+/// @relates endpoint_info
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
   return f(info.node, info.network);
 }
+
+/// @relates endpoint_info
+bool convert(const data& src, endpoint_info& dst);
+
+/// @relates endpoint_info
+bool convert(const endpoint_info& src, data& dst);
 
 } // namespace broker
