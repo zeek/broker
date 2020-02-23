@@ -36,6 +36,35 @@ bool tmp_convert(const std::string& src, node_id& dst) {
   return false;
 }
 
+// Enable `can_convert` for `caf::node_id`.
+template <>
+struct can_convert_predicate<caf::node_id> {
+  static bool check(const data& src) {
+    if (auto str = get_if<std::string>(src)) {
+      // TODO: this check is far from being lightweight.
+      caf::node_id tmp;
+      return tmp_convert(*str, tmp);
+    }
+    return false;
+  }
+};
+
+bool convertible_to_endpoint_info(const data& src) {
+  if (auto vec = get_if<vector>(src))
+    return convertible_to_endpoint_info(*vec);
+  return false;
+}
+
+bool convertible_to_endpoint_info(const std::vector<data>& src) {
+  // Types: <string, string, port, count>.
+  // - Fields 1 can be none.
+  // - Field 2 - 4 are either *all* none or all defined.
+  if (contains<any_type, none, none, none>(src)
+      || contains<any_type, std::string, port, count>(src))
+    return can_convert_to<caf::node_id>(src[0]);
+  return false;
+}
+
 bool convert(const data& src, endpoint_info& dst) {
   if (!is<vector>(src))
     return false;
