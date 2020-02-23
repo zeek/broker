@@ -37,10 +37,23 @@ enum class sc : uint8_t {
 };
 
 /// @relates sc
-const char* to_string(sc code);
+const char* to_string(sc code) noexcept;
 
 /// @relates sc
-bool convert(const std::string& str, sc& code);
+bool convert(const std::string& str, sc& code) noexcept;
+
+/// @relates sc
+bool convert(const data& str, sc& code) noexcept;
+
+/// @relates sc
+bool convertible_to_sc(const data& src) noexcept;
+
+template <>
+struct can_convert_predicate<sc> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_sc(src);
+  }
+};
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,

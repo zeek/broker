@@ -7,7 +7,7 @@ using namespace std::string_literals;
 
 namespace broker {
 
-const char* to_string(sc code) {
+const char* to_string(sc code) noexcept {
   switch (code) {
     default:
       BROKER_ASSERT(!"missing to_string implementation");
@@ -29,12 +29,23 @@ const char* to_string(sc code) {
     return true;                                                               \
   }
 
-bool convert(const std::string& str, sc& code){
+bool convert(const std::string& str, sc& code) noexcept {
   BROKER_SC_FROM_STRING(unspecified)
   BROKER_SC_FROM_STRING(peer_added)
   BROKER_SC_FROM_STRING(peer_removed)
   BROKER_SC_FROM_STRING(peer_lost)
   return false;
+}
+
+bool convert(const data& src, sc& code) noexcept {
+  if (auto val = get_if<enum_value>(src))
+    return convert(val->name, code);
+  return false;
+}
+
+bool convertible_to_sc(const data& src) noexcept {
+  sc dummy;
+  return convert(src, dummy);
 }
 
 sc status::code() const {
@@ -77,46 +88,24 @@ std::string to_string(const status& s) {
 
 namespace {
 
-bool convertible_to_status(const data& src) {
-  if (!is<vector>(src))
+bool convertible_to_status(const vector& xs) {
+  if (!contains<std::string, sc, any_type>(xs))
     return false;
-  auto& xs = get<vector>(src);
-  if (xs.size() != 3)
+  if (get<std::string>(xs[0]) != "status")
     return false;
-  if (!is<std::string>(xs[0]) || get<std::string>(xs[0]) != "status")
-    return false;
-  if (!is<enum_value>(xs[1]))
-    return false;
-  sc code;
-  if (!convert(get<enum_value>(xs[1]).name, code))
-    return false;
-  if (code == sc::unspecified) {
-    if (is<none>(xs[2]))
-      return true;
-    if (is<vector>(xs[2])) {
-      auto& ctx = get<vector>(xs[2]);
-      if (ctx.size() != 2)
-        return false;
-      if (!is<none>(ctx[0]))
-        return false;
-      if (!is<std::string>(ctx[1]))
-        return false;
-      return true;
-    }
-  } else {
-    if (!is<vector>(xs[2]))
-      return false;
-    auto& ctx = get<vector>(xs[2]);
-    if (ctx.size() != 2)
-      return false;
-    // TODO: add a lightweight check whether `ctx[0]` is convertible.
-    endpoint_info ei;
-    if (!convert(ctx[0], ei))
-      return false;
-    if (!is<std::string>(ctx[1]))
-      return false;
+  // Context is always optional.
+  if (is<none>(xs[2]))
     return true;
-  }
+  // An `unspecified` status may only contain a string.
+  if (get_as<sc>(xs[1]) == sc::unspecified)
+    return contains<none, std::string>(xs[2]);
+  // All other status codes contain an endpoint_info plus string.
+  return contains<endpoint_info, std::string>(xs[2]);
+}
+
+bool convertible_to_status(const data& src) {
+  if (auto xs = get_if<vector>(src))
+    return convertible_to_status(*xs);
   return false;
 }
 
