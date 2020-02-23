@@ -160,7 +160,7 @@ struct can_convert_predicate<status> {
   }
 };
 
-/// Creates a view into a ::data that is convertible to ::status.
+/// Creates a view into a ::data object that is convertible to ::status.
 class status_view {
 public:
   status_view(const status_view&) noexcept = default;
@@ -168,7 +168,7 @@ public:
   status_view& operator=(const status_view&) noexcept = default;
 
   bool valid() const noexcept {
-    return data_ != nullptr;
+    return xs_ != nullptr;
   }
 
   explicit operator bool() const noexcept {
@@ -177,10 +177,10 @@ public:
 
   /// @copydoc status::code
   /// @pre `valid()`
-  sc code() const;
+  sc code() const noexcept;
 
   /// @copydoc status::code
-  const std::string* message() const;
+  const std::string* message() const noexcept;
 
   /// Retrieves additional contextual information, if available.
   optional<endpoint_info> context() const;
@@ -190,11 +190,11 @@ public:
   static status_view make(const data& src);
 
 private:
-  explicit status_view(const data* ptr) noexcept : data_(ptr) {
+  explicit status_view(const vector* ptr) noexcept : xs_(ptr) {
     // nop
   }
 
-  const data* data_;
+  const vector* xs_;
 };
 
 /// @relates status_view

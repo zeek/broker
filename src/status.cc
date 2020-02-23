@@ -154,29 +154,24 @@ bool convert(const status& src, data& dst) {
   return true;
 }
 
-sc status_view::code() const {
-  BROKER_ASSERT(data_ != nullptr);
-  auto& xs = get<vector>(*data_);
-  sc code;
-  convert(get<enum_value>(xs[1]).name, code);
-  return code;
+sc status_view::code() const noexcept {
+  BROKER_ASSERT(xs_ != nullptr);
+  return get_as<sc>((*xs_)[1]);
 }
 
-const std::string* status_view::message() const {
-  BROKER_ASSERT(data_ != nullptr);
-  auto& xs = get<vector>(*data_);
-  if (is<none>(xs[2]))
+const std::string* status_view::message() const noexcept {
+  BROKER_ASSERT(xs_ != nullptr);
+  if (is<none>((*xs_)[2]))
     return nullptr;
-  auto& ctx = get<vector>(xs[2]);
+  auto& ctx = get<vector>((*xs_)[2]);
   return &get<std::string>(ctx[1]);
 }
 
 optional<endpoint_info> status_view::context() const {
-  BROKER_ASSERT(data_ != nullptr);
-  auto& xs = get<vector>(*data_);
-  if (is<none>(xs[2]))
+  BROKER_ASSERT(xs_ != nullptr);
+  if (is<none>((*xs_)[2]))
     return nil;
-  auto& ctx = get<vector>(xs[2]);
+  auto& ctx = get<vector>((*xs_)[2]);
   if (is<none>(ctx[1]))
     return nil;
   endpoint_info ei;
@@ -186,9 +181,7 @@ optional<endpoint_info> status_view::context() const {
 }
 
 status_view status_view::make(const data& src) {
-  if (convertible_to_status(src))
-    return status_view{&src};
-  return status_view{nullptr};
+  return status_view{convertible_to_status(src) ? &get<vector>(src) : nullptr};
 }
 
 } // namespace broker

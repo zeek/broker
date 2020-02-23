@@ -11,14 +11,6 @@ using namespace std::string_literals;
 
 namespace {
 
-template <class T, class U>
-T force_to(const U& x) {
-  T result;
-  if (!convert(x, result))
-    throw std::runtime_error("conversion failed");
-  return result;
-}
-
 data make_data_status(sc code, vector context = {}) {
   vector result{"status"s, enum_value{to_string(code)}, nil};
   if (!context.empty())
@@ -39,7 +31,7 @@ struct fixture {
   // Output of to_string(uri_id).
   std::string uri_id_str;
 
-  fixture(){
+  fixture() {
     auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
     if (!id)
       FAIL("caf::make_node_id failed");
@@ -70,33 +62,31 @@ TEST(sc is convertible to and from string) {
 }
 
 TEST(status is convertible to and from data) {
-  CHECK_EQUAL(force_to<data>(status{}),
+  CHECK_EQUAL(get_as<data>(status{}),
               vector({"status"s, enum_value{"unspecified"}, nil}));
-  CHECK_EQUAL(force_to<data>(status::make<sc::unspecified>("text")),
+  CHECK_EQUAL(get_as<data>(status::make<sc::unspecified>("text")),
               make_data_status(sc::unspecified, {nil, "text"}));
-  CHECK_EQUAL(
-    force_to<data>(status::make<sc::peer_added>({uri_id, nil}, "text")),
-    make_data_status(sc::peer_added,
-                     {vector{uri_id_str, nil, nil, nil}, "text"}));
-  CHECK_EQUAL(force_to<status>(make_data_status(
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({uri_id, nil}, "text")),
+              make_data_status(sc::peer_added,
+                               {vector{uri_id_str, nil, nil, nil}, "text"}));
+  CHECK_EQUAL(get_as<status>(make_data_status(
                 sc::peer_added, {vector{uri_id_str, nil, nil, nil}, "text"})),
               status::make<sc::peer_added>({uri_id, nil}, "text"));
-  CHECK_EQUAL(
-    force_to<data>(status::make<sc::peer_added>({def_id, nil}, "text")),
-    make_data_status(sc::peer_added,
-                     {vector{def_id_str, nil, nil, nil}, "text"}));
-  CHECK_EQUAL(force_to<status>(make_data_status(
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({def_id, nil}, "text")),
+              make_data_status(sc::peer_added,
+                               {vector{def_id_str, nil, nil, nil}, "text"}));
+  CHECK_EQUAL(get_as<status>(make_data_status(
                 sc::peer_added, {vector{def_id_str, nil, nil, nil}, "text"})),
               status::make<sc::peer_added>({def_id, nil}, "text"));
   CHECK_EQUAL(
-    force_to<data>(status::make<sc::peer_added>(
+    get_as<data>(status::make<sc::peer_added>(
       {def_id, network_info{"foo", 8080, timeout::seconds{42}}}, "text")),
     make_data_status(
       sc::peer_added,
       {vector{def_id_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "text"}));
   CHECK_EQUAL(
-    force_to<status>(make_data_status(
+    get_as<status>(make_data_status(
       sc::peer_added,
       {vector{def_id_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "text"})),
