@@ -143,6 +143,23 @@ status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
 }
 
+/// @relates status
+bool convertible_to_status(const data& src) noexcept;
+
+/// @relates status
+bool convertible_to_status(const vector& xs) noexcept;
+
+template <>
+struct can_convert_predicate<status> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_status(src);
+  }
+
+  static bool check(const vector& src) noexcept {
+    return convertible_to_status(src);
+  }
+};
+
 /// Creates a view into a ::data that is convertible to ::status.
 class status_view {
 public:

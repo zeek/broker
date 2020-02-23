@@ -86,9 +86,7 @@ std::string to_string(const status& s) {
   return result;
 }
 
-namespace {
-
-bool convertible_to_status(const vector& xs) {
+bool convertible_to_status(const vector& xs) noexcept {
   if (!contains<std::string, sc, any_type>(xs))
     return false;
   if (get<std::string>(xs[0]) != "status")
@@ -103,13 +101,11 @@ bool convertible_to_status(const vector& xs) {
   return contains<endpoint_info, std::string>(xs[2]);
 }
 
-bool convertible_to_status(const data& src) {
+bool convertible_to_status(const data& src) noexcept {
   if (auto xs = get_if<vector>(src))
     return convertible_to_status(*xs);
   return false;
 }
-
-} // namespace
 
 bool convert(const data& src, status& dst) {
   if (!convertible_to_status(src))
