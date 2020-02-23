@@ -285,14 +285,6 @@ inline visit(Visitor&& visitor, data d) {
   return caf::visit(std::forward<Visitor>(visitor), std::move(d));
 }
 
-template <class T>
-T get_as(const data& d) {
-  T result;
-  if (!convert(d, result))
-    throw std::runtime_error("conversion failed");
-  return result;
-}
-
 // --- convenience functions ---------------------------------------------------
 
 /// Wildcard for `contains` to skip type check at a specific location.

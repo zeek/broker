@@ -65,15 +65,27 @@ bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
   return convert_duration(d.count(), "hrs", str);
 }
 
-// Injects a `to<T>` overload for any type convertible to type `T` via a free
-// function `bool convert(const From&, T&)` that can be found via ADL.
+/// Attempts to convert `From` to `To`.
+/// @returns a value of type `To` on success, otherwise `nil`.
 template <class To, class From>
-auto to(From&& from)
+auto to(const From& from)
 -> std::enable_if_t<detail::has_convert<From, To>::value, optional<To>> {
   To to;
   if (convert(from, to))
     return {std::move(to)};
   return {};
+}
+
+/// Forces a conversion from `From` to `To`.
+/// @returns a value of type `To`.
+/// @throws logic_error if the conversion fails.
+template <class To, class From>
+auto get_as(const From& from)
+-> std::enable_if_t<detail::has_convert<From, To>::value, To> {
+  To result;
+  if (!convert(from, result))
+    throw std::logic_error("conversion failed");
+  return result;
 }
 
 // Injects a `to_string` overload for any type convertible to a `std::string`
