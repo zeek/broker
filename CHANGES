@@ -1,4 +1,24 @@
 
+1.2.5 | 2020-02-22 16:07:31 -0800
+
+  * Release v1.2.5
+
+  * Fix accidential error/log output (Dominik Charousset, Corelight)
+
+  * GH-85: Improve python bindings Event validity checks (Jon Siwek, Corelight)
+
+    This adds a valid() method to broker.zeek.Event objects that may be
+    called after creating them to check if the data it parsed was valid
+    event data.
+
+    Also extended the name() and args() methods of broker.zeek.Event to
+    first check for validity to avoid segfaulting.  If the validity check
+    fails, a ValueError exception is now thrown.
+
+  * Update RTD version labels for LTS (Jon Siwek, Corelight)
+
+  * Display version number for more RTD version labels (Jon Siwek, Corelight)
+
 1.2.4 | 2019-11-26 09:29:18 -0800
 
   * Update embedded CAF to 0.16.5 for OpenBSD fixes (Jon Siwek, Corelight)
