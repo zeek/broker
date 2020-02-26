@@ -113,6 +113,15 @@ TEST(errors with category broker are convertible to and from data) {
       ec::peer_invalid,
       endpoint_info{nid, network_info{"foo", 8080, timeout::seconds{42}}},
       "invalid host"s));
+  CHECK_EQUAL(
+    get_as<error>(make_data_error(
+      ec::peer_invalid,
+      {vector{nil, "foo"s, port{8080, port::protocol::tcp}, count{42}},
+       "no such peer"s})),
+    make_error(ec::peer_invalid,
+               endpoint_info{caf::node_id{},
+                             network_info{"foo", 8080, timeout::seconds{42}}},
+               "invalid host"s));
 }
 
 TEST(error view operate directly on raw data) {

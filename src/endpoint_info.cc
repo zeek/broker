@@ -45,7 +45,7 @@ struct can_convert_predicate<caf::node_id> {
       caf::node_id tmp;
       return tmp_convert(*str, tmp);
     }
-    return false;
+    return is<none>(src);
   }
 };
 
