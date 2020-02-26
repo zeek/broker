@@ -1,4 +1,14 @@
 
+1.4.0-dev.15 | 2020-02-25 17:56:28 -0800
+
+  * Support building Broker as CMake subdirectory (Dominik Charousset)
+
+    When building Broker as a subdirectory, we disable all compiler checks
+    and flag management and leave it to the parent project to provide valid
+    settings. In order to achieve "perfect forwarding" of all settings, we
+    include CAF as subdirectory rather than bundling it as an external
+    project.
+
 1.4.0-dev.4 | 2020-02-22 11:54:14 -0800
 
   * Fix various "maybe uninitialized" warnings (Jon Siwek, Corelight)
