@@ -77,10 +77,6 @@ if (NOT broker_is_subproject)
       endif ()
   endif()
 
-  # -- Compiler Setup ----------------------------------------------------------
-
-  include(RequireCXX17)
-
   # Mac OS ignores -pthread but other platforms require it
   if (NOT APPLE AND NOT WIN32)
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
@@ -102,6 +98,8 @@ if (NOT broker_is_subproject)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
 endif()
+
+include(RequireCXX17)
 
 if (MSVC)
 

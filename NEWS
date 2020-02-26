@@ -1,4 +1,20 @@
-Broker 2.0.0
+Broker 1.4.0
+============
+
+TODO: No important changes yet
+
+Broker 1.3.0
+============
+
+- A C++17-capable compiler and CMake 3.0+ are now required to compile Broker
+
+- Broker 1.3.0 depends on CAF 0.17.4.  Broker 1.2.x had depended on CAF 0.16.x,
+  whose wire format changed and is now incompatible with CAF 0.17.x.
+  Zeek 3.0.x shipped with Broker 1.2.x, which means Broker 1.3.x cannot be
+  used to communicate with Zeek 3.0.x, only 3.1.x (and possibly later, check
+  for updated release notes for compatibility clarifications).
+
+Broker 1.2.0
 ============
 
 This release contains breaking API changes (for C++ code, not Python)
