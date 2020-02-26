@@ -473,6 +473,9 @@ CAF_TEST(unpeering) {
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
   auto earth_es = earth.ep.make_status_subscriber(true);
+  for (auto es : {&mercury_es, &venus_es, &earth_es})
+    es->set_rate_calculation(false);
+  exec_loop();
   connect_peers();
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()),
                   event_log({sc::peer_added, sc::peer_added}));
@@ -514,6 +517,8 @@ CAF_TEST(unpeering) {
 CAF_TEST(unpeering_without_connections) {
   MESSAGE("get events from all peers");
   auto venus_es = venus.ep.make_status_subscriber(true);
+  venus_es.set_rate_calculation(false);
+  exec_loop();
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
   exec_loop();
@@ -525,6 +530,9 @@ CAF_TEST(connection_retry) {
   MESSAGE("get events from mercury and venus");
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
+  for (auto es : {&mercury_es, &venus_es})
+    es->set_rate_calculation(false);
+  exec_loop();
   MESSAGE("initiate peering from venus to mercury (will fail)");
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
