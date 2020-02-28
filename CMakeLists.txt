@@ -13,6 +13,14 @@ else()
 endif()
 unset(parent_dir)
 
+# Check the thread library info early as setting compiler flags seems to
+# interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
+# include -lpthread when it should.
+if (NOT TARGET Threads::Threads)
+  find_package(Threads REQUIRED)
+endif ()
+set(LINK_LIBS ${LINK_LIBS} Threads::Threads)
+
 # Leave most compiler flags alone when building as subdirectory.
 if (NOT broker_is_subproject)
 
@@ -33,10 +41,6 @@ if (NOT broker_is_subproject)
   endif ()
 
   if ( BROKER_SANITIZERS )
-      # Check the thread library info early as setting compiler flags seems to
-      # interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
-      # include -lpthread when it should.
-      find_package(Threads)
       set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
       set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
       set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
@@ -70,11 +74,6 @@ if (NOT broker_is_subproject)
         set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
       endif ()
   endif()
-
-  # Mac OS ignores -pthread but other platforms require it
-  if (NOT BROKER_APPLE)
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
-  endif ()
 
   # Increase warnings.
   set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
