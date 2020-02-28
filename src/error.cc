@@ -137,7 +137,7 @@ bool convert(const data& src, error& dst) {
   if (contains<std::string>(cxt)) {
     dst = make_error(get_as<ec>(xs[1]), get<std::string>(cxt[0]));
   } else {
-    assert((contains<endpoint_info, std::string>(cxt)));
+    BROKER_ASSERT((contains<endpoint_info, std::string>(cxt)));
     dst = make_error(get_as<ec>(xs[1]), get_as<endpoint_info>(cxt[0]),
                      get<std::string>(cxt[1]));
   }
