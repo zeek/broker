@@ -40,7 +40,7 @@ Dependencies
 Compiling Broker requires the following libraries/tools to already be
 installed:
 
-    * C++ compiler with C++17 support    (GCC 7+ or Clang 4+)
+    * C++ compiler with C++17 support    (GCC 7+, Clang 4+, MSVC 19.14+)
     * OpenSSL headers/libraries          (http://www.openssl.org)
     * CMake 3.0 or greater               (https://cmake.org)
 
@@ -56,10 +56,21 @@ configure script option.
 Compiling/Installing
 --------------------
 
-To compile and install into ``/usr/local``::
+On UNIX, we provide a ``configure`` script to automate the CMake setup. To
+compile and install into ``/usr/local``::
 
     ./configure
     make
     make install
 
 See ``./configure --help`` for more advanced configuration options.
+
+On Windows, we support MSVC natively. We do not support builds via MinGW or
+Cygwin. For Windows builds, please use CMake directly and use the CMake
+generator for your Visual Studio version. Afterwards, you can either open the
+project file with Visual Studio to build Broker, or you can build directly from
+the command line using CMake::
+
+    cmake --build <build-dir> --target install --config release
+
+Please note that Broker currently only supports *static* builds on MSVC.
