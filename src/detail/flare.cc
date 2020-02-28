@@ -12,19 +12,24 @@
 #ifdef BROKER_WINDOWS
 
 #include <Winsock2.h>
-template <class... Ts>
-auto poll(Ts... xs) {
-  return WSAPoll(xs...);
-}
 
 #define PIPE_WRITE(fd, buf, num_bytes) ::send(fd, buf, num_bytes, 0)
 
 #define PIPE_READ(fd, buf, num_bytes) ::recv(fd, buf, num_bytes, 0)
 
+namespace {
+
+template <class... Ts>
+auto poll(Ts... xs) {
+  return WSAPoll(xs...);
+}
+
 bool try_again_later() {
   int code = WSAGetLastError();
   return code == WSAEWOULDBLOCK;
 }
+
+} // namespace
 
 #else // BROKER_WINDOWS
 
@@ -37,12 +42,16 @@ bool try_again_later() {
 
 #define PIPE_READ ::read
 
+namespace {
+
 bool try_again_later() {
   if constexpr (EAGAIN == EWOULDBLOCK)
     return errno == EAGAIN;
   else
     return errno == EAGAIN || errno == EWOULDBLOCK;
 }
+
+} // namespace
 
 #endif // BROKER_WINDOWS
 
@@ -103,7 +112,7 @@ size_t flare::extinguish() {
     auto n = PIPE_READ(fds_[0], tmp, stack_buffer_size);
     if (n > 0)
       result += static_cast<size_t>(n);
-    else if (n == -1 && errno == EAGAIN)
+    else if (n == -1 && try_again_later())
       return result; // Pipe is now drained.
   }
 }

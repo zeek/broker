@@ -67,6 +67,8 @@ void* make_file_view(void* mapper, size_t file_size) {
 #include <sys/stat.h>
 #include <unistd.h>
 
+namespace {
+
 std::pair<int, bool> open_file(const char* fname) {
   auto result = open(fname, O_RDONLY);
   return {result, result != -1};
@@ -88,7 +90,7 @@ void* memory_map_file(int fd, size_t file_size) {
   return mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 }
 
-void unmap_file(void*addr, size_t file_size) {
+void unmap_file(void* addr, size_t file_size) {
   munmap(addr, file_size);
 }
 
@@ -96,6 +98,8 @@ void* make_file_view(void* addr, size_t) {
   // On POSIX, mmap() returns the mapped region directly.
   return addr;
 }
+
+} // namespace
 
 #endif
 

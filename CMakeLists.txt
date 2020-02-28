@@ -398,9 +398,7 @@ endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
-if (BuildType)
-  string(TOUPPER CMAKE_BUILD_TYPE BuildType)
-endif ()
+string(TOUPPER CMAKE_BUILD_TYPE BuildType)
 
 macro(display test desc summary)
   if ( ${test} )
