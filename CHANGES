@@ -1,4 +1,451 @@
 
+1.4.0-dev.15 | 2020-02-25 17:56:28 -0800
+
+  * Support building Broker as CMake subdirectory (Dominik Charousset)
+
+    When building Broker as a subdirectory, we disable all compiler checks
+    and flag management and leave it to the parent project to provide valid
+    settings. In order to achieve "perfect forwarding" of all settings, we
+    include CAF as subdirectory rather than bundling it as an external
+    project.
+
+1.4.0-dev.4 | 2020-02-22 11:54:14 -0800
+
+  * Fix various "maybe uninitialized" warnings (Jon Siwek, Corelight)
+
+  * Switch to using [[deprecated]] attribute (Jon Siwek, Corelight)
+
+1.4.0-dev | 2020-02-08 11:47:27 -0800
+
+  * Update NEWS/VERSION for v1.4.0-dev (Jon Siwek, Corelight)
+
+1.3.0 | 2020-02-08 11:02:01 -0800
+
+  * Release 1.3.0.
+
+1.2.0-161 | 2020-02-08 11:01:43 -0800
+
+  * Update RTD version labeling for LTS (Jon Siwek, Corelight)
+
+1.2.0-160 | 2020-02-08 10:41:13 -0800
+
+  * Fix RTD version number/label template (Jon Siwek, Corelight)
+
+1.2.0-159 | 2020-02-08 10:38:58 -0800
+
+  * Fix RTD version number/label template (Jon Siwek, Corelight)
+
+1.2.0-158 | 2020-02-08 10:34:43 -0800
+
+  * Display version number for more RTD version labels (Jon Siwek, Corelight)
+
+1.2.0-157 | 2020-02-08 09:39:45 -0800
+
+  * Update embedded CAF to 0.17.4 (Jon Siwek, Corelight)
+
+1.2.0-156 | 2020-02-07 21:05:22 -0800
+
+  * Update NEWS (Jon Siwek, Corelight)
+
+1.2.0-155 | 2020-02-05 21:46:17 -0800
+
+  * Update CAF to current 0.17.4 release branch (Jon Siwek, Corelight)
+
+1.2.0-154 | 2020-02-04 11:33:03 +0000
+
+  * GH-85: Improve Python bindings Event validity checks. (Jon Siwek,
+    Corelight)
+
+    This adds a valid() method to broker.zeek.Event objects that may be
+    called after creating them to check if the data it parsed was valid
+    event data.
+
+    Also extended the name() and args() methods of broker.zeek.Event to
+    first check for validity to avoid segfaulting.  If the validity check
+    fails, a ValueError exception is now thrown.
+
+1.2.0-151 | 2020-01-24 12:04:26 -0800
+
+  * Fix accidential error/log output (Dominik Charousset, Corelight)
+
+  * Extend log output format on the console (Dominik Charousset, Corelight)
+
+1.2.0-147 | 2020-01-23 13:33:04 +0000
+
+  * Redesign Broker's configuration setup. (Dominik Charousset, Corelight)
+
+    The environment variables BROKER_DEBUG_VERBOSE and
+    BROKER_DEBUG_LEVEL overlapped and provided fuzzy semantics for a
+    user. This commit replaces the previous variables with
+    BROKER_CONSOLE_VERBOSITY and BROKER_FILE_VERBOSITY:
+
+    - set `BROKER_CONSOLE_VERBOSITY=info` for seeing high-level events such
+      as new connections, incoming peerings, etc.
+    - set `BROKER_CONSOLE_VERBOSITY=debug` for tapping into exchanged
+      messages and other low-level events (slow)
+
+    When debugging a distributed Broker setup, users can instead use
+    BROKER_FILE_VERBOSITY to record a test run and then collect the files
+    from all endpoints.
+
+    In all cases, Broker now omits CAF output. Advanced features are only
+    accessible from the (new) `broker.conf`. Here, experienced users can
+    remove the component files, tweak format strings, and so on.
+
+    The initialization process now also fixes ordering of the various
+    configuration parameters:
+
+    - `broker.conf` overrides hard-coded defaults
+    - environment variables override `broker.conf` entires
+    - command line arguments override environment variables
+
+    Finally, Broker now throws exceptions on invalid configuration entries
+    rather than silently dropping them. Also, the `endpoint` checks whether
+    the user asked for a help text and stops immediately instead of carrying
+    on normally.
+
+1.2.0-141 | 2020-01-07 20:45:15 -0800
+
+  * Preserve optimization setting for sanitizer build (Jon Siwek, Corelight)
+
+1.2.0-140 | 2020-01-03 10:45:38 -0700
+
+  * Add LeakSanitizer instrumentation macros
+
+    And disable checking LSAN leaks of sqlite3_open which seems to be a
+    false positive. (Jon Siwek, Corelight)
+
+  * Improve convenience options for enabling sanitizers
+
+    * Removes --enable-asan configure flag
+    * Removes ENABLE_ADDRESS_SANITIZER CMake variable
+    * Adds --sanitizers configure flag
+    * Adds BROKER_SANITIZERS CMake variable
+    * Sets C++ compiler flags according to the new options and also passes
+      them to the embedded CAF project
+
+    These new options would typically be used with the Debug build type and
+    also automatically sets -O1 unless NO_OPTIMIZATIONS environment variable
+    exists.
+
+    Related to https://github.com/zeek/broker/pull/77 (Jon Siwek, Corelight)
+
+
+1.2.0-137 | 2019-12-02 16:29:47 -0800
+
+  * Add infinite-send-rate feature to broker-benchmark (Dominik Charousset, Corelight)
+
+1.2.0-135 | 2019-11-24 10:13:37 -0800
+
+  * Use binary serializers, prepare for CAF changes (Dominik Charousset, Corelight)
+
+    - The stream serializers perform poorly and probably disappear in the
+      next CAF release. Consequently, always using the binary serializers
+      improves performance and also makes sure Broker is "future proof".
+    - Legacy support for serialize() functions probably fades away and
+      mixing `inspect` and `serialize` functions in Broker only has historic
+      reasons anyway. Sicking to one abstraction (`inspect`) is overdue.
+    - The binary_serializer might use any buffer type in future releases.
+      Instead of hardcoding `vector<char>`, we now ask the serializer for
+      its container type.
+
+  * Avoid using soon-to-be-removed message::take (Dominik Charousset, Corelight)
+
+1.2.0-131 | 2019-11-15 17:49:37 -0800
+
+  * Add workaround to enable parallel Unix make for external project_caf (Simon Hardy-Francis, Corelight)
+
+  * Fix build for multi-config CMake generators (e.g. Xcode) (Jon Siwek, Corelight)
+
+1.2.0-126 | 2019-11-11 13:47:17 -0800
+
+  * Make broker-cluster-benchmark log output configurable (Dominik Charousset, Corelight)
+
+    Also makes "quiet" log level the default.
+
+1.2.0-123 | 2019-11-11 13:36:46 -0800
+
+  * Update embedded CAF to 0.17.3 (Jon Siwek, Corelight)
+
+1.2.0-120 | 2019-10-30 13:22:30 -0700
+
+  * Set CMAKE_INSTALL_LIBDIR in CAF if set in broker/zeek (Johanna Amann, Corelight)
+
+    The INSTALL_LIB_DIR CMake variable was also removed in favor of
+    CMAKE_INSTALL_LIBDIR.
+
+1.2.0-117 | 2019-10-28 18:06:57 -0700
+
+  * Update README to reflect CMake 3.0+ requirement (Jon Siwek, Corelight)
+
+1.2.0-115 | 2019-10-28 16:53:41 -0700
+
+  * Require CMake 3 (Dominik Charousset, Corelight)
+
+  * Fix position of CMake project() (Dominik Charousset, Corelight)
+
+    The call to `project` must come after `cmake_minimum_required` in CMake
+    in order to get the correct policy settings.
+
+  * Fix conditions where broker-cluster-benchmark may hang (Dominik Charousset, Corelight)
+
+1.2.0-108 | 2019-10-28 16:08:14 -0700
+
+  * Use Ubuntu 18.04 (Bionic) for Travis CI (Jon Siwek, Corelight)
+
+    Mostly as a simple way to get a C++17-capable compiler in the default
+    build environment.
+
+  * Require C++17 (Jon Siwek, Corelight)
+
+1.2.0-102 | 2019-10-23 09:16:09 -0700
+
+  * Add -DNO_AUTO_LIBCPP when building CAF. (Robin Sommer, Corelight)
+
+    When setting the C++ compiler to clang, CAF by default switches to
+    compiling with -stdlib=libc++. As Broker doesn't do that, the two end
+    up linking against different libaries. Setting NO_AUTO_LIBCPP lets CAF
+    use the same library settings as Broker.
+
+1.2.0-100 | 2019-10-21 17:35:16 -0700
+
+  * Add broker-cluster-benchmark tool (Dominik Charousset, Corelight)
+
+    Allows benchmarking arbitrary Broker networks based on previously
+    recorded data.  e.g. can record all Broker messages in a Zeek cluster
+    and then replay them later in a simulated network for benchmarking
+    purposes.  See tests/benchmark/README.md for details.
+
+  * Add new is_file utility function (Dominik Charousset, Corelight)
+
+  * Remove obsolete benchmark (Dominik Charousset, Corelight)
+
+    The old broker-stream-benchmark is very low level and no longer provides
+    any value with broker-cluster-benchmark in the mix.
+
+  * Give recognizable names to custom actor types (Dominik Charousset, Corelight)
+
+  * Streamline announcement of types (Dominik Charousset, Corelight)
+
+1.2.0-60 | 2019-10-21 09:33:35 -0700
+
+  * Update embedded CAF to 0.17.2 (Jon Siwek, Corelight)
+
+1.2.0-59 | 2019-10-21 11:41:35 +0200
+
+  * Fix check for cmake commands on POSIX shells (Dominik Charousset, Corelight)
+
+  * Prefer cmake3 command, add --cmake=PATH option (Dominik Charousset, Corelight)
+
+1.2.0-56 | 2019-10-16 10:01:19 -0700
+
+  * Update to pybind11 v2.4.3 (Jon Siwek, Corelight)
+
+1.2.0-54 | 2019-10-02 10:44:57 -0700
+
+  * Extend visibility of imported CAF library targets (Dominik Charousset, Corelight)
+
+1.2.0-49 | 2019-09-30 10:09:24 -0700
+
+  * Let CAF parse the CLI of broker-benchmark instead of using getopt (Dominik Charousset)
+
+  * Remove YCM file (Dominik Charousset)
+
+  * Move config.hh.in out of the include directory (Dominik Charousset)
+
+1.2.0-42 | 2019-09-27 08:30:53 -0700
+
+  * Fix Xcode warnings about subscriber move-assignment (Jon Siwek, Corelight)
+
+1.2.0-40 | 2019-09-19 16:38:30 -0700
+
+  * Update header include guard in broker/config.hh (Jon Siwek, Corelight)
+
+1.2.0-39 | 2019-09-17 10:07:15 -0700
+
+  * Update contribution guide (Dominik Charousset)
+
+  * Switch from header guards to pragma once (Dominik Charousset)
+
+1.2.0-36 | 2019-09-06 12:56:49 -0700
+
+  * Ensure default logging level of "quiet" (Jon Siwek, Corelight)
+
+1.2.0-34 | 2019-09-04 19:04:06 -0700
+
+  * Fix update-changes config due to version.hh moving (Jon Siwek, Corelight)
+
+  * Fix ambiguous overload compile error in ssl test (Jon Siwek, Corelight)
+
+  * GH-51: move Broker header files into include/ subdir (Jon Siwek, Corelight)
+
+    So that project root directory doesn't need to be in search path
+    (which potentially has non-header files whose name may collide with
+    the intended header file from standard).
+
+1.2.0-31 | 2019-09-04 15:30:51 -0700
+
+  * Allow subscribers to use absolute timeouts (Dominik Charousset)
+
+  * Add option to record metadata for published messages (Dominik Charousset)
+
+1.2.0-12 | 2019-09-04 13:38:42 -0700
+
+  * Always disable OpenSSL in test fixture (Dominik Charousset)
+
+  * Make logging code more robust (Dominik Charousset)
+
+    Setting CAF_LOG_COMPONENT is very brittle and CAF is moving away from
+    this design for that reason. Instead, we now dispatch directly to
+    CAF_LOG_IMPL with the proper log component and level.
+
+    Also, we no longer use CAF_LOG_* macros directly and instead always use
+    the Broker macros in order to make sure log entries are properly
+    attributed to either CAF or Broker code.
+
+  * Rename test.[hc]pp according to naming convention (Dominik Charousset)
+
+  * Let CAF set proper config option in base_fixture (Dominik Charousset)
+
+  * Revert 90a7ab3 and adjust base_fixture to CAF 0.17 (Dominik Charousset)
+
+1.2.0-6 | 2019-09-03 11:32:35 -0700
+
+  * Review broker-benchmark, remove dead/unsafe code (Dominik Charousset)
+
+    - Remove 'use-non-blocking' mode, since it is unsafe. Once the queue gets
+      exhausted, CAF will halt the nonblocking producer. However, there is no logic
+      to trigger it again (see `publisher_worker` in `publisher.cc`). On a bigger
+      picture, this nonblocking mode mimics what the publisher does internally, so
+      it serves no purpose from a benchmarking perspective.
+
+    - Remove 'use-zeek-batches' mode. This mode caused the benchmark to use the
+      function `sendZeekBatch` for generating events. However, the implementation
+      was identical to sendBrokerBatch (the default). Consequently, this mode was a
+      fancy no-op.
+
+1.2.0-4 | 2019-08-14 09:54:48 -0700
+
+  * Properly announce message types in core unit test (Dominik Charousset)
+
+1.2.0 | 2019-08-02 18:24:15 -0700
+
+  * Release 1.2.0.
+
+1.1.2-58 | 2019-08-02 18:23:46 -0700
+
+  * Adjust unit tests to work with CAF 0.17.0 (Jon Siwek, Corelight)
+
+1.1.2-57 | 2019-07-26 16:03:53 -0700
+
+  * Link libatomic when necessary (Jon Siwek, Corelight)
+
+1.1.2-55 | 2019-06-17 20:18:29 -0700
+
+  * Update Travis config for bro to zeek renaming (Daniel Thayer)
+
+1.1.2-51 | 2019-06-07 09:13:22 -0700
+
+  * Add enum_value documentation (synnick)
+
+1.1.2-49 | 2019-05-30 21:32:58 -0700
+
+  * Improve shutdown behavior (Jon Siwek, Corelight)
+
+    Sending the "kill" exit reason to CAF actors seems to more reliably
+    avoid deadlock/hang issues on shutting down, likely due to it having
+    more explicit logic to shut down streams.
+
+1.1.2-48 | 2019-05-28 17:39:41 -0700
+
+  * Fix subscriber_base::get(n, timeout) congestion tracking (Jon Siwek, Corelight)
+
+    This could call became_not_full() in cases where the underlying queue
+    size did not actually transition to below the congestion limit.
+
+  * Fix race in subscriber_base::poll() leading to vector realloc (Jon Siwek, Corelight)
+
+    The value used to reserve the initial vector capacity may
+    be underestimated due to unlocking a mutex between the call
+    to buffer_size() and consume(), leading to unnecessary vector
+    re-allocation.
+
+  * Improve broker::bro::Message API to help avoid copies (Jon Siwek, Corelight)
+
+  * Fix flare_actor always reporting readiness (Jon Siwek, Corelight)
+
+    Since mailbox elements get taken via receive(), not dequeue(),
+    the flare which signalled readiness never got extinguished.
+
+  * Add broker::store::proxy::receive(n) (Jon Siwek, Corelight)
+
+    For receiving N data store responses at a time.
+
+1.1.2-40 | 2019-05-23 17:57:57 -0700
+
+  * GH-43: use Python tuples to represent Broker vectors (Jon Siwek, Corelight)
+
+    Opposed to previously mapping vectors to Python lists.
+
+    This is needed in order to represent tables indexed by vectors: tables
+    are mapped to dictionaries, dictionaries require immutable indices,
+    and a tuple is immutable whereas a list is mutable.
+
+1.1.2-38 | 2019-05-15 15:52:42 -0700
+
+  * Fix for Python2 compatibility (Jon Siwek, Corelight)
+
+1.1.2-37 | 2019-05-15 14:36:24 -0700
+
+  * Add bro.py compatibility module with deprecation warnings (Jon Siwek, Corelight)
+
+  * Add bro.hh compatibility header with deprecation warnings (Jon Siwek, Corelight)
+
+  * Replace "bro" with "zeek" in tests, docs, and src code (Daniel Thayer)
+
+  * Rename files from "bro" to "zeek" (Daniel Thayer)
+
+1.1.2-32 | 2019-05-14 12:21:59 -0700
+
+  * Update unit test to use zeek executable, not bro (Jon Siwek, Corelight)
+
+1.1.2-30 | 2019-04-19 11:08:52 -0700
+
+  * Replace bro_init/bro_done usages with zeek_init/zeek_done (Seth Hall, Corelight)
+
+1.1.2-27 | 2019-04-16 12:42:43 -0700
+
+  * Update usage of a deprecated Sphinx API (Jon Siwek, Corelight)
+
+  * Add missing copyright to sphinx extension code (Jon Siwek, Corelight)
+
+1.1.2-24 | 2019-04-12 13:19:59 -0700
+
+  * Add repr/str methods to python bindings Count type (Jon Siwek, Corelight)
+
+1.1.2-23 | 2019-03-27 10:40:00 -0700
+
+  * Deploy copy-on-write for more efficient messaging (Dominik Charousset)
+
+    This contains a breaking API change (for C++ code, not Python),
+    see NEWS for code migration details.
+
+1.1.2-18 | 2019-03-22 12:48:04 -0700
+
+  * GH-40: use TZ-aware (UTC) datetimes in python bindings (Jon Siwek, Corelight)
+
+1.1.2-15 | 2019-03-07 18:39:46 -0800
+
+    - Add --with-python-config configure option (Jarry Shaw)
+
+1.1.2-13 | 2019-02-15 13:53:38 -0600
+
+  * zeek/GH-273: Fix file descriptor leak in subscribers (Jon Siwek, Corelight)
+
+    Specifically, endpoint::make_status_subscriber() and
+    endpoint::make_subscriber() methods because the "flare" class was
+    missing a dtor to close its FDs.
+
 1.1.2-12 | 2019-02-06 13:15:57 -0600
 
   * Add validity-checking functions for Bro-specific messages (Jon Siwek, Corelight)

@@ -10,6 +10,43 @@ import time
 import ipaddress
 import collections
 
+try:
+    from datetime import timezone
+    utc = timezone.utc
+except:
+    # Only Python 3.2+ has a datetime.timezone.utc we can re-use
+    class UTC(datetime.tzinfo):
+
+        def utcoffset(self, dt):
+            return datetime.timedelta(0)
+
+        def tzname(self, dt):
+            return "UTC"
+
+        def dst(self, dt):
+            return datetime.timedelta(0)
+
+        def __eq__(self, other):
+            if isinstance(other, UTC):
+                return True
+
+            try:
+                if self.utcoffset(None) != other.utcoffset(None):
+                    return False
+
+                if other.dst(None) is None:
+                    return True
+
+                return self.dst(None) == other.dst(None);
+
+            except:
+                return False
+
+        def __ne__(self, other):
+            return not self.__eq__(other)
+
+    utc = UTC()
+
 # Check the Python version
 py2 = (sys.version_info.major < 3)
 
@@ -335,6 +372,7 @@ class Message:
     def to_broker(self):
         assert False and "method not overridden"
 
+from . import zeek
 from . import bro
 
 class Data(_broker.Data):
@@ -342,7 +380,7 @@ class Data(_broker.Data):
         if x is None:
             _broker.Data.__init__(self)
 
-        elif isinstance(x, bro.Event):
+        elif isinstance(x, zeek.Event):
             _broker.Data.__init__(self, x.as_data())
 
         elif isinstance(x, _broker.Data):
@@ -359,7 +397,11 @@ class Data(_broker.Data):
 
         elif isinstance(x, datetime.datetime):
             if py2:
-                secs = time.mktime(x.timetuple()) + x.microsecond/1e6
+                if x.tzinfo:
+                    secs = (x - datetime.datetime(1970, 1, 1, tzinfo=utc)).total_seconds()
+                else:
+                    # Assume the naive datetime is in local time
+                    secs = time.mktime(x.timetuple()) + x.microsecond/1e6
             else:
                 secs = x.timestamp()
 
@@ -426,7 +468,7 @@ class Data(_broker.Data):
             return {Data.to_py(k): Data.to_py(v) for (k, v) in t.items()}
 
         def to_vector(v):
-            return [Data.to_py(i) for i in v]
+            return tuple(Data.to_py(i) for i in v)
 
         def _try_bytes_decode(b):
             try:
@@ -448,7 +490,7 @@ class Data(_broker.Data):
             Data.Type.Subnet: lambda: to_subnet(d.as_subnet()),
             Data.Type.Table: lambda: to_table(d.as_table()),
             Data.Type.Timespan: lambda: datetime.timedelta(seconds=d.as_timespan()),
-            Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(d.as_timestamp()),
+            Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(d.as_timestamp(), utc),
             Data.Type.Vector: lambda: to_vector(d.as_vector())
             }
 

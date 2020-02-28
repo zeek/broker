@@ -9,6 +9,7 @@
 #endif
 
 #include <cerrno>
+#include <fstream>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -22,6 +23,16 @@ namespace detail {
 bool exists(const path& p) {
   struct stat st;
   return ::lstat(p.c_str(), &st) == 0;
+}
+
+bool is_directory(const path& p) {
+  struct stat sb;
+  return stat(p.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode);
+}
+
+bool is_file(const path& p) {
+  struct stat sb;
+  return stat(p.c_str(), &sb) == 0 && S_ISREG(sb.st_mode);
 }
 
 namespace {
@@ -54,13 +65,11 @@ bool mkdirs(const path& p) {
     dir_to_make += "/";
 
     if ( ::mkdir(dir_to_make.c_str(), perms) < 0 ) {
-      struct stat filestat;
 
       if ( errno == EISDIR )
           continue;
 
-      if ( errno == EEXIST && stat(dir_to_make.c_str(), &filestat) == 0 &&
-           S_ISDIR(filestat.st_mode) )
+      if ( errno == EEXIST && is_directory(dir_to_make) )
         continue;
 
       return false;
@@ -123,6 +132,22 @@ bool remove_all(const path& p) {
     return ::nftw(p.c_str(), rm, open_max(), FTW_DEPTH | FTW_PHYS) == 0;
   else
     return ::remove(p.c_str()) == 0;
+}
+
+std::vector<std::string> readlines(const path& p, bool keep_empties) {
+  std::vector<std::string> result;
+  std::string line;
+  std::ifstream f{p};
+  while (std::getline(f, line))
+    if (!line.empty() || keep_empties)
+      result.emplace_back(line);
+  return result;
+}
+
+std::string read(const path& p) {
+  std::ifstream f{p};
+  return std::string{std::istreambuf_iterator<char>(f),
+                     std::istreambuf_iterator<char>()};
 }
 
 } // namespace detail

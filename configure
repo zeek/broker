@@ -4,21 +4,13 @@
 set -e
 command="$0 $*"
 
-# check for `cmake` command
-type cmake > /dev/null 2>&1 || {
-    echo "\
-This package requires CMake, please install it first, then you may
-use this configure script to access CMake equivalent functionality.\
-" >&2;
-    exit 1;
-}
-
 usage="\
 Usage: $0 [OPTION]... [VAR=VALUE]...
 
   Build Options:
+    --cmake=PATH           custom path to a CMake binary
     --generator=GENERATOR  CMake generator to use (see 'cmake --help')
-    --build-dir=DIR         place build files in directory [build]
+    --build-dir=DIR        place build files in directory [build]
     --build-type=TYPE      set CMake build type [RelWithDebInfo]:
                              - Debug: optimizations off, debug symbols + flags
                              - MinSizeRel: size optimizations, debugging off
@@ -28,11 +20,11 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --ccache               use ccache to speed up recompilation (requires
                            ccache installation and CMake 3.10+)
     --enable-debug         compile in debugging mode (like --build-type=Debug)
-    --enable-asan          enable AddressSanitizer
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
     --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
                              ERROR, WARNING, INFO, DEBUG, TRACE
+    --sanitizers=LIST      comma-separated list of sanitizer names to enable
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -50,7 +42,9 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --disable-tests        don't try to build unit tests
     --with-rocksdb=PATH    path to RocksDB installation
     --with-python=PATH     path to Python executable
-    --with-bro=PATH        path to Bro executable for interoperability tests
+    --with-python-config=PATH
+                           path to python-config executable
+    --with-zeek=PATH       path to Zeek executable for interoperability tests
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -79,8 +73,8 @@ append_cache_entry () {
 builddir=build
 prefix=/usr/local
 CMakeCacheEntries=""
-append_cache_entry CMAKE_INSTALL_PREFIX PATH     $prefix
-append_cache_entry BROKER_DISABLE_DOCS BOOL false
+append_cache_entry CMAKE_INSTALL_PREFIX PATH    $prefix
+append_cache_entry BROKER_DISABLE_DOCS  BOOL    false
 
 # parse arguments
 while [ $# -ne 0 ]; do
@@ -94,11 +88,14 @@ while [ $# -ne 0 ]; do
             echo "${usage}" 1>&2
             exit 1
             ;;
+        --cmake=*)
+            CMakeCommand=$optarg
+            ;;
         --generator=*)
             CMakeGenerator="$optarg"
             ;;
         --ccache)
-            append_cache_entry ENABLE_CCACHE         BOOL   true
+            append_cache_entry ENABLE_CCACHE        BOOL   true
             ;;
         --build-dir=*)
             builddir=$optarg
@@ -109,11 +106,11 @@ while [ $# -ne 0 ]; do
             ;;
         --prefix=*)
             append_cache_entry CMAKE_INSTALL_PREFIX PATH   $optarg
-            append_cache_entry INSTALL_LIB_DIR      PATH   $optarg/lib
+            append_cache_entry CMAKE_INSTALL_LIBDIR PATH   $optarg/lib
             append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
             ;;
         --libdir=*)
-            append_cache_entry INSTALL_LIB_DIR      PATH   $optarg
+            append_cache_entry CMAKE_INSTALL_LIBDIR PATH   $optarg
             ;;
         --python-home=*)
             append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
@@ -127,41 +124,44 @@ while [ $# -ne 0 ]; do
         --enable-debug)
             append_cache_entry ENABLE_DEBUG         BOOL   true
             ;;
-        --enable-asan)
-            append_cache_entry ENABLE_ADDRESS_SANITIZER BOOL true
-            ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true
+            ;;
+        --sanitizers=*)
+            append_cache_entry BROKER_SANITIZERS    STRING    $optarg
             ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
         --with-log-level=*)
-            append_cache_entry CAF_LOG_LEVEL STRING "$optarg"
+            append_cache_entry CAF_LOG_LEVEL        STRING  $optarg
             ;;
         --disable-python)
-            append_cache_entry DISABLE_PYTHON_BINDINGS  BOOL   true
+            append_cache_entry DISABLE_PYTHON_BINDINGS BOOL true
             ;;
         --disable-docs)
-            append_cache_entry BROKER_DISABLE_DOCS  BOOL   true
+            append_cache_entry BROKER_DISABLE_DOCS  BOOL    true
             ;;
         --disable-tests)
-            append_cache_entry BROKER_DISABLE_TESTS  BOOL   true
+            append_cache_entry BROKER_DISABLE_TESTS BOOL    true
             ;;
         --with-caf=*)
-            append_cache_entry CAF_ROOT_DIR      PATH   $optarg
+            append_cache_entry CAF_ROOT_DIR         PATH    $optarg
             ;;
         --with-openssl=*)
-            append_cache_entry OPENSSL_ROOT_DIR  PATH $optarg
+            append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg
             ;;
         --with-rocksdb=*)
-            append_cache_entry ROCKSDB_ROOT_DIR     PATH   $optarg
+            append_cache_entry ROCKSDB_ROOT_DIR     PATH    $optarg
             ;;
         --with-python=*)
-            append_cache_entry PYTHON_EXECUTABLE      PATH    $optarg
+            append_cache_entry PYTHON_EXECUTABLE    PATH    $optarg
             ;;
-        --with-bro=*)
-            append_cache_entry BRO_EXECUTABLE      PATH    $optarg
+        --with-python-config=*)
+            append_cache_entry PYTHON_CONFIG        PATH    $optarg
+            ;;
+        --with-zeek=*)
+            append_cache_entry ZEEK_EXECUTABLE      PATH    $optarg
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."
@@ -170,6 +170,20 @@ while [ $# -ne 0 ]; do
     esac
     shift
 done
+
+if [ -z "$CMakeCommand" ]; then
+    # prefer cmake3 over "regular" cmake (cmake == cmake2 on RHEL)
+    if command -v cmake3 >/dev/null 2>&1 ; then
+        CMakeCommand="cmake3"
+    elif command -v cmake >/dev/null 2>&1 ; then
+        CMakeCommand="cmake"
+    else
+        echo "This package requires CMake, please install it first."
+        echo "Then you may use this script to configure the CMake build."
+        echo "Note: pass --cmake=PATH to use cmake in non-standard locations."
+        exit 1;
+    fi
+fi
 
 if [ -d $builddir ]; then
     # If build directory exists, check if it has a CMake cache
@@ -188,9 +202,9 @@ echo "Source Directory: $sourcedir"
 cd $builddir
 
 if [ -n "$CMakeGenerator" ]; then
-    cmake -G "$CMakeGenerator" $CMakeCacheEntries $sourcedir
+    "$CMakeCommand" -G "$CMakeGenerator" $CMakeCacheEntries $sourcedir
 else
-    cmake $CMakeCacheEntries $sourcedir
+    "$CMakeCommand" $CMakeCacheEntries $sourcedir
 fi
 
 printf "#!/bin/sh\n\n" > config.status

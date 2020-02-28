@@ -5,12 +5,12 @@
 // checking for an expected outcome.
 #define SUITE integration
 
-#include "test.hpp"
+#include "test.hh"
 
-#include <cstddef>
-#include <cstdint>
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <initializer_list>
 #include <map>
@@ -18,11 +18,10 @@
 #include <utility>
 #include <vector>
 
-#include <caf/defaults.hpp>
-#include <caf/test/io_dsl.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/atom.hpp>
 #include <caf/behavior.hpp>
+#include <caf/defaults.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
@@ -32,6 +31,7 @@
 #include <caf/io/network/test_multiplexer.hpp>
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
+#include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
 #include <caf/variant.hpp>
 
@@ -51,9 +51,6 @@ using caf::unit_t;
 
 using caf::io::accept_handle;
 using caf::io::connection_handle;
-
-// Useful type aliases.
-using data_vector = std::vector<endpoint::value_type>;
 
 namespace {
 
@@ -123,7 +120,7 @@ struct peer_fixture {
   std::vector<accept_handle> acceptors;
 
   // Stores all received items for subscribed topics.
-  data_vector data;
+  std::vector<data_message> data;
 
   // Stores the interval between two credit rounds.
   caf::timespan credit_round_interval;
@@ -178,7 +175,7 @@ struct peer_fixture {
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, endpoint::value_type x) {
+      [=](unit_t&, data_message x) {
         data.emplace_back(std::move(x));
       },
       [](unit_t&, const caf::error&) {
@@ -191,13 +188,14 @@ struct peer_fixture {
   // Publishes all `(t, xs)...` tuples.
   template <class... Ts>
   void publish(topic t, Ts... xs) {
-    using buf_t = std::deque<endpoint::value_type>;
-    auto buf = std::make_shared<buf_t>(buf_t{std::make_pair(t, std::move(xs))...});
+    using buf_t = std::deque<data_message>;
+    auto buf
+      = std::make_shared<buf_t>(buf_t{make_data_message(t, std::move(xs))...});
     ep.publish_all_nosync(
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, caf::downstream<endpoint::value_type>& out, size_t num) {
+      [=](unit_t&, caf::downstream<data_message>& out, size_t num) {
         auto n = std::min(num, buf->size());
         CAF_MESSAGE("push" << n << "values downstream");
         for (size_t i = 0u; i < n; ++i)
@@ -323,35 +321,32 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1u);
   CAF_CHECK_EQUAL(earth_peers.front().status, peer_status::peered);
-  MESSAGE("subscribe to 'bro/events' on venus");
-  venus.subscribe_to("bro/events");
-  MESSAGE("subscribe to 'bro/events/failures' on earth");
-  earth.subscribe_to("bro/events/failures");
+  MESSAGE("subscribe to 'zeek/events' on venus");
+  venus.subscribe_to("zeek/events");
+  MESSAGE("subscribe to 'zeek/events/failures' on earth");
+  earth.subscribe_to("zeek/events/failures");
   MESSAGE("verify subscriptions");
   auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
     return xs;
   };
   mercury.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
-                  filter({"bro/events", "bro/events/failures"}));
+                  filter({"zeek/events", "zeek/events/failures"}));
   venus.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"bro/events"}));
-  MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
-  mercury.publish("bro/events/failures", "oops", "sorry!");
-  mercury.publish("bro/events/logging", 123, 456);
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
+  mercury.publish("zeek/events/failures", "oops", "sorry!");
+  mercury.publish("zeek/events/logging", 123, 456);
   MESSAGE("verify published data");
-  auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
-    return xs;
-  };
-  CAF_CHECK_EQUAL(mercury.data, data({}));
-  CAF_CHECK_EQUAL(venus.data, data({{"bro/events/failures", "oops"},
-                                    {"bro/events/failures", "sorry!"},
-                                    {"bro/events/logging", 123},
-                                    {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(earth.data, data({{"bro/events/failures", "oops"},
-                                    {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(mercury.data, data_msgs({}));
+  CAF_CHECK_EQUAL(venus.data, data_msgs({{"zeek/events/failures", "oops"},
+                                         {"zeek/events/failures", "sorry!"},
+                                         {"zeek/events/logging", 123},
+                                         {"zeek/events/logging", 456}}));
+  CAF_CHECK_EQUAL(earth.data, data_msgs({{"zeek/events/failures", "oops"},
+                                         {"zeek/events/failures", "sorry!"}}));
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   earth.loop_after_next_enqueue();
@@ -378,15 +373,15 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1u);
   CAF_CHECK_EQUAL(earth_peers.front().status, peer_status::peered);
-  MESSAGE("subscribe to 'bro/events' on venus");
-  auto venus_s1 = venus.ep.make_subscriber({"bro/events"});
-  auto venus_s2 = venus.ep.make_subscriber({"bro/events"});
+  MESSAGE("subscribe to 'zeek/events' on venus");
+  auto venus_s1 = venus.ep.make_subscriber({"zeek/events"});
+  auto venus_s2 = venus.ep.make_subscriber({"zeek/events"});
   venus_s1.set_rate_calculation(false);
   venus_s2.set_rate_calculation(false);
   exec_loop();
-  MESSAGE("subscribe to 'bro/events/failures' on earth");
-  auto earth_s1 = earth.ep.make_subscriber({"bro/events/failures"});
-  auto earth_s2 = earth.ep.make_subscriber({"bro/events/failures"});
+  MESSAGE("subscribe to 'zeek/events/failures' on earth");
+  auto earth_s1 = earth.ep.make_subscriber({"zeek/events/failures"});
+  auto earth_s2 = earth.ep.make_subscriber({"zeek/events/failures"});
   earth_s1.set_rate_calculation(false);
   earth_s2.set_rate_calculation(false);
   exec_loop();
@@ -396,30 +391,31 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   };
   mercury.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
-                  filter({"bro/events", "bro/events/failures"}));
+                  filter({"zeek/events", "zeek/events/failures"}));
   venus.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"bro/events"}));
-  MESSAGE("publish to 'bro/events/(logging|failures)' on mercury");
-  mercury.publish("bro/events/failures", "oops", "sorry!");
-  mercury.publish("bro/events/logging", 123, 456);
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
+  mercury.publish("zeek/events/failures", "oops", "sorry!");
+  mercury.publish("zeek/events/logging", 123, 456);
   MESSAGE("verify published data");
-  auto data = [](std::initializer_list<endpoint::value_type> xs) -> data_vector {
-    return xs;
-  };
-  CAF_CHECK_EQUAL(venus_s1.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"},
-                                         {"bro/events/logging", 123},
-                                         {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(venus_s2.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"},
-                                         {"bro/events/logging", 123},
-                                         {"bro/events/logging", 456}}));
-  CAF_CHECK_EQUAL(earth_s1.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"}}));
-  CAF_CHECK_EQUAL(earth_s2.poll(), data({{"bro/events/failures", "oops"},
-                                         {"bro/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(venus_s1.poll(),
+                  data_msgs({{"zeek/events/failures", "oops"},
+                             {"zeek/events/failures", "sorry!"},
+                             {"zeek/events/logging", 123},
+                             {"zeek/events/logging", 456}}));
+  CAF_CHECK_EQUAL(venus_s2.poll(),
+                  data_msgs({{"zeek/events/failures", "oops"},
+                             {"zeek/events/failures", "sorry!"},
+                             {"zeek/events/logging", 123},
+                             {"zeek/events/logging", 456}}));
+  CAF_CHECK_EQUAL(earth_s1.poll(),
+                  data_msgs({{"zeek/events/failures", "oops"},
+                             {"zeek/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(earth_s2.poll(),
+                  data_msgs({{"zeek/events/failures", "oops"},
+                             {"zeek/events/failures", "sorry!"}}));
   exec_loop();
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);

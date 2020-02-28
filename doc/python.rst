@@ -73,14 +73,14 @@ equivalent, including ``available`` for checking for pending messages,
 for retrieving a select-able file descriptor, and ``{add,remove}_topic``
 for changing the subscription list.
 
-Exchanging Bro Events
----------------------
+Exchanging Zeek Events
+----------------------
 
-The Broker Python bindings come with support for representing Bro
+The Broker Python bindings come with support for representing Zeek
 events as well. Here's the Python version of the :ref:`C++ ping example
-shown earlier <bro_events_cpp>`:
+shown earlier <zeek_events_cpp>`:
 
-.. literalinclude:: _examples/ping.bro
+.. literalinclude:: _examples/ping.zeek
 
 .. literalinclude:: _examples/ping.py
 
@@ -133,13 +133,21 @@ each other:
    * - ``port``
      - ``broker.Port(x, broker.Port.{TCP,UDP,ICMP,Unknown})``
    * - ``vector``
-     - ``list``
+     - ``tuple``
    * - ``set``
      - ``set``
    * - ``table``
      - ``dict``
 
-
+Note that either a Python ``tuple`` or Python ``list`` may convert
+to a Broker ``vector``, but the canonical Python type representing
+a ``vector`` is a tuple.  That is, whenever converting a Broker
+``vector`` value into a Python value, you will get a ``tuple``.
+A ``tuple`` is the canonical type here because it is an immutable type,
+but a ``list`` is mutable --  we need to be able to represent tables
+indexed by vectors, tables are mapped to Python dictionaries, Python
+dictionaries only allow immutable index types, and so we must use a
+``tuple`` to represent a ``vector``.
 
 Status and Error Messages
 -------------------------

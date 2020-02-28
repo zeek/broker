@@ -2,7 +2,6 @@
 
 #include "broker/detail/die.hh"
 #include "broker/detail/make_backend.hh"
-#include "broker/detail/make_unique.hh"
 #include "broker/detail/memory_backend.hh"
 #include "broker/detail/rocksdb_backend.hh"
 #include "broker/detail/sqlite_backend.hh"

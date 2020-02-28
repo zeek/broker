@@ -69,6 +69,8 @@ void init_data(py::module& m) {
   py::class_<count_type>(m, "Count")
     .def(py::init<py::int_>())
     .def_readwrite("value", &count_type::value)
+    .def("__str__", [](const count_type& c) { return broker::to_string(c.value); })
+    .def("__repr__", [](const count_type& c) { return "Count(" + broker::to_string(c.value) + ")"; })
     .def(py::self < py::self)
     .def(py::self <= py::self)
     .def(py::self > py::self)

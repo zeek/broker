@@ -48,7 +48,7 @@ event send_stats()
 	schedule 1secs { send_stats() };
 	}
 
-event bro_init()
+event zeek_init()
 	{
 	Broker::subscribe("/benchmark/events");
 	Broker::subscribe("/benchmark/terminate");

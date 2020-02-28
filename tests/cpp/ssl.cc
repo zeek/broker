@@ -1,7 +1,7 @@
 // This suite is a test ensuring SSL authentication works as expected.
 #define SUITE ssl
 
-#include "test.hpp"
+#include "test.hh"
 
 #include <cstdlib>
 #include <string>
@@ -81,19 +81,18 @@ MESSAGE("prepare authenticated connection");
   auto b = venus_auth.ep.peer("127.0.0.1", p);
   CAF_REQUIRE(b);
 
-  using value_type = std::pair<topic, data>;
-  value_type ping{"/broker/test", "ping"};
-  value_type pong{"/broker/test", "pong"};
+  data_message ping{"/broker/test", "ping"};
+  data_message pong{"/broker/test", "pong"};
 
   MESSAGE("mercury_auth sending ping");
-  mercury_auth.ep.publish({ping});
+  mercury_auth.ep.publish(ping);
   MESSAGE("venus_auth waiting for ping");
   CAF_CHECK_EQUAL(venus_auth_es.get(), ping);
   CAF_CHECK(mercury_auth_es.poll().empty());
   CAF_CHECK(venus_auth_es.poll().empty());
 
   MESSAGE("venus_auth sending pong");
-  venus_auth.ep.publish({pong});
+  venus_auth.ep.publish(pong);
   MESSAGE("mercury_auth waiting for pong");
   CAF_CHECK_EQUAL(mercury_auth_es.get(), pong);
   CAF_CHECK(mercury_auth_es.poll().empty());

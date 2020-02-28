@@ -10,10 +10,10 @@ asynchronous nature of publish/subscribe makes it a popular choice for loosely
 coupled, distributed systems.
 
 Broker is the successor of Broccoli.  Broker enables arbitrary
-applications to communicate in Bro's data model. In this chapter, we
+applications to communicate in Zeek's data model. In this chapter, we
 first describe generic Broker communication between peers that don't
 assume any specific message layout. Afterwards, we show how to exchange
-events with Bro through an additional Bro-specific shim on top of
+events with Zeek through an additional Zeek-specific shim on top of
 Broker's generic messages.
 
 Exchanging Broker Messages
@@ -239,37 +239,37 @@ setting the Broker configuration option ``ttl``. Note that it is the
 first hop's TTL configuration that determines a message's lifetime
 (not the original sender's).
 
-.. _bro_events_cpp:
+.. _zeek_events_cpp:
 
-Exchanging Bro Events
----------------------
+Exchanging Zeek Events
+----------------------
 
 The communication model discussed so far remains generic for all
 Broker clients in that it doesn't associate any semantics with the
 values exchanged through messages. In practice, however, senders and
 receivers will need to agree on a specific data layout for the values
 exchanged, so that they interpret them in the same way. This is in
-particular true for exchanging events with Bro---which is one of the
+particular true for exchanging events with Zeek---which is one of the
 main applications for Broker in the first place. To support that,
-Broker provides built-in support for sending and receiving Bro events
-through a small Bro-specific shim on top of the generic message model.
-The shim encapsulates Bro events and takes care of converting them
+Broker provides built-in support for sending and receiving Zeek events
+through a small Zeek-specific shim on top of the generic message model.
+The shim encapsulates Zeek events and takes care of converting them
 into the expected lower-level message layout that gets transmitted.
-This way, Bro events can be exchanged between an external
-Broker client and Bro itself---and also even just between Broker
-clients without any Bro instances at all.
+This way, Zeek events can be exchanged between an external
+Broker client and Zeek itself---and also even just between Broker
+clients without any Zeek instances at all.
 
 Here's a complete ping/ping example between a C++ Broker client and
-Bro:
+Zeek:
 
-.. literalinclude:: _examples/ping.bro
+.. literalinclude:: _examples/ping.zeek
 
 .. literalinclude:: _examples/ping.cc
 
 .. code-block:: bash
 
     # g++ -std=c++11 -lbroker -lcaf_core -lcaf_io -lcaf_openssl -o ping ping.cc
-    # bro ping.bro &
+    # zeek ping.zeek &
     # ./ping
     received pong[0]
     received pong[1]

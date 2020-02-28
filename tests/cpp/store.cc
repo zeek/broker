@@ -1,16 +1,18 @@
 #define SUITE store
-#include "test.hpp"
 
-#include <utility>
+#include "broker/store.hh"
+
+#include "test.hh"
+
 #include <chrono>
 #include <thread>
+#include <utility>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
-#include "broker/store.hh"
 
 using namespace broker;
 

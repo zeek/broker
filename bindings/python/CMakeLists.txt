@@ -1,5 +1,5 @@
 # The internal module, which is wrapped by Python code.
-add_library(_broker MODULE _broker.cpp bro.cpp data.cpp enums.cpp store.cpp)
+add_library(_broker MODULE _broker.cpp data.cpp enums.cpp store.cpp zeek.cpp)
 
 # Stage the Python wrapper along with the internal module in the public
 # "broker" module.

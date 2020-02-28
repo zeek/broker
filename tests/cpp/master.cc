@@ -1,6 +1,9 @@
 #define SUITE master
 
-#include "test.hpp"
+#include "broker/store.hh"
+
+#include "test.hh"
+
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/atoms.hh"
@@ -10,7 +13,6 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
-#include "broker/store.hh"
 #include "broker/topic.hh"
 
 using std::cout;
@@ -47,8 +49,9 @@ CAF_TEST(local_master) {
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
   anon_send(core, atom::publish::value, atom::local::value,
-            n / topics::master_suffix,
-            make_internal_command<put_command>("hello", "universe"));
+            make_command_message(
+              n / topics::master_suffix,
+              make_internal_command<put_command>("hello", "universe")));
   run();
   // read back what we have written
   sched.inline_next_enqueue(); // ds.get talks to the master_actor (blocking)
@@ -63,8 +66,7 @@ CAF_TEST(local_master) {
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(store_master,
-                       point_to_point_fixture<fake_network_fixture>)
+CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<base_fixture>)
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
@@ -161,8 +163,8 @@ CAF_TEST(master_with_clone) {
   ds_mars.put("user", "neverlord");
   expect_on(mars, (atom_value, internal_command),
             from(_).to(ds_mars.frontend()).with(atom::local::value, _));
-  expect_on(mars, (atom_value, topic, internal_command),
-            from(_).to(mars.ep.core()).with(atom::publish::value, _, _));
+  expect_on(mars, (atom_value, command_message),
+            from(_).to(mars.ep.core()).with(atom::publish::value, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
   CAF_CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});

@@ -1,16 +1,18 @@
-#include <cstdint>
+#define SUITE data
+
+#include "broker/data.hh"
+
+#include "test.hh"
+
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <type_traits>
 #include <utility>
 
 #include "broker/convert.hh"
-#include "broker/data.hh"
 #include "broker/optional.hh"
-
-#define SUITE data
-#include "test.hpp"
 
 using namespace broker;
 
@@ -122,7 +124,7 @@ TEST(data - vector) {
   vector v{42, 43, 44};
   REQUIRE_EQUAL(v.size(), 3u);
   CHECK_EQUAL(v[1], data{43});
-  CHECK_EQUAL(to_string(v), "[42, 43, 44]");
+  CHECK_EQUAL(to_string(v), "(42, 43, 44)");
 }
 
 TEST(data - set) {

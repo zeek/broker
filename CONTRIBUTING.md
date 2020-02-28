@@ -4,7 +4,7 @@ This document specifies the coding style for Broker. The style is based on
 Git Workflow
 ============
 
-Broker's git workflow follows [Bro's development process][bro-dev-proc]. In a
+Broker's git workflow follows [Zeek's development process][zeek-dev-proc]. In a
 nutshell, this means:
 
 - The `master` branch reflects the latest state of development and should
@@ -16,7 +16,7 @@ nutshell, this means:
   the following steps to prepare for a merge back into `master`:
 
   + Squash your commits into a single one if necessary
-  + Create a merge request to `master` at the [Bro tracker][bro-tracker]
+  + Create a pull request to `master` on the [Broker github][broker-github]
   + Ask a maintainer to review your work
   + Address the feedback articulated during the review
   + A maintainer will merge the topic branch into `master` after it passes the
@@ -97,10 +97,9 @@ General
 Header
 ------
 
-- Header filenames end in `.h` and implementation filenames in `.cc`.
+- Header filenames end in `.hh` and implementation filenames in `.cc`.
 
-- All header files should use #define guards to prevent multiple inclusion. The
-  format of the symbol name should be `BROKER_<PATH>_<TO>_<FILE>_H`.
+- All header files should use `#pragma once` to prevent multiple inclusion.
 
 - Don't use `#include` when a forward declarations suffices. It can make sense
   to outsource forward declarations into a separate file per module. The file
@@ -119,7 +118,7 @@ Header
   ```
 
   Within each section the order should be alphabetical. Broker includes should
-  always be in doublequotes and relative to the source directory, whereas
+  always be in double quotes and relative to the source directory, whereas
   system-wide includes in angle brackets.
 
 - As in the standard library, the order of parameters when declaring a function
@@ -271,5 +270,5 @@ Comments
 
 [caf-style]: https://github.com/actor-framework/actor-framework/blob/master/CONTRIBUTING.md
 [vast-style]: https://github.com/mavam/vast/blob/master/CONTRIBUTING.md
-[bro-dev-proc]: https://www.bro.org/development/howtos/process.html
-[bro-tracker]: https://bro-tracker.atlassian.net
+[zeek-dev-proc]: https://www.zeek.org/development/howtos/process.html
+[broker-github]: https://github.com/zeek/broker

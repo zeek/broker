@@ -8,6 +8,8 @@
 from __future__ import unicode_literals
 
 import datetime
+import time
+import math
 import ipaddress
 import sys
 import unittest
@@ -58,17 +60,42 @@ class TestDataConstruction(unittest.TestCase):
         if isinstance(p, datetime.datetime):
             # Some pythons may have rounding issues converting datetime to
             # timestamp and back again.  https://bugs.python.org/issue23517
-            self.assertEqual(b2p.year, p.year)
-            self.assertEqual(b2p.month, p.month)
-            self.assertEqual(b2p.day, p.day)
-            self.assertEqual(b2p.hour, p.hour)
-            self.assertEqual(b2p.minute, p.minute)
-            self.assertEqual(b2p.second, p.second)
-            self.assertEqual(b2p.tzinfo, p.tzinfo)
-            us_equal = (b2p.microsecond == p.microsecond or
-                        b2p.microsecond == p.microsecond - 1 or
-                        b2p.microsecond == p.microsecond + 1)
-            self.assertTrue(us_equal)
+
+            if p.tzinfo:
+                # Our test cases were explicit in using UTC
+                self.assertEqual(b2p.tzinfo, p.tzinfo)
+
+                self.assertEqual(b2p.year, p.year)
+                self.assertEqual(b2p.month, p.month)
+                self.assertEqual(b2p.day, p.day)
+                self.assertEqual(b2p.hour, p.hour)
+                self.assertEqual(b2p.minute, p.minute)
+                self.assertEqual(b2p.second, p.second)
+
+                us_equal = (b2p.microsecond == p.microsecond or
+                            b2p.microsecond == p.microsecond - 1 or
+                            b2p.microsecond == p.microsecond + 1)
+                self.assertTrue(us_equal)
+            else:
+                # 'b2p' is in UTC and 'p' is assumed to be local time
+                self.assertEqual(b2p.tzinfo, broker.utc)
+
+                b2p_us = b2p.microsecond
+
+                b2p_ts  = (b2p - datetime.datetime(1970, 1, 1, tzinfo=broker.utc)).total_seconds()
+                b2p_ts = math.trunc(b2p_ts)
+
+                p_us = p.microsecond
+
+                p_ts = time.mktime(p.timetuple())
+
+                self.assertEqual(b2p_ts, p_ts)
+
+                us_equal = (b2p_us == p_us or
+                            b2p_us == p_us - 1 or
+                            b2p_us == p_us + 1)
+                self.assertTrue(us_equal)
+
         else:
             self.assertEqual(b2p, p)
 
@@ -152,15 +179,22 @@ class TestDataConstruction(unittest.TestCase):
     def test_timestamp(self):
         self.check_to_broker(broker.now(), None, broker.Data.Type.Timestamp)
 
-        today = datetime.datetime.today()
+        today = datetime.datetime.now(broker.utc)
         self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
 
-        past = datetime.datetime(1970, 1, 31)
+        if not py2:
+            today = datetime.datetime.now(datetime.timezone.utc)
+            self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
+
+        today = datetime.datetime.now()
+        self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
+
+        past = datetime.datetime(1970, 1, 31, tzinfo=broker.utc)
         self.check_to_broker_and_back(past, None, broker.Data.Type.Timestamp)
 
         # Test a time value with number of seconds since Jan. 1 1970 beyond
         # the range of a signed 32-bit integer (the "year 2038 problem").
-        future = datetime.datetime(2040, 1, 31)
+        future = datetime.datetime(2040, 1, 31, tzinfo=broker.utc)
         try:
             self.check_to_broker_and_back(future, None, broker.Data.Type.Timestamp)
         except OverflowError:
@@ -279,21 +313,28 @@ class TestDataConstruction(unittest.TestCase):
             self.check_to_py(v, i + 1)
 
         # Test a table that contains different data types
-        p = {True: 42, broker.Port(22, broker.Port.TCP): False}
-        d = self.check_to_broker(p, '{T -> 42, 22/tcp -> F}', broker.Data.Type.Table)
+        p = {True: 42, broker.Port(22, broker.Port.TCP): False, (1,2,3): [4,5,6]}
+        d = self.check_to_broker(p, '{T -> 42, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}', broker.Data.Type.Table)
 
         t = d.as_table()
+
         self.check_to_broker(t[broker.Data(True)], "42", broker.Data.Type.Integer)
         self.check_to_py(t[broker.Data(True)], 42)
+
         self.check_to_broker(t[broker.Data(broker.Port(22, broker.Port.TCP))], "F", broker.Data.Type.Boolean)
         self.check_to_py(t[broker.Data(broker.Port(22, broker.Port.TCP))], False)
 
+        self.check_to_broker(t[broker.Data((1, 2, 3))], "(4, 5, 6)", broker.Data.Type.Vector)
+        self.check_to_py(t[broker.Data([1, 2, 3])], (4, 5, 6))
+
     def test_vector(self):
         # Test an empty vector
-        self.check_to_broker_and_back([], '[]', broker.Data.Type.Vector)
+        self.check_to_broker_and_back((), '()', broker.Data.Type.Vector)
 
         # Test a simple vector
-        d = self.check_to_broker([1, 2, 3], '[1, 2, 3]', broker.Data.Type.Vector)
+        d = self.check_to_broker((1, 2, 3), '(1, 2, 3)', broker.Data.Type.Vector)
+        # Either a list or a tuple are mapped to a Broker vector.
+        d = self.check_to_broker([1, 2, 3], '(1, 2, 3)', broker.Data.Type.Vector)
 
         for (i, x) in enumerate(d.as_vector()):
             self.check_to_broker(x, str(i + 1), broker.Data.Type.Integer)
@@ -306,10 +347,10 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_py(v[0], 'foo')
 
         v1 = v[1].as_vector()
-        self.check_to_broker(v1, '[[T]]', broker.Data.Type.Vector)
-        self.check_to_py(v[1], [[True]])
-        self.check_to_broker(v1[0], '[T]', broker.Data.Type.Vector)
-        self.check_to_py(v1[0], [True])
+        self.check_to_broker(v1, '((T))', broker.Data.Type.Vector)
+        self.check_to_py(v[1], ((True,),))
+        self.check_to_broker(v1[0], '(T)', broker.Data.Type.Vector)
+        self.check_to_py(v1[0], (True,))
 
         self.check_to_broker(v[2], '::1', broker.Data.Type.Address)
         self.check_to_py(v[2], ipaddress.IPv6Address("::1"))

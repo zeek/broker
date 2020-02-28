@@ -1,5 +1,8 @@
 #define SUITE status_subscriber
-#include "test.hpp"
+
+#include "broker/status_subscriber.hh"
+
+#include "test.hh"
 
 #include <iostream>
 #include <string>
@@ -13,7 +16,6 @@
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/status.hh"
-#include "broker/status_subscriber.hh"
 
 using std::cout;
 using std::endl;
@@ -22,8 +24,6 @@ using std::string;
 using namespace caf;
 using namespace broker;
 using namespace broker::detail;
-
-using value_type = std::pair<topic, data>;
 
 namespace {
 

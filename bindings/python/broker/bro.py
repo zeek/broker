@@ -1,19 +1,26 @@
+from __future__ import print_function
 
-try:
-    from . import _broker
-except ImportError:
-    import _broker
+from . import zeek
 
-import broker
+import traceback
+import sys
 
-class Event(_broker.bro.Event):
-    def __init__(self, *args):
-        if len(args) == 1 and not isinstance(args[0], str):
-            # Parse raw broker message as event.
-            _broker.bro.Event.__init__(self, broker.Data.from_py(args[0]))
-        else:
-            # (name, arg1, arg2, ...)
-            _broker.bro.Event.__init__(self, args[0], broker.Data.from_py(args[1:]))
+class Event(zeek.Event):
 
-    def args(self):
-        return [broker.Data.to_py(a) for a in _broker.bro.Event.args(self)]
+    warnings_emitted = set()
+
+    def __new__(cls, *args, **kwargs):
+        stack_info = traceback.extract_stack()[0]
+        usage_file = stack_info[0]
+        usage_line = stack_info[1]
+        usage_text = stack_info[3]
+
+        if (usage_file, usage_line) not in Event.warnings_emitted:
+            print('File "{}", line {}: deprecated bro.event usage,'
+                  ' use zeek.Event instead:\n    {}'.format(
+                      usage_file, usage_line, usage_text),
+                  file=sys.stderr)
+
+            Event.warnings_emitted.add((usage_file, usage_line))
+
+        return super(Event, cls).__new__(cls, *args, **kwargs)

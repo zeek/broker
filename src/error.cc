@@ -4,38 +4,36 @@
 
 namespace broker {
 
+namespace {
+
+const char* ec_names[] = {
+  "none",
+  "unspecified",
+  "peer_incompatible",
+  "peer_invalid",
+  "peer_unavailable",
+  "peer_timeout",
+  "master_exists",
+  "no_such_master",
+  "no_such_key",
+  "request_timeout",
+  "type_clash",
+  "invalid_data",
+  "backend_failure",
+  "stale_data",
+  "cannot_open_file",
+  "cannot_write_file",
+  "invalid_topic_key",
+  "end_of_file",
+  "invalid_tag",
+};
+
+} // namespace
+
 const char* to_string(ec code) {
-  switch (code) {
-    default:
-      BROKER_ASSERT(!"missing to_string implementation");
-      return "<unknown>";
-    case ec::unspecified:
-      return "<unknown>";
-    case ec::peer_incompatible:
-      return "peer_incompatible";
-    case ec::peer_invalid:
-      return "peer_invalid";
-    case ec::peer_unavailable:
-      return "peer_unavailable";
-    case ec::peer_timeout:
-      return "peer_timeout";
-    case ec::master_exists:
-      return "master_exists";
-    case ec::no_such_master:
-      return "no_such_master";
-    case ec::no_such_key:
-      return "no_such_key";
-    case ec::request_timeout:
-      return "request_timeout";
-    case ec::type_clash:
-      return "type_clash";
-    case ec::invalid_data:
-      return "invalid_data";
-    case ec::backend_failure:
-      return "backend_failure";
-    case ec::stale_data:
-      return "stale_data";
-  }
+  auto index = static_cast<uint8_t>(code);
+  BROKER_ASSERT(index < sizeof(ec_names));
+  return ec_names[index];
 }
 
 } // namespace broker

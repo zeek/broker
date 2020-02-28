@@ -12,6 +12,7 @@
 #include "broker/atoms.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/logger.hh"
 
 #include "broker/detail/assert.hh"
 
@@ -51,11 +52,9 @@ struct subscriber_worker_state {
 
 const char* subscriber_worker_state::name = "subscriber_worker";
 
-using input_type = std::pair<topic, data>;
-
-class subscriber_sink : public stream_sink<input_type> {
+class subscriber_sink : public stream_sink<data_message> {
 public:
-  using super = stream_sink<input_type>;
+  using super = stream_sink<data_message>;
 
   using queue_ptr = detail::shared_subscriber_queue_ptr<>;
 
@@ -75,16 +74,17 @@ public:
 
 protected:
    void handle(inbound_path*, downstream_msg::batch& x) override {
-    CAF_LOG_TRACE(CAF_ARG(x));
-    using vec_type = std::vector<input_type>;
+    BROKER_TRACE(BROKER_ARG(x));
+    using vec_type = std::vector<data_message>;
     if (x.xs.match_elements<vec_type>()) {
       auto& xs = x.xs.get_mutable_as<vec_type>(0);
       auto xs_size = xs.size();
       state_->counter += xs_size;
       queue_->produce(xs_size, std::make_move_iterator(xs.begin()),
                       std::make_move_iterator(xs.end()));
+      return;
     }
-    CAF_LOG_ERROR("received unexpected batch type (dropped)");
+    BROKER_ERROR("received unexpected batch type (dropped)");
   }
 
 private:
@@ -155,7 +155,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
   : super(max_qsize), ep_(e) {
   BROKER_INFO("creating subscriber for topic(s)" << ts);
-  worker_ = ep_.system().spawn(subscriber_worker, &ep_, queue_, std::move(ts),
+  worker_ = ep_.get().system().spawn(subscriber_worker, &ep_.get(), queue_, std::move(ts),
                                max_qsize);
 }
 
@@ -174,7 +174,7 @@ void subscriber::add_topic(topic x, bool block) {
   if (i == e) {
     filter_.emplace_back(std::move(x));
     if (block) {
-      caf::scoped_actor self{ep_.system()};
+      caf::scoped_actor self{ep_.get().system()};
       self->send(worker_, atom::join::value, atom::update::value, filter_, self);
       self->receive([&](bool){});
     } else {
@@ -190,7 +190,7 @@ void subscriber::remove_topic(topic x, bool block) {
   if (i != filter_.end()) {
     filter_.erase(i);
     if (block) {
-      caf::scoped_actor self{ep_.system()};
+      caf::scoped_actor self{ep_.get().system()};
       self->send(worker_, atom::join::value, atom::update::value, filter_, self);
       self->receive([&](bool){});
     } else {

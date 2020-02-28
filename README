@@ -31,15 +31,18 @@ each other using the above-mentioned patterns which are common to Zeek.
 See the `User Manual`_ for more information.  For offline reading, it's
 also available in the ``doc/`` directory of the source tree.
 
+See the NEWS file for the most important release notes and the CHANGES
+file for the complete history of changes.
+
 Dependencies
 ------------
 
 Compiling Broker requires the following libraries/tools to already be
 installed:
 
-    * C++ compiler with C++11 support    (GCC 4.8+ or Clang 3.3+)
+    * C++ compiler with C++17 support    (GCC 7+ or Clang 4+)
     * OpenSSL headers/libraries          (http://www.openssl.org)
-    * CMake 2.8.12 or greater            (https://cmake.org)
+    * CMake 3.0 or greater               (https://cmake.org)
 
 The optional Python bindings also require Python 2.7 or greater
 along with Python development packages.  For Python 2.7, you'll

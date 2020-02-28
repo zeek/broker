@@ -2,25 +2,29 @@
 
 set(BROKER_TEST_TIMEOUT 20)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
   cpp/backend.cc
-  cpp/bro.cc
   cpp/core.cc
   cpp/data.cc
-  cpp/status_subscriber.cc
+  cpp/detail/data_generator.cc
+  cpp/detail/generator_file_writer.cc
+  cpp/detail/meta_command_writer.cc
+  cpp/detail/meta_data_writer.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
+  cpp/status_subscriber.cc
   cpp/store.cc
   cpp/subscriber.cc
+  cpp/test.cc
   cpp/topic.cc
-  test.cpp
+  cpp/zeek.cc
 )
 
 # Setup correct broker library (static/shared).
@@ -65,8 +69,8 @@ endforeach ()
 # -- Python -------------------------------------------------------------------
 
 if (BROKER_PYTHON_BINDINGS)
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-bro.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-bro)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/python/run-zeek.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/python/run-zeek)
 
   macro(make_python_test name)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
@@ -79,8 +83,8 @@ if (BROKER_PYTHON_BINDINGS)
                          "PYTHONPATH=${BROKER_PYTHON_STAGING_DIR};BROKER_TEST_DIR=${BROKER_TEST_DIR}")
   endmacro()
 
-  if (BRO_FOUND)
-    make_python_test(bro)
+  if (ZEEK_FOUND)
+    make_python_test(zeek)
   endif ()
 
   make_python_test(communication)
@@ -97,6 +101,5 @@ endif ()
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
 
-add_executable(broker-stream-benchmark benchmark/broker-stream-benchmark.cc)
-target_link_libraries(broker-stream-benchmark ${libbroker})
-
+add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
+target_link_libraries(broker-cluster-benchmark ${libbroker})

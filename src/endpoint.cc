@@ -1,5 +1,4 @@
-#include "broker/logger.hh" // Must come before any CAF include.
-
+#include <iostream>
 #include <unordered_set>
 
 #include <caf/config.hpp>
@@ -17,13 +16,15 @@
 
 #include "broker/atoms.hh"
 #include "broker/core_actor.hh"
+#include "broker/defaults.hh"
+#include "broker/detail/die.hh"
+#include "broker/detail/filesystem.hh"
 #include "broker/endpoint.hh"
+#include "broker/logger.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
-
-#include "broker/detail/die.hh"
 
 namespace broker {
 
@@ -62,7 +63,7 @@ void endpoint::clock::advance_time(timestamp t) {
   if (it->first > t)
     return;
 
-  // Note: this function is performance-sensitive in the case of Bro
+  // Note: this function is performance-sensitive in the case of Zeek
   // reading pcaps and it's important to not construct this set unless
   // it's actually going to be used.
   std::unordered_set<caf::actor> sync_with_actors;
@@ -86,10 +87,10 @@ void endpoint::clock::advance_time(timestamp t) {
         // nop
       },
       [&](atom::tick) {
-        CAF_LOG_DEBUG("advance_time actor syncing timed out");
+        BROKER_DEBUG("advance_time actor syncing timed out");
       },
       [&](caf::error& e) {
-        CAF_LOG_DEBUG("advance_time actor syncing failed");
+        BROKER_DEBUG("advance_time actor syncing failed");
       }
     );
   }
@@ -118,14 +119,78 @@ caf::node_id endpoint::node_id() const {
   return core()->node();
 }
 
+namespace {
+
+struct indentation {
+  size_t size;
+};
+
+indentation operator+(indentation x, size_t y) noexcept {
+  return {x.size + y};
+}
+
+std::ostream& operator<<(std::ostream& out, indentation indent) {
+  for (size_t i = 0; i < indent.size; ++i)
+    out.put(' ');
+  return out;
+}
+
+// TODO: this function replicates code in CAF for --dump-config; consider making
+//       it a public API function in CAF.
+void pretty_print(std::ostream& out, const caf::settings& xs,
+                  indentation indent) {
+  using std::cout;
+  for (const auto& kvp : xs) {
+    if (kvp.first == "dump-config")
+      continue;
+    if (auto submap = caf::get_if<caf::config_value::dictionary>(&kvp.second)) {
+      out << indent << kvp.first << " {\n";
+      pretty_print(out, *submap, indent + 2);
+      out << indent << "}\n";
+    } else if (auto lst = caf::get_if<caf::config_value::list>(&kvp.second)) {
+      if (lst->empty()) {
+        out << indent << kvp.first << " = []\n";
+      } else {
+        out << indent << kvp.first << " = [\n";
+        auto list_indent = indent + 2;
+        for (auto& x : *lst)
+          out << list_indent << to_string(x) << ",\n";
+        out << indent << "]\n";
+      }
+    } else {
+      out << indent << kvp.first << " = " << to_string(kvp.second) << '\n';
+    }
+  }
+}
+
+} // namespace
+
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
     await_stores_on_shutdown_(false),
     destroyed_(false) {
-  if (CAF_LOG_LEVEL == 0)
-    // Work around a bug in CAF 0.16.3 that causes empty log files to
-    // be produced even when CAF is not build with debug logging.
-    config_.set("logger.verbosity", caf::atom("quiet"));
+  // Stop immediately if any helptext was printed.
+  if (config_.cli_helptext_printed)
+    exit(0);
+  // Create a directory for storing the meta data if requested.
+  auto meta_dir = get_or(config_, "broker.recording-directory",
+                         defaults::recording_directory);
+  if (!meta_dir.empty()) {
+    if (detail::is_directory(meta_dir))
+      detail::remove_all(meta_dir);
+    if (detail::mkdirs(meta_dir)) {
+      auto dump = config_.dump_content();
+      std::ofstream conf_file{meta_dir + "/broker.conf"};
+      if (!conf_file)
+        BROKER_WARNING("failed to write to config file");
+      else
+        pretty_print(conf_file, dump, {0});
+    } else {
+      std::cerr << "WARNING: unable to create \"" << meta_dir
+                << "\" for recording meta data\n";
+    }
+  }
+  // Initialize remaining state.
   new (&system_) caf::actor_system(config_);
   clock_ = new clock(&system_, config_.options().use_real_time);
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())
@@ -145,19 +210,23 @@ void endpoint::shutdown() {
     return;
   destroyed_ = true;
   if (!await_stores_on_shutdown_) {
-    CAF_LOG_DEBUG("tell core actor to terminate stores");
+    BROKER_DEBUG("tell core actor to terminate stores");
     anon_send(core_, atom::shutdown::value, atom::store::value);
   }
   if (!children_.empty()) {
     caf::scoped_actor self{system_};
-    CAF_LOG_DEBUG("send exit messages to all children");
+    BROKER_DEBUG("send exit messages to all children");
     for (auto& child : children_)
-      self->send_exit(child, caf::exit_reason::user_shutdown);
-    CAF_LOG_DEBUG("wait until all children have terminated");
+      // exit_reason::kill seems more reliable than
+      // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
+      // possibly due to the former having more explicit logic that will
+      // shut down streams.
+      self->send_exit(child, caf::exit_reason::kill);
+    BROKER_DEBUG("wait until all children have terminated");
     self->wait_for(children_);
     children_.clear();
   }
-  CAF_LOG_DEBUG("send shutdown message to core actor");
+  BROKER_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown::value);
   core_ = nullptr;
   system_.~actor_system();
@@ -166,7 +235,9 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
-  BROKER_INFO("listening on" << (address + ":" + std::to_string(port)) << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
+  BROKER_INFO("listening on"
+              << (address + ":" + std::to_string(port))
+              << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   expected<uint16_t> res = caf::error{};
   if (config_.options().disable_ssl)
@@ -178,8 +249,10 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
 
 bool endpoint::peer(const std::string& address, uint16_t port,
                     timeout::seconds retry) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port) << CAF_ARG(retry));
-  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[synchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port) << BROKER_ARG(retry));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
+                                      << "retry:" << to_string(retry)
+                                      << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::peer::value,
@@ -189,7 +262,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
       result = true;
     },
     [&](caf::error& err) {
-      CAF_LOG_DEBUG("Cannot peer to" << address << "on port"
+      BROKER_DEBUG("Cannot peer to" << address << "on port"
                     << port << ":" << err);
     }
   );
@@ -198,14 +271,17 @@ bool endpoint::peer(const std::string& address, uint16_t port,
 
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port)) << "retry:" << to_string(retry) << "[asynchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
+                                      << "retry:" << to_string(retry)
+                                      << "[asynchronous]");
   caf::anon_send(core(), atom::peer::value, network_info{address, port, retry});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("stopping to peer with" << address << ":" << port << "[synchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("stopping to peer with" << address << ":" << port
+                                      << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
   self->request(core_, caf::infinite, atom::unpeer::value,
@@ -215,7 +291,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
       result = true;
     },
     [&](caf::error& err) {
-      CAF_LOG_DEBUG("Cannot unpeer from" << address << "on port"
+      BROKER_DEBUG("Cannot unpeer from" << address << "on port"
                     << port << ":" << err);
     }
   );
@@ -224,8 +300,9 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
 }
 
 void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
-  CAF_LOG_TRACE(CAF_ARG(address) << CAF_ARG(port));
-  BROKER_INFO("stopping to peer with " << address << ":" << port << "[asynchronous]");
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
+  BROKER_INFO("stopping to peer with " << address << ":" << port
+                                       << "[asynchronous]");
   caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
 }
 
@@ -268,19 +345,26 @@ void endpoint::forward(std::vector<topic> ts)
 
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
-  caf::anon_send(core(), atom::publish::value, std::move(t), std::move(d));
+  caf::anon_send(core(), atom::publish::value,
+                 make_data_message(std::move(t), std::move(d)));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
-  caf::anon_send(core(), atom::publish::value, dst, std::move(t), std::move(d));
+  caf::anon_send(core(), atom::publish::value, dst,
+                 make_data_message(std::move(t), std::move(d)));
 }
 
-void endpoint::publish(std::vector<value_type> xs) {
-  for ( auto& x : xs ) {
-    BROKER_INFO("publishing" << x);
-    caf::anon_send(core(), atom::publish::value, std::move(x.first), std::move(x.second));
-  }
+void endpoint::publish(data_message x){
+  BROKER_INFO("publishing" << x);
+  caf::anon_send(core(), atom::publish::value, std::move(x));
+}
+
+
+void endpoint::publish(std::vector<data_message> xs) {
+  BROKER_INFO("publishing" << xs.size() << "messages");
+  for (auto& x : xs)
+    publish(std::move(x));
 }
 
 publisher endpoint::make_publisher(topic ts) {
