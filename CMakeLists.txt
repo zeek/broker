@@ -427,6 +427,7 @@ set(BROKER_SRC
   src/status.cc
   src/status_subscriber.cc
   src/store.cc
+  src/store_event.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc

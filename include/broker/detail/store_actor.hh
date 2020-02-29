@@ -20,6 +20,17 @@ public:
   void init(caf::event_based_actor* self, endpoint::clock* clock,
             std::string&& id, caf::actor&& core);
 
+  /// Emits an `add` event to topics::store_events subscribers.
+  void emit_add_event(const data& key, const data& value,
+                      const caf::optional<timespan>& expiry);
+
+  /// Emits a `put` event to topics::store_events subscribers.
+  void emit_put_event(const data& key, const data& value,
+                      const caf::optional<timespan>& expiry);
+
+  /// Emits an `erase` event to topics::store_events subscribers.
+  void emit_erase_event(const data& key);
+
   /// Points to the actor owning this state.
   caf::event_based_actor* self = nullptr;
 
