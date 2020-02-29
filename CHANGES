@@ -1,4 +1,8 @@
 
+1.4.0-dev.18 | 2020-02-28 13:22:09 -0800
+
+  * Fix handling of OS-specific threading flags (Dominik Charousset)
+
 1.4.0-dev.15 | 2020-02-25 17:56:28 -0800
 
   * Support building Broker as CMake subdirectory (Dominik Charousset)
