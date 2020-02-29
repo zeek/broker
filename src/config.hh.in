@@ -7,6 +7,7 @@
 #cmakedefine BROKER_LINUX
 #cmakedefine BROKER_WINDOWS
 #cmakedefine BROKER_BIG_ENDIAN
+#cmakedefine BROKER_HAS_STD_FILESYSTEM
 
 #cmakedefine BROKER_USE_SSE2
 

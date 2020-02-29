@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 
-#if __has_include(<filesystem>)
+#include "broker/config.hh"
+
+#ifdef BROKER_HAS_STD_FILESYSTEM
 
 #include <filesystem>
 
@@ -38,7 +40,7 @@ inline bool remove_all(const path& p) {
 
 } // namespace broker::detail
 
-#else
+#else // BROKER_HAS_STD_FILESYSTEM
 
 namespace broker::detail {
 
@@ -86,7 +88,7 @@ bool remove_all(const path& p);
 
 } // namespace broker::detail
 
-#endif
+#endif // BROKER_HAS_STD_FILESYSTEM
 
 namespace broker::detail {
 

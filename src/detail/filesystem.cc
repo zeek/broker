@@ -4,13 +4,13 @@
 #include <cstdlib>
 #include <fstream>
 
-#if ! __has_include(<filesystem>)
+#include "broker/config.hh"
+
+#ifndef BROKER_HAS_STD_FILESYSTEM
 
 #include <sys/stat.h>
 #include <ftw.h>
 #include <unistd.h>
-
-#include "broker/config.hh"
 
 #ifdef BROKER_BSD
 #include <sys/syslimits.h>
@@ -139,7 +139,7 @@ bool remove_all(const path& p) {
 
 } // namespace broker::detail
 
-#endif
+#endif // BROKER_HAS_STD_FILESYSTEM
 
 namespace broker::detail {
 

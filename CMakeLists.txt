@@ -100,8 +100,34 @@ if (NOT broker_is_subproject)
 endif()
 
 include(RequireCXX17)
+include(CheckCXXSourceCompiles)
+include(CheckCXXSourceRuns)
+
+# Unfortunately, std::filesystem is a mess. The feature checks at compile time
+# via __has_include(<filesystem>) or __cpp_lib_filesystem only tell half of the
+# story. On some older Clang releases, one also needs to additional link to
+# -lc++fs. On some older GCC releases, -lstdc++-fs is required. We do have a
+# fallback for pre-std-filesystem on POSIX systems. So, instead of doing all the
+# flag guessing, we simply check once whether code using <filesystem> compiles,
+# links and runs. Otherwise, we fall back to our pre-std-filesystem
+# implementation - or raise an error when building on Windows (since we don't
+# have a fallback on this platform).
+check_cxx_source_runs("
+  #include <cstdlib>
+  #include <filesystem>
+  int main(int, char**) {
+    auto cwd = std::filesystem::current_path();
+    auto str = cwd.string();
+    return str.empty() ? EXIT_FAILURE : EXIT_SUCCESS;
+  }
+  "
+  BROKER_HAS_STD_FILESYSTEM)
 
 if (MSVC)
+
+  if (NOT BROKER_HAS_STD_FILESYSTEM)
+    message(FATAL_ERROR "No std::filesystem support! Required on MSVC.")
+  endif ()
 
   # SSE2 is a default flag on MSVC.
   set(BROKER_USE_SSE2 ON)
@@ -126,7 +152,6 @@ if (NOT BROKER_DISABLE_ATOMICS_CHECK)
     struct s64 { char a, b, c, d, e, f, g, h; };
     int main() { std::atomic<s64> x; x.store({}); x.load(); return 0; }
   ")
-  include(CheckCXXSourceCompiles)
   check_cxx_source_compiles("${atomic_64bit_ops_test}" atomic64_builtin)
 
   if ( NOT atomic64_builtin )
