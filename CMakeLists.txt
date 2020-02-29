@@ -414,6 +414,7 @@ set(BROKER_SRC
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
+  src/detail/store_actor.cc
   src/endpoint.cc
   src/endpoint_info.cc
   src/error.cc

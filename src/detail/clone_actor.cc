@@ -26,33 +26,15 @@
 namespace broker {
 namespace detail {
 
-static double now(endpoint::clock* clock)
-  {
+static double now(endpoint::clock* clock) {
   auto d = clock->now().time_since_epoch();
   return std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
-  }
-
-clone_state::clone_state() : self(nullptr), name(), master_topic(), core(),
-  master(), store(), is_stale(), stale_time(), unmutable_time(),
-  mutation_buffer(), pending_remote_updates(), awaiting_snapshot(),
-  awaiting_snapshot_sync(), clock() {
-  // nop
 }
 
 void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
                        caf::actor&& parent, endpoint::clock* ep_clock) {
-
-  self = ptr;
-  name = std::move(nm);
-  master_topic = name / topics::master_suffix;
-  core = std::move(parent);
-  master = nullptr;
-  is_stale = true;
-  stale_time = -1.0;
-  unmutable_time = -1.0;
-  clock = ep_clock;
-  awaiting_snapshot = true;
-  awaiting_snapshot_sync = true;
+  super::init(ptr, ep_clock, std::move(nm), std::move(parent));
+  master_topic = id / topics::master_suffix;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -138,12 +120,12 @@ data clone_state::keys() const {
 }
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
-                          caf::actor core, std::string name,
+                          caf::actor core, std::string id,
                           double resync_interval, double stale_interval,
                           double mutation_buffer_interval,
                           endpoint::clock* clock) {
   self->monitor(core);
-  self->state.init(self, std::move(name), std::move(core), clock);
+  self->state.init(self, std::move(id), std::move(core), clock);
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -232,7 +214,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       BROKER_INFO("request master resolve");
       self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::resolve::value, self->state.name, self);
+                 atom::resolve::value, self->state.id, self);
       auto ri = std::chrono::duration<double>(resync_interval);
       auto ts = std::chrono::duration_cast<timespan>(ri);
       auto msg = caf::make_message(atom::master::value, atom::resolve::value);
@@ -256,7 +238,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.shrink_to_fit();
 
       self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::snapshot::value, self->state.name, self);
+                 atom::snapshot::value, self->state.id, self);
     },
     [=](atom::master, caf::error err) {
       if ( self->state.master )
@@ -377,7 +359,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, atom::name) {
-      return self->state.name;
+      return self->state.id;
     },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {

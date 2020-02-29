@@ -24,37 +24,28 @@
 namespace broker {
 namespace detail {
 
-static inline optional<timestamp> to_opt_timestamp(timestamp ts,
-                                                   optional<timespan> span) {
+static optional<timestamp> to_opt_timestamp(timestamp ts,
+                                            optional<timespan> span) {
   return span ? ts + *span : optional<timestamp>();
-}
-
-const char* master_state::name = "master_actor";
-
-master_state::master_state() : self(nullptr), clock(nullptr) {
-  // nop
 }
 
 void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
                         backend_pointer&& bp, caf::actor&& parent,
                         endpoint::clock* ep_clock) {
-  BROKER_ASSERT(ep_clock != nullptr);
-  self = ptr;
-  id = std::move(nm);
+  super::init(ptr, ep_clock, std::move(nm), std::move(parent));
   clones_topic = id / topics::clone_suffix;
   backend = std::move(bp);
-  core = std::move(parent);
-  clock = ep_clock;
-  auto es = backend->expiries();
-  if (!es)
+  if (auto es = backend->expiries()) {
+    for (auto& e : *es) {
+      auto& key = e.first;
+      auto& expire_time = e.second;
+      auto n = clock->now();
+      auto dur = expire_time - n;
+      auto msg = caf::make_message(atom::expire::value, std::move(key));
+      clock->send_later(self, dur, std::move(msg));
+    }
+  } else {
     die("failed to get master expiries while initializing");
-  for (auto& e : *es) {
-    auto& key = e.first;
-    auto& expire_time = e.second;
-    auto n = clock->now();
-    auto dur = expire_time - n;
-    auto msg = caf::make_message(atom::expire::value, std::move(key));
-    clock->send_later(self, dur, std::move(msg));
   }
 }
 
