@@ -1,4 +1,8 @@
 
+1.4.0-dev.34 | 2020-03-02 10:56:59 -0800
+
+  * Include CAF directly as submodule (Dominik Charousset)
+
 1.4.0-dev.32 | 2020-03-02 10:30:03 -0800
 
   * Check in CMake whether the <filesystem> code links (Dominik Charousset)
