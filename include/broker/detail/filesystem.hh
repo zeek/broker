@@ -3,8 +3,46 @@
 #include <string>
 #include <vector>
 
-namespace broker {
-namespace detail {
+#include "broker/config.hh"
+
+#ifdef BROKER_HAS_STD_FILESYSTEM
+
+#include <filesystem>
+
+namespace broker::detail {
+
+using path = std::filesystem::path;
+
+using std::filesystem::exists;
+
+using std::filesystem::is_directory;
+
+inline bool is_file(const path& p) {
+  return std::filesystem::is_regular_file(p);
+}
+
+inline bool mkdirs(const path& p) {
+  return std::filesystem::create_directories(p);
+}
+
+inline path dirname(path p) {
+  p.remove_filename();
+  return p;
+}
+
+using std::filesystem::remove;
+
+inline bool remove_all(const path& p) {
+  std::error_code ec;
+  std::filesystem::remove_all(p, ec);
+  return static_cast<bool>(ec);
+}
+
+} // namespace broker::detail
+
+#else // BROKER_HAS_STD_FILESYSTEM
+
+namespace broker::detail {
 
 using path = std::string;
 
@@ -48,6 +86,12 @@ bool remove(const path& p);
 /// @returns `true` iff *p* was deleted successfully.
 bool remove_all(const path& p);
 
+} // namespace broker::detail
+
+#endif // BROKER_HAS_STD_FILESYSTEM
+
+namespace broker::detail {
+
 /// Reads an entire file and returns its contents as list of lines.
 /// @param p The path to read.
 /// @param keep_empties Configures whether to drop empty lines.
@@ -59,5 +103,7 @@ std::vector<std::string> readlines(const path& p, bool keep_empties = true);
 /// @returns a string containing the content of the file.
 std::string read(const path& p);
 
-} // namespace detail
-} // namespace broker
+/// Generates a path to a unique temporary file.
+std::string make_temp_file_name();
+
+} // namespace broker::detail

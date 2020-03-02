@@ -114,7 +114,16 @@ public:
   }
 };
 
-using fixture = test_coordinator_fixture<config>;
+struct fixture : test_coordinator_fixture<config> {
+  fixture() {
+    // We don't do networking, but our flares use the socket API.
+    base_fixture::init_socket_api();
+  }
+
+  ~fixture() {
+    base_fixture::deinit_socket_api();
+  }
+};
 
 } // namespace <anonymous>
 

@@ -25,7 +25,7 @@ public:
     }
   };
 
-  data_generator(caf::binary_deserializer& meta_data_source, size_t seed = 0);
+  data_generator(caf::binary_deserializer& meta_data_source, unsigned seed = 0);
 
   caf::error operator()(data& x);
 
@@ -89,10 +89,14 @@ public:
   void shuffle(table& xs);
 
 private:
+  char next_char();
+
+  uint8_t next_byte();
+
   caf::binary_deserializer& source_;
   std::minstd_rand engine_;
-  std::uniform_int_distribution<char> char_generator_;
-  std::uniform_int_distribution<uint8_t> byte_generator_;
+  std::uniform_int_distribution<int16_t> char_generator_;
+  std::uniform_int_distribution<uint16_t> byte_generator_;
 };
 
 } // namespace detail

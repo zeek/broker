@@ -1,10 +1,6 @@
 #pragma once
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated"
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <caf/actor_system_config.hpp>
-#pragma GCC diagnostic pop
 
 namespace broker {
 

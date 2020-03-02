@@ -1,4 +1,37 @@
 
+1.4.0-dev.32 | 2020-03-02 10:30:03 -0800
+
+  * Check in CMake whether the <filesystem> code links (Dominik Charousset)
+
+  * Add instructions for MSVC builds (Dominik Charousset)
+
+  * Improve error logging in the SQLite backend (Dominik Charousset)
+
+  * Port the flare to Windows/MSVC (Dominik Charousset)
+
+    The `pipe` system call only exists on POSIX. On Windows, we need to
+    create a pair of connected sockets. Also, file descriptors and sockets
+    are different things on Windows.
+
+    Fortunately, CAF already offers a set of abstractions we can use to
+    adjust for the platform differences. We still have to make sure to use
+    recv/send on Windows instead of read/write as well as calling WSAStartup
+    and WSACleanup.
+
+  * Port recording utilities to Windows (Dominik Charousset)
+
+  * Port filesystem wrapper to Windows/MSVC (Dominik Charousset)
+
+  * Reimplement address with caf::ip_address for MSVC (Dominik Charousset)
+
+    The implementation of `broker::address` used many  UNIX-specific
+    functions as well as functions marked as deprecated/unsafe on MSVC (e.g.
+    `sprintf`). Basing the implementation on `caf::ip_address` instead of
+    rolling a custom implementation avoids dealing with most issues in the
+    first place.
+
+  * Add MSVC to the CMake build harness (Dominik Charousset)
+
 1.4.0-dev.18 | 2020-02-28 13:22:09 -0800
 
   * Fix handling of OS-specific threading flags (Dominik Charousset)

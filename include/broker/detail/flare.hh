@@ -2,10 +2,12 @@
 
 #include <cstddef>
 #include <chrono>
+
 #include "broker/time.hh"
 
-namespace broker {
-namespace detail {
+#include <caf/io/network/native_socket.hpp>
+
+namespace broker::detail {
 
 /// An object that can be used to signal a "ready" status via a file descriptor
 /// that may be integrated with select(), poll(), etc. Though it may be used to
@@ -15,6 +17,8 @@ namespace detail {
 class flare {
 public:
   using timeout_type = clock::time_point;
+
+  using native_socket = caf::io::network::native_socket;
 
   /// Constructs a flare by opening a UNIX pipe.
   flare();
@@ -27,7 +31,7 @@ public:
 
   /// Retrieves a file descriptor that will become ready if the flare has been
   /// "fired" and not yet "extinguishedd."
-  int fd() const;
+  native_socket fd() const;
 
   /// Puts the object in the "ready" state by writing `n` bytes into the
   /// underlying pipe.
@@ -68,8 +72,7 @@ public:
 private:
   bool await_one_impl(int ms_timeout);
 
-  int fds_[2];
+  native_socket fds_[2];
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

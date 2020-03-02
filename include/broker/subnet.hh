@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/address.hh"
+#include "broker/detail/operators.hh"
 
 namespace broker {
 
