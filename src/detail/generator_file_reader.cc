@@ -60,7 +60,7 @@ void* make_file_view(void* mapper, size_t file_size) {
 
 } // namespace
 
-#else
+#else // BROKER_WINDOWS
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -101,7 +101,7 @@ void* make_file_view(void* addr, size_t) {
 
 } // namespace
 
-#endif
+#endif // BROKER_WINDOWS
 
 namespace broker::detail {
 

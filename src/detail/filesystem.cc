@@ -7,11 +7,14 @@
 
 #include "broker/config.hh"
 
+#ifndef BROKER_WINDOWS
+#include <unistd.h>
+#endif
+
 #ifndef BROKER_HAS_STD_FILESYSTEM
 
 #include <sys/stat.h>
 #include <ftw.h>
-#include <unistd.h>
 
 #ifdef BROKER_BSD
 #include <sys/syslimits.h>

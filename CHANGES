@@ -1,4 +1,8 @@
 
+1.4.0-dev.35 | 2020-03-02 11:40:53 -0800
+
+  * Add missing unistd.h include (Jon Siwek, Corelight)
+
 1.4.0-dev.34 | 2020-03-02 10:56:59 -0800
 
   * Include CAF directly as submodule (Dominik Charousset)
