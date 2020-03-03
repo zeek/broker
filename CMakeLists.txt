@@ -504,6 +504,7 @@ add_tool(broker-node)
 # -- Bindings -----------------------------------------------------------------
 
 if (NOT DISABLE_PYTHON_BINDINGS)
+  set(Python_ADDITIONAL_VERSIONS 3)
   find_package(PythonInterp)
   if (NOT PYTHONINTERP_FOUND)
     message(STATUS "Skipping Python bindings: Python interpreter not found")
