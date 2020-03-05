@@ -1,6 +1,6 @@
 #pragma once
 
-#include <atomic>
+#include <mutex>
 #include <chrono>
 #include <limits>
 
@@ -52,7 +52,8 @@ public:
 
 private:
   flare flare_;
-  std::atomic<int> flare_count_;
+  int flare_count_;
+  std::mutex flare_mtx_;
 };
 
 } // namespace detail

@@ -1,4 +1,28 @@
 
+1.3.1 | 2020-03-09 13:02:50 -0700
+
+  * Release 1.3.0.
+
+  * Fix a race condition in data store flare operations (Jon Siwek, Corelight)
+
+    The race (as seen via Zeek usage that causes high CPU load) goes like:
+
+    Thread A: enqueue item, get suspended
+    Thread B: sees mailbox has items
+    Thread B: dequeue item
+    Thread B: extinguish flare
+    Thread A: resume, fire flare
+
+    That ordering can leave the flare in an active state without any actual
+    items remaining in the mailbox.
+
+    This patch adds a mutex/lock such that extinguishing of the flare cannot
+    be interleaved between the enqueue and firing of the flare.
+
+    This likely relates to https://github.com/zeek/zeek/issues/838,
+    https://github.com/zeek/zeek/issues/716, as well as this thread
+    http://mailman.icsi.berkeley.edu/pipermail/zeek/2020-February/015062.html
+
 1.3.0 | 2020-02-08 11:02:01 -0800
 
   * Release 1.3.0.
