@@ -57,35 +57,55 @@ void clone_state::operator()(none) {
 void clone_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
   auto i = store.find(x.key);
-  if (i != store.end())
+  if (i != store.end()) {
+    emit_put_event(x);
     i->second = std::move(x.value);
-  else
+  } else {
+    emit_add_event(x);
     store.emplace(std::move(x.key), std::move(x.value));
+  }
 }
 
 void clone_state::operator()(put_unique_command& x) {
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << x.expiry);
-  store.emplace(std::move(x.key), std::move(x.value));
+  auto i = store.find(x.key);
+  if (i == store.end()) {
+    emit_add_event(x);
+    store.emplace(std::move(x.key), std::move(x.value));
+  }
 }
 
 void clone_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
-  store.erase(x.key);
+  if (store.erase(x.key) != 0)
+    emit_erase_event(x.key);
 }
 
 void clone_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x.key << "->" << x.value);
   auto i = store.find(x.key);
-  if (i == store.end())
+  bool added = i == store.end();
+  if (added)
     i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
-  caf::visit(adder{x.value}, i->second);
+  if (auto res = caf::visit(adder{x.value}, i->second); !res) {
+    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
+    return;
+  }
+  if (added)
+    emit_add_event(i->first, i->second, x.expiry);
+  else
+    emit_put_event(i->first, i->second, x.expiry);
 }
 
 void clone_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
-    caf::visit(remover{x.value}, i->second);
+    if (auto res = caf::visit(remover{x.value}, i->second); !res) {
+      BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
+      return;
+    }
+    emit_put_event(i->first, i->second, x.expiry);
   } else {
     // can happen if we joined a stream but did not yet receive set_command
     BROKER_WARNING("received substract_command for unknown key");
@@ -93,7 +113,7 @@ void clone_state::operator()(subtract_command& x) {
 }
 
 void clone_state::operator()(snapshot_command&) {
-  BROKER_ERROR("received SNAPSHOT");
+  BROKER_ERROR("received SNAPSHOT in a clone");
 }
 
 void clone_state::operator()(snapshot_sync_command& x) {
@@ -104,11 +124,40 @@ void clone_state::operator()(snapshot_sync_command& x) {
 
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
+  if (x.state.empty()) {
+    clear_command cmd;
+    (*this)(cmd);
+    return;
+  }
+  // Emit erase and put events.
+  std::vector<const data*> keys;
+  keys.reserve(store.size());
+  for (auto& kvp : store)
+    keys.emplace_back(&kvp.first);
+  auto is_erased = [&x](const data* key) { return x.state.count(*key) == 0; };
+  auto p = std::partition(keys.begin(), keys.end(), is_erased);
+  for (auto i = keys.begin(); i != p; ++i)
+    emit_erase_event(**i);
+  for (auto i = p; i != keys.end(); ++i)
+    emit_put_event(**i, x.state[**i], nil);
+  // Emit add events.
+  auto is_new = [&keys](const data& key) {
+    for (const auto key_ptr : keys)
+      if (*key_ptr == key)
+        return false;
+    return true;
+  };
+  for (const auto& [key, value] : x.state)
+    if (is_new(key))
+      emit_add_event(key, value, nil);
+  // Override state.
   store = std::move(x.state);
 }
 
 void clone_state::operator()(clear_command&) {
   BROKER_INFO("CLEAR");
+  for (auto& kvp : store)
+    emit_erase_event(kvp.first);
   store.clear();
 }
 
@@ -194,7 +243,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.emplace_back(std::move(x));
     },
     [=](set_command& x) {
-      self->state.store = std::move(x.state);
+      self->state(x);
       self->state.awaiting_snapshot = false;
 
       if ( ! self->state.awaiting_snapshot_sync ) {
@@ -397,4 +446,3 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
 } // namespace detail
 } // namespace broker
-
