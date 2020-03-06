@@ -13,6 +13,7 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/store_event.hh"
 #include "broker/topic.hh"
 
 using std::cout;
@@ -23,7 +24,41 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-CAF_TEST_FIXTURE_SCOPE(local_store_master, base_fixture)
+namespace {
+
+using string_list = std::vector<string>;
+
+struct fixture : base_fixture {
+  string_list log;
+  caf::actor logger;
+
+  fixture() {
+    logger = ep.subscribe_nosync(
+      // Topics.
+      {topics::store_events},
+      // Init.
+      [](caf::unit_t&) {},
+      // Consume.
+      [this](caf::unit_t&, data_message msg) {
+        if (auto add = store_event::add::make(get_data(msg)))
+          log.emplace_back(to_string(add));
+        else if (auto put = store_event::put::make(get_data(msg)))
+          log.emplace_back(to_string(put));
+        else if (auto erase = store_event::erase::make(get_data(msg)))
+          log.emplace_back(to_string(erase));
+      },
+      // Cleanup.
+      [](caf::unit_t&) {});
+  }
+
+  ~fixture() {
+    anon_send_exit(logger, exit_reason::user_shutdown);
+  }
+};
+
+} // namespace
+
+CAF_TEST_FIXTURE_SCOPE(local_store_master, fixture)
 
 CAF_TEST(local_master) {
   auto core = ep.core();
@@ -60,13 +95,17 @@ CAF_TEST(local_master) {
   run();
   sched.inline_next_enqueue();
   CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
+  // check log
+  CHECK_EQUAL(log,
+              string_list({"add(hello, world, none)",
+                           "put(hello, universe, none)", "erase(hello)"}));
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<base_fixture>)
+CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<fixture>)
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
@@ -125,7 +164,8 @@ CAF_TEST(master_with_clone) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   forward_stream_traffic();
   expect_on(mars, (atom::peer, filter_type, actor),
-            from(_).to(core2).with(_, filter_type{foo_master}, _));
+            from(_).to(core2).with(
+              _, filter_type{topics::store_events, foo_master}, _));
   // Step #2: core1  <---   (open_stream_msg)   <--- core2
   forward_stream_traffic();
   expect_on(earth, (open_stream_msg), from(_).to(core1));
@@ -155,8 +195,9 @@ CAF_TEST(master_with_clone) {
             from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();
-  expect_on(earth, (atom::update, filter_type),
-            from(_).to(core1).with(_, filter_type{foo_clone}));
+  expect_on(
+    earth, (atom::update, filter_type),
+    from(_).to(core1).with(_, filter_type{topics::store_events, foo_clone}));
   // -- phase 8: run it all & check results ------------------------------------
   exec_all();
   CAF_MESSAGE("put 'user' -> 'neverlord'");
@@ -176,6 +217,10 @@ CAF_TEST(master_with_clone) {
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
+  // check log
+  CHECK_EQUAL(mars.log, earth.log);
+  CHECK_EQUAL(mars.log, string_list({"add(test, 123, none)",
+                                       "add(user, neverlord, none)"}));
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
