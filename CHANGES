@@ -1,4 +1,8 @@
 
+1.4.0-dev.38 | 2020-03-06 10:39:42 -0800
+
+  * Fix cross compilation build (Dominik Charousset)
+
 1.4.0-dev.35 | 2020-03-02 11:40:53 -0800
 
   * Add missing unistd.h include (Jon Siwek, Corelight)

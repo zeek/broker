@@ -100,7 +100,6 @@ endif()
 
 include(RequireCXX17)
 include(CheckCXXSourceCompiles)
-include(CheckCXXSourceRuns)
 
 # Unfortunately, std::filesystem is a mess. The feature checks at compile time
 # via __has_include(<filesystem>) or __cpp_lib_filesystem only tell half of the
@@ -111,7 +110,7 @@ include(CheckCXXSourceRuns)
 # links and runs. Otherwise, we fall back to our pre-std-filesystem
 # implementation - or raise an error when building on Windows (since we don't
 # have a fallback on this platform).
-check_cxx_source_runs("
+check_cxx_source_compiles("
   #include <cstdlib>
   #include <filesystem>
   int main(int, char**) {
