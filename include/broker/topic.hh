@@ -86,6 +86,8 @@ const topic master = topic{"data"} / "master";
 const topic clone = topic{"data"} / "clone";
 const topic master_suffix = reserved / master;
 const topic clone_suffix = reserved / clone;
+const topic errors = reserved / "data/errors";
+const topic statuses = reserved / "data/statuses";
 
 } // namespace topics
 } // namespace broker

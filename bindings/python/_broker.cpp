@@ -185,26 +185,7 @@ PYBIND11_MODULE(_broker, m) {
     .def("add_topic", &broker::subscriber::add_topic)
     .def("remove_topic", &broker::subscriber::remove_topic);
 
-  using status_subscriber_base = broker::subscriber_base<broker::status_subscriber::value_type>;
-
-  py::bind_vector<std::vector<status_subscriber_base::value_type>>(m, "VectorStatusSubscriberValueType");
-
-  py::class_<status_subscriber_base>(m, "StatusSubscriberBase")
-    .def("get", (status_subscriber_base::value_type (status_subscriber_base::*)()) &status_subscriber_base::get)
-    .def("get",
-         [](status_subscriber_base& ep, double secs) -> broker::optional<status_subscriber_base::value_type> {
-	   return ep.get(broker::to_duration(secs)); })
-    .def("get",
-         [](status_subscriber_base& ep, size_t num) -> std::vector<status_subscriber_base::value_type> {
-	   return ep.get(num); })
-    .def("get",
-         [](status_subscriber_base& ep, size_t num, double secs) -> std::vector<status_subscriber_base::value_type> {
-	   return ep.get(num, broker::to_duration(secs)); })
-    .def("poll",
-         [](status_subscriber_base& ep) -> std::vector<status_subscriber_base::value_type> {
-	   return ep.poll(); })
-    .def("available", &status_subscriber_base::available)
-    .def("fd", &status_subscriber_base::fd);
+  py::bind_vector<std::vector<broker::status_subscriber::value_type>>(m, "VectorStatusSubscriberValueType");
 
   py::class_<broker::status>(m, "Status")
     .def(py::init<>())
@@ -218,7 +199,23 @@ PYBIND11_MODULE(_broker, m) {
     .def("code", &broker::error::code)
     .def("__repr__", [](const broker::error& e) { return to_string(e); });
 
-  py::class_<broker::status_subscriber, status_subscriber_base> status_subscriber(m, "StatusSubscriber");
+  py::class_<broker::status_subscriber> status_subscriber(m, "StatusSubscriber");
+  status_subscriber
+    .def("get", (broker::status_subscriber::value_type (broker::status_subscriber::*)()) &broker::status_subscriber::get)
+    .def("get",
+         [](broker::status_subscriber& ep, double secs) -> broker::optional<broker::status_subscriber::value_type> {
+	   return ep.get(broker::to_duration(secs)); })
+    .def("get",
+         [](broker::status_subscriber& ep, size_t num) -> std::vector<broker::status_subscriber::value_type> {
+	   return ep.get(num); })
+    .def("get",
+         [](broker::status_subscriber& ep, size_t num, double secs) -> std::vector<broker::status_subscriber::value_type> {
+	   return ep.get(num, broker::to_duration(secs)); })
+    .def("poll",
+         [](broker::status_subscriber& ep) -> std::vector<broker::status_subscriber::value_type> {
+	   return ep.poll(); })
+    .def("available", &broker::status_subscriber::available)
+    .def("fd", &broker::status_subscriber::fd);
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",

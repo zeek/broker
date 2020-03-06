@@ -13,6 +13,8 @@
 #include <caf/variant.hpp>
 
 #include "broker/address.hh"
+#include "broker/bad_variant_access.hh"
+#include "broker/convert.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
@@ -20,7 +22,6 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
-#include "broker/bad_variant_access.hh"
 
 #include "broker/detail/hash.hh"
 #include "broker/detail/type_traits.hh"
@@ -247,7 +248,7 @@ inline bool operator!=(const data& x, const data& y) {
   return x.get_data() != y.get_data();
 }
 
-// --- compatibility/wrapper functionality (may be removed later) -----------
+// --- compatibility/wrapper functionality (may be removed later) --------------
 
 template <class T>
 inline bool is(const data& v) {
@@ -283,6 +284,44 @@ typename detail::remove_reference_t<Visitor>::result_type
 inline visit(Visitor&& visitor, data d) {
   return caf::visit(std::forward<Visitor>(visitor), std::move(d));
 }
+
+// --- convenience functions ---------------------------------------------------
+
+/// Wildcard for `contains` to skip type check at a specific location.
+struct any_type {};
+
+template <class T>
+bool exact_match_or_can_convert_to(const data& x) {
+  if constexpr (detail::is_complete<detail::data_tag_oracle<T>>)
+    return is<T>(x);
+  else if constexpr (std::is_same<any_type, T>::value)
+    return true;
+  else
+    return can_convert_to<T>(x);
+}
+
+template <size_t... Is, class... Ts>
+bool contains_impl(const vector& xs, std::index_sequence<Is...>,
+                   detail::type_list<Ts...>) {
+  return xs.size() == sizeof...(Ts)
+         && (exact_match_or_can_convert_to<Ts>(xs[Is]) && ...);
+}
+
+/// Checks whether `xs` contains values of types `Ts...`. Performs "fuzzy"
+/// matching by calling `can_convert_to<T>` for any `T` that is not part of the
+/// variant.
+template <class...Ts>
+bool contains(const vector& xs) {
+  return contains_impl(xs, std::make_index_sequence<sizeof...(Ts)>{},
+                       detail::type_list<Ts...>{});
+}
+
+template <class...Ts>
+bool contains(const data& d) {
+  if (auto xs = get_if<vector>(d))
+    return contains<Ts...>(*xs);
+  return false;
+ }
 
 } // namespace broker
 

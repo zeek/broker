@@ -21,6 +21,7 @@ public:
   // --- friend declarations ---------------------------------------------------
 
   friend class endpoint;
+  friend class status_subscriber;
 
   // --- nested types ----------------------------------------------------------
 
@@ -34,24 +35,28 @@ public:
 
   ~subscriber();
 
+  // --- properties ------------------------------------------------------------
+
+  /// Enables or disables rate calculation. On by default.
+  void set_rate_calculation(bool x);
+
   size_t rate() const;
 
-  inline const caf::actor& worker() const {
+  const caf::actor& worker() const {
     return worker_;
   }
+
+  // --- topic management ------------------------------------------------------
 
   void add_topic(topic x, bool block = false);
 
   void remove_topic(topic x, bool block = false);
 
-  /// Enables or disables rate calculation. On by default.
-  void set_rate_calculation(bool x);
-
 protected:
   void became_not_full() override;
 
 private:
-  // -- force users to use `endpoint::make_status_subscriber` -------------------
+  // -- force users to use `endpoint::make_status_subscriber` ------------------
   subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize);
 
   caf::actor worker_;

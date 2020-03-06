@@ -91,7 +91,7 @@ struct are_same<T0, T1, Ts...> :
 
 // Trait that checks for an overload of convert(const From&, T&).
 template <class From, class To>
-struct can_convert {
+struct has_convert {
   using from_type = decay_t<From>;
   using to_type = typename std::add_lvalue_reference<decay_t<To>>::type;
 
@@ -163,6 +163,20 @@ void verify_status_callback() {
   static_assert(std::is_same<detail::decay_t<first>, status>::value,
                 "status callback must have broker::status as argument type");
 }
+
+template <class T, size_t = sizeof(T)>
+std::true_type is_complete_test(T*);
+
+std::false_type is_complete_test(...);
+
+/// Checks whether `T` is complete type. Passing a forward declaration or
+/// undefined template specialization evaluates to `false`.
+template <class T>
+constexpr bool is_complete
+  = decltype(is_complete_test(std::declval<T*>()))::value;
+
+template <class... Ts>
+struct type_list {};
 
 } // namespace detail
 } // namespace broker

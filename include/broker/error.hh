@@ -1,12 +1,5 @@
 #pragma once
 
-// ATTENTION
-// ---------
-// When updating this file, make sure to update doc/comm.rst as well because it
-// copies parts of this file verbatim.
-//
-// Included lines: 23-51
-
 #include <cstdint>
 #include <utility>
 
@@ -15,15 +8,20 @@
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
 
+#include "broker/convert.hh"
+#include "broker/fwd.hh"
+
 namespace broker {
 
 using caf::error;
 
-/// Broker's status codes.
-/// @relates status
+/// Broker's error codes.
+// -- ec-enum-start
 enum class ec : uint8_t {
+  /// Not-an-error.
+  none,
   /// The unspecified default error code.
-  unspecified = 1,
+  unspecified,
   /// Version incompatibility.
   peer_incompatible,
   /// Referenced peer does not exist.
@@ -60,19 +58,105 @@ enum class ec : uint8_t {
   /// Received an unknown type tag value.
   invalid_tag,
 };
+// -- ec-enum-end
 
 /// @relates ec
-const char* to_string(ec code);
+const char* to_string(ec code) noexcept;
 
+/// @relates ec
+bool convert(const std::string& str, ec& code) noexcept;
+
+/// @relates ec
+bool convert(const data& str, ec& code) noexcept;
+
+/// @relates ec
+bool convertible_to_ec(const data& src) noexcept;
+
+template <>
+struct can_convert_predicate<ec> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_ec(src);
+  }
+};
+
+/// @relates ec
 template <class... Ts>
 error make_error(ec x, Ts&&... xs) {
   return {static_cast<uint8_t>(x), caf::atom("broker"),
           caf::make_message(std::forward<Ts>(xs)...)};
 }
 
-#define BROKER_TRY_IMPL(statement)                                                  \
+/// Checks whethter `src` is convertible to a `caf::error` with
+/// `category() == caf::atom("broker")`.
+bool convertible_to_error(const data& src) noexcept;
+
+/// @copydoc convertible_to_error
+bool convertible_to_error(const vector& xs) noexcept;
+
+template <>
+struct can_convert_predicate<error> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_error(src);
+  }
+
+  static bool check(const vector& src) noexcept {
+    return convertible_to_error(src);
+  }
+};
+
+/// Maps `src` to `["error", code, context]` if
+/// `src.category() == caf::atom("broker")`. The `context` field, depending on
+/// the error code, is either, `nil`,`[<string>]`, or
+/// `[<endpoint_info>, <string>]`.
+bool convert(const error& src, data& dst);
+
+/// Converts data in the format `["error", code, context]` back to an error.
+bool convert(const data& src, error& dst);
+
+/// Creates a view into a ::data object that is convertible to ::error.
+class error_view {
+public:
+  error_view(const error_view&) noexcept = default;
+
+  error_view& operator=(const error_view&) noexcept = default;
+
+  bool valid() const noexcept {
+    return xs_ != nullptr;
+  }
+
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+  /// @pre `valid()`
+  ec code() const noexcept;
+
+  /// @copydoc error::code
+  const std::string* message() const noexcept;
+
+  /// Retrieves additional contextual information, if available.
+  optional<endpoint_info> context() const;
+
+  /// Creates a view for given data.
+  /// @returns A ::valid view on success, an invalid view otherwise.
+  static error_view make(const data& src);
+
+private:
+  explicit error_view(const vector* ptr) noexcept : xs_(ptr) {
+    // nop
+  }
+
+  const vector* xs_;
+};
+
+/// @relates error_view
+inline error_view make_error_view(const data& src) {
+  return error_view::make(src);
+}
+
+#define BROKER_TRY_IMPL(statement)                                             \
   if (auto err = statement)                                                    \
-    return err
+  return err
 
 #define BROKER_TRY_1(x1) BROKER_TRY_IMPL(x1)
 

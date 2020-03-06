@@ -1,4 +1,37 @@
 
+1.4.0-dev.58 | 2020-03-06 11:53:58 -0800
+
+  * Send statuses and errors via regular topics (Dominik Charousset)
+
+    With this set of changes, status and error messages no longer bypass the
+    regular topic-based distribution. There are two new reserved topics:
+    topics::statuses and topics::errors. Messages to these two topics are never
+    forwarded to peers.
+
+    When emitting status or error messages, they get converted to data, which
+    is a vector.  The new conversions between status <-> data and error <->
+    data actually accounts for the most code changes. However, this means
+    scripts can now easily access these messages as well. Subscribing to the
+    reserved topics grants easy access to statuses and errors now, allowing to
+    multiplex them with regular events.
+
+    The status_subscriber was rewritten to dispatch to a regular subscriber
+    internally.
+
+  * Implement conversion between error and data (Dominik Charousset)
+
+  * Implement can_convert_to for endpoint_info (Dominik Charousset)
+
+  * Add declarative inspection of data via contains<> (Dominik Charousset)
+
+  * Make ec convertible to and from string (Dominik Charousset)
+
+  * Add status_view type for operating on raw data (Dominik Charousset)
+
+  * Implement conversion between data and status (Dominik Charousset)
+
+  * Add from-string conversion to sc enum (Dominik Charousset)
+
 1.4.0-dev.38 | 2020-03-06 10:39:42 -0800
 
   * Fix cross compilation build (Dominik Charousset)

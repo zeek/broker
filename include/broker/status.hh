@@ -13,7 +13,10 @@
 #include <caf/message.hpp>
 #include <caf/make_message.hpp>
 
+#include "broker/convert.hh"
 #include "broker/endpoint_info.hh"
+#include "broker/fwd.hh"
+#include "broker/optional.hh"
 
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
@@ -34,7 +37,23 @@ enum class sc : uint8_t {
 };
 
 /// @relates sc
-const char* to_string(sc code);
+const char* to_string(sc code) noexcept;
+
+/// @relates sc
+bool convert(const std::string& str, sc& code) noexcept;
+
+/// @relates sc
+bool convert(const data& str, sc& code) noexcept;
+
+/// @relates sc
+bool convertible_to_sc(const data& src) noexcept;
+
+template <>
+struct can_convert_predicate<sc> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_sc(src);
+  }
+};
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,
@@ -105,14 +124,82 @@ public:
     return f(s.code_, s.context_);
   }
 
+  /// Maps `src` to `["status", code, context]`, whereas `code` is ::code
+  /// encoded as an ::enum_value and `context` is a ::vector holding contextual
+  /// information, if available.
+  friend bool convert(const status& src, data& dst);
+
+  /// Converts data in the format `["status", code, context]` back to a status.
+  friend bool convert(const data& src, status& dst);
+
 private:
   sc code_ = {};
   caf::message context_;
 };
 
+/// @relates status
 template <sc S, class... Ts>
 status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
+}
+
+/// @relates status
+bool convertible_to_status(const data& src) noexcept;
+
+/// @relates status
+bool convertible_to_status(const vector& xs) noexcept;
+
+template <>
+struct can_convert_predicate<status> {
+  static bool check(const data& src) noexcept {
+    return convertible_to_status(src);
+  }
+
+  static bool check(const vector& src) noexcept {
+    return convertible_to_status(src);
+  }
+};
+
+/// Creates a view into a ::data object that is convertible to ::status.
+class status_view {
+public:
+  status_view(const status_view&) noexcept = default;
+
+  status_view& operator=(const status_view&) noexcept = default;
+
+  bool valid() const noexcept {
+    return xs_ != nullptr;
+  }
+
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+  /// @copydoc status::code
+  /// @pre `valid()`
+  sc code() const noexcept;
+
+  /// @copydoc status::code
+  const std::string* message() const noexcept;
+
+  /// Retrieves additional contextual information, if available.
+  optional<endpoint_info> context() const;
+
+  /// Creates a view for given data.
+  /// @returns A ::valid view on success, an invalid view otherwise.
+  static status_view make(const data& src);
+
+private:
+  explicit status_view(const vector* ptr) noexcept : xs_(ptr) {
+    // nop
+  }
+
+  const vector* xs_;
+};
+
+/// @relates status_view
+inline status_view make_status_view(const data& src) {
+  return status_view::make(src);
 }
 
 } // namespace broker

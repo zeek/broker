@@ -80,9 +80,12 @@ struct core_state {
   void emit_error(caf::actor hdl, const char* msg) {
     auto emit = [=](network_info x) {
       BROKER_INFO("error" << ErrorCode << x);
-      self->send(
-        errors_, atom::local::value,
-        make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg));
+      // TODO: consider creating the data directly rather than going through the
+      //       error object and converting it.
+      auto err
+        = make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg);
+      governor->policy().local_push(
+        make_data_message(topics::errors, get_as<data>(err)));
     };
     if (self->node() != hdl.node())
       cache.fetch(hdl,
@@ -104,9 +107,10 @@ struct core_state {
       emit_error<ErrorCode>(std::move(*x), msg);
     else {
       BROKER_INFO("error" << ErrorCode << inf);
-      self->send(
-        errors_, atom::local::value,
-        make_error(ErrorCode, endpoint_info{node_id(), inf}, msg));
+      auto err
+        = make_error(ErrorCode, endpoint_info{node_id(), std::move(inf)}, msg);
+      governor->policy().local_push(
+        make_data_message(topics::errors, get_as<data>(err)));
     }
   }
 
@@ -116,9 +120,12 @@ struct core_state {
                   "Use emit_peer_added_status instead");
     auto emit = [=](network_info x) {
       BROKER_INFO("status" << StatusCode << x);
-      self->send(statuses_, atom::local::value,
-                 status::make<StatusCode>(
-                 endpoint_info{hdl.node(), std::move(x)}, msg));
+      // TODO: consider creating the data directly rather than going through the
+      //       status object and converting it.
+      auto stat = status::make<StatusCode>(
+        endpoint_info{hdl.node(), std::move(x)}, msg);
+      governor->policy().local_push(
+        make_data_message(topics::statuses, get_as<data>(stat)));
     };
     if (self->node() != hdl.node())
       cache.fetch(hdl,
@@ -166,12 +173,6 @@ struct core_state {
 
   /// Associates network addresses to remote actor handles and vice versa.
   detail::network_cache cache;
-
-  /// Caches the CAF group for error messages.
-  caf::group errors_;
-
-  /// Caches the CAF group for status messages.
-  caf::group statuses_;
 
   /// Name shown in logs for all instances of this actor.
   static const char* name;
