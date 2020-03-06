@@ -10,40 +10,12 @@
 
 namespace broker {
 
-// TODO: CAF currently has no from_string/convert function for converting a
-//       `to_string(node_id)` output back. Contribute this back to CAF (but
-//       without the heavy-handed regex-based conversion).
-bool tmp_convert(const std::string& src, node_id& dst) {
-  std::regex default_node_format{"([a-zA-Z0-9]+)#([0-9]+)"};
-  std::smatch match;
-  if (std::regex_match(src, match, default_node_format)) {
-    try {
-      auto hid = match[1].str();
-      auto pid = std::stoi(match[2].str());
-      if (pid < 0)
-        return false;
-      if (auto id = caf::make_node_id(static_cast<uint32_t>(pid), hid)) {
-        dst = std::move(*id);
-        return true;
-      }
-    } catch (...) {
-      // nop
-    }
-  } else if (auto uri_id = caf::make_uri(src)) {
-    dst = caf::make_node_id(std::move(*uri_id));
-    return true;
-  }
-  return false;
-}
-
 // Enable `can_convert` for `caf::node_id`.
 template <>
 struct can_convert_predicate<caf::node_id> {
   static bool check(const data& src) {
     if (auto str = get_if<std::string>(src)) {
-      // TODO: this check is far from being lightweight.
-      caf::node_id tmp;
-      return tmp_convert(*str, tmp);
+      return caf::node_id::can_parse(*str);
     }
     return is<none>(src);
   }
@@ -75,7 +47,7 @@ bool convert(const data& src, endpoint_info& dst) {
     return false;
   // Parse the node (field 1).
   if (auto str = get_if<std::string>(xs[0])) {
-    if (!tmp_convert(*str, dst.node))
+    if (auto err = caf::parse(*str, dst.node))
       return false;
   } else if (is<none>(xs[0])) {
     dst.node = caf::node_id{};
