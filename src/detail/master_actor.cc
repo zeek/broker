@@ -87,7 +87,7 @@ void master_state::operator()(none) {
 void master_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
   auto et = to_opt_timestamp(clock->now(), x.expiry);
-  auto added = !backend->exists(x.key);
+  auto added = !exists(x.key);
   auto result = backend->put(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
@@ -104,12 +104,7 @@ void master_state::operator()(put_command& x) {
 
 void master_state::operator()(put_unique_command& x) {
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
-  if (auto res = backend->exists(x.key); !res) {
-    BROKER_WARNING("failed to put_unique existence check" << x.key << "->"
-                                                          << x.value);
-    self->send(x.who, caf::make_message(data{false}, x.req_id));
-    return;
-  } else if (*res) {
+  if (!exists(x.key)) {
     // Note that we don't bother broadcasting this operation to clones since
     // no change took place.
     self->send(x.who, caf::make_message(data{false}, x.req_id));
@@ -142,7 +137,7 @@ void master_state::operator()(erase_command& x) {
 
 void master_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x);
-  auto added = !backend->exists(x.key);
+  auto added = !exists(x.key);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->add(x.key, x.value, x.init_type, et); !res) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key << "->"
@@ -245,6 +240,12 @@ void master_state::operator()(clear_command& x) {
   if (auto res = backend->clear(); !res)
     die("failed to clear master");
   broadcast_cmd_to_clones(std::move(x));
+}
+
+bool master_state::exists(const data& key) {
+  if (auto res = backend->exists(key))
+    return *res;
+  return false;
 }
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,

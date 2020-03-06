@@ -73,6 +73,8 @@ public:
 
   std::unordered_map<caf::actor_addr, caf::actor> clones;
 
+  bool exists(const data& key);
+
   static inline constexpr const char* name = "master_actor";
 };
 
