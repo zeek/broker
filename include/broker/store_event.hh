@@ -138,6 +138,15 @@ public:
 /// @relates store_event::type
 const char* to_string(store_event::type code) noexcept;
 
+/// @relates store_event::add
+std::string to_string(const store_event::add& x);
+
+/// @relates store_event::put
+std::string to_string(const store_event::put& x);
+
+/// @relates store_event::erase
+std::string to_string(const store_event::erase& x);
+
 /// @relates store_event::type
 bool convert(const std::string& src, store_event::type& dst) noexcept;
 

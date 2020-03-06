@@ -39,6 +39,35 @@ const char* to_string(store_event::type code) noexcept {
   return type_strings[static_cast<uint8_t>(code)];
 }
 
+std::string to_string(const store_event::add& x) {
+  std::string result = "add(";
+  result += to_string(x.key());
+  result += ", ";
+  result += to_string(x.value());
+  result += ", ";
+  result += to_string(x.expiry());
+  result += ')';
+  return result;
+}
+
+std::string to_string(const store_event::put& x) {
+  std::string result = "put(";
+  result += to_string(x.key());
+  result += ", ";
+  result += to_string(x.value());
+  result += ", ";
+  result += to_string(x.expiry());
+  result += ')';
+  return result;
+}
+
+std::string to_string(const store_event::erase& x) {
+  std::string result = "erase(";
+  result += to_string(x.key());
+  result += ')';
+  return result;
+}
+
 bool convert(const std::string& src, store_event::type& dst) noexcept{
   auto begin = std::begin(type_strings);
   auto end = std::end(type_strings);
