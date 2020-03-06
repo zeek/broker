@@ -6,8 +6,7 @@
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <sys/time.h>
-#include <unistd.h>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -39,9 +38,9 @@ bool server = false;
 bool verbose = false;
 
 // Global state
-unsigned long total_recv;
-unsigned long total_sent;
-unsigned long last_sent;
+size_t total_recv;
+size_t total_sent;
+size_t last_sent;
 double last_t;
 
 std::atomic<size_t> num_events;
@@ -56,9 +55,10 @@ size_t reset_num_events() {
 }
 
 double current_time() {
-  struct timeval tv;
-  gettimeofday(&tv, 0);
-  return double(tv.tv_sec) + double(tv.tv_usec) / 1e6;
+  using namespace std::chrono;
+  auto t = system_clock::now();
+  auto usec = duration_cast<microseconds>(t.time_since_epoch()).count();
+  return usec / 1e6;
 }
 
 static std::string random_string(int n) {
@@ -196,7 +196,7 @@ void receivedStats(endpoint& ep, data x) {
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
     ep.publish("/benchmark/terminate", ev);
-    sleep(2); // Give clients a bit.
+    std::this_thread::sleep_for(std::chrono::seconds(2)); // Give clients a bit.
     exit(0);
   }
 

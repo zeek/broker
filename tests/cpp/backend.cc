@@ -46,22 +46,20 @@ public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(memory, opts));
     auto& path = caf::get<std::string>(opts["path"]);
-    auto base = path;
     // Make sure both backends have their own filesystem storage to work with.
     path += ".sqlite";
     paths_.push_back(path);
-    detail::remove_all(path);
     backends_.push_back(detail::make_backend(sqlite, opts));
 #ifdef BROKER_HAVE_ROCKSDB
+    auto base = path;
     path = base + ".rocksdb";
     paths_.push_back(path);
-    detail::remove_all(path);
     backends_.push_back(detail::make_backend(rocksdb, opts));
 #endif
   }
 
   ~meta_backend() {
-    for (auto& path : paths_)
+    for (detail::path path : paths_)
       detail::remove_all(path);
   }
 
@@ -179,7 +177,7 @@ private:
     for (auto& backend : backends_)
       xs.push_back(f(*backend));
     if (!all_equal(xs))
-      return ec::unspecified;
+      return make_error(ec::unspecified, caf::deep_to_string(std::move(xs)));
     return std::move(xs.front());
   }
 
@@ -192,39 +190,43 @@ private:
   std::vector<std::string> paths_;
 };
 
-struct fixture {
-  static constexpr char filename[] = "/tmp/broker-unit-test-backend";
-
+struct fixture : base_fixture {
   fixture() {
-    auto opts = backend_options{{"path", filename}};
+    auto opts = backend_options{{"path", detail::make_temp_file_name()}};
     backend = std::make_unique<meta_backend>(std::move(opts));
   }
 
   std::unique_ptr<detail::abstract_backend> backend;
-};
 
-constexpr char fixture::filename[];
+  template <class F>
+  auto run(F expr, const char* expr_str) {
+    auto res = expr();
+    if (!res)
+      FAIL(expr_str << " failed: " << sys.render(res.error()));
+    if constexpr (std::is_same<decltype(res), expected<void>>::value)
+      return caf::unit;
+    else
+      return std::move(*res);
+  }
+};
 
 } // namespace <anonymous>
 
 FIXTURE_SCOPE(backend_tests, fixture)
 
+#define RUN(statement) run([&] { return statement; }, #statement)
+
 TEST(put/get) {
-  auto put = backend->put("foo", 7);
-  REQUIRE(put);
-  auto get = backend->get("foo");
-  REQUIRE(get);
-  CHECK_EQUAL(*get, data{7});
+  RUN(backend->put("foo", 7));
+  CHECK_EQUAL(RUN(backend->get("foo")), data{7});
   MESSAGE("overwrite");
-  put = backend->put("foo", 42);
-  REQUIRE(put);
-  get = backend->get("foo");
-  REQUIRE(get);
-  CHECK_EQUAL(*get, data{42});
+  RUN(backend->put("foo", 42));
+  CHECK_EQUAL(RUN(backend->get("foo")), data{42});
   MESSAGE("no key");
-  get = backend->get("bar");
-  REQUIRE(!get);
-  CHECK_EQUAL(get.error(), ec::no_such_key);
+  if (auto bar = backend->get("bar"))
+    FAIL("store returned a value for a non-existing key");
+  else
+    CHECK_EQUAL(bar.error(), ec::no_such_key);
 }
 
 TEST(add/remove) {

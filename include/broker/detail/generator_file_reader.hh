@@ -1,22 +1,34 @@
 #pragma once
 
-#include <memory>
 #include <cstddef>
+#include <cstdio>
+#include <memory>
 
 #include <caf/binary_deserializer.hpp>
 
+#include "broker/config.hh"
 #include "broker/detail/data_generator.hh"
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 class generator_file_reader {
 public:
   using value_type = caf::variant<data_message, command_message>;
 
-  generator_file_reader(int fd, void* addr, size_t file_size);
+#ifdef BROKER_WINDOWS
+  using file_handle = void*;
+#else
+  using file_handle = int;
+#endif
+
+  using mapper_handle = void*;
+
+  using mapped_pointer = void*;
+
+  generator_file_reader(file_handle fd, mapper_handle mapper,
+                        mapped_pointer addr, size_t file_size);
 
   generator_file_reader(generator_file_reader&&) = delete;
 
@@ -56,8 +68,9 @@ public:
   }
 
 private:
-  int fd_;
-  void* addr_;
+  file_handle fd_;
+  mapper_handle mapper_;
+  mapped_pointer addr_;
   size_t file_size_;
   caf::binary_deserializer source_;
   data_generator generator_;
@@ -71,5 +84,4 @@ using generator_file_reader_ptr = std::unique_ptr<generator_file_reader>;
 
 generator_file_reader_ptr make_generator_file_reader(const std::string& fname);
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

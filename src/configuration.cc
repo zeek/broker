@@ -1,5 +1,6 @@
 #include "broker/configuration.hh"
 
+#include <ciso646>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
@@ -12,6 +13,7 @@
 #include <caf/openssl/manager.hpp>
 
 #include "broker/address.hh"
+#include "broker/config.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"
@@ -24,7 +26,14 @@
 #include "broker/topic.hh"
 #include "broker/version.hh"
 
+#ifdef BROKER_WINDOWS
+#include <io.h>
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+#define isatty _isatty
+#else
 #include <unistd.h>
+#endif
 
 namespace broker {
 

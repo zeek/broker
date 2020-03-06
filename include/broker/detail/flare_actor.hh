@@ -48,7 +48,9 @@ public:
 
   void extinguish_one();
 
-  int descriptor() const;
+  auto descriptor() const noexcept {
+    return flare_.fd();
+  }
 
 private:
   flare flare_;
