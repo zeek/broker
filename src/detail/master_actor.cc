@@ -62,11 +62,12 @@ void master_state::remind(timespan expiry, const data& key) {
 void master_state::expire(data& key) {
   BROKER_INFO("EXPIRE" << key);
   auto result = backend->expire(key, clock->now());
-  if (!result)
+  if (!result) {
     BROKER_ERROR("failed to expire key:" << to_string(result.error()));
-  else if (!*result)
+  } else if (!*result) {
     BROKER_WARNING("ignoring stale expiration reminder");
-  else {
+  } else {
+    emit_erase_event(key);
     broadcast_cmd_to_clones(erase_command{std::move(key)});
   }
 }
@@ -86,6 +87,7 @@ void master_state::operator()(none) {
 void master_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
   auto et = to_opt_timestamp(clock->now(), x.expiry);
+  auto added = !backend->exists(x.key);
   auto result = backend->put(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
@@ -93,38 +95,36 @@ void master_state::operator()(put_command& x) {
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
+  if (added)
+    emit_add_event(x);
+  else
+    emit_put_event(x);
   broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(put_unique_command& x) {
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
-
-  auto exists_result = backend->exists(x.key);
-
-  if (!exists_result) {
-    BROKER_WARNING("failed to put_unique existence check" << x.key << "->" << x.value);
-    return; // TODO: propagate failure? to all clones? as status msg?
-  }
-
-  if (*exists_result) {
+  if (auto res = backend->exists(x.key); !res) {
+    BROKER_WARNING("failed to put_unique existence check" << x.key << "->"
+                                                          << x.value);
+    self->send(x.who, caf::make_message(data{false}, x.req_id));
+    return;
+  } else if (*res) {
     // Note that we don't bother broadcasting this operation to clones since
     // no change took place.
     self->send(x.who, caf::make_message(data{false}, x.req_id));
     return;
   }
-
-  self->send(x.who, caf::make_message(data{true}, x.req_id));
   auto et = to_opt_timestamp(clock->now(), x.expiry);
-  auto result = backend->put(x.key, x.value, et);
-
-  if (!result) {
+  if (auto res = backend->put(x.key, x.value, et); !res) {
     BROKER_WARNING("failed to put_unique" << x.key << "->" << x.value);
-    return; // TODO: propagate failure? to all clones? as status msg?
+    self->send(x.who, caf::make_message(data{false}, x.req_id));
+    return;
   }
-
+  self->send(x.who, caf::make_message(data{true}, x.req_id));
+  emit_add_event(x);
   if (x.expiry)
     remind(*x.expiry, x.key);
-
   // Note that we could just broadcast a regular "put" command here instead
   // since clones shouldn't have to do their own existence check.
   broadcast_cmd_to_clones(std::move(x));
@@ -132,21 +132,32 @@ void master_state::operator()(put_unique_command& x) {
 
 void master_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
-  auto result = backend->erase(x.key);
-  if (!result) {
-    BROKER_WARNING("failed to erase" << x.key);
+  if (auto res = backend->erase(x.key); !res) {
+    BROKER_WARNING("failed to erase" << x.key << "->" << res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
+  emit_erase_event(x.key);
   broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x);
+  auto added = !backend->exists(x.key);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
-  auto result = backend->add(x.key, x.value, x.init_type, et);
-  if (!result) {
-    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
+  if (auto res = backend->add(x.key, x.value, x.init_type, et); !res) {
+    BROKER_WARNING("failed to add" << x.value << "to" << x.key << "->"
+                                   << res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  if (auto val = backend->get(x.key); !val) {
+    BROKER_ERROR("failed to get"
+                 << x.value << "after add() returned success:" << val.error());
+    return; // TODO: propagate failure? to all clones? as status msg?
+  } else {
+    if (added)
+      emit_add_event(x.key, *val, x.expiry);
+    else
+      emit_put_event(x.key, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
@@ -156,10 +167,18 @@ void master_state::operator()(add_command& x) {
 void master_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
-  auto result = backend->subtract(x.key, x.value, et);
-  if (!result) {
+  if (auto res = backend->subtract(x.key, x.value, et); !res) {
     BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
+  }
+  if (auto val = backend->get(x.key); !val) {
+    BROKER_ERROR("failed to get"
+                 << x.value
+                 << "after subtract() returned success:" << val.error());
+    return; // TODO: propagate failure? to all clones? as status msg?
+  } else {
+    // Unlike `add`, `subtract` fails if the key didn't exist previously.
+    emit_put_event(x.key, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
@@ -209,8 +228,21 @@ void master_state::operator()(set_command& x) {
 
 void master_state::operator()(clear_command& x) {
   BROKER_INFO("CLEAR" << x);
-  auto res = backend->clear();
-  if (!res)
+  if (auto keys_res = backend->keys(); !keys_res) {
+    BROKER_ERROR("unable to obtain keys:" << keys_res.error());
+    return;
+  } else {
+    if (auto keys = get_if<vector>(*keys_res)) {
+      for (auto& key : *keys)
+        emit_erase_event(key);
+    } else if (auto keys = get_if<set>(*keys_res)) {
+      for (auto& key : *keys)
+        emit_erase_event(key);
+    } else if (!is<none>(*keys_res)) {
+      BROKER_ERROR("backend->keys() returned an unexpected result type");
+    }
+  }
+  if (auto res = backend->clear(); !res)
     die("failed to clear master");
   broadcast_cmd_to_clones(std::move(x));
 }
