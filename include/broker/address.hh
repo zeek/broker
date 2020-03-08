@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <string>
 
-#include <broker/detail/operators.hh>
+#include <caf/detail/comparable.hpp>
+#include <caf/error.hpp>
+#include <caf/ip_address.hpp>
+#include <caf/string_view.hpp>
 
 namespace broker {
 
 /// Stores an IPv4 or IPv6 address.
-class address : detail::totally_ordered<address> {
+class address : caf::detail::comparable<address> {
 public:
   /// Distinguishes between address types.
   enum class family : uint8_t {
@@ -24,7 +27,7 @@ public:
   };
 
   /// Default construct an invalid address.
-  address();
+  address() = default;
 
   /// Construct an address from raw bytes.
   /// @param bytes A pointer to the raw representation.  This must point
@@ -43,37 +46,50 @@ public:
   bool mask(uint8_t top_bits_to_keep);
 
   /// @returns true if the address is IPv4.
-  bool is_v4() const;
+  bool is_v4() const noexcept {
+    return addr_.embeds_v4();
+  }
 
   /// @returns true if the address is IPv6.
-  bool is_v6() const;
+  bool is_v6() const noexcept {
+    return !is_v4();
+  }
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  std::array<uint8_t, 16>& bytes();
+  std::array<uint8_t, 16>& bytes() {
+    return addr_.bytes();
+  }
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  const std::array<uint8_t, 16>& bytes() const;
+  const std::array<uint8_t, 16>& bytes() const {
+    return addr_.bytes();
+  }
 
-  friend bool operator==(const address& lhs, const address& rhs);
-  friend bool operator<(const address& lhs, const address& rhs);
-  friend bool convert(const std::string& str, address& a);
+  auto compare(const address& other) const noexcept {
+    return addr_.compare(other.addr_);
+  }
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, address& a) {
-    return f(a.bytes_);
+  friend typename Inspector::result_type inspect(Inspector& f, address& x) {
+    return f(x.addr_);
+  }
+
+  friend bool convert(const address& a, std::string& str) {
+    str = to_string(a.addr_);
+    return true;
+  }
+
+  friend bool convert(const std::string& str, address& a) {
+    if (auto err = parse(str, a.addr_))
+      return false;
+    return true;
   }
 
 private:
-  std::array<uint8_t, 16> bytes_; // Always in network order.
+  caf::ip_address addr_;
 };
-
-/// @relates address
-bool operator==(const address& lhs, const address& rhs);
-
-/// @relates address
-bool operator<(const address& lhs, const address& rhs);
 
 /// @relates address
 bool convert(const std::string& str, address& a);
@@ -91,4 +107,4 @@ struct hash<broker::address> {
   size_t operator()(const broker::address&) const;
 };
 
-} // namespace std;
+} // namespace std

@@ -92,7 +92,7 @@ namespace out {
 
 template <class... Ts>
 void println(Ts&&... xs) {
-  detail::println(std::cout, std::forward<Ts>(xs)...);
+  ::detail::println(std::cout, std::forward<Ts>(xs)...);
 }
 
 } // namespace out
@@ -101,8 +101,8 @@ namespace err {
 
 template <class... Ts>
 void println(Ts&&... xs) {
-  detail::println(std::cerr, caf::term::red, node_name, ": ",
-                  std::forward<Ts>(xs)...);
+  ::detail::println(std::cerr, caf::term::red, node_name, ": ",
+                    std::forward<Ts>(xs)...);
 }
 
 } // namespace err
@@ -118,9 +118,9 @@ std::atomic<bool> enabled;
 template <class... Ts>
 void println(Ts&&... xs) {
   if (enabled)
-    detail::println(std::clog, caf::term::blue,
-                    std::chrono::system_clock::now(), " ", node_name, ": ",
-                    std::forward<Ts>(xs)...);
+    ::detail::println(std::clog, caf::term::blue,
+                      std::chrono::system_clock::now(), " ", node_name, ": ",
+                      std::forward<Ts>(xs)...);
 }
 
 } // namespace verbose

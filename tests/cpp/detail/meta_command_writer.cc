@@ -35,7 +35,7 @@ struct fixture {
   T pull() {
     caf::binary_deserializer source{nullptr, buf.data() + read_pos,
                                     buf.size() - read_pos};
-    T result;
+    T result{};
     CHECK_EQUAL(source(result), caf::none);
     read_pos = buf.size() - source.remaining();
     return result;

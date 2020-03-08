@@ -44,7 +44,7 @@ void recreate(data_generator& self, T& xs) {
     return;
   }
   caf::binary_deserializer source{nullptr, buf};
-  size_t seed = 0;
+  unsigned seed = 0;
   self.shuffle(seed);
   data_generator g{source, seed};
   T tmp;
@@ -57,8 +57,11 @@ void recreate(data_generator& self, T& xs) {
 }
 
 data_generator::data_generator(caf::binary_deserializer& meta_data_source,
-                               size_t seed)
-  : source_(meta_data_source), engine_(seed), char_generator_('!', '}') {
+                               unsigned seed)
+  : source_(meta_data_source),
+    engine_(seed),
+    char_generator_('!', '}'),
+    byte_generator_(0, 255) {
   // nop
 }
 
@@ -71,7 +74,7 @@ caf::error data_generator::operator()(internal_command& x) {
 }
 
 caf::error data_generator::generate(data& x) {
-  data::type tag;
+  data::type tag{};
   READ(tag);
   return generate(tag, x);
 }
@@ -100,7 +103,7 @@ caf::error data_generator::generate(data::type tag, data& x) {
 }
 
 caf::error data_generator::generate(internal_command& x) {
-  internal_command::type tag;
+  internal_command::type tag{};
   READ(tag);
   return generate(tag, x);
 }
@@ -137,7 +140,7 @@ caf::error data_generator::generate(internal_command::type tag,
     case tag_type::add_command: {
       data key;
       data val;
-      data::type init_type;
+      data::type init_type{};
       GENERATE(key);
       GENERATE(val);
       READ(init_type);
@@ -251,7 +254,7 @@ void data_generator::shuffle(boolean& x) {
 
 void data_generator::shuffle(std::string& x) {
   for (size_t i = 0; i < x.size(); ++i)
-    x[i] = char_generator_(engine_);
+    x[i] = next_char();
 }
 
 void data_generator::shuffle(enum_value& x) {
@@ -259,21 +262,21 @@ void data_generator::shuffle(enum_value& x) {
 }
 
 void data_generator::shuffle(port& x) {
-  uint16_t num = uint16_t{byte_generator_(engine_)} << 8;
-  num |= byte_generator_(engine_);
-  auto p = static_cast<port::protocol>(byte_generator_(engine_) % 4);
+  uint16_t num = uint16_t{next_byte()} << 8;
+  num |= next_byte();
+  auto p = static_cast<port::protocol>(next_byte() % 4);
   x = port{num, p};
 }
 
 void data_generator::shuffle(address& x) {
   for (auto& byte : x.bytes())
-    byte = byte_generator_(engine_);
+    byte = next_byte();
 }
 
 void data_generator::shuffle(subnet& x) {
   address addr;
   shuffle(addr);
-  x = subnet{addr, byte_generator_(engine_)};
+  x = subnet{addr, next_byte()};
 }
 
 void data_generator::shuffle(timespan& x) {
@@ -302,6 +305,19 @@ void data_generator::shuffle(set& xs) {
 void data_generator::shuffle(table& xs) {
   // Just like sets, tables don't allow us to modifies the keys.
   recreate(*this, xs);
+}
+
+char data_generator::next_char() {
+  // Unfortunately, the standard does not permit std::uniform_int_distribution
+  // to produce 8-bit integer types. We need to work around this issue by
+  // producing 16-bit integers and then keep only the lower bits. We initialize
+  // char_generator to produce only valid characters in the constructor.
+  return static_cast<char>(char_generator_(engine_));
+}
+
+uint8_t data_generator::next_byte() {
+  // Same as above: work around weird restriction.
+  return static_cast<uint8_t>(byte_generator_(engine_));
 }
 
 } // namespace detail

@@ -176,7 +176,7 @@ struct peer_fixture {
         // nop
       },
       [=](unit_t&, data_message x) {
-        data.emplace_back(std::move(x));
+        this->data.emplace_back(std::move(x));
       },
       [](unit_t&, const caf::error&) {
         // nop
@@ -264,7 +264,11 @@ struct triangle_fixture : global_fixture {
     : mercury(this, "mercury"),
       venus(this, "venus"),
       earth(this, "earth") {
-    // nop
+    base_fixture::init_socket_api();
+  }
+
+  ~triangle_fixture() {
+    base_fixture::deinit_socket_api();
   }
 
   void connect_peers() {

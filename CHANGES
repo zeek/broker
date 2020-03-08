@@ -1,4 +1,102 @@
 
+1.4.0-dev.58 | 2020-03-06 11:53:58 -0800
+
+  * Send statuses and errors via regular topics (Dominik Charousset)
+
+    With this set of changes, status and error messages no longer bypass the
+    regular topic-based distribution. There are two new reserved topics:
+    topics::statuses and topics::errors. Messages to these two topics are never
+    forwarded to peers.
+
+    When emitting status or error messages, they get converted to data, which
+    is a vector.  The new conversions between status <-> data and error <->
+    data actually accounts for the most code changes. However, this means
+    scripts can now easily access these messages as well. Subscribing to the
+    reserved topics grants easy access to statuses and errors now, allowing to
+    multiplex them with regular events.
+
+    The status_subscriber was rewritten to dispatch to a regular subscriber
+    internally.
+
+  * Implement conversion between error and data (Dominik Charousset)
+
+  * Implement can_convert_to for endpoint_info (Dominik Charousset)
+
+  * Add declarative inspection of data via contains<> (Dominik Charousset)
+
+  * Make ec convertible to and from string (Dominik Charousset)
+
+  * Add status_view type for operating on raw data (Dominik Charousset)
+
+  * Implement conversion between data and status (Dominik Charousset)
+
+  * Add from-string conversion to sc enum (Dominik Charousset)
+
+1.4.0-dev.38 | 2020-03-06 10:39:42 -0800
+
+  * Fix cross compilation build (Dominik Charousset)
+
+1.4.0-dev.35 | 2020-03-02 11:40:53 -0800
+
+  * Add missing unistd.h include (Jon Siwek, Corelight)
+
+1.4.0-dev.34 | 2020-03-02 10:56:59 -0800
+
+  * Include CAF directly as submodule (Dominik Charousset)
+
+1.4.0-dev.32 | 2020-03-02 10:30:03 -0800
+
+  * Check in CMake whether the <filesystem> code links (Dominik Charousset)
+
+  * Add instructions for MSVC builds (Dominik Charousset)
+
+  * Improve error logging in the SQLite backend (Dominik Charousset)
+
+  * Port the flare to Windows/MSVC (Dominik Charousset)
+
+    The `pipe` system call only exists on POSIX. On Windows, we need to
+    create a pair of connected sockets. Also, file descriptors and sockets
+    are different things on Windows.
+
+    Fortunately, CAF already offers a set of abstractions we can use to
+    adjust for the platform differences. We still have to make sure to use
+    recv/send on Windows instead of read/write as well as calling WSAStartup
+    and WSACleanup.
+
+  * Port recording utilities to Windows (Dominik Charousset)
+
+  * Port filesystem wrapper to Windows/MSVC (Dominik Charousset)
+
+  * Reimplement address with caf::ip_address for MSVC (Dominik Charousset)
+
+    The implementation of `broker::address` used many  UNIX-specific
+    functions as well as functions marked as deprecated/unsafe on MSVC (e.g.
+    `sprintf`). Basing the implementation on `caf::ip_address` instead of
+    rolling a custom implementation avoids dealing with most issues in the
+    first place.
+
+  * Add MSVC to the CMake build harness (Dominik Charousset)
+
+1.4.0-dev.18 | 2020-02-28 13:22:09 -0800
+
+  * Fix handling of OS-specific threading flags (Dominik Charousset)
+
+1.4.0-dev.15 | 2020-02-25 17:56:28 -0800
+
+  * Support building Broker as CMake subdirectory (Dominik Charousset)
+
+    When building Broker as a subdirectory, we disable all compiler checks
+    and flag management and leave it to the parent project to provide valid
+    settings. In order to achieve "perfect forwarding" of all settings, we
+    include CAF as subdirectory rather than bundling it as an external
+    project.
+
+1.4.0-dev.4 | 2020-02-22 11:54:14 -0800
+
+  * Fix various "maybe uninitialized" warnings (Jon Siwek, Corelight)
+
+  * Switch to using [[deprecated]] attribute (Jon Siwek, Corelight)
+
 1.4.0-dev | 2020-02-08 11:47:27 -0800
 
   * Update NEWS/VERSION for v1.4.0-dev (Jon Siwek, Corelight)

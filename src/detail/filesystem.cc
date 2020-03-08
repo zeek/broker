@@ -1,24 +1,31 @@
-#include <sys/stat.h>
-#include <ftw.h>
-#include <unistd.h>
+#include "broker/detail/filesystem.hh"
+
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
 
 #include "broker/config.hh"
+
+#ifndef BROKER_WINDOWS
+#include <unistd.h>
+#endif
+
+#ifndef BROKER_HAS_STD_FILESYSTEM
+
+#include <sys/stat.h>
+#include <ftw.h>
 
 #ifdef BROKER_BSD
 #include <sys/syslimits.h>
 #endif
 
 #include <cerrno>
-#include <fstream>
 #include <mutex>
-#include <string>
-#include <vector>
 
 #include "broker/detail/die.hh"
-#include "broker/detail/filesystem.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 bool exists(const path& p) {
   struct stat st;
@@ -134,6 +141,12 @@ bool remove_all(const path& p) {
     return ::remove(p.c_str()) == 0;
 }
 
+} // namespace broker::detail
+
+#endif // BROKER_HAS_STD_FILESYSTEM
+
+namespace broker::detail {
+
 std::vector<std::string> readlines(const path& p, bool keep_empties) {
   std::vector<std::string> result;
   std::string line;
@@ -150,5 +163,25 @@ std::string read(const path& p) {
                      std::istreambuf_iterator<char>()};
 }
 
-} // namespace detail
-} // namespace broker
+std::string make_temp_file_name() {
+#ifdef _MSC_VER
+  char file_name[L_tmpnam_s];
+  if (tmpnam_s(file_name, L_tmpnam_s)) {
+    fprintf(stderr, "Unable to create unique filename.\n");
+    exit(1);
+  }
+  return file_name;
+#else
+  char fname[] = "/tmp/broker.test.XXXXXX";
+  auto fd = mkstemp(fname);
+  if (fd == -1) {
+    fprintf(stderr, "Unable to create unique filename: %s.\n",
+            strerror(errno));
+    exit(1);
+  }
+  close(fd);
+  return fname;
+#endif
+}
+
+} // namespace broker::detail
