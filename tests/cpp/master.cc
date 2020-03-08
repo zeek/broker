@@ -166,8 +166,7 @@ CAF_TEST(master_with_clone) {
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   forward_stream_traffic();
   expect_on(mars, (atom::peer, filter_type, actor),
-            from(_).to(core2).with(
-              _, filter_type{topics::store_events, foo_master}, _));
+            from(_).to(core2).with(_, filter_type{foo_master}, _));
   // Step #2: core1  <---   (open_stream_msg)   <--- core2
   forward_stream_traffic();
   expect_on(earth, (open_stream_msg), from(_).to(core1));
@@ -197,9 +196,8 @@ CAF_TEST(master_with_clone) {
             from(ms_mars).to(core2).with(_, _, _, false));
   // the core also updates its filter on all peers ...
   network_traffic();
-  expect_on(
-    earth, (atom::update, filter_type),
-    from(_).to(core1).with(_, filter_type{topics::store_events, foo_clone}));
+  expect_on(earth, (atom::update, filter_type),
+            from(_).to(core1).with(_, filter_type{foo_clone}));
   // -- phase 8: run it all & check results ------------------------------------
   exec_all();
   CAF_MESSAGE("put 'user' -> 'neverlord'");

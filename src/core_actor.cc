@@ -153,10 +153,11 @@ void core_state::update_filter_on_peers() {
 void core_state::add_to_filter(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
   // Status and error topics are internal topics.
-  auto status_or_error = [](const topic& x) {
-    return x == topics::errors || x == topics::statuses;
+  auto internal_only = [](const topic& x) {
+    return x == topics::errors || x == topics::statuses
+           || x == topics::store_events;
   };
-  xs.erase(std::remove_if(xs.begin(), xs.end(), status_or_error), xs.end());
+  xs.erase(std::remove_if(xs.begin(), xs.end(), internal_only), xs.end());
   if (xs.empty())
     return;
   // Simply append to topics without de-duplication.
