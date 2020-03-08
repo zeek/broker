@@ -11,27 +11,27 @@ namespace broker {
 class store_event {
 public:
   enum class type : uint8_t {
-    add,
-    put,
+    insert,
+    update,
     erase,
   };
 
-  /// A view into a ::data object representing an `add` event.
-  /// Broker encodes `add` events as
-  /// `["add", key: data, value: data, expiry: optional<timespan>]`.
-  class add {
+  /// A view into a ::data object representing an `insert` event.
+  /// Broker encodes `insert` events as
+  /// `["insert", key: data, value: data, expiry: optional<timespan>]`.
+  class insert {
   public:
-    add(const add&) noexcept = default;
+    insert(const insert&) noexcept = default;
 
-    add& operator=(const add&) noexcept = default;
+    insert& operator=(const insert&) noexcept = default;
 
-    static add make(const data& src) noexcept {
+    static insert make(const data& src) noexcept {
       if (auto xs = get_if<vector>(src))
         return make(*xs);
-      return add{nullptr};
+      return insert{nullptr};
     }
 
-    static add make(const vector& xs) noexcept;
+    static insert make(const vector& xs) noexcept;
 
     explicit operator bool() const noexcept {
       return xs_ != nullptr;
@@ -52,29 +52,29 @@ public:
     }
 
   private:
-    explicit add(const vector* xs) noexcept : xs_(xs) {
+    explicit insert(const vector* xs) noexcept : xs_(xs) {
       // nop
     }
 
     const vector* xs_;
   };
 
-  /// A view into a ::data object representing a `put` event.
-  /// Broker encodes `put` events as
-  /// `["put", key: data, value: data, expiry: optional<timespan>]`.
-  class put {
+  /// A view into a ::data object representing a `update` event.
+  /// Broker encodes `update` events as
+  /// `["update", key: data, value: data, expiry: optional<timespan>]`.
+  class update {
   public:
-    put(const put&) noexcept = default;
+    update(const update&) noexcept = default;
 
-    put& operator=(const put&) noexcept = default;
+    update& operator=(const update&) noexcept = default;
 
-    static put make(const data& src) noexcept {
+    static update make(const data& src) noexcept {
       if (auto xs = get_if<vector>(src))
         return make(*xs);
-      return put{nullptr};
+      return update{nullptr};
     }
 
-    static put make(const vector& xs) noexcept;
+    static update make(const vector& xs) noexcept;
 
     explicit operator bool() const noexcept {
       return xs_ != nullptr;
@@ -95,7 +95,7 @@ public:
     }
 
   private:
-    explicit put(const vector* xs) noexcept : xs_(xs) {
+    explicit update(const vector* xs) noexcept : xs_(xs) {
       // nop
     }
 
@@ -138,11 +138,11 @@ public:
 /// @relates store_event::type
 const char* to_string(store_event::type code) noexcept;
 
-/// @relates store_event::add
-std::string to_string(const store_event::add& x);
+/// @relates store_event::insert
+std::string to_string(const store_event::insert& x);
 
-/// @relates store_event::put
-std::string to_string(const store_event::put& x);
+/// @relates store_event::update
+std::string to_string(const store_event::update& x);
 
 /// @relates store_event::erase
 std::string to_string(const store_event::erase& x);

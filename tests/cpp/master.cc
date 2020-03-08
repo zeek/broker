@@ -40,10 +40,10 @@ struct fixture : base_fixture {
       [](caf::unit_t&) {},
       // Consume.
       [this](caf::unit_t&, data_message msg) {
-        if (auto add = store_event::add::make(get_data(msg)))
-          log.emplace_back(to_string(add));
-        else if (auto put = store_event::put::make(get_data(msg)))
-          log.emplace_back(to_string(put));
+        if (auto insert = store_event::insert::make(get_data(msg)))
+          log.emplace_back(to_string(insert));
+        else if (auto update = store_event::update::make(get_data(msg)))
+          log.emplace_back(to_string(update));
         else if (auto erase = store_event::erase::make(get_data(msg)))
           log.emplace_back(to_string(erase));
       },
@@ -96,9 +96,11 @@ CAF_TEST(local_master) {
   sched.inline_next_enqueue();
   CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
   // check log
-  CHECK_EQUAL(log,
-              string_list({"add(hello, world, none)",
-                           "put(hello, universe, none)", "erase(hello)"}));
+  CHECK_EQUAL(log, string_list({
+                     "insert(hello, world, none)",
+                     "update(hello, universe, none)",
+                       "erase(hello)",
+                   }));
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
 }
@@ -219,8 +221,10 @@ CAF_TEST(master_with_clone) {
   exec_all();
   // check log
   CHECK_EQUAL(mars.log, earth.log);
-  CHECK_EQUAL(mars.log, string_list({"add(test, 123, none)",
-                                       "add(user, neverlord, none)"}));
+  CHECK_EQUAL(mars.log, string_list({
+                          "insert(test, 123, none)",
+                          "insert(user, neverlord, none)",
+                        }));
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

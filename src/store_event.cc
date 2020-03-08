@@ -5,24 +5,24 @@ namespace broker {
 namespace {
 
 constexpr const char* type_strings[] = {
-  "add",
-  "put",
+  "insert",
+  "update",
   "erase",
 };
 
 } // namespace
 
-store_event::add store_event::add::make(const vector& xs) noexcept {
-  return add{xs.size() == 4
-               && to<store_event::type>(xs[0]) == store_event::type::add
+store_event::insert store_event::insert::make(const vector& xs) noexcept {
+  return insert{xs.size() == 4
+               && to<store_event::type>(xs[0]) == store_event::type::insert
                && (is<none>(xs[3]) || is<timespan>(xs[3]))
              ? &xs
              : nullptr};
 }
 
-store_event::put store_event::put::make(const vector& xs) noexcept {
-  return put{xs.size() == 4
-               && to<store_event::type>(xs[0]) == store_event::type::put
+store_event::update store_event::update::make(const vector& xs) noexcept {
+  return update{xs.size() == 4
+               && to<store_event::type>(xs[0]) == store_event::type::update
                && (is<none>(xs[3]) || is<timespan>(xs[3]))
              ? &xs
              : nullptr};
@@ -39,8 +39,8 @@ const char* to_string(store_event::type code) noexcept {
   return type_strings[static_cast<uint8_t>(code)];
 }
 
-std::string to_string(const store_event::add& x) {
-  std::string result = "add(";
+std::string to_string(const store_event::insert& x) {
+  std::string result = "insert(";
   result += to_string(x.key());
   result += ", ";
   result += to_string(x.value());
@@ -50,8 +50,8 @@ std::string to_string(const store_event::add& x) {
   return result;
 }
 
-std::string to_string(const store_event::put& x) {
-  std::string result = "put(";
+std::string to_string(const store_event::update& x) {
+  std::string result = "update(";
   result += to_string(x.key());
   result += ", ";
   result += to_string(x.value());

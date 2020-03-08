@@ -17,7 +17,7 @@ void store_actor_state::emit_add_event(const data& key, const data& value,
                                        const caf::optional<timespan>& expiry) {
   vector xs;
   xs.reserve(4);
-  xs.emplace_back("add");
+  xs.emplace_back("insert");
   xs.emplace_back(key);
   xs.emplace_back(value);
   if (expiry)
@@ -32,7 +32,7 @@ void store_actor_state::emit_put_event(const data& key, const data& value,
                                        const caf::optional<timespan>& expiry) {
   vector xs;
   xs.reserve(4);
-  xs.emplace_back("put");
+  xs.emplace_back("update");
   xs.emplace_back(key);
   xs.emplace_back(value);
   if (expiry)
