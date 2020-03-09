@@ -1,7 +1,7 @@
 #ifndef BROKER_DETAIL_FLARE_ACTOR_HH
 #define BROKER_DETAIL_FLARE_ACTOR_HH
 
-#include <atomic>
+#include <mutex>
 #include <chrono>
 #include <limits>
 
@@ -53,7 +53,8 @@ public:
 
 private:
   flare flare_;
-  std::atomic<int> flare_count_;
+  int flare_count_;
+  std::mutex flare_mtx_;
 };
 
 } // namespace detail
