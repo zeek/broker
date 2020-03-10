@@ -306,7 +306,7 @@ TEST(clear/keys) {
 
 TEST(expiration with expiry) {
   using namespace std::chrono;
-  auto put = backend->put("foo", "bar", broker::now() + milliseconds(50));
+  auto put = backend->put("foo", "bar", broker::now() + milliseconds(1000));
   REQUIRE(put);
   std::this_thread::sleep_for(milliseconds(10));
   auto expire = backend->expire("foo", broker::now());
@@ -315,7 +315,7 @@ TEST(expiration with expiry) {
   auto exists = backend->exists("foo");
   REQUIRE(exists);
   CHECK(*exists);
-  std::this_thread::sleep_for(milliseconds(40));
+  std::this_thread::sleep_for(milliseconds(2000));
   expire = backend->expire("foo", broker::now());
   REQUIRE(expire);
   CHECK(*expire); // success: time of call > expiry

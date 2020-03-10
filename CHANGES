@@ -1,4 +1,15 @@
 
+1.4.0-dev.62 | 2020-03-09 19:21:47 -0700
+
+  * Add Cirrus CI config and remove Travis CI config (Jon Siwek, Corelight)
+
+    The CMake configuration also now prefers choosing a Python3 installation
+    over Python2 (since that's end-of-life) for building the Broker Python
+    bindings.
+
+    Some timeout values in unit tests were also fiddled to work better in
+    the CI environment.
+
 1.4.0-dev.60 | 2020-03-09 12:54:05 -0700
 
   * Fix a race condition in data store flare operations (Jon Siwek, Corelight)
