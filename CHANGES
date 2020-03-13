@@ -1,4 +1,8 @@
 
+1.4.0-dev.63 | 2020-03-13 13:38:40 -0700
+
+  * Add branch whitelist for CI notifications (Jon Siwek, Corelight)
+
 1.4.0-dev.62 | 2020-03-09 19:21:47 -0700
 
   * Add Cirrus CI config and remove Travis CI config (Jon Siwek, Corelight)
