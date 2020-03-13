@@ -127,8 +127,7 @@ if (MSVC)
     message(FATAL_ERROR "No std::filesystem support! Required on MSVC.")
   endif ()
 
-  # SSE2 is a default flag on MSVC.
-  set(BROKER_USE_SSE2 ON)
+  set(BROKER_USE_SSE2 OFF)
 
 elseif (NOT BROKER_DISABLE_SSE2_CHECK)
 
@@ -217,7 +216,7 @@ else ()
   elseif (ENABLE_STATIC_ONLY)
     set(CAF_BUILD_STATIC_ONLY ON)
   endif ()
-  add_subdirectory(aux/caf)
+  add_subdirectory(caf)
 endif ()
 
 set(CAF_VERSION_REQUIRED 0.15.5)

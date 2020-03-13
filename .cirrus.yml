@@ -8,20 +8,23 @@ resources_template: &RESOURCES_TEMPLATE
   cpu: *CPUS
   memory: *MEMORY
 
-ci_template: &CI_TEMPLATE
+branch_whitelist: &BRANCH_WHITELIST
   only_if: >
     $CIRRUS_PR != '' ||
     $CIRRUS_BRANCH == 'master' ||
     $CIRRUS_BRANCH =~ 'release/.*'
 
+ci_template: &CI_TEMPLATE
+  << : *BRANCH_WHITELIST
   sync_submodules_script: git submodule update --recursive --init
   build_script: ./ci/build.sh
   test_script: ./ci/test.sh
 
-env:
-  CIRRUS_WORKING_DIR: /broker
-  BROKER_CI_CPUS: *CPUS
-  BROKER_CI_CONFIGURE_FLAGS: *CONFIG
+unix_env: &UNIX_ENV
+  env:
+    CIRRUS_WORKING_DIR: /broker
+    BROKER_CI_CPUS: *CPUS
+    BROKER_CI_CONFIGURE_FLAGS: *CONFIG
 
 # Linux EOL timelines: https://linuxlifecycle.com/
 # Fedora (~13 months): https://fedoraproject.org/wiki/Fedora_Release_Life_Cycle
@@ -32,6 +35,7 @@ fedora30_task:
     dockerfile: ci/fedora-30/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 centos7_task:
   container:
@@ -39,6 +43,7 @@ centos7_task:
     dockerfile: ci/centos-7/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 debian9_task:
   container:
@@ -46,6 +51,7 @@ debian9_task:
     dockerfile: ci/debian-9/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 debian9_32bit_task:
   container:
@@ -53,6 +59,7 @@ debian9_32bit_task:
     dockerfile: ci/debian-9-32bit/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 ubuntu18_task:
   container:
@@ -60,6 +67,7 @@ ubuntu18_task:
     dockerfile: ci/ubuntu-18.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 ubuntu16_task:
   container:
@@ -67,6 +75,7 @@ ubuntu16_task:
     dockerfile: ci/ubuntu-16.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 # Apple doesn't publish official long-term support timelines, so easiest
 # option is to only support the latest macOS release or whatever latest
@@ -79,6 +88,7 @@ macos_task:
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   env:
+    BROKER_CI_CONFIGURE_FLAGS: *CONFIG
     BROKER_CI_CPUS: 4
     # No permission to write to default location of /broker
     CIRRUS_WORKING_DIR: /tmp/broker
@@ -93,6 +103,7 @@ freebsd_task:
     memory: 8GB
   prepare_script: ./ci/freebsd/prepare.sh
   << : *CI_TEMPLATE
+  << : *UNIX_ENV
 
 memcheck_task:
   container:
@@ -103,5 +114,21 @@ memcheck_task:
     memory: 8GB
   << : *CI_TEMPLATE
   env:
+    CIRRUS_WORKING_DIR: /broker
+    BROKER_CI_CPUS: *CPUS
     BROKER_CI_CONFIGURE_FLAGS: *MEMCHECK_CONFIG
     BROKER_CI_MEMCHECK: true
+
+windows_task:
+  << : *BRANCH_WHITELIST
+  windows_container:
+    image: cirrusci/windowsservercore:cmake
+    cpu: 8
+    # Not allowed to request less than 8GB for an 8 CPU Windows VM.
+    memory: 8GB
+  sync_submodules_script: git submodule update --recursive --init
+  prepare_script: ci/windows/prepare.cmd
+  build_script: ci/windows/build.cmd
+  test_script: ci/windows/test.cmd
+  env:
+    BROKER_CI_CPUS: 8
