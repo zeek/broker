@@ -104,7 +104,7 @@ void master_state::operator()(put_command& x) {
 
 void master_state::operator()(put_unique_command& x) {
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
-  if (!exists(x.key)) {
+  if (exists(x.key)) {
     // Note that we don't bother broadcasting this operation to clones since
     // no change took place.
     self->send(x.who, caf::make_message(data{false}, x.req_id));
