@@ -1,4 +1,11 @@
 
+1.4.0-dev.65 | 2020-03-13 22:21:28 -0700
+
+  * Add Windows task to Cirrus CI config (Jon Siwek, Corelight)
+
+    This also moves the CAF submodule from aux/caf/ to caf/ since
+    Windows does not allow naming a directory "aux".
+
 1.4.0-dev.63 | 2020-03-13 13:38:40 -0700
 
   * Add branch whitelist for CI notifications (Jon Siwek, Corelight)
