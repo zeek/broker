@@ -84,12 +84,16 @@ public:
       return (*xs_)[1];
     }
 
-    const data& value() const noexcept {
+    const data& old_value() const noexcept {
       return (*xs_)[2];
     }
 
+    const data& new_value() const noexcept {
+      return (*xs_)[3];
+    }
+
     caf::optional<timespan> expiry() const noexcept {
-      if (auto value = get_if<timespan>((*xs_)[3]))
+      if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
       return nil;
     }

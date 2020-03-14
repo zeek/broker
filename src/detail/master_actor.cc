@@ -87,7 +87,7 @@ void master_state::operator()(none) {
 void master_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << (x.expiry ? to_string(*x.expiry) : "none"));
   auto et = to_opt_timestamp(clock->now(), x.expiry);
-  auto added = !exists(x.key);
+  auto old_value = backend->get(x.key);
   auto result = backend->put(x.key, x.value, et);
   if (!result) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
@@ -95,10 +95,10 @@ void master_state::operator()(put_command& x) {
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
-  if (added)
-    emit_insert_event(x);
+  if (old_value)
+    emit_update_event(x, *old_value);
   else
-    emit_update_event(x);
+    emit_insert_event(x);
   broadcast_cmd_to_clones(std::move(x));
 }
 
@@ -137,7 +137,7 @@ void master_state::operator()(erase_command& x) {
 
 void master_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x);
-  auto added = !exists(x.key);
+  auto old_value = backend->get(x.key);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->add(x.key, x.value, x.init_type, et); !res) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key << "->"
@@ -149,10 +149,10 @@ void master_state::operator()(add_command& x) {
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    if (added)
-      emit_insert_event(x.key, *val, x.expiry);
+    if (old_value)
+      emit_update_event(x.key, *old_value, *val, x.expiry);
     else
-      emit_update_event(x.key, *val, x.expiry);
+      emit_insert_event(x.key, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
@@ -162,6 +162,12 @@ void master_state::operator()(add_command& x) {
 void master_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
+  auto old_value = backend->get(x.key);
+  if(!old_value){
+    // Unlike `add`, `subtract` fails if the key didn't exist previously.
+    BROKER_WARNING("cannot substract from non-existing value for key" << x.key);
+    return; // TODO: propagate failure? to all clones? as status msg?
+  }
   if (auto res = backend->subtract(x.key, x.value, et); !res) {
     BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
@@ -173,7 +179,7 @@ void master_state::operator()(subtract_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
-    emit_update_event(x.key, *val, x.expiry);
+    emit_update_event(x.key, *old_value, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);

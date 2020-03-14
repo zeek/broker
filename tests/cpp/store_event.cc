@@ -56,22 +56,24 @@ TEST(insert events consist of key value and expiry) {
 }
 
 TEST(update events consist of key value and expiry) {
-  MESSAGE("a timespan as fourth element denotes the expiry");
+  MESSAGE("a timespan as fifth element denotes the expiry");
   {
-    data x{vector{"update"s, "foo"s, "bar"s, timespan{500}}};
+    data x{vector{"update"s, "foo"s, "bar"s, "baz"s, timespan{500}}};
     auto view = store_event::update::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.key(), "foo"s);
-    CHECK_EQUAL(view.value(), "bar"s);
+    CHECK_EQUAL(view.old_value(), "bar"s);
+    CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), timespan{500});
   }
-  MESSAGE("nil as fourth element is interpreted as no expiry");
+  MESSAGE("nil as fifth element is interpreted as no expiry");
   {
-    data x{vector{"update"s, "foo"s, "bar"s, nil}};
+    data x{vector{"update"s, "foo"s, "bar"s, "baz"s, nil}};
     auto view = store_event::update::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.key(), "foo"s);
-    CHECK_EQUAL(view.value(), "bar"s);
+    CHECK_EQUAL(view.old_value(), "bar"s);
+    CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), nil);
   }
   MESSAGE("make returns an invalid view for malformed data");

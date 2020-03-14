@@ -21,9 +21,9 @@ store_event::insert store_event::insert::make(const vector& xs) noexcept {
 }
 
 store_event::update store_event::update::make(const vector& xs) noexcept {
-  return update{xs.size() == 4
+  return update{xs.size() == 5
                && to<store_event::type>(xs[0]) == store_event::type::update
-               && (is<none>(xs[3]) || is<timespan>(xs[3]))
+               && (is<none>(xs[4]) || is<timespan>(xs[4]))
              ? &xs
              : nullptr};
 }
@@ -54,7 +54,9 @@ std::string to_string(const store_event::update& x) {
   std::string result = "update(";
   result += to_string(x.key());
   result += ", ";
-  result += to_string(x.value());
+  result += to_string(x.old_value());
+  result += ", ";
+  result += to_string(x.new_value());
   result += ", ";
   result += to_string(x.expiry());
   result += ')';

@@ -58,7 +58,8 @@ void clone_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
   auto i = store.find(x.key);
   if (i != store.end()) {
-    emit_update_event(x);
+    auto old_value = std::move(i->second);
+    emit_update_event(x, old_value);
     i->second = std::move(x.value);
   } else {
     emit_insert_event(x);
@@ -84,28 +85,33 @@ void clone_state::operator()(erase_command& x) {
 void clone_state::operator()(add_command& x) {
   BROKER_INFO("ADD" << x.key << "->" << x.value);
   auto i = store.find(x.key);
+  data old_value;
   bool added = i == store.end();
   if (added)
     i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
+  else
+    old_value = i->second;
   if (auto res = caf::visit(adder{x.value}, i->second); !res) {
     BROKER_WARNING("failed to add" << x.value << "to" << x.key);
     return;
   }
-  if (added)
+  if (added) {
     emit_insert_event(i->first, i->second, x.expiry);
-  else
-    emit_update_event(i->first, i->second, x.expiry);
+  } else {
+    emit_update_event(i->first, old_value, i->second, x.expiry);
+  }
 }
 
 void clone_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
   auto i = store.find(x.key);
   if (i != store.end()) {
+    auto old_value = i->second;
     if (auto res = caf::visit(remover{x.value}, i->second); !res) {
       BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
       return;
     }
-    emit_update_event(i->first, i->second, x.expiry);
+    emit_update_event(i->first, old_value, i->second, x.expiry);
   } else {
     // can happen if we joined a stream but did not yet receive set_command
     BROKER_WARNING("received substract_command for unknown key");
@@ -139,7 +145,7 @@ void clone_state::operator()(set_command& x) {
   for (auto i = keys.begin(); i != p; ++i)
     emit_erase_event(**i);
   for (auto i = p; i != keys.end(); ++i)
-    emit_update_event(**i, x.state[**i], nil);
+    emit_update_event(**i, store[**i], x.state[**i], nil);
   // Emit add events.
   auto is_new = [&keys](const data& key) {
     for (const auto key_ptr : keys)

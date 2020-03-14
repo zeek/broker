@@ -28,13 +28,16 @@ void store_actor_state::emit_insert_event(const data& key, const data& value,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }
 
-void store_actor_state::emit_update_event(const data& key, const data& value,
+void store_actor_state::emit_update_event(const data& key,
+                                          const data& old_value,
+                                          const data& new_value,
                                           const optional<timespan>& expiry) {
   vector xs;
   xs.reserve(4);
   xs.emplace_back("update");
   xs.emplace_back(key);
-  xs.emplace_back(value);
+  xs.emplace_back(old_value);
+  xs.emplace_back(new_value);
   if (expiry)
     xs.emplace_back(*expiry);
   else

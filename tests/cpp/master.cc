@@ -98,8 +98,8 @@ CAF_TEST(local_master) {
   // check log
   CHECK_EQUAL(log, string_list({
                      "insert(hello, world, none)",
-                     "update(hello, universe, none)",
-                       "erase(hello)",
+                     "update(hello, world, universe, none)",
+                     "erase(hello)",
                    }));
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
