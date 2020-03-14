@@ -27,15 +27,19 @@ void flare_actor::act() {
 
 void flare_actor::await_data() {
   BROKER_DEBUG("awaiting data");
+  std::unique_lock<std::mutex> lock{flare_mtx_};
   if (flare_count_ > 0 )
     return;
+  lock.unlock();
   flare_.await_one();
 }
 
 bool flare_actor::await_data(timeout_type timeout) {
   BROKER_DEBUG("awaiting data with timeout");
+  std::unique_lock<std::mutex> lock{flare_mtx_};
   if (flare_count_ > 0)
     return true;
+  lock.unlock();
   auto res = flare_.await_one(timeout);
   return res;
 }
@@ -43,6 +47,7 @@ bool flare_actor::await_data(timeout_type timeout) {
 void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
+  std::unique_lock<std::mutex> lock{flare_mtx_};
   switch (mailbox().enqueue(ptr.release())) {
     case caf::detail::enqueue_result::unblocked_reader: {
       BROKER_DEBUG("firing flare");
@@ -65,6 +70,7 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
 }
 
 caf::mailbox_element_ptr flare_actor::dequeue() {
+  std::unique_lock<std::mutex> lock{flare_mtx_};
   auto rval = blocking_actor::dequeue();
 
   if (rval)
@@ -78,6 +84,7 @@ const char* flare_actor::name() const {
 }
 
 void flare_actor::extinguish_one() {
+  std::unique_lock<std::mutex> lock{flare_mtx_};
   auto extinguished = flare_.extinguish_one();
   CAF_ASSERT(extinguished);
   --flare_count_;

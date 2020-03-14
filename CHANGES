@@ -1,4 +1,48 @@
 
+1.4.0-dev.65 | 2020-03-13 22:21:28 -0700
+
+  * Add Windows task to Cirrus CI config (Jon Siwek, Corelight)
+
+    This also moves the CAF submodule from aux/caf/ to caf/ since
+    Windows does not allow naming a directory "aux".
+
+1.4.0-dev.63 | 2020-03-13 13:38:40 -0700
+
+  * Add branch whitelist for CI notifications (Jon Siwek, Corelight)
+
+1.4.0-dev.62 | 2020-03-09 19:21:47 -0700
+
+  * Add Cirrus CI config and remove Travis CI config (Jon Siwek, Corelight)
+
+    The CMake configuration also now prefers choosing a Python3 installation
+    over Python2 (since that's end-of-life) for building the Broker Python
+    bindings.
+
+    Some timeout values in unit tests were also fiddled to work better in
+    the CI environment.
+
+1.4.0-dev.60 | 2020-03-09 12:54:05 -0700
+
+  * Fix a race condition in data store flare operations (Jon Siwek, Corelight)
+
+    The race (as seen via Zeek usage) goes like:
+
+    Thread A: enqueue item, get suspended
+    Thread B: sees mailbox has items
+    Thread B: dequeue item
+    Thread B: extinguish flare
+    Thread A: resume, fire flare
+
+    That ordering can leave the flare in an active state without any actual
+    items remaining in the mailbox.
+
+    This patch adds a mutex/lock such that extinguishing of the flare cannot
+    be interleaved between the enqueue and firing of the flare.
+
+    This likely relates to https://github.com/zeek/zeek/issues/838,
+    https://github.com/zeek/zeek/issues/716, as well as this thread
+    http://mailman.icsi.berkeley.edu/pipermail/zeek/2020-February/015062.html
+
 1.4.0-dev.58 | 2020-03-06 11:53:58 -0800
 
   * Send statuses and errors via regular topics (Dominik Charousset)
