@@ -96,9 +96,9 @@ void master_state::operator()(put_command& x) {
   if (x.expiry)
     remind(*x.expiry, x.key);
   if (added)
-    emit_add_event(x);
+    emit_insert_event(x);
   else
-    emit_put_event(x);
+    emit_update_event(x);
   broadcast_cmd_to_clones(std::move(x));
 }
 
@@ -117,7 +117,7 @@ void master_state::operator()(put_unique_command& x) {
     return;
   }
   self->send(x.who, caf::make_message(data{true}, x.req_id));
-  emit_add_event(x);
+  emit_insert_event(x);
   if (x.expiry)
     remind(*x.expiry, x.key);
   // Note that we could just broadcast a regular "put" command here instead
@@ -150,9 +150,9 @@ void master_state::operator()(add_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     if (added)
-      emit_add_event(x.key, *val, x.expiry);
+      emit_insert_event(x.key, *val, x.expiry);
     else
-      emit_put_event(x.key, *val, x.expiry);
+      emit_update_event(x.key, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
@@ -173,7 +173,7 @@ void master_state::operator()(subtract_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
-    emit_put_event(x.key, *val, x.expiry);
+    emit_update_event(x.key, *val, x.expiry);
   }
   if (x.expiry)
     remind(*x.expiry, x.key);

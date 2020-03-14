@@ -58,10 +58,10 @@ void clone_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
   auto i = store.find(x.key);
   if (i != store.end()) {
-    emit_put_event(x);
+    emit_update_event(x);
     i->second = std::move(x.value);
   } else {
-    emit_add_event(x);
+    emit_insert_event(x);
     store.emplace(std::move(x.key), std::move(x.value));
   }
 }
@@ -70,7 +70,7 @@ void clone_state::operator()(put_unique_command& x) {
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << x.expiry);
   auto i = store.find(x.key);
   if (i == store.end()) {
-    emit_add_event(x);
+    emit_insert_event(x);
     store.emplace(std::move(x.key), std::move(x.value));
   }
 }
@@ -92,9 +92,9 @@ void clone_state::operator()(add_command& x) {
     return;
   }
   if (added)
-    emit_add_event(i->first, i->second, x.expiry);
+    emit_insert_event(i->first, i->second, x.expiry);
   else
-    emit_put_event(i->first, i->second, x.expiry);
+    emit_update_event(i->first, i->second, x.expiry);
 }
 
 void clone_state::operator()(subtract_command& x) {
@@ -105,7 +105,7 @@ void clone_state::operator()(subtract_command& x) {
       BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
       return;
     }
-    emit_put_event(i->first, i->second, x.expiry);
+    emit_update_event(i->first, i->second, x.expiry);
   } else {
     // can happen if we joined a stream but did not yet receive set_command
     BROKER_WARNING("received substract_command for unknown key");
@@ -139,7 +139,7 @@ void clone_state::operator()(set_command& x) {
   for (auto i = keys.begin(); i != p; ++i)
     emit_erase_event(**i);
   for (auto i = p; i != keys.end(); ++i)
-    emit_put_event(**i, x.state[**i], nil);
+    emit_update_event(**i, x.state[**i], nil);
   // Emit add events.
   auto is_new = [&keys](const data& key) {
     for (const auto key_ptr : keys)
@@ -149,7 +149,7 @@ void clone_state::operator()(set_command& x) {
   };
   for (const auto& [key, value] : x.state)
     if (is_new(key))
-      emit_add_event(key, value, nil);
+      emit_insert_event(key, value, nil);
   // Override state.
   store = std::move(x.state);
 }

@@ -6,6 +6,7 @@
 #include <caf/event_based_actor.hpp>
 
 #include "broker/endpoint.hh"
+#include "broker/optional.hh"
 
 namespace broker::detail {
 
@@ -20,26 +21,26 @@ public:
   void init(caf::event_based_actor* self, endpoint::clock* clock,
             std::string&& id, caf::actor&& core);
 
-  /// Emits an `add` event to topics::store_events subscribers.
-  void emit_add_event(const data& key, const data& value,
-                      const caf::optional<timespan>& expiry);
+  /// Emits an `insert` event to topics::store_events subscribers.
+  void emit_insert_event(const data& key, const data& value,
+                         const optional<timespan>& expiry);
 
   /// Convenience function for calling
-  /// `emit_add_event(msg.key, msg.value, msg.expiry)`.
+  /// `emit_insert_event(msg.key, msg.value, msg.expiry)`.
   template <class Message>
-  void emit_add_event(const Message& msg) {
-    emit_add_event(msg.key, msg.value, msg.expiry);
+  void emit_insert_event(const Message& msg) {
+    emit_insert_event(msg.key, msg.value, msg.expiry);
   }
 
-  /// Emits a `put` event to topics::store_events subscribers.
-  void emit_put_event(const data& key, const data& value,
-                      const caf::optional<timespan>& expiry);
+  /// Emits a `update` event to topics::store_events subscribers.
+  void emit_update_event(const data& key, const data& value,
+                         const optional<timespan>& expiry);
 
   /// Convenience function for calling
-  /// `emit_put_event(msg.key, msg.value, msg.expiry)`.
+  /// `emit_update_event(msg.key, msg.value, msg.expiry)`.
   template <class Message>
-  void emit_put_event(const Message& msg) {
-    emit_put_event(msg.key, msg.value, msg.expiry);
+  void emit_update_event(const Message& msg) {
+    emit_update_event(msg.key, msg.value, msg.expiry);
   }
 
   /// Emits an `erase` event to topics::store_events subscribers.

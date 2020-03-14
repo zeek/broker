@@ -13,8 +13,8 @@ void store_actor_state::init(caf::event_based_actor* self,
   this->core = std::move(core);
 }
 
-void store_actor_state::emit_add_event(const data& key, const data& value,
-                                       const caf::optional<timespan>& expiry) {
+void store_actor_state::emit_insert_event(const data& key, const data& value,
+                                          const optional<timespan>& expiry) {
   vector xs;
   xs.reserve(4);
   xs.emplace_back("insert");
@@ -28,8 +28,8 @@ void store_actor_state::emit_add_event(const data& key, const data& value,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }
 
-void store_actor_state::emit_put_event(const data& key, const data& value,
-                                       const caf::optional<timespan>& expiry) {
+void store_actor_state::emit_update_event(const data& key, const data& value,
+                                          const optional<timespan>& expiry) {
   vector xs;
   xs.reserve(4);
   xs.emplace_back("update");
