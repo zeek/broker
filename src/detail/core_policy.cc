@@ -393,12 +393,8 @@ bool core_policy::remove_peer(const actor& hdl, error reason, bool silent,
 
 /// Updates the filter of an existing peer.
 bool core_policy::update_peer(const actor& hdl, filter_type filter) {
-<<<<<<< HEAD
-  CAF_LOG_TRACE(CAF_ARG(hdl) << CAF_ARG(filter));
-  CAF_LOG_DEBUG("Update Peer " << hdl << " with filter " << filter);
-=======
   BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(filter));
->>>>>>> master
+  BROKER_DEBUG("Update Peer " << hdl << " with filter " << filter);
   auto e = peer_to_opath_.end();
   auto i = peer_to_opath_.find(hdl);
   if (i == e) {
