@@ -89,8 +89,8 @@ if (NOT broker_is_subproject)
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
     # Increase maximum number of instantiations.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
-    # Reduce the number of template instantiations shown in backtrace.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
+    # Make sure to get the full context on template errors.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=0")
   endif ()
 
   # Append our extra flags to the existing value of CXXFLAGS.
