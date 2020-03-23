@@ -1,4 +1,8 @@
 
+1.4.0-dev.67 | 2020-03-23 10:22:10 -0700
+
+  * Increase template backtrace limit (Dominik Charousset)
+
 1.4.0-dev.65 | 2020-03-13 22:21:28 -0700
 
   * Add Windows task to Cirrus CI config (Jon Siwek, Corelight)
