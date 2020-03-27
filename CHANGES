@@ -1,4 +1,10 @@
 
+1.4.0-dev.73 | 2020-03-27 11:11:51 -0700
+
+  * Add missing binding for broker_options member (Dominik Charousset)
+
+  * Update CAF submodule to fix MSVC/Windows build (Dominik Charousset)
+
 1.4.0-dev.69 | 2020-03-26 12:00:05 -0700
 
   * Update CAF submodule to fix GCC 7.2 build (Dominik Charousset)
