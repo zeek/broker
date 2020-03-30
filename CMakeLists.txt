@@ -230,12 +230,14 @@ include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 # RocksDB
-find_package(RocksDB)
-if (ROCKSDB_FOUND)
-  set(BROKER_HAVE_ROCKSDB true)
-  include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
-  set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-  set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
+if (BROKER_ENABLE_ROCKSDB)
+  find_package(RocksDB)
+  if (ROCKSDB_FOUND)
+    set(BROKER_HAVE_ROCKSDB true)
+    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
+    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
+    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
+  endif ()
 endif ()
 
 # -- libroker -----------------------------------------------------------------

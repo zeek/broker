@@ -1,4 +1,9 @@
 
+1.4.0-dev.75 | 2020-03-30 13:21:09 -0700
+
+  * Make RocksDB usage opt-in and add --enable-rocksdb configure flag
+    (Jon Siwek, Corelight)
+
 1.4.0-dev.73 | 2020-03-27 11:11:51 -0700
 
   * Add missing binding for broker_options member (Dominik Charousset)
