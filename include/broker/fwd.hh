@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 // We actually should simply include `caf/fwd.hpp` here instead. However,
 // cow_tuple is missing from that header as of CAF 0.17.
@@ -48,11 +49,14 @@ using command_message = caf::cow_tuple<topic, internal_command>;
 /// A monotonic identifier to represent a specific lookup request.
 using request_id = uint64_t;
 
-// Arithmetic data types
+// Arithmetic data types.
 using boolean = bool;
 using count = uint64_t;
 using integer = int64_t;
 using real = double;
+
+// Other data types.
+using vector = std::vector<data>;
 
 namespace zeek {
 

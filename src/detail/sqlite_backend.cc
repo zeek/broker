@@ -35,13 +35,16 @@ auto make_statement_guard = [](sqlite3_stmt* stmt) {
 struct sqlite_backend::impl {
   impl(backend_options opts) : options{std::move(opts)} {
     auto i = options.find("path");
-    if (i == options.end())
+    if (i == options.end()) {
+      BROKER_ERROR("no path found in backend options");
       return;
-    auto path = caf::get_if<std::string>(&i->second);
-    if (!path)
-      return;
-    if (!open(*path))
-      db = nullptr;
+    }
+    if (auto path = caf::get_if<std::string>(&i->second)) {
+      if (!open(*path))
+        BROKER_ERROR("unable to open SQLite Database " << *path);
+    } else {
+      BROKER_ERROR("no path found in backend options");
+    }
   }
 
   ~impl() {
@@ -55,11 +58,12 @@ struct sqlite_backend::impl {
   }
 
   bool open(const std::string& path) {
-    auto dir = detail::dirname(path);
+    BROKER_TRACE(BROKER_ARG(path));
 
+    auto dir = detail::dirname(path);
     if ( ! dir.empty() ) {
-      if ( ! detail::mkdirs(dir) ) {
-        BROKER_ERROR("failed to create database dir:" << path);
+      if ( ! detail::is_directory(dir) && ! detail::mkdirs(dir) ) {
+        BROKER_ERROR("failed to create database dir:" << dir);
         return false;
       }
     }

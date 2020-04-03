@@ -4,8 +4,7 @@
 
 #include "test.hh"
 
-#include <unistd.h>
-
+#include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
 
 using namespace broker;
@@ -16,20 +15,11 @@ namespace {
 
 struct fixture {
   fixture() {
-    // Write something to read.
-    char fname[] = "/tmp/broker.test.XXXXXX";
-    auto fd = mkstemp(fname);
-    if (fd == -1)
-      ERROR("unable to generate a temporary file name");
-    else {
-      close(fd);
-      file_name = fname;
-    }
+    file_name = detail::make_temp_file_name();
   }
 
   ~fixture() {
-    if (!file_name.empty())
-      unlink(file_name.c_str());
+    detail::remove(file_name);
   }
 
   std::string file_name;

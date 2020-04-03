@@ -42,6 +42,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <memory>
 #include <initializer_list>
 
+#include "broker/config.hh"
+
 #ifdef BROKER_USE_SSE2
 #include <emmintrin.h>
 #endif

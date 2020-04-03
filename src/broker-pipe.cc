@@ -2,7 +2,6 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
-#include <sys/select.h>
 #include <utility>
 #include <algorithm>
 #include <chrono>
@@ -39,6 +38,10 @@
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
+
+#ifndef _MSC_VER
+#include <sys/select.h>
+#endif // _MSC_VER
 
 using broker::data;
 using broker::data_message;
@@ -109,6 +112,14 @@ void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
+#ifdef _MSC_VER
+
+void publish_mode_select(broker::endpoint&, const std::string&, size_t) {
+  std::cerr << "*** select mode not available in MSVC version of Broker\n";
+}
+
+#else // _MSC_VER
+
 void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
                          size_t cap) {
   auto out = ep.make_publisher(topic_str);
@@ -134,6 +145,8 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
     msg_count += num;
   }
 }
+
+#endif // _MSC_VER
 
 void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                          size_t cap) {
@@ -176,6 +189,14 @@ void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
+#ifdef _MSC_VER
+
+void subscribe_mode_select(broker::endpoint&, const std::string&, size_t ) {
+  std::cerr << "*** select mode not available in MSVC version of Broker\n";
+}
+
+#else // _MSC_VER
+
 void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
   auto in = ep.make_subscriber({topic_str});
@@ -199,6 +220,8 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
     msg_count += num;
   }
 }
+
+#endif // _MSC_VER
 
 void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {

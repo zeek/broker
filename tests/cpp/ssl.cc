@@ -3,6 +3,7 @@
 
 #include "test.hh"
 
+#include <ciso646>
 #include <cstdlib>
 #include <string>
 #include <utility>

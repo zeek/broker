@@ -11,7 +11,7 @@ mailbox make_mailbox(detail::flare_actor* actor) {
 
 } // namespace detail
 
-int mailbox::descriptor() {
+caf::io::network::native_socket mailbox::descriptor() {
   return actor_->descriptor();
 }
 

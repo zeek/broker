@@ -3,6 +3,7 @@
 #include <chrono>
 #include <ostream>
 #include <string>
+#include <type_traits>
 
 #include "broker/optional.hh"
 
@@ -10,9 +11,19 @@
 
 namespace broker {
 
+/// Customization point for extending `can_convert`.
+template <class T>
+struct can_convert_predicate;
+
+template <class T, class U>
+auto can_convert_to(const U& x)
+-> decltype(can_convert_predicate<T>::check(x)) {
+  return can_convert_predicate<T>::check(x);
+}
+
 template <class T>
 auto convert(T x, std::string& str)
--> detail::enable_if_t<std::is_arithmetic<T>::value, bool> {
+-> std::enable_if_t<std::is_arithmetic<T>::value, bool> {
   str = std::to_string(x);
   return true;
 }
@@ -54,15 +65,27 @@ bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
   return convert_duration(d.count(), "hrs", str);
 }
 
-// Injects a `to<T>` overload for any type convertible to type `T` via a free
-// function `bool convert(const From&, T&)` that can be found via ADL.
+/// Attempts to convert `From` to `To`.
+/// @returns a value of type `To` on success, otherwise `nil`.
 template <class To, class From>
-auto to(From&& from)
--> detail::enable_if_t<detail::can_convert<From, To>::value, optional<To>> {
+auto to(const From& from)
+-> std::enable_if_t<detail::has_convert<From, To>::value, optional<To>> {
   To to;
   if (convert(from, to))
     return {std::move(to)};
   return {};
+}
+
+/// Forces a conversion from `From` to `To`.
+/// @returns a value of type `To`.
+/// @throws logic_error if the conversion fails.
+template <class To, class From>
+auto get_as(const From& from)
+-> std::enable_if_t<detail::has_convert<From, To>::value, To> {
+  To result;
+  if (!convert(from, result))
+    throw std::logic_error("conversion failed");
+  return result;
 }
 
 // Injects a `to_string` overload for any type convertible to a `std::string`
@@ -92,7 +115,7 @@ auto from_string(const std::string& str) -> decltype(to<T>(str)) {
 template <class Char, class Traits, class T>
 auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
 -> detail::enable_if_t<
-  detail::can_convert<T, std::string>::value
+  detail::has_convert<T, std::string>::value
     && !std::is_same<T, std::string>::value,
   std::basic_ostream<Char, Traits>&
 > {

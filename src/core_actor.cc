@@ -107,8 +107,7 @@ core_state::core_state(caf::event_based_actor* ptr)
     cache(ptr),
     shutting_down(false),
     clock(nullptr) {
-  errors_ = self->system().groups().get_local("broker/errors");
-  statuses_ = self->system().groups().get_local("broker/statuses");
+  // nop
 }
 
 void core_state::init(filter_type initial_filter, broker_options opts,
@@ -158,6 +157,13 @@ void core_state::update_filter_on_peers() {
 
 void core_state::add_to_filter(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
+  // Status and error topics are internal topics.
+  auto status_or_error = [](const topic& x) {
+    return x == topics::errors || x == topics::statuses;
+  };
+  xs.erase(std::remove_if(xs.begin(), xs.end(), status_or_error), xs.end());
+  if (xs.empty())
+    return;
   // Simply append to topics without de-duplication.
   if (topics_file.is_open()) {
     for (const auto& x : xs) {
@@ -246,9 +252,10 @@ void core_state::sync_with_status_subscribers(caf::actor new_peer) {
 void core_state::emit_peer_added_status(caf::actor hdl, const char* msg) {
   auto emit = [=](network_info x) {
     BROKER_INFO("status" << sc::peer_added << x);
-    self->send(statuses_, atom::local::value,
-               status::make<sc::peer_added>(
-               endpoint_info{hdl.node(), std::move(x)}, msg));
+    auto stat = status::make<sc::peer_added>(
+      endpoint_info{hdl.node(), std::move(x)}, msg);
+    governor->policy().local_push(
+      make_data_message(topics::statuses, get_as<data>(stat)));
     sync_with_status_subscribers(hdl);
   };
 
@@ -710,9 +717,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         st.emit_error<ec::peer_invalid>(x, "no such peer when unpeering");
     },
     [=](atom::no_events) {
-      auto& st = self->state;
-      st.errors_ = caf::group{};
-      st.statuses_ = caf::group{};
+      // TODO: add extra state flag? Ingore?
     },
     [=](atom::shutdown) {
       auto& peers = self->state.policy().peers();

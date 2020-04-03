@@ -61,13 +61,13 @@ public:
   size_t send_rate() const;
 
   /// Returns a reference to the background worker.
-  inline const caf::actor& worker() const {
+  const caf::actor& worker() const {
     return worker_;
   }
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  inline int fd() const {
+  auto fd() const {
     return queue_->fd();
   }
 
