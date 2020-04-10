@@ -1,4 +1,8 @@
 
+1.4.0-dev.77 | 2020-04-09 22:57:15 -0700
+
+  * Fix concurrency setup for the Cirrus/MSVC build (Dominik Charousset)
+
 1.4.0-dev.75 | 2020-03-30 13:21:09 -0700
 
   * Make RocksDB usage opt-in and add --enable-rocksdb configure flag
