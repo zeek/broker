@@ -15,7 +15,7 @@ class TestTopic(unittest.TestCase):
         t3 = t1 / t2
         t2 /= t1
 
-        self.assertEqual(t3.string(), "/a/b/c")
+        self.assertEqual(t3.string(), "/a//b/c")
         self.assertEqual(t2.string(), "/b/c/a")
 
 if __name__ == '__main__':
