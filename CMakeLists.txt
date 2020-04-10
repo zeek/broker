@@ -309,6 +309,7 @@ set(BROKER_SRC
   src/peer_status.cc
   src/port.cc
   src/publisher.cc
+  src/publisher_id.cc
   src/status.cc
   src/status_subscriber.cc
   src/store.cc

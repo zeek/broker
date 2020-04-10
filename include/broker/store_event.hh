@@ -3,7 +3,9 @@
 #include <cstdint>
 #include <string>
 
+#include "broker/convert.hh"
 #include "broker/data.hh"
+#include "broker/publisher_id.hh"
 
 namespace broker {
 
@@ -17,8 +19,21 @@ public:
   };
 
   /// A view into a ::data object representing an `insert` event.
-  /// Broker encodes `insert` events as
-  /// `["insert", key: data, value: data, expiry: optional<timespan>]`.
+  /// Broker encodes `insert` events as:
+  ///
+  /// ```
+  /// [
+  ///   "insert",
+  ///   key: data,
+  ///   value: data,
+  ///   expiry: optional<timespan>,
+  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_object: uint64_t
+  /// ]
+  /// ```
+  ///
+  /// Whereas the `publisher_endpoint` and the `publisher_object` encode a
+  /// @ref publisher_id.
   class insert {
   public:
     insert(const insert&) noexcept = default;
@@ -49,6 +64,13 @@ public:
       if (auto value = get_if<timespan>((*xs_)[3]))
         return *value;
       return nil;
+    }
+
+    publisher_id publisher() const noexcept {
+      if (auto value = to<caf::node_id>((*xs_)[4])) {
+        return {std::move(*value), get<uint64_t>((*xs_)[5])};
+      }
+      return {};
     }
 
   private:
@@ -98,6 +120,13 @@ public:
       return nil;
     }
 
+    publisher_id publisher() const noexcept {
+      if (auto value = to<caf::node_id>((*xs_)[5])) {
+        return {*value, get<uint64_t>((*xs_)[6])};
+      }
+      return {};
+    }
+
   private:
     explicit update(const vector* xs) noexcept : xs_(xs) {
       // nop
@@ -128,6 +157,13 @@ public:
 
     const data& key() const noexcept {
       return (*xs_)[1];
+    }
+
+    publisher_id publisher() const noexcept {
+      if (auto value = to<caf::node_id>((*xs_)[2])) {
+        return {*value, get<uint64_t>((*xs_)[3])};
+      }
+      return {};
     }
 
   private:

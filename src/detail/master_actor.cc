@@ -61,14 +61,20 @@ void master_state::remind(timespan expiry, const data& key) {
 
 void master_state::expire(data& key) {
   BROKER_INFO("EXPIRE" << key);
-  auto result = backend->expire(key, clock->now());
-  if (!result) {
+  if (auto result = backend->expire(key, clock->now()); !result) {
     BROKER_ERROR("failed to expire key:" << to_string(result.error()));
   } else if (!*result) {
     BROKER_WARNING("ignoring stale expiration reminder");
+  } else if (auto i = publishers.find(key); i != publishers.end()) {
+    erase_command cmd{std::move(key), std::move(i->second)};
+    publishers.erase(i);
+    emit_erase_event(cmd);
+    broadcast_cmd_to_clones(std::move(cmd));
   } else {
-    emit_erase_event(key);
-    broadcast_cmd_to_clones(erase_command{std::move(key)});
+    BROKER_WARNING("state of the backend out of sync with the master");
+    publisher_id dummy;
+    emit_erase_event(key, dummy);
+    broadcast_cmd_to_clones(erase_command{std::move(key), dummy});
   }
 }
 
@@ -117,12 +123,14 @@ void master_state::operator()(put_unique_command& x) {
     return;
   }
   self->send(x.who, caf::make_message(data{true}, x.req_id));
-  emit_insert_event(x);
   if (x.expiry)
     remind(*x.expiry, x.key);
-  // Note that we could just broadcast a regular "put" command here instead
-  // since clones shouldn't have to do their own existence check.
-  broadcast_cmd_to_clones(std::move(x));
+  emit_insert_event(x);
+  // Broadcast a regular "put" command. Clones don't have to do their own
+  // existence check.
+  put_command cmd{std::move(x.key), std::move(x.value), x.expiry,
+                  std::move(x.publisher)};
+  broadcast_cmd_to_clones(std::move(cmd));
 }
 
 void master_state::operator()(erase_command& x) {
@@ -131,7 +139,7 @@ void master_state::operator()(erase_command& x) {
     BROKER_WARNING("failed to erase" << x.key << "->" << res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  emit_erase_event(x.key);
+  emit_erase_event(x.key, x.publisher);
   broadcast_cmd_to_clones(std::move(x));
 }
 
@@ -149,21 +157,25 @@ void master_state::operator()(add_command& x) {
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
+    if (x.expiry)
+      remind(*x.expiry, x.key);
+    // Broadcast a regular "put" command. Clones don't have to repeat the same
+    // processing again.
+    put_command cmd{std::move(x.key), std::move(*val), nil,
+                    std::move(x.publisher)};
     if (old_value)
-      emit_update_event(x.key, *old_value, *val, x.expiry);
+      emit_update_event(cmd, *old_value);
     else
-      emit_insert_event(x.key, *val, x.expiry);
+      emit_insert_event(cmd);
+    broadcast_cmd_to_clones(std::move(cmd));
   }
-  if (x.expiry)
-    remind(*x.expiry, x.key);
-  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(subtract_command& x) {
   BROKER_INFO("SUBTRACT" << x);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
-  if(!old_value){
+  if (!old_value) {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
     BROKER_WARNING("cannot substract from non-existing value for key" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
@@ -178,12 +190,15 @@ void master_state::operator()(subtract_command& x) {
                  << "after subtract() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    // Unlike `add`, `subtract` fails if the key didn't exist previously.
-    emit_update_event(x.key, *old_value, *val, x.expiry);
+    if (x.expiry)
+      remind(*x.expiry, x.key);
+    // Broadcast a regular "put" command. Clones don't have to repeat the same
+    // processing again.
+    put_command cmd{std::move(x.key), std::move(*val), nil,
+                    std::move(x.publisher)};
+    emit_update_event(cmd, *old_value);
+    broadcast_cmd_to_clones(std::move(cmd));
   }
-  if (x.expiry)
-    remind(*x.expiry, x.key);
-  broadcast_cmd_to_clones(std::move(x));
 }
 
 void master_state::operator()(snapshot_command& x) {
@@ -216,7 +231,13 @@ void master_state::operator()(snapshot_command& x) {
   //     memory.  Note that this would require halting the application
   //     of updates on the master while there are any snapshot streams
   //     still underway.
-  self->send(x.remote_clone, set_command{std::move(*ss)});
+  using mapped_type = std::pair<data, publisher_id>;
+  std::unordered_map<data, mapped_type> merged_ss;
+  for (auto& [key, value] : *ss) {
+    const auto& publisher = publishers[key];
+    merged_ss.emplace(std::move(key), mapped_type{std::move(value), publisher});
+  }
+  self->send(x.remote_clone, set_command{std::move(merged_ss)});
 }
 
 void master_state::operator()(snapshot_sync_command&) {
@@ -235,10 +256,10 @@ void master_state::operator()(clear_command& x) {
   } else {
     if (auto keys = get_if<vector>(*keys_res)) {
       for (auto& key : *keys)
-        emit_erase_event(key);
+        emit_erase_event(key, x.publisher);
     } else if (auto keys = get_if<set>(*keys_res)) {
       for (auto& key : *keys)
-        emit_erase_event(key);
+        emit_erase_event(key, x.publisher);
     } else if (!is<none>(*keys_res)) {
       BROKER_ERROR("backend->keys() returned an unexpected result type");
     }

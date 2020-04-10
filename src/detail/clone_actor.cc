@@ -56,11 +56,11 @@ void clone_state::operator()(none) {
 
 void clone_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
-  auto i = store.find(x.key);
-  if (i != store.end()) {
-    auto old_value = std::move(i->second);
+  if (auto i = store.find(x.key); i != store.end()) {
+    auto& value = i->second;
+    auto old_value = std::move(value);
     emit_update_event(x, old_value);
-    i->second = std::move(x.value);
+    value = std::move(x.value);
   } else {
     emit_insert_event(x);
     store.emplace(std::move(x.key), std::move(x.value));
@@ -68,54 +68,21 @@ void clone_state::operator()(put_command& x) {
 }
 
 void clone_state::operator()(put_unique_command& x) {
-  BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << x.expiry);
-  auto i = store.find(x.key);
-  if (i == store.end()) {
-    emit_insert_event(x);
-    store.emplace(std::move(x.key), std::move(x.value));
-  }
+  BROKER_ERROR("clone received put_unique_command");
 }
 
 void clone_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
   if (store.erase(x.key) != 0)
-    emit_erase_event(x.key);
+    emit_erase_event(x.key, x.publisher);
 }
 
-void clone_state::operator()(add_command& x) {
-  BROKER_INFO("ADD" << x.key << "->" << x.value);
-  auto i = store.find(x.key);
-  data old_value;
-  bool added = i == store.end();
-  if (added)
-    i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
-  else
-    old_value = i->second;
-  if (auto res = caf::visit(adder{x.value}, i->second); !res) {
-    BROKER_WARNING("failed to add" << x.value << "to" << x.key);
-    return;
-  }
-  if (added) {
-    emit_insert_event(i->first, i->second, x.expiry);
-  } else {
-    emit_update_event(i->first, old_value, i->second, x.expiry);
-  }
+void clone_state::operator()(add_command&) {
+  BROKER_ERROR("clone received add_command");
 }
 
-void clone_state::operator()(subtract_command& x) {
-  BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
-  auto i = store.find(x.key);
-  if (i != store.end()) {
-    auto old_value = i->second;
-    if (auto res = caf::visit(remover{x.value}, i->second); !res) {
-      BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
-      return;
-    }
-    emit_update_event(i->first, old_value, i->second, x.expiry);
-  } else {
-    // can happen if we joined a stream but did not yet receive set_command
-    BROKER_WARNING("received substract_command for unknown key");
-  }
+void clone_state::operator()(subtract_command&) {
+  BROKER_ERROR("clone received subtract_command");
 }
 
 void clone_state::operator()(snapshot_command&) {
@@ -123,47 +90,63 @@ void clone_state::operator()(snapshot_command&) {
 }
 
 void clone_state::operator()(snapshot_sync_command& x) {
-  if ( x.remote_clone == self ) {
+  if (x.remote_clone == self)
     awaiting_snapshot_sync = false;
-  }
 }
 
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
+  // Short-circuit messages with an empty state.
   if (x.state.empty()) {
-    clear_command cmd;
-    (*this)(cmd);
+    if (!store.empty()) {
+      clear_command cmd{publisher_id{master.node(), master.id()}};
+      (*this)(cmd);
+    }
     return;
   }
-  // Emit erase and put events.
-  std::vector<const data*> keys;
-  keys.reserve(store.size());
-  for (auto& kvp : store)
-    keys.emplace_back(&kvp.first);
-  auto is_erased = [&x](const data* key) { return x.state.count(*key) == 0; };
-  auto p = std::partition(keys.begin(), keys.end(), is_erased);
-  for (auto i = keys.begin(); i != p; ++i)
-    emit_erase_event(**i);
-  for (auto i = p; i != keys.end(); ++i)
-    emit_update_event(**i, store[**i], x.state[**i], nil);
-  // Emit add events.
-  auto is_new = [&keys](const data& key) {
-    for (const auto key_ptr : keys)
-      if (*key_ptr == key)
-        return false;
-    return true;
-  };
-  for (const auto& [key, value] : x.state)
-    if (is_new(key))
-      emit_insert_event(key, value, nil);
-  // Override state.
-  store = std::move(x.state);
+  if (store.empty()) {
+    // Emit insert events.
+    for (auto& [key, entry] : x.state) {
+      auto& [value, publisher] = entry;
+      emit_insert_event(key, value, nil, publisher);
+    }
+  } else {
+    // Emit erase and put events.
+    std::vector<const data*> keys;
+    keys.reserve(store.size());
+    for (auto& kvp : store)
+      keys.emplace_back(&kvp.first);
+    auto is_erased = [&x](const data* key) { return x.state.count(*key) == 0; };
+    auto p = std::partition(keys.begin(), keys.end(), is_erased);
+    for (auto i = keys.begin(); i != p; ++i)
+      emit_erase_event(**i, publisher_id{});
+    for (auto i = p; i != keys.end(); ++i) {
+      const auto& [value, publisher] = x.state[**i];
+      emit_update_event(**i, store[**i], value, nil, publisher);
+    }
+    // Emit insert events.
+    auto is_new = [&keys](const data& key) {
+      for (const auto key_ptr : keys)
+        if (*key_ptr == key)
+          return false;
+      return true;
+    };
+    for (const auto& [key, entry] : x.state) {
+      if (is_new(key)) {
+        const auto& [value, publisher] = entry;
+        emit_insert_event(key, value, nil, publisher);
+      }
+    }
+  }
+  // Override local state.
+  for (auto& [key, entry] : x.state)
+    store.emplace(key, std::move(entry.first));
 }
 
-void clone_state::operator()(clear_command&) {
+void clone_state::operator()(clear_command& x) {
   BROKER_INFO("CLEAR");
   for (auto& kvp : store)
-    emit_erase_event(kvp.first);
+    emit_erase_event(kvp.first, x.publisher);
   store.clear();
 }
 
@@ -238,7 +221,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         // forward all commands to the master
         self->state.forward(std::move(x));
         return;
-        }
+      }
 
       if ( mutation_buffer_interval <= 0 )
         return;
@@ -413,9 +396,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
       return result;
     },
-    [=](atom::get, atom::name) {
-      return self->state.id;
-    },
+    [=](atom::get, atom::name) { return self->state.id; },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
       self->make_sink(
@@ -446,8 +427,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.command(cmd);
         }
       );
-    }
-  };
+    }};
 }
 
 } // namespace detail

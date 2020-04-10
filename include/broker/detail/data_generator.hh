@@ -45,7 +45,8 @@ public:
 
   caf::error generate(table& xs);
 
-  caf::error generate(std::unordered_map<data, data>& xs);
+  caf::error
+  generate(std::unordered_map<data, std::pair<data, publisher_id>>& xs);
 
   template <class T>
   caf::error generate(T& x) {

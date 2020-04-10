@@ -23,29 +23,39 @@ public:
 
   /// Emits an `insert` event to topics::store_events subscribers.
   void emit_insert_event(const data& key, const data& value,
-                         const optional<timespan>& expiry);
+                         const optional<timespan>& expiry,
+                         const publisher_id& publisher);
 
   /// Convenience function for calling
   /// `emit_insert_event(msg.key, msg.value, msg.expiry)`.
   template <class Message>
   void emit_insert_event(const Message& msg) {
-    emit_insert_event(msg.key, msg.value, msg.expiry);
+    emit_insert_event(msg.key, msg.value, msg.expiry, msg.publisher);
   }
 
   /// Emits a `update` event to topics::store_events subscribers.
   void emit_update_event(const data& key, const data& old_value,
                          const data& new_value,
-                         const optional<timespan>& expiry);
+                         const optional<timespan>& expiry,
+                         const publisher_id& publisher);
 
   /// Convenience function for calling
-  /// `emit_update_event(msg.key, old_value, msg.value, msg.expiry)`.
+  /// `emit_update_event(msg.key, old_value, msg.value, msg.expiry,
+  /// msg.publisher)`.
   template <class Message>
   void emit_update_event(const Message& msg, const data& old_value) {
-    emit_update_event(msg.key, old_value, msg.value, msg.expiry);
+    emit_update_event(msg.key, old_value, msg.value, msg.expiry, msg.publisher);
   }
 
   /// Emits an `erase` event to topics::store_events subscribers.
-  void emit_erase_event(const data& key);
+  void emit_erase_event(const data& key, const publisher_id& publisher);
+
+  /// Convenience function for calling
+  /// `emit_erase_event(msg.key, msg.publisher)`.
+  template <class Message>
+  void emit_erase_event(const Message& msg) {
+    emit_erase_event(msg.key, msg.publisher);
+  }
 
   /// Points to the actor owning this state.
   caf::event_based_actor* self = nullptr;

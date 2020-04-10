@@ -12,6 +12,7 @@
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/internal_command.hh"
+#include "broker/publisher_id.hh"
 #include "broker/topic.hh"
 
 namespace broker {
@@ -72,6 +73,8 @@ public:
   backend_pointer backend;
 
   std::unordered_map<caf::actor_addr, caf::actor> clones;
+
+  std::unordered_map<data, publisher_id> publishers;
 
   bool exists(const data& key);
 

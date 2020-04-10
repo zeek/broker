@@ -40,12 +40,15 @@ struct fixture : base_fixture {
       [](caf::unit_t&) {},
       // Consume.
       [this](caf::unit_t&, data_message msg) {
-        if (auto insert = store_event::insert::make(get_data(msg)))
+        auto content = get_data(msg);
+        if (auto insert = store_event::insert::make(content))
           log.emplace_back(to_string(insert));
-        else if (auto update = store_event::update::make(get_data(msg)))
+        else if (auto update = store_event::update::make(content))
           log.emplace_back(to_string(update));
-        else if (auto erase = store_event::erase::make(get_data(msg)))
+        else if (auto erase = store_event::erase::make(content))
           log.emplace_back(to_string(erase));
+        else
+          FAIL("unknown event: " << to_string(content));
       },
       // Cleanup.
       [](caf::unit_t&) {});

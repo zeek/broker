@@ -10,27 +10,37 @@ constexpr const char* type_strings[] = {
   "erase",
 };
 
+bool is_publisher_id(const vector& xs, size_t endpoint_index,
+                     size_t object_index) {
+  return (is<none>(xs[endpoint_index]) && is<none>(xs[object_index]))
+         || (is<caf::node_id>(xs[endpoint_index])
+             && is<uint64_t>(xs[object_index]));
+}
+
 } // namespace
 
 store_event::insert store_event::insert::make(const vector& xs) noexcept {
-  return insert{xs.size() == 4
+  return insert{xs.size() == 6
                && to<store_event::type>(xs[0]) == store_event::type::insert
                && (is<none>(xs[3]) || is<timespan>(xs[3]))
+               && is_publisher_id(xs, 4, 5)
              ? &xs
              : nullptr};
 }
 
 store_event::update store_event::update::make(const vector& xs) noexcept {
-  return update{xs.size() == 5
+  return update{xs.size() == 7
                && to<store_event::type>(xs[0]) == store_event::type::update
                && (is<none>(xs[4]) || is<timespan>(xs[4]))
+               && is_publisher_id(xs, 5, 6)
              ? &xs
              : nullptr};
 }
 
 store_event::erase store_event::erase::make(const vector& xs) noexcept {
-  return erase{xs.size() == 2
+  return erase{xs.size() == 4
                  && to<store_event::type>(xs[0]) == store_event::type::erase
+                 && is_publisher_id(xs, 2, 3)
                ? &xs
                : nullptr};
 }
@@ -46,6 +56,8 @@ std::string to_string(const store_event::insert& x) {
   result += to_string(x.value());
   result += ", ";
   result += to_string(x.expiry());
+  result += ", ";
+  result += to_string(x.publisher());
   result += ')';
   return result;
 }
@@ -59,6 +71,8 @@ std::string to_string(const store_event::update& x) {
   result += to_string(x.new_value());
   result += ", ";
   result += to_string(x.expiry());
+  result += ", ";
+  result += to_string(x.publisher());
   result += ')';
   return result;
 }
@@ -66,6 +80,8 @@ std::string to_string(const store_event::update& x) {
 std::string to_string(const store_event::erase& x) {
   std::string result = "erase(";
   result += to_string(x.key());
+  result += ", ";
+  result += to_string(x.publisher());
   result += ')';
   return result;
 }

@@ -12,6 +12,7 @@
 #include "broker/detail/store_actor.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"
+#include "broker/publisher_id.hh"
 #include "broker/topic.hh"
 
 namespace broker {

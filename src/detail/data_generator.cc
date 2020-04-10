@@ -164,7 +164,7 @@ caf::error data_generator::generate(internal_command::type tag,
       break;
     }
     case tag_type::set_command: {
-      std::unordered_map<data, data> xs;
+      std::unordered_map<data, std::pair<data, publisher_id>> xs;
       GENERATE(xs);
       x.content = set_command{std::move(xs)};
       break;
@@ -216,7 +216,8 @@ caf::error data_generator::generate(table& xs) {
   return caf::none;
 }
 
-caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
+caf::error data_generator::generate(
+  std::unordered_map<data, std::pair<data, publisher_id>>& xs) {
   uint32_t size = 0;
   READ(size);
   data key;
@@ -224,7 +225,7 @@ caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
   for (size_t i = 0; i < size; ++i) {
     GENERATE(key);
     GENERATE(value);
-    while (!xs.emplace(key, value).second)
+    while (!xs.emplace(key, std::make_pair(value, publisher_id{})).second)
       shuffle(key);
   }
   return caf::none;
