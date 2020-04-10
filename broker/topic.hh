@@ -42,7 +42,7 @@ public:
     >::type
   >
   topic(T&& x) : str_(std::forward<T>(x)) {
-    clean();
+    // nop
   }
 
   /// Appends a topic components with a separator.
@@ -62,7 +62,6 @@ public:
   }
 
 private:
-  void clean();
 
   std::string str_;
 };
