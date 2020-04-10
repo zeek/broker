@@ -1,3 +1,38 @@
+Broker 1.3.2
+============
+
+Change topic strings to not automatically alter slashes
+
+Automatically removing trailing or consecutive slashes in topic strings
+prevents uniquely targeting topic names to a node.
+
+For example, publishing to "node-10/" should not match a subscription
+for "node-1/", but that's what happens with prefix-based matching if the
+trailing slash is automatically removed
+
+Broker 1.3.1
+============
+
+Fix a race condition in data store flare operations
+
+The race (as seen via Zeek usage) goes like:
+
+Thread A: enqueue item, get suspended
+Thread B: sees mailbox has items
+Thread B: dequeue item
+Thread B: extinguish flare
+Thread A: resume, fire flare
+
+That ordering can leave the flare in an active state without any actual
+items remaining in the mailbox.
+
+This patch adds a mutex/lock such that extinguishing of the flare cannot
+be interleaved between the enqueue and firing of the flare.
+
+This likely relates to https://github.com/zeek/zeek/issues/838,
+https://github.com/zeek/zeek/issues/716, as well as this thread
+http://mailman.icsi.berkeley.edu/pipermail/zeek/2020-February/015062.html
+
 Broker 1.3.0
 ============
 

@@ -1,7 +1,29 @@
 
+1.3.2 | 2020-04-10 16:22:15 -0700
+
+  * Release 1.3.2.
+
+  * Change topic strings to not automaticaly alter slashes (Jon Siwek, Corelight)
+
+    Automatically removing trailing or consecutive slashes in topic strings
+    prevents uniquely targeting topic names to a node.
+
+    For example, publishing to "node-10/" should not match a subscription
+    for "node-1/", but that's what happens with prefix-based matching if the
+    trailing slash is automatically removed.
+
+  * Add Cirrus CI config and remove Travis CI config (Jon Siwek, Corelight)
+
+    The CMake configuration also now prefers choosing a Python3 installation
+    over Python2 (since that's end-of-life) for building the Broker Python
+    bindings.
+
+    Some timeout values in unit tests were also fiddled to work better in
+    the CI environment.
+
 1.3.1 | 2020-03-09 13:02:50 -0700
 
-  * Release 1.3.0.
+  * Release 1.3.1.
 
   * Fix a race condition in data store flare operations (Jon Siwek, Corelight)
 
