@@ -528,29 +528,28 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
         double resync_interval, double stale_interval,
         double mutation_buffer_interval) -> caf::result<caf::actor> {
       BROKER_INFO("attaching clone:" << name);
-
-      auto i = self->state.masters.find(name);
-
-      if ( i != self->state.masters.end() && self->node() == i->second->node() )
-        {
+      if (auto i = self->state.masters.find(name);
+          i != self->state.masters.end() && self->node() == i->second->node()) {
         BROKER_WARNING("attempted to run clone & master on the same endpoint");
         return ec::no_such_master;
       }
-
       // Sanity check: this message must be a point-to-point message.
       auto& cme = *self->current_mailbox_element();
-
       if (!cme.stages.empty())
         return ec::unspecified;
-
+      // Fetch clone from the map or spin up a new one.
+      auto& st = self->state;
       auto stages = std::move(cme.stages);
+      if (auto i = st.clones.find(name); i != st.clones.end()) {
+        BROKER_INFO("re-use existing clone");
+        return i->second;
+      }
       BROKER_INFO("spawning new clone");
       auto clone = self->spawn<linked + lazy_init>(
-              detail::clone_actor, self, name, resync_interval, stale_interval,
-              mutation_buffer_interval, clock);
-      auto cptr = actor_cast<strong_actor_ptr>(clone);
-      auto& st = self->state;
+        detail::clone_actor, self, name, resync_interval, stale_interval,
+        mutation_buffer_interval, clock);
       st.clones.emplace(name, clone);
+      auto cptr = actor_cast<strong_actor_ptr>(clone);
       // Subscribe to updates.
       using value_type = store::stream_type::value_type;
       auto slot = st.governor->add_unchecked_outbound_path<value_type>(clone);
