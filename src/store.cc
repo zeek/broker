@@ -40,9 +40,10 @@ request_id store::proxy::get(data key) {
 request_id store::proxy::put_unique(data key, data val, optional<timespan> expiry) {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::local::value,
-          make_internal_command<put_unique_command>(
-          std::move(key), std::move(val), expiry, proxy_, ++id_));
+  send_as(
+    proxy_, frontend_, atom::local::value,
+    make_internal_command<put_unique_command>(
+      std::move(key), std::move(val), expiry, proxy_, ++id_, frontend_id()));
   return id_;
 }
 
@@ -120,9 +121,9 @@ expected<data> store::put_unique(data key, data val, optional<timespan> expiry) 
 
   expected<data> res{ec::unspecified};
   caf::scoped_actor self{frontend_->home_system()};
-  auto cmd = make_internal_command<put_unique_command>(std::move(key),
-                                                       std::move(val), expiry,
-                                                       self, request_id(-1));
+  auto cmd = make_internal_command<put_unique_command>(
+    std::move(key), std::move(val), expiry, self, request_id(-1),
+    frontend_id());
   auto msg = caf::make_message(atom::local::value, std::move(cmd));
 
   self->send(frontend_, std::move(msg));
@@ -151,31 +152,33 @@ expected<data> store::keys() const {
 
 void store::put(data key, data value, optional<timespan> expiry) const {
   anon_send(frontend_, atom::local::value,
-            make_internal_command<put_command>(
-              std::move(key), std::move(value), expiry));
+            make_internal_command<put_command>(std::move(key), std::move(value),
+                                               expiry, frontend_id()));
 }
 
 void store::erase(data key) const {
-  anon_send(frontend_, atom::local::value,
-            make_internal_command<erase_command>(std::move(key)));
+  anon_send(
+    frontend_, atom::local::value,
+    make_internal_command<erase_command>(std::move(key), frontend_id()));
 }
 
 void store::add(data key, data value, data::type init_type,
                 optional<timespan> expiry) const {
   anon_send(frontend_, atom::local::value,
             make_internal_command<add_command>(std::move(key), std::move(value),
-                                               init_type, expiry));
+                                               init_type, expiry,
+                                               frontend_id()));
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) const {
   anon_send(frontend_, atom::local::value,
-            make_internal_command<subtract_command>(std::move(key),
-                                                    std::move(value), expiry));
+            make_internal_command<subtract_command>(
+              std::move(key), std::move(value), expiry, frontend_id()));
 }
 
 void store::clear() const {
   anon_send(frontend_, atom::local::value,
-            make_internal_command<clear_command>());
+            make_internal_command<clear_command>(frontend_id()));
 }
 
 store::store(caf::actor actor, std::string name)

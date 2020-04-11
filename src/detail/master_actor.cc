@@ -99,6 +99,7 @@ void master_state::operator()(put_command& x) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
+  publishers[x.key] = x.publisher;
   if (x.expiry)
     remind(*x.expiry, x.key);
   if (old_value)
@@ -123,6 +124,7 @@ void master_state::operator()(put_unique_command& x) {
     return;
   }
   self->send(x.who, caf::make_message(data{true}, x.req_id));
+  publishers[x.key] = x.publisher;
   if (x.expiry)
     remind(*x.expiry, x.key);
   emit_insert_event(x);
@@ -157,6 +159,7 @@ void master_state::operator()(add_command& x) {
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
+    publishers[x.key] = x.publisher;
     if (x.expiry)
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
@@ -190,6 +193,7 @@ void master_state::operator()(subtract_command& x) {
                  << "after subtract() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
+    publishers[x.key] = x.publisher;
     if (x.expiry)
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
@@ -266,6 +270,7 @@ void master_state::operator()(clear_command& x) {
   }
   if (auto res = backend->clear(); !res)
     die("failed to clear master");
+  publishers.clear();
   broadcast_cmd_to_clones(std::move(x));
 }
 

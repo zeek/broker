@@ -10,17 +10,6 @@
 
 namespace broker {
 
-// Enable `can_convert` for `caf::node_id`.
-template <>
-struct can_convert_predicate<caf::node_id> {
-  static bool check(const data& src) {
-    if (auto str = get_if<std::string>(src)) {
-      return caf::node_id::can_parse(*str);
-    }
-    return is<none>(src);
-  }
-};
-
 bool convertible_to_endpoint_info(const data& src) {
   if (auto vec = get_if<vector>(src))
     return convertible_to_endpoint_info(*vec);

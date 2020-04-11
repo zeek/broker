@@ -253,9 +253,9 @@ bool convert(const data& d, caf::node_id& node){
 
 bool convert(const caf::node_id& node, data& d) {
   if (node)
-    d = nil;
-  else
     d = to_string(node);
+  else
+    d = nil;
   return true;
 }
 

@@ -278,6 +278,7 @@ set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
   src/configuration.cc
+  src/convert.cc
   src/core_actor.cc
   src/data.cc
   src/defaults.cc
