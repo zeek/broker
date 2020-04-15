@@ -177,7 +177,15 @@ PYBIND11_MODULE(_broker, m) {
        return rval;
 	  })
 
-    .def("poll", &subscriber_base::poll)
+    .def("poll",
+         [](subscriber_base& ep) -> std::vector<topic_data_pair> {
+       auto res = ep.poll();
+       std::vector<topic_data_pair> rval;
+       rval.reserve(res.size());
+       for ( auto& e : res )
+         rval.emplace_back(std::make_pair(broker::get_topic(e), broker::get_data(e)));
+       return rval;
+      })
     .def("available", &subscriber_base::available)
     .def("fd", &subscriber_base::fd);
 

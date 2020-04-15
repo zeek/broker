@@ -1,4 +1,8 @@
 
+1.4.0-dev.81 | 2020-04-15 15:10:37 -0700
+
+  * GH-109: fix unusable subscriber.poll() method in Python bindings (Jon Siwek, Corelight)
+
 1.4.0-dev.79 | 2020-04-15 15:08:12 -0700
 
   * GH-106: Fix Python tests to work with Python 3.8 (Jon Siwek, Corelight)

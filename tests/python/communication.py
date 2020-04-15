@@ -33,7 +33,18 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(d[0], "ping")
 
         ep1.publish(t, ["pong"])
-        (t, d) = s2.get()
+
+        while True:
+            # This loop exists just for sake of test coverage for "poll()"
+            msgs = s2.poll()
+
+            if msgs:
+                self.assertEqual(len(msgs), 1)
+                (t, d) = msgs[0]
+                break;
+
+            time.sleep(0.1)
+
         self.assertEqual(t, "/test")
         self.assertEqual(d[0], "pong")
 
