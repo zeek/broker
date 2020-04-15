@@ -1,7 +1,13 @@
 
+1.2.8 | 2020-04-30 09:52:01 -0700
+
+  * Release v1.2.8
+
+  * GH-109: fix unusable subscriber.poll() method in Python bindings (Jon Siwek, Corelight)
+
 1.2.7 | 2020-04-10 16:16:06 -0700
 
-  * Release v1.2.6
+  * Release v1.2.7
 
   * Change topic strings to not automaticaly alter slashes (Jon Siwek, Corelight)
 

@@ -1,3 +1,8 @@
+Broker 1.2.8
+============
+
+- Fix unusable subscriber.poll() method in Python bindings.
+
 Broker 1.2.7
 ============
 
