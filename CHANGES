@@ -1,4 +1,17 @@
 
+1.4.0-dev.79 | 2020-04-15 15:08:12 -0700
+
+  * GH-106: Fix Python tests to work with Python 3.8 (Jon Siwek, Corelight)
+
+  * Change topic strings to not automatically alter slashes (Jon Siwek, Corelight)
+
+    Automatically removing trailing or consecutive slashes in topic strings
+    prevents uniquely targeting topic names to a node.
+
+    For example, publishing to "node-10/" should not match a subscription
+    for "node-1/", but that's what happens with prefix-based matching if the
+    trailing slash is automatically removed.
+
 1.4.0-dev.77 | 2020-04-09 22:57:15 -0700
 
   * Fix concurrency setup for the Cirrus/MSVC build (Dominik Charousset)
