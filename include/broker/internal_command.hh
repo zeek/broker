@@ -109,7 +109,7 @@ typename Inspector::result_type inspect(Inspector& f, snapshot_sync_command& x) 
 
 /// Sets the full state of all receiving replicates to the included snapshot.
 struct set_command {
-  std::unordered_map<data, std::pair<data, publisher_id>> state;
+  std::unordered_map<data, data> state;
 };
 
 template <class Inspector>

@@ -125,8 +125,7 @@ CAF_TEST(snapshot_sync_command) {
 }
 
 CAF_TEST(set_command) {
-  push(set_command{
-    {{data{"key"}, std::make_pair(data{"value"}, publisher_id{})}}});
+  push(set_command{{{data{"key"}, data{"value"}}}});
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::set_command);
   CHECK_EQUAL(pull<uint32_t>(), 1u);

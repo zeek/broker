@@ -96,20 +96,20 @@ void clone_state::operator()(snapshot_sync_command& x) {
 
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
+  // We consider the master the source of all updates.
+  publisher_id publisher{master.node(), master.id()};
   // Short-circuit messages with an empty state.
   if (x.state.empty()) {
     if (!store.empty()) {
-      clear_command cmd{publisher_id{master.node(), master.id()}};
+      clear_command cmd{publisher};
       (*this)(cmd);
     }
     return;
   }
   if (store.empty()) {
     // Emit insert events.
-    for (auto& [key, entry] : x.state) {
-      auto& [value, publisher] = entry;
+    for (auto& [key, value] : x.state)
       emit_insert_event(key, value, nil, publisher);
-    }
   } else {
     // Emit erase and put events.
     std::vector<const data*> keys;
@@ -121,7 +121,7 @@ void clone_state::operator()(set_command& x) {
     for (auto i = keys.begin(); i != p; ++i)
       emit_erase_event(**i, publisher_id{});
     for (auto i = p; i != keys.end(); ++i) {
-      const auto& [value, publisher] = x.state[**i];
+      const auto& value = x.state[**i];
       emit_update_event(**i, store[**i], value, nil, publisher);
     }
     // Emit insert events.
@@ -131,16 +131,12 @@ void clone_state::operator()(set_command& x) {
           return false;
       return true;
     };
-    for (const auto& [key, entry] : x.state) {
-      if (is_new(key)) {
-        const auto& [value, publisher] = entry;
+    for (const auto& [key, value] : x.state)
+      if (is_new(key))
         emit_insert_event(key, value, nil, publisher);
-      }
-    }
   }
   // Override local state.
-  for (auto& [key, entry] : x.state)
-    store.emplace(key, std::move(entry.first));
+  store = std::move(x.state);
 }
 
 void clone_state::operator()(clear_command& x) {

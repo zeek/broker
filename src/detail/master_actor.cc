@@ -65,16 +65,10 @@ void master_state::expire(data& key) {
     BROKER_ERROR("failed to expire key:" << to_string(result.error()));
   } else if (!*result) {
     BROKER_WARNING("ignoring stale expiration reminder");
-  } else if (auto i = publishers.find(key); i != publishers.end()) {
-    erase_command cmd{std::move(key), std::move(i->second)};
-    publishers.erase(i);
+  } else {
+    erase_command cmd{std::move(key), publisher_id{self->node(), self->id()}};
     emit_erase_event(cmd);
     broadcast_cmd_to_clones(std::move(cmd));
-  } else {
-    BROKER_WARNING("state of the backend out of sync with the master");
-    publisher_id dummy;
-    emit_erase_event(key, dummy);
-    broadcast_cmd_to_clones(erase_command{std::move(key), dummy});
   }
 }
 
@@ -99,7 +93,6 @@ void master_state::operator()(put_command& x) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  publishers[x.key] = x.publisher;
   if (x.expiry)
     remind(*x.expiry, x.key);
   if (old_value)
@@ -124,7 +117,6 @@ void master_state::operator()(put_unique_command& x) {
     return;
   }
   self->send(x.who, caf::make_message(data{true}, x.req_id));
-  publishers[x.key] = x.publisher;
   if (x.expiry)
     remind(*x.expiry, x.key);
   emit_insert_event(x);
@@ -159,7 +151,6 @@ void master_state::operator()(add_command& x) {
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    publishers[x.key] = x.publisher;
     if (x.expiry)
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
@@ -193,7 +184,6 @@ void master_state::operator()(subtract_command& x) {
                  << "after subtract() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    publishers[x.key] = x.publisher;
     if (x.expiry)
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
@@ -235,13 +225,7 @@ void master_state::operator()(snapshot_command& x) {
   //     memory.  Note that this would require halting the application
   //     of updates on the master while there are any snapshot streams
   //     still underway.
-  using mapped_type = std::pair<data, publisher_id>;
-  std::unordered_map<data, mapped_type> merged_ss;
-  for (auto& [key, value] : *ss) {
-    const auto& publisher = publishers[key];
-    merged_ss.emplace(std::move(key), mapped_type{std::move(value), publisher});
-  }
-  self->send(x.remote_clone, set_command{std::move(merged_ss)});
+  self->send(x.remote_clone, set_command{std::move(*ss)});
 }
 
 void master_state::operator()(snapshot_sync_command&) {
@@ -270,7 +254,6 @@ void master_state::operator()(clear_command& x) {
   }
   if (auto res = backend->clear(); !res)
     die("failed to clear master");
-  publishers.clear();
   broadcast_cmd_to_clones(std::move(x));
 }
 
