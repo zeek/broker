@@ -1,17 +1,10 @@
 #pragma once
 
-// ATTENTION
-// ---------
-// When updating this file, make sure to update doc/comm.rst as well because it
-// copies parts of this file verbatim.
-//
-// Included lines: 26-37
-
 #include <string>
+#include <type_traits>
 #include <utility>
 
-#include <caf/message.hpp>
-#include <caf/make_message.hpp>
+#include <caf/meta/load_callback.hpp>
 
 #include "broker/convert.hh"
 #include "broker/endpoint_info.hh"
@@ -23,18 +16,28 @@
 
 namespace broker {
 
+// --sc-enum-start
 /// Broker's status codes.
 /// @relates status
 enum class sc : uint8_t {
-  /// The unspecified default error code.
-  unspecified = 0,
-  /// Successfully added a new peer.
+  /// Indicates a default-constructed ::status.
+  unspecified,
+  /// Successfully added a direct connection to a peer.
   peer_added,
-  /// Successfully removed a peer.
+  /// Successfully removed a direct connection to a peer.
   peer_removed,
-  /// Lost connection to peer.
+  /// Lost direct connection to a peer.
   peer_lost,
+  /// Discovered a new Broker endpoint in the network.
+  endpoint_discovered,
+  /// Lost all paths to a Broker endpoint.
+  endpoint_unreachable,
 };
+// --sc-enum-end
+
+/// @relates sc
+template <sc S>
+using sc_constant = std::integral_constant<sc, S>;
 
 /// @relates sc
 const char* to_string(sc code) noexcept;
@@ -47,6 +50,19 @@ bool convert(const data& str, sc& code) noexcept;
 
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
+
+/// Evaluates to `true` if a ::status with code `S` requires an `endpoint_info`
+/// context.
+/// @relates sc
+template <sc S>
+constexpr bool sc_has_endpoint_info_v = S != sc::unspecified;
+
+/// Evaluates to `true` if a ::status with code `S` can contain a `network_info`
+/// in its context.
+/// @relates sc
+template <sc S>
+constexpr bool sc_has_network_info_v
+  = S == sc::peer_added || S == sc::peer_removed || S == sc::peer_lost;
 
 template <>
 struct can_convert_predicate<sc> {
@@ -62,31 +78,21 @@ class status : detail::equality_comparable<status, status>,
 
 public:
   template <sc S>
-  static detail::enable_if_t<S == sc::unspecified, status>
-  make(std::string msg) {
-    status s;
-    s.code_ = S;
-    if (!msg.empty())
-      s.context_ = caf::make_message(std::move(msg));
-    return s;
+  static status make(endpoint_info ei, std::string msg) {
+    static_assert(sc_has_endpoint_info_v<S>);
+    return {S, std::move(ei), std::move(msg)};
   }
 
   template <sc S>
-  static detail::enable_if_t<
-    S == sc::peer_added
-    || S == sc::peer_removed
-    || S == sc::peer_lost,
-    status
-  >
-  make(endpoint_info ei, std::string msg) {
-    status s;
-    s.code_ = S;
-    s.context_ = caf::make_message(std::move(ei), std::move(msg));
-    return s;
+  static status make(node_id node, std::string msg) {
+    static_assert(sc_has_endpoint_info_v<S>);
+    return {S, endpoint_info{std::move(node), nil}, std::move(msg)};
   }
 
   /// Default-constructs an unspecified status.
-  status() = default;
+  status() : code_(sc::unspecified) {
+    // nop
+  }
 
   /// @returns The code of this status.
   sc code() const;
@@ -94,22 +100,20 @@ public:
   /// Retrieves additional contextual information, if available.
   /// The [status code][::sc] determines the type of information that's
   /// available.
-  /// @tparam T The type of the attached context information.
-  template <class T>
+  /// @tparam T The type of the attached context information. Only
+  ///         `endpoint_info` is supported at the moment.
+  template <class T = endpoint_info>
   const T* context() const {
-    switch (code_) {
-      default:
-        return nullptr;
-      case sc::peer_added:
-      case sc::peer_removed:
-      case sc::peer_lost:
-        return &context_.get_as<endpoint_info>(0);
-    }
+    // TODO: should not be a template.
+    static_assert(std::is_same<T, endpoint_info>::value);
+    return code_ != sc::unspecified ? &context_ : nullptr;
   }
 
   /// Retrieves an optional details about the status, if available.
   /// @returns A textual description of status details.
-  const std::string* message() const;
+  const std::string* message() const{
+    return &message_;
+  }
 
   friend bool operator==(const status& x, const status& y);
 
@@ -121,20 +125,34 @@ public:
 
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, status& s) {
-    return f(s.code_, s.context_);
+    auto verify = [&s] { return s.verify(); };
+    return f(s.code_, s.context_, s.message_, caf::meta::load_callback(verify));
   }
 
-  /// Maps `src` to `["status", code, context]`, whereas `code` is ::code
-  /// encoded as an ::enum_value and `context` is a ::vector holding contextual
-  /// information, if available.
+  /// Maps `src` to `["status", code, context, message]`, whereas:
+  /// - `code` is ::code encoded as an ::enum_value
+  /// - `context` is *context() (if available)
+  /// - `message` is *message()
   friend bool convert(const status& src, data& dst);
 
-  /// Converts data in the format `["status", code, context]` back to a status.
+  /// Converts data in the format `["status", code, context, message]` back to a
+  /// status.
   friend bool convert(const data& src, status& dst);
 
 private:
-  sc code_ = {};
-  caf::message context_;
+  caf::error verify() const;
+
+  template <class T>
+  status(sc code, T&& context, std::string msg)
+    : code_(code),
+      context_(std::forward<T>(context)),
+      message_(std::move(msg)) {
+    // nop
+  }
+
+  sc code_;
+  endpoint_info context_;
+  std::string message_;
 };
 
 /// @relates status

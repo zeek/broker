@@ -106,7 +106,7 @@ as they come in (asynchronous API).
 
 Synchronous API
 ***************
-    
+
 The synchronous API exists for applications that want to poll for
 messages explicitly. Once a subscriber is registered for topics,
 calling ``get`` will wait for a new message:
@@ -150,9 +150,9 @@ TODO: Document.
 .. If your application does not require a blocking API, the non-blocking API
 .. offers an asynchronous alternative. Unlike the blocking API, non-blocking
 .. endpoints take a callback for each topic they subscribe to:
-.. 
+..
 .. .. code-block:: cpp
-.. 
+..
 ..   context ctx;
 ..   auto ep = ctx.spawn<nonblocking>();
 ..   ep.subscribe("/foo", [=](const topic& t, const data& d) {
@@ -161,12 +161,12 @@ TODO: Document.
 ..   ep.subscribe("/bar", [=](const topic& t, const data& d) {
 ..     std::cout << t << " -> " << d << std::endl;
 ..   });
-.. 
+..
 .. When a new message matching the subscription arrives, Broker dispatches it to
 .. the callback without blocking.
-.. 
+..
 .. .. warning::
-.. 
+..
 ..   The function ``subscribe`` returns immediately. Capturing variable *by
 ..   reference* introduces a dangling reference once the outer frame returns.
 ..   Therefore, only capture locals *by value*.
@@ -211,7 +211,8 @@ depend on its embedded code, which the enum ``sc`` codifies:
 
 .. literalinclude:: ../broker/status.hh
    :language: cpp
-   :lines: 26-35
+   :start-after: --sc-enum-start
+   :end-before: --sc-enum-end
 
 Status messages have an optional *context* and an optional descriptive
 *message*. The member function ``context<T>`` returns a ``const T*``

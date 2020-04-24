@@ -28,7 +28,11 @@ namespace {
 
 struct fixture : base_fixture {
   fixture() {
-    // nop
+    auto x = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
+    if (!x)
+      FAIL("caf::make_node_id failed");
+    node = std::move(*x);
+    node_str = to_string(node);
   }
 
   void push(error x) {
@@ -46,6 +50,10 @@ struct fixture : base_fixture {
     caf::anon_send(ep.core(), atom::publish::value, atom::local::value,
                    make_data_message(topics::statuses, std::move(xs)));
   }
+
+  caf::node_id node;
+
+  std::string node_str;
 };
 
 } // namespace <anonymous>
@@ -69,7 +77,7 @@ CAF_TEST(base_tests) {
   CAF_REQUIRE_EQUAL(sub2.available(), 1u);
   CAF_REQUIRE_EQUAL(sub2.get(), e1);
   CAF_MESSAGE("test status event");
-  auto s1 = status::make<sc::unspecified>("foobar");;
+  auto s1 = status::make<sc::endpoint_discovered>(node, "foobar");
   push(s1);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 1u);
