@@ -10,8 +10,11 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include "broker/alm/stream_transport.hh"
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
+#include "broker/detail/network_cache.hh"
+#include "broker/detail/radix_tree.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
@@ -22,20 +25,12 @@
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
 
-#include "broker/detail/core_policy.hh"
-#include "broker/detail/network_cache.hh"
-#include "broker/detail/radix_tree.hh"
-
 namespace broker {
 
 struct core_state {
   // --- nested types ----------------------------------------------------------
 
-  using policy_type = detail::core_policy<core_state>;
-
-  using governor_type = caf::detail::stream_distribution_tree<policy_type>;
-
-  using governor_ptr = caf::intrusive_ptr<governor_type>;
+  using core_manager = alm::stream_transport<core_state>;
 
   struct pending_peer_state {
     caf::stream_slot slot;
@@ -73,11 +68,6 @@ struct core_state {
   /// peers.
   bool has_remote_master(const std::string& name);
 
-  /// Returns the policy object.
-  auto& policy() {
-    return governor->policy();
-  }
-
   // --- convenience functions for sending errors and events -------------------
 
   template <ec ErrorCode>
@@ -88,8 +78,7 @@ struct core_state {
       //       error object and converting it.
       auto err
         = make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg);
-      governor->policy().local_push(
-        make_data_message(topics::errors, get_as<data>(err)));
+      mgr->local_push(make_data_message(topics::errors, get_as<data>(err)));
     };
     if (self->node() != hdl.node())
       cache.fetch(hdl,
@@ -113,8 +102,7 @@ struct core_state {
       BROKER_INFO("error" << ErrorCode << inf);
       auto err
         = make_error(ErrorCode, endpoint_info{node_id(), std::move(inf)}, msg);
-      governor->policy().local_push(
-        make_data_message(topics::errors, get_as<data>(err)));
+      mgr->local_push(make_data_message(topics::errors, get_as<data>(err)));
     }
   }
 
@@ -128,8 +116,7 @@ struct core_state {
       //       status object and converting it.
       auto stat = status::make<StatusCode>(
         endpoint_info{hdl.node(), std::move(x)}, msg);
-      governor->policy().local_push(
-        make_data_message(topics::statuses, get_as<data>(stat)));
+      mgr->local_push(make_data_message(topics::statuses, get_as<data>(stat)));
     };
     if (self->node() != hdl.node())
       cache.fetch(hdl,
@@ -163,7 +150,7 @@ struct core_state {
   filter_type filter;
 
   /// Multiplexes local streams and streams for peers.
-  governor_ptr governor;
+  caf::intrusive_ptr<core_manager> mgr;
 
   /// Maps pending peer handles to output IDs. An invalid stream ID indicates
   /// that only "step #0" was performed so far. An invalid stream ID
@@ -177,9 +164,6 @@ struct core_state {
 
   /// Associates network addresses to remote actor handles and vice versa.
   detail::network_cache cache;
-
-  /// Name shown in logs for all instances of this actor.
-  static const char* name;
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
@@ -198,6 +182,9 @@ struct core_state {
 
   /// Handle for recording all peers (if enabled).
   std::ofstream peers_file;
+
+  /// Gives this actor a recognizable name in log output.
+  static inline const char* name = "core";
 };
 
 caf::behavior core_actor(caf::stateful_actor<core_state>* self,

@@ -9,34 +9,35 @@
 #include <caf/actor_addr.hpp>
 #include <caf/broadcast_downstream_manager.hpp>
 #include <caf/cow_tuple.hpp>
-#include <caf/detail/stream_distribution_tree.hpp>
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
+#include <caf/stream_manager.hpp>
 #include <caf/stream_slot.hpp>
 
+#include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_writer.hh"
+#include "broker/detail/lift.hh"
+#include "broker/detail/prefix_matcher.hh"
+#include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/peer_filter.hh"
+#include "broker/status.hh"
 #include "broker/topic.hh"
 
-namespace broker {
-
-struct core_state;
-
-namespace detail {
+namespace broker::alm {
 
 /// Sets up a configurable stream manager to act as a distribution tree for
 /// Broker.
 template <class State>
-class core_policy {
+class stream_transport : public caf::stream_manager {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -55,7 +56,7 @@ public:
 
     /// Type of the downstream_manager that broadcasts data to local actors.
     using manager = caf::broadcast_downstream_manager<element, filter_type,
-                                                      prefix_matcher>;
+                                                      detail::prefix_matcher>;
   };
 
   /// Streaming-related types for workers.
@@ -105,18 +106,23 @@ public:
                                                     caf::atom_value,
                                                     caf::actor>;
 
-  core_policy(caf::detail::stream_distribution_tree<core_policy>* p,
-              State* state, filter_type filter)
-    : parent_(p), state_(state), remaining_records_(0) {
+  // -- constructors, destructors, and assignment operators --------------------
+
+  stream_transport(caf::event_based_actor* self, State* state,
+                   filter_type filter)
+    : caf::stream_manager(self),
+      out_(this),
+      state_(state),
+      remaining_records_(0) {
+    continuous(true);
     // TODO: use filter
-    BROKER_ASSERT(parent_ != nullptr);
     BROKER_ASSERT(state_ != nullptr);
     auto& cfg = state->self->system().config();
     auto meta_dir = get_or(cfg, "broker.recording-directory",
                            defaults::recording_directory);
     if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
       auto file_name = meta_dir + "/messages.dat";
-      recorder_ = make_generator_file_writer(file_name);
+      recorder_ = detail::make_generator_file_writer(file_name);
       if (recorder_ == nullptr) {
         BROKER_WARNING("cannot open recording file" << file_name);
       } else {
@@ -129,89 +135,6 @@ public:
 
   bool substream_local_data() const {
     return false;
-  }
-
-  void before_handle_batch(caf::stream_slot, const caf::strong_actor_ptr& hdl) {
-    BROKER_TRACE(BROKER_ARG(hdl));
-    // If there's anything in the central buffer at this point, it's
-    // stuff that we're sending out ourselves (as opposed to forwarding),
-    // so we flush it out to each path's own cache now to make sure the
-    // subsequent flush in after_handle_batch doesn't accidentally filter
-    // out messages where the outband path of previously-buffered messagesi
-    // happens to match the path of the inbound data we are handling here.
-    peers().selector().active_sender = nullptr;
-    peers().fan_out_flush();
-    peers().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
-  }
-
-  void handle_batch(caf::stream_slot, const caf::strong_actor_ptr& peer,
-                    caf::message& xs) {
-    BROKER_TRACE(BROKER_ARG(xs));
-    if (xs.match_elements<typename peer_trait::batch>()) {
-      auto peer_actor = caf::actor_cast<caf::actor>(peer);
-      auto it = blocked_peers.find(peer_actor);
-      if (it != blocked_peers.end()) {
-        BROKER_DEBUG("buffer batch from blocked peer" << peer);
-        auto& bmsgs = blocked_msgs[peer_actor];
-        bmsgs.emplace_back(std::move(xs));
-        return;
-      }
-      auto num_workers = workers().num_paths();
-      auto num_stores = stores().num_paths();
-      BROKER_DEBUG("forward batch from peers;" << BROKER_ARG(num_workers)
-                                               << BROKER_ARG(num_stores));
-      // Only received from other peers. Extract content for to local workers
-      // or stores and then forward to other peers.
-      for (auto& msg : xs.get_mutable_as<typename peer_trait::batch>(0)) {
-        const topic* t;
-        // Dispatch to local workers or stores messages.
-        if (is_data_message(msg)) {
-          auto& dm = get<data_message>(msg.content);
-          t = &get_topic(dm);
-          if (num_workers > 0)
-            workers().push(dm);
-        } else {
-          auto& cm = get<command_message>(msg.content);
-          t = &get_topic(cm);
-          if (num_stores > 0)
-            stores().push(cm);
-        }
-        // Check if forwarding is on.
-        if (!state_->options.forward)
-          continue;
-        // Somewhat hacky, but don't forward data store clone messages.
-        auto ends_with = [](const std::string& s, const std::string& ending) {
-          if (ending.size() > s.size())
-            return false;
-          return std::equal(ending.rbegin(), ending.rend(), s.rbegin());
-        };
-        if (ends_with(t->string(), topics::clone_suffix.string()))
-          continue;
-        // Either decrease TTL if message has one already, or add one.
-        if (--msg.ttl == 0) {
-          BROKER_WARNING("dropped a message with expired TTL");
-          continue;
-        }
-        // Forward to other peers.
-        peers().push(std::move(msg));
-      }
-      return;
-    }
-    using variant_batch = std::vector<node_message::value_type>;
-    if (try_handle<worker_trait>(xs, "publish from local workers")
-        || try_handle<store_trait>(xs, "publish from local stores")
-        || try_handle<var_trait>(xs, "publish from custom actors"))
-      return;
-    BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
-  }
-
-  void after_handle_batch(caf::stream_slot slot,
-                          const caf::strong_actor_ptr& hdl) {
-    BROKER_TRACE("");
-    // Make sure the content of the buffer is pushed to the outbound paths while
-    // the sender filter is still active.
-    peers().fan_out_flush();
-    peers().selector().active_sender = nullptr;
   }
 
   void ack_open_success(caf::stream_slot slot,
@@ -280,34 +203,6 @@ public:
     state_->template emit_status<sc::peer_removed>(hdl, "removed peering");
   }
 
-  // -- callbacks for close/drop events ----------------------------------------
-
-  /// Output path gracefully closes.
-  void path_closed(caf::stream_slot slot) {
-    BROKER_TRACE(BROKER_ARG(slot));
-    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_, caf::none);
-  }
-
-  /// Output path fails with an error.
-  void path_force_closed(caf::stream_slot slot, caf::error reason) {
-    BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(reason));
-    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_,
-              std::move(reason));
-  }
-
-  /// Input path gracefully closes.
-  void path_dropped(caf::stream_slot slot) {
-    BROKER_TRACE(BROKER_ARG(slot));
-    remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_, caf::none);
-  }
-
-  /// Input path fails with an error.
-  void path_force_dropped(caf::stream_slot slot, caf::error reason) {
-    BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(reason));
-    remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_,
-              std::move(reason));
-  }
-
   // -- state required by the distribution tree --------------------------------
 
   bool shutting_down() const {
@@ -347,9 +242,7 @@ public:
     auto sap = caf::actor_cast<caf::strong_actor_ptr>(peer);
     for (auto& batch : it->second) {
       BROKER_DEBUG("handle blocked batch" << peer);
-      before_handle_batch(slot, sap);
-      handle_batch(slot, sap, batch);
-      after_handle_batch(slot, sap);
+      handle_batch(sap, batch);
     }
     blocked_msgs.erase(it);
   }
@@ -403,7 +296,7 @@ public:
       return;
     }
     // Add inbound path for our peer.
-    auto slot = parent_->add_unchecked_inbound_path(in);
+    auto slot = this->add_unchecked_inbound_path(in);
     add_ipath(slot, peer_hdl);
   }
 
@@ -439,7 +332,7 @@ public:
       if (i != e) {
         BROKER_DEBUG("remove inbound path to peer:" << hdl);
         ++performed_erases;
-        parent_->remove_input_path(i->second, reason, silent);
+        this->remove_input_path(i->second, reason, silent);
         ipath_to_peer_.erase(i->second);
         peer_to_ipath_.erase(i);
       }
@@ -455,10 +348,10 @@ public:
     state_->cache.remove(hdl);
     if (shutting_down() && peer_to_opath_.empty()) {
       // Shutdown when the last peer stops listening.
-      parent_->self()->quit(caf::exit_reason::user_shutdown);
+      self()->quit(caf::exit_reason::user_shutdown);
     } else {
       // See whether we can make progress without that peer in the mix.
-      parent_->push();
+      this->push();
     }
     return true;
   }
@@ -484,7 +377,7 @@ public:
   caf::outbound_stream_slot<typename worker_trait::element>
   add_worker(filter_type filter) {
     BROKER_TRACE(BROKER_ARG(filter));
-    auto slot = parent_->template add_unchecked_outbound_path<
+    auto slot = this->template add_unchecked_outbound_path<
       typename worker_trait::element>();
     if (slot != caf::invalid_stream_slot) {
       out().template assign<typename worker_trait::manager>(slot);
@@ -499,7 +392,7 @@ public:
   caf::outbound_stream_slot<typename store_trait::element>
   add_store(filter_type filter) {
     CAF_LOG_TRACE(CAF_ARG(filter));
-    auto slot = parent_->template add_unchecked_outbound_path<
+    auto slot = this->template add_unchecked_outbound_path<
       typename store_trait::element>();
     if (slot != caf::invalid_stream_slot) {
       out().template assign<typename store_trait::manager>(slot);
@@ -539,6 +432,8 @@ public:
     peers().emit_batches();
   }
 
+  using caf::stream_manager::push;
+
   /// Pushes data to peers and workers.
   void push(data_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
@@ -553,17 +448,143 @@ public:
     // local_push(std::move(x), std::move(y));
   }
 
+  // -- overridden member functions of caf::stream_manager ---------------------
+
+  void handle_batch(const caf::strong_actor_ptr& hdl, caf::message& xs) {
+    BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(xs));
+    // If there's anything in the central buffer at this point, it's stuff that
+    // we're sending out ourselves (as opposed to forwarding), so we flush it
+    // out to each path's own cache now to make sure the subsequent flush in
+    // after_handle_batch doesn't accidentally filter out messages where the
+    // outband path of previously-buffered messagesi happens to match the path
+    // of the inbound data we are handling here.
+    peers().selector().active_sender = nullptr;
+    peers().fan_out_flush();
+    peers().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
+    // Handle received batch.
+    if (xs.match_elements<typename peer_trait::batch>()) {
+      auto peer_actor = caf::actor_cast<caf::actor>(hdl);
+      auto it = blocked_peers.find(peer_actor);
+      if (it != blocked_peers.end()) {
+        BROKER_DEBUG("buffer batch from blocked peer" << hdl);
+        auto& bmsgs = blocked_msgs[peer_actor];
+        bmsgs.emplace_back(std::move(xs));
+        return;
+      }
+      auto num_workers = workers().num_paths();
+      auto num_stores = stores().num_paths();
+      BROKER_DEBUG("forward batch from peers;" << BROKER_ARG(num_workers)
+                                               << BROKER_ARG(num_stores));
+      // Only received from other peers. Extract content for to local workers
+      // or stores and then forward to other peers.
+      for (auto& msg : xs.get_mutable_as<typename peer_trait::batch>(0)) {
+        const topic* t;
+        // Dispatch to local workers or stores messages.
+        if (is_data_message(msg)) {
+          auto& dm = get<data_message>(msg.content);
+          t = &get_topic(dm);
+          if (num_workers > 0)
+            workers().push(dm);
+        } else {
+          auto& cm = get<command_message>(msg.content);
+          t = &get_topic(cm);
+          if (num_stores > 0)
+            stores().push(cm);
+        }
+        // Check if forwarding is on.
+        if (!state_->options.forward)
+          continue;
+        // Somewhat hacky, but don't forward data store clone messages.
+        auto ends_with = [](const std::string& s, const std::string& ending) {
+          if (ending.size() > s.size())
+            return false;
+          return std::equal(ending.rbegin(), ending.rend(), s.rbegin());
+        };
+        if (ends_with(t->string(), topics::clone_suffix.string()))
+          continue;
+        // Either decrease TTL if message has one already, or add one.
+        if (--msg.ttl == 0) {
+          BROKER_WARNING("dropped a message with expired TTL");
+          continue;
+        }
+        // Forward to other peers.
+        peers().push(std::move(msg));
+      }
+      return;
+    }
+    using variant_batch = std::vector<node_message::value_type>;
+    if (try_handle<worker_trait>(xs, "publish from local workers")
+        || try_handle<store_trait>(xs, "publish from local stores")
+        || try_handle<var_trait>(xs, "publish from custom actors"))
+      return;
+    BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
+    // Make sure the content of the buffer is pushed to the outbound paths while
+    // the sender filter is still active.
+    peers().fan_out_flush();
+    peers().selector().active_sender = nullptr;
+  }
+
+  void handle(caf::inbound_path* path,
+              caf::downstream_msg::batch& batch) override {
+    handle_batch(path->hdl, batch.xs);
+  }
+
+  void handle(caf::inbound_path* path, caf::downstream_msg::close& x) override {
+    BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(x));
+    auto slot = path->slots.receiver;
+    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_, caf::none);
+  }
+
+  void handle(caf::inbound_path* path,
+              caf::downstream_msg::forced_close& x) override {
+    BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(x));
+    auto slot = path->slots.receiver;
+    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_,
+              std::move(x.reason));
+  }
+
+  void handle(caf::stream_slots slots, caf::upstream_msg::drop& x) override {
+    BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(x));
+    caf::stream_manager::handle(slots, x);
+  }
+
+  void handle(caf::stream_slots slots,
+              caf::upstream_msg::forced_drop& x) override {
+    BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(x));
+    auto slot = slots.receiver;
+    if (out_.remove_path(slots.receiver, x.reason, true))
+      remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_,
+                std::move(x.reason));
+  }
+
+  bool handle(caf::stream_slots slots,
+              caf::upstream_msg::ack_open& x) override {
+    BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(x));
+    auto rebind_from = x.rebind_from;
+    auto rebind_to = x.rebind_to;
+    if (caf::stream_manager::handle(slots, x)) {
+      ack_open_success(slots.receiver, rebind_from, rebind_to);
+      return true;
+    }
+    ack_open_failure(slots.receiver, rebind_from, rebind_to);
+    return false;
+  }
+
+  bool done() const override {
+    return !continuous() && pending_handshakes_ == 0 && inbound_paths_.empty()
+           && out_.clean();
+  }
+
+  bool idle() const noexcept override {
+    // Same as `stream_stage<...>`::idle().
+    return out_.stalled() || (out_.clean() && this->inbound_paths_idle());
+  }
+
+  downstream_manager_type& out() override {
+    return out_;
+  }
+
   // -- properties -------------------------------------------------------------
-
-  /// Returns the fused downstream_manager of the parent.
-  auto& out() noexcept {
-    return parent_->out();
-  }
-
-  /// Returns the fused downstream_manager of the parent.
-  auto& out() const noexcept {
-    return parent_->out();
-  }
 
   /// Returns the downstream_manager for peer traffic.
   auto& peers() noexcept {
@@ -597,12 +618,12 @@ public:
 
   /// Returns a pointer to the owning actor.
   auto self() {
-    return parent_->self();
+    return caf::stream_manager::self();
   }
 
   /// Returns a pointer to the owning actor.
   auto self() const {
-    return parent_->self();
+    return caf::stream_manager::self();
   }
 
   /// Applies `f` to each peer.
@@ -765,7 +786,7 @@ private:
   step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl) {
     auto xs
       = std::make_tuple(state_->filter, caf::actor_cast<caf::actor>(self()));
-    return parent_->template add_unchecked_outbound_path<node_message>(
+    return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }
 
@@ -773,12 +794,12 @@ private:
   step2_handshake add(std::false_type send_own_filter, const caf::actor& hdl) {
     atom_value ok = caf::ok_atom::value;
     auto xs = std::make_tuple(ok, caf::actor_cast<caf::actor>(self()));
-    return parent_->template add_unchecked_outbound_path<node_message>(
+    return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }
 
-  /// Pointer to the parent.
-  caf::detail::stream_distribution_tree<core_policy>* parent_;
+  /// Organizes downstream communication to peers as well as local subscribers.
+  downstream_manager_type out_;
 
   /// Pointer to the state.
   State* state_;
@@ -808,5 +829,4 @@ private:
   size_t remaining_records_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::alm
