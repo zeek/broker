@@ -190,10 +190,6 @@ bool core_state::has_remote_master(const std::string& name) {
   });
 }
 
-detail::core_policy& core_state::policy() {
-  return governor->policy();
-}
-
 static void sync_peer_status(core_state* st, caf::actor new_peer) {
   auto it = st->peers_awaiting_status_sync.find(new_peer);
 
@@ -318,7 +314,7 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
     // Step #1: - A demands B shall establish a stream back to A
     //          - A has subscribers to the topics `ts`
     [=](atom::peer, filter_type& peer_ts,
-        caf::actor& peer_hdl) -> detail::core_policy::step1_handshake {
+        caf::actor& peer_hdl) -> core_state::policy_type::step1_handshake {
       BROKER_TRACE(BROKER_ARG(peer_ts) << BROKER_ARG(peer_hdl));
       auto& st = self->state;
       // Reject anonymous peering requests.
@@ -508,7 +504,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       filter_type filter{name / topics::master_suffix};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
-      st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
+      st.governor->out().assign<core_state::policy_type::store_trait::manager>(
+        slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       // Done.
       return ms;
@@ -551,7 +548,8 @@ caf::behavior core_actor(caf::stateful_actor<core_state>* self,
       filter_type filter{name / topics::clone_suffix};
       st.add_to_filter(filter);
       // Move the slot to the stores downstream manager and set filter.
-      st.governor->out().assign<detail::core_policy::store_trait::manager>(slot);
+      st.governor->out().assign<core_state::policy_type::store_trait::manager>(
+        slot);
       st.policy().stores().set_filter(slot, std::move(filter));
       return clone;
       /* FIXME:

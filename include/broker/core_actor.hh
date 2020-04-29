@@ -31,7 +31,9 @@ namespace broker {
 struct core_state {
   // --- nested types ----------------------------------------------------------
 
-  using governor_type = caf::detail::stream_distribution_tree<detail::core_policy>;
+  using policy_type = detail::core_policy<core_state>;
+
+  using governor_type = caf::detail::stream_distribution_tree<policy_type>;
 
   using governor_ptr = caf::intrusive_ptr<governor_type>;
 
@@ -72,7 +74,9 @@ struct core_state {
   bool has_remote_master(const std::string& name);
 
   /// Returns the policy object.
-  detail::core_policy& policy();
+  auto& policy() {
+    return governor->policy();
+  }
 
   // --- convenience functions for sending errors and events -------------------
 
