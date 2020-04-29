@@ -16,6 +16,7 @@ const char* ec_names[] = {
   "peer_incompatible",
   "peer_invalid",
   "peer_unavailable",
+  "peer_disconnect_during_handshake",
   "peer_timeout",
   "master_exists",
   "no_such_master",
@@ -30,6 +31,7 @@ const char* ec_names[] = {
   "invalid_topic_key",
   "end_of_file",
   "invalid_tag",
+  "invalid_status",
 };
 
 } // namespace

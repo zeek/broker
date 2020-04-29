@@ -36,7 +36,9 @@ void init_enums(py::module& m) {
     .value("Unspecified", broker::sc::unspecified)
     .value("PeerAdded", broker::sc::peer_added)
     .value("PeerRemoved", broker::sc::peer_removed)
-    .value("PeerLost", broker::sc::peer_lost);
+    .value("PeerLost", broker::sc::peer_lost)
+    .value("EndpointDiscovered", broker::sc::endpoint_discovered)
+    .value("EndpointUnreachable", broker::sc::endpoint_unreachable);
 
   py::enum_<broker::peer_status>(m, "PeerStatus")
     .value("Initialized", broker::peer_status::initialized)

@@ -2,6 +2,7 @@
 
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
+#include "broker/error.hh"
 
 using namespace std::string_literals;
 
@@ -20,6 +21,10 @@ const char* to_string(sc code) noexcept {
       return "peer_removed";
     case sc::peer_lost:
       return "peer_lost";
+    case sc::endpoint_discovered:
+      return "endpoint_discovered";
+    case sc::endpoint_unreachable:
+      return "endpoint_unreachable";
   }
 }
 
@@ -34,6 +39,8 @@ bool convert(const std::string& str, sc& code) noexcept {
   BROKER_SC_FROM_STRING(peer_added)
   BROKER_SC_FROM_STRING(peer_removed)
   BROKER_SC_FROM_STRING(peer_lost)
+  BROKER_SC_FROM_STRING(endpoint_discovered)
+  BROKER_SC_FROM_STRING(endpoint_unreachable)
   return false;
 }
 
@@ -52,18 +59,24 @@ sc status::code() const {
   return code_;
 }
 
-const std::string* status::message() const {
-  if (context_.empty())
-    return nullptr;
+caf::error status::verify() const {
   switch (code_) {
     default:
-      return nullptr;
+      return make_error(ec::invalid_status, "invalid enum value");
     case sc::unspecified:
-      return context_.empty() ? nullptr : &context_.get_as<std::string>(0);
+      if (!context_.node && !context_.network)
+        return nil;
+      return make_error(ec::invalid_status,
+                        "the unspecified status may not have any context");
     case sc::peer_added:
     case sc::peer_removed:
     case sc::peer_lost:
-      return &context_.get_as<std::string>(1);
+    case sc::endpoint_discovered:
+    case sc::endpoint_unreachable:
+      if (context_.node)
+        return nil;
+      return make_error(ec::invalid_status,
+                        "a non-default status must provide a node ID");
   }
 }
 
@@ -81,24 +94,31 @@ bool operator==(sc x, const status& y) {
 
 std::string to_string(const status& s) {
   std::string result = to_string(s.code());
-  if (!s.context_.empty())
-    result += to_string(s.context_); // TODO: prettify
+  result += '(';
+  if (s.context_.node) {
+    result += to_string(s.context_.node);
+    if (s.context_.network) {
+      result += ", ";
+      result += to_string(*s.context_.network);
+    }
+    result += ", ";
+  }
+  result += '"';
+  result += to_string(s.message_);
+  result += "\")";
   return result;
 }
 
 bool convertible_to_status(const vector& xs) noexcept {
-  if (!contains<std::string, sc, any_type>(xs))
+  if (xs.size() != 4 || !is<std::string>(xs[0]))
     return false;
   if (get<std::string>(xs[0]) != "status")
     return false;
-  // Context is always optional.
-  if (is<none>(xs[2]))
-    return true;
-  // An `unspecified` status may only contain a string.
-  if (get_as<sc>(xs[1]) == sc::unspecified)
-    return contains<none, std::string>(xs[2]);
-  // All other status codes contain an endpoint_info plus string.
-  return contains<endpoint_info, std::string>(xs[2]);
+  if (auto code = to<sc>(xs[1]))
+    return *code != sc::unspecified
+             ? contains<any_type, any_type, endpoint_info, std::string>(xs)
+             : contains<any_type, any_type, none, none>(xs);
+  return false;
 }
 
 bool convertible_to_status(const data& src) noexcept {
@@ -111,44 +131,30 @@ bool convert(const data& src, status& dst) {
   if (!convertible_to_status(src))
     return false;
   auto& xs = get<vector>(src);
-  sc code;
-  convert(get<enum_value>(xs[1]).name, code);
-  if (code == sc::unspecified) {
-    if (is<none>(xs[2])) {
-      dst.code_ = code;
-      dst.context_ = caf::make_message();
+  if (!convert(get<enum_value>(xs[1]).name, dst.code_))
+    return false;
+  if (dst.code_ != sc::unspecified) {
+    if (convert(get<vector>(xs[2]), dst.context_)) {
+      dst.message_ = get<std::string>(xs[3]);
       return true;
     }
-    auto& ctx = get<vector>(xs[2]);
-    dst.code_ = code;
-    dst.context_ = caf::make_message(get<std::string>(ctx[1]));
+  } else {
+    dst.context_ = endpoint_info{};
+    dst.message_.clear();
     return true;
   }
-  auto& ctx = get<vector>(xs[2]);
-  endpoint_info ei;
-  convert(ctx[0], ei);
-  dst.code_ = code;
-  dst.context_ = caf::make_message(std::move(ei), get<std::string>(ctx[1]));
-  return true;
+  return false;
 }
 
 bool convert(const status& src, data& dst) {
   vector result;
-  result.resize(3);
+  result.resize(4);
   result[0] = "status"s;
   result[1] = enum_value{to_string(src.code_)};
-  if (src.context_.match_elements<endpoint_info, std::string>()) {
-    result[2] = vector{};
-    auto& context = get<vector>(result[2]);
-    context.resize(2);
-    if (!convert(src.context_.get_as<endpoint_info>(0), context[0]))
+  if (src.code_ != sc::unspecified) {
+    if (!convert(src.context_, result[2]))
       return false;
-    context[1] = src.context_.get_as<std::string>(1);
-  } else if (src.context_.match_elements<std::string>()) {
-    result[2] = vector{};
-    auto& context = get<vector>(result[2]);
-    context.resize(2);
-    context[1] = src.context_.get_as<std::string>(0);
+    result[3] = src.message_;
   }
   dst = std::move(result);
   return true;
@@ -161,21 +167,15 @@ sc status_view::code() const noexcept {
 
 const std::string* status_view::message() const noexcept {
   BROKER_ASSERT(xs_ != nullptr);
-  if (is<none>((*xs_)[2]))
+  if (is<none>((*xs_)[3]))
     return nullptr;
-  auto& ctx = get<vector>((*xs_)[2]);
-  return &get<std::string>(ctx[1]);
+  return &get<std::string>((*xs_)[3]);
 }
 
 optional<endpoint_info> status_view::context() const {
   BROKER_ASSERT(xs_ != nullptr);
-  if (is<none>((*xs_)[2]))
-    return nil;
-  auto& ctx = get<vector>((*xs_)[2]);
-  if (is<none>(ctx[1]))
-    return nil;
   endpoint_info ei;
-  if (!convert(ctx[0], ei))
+  if (!convert((*xs_)[2], ei))
     return nil;
   return {std::move(ei)};
 }

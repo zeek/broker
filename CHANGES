@@ -1,4 +1,11 @@
 
+1.4.0-dev.85 | 2020-04-29 15:17:53 -0700
+
+  * Add new status codes for node discovery (Dominik Charousset)
+
+    The new status codes are currently unused, but become relevant when
+    switching to the ALM-based communication backend.
+
 1.4.0-dev.81 | 2020-04-15 15:10:37 -0700
 
   * GH-109: fix unusable subscriber.poll() method in Python bindings (Jon Siwek, Corelight)
