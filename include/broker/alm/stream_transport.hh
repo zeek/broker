@@ -107,13 +107,13 @@ public:
 
   /// Stream handshake in step 1 that includes our own filter. The receiver
   /// replies with a step2 handshake.
-  using step1_handshake = caf::outbound_stream_slot<node_message,
+  using step1_handshake = caf::outbound_stream_slot<message_type,
                                                     filter_type,
                                                     caf::actor>;
 
   /// Stream handshake in step 2. The receiver already has our filter
   /// installed.
-  using step2_handshake = caf::outbound_stream_slot<node_message,
+  using step2_handshake = caf::outbound_stream_slot<message_type,
                                                     caf::atom_value,
                                                     caf::actor>;
 
@@ -309,7 +309,7 @@ public:
   /// @param peer_hdl Handle to the peering (remote) core actor.
   /// @returns `false` if the peer is already connected, `true` otherwise.
   /// @pre Current message is an `open_stream_msg`.
-  void ack_peering(const caf::stream<node_message>& in,
+  void ack_peering(const caf::stream<message_type>& in,
                    const caf::actor& peer_hdl) {
     BROKER_TRACE(BROKER_ARG(peer_hdl));
     // Check whether we already receive inbound traffic from the peer. Could use
@@ -447,7 +447,7 @@ public:
   }
 
   /// Pushes data to peers only without forwarding it to local substreams.
-  void remote_push(node_message msg) {
+  void remote_push(message_type msg) {
     BROKER_TRACE(BROKER_ARG(msg));
     if (recorder_ != nullptr)
       try_record(msg);
@@ -481,10 +481,15 @@ public:
     // after_handle_batch doesn't accidentally filter out messages where the
     // outband path of previously-buffered messagesi happens to match the path
     // of the inbound data we are handling here.
+    BROKER_ASSERT(peer_manager().selector().active_sender == nullptr);
     peer_manager().fan_out_flush();
     peer_manager().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
-    auto guard = caf::detail::make_scope_guard(
-      [this] { peer_manager().selector().active_sender = nullptr; });
+    auto guard = caf::detail::make_scope_guard([this] {
+      // Make sure the content of the buffer is pushed to the outbound paths
+      // while the sender filter is still active.
+      peer_manager().fan_out_flush();
+      peer_manager().selector().active_sender = nullptr;
+    });
     // Handle received batch.
     if (xs.match_elements<typename peer_trait::batch>()) {
       auto peer_actor = caf::actor_cast<caf::actor>(hdl);
@@ -542,9 +547,6 @@ public:
         || try_handle<var_trait>(xs, "publish from custom actors"))
       return;
     BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
-    // Make sure the content of the buffer is pushed to the outbound paths while
-    // the sender filter is still active.
-    peer_manager().fan_out_flush();
   }
 
   void handle(caf::inbound_path* path,
