@@ -26,33 +26,15 @@
 namespace broker {
 namespace detail {
 
-static double now(endpoint::clock* clock)
-  {
+static double now(endpoint::clock* clock) {
   auto d = clock->now().time_since_epoch();
   return std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
-  }
-
-clone_state::clone_state() : self(nullptr), name(), master_topic(), core(),
-  master(), store(), is_stale(), stale_time(), unmutable_time(),
-  mutation_buffer(), pending_remote_updates(), awaiting_snapshot(),
-  awaiting_snapshot_sync(), clock() {
-  // nop
 }
 
 void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
                        caf::actor&& parent, endpoint::clock* ep_clock) {
-
-  self = ptr;
-  name = std::move(nm);
-  master_topic = name / topics::master_suffix;
-  core = std::move(parent);
-  master = nullptr;
-  is_stale = true;
-  stale_time = -1.0;
-  unmutable_time = -1.0;
-  clock = ep_clock;
-  awaiting_snapshot = true;
-  awaiting_snapshot_sync = true;
+  super::init(ptr, ep_clock, std::move(nm), std::move(parent));
+  master_topic = id / topics::master_suffix;
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -74,59 +56,93 @@ void clone_state::operator()(none) {
 
 void clone_state::operator()(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
-  auto i = store.find(x.key);
-  if (i != store.end())
-    i->second = std::move(x.value);
-  else
+  if (auto i = store.find(x.key); i != store.end()) {
+    auto& value = i->second;
+    auto old_value = std::move(value);
+    emit_update_event(x, old_value);
+    value = std::move(x.value);
+  } else {
+    emit_insert_event(x);
     store.emplace(std::move(x.key), std::move(x.value));
+  }
 }
 
 void clone_state::operator()(put_unique_command& x) {
-  BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry" << x.expiry);
-  store.emplace(std::move(x.key), std::move(x.value));
+  BROKER_ERROR("clone received put_unique_command");
 }
 
 void clone_state::operator()(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
-  store.erase(x.key);
+  if (store.erase(x.key) != 0)
+    emit_erase_event(x.key, x.publisher);
 }
 
-void clone_state::operator()(add_command& x) {
-  BROKER_INFO("ADD" << x.key << "->" << x.value);
-  auto i = store.find(x.key);
-  if (i == store.end())
-    i = store.emplace(std::move(x.key), data::from_type(x.init_type)).first;
-  caf::visit(adder{x.value}, i->second);
+void clone_state::operator()(add_command&) {
+  BROKER_ERROR("clone received add_command");
 }
 
-void clone_state::operator()(subtract_command& x) {
-  BROKER_INFO("SUBTRACT" << x.key << "->" << x.value);
-  auto i = store.find(x.key);
-  if (i != store.end()) {
-    caf::visit(remover{x.value}, i->second);
-  } else {
-    // can happen if we joined a stream but did not yet receive set_command
-    BROKER_WARNING("received substract_command for unknown key");
-  }
+void clone_state::operator()(subtract_command&) {
+  BROKER_ERROR("clone received subtract_command");
 }
 
 void clone_state::operator()(snapshot_command&) {
-  BROKER_ERROR("received SNAPSHOT");
+  BROKER_ERROR("received SNAPSHOT in a clone");
 }
 
 void clone_state::operator()(snapshot_sync_command& x) {
-  if ( x.remote_clone == self ) {
+  if (x.remote_clone == self)
     awaiting_snapshot_sync = false;
-  }
 }
 
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
+  // We consider the master the source of all updates.
+  publisher_id publisher{master.node(), master.id()};
+  // Short-circuit messages with an empty state.
+  if (x.state.empty()) {
+    if (!store.empty()) {
+      clear_command cmd{publisher};
+      (*this)(cmd);
+    }
+    return;
+  }
+  if (store.empty()) {
+    // Emit insert events.
+    for (auto& [key, value] : x.state)
+      emit_insert_event(key, value, nil, publisher);
+  } else {
+    // Emit erase and put events.
+    std::vector<const data*> keys;
+    keys.reserve(store.size());
+    for (auto& kvp : store)
+      keys.emplace_back(&kvp.first);
+    auto is_erased = [&x](const data* key) { return x.state.count(*key) == 0; };
+    auto p = std::partition(keys.begin(), keys.end(), is_erased);
+    for (auto i = keys.begin(); i != p; ++i)
+      emit_erase_event(**i, publisher_id{});
+    for (auto i = p; i != keys.end(); ++i) {
+      const auto& value = x.state[**i];
+      emit_update_event(**i, store[**i], value, nil, publisher);
+    }
+    // Emit insert events.
+    auto is_new = [&keys](const data& key) {
+      for (const auto key_ptr : keys)
+        if (*key_ptr == key)
+          return false;
+      return true;
+    };
+    for (const auto& [key, value] : x.state)
+      if (is_new(key))
+        emit_insert_event(key, value, nil, publisher);
+  }
+  // Override local state.
   store = std::move(x.state);
 }
 
-void clone_state::operator()(clear_command&) {
+void clone_state::operator()(clear_command& x) {
   BROKER_INFO("CLEAR");
+  for (auto& kvp : store)
+    emit_erase_event(kvp.first, x.publisher);
   store.clear();
 }
 
@@ -138,12 +154,12 @@ data clone_state::keys() const {
 }
 
 caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
-                          caf::actor core, std::string name,
+                          caf::actor core, std::string id,
                           double resync_interval, double stale_interval,
                           double mutation_buffer_interval,
                           endpoint::clock* clock) {
   self->monitor(core);
-  self->state.init(self, std::move(name), std::move(core), clock);
+  self->state.init(self, std::move(id), std::move(core), clock);
   self->set_down_handler(
     [=](const caf::down_msg& msg) {
       if (msg.source == core) {
@@ -201,7 +217,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         // forward all commands to the master
         self->state.forward(std::move(x));
         return;
-        }
+      }
 
       if ( mutation_buffer_interval <= 0 )
         return;
@@ -212,7 +228,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.emplace_back(std::move(x));
     },
     [=](set_command& x) {
-      self->state.store = std::move(x.state);
+      self->state(x);
       self->state.awaiting_snapshot = false;
 
       if ( ! self->state.awaiting_snapshot_sync ) {
@@ -232,7 +248,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
       BROKER_INFO("request master resolve");
       self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::resolve::value, self->state.name, self);
+                 atom::resolve::value, self->state.id, self);
       auto ri = std::chrono::duration<double>(resync_interval);
       auto ts = std::chrono::duration_cast<timespan>(ri);
       auto msg = caf::make_message(atom::master::value, atom::resolve::value);
@@ -256,7 +272,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.shrink_to_fit();
 
       self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::snapshot::value, self->state.name, self);
+                 atom::snapshot::value, self->state.id, self);
     },
     [=](atom::master, caf::error err) {
       if ( self->state.master )
@@ -376,9 +392,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
       return result;
     },
-    [=](atom::get, atom::name) {
-      return self->state.name;
-    },
+    [=](atom::get, atom::name) { return self->state.id; },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
       self->make_sink(
@@ -409,10 +423,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.command(cmd);
         }
       );
-    }
-  };
+    }};
 }
 
 } // namespace detail
 } // namespace broker
-

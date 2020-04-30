@@ -4,6 +4,8 @@
 
 #include "test.hh"
 
+#include <regex>
+
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/atoms.hh"
@@ -13,6 +15,7 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal_command.hh"
+#include "broker/store_event.hh"
 #include "broker/topic.hh"
 
 using std::cout;
@@ -23,7 +26,93 @@ using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
-CAF_TEST_FIXTURE_SCOPE(local_store_master, base_fixture)
+namespace {
+
+using string_list = std::vector<string>;
+
+class pattern_list {
+public:
+  explicit pattern_list(std::initializer_list<const char*> strings) {
+    patterns_.reserve(strings.size());
+    for (auto str : strings)
+      patterns_.emplace_back(str, str);
+  }
+
+  pattern_list(const pattern_list&) = default;
+
+  auto begin() const {
+    return patterns_.begin();
+  }
+
+  auto end() const {
+    return patterns_.end();
+  }
+
+private:
+  std::vector<std::pair<std::string, std::regex>> patterns_;
+};
+
+std::string to_string(const pattern_list& xs) {
+  auto i = xs.begin();
+  auto e = xs.end();
+  if (i == e)
+    return "[]";
+  std::string result = "[";
+  auto append_quoted = [&](const std::string& x) {
+    result += '"';
+    result += x;
+    result += '"';
+  };
+  append_quoted(i->first);
+  for (++i; i != e; ++i) {
+    result += ", ";
+    append_quoted(i->first);
+  }
+  result += ']';
+  return result;
+}
+
+bool operator==(const string_list& xs, const pattern_list& ys) {
+  auto matches = [](const std::string& x, const auto& y) {
+    return std::regex_match(x, y.second);
+  };
+  return std::equal(xs.begin(), xs.end(), ys.begin(), ys.end(), matches);
+}
+
+struct fixture : base_fixture {
+  string_list log;
+  caf::actor logger;
+
+  fixture() {
+    logger = ep.subscribe_nosync(
+      // Topics.
+      {topics::store_events},
+      // Init.
+      [](caf::unit_t&) {},
+      // Consume.
+      [this](caf::unit_t&, data_message msg) {
+        auto content = get_data(msg);
+        if (auto insert = store_event::insert::make(content))
+          log.emplace_back(to_string(insert));
+        else if (auto update = store_event::update::make(content))
+          log.emplace_back(to_string(update));
+        else if (auto erase = store_event::erase::make(content))
+          log.emplace_back(to_string(erase));
+        else
+          FAIL("unknown event: " << to_string(content));
+      },
+      // Cleanup.
+      [](caf::unit_t&) {});
+  }
+
+  ~fixture() {
+    anon_send_exit(logger, exit_reason::user_shutdown);
+  }
+};
+
+} // namespace
+
+CAF_TEST_FIXTURE_SCOPE(local_store_master, fixture)
 
 CAF_TEST(local_master) {
   auto core = ep.core();
@@ -33,6 +122,7 @@ CAF_TEST(local_master) {
   auto expected_ds = ep.attach_master("foo", memory);
   CAF_REQUIRE(expected_ds.engaged());
   auto& ds = *expected_ds;
+  MESSAGE(ds.frontend_id());
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream
   // handshake
@@ -60,13 +150,19 @@ CAF_TEST(local_master) {
   run();
   sched.inline_next_enqueue();
   CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
+  // check log
+  CHECK_EQUAL(log, pattern_list({
+                     "insert\\(hello, world, none, .+\\)",
+                     "update\\(hello, world, universe, none, .+\\)",
+                     "erase\\(hello, .+\\)",
+                   }));
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<base_fixture>)
+CAF_TEST_FIXTURE_SCOPE(store_master, point_to_point_fixture<fixture>)
 
 CAF_TEST(master_with_clone) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
@@ -176,6 +272,12 @@ CAF_TEST(master_with_clone) {
   anon_send_exit(earth.ep.core(), exit_reason::user_shutdown);
   anon_send_exit(mars.ep.core(), exit_reason::user_shutdown);
   exec_all();
+  // check log
+  CHECK_EQUAL(mars.log, earth.log);
+  CHECK_EQUAL(mars.log, pattern_list({
+                          "insert\\(test, 123, none, .+\\)",
+                          "insert\\(user, neverlord, none, .+\\)",
+                        }));
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

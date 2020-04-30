@@ -1,4 +1,18 @@
 
+1.4.0-dev.105 | 2020-04-30 16:37:21 -0700
+
+* Allow users to subscribe to data store "update events" (Dominik Charousset)
+
+  By subscribing to the new (reserved) topic topics::store_events, users can
+  now get insert, update, and erase events whenever values in the store are
+  added, changed, or removed::
+
+    auto x = subscriber.get();
+    if (auto insert = store_event::insert::make(x)) {
+      // ...
+    }
+    // ... same for store_event::update and store_event::erase ...
+
 1.4.0-dev.85 | 2020-04-29 15:17:53 -0700
 
   * Add new status codes for node discovery (Dominik Charousset)

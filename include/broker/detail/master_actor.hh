@@ -8,26 +8,24 @@
 #include <caf/event_based_actor.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/store_actor.hh"
+#include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/internal_command.hh"
+#include "broker/publisher_id.hh"
 #include "broker/topic.hh"
-#include "broker/endpoint.hh"
 
 namespace broker {
 namespace detail {
 
 class abstract_backend;
 
-class master_state {
+class master_state : public store_actor_state {
 public:
-  /// Allows us to apply this state as a visitor to internal commands.
-  using result_type = void;
+  using super = store_actor_state;
 
   /// Owning smart pointer to a backend.
   using backend_pointer = std::unique_ptr<abstract_backend>;
-
-  /// Creates an uninitialized object.
-  master_state();
 
   /// Initializes the object.
   void init(caf::event_based_actor* ptr, std::string&& nm,
@@ -70,21 +68,15 @@ public:
 
   void operator()(clear_command&);
 
-  caf::event_based_actor* self;
-
-  std::string id;
-
   topic clones_topic;
 
   backend_pointer backend;
 
-  caf::actor core;
-
   std::unordered_map<caf::actor_addr, caf::actor> clones;
 
-  endpoint::clock* clock;
+  bool exists(const data& key);
 
-  static const char* name;
+  static inline constexpr const char* name = "master_actor";
 };
 
 caf::behavior master_actor(caf::stateful_actor<master_state>* self,

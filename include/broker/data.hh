@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <caf/default_sum_type_access.hpp>
+#include <caf/fwd.hpp>
 #include <caf/sum_type_access.hpp>
 #include <caf/variant.hpp>
 
@@ -216,6 +217,12 @@ typename Inspector::result_type inspect(Inspector& f, data& x) {
 
 /// @relates data
 bool convert(const data& d, std::string& str);
+
+/// @relates data
+bool convert(const data& d, caf::node_id& node);
+
+/// @relates data
+bool convert(const caf::node_id& node, data& d);
 
 /// @relates data
 inline std::string to_string(const broker::data& d) {

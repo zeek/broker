@@ -5,15 +5,30 @@
 #include <string>
 #include <type_traits>
 
-#include "broker/optional.hh"
+#include <caf/fwd.hpp>
 
 #include "broker/detail/type_traits.hh"
+#include "broker/optional.hh"
+
+namespace broker::detail {
+
+bool can_convert_data_to_node(const data& src);
+
+} // namespace broker::detail
 
 namespace broker {
 
 /// Customization point for extending `can_convert`.
 template <class T>
 struct can_convert_predicate;
+
+// Enable `can_convert` for `caf::node_id`.
+template <>
+struct can_convert_predicate<caf::node_id> {
+  static bool check(const data& src) {
+    return detail::can_convert_data_to_node(src);
+  }
+};
 
 template <class T, class U>
 auto can_convert_to(const U& x)

@@ -280,6 +280,7 @@ set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
   src/configuration.cc
+  src/convert.cc
   src/core_actor.cc
   src/data.cc
   src/defaults.cc
@@ -301,6 +302,7 @@ set(BROKER_SRC
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
+  src/detail/store_actor.cc
   src/endpoint.cc
   src/endpoint_info.cc
   src/error.cc
@@ -310,9 +312,11 @@ set(BROKER_SRC
   src/peer_status.cc
   src/port.cc
   src/publisher.cc
+  src/publisher_id.cc
   src/status.cc
   src/status_subscriber.cc
   src/store.cc
+  src/store_event.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc

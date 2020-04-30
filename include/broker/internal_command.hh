@@ -8,8 +8,9 @@
 #include <caf/optional.hpp>
 #include <caf/meta/type_name.hpp>
 
-#include "broker/fwd.hh"
 #include "broker/data.hh"
+#include "broker/fwd.hh"
+#include "broker/publisher_id.hh"
 #include "broker/time.hh"
 
 namespace broker {
@@ -19,11 +20,12 @@ struct put_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
+  publisher_id publisher;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, put_command& x) {
-  return f(caf::meta::type_name("put"), x.key, x.value, x.expiry);
+  return f(caf::meta::type_name("put"), x.key, x.value, x.expiry, x.publisher);
 }
 
 /// Sets a value in the key-value store if its key does not already exist.
@@ -33,22 +35,24 @@ struct put_unique_command {
   caf::optional<timespan> expiry;
   caf::actor who;
   request_id req_id;
+  publisher_id publisher;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, put_unique_command& x) {
-  return f(caf::meta::type_name("put_unique"), x.key, x.value, x.expiry,
-           x.who, x.req_id);
+  return f(caf::meta::type_name("put_unique"), x.key, x.value, x.expiry, x.who,
+           x.req_id, x.publisher);
 }
 
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
+  publisher_id publisher;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
-  return f(caf::meta::type_name("erase"), x.key);
+  return f(caf::meta::type_name("erase"), x.key, x.publisher);
 }
 
 /// Adds a value to the existing value.
@@ -57,11 +61,13 @@ struct add_command {
   data value;
   data::type init_type;
   caf::optional<timespan> expiry;
+  publisher_id publisher;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, add_command& x) {
-  return f(caf::meta::type_name("add"), x.key, x.value, x.init_type, x.expiry);
+  return f(caf::meta::type_name("add"), x.key, x.value, x.init_type, x.expiry,
+           x.publisher);
 }
 
 /// Subtracts a value to the existing value.
@@ -69,11 +75,13 @@ struct subtract_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
+  publisher_id publisher;
 };
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, subtract_command& x) {
-  return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry);
+  return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry,
+           x.publisher);
 }
 
 /// Causes the master to reply with a snapshot of its state.
@@ -111,7 +119,7 @@ typename Inspector::result_type inspect(Inspector& f, set_command& x) {
 
 /// Drops all values.
 struct clear_command {
-  // tag type
+  publisher_id publisher;
 };
 
 template <class Inspector>

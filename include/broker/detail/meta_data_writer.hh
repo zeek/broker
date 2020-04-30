@@ -9,6 +9,7 @@
 
 #include "broker/data.hh"
 #include "broker/error.hh"
+#include "broker/publisher_id.hh"
 
 namespace broker {
 namespace detail {
@@ -21,6 +22,11 @@ public:
   template <class T>
   caf::error operator()(const T&) {
     return apply(data_tag<T>());
+  }
+
+  caf::error operator()(const std::pair<data, publisher_id>& x) {
+    // Ignore the publisher ID in recording mode.
+    return (*this)(x.first);
   }
 
   template <class K, class V>

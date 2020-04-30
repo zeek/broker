@@ -153,7 +153,7 @@ struct core_state {
   std::unordered_map<std::string, caf::actor> masters;
 
   /// Stores all clone actors created by this core.
-  std::unordered_multimap<std::string, caf::actor> clones;
+  std::unordered_map<std::string, caf::actor> clones;
 
   /// Requested topics on this core.
   filter_type filter;

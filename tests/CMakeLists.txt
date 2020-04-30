@@ -18,11 +18,13 @@ set(tests
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
+  cpp/publisher_id.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
   cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc
+  cpp/store_event.cc
   cpp/subscriber.cc
   cpp/test.cc
   cpp/topic.cc

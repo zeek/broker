@@ -93,6 +93,11 @@ public:
     /// @returns The next N responses in the proxy's mailbox.
     std::vector<response> receive(size_t n);
 
+    /// Returns a globally unique identifier for the frontend actor.
+    publisher_id frontend_id() const noexcept {
+      return {frontend_.node(), frontend_.id()};
+    }
+
   private:
     request_id id_ = 0;
     caf::actor frontend_;
@@ -140,6 +145,11 @@ public:
   /// Retrieves the frontend.
   inline const caf::actor& frontend() const {
     return frontend_;
+  }
+
+  /// Returns a globally unique identifier for the frontend actor.
+  publisher_id frontend_id() const noexcept {
+    return {frontend_.node(), frontend_.id()};
   }
 
   // --- modifiers -----------------------------------------------------------
