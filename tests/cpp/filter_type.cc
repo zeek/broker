@@ -30,13 +30,13 @@ TEST(extending a filter with less specific topics truncates) {
 TEST(extending a filter with unrelated topics appends) {
   auto f = make("/foo/bar", "/foo/baz", "/zeek");
   filter_extend(f, "/foo/boo");
-  CHECK_EQUAL(f, make("/foo/boo", "/foo/bar/", "/foo/baz", "/zeek"));
+  CHECK_EQUAL(f, make("/foo/boo", "/foo/bar", "/foo/baz", "/zeek"));
 }
 
 TEST(extending a filter with known topics does nothing) {
   auto f = make("/foo/bar", "/foo/baz", "/zeek");
   filter_extend(f, "/foo/bar");
-  CHECK_EQUAL(f, make("/foo/bar/", "/foo/baz", "/zeek"));
+  CHECK_EQUAL(f, make("/foo/bar", "/foo/baz", "/zeek"));
 }
 
 FIXTURE_SCOPE_END()

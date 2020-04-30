@@ -50,19 +50,6 @@ bool topic::prefix_of(const topic& t) const {
          && t.str_.compare(0, str_.size(), str_) == 0;
 }
 
-void topic::clean() {
-  // Remove one or more separators at the end.
-  while (!str_.empty() && str_.back() == sep)
-    str_.pop_back();
-  // Replace multiple consecutive separators with a single one.
-  static char sep2[] = {sep, sep};
-  auto i = str_.find(sep2, 0, sizeof(sep2));
-  if (i != std::string::npos) {
-    auto j = str_.find_first_not_of(sep, i);
-    str_.replace(i, j - i, 1, sep);
-  }
-}
-
 bool operator==(const topic& lhs, const topic& rhs) {
   return lhs.string() == rhs.string();
 }
