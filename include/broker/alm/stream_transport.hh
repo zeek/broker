@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-#include <utility>
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
@@ -12,6 +12,7 @@
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
+#include <caf/settings.hpp>
 #include <caf/stream_manager.hpp>
 #include <caf/stream_slot.hpp>
 
@@ -36,10 +37,19 @@ namespace broker::alm {
 
 /// Sets up a configurable stream manager to act as a distribution tree for
 /// Broker.
-template <class State>
+template <class Derived, class PeerId>
 class stream_transport : public caf::stream_manager {
 public:
   // -- member types -----------------------------------------------------------
+
+  using peer_id_type = PeerId;
+
+  using message_type = generic_node_message<PeerId>;
+
+  struct pending_connection {
+    caf::stream_slot slot;
+    caf::response_promise rp;
+  };
 
   /// Type to store a TTL for messages forwarded to peers.
   using ttl = uint16_t;
@@ -67,13 +77,13 @@ public:
 
   /// Streaming-related types for sources that produce both types of messages.
   struct var_trait {
-    using batch = std::vector<typename node_message::value_type>;
+    using batch = std::vector<typename message_type::value_type>;
   };
 
   /// Streaming-related types for peers.
   struct peer_trait {
     /// Type of a single element in the stream.
-    using element = node_message;
+    using element = message_type;
 
     using batch = std::vector<element>;
 
@@ -82,17 +92,17 @@ public:
                                                       peer_filter_matcher>;
   };
 
-  /// Maps actor handles to path IDs.
-  using peer_to_path_map = std::map<caf::actor, caf::stream_slot>;
-
-  /// Maps path IDs to actor handles.
-  using path_to_peer_map = std::map<caf::stream_slot, caf::actor>;
-
   /// Composed downstream_manager type for bundled dispatching.
   using downstream_manager_type
     = caf::fused_downstream_manager<typename peer_trait::manager,
                                     typename worker_trait::manager,
                                     typename store_trait::manager>;
+
+  /// Maps actor handles to path IDs.
+  using hdl_to_slot_map = std::unordered_map<caf::actor, caf::stream_slot>;
+
+  /// Maps path IDs to actor handles.
+  using slot_to_hdl_map = std::unordered_map<caf::stream_slot, caf::actor>;
 
   /// Stream handshake in step 1 that includes our own filter. The receiver
   /// replies with a step2 handshake.
@@ -108,16 +118,12 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  stream_transport(caf::event_based_actor* self, State* state,
-                   filter_type filter)
-    : caf::stream_manager(self),
-      out_(this),
-      state_(state),
-      remaining_records_(0) {
+  stream_transport(caf::event_based_actor* self, const filter_type& filter)
+    : caf::stream_manager(self), out_(this), remaining_records_(0) {
     continuous(true);
     // TODO: use filter
-    BROKER_ASSERT(state_ != nullptr);
-    auto& cfg = state->self->system().config();
+    using caf::get_or;
+    auto& cfg = self->system().config();
     auto meta_dir = get_or(cfg, "broker.recording-directory",
                            defaults::recording_directory);
     if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
@@ -133,9 +139,35 @@ public:
     }
   }
 
-  bool substream_local_data() const {
-    return false;
+  // -- properties -------------------------------------------------------------
+
+  caf::event_based_actor* self() noexcept {
+    // Our only constructor accepts an event-based actor. Hence, we know for
+    // sure that this case is safe, even though the base type stores self_ as a
+    // scheduled_actor pointer.
+    return static_cast<caf::event_based_actor*>(this->self_);
   }
+
+  auto& pending_connections() noexcept {
+    return pending_connections_;
+  }
+
+  /// Returns the downstream_manager for peer traffic.
+  auto& peer_manager() noexcept {
+    return out().template get<typename peer_trait::manager>();
+  }
+
+  /// Returns the downstream_manager for worker traffic.
+  auto& worker_manager() noexcept {
+    return out().template get<typename worker_trait::manager>();
+  }
+
+  /// Returns the downstream_manager for data store traffic.
+  auto& store_manager() noexcept {
+    return out().template get<typename store_trait::manager>();
+  }
+
+  // -- streaming helper functions ---------------------------------------------
 
   void ack_open_success(caf::stream_slot slot,
                         const caf::actor_addr& rebind_from,
@@ -146,7 +178,8 @@ public:
       BROKER_DEBUG("rebind occurred" << BROKER_ARG(slot)
                                      << BROKER_ARG(rebind_from)
                                      << BROKER_ARG(rebind_to));
-      peers().filter(slot).first = caf::actor_cast<caf::actor_addr>(rebind_to);
+      peer_manager().filter(slot).first
+        = caf::actor_cast<caf::actor_addr>(rebind_to);
     }
   }
 
@@ -157,8 +190,8 @@ public:
                  << BROKER_ARG(rebind_from) << BROKER_ARG(rebind_to));
     CAF_IGNORE_UNUSED(rebind_from);
     CAF_IGNORE_UNUSED(rebind_to);
-    auto i = opath_to_peer_.find(slot);
-    if (i != opath_to_peer_.end()) {
+    auto i = ostream_to_peer_.find(slot);
+    if (i != ostream_to_peer_.end()) {
       auto hdl = i->second;
       remove_peer(hdl, make_error(caf::sec::invalid_stream_state), false,
                   false);
@@ -170,54 +203,44 @@ public:
     for (auto& x : xs) {
       if (x.match_elements<topic, data>()) {
         x.force_unshare();
-        workers().push(std::move(x.get_mutable_as<topic>(0)),
-                       std::move(x.get_mutable_as<data>(1)));
+        worker_manager().push(std::move(x.get_mutable_as<topic>(0)),
+                              std::move(x.get_mutable_as<data>(1)));
       } else if (x.match_elements<topic, internal_command>()) {
         x.force_unshare();
-        stores().push(std::move(x.get_mutable_as<topic>(0)),
-                      std::move(x.get_mutable_as<internal_command>(1)));
+        store_manager().push(std::move(x.get_mutable_as<topic>(0)),
+                             std::move(x.get_mutable_as<internal_command>(1)));
       }
     }
-    workers().emit_batches();
-    stores().emit_batches();
+    worker_manager().emit_batches();
+    store_manager().emit_batches();
   }
 
   // -- status updates to the state --------------------------------------------
 
   void peer_lost(const caf::actor& hdl) {
     BROKER_TRACE(BROKER_ARG(hdl));
-    state_->template emit_status<sc::peer_lost>(hdl, "lost remote peer");
-    if (shutting_down())
+    dref().template emit_status<sc::peer_lost>(hdl, "lost remote peer");
+    if (dref().shutting_down)
       return;
-    auto x = state_->cache.find(hdl);
+    auto x = dref().cache.find(hdl);
     if (!x || x->retry == timeout::seconds(0))
       return;
     BROKER_INFO("will try reconnecting to" << *x << "in"
                                            << to_string(x->retry));
-    state_->self->delayed_send(state_->self, x->retry, atom::peer::value,
-                               atom::retry::value, *x);
+    self()->delayed_send(self(), x->retry, atom::peer::value,
+                         atom::retry::value, *x);
   }
 
   void peer_removed(const caf::actor& hdl) {
     BROKER_TRACE(BROKER_ARG(hdl));
-    state_->template emit_status<sc::peer_removed>(hdl, "removed peering");
-  }
-
-  // -- state required by the distribution tree --------------------------------
-
-  bool shutting_down() const {
-    return state_->shutting_down;
-  }
-
-  void shutting_down(bool value) {
-    state_->shutting_down = value;
+    dref().template emit_status<sc::peer_removed>(hdl, "removed peering");
   }
 
   // -- peer management --------------------------------------------------------
 
   /// Queries whether `hdl` is a known peer.
   bool has_peer(const caf::actor& hdl) const {
-    return peer_to_opath_.count(hdl) != 0 || peer_to_ipath_.count(hdl) != 0;
+    return hdl_to_ostream_.count(hdl) != 0 || hdl_to_istream_.count(hdl) != 0;
   }
 
   /// Block peer messages from being handled.  They are buffered until unblocked.
@@ -231,8 +254,8 @@ public:
     auto it = blocked_msgs.find(peer);
     if (it == blocked_msgs.end())
       return;
-    auto pit = peer_to_ipath_.find(peer);
-    if (pit == peer_to_ipath_.end()) {
+    auto pit = hdl_to_istream_.find(peer);
+    if (pit == hdl_to_istream_.end()) {
       blocked_msgs.erase(it);
       BROKER_DEBUG(
         "dropped batches after unblocking peer: path no longer exists" << peer);
@@ -266,7 +289,7 @@ public:
     std::integral_constant<bool, SendOwnFilter> send_own_filter_token;
     // Check whether we already send outbound traffic to the peer. Could use
     // `CAF_ASSERT` instead, because this must'nt get called for known peers.
-    if (peer_to_opath_.count(peer_hdl) != 0) {
+    if (hdl_to_ostream_.count(peer_hdl) != 0) {
       BROKER_ERROR("peer already connected");
       return {};
     }
@@ -274,9 +297,8 @@ public:
     auto slot = add(send_own_filter_token, peer_hdl);
     // Make sure the peer receives the correct traffic.
     out().template assign<typename peer_trait::manager>(slot);
-    peers().set_filter(slot,
-                       std::make_pair(peer_hdl.address(),
-                                      std::move(peer_filter)));
+    peer_manager().set_filter(
+      slot, std::make_pair(peer_hdl.address(), std::move(peer_filter)));
     // Add bookkeeping state for our new peer.
     add_opath(slot, peer_hdl);
     return slot;
@@ -291,7 +313,7 @@ public:
     BROKER_TRACE(BROKER_ARG(peer_hdl));
     // Check whether we already receive inbound traffic from the peer. Could use
     // `CAF_ASSERT` instead, because this must'nt get called for known peers.
-    if (peer_to_ipath_.count(peer_hdl) != 0) {
+    if (hdl_to_istream_.count(peer_hdl) != 0) {
       BROKER_ERROR("peer already connected");
       return;
     }
@@ -302,12 +324,12 @@ public:
 
   /// Queries whether we have an outbound path to `hdl`.
   bool has_outbound_path_to(const caf::actor& peer_hdl) {
-    return peer_to_opath_.count(peer_hdl) != 0;
+    return hdl_to_ostream_.count(peer_hdl) != 0;
   }
 
   /// Queries whether we have an inbound path from `hdl`.
   bool has_inbound_path_from(const caf::actor& peer_hdl) {
-    return peer_to_ipath_.count(peer_hdl) != 0;
+    return hdl_to_istream_.count(peer_hdl) != 0;
   }
 
   /// Removes a peer, aborting any stream to and from that peer.
@@ -316,25 +338,25 @@ public:
     BROKER_TRACE(BROKER_ARG(hdl));
     int performed_erases = 0;
     { // lifetime scope of first iterator pair
-      auto e = peer_to_opath_.end();
-      auto i = peer_to_opath_.find(hdl);
+      auto e = hdl_to_ostream_.end();
+      auto i = hdl_to_ostream_.find(hdl);
       if (i != e) {
         BROKER_DEBUG("remove outbound path to peer:" << hdl);
         ++performed_erases;
         out().remove_path(i->second, reason, silent);
-        opath_to_peer_.erase(i->second);
-        peer_to_opath_.erase(i);
+        ostream_to_peer_.erase(i->second);
+        hdl_to_ostream_.erase(i);
       }
     }
     { // lifetime scope of second iterator pair
-      auto e = peer_to_ipath_.end();
-      auto i = peer_to_ipath_.find(hdl);
+      auto e = hdl_to_istream_.end();
+      auto i = hdl_to_istream_.find(hdl);
       if (i != e) {
         BROKER_DEBUG("remove inbound path to peer:" << hdl);
         ++performed_erases;
         this->remove_input_path(i->second, reason, silent);
-        ipath_to_peer_.erase(i->second);
-        peer_to_ipath_.erase(i);
+        istream_to_hdl_.erase(i->second);
+        hdl_to_istream_.erase(i);
       }
     }
     if (performed_erases == 0) {
@@ -345,8 +367,8 @@ public:
       peer_removed(hdl);
     else
       peer_lost(hdl);
-    state_->cache.remove(hdl);
-    if (shutting_down() && peer_to_opath_.empty()) {
+    dref().cache.remove(hdl);
+    if (dref().shutting_down && hdl_to_ostream_.empty()) {
       // Shutdown when the last peer stops listening.
       self()->quit(caf::exit_reason::user_shutdown);
     } else {
@@ -359,13 +381,13 @@ public:
   /// Updates the filter of an existing peer.
   bool update_peer(const caf::actor& hdl, filter_type filter) {
     BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(filter));
-    auto e = peer_to_opath_.end();
-    auto i = peer_to_opath_.find(hdl);
+    auto e = hdl_to_ostream_.end();
+    auto i = hdl_to_ostream_.find(hdl);
     if (i == e) {
       BROKER_DEBUG("cannot update filter on unknown peer");
       return false;
     }
-    peers().filter(i->second).second = std::move(filter);
+    peer_manager().filter(i->second).second = std::move(filter);
     return true;
   }
 
@@ -381,7 +403,7 @@ public:
       typename worker_trait::element>();
     if (slot != caf::invalid_stream_slot) {
       out().template assign<typename worker_trait::manager>(slot);
-      workers().set_filter(slot, std::move(filter));
+      worker_manager().set_filter(slot, std::move(filter));
     }
     return slot;
   }
@@ -396,7 +418,7 @@ public:
       typename store_trait::element>();
     if (slot != caf::invalid_stream_slot) {
       out().template assign<typename store_trait::manager>(slot);
-      stores().set_filter(slot, std::move(filter));
+      store_manager().set_filter(slot, std::move(filter));
     }
     return slot;
   }
@@ -406,20 +428,20 @@ public:
   /// Pushes data to workers without forwarding it to peers.
   void local_push(data_message x) {
     BROKER_TRACE(BROKER_ARG(x)
-                 << BROKER_ARG2("num_paths", workers().num_paths()));
-    if (workers().num_paths() > 0) {
-      workers().push(std::move(x));
-      workers().emit_batches();
+                 << BROKER_ARG2("num_paths", worker_manager().num_paths()));
+    if (worker_manager().num_paths() > 0) {
+      worker_manager().push(std::move(x));
+      worker_manager().emit_batches();
     }
   }
 
   /// Pushes data to stores without forwarding it to peers.
   void local_push(command_message x) {
     BROKER_TRACE(BROKER_ARG(x)
-                 << BROKER_ARG2("num_paths", stores().num_paths()));
-    if (stores().num_paths() > 0) {
-      stores().push(std::move(x));
-      stores().emit_batches();
+                 << BROKER_ARG2("num_paths", store_manager().num_paths()));
+    if (store_manager().num_paths() > 0) {
+      store_manager().push(std::move(x));
+      store_manager().emit_batches();
     }
   }
 
@@ -428,8 +450,8 @@ public:
     BROKER_TRACE(BROKER_ARG(msg));
     if (recorder_ != nullptr)
       try_record(msg);
-    peers().push(std::move(msg));
-    peers().emit_batches();
+    peer_manager().push(std::move(msg));
+    peer_manager().emit_batches();
   }
 
   using caf::stream_manager::push;
@@ -437,14 +459,14 @@ public:
   /// Pushes data to peers and workers.
   void push(data_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    remote_push(make_node_message(std::move(msg), state_->options.ttl));
+    remote_push(make_node_message(std::move(msg), dref().options.ttl));
     // local_push(std::move(x), std::move(y));
   }
 
   /// Pushes data to peers and stores.
   void push(command_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    remote_push(make_node_message(std::move(msg), state_->options.ttl));
+    remote_push(make_node_message(std::move(msg), dref().options.ttl));
     // local_push(std::move(x), std::move(y));
   }
 
@@ -458,9 +480,9 @@ public:
     // after_handle_batch doesn't accidentally filter out messages where the
     // outband path of previously-buffered messagesi happens to match the path
     // of the inbound data we are handling here.
-    peers().selector().active_sender = nullptr;
-    peers().fan_out_flush();
-    peers().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
+    peer_manager().selector().active_sender = nullptr;
+    peer_manager().fan_out_flush();
+    peer_manager().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
     // Handle received batch.
     if (xs.match_elements<typename peer_trait::batch>()) {
       auto peer_actor = caf::actor_cast<caf::actor>(hdl);
@@ -471,8 +493,8 @@ public:
         bmsgs.emplace_back(std::move(xs));
         return;
       }
-      auto num_workers = workers().num_paths();
-      auto num_stores = stores().num_paths();
+      auto num_workers = worker_manager().num_paths();
+      auto num_stores = store_manager().num_paths();
       BROKER_DEBUG("forward batch from peers;" << BROKER_ARG(num_workers)
                                                << BROKER_ARG(num_stores));
       // Only received from other peers. Extract content for to local workers
@@ -484,15 +506,15 @@ public:
           auto& dm = get<data_message>(msg.content);
           t = &get_topic(dm);
           if (num_workers > 0)
-            workers().push(dm);
+            worker_manager().push(dm);
         } else {
           auto& cm = get<command_message>(msg.content);
           t = &get_topic(cm);
           if (num_stores > 0)
-            stores().push(cm);
+            store_manager().push(cm);
         }
         // Check if forwarding is on.
-        if (!state_->options.forward)
+        if (!dref().options.forward)
           continue;
         // Somewhat hacky, but don't forward data store clone messages.
         auto ends_with = [](const std::string& s, const std::string& ending) {
@@ -508,7 +530,7 @@ public:
           continue;
         }
         // Forward to other peers.
-        peers().push(std::move(msg));
+        peer_manager().push(std::move(msg));
       }
       return;
     }
@@ -520,8 +542,8 @@ public:
     BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
     // Make sure the content of the buffer is pushed to the outbound paths while
     // the sender filter is still active.
-    peers().fan_out_flush();
-    peers().selector().active_sender = nullptr;
+    peer_manager().fan_out_flush();
+    peer_manager().selector().active_sender = nullptr;
   }
 
   void handle(caf::inbound_path* path,
@@ -532,14 +554,14 @@ public:
   void handle(caf::inbound_path* path, caf::downstream_msg::close& x) override {
     BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(x));
     auto slot = path->slots.receiver;
-    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_, caf::none);
+    remove_cb(slot, istream_to_hdl_, hdl_to_istream_, hdl_to_ostream_, caf::none);
   }
 
   void handle(caf::inbound_path* path,
               caf::downstream_msg::forced_close& x) override {
     BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(x));
     auto slot = path->slots.receiver;
-    remove_cb(slot, ipath_to_peer_, peer_to_ipath_, peer_to_opath_,
+    remove_cb(slot, istream_to_hdl_, hdl_to_istream_, hdl_to_ostream_,
               std::move(x.reason));
   }
 
@@ -553,7 +575,7 @@ public:
     BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(x));
     auto slot = slots.receiver;
     if (out_.remove_path(slots.receiver, x.reason, true))
-      remove_cb(slot, opath_to_peer_, peer_to_opath_, peer_to_ipath_,
+      remove_cb(slot, ostream_to_peer_, hdl_to_ostream_, hdl_to_istream_,
                 std::move(x.reason));
   }
 
@@ -584,48 +606,6 @@ public:
     return out_;
   }
 
-  // -- properties -------------------------------------------------------------
-
-  /// Returns the downstream_manager for peer traffic.
-  auto& peers() noexcept {
-    return out().template get<typename peer_trait::manager>();
-  }
-
-  /// Returns the downstream_manager for peer traffic.
-  auto& peers() const noexcept {
-    return out().template get<typename peer_trait::manager>();
-  }
-
-  /// Returns the downstream_manager for worker traffic.
-  auto& workers() noexcept {
-    return out().template get<typename worker_trait::manager>();
-  }
-
-  /// Returns the downstream_manager for worker traffic.
-  auto& workers() const noexcept {
-    return out().template get<typename worker_trait::manager>();
-  }
-
-  /// Returns the downstream_manager for store traffic.
-  auto& stores() noexcept {
-    return out().template get<typename store_trait::manager>();
-  }
-
-  /// Returns the downstream_manager for store traffic.
-  auto& stores() const noexcept {
-    return out().template get<typename store_trait::manager>();
-  }
-
-  /// Returns a pointer to the owning actor.
-  auto self() {
-    return caf::stream_manager::self();
-  }
-
-  /// Returns a pointer to the owning actor.
-  auto self() const {
-    return caf::stream_manager::self();
-  }
-
   /// Applies `f` to each peer.
   template <class F>
   void for_each_peer(F f) {
@@ -637,9 +617,9 @@ public:
   /// Returns all known peers.
   auto get_peer_handles() {
     std::vector<caf::actor> peers;
-    for (auto& kvp : peer_to_opath_)
+    for (auto& kvp : hdl_to_ostream_)
       peers.emplace_back(kvp.first);
-    for (auto& kvp : peer_to_ipath_)
+    for (auto& kvp : hdl_to_istream_)
       peers.emplace_back(kvp.first);
     auto b = peers.begin();
     auto e = peers.end();
@@ -653,7 +633,7 @@ public:
   /// Finds the first peer handle that satisfies the predicate.
   template <class Predicate>
   caf::actor find_output_peer_hdl(Predicate pred) {
-    for (auto& kvp : peer_to_opath_)
+    for (auto& kvp : hdl_to_ostream_)
       if (pred(kvp.first))
         return kvp.first;
     return nullptr;
@@ -662,12 +642,12 @@ public:
   /// Applies `f` to each filter.
   template <class F>
   void for_each_filter(F f) {
-    for (auto& kvp : peers().states()) {
+    for (auto& kvp : peer_manager().states()) {
       f(kvp.second.filter);
     }
   }
 
-private:
+protected:
   /// @pre `recorder_ != nullptr`
   template <class T>
   bool try_record(const T& x) {
@@ -699,13 +679,13 @@ private:
       auto ttl0 = initial_ttl();
       auto push_unrecorded = [&](iterator_type first, iterator_type last) {
         for (auto i = first; i != last; ++i)
-          peers().push(make_node_message(std::move(*i), ttl0));
+          peer_manager().push(make_node_message(std::move(*i), ttl0));
       };
       auto push_recorded = [&](iterator_type first, iterator_type last) {
         for (auto i = first; i != last; ++i) {
           if (!try_record(*i))
             return i;
-          peers().push(make_node_message(std::move(*i), ttl0));
+          peer_manager().push(make_node_message(std::move(*i), ttl0));
         }
         return last;
       };
@@ -727,39 +707,39 @@ private:
   }
 
   /// Returns the initial TTL value when publishing data.
-  ttl initial_ttl() const {
-    return static_cast<ttl>(state_->options.ttl);
+  ttl initial_ttl() {
+    return static_cast<ttl>(dref().options.ttl);
   }
 
-  /// Adds entries to `peer_to_ipath_` and `ipath_to_peer_`.
+  /// Adds entries to `hdl_to_istream_` and `istream_to_hdl_`.
   void add_ipath(caf::stream_slot slot, const caf::actor& peer_hdl) {
     BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(peer_hdl));
     if (slot == caf::invalid_stream_slot) {
       BROKER_ERROR("tried to add an invalid inbound path");
       return;
     }
-    if (!ipath_to_peer_.emplace(slot, peer_hdl).second) {
+    if (!istream_to_hdl_.emplace(slot, peer_hdl).second) {
       BROKER_ERROR("ipath_to_peer entry already exists");
       return;
     }
-    if (!peer_to_ipath_.emplace(peer_hdl, slot).second) {
+    if (!hdl_to_istream_.emplace(peer_hdl, slot).second) {
       BROKER_ERROR("peer_to_ipath entry already exists");
       return;
     }
   }
 
-  /// Adds entries to `peer_to_opath_` and `opath_to_peer_`.
+  /// Adds entries to `hdl_to_ostream_` and `ostream_to_peer_`.
   void add_opath(caf::stream_slot slot, const caf::actor& peer_hdl) {
     BROKER_TRACE(BROKER_ARG(slot) << BROKER_ARG(peer_hdl));
     if (slot == caf::invalid_stream_slot) {
       BROKER_ERROR("tried to add an invalid outbound path");
       return;
     }
-    if (!opath_to_peer_.emplace(slot, peer_hdl).second) {
+    if (!ostream_to_peer_.emplace(slot, peer_hdl).second) {
       BROKER_ERROR("opath_to_peer entry already exists");
       return;
     }
-    if (!peer_to_opath_.emplace(peer_hdl, slot).second) {
+    if (!hdl_to_ostream_.emplace(peer_hdl, slot).second) {
       BROKER_ERROR("peer_to_opath entry already exists");
       return;
     }
@@ -769,9 +749,8 @@ private:
   /// well as the associated entry in `ys`. Also removes the entries from `as`
   /// and `bs` if `reason` is not default constructed. Calls `remove_peer` if
   /// no entry for a peer exists afterwards.
-  void remove_cb(caf::stream_slot slot, path_to_peer_map& xs,
-                 peer_to_path_map& ys, peer_to_path_map& zs,
-                 caf::error reason) {
+  void remove_cb(caf::stream_slot slot, slot_to_hdl_map& xs,
+                 hdl_to_slot_map& ys, hdl_to_slot_map& zs, caf::error reason) {
     BROKER_TRACE(BROKER_ARG(slot));
     auto i = xs.find(slot);
     if (i == xs.end()) {
@@ -785,7 +764,7 @@ private:
   /// Sends a handshake with filter in step #1.
   step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl) {
     auto xs
-      = std::make_tuple(state_->filter, caf::actor_cast<caf::actor>(self()));
+      = std::make_tuple(dref().filter, caf::actor_cast<caf::actor>(self()));
     return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }
@@ -801,20 +780,17 @@ private:
   /// Organizes downstream communication to peers as well as local subscribers.
   downstream_manager_type out_;
 
-  /// Pointer to the state.
-  State* state_;
-
   /// Maps peer handles to output path IDs.
-  peer_to_path_map peer_to_opath_;
+  hdl_to_slot_map hdl_to_ostream_;
 
   /// Maps output path IDs to peer handles.
-  path_to_peer_map opath_to_peer_;
+  slot_to_hdl_map ostream_to_peer_;
 
   /// Maps peer handles to input path IDs.
-  peer_to_path_map peer_to_ipath_;
+  hdl_to_slot_map hdl_to_istream_;
 
   /// Maps input path IDs to peer handles.
-  path_to_peer_map ipath_to_peer_;
+  slot_to_hdl_map istream_to_hdl_;
 
   /// Peers that are currently blocked (messages buffered until unblocked).
   std::unordered_set<caf::actor> blocked_peers;
@@ -822,11 +798,23 @@ private:
   /// Messages that are currently buffered.
   std::unordered_map<caf::actor, std::vector<caf::message>> blocked_msgs;
 
+  /// Maps pending peer handles to output IDs. An invalid stream ID indicates
+  /// that only "step #0" was performed so far. An invalid stream ID corresponds
+  /// to `peer_status::connecting` and a valid stream ID cooresponds to
+  /// `peer_status::connected`. The status for a given handle `x` is
+  /// `peer_status::peered` if `governor->has_peer(x)` returns true.
+  std::unordered_map<caf::actor, pending_connection> pending_connections_;
+
   /// Helper for recording meta data of published messages.
   detail::generator_file_writer_ptr recorder_;
 
   /// Counts down when using a `recorder_` to cap maximum file entries.
   size_t remaining_records_;
+
+private:
+  Derived& dref() {
+    return static_cast<Derived&>(*this);
+  }
 };
 
 } // namespace broker::alm
