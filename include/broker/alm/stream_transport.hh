@@ -10,6 +10,7 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/broadcast_downstream_manager.hpp>
 #include <caf/cow_tuple.hpp>
+#include <caf/detail/scope_guard.hpp>
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
@@ -239,7 +240,7 @@ public:
   // -- peer management --------------------------------------------------------
 
   /// Queries whether `hdl` is a known peer.
-  bool has_peer(const caf::actor& hdl) const {
+  bool connected_to(const caf::actor& hdl) const {
     return hdl_to_ostream_.count(hdl) != 0 || hdl_to_istream_.count(hdl) != 0;
   }
 
@@ -480,9 +481,10 @@ public:
     // after_handle_batch doesn't accidentally filter out messages where the
     // outband path of previously-buffered messagesi happens to match the path
     // of the inbound data we are handling here.
-    peer_manager().selector().active_sender = nullptr;
     peer_manager().fan_out_flush();
     peer_manager().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
+    auto guard = caf::detail::make_scope_guard(
+      [this] { peer_manager().selector().active_sender = nullptr; });
     // Handle received batch.
     if (xs.match_elements<typename peer_trait::batch>()) {
       auto peer_actor = caf::actor_cast<caf::actor>(hdl);
@@ -543,7 +545,6 @@ public:
     // Make sure the content of the buffer is pushed to the outbound paths while
     // the sender filter is still active.
     peer_manager().fan_out_flush();
-    peer_manager().selector().active_sender = nullptr;
   }
 
   void handle(caf::inbound_path* path,

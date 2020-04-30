@@ -55,7 +55,7 @@ result<void> init_peering(core_actor_type* self, actor remote_core,
   }
   // Ignore repeated peering requests without error.
   if (mgr.pending_connections().count(remote_core) > 0
-      || mgr.has_peer(remote_core)) {
+      || mgr.connected_to(remote_core)) {
     rp.deliver(caf::unit);
     return rp;
   }
@@ -169,10 +169,6 @@ void core_manager::add_to_filter(filter_type xs) {
     BROKER_DEBUG("Changed filter to " << filter);
     update_filter_on_peers();
   }
-}
-
-bool core_manager::has_peer(const caf::actor& x) {
-  return pending_connections().count(x) > 0 || has_peer(x);
 }
 
 bool core_manager::has_remote_master(const std::string& name) {
@@ -315,7 +311,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
         return {};
       }
       // Drop repeated handshake requests.
-      if (mgr.has_peer(peer_hdl)) {
+      if (mgr.connected_to(peer_hdl)) {
         BROKER_WARNING("Drop peering request from already connected peer.");
         return {};
       }
@@ -332,7 +328,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
       BROKER_DEBUG("received handshake step #2 from" << peer_hdl
                     << BROKER_ARG(actor{self}));
       // At this stage, we expect to have no path to the peer yet.
-      if (mgr.has_peer(peer_hdl)) {
+      if (mgr.connected_to(peer_hdl)) {
         BROKER_WARNING("Received unexpected or repeated step #2 handshake.");
         return;
       }
