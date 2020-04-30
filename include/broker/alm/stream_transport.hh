@@ -22,7 +22,6 @@
 #include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_writer.hh"
-#include "broker/detail/lift.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
