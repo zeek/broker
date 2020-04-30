@@ -7,6 +7,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
+#include <caf/actor_system_config.hpp>
 #include <caf/broadcast_downstream_manager.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/fused_downstream_manager.hpp>
