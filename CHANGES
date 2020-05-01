@@ -1,4 +1,20 @@
 
+1.4.0-dev.116 | 2020-04-30 18:29:35 -0700
+
+  * Use inheritance for composing the core manager (Dominik Charousset)
+
+  * Refactor streaming scaffold (Dominik Charousset)
+
+    - Bundle streaming logic in new alm::stream_transport class
+    - Inherit from `caf::stream_manager` directly
+    - Remove the obsolete `stream_distribution_tree`
+
+  * Templatize the core policy (Dominik Charousset)
+
+  * Generalize node_message (Dominik Charousset, Corelight)
+
+  * Fix subscription management with filter_extend (Dominik Charousset, Corelight)
+
 1.4.0-dev.105 | 2020-04-30 16:37:21 -0700
 
 * Allow users to subscribe to data store "update events" (Dominik Charousset)

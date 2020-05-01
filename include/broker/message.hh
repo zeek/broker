@@ -19,16 +19,27 @@ using command_message = caf::cow_tuple<topic, internal_command>;
 
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
-struct node_message {
+template <class PeerId>
+struct generic_node_message {
   /// Content type of the message.
   using value_type = caf::variant<data_message, command_message>;
+
+  /// Container type for storing a list of receivers.
+  using receiver_list = std::vector<PeerId>;
 
   /// Content of the message.
   value_type content;
 
   /// Time-to-life counter.
   uint16_t ttl;
+
+  /// Receivers of this message.
+  receiver_list receivers;
 };
+
+/// A message for node-to-node communication with either a user-defined data
+/// message or a broker-internal command messages.
+using node_message = generic_node_message<caf::node_id>;
 
 /// Returns whether `x` contains a ::node_message.
 inline bool is_data_message(const node_message::value_type& x) {
@@ -51,37 +62,30 @@ inline bool is_command_message(const node_message& x) {
 }
 
 /// @relates node_message
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, node_message& x) {
-  return f(x.content, x.ttl);
+template <class Inspector, class PeerId>
+typename Inspector::result_type
+inspect(Inspector& f, generic_node_message<PeerId>& x) {
+  return f(x.content, x.ttl, x.receivers);
 }
 
-/// Generates a broker ::data_message.
+/// Generates a ::data_message.
 template <class Topic, class Data>
 data_message make_data_message(Topic&& t, Data&& d) {
   return data_message(std::forward<Topic>(t), std::forward<Data>(d));
 }
 
-/// Generates a broker ::command_message.
+/// Generates a ::command_message.
 template <class Topic, class Command>
 command_message make_command_message(Topic&& t, Command&& d) {
   return command_message(std::forward<Topic>(t), std::forward<Command>(d));
 }
 
-/// Generates a broker ::node_message.
-inline node_message make_node_message(data_message msg, uint16_t ttl) {
-  return {std::move(msg), ttl};
-}
-
-/// Generates a broker ::node_message.
-inline node_message make_node_message(command_message msg, uint16_t ttl) {
-  return {std::move(msg), ttl};
-}
-
-/// Generates a broker ::node_message.
-inline node_message make_node_message(node_message::value_type msg,
-                                      uint16_t ttl) {
-  return {std::move(msg), ttl};
+/// Generates a ::node_message.
+template <class Value>
+node_message
+make_node_message(Value value, uint16_t ttl,
+                  typename node_message::receiver_list receivers = {}) {
+  return {std::move(value), ttl, std::move(receivers)};
 }
 
 /// Retrieves the topic from a ::data_message.

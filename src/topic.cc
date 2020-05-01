@@ -1,5 +1,7 @@
 #include "broker/topic.hh"
 
+#include <caf/string_view.hpp>
+
 namespace broker {
 
 constexpr char topic::reserved[];
@@ -64,6 +66,19 @@ topic operator/(const topic& lhs, const topic& rhs) {
 bool convert(const topic& t, std::string& str) {
   str = t.string();
   return true;
+}
+
+namespace {
+
+constexpr caf::string_view internal_prefix = "<$>/local/";
+
+} // namespace
+
+bool is_internal(const topic& x) {
+  const auto& str = x.string();
+  auto pre = internal_prefix;
+  return str.size() >= pre.size()
+         && caf::string_view{str.data(), pre.size()} == pre;
 }
 
 } // namespace broker
