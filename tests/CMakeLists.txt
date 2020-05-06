@@ -14,13 +14,18 @@ set(tests
   cpp/detail/generator_file_writer.cc
   cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
+  cpp/error.cc
+  cpp/filter_type.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/publisher.cc
+  cpp/publisher_id.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
+  cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc
+  cpp/store_event.cc
   cpp/subscriber.cc
   cpp/test.cc
   cpp/topic.cc
@@ -91,7 +96,7 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(data)
   make_python_test(forwarding)
   make_python_test(routing)
-  make_python_test(ssl)
+  make_python_test(ssl-tests)
   make_python_test(store)
   make_python_test(topic)
 endif ()

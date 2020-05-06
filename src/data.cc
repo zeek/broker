@@ -1,4 +1,7 @@
 #include "broker/data.hh"
+
+#include <caf/node_id.hpp>
+
 #include "broker/convert.hh"
 
 namespace broker {
@@ -238,6 +241,21 @@ bool convert(const table& t, std::string& str) {
 
 bool convert(const data& d, std::string& str) {
   caf::visit(data_converter{str}, d);
+  return true;
+}
+
+bool convert(const data& d, caf::node_id& node){
+  if (is<std::string>(d))
+    if (auto err = caf::parse(get<std::string>(d), node); !err)
+      return true;
+  return false;
+}
+
+bool convert(const caf::node_id& node, data& d) {
+  if (node)
+    d = to_string(node);
+  else
+    d = nil;
   return true;
 }
 

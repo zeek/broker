@@ -21,7 +21,6 @@ using std::cout;
 using std::endl;
 using std::string;
 
-using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
@@ -29,20 +28,32 @@ namespace {
 
 struct fixture : base_fixture {
   fixture() {
-    errors = sys.groups().get_local("broker/errors");
-    statuses = sys.groups().get_local("broker/statuses");
+    auto x = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
+    if (!x)
+      FAIL("caf::make_node_id failed");
+    node = std::move(*x);
+    node_str = to_string(node);
   }
 
-  void push(::broker::error x) {
-    anon_send(errors, atom::local::value, std::move(x));
+  void push(error x) {
+    data xs;
+    if (!convert(x, xs))
+      FAIL("unable to convert error to data");
+    caf::anon_send(ep.core(), atom::publish::value, atom::local::value,
+                   make_data_message(topics::errors, std::move(xs)));
   }
 
   void push(status x) {
-    anon_send(statuses, atom::local::value, std::move(x));
+    data xs;
+    if (!convert(x, xs))
+      FAIL("unable to convert status to data");
+    caf::anon_send(ep.core(), atom::publish::value, atom::local::value,
+                   make_data_message(topics::statuses, std::move(xs)));
   }
 
-  group errors;
-  group statuses;
+  caf::node_id node;
+
+  std::string node_str;
 };
 
 } // namespace <anonymous>
@@ -52,11 +63,13 @@ CAF_TEST_FIXTURE_SCOPE(status_subscriber_tests, fixture)
 CAF_TEST(base_tests) {
   auto sub1 = ep.make_status_subscriber(true);
   auto sub2 = ep.make_status_subscriber(false);
+  for (auto sub : {&sub1, &sub2})
+    sub->set_rate_calculation(false);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 0u);
   CAF_REQUIRE_EQUAL(sub2.available(), 0u);
   CAF_MESSAGE("test error event");
-  ::broker::error e1 = ec::type_clash;
+  error e1 = ec::type_clash;
   push(e1);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 1u);
@@ -64,14 +77,14 @@ CAF_TEST(base_tests) {
   CAF_REQUIRE_EQUAL(sub2.available(), 1u);
   CAF_REQUIRE_EQUAL(sub2.get(), e1);
   CAF_MESSAGE("test status event");
-  auto s1 = status::make<sc::unspecified>("foobar");;
+  auto s1 = status::make<sc::endpoint_discovered>(node, "foobar");
   push(s1);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 1u);
   CAF_REQUIRE_EQUAL(sub1.get(), s1);
   CAF_REQUIRE_EQUAL(sub2.available(), 0u);
   CAF_MESSAGE("shutdown");
-  anon_send_exit(ep.core(), exit_reason::user_shutdown);
+  anon_send_exit(ep.core(), caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

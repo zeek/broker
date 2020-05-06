@@ -1,4 +1,207 @@
 
+1.4.0-dev.116 | 2020-04-30 18:29:35 -0700
+
+  * Use inheritance for composing the core manager (Dominik Charousset)
+
+  * Refactor streaming scaffold (Dominik Charousset)
+
+    - Bundle streaming logic in new alm::stream_transport class
+    - Inherit from `caf::stream_manager` directly
+    - Remove the obsolete `stream_distribution_tree`
+
+  * Templatize the core policy (Dominik Charousset)
+
+  * Generalize node_message (Dominik Charousset, Corelight)
+
+  * Fix subscription management with filter_extend (Dominik Charousset, Corelight)
+
+1.4.0-dev.105 | 2020-04-30 16:37:21 -0700
+
+* Allow users to subscribe to data store "update events" (Dominik Charousset)
+
+  By subscribing to the new (reserved) topic topics::store_events, users can
+  now get insert, update, and erase events whenever values in the store are
+  added, changed, or removed::
+
+    auto x = subscriber.get();
+    if (auto insert = store_event::insert::make(x)) {
+      // ...
+    }
+    // ... same for store_event::update and store_event::erase ...
+
+1.4.0-dev.85 | 2020-04-29 15:17:53 -0700
+
+  * Add new status codes for node discovery (Dominik Charousset)
+
+    The new status codes are currently unused, but become relevant when
+    switching to the ALM-based communication backend.
+
+1.4.0-dev.81 | 2020-04-15 15:10:37 -0700
+
+  * GH-109: fix unusable subscriber.poll() method in Python bindings (Jon Siwek, Corelight)
+
+1.4.0-dev.79 | 2020-04-15 15:08:12 -0700
+
+  * GH-106: Fix Python tests to work with Python 3.8 (Jon Siwek, Corelight)
+
+  * Change topic strings to not automatically alter slashes (Jon Siwek, Corelight)
+
+    Automatically removing trailing or consecutive slashes in topic strings
+    prevents uniquely targeting topic names to a node.
+
+    For example, publishing to "node-10/" should not match a subscription
+    for "node-1/", but that's what happens with prefix-based matching if the
+    trailing slash is automatically removed.
+
+1.4.0-dev.77 | 2020-04-09 22:57:15 -0700
+
+  * Fix concurrency setup for the Cirrus/MSVC build (Dominik Charousset)
+
+1.4.0-dev.75 | 2020-03-30 13:21:09 -0700
+
+  * Make RocksDB usage opt-in and add --enable-rocksdb configure flag
+    (Jon Siwek, Corelight)
+
+1.4.0-dev.73 | 2020-03-27 11:11:51 -0700
+
+  * Add missing binding for broker_options member (Dominik Charousset)
+
+  * Update CAF submodule to fix MSVC/Windows build (Dominik Charousset)
+
+1.4.0-dev.69 | 2020-03-26 12:00:05 -0700
+
+  * Update CAF submodule to fix GCC 7.2 build (Dominik Charousset)
+
+1.4.0-dev.67 | 2020-03-23 10:22:10 -0700
+
+  * Increase template backtrace limit (Dominik Charousset)
+
+1.4.0-dev.65 | 2020-03-13 22:21:28 -0700
+
+  * Add Windows task to Cirrus CI config (Jon Siwek, Corelight)
+
+    This also moves the CAF submodule from aux/caf/ to caf/ since
+    Windows does not allow naming a directory "aux".
+
+1.4.0-dev.63 | 2020-03-13 13:38:40 -0700
+
+  * Add branch whitelist for CI notifications (Jon Siwek, Corelight)
+
+1.4.0-dev.62 | 2020-03-09 19:21:47 -0700
+
+  * Add Cirrus CI config and remove Travis CI config (Jon Siwek, Corelight)
+
+    The CMake configuration also now prefers choosing a Python3 installation
+    over Python2 (since that's end-of-life) for building the Broker Python
+    bindings.
+
+    Some timeout values in unit tests were also fiddled to work better in
+    the CI environment.
+
+1.4.0-dev.60 | 2020-03-09 12:54:05 -0700
+
+  * Fix a race condition in data store flare operations (Jon Siwek, Corelight)
+
+    The race (as seen via Zeek usage) goes like:
+
+    Thread A: enqueue item, get suspended
+    Thread B: sees mailbox has items
+    Thread B: dequeue item
+    Thread B: extinguish flare
+    Thread A: resume, fire flare
+
+    That ordering can leave the flare in an active state without any actual
+    items remaining in the mailbox.
+
+    This patch adds a mutex/lock such that extinguishing of the flare cannot
+    be interleaved between the enqueue and firing of the flare.
+
+    This likely relates to https://github.com/zeek/zeek/issues/838,
+    https://github.com/zeek/zeek/issues/716, as well as this thread
+    http://mailman.icsi.berkeley.edu/pipermail/zeek/2020-February/015062.html
+
+1.4.0-dev.58 | 2020-03-06 11:53:58 -0800
+
+  * Send statuses and errors via regular topics (Dominik Charousset)
+
+    With this set of changes, status and error messages no longer bypass the
+    regular topic-based distribution. There are two new reserved topics:
+    topics::statuses and topics::errors. Messages to these two topics are never
+    forwarded to peers.
+
+    When emitting status or error messages, they get converted to data, which
+    is a vector.  The new conversions between status <-> data and error <->
+    data actually accounts for the most code changes. However, this means
+    scripts can now easily access these messages as well. Subscribing to the
+    reserved topics grants easy access to statuses and errors now, allowing to
+    multiplex them with regular events.
+
+    The status_subscriber was rewritten to dispatch to a regular subscriber
+    internally.
+
+  * Implement conversion between error and data (Dominik Charousset)
+
+  * Implement can_convert_to for endpoint_info (Dominik Charousset)
+
+  * Add declarative inspection of data via contains<> (Dominik Charousset)
+
+  * Make ec convertible to and from string (Dominik Charousset)
+
+  * Add status_view type for operating on raw data (Dominik Charousset)
+
+  * Implement conversion between data and status (Dominik Charousset)
+
+  * Add from-string conversion to sc enum (Dominik Charousset)
+
+1.4.0-dev.38 | 2020-03-06 10:39:42 -0800
+
+  * Fix cross compilation build (Dominik Charousset)
+
+1.4.0-dev.35 | 2020-03-02 11:40:53 -0800
+
+  * Add missing unistd.h include (Jon Siwek, Corelight)
+
+1.4.0-dev.34 | 2020-03-02 10:56:59 -0800
+
+  * Include CAF directly as submodule (Dominik Charousset)
+
+1.4.0-dev.32 | 2020-03-02 10:30:03 -0800
+
+  * Check in CMake whether the <filesystem> code links (Dominik Charousset)
+
+  * Add instructions for MSVC builds (Dominik Charousset)
+
+  * Improve error logging in the SQLite backend (Dominik Charousset)
+
+  * Port the flare to Windows/MSVC (Dominik Charousset)
+
+    The `pipe` system call only exists on POSIX. On Windows, we need to
+    create a pair of connected sockets. Also, file descriptors and sockets
+    are different things on Windows.
+
+    Fortunately, CAF already offers a set of abstractions we can use to
+    adjust for the platform differences. We still have to make sure to use
+    recv/send on Windows instead of read/write as well as calling WSAStartup
+    and WSACleanup.
+
+  * Port recording utilities to Windows (Dominik Charousset)
+
+  * Port filesystem wrapper to Windows/MSVC (Dominik Charousset)
+
+  * Reimplement address with caf::ip_address for MSVC (Dominik Charousset)
+
+    The implementation of `broker::address` used many  UNIX-specific
+    functions as well as functions marked as deprecated/unsafe on MSVC (e.g.
+    `sprintf`). Basing the implementation on `caf::ip_address` instead of
+    rolling a custom implementation avoids dealing with most issues in the
+    first place.
+
+  * Add MSVC to the CMake build harness (Dominik Charousset)
+
+1.4.0-dev.18 | 2020-02-28 13:22:09 -0800
+
+  * Fix handling of OS-specific threading flags (Dominik Charousset)
+
 1.4.0-dev.15 | 2020-02-25 17:56:28 -0800
 
   * Support building Broker as CMake subdirectory (Dominik Charousset)

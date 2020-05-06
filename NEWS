@@ -1,7 +1,9 @@
 Broker 1.4.0
 ============
 
-TODO: No important changes yet
+- RocksDB support is now opt-in instead of automatically detected and used
+  at configuration-time.  Use the ``--enable-rocksdb`` and
+  ``--with-rocksdb=`` flags to opt-in.
 
 Broker 1.3.0
 ============

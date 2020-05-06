@@ -10,8 +10,11 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include "broker/alm/stream_transport.hh"
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
+#include "broker/detail/network_cache.hh"
+#include "broker/detail/radix_tree.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
@@ -22,37 +25,23 @@
 #include "broker/peer_info.hh"
 #include "broker/status.hh"
 
-#include "broker/detail/core_policy.hh"
-#include "broker/detail/network_cache.hh"
-#include "broker/detail/radix_tree.hh"
-
 namespace broker {
 
-struct core_state {
-  // --- nested types ----------------------------------------------------------
+class core_manager : public alm::stream_transport<core_manager, caf::node_id> {
+public:
+  // --- member types ----------------------------------------------------------
 
-  using governor_type = caf::detail::stream_distribution_tree<detail::core_policy>;
-
-  using governor_ptr = caf::intrusive_ptr<governor_type>;
-
-  struct pending_peer_state {
-    caf::stream_slot slot;
-    caf::response_promise rp;
-  };
-
-  using pending_peers_map = std::unordered_map<caf::actor, pending_peer_state>;
+  using super = alm::stream_transport<core_manager, caf::node_id>;
 
   /// Identifies the two individual streams forming a bidirectional channel.
-  /// The first ID denotes the *input*  and the second ID denotes the *output*.
+  /// The first ID denotes the *input*  and the second ID denotes the
+  /// *output*.
   using stream_id_pair = std::pair<caf::stream_slot, caf::stream_slot>;
 
   // --- construction ----------------------------------------------------------
 
-  core_state(caf::event_based_actor* ptr);
-
-  /// Establishes all invariants.
-  void init(filter_type initial_filter, broker_options opts,
-            endpoint::clock* ep_clock);
+  core_manager(caf::event_based_actor* ptr, const filter_type& filter,
+               broker_options opts, endpoint::clock* ep_clock);
 
   // --- filter management -----------------------------------------------------
 
@@ -62,17 +51,33 @@ struct core_state {
   /// Adds `xs` to our filter and update all peers on changes.
   void add_to_filter(filter_type xs);
 
+  /// Returns the filter for `hdl`
+  /// @pre `has_peer(hdl)`
+  peer_filter& get_filter(const caf::actor& hdl);
+  
+  /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
+  filter_type get_all_filter();
+
+  /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
+  /// except the filters in set skip
+  filter_type get_all_filter(const std::set<caf::actor>& skip);
+
   // --- convenience functions for querying state ------------------------------
 
   /// Returns whether `x` is either a pending peer or a connected peer.
   bool has_peer(const caf::actor& x);
 
-  /// Returns whether a master for `name` probably exists already on one of our
-  /// peers.
+  /// Returns whether a master for `name` probably exists already on one of
+  /// our peers.
   bool has_remote_master(const std::string& name);
+  
+  // -- peer management  -----------------------------------------------------
 
-  /// Returns the policy object.
-  detail::core_policy& policy();
+  /// Updates the filter of an existing peer.
+  bool update_peer(const caf::actor& hdl, filter_type filter);
+
+  /// Updates the filter of all our neighbors
+  bool update_routing(const caf::actor& hdl, filter_type filter);
 
   // --- convenience functions for sending errors and events -------------------
 
@@ -80,14 +85,16 @@ struct core_state {
   void emit_error(caf::actor hdl, const char* msg) {
     auto emit = [=](network_info x) {
       BROKER_INFO("error" << ErrorCode << x);
-      self->send(
-        errors_, atom::local::value,
-        make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg));
+      // TODO: consider creating the data directly rather than going through the
+      //       error object and converting it.
+      auto err
+        = make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg);
+      this->local_push(make_data_message(topics::errors, get_as<data>(err)));
     };
-    if (self->node() != hdl.node())
-      cache.fetch(hdl,
-                  [=](network_info x) { emit(std::move(x)); },
-                  [=](caf::error) { emit({}); });
+    if (self()->node() != hdl.node())
+      cache.fetch(
+        hdl, [=](network_info x) { emit(std::move(x)); },
+        [=](caf::error) { emit({}); });
     else
       emit({});
   }
@@ -104,9 +111,9 @@ struct core_state {
       emit_error<ErrorCode>(std::move(*x), msg);
     else {
       BROKER_INFO("error" << ErrorCode << inf);
-      self->send(
-        errors_, atom::local::value,
-        make_error(ErrorCode, endpoint_info{node_id(), inf}, msg));
+      auto err
+        = make_error(ErrorCode, endpoint_info{node_id(), std::move(inf)}, msg);
+      local_push(make_data_message(topics::errors, get_as<data>(err)));
     }
   }
 
@@ -116,14 +123,16 @@ struct core_state {
                   "Use emit_peer_added_status instead");
     auto emit = [=](network_info x) {
       BROKER_INFO("status" << StatusCode << x);
-      self->send(statuses_, atom::local::value,
-                 status::make<StatusCode>(
-                 endpoint_info{hdl.node(), std::move(x)}, msg));
+      // TODO: consider creating the data directly rather than going through
+      // the
+      //       status object and converting it.
+      auto stat = status::make<StatusCode>(
+        endpoint_info{hdl.node(), std::move(x)}, msg);
+      local_push(make_data_message(topics::statuses, get_as<data>(stat)));
     };
-    if (self->node() != hdl.node())
-      cache.fetch(hdl,
-                  [=](network_info x) { emit(x); },
-                  [=](caf::error) { emit({}); });
+    if (self()->node() != hdl.node())
+      cache.fetch(
+        hdl, [=](network_info x) { emit(x); }, [=](caf::error) { emit({}); });
     else
       emit({});
   }
@@ -146,35 +155,13 @@ struct core_state {
   std::unordered_map<std::string, caf::actor> masters;
 
   /// Stores all clone actors created by this core.
-  std::unordered_multimap<std::string, caf::actor> clones;
+  std::unordered_map<std::string, caf::actor> clones;
 
   /// Requested topics on this core.
   filter_type filter;
 
-  /// Multiplexes local streams and streams for peers.
-  governor_ptr governor;
-
-  /// Maps pending peer handles to output IDs. An invalid stream ID indicates
-  /// that only "step #0" was performed so far. An invalid stream ID
-  /// corresponds to `peer_status::connecting` and a valid stream ID
-  /// cooresponds to `peer_status::connected`. The status for a given handle
-  /// `x` is `peer_status::peered` if `governor->has_peer(x)` returns true.
-  pending_peers_map pending_peers;
-
-  /// Points to the owning actor.
-  caf::event_based_actor* self;
-
   /// Associates network addresses to remote actor handles and vice versa.
   detail::network_cache cache;
-
-  /// Caches the CAF group for error messages.
-  caf::group errors_;
-
-  /// Caches the CAF group for status messages.
-  caf::group statuses_;
-
-  /// Name shown in logs for all instances of this actor.
-  static const char* name;
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down;
@@ -185,7 +172,8 @@ struct core_state {
   /// Keeps track of all actors that subscribed to status updates.
   std::unordered_set<caf::actor> status_subscribers;
 
-  /// Keeps track of all actors that currently wait for handshakes to complete.
+  /// Keeps track of all actors that currently wait for handshakes to
+  /// complete.
   std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync;
 
   /// Handle for recording all subscribed topics (if enabled).
@@ -195,8 +183,21 @@ struct core_state {
   std::ofstream peers_file;
 };
 
-caf::behavior core_actor(caf::stateful_actor<core_state>* self,
-                         filter_type initial_filter, broker_options opts,
-                         endpoint::clock* clock);
+struct core_state {
+  /// Establishes all invariants.
+  void init(filter_type initial_filter, broker_options opts,
+            endpoint::clock* ep_clock);
+
+  /// Multiplexes local streams and streams for peers.
+  caf::intrusive_ptr<core_manager> mgr;
+
+  /// Gives this actor a recognizable name in log output.
+  static inline const char* name = "core";
+};
+
+using core_actor_type = caf::stateful_actor<core_state>;
+
+caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
+                         broker_options opts, endpoint::clock* clock);
 
 } // namespace broker

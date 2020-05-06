@@ -176,7 +176,7 @@ struct peer_fixture {
         // nop
       },
       [=](unit_t&, data_message x) {
-        data.emplace_back(std::move(x));
+        this->data.emplace_back(std::move(x));
       },
       [](unit_t&, const caf::error&) {
         // nop
@@ -264,7 +264,11 @@ struct triangle_fixture : global_fixture {
     : mercury(this, "mercury"),
       venus(this, "venus"),
       earth(this, "earth") {
-    // nop
+    base_fixture::init_socket_api();
+  }
+
+  ~triangle_fixture() {
+    base_fixture::deinit_socket_api();
   }
 
   void connect_peers() {
@@ -333,9 +337,9 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
                   filter({"zeek/events", "zeek/events/failures"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"zeek/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"zeek/events"}));
   MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
   mercury.publish("zeek/events/failures", "oops", "sorry!");
   mercury.publish("zeek/events/logging", 123, 456);
@@ -393,9 +397,9 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
                   filter({"zeek/events", "zeek/events/failures"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"bro/events/failures"}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({"zeek/events/failures"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({"zeek/events"}));
   MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
   mercury.publish("zeek/events/failures", "oops", "sorry!");
   mercury.publish("zeek/events/logging", 123, 456);
@@ -473,6 +477,9 @@ CAF_TEST(unpeering) {
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
   auto earth_es = earth.ep.make_status_subscriber(true);
+  for (auto es : {&mercury_es, &venus_es, &earth_es})
+    es->set_rate_calculation(false);
+  exec_loop();
   connect_peers();
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()),
                   event_log({sc::peer_added, sc::peer_added}));
@@ -514,6 +521,8 @@ CAF_TEST(unpeering) {
 CAF_TEST(unpeering_without_connections) {
   MESSAGE("get events from all peers");
   auto venus_es = venus.ep.make_status_subscriber(true);
+  venus_es.set_rate_calculation(false);
+  exec_loop();
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
   exec_loop();
@@ -525,6 +534,9 @@ CAF_TEST(connection_retry) {
   MESSAGE("get events from mercury and venus");
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
+  for (auto es : {&mercury_es, &venus_es})
+    es->set_rate_calculation(false);
+  exec_loop();
   MESSAGE("initiate peering from venus to mercury (will fail)");
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");

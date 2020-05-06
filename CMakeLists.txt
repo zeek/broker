@@ -13,6 +13,20 @@ else()
 endif()
 unset(parent_dir)
 
+if (WIN32)
+  message(STATUS "Broker currently only supports static bulids on Windows")
+  message(STATUS "Note: continue with ENABLE_STATIC_ONLY")
+  set(ENABLE_STATIC_ONLY ON)
+endif ()
+
+# Check the thread library info early as setting compiler flags seems to
+# interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
+# include -lpthread when it should.
+if (NOT TARGET Threads::Threads)
+  find_package(Threads REQUIRED)
+endif ()
+set(LINK_LIBS ${LINK_LIBS} Threads::Threads)
+
 # Leave most compiler flags alone when building as subdirectory.
 if (NOT broker_is_subproject)
 
@@ -33,10 +47,6 @@ if (NOT broker_is_subproject)
   endif ()
 
   if ( BROKER_SANITIZERS )
-      # Check the thread library info early as setting compiler flags seems to
-      # interfere with the detection and causes CMAKE_THREAD_LIBS_INIT to not
-      # include -lpthread when it should.
-      find_package(Threads)
       set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
       set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
       set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
@@ -71,19 +81,17 @@ if (NOT broker_is_subproject)
       endif ()
   endif()
 
-  # Mac OS ignores -pthread but other platforms require it
-  if (NOT BROKER_APPLE)
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -pthread")
+  if (MSVC)
+    # Allow more sections in object files, otherwise Broker fails to compile.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} /bigobj")
+  else ()
+    # Increase warnings.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
+    # Increase maximum number of instantiations.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
+    # Make sure to get the full context on template errors.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=0")
   endif ()
-
-  # Increase warnings.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
-
-  # Increase maximum number of instantiations.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
-
-  # Reduce the number of template instantiations shown in backtrace.
-  set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=3")
 
   # Append our extra flags to the existing value of CXXFLAGS.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
@@ -91,16 +99,45 @@ if (NOT broker_is_subproject)
 endif()
 
 include(RequireCXX17)
+include(CheckCXXSourceCompiles)
 
-if (NOT BROKER_DISABLE_SSE2_CHECK)
+# Unfortunately, std::filesystem is a mess. The feature checks at compile time
+# via __has_include(<filesystem>) or __cpp_lib_filesystem only tell half of the
+# story. On some older Clang releases, one also needs to additional link to
+# -lc++fs. On some older GCC releases, -lstdc++-fs is required. We do have a
+# fallback for pre-std-filesystem on POSIX systems. So, instead of doing all the
+# flag guessing, we simply check once whether code using <filesystem> compiles,
+# links and runs. Otherwise, we fall back to our pre-std-filesystem
+# implementation - or raise an error when building on Windows (since we don't
+# have a fallback on this platform).
+check_cxx_source_compiles("
+  #include <cstdlib>
+  #include <filesystem>
+  int main(int, char**) {
+    auto cwd = std::filesystem::current_path();
+    auto str = cwd.string();
+    return str.empty() ? EXIT_FAILURE : EXIT_SUCCESS;
+  }
+  "
+  BROKER_HAS_STD_FILESYSTEM)
+
+if (MSVC)
+
+  if (NOT BROKER_HAS_STD_FILESYSTEM)
+    message(FATAL_ERROR "No std::filesystem support! Required on MSVC.")
+  endif ()
+
+  set(BROKER_USE_SSE2 OFF)
+
+elseif (NOT BROKER_DISABLE_SSE2_CHECK)
 
   include(CheckIncludeFiles)
   set(CMAKE_REQUIRED_FLAGS -msse2)
-  check_include_files(emmintrin.h HAVE_SSE2)
+  check_include_files(emmintrin.h BROKER_USE_SSE2)
   set(CMAKE_REQUIRED_FLAGS)
 
-  if (HAVE_SSE2)
-    add_definitions(-DBROKER_USE_SSE2 -msse2)
+  if (BROKER_USE_SSE2)
+    add_definitions(-msse2)
   endif ()
 
 endif ()
@@ -136,7 +173,9 @@ if (APPLE)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(BROKER_LINUX true)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(BROKER_FREEBSD)
+  set(BROKER_FREEBSD true)
+elseif(WIN32)
+  set(BROKER_WINDOWS true)
 endif ()
 
 include(TestBigEndian)
@@ -144,8 +183,12 @@ test_big_endian(BROKER_BIG_ENDIAN)
 
 # -- Dependencies -------------------------------------------------------------
 
+if (WIN32)
+  set(LINK_LIBS ${LINK_LIBS} ws2_32 iphlpapi)
+endif ()
+
 # Search for OpenSSL if not already provided by parent project
-if(NOT OPENSSL_LIBRARIES)
+if (NOT OPENSSL_LIBRARIES)
   find_package(OpenSSL REQUIRED)
   include_directories(BEFORE ${OPENSSL_INCLUDE_DIR})
 endif()
@@ -163,7 +206,6 @@ if ( CAF_ROOT_DIR )
     set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
   endif ()
 else ()
-  set(CAF_NO_COMPILER_CHECK ON)
   set(CAF_NO_EXAMPLES ON)
   set(CAF_NO_OPENCL ON)
   set(CAF_NO_TOOLS ON)
@@ -174,7 +216,7 @@ else ()
   elseif (ENABLE_STATIC_ONLY)
     set(CAF_BUILD_STATIC_ONLY ON)
   endif ()
-  add_subdirectory(3rdparty/caf)
+  add_subdirectory(caf)
 endif ()
 
 set(CAF_VERSION_REQUIRED 0.15.5)
@@ -188,12 +230,14 @@ include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 # RocksDB
-find_package(RocksDB)
-if (ROCKSDB_FOUND)
-  set(BROKER_HAVE_ROCKSDB true)
-  include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
-  set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-  set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
+if (BROKER_ENABLE_ROCKSDB)
+  find_package(RocksDB)
+  if (ROCKSDB_FOUND)
+    set(BROKER_HAVE_ROCKSDB true)
+    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
+    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
+    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
+  endif ()
 endif ()
 
 # -- libroker -----------------------------------------------------------------
@@ -236,12 +280,12 @@ set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
   src/configuration.cc
+  src/convert.cc
   src/core_actor.cc
   src/data.cc
   src/defaults.cc
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
-  src/detail/core_policy.cc
   src/detail/data_generator.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
@@ -257,17 +301,22 @@ set(BROKER_SRC
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
+  src/detail/store_actor.cc
   src/endpoint.cc
+  src/endpoint_info.cc
   src/error.cc
+  src/filter_type.cc
   src/internal_command.cc
   src/mailbox.cc
   src/network_info.cc
   src/peer_status.cc
   src/port.cc
   src/publisher.cc
+  src/publisher_id.cc
   src/status.cc
   src/status_subscriber.cc
   src/store.cc
+  src/store_event.cc
   src/subnet.cc
   src/subscriber.cc
   src/time.cc
@@ -317,6 +366,7 @@ endif ()
 # -- Bindings -----------------------------------------------------------------
 
 if (NOT DISABLE_PYTHON_BINDINGS)
+  set(Python_ADDITIONAL_VERSIONS 3)
   find_package(PythonInterp)
   if (NOT PYTHONINTERP_FOUND)
     message(STATUS "Skipping Python bindings: Python interpreter not found")
@@ -371,13 +421,13 @@ endif ()
 
 # -- Documentation ------------------------------------------------------------
 
-if (NOT BROKER_DISABLE_DOCS)
+if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
   add_subdirectory(doc)
 endif ()
 
 # -- Build Summary ------------------------------------------------------------
 
-string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
+string(TOUPPER CMAKE_BUILD_TYPE BuildType)
 
 macro(display test desc summary)
   if ( ${test} )

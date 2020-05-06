@@ -28,7 +28,7 @@ public:
 
   // --- accessors -------------------------------------------------------------
 
-  int fd() const {
+  auto fd() const {
     return fx_.fd();
   }
 
@@ -36,7 +36,7 @@ public:
     return pending_.load();
   }
 
-  long rate() const {
+  size_t rate() const {
     return rate_.load();
   }
 
@@ -51,7 +51,7 @@ public:
     pending_ = x;
   }
 
-  void rate(long x) {
+  void rate(size_t x) {
     rate_ = x;
   }
 
