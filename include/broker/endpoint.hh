@@ -267,7 +267,7 @@ public:
     std::mutex mx;
     std::condition_variable cv;
     auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join::value, std::move(topics));
+      self->send(self * core(), atom::join_v, std::move(topics));
       self->become(
         [=](const stream_type& in) {
           self->make_sink(in, init, f, cleanup);
@@ -288,7 +288,7 @@ public:
   caf::actor subscribe_nosync(std::vector<topic> topics, Init init,
                               HandleMessage f, Cleanup cleanup) {
     return make_actor([=](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join::value, std::move(topics));
+      self->send(self * core(), atom::join_v, std::move(topics));
       self->become(
         [=](const stream_type& in) {
           self->make_sink(in, init, f, cleanup);

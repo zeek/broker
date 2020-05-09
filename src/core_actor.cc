@@ -64,7 +64,7 @@ result<void> init_peering(core_actor_type* self, actor remote_core,
   // Create necessary state and send message to remote core.
   mgr.pending_connections().emplace(remote_core,
                                     core_manager::pending_connection{0, rp});
-  self->send(self * remote_core, atom::peer::value, mgr.filter, self);
+  self->send(self * remote_core, atom::peer_v, mgr.filter, self);
   self->monitor(remote_core);
   return rp;
 }
@@ -141,7 +141,7 @@ core_manager::core_manager(caf::event_based_actor* ptr,
 void core_manager::update_filter_on_peers() {
   BROKER_TRACE("");
   for_each_peer([&](const actor& hdl) {
-    self()->send(hdl, atom::update::value, filter);
+    self()->send(hdl, atom::update_v, filter);
   });
 }
 
@@ -210,7 +210,7 @@ void core_manager::sync_with_status_subscribers(caf::actor new_peer) {
 
   for ( auto& ss : status_subscribers ) {
     auto to = caf::infinite;
-    self()->request(ss, to, atom::sync_point::value).then(
+    self()->request(ss, to, atom::sync_point_v).then(
       [&, new_peer](atom::sync_point) {
         sync_peer_status(this, std::move(new_peer));
       },
@@ -450,7 +450,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
           return;
         }
       }
-      self->send(hdl, atom::publish::value, atom::local::value, std::move(x));
+      self->send(hdl, atom::publish_v, atom::local_v, std::move(x));
     },
     // --- data store management -----------------------------------------------
     [=](atom::store, atom::master, atom::attach, const std::string& name,
@@ -617,12 +617,12 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
       auto i = mgr.masters.find(name);
       if (i != mgr.masters.end()) {
         BROKER_INFO("found local master, using direct link");
-        self->send(who_asked, atom::master::value, i->second);
+        self->send(who_asked, atom::master_v, i->second);
       }
       auto peers = self->state.mgr->get_peer_handles();
       if (peers.empty()) {
         BROKER_INFO("no peers to ask for the master");
-        self->send(who_asked, atom::master::value,
+        self->send(who_asked, atom::master_v,
                    make_error(ec::no_such_master, "no peers"));
       }
       auto resolv = self->spawn<caf::lazy_init>(detail::master_resolver);

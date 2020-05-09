@@ -138,7 +138,7 @@ CAF_TEST(local_master) {
   auto n = ds.name();
   CAF_CHECK_EQUAL(n, "foo");
   // send put command to the master's topic
-  anon_send(core, atom::publish::value, atom::local::value,
+  anon_send(core, atom::publish_v, atom::local_v,
             make_command_message(
               n / topics::master_suffix,
               make_internal_command<put_command>("hello", "universe")));
@@ -174,8 +174,8 @@ CAF_TEST(master_with_clone) {
       // rince and repeat
     }
   };
-  anon_send(core1, atom::no_events::value);
-  anon_send(core2, atom::no_events::value);
+  anon_send(core1, atom::no_events_v);
+  anon_send(core2, atom::no_events_v);
   // --- phase 2: connect earth and mars at CAF level --------------------------
   // Prepare publish and remote_actor calls.
   CAF_MESSAGE("prepare connections on earth and mars");
@@ -215,7 +215,7 @@ CAF_TEST(master_with_clone) {
   // --- phase 5: peer from earth to mars --------------------------------------
   auto foo_master = "foo" / topics::master_suffix;
   // Initiate handshake between core1 and core2.
-  earth.self->send(core1, atom::peer::value, core2_proxy);
+  earth.self->send(core1, atom::peer_v, core2_proxy);
   expect_on(earth, (atom::peer, actor),
             from(earth.self).to(core1).with(_, core2_proxy));
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
@@ -258,9 +258,9 @@ CAF_TEST(master_with_clone) {
   CAF_MESSAGE("put 'user' -> 'neverlord'");
   ds_mars.put("user", "neverlord");
   expect_on(mars, (atom_value, internal_command),
-            from(_).to(ds_mars.frontend()).with(atom::local::value, _));
+            from(_).to(ds_mars.frontend()).with(atom::local_v, _));
   expect_on(mars, (atom_value, command_message),
-            from(_).to(mars.ep.core()).with(atom::publish::value, _));
+            from(_).to(mars.ep.core()).with(atom::publish_v, _));
   exec_all();
   earth.sched.inline_next_enqueue(); // .get talks to the master
   CAF_CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});

@@ -26,14 +26,14 @@ store::proxy::proxy(store& s) : frontend_{s.frontend_} {
 request_id store::proxy::exists(data key) {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::exists::value, std::move(key), ++id_);
+  send_as(proxy_, frontend_, atom::exists_v, std::move(key), ++id_);
   return id_;
 }
 
 request_id store::proxy::get(data key) {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::get::value, std::move(key), ++id_);
+  send_as(proxy_, frontend_, atom::get_v, std::move(key), ++id_);
   return id_;
 }
 
@@ -41,7 +41,7 @@ request_id store::proxy::put_unique(data key, data val, optional<timespan> expir
   if (!frontend_)
     return 0;
   send_as(
-    proxy_, frontend_, atom::local::value,
+    proxy_, frontend_, atom::local_v,
     make_internal_command<put_unique_command>(
       std::move(key), std::move(val), expiry, proxy_, ++id_, frontend_id()));
   return id_;
@@ -50,14 +50,14 @@ request_id store::proxy::put_unique(data key, data val, optional<timespan> expir
 request_id store::proxy::get_index_from_value(data key, data index) {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::get::value, std::move(key), std::move(index), ++id_);
+  send_as(proxy_, frontend_, atom::get_v, std::move(key), std::move(index), ++id_);
   return id_;
 }
 
 request_id store::proxy::keys() {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::get::value, atom::keys::value, ++id_);
+  send_as(proxy_, frontend_, atom::get_v, atom::keys_v, ++id_);
   return id_;
 }
 
@@ -108,11 +108,11 @@ const std::string& store::name() const {
 }
 
 expected<data> store::exists(data key) const {
-  return request<data>(atom::exists::value, std::move(key));
+  return request<data>(atom::exists_v, std::move(key));
 }
 
 expected<data> store::get(data key) const {
-  return request<data>(atom::get::value, std::move(key));
+  return request<data>(atom::get_v, std::move(key));
 }
 
 expected<data> store::put_unique(data key, data val, optional<timespan> expiry) const {
@@ -124,10 +124,10 @@ expected<data> store::put_unique(data key, data val, optional<timespan> expiry) 
   auto cmd = make_internal_command<put_unique_command>(
     std::move(key), std::move(val), expiry, self, request_id(-1),
     frontend_id());
-  auto msg = caf::make_message(atom::local::value, std::move(cmd));
+  auto msg = caf::make_message(atom::local_v, std::move(cmd));
 
   self->send(frontend_, std::move(msg));
-  self->delayed_send(self, timeout::frontend, atom::tick::value);
+  self->delayed_send(self, timeout::frontend, atom::tick_v);
   self->receive(
     [&](data& x, request_id) {
       res = std::move(x);
@@ -143,41 +143,41 @@ expected<data> store::put_unique(data key, data val, optional<timespan> expiry) 
 }
 
 expected<data> store::get_index_from_value(data key, data index) const {
-  return request<data>(atom::get::value, std::move(key), std::move(index));
+  return request<data>(atom::get_v, std::move(key), std::move(index));
 }
 
 expected<data> store::keys() const {
-  return request<data>(atom::get::value, atom::keys::value);
+  return request<data>(atom::get_v, atom::keys_v);
 }
 
 void store::put(data key, data value, optional<timespan> expiry) const {
-  anon_send(frontend_, atom::local::value,
+  anon_send(frontend_, atom::local_v,
             make_internal_command<put_command>(std::move(key), std::move(value),
                                                expiry, frontend_id()));
 }
 
 void store::erase(data key) const {
   anon_send(
-    frontend_, atom::local::value,
+    frontend_, atom::local_v,
     make_internal_command<erase_command>(std::move(key), frontend_id()));
 }
 
 void store::add(data key, data value, data::type init_type,
                 optional<timespan> expiry) const {
-  anon_send(frontend_, atom::local::value,
+  anon_send(frontend_, atom::local_v,
             make_internal_command<add_command>(std::move(key), std::move(value),
                                                init_type, expiry,
                                                frontend_id()));
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) const {
-  anon_send(frontend_, atom::local::value,
+  anon_send(frontend_, atom::local_v,
             make_internal_command<subtract_command>(
               std::move(key), std::move(value), expiry, frontend_id()));
 }
 
 void store::clear() const {
-  anon_send(frontend_, atom::local::value,
+  anon_send(frontend_, atom::local_v,
             make_internal_command<clear_command>(frontend_id()));
 }
 

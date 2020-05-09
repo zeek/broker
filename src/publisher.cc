@@ -69,7 +69,7 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       return self->state.shutting_down && qptr->buffer_size() == 0;
     }
   ).ptr();
-  //self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+  //self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
   return {
     [=](atom::resume) {
       if (handler->generate_messages())
@@ -79,7 +79,7 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
       auto& st = self->state;
       st.tick();
       qptr->rate(st.rate());
-      self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+      self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
     },
     [=](atom::shutdown) {
       self->state.shutting_down = true;
@@ -103,7 +103,7 @@ publisher::publisher(endpoint& ep, topic t)
 
 publisher::~publisher() {
   if (!drop_on_destruction_)
-    anon_send(worker_, atom::shutdown::value);
+    anon_send(worker_, atom::shutdown_v);
   else
     anon_send_exit(worker_, exit_reason::user_shutdown);
 }
@@ -138,7 +138,7 @@ void publisher::drop_all_on_destruction() {
 void publisher::publish(data x) {
   BROKER_INFO("publishing" << std::make_pair(topic_, x));
   if (queue_->produce(topic_, std::move(x)))
-    anon_send(worker_, atom::resume::value);
+    anon_send(worker_, atom::resume_v);
 }
 
 void publisher::publish(std::vector<data> xs) {
@@ -154,7 +154,7 @@ void publisher::publish(std::vector<data> xs) {
     }
 #endif
     if (queue_->produce(topic_, i, j))
-      anon_send(worker_, atom::resume::value);
+      anon_send(worker_, atom::resume_v);
     i = j;
   }
 }

@@ -458,7 +458,7 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
                        std::move(self->state.generator));
   g->attach_functor([this_node, t0, observer]() mutable {
     auto t1 = std::chrono::steady_clock::now();
-    anon_send(observer, broker::atom::ok::value, broker::atom::write::value,
+    anon_send(observer, broker::atom::ok_v, broker::atom::write_v,
               this_node->name, duration_cast<caf::timespan>(t1 - t0));
   });
 }
@@ -482,7 +482,7 @@ struct consumer_state {
     auto limit = this_node->num_inputs;
     if (received < limit && received + n >= limit) {
       auto stop = std::chrono::steady_clock::now();
-      anon_send(observer, broker::atom::ok::value, broker::atom::read::value,
+      anon_send(observer, broker::atom::ok_v, broker::atom::read_v,
                 this_node->name, duration_cast<caf::timespan>(stop - start));
       verbose::println(this_node->name, " reached its limit");
     }
@@ -492,7 +492,7 @@ struct consumer_state {
   template <class T>
   void attach_sink(caf::stream<T> in, caf::actor observer) {
     if (++connected_streams == 2) {
-      self->send(observer, broker::atom::ack::value);
+      self->send(observer, broker::atom::ack_v);
       verbose::println(this_node->name, " waits for messages");
     }
     self->make_sink(
@@ -523,8 +523,8 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
   self->state.this_node = this_node;
   self->state.observer = observer;
-  self->send(self * core, broker::atom::join::value, topics(*this_node));
-  self->send(self * core, broker::atom::join::value, broker::atom::store::value,
+  self->send(self * core, broker::atom::join_v, topics(*this_node));
+  self->send(self * core, broker::atom::join_v, broker::atom::store_v,
              topics(*this_node));
   if (!verbose::enabled())
     return {
@@ -650,7 +650,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
                             this_node->generator_file);
       }
       verbose::println(this_node->name, " up and running");
-      return broker::atom::ok::value;
+      return broker::atom::ok_v;
     },
     [=](broker::atom::read, caf::actor observer) {
       run_receive_mode(self, observer);
@@ -664,7 +664,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       // Tell broker to shutdown. This is a blocking function call.
       self->state.ep.shutdown();
       verbose::println(this_node->name, " down");
-      return broker::atom::ok::value;
+      return broker::atom::ok_v;
     },
   };
 }
@@ -1196,14 +1196,14 @@ int main(int argc, char** argv) {
   try {
     // Initialize all nodes.
     for (auto& x : nodes)
-      self->send(x.mgr, broker::atom::init::value);
+      self->send(x.mgr, broker::atom::init_v);
     wait_for_ok_messages(nodes.size());
     verbose::println("all nodes are up and running, run benchmark");
     // First, we spin up all readers to make sure they receive published data.
     size_t receiver_acks = 0;
     for (auto& x : nodes)
       if (is_receiver(x)) {
-        self->send(x.mgr, broker::atom::read::value, self);
+        self->send(x.mgr, broker::atom::read_v, self);
         ++receiver_acks;
       }
     wait_for_ack_messages(receiver_acks);
@@ -1211,7 +1211,7 @@ int main(int argc, char** argv) {
     auto t0 = std::chrono::steady_clock::now();
     for (auto& x : nodes)
       if (is_sender(x))
-        self->send(x.mgr, broker::atom::write::value, self);
+        self->send(x.mgr, broker::atom::write_v, self);
     auto ok_count = [](size_t interim, const node& x) {
       return interim + (is_sender_and_receiver(x) ? 2 : 1);
     };
@@ -1222,7 +1222,7 @@ int main(int argc, char** argv) {
     // Shutdown all endpoints.
     verbose::println("shut down all nodes");
     for (auto& x : nodes)
-      self->send(x.mgr, broker::atom::shutdown::value);
+      self->send(x.mgr, broker::atom::shutdown_v);
     wait_for_ok_messages(nodes.size());
     for (auto& x : nodes)
       self->send_exit(x.mgr, caf::exit_reason::user_shutdown);

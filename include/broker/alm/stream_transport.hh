@@ -228,8 +228,8 @@ public:
       return;
     BROKER_INFO("will try reconnecting to" << *x << "in"
                                            << to_string(x->retry));
-    self()->delayed_send(self(), x->retry, atom::peer::value,
-                         atom::retry::value, *x);
+    self()->delayed_send(self(), x->retry, atom::peer_v,
+                         atom::retry_v, *x);
   }
 
   void peer_removed(const caf::actor& hdl) {
