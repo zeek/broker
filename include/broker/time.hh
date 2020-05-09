@@ -7,7 +7,6 @@
 #include <functional>
 #include <string>
 
-
 namespace broker {
 
 /// A fractional timestamp represented in IEEE754 double-precision floating

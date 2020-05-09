@@ -119,7 +119,7 @@ CAF_TEST(local_master) {
   run();
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
-  auto expected_ds = ep.attach_master("foo", memory);
+  auto expected_ds = ep.attach_master("foo", backend::memory);
   CAF_REQUIRE(expected_ds.engaged());
   auto& ds = *expected_ds;
   MESSAGE(ds.frontend_id());
@@ -196,7 +196,7 @@ CAF_TEST(master_with_clone) {
   // --- phase 4: attach a master on earth -------------------------------------
   CAF_MESSAGE("attach a master on earth");
   earth.sched.inline_next_enqueue();
-  auto expected_ds_earth = earth.ep.attach_master("foo", memory);
+  auto expected_ds_earth = earth.ep.attach_master("foo", backend::memory);
   if (!expected_ds_earth)
     CAF_FAIL("could not attach master: "
              << earth.sys.render(expected_ds_earth.error()));

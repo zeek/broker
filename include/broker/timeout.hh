@@ -2,8 +2,7 @@
 
 #include <chrono>
 
-#include <caf/atom.hpp>
-#include <caf/duration.hpp>
+#include <caf/timespan.hpp>
 
 namespace broker {
 namespace timeout {

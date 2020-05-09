@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <caf/atom.hpp>
+#include <caf/config.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/manager.hpp>
 
@@ -191,33 +192,8 @@ caf::settings configuration::dump_content() const {
   return result;
 }
 
-#define ADD_MSG_TYPE(name) cfg.add_message_type<name>(#name)
-
 void configuration::add_message_types(caf::actor_system_config& cfg) {
-  ADD_MSG_TYPE(broker::data);
-  ADD_MSG_TYPE(broker::address);
-  ADD_MSG_TYPE(broker::subnet);
-  ADD_MSG_TYPE(broker::port);
-  ADD_MSG_TYPE(broker::timespan);
-  ADD_MSG_TYPE(broker::timestamp);
-  ADD_MSG_TYPE(broker::enum_value);
-  ADD_MSG_TYPE(broker::vector);
-  ADD_MSG_TYPE(broker::set);
-  ADD_MSG_TYPE(broker::status);
-  ADD_MSG_TYPE(broker::table);
-  ADD_MSG_TYPE(broker::topic);
-  ADD_MSG_TYPE(broker::optional<broker::timestamp>);
-  ADD_MSG_TYPE(broker::optional<broker::timespan>);
-  ADD_MSG_TYPE(broker::snapshot);
-  ADD_MSG_TYPE(broker::internal_command);
-  ADD_MSG_TYPE(broker::command_message);
-  ADD_MSG_TYPE(broker::data_message);
-  ADD_MSG_TYPE(broker::node_message);
-  ADD_MSG_TYPE(broker::node_message::value_type);
-  ADD_MSG_TYPE(broker::set_command);
-  ADD_MSG_TYPE(broker::store::stream_type::value_type);
+  cfg.add_message_types<caf::id_block::broker>();
 }
-
-#undef ADD_MSG_TYPE
 
 } // namespace broker

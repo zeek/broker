@@ -14,12 +14,12 @@
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/publish.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/core_actor.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/logger.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"

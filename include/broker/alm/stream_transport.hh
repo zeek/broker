@@ -774,7 +774,7 @@ protected:
 
   /// Sends a handshake with 'ok' in step #2.
   step2_handshake add(std::false_type send_own_filter, const caf::actor& hdl) {
-    atom_value ok = caf::ok_atom::value;
+    caf::atom_value ok = atom::ok_v;
     auto xs = std::make_tuple(ok, caf::actor_cast<caf::actor>(self()));
     return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));

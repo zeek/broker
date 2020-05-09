@@ -20,6 +20,8 @@ Cpp11BracedListStyle: true
 IndentCaseLabels: true
 IndentFunctionDeclarationAfterType: false
 IndentWidth: 2
+MacroBlockBegin: "CAF_BEGIN_TYPE_ID_BLOCK"
+MacroBlockEnd: "CAF_END_TYPE_ID_BLOCK"
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 PointerAlignment: Left

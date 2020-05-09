@@ -7,12 +7,12 @@
 #include <caf/meta/load_callback.hpp>
 
 #include "broker/convert.hh"
-#include "broker/endpoint_info.hh"
-#include "broker/fwd.hh"
-#include "broker/optional.hh"
-
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
+#include "broker/endpoint_info.hh"
+#include "broker/error.hh"
+#include "broker/fwd.hh"
+#include "broker/optional.hh"
 
 namespace broker {
 
