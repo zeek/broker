@@ -8,6 +8,7 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
@@ -35,7 +36,8 @@ namespace {
 
 void driver(event_based_actor* self, const actor& sink) {
   using buf_type = std::vector<data_message>;
-  self->make_source(
+  attach_stream_source(
+    self,
     // Destination.
     sink,
     // Initialize send buffer with 10 elements.

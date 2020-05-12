@@ -105,6 +105,8 @@ class IdentifierUpdate;
 
 namespace broker::detail {
 
+struct retry_state;
+
 class flare_actor;
 class mailbox;
 
@@ -187,6 +189,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(master, "master");
   BROKER_ADD_ATOM(mutable_check, "mutable");
   BROKER_ADD_ATOM(resolve, "resolve");
+  BROKER_ADD_ATOM(restart, "restart");
   BROKER_ADD_ATOM(stale_check, "stale");
   BROKER_ADD_ATOM(store, "store");
   BROKER_ADD_ATOM(subtract, "subtract");
@@ -206,6 +209,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::command_message))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
+  BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::ec))
   BROKER_ADD_TYPE_ID((broker::endpoint_info))
   BROKER_ADD_TYPE_ID((broker::enum_value))

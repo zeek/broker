@@ -105,18 +105,6 @@ public:
   /// Maps path IDs to actor handles.
   using slot_to_hdl_map = std::unordered_map<caf::stream_slot, caf::actor>;
 
-  /// Stream handshake in step 1 that includes our own filter. The receiver
-  /// replies with a step2 handshake.
-  using step1_handshake = caf::outbound_stream_slot<message_type,
-                                                    filter_type,
-                                                    caf::actor>;
-
-  /// Stream handshake in step 2. The receiver already has our filter
-  /// installed.
-  using step2_handshake = caf::outbound_stream_slot<message_type,
-                                                    caf::atom_value,
-                                                    caf::actor>;
-
   // -- constructors, destructors, and assignment operators --------------------
 
   stream_transport(caf::event_based_actor* self, const filter_type& filter)
@@ -279,20 +267,16 @@ public:
   ///                        `('ok', self)` otherwise.
   /// @pre `current_sender() != nullptr`
   template <bool SendOwnFilter>
-  typename std::conditional<
-    SendOwnFilter,
-    step1_handshake,
-    step2_handshake
-  >::type
-  start_peering(const caf::actor& peer_hdl, filter_type peer_filter) {
+  auto start_peering(const caf::actor& peer_hdl, filter_type peer_filter) {
     BROKER_TRACE(BROKER_ARG(peer_hdl) << BROKER_ARG(peer_filter));
     // Token for static dispatch of add().
     std::integral_constant<bool, SendOwnFilter> send_own_filter_token;
     // Check whether we already send outbound traffic to the peer. Could use
     // `CAF_ASSERT` instead, because this must'nt get called for known peers.
+    using result_type = decltype(add(send_own_filter_token, peer_hdl));
     if (hdl_to_ostream_.count(peer_hdl) != 0) {
       BROKER_ERROR("peer already connected");
-      return {};
+      return result_type{};
     }
     // Add outbound path to the peer.
     auto slot = add(send_own_filter_token, peer_hdl);
@@ -765,7 +749,7 @@ protected:
   }
 
   /// Sends a handshake with filter in step #1.
-  step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl) {
+  auto add(std::true_type send_own_filter, const caf::actor& hdl) {
     auto xs
       = std::make_tuple(dref().filter, caf::actor_cast<caf::actor>(self()));
     return this->template add_unchecked_outbound_path<node_message>(
@@ -773,9 +757,13 @@ protected:
   }
 
   /// Sends a handshake with 'ok' in step #2.
-  step2_handshake add(std::false_type send_own_filter, const caf::actor& hdl) {
+  auto add(std::false_type send_own_filter, const caf::actor& hdl) {
+#if CAF_VERSION < 1800
     caf::atom_value ok = atom::ok_v;
     auto xs = std::make_tuple(ok, caf::actor_cast<caf::actor>(self()));
+#else
+    auto xs = std::make_tuple(atom::ok_v, caf::actor_cast<caf::actor>(self()));
+#endif
     return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }

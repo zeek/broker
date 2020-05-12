@@ -182,3 +182,16 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
                          broker_options opts, endpoint::clock* clock);
 
 } // namespace broker
+
+namespace broker::detail {
+
+struct retry_state {
+  network_info addr;
+  caf::response_promise rp;
+
+  void try_once(core_actor_type* self);
+};
+
+} // namespace broker::detail
+
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)                               \

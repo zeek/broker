@@ -6,7 +6,6 @@
 #include <thread>
 #include <condition_variable>
 
-#include <caf/duration.hpp>
 #include <caf/ref_counted.hpp>
 
 #include "broker/data.hh"
@@ -59,8 +58,9 @@ public:
     fx_.await_one();
   }
 
-  bool wait_on_flare(caf::duration timeout) {
-    if (!timeout.valid()) {
+  template<class Duration>
+  bool wait_on_flare(Duration timeout) {
+    if (caf::is_infinite(timeout)) {
       fx_.await_one();
       return true;
     }

@@ -20,8 +20,10 @@
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
+#include <caf/init_global_meta_objects.hpp>
 #include <caf/send.hpp>
 #include <caf/term.hpp>
+#include <caf/type_id.hpp>
 #include <caf/uri.hpp>
 
 #include "broker/atoms.hh"
@@ -40,6 +42,22 @@ using std::string;
 using broker::count;
 using broker::data;
 using broker::topic;
+
+// -- additional message and atom types ----------------------------------------
+
+#define BROKER_NODE_ADD_ATOM(name, text)                                       \
+  CAF_ADD_ATOM(broker_node, broker::atom, name, text)
+
+CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker::end)
+
+  BROKER_NODE_ADD_ATOM(blocking, "blocking");
+  BROKER_NODE_ADD_ATOM(generate, "generate");
+  BROKER_NODE_ADD_ATOM(ping, "ping");
+  BROKER_NODE_ADD_ATOM(pong, "pong");
+  BROKER_NODE_ADD_ATOM(relay, "relay");
+  BROKER_NODE_ADD_ATOM(stream, "stream");
+
+CAF_END_TYPE_ID_BLOCK(broker_node)
 
 // -- process-wide state -------------------------------------------------------
 
@@ -139,20 +157,6 @@ timespan default_rendezvous_retry = std::chrono::milliseconds(250);
 
 size_t default_ping_count = 100;
 
-// -- atom constants -----------------------------------------------------------
-
-using ping_atom = atom_constant<atom("ping")>;
-
-using pong_atom = atom_constant<atom("pong")>;
-
-using relay_atom = atom_constant<atom("relay")>;
-
-using generate_atom = atom_constant<atom("generate")>;
-
-using blocking_atom = atom_constant<atom("blocking")>;
-
-using stream_atom = atom_constant<atom("stream")>;
-
 // -- type aliases -------------------------------------------------------------
 
 using uri_list = std::vector<uri>;
@@ -179,7 +183,7 @@ public:
       .add<bool>("rate,r", "print receive rate ('relay' mode only)")
       .add<string>("name,N", "set node name in verbose output")
       .add<string_list>("topics,t", "topics for sending/receiving messages")
-      .add<atom_value>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
+      .add<std::string>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
       .add<string>("generator-file,g",
                    "path to a generator file ('generate' mode only)")
       .add<size_t>("payload-size,s",
@@ -318,8 +322,8 @@ void generator(caf::event_based_actor* self, caf::actor core,
       generator_ptr gptr;
       size_t remaining;
     };
-    self->make_source(
-      core,
+    attach_stream_source(
+      self, core,
       [&](state& st) {
         // Take ownership of `ptr`.
         st.gptr = std::move(ptr);
@@ -335,7 +339,7 @@ void generator(caf::event_based_actor* self, caf::actor core,
           value_type x;
           if (auto err = st.gptr->read(x)) {
             err::println("error while parsing ", file_name, ": ",
-                         self->system().render(err));
+                         to_string(err));
             st.gptr = nullptr;
             st.remaining = 0;
             *count += i;
@@ -348,8 +352,8 @@ void generator(caf::event_based_actor* self, caf::actor core,
       },
       [](const state& st) { return st.remaining == 0; });
   } else {
-    self->make_source(
-      core,
+    attach_stream_source(
+      self, core,
       [&](generator_ptr& g) {
         // Take ownership of `ptr`.
         g = std::move(ptr);
@@ -365,7 +369,7 @@ void generator(caf::event_based_actor* self, caf::actor core,
           value_type x;
           if (auto err = g->read(x)) {
             err::println("error while parsing ", file_name, ": ",
-                         self->system().render(err));
+                         to_string(err));
             g = nullptr;
             *count += i;
             return;
@@ -419,7 +423,7 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
   auto retry_timeout = get_or(ep, "rendezvous-retry", default_rendezvous_retry);
   ep.publish(topic, make_ping_msg(0, 0));
   while (!connected) {
-    auto x = in.get(caf::duration{retry_timeout});
+    auto x = in.get(retry_timeout);
     if (x && is_pong_msg(get_data(*x), 0))
       connected = true;
     else
@@ -465,6 +469,10 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) {
+#if CAF_VERSION >= 1800
+  caf::init_global_meta_objects<caf::id_block::broker_node>();
+  broker::configuration::init_global_meta_objects();
+#endif
   // Parse CLI parameters using our config.
   config cfg;
   try {
@@ -477,7 +485,7 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
   // Get mode (mandatory).
-  auto mode = get_if<atom_value>(&ep, "mode");
+  auto mode = get_if<std::string>(&ep, "mode");
   if (!mode) {
     node_name = "unnamed-node";
     err::println("no mode specified");
@@ -487,7 +495,7 @@ int main(int argc, char** argv) {
   if (auto cfg_name = get_if<string>(&ep, "name"))
     node_name = *cfg_name;
   else
-    node_name = to_string(*mode);
+    node_name = *mode;
   // Get topics (mandatory) and make sure this endpoint at least forwards them.
   topic_list topics;
   { // Lifetime scope of temporary variables.
@@ -522,22 +530,17 @@ int main(int argc, char** argv) {
   }
   // Select function f based on the mode.
   mode_fun f = nullptr;
-  switch (static_cast<uint64_t>(*mode)) {
-    case relay_atom::uint_value():
-      f = relay_mode;
-      break;
-    case ping_atom::uint_value():
-      f = ping_mode;
-      break;
-    case pong_atom::uint_value():
-      f = pong_mode;
-      break;
-    case generate_atom::uint_value():
-      f = generate_mode;
-      break;
-    default:
-      err::println("invalid mode: ", mode);
-      return EXIT_FAILURE;
+  if (*mode == "replay") {
+    f = relay_mode;
+  } else if (*mode == "ping") {
+    f = ping_mode;
+  } else if (*mode == "pong") {
+    f = pong_mode;
+  } else if (*mode == "generate") {
+    f = generate_mode;
+  } else {
+    err::println("invalid mode: ", mode);
+    return EXIT_FAILURE;
   }
   // Connect to peers.
   auto peers = get_or(ep, "peers", uri_list{});
@@ -568,4 +571,3 @@ int main(int argc, char** argv) {
   // Stop utility actors.
   anon_send_exit(verbose_logger, exit_reason::user_shutdown);
 }
-

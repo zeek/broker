@@ -41,8 +41,7 @@
 
 using namespace caf;
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 result<void> init_peering(core_actor_type* self, actor remote_core,
                           response_promise rp) {
@@ -69,36 +68,27 @@ result<void> init_peering(core_actor_type* self, actor remote_core,
   return rp;
 }
 
-struct retry_state {
-  network_info addr;
-  response_promise rp;
+void retry_state::try_once(core_actor_type* self) {
+  auto cpy = std::move(*this);
+  self->state.mgr->cache.fetch(
+    cpy.addr,
+    [self, cpy](actor x) mutable {
+      init_peering(self, std::move(x), std::move(cpy.rp));
+    },
+    [self, cpy](error err) mutable {
+      auto desc = "remote endpoint unavailable: " + to_string(err);
+      BROKER_ERROR(desc);
+      self->state.mgr->emit_error<ec::peer_unavailable>(cpy.addr, desc.c_str());
+      if (cpy.addr.retry.count() > 0) {
+        BROKER_INFO("retrying" << cpy.addr << "in"
+                               << to_string(cpy.addr.retry));
+        self->delayed_send(self, cpy.addr.retry, cpy);
+      } else
+        cpy.rp.deliver(sec::cannot_connect_to_node);
+    });
+}
 
-  void try_once(core_actor_type* self) {
-    auto cpy = std::move(*this);
-    self->state.mgr->cache.fetch(
-      cpy.addr,
-      [self, cpy](actor x) mutable {
-        init_peering(self, std::move(x), std::move(cpy.rp));
-      },
-      [self, cpy](error err) mutable {
-        auto desc = "remote endpoint unavailable: " + self->system().render(err);
-        BROKER_ERROR(desc);
-        self->state.mgr->emit_error<ec::peer_unavailable>(cpy.addr,
-                                                          desc.c_str());
-        if (cpy.addr.retry.count() > 0) {
-          BROKER_INFO("retrying" << cpy.addr << "in"
-                                 << to_string(cpy.addr.retry));
-          self->delayed_send(self, cpy.addr.retry, cpy);
-        } else
-          cpy.rp.deliver(sec::cannot_connect_to_node);
-      });
-  }
-};
-
-} // namespace detail
-} // namespace broker
-
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
+} // namespace broker::detail
 
 namespace broker {
 
@@ -302,19 +292,19 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
     // --- A (this node) performs steps #1 and #3; B performs #2 and #4 --------
     // Step #1: - A demands B shall establish a stream back to A
     //          - A has subscribers to the topics `ts`
-    [=](atom::peer, filter_type& peer_ts,
-        caf::actor& peer_hdl) -> core_manager::core_manager::step1_handshake {
+    [=](atom::peer, filter_type& peer_ts, caf::actor& peer_hdl) {
       BROKER_TRACE(BROKER_ARG(peer_ts) << BROKER_ARG(peer_hdl));
       auto& mgr = *self->state.mgr;
+      using result_type = decltype(mgr.start_peering<true>(peer_hdl, peer_ts));
       // Reject anonymous peering requests.
       if (peer_hdl == nullptr) {
         BROKER_DEBUG("Drop anonymous peering request.");
-        return {};
+        return result_type{};
       }
       // Drop repeated handshake requests.
       if (mgr.connected_to(peer_hdl)) {
         BROKER_WARNING("Drop peering request from already connected peer.");
-        return {};
+        return result_type{};
       }
       BROKER_DEBUG("received handshake step #1" << BROKER_ARG(peer_hdl)
                     << BROKER_ARG(actor{self}));

@@ -13,6 +13,7 @@
 #include <caf/optional.hpp>
 #include <caf/result.hpp>
 
+#include "broker/fwd.hh"
 #include "broker/logger.hh"
 #include "broker/network_info.hh"
 
@@ -46,26 +47,22 @@ public:
                 << (use_ssl ? "(SSL)" : "(no SSL)"));
     auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
                         : self->home_system().middleman().actor_handle());
-    self->request(hdl, infinite,
-                  connect_atom::value, x.address, x.port)
-    .then(
-      [=](const node_id&, strong_actor_ptr& res,
-          std::set<std::string>& ifs) mutable {
-        if (!ifs.empty())
-          g(sec::unexpected_actor_messaging_interface);
-        else if (res == nullptr)
-          g(sec::no_actor_published_at_port);
-        else {
-          auto hdl = actor_cast<actor>(std::move(res));
-          hdls_.emplace(x, hdl);
-          addrs_.emplace(hdl, x);
-          f(std::move(hdl));
-        }
-      },
-      [=](error& err) mutable {
-        g(std::move(err));
-      }
-    );
+    self->request(hdl, infinite, atom::connect_v, x.address, x.port)
+      .then(
+        [=](const node_id&, strong_actor_ptr& res,
+            std::set<std::string>& ifs) mutable {
+          if (!ifs.empty())
+            g(sec::unexpected_actor_messaging_interface);
+          else if (res == nullptr)
+            g(sec::no_actor_published_at_port);
+          else {
+            auto hdl = actor_cast<actor>(std::move(res));
+            hdls_.emplace(x, hdl);
+            addrs_.emplace(hdl, x);
+            f(std::move(hdl));
+          }
+        },
+        [=](error& err) mutable { g(std::move(err)); });
   }
 
   template <class OnResult, class OnError>
@@ -80,19 +77,15 @@ public:
                 << x << (use_ssl ? "(SSL)" : "(no SSL)"));
     auto hdl = (use_ssl ? self->home_system().openssl_manager().actor_handle()
                         : self->home_system().middleman().actor_handle());
-    self->request(hdl, infinite,
-                  get_atom::value, x.node())
-    .then(
-      [=](const node_id&, std::string& address, uint16_t port) mutable {
-        network_info result{std::move(address), port};
-        hdls_.emplace(result, x);
-        addrs_.emplace(x, result);
-        f(std::move(result));
-      },
-      [=](error& err) mutable {
-        g(std::move(err));
-      }
-    );
+    self->request(hdl, infinite, atom::get_v, x.node())
+      .then(
+        [=](const node_id&, std::string& address, uint16_t port) mutable {
+          network_info result{std::move(address), port};
+          hdls_.emplace(result, x);
+          addrs_.emplace(x, result);
+          f(std::move(result));
+        },
+        [=](error& err) mutable { g(std::move(err)); });
   }
 
   /// Returns the handle associated to `x`, if any.

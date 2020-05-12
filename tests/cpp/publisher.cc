@@ -8,6 +8,7 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
@@ -49,7 +50,8 @@ behavior consumer(stateful_actor<consumer_state>* self,
   self->send(self * src, atom::join_v, std::move(ts));
   return {
     [=](const stream_type& in) {
-      self->make_sink(
+      attach_stream_sink(
+        self,
         // Input stream.
         in,
         // Initialize state.
@@ -66,9 +68,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
         }
       );
     },
-    [=](atom::get) {
-      return self->state.xs;
-    }
+    [=](atom::get) { return self->state.xs; },
   };
 }
 

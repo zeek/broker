@@ -1,17 +1,18 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <cstddef>
-#include <ratio>
+#include <cstdint>
 #include <functional>
+#include <limits>
+#include <ratio>
 #include <string>
 
 namespace broker {
 
 /// A fractional timestamp represented in IEEE754 double-precision floating
 /// point.
-using fractional_seconds = std::chrono::duration<double, std::ratio<1>>;
+using fractional_seconds = std::chrono::duration<double>;
 
 /// The clock type.
 using clock = std::chrono::system_clock;
@@ -21,6 +22,9 @@ using timespan = std::chrono::duration<int64_t, std::nano>;
 
 /// A point in time anchored at the UNIX epoch: January 1, 1970.
 using timestamp = std::chrono::time_point<clock, timespan>;
+
+/// Constant representing an infinite amount of time.
+static constexpr auto infinite = timespan{std::numeric_limits<int64_t>::max()};
 
 /// @relates timespan
 bool convert(timespan i, fractional_seconds& secs);
@@ -62,16 +66,18 @@ inline std::string to_string(const broker::timestamp& t) {
 
 /// @relates broker::timestamp
 inline broker::timespan to_timespan(double secs) {
-  timespan ts;
-  convert(secs, ts);
-  return ts;
+  fractional_seconds tmp{secs};
+  return std::chrono::duration_cast<timespan>(tmp);
 }
 
 /// @relates broker::timestamp
 inline broker::timestamp to_timestamp(double secs) {
-  timestamp ts;
-  convert(secs, ts);
-  return ts;
+  return timestamp{to_timespan(secs)};
+}
+
+/// @relates broker::timestamp
+inline broker::timespan to_duration(double secs) {
+  return to_timespan(secs);
 }
 
 } // namespace broker

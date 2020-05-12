@@ -6,6 +6,8 @@
 
 #include "caf/actor_system.hpp"
 #include "caf/actor_system_config.hpp"
+#include "caf/attach_stream_sink.hpp"
+#include "caf/attach_stream_source.hpp"
 #include "caf/event_based_actor.hpp"
 #include "caf/settings.hpp"
 #include "caf/stateful_actor.hpp"
@@ -176,8 +178,12 @@ struct config : actor_system_config {
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
+#if CAF_VERSION < 1800
     set("logger.file-verbosity", caf::atom("quiet"));
     broker::configuration::add_message_types(*this);
+#else
+    set("logger.file-verbosity", "quiet");
+#endif
   }
 
   string usage() {
@@ -236,8 +242,13 @@ struct node {
   /// Stores how many inputs we receive per node.
   inputs_by_node_map inputs_by_node;
 
+#if CAF_VERSION < 1800
   /// Stores the CAF log level for this node.
   caf::atom_value log_verbosity = caf::atom("quiet");
+#else
+  /// Stores the CAF log level for this node.
+  std::string log_verbosity = "quiet";
+#endif
 };
 
 bool is_sender(const node& x) {
@@ -379,8 +390,8 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
       size_t remaining;
       size_t pushed = 0;
     };
-    self->make_source(
-      core,
+    attach_stream_source(
+      self, core,
       [&](state& st) {
         // Take ownership of `ptr`.
         st.gptr = std::move(ptr);
@@ -396,7 +407,7 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
           value_type x;
           if (auto err = st.gptr->read(x)) {
             err::println("error while parsing ", this_node->generator_file,
-                         ": ", self->system().render(err));
+                         ": ", to_string(err));
             st.gptr = nullptr;
             st.remaining = 0;
             return;
@@ -420,8 +431,8 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
       // reacing the end of the generator file.
       return st.gptr == nullptr || st.gptr->at_end();
     };
-    self->make_source(
-      core,
+    attach_stream_source(
+      self, core,
       [&](state& st) {
         // Take ownership of `ptr`.
         st.gptr = std::move(ptr);
@@ -434,7 +445,7 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
           value_type x;
           if (auto err = st.gptr->read(x)) {
             err::println("error while parsing ", this_node->generator_file,
-                         ": ", self->system().render(err));
+                         ": ", to_string(err));
             st.gptr = nullptr;
             break;
           }
@@ -495,16 +506,21 @@ struct consumer_state {
       self->send(observer, broker::atom::ack_v);
       verbose::println(this_node->name, " waits for messages");
     }
-    self->make_sink(
-      in,
+    attach_stream_sink(
+      self, in,
       [](caf::unit_t&) {
         // nop
       },
       [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
       [=](caf::unit_t&, const caf::error& err) {
+#if CAF_VERSION < 1800
         auto& types = self->system().types();
         verbose::println(this_node->name, " stops receiving ",
                          types.portable_name(caf::make_rtti_pair<T>()));
+#else
+        verbose::println(this_node->name, " stops receiving ",
+                         caf::type_name_v<T>);
+#endif
       });
   }
 
@@ -600,7 +616,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   if (is_receiver(*this_node) || this_node->forward)
     self->state.ep.forward(topics(*this_node));
   return {
-    [=](broker::atom::init) -> caf::result<caf::atom_value> {
+    [=](broker::atom::init) -> caf::result<broker::atom::ok> {
       // Open up the ports and start peering.
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
@@ -658,7 +674,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
     [=](broker::atom::write, caf::actor observer) {
       run_send_mode(self, observer);
     },
-    [=](broker::atom::shutdown) -> caf::result<caf::atom_value> {
+    [=](broker::atom::shutdown) -> caf::result<broker::atom::ok> {
       for (auto& child : self->state.children)
         self->send_exit(child, caf::exit_reason::user_shutdown);
       // Tell broker to shutdown. This is a blocking function call.
@@ -816,7 +832,7 @@ int generate_config(std::vector<std::string> directories) {
       node.forward = caf::get_or(*conf, "broker.forward", true);
     } else {
       err::println("unable to parse ", quoted{conf_file}, ": ",
-                   actor_system_config::render(conf.error()));
+                   to_string(conf.error()));
       return EXIT_FAILURE;
     }
   }
@@ -1007,7 +1023,7 @@ int main(int argc, char** argv) {
   // Read CAF configuration.
   config cfg;
   if (auto err = cfg.parse(argc, argv)) {
-    err::println("unable to parse CAF config: ", cfg.render(err));
+    err::println("unable to parse CAF config: ", to_string(err));
     return EXIT_FAILURE;
   }
   // Exit for `--help` etc.
@@ -1031,7 +1047,7 @@ int main(int argc, char** argv) {
       cluster_config = std::move(*file_content);
     } else {
       err::println("unable to parse cluster config file: ",
-                   cfg.render(file_content.error()));
+                   to_string(file_content.error()));
       return EXIT_FAILURE;
     }
   } else {
@@ -1072,8 +1088,7 @@ int main(int argc, char** argv) {
       broker::node_message::value_type x;
       while (!gptr->at_end()) {
         if (auto err = gptr->read(x)) {
-          err::println("error while parsing ", file_name, ": ",
-                       cfg.render(err));
+          err::println("error while parsing ", file_name, ": ", to_string(err));
           return EXIT_FAILURE;
         }
         ++total_entries;
@@ -1107,7 +1122,7 @@ int main(int argc, char** argv) {
       nodes.emplace_back(std::move(*x));
     } else {
       err::println("invalid config for node '", kvp.first,
-                   "': ", cfg.render(x.error()));
+                   "': ", to_string(x.error()));
       return EXIT_FAILURE;
     }
   }
@@ -1232,7 +1247,7 @@ int main(int argc, char** argv) {
     }
     verbose::println("all nodes done, bye 👋");
   } catch (caf::error err) {
-    err::println("fatal eror: ", sys.render(err));
+    err::println("fatal eror: ", to_string(err));
     for (auto& x : nodes)
       self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
     for (auto& x : nodes) {

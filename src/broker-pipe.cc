@@ -241,14 +241,8 @@ caf::behavior event_listener(caf::event_based_actor* self) {
     guard_type guard{cout_mtx};
     std::cerr << what;
   };
-  return {
-    [=](broker::atom::local, broker::error& x) {
-      print(self->system().render(x));
-    },
-    [=](broker::atom::local, broker::status& x) {
-      print(to_string(x));
-    }
-  };
+  return {[=](broker::atom::local, broker::error& x) { print(to_string(x)); },
+          [=](broker::atom::local, broker::status& x) { print(to_string(x)); }};
 }
 
 } // namespace <anonymous>
@@ -257,7 +251,7 @@ int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
   if (auto err = cfg.parse(argc, argv)) {
-    std::cerr << "*** error while reading config: " << cfg.render(err)
+    std::cerr << "*** error while reading config: " << to_string(err)
               << std::endl;
     return EXIT_FAILURE;
   }

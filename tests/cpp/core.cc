@@ -4,21 +4,20 @@
 
 #include "test.hh"
 
+#include <caf/attach_stream_sink.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/test/io_dsl.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 #include "broker/logger.hh"
 
-using namespace caf;
 using namespace broker;
 using namespace broker::detail;
 
 using element_type = endpoint::stream_type::value_type;
 
 namespace {
-
-using restart_atom = caf::atom_constant<caf::atom("restart")>;
 
 struct driver_state {
   using buf_type = std::vector<element_type>;
@@ -36,34 +35,36 @@ struct driver_state {
 
 const char* driver_state::name = "driver";
 
-behavior driver(stateful_actor<driver_state>* self, const actor& sink,
-                bool restartable) {
+caf::behavior driver(caf::stateful_actor<driver_state>* self,
+                     const caf::actor& sink, bool restartable) {
   self->state.restartable = restartable;
-  auto ptr = self->make_source(
-    // Destination.
-    sink,
-    // Initialize send buffer with 10 elements.
-    [](unit_t&) {
-      // nop
-    },
-    // Get next element.
-    [=](unit_t&, downstream<element_type>& out, size_t num) {
-      auto& xs = self->state.xs;
-      auto n = std::min(num, xs.size());
-      if (n == 0)
-        return;
-      for (size_t i = 0u; i < n; ++i)
-        out.push(xs[i]);
-      xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-    },
-    // Did we reach the end?.
-    [=](const unit_t&) {
-      auto& st = self->state;
-      return !st.restartable && st.xs.empty();
-    }
-  ).ptr();
+  auto ptr
+    = attach_stream_source(
+        self,
+        // Destination.
+        sink,
+        // Initialize send buffer with 10 elements.
+        [](caf::unit_t&) {
+          // nop
+        },
+        // Get next element.
+        [=](caf::unit_t&, caf::downstream<element_type>& out, size_t num) {
+          auto& xs = self->state.xs;
+          auto n = std::min(num, xs.size());
+          if (n == 0)
+            return;
+          for (size_t i = 0u; i < n; ++i)
+            out.push(xs[i]);
+          xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
+        },
+        // Did we reach the end?.
+        [=](const caf::unit_t&) {
+          auto& st = self->state;
+          return !st.restartable && st.xs.empty();
+        })
+        .ptr();
   return {
-    [=](restart_atom) {
+    [=](atom::restart) {
       self->state.reset();
       self->state.restartable = false;
       ptr->push();
@@ -78,35 +79,33 @@ struct consumer_state {
 
 const char* consumer_state::name = "consumer";
 
-behavior consumer(stateful_actor<consumer_state>* self, filter_type ts,
-                  const actor& src) {
+caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
+                       filter_type ts, const caf::actor& src) {
   self->send(self * src, atom::join_v, std::move(ts));
   return {
     [=](const endpoint::stream_type& in) {
-      self->make_sink(
+      attach_stream_sink(
+        self,
         // Input stream.
         in,
         // Initialize state.
-        [](unit_t&) {
+        [](caf::unit_t&) {
           // nop
         },
         // Process single element.
-        [=](unit_t&, element_type x) {
+        [=](caf::unit_t&, element_type x) {
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
-        [](unit_t&) {
+        [](caf::unit_t&) {
           // nop
-        }
-      );
+        });
     },
-    [=](atom::get) {
-      return self->state.xs;
-    }
+    [=](atom::get) { return self->state.xs; },
   };
 }
 
-struct config : actor_system_config {
+struct config : caf::actor_system_config {
 public:
   config() {
     configuration::add_message_types(*this);
@@ -145,49 +144,43 @@ CAF_TEST(local_peers) {
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
   consume_message();
-  expect((atom_value, filter_type),
-         from(leaf).to(core2).with(join_atom::value, filter_type{"b"}));
+  expect((atom::join, filter_type),
+         from(leaf).to(core2).with(_, filter_type{"b"}));
   run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer_v, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core2));
   // Check if core1 reports a pending peer.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("run handshake between peers");
   run();
   // Check if core1 & core2 both report each other as peered.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core2");
   sched.inline_next_enqueue();
-  self->request(core2, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core2, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("spin up driver on core1");
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("driver: " << to_string(d1));
@@ -229,27 +222,23 @@ CAF_TEST(local_peers) {
   run();
   CAF_MESSAGE("check whether both core1 and core2 report no more peers");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0u);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 0u);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   sched.inline_next_enqueue();
-  self->request(core2, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0u);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core2, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 0u);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("shutdown core actors");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
+  anon_send_exit(leaf, caf::exit_reason::user_shutdown);
 }
 
 // Simulates a simple triangle setup where core1 peers with core2, and core2
@@ -276,76 +265,66 @@ CAF_TEST(triangle_peering) {
   run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer_v, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core2));
   // Check if core1 reports a pending peer.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
-  expect((atom::peer, filter_type, actor),
+  expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   run();
   // Initiate handshake between core2 and core3.
   self->send(core2, atom::peer_v, core3);
-  expect((atom::peer, actor), from(self).to(core2).with(_, core3));
+  expect((atom::peer, caf::actor), from(self).to(core2).with(_, core3));
   // Check if core2 reports a pending peer.
   CAF_MESSAGE("query peer information from core2");
   sched.inline_next_enqueue();
-  self->request(core2, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 2u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-      CAF_REQUIRE_EQUAL(xs.back().status, peer_status::connecting);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core2, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 2u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+        CAF_REQUIRE_EQUAL(xs.back().status, peer_status::connecting);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   // Perform further handshake steps.
   run();
   // Check if all cores properly report peering setup.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core2");
   sched.inline_next_enqueue();
-  self->request(core2, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 2u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-      CAF_REQUIRE_EQUAL(xs.back().status, peer_status::peered);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core2, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 2u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+        CAF_REQUIRE_EQUAL(xs.back().status, peer_status::peered);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core3");
   sched.inline_next_enqueue();
-  self->request(core3, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core3, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
@@ -375,9 +354,9 @@ CAF_TEST(triangle_peering) {
   );
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
-  anon_send_exit(core3, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
+  anon_send_exit(core3, caf::exit_reason::user_shutdown);
 }
 
 // Simulates a simple setup where core1 peers with core2 and starts sending
@@ -408,20 +387,18 @@ CAF_TEST(sequenced_peering) {
   run();
   // Initiate handshake between core1 and core2.
   self->send(core1, atom::peer_v, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core2));
   // Check if core1 reports a pending peer.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
-  expect((atom::peer, filter_type, actor),
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
+  expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   run();
   CAF_MESSAGE("spin up driver and transmit first half of the data");
@@ -441,54 +418,45 @@ CAF_TEST(sequenced_peering) {
     }
   );
   CAF_MESSAGE("kill core2");
-  anon_send_exit(core2, exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
   run();
   CAF_MESSAGE("make sure core1 sees no peer anymore");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 0u);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 0u);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   // Initiate handshake between core1 and core3.
   self->send(core1, atom::peer_v, core3);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core3));
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core3));
   // Check if core1 reports a pending peer.
   CAF_MESSAGE("query peer information from core1");
   sched.inline_next_enqueue();
-  self->request(core1, infinite, atom::get_v, atom::peer_v).receive(
-    [&](const std::vector<peer_info>& xs) {
-      CAF_REQUIRE_EQUAL(xs.size(), 1u);
-      CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(core1, infinite, atom::get_v, atom::peer_v)
+    .receive(
+      [&](const std::vector<peer_info>& xs) {
+        CAF_REQUIRE_EQUAL(xs.size(), 1u);
+        CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
+      },
+      [&](const error& err) { CAF_FAIL(err); });
   // Step #1: core1  --->    ('peer', filter_type)    ---> core3
-  expect((atom::peer, filter_type, actor),
+  expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core3).with(_, filter_type{"a", "b", "c"}, core1));
   run();
   CAF_MESSAGE("restart driver and send second half of the data");
-  anon_send(d1, restart_atom::value);
+  anon_send(d1, atom::restart_v);
   run();
   // Check log of the consumer on core3.
   sched.inline_next_enqueue();
-  self->request(leaf2, infinite, atom::get_v).receive(
-    [&](const buf& xs) {
-      CAF_CHECK_EQUAL(xs, expected);
-    },
-    [&](const error& err) {
-      CAF_FAIL(sys.render(err));
-    }
-  );
+  self->request(leaf2, infinite, atom::get_v)
+    .receive([&](const buf& xs) { CAF_CHECK_EQUAL(xs, expected); },
+             [&](const error& err) { CAF_FAIL(err); });
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core3, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core3, caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -496,8 +464,8 @@ CAF_TEST_FIXTURE_SCOPE_END()
 namespace {
 
 struct error_signaling_fixture : base_fixture {
-  actor core1;
-  actor core2;
+  caf::actor core1;
+  caf::actor core2;
   status_subscriber es;
 
   error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
@@ -557,8 +525,8 @@ CAF_TEST(failed_handshake_stage0) {
   // Spawn core actors and disable events.
   // Initiate handshake between core1 and core2, but kill core2 right away.
   self->send(core1, atom::peer_v, core2);
-  anon_send_exit(core2, exit_reason::kill);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
+  anon_send_exit(core2, caf::exit_reason::kill);
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core2));
   run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_unavailable);
 }
@@ -567,10 +535,10 @@ CAF_TEST(failed_handshake_stage0) {
 CAF_TEST(failed_handshake_stage1) {
   // Initiate handshake between core1 and core2, but kill core2 right away.
   self->send(core2, atom::peer_v, core1);
-  expect((atom::peer, actor), from(self).to(core2).with(_, core1));
-  expect((atom::peer, filter_type, actor),
+  expect((atom::peer, caf::actor), from(self).to(core2).with(_, core1));
+  expect((atom::peer, filter_type, caf::actor),
          from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
-  anon_send_exit(core2, exit_reason::kill);
+  anon_send_exit(core2, caf::exit_reason::kill);
   run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
@@ -579,13 +547,13 @@ CAF_TEST(failed_handshake_stage1) {
 CAF_TEST(failed_handshake_stage2) {
   CAF_MESSAGE("initiate handshake between core1 and core2");
   self->send(core1, atom::peer_v, core2);
-  expect((atom::peer, actor), from(self).to(core1).with(_, core2));
-  expect((atom::peer, filter_type, actor),
+  expect((atom::peer, caf::actor), from(self).to(core1).with(_, core2));
+  expect((atom::peer, filter_type, caf::actor),
          from(_).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   CAF_MESSAGE("send kill to core2");
-  anon_send_exit(core2, exit_reason::kill);
+  anon_send_exit(core2, caf::exit_reason::kill);
   CAF_MESSAGE("have core1 handle the pending handshake");
-  expect((open_stream_msg), from(_).to(core1).with(_, _, _, _, _, false));
+  expect((caf::open_stream_msg), from(_).to(core1).with(_, _, _, _, _, false));
   CAF_MESSAGE("run remaining messages");
   run();
   CAF_MESSAGE("check log of the event subscriber");
@@ -596,12 +564,12 @@ CAF_TEST(failed_handshake_stage2) {
 CAF_TEST(failed_handshake_stage3) {
   // Initiate handshake between core1 and core2, but kill core2 right away.
   self->send(core2, atom::peer_v, core1);
-  expect((atom::peer, actor), from(self).to(core2).with(_, core1));
-  expect((atom::peer, filter_type, actor),
+  expect((atom::peer, caf::actor), from(self).to(core2).with(_, core1));
+  expect((atom::peer, filter_type, caf::actor),
          from(core2).to(core1).with(_, filter_type{"a", "b", "c"}, core2));
-  expect((open_stream_msg), from(_).to(core2).with(_, core1, _, _, false));
-  anon_send_exit(core2, exit_reason::kill);
-  expect((open_stream_msg), from(_).to(core1).with(_, core2, _, _, false));
+  expect((caf::open_stream_msg), from(_).to(core2).with(_, core1, _, _, false));
+  anon_send_exit(core2, caf::exit_reason::kill);
+  expect((caf::open_stream_msg), from(_).to(core1).with(_, core2, _, _, false));
   run();
   BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
 }
@@ -623,8 +591,8 @@ CAF_TEST(unpeer_core1_from_core2) {
   anon_send(core1, atom::unpeer_v, network_info{"localhost", 8080});
   run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
 }
 
 // Checks emitted events in case a remote peer unpeers.
@@ -643,8 +611,8 @@ CAF_TEST(unpeer_core2_from_core1) {
   anon_send(core1, atom::unpeer_v, network_info{"localhost", 8080});
   run();
   BROKER_CHECK_LOG(es.poll(), ec::peer_invalid);
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
@@ -704,9 +672,9 @@ CAF_TEST(remote_peers_setup1) {
       CAF_REQUIRE_EQUAL(xs, expected);
     }
   );
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
+  anon_send_exit(leaf, caf::exit_reason::user_shutdown);
   exec_all();
 }
 
@@ -766,9 +734,9 @@ CAF_TEST(remote_peers_setup2) {
     }
   );
   CAF_MESSAGE("shutdown core actors");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
+  anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  anon_send_exit(core2, caf::exit_reason::user_shutdown);
+  anon_send_exit(leaf, caf::exit_reason::user_shutdown);
   exec_all();
 }
 

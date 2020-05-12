@@ -1,15 +1,16 @@
 #include "broker/logger.hh" // Needs to come before CAF includes.
 
-#include <caf/event_based_actor.hpp>
 #include <caf/actor.hpp>
-#include <caf/error.hpp>
-#include <caf/message.hpp>
-#include <caf/unit.hpp>
-#include <caf/sum_type.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
-#include <caf/system_messages.hpp>
+#include <caf/message.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/sum_type.hpp>
+#include <caf/system_messages.hpp>
+#include <caf/unit.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
@@ -302,10 +303,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.clear();
       self->state.mutation_buffer.shrink_to_fit();
     },
-    [=](atom::get, atom::keys) -> expected<data> {
+    [=](atom::get, atom::keys) -> caf::result<data> {
       if ( self->state.is_stale )
         return {ec::stale_data};
-
       auto x = self->state.keys();
       BROKER_INFO("KEYS ->" << x);
       return {x};
@@ -318,16 +318,15 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
       return caf::make_message(std::move(x), id);
     },
-    [=](atom::exists, const data& key) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::exists, const data& key) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       auto result = (self->state.store.find(key) != self->state.store.end());
       BROKER_INFO("EXISTS" << key << "->" << result);
-      return {result};
+      return data{result};
     },
     [=](atom::exists, const data& key, request_id id) {
-      if ( self->state.is_stale )
+      if (self->state.is_stale)
         return caf::make_message(make_error(ec::stale_data), id);
 
       auto r = (self->state.store.find(key) != self->state.store.end());
@@ -335,10 +334,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("EXISTS" << key << "with id" << id << "->" << r);
       return result;
     },
-    [=](atom::get, const data& key) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::get, const data& key) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -346,10 +344,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("GET" << key << "->" << result);
       return result;
     },
-    [=](atom::get, const data& key, const data& aspect) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::get, const data& key, const data& aspect) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -358,9 +355,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, const data& key, request_id id) {
-      if ( self->state.is_stale )
+      if (self->state.is_stale)
         return caf::make_message(make_error(ec::stale_data), id);
-
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {
@@ -394,8 +390,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     },
     [=](atom::get, atom::name) { return self->state.id; },
     // --- stream handshake with core ------------------------------------------
-    [=](const store::stream_type& in) {
-      self->make_sink(
+    [=](store::stream_type in) {
+      attach_stream_sink(
+        self,
         // input stream
         in,
         // initialize state
@@ -421,8 +418,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           }
 
           self->state.command(cmd);
-        }
-      );
+        });
     }};
 }
 

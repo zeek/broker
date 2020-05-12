@@ -7,7 +7,6 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/error.hpp>
-#include <caf/duration.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
 #include <caf/message.hpp>

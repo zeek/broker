@@ -112,8 +112,7 @@ PYBIND11_MODULE(_broker, m) {
 
   py::bind_vector<std::vector<broker::topic>>(m, "VectorTopic");
 
-  py::class_<broker::infinite_t>(m, "Infinite")
-    .def(py::init<>());
+  m.def("Infinite", [] { return broker::infinite; });
 
   py::class_<broker::publisher>(m, "Publisher")
     .def("demand", &broker::publisher::demand)

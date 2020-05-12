@@ -59,24 +59,8 @@ status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
   // nop
 }
 
-value_type status_subscriber::get() {
-  for (;;) {
-    auto msg = impl_.get();
-    BROKER_RETURN_CONVERTED_MSG()
-  }
-}
-
-caf::optional<value_type> status_subscriber::get(caf::timestamp timeout) {
+value_type status_subscriber::get(caf::timestamp timeout) {
   auto maybe_msg = impl_.get(timeout);
-  if (maybe_msg) {
-    auto& msg = *maybe_msg;
-    BROKER_RETURN_CONVERTED_MSG()
-  }
-  return nil;
-}
-
-caf::optional<value_type> status_subscriber::get(duration relative_timeout) {
-  auto maybe_msg = impl_.get(relative_timeout);
   if (maybe_msg) {
     auto& msg = *maybe_msg;
     BROKER_RETURN_CONVERTED_MSG()
@@ -94,16 +78,6 @@ std::vector<value_type> status_subscriber::get(size_t num,
   return result;
 }
 
-std::vector<value_type> status_subscriber::get(size_t num,
-                                               duration relative_timeout) {
-  std::vector<value_type> result;
-  auto msgs = impl_.get(num, relative_timeout);
-  for (auto& msg : msgs) {
-    BROKER_APPEND_CONVERTED_MSG();
-  }
-  return result;
-}
-
 std::vector<value_type> status_subscriber::poll() {
   std::vector<value_type> result;
   auto msgs = impl_.poll();
@@ -111,6 +85,16 @@ std::vector<value_type> status_subscriber::poll() {
     BROKER_APPEND_CONVERTED_MSG();
   }
   return result;
+}
+
+void status_subscriber::append_converted(std::vector<value_type>& result,
+                                         const data_message& msg) {
+  BROKER_APPEND_CONVERTED_MSG()
+}
+
+value_type status_subscriber::convert(const data_message& msg) {
+  BROKER_RETURN_CONVERTED_MSG()
+  return nil;
 }
 
 } // namespace broker

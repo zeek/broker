@@ -202,7 +202,7 @@ struct fixture : base_fixture {
   auto run(F expr, const char* expr_str) {
     auto res = expr();
     if (!res)
-      FAIL(expr_str << " failed: " << sys.render(res.error()));
+      FAIL(expr_str << " failed: " << res.error());
     if constexpr (std::is_same<decltype(res), expected<void>>::value)
       return caf::unit;
     else

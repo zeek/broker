@@ -1,6 +1,9 @@
 #include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/publisher.hh"
 
+#include <numeric>
+
+#include <caf/attach_stream_source.hpp>
 #include <caf/send.hpp>
 
 #include "broker/data.hh"
@@ -51,24 +54,24 @@ const char* publisher_worker_state::name = "publisher_worker";
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
                           endpoint* ep,
                           detail::shared_publisher_queue_ptr<> qptr) {
-  auto handler = self->make_source(
-    ep->core(),
-    [](unit_t&) {
-      // nop
-    },
-    [=](unit_t&, downstream<data_message>& out, size_t num) {
-      auto& st = self->state;
-      auto consumed = qptr->consume(num, [&](data_message&& x) {
-        out.push(std::move(x));
-      });
-      if (consumed > 0) {
-        st.counter += consumed;
-      }
-    },
-    [=](const unit_t&) {
-      return self->state.shutting_down && qptr->buffer_size() == 0;
-    }
-  ).ptr();
+  auto handler
+    = attach_stream_source(
+        self, ep->core(),
+        [](unit_t&) {
+          // nop
+        },
+        [=](unit_t&, downstream<data_message>& out, size_t num) {
+          auto& st = self->state;
+          auto consumed = qptr->consume(
+            num, [&](data_message&& x) { out.push(std::move(x)); });
+          if (consumed > 0) {
+            st.counter += consumed;
+          }
+        },
+        [=](const unit_t&) {
+          return self->state.shutting_down && qptr->buffer_size() == 0;
+        })
+        .ptr();
   //self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
   return {
     [=](atom::resume) {
