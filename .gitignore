@@ -1,3 +1,5 @@
 build
+broker.conf
+caf-application.ini
 *.sw[op]
 *.pyc
