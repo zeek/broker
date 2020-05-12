@@ -15,4 +15,6 @@ add_custom_target(broker-doc-html
 
 add_dependencies(doc broker-doc-html)
 
-add_subdirectory(_examples)
+if ( NOT BROKER_DISABLE_DOC_EXAMPLES )
+  add_subdirectory(_examples)
+endif ()
