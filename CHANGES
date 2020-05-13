@@ -1,4 +1,8 @@
 
+1.4.0-dev.118 | 2020-05-13 11:12:51 -0700
+
+  * Add CMake variable to disable doc examples (Tim Wojtulewicz, Corelight)
+
 1.4.0-dev.116 | 2020-04-30 18:29:35 -0700
 
   * Use inheritance for composing the core manager (Dominik Charousset)
