@@ -8,6 +8,8 @@
 #include <ratio>
 #include <string>
 
+#include <caf/timeout_definition.hpp>
+
 namespace broker {
 
 /// A fractional timestamp represented in IEEE754 double-precision floating
@@ -24,7 +26,7 @@ using timespan = std::chrono::duration<int64_t, std::nano>;
 using timestamp = std::chrono::time_point<clock, timespan>;
 
 /// Constant representing an infinite amount of time.
-static constexpr auto infinite = timespan{std::numeric_limits<int64_t>::max()};
+static constexpr auto infinite = caf::infinite;
 
 /// @relates timespan
 bool convert(timespan i, fractional_seconds& secs);
