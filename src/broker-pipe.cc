@@ -30,6 +30,7 @@
 #pragma GCC diagnostic pop
 
 #include "broker/atoms.hh"
+#include "broker/config.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
@@ -39,9 +40,9 @@
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
 
-#ifndef _MSC_VER
+#ifndef BROKER_WINDOWS
 #include <sys/select.h>
-#endif // _MSC_VER
+#endif // BROKER_WINDOWS
 
 using broker::data;
 using broker::data_message;
@@ -112,13 +113,13 @@ void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
-#ifdef _MSC_VER
+#ifdef BROKER_WINDOWS
 
 void publish_mode_select(broker::endpoint&, const std::string&, size_t) {
   std::cerr << "*** select mode not available in MSVC version of Broker\n";
 }
 
-#else // _MSC_VER
+#else // BROKER_WINDOWS
 
 void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
                          size_t cap) {
@@ -146,7 +147,7 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
-#endif // _MSC_VER
+#endif // BROKER_WINDOWS
 
 void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                          size_t cap) {
@@ -189,13 +190,13 @@ void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
-#ifdef _MSC_VER
+#ifdef BROKER_WINDOWS
 
 void subscribe_mode_select(broker::endpoint&, const std::string&, size_t ) {
   std::cerr << "*** select mode not available in MSVC version of Broker\n";
 }
 
-#else // _MSC_VER
+#else // BROKER_WINDOWS
 
 void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
@@ -221,7 +222,7 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
   }
 }
 
-#endif // _MSC_VER
+#endif // BROKER_WINDOWS
 
 void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
