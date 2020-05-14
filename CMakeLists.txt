@@ -219,7 +219,7 @@ else ()
   add_subdirectory(caf)
 endif ()
 
-set(CAF_VERSION_REQUIRED 0.15.5)
+set(CAF_VERSION_REQUIRED 0.17.5)
 
 if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
   message(FATAL_ERROR "Broker requires at least CAF version"
