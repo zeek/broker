@@ -24,6 +24,7 @@
 #include "broker/mixin/connector.hh"
 #include "broker/mixin/data_store_manager.hh"
 #include "broker/mixin/notifier.hh"
+#include "broker/mixin/recorder.hh"
 #include "broker/network_info.hh"
 #include "broker/optional.hh"
 #include "broker/peer_info.hh"
@@ -34,7 +35,8 @@ namespace broker {
 class core_manager
   : public caf::extend<alm::stream_transport<core_manager, caf::node_id>,
                        core_manager>:: //
-    with<mixin::connector, mixin::notifier, mixin::data_store_manager> {
+    with<mixin::connector, mixin::notifier, mixin::data_store_manager,
+         mixin::recorder> {
 public:
   // --- member types ----------------------------------------------------------
 
@@ -110,12 +112,6 @@ private:
   /// Keeps track of all actors that currently wait for handshakes to
   /// complete.
   std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync_;
-
-  /// Handle for recording all subscribed topics (if enabled).
-  std::ofstream topics_file_;
-
-  /// Handle for recording all peers (if enabled).
-  std::ofstream peers_file_;
 };
 
 struct core_state {

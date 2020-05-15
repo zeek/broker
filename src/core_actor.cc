@@ -47,30 +47,6 @@ core_manager::core_manager(caf::event_based_actor* ptr,
     options_(opts),
     filter_(initial_filter) {
   cache().set_use_ssl(!options_.disable_ssl);
-  auto meta_dir = get_or(self()->config(), "broker.recording-directory",
-                         defaults::recording_directory);
-  if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
-    auto file_name = meta_dir + "/topics.txt";
-    topics_file_.open(file_name);
-    if (topics_file_.is_open()) {
-      BROKER_DEBUG("opened file for recording:" << file_name);
-      for (const auto& x : filter_) {
-        if (!(topics_file_ << x.string() << '\n')) {
-          BROKER_WARNING("failed to write to topics file");
-          topics_file_.close();
-          break;
-        }
-      }
-      topics_file_.flush();
-    } else {
-      BROKER_WARNING("cannot open recording file" << file_name);
-    }
-    peers_file_.open(meta_dir + "/peers.txt");
-    if (!peers_file_.is_open())
-      BROKER_WARNING("cannot open recording file" << file_name);
-    std::ofstream id_file{meta_dir + "/id.txt"};
-    id_file << to_string(self()->node()) << '\n';
-  }
 }
 
 void core_manager::update_filter_on_peers() {
@@ -90,20 +66,10 @@ void core_manager::subscribe(filter_type xs) {
   xs.erase(std::remove_if(xs.begin(), xs.end(), internal_only), xs.end());
   if (xs.empty())
     return;
-  // Simply append to topics without de-duplication.
-  if (topics_file_.is_open()) {
-    for (const auto& x : xs) {
-      if (!(topics_file_ << x.string() << '\n')) {
-        BROKER_WARNING("failed to write to topics file");
-        topics_file_.close();
-        break;
-      }
-    }
-    topics_file_.flush();
-  }
   if (filter_extend(filter_, xs)) {
     BROKER_DEBUG("Changed filter to " << filter_);
     update_filter_on_peers();
+    super::subscribe(xs);
   }
 }
 
@@ -264,11 +230,11 @@ caf::behavior core_manager::make_behavior(){
     },
     [=](atom::publish, data_message& x) {
       BROKER_TRACE(BROKER_ARG(x));
-      push(std::move(x));
+      publish(std::move(x));
     },
     [=](atom::publish, command_message& x) {
       BROKER_TRACE(BROKER_ARG(x));
-      push(std::move(x));
+      publish(std::move(x));
     },
     // --- communication to local actors only, i.e., never forward to peers ----
     [=](atom::publish, atom::local, data_message& x) {

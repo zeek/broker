@@ -470,8 +470,6 @@ public:
   /// Pushes data to peers only without forwarding it to local substreams.
   void remote_push(message_type msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    if (recorder_ != nullptr)
-      try_record(msg);
     peer_manager().push(std::move(msg));
     peer_manager().emit_batches();
   }
@@ -492,15 +490,34 @@ public:
     // local_push(std::move(x), std::move(y));
   }
 
-  template <class T>
-  void publish(T msg) {
-    push(std::move(msg));
+  /// Pushes data to peers and stores.
+  void push(message_type msg) {
+    BROKER_TRACE(BROKER_ARG(msg));
+    remote_push(std::move(msg));
   }
 
   // -- communication that bypasses the streams --------------------------------
 
-  void ship(data_message msg, const communication_handle_type& hdl) {
+  void ship(data_message& msg, const communication_handle_type& hdl) {
     self()->send(hdl, atom::publish::value, atom::local::value, std::move(msg));
+  }
+
+  template <class T>
+  void ship(T& msg) {
+    push(std::move(msg));
+  }
+
+  void ship(message_type& msg) {
+    push(std::move(msg));
+  }
+
+  template <class T>
+  void publish(T msg) {
+    dref().ship(msg);
+  }
+
+  void publish(node_message_content msg) {
+    visit([this](auto& x) { dref().ship(x); }, msg);
   }
 
   // -- overridden member functions of caf::stream_manager ---------------------
@@ -514,6 +531,7 @@ public:
     // outband path of previously-buffered messagesi happens to match the path
     // of the inbound data we are handling here.
     BROKER_ASSERT(peer_manager().selector().active_sender == nullptr);
+    auto& d = dref();
     peer_manager().fan_out_flush();
     peer_manager().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
     auto guard = caf::detail::make_scope_guard([this] {
@@ -569,14 +587,21 @@ public:
           continue;
         }
         // Forward to other peers.
-        peer_manager().push(std::move(msg));
+        d.publish(std::move(msg));
       }
       return;
     }
-    using variant_batch = std::vector<node_message::value_type>;
-    if (try_handle<worker_trait>(xs, "publish from local workers")
-        || try_handle<store_trait>(xs, "publish from local stores")
-        || try_handle<var_trait>(xs, "publish from custom actors"))
+    auto try_publish = [&](auto trait) {
+      using batch_type = typename decltype(trait)::batch;
+      if (xs.template match_elements<batch_type>()) {
+        for (auto& x : xs.template get_mutable_as<batch_type>(0))
+          d.publish(x);
+        return true;
+      }
+      return false;
+    };
+    if (try_publish(worker_trait{}) || try_publish(store_trait{})
+        || try_publish(var_trait{}))
       return;
     BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
   }
@@ -682,6 +707,12 @@ public:
     }
   }
 
+  // -- fallback implementations to enable forwarding chains -------------------
+
+  void subscribe(const filter_type&) {
+    // nop
+  }
+
   // -- callbacks --------------------------------------------------------------
 
   /// Called whenever new data for local subscribers became available.
@@ -757,64 +788,6 @@ public:
   }
 
 protected:
-  /// @pre `recorder_ != nullptr`
-  template <class T>
-  bool try_record(const T& x) {
-    BROKER_ASSERT(recorder_ != nullptr);
-    BROKER_ASSERT(remaining_records_ > 0);
-    if (auto err = recorder_->write(x)) {
-      BROKER_WARNING("unable to write to generator file:" << err);
-      recorder_ = nullptr;
-      remaining_records_ = 0;
-      return false;
-    }
-    if (--remaining_records_ == 0) {
-      BROKER_DEBUG("reached recording cap, close file");
-      recorder_ = nullptr;
-    }
-    return true;
-  }
-
-  bool try_record(const node_message& x) {
-    return try_record(x.content);
-  }
-
-  template <class Trait>
-  bool try_handle(caf::message& msg, const char* debug_msg) {
-    CAF_IGNORE_UNUSED(debug_msg);
-    using batch_type = typename Trait::batch;
-    if (msg.match_elements<batch_type>()) {
-      using iterator_type = typename batch_type::iterator;
-      auto ttl0 = initial_ttl();
-      auto push_unrecorded = [&](iterator_type first, iterator_type last) {
-        for (auto i = first; i != last; ++i)
-          peer_manager().push(make_node_message(std::move(*i), ttl0));
-      };
-      auto push_recorded = [&](iterator_type first, iterator_type last) {
-        for (auto i = first; i != last; ++i) {
-          if (!try_record(*i))
-            return i;
-          peer_manager().push(make_node_message(std::move(*i), ttl0));
-        }
-        return last;
-      };
-      BROKER_DEBUG(debug_msg);
-      auto& xs = msg.get_mutable_as<batch_type>(0);
-      if (recorder_ == nullptr) {
-        push_unrecorded(xs.begin(), xs.end());
-      } else {
-        auto n = std::min(remaining_records_, xs.size());
-        auto first = xs.begin();
-        auto last = xs.end();
-        auto i = push_recorded(first, first + n);
-        if (i != last)
-          push_unrecorded(i, last);
-      }
-      return true;
-    }
-    return false;
-  }
-
   /// Returns the initial TTL value when publishing data.
   ttl initial_ttl() {
     return static_cast<ttl>(dref().options().ttl);
