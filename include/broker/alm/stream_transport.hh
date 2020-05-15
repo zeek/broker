@@ -420,19 +420,29 @@ public:
     return slot;
   }
 
-  /// Adds the sender of the current message as store by starting an output
-  /// stream to it.
-  /// @pre `current_sender() != nullptr`
-  caf::outbound_stream_slot<typename store_trait::element>
-  add_store(filter_type filter) {
-    CAF_LOG_TRACE(CAF_ARG(filter));
-    auto slot = this->template add_unchecked_outbound_path<
-      typename store_trait::element>();
+  /// Subscribes `self->sender()` to `store_manager()`.
+  auto add_sending_store(const filter_type& filter) {
+    using element_type = typename store_trait::element;
+    using result_type = caf::outbound_stream_slot<element_type>;
+    auto slot = add_unchecked_outbound_path<element_type>();
     if (slot != caf::invalid_stream_slot) {
-      out().template assign<typename store_trait::manager>(slot);
-      store_manager().set_filter(slot, std::move(filter));
+      dref().subscribe(filter);
+      out_.template assign<typename store_trait::manager>(slot);
+      store_manager().set_filter(slot, filter);
     }
-    return slot;
+    return result_type{slot};
+  }
+
+  /// Subscribes `hdl` to `store_manager()`.
+  caf::error add_store(const caf::actor& hdl, const filter_type& filter) {
+    using element_type = typename store_trait::element;
+    auto slot = add_unchecked_outbound_path<element_type>(hdl);
+    if (slot == caf::invalid_stream_slot)
+      return caf::sec::cannot_add_downstream;
+    dref().subscribe(filter);
+    out_.template assign<typename store_trait::manager>(slot);
+    store_manager().set_filter(slot, filter);
+    return caf::none;
   }
 
   // -- selectively pushing data into the streams ------------------------------
@@ -480,6 +490,11 @@ public:
     BROKER_TRACE(BROKER_ARG(msg));
     remote_push(make_node_message(std::move(msg), dref().options().ttl));
     // local_push(std::move(x), std::move(y));
+  }
+
+  template <class T>
+  void publish(T msg) {
+    push(std::move(msg));
   }
 
   // -- communication that bypasses the streams --------------------------------
@@ -630,12 +645,12 @@ public:
   template <class F>
   void for_each_peer(F f) {
     // visit all peers that have at least one path still connected
-    auto peers = get_peer_handles();
+    auto peers = peer_handles();
     std::for_each(peers.begin(), peers.end(), std::move(f));
   }
 
   /// Returns all known peers.
-  auto get_peer_handles() {
+  auto peer_handles() {
     std::vector<caf::actor> peers;
     for (auto& kvp : hdl_to_ostream_)
       peers.emplace_back(kvp.first);

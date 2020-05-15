@@ -22,6 +22,7 @@
 #include "broker/filter_type.hh"
 #include "broker/logger.hh"
 #include "broker/mixin/connector.hh"
+#include "broker/mixin/data_store_manager.hh"
 #include "broker/mixin/notifier.hh"
 #include "broker/network_info.hh"
 #include "broker/optional.hh"
@@ -33,7 +34,7 @@ namespace broker {
 class core_manager
   : public caf::extend<alm::stream_transport<core_manager, caf::node_id>,
                        core_manager>:: //
-    with<mixin::connector, mixin::notifier> {
+    with<mixin::connector, mixin::notifier, mixin::data_store_manager> {
 public:
   // --- member types ----------------------------------------------------------
 
@@ -73,7 +74,7 @@ public:
   void update_filter_on_peers();
 
   /// Adds `xs` to our filter and update all peers on changes.
-  void add_to_filter(filter_type xs);
+  void subscribe(filter_type xs);
 
   // --- convenience functions for querying state ------------------------------
 
@@ -82,7 +83,7 @@ public:
 
   /// Returns whether a master for `name` probably exists already on one of
   /// our peers.
-  bool has_remote_master(const std::string& name);
+  bool has_remote_subscriber(const topic& x) noexcept;
 
   // --- callbacks -------------------------------------------------------------
   //
@@ -97,20 +98,11 @@ private:
   /// A copy of the current Broker configuration options.
   broker_options options_;
 
-  /// Stores all master actors created by this core.
-  std::unordered_map<std::string, caf::actor> masters_;
-
-  /// Stores all clone actors created by this core.
-  std::unordered_map<std::string, caf::actor> clones_;
-
   /// Requested topics on this core.
   filter_type filter_;
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down_ = false;
-
-  /// Required when spawning data stores.
-  endpoint::clock* clock_;
 
   /// Keeps track of all actors that subscribed to status updates.
   std::unordered_set<caf::actor> status_subscribers_;

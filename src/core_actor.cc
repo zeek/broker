@@ -27,11 +27,8 @@
 #include "broker/convert.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
-#include "broker/detail/clone_actor.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/make_backend.hh"
-#include "broker/detail/master_actor.hh"
-#include "broker/detail/master_resolver.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
@@ -46,10 +43,9 @@ namespace broker {
 core_manager::core_manager(caf::event_based_actor* ptr,
                            const filter_type& initial_filter,
                            broker_options opts, endpoint::clock* ep_clock)
-  : super(ptr, initial_filter),
+  : super(ep_clock, ptr, initial_filter),
     options_(opts),
-    filter_(initial_filter),
-    clock_(ep_clock) {
+    filter_(initial_filter) {
   cache().set_use_ssl(!options_.disable_ssl);
   auto meta_dir = get_or(self()->config(), "broker.recording-directory",
                          defaults::recording_directory);
@@ -84,7 +80,7 @@ void core_manager::update_filter_on_peers() {
   });
 }
 
-void core_manager::add_to_filter(filter_type xs) {
+void core_manager::subscribe(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
   // Status and error topics are internal topics.
   auto internal_only = [](const topic& x) {
@@ -111,10 +107,7 @@ void core_manager::add_to_filter(filter_type xs) {
   }
 }
 
-bool core_manager::has_remote_master(const std::string& name) {
-  // If we don't have a master recorded locally, we could still have a
-  // propagated subscription to a remote core hosting a master.
-  auto x = name / topics::master_suffix;
+bool core_manager::has_remote_subscriber(const topic& x) noexcept {
   return peer_manager().any_filter([&](const peer_filter& filter) {
     auto e = filter.second.end();
     return std::find(filter.second.begin(), e, x) != e;
@@ -158,7 +151,7 @@ caf::behavior core_manager::make_behavior(){
     // --- filter manipulation -------------------------------------------------
     [=](atom::subscribe, filter_type& f) {
       BROKER_TRACE(BROKER_ARG(f));
-      add_to_filter(std::move(f));
+      subscribe(std::move(f));
     },
     // --- peering requests from local actors, i.e., "step 0" ------------------
     [=](atom::peer, actor remote_core) {
@@ -245,25 +238,21 @@ caf::behavior core_manager::make_behavior(){
       BROKER_TRACE(BROKER_ARG(filter));
       auto result = add_worker(filter);
       if (result != invalid_stream_slot)
-        add_to_filter(std::move(filter));
+        subscribe(std::move(filter));
       return result;
     },
     [=](atom::join, atom::update, stream_slot slot, filter_type& filter) {
-      add_to_filter(filter);
+      subscribe(filter);
       worker_manager().set_filter(slot, std::move(filter));
     },
     [=](atom::join, atom::update, stream_slot slot, filter_type& filter,
         caf::actor& who_asked) {
-      add_to_filter(filter);
+      subscribe(filter);
       worker_manager().set_filter(slot, std::move(filter));
       self()->send(who_asked, true);
     },
-    [=](atom::join, atom::store, filter_type& filter) {
-      // Tap into data store messages.
-      auto result = add_store(filter);
-      if (result != invalid_stream_slot)
-        add_to_filter(std::move(filter));
-      return result;
+    [=](atom::join, atom::store, const filter_type& filter) {
+      return add_sending_store(filter);
     },
     [=](endpoint::stream_type in) {
       BROKER_TRACE("add data_message input stream");
@@ -308,178 +297,6 @@ caf::behavior core_manager::make_behavior(){
         }
       }
       self()->send(hdl, atom::publish_v, atom::local_v, std::move(x));
-    },
-    // --- data store management -----------------------------------------------
-    [=](atom::store, atom::master, atom::attach, const std::string& name,
-        backend backend_type,
-        backend_options& opts) -> caf::result<caf::actor> {
-      BROKER_TRACE(BROKER_ARG(name)
-                   << BROKER_ARG(backend_type) << BROKER_ARG(opts));
-      BROKER_INFO("attaching master:" << name);
-      // Sanity check: this message must be a point-to-point message.
-      auto& cme = *self()->current_mailbox_element();
-      if (!cme.stages.empty()) {
-        BROKER_WARNING("received a master attach message with stages");
-        return ec::unspecified;
-      }
-      auto i = masters_.find(name);
-      if (i != masters_.end()) {
-        BROKER_INFO("found local master");
-        return i->second;
-      }
-      if (has_remote_master(name)) {
-        BROKER_WARNING("remote master with same name exists already");
-        return ec::master_exists;
-      }
-      BROKER_INFO("instantiating backend");
-      auto ptr = detail::make_backend(backend_type, std::move(opts));
-      BROKER_ASSERT(ptr);
-      BROKER_INFO("spawning new master");
-      auto ms = self()->spawn<caf::linked + caf::lazy_init>(
-        detail::master_actor, self(), name, std::move(ptr), clock_);
-      masters_.emplace(name, ms);
-      // Initiate stream handshake and add subscriber to the manager.
-      using value_type = store::stream_type::value_type;
-      auto slot = add_unchecked_outbound_path<value_type>(ms);
-      if (slot == invalid_stream_slot) {
-        BROKER_ERROR("attaching master failed");
-        return caf::sec::cannot_add_downstream;
-      }
-      // Subscribe to messages directly targeted at the master.
-      filter_type filter{name / topics::master_suffix};
-      add_to_filter(filter);
-      // Move the slot to the stores downstream manager and set filter.
-      out().assign<core_manager::core_manager::store_trait::manager>(slot);
-      store_manager().set_filter(slot, std::move(filter));
-      // Done.
-      return ms;
-    },
-    [=](atom::store, atom::clone, atom::attach, std::string& name,
-        double resync_interval, double stale_interval,
-        double mutation_buffer_interval) -> caf::result<caf::actor> {
-      BROKER_INFO("attaching clone:" << name);
-      auto i = masters_.find(name);
-      if (i != masters_.end() && self()->node() == i->second->node()) {
-        BROKER_WARNING("attempted to run clone & master on the same endpoint");
-        return ec::no_such_master;
-      }
-      // Sanity check: this message must be a point-to-point message.
-      auto& cme = *self()->current_mailbox_element();
-      if (!cme.stages.empty())
-        return ec::unspecified;
-      // Fetch clone from the map or spin up a new one.
-      auto stages = std::move(cme.stages);
-      if (auto i = clones_.find(name); i != clones_.end()) {
-        BROKER_INFO("re-use existing clone");
-        return i->second;
-      }
-      BROKER_INFO("spawning new clone");
-      auto clone = self()->spawn<linked + lazy_init>(
-        detail::clone_actor, self(), name, resync_interval, stale_interval,
-        mutation_buffer_interval, clock_);
-      auto cptr = actor_cast<strong_actor_ptr>(clone);
-      clones_.emplace(name, clone);
-      // Subscribe to updates.
-      using value_type = store::stream_type::value_type;
-      auto slot = add_unchecked_outbound_path<value_type>(clone);
-      if (slot == invalid_stream_slot) {
-        BROKER_ERROR("attaching master failed");
-        return caf::sec::cannot_add_downstream;
-      }
-      // Subscribe to messages directly targeted at the clone.
-      filter_type filter{name / topics::clone_suffix};
-      add_to_filter(filter);
-      // Move the slot to the stores downstream manager and set filter.
-      out().assign<core_manager::store_trait::manager>(slot);
-      store_manager().set_filter(slot, std::move(filter));
-      return clone;
-      /* FIXME:
-      auto spawn_clone = [=](const caf::actor& master) -> caf::actor {
-        BROKER_INFO("spawning new clone");
-        auto clone = self->spawn<linked + lazy_init>(clone_actor, self,
-                                                     master, name);
-        auto& st = self->state;
-        st.clones.emplace(name, clone);
-        // Subscribe to updates.
-        filter_type f{name / topics::reserved / topics::clone};
-        std::tuple<> token;
-        auto sid = st.governor->stores().sid();
-        auto cptr = actor_cast<strong_actor_ptr>(clone);
-        self->current_mailbox_element()->stages.emplace_back(cptr);
-        st.governor->stores().add_path(cptr);
-        st.governor->stores().set_filter(cptr, f);
-        self->fwd_stream_handshake<store::stream_type::value_type>(sid, token,
-                                                                   true);
-        st.add_to_filter(std::move(f));
-        // Instruct master to generate a snapshot.
-        self->state.governor->push(
-          name / topics::reserved / topics::master,
-          make_internal_command<snapshot_command>(self));
-        return clone;
-      };
-      auto& peers = self->state.governor->peers();
-      auto i = self->state.masters.find(name);
-      if (i != self->state.masters.end()) {
-        // We don't run clone and master on the same endpoint.
-        if (self->node() == i->second.node()) {
-          BROKER_WARNING("attempted to run clone & master on the same endpoint");
-          return ec::no_such_master;
-        }
-        BROKER_INFO("found master in map");
-        return spawn_clone(i->second);
-      } else if (peers.empty()) {
-        BROKER_INFO("no peers to ask for the master");
-        return ec::no_such_master;
-      }
-      auto resolv = self->spawn<caf::lazy_init>(master_resolver);
-      auto rp = self->make_response_promise<caf::actor>();
-      std::vector<caf::actor> tmp;
-      for (auto& kvp : peers)
-        tmp.emplace_back(kvp.first);
-      self->request(resolv, caf::infinite, std::move(tmp), std::move(name))
-      .then(
-        [=](actor& master) mutable {
-          BROKER_INFO("received result from resolver:" << master);
-          self->state.masters.emplace(name, master);
-          rp.deliver(spawn_clone(std::move(master)));
-        },
-        [=](caf::error& err) mutable {
-          BROKER_INFO("received error from resolver:" << err);
-          rp.deliver(std::move(err));
-        }
-      );
-      return rp;
-      */
-    },
-    [=](atom::store, atom::master, atom::snapshot, const std::string& name,
-        caf::actor& clone) {
-      // Instruct master to generate a snapshot.
-      push(make_command_message(
-        name / topics::master_suffix,
-        make_internal_command<snapshot_command>(self(), std::move(clone))));
-    },
-    [=](atom::store, atom::master, atom::get,
-        const std::string& name) -> result<actor> {
-      if (auto i = masters_.find(name); i != masters_.end())
-        return i->second;
-      return ec::no_such_master;
-    },
-    [=](atom::store, atom::master, atom::resolve, std::string& name,
-        actor& who_asked) {
-      auto i = masters_.find(name);
-      if (i != masters_.end()) {
-        BROKER_INFO("found local master, using direct link");
-        self()->send(who_asked, atom::master_v, i->second);
-      }
-      auto peers = get_peer_handles();
-      if (peers.empty()) {
-        BROKER_INFO("no peers to ask for the master");
-        self()->send(who_asked, atom::master_v,
-                     make_error(ec::no_such_master, "no peers"));
-      }
-      auto resolv = self()->spawn<caf::lazy_init>(detail::master_resolver);
-      self()->send(resolv, std::move(peers), std::move(name),
-                   std::move(who_asked));
     },
     // --- accessors -----------------------------------------------------------
     [=](atom::get, atom::peer) {
