@@ -8,6 +8,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/extend.hpp>
 #include <caf/stateful_actor.hpp>
 
 #include "broker/alm/stream_transport.hh"
@@ -20,6 +21,8 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/logger.hh"
+#include "broker/mixin/connector.hh"
+#include "broker/mixin/notifier.hh"
 #include "broker/network_info.hh"
 #include "broker/optional.hh"
 #include "broker/peer_info.hh"
@@ -27,11 +30,14 @@
 
 namespace broker {
 
-class core_manager : public alm::stream_transport<core_manager, caf::node_id> {
+class core_manager
+  : public caf::extend<alm::stream_transport<core_manager, caf::node_id>,
+                       core_manager>:: //
+    with<mixin::connector, mixin::notifier> {
 public:
   // --- member types ----------------------------------------------------------
 
-  using super = alm::stream_transport<core_manager, caf::node_id>;
+  using super = extended_base;
 
   /// Identifies the two individual streams forming a bidirectional channel.
   /// The first ID denotes the *input*  and the second ID denotes the
@@ -42,6 +48,24 @@ public:
 
   core_manager(caf::event_based_actor* ptr, const filter_type& filter,
                broker_options opts, endpoint::clock* ep_clock);
+
+  // --- initialization --------------------------------------------------------
+
+  caf::behavior make_behavior();
+
+  // --- properties ------------------------------------------------------------
+
+  const auto& filter() const {
+    return filter_;
+  }
+
+  const auto& options() const {
+    return options_;
+  }
+
+  bool shutting_down() const {
+    return shutting_down_;
+  }
 
   // --- filter management -----------------------------------------------------
 
@@ -60,108 +84,46 @@ public:
   /// our peers.
   bool has_remote_master(const std::string& name);
 
-  // --- convenience functions for sending errors and events -------------------
-
-  template <ec ErrorCode>
-  void emit_error(caf::actor hdl, const char* msg) {
-    auto emit = [=](network_info x) {
-      BROKER_INFO("error" << ErrorCode << x);
-      // TODO: consider creating the data directly rather than going through the
-      //       error object and converting it.
-      auto err
-        = make_error(ErrorCode, endpoint_info{hdl.node(), std::move(x)}, msg);
-      this->local_push(make_data_message(topics::errors, get_as<data>(err)));
-    };
-    if (self()->node() != hdl.node())
-      cache.fetch(
-        hdl, [=](network_info x) { emit(std::move(x)); },
-        [=](caf::error) { emit({}); });
-    else
-      emit({});
-  }
-
-  template <ec ErrorCode>
-  void emit_error(caf::strong_actor_ptr hdl, const char* msg) {
-    emit_error<ErrorCode>(caf::actor_cast<caf::actor>(hdl), msg);
-  }
-
-  template <ec ErrorCode>
-  void emit_error(network_info inf, const char* msg) {
-    auto x = cache.find(inf);
-    if (x)
-      emit_error<ErrorCode>(std::move(*x), msg);
-    else {
-      BROKER_INFO("error" << ErrorCode << inf);
-      auto err
-        = make_error(ErrorCode, endpoint_info{node_id(), std::move(inf)}, msg);
-      local_push(make_data_message(topics::errors, get_as<data>(err)));
-    }
-  }
-
-  template <sc StatusCode>
-  void emit_status(caf::actor hdl, const char* msg) {
-    static_assert(StatusCode != sc::peer_added,
-                  "Use emit_peer_added_status instead");
-    auto emit = [=](network_info x) {
-      BROKER_INFO("status" << StatusCode << x);
-      // TODO: consider creating the data directly rather than going through
-      // the
-      //       status object and converting it.
-      auto stat = status::make<StatusCode>(
-        endpoint_info{hdl.node(), std::move(x)}, msg);
-      local_push(make_data_message(topics::statuses, get_as<data>(stat)));
-    };
-    if (self()->node() != hdl.node())
-      cache.fetch(
-        hdl, [=](network_info x) { emit(x); }, [=](caf::error) { emit({}); });
-    else
-      emit({});
-  }
-
-  void emit_peer_added_status(caf::actor hdl, const char* msg);
-
-  template <sc StatusCode>
-  void emit_status(caf::strong_actor_ptr hdl, const char* msg) {
-    emit_status<StatusCode>(caf::actor_cast<caf::actor>(std::move(hdl)), msg);
-  }
+  // --- callbacks -------------------------------------------------------------
+  //
+  void peer_connected(const peer_id_type& peer_id,
+                      const communication_handle_type& hdl);
 
   void sync_with_status_subscribers(caf::actor new_peer);
 
+private:
   // --- member variables ------------------------------------------------------
 
   /// A copy of the current Broker configuration options.
-  broker_options options;
+  broker_options options_;
 
   /// Stores all master actors created by this core.
-  std::unordered_map<std::string, caf::actor> masters;
+  std::unordered_map<std::string, caf::actor> masters_;
 
   /// Stores all clone actors created by this core.
-  std::unordered_map<std::string, caf::actor> clones;
+  std::unordered_map<std::string, caf::actor> clones_;
 
   /// Requested topics on this core.
-  filter_type filter;
-
-  /// Associates network addresses to remote actor handles and vice versa.
-  detail::network_cache cache;
+  filter_type filter_;
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
-  bool shutting_down;
+  bool shutting_down_ = false;
 
   /// Required when spawning data stores.
-  endpoint::clock* clock;
+  endpoint::clock* clock_;
 
   /// Keeps track of all actors that subscribed to status updates.
-  std::unordered_set<caf::actor> status_subscribers;
+  std::unordered_set<caf::actor> status_subscribers_;
 
   /// Keeps track of all actors that currently wait for handshakes to
   /// complete.
-  std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync;
+  std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync_;
 
   /// Handle for recording all subscribed topics (if enabled).
-  std::ofstream topics_file;
+  std::ofstream topics_file_;
 
   /// Handle for recording all peers (if enabled).
-  std::ofstream peers_file;
+  std::ofstream peers_file_;
 };
 
 struct core_state {
@@ -182,16 +144,3 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
                          broker_options opts, endpoint::clock* clock);
 
 } // namespace broker
-
-namespace broker::detail {
-
-struct retry_state {
-  network_info addr;
-  caf::response_promise rp;
-
-  void try_once(core_actor_type* self);
-};
-
-} // namespace broker::detail
-
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)

@@ -158,17 +158,18 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
 
   BROKER_ADD_ATOM(ack, "ack")
   BROKER_ADD_ATOM(default_, "default")
-  BROKER_ADD_ATOM(init, "init")
-  BROKER_ADD_ATOM(name, "name")
-  BROKER_ADD_ATOM(network, "network")
-  BROKER_ADD_ATOM(peer, "peer")
-  BROKER_ADD_ATOM(read, "read")
-  BROKER_ADD_ATOM(retry, "retry")
-  BROKER_ADD_ATOM(run, "run")
-  BROKER_ADD_ATOM(shutdown, "shutdown")
-  BROKER_ADD_ATOM(status, "status")
-  BROKER_ADD_ATOM(unpeer, "unpeer")
-  BROKER_ADD_ATOM(write, "write")
+  BROKER_ADD_ATOM(id, "id");
+  BROKER_ADD_ATOM(init, "init");
+  BROKER_ADD_ATOM(name, "name");
+  BROKER_ADD_ATOM(network, "network");
+  BROKER_ADD_ATOM(peer, "peer");
+  BROKER_ADD_ATOM(read, "read");
+  BROKER_ADD_ATOM(retry, "retry");
+  BROKER_ADD_ATOM(run, "run");
+  BROKER_ADD_ATOM(shutdown, "shutdown");
+  BROKER_ADD_ATOM(status, "status");
+  BROKER_ADD_ATOM(unpeer, "unpeer");
+  BROKER_ADD_ATOM(write, "write");
 
   // -- atoms for communication with workers -----------------------------------
 
