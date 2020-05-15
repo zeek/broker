@@ -164,7 +164,7 @@ std::string read(const path& p) {
 }
 
 std::string make_temp_file_name() {
-#ifdef _MSC_VER
+#ifdef BROKER_WINDOWS
   char file_name[L_tmpnam_s];
   if (tmpnam_s(file_name, L_tmpnam_s)) {
     fprintf(stderr, "Unable to create unique filename.\n");

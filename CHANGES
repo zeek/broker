@@ -1,4 +1,8 @@
 
+1.4.0-dev.121 | 2020-05-15 10:37:27 -0700
+
+  * Use BROKER_WINDOWS in conditionals for MinGW (Noah Treuhaft)
+
 1.4.0-dev.118 | 2020-05-13 11:12:51 -0700
 
   * Add CMake variable to disable doc examples (Tim Wojtulewicz, Corelight)
