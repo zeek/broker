@@ -7,11 +7,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
+  cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc
+  cpp/detail/iterator_range.cc
   cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
   cpp/error.cc
