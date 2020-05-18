@@ -50,15 +50,6 @@ enum class backend : uint8_t;
 enum class ec : uint8_t;
 enum class sc : uint8_t;
 
-// -- templates ----------------------------------------------------------------
-
-template <class PeerId>
-struct generic_node_message;
-
-// -- type aliases -------------------------------------------------------------
-
-using node_message = generic_node_message<caf::node_id>;
-
 // -- STD type aliases ---------------------------------------------------------
 
 using backend_options = std::unordered_map<std::string, data>;
@@ -79,22 +70,36 @@ using integer = int64_t;
 using real = double;
 using request_id = uint64_t;
 
-// -- CAF type aliases ---------------------------------------------------------
-
-using caf::optional;
-using command_message = caf::cow_tuple<topic, internal_command>;
-using data_message = caf::cow_tuple<topic, data>;
-using node_message_content = caf::variant<data_message, command_message>;
-
 } // namespace broker
 
 // -- ALM types ----------------------------------------------------------------
 
 namespace broker::alm {
 
+template <class PeerId>
+class multipath;
+
 struct lamport_timestamp;
 
 } // namespace broker::alm
+
+// -- CAF type aliases ---------------------------------------------------------
+
+namespace broker {
+
+using caf::optional;
+using command_message = caf::cow_tuple<topic, internal_command>;
+using data_message = caf::cow_tuple<topic, data>;
+using node_message_content = caf::variant<data_message, command_message>;
+
+template <class PeerId>
+using generic_node_message
+  = caf::cow_tuple<node_message_content, alm::multipath<PeerId>,
+                   std::vector<PeerId>>;
+
+using node_message = generic_node_message<caf::node_id>;
+
+} // namespace broker
 
 // -- Zeek interface types -----------------------------------------------------
 
@@ -199,6 +204,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(mutable_check, "mutable")
   BROKER_ADD_ATOM(resolve, "resolve")
   BROKER_ADD_ATOM(restart, "restart")
+  BROKER_ADD_ATOM(revoke, "subtract")
   BROKER_ADD_ATOM(stale_check, "stale")
   BROKER_ADD_ATOM(store, "store")
   BROKER_ADD_ATOM(subtract, "subtract")
@@ -248,11 +254,13 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((caf::stream<broker::data_message>) )
   BROKER_ADD_TYPE_ID((caf::stream<broker::node_message>) )
   BROKER_ADD_TYPE_ID((caf::stream<broker::node_message_content>) )
+  BROKER_ADD_TYPE_ID((std::vector<broker::alm::lamport_timestamp>))
   BROKER_ADD_TYPE_ID((std::vector<broker::command_message>) )
   BROKER_ADD_TYPE_ID((std::vector<broker::data_message>) )
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message>) )
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message_content>) )
   BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>) )
+  BROKER_ADD_TYPE_ID((std::vector<caf::node_id>))
 
 CAF_END_TYPE_ID_BLOCK(broker)
 

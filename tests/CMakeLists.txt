@@ -10,7 +10,7 @@ set(tests
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
-  cpp/core.cc
+  cpp/core_actor.cc
   cpp/data.cc
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc

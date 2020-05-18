@@ -12,6 +12,7 @@
 #include <caf/openssl/manager.hpp>
 #include <caf/optional.hpp>
 #include <caf/result.hpp>
+#include <caf/sec.hpp>
 
 #include "broker/fwd.hh"
 #include "broker/logger.hh"

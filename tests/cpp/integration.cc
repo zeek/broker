@@ -36,6 +36,7 @@
 #include <caf/variant.hpp>
 
 #include "broker/configuration.hh"
+#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/peer_info.hh"
@@ -58,14 +59,9 @@ configuration make_config() {
   broker_options options;
   options.disable_ssl = true;
   configuration cfg(options);
-#if CAF_VERSION < 1800
-  using caf::atom;
-#else
-  auto atom = [](std::string x) { return x; };
-#endif
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  cfg.set("middleman.network-backend", atom("testing"));
-  cfg.set("scheduler.policy", atom("testing"));
+  cfg.set("middleman.network-backend", caf::atom("testing"));
+  cfg.set("scheduler.policy", caf::atom("testing"));
   cfg.set("logger.inline-output", true);
   return cfg;
 }
@@ -130,6 +126,12 @@ struct peer_fixture {
   // Stores the interval between two credit rounds.
   caf::timespan credit_round_interval;
 
+  // Returns the core manager for given core actor.
+  auto& mgr(caf::actor hdl) {
+    auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
+    return *dynamic_cast<core_actor_type&>(*ptr).state.mgr;
+  }
+
   // Initializes this peer and registers it at parent.
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
     : parent(parent_ptr),
@@ -142,10 +144,12 @@ struct peer_fixture {
       credit_round_interval(get_or(sys.config(),
                             "stream.credit-round-interval",
                             caf::defaults::stream::credit_round_interval)) {
-    // Register at parent.
-    parent->peers.emplace(name, this);
     // Run initialization code
     exec_loop();
+    // Give the core actor a recognizable ID.
+    mgr(ep.core()).id(caf::make_node_id(unbox(caf::make_uri("test:" + name))));
+    // Register at parent.
+    parent->peers.emplace(name, this);
   }
 
   ~peer_fixture() {
@@ -276,6 +280,7 @@ struct triangle_fixture : global_fixture {
     base_fixture::deinit_socket_api();
   }
 
+  // Connect mercury to venus and earth.
   void connect_peers() {
     MESSAGE("prepare connections");
     auto server_handle = mercury.make_accept_handle();
@@ -320,12 +325,12 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   CAF_REQUIRE_EQUAL(mercury_peers.size(), 2u);
   CAF_CHECK_EQUAL(mercury_peers.front().status, peer_status::peered);
   CAF_CHECK_EQUAL(mercury_peers.back().status, peer_status::peered);
-  MESSAGE("assume one peer for venus");
+  MESSAGE("assume two peers for venus");
   venus.loop_after_next_enqueue();
   auto venus_peers = venus.ep.peers();
   CAF_REQUIRE_EQUAL(venus_peers.size(), 1u);
   CAF_CHECK_EQUAL(venus_peers.front().status, peer_status::peered);
-  MESSAGE("assume one peer for earth");
+  MESSAGE("assume two peers for earth");
   earth.loop_after_next_enqueue();
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1u);
@@ -333,29 +338,28 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   MESSAGE("subscribe to 'zeek/events' on venus");
   venus.subscribe_to("zeek/events");
   MESSAGE("subscribe to 'zeek/events/failures' on earth");
-  earth.subscribe_to("zeek/events/failures");
+  earth.subscribe_to("zeek/events/errors");
   MESSAGE("verify subscriptions");
-  auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
-    return xs;
-  };
   mercury.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
-                  filter({"zeek/events", "zeek/events/failures"}));
+                  filter_type({"zeek/events"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(),
+                  filter_type({"zeek/events/errors"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
-  MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
-  mercury.publish("zeek/events/failures", "oops", "sorry!");
-  mercury.publish("zeek/events/logging", 123, 456);
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(),
+                  filter_type({"zeek/events"}));
+  MESSAGE("publish to 'zeek/events/(data|errors)' on mercury");
+  mercury.publish("zeek/events/errors", "oops", "sorry!");
+  mercury.publish("zeek/events/data", 123, 456);
   MESSAGE("verify published data");
   CAF_CHECK_EQUAL(mercury.data, data_msgs({}));
-  CAF_CHECK_EQUAL(venus.data, data_msgs({{"zeek/events/failures", "oops"},
-                                         {"zeek/events/failures", "sorry!"},
-                                         {"zeek/events/logging", 123},
-                                         {"zeek/events/logging", 456}}));
-  CAF_CHECK_EQUAL(earth.data, data_msgs({{"zeek/events/failures", "oops"},
-                                         {"zeek/events/failures", "sorry!"}}));
+  CAF_CHECK_EQUAL(venus.data, data_msgs({{"zeek/events/errors", "oops"},
+                                         {"zeek/events/errors", "sorry!"},
+                                         {"zeek/events/data", 123},
+                                         {"zeek/events/data", 456}}));
+  CAF_CHECK_EQUAL(earth.data, data_msgs({{"zeek/events/errors", "oops"},
+                                         {"zeek/events/errors", "sorry!"}}));
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
   earth.loop_after_next_enqueue();
@@ -372,12 +376,12 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   CAF_REQUIRE_EQUAL(mercury_peers.size(), 2u);
   CAF_CHECK_EQUAL(mercury_peers.front().status, peer_status::peered);
   CAF_CHECK_EQUAL(mercury_peers.back().status, peer_status::peered);
-  MESSAGE("assume one peer for venus");
+  MESSAGE("assume two peers for venus");
   venus.loop_after_next_enqueue();
   auto venus_peers = venus.ep.peers();
   CAF_REQUIRE_EQUAL(venus_peers.size(), 1u);
   CAF_CHECK_EQUAL(venus_peers.front().status, peer_status::peered);
-  MESSAGE("assume one peer for earth");
+  MESSAGE("assume two peers for earth");
   earth.loop_after_next_enqueue();
   auto earth_peers = earth.ep.peers();
   CAF_REQUIRE_EQUAL(earth_peers.size(), 1u);
@@ -388,43 +392,41 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   venus_s1.set_rate_calculation(false);
   venus_s2.set_rate_calculation(false);
   exec_loop();
-  MESSAGE("subscribe to 'zeek/events/failures' on earth");
-  auto earth_s1 = earth.ep.make_subscriber({"zeek/events/failures"});
-  auto earth_s2 = earth.ep.make_subscriber({"zeek/events/failures"});
+  MESSAGE("subscribe to 'zeek/events/errors' on earth");
+  auto earth_s1 = earth.ep.make_subscriber({"zeek/events/errors"});
+  auto earth_s2 = earth.ep.make_subscriber({"zeek/events/errors"});
   earth_s1.set_rate_calculation(false);
   earth_s2.set_rate_calculation(false);
   exec_loop();
   MESSAGE("verify subscriptions");
-  auto filter = [](std::initializer_list<topic> xs) -> std::vector<topic> {
-    return xs;
-  };
   mercury.loop_after_next_enqueue();
   CAF_CHECK_EQUAL(mercury.ep.peer_subscriptions(),
-                  filter({"zeek/events", "zeek/events/failures"}));
+                  filter_type({"zeek/events"}));
   venus.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(), filter({}));
+  CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(),
+                  filter_type({"zeek/events/errors"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter({}));
-  MESSAGE("publish to 'zeek/events/(logging|failures)' on mercury");
-  mercury.publish("zeek/events/failures", "oops", "sorry!");
-  mercury.publish("zeek/events/logging", 123, 456);
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter_type({"zeek/events"}));
+  MESSAGE("publish to 'zeek/events/(data|errors)' on mercury");
+  mercury.publish("zeek/events/errors", "oops", "sorry!");
+  mercury.publish("zeek/events/data", 123, 456);
   MESSAGE("verify published data");
   CAF_CHECK_EQUAL(venus_s1.poll(),
-                  data_msgs({{"zeek/events/failures", "oops"},
-                             {"zeek/events/failures", "sorry!"},
-                             {"zeek/events/logging", 123},
-                             {"zeek/events/logging", 456}}));
+                  data_msgs({{"zeek/events/errors", "oops"},
+                             {"zeek/events/errors", "sorry!"},
+                             {"zeek/events/data", 123},
+                             {"zeek/events/data", 456}}));
   CAF_CHECK_EQUAL(venus_s2.poll(),
-                  data_msgs({{"zeek/events/failures", "oops"},
-                             {"zeek/events/failures", "sorry!"},
-                             {"zeek/events/logging", 123},
-                             {"zeek/events/logging", 456}}));
+                  data_msgs({{"zeek/events/errors", "oops"},
+                             {"zeek/events/errors", "sorry!"},
+                             {"zeek/events/data", 123},
+                             {"zeek/events/data", 456}}));
   CAF_CHECK_EQUAL(earth_s1.poll(),
-                  data_msgs({{"zeek/events/failures", "oops"},
-                             {"zeek/events/failures", "sorry!"}}));
+                  data_msgs({{"zeek/events/errors", "oops"},
+                             {"zeek/events/errors", "sorry!"}}));
   CAF_CHECK_EQUAL(earth_s2.poll(),
-                  data_msgs({{"zeek/events/failures", "oops"},
-                             {"zeek/events/failures", "sorry!"}}));
+                  data_msgs({{"zeek/events/errors", "oops"},
+                             {"zeek/events/errors", "sorry!"}}));
   exec_loop();
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
@@ -470,10 +472,20 @@ std::vector<code> event_log(std::initializer_list<code> xs) {
 }
 
 std::vector<code> event_log(const std::vector<event_value>& xs) {
+  // For the purpose of this test, we only care about the peer_* statuses.
+  auto predicate = [](const auto& x) {
+    if constexpr (std::is_same<std::decay_t<decltype(x)>, status>::value) {
+      auto c = x.code();
+      return c == sc::peer_added || c == sc::peer_removed || c == sc::peer_lost;
+    } else {
+      return true;
+    }
+  };
   std::vector<code> ys;
   ys.reserve(xs.size());
   for (auto& x : xs)
-    ys.emplace_back(x);
+    if (caf::visit(predicate, x))
+      ys.emplace_back(x);
   return ys;
 }
 
@@ -546,7 +558,7 @@ CAF_TEST(connection_retry) {
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
   mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
-    self->delayed_send(self, std::chrono::seconds(2), broker::atom::ok_v);
+    self->delayed_send(self, std::chrono::seconds(2), caf::ok_atom::value);
     return {
       [&](caf::ok_atom) {
         MESSAGE("start listening on mercury:4040");

@@ -6,9 +6,10 @@
 #include "broker/atoms.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/network_cache.hh"
-#include "broker/detail/retry_state.hh"
 #include "broker/error.hh"
 #include "broker/message.hh"
+
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(caf::response_promise)
 
 namespace broker::mixin {
 
@@ -46,15 +47,25 @@ public:
     cache_.fetch(
       addr,
       [=](communication_handle_type hdl) mutable {
-        dref().start_peering(hdl.node(), hdl, std::move(rp));
+        if (auto i = ids_.find(hdl); i != ids_.end()) {
+          dref().start_peering(i->second, hdl, std::move(rp));
+          return;
+        }
+        // TODO: replace infinite with some useful default / config parameter
+        self->request(hdl, caf::infinite, atom::get::value, atom::id::value)
+          .then(
+            [=](const peer_id_type& remote_id) mutable {
+              dref().start_peering(remote_id, hdl, std::move(rp));
+            },
+            [=](error& err) mutable { rp.deliver(std::move(err)); });
       },
       [=](error err) mutable {
         dref().peer_unavailable(addr);
         if (addr.retry.count() == 0 && ++count < 10) {
           rp.deliver(std::move(err));
         } else {
-          self->delayed_send(self, addr.retry,
-                             detail::retry_state{addr, std::move(rp), count});
+          self->delayed_send(self, addr.retry, atom::peer::value,
+                             atom::retry::value, addr, std::move(rp), count);
         }
       });
   }
@@ -62,28 +73,26 @@ public:
   void try_publish(const network_info& addr, data_message& msg,
                    caf::response_promise rp) {
     auto self = super::self();
+    auto deliver_err = [=](error err) mutable { rp.deliver(std::move(err)); };
     cache_.fetch(
       addr,
       [=, msg{std::move(msg)}](communication_handle_type hdl) mutable {
-        dref().ship(msg, hdl);
-        rp.deliver(caf::unit);
+        if (auto i = ids_.find(hdl); i != ids_.end()) {
+          dref().ship(msg, i->second);
+          rp.deliver(caf::unit);
+          return;
+        }
+        // TODO: replace infinite with some useful default / config parameter
+        self->request(hdl, caf::infinite, atom::get::value, atom::id::value)
+          .then(
+            [=, msg{std::move(msg)}](const peer_id_type& remote_id) mutable {
+              ids_.emplace(hdl, remote_id);
+              dref().ship(msg, remote_id);
+              rp.deliver(caf::unit);
+            },
+            deliver_err);
       },
-      [=](error err) mutable { rp.deliver(std::move(err)); });
-  }
-
-  void peer_disconnected(const peer_id_type& peer_id,
-                         const communication_handle_type& hdl,
-                         const error& reason) {
-    if (!dref().shutting_down()) {
-      auto x = cache_.find(hdl);
-      if (x && x->retry != timeout::seconds(0)) {
-        BROKER_INFO("will try reconnecting to" << *x << "in"
-                                               << to_string(x->retry));
-        auto self = super::self();
-        self->delayed_send(self, x->retry, atom::peer_v, atom::retry_v, *x);
-      }
-    }
-    super::peer_disconnected(peer_id, hdl, reason);
+      deliver_err);
   }
 
   template <class... Fs>
@@ -95,15 +104,13 @@ public:
       [=](atom::peer, const network_info& addr) {
         dref().try_peering(addr, super::self()->make_response_promise(), 0);
       },
-      [=](atom::peer, atom::retry, network_info& addr) {
-        dref().try_peering(addr, caf::response_promise{}, 0);
-      },
-      [=](detail::retry_state& st) {
-        dref().try_peering(st.addr, std::move(st.rp), st.count);
-      },
+      [=](atom::peer, atom::retry, const network_info& addr,
+          caf::response_promise& rp,
+          uint32_t count) { dref().try_peering(addr, std::move(rp), count); },
       [=](atom::publish, const network_info& addr, data_message& msg) {
         dref().try_publish(addr, msg, super::self()->make_response_promise());
       },
+      lift<atom::peer>(d, &Subtype::try_peering),
       [=](atom::unpeer, const network_info& addr) {
         if (auto hdl = cache_.find(addr))
           dref().unpeer(*hdl);
@@ -123,6 +130,9 @@ private:
 
   /// Associates network addresses to remote actor handles and vice versa.
   detail::network_cache cache_;
+
+  /// Maps remote actor handles to peer IDs.
+  std::unordered_map<caf::actor, peer_id_type> ids_;
 };
 
 } // namespace broker::mixin

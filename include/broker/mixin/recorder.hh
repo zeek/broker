@@ -24,14 +24,13 @@ public:
     // nop
   }
 
-  template <class T>
-  void ship(T& msg) {
+  void ship(message_type& msg) {
     if (rec_)
       rec_.try_record(msg);
     super::ship(msg);
   }
 
-  void ship(data_message& msg, const communication_handle_type& receiver) {
+  void ship(data_message& msg, const peer_id_type& receiver) {
     // TODO: extend recording interface to cover direct messages
     super::ship(msg, receiver);
   }
