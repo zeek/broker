@@ -4,7 +4,7 @@
 #define CAF_SUITE SUITE
 #endif
 
-#include <caf/test/unit_test.hpp>
+#include <caf/test/dsl.hpp>
 
 #include <caf/actor_system.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
@@ -72,6 +72,15 @@ public:
   static void init_socket_api();
 
   static void deinit_socket_api();
+
+  /// Dereferences `hdl` and downcasts it to `T`.
+  template <class T = caf::scheduled_actor, class Handle = caf::actor>
+  T& deref(const Handle& hdl) {
+    auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
+    if (ptr == nullptr)
+      CAF_FAIL("unable to cast handle to abstract_actor*");
+    return dynamic_cast<T&>(*ptr);
+  }
 
 private:
   static broker::configuration make_config();

@@ -39,10 +39,17 @@ public:
     // nop
   }
 
+  void peer_discovered(const peer_id_type& peer_id) {
+    BROKER_TRACE(BROKER_ARG(peer_id));
+    emit(peer_id, sc_constant<sc::endpoint_discovered>(),
+         "found a new peer in the network");
+    super::peer_discovered(peer_id);
+  }
+
   void peer_connected(const peer_id_type& peer_id,
                       const communication_handle_type& hdl) {
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
-    emit(hdl, sc_constant<sc::peer_added>(), "handshake successful");
+    emit(peer_id, sc_constant<sc::peer_added>(), "handshake successful");
     super::peer_connected(peer_id, hdl);
   }
 
@@ -65,40 +72,30 @@ public:
   void peer_removed(const peer_id_type& peer_id,
                     const communication_handle_type& hdl) {
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
-    emit(hdl, sc_constant<sc::peer_removed>(),
+    emit(peer_id, sc_constant<sc::peer_removed>(),
          "removed connection to remote peer");
     super::peer_removed(peer_id, hdl);
   }
 
-  void peer_unavailable(const peer_id_type& peer_id,
-                        const communication_handle_type& hdl,
-                        const error& reason) {
-    auto self = super::self();
-    emit(hdl, ec_constant<ec::peer_unavailable>(),
-         "failed to complete handhsake");
-    super::peer_unavailable(peer_id, hdl, reason);
+  void peer_unreachable(const peer_id_type& peer_id) {
+    BROKER_TRACE(BROKER_ARG(peer_id));
+    emit(peer_id, sc_constant<sc::endpoint_unreachable>(),
+         "lost the last path");
+    super::peer_unreachable(peer_id);
   }
 
   void peer_unavailable(const network_info& addr) {
+    BROKER_TRACE(BROKER_ARG(addr));
     auto self = super::self();
-    emit(addr, ec_constant<ec::peer_unavailable>(),
+    emit({}, addr, ec_constant<ec::peer_unavailable>(),
          "unable to connect to remote peer");
   }
 
-  void cannot_remove_peer(const network_info& addr) {
-    BROKER_TRACE(BROKER_ARG(addr));
-    emit(addr, ec_constant<ec::peer_invalid>(),
-         "cannot unpeer from unknown peer");
-    super::cannot_remove_peer(addr);
-  }
-
-  void cannot_remove_peer(const peer_id_type& peer_id,
-                          const communication_handle_type& hdl) {
-    BROKER_TRACE(BROKER_ARG(hdl));
-    if (hdl)
-      emit(hdl, ec_constant<ec::peer_invalid>(),
-           "cannot unpeer from unknown peer");
-    super::cannot_remove_peer(peer_id, hdl);
+  template <class T>
+  void cannot_remove_peer(const T& x) {
+    BROKER_TRACE(BROKER_ARG(x));
+    emit(x, ec_constant<ec::peer_invalid>(), "cannot unpeer from unknown peer");
+    super::cannot_remove_peer(x);
   }
 
   void disable_notifications() {
@@ -111,7 +108,16 @@ public:
     using detail::lift;
     auto& d = dref();
     return super::make_behavior(
-      fs..., lift<atom::no_events>(d, &Subtype::disable_notifications));
+      fs..., lift<atom::no_events>(d, &Subtype::disable_notifications),
+      [=](atom::publish, endpoint_info& receiver, data_message& msg) {
+        dref().ship(msg, receiver.node);
+      },
+      [](atom::add, atom::status, const caf::actor&) {
+        // TODO: this handler exists only for backwards-compatibility. It used
+        //       to register status subscribers for synchronization. Eventually,
+        //       we should either re-implement the synchronization if necessary
+        //       or remove this handler.
+      });
   }
 
 private:
@@ -154,25 +160,51 @@ private:
     }
   }
 
-  /// Reports a status or error to all status subscribers.
+  /// Reports an error to all status subscribers.
   template <class EnumConstant>
   void emit(const communication_handle_type& hdl, EnumConstant code,
             const char* msg) {
+    static_assert(detail::has_network_info_v<EnumConstant>);
+    if (disable_notifications_)
+      return;
+    if (auto peer_id_opt = get_peer_id(dref().tbl(), hdl)) {
+      auto peer_id = std::move(*peer_id_opt);
+      auto on_cache_hit = [=](network_info x) { emit(peer_id, x, code, msg); };
+      auto on_cache_miss = [=](caf::error) { emit(peer_id, {}, code, msg); };
+      dref().cache().fetch(hdl, on_cache_hit, on_cache_miss);
+    } else {
+      auto on_cache_hit = [=](network_info x) { emit({}, x, code, msg); };
+      auto on_cache_miss = [=](caf::error) {
+        if constexpr (std::is_same<caf::node_id, peer_id_type>::value) {
+          emit(hdl.node(), {}, code, msg);
+        } else {
+          BROKER_DEBUG(
+            "cannot resolve actor handle to network info or ID:" << hdl);
+          emit({}, {}, code, msg);
+        }
+      };
+      dref().cache().fetch(hdl, on_cache_hit, on_cache_miss);
+    }
+  }
+
+  template <class EnumConstant>
+  void emit(const peer_id_type& peer_id, EnumConstant code, const char* msg) {
     if (disable_notifications_)
       return;
     using value_type = typename EnumConstant::value_type;
     if constexpr (detail::has_network_info_v<EnumConstant>) {
-      auto on_cache_hit = [=](network_info x) { emit(hdl.node(), x, code, msg); };
-      auto on_cache_miss = [=](caf::error) { emit(hdl.node(), {}, code, msg); };
-      if (super::self()->node() != hdl.node()) {
-        dref().cache().fetch(hdl, on_cache_hit, on_cache_miss);
+      auto on_cache_hit = [=](network_info x) { emit(peer_id, x, code, msg); };
+      auto on_cache_miss = [=](caf::error) { emit(peer_id, {}, code, msg); };
+      auto& tbl = dref().tbl();
+      if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl) {
+        dref().cache().fetch(i->second.hdl, on_cache_hit, on_cache_miss);
       } else {
         on_cache_miss({});
       }
     } else if constexpr (std::is_same<value_type, sc>::value) {
-      emit(status::make<EnumConstant::value>(hdl, msg));
+      emit(status::make<EnumConstant::value>(peer_id, msg));
     } else {
-      emit(make_error(EnumConstant::value, endpoint_info{hdl, nil}, msg));
+      emit(make_error(EnumConstant::value, endpoint_info{peer_id, nil}, msg));
     }
   }
 

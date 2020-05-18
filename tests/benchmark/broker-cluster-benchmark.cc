@@ -400,7 +400,7 @@ const char* generator_state::name = "generator";
 void generator(caf::stateful_actor<generator_state>* self, node* this_node,
                caf::actor core, broker::detail::generator_file_reader_ptr ptr) {
   using generator_ptr = broker::detail::generator_file_reader_ptr;
-  using value_type = broker::node_message::value_type;
+  using value_type = broker::node_message_content;
   if (this_node->num_outputs != caf::none) {
     struct state {
       generator_ptr gptr;
@@ -1127,7 +1127,7 @@ int main(int argc, char** argv) {
       size_t data_entries = 0;
       size_t command_entries = 0;
       std::map<broker::topic, size_t> entries_by_topic;
-      broker::node_message::value_type x;
+      broker::node_message_content x;
       while (!gptr->at_end()) {
         if (auto err = gptr->read(x)) {
           err::println("error while parsing ", file_name, ": ", to_string(err));

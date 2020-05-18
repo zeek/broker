@@ -316,7 +316,7 @@ void generator(caf::event_based_actor* self, caf::actor core,
                std::shared_ptr<size_t> count, const std::string& file_name,
                broker::detail::generator_file_reader_ptr ptr) {
   using generator_ptr = broker::detail::generator_file_reader_ptr;
-  using value_type = broker::node_message::value_type;
+  using value_type = broker::node_message_content;
   if (auto limit = get_if<size_t>(&self->config(), "num-messages")) {
     struct state {
       generator_ptr gptr;

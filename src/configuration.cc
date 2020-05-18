@@ -17,9 +17,11 @@
 
 #include "broker/address.hh"
 #include "broker/alm/lamport_timestamp.hh"
+#include "broker/alm/multipath.hh"
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
 #include "broker/data.hh"
+#include "broker/detail/retry_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"
 #include "broker/port.hh"
