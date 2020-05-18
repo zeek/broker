@@ -88,6 +88,14 @@ using node_message_content = caf::variant<data_message, command_message>;
 
 } // namespace broker
 
+// -- ALM types ----------------------------------------------------------------
+
+namespace broker::alm {
+
+struct lamport_timestamp;
+
+} // namespace broker::alm
+
 // -- Zeek interface types -----------------------------------------------------
 
 namespace broker::zeek {
@@ -205,6 +213,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   // -- Broker type announcements ----------------------------------------------
 
   BROKER_ADD_TYPE_ID((broker::address))
+  BROKER_ADD_TYPE_ID((broker::alm::lamport_timestamp))
   BROKER_ADD_TYPE_ID((broker::backend))
   BROKER_ADD_TYPE_ID((broker::backend_options))
   BROKER_ADD_TYPE_ID((broker::command_message))
