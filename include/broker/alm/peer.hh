@@ -155,6 +155,14 @@ public:
     return blacklist_;
   }
 
+  bool disable_forwarding() const noexcept {
+    return disable_forwarding_;
+  }
+
+  void disable_forwarding(bool value) noexcept {
+    disable_forwarding_ = value;
+  }
+
   // -- convenience functions for subscription information ---------------------
 
   bool has_remote_subscriber(const topic& x) const noexcept {
@@ -337,12 +345,14 @@ public:
       return;
     auto new_peers = std::move(handle_update(path, path_ts, filter).first);
     // Forward message to all other neighbors.
-    path.emplace_back(dref().id());
-    path_ts.emplace_back(timestamp_);
-    for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
-      if (!contains(path, pid))
-        dref().send(hdl, atom::subscribe::value, path, path_ts, filter);
-    });
+    if (!disable_forwarding_) {
+      path.emplace_back(dref().id());
+      path_ts.emplace_back(timestamp_);
+      for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
+        if (!contains(path, pid))
+          dref().send(hdl, atom::subscribe::value, path, path_ts, filter);
+      });
+    }
     // If we have learned new peers, we flood our own subscriptions as well.
     if (!new_peers.empty()) {
       BROKER_DEBUG("learned new peers: " << new_peers);
@@ -381,13 +391,15 @@ public:
       revoke(tbl_, *i, on_drop);
     }
     // Forward message to all other neighbors.
-    path.emplace_back(dref().id());
-    path_ts.emplace_back(timestamp_);
-    for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
-      if (!contains(path, pid))
-        dref().send(hdl, atom::revoke::value, path, path_ts, revoked_hop,
-                    filter);
-    });
+    if (!disable_forwarding_) {
+      path.emplace_back(dref().id());
+      path_ts.emplace_back(timestamp_);
+      for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
+        if (!contains(path, pid))
+          dref().send(hdl, atom::revoke::value, path, path_ts, revoked_hop,
+                      filter);
+      });
+    }
     // If we have learned new peers, we flood our own subscriptions as well.
     if (!new_peers.empty()) {
       BROKER_DEBUG("learned new peers: " << new_peers);
@@ -419,6 +431,10 @@ public:
     if (receivers.empty()) {
       if (!path.nodes().empty())
         BROKER_WARNING("More nodes in path but list of receivers is empty.");
+      return;
+    }
+    if (disable_forwarding_) {
+      BROKER_WARNING("Asked to forward a message, but forwarding is disabled.");
       return;
     }
     for (auto& node : path.nodes()) {
