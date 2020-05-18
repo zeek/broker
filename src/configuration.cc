@@ -16,6 +16,7 @@
 #include <caf/openssl/manager.hpp>
 
 #include "broker/address.hh"
+#include "broker/alm/lamport_timestamp.hh"
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
 #include "broker/data.hh"
