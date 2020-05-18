@@ -10,6 +10,7 @@ set(tests
 	cpp/mixin/data_store_manager.cc
 	cpp/mixin/notifier.cc
   cpp/alm/multipath.cc
+  cpp/alm/peer.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/core_actor.cc
