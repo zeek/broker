@@ -8,14 +8,10 @@ struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
 
-  /// If true, endpoints will forward incoming messages to peers.
-  bool forward = true;
-
-  /// TTL to insert into forwarded messages. Messages will be droppped once
-  /// they have traversed more than this many hops. Note that the 1st
-  /// receiver inserts the TTL (not the sender!). The 1st receiver does
-  /// already count against the TTL.
-  unsigned int ttl = 20;
+  /// By default, endpoints forward incoming subscriptions and other
+  /// routing-related messages. Setting this flag to `true` turns the endpoint
+  /// into a leaf node that
+  bool disable_forwarding = false;
 
   /// Whether to use real/wall clock time for data store time-keeping
   /// tasks or whether the application will simulate time on its own.
@@ -103,6 +99,9 @@ protected:
   void init(int argc, char** argv);
 
 private:
+  /// Makes sure the config content is in-sync with the `options_`.
+  void sync_options();
+
   broker_options options_;
 };
 

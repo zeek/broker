@@ -239,8 +239,7 @@ PYBIND11_MODULE(_broker, m) {
   py::class_<broker::broker_options>(m, "BrokerOptions")
     .def(py::init<>())
     .def_readwrite("disable_ssl", &broker::broker_options::disable_ssl)
-    .def_readwrite("ttl", &broker::broker_options::ttl)
-    .def_readwrite("forward", &broker::broker_options::forward)
+    .def_readwrite("disable_forwarding", &broker::broker_options::disable_forwarding)
     .def_readwrite("ignore_broker_conf", &broker::broker_options::ignore_broker_conf)
     .def_readwrite("use_real_time", &broker::broker_options::use_real_time);
 

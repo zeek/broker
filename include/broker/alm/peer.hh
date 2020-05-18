@@ -97,20 +97,22 @@ public:
   // -- constructors, destructors, and assignment operators --------------------
 
   peer() {
-    blacklist_.aging_interval = defaults::path_blacklist_aging_interval;
-    blacklist_.max_age = defaults::path_blacklist_max_age;
+    blacklist_.aging_interval = defaults::path_blacklist::aging_interval;
+    blacklist_.max_age = defaults::path_blacklist::max_age;
     blacklist_.next_aging_cycle = caf::actor_clock::time_point{};
   }
 
   explicit peer(caf::local_actor* selfptr) {
     using caf::get_or;
     auto& cfg = selfptr->system().config();
-    blacklist_.aging_interval = get_or(cfg, "path-blacklist-aging-interval",
-                                       defaults::path_blacklist_aging_interval);
-    blacklist_.max_age = get_or(cfg, "path-blacklist-aging-interval",
-                                defaults::path_blacklist_max_age);
-    blacklist_.next_aging_cycle = selfptr->clock().now()
-                                  + blacklist_.aging_interval;
+    disable_forwarding_ = get_or(cfg, "broker.disable-forwarding", false);
+    namespace pb = broker::defaults::path_blacklist;
+    blacklist_.aging_interval
+      = get_or(cfg, "broker.path-blacklist.aging-interval", pb::aging_interval);
+    blacklist_.max_age
+      = get_or(cfg, "broker.path-blacklist.max-age", pb::max_age);
+    blacklist_.next_aging_cycle
+      = selfptr->clock().now() + blacklist_.aging_interval;
   }
 
   // -- properties -------------------------------------------------------------
@@ -611,6 +613,10 @@ private:
 
   /// Stores revoked paths.
   blacklist_type blacklist_;
+
+  /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
+  /// node to other peers.
+  bool disable_forwarding_ = false;
 };
 
 } // namespace broker::alm

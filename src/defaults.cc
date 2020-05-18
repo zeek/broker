@@ -5,16 +5,18 @@
 
 using namespace std::chrono_literals;
 
-namespace broker {
-namespace defaults {
+namespace broker::defaults {
 
 const caf::string_view recording_directory = "";
 
 const size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
-const caf::timespan path_blacklist_aging_interval = 1s;
+} // namespace broker::defaults
 
-const caf::timespan path_blacklist_max_age = 5min;
+namespace broker::defaults::path_blacklist {
 
-} // namespace defaults
-} // namespace broker
+const caf::timespan aging_interval = 1s;
+
+const caf::timespan max_age = 5min;
+
+} // namespace broker::defaults::path_blacklist

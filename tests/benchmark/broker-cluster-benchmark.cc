@@ -223,7 +223,7 @@ struct node {
   size_t num_inputs = 0;
 
   /// Stores whether this node regularly forwards Broker events.
-  bool forward = true;
+  bool disable_forwarding = true;
 
   /// Stores how many messages we produce using the gernerator file. If `none`,
   // we produce the number of messages in the generator file.
@@ -321,7 +321,7 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(topics, mandatory);
   SET_FIELD(generator_file, optional);
   SET_FIELD(num_inputs, optional);
-  SET_FIELD(forward, optional);
+  SET_FIELD(disable_forwarding, optional);
   SET_FIELD(num_outputs, optional);
   SET_FIELD(inputs_by_node, optional);
   SET_FIELD(log_verbosity, optional);
@@ -361,7 +361,7 @@ struct node_manager_state {
     BROKER_ASSERT(this_node_ptr != nullptr);
     this_node = this_node_ptr;
     broker::broker_options opts;
-    opts.forward = this_node_ptr->forward;
+    opts.disable_forwarding = this_node_ptr->disable_forwarding;
     opts.disable_ssl = true;
     opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
@@ -613,7 +613,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   // Otherwise, we get a race on the topics and can "loose" initial messages.
   // Despite its name, endpoint::forward does not force any forwarding. It only
   // makes sure that the topic is in our local filter.
-  if (is_receiver(*this_node) || this_node->forward)
+  if (is_receiver(*this_node))
     self->state.ep.forward(topics(*this_node));
   return {
     [=](broker::atom::init) -> caf::result<broker::atom::ok> {
@@ -829,7 +829,8 @@ int generate_config(std::vector<std::string> directories) {
     // Fetch crucial config parameters.
     auto conf_file = directory + "/broker.conf";
     if (auto conf = actor_system_config::parse_config_file(conf_file.c_str())) {
-      node.forward = caf::get_or(*conf, "broker.forward", true);
+      node.disable_forwarding
+        = caf::get_or(*conf, "broker.disable-forwarding", true);
     } else {
       err::println("unable to parse ", quoted{conf_file}, ": ",
                    to_string(conf.error()));
@@ -906,7 +907,7 @@ int generate_config(std::vector<std::string> directories) {
   traverse = [&](node& src, node& dst, const output_map& out, const filter& f,
                  walk_fun walk) {
     step(src, dst, out, f);
-    if (!dst.forward)
+    if (!dst.disable_forwarding)
       return;
     // TODO: take TTL counter into consideration
     for (auto peer : walk(dst)) {
@@ -963,7 +964,7 @@ int generate_config(std::vector<std::string> directories) {
         out::println("      ", kvp.first, " = ", kvp.second);
       out::println("    }");
     }
-    out::println("    forward = ", node.forward);
+    out::println("    disable-forwarding = ", node.disable_forwarding);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
     if (!node.generator_file.empty() && !outputs[node.name].empty())

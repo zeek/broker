@@ -106,6 +106,7 @@ optional<std::string> to_log_level(const char* cstr) {
 } // namespace
 
 configuration::configuration(skip_init_t) {
+  sync_options();
   // Add runtime type information for Broker types.
   init_global_state();
   add_message_types(*this);
@@ -114,9 +115,10 @@ configuration::configuration(skip_init_t) {
   set("middleman.app-identifiers", std::move(ids));
   // Add custom options to the CAF parser.
   opt_group{custom_options_, "?broker"}
-    .add(options_.disable_ssl, "disable_ssl",
+    .add(options_.disable_ssl, "disable-ssl",
          "forces Broker to use unencrypted communication")
-    .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
+    .add(options_.disable_forwarding, "disable-forwarding",
+         "turns the endpoint into a leaf node that does not forward events")
     .add<std::string>("recording-directory",
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
@@ -135,21 +137,15 @@ configuration::configuration(skip_init_t) {
   // Enable console output (and color it if stdout is a TTY) but set verbosty to
   // quiet. This allows users to only care about the environment variable
   // BROKER_CONSOLE_VERBOSITY.
-  if (isatty(STDOUT_FILENO))
-    set("logger.console", atom("colored"));
-  else
-    set("logger.console", atom("uncolored"));
-  set("logger.console-verbosity", atom("quiet"));
-  // Turn off all CAF output by default.
   std::vector<atom_value> blacklist{atom("caf"), atom("caf_io"),
                                     atom("caf_net"), atom("caf_flow"),
                                     atom("caf_stream")};
   set("logger.component-blacklist", std::move(blacklist));
 }
 
-
 configuration::configuration(broker_options opts) : configuration(skip_init) {
   options_ = opts;
+  sync_options();
   init(0, nullptr);
 }
 
@@ -213,13 +209,16 @@ void configuration::init(int argc, char** argv) {
 caf::settings configuration::dump_content() const {
   auto result = super::dump_content();
   auto& grp = result["broker"].as_dictionary();
-  put_missing(grp, "disable_ssl", options_.disable_ssl);
-  put_missing(grp, "ttl", options_.ttl);
-  put_missing(grp, "forward", options_.forward);
+  put_missing(grp, "disable-ssl", options_.disable_ssl);
+  put_missing(grp, "disable-forwarding", options_.disable_ssl);
   if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
     put_missing(grp, "recording-directory", *path);
   if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
     put_missing(grp, "output-generator-file-cap", *cap);
+  namespace pb = broker::defaults::path_blacklist;
+  auto& sub_grp = grp["path-blacklist"].as_dictionary();
+  put_missing(sub_grp, "aging-interval", pb::aging_interval);
+  put_missing(sub_grp, "max-age", pb::max_age);
   return result;
 }
 
@@ -255,5 +254,11 @@ void configuration::init_global_state() {
 }
 
 #endif
+
+void configuration::sync_options() {
+  set("broker.disable-ssl", options_.disable_ssl);
+  set("broker.disable-forwarding", options_.disable_forwarding);
+  set("broker.use-real-time", options_.use_real_time);
+}
 
 } // namespace broker
