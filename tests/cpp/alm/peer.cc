@@ -184,6 +184,9 @@ struct fixture : test_coordinator_fixture<> {
   fixture() {
     for (auto& id : peer_ids{A, B, C, D, E, F, G, H, I, J})
       peers[id] = sys.spawn(ActorImpl{}, id);
+  }
+
+  void connect_peers() {
     std::map<peer_id, peer_ids> connections{
       {A, {B, C, J}}, {B, {A, D, E}},    {C, {A, F, G, H}}, {D, {B, I}},
       {E, {B, I}},    {F, {C, G}},       {I, {D, E, J}},    {G, {C, F, H, J}},
@@ -259,6 +262,7 @@ bool operator==(const message_type& x, const message_pattern& y) {
 FIXTURE_SCOPE(async_peer_tests, fixture<async_peer_actor>)
 
 TEST(topologies with loops resolve to simple forwarding tables) {
+  connect_peers();
   using peer_vec = std::vector<peer_id>;
   MESSAGE("after all links are connected, G subscribes to topic 'foo'");
   anon_send(peers[G], atom::subscribe::value, filter_type{topic{"foo"}});
@@ -296,6 +300,7 @@ FIXTURE_SCOPE_END()
 FIXTURE_SCOPE(stream_peer_tests, fixture<stream_peer_actor>)
 
 TEST(peers can revoke paths) {
+  connect_peers();
   MESSAGE("after B loses its connection to E, all paths to E go through I");
   anon_send(peers[B], atom::unpeer::value, peers[E]);
   run();
@@ -349,6 +354,7 @@ TEST(peers can revoke paths) {
 }
 
 TEST(only receivers forward messages locally) {
+  connect_peers();
   MESSAGE("after all links are connected, G subscribes to topic 'foo'");
   anon_send(peers[G], atom::subscribe::value, filter_type{topic{"foo"}});
   run();
@@ -365,6 +371,26 @@ TEST(only receivers forward messages locally) {
   CHECK_EQUAL(get(H).buf.size(), 0u);
   CHECK_EQUAL(get(I).buf.size(), 0u);
   CHECK_EQUAL(get(J).buf.size(), 0u);
+}
+
+TEST(disabling forwarding turns peers into leaf nodes) {
+  run();
+  get(E).disable_forwarding(true);
+  connect_peers();
+  MESSAGE("without forwarding, E only appears as leaf node in routing tables");
+  using path_type = std::vector<peer_id>;
+  std::vector<path_type> paths;
+  for (auto& id : {A, B, C, D, F, H, I, J})
+    for (auto& kvp : get(id).tbl())
+      for (auto& versioned_path : kvp.second.versioned_paths)
+        paths.emplace_back(versioned_path.first);
+  auto predicate = [this](auto& path) {
+    if (path.empty())
+      return true;
+    auto i = std::find(path.begin(), path.end(), E);
+    return i == path.end() || i == std::prev(path.end());
+  };
+  CHECK(std::all_of(paths.begin(), paths.end(), predicate));
 }
 
 FIXTURE_SCOPE_END()
