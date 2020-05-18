@@ -630,7 +630,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   // Otherwise, we get a race on the topics and can "loose" initial messages.
   // Despite its name, endpoint::forward does not force any forwarding. It only
   // makes sure that the topic is in our local filter.
-  if (is_receiver(*this_node) || this_node->forward)
+  if (is_receiver(*this_node))
     self->state.ep.forward(topics(*this_node));
   return {
     [=](broker::atom::init) -> caf::result<broker::atom::ok> {
