@@ -5,8 +5,26 @@
 namespace broker {
 namespace detail {
 
+namespace {
+
+template <class Handle>
+auto type_erase(const Handle& x) {
+  return caf::actor_cast<caf::actor>(x);
+}
+
+} // namespace
+
 network_cache::network_cache(caf::event_based_actor* selfptr) : self(selfptr) {
-  // nop
+  auto& sys = self->home_system();
+  if (sys.has_middleman())
+    mm_ = type_erase(sys.middleman().actor_handle());
+}
+
+void network_cache::set_use_ssl(bool use_ssl) {
+  BROKER_INFO("initiating connections using" << (use_ssl ? "SSL" : "no SSL"));
+  auto& sys = self->home_system();
+  mm_ = type_erase(use_ssl ? sys.openssl_manager().actor_handle()
+                           : sys.middleman().actor_handle());
 }
 
 caf::result<caf::actor> network_cache::fetch(const network_info& x) {
