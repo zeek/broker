@@ -7,6 +7,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
+	cpp/mixin/data_store_manager.cc
+	cpp/mixin/notifier.cc
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
@@ -21,6 +23,7 @@ set(tests
   cpp/filter_type.cc
   cpp/integration.cc
   cpp/master.cc
+  cpp/mixin/connector.cc
   cpp/publisher.cc
   cpp/publisher_id.cc
   cpp/radix_tree.cc
