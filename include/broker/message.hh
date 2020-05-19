@@ -37,6 +37,9 @@ struct generic_node_message {
   receiver_list receivers;
 };
 
+/// Value type of `node_message`.
+using node_message_content = caf::variant<data_message, command_message>;
+
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
 using node_message = generic_node_message<caf::node_id>;

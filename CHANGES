@@ -1,4 +1,22 @@
 
+1.4.0-dev.131 | 2020-05-19 10:48:28 -0700
+
+  * Fix definition of broker::infinite (Dominik Charousset)
+
+  * Bump required CAF version to >= 0.17.5 (Dominik Charousset)
+
+  * Update CAF submodule (Dominik Charousset)
+
+  * Port Broker to CAF 0.18 (Dominik Charousset)
+
+    With the new forward compatibility macros in CAF 0.17.5, we can support
+    both CAF releases with a few select #ifdef blocks until switching fully
+    to CAF 0.18.
+
+  * Switch to _v suffix notation for atoms (Dominik Charousset)
+
+  * Use CAF's new type ID API (Dominik Charousset)
+
 1.4.0-dev.121 | 2020-05-15 10:37:27 -0700
 
   * Use BROKER_WINDOWS in conditionals for MinGW (Noah Treuhaft)

@@ -10,6 +10,8 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
+#include <caf/attach_stream_sink.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/message.hpp>
 #include <caf/node_id.hpp>
@@ -213,13 +215,8 @@ public:
   caf::actor publish_all(Init init, GetNext f, AtEnd pred) {
     std::mutex mx;
     std::condition_variable cv;
-    auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
-      self->make_source(
-        core(),
-        init,
-        f,
-        pred
-      );
+    auto res = make_actor([=, &mx, &cv](caf::event_based_actor* self) {
+      caf::attach_stream_source(self, core(), init, f, pred);
       std::unique_lock<std::mutex> guard{mx};
       cv.notify_one();
     });
@@ -233,12 +230,7 @@ public:
   template <class Init, class GetNext, class AtEnd>
   caf::actor publish_all_nosync(Init init, GetNext f, AtEnd pred) {
     return make_actor([=](caf::event_based_actor* self) {
-      self->make_source(
-        core(),
-        init,
-        f,
-        pred
-      );
+      attach_stream_source(self, core(), init, f, pred);
     });
   }
 
@@ -267,13 +259,11 @@ public:
     std::mutex mx;
     std::condition_variable cv;
     auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join::value, std::move(topics));
-      self->become(
-        [=](const stream_type& in) {
-          self->make_sink(in, init, f, cleanup);
-          self->unbecome();
-        }
-      );
+      self->send(self * core(), atom::join_v, std::move(topics));
+      self->become([=](const stream_type& in) {
+        caf::attach_stream_sink(self, in, init, f, cleanup);
+        self->unbecome();
+      });
       std::unique_lock<std::mutex> guard{mx};
       cv.notify_one();
     });
@@ -288,13 +278,11 @@ public:
   caf::actor subscribe_nosync(std::vector<topic> topics, Init init,
                               HandleMessage f, Cleanup cleanup) {
     return make_actor([=](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join::value, std::move(topics));
-      self->become(
-        [=](const stream_type& in) {
-          self->make_sink(in, init, f, cleanup);
-          self->unbecome();
-        }
-      );
+      self->send(self * core(), atom::join_v, std::move(topics));
+      self->become([=](const stream_type& in) {
+        caf::attach_stream_sink(self, in, init, f, cleanup);
+        self->unbecome();
+      });
     });
   }
 

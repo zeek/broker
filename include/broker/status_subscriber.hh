@@ -37,20 +37,44 @@ public:
   // --- access to values ------------------------------------------------------
 
   /// @copydoc subscriber::get
-  value_type get();
+  value_type get(caf::timestamp timeout);
 
   /// @copydoc subscriber::get
-  caf::optional<value_type> get(caf::timestamp timeout);
+  template <class Duration>
+  value_type get(Duration relative_timeout) {
+    value_type result;
+    do {
+      if (auto maybe_msg = impl_.get(relative_timeout))
+        result = convert(*maybe_msg);
+    } while (caf::holds_alternative<none>(result)
+             && caf::is_infinite(relative_timeout));
+    return result;
+  }
 
   /// @copydoc subscriber::get
-  caf::optional<value_type> get(duration relative_timeout);
+  value_type get() {
+    return get(caf::infinite);
+  }
 
   /// @copydoc subscriber::get
   std::vector<value_type> get(size_t num, caf::timestamp timeout);
 
   /// @copydoc subscriber::get
-  std::vector<value_type> get(size_t num,
-                              duration relative_timeout = infinite);
+  template <class Duration>
+  std::vector<value_type> get(size_t num, Duration relative_timeout) {
+    std::vector<value_type> result;
+    do {
+      auto msgs = impl_.get(num, relative_timeout);
+      for (auto& msg : msgs)
+        append_converted(result, msg);
+    } while (result.empty() && caf::is_infinite(relative_timeout));
+    return result;
+  }
+
+  /// @copydoc subscriber::get
+  std::vector<value_type> get(size_t num) {
+    return get(num, caf::infinite);
+  }
 
   /// @copydoc subscriber::poll
   std::vector<value_type> poll();
@@ -81,6 +105,11 @@ public:
 private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
   status_subscriber(endpoint& ep, bool receive_statuses = false);
+
+  value_type convert(const data_message& msg);
+
+  void append_converted(std::vector<value_type>& result,
+                        const data_message& msg);
 
   subscriber impl_;
 };

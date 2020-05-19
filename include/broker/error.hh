@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <caf/atom.hpp>
+#include <caf/config.hpp>
 #include <caf/detail/pp.hpp>
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
@@ -15,6 +15,8 @@
 namespace broker {
 
 using caf::error;
+
+using caf::make_error;
 
 /// Broker's error codes.
 // --ec-enum-start
@@ -96,12 +98,6 @@ struct can_convert_predicate<ec> {
   }
 };
 
-/// @relates ec
-template <class... Ts>
-error make_error(ec x, Ts&&... xs) {
-  return {static_cast<uint8_t>(x), caf::atom("broker"),
-          caf::make_message(std::forward<Ts>(xs)...)};
-}
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.
@@ -171,6 +167,10 @@ inline error_view make_error_view(const data& src) {
   return error_view::make(src);
 }
 
+} // namespace broker
+
+CAF_ERROR_CODE_ENUM(broker::ec, "broker")
+
 #define BROKER_TRY_IMPL(statement)                                             \
   if (auto err = statement)                                                    \
   return err
@@ -220,5 +220,3 @@ inline error_view make_error_view(const data& src) {
 #define BROKER_TRY(...) CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
 
 #endif // _MSVC_VER
-
-} // namespace broker

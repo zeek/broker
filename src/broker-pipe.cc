@@ -21,12 +21,14 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <caf/atom.hpp>
 #include <caf/behavior.hpp>
+#include <caf/config.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/send.hpp>
+#include <caf/type_id.hpp>
 #pragma GCC diagnostic pop
 
 #include "broker/atoms.hh"
@@ -49,16 +51,7 @@ using broker::data_message;
 using broker::make_data_message;
 using broker::topic;
 
-using namespace caf;
-
 namespace {
-
-using publish_atom = atom_constant<atom("publish")>;
-using subscribe_atom = atom_constant<atom("subscribe")>;
-
-using blocking_atom = atom_constant<atom("blocking")>;
-using select_atom = atom_constant<atom("select")>;
-using stream_atom = atom_constant<atom("stream")>;
 
 std::mutex cout_mtx;
 
@@ -76,8 +69,8 @@ class config : public broker::configuration {
 public:
   using super = broker::configuration;
 
-  atom_value mode = atom("");
-  atom_value impl = atom("blocking");
+  std::string mode;
+  std::string impl;
   std::string topic;
   std::vector<std::string> peers;
   uint16_t local_port = 0;
@@ -152,11 +145,8 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
 void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                          size_t cap) {
   auto worker = ep.publish_all(
-    [](size_t& msgs) {
-      msgs = 0;
-    },
-    [=](size_t& msgs, downstream<data_message>& out,
-        size_t hint) {
+    [](size_t& msgs) { msgs = 0; },
+    [=](size_t& msgs, caf::downstream<data_message>& out, size_t hint) {
       auto num = std::min(cap - msgs, hint);
       std::string line;
       for (size_t i = 0; i < num; ++i)
@@ -170,11 +160,8 @@ void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
       msgs += num;
       msg_count += num;
     },
-    [=](const size_t& msgs) {
-      return msgs == cap;
-    }
-  );
-  scoped_actor self{ep.system()};
+    [=](const size_t& msgs) { return msgs == cap; });
+  caf::scoped_actor self{ep.system()};
   self->wait_for(worker);
 }
 
@@ -242,11 +229,11 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
       // nop
     }
   );
-  scoped_actor self{ep.system()};
+  caf::scoped_actor self{ep.system()};
   self->wait_for(worker);
 }
 
-behavior event_listener(event_based_actor* self) {
+caf::behavior event_listener(caf::event_based_actor* self) {
   self->join(self->system().groups().get_local("broker/errors"));
   self->join(self->system().groups().get_local("broker/statuses"));
   auto print = [](std::string what) {
@@ -255,14 +242,8 @@ behavior event_listener(event_based_actor* self) {
     guard_type guard{cout_mtx};
     std::cerr << what;
   };
-  return {
-    [=](broker::atom::local, error& x) {
-      print(self->system().render(x));
-    },
-    [=](broker::atom::local, broker::status& x) {
-      print(to_string(x));
-    }
-  };
+  return {[=](broker::atom::local, broker::error& x) { print(to_string(x)); },
+          [=](broker::atom::local, broker::status& x) { print(to_string(x)); }};
 }
 
 } // namespace <anonymous>
@@ -271,7 +252,7 @@ int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
   config cfg;
   if (auto err = cfg.parse(argc, argv)) {
-    std::cerr << "*** error while reading config: " << cfg.render(err)
+    std::cerr << "*** error while reading config: " << to_string(err)
               << std::endl;
     return EXIT_FAILURE;
   }
@@ -286,7 +267,7 @@ int main(int argc, char** argv) {
   // Connect to the requested peers.
   for (auto& p : cfg.peers) {
     std::vector<std::string> fields;
-    split(fields, p, ':');
+    caf::split(fields, p, ':');
     if (fields.size() != 2) {
       guard_type guard{cout_mtx};
       std::cerr << "*** invalid peer: " << p << std::endl;
@@ -329,17 +310,17 @@ int main(int argc, char** argv) {
     subscribe_mode_stream,
     dummy_mode
   };
-  std::pair<atom_value, atom_value> as[] = {
-    {publish_atom::value, blocking_atom::value},
-    {publish_atom::value, select_atom::value},
-    {publish_atom::value, stream_atom::value},
-    {subscribe_atom::value, blocking_atom::value},
-    {subscribe_atom::value, select_atom::value},
-    {subscribe_atom::value, stream_atom::value}
+  std::pair<std::string, std::string> as[] = {
+    {"publish", "blocking"},
+    {"publish", "select"},
+    {"publish", "stream"},
+    {"subscribe", "blocking"},
+    {"subscribe", "select"},
+    {"subscribe", "stream"},
   };
   auto b = std::begin(as);
   auto i = std::find(b, std::end(as), std::make_pair(cfg.mode, cfg.impl));
   auto f = fs[std::distance(b, i)];
   f(ep, cfg.topic, cfg.message_cap);
-  anon_send_exit(el, exit_reason::user_shutdown);
+  anon_send_exit(el, caf::exit_reason::user_shutdown);
 }

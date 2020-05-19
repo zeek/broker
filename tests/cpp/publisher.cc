@@ -8,6 +8,7 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
@@ -46,10 +47,11 @@ struct consumer_state {
 
 behavior consumer(stateful_actor<consumer_state>* self,
                   filter_type ts, const actor& src) {
-  self->send(self * src, atom::join::value, std::move(ts));
+  self->send(self * src, atom::join_v, std::move(ts));
   return {
     [=](const stream_type& in) {
-      self->make_sink(
+      attach_stream_sink(
+        self,
         // Input stream.
         in,
         // Initialize state.
@@ -66,9 +68,7 @@ behavior consumer(stateful_actor<consumer_state>* self,
         }
       );
     },
-    [=](atom::get) {
-      return self->state.xs;
-    }
+    [=](atom::get) { return self->state.xs; },
   };
 }
 
@@ -82,10 +82,10 @@ CAF_TEST(blocking_publishers) {
   options.disable_ssl = true;
   auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a"}, options, nullptr);
-  anon_send(core1, atom::subscribe::value, filter_type{"a"});
-  anon_send(core1, atom::no_events::value);
-  anon_send(core2, atom::no_events::value);
-  self->send(core1, atom::peer::value, core2);
+  anon_send(core1, atom::subscribe_v, filter_type{"a"});
+  anon_send(core1, atom::no_events_v);
+  anon_send(core2, atom::no_events_v);
+  self->send(core1, atom::peer_v, core2);
   // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
   auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
   run();
@@ -113,7 +113,7 @@ CAF_TEST(blocking_publishers) {
     pub2.publish({false, true});
     run();
     // Check log of the consumer.
-    self->send(leaf, atom::get::value);
+    self->send(leaf, atom::get_v);
     sched.prioritize(leaf);
     consume_message();
     self->receive(
@@ -137,10 +137,10 @@ CAF_TEST(nonblocking_publishers) {
   options.disable_ssl = true;
   auto core1 = ep.core();
   auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
-  anon_send(core1, atom::no_events::value);
-  anon_send(core2, atom::no_events::value);
-  self->send(core1, atom::peer::value, core2);
+  anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
+  anon_send(core1, atom::no_events_v);
+  anon_send(core2, atom::no_events_v);
+  self->send(core1, atom::peer_v, core2);
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   run();
@@ -170,7 +170,7 @@ CAF_TEST(nonblocking_publishers) {
   // Communication is identical to the driver-driven test in test/cpp/core.cc
   run();
   // Check log of the consumer.
-  self->send(leaf, atom::get::value);
+  self->send(leaf, atom::get_v);
   sched.prioritize(leaf);
   consume_message();
   self->receive(

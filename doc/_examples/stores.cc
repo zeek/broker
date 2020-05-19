@@ -11,7 +11,7 @@ void f1() {
 
 // --attach-master-start
   endpoint ep;
-  auto ds = ep.attach_master("foo", memory);
+  auto ds = ep.attach_master("foo", backend::memory);
 // --attach-master-end
 
 // --get-with-error-start

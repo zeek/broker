@@ -3,7 +3,6 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/duration.hpp>
 #include <caf/optional.hpp>
 #include <caf/none.hpp>
 
@@ -15,14 +14,6 @@
 #include "broker/topic.hh"
 
 namespace broker {
-
-using duration = caf::duration;
-using infinite_t = caf::infinite_t;
-using caf::infinite;
-
-inline duration to_duration(double secs) {
-    return duration(std::chrono::milliseconds((int)(secs * 1e3)));
-}
 
 /// Provides blocking access to a stream of data.
 template <class ValueType>
@@ -70,20 +61,10 @@ public:
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
-  caf::optional<value_type> get(caf::timestamp timeout) {
+  template <class Timeout,
+            class = std::enable_if_t<!std::is_integral<Timeout>::value>>
+  caf::optional<value_type> get(Timeout timeout) {
     auto tmp = get(1, timeout);
-    if (tmp.size() == 1) {
-      auto x = std::move(tmp.front());
-      BROKER_DEBUG("received" << x);
-      return caf::optional<value_type>(std::move(x));
-    }
-    return caf::none;
-  }
-
-  /// Pulls a single value out of the stream. Blocks the current thread until
-  /// at least one value becomes available or a timeout occurred.
-  caf::optional<value_type> get(duration relative_timeout) {
-    auto tmp = get(1, relative_timeout);
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
       BROKER_DEBUG("received" << x);
@@ -96,7 +77,9 @@ public:
   /// `num` elements are available or a timeout occurs. Returns a partially
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
-  std::vector<value_type> get(size_t num, caf::timestamp timeout) {
+  template <class Clock, class Duration>
+  std::vector<value_type>
+  get(size_t num, std::chrono::time_point<Clock, Duration> timeout) {
     std::vector<value_type> result;
     if (num == 0)
       return result;
@@ -124,10 +107,10 @@ public:
   /// `num` elements are available or a timeout occurs. Returns a partially
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
-  std::vector<value_type> get(size_t num,
-                              duration relative_timeout = infinite) {
-    if (relative_timeout.valid()) {
-      timestamp timeout = std::chrono::system_clock::now();
+  template <class Duration>
+  std::vector<value_type> get(size_t num, Duration relative_timeout) {
+    if (!caf::is_infinite(relative_timeout)) {
+      auto timeout = caf::make_timestamp();
       timeout += relative_timeout;
       return get(num, timeout);
     }
@@ -149,6 +132,10 @@ public:
       if (result.size() == num)
         return result;
     }
+  }
+
+  std::vector<value_type> get(size_t num) {
+    return get(num, caf::infinite);
   }
 
   /// Returns all currently available values without blocking.

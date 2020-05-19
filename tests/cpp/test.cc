@@ -10,6 +10,7 @@
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
+#include "broker/core_actor.hh"
 
 #ifdef BROKER_WINDOWS
 #include "Winsock2.h"
@@ -58,7 +59,11 @@ configuration base_fixture::make_config() {
   options.disable_ssl = true;
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
+#if CAF_VERSION < 1800
   cfg.set("logger.verbosity", caf::atom("TRACE"));
+#else
+  cfg.set("logger.verbosity", "TRACE");
+#endif
   cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
 }
@@ -76,6 +81,7 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
+  broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
   return test::main(argc, argv);

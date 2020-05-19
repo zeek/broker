@@ -24,13 +24,13 @@ TEST(default construction) {
 TEST(backend option passing) {
   endpoint ep;
   auto opts = backend_options{{"foo", 4.2}};
-  auto ds = ep.attach_master("lord", memory, std::move(opts));
+  auto ds = ep.attach_master("lord", backend::memory, std::move(opts));
   REQUIRE(ds);
 }
 
 TEST(master operations) {
   endpoint ep;
-  auto ds = ep.attach_master("kono", memory);
+  auto ds = ep.attach_master("kono", backend::memory);
   REQUIRE(ds);
   MESSAGE("put");
   ds->put("foo", 42);
@@ -82,7 +82,7 @@ TEST(master operations) {
 
 TEST(clone operations - same endpoint) {
   endpoint ep;
-  auto m = ep.attach_master("vulcan", memory);
+  auto m = ep.attach_master("vulcan", backend::memory);
   MESSAGE("master PUT");
   m->put("key", "value");
   REQUIRE(m);
@@ -93,7 +93,7 @@ TEST(clone operations - same endpoint) {
 TEST(expiration) {
   using std::chrono::milliseconds;
   endpoint ep;
-  auto m = ep.attach_master("grubby", memory);
+  auto m = ep.attach_master("grubby", backend::memory);
   REQUIRE(m);
   auto expiry = milliseconds(600);
   m->put("foo", 42, expiry);
@@ -107,7 +107,7 @@ TEST(expiration) {
 
 TEST(proxy) {
   endpoint ep;
-  auto m = ep.attach_master("puneta", memory);
+  auto m = ep.attach_master("puneta", backend::memory);
   REQUIRE(m);
   auto proxy = store::proxy{*m};
   REQUIRE(proxy.mailbox().empty());

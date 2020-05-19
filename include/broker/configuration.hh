@@ -82,7 +82,17 @@ public:
   caf::settings dump_content() const override;
 
   /// Adds all Broker message types to `cfg`.
+  /// @note this function has no effect when compiling against CAF ≥ 0.18
   static void add_message_types(caf::actor_system_config& cfg);
+
+  /// Initializes any global state required by Broker such as the global meta
+  /// object table for Broker and CAF (core, I/O and OpenSSL modules). This
+  /// function is safe to call multiple times (repeated calls have no effect).
+  /// @note this function has no effect when compiling against CAF < 0.18
+  /// @note all constructors call this function implicitly, but users can call
+  ///       it explicitly when using a custom config class or when calling CAF
+  ///       code prior to creating the configuration object.
+  static void init_global_state();
 
 protected:
   /// Allows subtypes to add custom options before the configuration reads

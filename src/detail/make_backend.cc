@@ -12,11 +12,11 @@ namespace detail {
 std::unique_ptr<detail::abstract_backend> make_backend(backend type,
                                                        backend_options opts) {
   switch (type) {
-    case memory:
+    case backend::memory:
       return std::make_unique<memory_backend>(std::move(opts));
-    case sqlite:
+    case backend::sqlite:
       return std::make_unique<sqlite_backend>(std::move(opts));
-    case rocksdb:
+    case backend::rocksdb:
 #ifdef BROKER_HAVE_ROCKSDB
       return std::make_unique<rocksdb_backend>(std::move(opts));
 #else

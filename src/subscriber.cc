@@ -97,7 +97,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
                            endpoint* ep,
                            detail::shared_subscriber_queue_ptr<> qptr,
                            std::vector<topic> ts, size_t max_qsize) {
-  self->send(self * ep->core(), atom::join::value, std::move(ts));
+  self->send(self * ep->core(), atom::join_v, std::move(ts));
   self->set_default_handler(skip);
   return {
     [=](const endpoint::stream_type& in) {
@@ -113,7 +113,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
       BROKER_ASSERT(path != nullptr);
       auto slot_at_sender = path->slots.sender;
       self->set_default_handler(print_and_drop);
-      self->delayed_send(self, std::chrono::seconds(1), atom::tick::value);
+      self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
       self->become(
         [=](atom::resume) {
           // TODO: nop ?
@@ -134,7 +134,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
           qptr->rate(st.rate());
           if (st.calculate_rate)
             self->delayed_send(self, std::chrono::seconds(1),
-                               atom::tick::value);
+                               atom::tick_v);
         },
         [=](atom::tick, bool x) {
           auto& st = self->state;
@@ -143,7 +143,7 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
           st.calculate_rate = x;
           if (x)
             self->delayed_send(self, std::chrono::seconds(1),
-                               atom::tick::value);
+                               atom::tick_v);
         }
       );
     }
@@ -175,10 +175,10 @@ void subscriber::add_topic(topic x, bool block) {
     filter_.emplace_back(std::move(x));
     if (block) {
       caf::scoped_actor self{ep_.get().system()};
-      self->send(worker_, atom::join::value, atom::update::value, filter_, self);
+      self->send(worker_, atom::join_v, atom::update_v, filter_, self);
       self->receive([&](bool){});
     } else {
-      anon_send(worker_, atom::join::value, atom::update::value, filter_);
+      anon_send(worker_, atom::join_v, atom::update_v, filter_);
     }
   }
 }
@@ -191,20 +191,20 @@ void subscriber::remove_topic(topic x, bool block) {
     filter_.erase(i);
     if (block) {
       caf::scoped_actor self{ep_.get().system()};
-      self->send(worker_, atom::join::value, atom::update::value, filter_, self);
+      self->send(worker_, atom::join_v, atom::update_v, filter_, self);
       self->receive([&](bool){});
     } else {
-      anon_send(worker_, atom::join::value, atom::update::value, filter_);
+      anon_send(worker_, atom::join_v, atom::update_v, filter_);
     }
   }
 }
 
 void subscriber::set_rate_calculation(bool x) {
-  anon_send(worker_, atom::tick::value, x);
+  anon_send(worker_, atom::tick_v, x);
 }
 
 void subscriber::became_not_full() {
-  anon_send(worker_, atom::resume::value);
+  anon_send(worker_, atom::resume_v);
 }
 
 } // namespace broker

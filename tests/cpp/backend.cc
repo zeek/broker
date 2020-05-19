@@ -44,17 +44,17 @@ bool all_equal(const std::vector<T>& xs) {
 class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
-    backends_.push_back(detail::make_backend(memory, opts));
+    backends_.push_back(detail::make_backend(backend::memory, opts));
     auto& path = caf::get<std::string>(opts["path"]);
     // Make sure both backends have their own filesystem storage to work with.
     path += ".sqlite";
     paths_.push_back(path);
-    backends_.push_back(detail::make_backend(sqlite, opts));
+    backends_.push_back(detail::make_backend(backend::sqlite, opts));
 #ifdef BROKER_HAVE_ROCKSDB
     auto base = path;
     path = base + ".rocksdb";
     paths_.push_back(path);
-    backends_.push_back(detail::make_backend(rocksdb, opts));
+    backends_.push_back(detail::make_backend(backend::rocksdb, opts));
 #endif
   }
 
@@ -202,7 +202,7 @@ struct fixture : base_fixture {
   auto run(F expr, const char* expr_str) {
     auto res = expr();
     if (!res)
-      FAIL(expr_str << " failed: " << sys.render(res.error()));
+      FAIL(expr_str << " failed: " << res.error());
     if constexpr (std::is_same<decltype(res), expected<void>>::value)
       return caf::unit;
     else

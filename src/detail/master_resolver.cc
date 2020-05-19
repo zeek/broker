@@ -20,7 +20,7 @@ caf::behavior master_resolver(master_resolver_actor* self) {
   self->set_error_handler([=](error&) {
     if (--self->state.remaining_responses == 0) {
       BROKER_DEBUG("resolver failed to find a master");
-      self->send(self->state.who_asked, atom::master::value,
+      self->send(self->state.who_asked, atom::master_v,
                  make_error(ec::no_such_master, "no master on peers"));
       self->quit();
     }
@@ -30,15 +30,15 @@ caf::behavior master_resolver(master_resolver_actor* self) {
         caf::actor& who_asked) {
       BROKER_DEBUG("resolver starts looking for:" << name);
       for (auto& peer : peers)
-        self->send(peer, atom::store::value, atom::master::value,
-                   atom::get::value, name);
+        self->send(peer, atom::store_v, atom::master_v,
+                   atom::get_v, name);
 
       self->state.remaining_responses = peers.size();
       self->state.who_asked = std::move(who_asked);
     },
     [=](caf::actor& master) {
       BROKER_DEBUG("resolver found master:" << master);
-      self->send(self->state.who_asked, atom::master::value,
+      self->send(self->state.who_asked, atom::master_v,
                  std::move(master));
       self->quit();
     }

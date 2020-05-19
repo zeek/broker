@@ -1,14 +1,15 @@
 #include "broker/logger.hh" // Needs to come before CAF includes.
 
-#include <caf/event_based_actor.hpp>
 #include <caf/actor.hpp>
-#include <caf/make_message.hpp>
-#include <caf/sum_type.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/make_message.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/sum_type.hpp>
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
-#include <caf/error.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
@@ -41,7 +42,7 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
       auto& expire_time = e.second;
       auto n = clock->now();
       auto dur = expire_time - n;
-      auto msg = caf::make_message(atom::expire::value, std::move(key));
+      auto msg = caf::make_message(atom::expire_v, std::move(key));
       clock->send_later(self, dur, std::move(msg));
     }
   } else {
@@ -50,12 +51,12 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
 }
 
 void master_state::broadcast(internal_command&& x) {
-  self->send(core, atom::publish::value,
+  self->send(core, atom::publish_v,
              make_command_message(clones_topic, std::move(x)));
 }
 
 void master_state::remind(timespan expiry, const data& key) {
-  auto msg = caf::make_message(atom::expire::value, key);
+  auto msg = caf::make_message(atom::expire_v, key);
   clock->send_later(self, expiry, std::move(msg));
 }
 
@@ -288,12 +289,12 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       self->state.command(x);
     },
     [=](atom::sync_point, caf::actor& who) {
-      self->send(who, atom::sync_point::value);
+      self->send(who, atom::sync_point_v);
     },
     [=](atom::expire, data& key) {
       self->state.expire(key);
     },
-    [=](atom::get, atom::keys) -> expected<data> {
+    [=](atom::get, atom::keys) -> caf::result<data> {
       auto x = self->state.backend->keys();
       BROKER_INFO("KEYS ->" << x);
       return x;
@@ -305,7 +306,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::exists, const data& key) -> expected<data> {
+    [=](atom::exists, const data& key) -> caf::result<data> {
       auto x = self->state.backend->exists(key);
       BROKER_INFO("EXISTS" << key << "->" << x);
       return {data{std::move(*x)}};
@@ -315,12 +316,12 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
       return caf::make_message(data{std::move(*x)}, id);
     },
-    [=](atom::get, const data& key) -> expected<data> {
+    [=](atom::get, const data& key) -> caf::result<data> {
       auto x = self->state.backend->get(key);
       BROKER_INFO("GET" << key << "->" << x);
       return x;
     },
-    [=](atom::get, const data& key, const data& aspect) -> expected<data> {
+    [=](atom::get, const data& key, const data& aspect) -> caf::result<data> {
       auto x = self->state.backend->get(key, aspect);
       BROKER_INFO("GET" << key << aspect << "->" << x);
       return x;
@@ -345,7 +346,8 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
       BROKER_DEBUG("received stream handshake from core");
-      self->make_sink(
+      attach_stream_sink(
+        self,
         // input stream
         in,
         // initialize state
@@ -362,8 +364,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         // cleanup
         [](caf::unit_t&, const caf::error&) {
           // nop
-        }
-      );
+        });
     }
   };
 }

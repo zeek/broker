@@ -7,19 +7,18 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/error.hpp>
-#include <caf/duration.hpp>
 #include <caf/send.hpp>
 #include <caf/actor.hpp>
 #include <caf/message.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/publish.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/core_actor.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/logger.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
@@ -80,8 +79,8 @@ void endpoint::clock::advance_time(timestamp t) {
 
   caf::scoped_actor self{*sys_};
   for (auto& who : sync_with_actors) {
-    self->send(who, atom::sync_point::value, self);
-    self->delayed_send(self, timeout::frontend, atom::tick::value);
+    self->send(who, atom::sync_point_v, self);
+    self->delayed_send(self, timeout::frontend, atom::tick_v);
     self->receive(
       [&](atom::sync_point) {
         // nop
@@ -211,7 +210,7 @@ void endpoint::shutdown() {
   destroyed_ = true;
   if (!await_stores_on_shutdown_) {
     BROKER_DEBUG("tell core actor to terminate stores");
-    anon_send(core_, atom::shutdown::value, atom::store::value);
+    anon_send(core_, atom::shutdown_v, atom::store_v);
   }
   if (!children_.empty()) {
     caf::scoped_actor self{system_};
@@ -227,7 +226,7 @@ void endpoint::shutdown() {
     children_.clear();
   }
   BROKER_DEBUG("send shutdown message to core actor");
-  anon_send(core_, atom::shutdown::value);
+  anon_send(core_, atom::shutdown_v);
   core_ = nullptr;
   system_.~actor_system();
   delete clock_;
@@ -255,7 +254,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
                                       << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
-  self->request(core_, caf::infinite, atom::peer::value,
+  self->request(core_, caf::infinite, atom::peer_v,
                 network_info{address, port, retry})
   .receive(
     [&](const caf::actor&) {
@@ -275,7 +274,7 @@ void endpoint::peer_nosync(const std::string& address, uint16_t port,
   BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
                                       << "retry:" << to_string(retry)
                                       << "[asynchronous]");
-  caf::anon_send(core(), atom::peer::value, network_info{address, port, retry});
+  caf::anon_send(core(), atom::peer_v, network_info{address, port, retry});
 }
 
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
@@ -284,7 +283,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
                                       << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
-  self->request(core_, caf::infinite, atom::unpeer::value,
+  self->request(core_, caf::infinite, atom::unpeer_v,
                 network_info{address, port})
   .receive(
     [&](void) {
@@ -303,13 +302,13 @@ void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("stopping to peer with " << address << ":" << port
                                        << "[asynchronous]");
-  caf::anon_send(core(), atom::unpeer::value, network_info{address, port});
+  caf::anon_send(core(), atom::unpeer_v, network_info{address, port});
 }
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
   caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::get::value, atom::peer::value)
+  self->request(core(), caf::infinite, atom::get_v, atom::peer_v)
   .receive(
     [&](std::vector<peer_info>& peers) {
       result = std::move(peers);
@@ -324,8 +323,8 @@ std::vector<peer_info> endpoint::peers() const {
 std::vector<topic> endpoint::peer_subscriptions() const {
   std::vector<topic> result;
   caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::get::value,
-                atom::peer::value, atom::subscriptions::value)
+  self->request(core(), caf::infinite, atom::get_v,
+                atom::peer_v, atom::subscriptions_v)
   .receive(
     [&](std::vector<topic>& ts) {
       result = std::move(ts);
@@ -340,24 +339,24 @@ std::vector<topic> endpoint::peer_subscriptions() const {
 void endpoint::forward(std::vector<topic> ts)
 {
   BROKER_INFO("forwarding topics" << ts);
-  caf::anon_send(core(), atom::subscribe::value, std::move(ts));
+  caf::anon_send(core(), atom::subscribe_v, std::move(ts));
 }
 
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
-  caf::anon_send(core(), atom::publish::value,
+  caf::anon_send(core(), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
-  caf::anon_send(core(), atom::publish::value, dst,
+  caf::anon_send(core(), atom::publish_v, dst,
                  make_data_message(std::move(t), std::move(d)));
 }
 
 void endpoint::publish(data_message x){
   BROKER_INFO("publishing" << x);
-  caf::anon_send(core(), atom::publish::value, std::move(x));
+  caf::anon_send(core(), atom::publish_v, std::move(x));
 }
 
 
@@ -407,8 +406,8 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::store::value, atom::master::value,
-                atom::attach::value, name, type, std::move(opts))
+  self->request(core(), caf::infinite, atom::store_v, atom::master_v,
+                atom::attach_v, name, type, std::move(opts))
   .receive(
     [&](caf::actor& master) {
       res = store{std::move(master), std::move(name)};
@@ -427,8 +426,8 @@ expected<store> endpoint::attach_clone(std::string name,
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), caf::infinite, atom::store::value, atom::clone::value,
-                atom::attach::value, name, resync_interval, stale_interval,
+  self->request(core(), caf::infinite, atom::store_v, atom::clone_v,
+                atom::attach_v, name, resync_interval, stale_interval,
                 mutation_buffer_interval).receive(
     [&](caf::actor& clone) {
       res = store{std::move(clone), std::move(name)};

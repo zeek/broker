@@ -1,15 +1,16 @@
 #include "broker/logger.hh" // Needs to come before CAF includes.
 
-#include <caf/event_based_actor.hpp>
 #include <caf/actor.hpp>
-#include <caf/error.hpp>
-#include <caf/message.hpp>
-#include <caf/unit.hpp>
-#include <caf/sum_type.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
+#include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
-#include <caf/system_messages.hpp>
+#include <caf/message.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/sum_type.hpp>
+#include <caf/system_messages.hpp>
+#include <caf/unit.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/convert.hh"
@@ -38,7 +39,7 @@ void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
 }
 
 void clone_state::forward(internal_command&& x) {
-  self->send(core, atom::publish::value,
+  self->send(core, atom::publish_v,
              make_command_message(master_topic, std::move(x)));
 }
 
@@ -172,15 +173,15 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         self->state.awaiting_snapshot_sync = true;
         self->state.pending_remote_updates.clear();
         self->state.pending_remote_updates.shrink_to_fit();
-        self->send(self, atom::master::value, atom::resolve::value);
+        self->send(self, atom::master_v, atom::resolve_v);
 
         if ( stale_interval >= 0 )
           {
           self->state.stale_time = now(clock) + stale_interval;
           auto si = std::chrono::duration<double>(stale_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick::value,
-                                       atom::stale_check::value);
+          auto msg = caf::make_message(atom::tick_v,
+                                       atom::stale_check_v);
           clock->send_later(self, ts, std::move(msg));
           }
 
@@ -189,8 +190,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.unmutable_time = now(clock) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick::value,
-                                       atom::mutable_check::value);
+          auto msg = caf::make_message(atom::tick_v,
+                                       atom::mutable_check_v);
           clock->send_later(self, ts, std::move(msg));
           }
       }
@@ -202,12 +203,12 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     self->state.unmutable_time = now(clock) + mutation_buffer_interval;
     auto si = std::chrono::duration<double>(mutation_buffer_interval);
     auto ts = std::chrono::duration_cast<timespan>(si);
-    auto msg = caf::make_message(atom::tick::value,
-                                 atom::mutable_check::value);
+    auto msg = caf::make_message(atom::tick_v,
+                                 atom::mutable_check_v);
     clock->send_later(self, ts, std::move(msg));
     }
 
-  self->send(self, atom::master::value, atom::resolve::value);
+  self->send(self, atom::master_v, atom::resolve_v);
 
   return {
     // --- local communication -------------------------------------------------
@@ -240,18 +241,18 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
     },
     [=](atom::sync_point, caf::actor& who) {
-      self->send(who, atom::sync_point::value);
+      self->send(who, atom::sync_point_v);
     },
     [=](atom::master, atom::resolve) {
       if ( self->state.master )
         return;
 
       BROKER_INFO("request master resolve");
-      self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::resolve::value, self->state.id, self);
+      self->send(self->state.core, atom::store_v, atom::master_v,
+                 atom::resolve_v, self->state.id, self);
       auto ri = std::chrono::duration<double>(resync_interval);
       auto ts = std::chrono::duration_cast<timespan>(ri);
-      auto msg = caf::make_message(atom::master::value, atom::resolve::value);
+      auto msg = caf::make_message(atom::master_v, atom::resolve_v);
       clock->send_later(self, ts, std::move(msg));
     },
     [=](atom::master, caf::actor& master) {
@@ -271,8 +272,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.clear();
       self->state.mutation_buffer.shrink_to_fit();
 
-      self->send(self->state.core, atom::store::value, atom::master::value,
-                 atom::snapshot::value, self->state.id, self);
+      self->send(self->state.core, atom::store_v, atom::master_v,
+                 atom::snapshot_v, self->state.id, self);
     },
     [=](atom::master, caf::error err) {
       if ( self->state.master )
@@ -302,10 +303,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       self->state.mutation_buffer.clear();
       self->state.mutation_buffer.shrink_to_fit();
     },
-    [=](atom::get, atom::keys) -> expected<data> {
+    [=](atom::get, atom::keys) -> caf::result<data> {
       if ( self->state.is_stale )
         return {ec::stale_data};
-
       auto x = self->state.keys();
       BROKER_INFO("KEYS ->" << x);
       return {x};
@@ -318,16 +318,15 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("KEYS" << "with id" << id << "->" << x);
       return caf::make_message(std::move(x), id);
     },
-    [=](atom::exists, const data& key) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::exists, const data& key) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       auto result = (self->state.store.find(key) != self->state.store.end());
       BROKER_INFO("EXISTS" << key << "->" << result);
-      return {result};
+      return data{result};
     },
     [=](atom::exists, const data& key, request_id id) {
-      if ( self->state.is_stale )
+      if (self->state.is_stale)
         return caf::make_message(make_error(ec::stale_data), id);
 
       auto r = (self->state.store.find(key) != self->state.store.end());
@@ -335,10 +334,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("EXISTS" << key << "with id" << id << "->" << r);
       return result;
     },
-    [=](atom::get, const data& key) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::get, const data& key) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -346,10 +344,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       BROKER_INFO("GET" << key << "->" << result);
       return result;
     },
-    [=](atom::get, const data& key, const data& aspect) -> expected<data> {
-      if ( self->state.is_stale )
+    [=](atom::get, const data& key, const data& aspect) -> caf::result<data> {
+      if (self->state.is_stale)
         return {ec::stale_data};
-
       expected<data> result = ec::no_such_key;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end())
@@ -358,9 +355,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       return result;
     },
     [=](atom::get, const data& key, request_id id) {
-      if ( self->state.is_stale )
+      if (self->state.is_stale)
         return caf::make_message(make_error(ec::stale_data), id);
-
       caf::message result;
       auto i = self->state.store.find(key);
       if (i != self->state.store.end()) {
@@ -394,8 +390,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     },
     [=](atom::get, atom::name) { return self->state.id; },
     // --- stream handshake with core ------------------------------------------
-    [=](const store::stream_type& in) {
-      self->make_sink(
+    [=](store::stream_type in) {
+      attach_stream_sink(
+        self,
         // input stream
         in,
         // initialize state
@@ -421,8 +418,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           }
 
           self->state.command(cmd);
-        }
-      );
+        });
     }};
 }
 

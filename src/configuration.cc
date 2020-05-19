@@ -3,17 +3,21 @@
 #include <ciso646>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <caf/atom.hpp>
+#include <caf/config.hpp>
+#include <caf/init_global_meta_objects.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/manager.hpp>
 
 #include "broker/address.hh"
 #include "broker/config.hh"
+#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"
@@ -48,6 +52,8 @@ auto concat(Ts... xs) {
   return result;
 }
 
+#if CAF_VERSION < 1800
+
 bool valid_log_level(caf::atom_value x) {
   using caf::atom_uint;
   switch (atom_uint(x)) {
@@ -71,6 +77,22 @@ optional<caf::atom_value> to_log_level(const char* cstr) {
   return nil;
 }
 
+#else
+
+bool valid_log_level(caf::string_view x) {
+  return x == "trace" || x == "debug" || x == "info" || x == "warning"
+         || x == "error" || x == "quiet";
+}
+
+optional<std::string> to_log_level(const char* cstr) {
+  caf::string_view str{cstr, strlen(cstr)};
+  if (valid_log_level(str))
+    return std::string{str.begin(), str.end()};
+  return nil;
+}
+
+#endif
+
 [[noreturn]] void throw_illegal_log_level(const char* var, const char* cstr) {
   auto what
     = concat("illegal value for environment variable ", var, ": '", cstr,
@@ -82,6 +104,7 @@ optional<caf::atom_value> to_log_level(const char* cstr) {
 
 configuration::configuration(skip_init_t) {
   // Add runtime type information for Broker types.
+  init_global_state();
   add_message_types(*this);
   // Ensure that we're only talking to compatible Broker instances.
   std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
@@ -96,7 +119,13 @@ configuration::configuration(skip_init_t) {
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
   // Override CAF defaults.
+#if CAF_VERSION < 1800
   using caf::atom;
+  using caf::atom_value;
+#else
+  auto atom = [](std::string x) { return x; };
+  using atom_value = std::string;
+#endif
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   set("logger.file-verbosity", atom("quiet"));
   set("logger.console-format", "[%c/%p] %d %m");
@@ -109,9 +138,9 @@ configuration::configuration(skip_init_t) {
     set("logger.console", atom("uncolored"));
   set("logger.console-verbosity", atom("quiet"));
   // Turn off all CAF output by default.
-  std::vector<caf::atom_value> blacklist{atom("caf"), atom("caf_io"),
-                                         atom("caf_net"), atom("caf_flow"),
-                                         atom("caf_stream")};
+  std::vector<atom_value> blacklist{atom("caf"), atom("caf_io"),
+                                    atom("caf_net"), atom("caf_flow"),
+                                    atom("caf_stream")};
   set("logger.component-blacklist", std::move(blacklist));
 }
 
@@ -137,7 +166,7 @@ void configuration::init(int argc, char** argv) {
   // Phase 1: parse broker.conf (overrides hard-coded defaults).
   if (!options_.ignore_broker_conf) {
     if (auto err = parse(0, nullptr, conf_file)) {
-      auto what = concat("Error while reading ", conf_file, ": ", render(err));
+      auto what = concat("Error while reading ", conf_file, ": ", to_string(err));
       throw std::runtime_error(what);
     }
   }
@@ -173,7 +202,7 @@ void configuration::init(int argc, char** argv) {
     return;
   std::stringstream dummy;
   if (auto err = parse(argc, argv, dummy)) {
-    auto what = concat("Error while parsing CLI arguments: ", render(err));
+    auto what = concat("Error while parsing CLI arguments: ", to_string(err));
     throw std::runtime_error(what);
   }
 }
@@ -191,33 +220,37 @@ caf::settings configuration::dump_content() const {
   return result;
 }
 
-#define ADD_MSG_TYPE(name) cfg.add_message_type<name>(#name)
+#if CAF_VERSION < 1800
 
 void configuration::add_message_types(caf::actor_system_config& cfg) {
-  ADD_MSG_TYPE(broker::data);
-  ADD_MSG_TYPE(broker::address);
-  ADD_MSG_TYPE(broker::subnet);
-  ADD_MSG_TYPE(broker::port);
-  ADD_MSG_TYPE(broker::timespan);
-  ADD_MSG_TYPE(broker::timestamp);
-  ADD_MSG_TYPE(broker::enum_value);
-  ADD_MSG_TYPE(broker::vector);
-  ADD_MSG_TYPE(broker::set);
-  ADD_MSG_TYPE(broker::status);
-  ADD_MSG_TYPE(broker::table);
-  ADD_MSG_TYPE(broker::topic);
-  ADD_MSG_TYPE(broker::optional<broker::timestamp>);
-  ADD_MSG_TYPE(broker::optional<broker::timespan>);
-  ADD_MSG_TYPE(broker::snapshot);
-  ADD_MSG_TYPE(broker::internal_command);
-  ADD_MSG_TYPE(broker::command_message);
-  ADD_MSG_TYPE(broker::data_message);
-  ADD_MSG_TYPE(broker::node_message);
-  ADD_MSG_TYPE(broker::node_message::value_type);
-  ADD_MSG_TYPE(broker::set_command);
-  ADD_MSG_TYPE(broker::store::stream_type::value_type);
+  cfg.add_message_types<caf::id_block::broker>();
 }
 
-#undef ADD_MSG_TYPE
+void configuration::init_global_state() {
+  // nop
+}
+
+#else
+
+void configuration::add_message_types(caf::actor_system_config&) {
+  // nop
+}
+
+namespace {
+
+std::once_flag init_global_state_flag;
+
+} // namespace
+
+void configuration::init_global_state() {
+  std::call_once(init_global_state_flag, [] {
+    caf::init_global_meta_objects<caf::id_block::broker>();
+    caf::openssl::manager::init_global_meta_objects();
+    caf::io::middleman::init_global_meta_objects();
+    caf::core::init_global_meta_objects();
+  });
+}
+
+#endif
 
 } // namespace broker
