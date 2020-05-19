@@ -106,7 +106,6 @@ optional<std::string> to_log_level(const char* cstr) {
 } // namespace
 
 configuration::configuration(skip_init_t) {
-  sync_options();
   // Add runtime type information for Broker types.
   init_global_state();
   add_message_types(*this);
@@ -124,6 +123,7 @@ configuration::configuration(skip_init_t) {
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
+  sync_options();
   // Override CAF defaults.
 #if CAF_VERSION < 1800
   using caf::atom;
