@@ -79,10 +79,8 @@ struct fixture : base_fixture {
   }
 
   fixture() {
-    broker_options options;
-    options.disable_ssl = true;
     core1 = ep.core();
-    core2 = sys.spawn(core_actor, filter_type{"z"}, options, nullptr);
+    core2 = sys.spawn(core_actor, filter_type{"z"}, nullptr);
     anon_send(core1, atom::no_events::value);
     anon_send(core2, atom::no_events::value);
     run();

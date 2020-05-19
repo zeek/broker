@@ -56,6 +56,6 @@ struct core_state {
 using core_actor_type = caf::stateful_actor<core_state>;
 
 caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
-                         broker_options opts, endpoint::clock* clock);
+                         endpoint::clock* clock);
 
 } // namespace broker

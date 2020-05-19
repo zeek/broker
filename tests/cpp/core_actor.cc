@@ -126,8 +126,7 @@ struct fixture : base_fixture {
     auto spawn_core = [&](auto id) {
       broker_options opts;
       opts.disable_ssl = true;
-      auto hdl = sys.spawn(core_actor, filter_type{"a", "b", "c"}, opts,
-                           nullptr);
+      auto hdl = sys.spawn(core_actor, filter_type{"a", "b", "c"}, nullptr);
       anon_send(core1, atom::no_events::value);
       run();
       mgr(hdl).id(make_node_id(unbox(id)));
@@ -307,8 +306,7 @@ struct error_signaling_fixture : base_fixture {
     core1 = ep.core();
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe::value, filter_type{"a", "b", "c"});
-    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"},
-                      ep.config().options(), nullptr);
+    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, nullptr);
     CAF_MESSAGE(BROKER_ARG(core2));
     run();
     CAF_MESSAGE("init done");

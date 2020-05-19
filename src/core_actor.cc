@@ -23,12 +23,13 @@ caf::behavior core_manager::make_behavior() {
 }
 
 caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
-                         broker_options options, endpoint::clock* clock) {
+                         endpoint::clock* clock) {
   auto& mgr = self->state.mgr;
   mgr = caf::make_counted<core_manager>(clock, self);
   if (!initial_filter.empty())
     mgr->subscribe(initial_filter);
-  mgr->cache().set_use_ssl(not options.disable_ssl);
+  auto& cfg = self->system().config();
+  mgr->cache().set_use_ssl(not caf::get_or(cfg, "broker.disable-ssl", false));
   self->set_exit_handler([self](caf::exit_msg& msg) {
     if (msg.reason) {
       BROKER_DEBUG("shutting down after receiving an exit message with reason:"

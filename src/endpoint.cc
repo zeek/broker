@@ -195,7 +195,7 @@ endpoint::endpoint(configuration config)
   if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())
       detail::die("CAF OpenSSL manager is not available");
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(core_actor, filter_type{}, config_.options(), clock_);
+  core_ = system_.spawn(core_actor, filter_type{}, clock_);
 }
 
 endpoint::~endpoint() {
