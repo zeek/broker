@@ -471,8 +471,8 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 int main(int argc, char** argv) {
 #if CAF_VERSION >= 1800
   caf::init_global_meta_objects<caf::id_block::broker_node>();
-  broker::configuration::init_global_meta_objects();
 #endif
+  broker::configuration::init_global_state();
   // Parse CLI parameters using our config.
   config cfg;
   try {

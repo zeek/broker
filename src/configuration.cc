@@ -3,6 +3,7 @@
 #include <ciso646>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -10,12 +11,9 @@
 
 #include <caf/atom.hpp>
 #include <caf/config.hpp>
+#include <caf/init_global_meta_objects.hpp>
 #include <caf/io/middleman.hpp>
 #include <caf/openssl/manager.hpp>
-
-#if CAF_VERSION >= 1800
-#include <caf/init_global_meta_objects.hpp>
-#endif
 
 #include "broker/address.hh"
 #include "broker/config.hh"
@@ -106,6 +104,7 @@ optional<std::string> to_log_level(const char* cstr) {
 
 configuration::configuration(skip_init_t) {
   // Add runtime type information for Broker types.
+  init_global_state();
   add_message_types(*this);
   // Ensure that we're only talking to compatible Broker instances.
   std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
@@ -227,7 +226,7 @@ void configuration::add_message_types(caf::actor_system_config& cfg) {
   cfg.add_message_types<caf::id_block::broker>();
 }
 
-void configuration::init_global_meta_objects() {
+void configuration::init_global_state() {
   // nop
 }
 
@@ -237,11 +236,19 @@ void configuration::add_message_types(caf::actor_system_config&) {
   // nop
 }
 
-void configuration::init_global_meta_objects() {
-  caf::init_global_meta_objects<caf::id_block::broker>();
-  caf::openssl::manager::init_global_meta_objects();
-  caf::io::middleman::init_global_meta_objects();
-  caf::core::init_global_meta_objects();
+namespace {
+
+std::once_flag init_global_state_flag;
+
+} // namespace
+
+void configuration::init_global_state() {
+  std::call_once(init_global_state_flag, [] {
+    caf::init_global_meta_objects<caf::id_block::broker>();
+    caf::openssl::manager::init_global_meta_objects();
+    caf::io::middleman::init_global_meta_objects();
+    caf::core::init_global_meta_objects();
+  });
 }
 
 #endif

@@ -81,7 +81,7 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
-  broker::configuration::init_global_meta_objects();
+  broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
   return test::main(argc, argv);
