@@ -8,27 +8,28 @@
 
 namespace broker {
 
+// -- member types -------------------------------------------------------------
+
 struct gateway::impl {
   // -- constructors, destructors, and assignment operators --------------------
 
-  impl() : sys(cfg) {
-    external = sys.spawn(core_actor, filter_type{}, nullptr);
-    internal = sys.spawn(core_actor, filter_type{}, nullptr);
+  impl(configuration source_config,
+       const domain_options* adapt_internal = nullptr,
+       const domain_options* adapt_external = nullptr)
+    : cfg(std::move(source_config)), sys(cfg) {
+    internal = sys.spawn(core_actor, filter_type{}, nullptr, adapt_internal);
+    external = sys.spawn(core_actor, filter_type{}, nullptr, adapt_external);
   }
 
   // -- member variables -------------------------------------------------------
 
   configuration cfg;
   caf::actor_system sys;
-  caf::actor external;
   caf::actor internal;
+  caf::actor external;
 };
 
-void gateway::domain_options::disable_forwarding() {
-  caf::put(settings_, "broker.disable-forwarding", true);
-}
-
-  // -- constructors, destructors, and assignment operators --------------------
+// -- constructors, destructors, and assignment operators ----------------------
 
 gateway::~gateway() {
   // Must appear out-of-line because of ptr_.
@@ -38,8 +39,15 @@ gateway::gateway(std::unique_ptr<impl>&& ptr) : ptr_(std::move(ptr)) {
   // nop
 }
 
+expected<gateway> gateway::make(configuration cfg,
+                                domain_options internal_adaptation,
+                                domain_options external_adaptation) {
+  return gateway{std::make_unique<impl>(std::move(cfg), &internal_adaptation,
+                                        &external_adaptation)};
+}
+
 expected<gateway> gateway::make() {
-  return gateway{std::make_unique<impl>()};
+  return gateway{std::make_unique<impl>(configuration{})};
 }
 
 // --- peer management ---------------------------------------------------------
