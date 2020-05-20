@@ -62,7 +62,7 @@ struct fixture : base_fixture {
   }
 
   fixture() {
-    core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, nullptr);
+    core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
     core2 = ep.core();
     anon_send(core1, atom::no_events::value);
     anon_send(core2, atom::no_events::value);

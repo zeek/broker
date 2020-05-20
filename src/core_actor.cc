@@ -1,6 +1,20 @@
 #include "broker/core_actor.hh"
 
+#include "broker/domain_options.hh"
+
 namespace broker {
+
+core_manager::core_manager(endpoint::clock* clock, caf::event_based_actor* self)
+  : super(clock, self), id_(self->node()) {
+  // nop
+}
+
+core_manager::core_manager(endpoint::clock* clock, caf::event_based_actor* self,
+                           const domain_options& adaptation)
+  : core_manager(clock, self) {
+  if (adaptation.disable_forwarding)
+    disable_forwarding(true);
+}
 
 caf::behavior core_manager::make_behavior() {
   return super::make_behavior(
@@ -22,10 +36,15 @@ caf::behavior core_manager::make_behavior() {
     });
 }
 
-caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
-                         endpoint::clock* clock) {
+caf::behavior core_actor_t::operator()(core_actor_type* self,
+                                       filter_type initial_filter,
+                                       endpoint::clock* clock,
+                                       const domain_options* adaptation) const {
   auto& mgr = self->state.mgr;
-  mgr = caf::make_counted<core_manager>(clock, self);
+  if (adaptation)
+    mgr = caf::make_counted<core_manager>(clock, self, *adaptation);
+  else
+    mgr = caf::make_counted<core_manager>(clock, self);
   if (!initial_filter.empty())
     mgr->subscribe(initial_filter);
   auto& cfg = self->system().config();

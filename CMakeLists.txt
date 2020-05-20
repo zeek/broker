@@ -303,6 +303,7 @@ set(BROKER_SRC
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
+  src/domain_options.cc
   src/endpoint.cc
   src/endpoint_info.cc
   src/error.cc

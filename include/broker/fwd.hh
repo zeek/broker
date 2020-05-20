@@ -17,6 +17,7 @@ namespace broker {
 
 struct add_command;
 struct clear_command;
+struct domain_options;
 struct endpoint_info;
 struct enum_value;
 struct erase_command;

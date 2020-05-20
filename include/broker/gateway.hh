@@ -2,8 +2,9 @@
 
 #include <memory>
 
-#include <caf/settings.hpp>
+#include <caf/fwd.hpp>
 
+#include "broker/domain_options.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
 
@@ -26,17 +27,6 @@ class gateway {
 public:
   // -- member types -----------------------------------------------------------
 
-  /// Bundles options for a Broker domain.
-  class domain_options {
-  public:
-    /// Disables forwarding of flooding messages in this domain, i.e., appear
-    /// only as leaf-node.
-    void disable_forwarding();
-
-  private:
-    caf::settings settings_;
-  };
-
   // -- constructors, destructors, and assignment operators --------------------
 
   ~gateway();
@@ -45,15 +35,11 @@ public:
 
   static expected<gateway> make();
 
-  // -- peer management --------------------------------------------------------
+  static expected<gateway> make(configuration cfg,
+                                domain_options internal_adaptation,
+                                domain_options external_adaptation);
 
-  /// Listens at a specific port to accept remote peers in the external domain.
-  /// @param address The interface to listen at. If empty, listen on all
-  ///                local interfaces.
-  /// @param port The port to listen locally. If 0, the endpoint selects the
-  ///             next available free port from the OS
-  /// @returns The port the endpoint bound to or 0 on failure.
-  uint16_t listen_external(const std::string& address = {}, uint16_t port = 0);
+  // -- peer management --------------------------------------------------------
 
   /// Listens at a specific port to accept remote peers in the internal domain.
   /// @param address The interface to listen at. If empty, listen on all
@@ -62,6 +48,14 @@ public:
   ///             next available free port from the OS
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen_internal(const std::string& address = {}, uint16_t port = 0);
+
+  /// Listens at a specific port to accept remote peers in the external domain.
+  /// @param address The interface to listen at. If empty, listen on all
+  ///                local interfaces.
+  /// @param port The port to listen locally. If 0, the endpoint selects the
+  ///             next available free port from the OS
+  /// @returns The port the endpoint bound to or 0 on failure.
+  uint16_t listen_external(const std::string& address = {}, uint16_t port = 0);
 
 private:
   // -- member types -----------------------------------------------------------

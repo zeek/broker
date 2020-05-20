@@ -80,7 +80,7 @@ struct fixture : base_fixture {
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn(core_actor, filter_type{"z"}, nullptr);
+    core2 = sys.spawn(core_actor, filter_type{"z"});
     anon_send(core1, atom::no_events::value);
     anon_send(core2, atom::no_events::value);
     run();

@@ -37,6 +37,7 @@ set(tests
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
+ cpp/domain_options.cc
  cpp/gateway.cc
 )
 
