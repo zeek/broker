@@ -10,12 +10,11 @@ struct domain_options {
   /// peers.
   bool disable_forwarding = false;
 
-  /// @relates domain_options
+  /// Stores all options to `sink`.
   void save(caf::settings& sink);
 
-  /// @relates domain_options
+  /// Loads all options from `source`.
   void load(const caf::settings& source);
-
 };
 
 } // namespace broker

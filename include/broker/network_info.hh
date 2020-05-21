@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include <caf/fwd.hpp>
+
 #include "broker/timeout.hh"
 #include "broker/detail/operators.hh"
 
@@ -18,6 +20,9 @@ struct network_info : detail::totally_ordered<network_info> {
   uint16_t port;
   timeout::seconds retry;
 };
+
+/// @relates network_info
+bool convert(const caf::uri& from, network_info& to);
 
 /// @relates network_info
 bool operator==(const network_info& x, const network_info& y);

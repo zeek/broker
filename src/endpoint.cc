@@ -268,6 +268,14 @@ bool endpoint::peer(const std::string& address, uint16_t port,
   return result;
 }
 
+bool endpoint::peer(const caf::uri& locator, timeout::seconds retry) {
+  BROKER_TRACE(BROKER_ARG(locator) << BROKER_ARG(retry));
+  if (auto info = to<network_info>(locator))
+    return peer(info->address, info->port, retry);
+  BROKER_INFO("invalid URI:" << locator);
+  return false;
+}
+
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));

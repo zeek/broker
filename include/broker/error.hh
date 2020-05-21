@@ -64,6 +64,8 @@ enum class ec : uint8_t {
   invalid_tag,
   /// Deserialized an invalid status.
   invalid_status,
+  /// Converting between two data types or formats failed.
+  conversion_failed,
 };
 // --ec-enum-end
 

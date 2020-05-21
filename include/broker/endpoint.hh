@@ -13,6 +13,7 @@
 #include <caf/attach_stream_sink.hpp>
 #include <caf/attach_stream_source.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/fwd.hpp>
 #include <caf/message.hpp>
 #include <caf/node_id.hpp>
 #include <caf/stream.hpp>
@@ -145,6 +146,26 @@ public:
   /// @note The endpoint will also receive a status message indicating
   ///       success or failure.
   bool peer(const std::string& address, uint16_t port,
+            timeout::seconds retry = timeout::seconds(10));
+
+  /// Initiates a peering with a remote endpoint.
+  /// @param info Bundles IP address, port, and retry interval for connecting to
+  ///             the remote endpoint.
+  /// @returns True if connection was successfulluy set up.
+  /// @note The endpoint will also receive a status message indicating
+  ///       success or failure.
+  bool peer(const network_info& info) {
+    return peer(info.address, info.port, info.retry);
+  }
+
+  /// Initiates a peering with a remote endpoint.
+  /// @param locator Denotes the remote endpoint in <ip://$host:$port> notation.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///        cannot be established, or breaks.
+  /// @returns True if connection was successfulluy set up.
+  /// @note The endpoint will also receive a status message indicating
+  ///       success or failure.
+  bool peer(const caf::uri& locator,
             timeout::seconds retry = timeout::seconds(10));
 
   /// Initiates a peering with a remote endpoint, without waiting
