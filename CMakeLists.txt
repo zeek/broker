@@ -362,8 +362,9 @@ macro(add_tool name)
 endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)
-  add_tool(broker-pipe)
+  add_tool(broker-gateway)
   add_tool(broker-node)
+  add_tool(broker-pipe)
 endif ()
 
 # -- Bindings -----------------------------------------------------------------
