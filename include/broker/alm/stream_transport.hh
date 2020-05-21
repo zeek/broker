@@ -583,6 +583,7 @@ public:
       lift<atom::peer>(d, &Derived::handle_peering_request),
       lift<>(d, &Derived::handle_peering_handshake_1),
       lift<>(d, &Derived::handle_peering_handshake_2),
+      lift<atom::join>(d, &Derived::add_worker),
       lift<atom::join>(d, &Derived::add_sending_worker),
       lift<atom::join, atom::store>(d, &Derived::add_sending_store),
       // Trigger peering to remotes.

@@ -13,12 +13,14 @@ namespace broker {
 struct gateway::impl {
   // -- constructors, destructors, and assignment operators --------------------
 
-  impl(configuration source_config,
+  impl(configuration&& source_config,
        const domain_options* adapt_internal = nullptr,
        const domain_options* adapt_external = nullptr)
     : cfg(std::move(source_config)), sys(cfg) {
+    // Spin up two cores.
     internal = sys.spawn(core_actor, filter_type{}, nullptr, adapt_internal);
     external = sys.spawn(core_actor, filter_type{}, nullptr, adapt_external);
+    gateway::setup(internal, external);
   }
 
   // -- member variables -------------------------------------------------------
@@ -48,6 +50,23 @@ expected<gateway> gateway::make(configuration cfg,
 
 expected<gateway> gateway::make() {
   return gateway{std::make_unique<impl>(configuration{})};
+}
+
+// -- setup --------------------------------------------------------------------
+
+void gateway::setup(const caf::actor& internal, const caf::actor& external) {
+  caf::anon_send(internal, atom::join_v, external, filter_type{""});
+  caf::anon_send(external, atom::join_v, internal, filter_type{""});
+}
+
+// -- properties ---------------------------------------------------------------
+
+const caf::actor& gateway::internal_core() const noexcept {
+  return ptr_->internal;
+}
+
+const caf::actor& gateway::external_core() const noexcept {
+  return ptr_->external;
 }
 
 // --- peer management ---------------------------------------------------------

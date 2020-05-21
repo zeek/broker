@@ -157,29 +157,23 @@ struct stream_peer_actor {
 //                               +-----+ H +----------+
 //                                     +---+
 //
+
+#define PEER_ID(id) std::string id = #id
+
 template<class ActorImpl>
 struct fixture : test_coordinator_fixture<> {
   using peer_ids = std::vector<peer_id>;
 
-  std::string A = "A";
-
-  std::string B = "B";
-
-  std::string C = "C";
-
-  std::string D = "D";
-
-  std::string E = "E";
-
-  std::string F = "F";
-
-  std::string G = "G";
-
-  std::string H = "H";
-
-  std::string I = "I";
-
-  std::string J = "J";
+  PEER_ID(A);
+  PEER_ID(B);
+  PEER_ID(C);
+  PEER_ID(D);
+  PEER_ID(E);
+  PEER_ID(F);
+  PEER_ID(G);
+  PEER_ID(H);
+  PEER_ID(I);
+  PEER_ID(J);
 
   fixture() {
     for (auto& id : peer_ids{A, B, C, D, E, F, G, H, I, J})
