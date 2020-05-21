@@ -33,11 +33,35 @@ public:
 
   gateway(gateway&&) = default;
 
+  /// Tries to instantiate a new gateway with the default configuration.
   static expected<gateway> make();
 
+  /// Tries to instantiate a new gateway with the given configuration.
+  /// @param cfg Base configuration. Users can override parameters by providing
+  ///            a `broker.conf`.
+  /// @param internal_adaptation Additional settings that effect only the
+  ///                            internal domain.
+  /// @param external_adaptation Additional settings that effect only the
+  ///                            external domain.
   static expected<gateway> make(configuration cfg,
                                 domain_options internal_adaptation,
                                 domain_options external_adaptation);
+
+  // -- setup ------------------------------------------------------------------
+
+  /// @cond PRIVATE
+
+  /// Configures a pair of core actors in disjointed domains to forward
+  /// published events to each other.
+  static void setup(const caf::actor& internal, const caf::actor& external);
+
+  /// @endcond
+
+  // -- properties -------------------------------------------------------------
+
+  const caf::actor& internal_core() const noexcept;
+
+  const caf::actor& external_core() const noexcept;
 
   // -- peer management --------------------------------------------------------
 
