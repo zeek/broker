@@ -545,16 +545,14 @@ int main(int argc, char** argv) {
   // Connect to peers.
   auto peers = get_or(ep, "peers", uri_list{});
   for (auto& peer : peers) {
-    auto& auth = peer.authority();
-    if (peer.scheme() != "tcp") {
-      err::println("unrecognized scheme (expected tcp) in: <", peer, '>');
-    } else if (auth.empty()) {
-      err::println("no authority component in: <", peer, '>');
+    if (auto info = broker::to<broker::network_info>(peer)){
+      verbose::println("connect to ", info->address, " on port ", info->port,
+                       " ...");
+      if (!ep.peer(*info))
+        err::println("unable to connect to <", peer, '>');
     } else {
-      auto host = to_string(auth.host);
-      auto port = auth.port;
-      verbose::println("connect to ", host, " on port ", port, " ...");
-      ep.peer(host, port);
+      err::println("unrecognized scheme (expected tcp) or no authority in: <",
+                   peer, '>');
     }
   }
   f(ep, std::move(topics));

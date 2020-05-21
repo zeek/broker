@@ -7,6 +7,8 @@
 #include "broker/domain_options.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/fwd.hh"
+#include "broker/timeout.hh"
 
 namespace broker {
 
@@ -46,8 +48,7 @@ public:
   static expected<gateway> make(configuration cfg,
                                 domain_options internal_adaptation,
                                 domain_options external_adaptation);
-
-  // -- setup ------------------------------------------------------------------
+  // -- setup and teardown -----------------------------------------------------
 
   /// @cond PRIVATE
 
@@ -57,11 +58,17 @@ public:
 
   /// @endcond
 
+  /// Shuts down all background activity and blocks until all local subscribers
+  /// and publishers have terminated.
+  void shutdown();
+
   // -- properties -------------------------------------------------------------
 
   const caf::actor& internal_core() const noexcept;
 
   const caf::actor& external_core() const noexcept;
+
+  const configuration& config() const noexcept;
 
   // -- peer management --------------------------------------------------------
 
@@ -80,6 +87,16 @@ public:
   ///             next available free port from the OS
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen_external(const std::string& address = {}, uint16_t port = 0);
+
+  /// Initiates peerings with a remote endpoints.
+  /// @param internal_peers List of endpoints in the internal domain.
+  /// @param external_peers List of endpoints in the external domain.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///              cannot be established, or breaks.
+  /// @returns A `map` with all failed connection attempts.
+  std::map<caf::uri, error> peer(const std::vector<caf::uri>& internal_peers,
+                                 const std::vector<caf::uri>& external_peers,
+                                 timeout::seconds retry = timeout::peer);
 
 private:
   // -- member types -----------------------------------------------------------

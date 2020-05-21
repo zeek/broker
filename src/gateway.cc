@@ -59,6 +59,11 @@ void gateway::setup(const caf::actor& internal, const caf::actor& external) {
   caf::anon_send(external, atom::join_v, internal, filter_type{""});
 }
 
+void gateway::shutdown(){
+  anon_send(internal_core(), atom::shutdown_v);
+  anon_send(external_core(), atom::shutdown_v);
+}
+
 // -- properties ---------------------------------------------------------------
 
 const caf::actor& gateway::internal_core() const noexcept {
@@ -67,6 +72,10 @@ const caf::actor& gateway::internal_core() const noexcept {
 
 const caf::actor& gateway::external_core() const noexcept {
   return ptr_->external;
+}
+
+const configuration& gateway::config() const noexcept {
+  return ptr_->cfg;
 }
 
 // --- peer management ---------------------------------------------------------
@@ -88,6 +97,32 @@ uint16_t gateway::listen_impl(const caf::actor& core,
   if (auto res = publish(core, port, addr, true))
     return *res;
   return 0;
+}
+
+std::map<caf::uri, error>
+gateway::peer(const std::vector<caf::uri>& internal_peers,
+              const std::vector<caf::uri>& external_peers,
+              timeout::seconds retry) {
+  std::map<caf::uri, error> failures;
+  caf::scoped_actor self{ptr_->sys};
+  auto f = [&](const auto& peers, const auto& core) {
+    for (const auto& peer : peers) {
+      if (auto info = to<network_info>(peer)) {
+        info->retry = retry;
+        self->request(core, caf::infinite, atom::peer_v, std::move(*info))
+          .receive(
+            [&](const caf::actor&) {
+              // success
+            },
+            [&](caf::error& err) { failures.emplace(peer, err); });
+      } else {
+        failures.emplace(peer, ec::conversion_failed);
+      }
+    }
+  };
+  f(internal_peers, ptr_->internal);
+  f(external_peers, ptr_->external);
+  return failures;
 }
 
 } // namespace broker
