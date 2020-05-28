@@ -1,4 +1,12 @@
 
+1.4.0-dev.136 | 2020-05-28 14:08:26 -0700
+
+  * Move recording logic to mixin (Dominik Charousset)
+
+  * Move data store management to mixin (Dominik Charousset)
+
+  * Move connection and notification logic to mixins (Dominik Charousset)
+
 1.4.0-dev.131 | 2020-05-19 10:48:28 -0700
 
   * Fix definition of broker::infinite (Dominik Charousset)

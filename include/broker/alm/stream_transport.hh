@@ -14,6 +14,7 @@
 #include <caf/fused_downstream_manager.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
+#include <caf/sec.hpp>
 #include <caf/settings.hpp>
 #include <caf/stream_manager.hpp>
 #include <caf/stream_slot.hpp>
@@ -46,6 +47,8 @@ public:
   using peer_id_type = PeerId;
 
   using message_type = generic_node_message<PeerId>;
+
+  using communication_handle_type = caf::actor;
 
   struct pending_connection {
     caf::stream_slot slot;
@@ -128,6 +131,13 @@ public:
     }
   }
 
+  // -- initialization ---------------------------------------------------------
+
+  template <class... Fs>
+  caf::behavior make_behavior(Fs... fs) {
+    return {std::move(fs)...};
+  }
+
   // -- properties -------------------------------------------------------------
 
   caf::event_based_actor* self() noexcept {
@@ -204,27 +214,6 @@ public:
     store_manager().emit_batches();
   }
 
-  // -- status updates to the state --------------------------------------------
-
-  void peer_lost(const caf::actor& hdl) {
-    BROKER_TRACE(BROKER_ARG(hdl));
-    dref().template emit_status<sc::peer_lost>(hdl, "lost remote peer");
-    if (dref().shutting_down)
-      return;
-    auto x = dref().cache.find(hdl);
-    if (!x || x->retry == timeout::seconds(0))
-      return;
-    BROKER_INFO("will try reconnecting to" << *x << "in"
-                                           << to_string(x->retry));
-    self()->delayed_send(self(), x->retry, atom::peer_v,
-                         atom::retry_v, *x);
-  }
-
-  void peer_removed(const caf::actor& hdl) {
-    BROKER_TRACE(BROKER_ARG(hdl));
-    dref().template emit_status<sc::peer_removed>(hdl, "removed peering");
-  }
-
   // -- peer management --------------------------------------------------------
 
   /// Queries whether `hdl` is a known peer.
@@ -259,6 +248,21 @@ public:
     blocked_msgs.erase(it);
   }
 
+  /// Disconnects a peer by demand of the user.
+  void unpeer(const peer_id_type& peer_id, const caf::actor& hdl) {
+    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
+    if (!remove_peer(hdl, caf::none, false, true))
+      dref().cannot_remove_peer(peer_id, hdl);
+  }
+
+  /// Disconnects a peer by demand of the user.
+  void unpeer(const caf::actor& hdl) {
+    BROKER_TRACE(BROKER_ARG(hdl));
+    if (!hdl)
+      return;
+    unpeer(hdl.node(), hdl);
+  }
+
   /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
   /// @returns `false` if the peer is already connected, `true` otherwise.
   /// @param peer_hdl Handle to the peering (remote) core actor.
@@ -267,7 +271,7 @@ public:
   ///                        `('ok', self)` otherwise.
   /// @pre `current_sender() != nullptr`
   template <bool SendOwnFilter>
-  auto start_peering(const caf::actor& peer_hdl, filter_type peer_filter) {
+  auto start_handshake(const caf::actor& peer_hdl, filter_type peer_filter) {
     BROKER_TRACE(BROKER_ARG(peer_hdl) << BROKER_ARG(peer_filter));
     // Token for static dispatch of add().
     std::integral_constant<bool, SendOwnFilter> send_own_filter_token;
@@ -287,6 +291,29 @@ public:
     // Add bookkeeping state for our new peer.
     add_opath(slot, peer_hdl);
     return slot;
+  }
+
+  /// Initiates peering between this peer and `remote_peer`.
+  void start_peering(const peer_id_type&, caf::actor remote_peer,
+                     caf::response_promise rp) {
+    BROKER_TRACE(BROKER_ARG(remote_peer));
+    // Sanity checking.
+    if (remote_peer == nullptr) {
+      rp.deliver(caf::sec::invalid_argument);
+      return ;
+    }
+    // Ignore repeated peering requests without error.
+    if (pending_connections().count(remote_peer) > 0
+        || connected_to(remote_peer)) {
+      rp.deliver(caf::unit);
+      return;
+    }
+    // Create necessary state and send message to remote core.
+    pending_connections().emplace(remote_peer,
+                                  pending_connection{0, std::move(rp)});
+    self()->send(self() * remote_peer, atom::peer::value, dref().filter(),
+                 self());
+    self()->monitor(remote_peer);
   }
 
   /// Acknowledges an incoming peering request (step #2/3 in core_actor.cc).
@@ -349,11 +376,11 @@ public:
       return false;
     }
     if (graceful_removal)
-      peer_removed(hdl);
+      dref().peer_removed(hdl.node(), hdl);
     else
-      peer_lost(hdl);
-    dref().cache.remove(hdl);
-    if (dref().shutting_down && hdl_to_ostream_.empty()) {
+      dref().peer_disconnected(hdl.node(), hdl, reason);
+    dref().cache().remove(hdl);
+    if (dref().shutting_down() && hdl_to_ostream_.empty()) {
       // Shutdown when the last peer stops listening.
       self()->quit(caf::exit_reason::user_shutdown);
     } else {
@@ -393,19 +420,29 @@ public:
     return slot;
   }
 
-  /// Adds the sender of the current message as store by starting an output
-  /// stream to it.
-  /// @pre `current_sender() != nullptr`
-  caf::outbound_stream_slot<typename store_trait::element>
-  add_store(filter_type filter) {
-    CAF_LOG_TRACE(CAF_ARG(filter));
-    auto slot = this->template add_unchecked_outbound_path<
-      typename store_trait::element>();
+  /// Subscribes `self->sender()` to `store_manager()`.
+  auto add_sending_store(const filter_type& filter) {
+    using element_type = typename store_trait::element;
+    using result_type = caf::outbound_stream_slot<element_type>;
+    auto slot = add_unchecked_outbound_path<element_type>();
     if (slot != caf::invalid_stream_slot) {
-      out().template assign<typename store_trait::manager>(slot);
-      store_manager().set_filter(slot, std::move(filter));
+      dref().subscribe(filter);
+      out_.template assign<typename store_trait::manager>(slot);
+      store_manager().set_filter(slot, filter);
     }
-    return slot;
+    return result_type{slot};
+  }
+
+  /// Subscribes `hdl` to `store_manager()`.
+  caf::error add_store(const caf::actor& hdl, const filter_type& filter) {
+    using element_type = typename store_trait::element;
+    auto slot = add_unchecked_outbound_path<element_type>(hdl);
+    if (slot == caf::invalid_stream_slot)
+      return caf::sec::cannot_add_downstream;
+    dref().subscribe(filter);
+    out_.template assign<typename store_trait::manager>(slot);
+    store_manager().set_filter(slot, filter);
+    return caf::none;
   }
 
   // -- selectively pushing data into the streams ------------------------------
@@ -433,8 +470,6 @@ public:
   /// Pushes data to peers only without forwarding it to local substreams.
   void remote_push(message_type msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    if (recorder_ != nullptr)
-      try_record(msg);
     peer_manager().push(std::move(msg));
     peer_manager().emit_batches();
   }
@@ -444,15 +479,45 @@ public:
   /// Pushes data to peers and workers.
   void push(data_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    remote_push(make_node_message(std::move(msg), dref().options.ttl));
+    remote_push(make_node_message(std::move(msg), dref().options().ttl));
     // local_push(std::move(x), std::move(y));
   }
 
   /// Pushes data to peers and stores.
   void push(command_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    remote_push(make_node_message(std::move(msg), dref().options.ttl));
+    remote_push(make_node_message(std::move(msg), dref().options().ttl));
     // local_push(std::move(x), std::move(y));
+  }
+
+  /// Pushes data to peers and stores.
+  void push(message_type msg) {
+    BROKER_TRACE(BROKER_ARG(msg));
+    remote_push(std::move(msg));
+  }
+
+  // -- communication that bypasses the streams --------------------------------
+
+  void ship(data_message& msg, const communication_handle_type& hdl) {
+    self()->send(hdl, atom::publish::value, atom::local::value, std::move(msg));
+  }
+
+  template <class T>
+  void ship(T& msg) {
+    push(std::move(msg));
+  }
+
+  void ship(message_type& msg) {
+    push(std::move(msg));
+  }
+
+  template <class T>
+  void publish(T msg) {
+    dref().ship(msg);
+  }
+
+  void publish(node_message_content msg) {
+    visit([this](auto& x) { dref().ship(x); }, msg);
   }
 
   // -- overridden member functions of caf::stream_manager ---------------------
@@ -466,6 +531,7 @@ public:
     // outband path of previously-buffered messagesi happens to match the path
     // of the inbound data we are handling here.
     BROKER_ASSERT(peer_manager().selector().active_sender == nullptr);
+    auto& d = dref();
     peer_manager().fan_out_flush();
     peer_manager().selector().active_sender = caf::actor_cast<caf::actor_addr>(hdl);
     auto guard = caf::detail::make_scope_guard([this] {
@@ -505,7 +571,7 @@ public:
             store_manager().push(cm);
         }
         // Check if forwarding is on.
-        if (!dref().options.forward)
+        if (!dref().options().forward)
           continue;
         // Somewhat hacky, but don't forward data store clone messages.
         auto ends_with = [](const std::string& s, const std::string& ending) {
@@ -521,14 +587,21 @@ public:
           continue;
         }
         // Forward to other peers.
-        peer_manager().push(std::move(msg));
+        d.publish(std::move(msg));
       }
       return;
     }
-    using variant_batch = std::vector<node_message::value_type>;
-    if (try_handle<worker_trait>(xs, "publish from local workers")
-        || try_handle<store_trait>(xs, "publish from local stores")
-        || try_handle<var_trait>(xs, "publish from custom actors"))
+    auto try_publish = [&](auto trait) {
+      using batch_type = typename decltype(trait)::batch;
+      if (xs.template match_elements<batch_type>()) {
+        for (auto& x : xs.template get_mutable_as<batch_type>(0))
+          d.publish(x);
+        return true;
+      }
+      return false;
+    };
+    if (try_publish(worker_trait{}) || try_publish(store_trait{})
+        || try_publish(var_trait{}))
       return;
     BROKER_ERROR("unexpected batch:" << deep_to_string(xs));
   }
@@ -597,12 +670,12 @@ public:
   template <class F>
   void for_each_peer(F f) {
     // visit all peers that have at least one path still connected
-    auto peers = get_peer_handles();
+    auto peers = peer_handles();
     std::for_each(peers.begin(), peers.end(), std::move(f));
   }
 
   /// Returns all known peers.
-  auto get_peer_handles() {
+  auto peer_handles() {
     std::vector<caf::actor> peers;
     for (auto& kvp : hdl_to_ostream_)
       peers.emplace_back(kvp.first);
@@ -634,68 +707,90 @@ public:
     }
   }
 
-protected:
-  /// @pre `recorder_ != nullptr`
+  // -- fallback implementations to enable forwarding chains -------------------
+
+  void subscribe(const filter_type&) {
+    // nop
+  }
+
+  // -- callbacks --------------------------------------------------------------
+
+  /// Called whenever new data for local subscribers became available.
+  /// @param msg Data or command message, either received by peers or generated
+  ///            from a local publisher.
+  /// @tparam T Either ::data_message or ::command_message.
   template <class T>
-  bool try_record(const T& x) {
-    BROKER_ASSERT(recorder_ != nullptr);
-    BROKER_ASSERT(remaining_records_ > 0);
-    if (auto err = recorder_->write(x)) {
-      BROKER_WARNING("unable to write to generator file:" << err);
-      recorder_ = nullptr;
-      remaining_records_ = 0;
-      return false;
-    }
-    if (--remaining_records_ == 0) {
-      BROKER_DEBUG("reached recording cap, close file");
-      recorder_ = nullptr;
-    }
-    return true;
+  void ship_locally(T msg) {
+    local_push(std::move(msg));
   }
 
-  bool try_record(const node_message& x) {
-    return try_record(x.content);
+  /// Called whenever this peer established a new connection.
+  /// @param peer_id ID of the newly connected peer.
+  /// @param hdl Communication handle for exchanging messages with the new peer.
+  ///            The handle is default-constructed if no direct connection
+  ///            exists (yet).
+  /// @note The new peer gets stored in the routing table *before* calling this
+  ///       member function.
+  void peer_connected([[maybe_unused]] const peer_id_type& peer_id,
+                      [[maybe_unused]] const communication_handle_type& hdl) {
+    // nop
   }
 
-  template <class Trait>
-  bool try_handle(caf::message& msg, const char* debug_msg) {
-    CAF_IGNORE_UNUSED(debug_msg);
-    using batch_type = typename Trait::batch;
-    if (msg.match_elements<batch_type>()) {
-      using iterator_type = typename batch_type::iterator;
-      auto ttl0 = initial_ttl();
-      auto push_unrecorded = [&](iterator_type first, iterator_type last) {
-        for (auto i = first; i != last; ++i)
-          peer_manager().push(make_node_message(std::move(*i), ttl0));
-      };
-      auto push_recorded = [&](iterator_type first, iterator_type last) {
-        for (auto i = first; i != last; ++i) {
-          if (!try_record(*i))
-            return i;
-          peer_manager().push(make_node_message(std::move(*i), ttl0));
-        }
-        return last;
-      };
-      BROKER_DEBUG(debug_msg);
-      auto& xs = msg.get_mutable_as<batch_type>(0);
-      if (recorder_ == nullptr) {
-        push_unrecorded(xs.begin(), xs.end());
-      } else {
-        auto n = std::min(remaining_records_, xs.size());
-        auto first = xs.begin();
-        auto last = xs.end();
-        auto i = push_recorded(first, first + n);
-        if (i != last)
-          push_unrecorded(i, last);
-      }
-      return true;
-    }
-    return false;
+  /// Called whenever this peer lost a connection to a remote peer.
+  /// @param peer_id ID of the disconnected peer.
+  /// @param hdl Communication handle of the disconnected peer.
+  /// @param reason None if we closed the connection gracefully, otherwise
+  ///               contains the transport-specific error code.
+  void peer_disconnected([[maybe_unused]] const peer_id_type& peer_id,
+                         [[maybe_unused]] const communication_handle_type& hdl,
+                         [[maybe_unused]] const error& reason) {
+    // nop
   }
 
+  /// Called whenever this peer removed a direct connection to a remote peer.
+  /// @param peer_id ID of the removed peer.
+  /// @param hdl Communication handle of the removed peer.
+  void peer_removed([[maybe_unused]] const peer_id_type& peer_id,
+                    [[maybe_unused]] const communication_handle_type& hdl) {
+    // nop
+  }
+
+  /// Called whenever the user tried to unpeer from an unconnected peer.
+  /// @param addr Host information for the unconnected peer.
+  void cannot_remove_peer([[maybe_unused]] const network_info& addr) {
+    // nop
+  }
+
+  /// Called whenever the user tried to unpeer from an unconnected peer.
+  /// @param peer_id ID of the unconnected peer.
+  /// @param hdl Communication handle of the unconnected peer (may be null).
+  void
+  cannot_remove_peer([[maybe_unused]] const peer_id_type& peer_id,
+                     [[maybe_unused]] const communication_handle_type& hdl) {
+    // nop
+  }
+
+  /// Called whenever establishing a connection to a remote peer failed.
+  /// @param addr Host information for the unavailable peer.
+  void peer_unavailable([[maybe_unused]] const network_info& addr) {
+    // nop
+  }
+
+  /// Called whenever we could obtain a connection handle to a remote peer but
+  /// received a `down_msg` before completing the handshake.
+  /// @param peer_id ID of the unavailable peer.
+  /// @param hdl Communication handle of the unavailable peer.
+  /// @param reason Exit reason of the unavailable peer.
+  void peer_unavailable([[maybe_unused]] const peer_id_type& peer_id,
+                        [[maybe_unused]] const communication_handle_type& hdl,
+                        [[maybe_unused]] const error& reason) {
+    // nop
+  }
+
+protected:
   /// Returns the initial TTL value when publishing data.
   ttl initial_ttl() {
-    return static_cast<ttl>(dref().options.ttl);
+    return static_cast<ttl>(dref().options().ttl);
   }
 
   /// Adds entries to `hdl_to_istream_` and `istream_to_hdl_`.
@@ -751,7 +846,7 @@ protected:
   /// Sends a handshake with filter in step #1.
   auto add(std::true_type send_own_filter, const caf::actor& hdl) {
     auto xs
-      = std::make_tuple(dref().filter, caf::actor_cast<caf::actor>(self()));
+      = std::make_tuple(dref().filter(), caf::actor_cast<caf::actor>(self()));
     return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }
