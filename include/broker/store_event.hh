@@ -24,6 +24,7 @@ public:
   /// ```
   /// [
   ///   "insert",
+  ///   store_id: string,
   ///   key: data,
   ///   value: data,
   ///   expiry: optional<timespan>,
@@ -52,23 +53,27 @@ public:
       return xs_ != nullptr;
     }
 
-    const data& key() const noexcept {
-      return (*xs_)[1];
+    const std::string& store_id() const noexcept {
+      return get<std::string>((*xs_)[1]);
     }
 
-    const data& value() const noexcept {
+    const data& key() const noexcept {
       return (*xs_)[2];
     }
 
+    const data& value() const noexcept {
+      return (*xs_)[3];
+    }
+
     caf::optional<timespan> expiry() const noexcept {
-      if (auto value = get_if<timespan>((*xs_)[3]))
+      if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
       return nil;
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[4])) {
-        return {std::move(*value), get<uint64_t>((*xs_)[5])};
+      if (auto value = to<caf::node_id>((*xs_)[5])) {
+        return {std::move(*value), get<uint64_t>((*xs_)[6])};
       }
       return {};
     }
@@ -83,7 +88,17 @@ public:
 
   /// A view into a ::data object representing a `update` event.
   /// Broker encodes `update` events as
-  /// `["update", key: data, value: data, expiry: optional<timespan>]`.
+  /// ```
+  /// [
+  ///   "update",
+  ///   store_id: string,
+  ///   key: data,
+  ///   value: data,
+  ///   expiry: optional<timespan>
+  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_object: uint64_t
+  /// ]`.
+  /// ```
   class update {
   public:
     update(const update&) noexcept = default;
@@ -102,27 +117,31 @@ public:
       return xs_ != nullptr;
     }
 
-    const data& key() const noexcept {
-      return (*xs_)[1];
+    const std::string& store_id() const noexcept {
+      return get<std::string>((*xs_)[1]);
     }
 
-    const data& old_value() const noexcept {
+    const data& key() const noexcept {
       return (*xs_)[2];
     }
 
-    const data& new_value() const noexcept {
+    const data& old_value() const noexcept {
       return (*xs_)[3];
     }
 
+    const data& new_value() const noexcept {
+      return (*xs_)[4];
+    }
+
     caf::optional<timespan> expiry() const noexcept {
-      if (auto value = get_if<timespan>((*xs_)[4]))
+      if (auto value = get_if<timespan>((*xs_)[5]))
         return *value;
       return nil;
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[5])) {
-        return {*value, get<uint64_t>((*xs_)[6])};
+      if (auto value = to<caf::node_id>((*xs_)[6])) {
+        return {*value, get<uint64_t>((*xs_)[7])};
       }
       return {};
     }
@@ -136,7 +155,16 @@ public:
   };
 
   /// A view into a ::data object representing an `erase` event.
-  /// Broker encodes `erase` events as `["erase", key: data]`.
+  /// Broker encodes `erase` events as
+  /// ```
+  /// [
+  ///   "erase",
+  ///   store_id: string,
+  ///   key: data,
+  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_object: uint64_t
+  /// ]
+  /// ```
   class erase {
   public:
     erase(const erase&) noexcept = default;
@@ -155,13 +183,17 @@ public:
       return xs_ != nullptr;
     }
 
+    const std::string& store_id() const noexcept {
+      return get<std::string>((*xs_)[1]);
+    }
+
     const data& key() const noexcept {
-      return (*xs_)[1];
+      return (*xs_)[2];
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[2])) {
-        return {*value, get<uint64_t>((*xs_)[3])};
+      if (auto value = to<caf::node_id>((*xs_)[3])) {
+        return {*value, get<uint64_t>((*xs_)[4])};
       }
       return {};
     }

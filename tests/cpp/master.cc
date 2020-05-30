@@ -152,9 +152,9 @@ CAF_TEST(local_master) {
   CAF_CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
   // check log
   CHECK_EQUAL(log, pattern_list({
-                     "insert\\(hello, world, none, .+\\)",
-                     "update\\(hello, world, universe, none, .+\\)",
-                     "erase\\(hello, .+\\)",
+                     "insert\\(foo, hello, world, none, .+\\)",
+                     "update\\(foo, hello, world, universe, none, .+\\)",
+                     "erase\\(foo, hello, .+\\)",
                    }));
   // done
   anon_send_exit(core, exit_reason::user_shutdown);
@@ -273,8 +273,8 @@ CAF_TEST(master_with_clone) {
   // check log
   CHECK_EQUAL(mars.log, earth.log);
   CHECK_EQUAL(mars.log, pattern_list({
-                          "insert\\(test, 123, none, .+\\)",
-                          "insert\\(user, neverlord, none, .+\\)",
+                          "insert\\(foo, test, 123, none, .+\\)",
+                          "insert\\(foo, user, neverlord, none, .+\\)",
                         }));
 }
 
