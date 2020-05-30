@@ -1,4 +1,8 @@
 
+1.4.0-dev.138 | 2020-05-29 17:33:07 -0700
+
+  * Add benchmark targets to installed files (Tim Wojtulewicz, Corelight)
+
 1.4.0-dev.136 | 2020-05-28 14:08:26 -0700
 
   * Move recording logic to mixin (Dominik Charousset)

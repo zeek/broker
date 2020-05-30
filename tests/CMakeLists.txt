@@ -104,6 +104,8 @@ endif ()
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
+install(TARGETS broker-benchmark DESTINATION bin)
 
 add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
 target_link_libraries(broker-cluster-benchmark ${libbroker})
+install(TARGETS broker-cluster-benchmark DESTINATION bin)
