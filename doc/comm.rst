@@ -25,6 +25,8 @@ that have no further semantics attached. It's up to senders and
 receivers to agree on a specific layout of messages (e.g., a set of
 doubles for a measurement series).
 
+.. _endpoint:
+
 Endpoints
 ~~~~~~~~~
 
@@ -220,26 +222,6 @@ if the context is available. The type of available context information
 is dependent on the status code enum ``sc``. For example, all
 ``sc::peer_*`` status codes include an ``endpoint_info`` context as
 well as a message.
-
-Forwarding
-----------
-
-In topologies where multiple endpoints are connected, an endpoint
-forwards incoming messages to peers by default for topics that it is
-itself subscribed to. One can configure additional topics to forward,
-independent of the local subscription status, through the method
-``endpoint::forward(std::vector<topics>)``. One can also disable
-forwarding of remote messages altogether through the Broker
-configuration option ``forward`` when creating an endpoint.
-
-When forwarding messages Broker assumes all connected endpoints
-form a tree topology without any loops. Still, to avoid messages
-circling indefinitely if a loop happens accidentally, Broker's message
-forwarding adds a TTL value to messages, and drops any that have
-traversed that many hops. The default TTL is 20; it can be changed by
-setting the Broker configuration option ``ttl``. Note that it is the
-first hop's TTL configuration that determines a message's lifetime
-(not the original sender's).
 
 .. _zeek_events_cpp:
 

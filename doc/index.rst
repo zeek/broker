@@ -31,7 +31,11 @@ store *frontend*, which is either an authoritative *master* or a
 
 :ref:`python` discusses the Broker's Python bindings, which
 transparently expose all of the library's functionality to Python
-scripts. 
+scripts.
+
+Finally, :ref:`devs` dives deep into the architecture and implementation of
+Broker. This Section is meant for guiding C++ software developers that wish to
+contribute to Broker.
 
 Synopsis
 --------
@@ -47,3 +51,5 @@ Synopsis
   data
   stores
   python
+  devs
+  glossary
