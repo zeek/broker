@@ -262,6 +262,17 @@ void master_state::operator()(clear_command& x) {
   broadcast_cmd_to_clones(std::move(x));
 }
 
+void master_state::on_down_msg(const caf::actor_addr& source,
+                               const error& reason) {
+  if (source == core) {
+    BROKER_INFO("core is down, kill master as well");
+    self->quit(reason);
+  } else {
+    BROKER_INFO("lost a clone");
+    clones.erase(source);
+  }
+}
+
 bool master_state::exists(const data& key) {
   if (auto res = backend->exists(key))
     return *res;
@@ -275,17 +286,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   self->monitor(core);
   self->state.init(self, std::move(id), std::move(backend),
                    std::move(core), clock);
-  self->set_down_handler(
-    [=](const caf::down_msg& msg) {
-      if (msg.source == core) {
-        BROKER_INFO("core is down, kill master as well");
-        self->quit(msg.reason);
-      } else {
-        BROKER_INFO("lost a clone");
-        self->state.clones.erase(msg.source);
-      }
-    }
-  );
+  self->set_down_handler([self](const caf::down_msg& msg) {
+    self->state.on_down_msg(msg.source, msg.reason);
+  });
   return {
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& x) {

@@ -70,6 +70,8 @@ public:
 
   void operator()(clear_command&);
 
+  void on_down_msg(const caf::actor_addr& source, const error& reason);
+
   topic clones_topic;
 
   backend_pointer backend;
