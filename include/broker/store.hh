@@ -94,7 +94,7 @@ public:
     std::vector<response> receive(size_t n);
 
     /// Returns a globally unique identifier for the frontend actor.
-    publisher_id frontend_id() const noexcept {
+    entity_id frontend_id() const noexcept {
       return {frontend_.node(), frontend_.id()};
     }
 
@@ -148,7 +148,7 @@ public:
   }
 
   /// Returns a globally unique identifier for the frontend actor.
-  publisher_id frontend_id() const noexcept {
+  entity_id frontend_id() const noexcept {
     return {frontend_.node(), frontend_.id()};
   }
 

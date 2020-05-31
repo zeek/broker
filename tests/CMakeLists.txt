@@ -20,13 +20,14 @@ set(tests
   cpp/detail/iterator_range.cc
   cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
+  cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
+  cpp/gateway.cc
   cpp/integration.cc
   cpp/master.cc
   cpp/mixin/connector.cc
   cpp/publisher.cc
-  cpp/publisher_id.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
   cpp/status.cc
@@ -37,8 +38,6 @@ set(tests
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
- cpp/domain_options.cc
- cpp/gateway.cc
 )
 
 # Setup correct broker library (static/shared).

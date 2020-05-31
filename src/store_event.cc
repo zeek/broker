@@ -11,8 +11,8 @@ constexpr const char* type_strings[] = {
   "expire",
 };
 
-bool is_publisher_id(const vector& xs, size_t endpoint_index,
-                     size_t object_index) {
+bool is_entity_id(const vector& xs, size_t endpoint_index,
+                  size_t object_index) {
   return (is<none>(xs[endpoint_index]) && is<none>(xs[object_index]))
          || (can_convert_to<caf::node_id>(xs[endpoint_index])
              && is<uint64_t>(xs[object_index]));
@@ -25,7 +25,7 @@ store_event::insert store_event::insert::make(const vector& xs) noexcept {
                && to<store_event::type>(xs[0]) == store_event::type::insert
                && is<std::string>(xs[1])
                && (is<none>(xs[4]) || is<timespan>(xs[4]))
-               && is_publisher_id(xs, 5, 6)
+               && is_entity_id(xs, 5, 6)
              ? &xs
              : nullptr};
 }
@@ -35,7 +35,7 @@ store_event::update store_event::update::make(const vector& xs) noexcept {
                && to<store_event::type>(xs[0]) == store_event::type::update
                && is<std::string>(xs[1])
                && (is<none>(xs[5]) || is<timespan>(xs[5]))
-               && is_publisher_id(xs, 6, 7)
+               && is_entity_id(xs, 6, 7)
              ? &xs
              : nullptr};
 }
@@ -44,7 +44,7 @@ store_event::erase store_event::erase::make(const vector& xs) noexcept {
   return erase{xs.size() == 5
                  && to<store_event::type>(xs[0]) == store_event::type::erase
                  && is<std::string>(xs[1])
-                 && is_publisher_id(xs, 3, 4)
+                 && is_entity_id(xs, 3, 4)
                ? &xs
                : nullptr};
 }
@@ -53,7 +53,7 @@ store_event::expire store_event::expire::make(const vector& xs) noexcept {
   return expire{xs.size() == 5
                   && to<store_event::type>(xs[0]) == store_event::type::expire
                   && is<std::string>(xs[1])
-                  && is_publisher_id(xs, 3, 4)
+                  && is_entity_id(xs, 3, 4)
                 ? &xs
                 : nullptr};
 }

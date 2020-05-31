@@ -25,7 +25,7 @@ public:
   /// Emits an `insert` event to topics::store_events subscribers.
   void emit_insert_event(const data& key, const data& value,
                          const optional<timespan>& expiry,
-                         const publisher_id& publisher);
+                         const entity_id& publisher);
 
   /// Convenience function for calling
   /// `emit_insert_event(msg.key, msg.value, msg.expiry)`.
@@ -38,7 +38,7 @@ public:
   void emit_update_event(const data& key, const data& old_value,
                          const data& new_value,
                          const optional<timespan>& expiry,
-                         const publisher_id& publisher);
+                         const entity_id& publisher);
 
   /// Convenience function for calling
   /// `emit_update_event(msg.key, old_value, msg.value, msg.expiry,
@@ -49,7 +49,7 @@ public:
   }
 
   /// Emits an `erase` event to topics::store_events subscribers.
-  void emit_erase_event(const data& key, const publisher_id& publisher);
+  void emit_erase_event(const data& key, const entity_id& publisher);
 
   /// Convenience function for calling
   /// `emit_erase_event(msg.key, msg.publisher)`.
@@ -59,7 +59,7 @@ public:
   }
 
   /// Emits an `expire` event to topics::store_events subscribers.
-  void emit_expire_event(const data& key, const publisher_id& publisher);
+  void emit_expire_event(const data& key, const entity_id& publisher);
 
   /// Convenience function for calling
   /// `emit_expire_event(msg.key, msg.publisher)`.

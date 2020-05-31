@@ -9,8 +9,8 @@
 #include <caf/meta/type_name.hpp>
 
 #include "broker/data.hh"
+#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
-#include "broker/publisher_id.hh"
 #include "broker/time.hh"
 
 namespace broker {
@@ -20,7 +20,7 @@ struct put_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -35,7 +35,7 @@ struct put_unique_command {
   caf::optional<timespan> expiry;
   caf::actor who;
   request_id req_id;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -47,7 +47,7 @@ typename Inspector::result_type inspect(Inspector& f, put_unique_command& x) {
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -61,7 +61,7 @@ typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
 /// removing it after expiration.
 struct expire_command {
   data key;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -75,7 +75,7 @@ struct add_command {
   data value;
   data::type init_type;
   caf::optional<timespan> expiry;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -89,7 +89,7 @@ struct subtract_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>
@@ -133,7 +133,7 @@ typename Inspector::result_type inspect(Inspector& f, set_command& x) {
 
 /// Drops all values.
 struct clear_command {
-  publisher_id publisher;
+  entity_id publisher;
 };
 
 template <class Inspector>

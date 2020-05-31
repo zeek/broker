@@ -104,7 +104,7 @@ void clone_state::operator()(snapshot_sync_command& x) {
 void clone_state::operator()(set_command& x) {
   BROKER_INFO("SET" << x.state);
   // We consider the master the source of all updates.
-  publisher_id publisher{master.node(), master.id()};
+  entity_id publisher{master.node(), master.id()};
   // Short-circuit messages with an empty state.
   if (x.state.empty()) {
     if (!store.empty()) {
@@ -126,7 +126,7 @@ void clone_state::operator()(set_command& x) {
     auto is_erased = [&x](const data* key) { return x.state.count(*key) == 0; };
     auto p = std::partition(keys.begin(), keys.end(), is_erased);
     for (auto i = keys.begin(); i != p; ++i)
-      emit_erase_event(**i, publisher_id{});
+      emit_erase_event(**i, entity_id{});
     for (auto i = p; i != keys.end(); ++i) {
       const auto& value = x.state[**i];
       emit_update_event(**i, store[**i], value, nil, publisher);

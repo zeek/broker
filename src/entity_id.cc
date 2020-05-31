@@ -1,8 +1,8 @@
-#include "broker/publisher_id.hh"
+#include "broker/entity_id.hh"
 
 namespace broker {
 
-std::string to_string(const publisher_id& x) {
+std::string to_string(const entity_id& x) {
   using std::to_string;
   std::string result;
   if (x) {

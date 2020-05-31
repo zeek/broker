@@ -8,8 +8,8 @@
 #include <caf/variant.hpp>
 
 #include "broker/data.hh"
+#include "broker/entity_id.hh"
 #include "broker/error.hh"
-#include "broker/publisher_id.hh"
 
 namespace broker {
 namespace detail {
@@ -24,7 +24,7 @@ public:
     return apply(data_tag<T>());
   }
 
-  caf::error operator()(const std::pair<data, publisher_id>& x) {
+  caf::error operator()(const std::pair<data, entity_id>& x) {
     // Ignore the publisher ID in recording mode.
     return (*this)(x.first);
   }

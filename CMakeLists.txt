@@ -306,6 +306,7 @@ set(BROKER_SRC
   src/domain_options.cc
   src/endpoint.cc
   src/endpoint_info.cc
+  src/entity_id.cc
   src/error.cc
   src/filter_type.cc
   src/gateway.cc
@@ -315,7 +316,6 @@ set(BROKER_SRC
   src/peer_status.cc
   src/port.cc
   src/publisher.cc
-  src/publisher_id.cc
   src/status.cc
   src/status_subscriber.cc
   src/store.cc

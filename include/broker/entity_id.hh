@@ -12,7 +12,7 @@
 namespace broker {
 
 /// Uniquely identifies a *publisher* in the distributed system.
-struct publisher_id {
+struct entity_id {
   /// Identifies the @ref endpoint instance that hosts the *publisher*.
   caf::node_id endpoint;
 
@@ -29,37 +29,37 @@ struct publisher_id {
   }
 };
 
-/// @relates publisher_id
+/// @relates entity_id
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, publisher_id& x) {
-  return f(caf::meta::type_name("publisher_id"), x.endpoint, x.object);
+typename Inspector::result_type inspect(Inspector& f, entity_id& x) {
+  return f(caf::meta::type_name("entity_id"), x.endpoint, x.object);
 }
 
-/// @relates publisher_id
-inline bool operator==(const publisher_id& x, const publisher_id& y) noexcept {
+/// @relates entity_id
+inline bool operator==(const entity_id& x, const entity_id& y) noexcept {
   return std::tie(x.endpoint, x.object) == std::tie(y.endpoint, y.object);
 }
 
-/// @relates publisher_id
-inline bool operator!=(const publisher_id& x, const publisher_id& y) noexcept {
+/// @relates entity_id
+inline bool operator!=(const entity_id& x, const entity_id& y) noexcept {
   return !(x == y);
 }
 
-/// @relates publisher_id
-inline bool operator<(const publisher_id& x, const publisher_id& y) noexcept {
+/// @relates entity_id
+inline bool operator<(const entity_id& x, const entity_id& y) noexcept {
   return std::tie(x.endpoint, x.object) < std::tie(y.endpoint, y.object);
 }
 
-/// @relates publisher_id
-std::string to_string(const publisher_id& x);
+/// @relates entity_id
+std::string to_string(const entity_id& x);
 
 } // namespace broker
 
 namespace std {
 
 template <>
-struct hash<broker::publisher_id> {
-  size_t operator()(const broker::publisher_id& x) const noexcept {
+struct hash<broker::entity_id> {
+  size_t operator()(const broker::entity_id& x) const noexcept {
     // TODO: use caf::hash::fnv when switching to CAF 0.18.
     hash<caf::node_id> f;
     auto result = f(x.endpoint);

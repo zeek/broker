@@ -7,6 +7,7 @@
 #include <caf/actor.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
@@ -94,5 +95,7 @@ private:
   caf::actor worker_;
   topic topic_;
 };
+
+using publisher_id [[deprecated("use entity_id instead")]] = entity_id;
 
 } // namespace broker
