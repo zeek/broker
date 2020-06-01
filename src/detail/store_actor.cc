@@ -62,7 +62,7 @@ void store_actor_state::emit_insert_event(const data& key, const data& value,
                                           const optional<timespan>& expiry,
                                           const publisher_id& publisher) {
   vector xs;
-  fill_vector(xs, "insert"s, key, value, expiry, publisher);
+  fill_vector(xs, "insert"s, id, key, value, expiry, publisher);
   self->send(core, atom::publish_v, atom::local_v,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }
@@ -73,7 +73,7 @@ void store_actor_state::emit_update_event(const data& key,
                                           const optional<timespan>& expiry,
                                           const publisher_id& publisher) {
   vector xs;
-  fill_vector(xs, "update"s, key, old_value, new_value, expiry, publisher);
+  fill_vector(xs, "update"s, id, key, old_value, new_value, expiry, publisher);
   self->send(core, atom::publish_v, atom::local_v,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }
@@ -81,7 +81,7 @@ void store_actor_state::emit_update_event(const data& key,
 void store_actor_state::emit_erase_event(const data& key,
                                          const publisher_id& publisher) {
   vector xs;
-  fill_vector(xs, "erase"s, key, publisher);
+  fill_vector(xs, "erase"s, id, key, publisher);
   self->send(core, atom::publish_v, atom::local_v,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }

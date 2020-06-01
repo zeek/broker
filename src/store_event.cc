@@ -20,27 +20,30 @@ bool is_publisher_id(const vector& xs, size_t endpoint_index,
 } // namespace
 
 store_event::insert store_event::insert::make(const vector& xs) noexcept {
-  return insert{xs.size() == 6
+  return insert{xs.size() == 7
                && to<store_event::type>(xs[0]) == store_event::type::insert
-               && (is<none>(xs[3]) || is<timespan>(xs[3]))
-               && is_publisher_id(xs, 4, 5)
-             ? &xs
-             : nullptr};
-}
-
-store_event::update store_event::update::make(const vector& xs) noexcept {
-  return update{xs.size() == 7
-               && to<store_event::type>(xs[0]) == store_event::type::update
+               && is<std::string>(xs[1])
                && (is<none>(xs[4]) || is<timespan>(xs[4]))
                && is_publisher_id(xs, 5, 6)
              ? &xs
              : nullptr};
 }
 
+store_event::update store_event::update::make(const vector& xs) noexcept {
+  return update{xs.size() == 8
+               && to<store_event::type>(xs[0]) == store_event::type::update
+               && is<std::string>(xs[1])
+               && (is<none>(xs[5]) || is<timespan>(xs[5]))
+               && is_publisher_id(xs, 6, 7)
+             ? &xs
+             : nullptr};
+}
+
 store_event::erase store_event::erase::make(const vector& xs) noexcept {
-  return erase{xs.size() == 4
+  return erase{xs.size() == 5
                  && to<store_event::type>(xs[0]) == store_event::type::erase
-                 && is_publisher_id(xs, 2, 3)
+                 && is<std::string>(xs[1])
+                 && is_publisher_id(xs, 3, 4)
                ? &xs
                : nullptr};
 }
@@ -51,6 +54,8 @@ const char* to_string(store_event::type code) noexcept {
 
 std::string to_string(const store_event::insert& x) {
   std::string result = "insert(";
+  result += x.store_id();
+  result += ", ";
   result += to_string(x.key());
   result += ", ";
   result += to_string(x.value());
@@ -64,6 +69,8 @@ std::string to_string(const store_event::insert& x) {
 
 std::string to_string(const store_event::update& x) {
   std::string result = "update(";
+  result += x.store_id();
+  result += ", ";
   result += to_string(x.key());
   result += ", ";
   result += to_string(x.old_value());
@@ -79,6 +86,8 @@ std::string to_string(const store_event::update& x) {
 
 std::string to_string(const store_event::erase& x) {
   std::string result = "erase(";
+  result += x.store_id();
+  result += ", ";
   result += to_string(x.key());
   result += ", ";
   result += to_string(x.publisher());
