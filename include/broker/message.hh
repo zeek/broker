@@ -164,4 +164,10 @@ inline internal_command::variant_type&& move_command(command_message& x) {
   return std::move(get<1>(x.unshared()).content);
 }
 
+/// Retrieves the content from a ::data_message.
+template <class PeerId>
+const node_message_content& get_content(const generic_node_message<PeerId>& x) {
+  return x.content;
+}
+
 } // namespace broker

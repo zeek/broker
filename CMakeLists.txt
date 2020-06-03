@@ -286,6 +286,7 @@ set(BROKER_SRC
   src/defaults.cc
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
+  src/detail/core_recorder.cc
   src/detail/data_generator.cc
   src/detail/filesystem.cc
   src/detail/flare.cc

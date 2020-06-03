@@ -158,6 +158,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
 
   BROKER_ADD_ATOM(ack, "ack")
   BROKER_ADD_ATOM(default_, "default")
+  BROKER_ADD_ATOM(id, "id")
   BROKER_ADD_ATOM(init, "init")
   BROKER_ADD_ATOM(name, "name")
   BROKER_ADD_ATOM(network, "network")
