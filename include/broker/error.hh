@@ -66,6 +66,9 @@ enum class ec : uint8_t {
   invalid_status,
   /// Converting between two data types or formats failed.
   conversion_failed,
+  /// Adding a consumer to a producer failed because the producer already added
+  /// the consumer.
+  consumer_exists,
 };
 // --ec-enum-end
 

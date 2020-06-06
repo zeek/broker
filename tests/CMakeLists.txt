@@ -38,6 +38,7 @@ set(tests
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
+ cpp/detail/channel.cc
 )
 
 # Setup correct broker library (static/shared).
