@@ -139,20 +139,28 @@ public:
 
     void handle_nack(const Handle& hdl,
                      const std::vector<sequence_number_type>& seqs) {
+      // Sanity checks.
+      if (seqs.empty())
+        return;
       auto p = find_path(hdl);
       if (p == paths_.end())
         return;
+      // Seqs must be sorted. Everything before the first missing ID is ACKed.
+      auto first = seqs.front();
+      if (first == 0) {
+        backend_->send(hdl, handshake{p->offset});
+        return;
+      }
+      handle_ack(hdl, first - 1);
       for (auto seq : seqs) {
-        if (seq == 0)
-          backend_->send(hdl, handshake{p->offset});
-        else if (auto i = find_event(seq); i != buf_.end())
+        if (auto i = find_event(seq); i != buf_.end())
           backend_->send(hdl, *i);
         else
           backend_->send(hdl, retransmit_failed{seq});
       }
     }
 
-    // -- properties -
+    // -- properties -----------------------------------------------------------
 
     auto seq() const noexcept {
       return seq_;
@@ -197,7 +205,7 @@ public:
     }
 
     void handle_handshake(sequence_number_type offset) {
-      if (offset > next_seq_) {
+      if (offset >= next_seq_) {
         next_seq_ = offset + 1;
         try_consume_buffer();
       }
@@ -220,8 +228,63 @@ public:
       }
     }
 
+    void tick() {
+      // Update state.
+      bool progressed = next_seq_ > last_tick_seq_;
+      last_tick_seq_ = next_seq_;
+      ++tick_;
+      if (progressed) {
+        if (idle_ticks_ > 0)
+          idle_ticks_ = 0;
+        if (tick_ % ack_interval_ == 0)
+          send_ack();
+        return;
+      }
+      ++idle_ticks_;
+      if (!buf_.empty() && idle_ticks_ >= nack_timeout_) {
+        idle_ticks_ = 0;
+        auto first = next_seq_;
+        auto last = buf_.back().seq;
+        std::vector<sequence_number_type> seqs;
+        seqs.reserve(last - first);
+        auto generate = [&, i{first}](sequence_number_type found) mutable {
+          for (; i < found; ++i)
+            seqs.emplace_back(i);
+          ++i;
+        };
+        for (const auto& x : buf_)
+          generate(x.seq);
+        backend_->send(nack{std::move(seqs)});
+        return;
+      }
+      if (tick_ % ack_interval_ == 0)
+        send_ack();
+    }
+
+    // -- properties -----------------------------------------------------------
+
     const buf_type& buf() const noexcept {
       return buf_;
+    }
+
+    auto idle_ticks() const noexcept {
+      return idle_ticks_;
+    }
+
+    auto ack_interval() const noexcept {
+      return ack_interval_;
+    }
+
+    void ack_interval(uint8_t value) noexcept {
+      ack_interval_ = value;
+    }
+
+    auto nack_timeout() const noexcept {
+      return nack_timeout_;
+    }
+
+    void nack_timeout(uint8_t value) noexcept {
+      nack_timeout_ = value;
     }
 
   private:
@@ -234,15 +297,34 @@ public:
       buf_.erase(buf_.begin(), i);
     }
 
+    void send_ack() {
+      backend_->send(cumulative_ack{next_seq_ > 0 ? next_seq_ - 1 : 0});
+    }
+
     /// Handles incoming events.
     Backend* backend_;
 
     /// Monotonically increasing counter (starting at 1) to establish ordering
     /// of messages on this channel.
-    sequence_number_type next_seq_ = 1;
+    sequence_number_type next_seq_ = 0;
 
     /// Stores outgoing events with their sequence number.
     buf_type buf_;
+
+    /// Monotonically increasing counter to keep track of time.
+    uint64_t tick_ = 0;
+
+    /// Stores the value of `next_seq_` at our last tick.
+    sequence_number_type last_tick_seq_ = 0;
+
+    /// Number of ticks without progress.
+    uint8_t idle_ticks_ = 0;
+
+    /// Frequency of ACK messages (cannot be 0).
+    uint8_t ack_interval_ = 1;
+
+    /// Number of ticks without progress before sending a NACK.
+    uint8_t nack_timeout_ = 1;
   };
 };
 

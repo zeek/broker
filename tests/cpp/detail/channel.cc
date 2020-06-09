@@ -13,10 +13,18 @@ namespace {
 using channel_type = detail::channel<std::string, std::string>;
 
 struct consumer_backend {
-  std::string log;
+  std::string input;
+  std::string output;
 
   void consume(const std::string& x) {
-    log += x;
+    input += x;
+  }
+
+  template <class T>
+  void send(const T& x) {
+    if (!output.empty())
+      output += '\n';
+    output += caf::deep_to_string(x);
   }
 };
 
@@ -143,6 +151,7 @@ B <- retransmit_failed(3))");
 TEST(consumers process events in order) {
   consumer_backend cb;
   consumer_type consumer{&cb};
+  consumer.handle_handshake(0);
   consumer.handle_event(4, "d");
   CHECK_EQUAL(consumer.buf().size(), 1u);
   consumer.handle_event(5, "e");
@@ -155,10 +164,10 @@ TEST(consumers process events in order) {
   CHECK_EQUAL(consumer.buf().size(), 4u);
   consumer.handle_event(1, "a");
   CHECK_EQUAL(consumer.buf().size(), 0u);
-  CHECK_EQUAL(cb.log, "abcde");
+  CHECK_EQUAL(cb.input, "abcde");
   consumer.handle_event(1, "a");
   CHECK_EQUAL(consumer.buf().size(), 0u);
-  CHECK_EQUAL(cb.log, "abcde");
+  CHECK_EQUAL(cb.input, "abcde");
 }
 
 TEST(consumers buffer events until receiving the handshake) {
@@ -169,7 +178,57 @@ TEST(consumers buffer events until receiving the handshake) {
   consumer.handle_event(5, "c");
   consumer.handle_handshake(2);
   CHECK_EQUAL(consumer.buf().size(), 0u);
-  CHECK_EQUAL(cb.log, "abc");
+  CHECK_EQUAL(cb.input, "abc");
+}
+
+TEST(consumers send cumulative ACK messages) {
+  consumer_backend cb;
+  consumer_type consumer{&cb};
+  MESSAGE("each tick triggers an ACK");
+  consumer.tick();
+  CHECK_EQUAL(cb.output, "cumulative_ack(0)");
+  consumer.handle_handshake(0);
+  consumer.tick();
+  CHECK_EQUAL(cb.output, "cumulative_ack(0)\ncumulative_ack(0)");
+  cb.output.clear();
+  MESSAGE("after some events, the ACK contains the last received seq ID");
+  consumer.handle_event(1, "a");
+  consumer.handle_event(2, "b");
+  consumer.tick();
+  CHECK_EQUAL(cb.input, "ab");
+  CHECK_EQUAL(cb.output, "cumulative_ack(2)");
+}
+
+TEST(consumers send NACK messages when receiving incomplete data) {
+  consumer_backend cb;
+  consumer_type consumer{&cb};
+  consumer.ack_interval(5);
+  consumer.nack_timeout(3);
+  MESSAGE("the consumer sends a NACK after making no progress for two ticks");
+  consumer.handle_handshake(0);
+  consumer.tick();
+  CHECK_EQUAL(consumer.idle_ticks(), 0u);
+  consumer.handle_event(4, "d");
+  consumer.handle_event(2, "b");
+  consumer.handle_event(7, "g");
+  consumer.tick();
+  CHECK_EQUAL(cb.input, "");
+  CHECK_EQUAL(consumer.idle_ticks(), 1u);
+  CHECK_EQUAL(cb.output, "");
+  consumer.tick();
+  CHECK_EQUAL(cb.input, "");
+  CHECK_EQUAL(consumer.idle_ticks(), 2u);
+  CHECK_EQUAL(cb.output, "");
+  consumer.tick();
+  CHECK_EQUAL(cb.input, "");
+  CHECK_EQUAL(consumer.idle_ticks(), 0u);
+  CHECK_EQUAL(cb.output, "nack([1, 3, 5, 6])");
+  MESSAGE("the consumer sends an ack every five ticks, even without progress");
+  cb.output.clear();
+  consumer.tick();
+  CHECK_EQUAL(cb.input, "");
+  CHECK_EQUAL(consumer.idle_ticks(), 1u);
+  CHECK_EQUAL(cb.output, "cumulative_ack(0)");
 }
 
 FIXTURE_SCOPE_END()
