@@ -67,8 +67,7 @@ public:
                                         backend_options opts) {
     BROKER_TRACE(BROKER_ARG(name)
                  << BROKER_ARG(backend_type) << BROKER_ARG(opts));
-    auto i = masters_.find(name);
-    if (i != masters_.end())
+    if (auto i = masters_.find(name); i != masters_.end())
       return i->second;
     if (has_remote_master(name)) {
       BROKER_WARNING("remote master with same name exists already");
@@ -94,11 +93,12 @@ public:
     BROKER_TRACE(BROKER_ARG(name)
                  << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
                  << BROKER_ARG(mutation_buffer_interval));
-    auto i = masters_.find(name);
-    if (i != masters_.end()) {
+    if (auto i = masters_.find(name); i != masters_.end()) {
       BROKER_WARNING("attempted to run clone & master on the same endpoint");
       return ec::no_such_master;
     }
+    if (auto i = clones_.find(name); i != clones_.end())
+      return i->second;
     BROKER_INFO("spawning new clone:" << name);
     auto self = super::self();
     auto cl = self->template spawn<spawn_flags>(detail::clone_actor, self, name,
@@ -193,7 +193,7 @@ private:
   std::unordered_map<std::string, caf::actor> masters_;
 
   /// Stores all clone actors created by this core.
-  std::unordered_multimap<std::string, caf::actor> clones_;
+  std::unordered_map<std::string, caf::actor> clones_;
 };
 
 } // namespace broker::mixin
