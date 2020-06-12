@@ -20,6 +20,7 @@ struct clear_command;
 struct endpoint_info;
 struct enum_value;
 struct erase_command;
+struct expire_command;
 struct network_info;
 struct peer_info;
 struct put_command;

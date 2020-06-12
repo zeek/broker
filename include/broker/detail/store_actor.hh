@@ -57,6 +57,16 @@ public:
     emit_erase_event(msg.key, msg.publisher);
   }
 
+  /// Emits an `expire` event to topics::store_events subscribers.
+  void emit_expire_event(const data& key, const publisher_id& publisher);
+
+  /// Convenience function for calling
+  /// `emit_expire_event(msg.key, msg.publisher)`.
+  template <class Message>
+  void emit_expire_event(const Message& msg) {
+    emit_expire_event(msg.key, msg.publisher);
+  }
+
   /// Points to the actor owning this state.
   caf::event_based_actor* self = nullptr;
 

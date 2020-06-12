@@ -55,6 +55,20 @@ typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
   return f(caf::meta::type_name("erase"), x.key, x.publisher);
 }
 
+/// Removes a value in the key-value store as a result of an expiration. The
+/// master sends this message type to the clones in order to allow them to
+/// differentiate between a user actively removing an entry versus the master
+/// removing it after expiration.
+struct expire_command {
+  data key;
+  publisher_id publisher;
+};
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, expire_command& x) {
+  return f(caf::meta::type_name("expire"), x.key, x.publisher);
+}
+
 /// Adds a value to the existing value.
 struct add_command {
   data key;
@@ -134,6 +148,7 @@ public:
     put_command,
     put_unique_command,
     erase_command,
+    expire_command,
     add_command,
     subtract_command,
     snapshot_command,
@@ -144,8 +159,9 @@ public:
 
   using variant_type
     = caf::variant<none, put_command, put_unique_command, erase_command,
-                   add_command, subtract_command, snapshot_command,
-                   snapshot_sync_command, set_command, clear_command>;
+                   expire_command, add_command, subtract_command,
+                   snapshot_command, snapshot_sync_command, set_command,
+                   clear_command>;
 
   variant_type content;
 
@@ -186,6 +202,7 @@ INTERNAL_COMMAND_TAG_ORACLE(none);
 INTERNAL_COMMAND_TAG_ORACLE(put_command);
 INTERNAL_COMMAND_TAG_ORACLE(put_unique_command);
 INTERNAL_COMMAND_TAG_ORACLE(erase_command);
+INTERNAL_COMMAND_TAG_ORACLE(expire_command);
 INTERNAL_COMMAND_TAG_ORACLE(add_command);
 INTERNAL_COMMAND_TAG_ORACLE(subtract_command);
 INTERNAL_COMMAND_TAG_ORACLE(snapshot_command);

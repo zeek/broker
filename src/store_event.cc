@@ -8,6 +8,7 @@ constexpr const char* type_strings[] = {
   "insert",
   "update",
   "erase",
+  "expire",
 };
 
 bool is_publisher_id(const vector& xs, size_t endpoint_index,
@@ -46,6 +47,15 @@ store_event::erase store_event::erase::make(const vector& xs) noexcept {
                  && is_publisher_id(xs, 3, 4)
                ? &xs
                : nullptr};
+}
+
+store_event::expire store_event::expire::make(const vector& xs) noexcept {
+  return expire{xs.size() == 5
+                  && to<store_event::type>(xs[0]) == store_event::type::expire
+                  && is<std::string>(xs[1])
+                  && is_publisher_id(xs, 3, 4)
+                ? &xs
+                : nullptr};
 }
 
 const char* to_string(store_event::type code) noexcept {

@@ -40,6 +40,12 @@ caf::error meta_command_writer::operator()(const erase_command& x) {
   return caf::none;
 }
 
+caf::error meta_command_writer::operator()(const expire_command& x) {
+  BROKER_TRY(apply_tag(internal_command_uint_tag<expire_command>()),
+             writer_(x.key));
+  return caf::none;
+}
+
 caf::error meta_command_writer::operator()(const add_command& x) {
   auto& sink = writer_.sink();
   BROKER_TRY(apply_tag(internal_command_uint_tag<add_command>()),
