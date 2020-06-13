@@ -56,6 +56,8 @@ public:
 
   void operator()(erase_command&);
 
+  void operator()(expire_command&);
+
   void operator()(add_command&);
 
   void operator()(subtract_command&);

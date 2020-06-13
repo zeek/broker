@@ -67,8 +67,8 @@ void master_state::expire(data& key) {
   } else if (!*result) {
     BROKER_WARNING("ignoring stale expiration reminder");
   } else {
-    erase_command cmd{std::move(key), publisher_id{self->node(), self->id()}};
-    emit_erase_event(cmd);
+    expire_command cmd{std::move(key), publisher_id{self->node(), self->id()}};
+    emit_expire_event(cmd);
     broadcast_cmd_to_clones(std::move(cmd));
   }
 }
@@ -136,6 +136,10 @@ void master_state::operator()(erase_command& x) {
   }
   emit_erase_event(x.key, x.publisher);
   broadcast_cmd_to_clones(std::move(x));
+}
+
+void master_state::operator()(expire_command&) {
+  BROKER_ERROR("received an expire_command in master actor");
 }
 
 void master_state::operator()(add_command& x) {

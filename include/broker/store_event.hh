@@ -16,6 +16,7 @@ public:
     insert,
     update,
     erase,
+    expire,
   };
 
   /// A view into a ::data object representing an `insert` event.
@@ -200,6 +201,58 @@ public:
 
   private:
     explicit erase(const vector* xs) noexcept : xs_(xs) {
+      // nop
+    }
+
+    const vector* xs_;
+  };
+
+  /// A view into a ::data object representing an `expire` event.
+  /// Broker encodes `expire` events as
+  /// ```
+  /// [
+  ///   "expire",
+  ///   store_id: string,
+  ///   key: data,
+  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_object: uint64_t
+  /// ]
+  /// ```
+  class expire {
+  public:
+    expire(const expire&) noexcept = default;
+
+    expire& operator=(const expire&) noexcept = default;
+
+    static expire make(const data& src) noexcept {
+      if (auto xs = get_if<vector>(src))
+        return make(*xs);
+      return expire{nullptr};
+    }
+
+    static expire make(const vector& xs) noexcept;
+
+    explicit operator bool() const noexcept {
+      return xs_ != nullptr;
+    }
+
+    const std::string& store_id() const noexcept {
+      return get<std::string>((*xs_)[1]);
+    }
+
+    const data& key() const noexcept {
+      return (*xs_)[2];
+    }
+
+    publisher_id publisher() const noexcept {
+      if (auto value = to<caf::node_id>((*xs_)[3])) {
+        return {*value, get<uint64_t>((*xs_)[4])};
+      }
+      return {};
+    }
+
+  private:
+    explicit expire(const vector* xs) noexcept : xs_(xs) {
       // nop
     }
 

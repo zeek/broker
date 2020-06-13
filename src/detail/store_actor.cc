@@ -86,4 +86,12 @@ void store_actor_state::emit_erase_event(const data& key,
              make_data_message(topics::store_events, data{std::move(xs)}));
 }
 
+void store_actor_state::emit_expire_event(const data& key,
+                                          const publisher_id& publisher) {
+  vector xs;
+  fill_vector(xs, "expire"s, id, key, publisher);
+  self->send(core, atom::publish_v, atom::local_v,
+             make_data_message(topics::store_events, data{std::move(xs)}));
+}
+
 } // namespace broker::detail

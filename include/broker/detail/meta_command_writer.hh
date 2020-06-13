@@ -25,6 +25,8 @@ public:
 
   caf::error operator()(const erase_command& x);
 
+  caf::error operator()(const expire_command& x);
+
   caf::error operator()(const add_command& x);
 
   caf::error operator()(const subtract_command& x);

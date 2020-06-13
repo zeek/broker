@@ -78,6 +78,12 @@ void clone_state::operator()(erase_command& x) {
     emit_erase_event(x.key, x.publisher);
 }
 
+void clone_state::operator()(expire_command& x) {
+  BROKER_INFO("EXPIRE" << x.key);
+  if (store.erase(x.key) != 0)
+    emit_expire_event(x.key, x.publisher);
+}
+
 void clone_state::operator()(add_command&) {
   BROKER_ERROR("clone received add_command");
 }
