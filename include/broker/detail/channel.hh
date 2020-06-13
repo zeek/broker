@@ -8,6 +8,7 @@
 #include <caf/meta/type_name.hpp>
 #include <caf/send.hpp>
 
+#include "broker/alm/lamport_timestamp.hh"
 #include "broker/error.hh"
 
 namespace broker::detail {
@@ -98,11 +99,22 @@ public:
   public:
     // -- member types ---------------------------------------------------------
 
-    /// Bundles consumer handle, offset and last acknowledged sequence number.
+    /// Bundles bookkeeping state for a consumer.
     struct path {
+      /// Allows the backend to uniquely address this consumer.
       Handle hdl;
+
+      /// The sequence number that was active when adding this consumer.
       sequence_number_type offset;
+
+      /// The sequence number of the last cumulative ACK.
       sequence_number_type acked;
+
+      /// The first time we have received a cumulative ACK for `acked`.
+      alm::lamport_timestamp first_acked;
+
+      /// The last time we have received a cumulative ACK for `acked`.
+      alm::lamport_timestamp last_acked;
     };
 
     using buf_type = std::deque<event>;
@@ -118,6 +130,8 @@ public:
     // -- message processing ---------------------------------------------------
 
     void produce(Payload content) {
+      if (paths_.empty())
+        return;
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
       backend_->broadcast(this, buf_.back());
@@ -126,9 +140,8 @@ public:
     error add(const Handle& hdl) {
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
-      auto offset = seq_ + 1;
-      paths_.emplace_back(path{hdl, offset, seq_});
-      backend_->send(this, hdl, handshake{offset});
+      paths_.emplace_back(path{hdl, seq_, seq_});
+      backend_->send(this, hdl, handshake{seq_});
       return nil;
     }
 
@@ -137,10 +150,23 @@ public:
       // Iterate all paths once, fetching minimum acknowledged sequence number
       // and updating the path belonging to `hdl` in one go.
       for (auto& x : paths_) {
-        if (x.hdl == hdl)
+        if (x.hdl == hdl) {
+          if (x.acked > seq) {
+            // A blast from the past. Ignore.
+            return;
+          }
+          if (x.acked == seq) {
+            // Old news. Store the current time on the path and then stop
+            // processing this event.
+            x.last_acked = tick_;
+            return;
+          }
           x.acked = seq;
-        else
+          x.first_acked = tick_;
+          x.last_acked = tick_;
+        } else {
           acked = std::min(x.acked, acked);
+        }
       }
       // Drop events from the buffer if possible.
       auto not_acked = [acked](const event& x) { return x.seq > acked; };
@@ -171,6 +197,30 @@ public:
       }
     }
 
+    // -- time-based processing ------------------------------------------------
+
+    void tick() {
+      ++tick_;
+      for (auto& x : paths_) {
+        // Watch out for consumers that may have missed messages but don't send
+        // a NACK since they believe nothing came after the last sequence number
+        // they have ACKed.
+        if (x.acked < seq_ && resend_timeout_ > 0
+            && x.last_acked >= x.first_acked + resend_timeout_) {
+          if (auto i = find_event(x.acked + 1); i != buf_.end()) {
+            for (; i != buf_.end(); ++i)
+              backend_->send(this, x.hdl, *i);
+          } else {
+            backend_->send(this, x.hdl, retransmit_failed{x.acked + 1});
+          }
+          // Push the times forward, so that we will not resend the messages
+          // again next tick.
+          x.first_acked = tick_;
+          x.last_acked = tick_;
+        }
+      }
+    }
+
     // -- properties -----------------------------------------------------------
 
     auto& backend() noexcept {
@@ -191,6 +241,14 @@ public:
 
     const auto& paths() const noexcept {
       return paths_;
+    }
+
+    auto resend_timeout() const noexcept {
+      return resend_timeout_;
+    }
+
+    void resend_timeout(uint8_t value) noexcept {
+      resend_timeout_ = value;
     }
 
     bool idle() const noexcept {
@@ -220,11 +278,20 @@ public:
     /// of messages on this channel.
     sequence_number_type seq_ = 0;
 
+    /// Monotonically increasing counter to keep track of time.
+    alm::lamport_timestamp tick_;
+
     /// Stores outgoing events with their sequence number.
     buf_type buf_;
 
     /// List of consumers with the last acknowledged sequence number.
     path_list paths_;
+
+    /// Time before assuming a consumer failed to receive the latest events. In
+    /// this case, a consumer periodically sends it cumulative ACK for what it
+    /// believes to be the last message, not sending a NACK because it is
+    /// unaware of the last message(s).
+    uint8_t resend_timeout_ = 5;
   };
 
   /// Messages sent by the consumer.
@@ -331,7 +398,7 @@ public:
       if (progressed) {
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
-        if (tick_ % ack_interval_ == 0)
+        if (tick_.value % ack_interval_ == 0)
           send_ack();
         return;
       }
@@ -352,7 +419,7 @@ public:
         backend_->send(this, nack{std::move(seqs)});
         return;
       }
-      if (tick_ % ack_interval_ == 0)
+      if (tick_.value % ack_interval_ == 0)
         send_ack();
     }
 
@@ -427,7 +494,7 @@ public:
     buf_type buf_;
 
     /// Monotonically increasing counter to keep track of time.
-    uint64_t tick_ = 0;
+    alm::lamport_timestamp tick_;
 
     /// Stores the value of `next_seq_` at our last tick.
     sequence_number_type last_tick_seq_ = 0;

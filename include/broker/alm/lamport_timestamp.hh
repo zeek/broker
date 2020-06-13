@@ -46,6 +46,16 @@ constexpr bool operator!=(lamport_timestamp x, lamport_timestamp y) {
 }
 
 /// @relates lamport_timestamp
+constexpr lamport_timestamp operator+(lamport_timestamp x, uint64_t y) {
+  return lamport_timestamp{x.value + y};
+}
+
+/// @relates lamport_timestamp
+constexpr lamport_timestamp operator+(uint64_t x, lamport_timestamp y) {
+  return lamport_timestamp{x + y.value};
+}
+
+/// @relates lamport_timestamp
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, lamport_timestamp& x) {
   return f(x.value);
