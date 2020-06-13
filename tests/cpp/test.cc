@@ -60,6 +60,8 @@ configuration base_fixture::make_config() {
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
 #if CAF_VERSION < 1800
+  auto& base_cfg = static_cast<caf::actor_system_config&>(cfg);
+  base_cfg.add_message_types<caf::id_block::broker_test>();
   cfg.set("logger.verbosity", caf::atom("TRACE"));
 #else
   cfg.set("logger.verbosity", "TRACE");
@@ -81,6 +83,9 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
+#if CAF_VERSION >= 1800
+  caf::init_global_meta_objects<caf::id_block::broker_test>();
+#endif
   broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;

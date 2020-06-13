@@ -10,23 +10,90 @@ using namespace broker;
 
 namespace {
 
+// -- local types --------------------------------------------------------------
+
 using channel_type = detail::channel<std::string, std::string>;
 
+struct consumer_backend;
+struct fixture;
+
+using consumer_type = channel_type::consumer<consumer_backend>;
+using producer_type = channel_type::producer<fixture>;
+
+// -- consumer boilerplate code ------------------------------------------------
+
 struct consumer_backend {
+  std::string id;
   std::string input;
   std::string output;
+  caf::event_based_actor* self = nullptr;
+  caf::actor producer_hdl;
+  bool closed = false;
+  bool fail_on_nil = false;
 
-  void consume(const std::string& x) {
+  explicit consumer_backend(std::string id) : id(std::move(id)) {
+    // nop
+  }
+
+  void attach(caf::event_based_actor* self, caf::actor producer_hdl) {
+    this->self = self;
+    this->producer_hdl = std::move(producer_hdl);
+  }
+
+  void consume(consumer_type*, std::string x) {
     input += x;
   }
 
+  error consume_nil(consumer_type*) {
+    input += '?';
+    if (fail_on_nil)
+      return make_error(ec::unspecified, "I really wanted that data! 😭");
+    return nil;
+  }
+
   template <class T>
-  void send(const T& x) {
+  void send(consumer_type*, const T& x) {
     if (!output.empty())
       output += '\n';
     output += caf::deep_to_string(x);
+    if (self)
+      self->send(producer_hdl, consumer_msg{id, {x}});
+  }
+
+  void close(consumer_type*, error) {
+    closed = true;
   }
 };
+
+struct consumer_visitor {
+  channel_type::consumer<consumer_backend>* ch;
+
+  void operator()(channel_type::handshake& msg) {
+    ch->handle_handshake(msg.first_seq);
+  }
+
+  void operator()(channel_type::event& msg) {
+    ch->handle_event(msg.seq, msg.content);
+  }
+
+  void operator()(channel_type::retransmit_failed& msg) {
+    ch->handle_retransmit_failed(msg.seq);
+  }
+};
+
+caf::behavior consumer_actor(caf::event_based_actor* self, consumer_type* ch,
+                             caf::actor producer_hdl) {
+  ch->backend().attach(self, producer_hdl);
+  return {
+    [ch](channel_type::producer_message& msg) {
+    },
+  };
+}
+
+// -- fixture / producer boilerplate code --------------------------------------
+
+caf::behavior producer_actor(caf::event_based_actor* self,
+                             channel_type::producer<fixture>* state);
 
 struct fixture : base_fixture {
 
@@ -34,7 +101,9 @@ struct fixture : base_fixture {
 
   std::string producer_log;
 
-  channel_type::producer<fixture> producer;
+  producer_type producer;
+
+  caf::actor producer_hdl;
 
   fixture() : producer(this) {
     // nop
@@ -55,18 +124,37 @@ struct fixture : base_fixture {
     return result;
   }
 
-  template <class Destination, class T>
-  void send(const Destination& dst, const T& x) {
+  template <class T>
+  void send(producer_type*, const std::string& dst, const T& x) {
     producer_log += '\n';
-    if constexpr (std::is_same<Destination, std::string>::value)
-      producer_log += dst;
-    else
-      producer_log += render(dst);
+    producer_log += dst;
     producer_log += " <- ";
     producer_log += caf::deep_to_string(x);
+    if (auto i = consumers.find(dst); i != consumers.end())
+      caf::send_as(producer_hdl, i->second, channel_type::producer_message{x});
   }
 
-  std::map<std::string, consumer_type> consumers;
+  template <class T>
+  void broadcast(producer_type*, const T& x) {
+    producer_log += '\n';
+    producer_log += render(producer.paths());
+    producer_log += " <- ";
+    producer_log += caf::deep_to_string(x);
+    for (auto& kvp : consumers)
+      caf::send_as(producer_hdl, kvp.second, channel_type::producer_message{x});
+  }
+
+  std::string render_buffer(consumer_type& ref) {
+    std::string result;
+    for (auto& x : ref.buf())
+      if (x.content)
+        result += *x.content;
+      else
+        result += '?';
+    return result;
+  }
+
+  std::map<std::string, caf::actor> consumers;
 };
 
 } // namespace
@@ -149,7 +237,7 @@ B <- retransmit_failed(3))");
 }
 
 TEST(consumers process events in order) {
-  consumer_backend cb;
+  consumer_backend cb{"A"};
   consumer_type consumer{&cb};
   consumer.handle_handshake(0);
   consumer.handle_event(4, "d");
@@ -170,8 +258,39 @@ TEST(consumers process events in order) {
   CHECK_EQUAL(cb.input, "abcde");
 }
 
+TEST(consumers process nil events if retransmits fail) {
+  consumer_backend cb{"A"};
+  consumer_type consumer{&cb};
+  consumer.handle_handshake(0);
+  consumer.handle_event(4, "d");
+  consumer.handle_event(6, "f");
+  CAF_MESSAGE("failed retransmits cause holes in the buffer");
+  consumer.handle_retransmit_failed(5);
+  CAF_CHECK_EQUAL(render_buffer(consumer), "d?f");
+  CAF_MESSAGE("retransmit_failed has no effect on already received messages");
+  consumer.handle_event(2, "b");
+  consumer.handle_retransmit_failed(2);
+  CAF_CHECK_EQUAL(render_buffer(consumer), "bd?f");
+  CAF_MESSAGE("messages that arrive before processing lost messages count");
+  consumer.handle_retransmit_failed(3);
+  CAF_CHECK_EQUAL(render_buffer(consumer), "b?d?f");
+  consumer.handle_event(3, "c");
+  CAF_CHECK_EQUAL(render_buffer(consumer), "bcd?f");
+  CAF_MESSAGE("the consumer calls consume and consume_nil as needed");
+  consumer.handle_event(1, "a");
+  CHECK_EQUAL(cb.input, "abcd?f");
+  CHECK_EQUAL(cb.closed, false);
+  CAF_MESSAGE("the consumer stops and closes if consume_nil returns an error");
+  cb.fail_on_nil = true;
+  consumer.handle_event(9, "i");
+  consumer.handle_retransmit_failed(8);
+  consumer.handle_event(7, "g");
+  CHECK_EQUAL(cb.input, "abcd?fg?");
+  CHECK_EQUAL(cb.closed, true);
+}
+
 TEST(consumers buffer events until receiving the handshake) {
-  consumer_backend cb;
+  consumer_backend cb{"A"};
   consumer_type consumer{&cb};
   consumer.handle_event(3, "a");
   consumer.handle_event(4, "b");
@@ -182,7 +301,7 @@ TEST(consumers buffer events until receiving the handshake) {
 }
 
 TEST(consumers send cumulative ACK messages) {
-  consumer_backend cb;
+  consumer_backend cb{"A"};
   consumer_type consumer{&cb};
   MESSAGE("each tick triggers an ACK");
   consumer.tick();
@@ -200,7 +319,7 @@ TEST(consumers send cumulative ACK messages) {
 }
 
 TEST(consumers send NACK messages when receiving incomplete data) {
-  consumer_backend cb;
+  consumer_backend cb{"A"};
   consumer_type consumer{&cb};
   consumer.ack_interval(5);
   consumer.nack_timeout(3);

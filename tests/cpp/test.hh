@@ -13,6 +13,7 @@
 #include <caf/io/network/test_multiplexer.hpp>
 
 #include "broker/configuration.hh"
+#include "broker/detail/channel.hh"
 #include "broker/endpoint.hh"
 
 // -- test setup macros --------------------------------------------------------
@@ -46,6 +47,37 @@
 #define CHECK_GREATER_EQUAL CAF_CHECK_GREATER_EQUAL
 #define CHECK_FAIL CAF_CHECK_FAIL
 #define FAIL CAF_FAIL
+
+// -- custom message types for channel.cc --------------------------------------
+
+struct producer_msg {
+  std::string source;
+  broker::detail::channel<std::string, std::string>::producer_message content;
+};
+
+struct consumer_msg {
+  std::string source;
+  broker::detail::channel<std::string, std::string>::consumer_message content;
+};
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, producer_msg& x) {
+  return f(x.source, x.content);
+}
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, consumer_msg& x) {
+  return f(x.source, x.content);
+}
+
+// -- ID block for all message types in test suites ----------------------------
+
+CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
+
+  CAF_ADD_TYPE_ID(broker_test, (producer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
+
+CAF_END_TYPE_ID_BLOCK(broker_test)
 
 // -- fixtures -----------------------------------------------------------------
 

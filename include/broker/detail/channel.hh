@@ -81,10 +81,22 @@ public:
     }
   };
 
+  /// Messages sent by the producer.
+  using producer_message = caf::variant<handshake, event, retransmit_failed>;
+
+  /// Produces events (messages) for any number of consumers.
+  /// @tparam Backend Hides the underlying (unreliable) communication layer. The
+  ///                 backend must provide the following member functions:
+  ///                 - `void send(producer*, const Handle&, const T&)` sends a
+  ///                   unicast message to a single consumer, where `T` is any
+  ///                   type in `producer_message`.
+  ///                 - `void broadcast(producer*, const T&)` sends a multicast
+  ///                   message to all consumers, where `T` is any type in
+  ///                   `producer_message`.
   template <class Backend>
   class producer {
   public:
-    using message = caf::variant<handshake, event>;
+    // -- member types ---------------------------------------------------------
 
     /// Bundles consumer handle, offset and last acknowledged sequence number.
     struct path {
@@ -97,19 +109,18 @@ public:
 
     using path_list = std::vector<path>;
 
+    // -- constructors, destructors, and assignment operators ------------------
+
     explicit producer(Backend* backend) : backend_(backend) {
       // nop
     }
 
+    // -- message processing ---------------------------------------------------
+
     void produce(Payload content) {
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
-      backend_->send(paths_, buf_.back());
-    }
-
-    bool idle() const noexcept {
-      auto at_head = [seq{seq_}](const path& x) { return x.acked == seq; };
-      return std::all_of(paths_.begin(), paths_.end(), at_head);
+      backend_->broadcast(this, buf_.back());
     }
 
     error add(const Handle& hdl) {
@@ -117,7 +128,7 @@ public:
         return ec::consumer_exists;
       auto offset = seq_ + 1;
       paths_.emplace_back(path{hdl, offset, seq_});
-      backend_->send(hdl, handshake{offset});
+      backend_->send(this, hdl, handshake{offset});
       return nil;
     }
 
@@ -148,19 +159,27 @@ public:
       // Seqs must be sorted. Everything before the first missing ID is ACKed.
       auto first = seqs.front();
       if (first == 0) {
-        backend_->send(hdl, handshake{p->offset});
+        backend_->send(this, hdl, handshake{p->offset});
         return;
       }
       handle_ack(hdl, first - 1);
       for (auto seq : seqs) {
         if (auto i = find_event(seq); i != buf_.end())
-          backend_->send(hdl, *i);
+          backend_->send(this, hdl, *i);
         else
-          backend_->send(hdl, retransmit_failed{seq});
+          backend_->send(this, hdl, retransmit_failed{seq});
       }
     }
 
     // -- properties -----------------------------------------------------------
+
+    auto& backend() noexcept {
+      return *backend_;
+    }
+
+    const auto& backend() const noexcept {
+      return *backend_;
+    }
 
     auto seq() const noexcept {
       return seq_;
@@ -169,6 +188,17 @@ public:
     const auto& buf() const noexcept {
       return buf_;
     }
+
+    const auto& paths() const noexcept {
+      return paths_;
+    }
+
+    bool idle() const noexcept {
+      auto at_head = [seq{seq_}](const path& x) { return x.acked == seq; };
+      return std::all_of(paths_.begin(), paths_.end(), at_head);
+    }
+
+    // -- path and event lookup ------------------------------------------------
 
     auto find_path(const Handle& hdl) const noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
@@ -181,6 +211,8 @@ public:
     }
 
   private:
+    // -- member variables -----------------------------------------------------
+
     /// Transmits messages to the consumers.
     Backend* backend_;
 
@@ -195,14 +227,53 @@ public:
     path_list paths_;
   };
 
+  /// Messages sent by the consumer.
+  using consumer_message = caf::variant<cumulative_ack, nack>;
+
+  /// Handles events (messages) from a single producer.
+  /// @tparam Backend Hides the underlying (unreliable) communication layer. The
+  ///                 backend must provide the following member functions:
+  ///                 - `void consume(consumer*, Payload)` process a single
+  ///                 event.
+  ///                 - `void send(consumer*, T)` sends a message to the
+  ///                   producer, where `T` is any type in `consumer_message`.
+  ///                 - `error consume_nil(consumer*)` process a lost event. The
+  ///                   callback may abort further processing by returning a
+  ///                   non-default `error`. In this case, the `consumer`
+  ///                   immediately calls `close` with the returned error.
+  ///                 - `void close(consumer*, error)` drops this consumer.
+  ///                   After calling this function, no further function calls
+  ///                   on the consumer are allowed (except calling the
+  ///                   destructor).
   template <class Backend>
   class consumer {
   public:
-    using buf_type = std::deque<event>;
+    // -- member types ---------------------------------------------------------
+
+    struct optional_event {
+      sequence_number_type seq;
+      optional<Payload> content;
+
+      explicit optional_event(sequence_number_type seq) : seq(seq) {
+        // nop
+      }
+
+      template <class T>
+      optional_event(sequence_number_type seq, T&& x)
+        : seq(seq), content(std::forward<T>(x)) {
+        // nop
+      }
+    };
+
+    using buf_type = std::deque<optional_event>;
+
+    // -- constructors, destructors, and assignment operators ------------------
 
     explicit consumer(Backend* backend) : backend_(backend) {
       // nop
     }
+
+    // -- message processing ---------------------------------------------------
 
     void handle_handshake(sequence_number_type offset) {
       if (offset >= next_seq_) {
@@ -211,22 +282,46 @@ public:
       }
     }
 
-    template <class T>
-    void handle_event(sequence_number_type seq, T&& payload) {
+    void handle_event(sequence_number_type seq, Payload payload) {
       if (next_seq_ == seq) {
-        backend_->consume(std::forward<T>(payload));
+        // Process immediately.
+        backend_->consume(this, std::move(payload));
         ++next_seq_;
         try_consume_buffer();
       } else if (seq > next_seq_) {
-        // Insert event into buf_ (ordered by the sequence number).
-        auto pred = [seq](const event& x) { return x.seq >= seq; };
+        // Insert event into buf_: sort by the sequence number, drop duplicates.
+        auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
         if (i == buf_.end())
-          buf_.emplace_back(event{seq, std::forward<T>(payload)});
+          buf_.emplace_back(seq, std::move(payload));
         else if (i->seq != seq)
-          buf_.emplace(i, event{seq, std::forward<T>(payload)});
+          buf_.emplace(i, seq, std::move(payload));
+        else if (!i->content)
+          i->content = std::move(payload);
       }
     }
+
+    void handle_retransmit_failed(sequence_number_type seq) {
+      if (next_seq_ == seq) {
+        // Process immediately.
+        if (auto err = backend_->consume_nil(this)) {
+          backend_->close(this, std::move(err));
+          return;
+        }
+        ++next_seq_;
+        try_consume_buffer();
+      } else if (seq > next_seq_) {
+        // Insert event into buf_: sort by the sequence number, drop duplicates.
+        auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
+        auto i = std::find_if(buf_.begin(), buf_.end(), pred);
+        if (i == buf_.end())
+          buf_.emplace_back(seq);
+        else if (i->seq != seq)
+          buf_.emplace(i, seq);
+      }
+    }
+
+    // -- time-based processing ------------------------------------------------
 
     void tick() {
       // Update state.
@@ -254,7 +349,7 @@ public:
         };
         for (const auto& x : buf_)
           generate(x.seq);
-        backend_->send(nack{std::move(seqs)});
+        backend_->send(this, nack{std::move(seqs)});
         return;
       }
       if (tick_ % ack_interval_ == 0)
@@ -262,6 +357,14 @@ public:
     }
 
     // -- properties -----------------------------------------------------------
+
+    auto& backend() noexcept {
+      return *backend_;
+    }
+
+    const auto& backend() const noexcept {
+      return *backend_;
+    }
 
     const buf_type& buf() const noexcept {
       return buf_;
@@ -288,18 +391,30 @@ public:
     }
 
   private:
+    // -- helper functions -----------------------------------------------------
+
     void try_consume_buffer() {
       auto i = buf_.begin();
       for (; i != buf_.end() && i->seq == next_seq_; ++i) {
-        backend_->consume(std::move(i->content));
+        if (i->content) {
+          backend_->consume(this, *i->content);
+        } else {
+          if (auto err = backend_->consume_nil(this)) {
+            buf_.erase(buf_.begin(), i);
+            backend_->close(this, std::move(err));
+            return;
+          }
+        }
         ++next_seq_;
       }
       buf_.erase(buf_.begin(), i);
     }
 
     void send_ack() {
-      backend_->send(cumulative_ack{next_seq_ > 0 ? next_seq_ - 1 : 0});
+      backend_->send(this, cumulative_ack{next_seq_ > 0 ? next_seq_ - 1 : 0});
     }
+
+    // -- member variables -----------------------------------------------------
 
     /// Handles incoming events.
     Backend* backend_;
