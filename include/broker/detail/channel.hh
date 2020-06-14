@@ -19,13 +19,21 @@ namespace broker::detail {
 template <class Handle, class Payload>
 class channel {
 public:
+  // -- member types -----------------------------------------------------------
+
   /// Integer type for the monotonically increasing counters large enough to
-  /// neglect wrap aroundss. At 1000 messages per second, a sequence number of
+  /// neglect wraparounds. At 1000 messages per second, a sequence number of
   /// this type overflows after 580 *million* years.
   using sequence_number_type = uint64_t;
 
+  /// Integer type for measuring configurable intervals in ticks.
+  using tick_interval_type = uint16_t;
+
+  // -- member types: messages from consumers to the producer ------------------
+
   /// Notifies the producer that a consumer received all events up to a certain
-  /// sequence number (including that number).
+  /// sequence number (including that number). Consumers send the latest ACK
+  /// periodically as a keepalive message.
   struct cumulative_ack {
     sequence_number_type seq;
 
@@ -48,15 +56,22 @@ public:
     }
   };
 
+  // -- member types: messages from the producer to consumers ------------------
+
   /// Notifies a consumer which is the first sequence number after it started
   /// listening to the producer.
   struct handshake {
     /// The first sequence number a consumer should process and acknowledge.
     sequence_number_type first_seq;
 
+    /// The interval (in ticks) between heartbeat messages. Allows the consumer
+    /// to adjust its timeouts for detecting failed producers.
+    tick_interval_type heartbeat_interval;
+
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, handshake& x) {
-      return f(caf::meta::type_name("handshake"), x.first_seq);
+      return f(caf::meta::type_name("handshake"), x.first_seq,
+               x.heartbeat_interval);
     }
   };
 
@@ -82,8 +97,22 @@ public:
     }
   };
 
+  /// Notifies all consumers that the master is still alive and what is the
+  /// latest sequence number.
+  struct heartbeat {
+    sequence_number_type seq;
+
+    template <class Inspector>
+    friend typename Inspector::result_type inspect(Inspector& f, heartbeat& x) {
+      return f(caf::meta::type_name("heartbeat"), x.seq);
+    }
+  };
+
+  // -- implementation of the producer -----------------------------------------
+
   /// Messages sent by the producer.
-  using producer_message = caf::variant<handshake, event, retransmit_failed>;
+  using producer_message
+    = caf::variant<handshake, event, retransmit_failed, heartbeat>;
 
   /// Produces events (messages) for any number of consumers.
   /// @tparam Backend Hides the underlying (unreliable) communication layer. The
@@ -134,6 +163,7 @@ public:
         return;
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
+      last_broadcast_ = tick_;
       backend_->broadcast(this, buf_.back());
     }
 
@@ -141,7 +171,7 @@ public:
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
       paths_.emplace_back(path{hdl, seq_, seq_});
-      backend_->send(this, hdl, handshake{seq_});
+      backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return nil;
     }
 
@@ -185,7 +215,7 @@ public:
       // Seqs must be sorted. Everything before the first missing ID is ACKed.
       auto first = seqs.front();
       if (first == 0) {
-        backend_->send(this, hdl, handshake{p->offset});
+        backend_->send(this, hdl, handshake{p->offset, heartbeat_interval_});
         return;
       }
       handle_ack(hdl, first - 1);
@@ -201,23 +231,10 @@ public:
 
     void tick() {
       ++tick_;
-      for (auto& x : paths_) {
-        // Watch out for consumers that may have missed messages but don't send
-        // a NACK since they believe nothing came after the last sequence number
-        // they have ACKed.
-        if (x.acked < seq_ && resend_timeout_ > 0
-            && x.last_acked >= x.first_acked + resend_timeout_) {
-          if (auto i = find_event(x.acked + 1); i != buf_.end()) {
-            for (; i != buf_.end(); ++i)
-              backend_->send(this, x.hdl, *i);
-          } else {
-            backend_->send(this, x.hdl, retransmit_failed{x.acked + 1});
-          }
-          // Push the times forward, so that we will not resend the messages
-          // again next tick.
-          x.first_acked = tick_;
-          x.last_acked = tick_;
-        }
+      if (heartbeat_interval_ > 0
+          && last_broadcast_ + heartbeat_interval_ == tick_) {
+        last_broadcast_ = tick_;
+        backend_->broadcast(this, heartbeat{seq_});
       }
     }
 
@@ -243,12 +260,12 @@ public:
       return paths_;
     }
 
-    auto resend_timeout() const noexcept {
-      return resend_timeout_;
+    auto heartbeat_interval() const noexcept {
+      return heartbeat_interval_;
     }
 
-    void resend_timeout(uint8_t value) noexcept {
-      resend_timeout_ = value;
+    void heartbeat_interval(tick_interval_type value) noexcept {
+      heartbeat_interval_ = value;
     }
 
     bool idle() const noexcept {
@@ -281,18 +298,21 @@ public:
     /// Monotonically increasing counter to keep track of time.
     alm::lamport_timestamp tick_;
 
+    /// Stores the last time we've broadcasted something.
+    alm::lamport_timestamp last_broadcast_;
+
     /// Stores outgoing events with their sequence number.
     buf_type buf_;
 
     /// List of consumers with the last acknowledged sequence number.
     path_list paths_;
 
-    /// Time before assuming a consumer failed to receive the latest events. In
-    /// this case, a consumer periodically sends it cumulative ACK for what it
-    /// believes to be the last message, not sending a NACK because it is
-    /// unaware of the last message(s).
-    uint8_t resend_timeout_ = 5;
+    /// Maximum time between to broadcasted messages. When not sending anything
+    /// else, insert heartbeats after this amount of time.
+    tick_interval_type heartbeat_interval_ = 5;
   };
+
+  // -- implementation of the consumer -----------------------------------------
 
   /// Messages sent by the consumer.
   using consumer_message = caf::variant<cumulative_ack, nack>;
@@ -342,20 +362,34 @@ public:
 
     // -- message processing ---------------------------------------------------
 
-    void handle_handshake(sequence_number_type offset) {
+    void handle_handshake(sequence_number_type offset,
+                          tick_interval_type heartbeat_interval) {
       if (offset >= next_seq_) {
         next_seq_ = offset + 1;
+        last_seq_ = next_seq_;
+        heartbeat_interval_ = heartbeat_interval;
         try_consume_buffer();
       }
+    }
+
+    void handle_heartbeat(sequence_number_type seq) {
+      // Do nothing when receiving this before the handshake or if the master
+      // did not produce any events yet.
+      if (last_seq_ == 0 || seq == 0)
+        return;
+      if (seq + 1 > last_seq_)
+        last_seq_ = seq + 1;
     }
 
     void handle_event(sequence_number_type seq, Payload payload) {
       if (next_seq_ == seq) {
         // Process immediately.
         backend_->consume(this, std::move(payload));
-        ++next_seq_;
+        bump_seq();
         try_consume_buffer();
       } else if (seq > next_seq_) {
+        if (seq > last_seq_)
+          last_seq_ = seq;
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
@@ -375,7 +409,7 @@ public:
           backend_->close(this, std::move(err));
           return;
         }
-        ++next_seq_;
+        bump_seq();
         try_consume_buffer();
       } else if (seq > next_seq_) {
         // Insert event into buf_: sort by the sequence number, drop duplicates.
@@ -398,15 +432,15 @@ public:
       if (progressed) {
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
-        if (tick_.value % ack_interval_ == 0)
+        if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
           send_ack();
         return;
       }
       ++idle_ticks_;
-      if (!buf_.empty() && idle_ticks_ >= nack_timeout_) {
+      if (next_seq_ < last_seq_ && idle_ticks_ >= nack_timeout_) {
         idle_ticks_ = 0;
         auto first = next_seq_;
-        auto last = buf_.back().seq;
+        auto last = last_seq_;
         std::vector<sequence_number_type> seqs;
         seqs.reserve(last - first);
         auto generate = [&, i{first}](sequence_number_type found) mutable {
@@ -416,10 +450,11 @@ public:
         };
         for (const auto& x : buf_)
           generate(x.seq);
+        generate(last);
         backend_->send(this, nack{std::move(seqs)});
         return;
       }
-      if (tick_.value % ack_interval_ == 0)
+      if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
         send_ack();
     }
 
@@ -437,16 +472,17 @@ public:
       return buf_;
     }
 
+    auto num_ticks() const noexcept {
+      // Lamport timestamps start at 1.
+      return tick_.value - 1;
+    }
+
     auto idle_ticks() const noexcept {
       return idle_ticks_;
     }
 
-    auto ack_interval() const noexcept {
-      return ack_interval_;
-    }
-
-    void ack_interval(uint8_t value) noexcept {
-      ack_interval_ = value;
+    auto heartbeat_interval() const noexcept {
+      return heartbeat_interval_;
     }
 
     auto nack_timeout() const noexcept {
@@ -460,6 +496,14 @@ public:
   private:
     // -- helper functions -----------------------------------------------------
 
+    // Bumps the sequence number for the next expected event.
+    void bump_seq() {
+      if (++next_seq_ > last_seq_)
+        last_seq_ = next_seq_;
+    }
+
+    // Consumes all events from buf_ until either hitting the end or hitting a
+    // gap (i.e. events that are neither available yet nor known missing).
     void try_consume_buffer() {
       auto i = buf_.begin();
       for (; i != buf_.end() && i->seq == next_seq_; ++i) {
@@ -472,7 +516,7 @@ public:
             return;
           }
         }
-        ++next_seq_;
+        bump_seq();
       }
       buf_.erase(buf_.begin(), i);
     }
@@ -490,6 +534,9 @@ public:
     /// of messages on this channel.
     sequence_number_type next_seq_ = 0;
 
+    /// The currently known end of the event stream.
+    sequence_number_type last_seq_ = 0;
+
     /// Stores outgoing events with their sequence number.
     buf_type buf_;
 
@@ -502,11 +549,11 @@ public:
     /// Number of ticks without progress.
     uint8_t idle_ticks_ = 0;
 
-    /// Frequency of ACK messages (cannot be 0).
-    uint8_t ack_interval_ = 1;
+    /// Frequency of ACK messages (configured by the master).
+    uint8_t heartbeat_interval_ = 0;
 
     /// Number of ticks without progress before sending a NACK.
-    uint8_t nack_timeout_ = 1;
+    uint8_t nack_timeout_ = 5;
   };
 };
 

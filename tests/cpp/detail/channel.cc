@@ -245,7 +245,11 @@ struct consumer_visitor {
   consumer_type* ch;
 
   void operator()(channel_type::handshake& msg) {
-    ch->handle_handshake(msg.first_seq);
+    ch->handle_handshake(msg.first_seq, msg.heartbeat_interval);
+  }
+
+  void operator()(channel_type::heartbeat& msg) {
+    ch->handle_heartbeat(msg.seq);
   }
 
   void operator()(channel_type::event& msg) {
@@ -290,10 +294,10 @@ TEST(adding consumers triggers handshakes) {
   CHECK_EQUAL(producer.seq(), 3u);
   CHECK_EQUAL(producer.buf().size(), 3u);
   CHECK_EQUAL(producer_log, R"(
-A <- handshake(1)
+A <- handshake(0, 5)
 [A] <- event(1, "abc")
 [A] <- event(2, "def")
-B <- handshake(3)
+B <- handshake(2, 5)
 [A, B] <- event(3, "ghi"))");
 }
 
@@ -335,7 +339,7 @@ TEST(NACKs cause the producer to send messages again) {
   producer_log.clear();
   MESSAGE("sending NACK for 0 re-sends the handshake");
   producer.handle_nack("A", {0});
-  CHECK_EQUAL(producer_log, "\nA <- handshake(1)");
+  CHECK_EQUAL(producer_log, "\nA <- handshake(0, 5)");
   producer_log.clear();
   MESSAGE("sending NACK for sequence number N re-sends the event");
   producer.handle_nack("B", {1, 3});
@@ -356,7 +360,7 @@ B <- retransmit_failed(3))");
 TEST(consumers process events in order) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
-  consumer.handle_handshake(0);
+  consumer.handle_handshake(0, 3);
   consumer.handle_event(4, "d");
   CHECK_EQUAL(consumer.buf().size(), 1u);
   consumer.handle_event(5, "e");
@@ -378,7 +382,7 @@ TEST(consumers process events in order) {
 TEST(consumers process nil events if retransmits fail) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
-  consumer.handle_handshake(0);
+  consumer.handle_handshake(0, 3);
   consumer.handle_event(4, "d");
   consumer.handle_event(6, "f");
   CAF_MESSAGE("failed retransmits cause holes in the buffer");
@@ -412,7 +416,7 @@ TEST(consumers buffer events until receiving the handshake) {
   consumer.handle_event(3, "a");
   consumer.handle_event(4, "b");
   consumer.handle_event(5, "c");
-  consumer.handle_handshake(2);
+  consumer.handle_handshake(2, 3);
   CHECK_EQUAL(consumer.buf().size(), 0u);
   CHECK_EQUAL(cb.input, "abc");
 }
@@ -420,10 +424,10 @@ TEST(consumers buffer events until receiving the handshake) {
 TEST(consumers send cumulative ACK messages) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
+  consumer.handle_handshake(0, 1);
   MESSAGE("each tick triggers an ACK");
   consumer.tick();
   CHECK_EQUAL(cb.output, "cumulative_ack(0)");
-  consumer.handle_handshake(0);
   consumer.tick();
   CHECK_EQUAL(cb.output, "cumulative_ack(0)\ncumulative_ack(0)");
   cb.output.clear();
@@ -438,30 +442,35 @@ TEST(consumers send cumulative ACK messages) {
 TEST(consumers send NACK messages when receiving incomplete data) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
-  consumer.ack_interval(5);
   consumer.nack_timeout(3);
+  CHECK_EQUAL(consumer.num_ticks(), 0u);
   MESSAGE("the consumer sends a NACK after making no progress for two ticks");
-  consumer.handle_handshake(0);
+  consumer.handle_handshake(0, 5);
   consumer.tick();
+  CHECK_EQUAL(consumer.num_ticks(), 1u);
   CHECK_EQUAL(consumer.idle_ticks(), 0u);
   consumer.handle_event(4, "d");
   consumer.handle_event(2, "b");
   consumer.handle_event(7, "g");
   consumer.tick();
+  CHECK_EQUAL(consumer.num_ticks(), 2u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 1u);
   CHECK_EQUAL(cb.output, "");
   consumer.tick();
+  CHECK_EQUAL(consumer.num_ticks(), 3u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 2u);
   CHECK_EQUAL(cb.output, "");
   consumer.tick();
+  CHECK_EQUAL(consumer.num_ticks(), 4u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 0u);
   CHECK_EQUAL(cb.output, "nack([1, 3, 5, 6])");
   MESSAGE("the consumer sends an ack every five ticks, even without progress");
   cb.output.clear();
   consumer.tick();
+  CHECK_EQUAL(consumer.num_ticks(), 5u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 1u);
   CHECK_EQUAL(cb.output, "cumulative_ack(0)");
@@ -550,7 +559,7 @@ TEST(messages arrive eventually - even with 66 percent loss rate) {
   ship(0.66);
   run();
   for (size_t round = 1; !producer.idle(); ++round) {
-    if (round == 200)
+    if (round == 500)
       FAIL("system didn't reach a stable state after 200 rounds");
     tick();
     ship(0.66);
