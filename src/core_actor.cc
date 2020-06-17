@@ -793,8 +793,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
       auto& mgr = *self->state.mgr;
       const auto x = mgr.cache.find(addr);
       if(x) {
-        filter_type filter = mgr.get_filter(x.value()).second;
-        BROKER_DEBUG("update routing after delete (addr)" << filter << " and all filter before delete " << mgr.get_all_filter());
+        BROKER_DEBUG("atom::unpeer for (addr)" << x.value() << ", " << addr);
         mgr.update_peer(x.value());
         if (!mgr.remove_peer(*x, caf::none, false, true))
           mgr.emit_error<ec::peer_invalid>(addr, "no such peer when unpeering");
@@ -804,8 +803,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
     [=](atom::unpeer, actor x) {
       auto& mgr = *self->state.mgr;
       if(x) {
-        filter_type filter = mgr.get_filter(x).second;
-        BROKER_DEBUG("update routing after delete (actor)" << filter << " and all filter before delete " << mgr.get_all_filter());
+        BROKER_DEBUG("atom::unpeer for (actor)" << x);
         mgr.update_peer(x);
         if (!mgr.remove_peer(x, caf::none, false, true))
           mgr.emit_error<ec::peer_invalid>(x, "no such peer when unpeering");
