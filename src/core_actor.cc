@@ -39,6 +39,8 @@
 #include "broker/status.hh"
 #include "broker/topic.hh"
 
+#include <vector>
+
 using namespace caf;
 
 namespace broker {
@@ -221,6 +223,11 @@ filter_type core_manager::get_all_filter(const std::set<caf::actor>& skip) {
   return rfilter;
 }
 
+bool core_manager::update_peer(const actor& hdl) {
+  filter_type null_filter;
+  return update_peer(hdl, std::move(null_filter));
+}
+
 /// Updates the filter of an existing peer.
 bool core_manager::update_peer(const actor& hdl, filter_type filter) {
   BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(filter));
@@ -242,10 +249,11 @@ bool core_manager::update_peer(const actor& hdl, filter_type filter) {
 bool core_manager::update_routing(const actor& hdl, filter_type filter) {
   CAF_LOG_DEBUG("Update routing for actor " << hdl << " with filter " << filter);
   bool update = false;
-  // Iterate over all peers and check if the update causes an update for them as well
+
+    // Iterate over all peers and check if the update causes an update for them as well
   for_each_peer([&](const actor& p) {
-    CAF_LOG_DEBUG("Check for routing update for peer" << p);
     if(p != hdl) {
+      BROKER_DEBUG("Check for routing update for peer" << p << " with filter " << get_filter(p).second);
       // 1. get topics of local peer and all neighbors,
       //    except the currently observed neighbor
       //    in own sorted vector BEFORE update
@@ -264,14 +272,17 @@ bool core_manager::update_routing(const actor& hdl, filter_type filter) {
       if (e != all_new_topics.end())
         all_new_topics.erase(e, all_new_topics.end());
 
+      BROKER_DEBUG("old topics " << all_old_topics << " and new topics " << all_new_topics);
       // 3. Compare the two data structures
       // and in case they do not match: send update to respective peer
       if (all_old_topics != all_new_topics) {
         CAF_LOG_DEBUG("Send routing update to " << p << " with filter " << all_new_topics);
+        BROKER_DEBUG("Send routing update to " << p << " with filter " << all_new_topics);
         self()->send(p, atom::update::value, all_new_topics);
         update = true;
       } else {
         CAF_LOG_DEBUG("No routing update to " << p << " as nothing changed ");
+        BROKER_DEBUG("No routing update to " << p << " as nothing changed, its subscriptions are " << get_filter(p).second);
       }
     }
   });
@@ -780,13 +791,25 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
     // --- destructive state manipulations -------------------------------------
     [=](atom::unpeer, network_info addr) {
       auto& mgr = *self->state.mgr;
-      auto x = mgr.cache.find(addr);
-      if (!x || !mgr.remove_peer(*x, caf::none, false, true))
+      const auto x = mgr.cache.find(addr);
+      if(x) {
+        filter_type filter = mgr.get_filter(x.value()).second;
+        BROKER_DEBUG("update routing after delete (addr)" << filter << " and all filter before delete " << mgr.get_all_filter());
+        mgr.update_peer(x.value());
+        if (!mgr.remove_peer(*x, caf::none, false, true))
+          mgr.emit_error<ec::peer_invalid>(addr, "no such peer when unpeering");
+      } else
         mgr.emit_error<ec::peer_invalid>(addr, "no such peer when unpeering");
     },
     [=](atom::unpeer, actor x) {
       auto& mgr = *self->state.mgr;
-      if (!x || !mgr.remove_peer(x, caf::none, false, true))
+      if(x) {
+        filter_type filter = mgr.get_filter(x).second;
+        BROKER_DEBUG("update routing after delete (actor)" << filter << " and all filter before delete " << mgr.get_all_filter());
+        mgr.update_peer(x);
+        if (!mgr.remove_peer(x, caf::none, false, true))
+          mgr.emit_error<ec::peer_invalid>(x, "no such peer when unpeering");
+      } else
         mgr.emit_error<ec::peer_invalid>(x, "no such peer when unpeering");
     },
     [=](atom::no_events) {

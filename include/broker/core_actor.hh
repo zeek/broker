@@ -74,6 +74,7 @@ public:
   // -- peer management  -----------------------------------------------------
 
   /// Updates the filter of an existing peer.
+  bool update_peer(const caf::actor& hdl);
   bool update_peer(const caf::actor& hdl, filter_type filter);
 
   /// Updates the filter of all our neighbors
