@@ -52,7 +52,7 @@ class TestCommunication(unittest.TestCase):
         ep4.publish("/bla/", "Bla Bla Bla Bla Bla")
 
         x = s1bla.get()
-        self.assertEqual(x, ("/bla", "Bla Bla Bla Bla Bla"))
+        self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
 
     def test_routing_subscribe(self):
         ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers()
@@ -72,7 +72,7 @@ class TestCommunication(unittest.TestCase):
         ep4.publish("/bla/", "Bla Bla Bla Bla Bla")
 
         x = s1bla.get()
-        self.assertEqual(x, ("/bla", "Bla Bla Bla Bla Bla"))
+        self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
 
     def test_routing_tree_cluster(self):
         ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers()
@@ -108,9 +108,9 @@ class TestCommunication(unittest.TestCase):
         time.sleep(1)
         ep1.publish("/bla/", "Bla Bla Bla Bla Bla")
         x = s4bla.get()
-        self.assertEqual(x, ("/bla", "Bla Bla Bla Bla Bla"))
+        self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
         x = s3bla.get()
-        self.assertEqual(x, ("/bla", "Bla Bla Bla Bla Bla"))
+        self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
 
 if __name__ == '__main__':
    unittest.main(verbosity=3)
