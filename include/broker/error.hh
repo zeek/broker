@@ -62,6 +62,8 @@ enum class ec : uint8_t {
   end_of_file,
   /// Received an unknown type tag value.
   invalid_tag,
+  /// Received an invalid message.
+  invalid_message,
   /// Deserialized an invalid status.
   invalid_status,
   /// Converting between two data types or formats failed.
@@ -69,6 +71,12 @@ enum class ec : uint8_t {
   /// Adding a consumer to a producer failed because the producer already added
   /// the consumer.
   consumer_exists,
+  /// A producer did not receive any message from a consumer within the
+  /// configured timeout.
+  consumer_timeout,
+  /// A consumer did not receive any message from a producer within the
+  /// configured timeout.
+  producer_timeout,
 };
 // --ec-enum-end
 

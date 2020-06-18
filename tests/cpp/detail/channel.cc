@@ -150,6 +150,10 @@ struct fixture : base_fixture {
                                      channel_type::producer_message{x});
   }
 
+  void drop(producer_type*, std::string hdl, ec) {
+    consumers.erase(hdl);
+  }
+
   // Uses a simulated transport channel that's beyond terrible. Randomly
   // reorders all messages and loses messages according to `loss_rate`.
   void ship(double loss_rate = 0) {
@@ -507,8 +511,13 @@ TEST(producers become idle after all consumers ACKed all messages) {
 }
 
 TEST(messages arrive eventually - even with 33 percent loss rate) {
+  producer.consumer_timeout_factor(8);
   // Essentially the same test as above, but with a loss rate of 33%.
   setup_actors({"A", "B", "C", "D"});
+  CHECK_EQUAL(get("A").backend().input, "");
+  CHECK_EQUAL(get("B").backend().input, "");
+  CHECK_EQUAL(get("C").backend().input, "");
+  CHECK_EQUAL(get("D").backend().input, "");
   producer.produce("a");
   producer.produce("b");
   producer.produce("c");
@@ -540,6 +549,7 @@ TEST(messages arrive eventually - even with 33 percent loss rate) {
 }
 
 TEST(messages arrive eventually - even with 66 percent loss rate) {
+  producer.consumer_timeout_factor(24);
   // Essentially the same test again, but with a loss rate of 66%.
   setup_actors({"A", "B", "C", "D"});
   producer.produce("a");

@@ -10,6 +10,7 @@
 
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/error.hh"
+#include "broker/logger.hh"
 
 namespace broker::detail {
 
@@ -123,6 +124,7 @@ public:
   ///                 - `void broadcast(producer*, const T&)` sends a multicast
   ///                   message to all consumers, where `T` is any type in
   ///                   `producer_message`.
+  ///                 - `void drop(producer*, const Handle&, ec)`
   template <class Backend>
   class producer {
   public:
@@ -139,11 +141,8 @@ public:
       /// The sequence number of the last cumulative ACK.
       sequence_number_type acked;
 
-      /// The first time we have received a cumulative ACK for `acked`.
-      alm::lamport_timestamp first_acked;
-
-      /// The last time we have received a cumulative ACK for `acked`.
-      alm::lamport_timestamp last_acked;
+      /// The last time we have received a message on this path.
+      alm::lamport_timestamp last_seen;
     };
 
     using buf_type = std::deque<event>;
@@ -170,7 +169,8 @@ public:
     error add(const Handle& hdl) {
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
-      paths_.emplace_back(path{hdl, seq_, seq_});
+      BROKER_DEBUG("add" << hdl << "to the channel");
+      paths_.emplace_back(path{hdl, seq_, seq_, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return nil;
     }
@@ -185,15 +185,13 @@ public:
             // A blast from the past. Ignore.
             return;
           }
+          x.last_seen = tick_;
           if (x.acked == seq) {
-            // Old news. Store the current time on the path and then stop
-            // processing this event.
-            x.last_acked = tick_;
+            // Old news. Stop processing this event, since it won't allow us to
+            // clear events from the buffer anyways.
             return;
           }
           x.acked = seq;
-          x.first_acked = tick_;
-          x.last_acked = tick_;
         } else {
           acked = std::min(x.acked, acked);
         }
@@ -213,6 +211,12 @@ public:
       if (p == paths_.end())
         return;
       // Seqs must be sorted. Everything before the first missing ID is ACKed.
+      p->last_seen = tick_;
+      if (seqs.size() > 1 && !std::is_sorted(seqs.begin(), seqs.end())) {
+        backend_->drop(this, p->hdl, ec::invalid_message);
+        paths_.erase(p);
+        return;
+      }
       auto first = seqs.front();
       if (first == 0) {
         backend_->send(this, hdl, handshake{p->offset, heartbeat_interval_});
@@ -230,11 +234,40 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
+      // Increase local time and send heartbeats.
       ++tick_;
-      if (heartbeat_interval_ > 0
-          && last_broadcast_ + heartbeat_interval_ == tick_) {
+      if (heartbeat_interval_ == 0)
+        return;
+      if (last_broadcast_ + heartbeat_interval_ == tick_) {
         last_broadcast_ = tick_;
         backend_->broadcast(this, heartbeat{seq_});
+      }
+      // Check whether any consumer timed out.
+      auto timeout = consumer_timeout();
+      assert(timeout > 0);
+      size_t erased_paths = 0;
+      for (auto i = paths_.begin(); i != paths_.end();) {
+        if (tick_.value - i->last_seen.value >= timeout) {
+          BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
+          backend_->drop(this, i->hdl, ec::consumer_timeout);
+          i = paths_.erase(i);
+          ++erased_paths;
+        } else {
+          ++i;
+        }
+      }
+      // Check whether we can clear some items from the buffer.
+      if (paths_.empty()) {
+        buf_.clear();
+      } else if (erased_paths > 0) {
+        auto i = paths_.begin();
+        auto acked = i->acked;
+        for (++i; i != paths_.end(); ++i)
+          if (i->acked < acked)
+            acked = i->acked;
+        auto not_acked = [acked](const event& x) { return x.seq > acked; };
+        buf_.erase(buf_.begin(),
+                   std::find_if(buf_.begin(), buf_.end(), not_acked));
       }
     }
 
@@ -268,12 +301,29 @@ public:
       heartbeat_interval_ = value;
     }
 
+    auto consumer_timeout() const noexcept {
+      return heartbeat_interval_ * consumer_timeout_factor_;
+    }
+
     bool idle() const noexcept {
       auto at_head = [seq{seq_}](const path& x) { return x.acked == seq; };
       return std::all_of(paths_.begin(), paths_.end(), at_head);
     }
 
+    auto consumer_timeout_factor() const noexcept {
+      return consumer_timeout_factor_;
+    }
+
+    void consumer_timeout_factor(tick_interval_type value) noexcept {
+      consumer_timeout_factor_ = value;
+    }
+
     // -- path and event lookup ------------------------------------------------
+
+    auto find_path(const Handle& hdl) noexcept {
+      auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
+      return std::find_if(paths_.begin(), paths_.end(), has_hdl);
+    }
 
     auto find_path(const Handle& hdl) const noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
@@ -310,6 +360,11 @@ public:
     /// Maximum time between to broadcasted messages. When not sending anything
     /// else, insert heartbeats after this amount of time.
     tick_interval_type heartbeat_interval_ = 5;
+
+    /// Factor for computing the timeout for consumers, i.e., after how many
+    /// ticks not not receiving any message do we assume the consumer no longer
+    /// exists.
+    tick_interval_type consumer_timeout_factor_ = 4;
   };
 
   // -- implementation of the consumer -----------------------------------------
