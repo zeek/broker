@@ -59,6 +59,10 @@ public:
   filter_type get_all_filter();
 
   /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
+  /// except for the given actor hdl
+  filter_type get_all_filter(caf::actor& hdl);
+
+  /// Returns a joint filter that contains all filter of neighbors and the filter of the local node
   /// except the filters in set skip
   filter_type get_all_filter(const std::set<caf::actor>& skip);
 

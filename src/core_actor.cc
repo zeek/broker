@@ -49,6 +49,7 @@ namespace detail {
 result<void> init_peering(core_actor_type* self, actor remote_core,
                           response_promise rp) {
   BROKER_TRACE(BROKER_ARG(remote_core));
+  BROKER_DEBUG("init_peering:: from " << self << " to " << remote_core);
   auto& mgr = *self->state.mgr;
   // Sanity checking.
   if (remote_core == nullptr) {
@@ -194,6 +195,12 @@ filter_type core_manager::get_all_filter() {
   return get_all_filter(skip);
 }
 
+filter_type core_manager::get_all_filter(caf::actor& hdl) {
+  std::set<caf::actor> skip;
+  skip.insert(hdl);
+  return get_all_filter(skip);
+}
+
 filter_type core_manager::get_all_filter(const std::set<caf::actor>& skip) {
   filter_type rfilter;
   // add filter of all outbound peers
@@ -204,13 +211,6 @@ filter_type core_manager::get_all_filter(const std::set<caf::actor>& skip) {
       rfilter.insert(rfilter.end(), pf.begin(), pf.end());
     }
   }
-  // add filter of all inbound peers
-  /* for (auto p : peer_to_ipath_) {
-    if (skip.find(p.first) == skip.end()) {
-      filter_type &pf = this->get_filter(p.first).second;
-      rfilter.insert(rfilter.end(), pf.begin(), pf.end());
-    }
-  }*/
 
   // add filter of local peer
   rfilter.insert(rfilter.end(), filter.begin(), filter.end());
@@ -247,13 +247,15 @@ bool core_manager::update_peer(const actor& hdl, filter_type filter) {
 }
 
 bool core_manager::update_routing(const actor& hdl, filter_type filter) {
-  CAF_LOG_DEBUG("Update routing for actor " << hdl << " with filter " << filter);
   bool update = false;
+  if(!options.forward)
+    return update;
 
-    // Iterate over all peers and check if the update causes an update for them as well
+  BROKER_DEBUG("core_manager::update_routing with filter " << filter << " for actor " << hdl);
+  // Iterate over all peers and check if the update causes an update for them as well
   for_each_peer([&](const actor& p) {
     if(p != hdl) {
-      BROKER_DEBUG("Check for routing update for peer" << p << " with filter " << get_filter(p).second);
+      BROKER_DEBUG("  - check for routing update for peer" << p << " with filter " << get_filter(p).second);
       // 1. get topics of local peer and all neighbors,
       //    except the currently observed neighbor
       //    in own sorted vector BEFORE update
@@ -272,17 +274,15 @@ bool core_manager::update_routing(const actor& hdl, filter_type filter) {
       if (e != all_new_topics.end())
         all_new_topics.erase(e, all_new_topics.end());
 
-      BROKER_DEBUG("old topics " << all_old_topics << " and new topics " << all_new_topics);
+      BROKER_DEBUG("    -> old topics " << all_old_topics << " and new topics " << all_new_topics);
       // 3. Compare the two data structures
       // and in case they do not match: send update to respective peer
       if (all_old_topics != all_new_topics) {
-        CAF_LOG_DEBUG("Send routing update to " << p << " with filter " << all_new_topics);
-        BROKER_DEBUG("Send routing update to " << p << " with filter " << all_new_topics);
+        BROKER_DEBUG("   -> Send routing update to " << p << " with filter " << all_new_topics);
         self()->send(p, atom::update::value, all_new_topics);
         update = true;
       } else {
-        CAF_LOG_DEBUG("No routing update to " << p << " as nothing changed ");
-        BROKER_DEBUG("No routing update to " << p << " as nothing changed, its subscriptions are " << get_filter(p).second);
+        BROKER_DEBUG("   -> No routing update to " << p << " as nothing changed, its subscriptions are " << get_filter(p).second);
       }
     }
   });
@@ -434,7 +434,8 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
         return {};
       }
       BROKER_DEBUG("received handshake step #1" << BROKER_ARG(peer_hdl)
-                    << BROKER_ARG(actor{self}));
+                    << BROKER_ARG(actor{self}) << " with filter " << peer_ts);
+      mgr.update_routing(peer_hdl, peer_ts);
       // Start CAF stream.
       return mgr.start_peering<true>(peer_hdl, std::move(peer_ts));
     },
@@ -444,7 +445,7 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
       BROKER_TRACE(BROKER_ARG(in) << BROKER_ARG(filter) << peer_hdl);
       auto& mgr = *self->state.mgr;
       BROKER_DEBUG("received handshake step #2 from" << peer_hdl
-                    << BROKER_ARG(actor{self}));
+                    << BROKER_ARG(actor{self}) << " filter " << filter);
       // At this stage, we expect to have no path to the peer yet.
       if (mgr.connected_to(peer_hdl)) {
         BROKER_WARNING("Received unexpected or repeated step #2 handshake.");
@@ -453,6 +454,8 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
       if (!mgr.status_subscribers.empty())
         mgr.block_peer(peer_hdl);
       mgr.ack_peering(in, peer_hdl);
+      // update peers on new or deleted topics
+      mgr.update_routing(peer_hdl, filter);
       mgr.start_peering<false>(peer_hdl, std::move(filter));
       // Emit peer added event.
       mgr.emit_peer_added_status(peer_hdl, "received handshake from remote core");
@@ -462,7 +465,6 @@ caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
         i->second.rp.deliver(peer_hdl);
         mgr.pending_connections().erase(i);
       }
-      // TODO update peers on new or deleted topics
     },
     // Step #3: - A establishes a stream to B
     //          - B has a stream to A and vice versa now

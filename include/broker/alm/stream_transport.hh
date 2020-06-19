@@ -767,7 +767,7 @@ protected:
   /// Sends a handshake with filter in step #1.
   step1_handshake add(std::true_type send_own_filter, const caf::actor& hdl) {
     auto xs
-      = std::make_tuple(dref().filter, caf::actor_cast<caf::actor>(self()));
+      = std::make_tuple(dref().get_all_filter(hdl), caf::actor_cast<caf::actor>(self()));
     return this->template add_unchecked_outbound_path<node_message>(
       hdl, std::move(xs));
   }
