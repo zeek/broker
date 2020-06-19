@@ -124,40 +124,6 @@ class TestCommunication(unittest.TestCase):
         x = s3bla.get()
         self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
 
-    def test_routing_tree_3(self):
-        opts = broker.Configuration(broker.BrokerOptions())
-        ep1 = broker.Endpoint(opts)
-        ep2 = broker.Endpoint(opts)
-        ep3 = broker.Endpoint(opts)
-        ep4 = broker.Endpoint(opts)
-        # Listening
-        p2 = ep2.listen("127.0.0.1", 0)
-        p3 = ep3.listen("127.0.0.1", 0)
-        p4 = ep4.listen("127.0.0.1", 0)
-        # Peering
-        #  ep1 [blub]
-        #   |
-        #  ep2
-        #   |
-        #  ep3
-        #   |
-        #  ep4 [bla]
-        ep1.peer("127.0.0.1", p2, 1.0)
-        ep2.peer("127.0.0.1", p3, 1.0)
-        ep3.peer("127.0.0.1", p4, 1.0)
-
-        # Subscriptions
-        s1blub = ep1.make_subscriber("/blub/")
-        s4bla = ep4.make_subscriber("/bla/")
-        time.sleep(1)
-
-        ep1.publish("/bla/", "Bla Bla Bla Bla Bla")
-        ep4.publish("/blub/", "Blub Blub")
-        x = s4bla.get()
-        self.assertEqual(x, ("/bla/", "Bla Bla Bla Bla Bla"))
-        x = s1blub.get()
-        self.assertEqual(x, ("/blub/", "Blub Blub"))
-
     def test_routing_tree_cluster(self):
         opts = broker.Configuration(broker.BrokerOptions())
         ep1 = broker.Endpoint(opts)

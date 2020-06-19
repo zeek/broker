@@ -143,9 +143,9 @@ core_manager::core_manager(caf::event_based_actor* ptr,
 
 void core_manager::update_filter_on_peers() {
   BROKER_TRACE("");
-  for_each_peer([&](const actor& hdl) {
+  for_each_peer([&](const caf::actor& hdl) {
+    filter_type complete_filter = get_all_filter();
     std::set<caf::actor> skip;
-    filter_type complete_filter = get_all_filter(skip);
     skip.insert(hdl);
     filter_type sfilter = get_all_filter(skip);
     CAF_LOG_DEBUG("Send updated filter " << sfilter << " instead of " << complete_filter <<" to peer " << hdl);
@@ -201,7 +201,7 @@ filter_type core_manager::get_all_filter(caf::actor& hdl) {
   return get_all_filter(skip);
 }
 
-filter_type core_manager::get_all_filter(const std::set<caf::actor>& skip) {
+filter_type core_manager::get_all_filter(std::set<caf::actor>& skip) {
   filter_type rfilter;
   // add filter of all outbound peers
   for (auto p : hdl_to_ostream_) {
