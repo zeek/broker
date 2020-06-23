@@ -18,7 +18,7 @@ core_recorder::core_recorder(caf::local_actor* self) {
   if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
     if (!open_file(topics_file_, meta_dir + "/topics.txt"))
       return;
-    if (!open_file(topics_file_, meta_dir + "/peers.txt"))
+    if (!open_file(peers_file_, meta_dir + "/peers.txt"))
       return;
     std::ofstream id_file;
     if (!open_file(id_file, meta_dir + "/id.txt"))
