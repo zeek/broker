@@ -154,6 +154,10 @@ struct fixture : base_fixture {
     consumers.erase(hdl);
   }
 
+  void handshake_completed(producer_type*, const std::string&) {
+    // nop
+  }
+
   // Uses a simulated transport channel that's beyond terrible. Randomly
   // reorders all messages and loses messages according to `loss_rate`.
   void ship(double loss_rate = 0) {
@@ -249,7 +253,7 @@ struct consumer_visitor {
   consumer_type* ch;
 
   void operator()(channel_type::handshake& msg) {
-    ch->handle_handshake(msg.first_seq, msg.heartbeat_interval);
+    ch->handle_handshake(msg.offset, msg.heartbeat_interval);
   }
 
   void operator()(channel_type::heartbeat& msg) {
@@ -288,21 +292,21 @@ FIXTURE_SCOPE(channel_tests, fixture)
 
 TEST(adding consumers triggers handshakes) {
   producer.add("A");
-  CHECK_EQUAL(producer.seq(), 0u);
-  producer.produce("abc");
   CHECK_EQUAL(producer.seq(), 1u);
-  producer.produce("def");
+  producer.produce("abc");
   CHECK_EQUAL(producer.seq(), 2u);
+  producer.produce("def");
+  CHECK_EQUAL(producer.seq(), 3u);
   producer.add("B");
   producer.produce("ghi");
-  CHECK_EQUAL(producer.seq(), 3u);
+  CHECK_EQUAL(producer.seq(), 4u);
   CHECK_EQUAL(producer.buf().size(), 3u);
   CHECK_EQUAL(producer_log, R"(
-A <- handshake(0, 5)
-[A] <- event(1, "abc")
-[A] <- event(2, "def")
-B <- handshake(2, 5)
-[A, B] <- event(3, "ghi"))");
+A <- handshake(1, 5)
+[A] <- event(2, "abc")
+[A] <- event(3, "def")
+B <- handshake(3, 5)
+[A, B] <- event(4, "ghi"))");
 }
 
 TEST(ACKs delete elements from the buffer) {
@@ -310,25 +314,25 @@ TEST(ACKs delete elements from the buffer) {
   producer.add("B");
   producer.add("C");
   producer.produce("a");
-  CHECK_EQUAL(producer.buf().back().seq, 1u);
-  producer.produce("b");
   CHECK_EQUAL(producer.buf().back().seq, 2u);
-  producer.produce("c");
+  producer.produce("b");
   CHECK_EQUAL(producer.buf().back().seq, 3u);
-  producer.produce("d");
+  producer.produce("c");
   CHECK_EQUAL(producer.buf().back().seq, 4u);
+  producer.produce("d");
+  CHECK_EQUAL(producer.buf().back().seq, 5u);
   CHECK_EQUAL(producer.buf().size(), 4u);
-  producer.handle_ack("A", 2);
+  producer.handle_ack("A", 3);
   CHECK_EQUAL(producer.buf().size(), 4u);
-  producer.handle_ack("B", 3);
-  CHECK_EQUAL(producer.buf().size(), 4u);
-  producer.handle_ack("C", 4);
-  CHECK_EQUAL(producer.buf().size(), 2u);
-  CHECK_EQUAL(producer.buf().front().seq, 3u);
-  producer.handle_ack("A", 4);
-  CHECK_EQUAL(producer.buf().size(), 1u);
-  CHECK_EQUAL(producer.buf().front().seq, 4u);
   producer.handle_ack("B", 4);
+  CHECK_EQUAL(producer.buf().size(), 4u);
+  producer.handle_ack("C", 5);
+  CHECK_EQUAL(producer.buf().size(), 2u);
+  CHECK_EQUAL(producer.buf().front().seq, 4u);
+  producer.handle_ack("A", 5);
+  CHECK_EQUAL(producer.buf().size(), 1u);
+  CHECK_EQUAL(producer.buf().front().seq, 5u);
+  producer.handle_ack("B", 5);
   CHECK_EQUAL(producer.buf().size(), 0u);
 }
 
@@ -343,22 +347,22 @@ TEST(NACKs cause the producer to send messages again) {
   producer_log.clear();
   MESSAGE("sending NACK for 0 re-sends the handshake");
   producer.handle_nack("A", {0});
-  CHECK_EQUAL(producer_log, "\nA <- handshake(0, 5)");
+  CHECK_EQUAL(producer_log, "\nA <- handshake(1, 5)");
   producer_log.clear();
   MESSAGE("sending NACK for sequence number N re-sends the event");
-  producer.handle_nack("B", {1, 3});
+  producer.handle_nack("B", {2, 4});
   CHECK_EQUAL(producer_log, R"(
-B <- event(1, "a")
-B <- event(3, "c"))");
+B <- event(2, "a")
+B <- event(4, "c"))");
   producer_log.clear();
   MESSAGE("sending NACK for unknown sequence numbers sends errors");
-  producer.handle_ack("A", 4);
-  producer.handle_ack("B", 4);
+  producer.handle_ack("A", 5);
+  producer.handle_ack("B", 5);
   CHECK_EQUAL(producer.buf().size(), 0u);
-  producer.handle_nack("B", {1, 3});
+  producer.handle_nack("B", {2, 4});
   CHECK_EQUAL(producer_log, R"(
-B <- retransmit_failed(1)
-B <- retransmit_failed(3))");
+B <- retransmit_failed(2)
+B <- retransmit_failed(4))");
 }
 
 TEST(consumers process events in order) {
@@ -511,7 +515,7 @@ TEST(producers become idle after all consumers ACKed all messages) {
 }
 
 TEST(messages arrive eventually - even with 33 percent loss rate) {
-  producer.consumer_timeout_factor(8);
+  producer.consumer_timeout_factor(12);
   // Essentially the same test as above, but with a loss rate of 33%.
   setup_actors({"A", "B", "C", "D"});
   CHECK_EQUAL(get("A").backend().input, "");

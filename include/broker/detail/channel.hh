@@ -14,22 +14,20 @@
 
 namespace broker::detail {
 
+/// Integer type for the monotonically increasing counters large enough to
+/// neglect wraparounds. At 1000 messages per second, a sequence number of this
+/// type overflows after 580 *million* years.
+using sequence_number_type = uint64_t;
+
+/// Integer type for measuring configurable intervals in ticks.
+using tick_interval_type = uint16_t;
+
 /// A message-driven channel for ensuring reliable and ordererd transport over
 /// an unreliable and unordered communication layer. A channel belongs to a
 /// single producer with any number of consumers.
 template <class Handle, class Payload>
 class channel {
 public:
-  // -- member types -----------------------------------------------------------
-
-  /// Integer type for the monotonically increasing counters large enough to
-  /// neglect wraparounds. At 1000 messages per second, a sequence number of
-  /// this type overflows after 580 *million* years.
-  using sequence_number_type = uint64_t;
-
-  /// Integer type for measuring configurable intervals in ticks.
-  using tick_interval_type = uint16_t;
-
   // -- member types: messages from consumers to the producer ------------------
 
   /// Notifies the producer that a consumer received all events up to a certain
@@ -63,7 +61,7 @@ public:
   /// listening to the producer.
   struct handshake {
     /// The first sequence number a consumer should process and acknowledge.
-    sequence_number_type first_seq;
+    sequence_number_type offset;
 
     /// The interval (in ticks) between heartbeat messages. Allows the consumer
     /// to adjust its timeouts for detecting failed producers.
@@ -71,7 +69,7 @@ public:
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, handshake& x) {
-      return f(caf::meta::type_name("handshake"), x.first_seq,
+      return f(caf::meta::type_name("handshake"), x.offset,
                x.heartbeat_interval);
     }
   };
@@ -124,7 +122,10 @@ public:
   ///                 - `void broadcast(producer*, const T&)` sends a multicast
   ///                   message to all consumers, where `T` is any type in
   ///                   `producer_message`.
-  ///                 - `void drop(producer*, const Handle&, ec)`
+  ///                 - `void drop(producer*, const Handle&, ec)` called to
+  ///                   indicate that a consumer got removed by the producer.
+  ///                 - `void handshake_completed(producer*, const Handle&)`
+  ///                   called to indicate that the producer received an ACK
   template <class Backend>
   class producer {
   public:
@@ -170,7 +171,7 @@ public:
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
       BROKER_DEBUG("add" << hdl << "to the channel");
-      paths_.emplace_back(path{hdl, seq_, seq_, tick_});
+      paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return nil;
     }
@@ -186,7 +187,9 @@ public:
             return;
           }
           x.last_seen = tick_;
-          if (x.acked == seq) {
+          if (x.acked == 0) {
+            backend_->handshake_completed(this, hdl);
+          } else if (x.acked == seq) {
             // Old news. Stop processing this event, since it won't allow us to
             // clear events from the buffer anyways.
             return;
@@ -207,9 +210,15 @@ public:
       // Sanity checks.
       if (seqs.empty())
         return;
+      // Nack 0 implicitly acts as a handshake.
       auto p = find_path(hdl);
-      if (p == paths_.end())
+      if (p == paths_.end()) {
+        if (seqs.size() == 1 && seqs.front() == 0) {
+          auto err = add(hdl);
+          static_cast<void>(err); // Discard: always default-constructed.
+        }
         return;
+      }
       // Seqs must be sorted. Everything before the first missing ID is ACKed.
       p->last_seen = tick_;
       if (seqs.size() > 1 && !std::is_sorted(seqs.begin(), seqs.end())) {
@@ -285,6 +294,10 @@ public:
       return seq_;
     }
 
+    auto next_seq() const noexcept {
+      return seq_ + 1;
+    }
+
     const auto& buf() const noexcept {
       return buf_;
     }
@@ -342,8 +355,11 @@ public:
     Backend* backend_;
 
     /// Monotonically increasing counter (starting at 1) to establish ordering
-    /// of messages on this channel.
-    sequence_number_type seq_ = 0;
+    /// of messages on this channel. Since we start at 1, the first message we
+    /// send is going to have a sequence number of *2*. This enables us to
+    /// use 0 on a path to mean "added but we never received an ack yet",
+    /// because an ACK cannot have the sequence number 0.
+    sequence_number_type seq_ = 1;
 
     /// Monotonically increasing counter to keep track of time.
     alm::lamport_timestamp tick_;
@@ -417,14 +433,18 @@ public:
 
     // -- message processing ---------------------------------------------------
 
-    void handle_handshake(sequence_number_type offset,
+    /// Initializes the consumer from the settings in the handshake.
+    /// @returns `true` if the consumer was initialized, `false` on a repeated
+    ///          handshake that got dropped by the consumer.
+    bool handle_handshake(sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
-      if (offset >= next_seq_) {
-        next_seq_ = offset + 1;
-        last_seq_ = next_seq_;
-        heartbeat_interval_ = heartbeat_interval;
-        try_consume_buffer();
-      }
+      if (initialized())
+        return false;
+      next_seq_ = offset + 1;
+      last_seq_ = next_seq_;
+      heartbeat_interval_ = heartbeat_interval;
+      try_consume_buffer();
+      return true;
     }
 
     void handle_heartbeat(sequence_number_type seq) {
@@ -439,7 +459,7 @@ public:
     void handle_event(sequence_number_type seq, Payload payload) {
       if (next_seq_ == seq) {
         // Process immediately.
-        backend_->consume(this, std::move(payload));
+        backend_->consume(this, payload);
         bump_seq();
         try_consume_buffer();
       } else if (seq > next_seq_) {
@@ -480,10 +500,20 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
+      ++tick_;
+      // Ask for repeated handshake each heartbeat interval when not fully
+      // initialized yet.
+      if (!initialized()) {
+        ++idle_ticks_;
+        if (idle_ticks_ >= nack_timeout_) {
+          idle_ticks_ = 0;
+          backend_->send(this, nack{std::vector<sequence_number_type>{0}});
+        }
+        return;
+      }
       // Update state.
       bool progressed = next_seq_ > last_tick_seq_;
       last_tick_seq_ = next_seq_;
-      ++tick_;
       if (progressed) {
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
@@ -523,7 +553,15 @@ public:
       return *backend_;
     }
 
-    const buf_type& buf() const noexcept {
+    const auto& producer() const {
+      return producer_;
+    }
+
+    void producer(Handle hdl) {
+      producer_ = std::move(hdl);
+    }
+
+    const auto& buf() const noexcept {
       return buf_;
     }
 
@@ -546,6 +584,26 @@ public:
 
     void nack_timeout(uint8_t value) noexcept {
       nack_timeout_ = value;
+    }
+
+    bool initialized() const noexcept {
+      return next_seq_ != 0;
+    }
+
+    bool idle() const noexcept {
+      return initialized() && buf_.empty() && next_seq_ == last_seq_;
+    }
+
+    void reset() {
+      producer_ = Handle{};
+      next_seq_ = 0;
+      last_seq_ = 0;
+      buf_.clear();
+      tick_ = alm::lamport_timestamp{};
+      last_tick_seq_ = 0;
+      idle_ticks_ = 0;
+      heartbeat_interval_ = 0;
+      nack_timeout_ = 5;
     }
 
   private:
@@ -584,6 +642,9 @@ public:
 
     /// Handles incoming events.
     Backend* backend_;
+
+    /// Stores the handle of the producer.
+    Handle producer_;
 
     /// Monotonically increasing counter (starting at 1) to establish ordering
     /// of messages on this channel.

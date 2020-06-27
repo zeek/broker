@@ -2,6 +2,7 @@
 
 #include <caf/io/publish.hpp>
 #include <caf/openssl/publish.hpp>
+#include <caf/scoped_actor.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/core_actor.hh"

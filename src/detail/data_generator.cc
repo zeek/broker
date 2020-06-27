@@ -112,8 +112,6 @@ caf::error data_generator::generate(internal_command::type tag,
                                     internal_command& x) {
   using tag_type = internal_command::type;
   switch (tag) {
-    case tag_type::none:
-      break;
     case tag_type::put_command: {
       data key;
       data val;
@@ -127,14 +125,20 @@ caf::error data_generator::generate(internal_command::type tag,
       data val;
       GENERATE(key);
       GENERATE(val);
-      x.content
-        = put_unique_command{std::move(key), std::move(val), nil, nullptr, 0};
+      x.content = put_unique_command{std::move(key), std::move(val), nil,
+                                     entity_id::nil(), 0};
       break;
     }
     case tag_type::erase_command: {
       data key;
       GENERATE(key);
       x.content = erase_command{std::move(key)};
+      break;
+    }
+    case tag_type::expire_command: {
+      data key;
+      GENERATE(key);
+      x.content = expire_command{std::move(key)};
       break;
     }
     case tag_type::add_command: {
@@ -155,22 +159,54 @@ caf::error data_generator::generate(internal_command::type tag,
       x.content = subtract_command{std::move(key), std::move(val)};
       break;
     }
-    case tag_type::snapshot_command: {
-      x.content = snapshot_command{nullptr, nullptr};
-      break;
-    }
-    case tag_type::snapshot_sync_command: {
-      x.content = snapshot_sync_command{};
-      break;
-    }
-    case tag_type::set_command: {
-      std::unordered_map<data, data> xs;
-      GENERATE(xs);
-      x.content = set_command{std::move(xs)};
-      break;
-    }
     case tag_type::clear_command: {
       x.content = clear_command{};
+      break;
+    }
+    case tag_type::attach_clone_command: {
+      x.content = attach_clone_command{};
+      break;
+    }
+    case tag_type::attach_writer_command: {
+      sequence_number_type offset;
+      tick_interval_type heartbeat_interval;
+      GENERATE(offset);
+      GENERATE(heartbeat_interval);
+      x.content = attach_writer_command{offset, heartbeat_interval};
+      break;
+    }
+    case tag_type::keepalive_command: {
+      sequence_number_type seq;
+      GENERATE(seq);
+      x.content = keepalive_command{seq};
+      break;
+    }
+    case tag_type::cumulative_ack_command: {
+      sequence_number_type seq;
+      GENERATE(seq);
+      x.content = cumulative_ack_command{seq};
+      break;
+    }
+    case tag_type::nack_command: {
+      std::vector<sequence_number_type> seqs;
+      GENERATE(seqs);
+      x.content = nack_command{std::move(seqs)};
+      break;
+    }
+    case tag_type::ack_clone_command: {
+      sequence_number_type seq;
+      tick_interval_type heartbeat_interval;
+      snapshot state;
+      GENERATE(seq);
+      GENERATE(heartbeat_interval);
+      GENERATE(state);
+      x.content = ack_clone_command{seq, heartbeat_interval, std::move(state)};
+      break;
+    }
+    case tag_type::retransmit_failed_command: {
+      sequence_number_type offset;
+      GENERATE(offset);
+      x.content = retransmit_failed_command{offset};
       break;
     }
     default:
@@ -290,11 +326,6 @@ void data_generator::shuffle(timestamp& x) {
 void data_generator::shuffle(data& x) {
   mixer f{*this};
   caf::visit(f, x);
-}
-
-void data_generator::shuffle(vector& xs) {
-  for (auto& x : xs)
-    shuffle(x);
 }
 
 void data_generator::shuffle(set& xs) {

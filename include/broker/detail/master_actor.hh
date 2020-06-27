@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_set>
+#include <unordered_map>
 
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
@@ -22,69 +22,125 @@ class abstract_backend;
 
 class master_state : public store_actor_state {
 public:
+  // -- member types -----------------------------------------------------------
+
   using super = store_actor_state;
+
+  using producer_type = channel_type::producer<master_state>;
+
+  using consumer_type = channel_type::consumer<master_state>;
 
   /// Owning smart pointer to a backend.
   using backend_pointer = std::unique_ptr<abstract_backend>;
 
-  /// Initializes the object.
-  void init(caf::event_based_actor* ptr, std::string&& nm,
-            backend_pointer&& bp, caf::actor&& parent, endpoint::clock* clock);
-
-  /// Sends `x` to all clones.
-  void broadcast(internal_command&& x);
-
   template <class T>
-  void broadcast_cmd_to_clones(T cmd) {
-    if (!clones.empty())
-      broadcast(internal_command{std::move(cmd)});
+  void broadcast(T&& cmd) {
+    // Suppress message if no one is listening.
+    if (output.paths().empty())
+      return;
+    auto seq = output.next_seq();
+    auto msg = make_command_message(
+      clones_topic, internal_command{seq, id, std::forward<T>(cmd)});
+    output.produce(std::move(msg));
   }
+
+  // -- initialization ---------------------------------------------------------
+
+  master_state();
+
+  /// Initializes the object.
+  void init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
+            std::string&& nm, backend_pointer&& bp, caf::actor&& parent,
+            endpoint::clock* clock);
+
+  // -- callbacks for the behavior ---------------------------------------------
+
+  void dispatch(command_message& msg);
+
+  void tick();
 
   void remind(timespan expiry, const data& key);
 
   void expire(data& key);
 
-  void command(internal_command& cmd);
+  // -- callbacks for the consumer ---------------------------------------------
 
-  void command(internal_command::variant_type& cmd);
+  void consume(consumer_type* src, command_message& cmd);
 
-  void operator()(none);
+  void consume(put_command& cmd);
 
-  void operator()(put_command&);
+  void consume(put_unique_command& cmd);
 
-  void operator()(put_unique_command&);
+  void consume(erase_command& cmd);
 
-  void operator()(erase_command&);
+  void consume(add_command& cmd);
 
-  void operator()(expire_command&);
+  void consume(subtract_command& cmd);
 
-  void operator()(add_command&);
+  void consume(clear_command& cmd);
 
-  void operator()(subtract_command&);
+  template <class T>
+  void consume(T& cmd) {
+    BROKER_ERROR("master got unexpected command:" << cmd);
+  }
 
-  void operator()(snapshot_command&);
+  error consume_nil(consumer_type* src);
 
-  void operator()(snapshot_sync_command&);
+  void close(consumer_type* src, error);
 
-  void operator()(set_command&);
+  void send(consumer_type*, channel_type::cumulative_ack);
 
-  void operator()(clear_command&);
+  void send(consumer_type*, channel_type::nack);
 
-  void on_down_msg(const caf::actor_addr& source, const error& reason);
+  // -- callbacks for the producer ---------------------------------------------
 
-  topic clones_topic;
+  void send(producer_type*, const entity_id&, const channel_type::event&);
 
-  backend_pointer backend;
+  void send(producer_type*, const entity_id&, channel_type::handshake);
 
-  std::unordered_map<caf::actor_addr, caf::actor> clones;
+  void send(producer_type*, const entity_id&, channel_type::retransmit_failed);
+
+  void broadcast(producer_type*, channel_type::heartbeat);
+
+  void broadcast(producer_type*, const channel_type::event&);
+
+  void drop(producer_type*, const entity_id&, ec);
+
+  void handshake_completed(producer_type*, const entity_id&);
+
+  // -- properties -------------------------------------------------------------
 
   bool exists(const data& key);
 
+  bool idle() const noexcept;
+
+  // -- member variables -------------------------------------------------------
+
+  /// Caches the topic for broadcasting to all clones.
+  topic clones_topic;
+
+  /// Manages the key-value store.
+  backend_pointer backend;
+
+  /// Manages outgoing commands.
+  producer_type output;
+
+  /// Maps senders to manager objects for incoming commands.
+  std::unordered_map<entity_id, consumer_type> inputs;
+
+  /// Maps senders to manager objects for incoming commands.
+  std::unordered_map<entity_id, command_message> open_handshakes;
+
+  /// Gives this actor a recognizable name in log files.
   static inline constexpr const char* name = "master_actor";
 };
 
-caf::behavior master_actor(caf::stateful_actor<master_state>* self,
-                           caf::actor core, std::string id,
+// -- master actor -------------------------------------------------------------
+
+using master_actor_type = caf::stateful_actor<master_state>;
+
+caf::behavior master_actor(master_actor_type* self, endpoint_id this_endpoint,
+                           caf::actor core, std::string store_name,
                            master_state::backend_pointer backend,
                            endpoint::clock* clock);
 

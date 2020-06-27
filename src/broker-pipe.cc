@@ -27,6 +27,7 @@
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/type_id.hpp>
 #pragma GCC diagnostic pop

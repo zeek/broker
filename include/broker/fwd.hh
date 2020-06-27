@@ -15,20 +15,24 @@ namespace broker {
 
 // -- PODs ---------------------------------------------------------------------
 
+struct ack_clone_command;
 struct add_command;
+struct attach_clone_command;
+struct attach_writer_command;
 struct clear_command;
+struct cumulative_ack_command;
 struct domain_options;
 struct endpoint_info;
 struct enum_value;
 struct erase_command;
 struct expire_command;
+struct keepalive_command;
+struct nack_command;
 struct network_info;
 struct peer_info;
 struct put_command;
 struct put_unique_command;
-struct set_command;
-struct snapshot_command;
-struct snapshot_sync_command;
+struct retransmit_failed_command;
 struct subtract_command;
 
 // -- classes ------------------------------------------------------------------
@@ -92,6 +96,7 @@ namespace broker {
 using caf::optional;
 using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
+using endpoint_id = caf::node_id;
 using node_message_content = caf::variant<data_message, command_message>;
 
 template <class PeerId>
@@ -220,19 +225,29 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
 
   // -- Broker type announcements ----------------------------------------------
 
+  BROKER_ADD_TYPE_ID((broker::ack_clone_command))
+  BROKER_ADD_TYPE_ID((broker::add_command))
   BROKER_ADD_TYPE_ID((broker::address))
   BROKER_ADD_TYPE_ID((broker::alm::lamport_timestamp))
+  BROKER_ADD_TYPE_ID((broker::attach_clone_command))
+  BROKER_ADD_TYPE_ID((broker::attach_writer_command))
   BROKER_ADD_TYPE_ID((broker::backend))
   BROKER_ADD_TYPE_ID((broker::backend_options))
+  BROKER_ADD_TYPE_ID((broker::clear_command))
   BROKER_ADD_TYPE_ID((broker::command_message))
+  BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::ec))
   BROKER_ADD_TYPE_ID((broker::endpoint_info))
   BROKER_ADD_TYPE_ID((broker::enum_value))
+  BROKER_ADD_TYPE_ID((broker::erase_command))
+  BROKER_ADD_TYPE_ID((broker::expire_command))
   BROKER_ADD_TYPE_ID((broker::filter_type))
   BROKER_ADD_TYPE_ID((broker::internal_command))
+  BROKER_ADD_TYPE_ID((broker::keepalive_command))
+  BROKER_ADD_TYPE_ID((broker::nack_command))
   BROKER_ADD_TYPE_ID((broker::network_info))
   BROKER_ADD_TYPE_ID((broker::node_message))
   BROKER_ADD_TYPE_ID((broker::node_message_content))
@@ -240,12 +255,15 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::optional<broker::timestamp>) )
   BROKER_ADD_TYPE_ID((broker::peer_info))
   BROKER_ADD_TYPE_ID((broker::port))
+  BROKER_ADD_TYPE_ID((broker::put_command))
+  BROKER_ADD_TYPE_ID((broker::put_unique_command))
+  BROKER_ADD_TYPE_ID((broker::retransmit_failed_command))
   BROKER_ADD_TYPE_ID((broker::sc))
   BROKER_ADD_TYPE_ID((broker::set))
-  BROKER_ADD_TYPE_ID((broker::set_command))
   BROKER_ADD_TYPE_ID((broker::snapshot))
   BROKER_ADD_TYPE_ID((broker::status))
   BROKER_ADD_TYPE_ID((broker::subnet))
+  BROKER_ADD_TYPE_ID((broker::subtract_command))
   BROKER_ADD_TYPE_ID((broker::table))
   BROKER_ADD_TYPE_ID((broker::topic))
   BROKER_ADD_TYPE_ID((broker::vector))

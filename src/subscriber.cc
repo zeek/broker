@@ -7,6 +7,7 @@
 #include <numeric>
 
 #include <caf/scheduled_actor.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
 #include "broker/atoms.hh"

@@ -9,51 +9,65 @@
 #include <caf/meta/type_name.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/channel.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
+#include "broker/snapshot.hh"
 #include "broker/time.hh"
 
 namespace broker {
 
+// -- meta information ---------------------------------------------------------
+
+enum class command_tag {
+  /// Identifies commands that represent an *action* on the data store. For
+  /// example, adding or removing elements.
+  action,
+  /// Identifies control flow commands that a producer sends to its consumers.
+  producer_control,
+  /// Identifies control flow commands that a consumer sends to its producer.
+  consumer_control,
+};
+
+std::string to_string(command_tag);
+
+// -- broadcast: operations on the key-value store such as put and erase -------
+
+/// Adds a `publisher` field, tags the class as `action` command, and implements
+/// an inspect overload.
+#define BROKER_ACTION_COMMAND(name, ...)                                       \
+  entity_id publisher;                                                         \
+  static constexpr auto tag = command_tag::action;                             \
+  template <class Inspector>                                                   \
+  friend typename Inspector::result_type inspect(Inspector& f,                 \
+                                                 name##_command& x) {          \
+    auto& [__VA_ARGS__, publisher] = x;                                        \
+    return f(caf::meta::type_name(#name), __VA_ARGS__, publisher);             \
+  }
+
 /// Sets a value in the key-value store.
-struct put_command {
+struct put_command  {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(put, key, value, expiry)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, put_command& x) {
-  return f(caf::meta::type_name("put"), x.key, x.value, x.expiry, x.publisher);
-}
 
 /// Sets a value in the key-value store if its key does not already exist.
 struct put_unique_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  caf::actor who;
+  entity_id who;
   request_id req_id;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(put_unique, key, value, expiry, who, req_id)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, put_unique_command& x) {
-  return f(caf::meta::type_name("put_unique"), x.key, x.value, x.expiry, x.who,
-           x.req_id, x.publisher);
-}
 
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(erase, key)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
-  return f(caf::meta::type_name("erase"), x.key, x.publisher);
-}
 
 /// Removes a value in the key-value store as a result of an expiration. The
 /// master sends this message type to the clones in order to allow them to
@@ -61,13 +75,8 @@ typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
 /// removing it after expiration.
 struct expire_command {
   data key;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(expire, key)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, expire_command& x) {
-  return f(caf::meta::type_name("expire"), x.key, x.publisher);
-}
 
 /// Adds a value to the existing value.
 struct add_command {
@@ -75,157 +84,164 @@ struct add_command {
   data value;
   data::type init_type;
   caf::optional<timespan> expiry;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(add, key, value, init_type, expiry)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, add_command& x) {
-  return f(caf::meta::type_name("add"), x.key, x.value, x.init_type, x.expiry,
-           x.publisher);
-}
 
 /// Subtracts a value to the existing value.
 struct subtract_command {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  entity_id publisher;
+  BROKER_ACTION_COMMAND(subtract, key, value, expiry)
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, subtract_command& x) {
-  return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry,
-           x.publisher);
-}
-
-/// Causes the master to reply with a snapshot of its state.
-struct snapshot_command {
-  caf::actor remote_core;
-  caf::actor remote_clone;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, snapshot_command& x) {
-  return f(caf::meta::type_name("snapshot"), x.remote_core, x.remote_clone);
-}
-
-/// Since snapshots are sent to clones on a different channel, this allows
-/// clones to coordinate the reception of snapshots with the stream of
-/// updates that the master may have independently made to it.
-struct snapshot_sync_command {
-  caf::actor remote_clone;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, snapshot_sync_command& x) {
-  return f(caf::meta::type_name("snapshot_sync"), x.remote_clone);
-}
-
-/// Sets the full state of all receiving replicates to the included snapshot.
-struct set_command {
-  std::unordered_map<data, data> state;
-};
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, set_command& x) {
-  return f(caf::meta::type_name("set"), x.state);
-}
 
 /// Drops all values.
 struct clear_command {
   entity_id publisher;
+  static constexpr auto tag = command_tag::action;
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f,
+                                                 clear_command& x) {
+    return f(caf::meta::type_name("clear"), x.publisher);
+  }
 };
 
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, clear_command&) {
-  return f(caf::meta::type_name("clear"));
-}
+#undef BROKER_ACTION_COMMAND
+
+// -- unicast communication between clone and master ---------------------------
+
+/// Tags the class as `control` command, and implements an inspect overload.
+#define BROKER_CONTROL_COMMAND(origin, name, ...)                              \
+  static constexpr auto tag = command_tag::origin##_control;                   \
+  template <class Inspector>                                                   \
+  friend typename Inspector::result_type inspect(Inspector& f,                 \
+                                                 name##_command& x) {          \
+    auto& [__VA_ARGS__] = x;                                                   \
+    return f(caf::meta::type_name(#name), __VA_ARGS__);                        \
+  }
+
+/// Causes the master to add `remote_clone` to its list of clones.
+struct attach_clone_command {
+  static constexpr auto tag = command_tag::consumer_control;
+
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f,
+                                                 attach_clone_command&) {
+    return f(caf::meta::type_name("attach_clone"));
+  }
+};
+
+/// Causes the master to add a store writer to its list of inputs. Also acts as
+/// handshake for the channel.
+struct attach_writer_command {
+  detail::sequence_number_type offset;
+  detail::tick_interval_type heartbeat_interval;
+  BROKER_CONTROL_COMMAND(producer, attach_writer, offset, heartbeat_interval)
+};
+
+/// Confirms a clone and transfers the initial snapshot to a clone.
+struct ack_clone_command {
+  detail::sequence_number_type offset;
+  detail::tick_interval_type heartbeat_interval;
+  snapshot state;
+  BROKER_CONTROL_COMMAND(producer, ack_clone, offset, heartbeat_interval, state)
+};
+
+/// Informs the receiver that the sender successfully handled all messages up to
+/// a certain sequence number.
+struct cumulative_ack_command {
+  detail::sequence_number_type seq;
+  BROKER_CONTROL_COMMAND(consumer, cumulative_ack, seq)
+};
+
+/// Informs the receiver that one or more commands failed to reach the sender.
+struct nack_command {
+  std::vector<detail::sequence_number_type> seqs;
+  BROKER_CONTROL_COMMAND(consumer, nack, seqs)
+};
+
+/// Informs all receivers that the sender is still alive.
+struct keepalive_command {
+  detail::sequence_number_type seq;
+  BROKER_CONTROL_COMMAND(producer, keepalive, seq)
+};
+
+/// Notifies the receiver that the sender can no longer retransmit a command.
+struct retransmit_failed_command {
+  detail::sequence_number_type seq;
+  BROKER_CONTROL_COMMAND(producer, retransmit_failed, seq)
+};
+
+#undef BROKER_CONTROL_COMMAND
+
+// -- variant setup ------------------------------------------------------------
 
 class internal_command {
 public:
   enum class type : uint8_t {
-    none,
     put_command,
     put_unique_command,
     erase_command,
     expire_command,
     add_command,
     subtract_command,
-    snapshot_command,
-    snapshot_sync_command,
-    set_command,
     clear_command,
+    attach_clone_command,
+    attach_writer_command,
+    keepalive_command,
+    cumulative_ack_command,
+    nack_command,
+    ack_clone_command,
+    retransmit_failed_command,
   };
 
   using variant_type
-    = caf::variant<none, put_command, put_unique_command, erase_command,
-                   expire_command, add_command, subtract_command,
-                   snapshot_command, snapshot_sync_command, set_command,
-                   clear_command>;
+    = caf::variant<put_command, put_unique_command, erase_command,
+                   expire_command, add_command, subtract_command, clear_command,
+                   attach_clone_command, attach_writer_command,
+                   keepalive_command, cumulative_ack_command, nack_command,
+                   ack_clone_command, retransmit_failed_command>;
+
+  detail::sequence_number_type seq;
+
+  entity_id sender;
 
   variant_type content;
-
-  internal_command(variant_type value);
-
-  internal_command() = default;
-  internal_command(internal_command&&) = default;
-  internal_command(const internal_command&) = default;
-  internal_command& operator=(internal_command&&) = default;
-  internal_command& operator=(const internal_command&) = default;
 };
-
-template <class T, class... Ts>
-internal_command make_internal_command(Ts&&... xs) {
-  return internal_command{T{std::forward<Ts>(xs)...}};
-}
 
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, internal_command& x) {
-  return f(caf::meta::type_name("internal_command"), x.content);
-}
-
-namespace detail {
-
-template <internal_command::type Value>
-using internal_command_tag_token
-  = std::integral_constant<internal_command::type, Value>;
-
-template <class T>
-struct internal_command_tag_oracle;
-
-#define INTERNAL_COMMAND_TAG_ORACLE(type_name)                                 \
-  template <>                                                                  \
-  struct internal_command_tag_oracle<type_name>                                \
-    : internal_command_tag_token<internal_command::type::type_name> {}
-
-INTERNAL_COMMAND_TAG_ORACLE(none);
-INTERNAL_COMMAND_TAG_ORACLE(put_command);
-INTERNAL_COMMAND_TAG_ORACLE(put_unique_command);
-INTERNAL_COMMAND_TAG_ORACLE(erase_command);
-INTERNAL_COMMAND_TAG_ORACLE(expire_command);
-INTERNAL_COMMAND_TAG_ORACLE(add_command);
-INTERNAL_COMMAND_TAG_ORACLE(subtract_command);
-INTERNAL_COMMAND_TAG_ORACLE(snapshot_command);
-INTERNAL_COMMAND_TAG_ORACLE(snapshot_sync_command);
-INTERNAL_COMMAND_TAG_ORACLE(set_command);
-INTERNAL_COMMAND_TAG_ORACLE(clear_command);
-
-#undef INTERNAL_COMMAND_TAG_ORACLE
-
-} // namespace detail
-
-/// Returns the `internal_command::type` tag for `T`.
-/// @relates internal_internal_command
-template <class T>
-constexpr internal_command::type internal_command_tag() {
-  return detail::internal_command_tag_oracle<T>::value;
-}
-
-/// Returns the `internal_command::type` tag for `T` as `uint8_t`.
-/// @relates internal_internal_command
-template <class T>
-constexpr uint8_t internal_command_uint_tag() {
-  return static_cast<uint8_t>(detail::internal_command_tag_oracle<T>::value);
+  return f(caf::meta::type_name("internal_command"), x.seq, x.sender,
+           x.content);
 }
 
 } // namespace broker
+
+namespace broker::detail {
+
+constexpr command_tag command_tag_by_type[] = {
+  put_command::tag,
+  put_unique_command::tag,
+  erase_command::tag,
+  expire_command::tag,
+  add_command::tag,
+  subtract_command::tag,
+  clear_command::tag,
+  attach_clone_command::tag,
+  attach_writer_command::tag,
+  keepalive_command::tag,
+  cumulative_ack_command::tag,
+  nack_command::tag,
+  ack_clone_command::tag,
+  retransmit_failed_command::tag,
+};
+
+inline command_tag tag_of(const internal_command& cmd) {
+  return command_tag_by_type[cmd.content.index()];
+}
+
+inline internal_command::type type_of(const internal_command& cmd) {
+  return static_cast<internal_command::type>(cmd.content.index());
+}
+
+} // namespace broker::detail

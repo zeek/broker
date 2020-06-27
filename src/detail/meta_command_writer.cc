@@ -6,8 +6,7 @@
 #include "broker/error.hh"
 #include "broker/internal_command.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 meta_command_writer::meta_command_writer(caf::binary_serializer& sink)
   : writer_(sink) {
@@ -15,66 +14,15 @@ meta_command_writer::meta_command_writer(caf::binary_serializer& sink)
 }
 
 caf::error meta_command_writer::operator()(const internal_command& x) {
-  return caf::visit(*this, x.content);
-}
-
-caf::error meta_command_writer::operator()(const none& x) {
-  return apply_tag(internal_command_uint_tag<none>());
-}
-
-caf::error meta_command_writer::operator()(const put_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<put_command>()),
-             writer_(x.key), writer_(x.value));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const put_unique_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<put_unique_command>()),
-             writer_(x.key), writer_(x.value));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const erase_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<erase_command>()),
-             writer_(x.key));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const expire_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<expire_command>()),
-             writer_(x.key));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const add_command& x) {
-  auto& sink = writer_.sink();
-  BROKER_TRY(apply_tag(internal_command_uint_tag<add_command>()),
-             writer_(x.key), writer_(x.value), sink(x.init_type));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const subtract_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<subtract_command>()),
-             writer_(x.key), writer_(x.value));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const snapshot_command& x) {
-  return apply_tag(internal_command_uint_tag<snapshot_command>());
-}
-
-caf::error meta_command_writer::operator()(const snapshot_sync_command& x) {
-  return apply_tag(internal_command_uint_tag<snapshot_sync_command>());
-}
-
-caf::error meta_command_writer::operator()(const set_command& x) {
-  BROKER_TRY(apply_tag(internal_command_uint_tag<set_command>()),
-             writer_.apply_container(x.state));
-  return caf::none;
-}
-
-caf::error meta_command_writer::operator()(const clear_command& x) {
-  return apply_tag(internal_command_uint_tag<clear_command>());
+  if (auto err = apply_tag(static_cast<uint8_t>(x.content.index())))
+    return err;
+  auto f = [this](auto& content) {
+    // The inspect overloads require mutable references. However, our writer_
+    // never modifies the content, so this const_cast is ugly but safe.
+    using type = std::decay_t<decltype(content)>;
+    return inspect(writer_, const_cast<type&>(content));
+  };
+  return caf::visit(f, x.content);
 }
 
 caf::error meta_command_writer::apply_tag(uint8_t tag) {
@@ -82,5 +30,4 @@ caf::error meta_command_writer::apply_tag(uint8_t tag) {
   return sink(tag);
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

@@ -23,6 +23,12 @@ namespace broker::mixin {
 template <class Base, class Subtype>
 class data_store_manager : public Base {
 public:
+  // --- preconditions ---------------------------------------------------------
+
+  // The store manager spawns clone and master actors. Both implementations
+  // assume endpoint_id as peer_id type.
+  static_assert(std::is_same<typename Base::peer_id_type, endpoint_id>::value);
+
   // --- member types ----------------------------------------------------------
 
   using super = Base;
@@ -77,8 +83,8 @@ public:
     BROKER_ASSERT(ptr != nullptr);
     BROKER_INFO("spawning new master:" << name);
     auto self = super::self();
-    auto ms = self->template spawn<spawn_flags>(detail::master_actor, self,
-                                                name, std::move(ptr), clock_);
+    auto ms = self->template spawn<spawn_flags>(
+      detail::master_actor, dref().id(), self, name, std::move(ptr), clock_);
     filter_type filter{name / topics::master_suffix};
     if (auto err = dref().add_store(ms, filter))
       return err;
@@ -101,10 +107,9 @@ public:
       return i->second;
     BROKER_INFO("spawning new clone:" << name);
     auto self = super::self();
-    auto cl = self->template spawn<spawn_flags>(detail::clone_actor, self, name,
-                                                resync_interval, stale_interval,
-                                                mutation_buffer_interval,
-                                                clock_);
+    auto cl = self->template spawn<spawn_flags>(
+      detail::clone_actor, dref().id(), self, name, resync_interval,
+      stale_interval, mutation_buffer_interval, clock_);
     filter_type filter{name / topics::clone_suffix};
     if (auto err = dref().add_store(cl, filter))
       return err;
@@ -118,13 +123,6 @@ public:
     if (i != masters_.end())
       return i->second;
     return ec::no_such_master;
-  }
-
-  /// Instructs the master of the given store to generate a snapshot.
-  void snapshot(const std::string& name, caf::actor& clone) {
-    auto msg = make_internal_command<snapshot_command>(super::self(),
-                                                       std::move(clone));
-    dref().publish(make_command_message(name / topics::master_suffix, msg));
   }
 
   /// Detaches all masters and clones by sending exit messages to the
@@ -151,7 +149,6 @@ public:
       lift<atom::store, atom::clone, atom::attach>(d, &Subtype::attach_clone),
       lift<atom::store, atom::master, atom::attach>(d, &Subtype::attach_master),
       lift<atom::store, atom::master, atom::get>(d, &Subtype::get_master),
-      lift<atom::store, atom::master, atom::snapshot>(d, &Subtype::snapshot),
       lift<atom::shutdown, atom::store>(d, &Subtype::detach_stores),
       [this](atom::store, atom::master, atom::resolve, std::string& name,
              caf::actor& who_asked) {

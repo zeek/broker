@@ -77,6 +77,29 @@ void base_fixture::run() {
   }
 }
 
+void base_fixture::run(caf::timespan t) {
+  for (;;) {
+    sched.run();
+    if (!sched.has_pending_timeout()) {
+      sched.advance_time(t);
+      sched.run();
+      return;
+    } else {
+      auto& clk = sched.clock();
+      auto next_timeout = clk.schedule().begin()->first;
+      auto delta = next_timeout - clk.now();
+      if (delta >= t) {
+        sched.advance_time(t);
+        sched.run();
+        return;
+      } else {
+        sched.advance_time(delta);
+        t -= delta;
+      }
+    }
+  }
+}
+
 void base_fixture::consume_message() {
   if (!sched.try_run_once())
     CAF_FAIL("no message to consume");

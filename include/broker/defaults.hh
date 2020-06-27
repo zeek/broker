@@ -13,6 +13,12 @@ extern const size_t output_generator_file_cap;
 
 } // namespace broker::defaults
 
+namespace broker::defaults::store {
+
+extern const caf::timespan tick_interval;
+
+} // namespace broker::defaults::store
+
 namespace broker::defaults::path_blacklist {
 
 extern const caf::timespan aging_interval;

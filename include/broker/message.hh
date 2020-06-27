@@ -18,7 +18,11 @@ using data_message = caf::cow_tuple<topic, data>;
 /// A broker-internal message with topic and command.
 using command_message = caf::cow_tuple<topic, internal_command>;
 
+/// A broker-internal message between two endpoints.
 using node_message_content = caf::variant<data_message, command_message>;
+
+/// Ordered, reliable communication channel between data stores.
+using command_channel = detail::channel<entity_id, command_message>;
 
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
@@ -137,16 +141,15 @@ inline data&& move_data(data_message& x) {
 }
 
 /// Retrieves the command content from a ::command_message.
-inline const internal_command::variant_type&
-get_command(const command_message& x) {
-  return get<1>(x).content;
+inline const internal_command& get_command(const command_message& x) {
+  return get<1>(x);
 }
 
 /// Moves the command content out of a ::command_message. Causes `x` to make a
 /// lazy copy of its content if other ::command_message objects hold references
 /// to it.
-inline internal_command::variant_type&& move_command(command_message& x) {
-  return std::move(get<1>(x.unshared()).content);
+inline internal_command&& move_command(command_message& x) {
+  return std::move(get<1>(x.unshared()));
 }
 
 /// Retrieves the content from a ::data_message.

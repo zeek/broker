@@ -1,9 +1,11 @@
 #pragma once
 
+#include <type_traits>
 #include <unordered_map>
 
 #include <caf/error.hpp>
 #include <caf/fwd.hpp>
+#include <caf/meta/annotation.hpp>
 #include <caf/none.hpp>
 #include <caf/variant.hpp>
 
@@ -17,11 +19,18 @@ namespace detail {
 /// Writes meta information (type and size) of Broker ::data to a serializer.
 class meta_data_writer {
 public:
+  using result_type = caf::error;
+
+  static constexpr bool reads_state = true;
+
+  static constexpr bool writes_state = false;
+
   meta_data_writer(caf::binary_serializer& sink);
 
   template <class T>
   caf::error operator()(const T&) {
-    return apply(data_tag<T>());
+    // Ignore fields such as expiry, publisher, etc.
+    return caf::none;
   }
 
   caf::error operator()(const std::pair<data, entity_id>& x) {
@@ -74,6 +83,13 @@ public:
     for (const auto& x : xs)
       BROKER_TRY((*this)(x));
     return caf::none;
+  }
+
+  template <class T0, class T1, class... Ts>
+  caf::error operator()(const T0& x0, const T1& x1, const Ts&... xs) {
+    if (auto err = (*this)(x0))
+      return err;
+    return (*this)(x1, xs...);
   }
 
 private:

@@ -31,7 +31,15 @@ const char* ec_names[] = {
   "invalid_topic_key",
   "end_of_file",
   "invalid_tag",
+  "invalid_message",
   "invalid_status",
+  "conversion_failed",
+  "consumer_exists",
+  "consumer_timeout",
+  "producer_timeout",
+  "bad_member_function_call",
+  "repeated_request_id",
+  "broken_clone",
 };
 
 } // namespace

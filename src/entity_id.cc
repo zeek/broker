@@ -5,7 +5,7 @@ namespace broker {
 std::string to_string(const entity_id& x) {
   using std::to_string;
   std::string result;
-  if (x) {
+  if (x.object != 0 || x.endpoint) {
     result = to_string(x.object);
     result += "@";
     result += to_string(x.endpoint);

@@ -84,7 +84,7 @@ public:
   }
 
   template <sc S>
-  static status make(node_id node, std::string msg) {
+  static status make(endpoint_id node, std::string msg) {
     static_assert(sc_has_endpoint_info_v<S>);
     return {S, endpoint_info{std::move(node), nil}, std::move(msg)};
   }

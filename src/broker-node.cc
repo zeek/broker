@@ -21,6 +21,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/init_global_meta_objects.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/term.hpp>
 #include <caf/type_id.hpp>

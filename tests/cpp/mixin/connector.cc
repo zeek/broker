@@ -124,7 +124,7 @@ TEST(the connector asks the middleman for actor handles) {
   self->send(aut, atom::peer_v, network_info{"localhost", 8080});
   expect((atom::peer, network_info), from(self).to(aut));
   expect((atom::connect, std::string, uint16_t), from(aut).to(mm));
-  expect((node_id, caf::strong_actor_ptr, str_set), from(mm).to(aut));
+  expect((endpoint_id, caf::strong_actor_ptr, str_set), from(mm).to(aut));
 }
 
 FIXTURE_SCOPE_END()

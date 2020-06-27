@@ -16,11 +16,16 @@ using namespace broker;
 
 namespace {
 
-using peer_id = std::string;
+using peer_id = endpoint_id;
 
 using message_type = generic_node_message<peer_id>;
 
 using clone_actor_type = caf::stateful_actor<detail::clone_state>;
+
+endpoint_id operator""_e(const char* cstr, size_t len) {
+  auto res = caf::make_uri(caf::string_view{cstr, len});
+  return caf::make_node_id(unbox(res));
+}
 
 class peer_manager
   : public caf::extend<stream_transport<peer_manager, peer_id>,
@@ -71,19 +76,25 @@ caf::behavior peer_actor(peer_actor_type* self, endpoint::clock* clock,
 struct fixture : test_coordinator_fixture<> {
   using peer_ids = std::vector<peer_id>;
 
+  endpoint_id A;
+
+  endpoint_id B;
+
   auto& get(const peer_id& id) {
     return *deref<peer_actor_type>(peers[id]).state.mgr;
   }
 
   fixture() : clock(&sys, true) {
-    for (auto& id : peer_ids{"A", "B"})
+    A = "node:a"_e;
+    B = "node:b"_e;
+    for (auto& id : peer_ids{A, B})
       peers[id] = sys.spawn(peer_actor, &clock, id);
-    anon_send(peers["A"], atom::peer_v, peer_id{"B"}, peers["B"]);
+    anon_send(peers[A], atom::peer_v, peer_id{B}, peers[B]);
     run();
-    BROKER_ASSERT(get("A").connected_to(peers["B"]));
+    BROKER_ASSERT(get(A).connected_to(peers[B]));
   }
 
-  ~fixture(){
+  ~fixture() {
     for (auto& kvp : peers)
       anon_send_exit(kvp.second, caf::exit_reason::user_shutdown);
     run();
@@ -99,16 +110,16 @@ struct fixture : test_coordinator_fixture<> {
 FIXTURE_SCOPE(data_store_manager_tests, fixture)
 
 TEST(peers propagate new masters) {
-  auto res = self->request(peers["A"], caf::infinite, atom::store_v,
+  auto res = self->request(peers[A], caf::infinite, atom::store_v,
                            atom::master_v, atom::attach_v, "kono",
                            backend::memory, backend_options({{"foo", 4.2}}));
-  run();
+  consume_messages();
   MESSAGE("data store managers respond with the actor handle of the master");
   caf::actor kono_master;
   res.receive(
     [&](const caf::actor& hdl) {
-      auto i = get("A").masters().find("kono");
-      REQUIRE_NOT_EQUAL(i, get("A").masters().end());
+      auto i = get(A).masters().find("kono");
+      REQUIRE_NOT_EQUAL(i, get(A).masters().end());
       CHECK_EQUAL(i->second, hdl);
       kono_master = hdl;
     },
@@ -116,30 +127,28 @@ TEST(peers propagate new masters) {
   MESSAGE("repeated attach messages return the original actor handle");
   inject((atom::store, atom::master, atom::attach, std::string, backend,
           backend_options),
-         from(self)
-           .to(peers["A"])
-           .with(atom::store_v, atom::master_v, atom::attach_v, "kono",
-                 backend::memory, backend_options({{"foo", 4.2}})));
-  expect((caf::actor), from(peers["A"]).to(self).with(kono_master));
+         from(self).to(peers[A]).with(atom::store_v, atom::master_v,
+                                      atom::attach_v, "kono", backend::memory,
+                                      backend_options({{"foo", 4.2}})));
+  expect((caf::actor), from(peers[A]).to(self).with(kono_master));
   MESSAGE("data store managers respond to get messages");
   inject((atom::store, atom::master, atom::get, std::string),
-         from(self)
-           .to(peers["A"])
-           .with(atom::store_v, atom::master_v, atom::get_v, "kono"));
-  expect((caf::actor), from(peers["A"]).to(self).with(kono_master));
+         from(self).to(peers[A]).with(atom::store_v, atom::master_v,
+                                      atom::get_v, "kono"));
+  expect((caf::actor), from(peers[A]).to(self).with(kono_master));
   MESSAGE("only node A stores a handle to the master");
-  CHECK_EQUAL(get("A").masters().count("kono"), 1u);
-  CHECK_EQUAL(get("B").masters().count("kono"), 0u);
-  CHECK_EQUAL(get("A").clones().count("kono"), 0u);
-  CHECK_EQUAL(get("B").clones().count("kono"), 0u);
+  CHECK_EQUAL(get(A).masters().count("kono"), 1u);
+  CHECK_EQUAL(get(B).masters().count("kono"), 0u);
+  CHECK_EQUAL(get(A).clones().count("kono"), 0u);
+  CHECK_EQUAL(get(B).clones().count("kono"), 0u);
   MESSAGE("node B has access to the remote master");
-  CHECK_EQUAL(get("A").has_remote_master("kono"), false);
-  CHECK_EQUAL(get("B").has_remote_master("kono"), true);
+  CHECK_EQUAL(get(A).has_remote_master("kono"), false);
+  CHECK_EQUAL(get(B).has_remote_master("kono"), true);
 }
 
 TEST(clones wait for remote masters to appear) {
   auto res
-    = self->request(peers["B"], caf::infinite, atom::store_v, atom::clone_v,
+    = self->request(peers[B], caf::infinite, atom::store_v, atom::clone_v,
                     atom::attach_v, "kono", 1.0, 1.0, 1.0);
   consume_messages();
   caf::actor clone;
@@ -147,25 +156,28 @@ TEST(clones wait for remote masters to appear) {
     [&](const caf::actor& hdl) {
       clone = hdl;
       REQUIRE(clone != nullptr);
-      CHECK(deref<clone_actor_type>(clone).state.master == nullptr);
+      CHECK_EQUAL(deref<clone_actor_type>(clone).state.input.producer(),
+                  entity_id::nil());
     },
     [&](const caf::error& err) { CHECK(err == ec::no_such_master); });
   MESSAGE("initially, no master exists and the clone waits for one to appear");
-  CHECK_EQUAL(get("A").masters().count("kono"), 0u);
-  CHECK_EQUAL(get("B").masters().count("kono"), 0u);
-  CHECK_EQUAL(get("A").clones().count("kono"), 0u);
-  CHECK_EQUAL(get("B").clones().count("kono"), 1u);
-  CHECK_EQUAL(get("A").has_remote_master("kono"), false);
-  CHECK_EQUAL(get("B").has_remote_master("kono"), false);
-  MESSAGE("after spawning a master, the clone resolves it on the next timeout");
-  caf::anon_send(peers["A"], atom::store_v, atom::master_v, atom::attach_v,
+  CHECK_EQUAL(get(A).masters().count("kono"), 0u);
+  CHECK_EQUAL(get(B).masters().count("kono"), 0u);
+  CHECK_EQUAL(get(A).clones().count("kono"), 0u);
+  CHECK_EQUAL(get(B).clones().count("kono"), 1u);
+  CHECK_EQUAL(get(A).has_remote_master("kono"), false);
+  CHECK_EQUAL(get(B).has_remote_master("kono"), false);
+  MESSAGE("after spawning a master, the clone attaches to it eventually");
+  caf::anon_send(peers[A], atom::store_v, atom::master_v, atom::attach_v,
                  "kono", backend::memory, backend_options({{"foo", 4.2}}));
   consume_messages();
-  trigger_timeouts();
-  allow((atom::tick, atom::mutable_check), to(clone));
-  expect((atom::master, atom::resolve), to(clone));
-  run();
-  CHECK(deref<clone_actor_type>(clone).state.master != nullptr);
+  auto& state = deref<clone_actor_type>(clone).state;
+  for (size_t round = 0; round < 100 && !state.has_master(); ++round) {
+    trigger_timeouts();
+    consume_messages();
+  }
+  CHECK(state.has_master());
+  CHECK_NOT_EQUAL(state.input.producer(), entity_id::nil());
 }
 
 FIXTURE_SCOPE_END()

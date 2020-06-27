@@ -77,6 +77,12 @@ enum class ec : uint8_t {
   /// A consumer did not receive any message from a producer within the
   /// configured timeout.
   producer_timeout,
+  /// Called a member function without satisfying its preconditions.
+  bad_member_function_call,
+  /// Attempted to use the same request_id twice.
+  repeated_request_id,
+  /// A clone ran out of sync with the master.
+  broken_clone,
 };
 // --ec-enum-end
 

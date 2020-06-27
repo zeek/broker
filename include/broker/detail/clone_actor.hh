@@ -15,82 +15,115 @@
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 class clone_state : public store_actor_state {
 public:
+  // -- member types -----------------------------------------------------------
+
   using super = store_actor_state;
 
+  using producer_type = channel_type::producer<clone_state>;
+
+  using consumer_type = channel_type::consumer<clone_state>;
+
+  // -- initialization ---------------------------------------------------------
+
+  clone_state();
+
   /// Initializes the state.
-  void init(caf::event_based_actor* ptr, std::string&& nm,
-            caf::actor&& parent, endpoint::clock* ep_clock);
+  void init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
+            std::string&& nm, caf::actor&& parent, endpoint::clock* ep_clock);
 
   /// Sends `x` to the master.
   void forward(internal_command&& x);
 
-  /// Wraps `x` into a `data` object and forwards it to the master.
+  // -- callbacks for the behavior ---------------------------------------------
+
+  void dispatch(command_message& msg);
+
+  void tick();
+
+  // -- callbacks for the consumer ---------------------------------------------
+
+  void consume(consumer_type*, command_message& msg);
+
+  void consume(put_command& cmd);
+
+  void consume(erase_command& cmd);
+
+  void consume(expire_command& cmd);
+
+  void consume(clear_command& cmd);
+
   template <class T>
-  void forward_from(T& x) {
-    forward(make_internal_command<T>(std::move(x)));
+  void consume(T& cmd) {
+    BROKER_ERROR("master got unexpected command:" << cmd);
   }
 
-  void command(internal_command::variant_type& cmd);
+  error consume_nil(consumer_type* src);
 
-  void command(internal_command& cmd);
+  void close(consumer_type* src, error);
 
-  void operator()(none);
+  void send(consumer_type*, channel_type::cumulative_ack);
 
-  void operator()(put_command&);
+  void send(consumer_type*, channel_type::nack);
 
-  void operator()(put_unique_command&);
+  // -- callbacks for the producer ---------------------------------------------
 
-  void operator()(erase_command&);
+  void send(producer_type*, const entity_id&, const channel_type::event&);
 
-  void operator()(expire_command&);
+  void send(producer_type*, const entity_id&, channel_type::handshake);
 
-  void operator()(add_command&);
+  void send(producer_type*, const entity_id&, channel_type::retransmit_failed);
 
-  void operator()(subtract_command&);
+  void broadcast(producer_type*, channel_type::heartbeat);
 
-  void operator()(snapshot_command&);
+  void broadcast(producer_type*, const channel_type::event&);
 
-  void operator()(snapshot_sync_command&);
+  void drop(producer_type*, const entity_id&, ec);
 
-  void operator()(set_command&);
+  void handshake_completed(producer_type*, const entity_id&);
 
-  void operator()(clear_command&);
+  // -- properties -------------------------------------------------------------
 
+  /// Returns all keys of the store.
   data keys() const;
+
+  /// Returns the writer instance, lazily creating it if necessary.
+  producer_type& output();
+
+  /// Sets the store content of the clone.
+  void set_store(std::unordered_map<data, data> x);
+
+  /// Returns whether the clone received a handshake from the master.
+  bool has_master() const noexcept;
+
+  void set_master(const entity_id& hdl);
+
+  bool idle() const noexcept;
+
+  // -- member variables -------------------------------------------------------
 
   topic master_topic;
 
-  caf::actor master;
-
   std::unordered_map<data, data> store;
 
-  bool is_stale = true;
+  consumer_type input;
 
-  double stale_time = -1.0;
-
-  double unmutable_time = -1.0;
-
-  std::vector<internal_command> mutation_buffer;
-
-  std::vector<internal_command> pending_remote_updates;
-
-  bool awaiting_snapshot = true;
-
-  bool awaiting_snapshot_sync = true;
+  std::unique_ptr<producer_type> output_ptr;
 
   static inline constexpr const char* name = "clone_actor";
 };
 
-caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
+// -- master actor -------------------------------------------------------------
+
+using clone_actor_type = caf::stateful_actor<clone_state>;
+
+caf::behavior clone_actor(clone_actor_type* self, endpoint_id this_endpoint,
                           caf::actor core, std::string id,
                           double resync_interval, double stale_interval,
                           double mutation_buffer_interval,
                           endpoint::clock* ep_clock);
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

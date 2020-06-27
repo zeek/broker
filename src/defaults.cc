@@ -13,6 +13,12 @@ const size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
 } // namespace broker::defaults
 
+namespace broker::defaults::store {
+
+const caf::timespan tick_interval = 100ms;
+
+} // namespace broker::defaults::store
+
 namespace broker::defaults::path_blacklist {
 
 const caf::timespan aging_interval = 1s;

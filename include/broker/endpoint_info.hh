@@ -12,12 +12,10 @@
 
 namespace broker {
 
-using caf::node_id;
-
 /// Information about an endpoint.
 /// @relates endpoint
 struct endpoint_info {
-  node_id node;                   ///< A unique context ID per machine/process.
+  endpoint_id node;               ///< A unique context ID per machine/process.
   optional<network_info> network; ///< Optional network-level information.
 };
 

@@ -213,6 +213,16 @@ public:
     return caf::none;
   }
 
+  // -- publish and subscribe functions ----------------------------------------
+
+  void publish_locally(data_message& msg) {
+    worker_manager().push(msg);
+  }
+
+  void publish_locally(command_message& msg) {
+    store_manager().push(msg);
+  }
+
   // -- sending ----------------------------------------------------------------
 
   void stream_send(const caf::actor& receiver, message_type& msg) {
@@ -610,7 +620,7 @@ public:
       },
       // Special handlers for bypassing streams and/or forwarding.
       [this](atom::publish, atom::local, data_message msg) {
-        worker_manager().push(msg);
+        publish_locally(msg);
       },
       [this](atom::unpeer, const caf::actor& hdl) { dref().unpeer(hdl); },
       [this](atom::unpeer, const peer_id_type& peer_id) {

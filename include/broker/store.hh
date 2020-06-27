@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -7,7 +8,6 @@
 #include <caf/cow_tuple.hpp>
 #include <caf/error.hpp>
 #include <caf/make_message.hpp>
-#include <caf/scoped_actor.hpp>
 #include <caf/stream.hpp>
 
 #include "broker/api_flags.hh"
@@ -30,7 +30,11 @@ class endpoint;
 /// and querying contents.
 class store {
 public:
+  // -- friends ----------------------------------------------------------------
+
   friend class endpoint;
+
+  // -- member types -----------------------------------------------------------
 
   using stream_type = caf::stream<command_message>;
 
@@ -39,6 +43,8 @@ public:
     expected<data> answer;
     request_id id;
   };
+
+  struct state;
 
   /// A utility to decouple store request from response processing.
   class proxy {
@@ -104,13 +110,25 @@ public:
     caf::actor proxy_;
   };
 
-  /// Default-constructs an uninitialized store.
-  store() = default;
+  // -- constructors, destructors, and assignment operators --------------------
+
+  store();
+
+  store(store&&);
+
+  store(const store&);
+
+  store& operator=(store&&);
+
+  store& operator=(const store&);
+
+  ~store();
 
   // --- inspectors -----------------------------------------------------------
 
   /// Retrieves the name of the store.
   /// @returns The store name.
+  /// @pre `initialized()`
   const std::string& name() const;
 
   /// Checks whether a key exists in the store.
@@ -142,15 +160,28 @@ public:
   /// Retrieves a copy of the store's current keys, returned as a set.
   expected<data> keys() const;
 
-  /// Retrieves the frontend.
-  inline const caf::actor& frontend() const {
-    return frontend_;
+  /// Returns whether the store was fully initialized
+  bool initialized() const noexcept {
+    return state_ != nullptr;
   }
 
-  /// Returns a globally unique identifier for the frontend actor.
-  entity_id frontend_id() const noexcept {
-    return {frontend_.node(), frontend_.id()};
+  /// Returns whether the store was fully initialized
+  explicit operator bool() const noexcept {
+    return initialized();
   }
+
+  /// Retrieves the frontend.
+  /// @pre `initialized()`
+  const caf::actor& frontend() const;
+
+  /// Returns a globally unique identifier for the frontend actor.
+  entity_id frontend_id() const;
+
+  /// Returns the topic for sending messages to the master.
+  caf::actor self_hdl() const;
+
+  /// Returns the topic for sending messages to the master.
+  entity_id self_id() const;
 
   // --- modifiers -----------------------------------------------------------
 
@@ -158,21 +189,21 @@ public:
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional expiration time for *key*.
-  void put(data key, data value, optional<timespan> expiry = {}) const;
+  void put(data key, data value, optional<timespan> expiry = {});
 
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
-  void erase(data key) const;
+  void erase(data key);
 
   /// Empties out the store.
-  void clear() const;
+  void clear();
 
   /// Increments a value by a given amount. This is supported for all
   /// numerical types as well as for timestamps.
   /// @param key The key of the value to increment.
   /// @param value The amount to increment the value.
   /// @param expiry An optional new expiration time for *key*.
-  void increment(data key, data amount, optional<timespan> expiry = {}) const {
+  void increment(data key, data amount, optional<timespan> expiry = {}) {
     auto init_type = data::type::none;
 
     switch ( amount.get_type() ) {
@@ -200,7 +231,7 @@ public:
   /// @param key The key of the value to increment.
   /// @param value The amount to decrement the value.
   /// @param expiry An optional new expiration time for *key*.
-  void decrement(data key, data amount, optional<timespan> expiry = {}) const {
+  void decrement(data key, data amount, optional<timespan> expiry = {}) {
     subtract(key, amount, expiry);
   }
 
@@ -208,7 +239,7 @@ public:
   /// @param key The key of the string to which to append.
   /// @param str The string to append.
   /// @param expiry An optional new expiration time for *key*.
-  void append(data key, data str, optional<timespan> expiry = {}) const {
+  void append(data key, data str, optional<timespan> expiry = {}) {
     add(key, str, data::type::string, expiry);
   }
 
@@ -216,8 +247,8 @@ public:
   /// @param key The key of the set into which to insert the value.
   /// @param index The index to insert.
   /// @param expiry An optional new expiration time for *key*.
-  void insert_into(data key, data index, optional<timespan> expiry = {}) const {
-      add(key, index, data::type::set, expiry);
+  void insert_into(data key, data index, optional<timespan> expiry = {}) {
+    add(key, index, data::type::set, expiry);
   }
 
   /// Inserts an index into a table.
@@ -225,15 +256,16 @@ public:
   /// @param index The index to insert.
   /// @param value The value to associated with the inserted index. For sets, this is ignored.
   /// @param expiry An optional new expiration time for *key*.
-  void insert_into(data key, data index, data value, optional<timespan> expiry = {}) const {
-      add(key, vector({index, value}), data::type::table, expiry);
+  void insert_into(data key, data index, data value,
+                   optional<timespan> expiry = {}) {
+    add(key, vector({index, value}), data::type::table, expiry);
   }
 
   /// Removes am index from a set or table.
   /// @param key The key of the set/table from which to remove the value.
   /// @param index The index to remove.
   /// @param expiry An optional new expiration time for *key*.
-  void remove_from(data key, data index, optional<timespan> expiry = {}) const {
+  void remove_from(data key, data index, optional<timespan> expiry = {}) {
     subtract(key, index, expiry);
   }
 
@@ -241,14 +273,14 @@ public:
   /// @param key The key of the vector to which to append the value.
   /// @param value The value to append.
   /// @param expiry An optional new expiration time for *key*.
-  void push(data key, data value, optional<timespan> expiry = {}) const {
+  void push(data key, data value, optional<timespan> expiry = {}) {
     add(key, value, data::type::vector, expiry);
   }
 
   /// Removes the last value of a vector.
   /// @param key The key of the vector from which to remove the last value.
   /// @param expiry An optional new expiration time for *key*.
-  void pop(data key, optional<timespan> expiry = {}) const {
+  void pop(data key, optional<timespan> expiry = {}) {
     subtract(key, key, expiry);
   }
 
@@ -261,35 +293,19 @@ private:
   /// @param value The value of the key-value pair.
   /// @param init_type The type of data to initialize when the key does not exist.
   /// @param expiry An optional new expiration time for *key*.
-  void add(data key, data value, data::type init_type, optional<timespan> expiry = {}) const;
+  void add(data key, data value, data::type init_type,
+           optional<timespan> expiry = {});
 
   /// Subtracts a value from another one, with a type-specific meaning of
   /// "substract". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void subtract(data key, data value, optional<timespan> expiry = {}) const;
+  void subtract(data key, data value, optional<timespan> expiry = {});
 
-  template <class T, class... Ts>
-  expected<T> request(Ts&&... xs) const {
-    if (!frontend_)
-      return make_error(ec::unspecified, "store not initialized");
-    expected<T> res{ec::unspecified};
-    caf::scoped_actor self{frontend_->home_system()};
-    auto msg = caf::make_message(std::forward<Ts>(xs)...);
-    self->request(frontend_, timeout::frontend, std::move(msg)).receive(
-      [&](T& x) {
-        res = std::move(x);
-      },
-      [&](caf::error& e) {
-        res = std::move(e);
-      }
-    );
-    return res;
-  }
+  // -- member variables -------------------------------------------------------
 
-  caf::actor frontend_;
-  std::string name_;
+  std::shared_ptr<state> state_;
 };
 
 } // namespace broker

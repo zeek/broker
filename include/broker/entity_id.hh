@@ -13,19 +13,32 @@ namespace broker {
 
 /// Uniquely identifies a *publisher* in the distributed system.
 struct entity_id {
+  using endpoint_id = caf::node_id;
+
   /// Identifies the @ref endpoint instance that hosts the *publisher*.
-  caf::node_id endpoint;
+  endpoint_id endpoint;
 
   /// Identifies the local object that published a message, data store change,
   /// or event. Usually, this ID belongs to a @ref publisher or @ref store
   /// object. The @ref endpoint sets this ID to 0 when referring to itself,
   /// e.g., when using `endpoint::publish`.
-  uint64_t object;
+  uint64_t object = 0;
 
   /// Returns whether this ID is valid, i.e., whether the `endpoint` member is
   /// valid.
   explicit operator bool() const noexcept {
     return static_cast<bool>(endpoint);
+  }
+
+  /// Returns an invalid ID.
+  static entity_id nil() noexcept {
+    return {caf::node_id{}, 0};
+  }
+
+  /// Converts the handle type to an entity ID.
+  template <class Handle>
+  static entity_id from(const Handle& hdl) {
+    return hdl ? entity_id{hdl->node(), hdl->id()} : nil();
   }
 };
 

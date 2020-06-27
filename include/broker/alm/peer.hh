@@ -219,6 +219,7 @@ public:
 
   template <class T>
   void publish(const T& content) {
+    BROKER_TRACE(BROKER_ARG(content));
     const auto& topic = get_topic(content);
     detail::prefix_matcher matches;
     peer_id_list receivers;
@@ -245,6 +246,15 @@ public:
 
   void publish_command(command_message& content) {
     publish(content);
+  }
+
+  void publish_command_to(command_message& content, const peer_id_type& dst) {
+    BROKER_TRACE(BROKER_ARG(content) << BROKER_ARG(dst));
+    if (dst == dref().id()) {
+      dref().publish_locally(content);
+      return;
+    }
+    ship(content, dst);
   }
 
   /// Checks whether a path and its associated vector timestamp are non-empty,
@@ -445,6 +455,7 @@ public:
 
   /// Forwards `msg` to all receivers.
   void ship(message_type& msg) {
+    BROKER_TRACE(BROKER_ARG(msg));
     const auto& path = get_path(msg);
     if (auto i = tbl_.find(path.head()); i != tbl_.end()) {
       dref().send(i->second.hdl, atom::publish::value, std::move(msg));
@@ -455,12 +466,13 @@ public:
 
   /// Forwards `data_msg` to a single `receiver`.
   template <class T>
-  void ship(T& data_msg, const peer_id_type& receiver) {
+  void ship(T& msg, const peer_id_type& receiver) {
+    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
     if (auto ptr = shortest_path(tbl_, receiver)) {
-      message_type msg{std::move(data_msg),
-                       multipath_type{ptr->begin(), ptr->end()},
-                       peer_id_list{receiver}};
-      ship(msg);
+      message_type wrapped{std::move(msg),
+                           multipath_type{ptr->begin(), ptr->end()},
+                           peer_id_list{receiver}};
+      ship(wrapped);
     } else {
       BROKER_WARNING("no path found to " << receiver);
     }
@@ -468,13 +480,14 @@ public:
 
   /// Forwards `data_msg` to all `receivers`.
   template <class T>
-  void ship(T& data_msg, const peer_id_list& receivers) {
+  void ship(T& msg, const peer_id_list& receivers) {
+    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receivers));
     std::vector<multipath_type> paths;
     std::vector<peer_id_type> unreachables;
     generate_paths(receivers, tbl_, paths, unreachables);
     for (auto& path : paths) {
-      message_type nmsg{data_msg, std::move(path), receivers};
-      ship(nmsg);
+      message_type wrapped{msg, std::move(path), receivers};
+      ship(wrapped);
     }
     if (!unreachables.empty())
       BROKER_WARNING("no paths to " << unreachables);
@@ -570,6 +583,7 @@ public:
       std::move(fs)...,
       lift<atom::publish>(d, &Derived::publish_data),
       lift<atom::publish>(d, &Derived::publish_command),
+      lift<atom::publish>(d, &Derived::publish_command_to),
       lift<atom::subscribe>(d, &Derived::subscribe),
       lift<atom::publish>(d, &Derived::handle_publication),
       lift<atom::subscribe>(d, &Derived::handle_filter_update),
