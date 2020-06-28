@@ -73,22 +73,24 @@ class data {
 public:
   using types = typename data_variant::types;
 
+  // Warning: *must* have the same order as `data_variant`, because the integer
+  // value for this tag must be equal to `get_data().index()`.
   enum class type : uint8_t {
-    address,
+    none,
     boolean,
     count,
-    enum_value,
     integer,
-    none,
-    port,
     real,
-    set,
     string,
+    address,
     subnet,
-    table,
-    timespan,
+    port,
     timestamp,
-    vector
+    timespan,
+    enum_value,
+    set,
+    table,
+    vector,
   };
 
 	template <class T>
@@ -205,8 +207,15 @@ DATA_TAG_ORACLE(vector);
 /// Returns the `data::type` tag for `T`.
 /// @relates data
 template <class T>
-constexpr data::type data_tag() {
+constexpr data::type data_tag() noexcept {
   return detail::data_tag_oracle<T>::value;
+}
+
+/// Checks whether `data_tag` is defined for `T`.
+/// @relates data
+template <class T>
+constexpr bool has_data_tag() {
+  return detail::is_complete<detail::data_tag_oracle<T>>;
 }
 
 /// @relates data

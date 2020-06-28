@@ -8,13 +8,12 @@
 #include <caf/node_id.hpp>
 
 #include "broker/detail/hash.hh"
+#include "broker/fwd.hh"
 
 namespace broker {
 
 /// Uniquely identifies a *publisher* in the distributed system.
 struct entity_id {
-  using endpoint_id = caf::node_id;
-
   /// Identifies the @ref endpoint instance that hosts the *publisher*.
   endpoint_id endpoint;
 

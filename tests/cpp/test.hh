@@ -82,10 +82,52 @@ CAF_END_TYPE_ID_BLOCK(broker_test)
 
 // -- fixtures -----------------------------------------------------------------
 
+struct empty_fixture_base {};
+
+template <class Derived, class Base = empty_fixture_base>
+class time_aware_fixture : public Base {
+public:
+  void run(caf::timespan t) {
+    auto& sched = dref().sched;
+    for (;;) {
+      sched.run();
+      if (!sched.has_pending_timeout()) {
+        sched.advance_time(t);
+        sched.run();
+        return;
+      } else {
+        auto& clk = sched.clock();
+        auto next_timeout = clk.schedule().begin()->first;
+        auto delta = next_timeout - clk.now();
+        if (delta >= t) {
+          sched.advance_time(t);
+          sched.run();
+          return;
+        } else {
+          sched.advance_time(delta);
+          t -= delta;
+        }
+      }
+    }
+  }
+
+  template <class Rep, class Period>
+  void run(std::chrono::duration<Rep, Period> t) {
+    run(std::chrono::duration_cast<caf::timespan>(t));
+  }
+
+private:
+  Derived& dref() {
+    return *static_cast<Derived*>(this);
+  }
+};
+
 /// A fixture that offes a `context` configured with `test_coordinator` as
 /// scheduler as well as a `scoped_actor`.
-class base_fixture {
+class base_fixture : public time_aware_fixture<base_fixture> {
 public:
+  using super = time_aware_fixture<base_fixture>;
+
   using scheduler_type = caf::scheduler::test_coordinator;
 
   base_fixture();
@@ -98,14 +140,9 @@ public:
   scheduler_type& sched;
   caf::timespan credit_round_interval;
 
+  using super::run;
+
   void run();
-
-  void run(caf::timespan t);
-
-  template <class Rep, class Period>
-  void run(std::chrono::duration<Rep, Period> t) {
-    run(std::chrono::duration_cast<caf::timespan>(t));
-  }
 
   void consume_message();
 

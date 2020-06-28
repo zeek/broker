@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 #include <type_traits>
 #include <unordered_map>
 
@@ -29,13 +31,8 @@ public:
 
   template <class T>
   caf::error operator()(const T&) {
-    // Ignore fields such as expiry, publisher, etc.
+    // We only store dynamic type information and container sizes.
     return caf::none;
-  }
-
-  caf::error operator()(const std::pair<data, entity_id>& x) {
-    // Ignore the publisher ID in recording mode.
-    return (*this)(x.first);
   }
 
   template <class K, class V>
@@ -45,31 +42,28 @@ public:
   }
 
   caf::error operator()(const std::string& x) {
-    BROKER_TRY(apply(data_tag<std::string>()));
     return apply(x.size());
   }
 
   caf::error operator()(const enum_value& x) {
-    BROKER_TRY(apply(data_tag<enum_value>()));
     return apply(x.name.size());
   }
 
   caf::error operator()(const set& xs) {
-    BROKER_TRY(apply(data_tag<set>()));
     return apply_container(xs);
   }
 
   caf::error operator()(const table& xs) {
-    BROKER_TRY(apply(data_tag<table>()));
     return apply_container(xs);
   }
 
   caf::error operator()(const vector& xs) {
-    BROKER_TRY(apply(data_tag<vector>()));
     return apply_container(xs);
   }
 
   caf::error operator()(const data& x) {
+    if (auto err = apply(x.get_type()))
+      return err;
     return caf::visit(*this, x);
   }
 

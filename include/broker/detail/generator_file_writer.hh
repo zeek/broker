@@ -21,7 +21,7 @@ public:
   struct format {
     static constexpr uint32_t magic = 0x2EECC0DE;
 
-    static constexpr uint8_t version = 1;
+    static constexpr uint8_t version = 2;
 
     static constexpr size_t header_size = sizeof(magic) + sizeof(version);
 

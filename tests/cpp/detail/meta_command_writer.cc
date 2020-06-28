@@ -66,6 +66,7 @@ CAF_TEST(put_unique_command) {
                           0});
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::put_unique_command);
+  // We expect meta data for `key`, `value`, and `req_id`.
   CHECK_EQUAL(pull<data::type>(), data::type::string);
   CHECK_EQUAL(pull<uint32_t>(), 5u);
   CHECK_EQUAL(pull<data::type>(), data::type::string);
@@ -83,14 +84,14 @@ CAF_TEST(erase_command) {
 }
 
 CAF_TEST(add_command) {
-  push(add_command{data{"key"}, data{"value"}, data::type::table, nil});
+  push(add_command{data{"key"}, data{"value"}, data::type::table, nil,
+                   entity_id::nil()});
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::add_command);
   CHECK_EQUAL(pull<data::type>(), data::type::string);
   CHECK_EQUAL(pull<uint32_t>(), 3u);
   CHECK_EQUAL(pull<data::type>(), data::type::string);
   CHECK_EQUAL(pull<uint32_t>(), 5u);
-  CHECK_EQUAL(pull<data::type>(), data::type::table);
   CHECK(at_end());
 }
 

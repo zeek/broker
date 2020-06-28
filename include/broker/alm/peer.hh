@@ -322,6 +322,7 @@ public:
   std::pair<std::vector<peer_id_type>, bool>
   handle_update(peer_id_list& path, vector_timestamp path_ts,
                 const filter_type& filter) {
+    BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts) << BROKER_ARG(filter));
     std::vector<peer_id_type> new_peers;
     // Extract new peers from the path.
     auto is_new = [this](const auto& id) { return !reachable(tbl_, id); };

@@ -4,179 +4,89 @@
 
 #include "broker/convert.hh"
 
+namespace {
+
+using namespace broker;
+
+constexpr const char* data_type_names[] = {
+  "none",     "boolean",    "count",  "integer", "real",
+  "string",   "address",    "subnet", "port",    "timestamp",
+  "timespan", "enum_value", "set",    "table",   "vector",
+};
+
+constexpr int ival_of(broker::data::type x) {
+  return static_cast<int>(x);
+}
+
+template <class T>
+constexpr int pos_of() {
+  return caf::detail::tl_index_of<data::types, T>::value;
+}
+
+// Make sure the static_cast in data::get_type is safe.
+static_assert(ival_of(data::type::none) == pos_of<none>());
+static_assert(ival_of(data::type::boolean) == pos_of<boolean>());
+static_assert(ival_of(data::type::count) == pos_of<count>());
+static_assert(ival_of(data::type::integer) == pos_of<integer>());
+static_assert(ival_of(data::type::real) == pos_of<real>());
+static_assert(ival_of(data::type::string) == pos_of<std::string>());
+static_assert(ival_of(data::type::address) == pos_of<address>());
+static_assert(ival_of(data::type::subnet) == pos_of<subnet>());
+static_assert(ival_of(data::type::port) == pos_of<port>());
+static_assert(ival_of(data::type::timestamp) == pos_of<timestamp>());
+static_assert(ival_of(data::type::timespan) == pos_of<timespan>());
+static_assert(ival_of(data::type::enum_value) == pos_of<enum_value>());
+static_assert(ival_of(data::type::set) == pos_of<set>());
+static_assert(ival_of(data::type::table) == pos_of<table>());
+static_assert(ival_of(data::type::vector) == pos_of<vector>());
+
+} // namespace
+
 namespace broker {
 
-struct type_name_getter {
-  using result_type = const char*;
-
-  result_type operator()(broker::address) {
-    return "address";
-  }
-
-  result_type operator()(broker::boolean) {
-    return "boolean";
-  }
-
-  result_type operator()(broker::count) {
-    return "count";
-  }
-
-  result_type operator()(broker::enum_value) {
-    return "enum value";
-  }
-
-  result_type operator()(broker::integer) {
-    return "integer";
-  }
-
-  result_type operator()(broker::none) {
-    return "none";
-  }
-
-  result_type operator()(broker::port) {
-    return "port";
-  }
-
-  result_type operator()(broker::real) {
-    return "real";
-  }
-
-  result_type operator()(broker::set) {
-    return "set";
-  }
-
-  result_type operator()(std::string) {
-    return "string";
-  }
-
-  result_type operator()(broker::subnet) {
-    return "subnet";
-  }
-
-  result_type operator()(broker::table) {
-    return "table";
-  }
-
-  result_type operator()(broker::timespan) {
-    return "timespan";
-  }
-
-  result_type operator()(broker::timestamp) {
-    return "timestamp";
-  }
-
-  result_type operator()(broker::vector) {
-    return "vector";
-  }
-};
-
-struct type_getter {
-  using result_type = data::type;
-
-  result_type operator()(broker::address) {
-    return data::type::address;
-  }
-
-  result_type operator()(broker::boolean) {
-    return data::type::boolean;
-  }
-
-  result_type operator()(broker::count) {
-    return data::type::count;
-  }
-
-  result_type operator()(broker::enum_value) {
-    return data::type::enum_value;
-  }
-
-  result_type operator()(broker::integer) {
-    return data::type::integer;
-  }
-
-  result_type operator()(broker::none) {
-    return data::type::none;
-  }
-
-  result_type operator()(broker::port) {
-    return data::type::port;
-  }
-
-  result_type operator()(broker::real) {
-    return data::type::real;
-  }
-
-  result_type operator()(broker::set) {
-    return data::type::set;
-  }
-
-  result_type operator()(std::string) {
-    return data::type::string;
-  }
-
-  result_type operator()(broker::subnet) {
-    return data::type::subnet;
-  }
-
-  result_type operator()(broker::table) {
-    return data::type::table;
-  }
-
-  result_type operator()(broker::timespan) {
-    return data::type::timespan;
-  }
-
-  result_type operator()(broker::timestamp) {
-    return data::type::timestamp;
-  }
-
-  result_type operator()(broker::vector) {
-    return data::type::vector;
-  }
-};
-
 data::type data::get_type() const {
-  return caf::visit(type_getter(), get_data());
+  return static_cast<data::type>(data_.index());
 }
 
 data data::from_type(data::type t) {
-  switch ( t ) {
-  case data::type::address:
-    return broker::address{};
-  case data::type::boolean:
-    return broker::boolean{};
-  case data::type::count:
-    return broker::count{};
-  case data::type::enum_value:
-    return broker::enum_value{};
-  case data::type::integer:
-    return broker::integer{};
-  case data::type::none:
-    return broker::data{};
-  case data::type::port:
-    return broker::port{};
-  case data::type::real:
-    return broker::real{};
-  case data::type::set:
-    return broker::set{};
-  case data::type::string:
-    return std::string{};
-  case data::type::subnet:
-    return broker::subnet{};
-  case data::type::table:
-    return broker::table{};
-  case data::type::timespan:
-    return broker::timespan{};
-  case data::type::timestamp:
-    return broker::timestamp{};
-  case data::type::vector:
-    return broker::vector{};
-  default:
-    return data{};
+  switch (t) {
+    case data::type::address:
+      return broker::address{};
+    case data::type::boolean:
+      return broker::boolean{};
+    case data::type::count:
+      return broker::count{};
+    case data::type::enum_value:
+      return broker::enum_value{};
+    case data::type::integer:
+      return broker::integer{};
+    case data::type::none:
+      return broker::data{};
+    case data::type::port:
+      return broker::port{};
+    case data::type::real:
+      return broker::real{};
+    case data::type::set:
+      return broker::set{};
+    case data::type::string:
+      return std::string{};
+    case data::type::subnet:
+      return broker::subnet{};
+    case data::type::table:
+      return broker::table{};
+    case data::type::timespan:
+      return broker::timespan{};
+    case data::type::timestamp:
+      return broker::timestamp{};
+    case data::type::vector:
+      return broker::vector{};
+    default:
+      return data{};
   }
 }
 
 const char* data::get_type_name() const {
-  return caf::visit(type_name_getter(), *this);
+  return data_type_names[data_.index()];
 }
 
 namespace {

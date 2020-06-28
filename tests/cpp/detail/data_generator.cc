@@ -221,7 +221,8 @@ TEST(vector data) {
 TEST(roundtrip with meta_data_writer) {
   detail::meta_data_writer writer{sink};
   auto x = vector{1, 2, "a", "bc"};
-  CHECK_EQUAL(writer(x), caf::none);
+  CHECK_EQUAL(writer(data{x}), caf::none);
+  MESSAGE("writer produced " << buf.size() << " Bytes");
   auto y_data = generate();
   if (!holds_alternative<vector>(y_data)) {
     CAF_ERROR("generator did not produce a vector");
