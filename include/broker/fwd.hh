@@ -23,6 +23,7 @@ struct clear_command;
 struct cumulative_ack_command;
 struct domain_options;
 struct endpoint_info;
+struct entity_id;
 struct enum_value;
 struct erase_command;
 struct expire_command;
@@ -242,6 +243,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::ec))
   BROKER_ADD_TYPE_ID((broker::endpoint_info))
   BROKER_ADD_TYPE_ID((broker::enum_value))
+  BROKER_ADD_TYPE_ID((broker::entity_id))
   BROKER_ADD_TYPE_ID((broker::erase_command))
   BROKER_ADD_TYPE_ID((broker::expire_command))
   BROKER_ADD_TYPE_ID((broker::filter_type))

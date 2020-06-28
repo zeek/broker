@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <deque>
 
@@ -315,7 +316,7 @@ public:
     }
 
     auto consumer_timeout() const noexcept {
-      return heartbeat_interval_ * consumer_timeout_factor_;
+      return uint64_t{heartbeat_interval_} * consumer_timeout_factor_;
     }
 
     bool idle() const noexcept {
