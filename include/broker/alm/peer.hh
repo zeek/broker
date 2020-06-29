@@ -64,6 +64,9 @@ namespace broker::alm {
 ///
 /// (atom::revoke, revoker, ts, hop) -> void
 /// => handle_path_revocation(revoker, ts, hop)
+///
+/// (atom::await, PeerId) -> void
+/// => await_endpoint()
 /// ~~~
 template <class Derived, class PeerId, class CommunicationHandle>
 class peer {
@@ -345,6 +348,14 @@ public:
     const auto& subscriber = path[0];
     peer_timestamps_[subscriber] = path_ts[0];
     peer_filters_[subscriber] = filter;
+    // Trigger await callbacks if necessary.
+    if (auto [first, last] = awaited_peers_.equal_range(subscriber);
+        first != last) {
+      std::for_each(first, last, [&subscriber](auto& kvp) {
+        kvp.second.deliver(subscriber);
+      });
+      awaited_peers_.erase(first, last);
+    }
     return {std::move(new_peers), added_tbl_entry};
   }
 
@@ -556,7 +567,7 @@ public:
 
   /// Called after removing the last path to `peer_id` from the routing table.
   /// @param peer_id ID of the (now unreachable) peer.
-  void peer_unreachable([[maybe_unused]] const peer_id_type& peer_id) {
+  void peer_unreachable(const peer_id_type& peer_id) {
     peer_filters_.erase(peer_id);
   }
 
@@ -617,6 +628,13 @@ public:
       [=](atom::publish, atom::local, data_message& msg) {
         dref().ship_locally(msg);
       },
+      [=](atom::await, peer_id_type who) {
+        auto rp = dref().self()->make_response_promise();
+        if (auto i = peer_filters_.find(who); i != peer_filters_.end())
+          rp.deliver(who);
+        else
+          awaited_peers_.emplace(who, std::move(rp));
+      },
     };
   }
 
@@ -648,6 +666,10 @@ private:
   /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
   /// node to other peers.
   bool disable_forwarding_ = false;
+
+  /// Stores IDs of peers that we have no path to yet but some local actor is
+  /// arleady waiting for. Usually for testing purposes.
+  std::multimap<peer_id_type, caf::response_promise> awaited_peers_;
 };
 
 } // namespace broker::alm

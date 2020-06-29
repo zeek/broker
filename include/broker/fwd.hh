@@ -199,6 +199,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   // -- atoms for communication with stores ------------------------------------
 
   BROKER_ADD_ATOM(attach, "attach")
+  BROKER_ADD_ATOM(await, "await")
   BROKER_ADD_ATOM(clear, "clear")
   BROKER_ADD_ATOM(clone, "clone")
   BROKER_ADD_ATOM(decrement, "decrement")

@@ -323,6 +323,13 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::endpoint& ep, const std::string& name) -> broker::expected<broker::store> {
 	        return ep.attach_clone(name);
 	    })
+    .def("await_peer",
+         [](broker::endpoint& ep, const std::string& node_str) {
+           caf::node_id node;
+           if (auto err = caf::parse(node_str, node))
+             throw std::invalid_argument("endpoint::await_peer called with invalid endpoint ID");
+           ep.await_peer(node);
+         })
    ;
 }
 

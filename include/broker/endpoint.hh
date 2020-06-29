@@ -353,6 +353,14 @@ public:
     clock_->send_later(std::move(who), after, std::move(msg));
   }
 
+  // --- testing ---------------------------------------------------------------
+
+  /// Blocks execution of the current thread until `whom` was added to the
+  /// routing table and its subscription flooding reached this endpoint. This
+  /// makes it easier set multiple endpoints up in a single process when writing
+  /// integration (or very high level unit) tests.
+  void await_peer(endpoint_id whom);
+
   // --- properties ------------------------------------------------------------
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.

@@ -447,4 +447,17 @@ expected<store> endpoint::attach_clone(std::string name,
   return res;
 }
 
+void endpoint::await_peer(endpoint_id whom) {
+  caf::scoped_actor self{core()->home_system()};
+  self->request(core(), caf::infinite, atom::await_v, whom)
+    .receive(
+      [&]([[maybe_unused]] endpoint_id& discovered) {
+        BROKER_ASSERT(whom == discovered);
+      },
+      [&](caf::error& e) {
+        throw std::logic_error("endpoint::await_peer request failed: "
+                               + to_string(e));
+      });
+}
+
 } // namespace broker
