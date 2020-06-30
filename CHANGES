@@ -1,4 +1,12 @@
 
+1.4.0-dev.150 | 2020-06-30 10:58:03 -0700
+
+  * Include store IDs in the topic (Dominik Charousset)
+
+    As discussed in #121, adding the store ID to the topic enables better
+    control over the amount of data a subscriber receives by selecting only
+    stores of interest.
+
 1.4.0-dev.148 | 2020-06-23 16:10:07 -0700
 
   * Use the right variable when opening peers.txt for recording data (Tim Wojtulewicz, Corelight)

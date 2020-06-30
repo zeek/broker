@@ -7,6 +7,7 @@
 
 #include "broker/endpoint.hh"
 #include "broker/optional.hh"
+#include "broker/topic.hh"
 
 namespace broker::detail {
 
@@ -78,6 +79,9 @@ public:
 
   /// Points the core actor of the endpoint this store belongs to.
   caf::actor core;
+
+  /// Destination for emitted events.
+  topic dst;
 };
 
 } // namespace broker::detail

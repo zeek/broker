@@ -61,7 +61,7 @@ void core_manager::subscribe(filter_type xs) {
   // Status and error topics are internal topics.
   auto internal_only = [](const topic& x) {
     return x == topics::errors || x == topics::statuses
-           || x == topics::store_events;
+           || topics::store_events.prefix_of(x);
   };
   xs.erase(std::remove_if(xs.begin(), xs.end(), internal_only), xs.end());
   if (xs.empty())
