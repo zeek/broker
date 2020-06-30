@@ -107,19 +107,6 @@ public:
     emit_expire_event(msg.key, msg.publisher);
   }
 
-  // -- request / response handling --------------------------------------------
-
-  template <class... Ts>
-  bool try_deliver(const entity_id& who, request_id req, Ts&&... xs) {
-    local_request_key key{who, req};
-    if (auto i = local_requests.find(key); i != local_requests.end()) {
-      i->second.deliver(std::forward<Ts>(xs)...);
-      local_requests.erase(i);
-      return true;
-    }
-    return false;
-  }
-
   // -- callbacks for the behavior ---------------------------------------------
 
   void on_down_msg(const caf::actor_addr& source, const error& reason);

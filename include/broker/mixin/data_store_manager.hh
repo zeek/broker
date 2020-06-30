@@ -130,8 +130,11 @@ public:
   void detach_stores() {
     auto self = super::self();
     auto f = [&](auto& container) {
-      for (auto& kvp : container)
-        self->send_exit(kvp.second, caf::exit_reason::user_shutdown);
+      for (auto& kvp : container) {
+        self->send_exit(kvp.second, caf::exit_reason::kill);
+        // TODO: re-implement graceful shutdown
+        // self->send_exit(kvp.second, caf::exit_reason::user_shutdown);
+      }
       container.clear();
     };
     f(masters_);
@@ -168,7 +171,7 @@ public:
           return;
         }
         auto resolver
-          = self->template spawn<caf::lazy_init>(detail::master_resolver);
+          = self->template spawn<spawn_flags>(detail::master_resolver);
         self->send(resolver, std::move(peers), std::move(name),
                    std::move(who_asked));
       });

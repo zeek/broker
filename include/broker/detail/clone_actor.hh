@@ -50,6 +50,8 @@ public:
 
   void consume(put_command& cmd);
 
+  void consume(put_unique_result_command& cmd);
+
   void consume(erase_command& cmd);
 
   void consume(expire_command& cmd);

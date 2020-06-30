@@ -472,7 +472,7 @@ public:
     if (auto i = tbl_.find(path.head()); i != tbl_.end()) {
       dref().send(i->second.hdl, atom::publish::value, std::move(msg));
     } else {
-      BROKER_WARNING("no path found to " << path.head());
+      BROKER_WARNING("cannot ship message: no path found to" << path.head());
     }
   }
 
@@ -486,7 +486,7 @@ public:
                            peer_id_list{receiver}};
       ship(wrapped);
     } else {
-      BROKER_WARNING("no path found to " << receiver);
+      BROKER_WARNING("cannot ship message: no path found to" << receiver);
     }
   }
 

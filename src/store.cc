@@ -52,6 +52,7 @@ struct store::state {
   std::string name;
   caf::actor frontend;
   caf::scoped_actor self;
+  request_id req_id = 1;
 
   state(std::string name, caf::actor frontend_hdl)
     : name(std::move(name)),
@@ -90,6 +91,7 @@ store::store(const store& other) : state_(other.state_) {
 }
 
 store::store(caf::actor frontend, std::string name) {
+  BROKER_TRACE(BROKER_ARG(frontend) << BROKER_ARG(name));
   if (!frontend) {
     BROKER_ERROR("store::store called with frontend == nullptr");
     return;
@@ -244,7 +246,7 @@ expected<data> store::put_unique(data key, data val, optional<timespan> expiry) 
   return state_->request<data>(atom::local_v,
                                make_internal_command<put_unique_command>(
                                  std::move(key), std::move(val), expiry,
-                                 self_id(), request_id(-1), frontend_id()));
+                                 self_id(), state_->req_id++, frontend_id()));
   /*
   expected<data> res{ec::unspecified};
   caf::scoped_actor self{frontend_->home_system()};

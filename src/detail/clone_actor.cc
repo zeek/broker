@@ -158,6 +158,14 @@ void clone_state::consume(put_command& x) {
   }
 }
 
+void clone_state::consume(put_unique_result_command& cmd) {
+  local_request_key key{cmd.who, cmd.req_id};
+  if (auto i = local_requests.find(key); i != local_requests.end()) {
+    i->second.deliver(data{cmd.inserted});
+    local_requests.erase(i);
+  }
+}
+
 void clone_state::consume(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
   if (store.erase(x.key) != 0)
@@ -400,6 +408,11 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& cmd) {
       auto& st = self->state;
+      if (auto inner = get_if<put_unique_command>(&cmd.content);
+          inner && inner->who) {
+        local_request_key key{inner->who, inner->req_id};
+        st.local_requests.emplace(key, self->make_response_promise());
+      }
       auto& out = st.output();
       cmd.seq = out.next_seq();
       cmd.sender = entity_id::from(self);

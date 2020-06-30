@@ -63,6 +63,14 @@ struct put_unique_command {
   BROKER_ACTION_COMMAND(put_unique, key, value, expiry, who, req_id)
 };
 
+/// Sets a value in the key-value store if its key does not already exist.
+struct put_unique_result_command {
+  bool inserted;
+  entity_id who;
+  request_id req_id;
+  BROKER_ACTION_COMMAND(put_unique_result, inserted, who, req_id)
+};
+
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
@@ -181,6 +189,7 @@ public:
   enum class type : uint8_t {
     put_command,
     put_unique_command,
+    put_unique_result_command,
     erase_command,
     expire_command,
     add_command,
@@ -196,9 +205,9 @@ public:
   };
 
   using variant_type
-    = caf::variant<put_command, put_unique_command, erase_command,
-                   expire_command, add_command, subtract_command, clear_command,
-                   attach_clone_command, attach_writer_command,
+    = caf::variant<put_command, put_unique_command, put_unique_result_command,
+                   erase_command, expire_command, add_command, subtract_command,
+                   clear_command, attach_clone_command, attach_writer_command,
                    keepalive_command, cumulative_ack_command, nack_command,
                    ack_clone_command, retransmit_failed_command>;
 
@@ -222,6 +231,7 @@ namespace broker::detail {
 constexpr command_tag command_tag_by_type[] = {
   put_command::tag,
   put_unique_command::tag,
+  put_unique_result_command::tag,
   erase_command::tag,
   expire_command::tag,
   add_command::tag,

@@ -103,6 +103,7 @@ void master_state::dispatch(command_message& msg) {
         BROKER_DEBUG("attach new writer:" << cmd.sender);
         auto& inner = get<attach_writer_command>(cmd.content);
         i = inputs.emplace(cmd.sender, this).first;
+        i->second.producer(cmd.sender);
         i->second.handle_handshake(inner.offset, inner.heartbeat_interval);
       } else {
         BROKER_DEBUG("received command from unknown sender:" << cmd.sender);
@@ -187,30 +188,34 @@ void master_state::consume(put_unique_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry"
                            << (x.expiry ? to_string(*x.expiry) : "none"));
+  auto broadcast_result = [this, &x](bool inserted) {
+    broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
+    if (x.who) {
+      local_request_key key{x.who, x.req_id};
+      if (auto i = local_requests.find(key); i != local_requests.end()) {
+        i->second.deliver(data{inserted});
+        local_requests.erase(i);
+      }
+    }
+  };
   if (exists(x.key)) {
-    // Note that we don't bother broadcasting this operation to clones since
-    // no change took place.
-    // TODO: re-implement me -> who is no longer an actor
-    // self->send(x.who, caf::make_message(data{false}, x.req_id));
+    broadcast_result(false);
     return;
   }
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->put(x.key, x.value, et); !res) {
     BROKER_WARNING("failed to put_unique" << x.key << "->" << x.value);
-    // TODO: re-implement me -> who is no longer an actor
-    // self->send(x.who, caf::make_message(data{false}, x.req_id));
+    broadcast_result(false);
     return;
-  }
-  if (!try_deliver(x.who, x.req_id, data{true}, x.req_id)) {
-    // TODO: forward to clones
   }
   if (x.expiry)
     remind(*x.expiry, x.key);
   emit_insert_event(x);
-  // Broadcast a regular "put" command. Clones don't have to do their own
-  // existence check.
+  // Broadcast a regular "put" command (clones don't have to do their own
+  // existence check) followed by the (positive) result message.
   broadcast(put_command{std::move(x.key), std::move(x.value), x.expiry,
                         std::move(x.publisher)});
+  broadcast_result(true);
 }
 
 void master_state::consume(erase_command& x) {

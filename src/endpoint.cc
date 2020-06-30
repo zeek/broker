@@ -226,7 +226,10 @@ void endpoint::shutdown() {
     children_.clear();
   }
   BROKER_DEBUG("send shutdown message to core actor");
-  anon_send(core_, atom::shutdown_v);
+  // TODO: implement graceful shutdown (sending atom::shutdown currently results
+  //       in the endpoint hanging during shutdown) - doing it this way will
+  //       force all other endpoints into path revocation and timeout logic
+  anon_send_exit(core_, caf::exit_reason::kill);
   core_ = nullptr;
   system_.~actor_system();
   delete clock_;
@@ -234,6 +237,7 @@ void endpoint::shutdown() {
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+  BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("listening on"
               << (address + ":" + std::to_string(port))
               << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
@@ -411,6 +415,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
 
 expected<store> endpoint::attach_master(std::string name, backend type,
                                         backend_options opts) {
+  BROKER_TRACE(BROKER_ARG(name) << BROKER_ARG(type) << BROKER_ARG(opts));
   BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
@@ -431,6 +436,9 @@ expected<store> endpoint::attach_clone(std::string name,
                                        double resync_interval,
                                        double stale_interval,
                                        double mutation_buffer_interval) {
+  BROKER_TRACE(BROKER_ARG(name)
+               << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
+               << BROKER_ARG(mutation_buffer_interval));
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
@@ -448,6 +456,7 @@ expected<store> endpoint::attach_clone(std::string name,
 }
 
 void endpoint::await_peer(endpoint_id whom) {
+  BROKER_TRACE(BROKER_ARG(whom));
   caf::scoped_actor self{core()->home_system()};
   self->request(core(), caf::infinite, atom::await_v, whom)
     .receive(
