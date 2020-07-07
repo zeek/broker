@@ -81,8 +81,10 @@ events as well. Here's the Python version of the :ref:`C++ ping example
 shown earlier <zeek_events_cpp>`:
 
 .. literalinclude:: _examples/ping.zeek
+   :language: zeek
 
 .. literalinclude:: _examples/ping.py
+   :language: python
 
 .. code-block:: bash
 
