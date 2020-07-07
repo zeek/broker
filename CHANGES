@@ -1,4 +1,16 @@
 
+1.4.0-dev.155 | 2020-07-07 12:40:20 -0700
+
+  * Improve error messages emitted from SQLite backend (Jon Siwek, Corelight)
+
+  * Fix typos in docs (Jon Siwek, Corelight)
+
+  * Add Python SQLite-backed data store examples (Jon Siwek, Corelight)
+
+  * Fix syntax highlighting for Python examples (Jon Siwek, Corelight)
+
+  * Fix docs to include snippets from correct header path (Jon Siwek, Corelight)
+
 1.4.0-dev.150 | 2020-06-30 10:58:03 -0700
 
   * Include store IDs in the topic (Dominik Charousset)

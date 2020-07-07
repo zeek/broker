@@ -36,14 +36,14 @@ struct sqlite_backend::impl {
   impl(backend_options opts) : options{std::move(opts)} {
     auto i = options.find("path");
     if (i == options.end()) {
-      BROKER_ERROR("no path found in backend options");
+      BROKER_ERROR("SQLite backend options are missing required 'path' string");
       return;
     }
     if (auto path = caf::get_if<std::string>(&i->second)) {
       if (!open(*path))
         BROKER_ERROR("unable to open SQLite Database " << *path);
     } else {
-      BROKER_ERROR("no path found in backend options");
+      BROKER_ERROR("SQLite backend option 'path' is not a string");
     }
   }
 
