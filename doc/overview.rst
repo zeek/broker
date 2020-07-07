@@ -121,7 +121,7 @@ passing command line arguments (Zeek_ does not forward command line arguments to
 Broker).
 
 In order to get a high-level view of what Broker is doing internally, we
-recommend settting:
+recommend setting:
 
 ::
 
@@ -133,7 +133,7 @@ requests, etc. The runtime cost of enabling this option and the volume of
 printed lines is moderate.
 
 Troubleshooting a Broker application (or Zeek_ scripts that communicate over
-Broker) sometimes requries tapping into the exchanged messages directly. Setting
+Broker) sometimes requires tapping into the exchanged messages directly. Setting
 the verbosity to debug instead will provide such details:
 
 ::
@@ -148,7 +148,7 @@ print the output to a file. This is particularly useful when troubleshooting a
 cluster, since it allows to run a test setup first and then collect all files
 for the analysis.
 
-The file output is also more detailled than the console output, as it includes
+The file output is also more detailed than the console output, as it includes
 information such as source file locations, timestamps, and functions names.
 
 In case setting environment variables is impossible or file-based configuration
