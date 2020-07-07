@@ -130,13 +130,13 @@ configuration::configuration(skip_init_t) {
   set("logger.file-verbosity", atom("quiet"));
   set("logger.console-format", "[%c/%p] %d %m");
   // Enable console output (and color it if stdout is a TTY) but set verbosty to
-  // quiet. This allows users to only care about the environment variable
+  // errors-only. Users can still override via the environment variable
   // BROKER_CONSOLE_VERBOSITY.
   if (isatty(STDOUT_FILENO))
     set("logger.console", atom("colored"));
   else
     set("logger.console", atom("uncolored"));
-  set("logger.console-verbosity", atom("quiet"));
+  set("logger.console-verbosity", atom("error"));
   // Turn off all CAF output by default.
   std::vector<atom_value> blacklist{atom("caf"), atom("caf_io"),
                                     atom("caf_net"), atom("caf_flow"),
