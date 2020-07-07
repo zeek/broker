@@ -187,5 +187,11 @@ and mutator methods as C++. Some examples:
    :start-after: --ops-start
    :end-before: --ops-end
 
+Here's a more complete example of using a SQLite-backed data store from
+python, with the database being stored in ``mystore.sqlite``:
 
+.. literalinclude:: _examples/sqlite-listen.py
+   :language: python
 
+.. literalinclude:: _examples/sqlite-connect.py
+   :language: python
