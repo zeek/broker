@@ -199,37 +199,42 @@ endpoint::endpoint(configuration config)
 }
 
 endpoint::~endpoint() {
-  BROKER_INFO("destroying endpoint");
   shutdown();
 }
 
 void endpoint::shutdown() {
-  BROKER_INFO("shutting down endpoint");
   if (destroyed_)
     return;
-  destroyed_ = true;
-  if (!await_stores_on_shutdown_) {
-    BROKER_DEBUG("tell core actor to terminate stores");
-    anon_send(core_, atom::shutdown_v, atom::store_v);
+  // Lifetime scope of the BROKER_TRACE object: must go out of scope before
+  // calling the destructor of caf::actor_system.
+  {
+    BROKER_TRACE("");
+    BROKER_INFO("shutting down endpoint");
+    destroyed_ = true;
+    if (!await_stores_on_shutdown_) {
+      BROKER_DEBUG("tell core actor to terminate stores");
+      anon_send(core_, atom::shutdown_v, atom::store_v);
+    }
+    if (!children_.empty()) {
+      caf::scoped_actor self{system_};
+      BROKER_DEBUG("send exit messages to" << children_.size() << "children");
+      for (auto& child : children_)
+        // exit_reason::kill seems more reliable than
+        // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
+        // possibly due to the former having more explicit logic that will
+        // shut down streams.
+        self->send_exit(child, caf::exit_reason::kill);
+      BROKER_DEBUG("wait until all children have terminated");
+      self->wait_for(children_);
+      children_.clear();
+    }
+    BROKER_DEBUG("send shutdown message to core actor");
+    // TODO: implement graceful shutdown (sending atom::shutdown currently
+    // results
+    //       in the endpoint hanging during shutdown) - doing it this way will
+    //       force all other endpoints into path revocation and timeout logic
+    anon_send_exit(core_, caf::exit_reason::kill);
   }
-  if (!children_.empty()) {
-    caf::scoped_actor self{system_};
-    BROKER_DEBUG("send exit messages to all children");
-    for (auto& child : children_)
-      // exit_reason::kill seems more reliable than
-      // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
-      // possibly due to the former having more explicit logic that will
-      // shut down streams.
-      self->send_exit(child, caf::exit_reason::kill);
-    BROKER_DEBUG("wait until all children have terminated");
-    self->wait_for(children_);
-    children_.clear();
-  }
-  BROKER_DEBUG("send shutdown message to core actor");
-  // TODO: implement graceful shutdown (sending atom::shutdown currently results
-  //       in the endpoint hanging during shutdown) - doing it this way will
-  //       force all other endpoints into path revocation and timeout logic
-  anon_send_exit(core_, caf::exit_reason::kill);
   core_ = nullptr;
   system_.~actor_system();
   delete clock_;
@@ -261,7 +266,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
   self->request(core_, caf::infinite, atom::peer_v,
                 network_info{address, port, retry})
   .receive(
-    [&](const caf::actor&) {
+    [&](atom::peer, atom::ok, const endpoint_id&) {
       result = true;
     },
     [&](caf::error& err) {

@@ -105,10 +105,7 @@ publisher::publisher(endpoint& ep, topic t)
 }
 
 publisher::~publisher() {
-  if (!drop_on_destruction_)
-    anon_send(worker_, atom::shutdown_v);
-  else
-    anon_send_exit(worker_, exit_reason::user_shutdown);
+  reset();
 }
 
 size_t publisher::demand() const {
@@ -160,6 +157,16 @@ void publisher::publish(std::vector<data> xs) {
       anon_send(worker_, atom::resume_v);
     i = j;
   }
+}
+
+void publisher::reset() {
+  if (!worker_)
+    return;
+  if (!drop_on_destruction_)
+    anon_send(worker_, atom::shutdown_v);
+  else
+    anon_send_exit(worker_, exit_reason::user_shutdown);
+  worker_ = nullptr;
 }
 
 } // namespace broker

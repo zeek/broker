@@ -15,7 +15,19 @@ const size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
 namespace broker::defaults::store {
 
-const caf::timespan tick_interval = 100ms;
+// Run with 20 ticks per second.
+const caf::timespan tick_interval = 50ms;
+
+// Send 5 heartbeats per second.
+const uint16_t heartbeat_interval = 4;
+
+// Wait up to 100ms before sending NACK messages.
+const uint16_t nack_timeout = 2;
+
+// Disconnect channels when not hearing anything from the remote side for 1s.
+const uint16_t connection_timeout = 5;
+
+const caf::timespan await_idle_timeout = 5s;
 
 } // namespace broker::defaults::store
 

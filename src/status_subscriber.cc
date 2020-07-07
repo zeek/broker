@@ -97,4 +97,8 @@ value_type status_subscriber::convert(const data_message& msg) {
   return nil;
 }
 
+void status_subscriber::reset() {
+  return impl_.reset();
+}
+
 } // namespace broker

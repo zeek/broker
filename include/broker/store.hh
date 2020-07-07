@@ -13,12 +13,13 @@
 #include "broker/api_flags.hh"
 #include "broker/atoms.hh"
 #include "broker/data.hh"
+#include "broker/defaults.hh"
+#include "broker/error.hh"
+#include "broker/expected.hh"
 #include "broker/fwd.hh"
 #include "broker/mailbox.hh"
 #include "broker/message.hh"
 #include "broker/optional.hh"
-#include "broker/error.hh"
-#include "broker/expected.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -283,6 +284,33 @@ public:
   void pop(data key, optional<timespan> expiry = {}) {
     subtract(key, key, expiry);
   }
+
+  /// Blocks execution of the current thread until the frontend actor reached an
+  /// IDLE state. On a master, this means that all clones have caught up with
+  /// the master and have ACKed the most recent command. On a clone, this means
+  /// that the master has ACKed any pending put commands from this store and
+  /// that the clone is not waiting on any out-of-order messages from the
+  /// master.
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block. Note: passing `none` uses the
+  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  /// @note This member function is not meant for use in production and exists
+  ///       to make testing easier.
+  /// @returns `true` if the frontend actor responded before the timeout,
+  ///          `false` otherwise.
+  bool await_idle(optional<timespan> timeout);
+
+  /// Release any state held by the object, rendering it invalid.
+  /// @warning Performing *any* action on this object afterwards invokes
+  ///          undefined behavior, except:
+  ///          - Destroying the object by calling the destructor.
+  ///          - Using copy- or move-assign from a valid `store` to "revive"
+  ///            this object.
+  ///          - Calling `reset` again (multiple invocations are no-ops).
+  /// @note This member function specifically targets the Python bindings. When
+  ///       writing Broker applications using the native C++ API, there's no
+  ///       point in calling this member function.
+  void reset();
 
 private:
   store(caf::actor actor, std::string name);

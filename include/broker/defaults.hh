@@ -15,7 +15,22 @@ extern const size_t output_generator_file_cap;
 
 namespace broker::defaults::store {
 
+/// Configures the time interval for advancing the local Lamport time.
 extern const caf::timespan tick_interval;
+
+/// Configures how many ticks pass between sending heartbeat messages.
+extern const uint16_t heartbeat_interval;
+
+/// Configures how many ticks without any progress we wait before sending NACK
+/// messages, i.e., requesting retransmits.
+extern const uint16_t nack_timeout;
+
+/// Configures how many missed heartbeats we wait before assuming the remote
+/// store actore dead.
+extern const uint16_t connection_timeout;
+
+/// Configures the default timeout of @ref peer::await_idle.
+extern const caf::timespan await_idle_timeout;
 
 } // namespace broker::defaults::store
 

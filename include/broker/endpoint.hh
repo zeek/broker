@@ -356,9 +356,9 @@ public:
   // --- testing ---------------------------------------------------------------
 
   /// Blocks execution of the current thread until `whom` was added to the
-  /// routing table and its subscription flooding reached this endpoint. This
-  /// makes it easier set multiple endpoints up in a single process when writing
-  /// integration (or very high level unit) tests.
+  /// routing table and its subscription flooding reached this endpoint.
+  /// @note This member function is not meant for use in production and exists
+  ///       to make testing easier.
   void await_peer(endpoint_id whom);
 
   // --- properties ------------------------------------------------------------

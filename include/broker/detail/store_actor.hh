@@ -6,6 +6,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/response_handle.hpp>
 
+#include "broker/defaults.hh"
 #include "broker/detail/channel.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
@@ -58,6 +59,33 @@ public:
   /// @pre `clock != nullptr`
   void init(caf::event_based_actor* self, endpoint_id this_endpoint,
             endpoint::clock* clock, std::string&& id, caf::actor&& core);
+
+  template <class Backend, class Base>
+  void init(channel_type::producer<Backend, Base>& out) {
+    using caf::get_or;
+    auto& cfg = self->config();
+    out.heartbeat_interval(get_or(cfg, "broker.store.heartbeat-interval",
+                                  defaults::store::heartbeat_interval));
+    out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
+                                         defaults::store::connection_timeout));
+  }
+
+  template <class Backend>
+  void init(channel_type::consumer<Backend>& in) {
+    using caf::get_or;
+    auto& cfg = self->config();
+    auto heartbeat_interval = get_or(cfg, "broker.store.heartbeat-interval",
+                                     defaults::store::heartbeat_interval);
+    auto connection_timeout = get_or(cfg, "broker.store.connection-timeout",
+                                     defaults::store::connection_timeout);
+    auto nack_timeout = get_or(cfg, "broker.store.nack-timeout",
+                               defaults::store::nack_timeout);
+    BROKER_DEBUG(BROKER_ARG(heartbeat_interval)
+                 << BROKER_ARG(connection_timeout) << BROKER_ARG(nack_timeout));
+    in.heartbeat_interval(heartbeat_interval);
+    in.connection_timeout_factor(connection_timeout);
+    in.nack_timeout(nack_timeout);
+  }
 
   // -- event signaling --------------------------------------------------------
 
@@ -119,6 +147,9 @@ public:
   /// Points to the endpoint's clock.
   endpoint::clock* clock = nullptr;
 
+  /// Caches the configuration parameter `broker.store.tick-interval`.
+  caf::timespan tick_interval;
+
   /// Stores the name, i.e., the prefix of the topic.
   std::string store_name;
 
@@ -133,6 +164,9 @@ public:
 
   /// Stores requests from local actors.
   std::unordered_map<local_request_key, caf::response_promise> local_requests;
+
+  /// Stores promises to fulfill when reaching an idle state.
+  std::vector<caf::response_promise> idle_callbacks;
 };
 
 } // namespace broker::detail

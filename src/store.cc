@@ -58,7 +58,11 @@ struct store::state {
     : name(std::move(name)),
       frontend(std::move(frontend_hdl)),
       self(frontend->home_system()) {
-    // nop
+    BROKER_DEBUG("created state for store" << name);
+  }
+
+  ~state() {
+    BROKER_DEBUG("destroyed state for store" << name);
   }
 
   template <class T, class... Ts>
@@ -247,28 +251,6 @@ expected<data> store::put_unique(data key, data val, optional<timespan> expiry) 
                                make_internal_command<put_unique_command>(
                                  std::move(key), std::move(val), expiry,
                                  self_id(), state_->req_id++, frontend_id()));
-  /*
-  expected<data> res{ec::unspecified};
-  caf::scoped_actor self{frontend_->home_system()};
-  auto cmd = make_internal_command<put_unique_command>(
-    std::move(key), std::move(val), expiry, self, request_id(-1),
-    frontend_id());
-  auto msg = caf::make_message(atom::local_v, std::move(cmd));
-
-  self->send(frontend_, std::move(msg));
-  self->delayed_send(self, timeout::frontend, atom::tick_v);
-  self->receive(
-    [&](data& x, request_id) {
-      res = std::move(x);
-    },
-    [&](atom::tick) {
-    },
-    [&](caf::error& e) {
-      res = std::move(e);
-    }
-  );
-  return res;
-  */
 }
 
 expected<data> store::get_index_from_value(data key, data index) const {
@@ -313,6 +295,18 @@ void store::clear() {
   CHECK_INITIALIZED_VOID();
   state_->anon_send(atom::local_v,
                     make_internal_command<clear_command>(frontend_id()));
+}
+
+bool store::await_idle(optional<timespan> timeout) {
+  auto t = timeout ? *timeout : defaults::store::await_idle_timeout;
+  bool result = false;
+  state_->self->request(state_->frontend, t, atom::await_v, atom::idle_v)
+    .receive([&result](atom::ok) { result = true; }, [](const error&) {});
+  return result;
+}
+
+void store::reset() {
+  state_.reset();
 }
 
 } // namespace broker

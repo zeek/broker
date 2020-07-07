@@ -161,7 +161,8 @@ subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
 }
 
 subscriber::~subscriber() {
-  anon_send_exit(worker_, exit_reason::user_shutdown);
+  if (worker_)
+    anon_send_exit(worker_, exit_reason::user_shutdown);
 }
 
 size_t subscriber::rate() const {
@@ -206,6 +207,13 @@ void subscriber::set_rate_calculation(bool x) {
 
 void subscriber::became_not_full() {
   anon_send(worker_, atom::resume_v);
+}
+
+void subscriber::reset() {
+  if (!worker_)
+    return;
+  anon_send_exit(worker_, exit_reason::user_shutdown);
+  worker_ = nullptr;
 }
 
 } // namespace broker

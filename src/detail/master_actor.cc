@@ -42,6 +42,7 @@ void master_state::init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                         caf::actor&& parent, endpoint::clock* ep_clock) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
               std::move(parent));
+  super::init(output);
   clones_topic = store_name / topics::clone_suffix;
   backend = std::move(bp);
   if (auto es = backend->expiries()) {
@@ -103,10 +104,15 @@ void master_state::dispatch(command_message& msg) {
         BROKER_DEBUG("attach new writer:" << cmd.sender);
         auto& inner = get<attach_writer_command>(cmd.content);
         i = inputs.emplace(cmd.sender, this).first;
+        super::init(i->second);
         i->second.producer(cmd.sender);
-        i->second.handle_handshake(inner.offset, inner.heartbeat_interval);
+        if (!i->second.handle_handshake(inner.offset,
+                                        inner.heartbeat_interval)) {
+          BROKER_ERROR("abort connection: handle_handshake returned false");
+          inputs.erase(i);
+        }
       } else {
-        BROKER_DEBUG("received command from unknown sender:" << cmd.sender);
+        BROKER_DEBUG("received command from unknown sender:" << cmd);
       }
       break;
     }
@@ -254,7 +260,7 @@ void master_state::consume(add_command& x) {
       emit_update_event(cmd, *old_value);
     else
       emit_insert_event(cmd);
-    broadcast(std::move(x));
+    broadcast(std::move(cmd));
   }
 }
 
@@ -285,7 +291,7 @@ void master_state::consume(subtract_command& x) {
     put_command cmd{std::move(x.key), std::move(*val), nil,
                     std::move(x.publisher)};
     emit_update_event(cmd, *old_value);
-    broadcast(std::move(x));
+    broadcast(std::move(cmd));
   }
 }
 
@@ -437,7 +443,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     self->state.on_down_msg(msg.source, msg.reason);
   });
   // Schedule first tick.
-  clock->send_later(self, defaults::store::tick_interval,
+  clock->send_later(self, self->state.tick_interval,
                     caf::make_message(atom::tick_v));
   return {
     // --- local communication -------------------------------------------------
@@ -463,9 +469,15 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       }
     },
     [=](atom::tick) {
-      self->state.tick();
-      clock->send_later(self, defaults::store::tick_interval,
+      auto& st = self->state;
+      st.tick();
+      clock->send_later(self, self->state.tick_interval,
                         caf::make_message(atom::tick_v));
+      if (!st.idle_callbacks.empty() && st.idle()) {
+        for (auto& rp : st.idle_callbacks)
+          rp.deliver(atom::ok_v);
+        st.idle_callbacks.clear();
+      }
     },
     [=](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
@@ -519,7 +531,15 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::get, atom::name) { return self->state.id; },
+    [=](atom::get, atom::name) { return self->state.store_name; },
+    [=](atom::await, atom::idle) -> caf::result<atom::ok> {
+      auto& st = self->state;
+      if (st.idle())
+        return atom::ok_v;
+      auto rp = self->make_response_promise();
+      st.idle_callbacks.emplace_back(std::move(rp));
+      return caf::delegated<atom::ok>();
+    },
     // --- stream handshake with core ------------------------------------------
     [=](const store::stream_type& in) {
       BROKER_DEBUG("received stream handshake from core");

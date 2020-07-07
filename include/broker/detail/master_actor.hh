@@ -35,6 +35,7 @@ public:
 
   template <class T>
   void broadcast(T&& cmd) {
+    BROKER_TRACE(BROKER_ARG(cmd));
     // Suppress message if no one is listening.
     if (output.paths().empty())
       return;

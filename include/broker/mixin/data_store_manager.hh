@@ -128,6 +128,8 @@ public:
   /// Detaches all masters and clones by sending exit messages to the
   /// corresponding actors.
   void detach_stores() {
+    BROKER_TRACE(BROKER_ARG2("masters_.size()", masters_.size())
+                 << BROKER_ARG2("clones_.size()", clones_.size()));
     auto self = super::self();
     auto f = [&](auto& container) {
       for (auto& kvp : container) {

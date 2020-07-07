@@ -23,9 +23,19 @@ public:
 
   using super = store_actor_state;
 
-  using producer_type = channel_type::producer<clone_state>;
-
   using consumer_type = channel_type::consumer<clone_state>;
+
+  struct producer_base {
+    /// Stores whether writes are currently disabled by the clone. This flag
+    /// solves a race between the members `input` and `output_ptr` by disabling
+    /// any output before the master completed the handshake with `input`.
+    /// Without this stalling, a clone might "miss" its own writes. This becomes
+    /// particularly problematic for `put_unique` operations if the master
+    /// performs these operations before attaching the clone as a consumer.
+    bool stalled = true;
+  };
+
+  using producer_type = channel_type::producer<clone_state, producer_base>;
 
   // -- initialization ---------------------------------------------------------
 
@@ -100,8 +110,6 @@ public:
 
   /// Returns whether the clone received a handshake from the master.
   bool has_master() const noexcept;
-
-  void set_master(const entity_id& hdl);
 
   bool idle() const noexcept;
 

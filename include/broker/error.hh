@@ -71,12 +71,9 @@ enum class ec : uint8_t {
   /// Adding a consumer to a producer failed because the producer already added
   /// the consumer.
   consumer_exists,
-  /// A producer did not receive any message from a consumer within the
-  /// configured timeout.
-  consumer_timeout,
-  /// A consumer did not receive any message from a producer within the
-  /// configured timeout.
-  producer_timeout,
+  /// A producer or consumer did not receive any message from a consumer within
+  /// the configured timeout.
+  connection_timeout,
   /// Called a member function without satisfying its preconditions.
   bad_member_function_call,
   /// Attempted to use the same request_id twice.

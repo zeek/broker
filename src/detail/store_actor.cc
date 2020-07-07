@@ -59,6 +59,9 @@ void store_actor_state::init(caf::event_based_actor* self,
   this->id.object = self->id();
   this->core = std::move(core);
   this->dst = topics::store_events / this->store_name;
+  auto& cfg = self->system().config();
+  tick_interval = caf::get_or(cfg, "broker.store.tick-interval",
+                              defaults::store::tick_interval);
 }
 
 // -- event signaling ----------------------------------------------------------

@@ -230,7 +230,7 @@ public:
       if (matches(filter, topic))
         receivers.emplace_back(peer);
     if (receivers.empty()) {
-      BROKER_DEBUG("no subscribers found for topic" << topic);
+      BROKER_DEBUG("drop message: no subscribers found for topic" << topic);
       return;
     }
     ship(content, receivers);

@@ -124,6 +124,15 @@ configuration::configuration(skip_init_t) {
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
   sync_options();
+  opt_group{custom_options_, "broker.store"}
+    .add<caf::timespan>("tick-interval",
+                        "time interval for advancing the local Lamport time")
+    .add<uint16_t>("heartbeat-interval",
+                   "number of ticks between heartbeat messages")
+    .add<uint16_t>("nack-timeout",
+                   "number of ticks before sending NACK messages")
+    .add<uint16_t>("connection-timeout",
+                   "number of heartbeats a remote store is allowed to miss");
   // Override CAF defaults.
 #if CAF_VERSION < 1800
   using caf::atom;

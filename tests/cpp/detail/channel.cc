@@ -432,19 +432,20 @@ TEST(consumers buffer events until receiving the handshake) {
 TEST(consumers send cumulative ACK messages) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
-  consumer.handle_handshake(0, 1);
-  MESSAGE("each tick triggers an ACK");
+  consumer.handle_handshake(1, 1);
+  cb.output.clear();
+  MESSAGE("each tick triggers an ACK when setting heartbeat interval to 1");
   consumer.tick();
-  CHECK_EQUAL(cb.output, "cumulative_ack(0)");
+  CHECK_EQUAL(cb.output, "cumulative_ack(1)");
   consumer.tick();
-  CHECK_EQUAL(cb.output, "cumulative_ack(0)\ncumulative_ack(0)");
+  CHECK_EQUAL(cb.output, "cumulative_ack(1)\ncumulative_ack(1)");
   cb.output.clear();
   MESSAGE("after some events, the ACK contains the last received seq ID");
-  consumer.handle_event(1, "a");
-  consumer.handle_event(2, "b");
+  consumer.handle_event(2, "a");
+  consumer.handle_event(3, "b");
   consumer.tick();
   CHECK_EQUAL(cb.input, "ab");
-  CHECK_EQUAL(cb.output, "cumulative_ack(2)");
+  CHECK_EQUAL(cb.output, "cumulative_ack(3)");
 }
 
 TEST(consumers send NACK messages when receiving incomplete data) {
@@ -453,13 +454,15 @@ TEST(consumers send NACK messages when receiving incomplete data) {
   consumer.nack_timeout(3);
   CHECK_EQUAL(consumer.num_ticks(), 0u);
   MESSAGE("the consumer sends a NACK after making no progress for two ticks");
-  consumer.handle_handshake(0, 5);
+  consumer.handle_handshake(1, 5);
+  CHECK_EQUAL(cb.output, "cumulative_ack(1)");
+  cb.output.clear();
   consumer.tick();
   CHECK_EQUAL(consumer.num_ticks(), 1u);
   CHECK_EQUAL(consumer.idle_ticks(), 0u);
-  consumer.handle_event(4, "d");
-  consumer.handle_event(2, "b");
-  consumer.handle_event(7, "g");
+  consumer.handle_event(5, "d");
+  consumer.handle_event(3, "b");
+  consumer.handle_event(8, "g");
   consumer.tick();
   CHECK_EQUAL(consumer.num_ticks(), 2u);
   CHECK_EQUAL(cb.input, "");
@@ -474,14 +477,14 @@ TEST(consumers send NACK messages when receiving incomplete data) {
   CHECK_EQUAL(consumer.num_ticks(), 4u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 0u);
-  CHECK_EQUAL(cb.output, "nack([1, 3, 5, 6])");
+  CHECK_EQUAL(cb.output, "nack([2, 4, 6, 7])");
   MESSAGE("the consumer sends an ack every five ticks, even without progress");
   cb.output.clear();
   consumer.tick();
   CHECK_EQUAL(consumer.num_ticks(), 5u);
   CHECK_EQUAL(cb.input, "");
   CHECK_EQUAL(consumer.idle_ticks(), 1u);
-  CHECK_EQUAL(cb.output, "cumulative_ack(0)");
+  CHECK_EQUAL(cb.output, "cumulative_ack(1)");
 }
 
 TEST(producers become idle after all consumers ACKed all messages) {
@@ -515,7 +518,7 @@ TEST(producers become idle after all consumers ACKed all messages) {
 }
 
 TEST(messages arrive eventually - even with 33 percent loss rate) {
-  producer.consumer_timeout_factor(12);
+  producer.connection_timeout_factor(12);
   // Essentially the same test as above, but with a loss rate of 33%.
   setup_actors({"A", "B", "C", "D"});
   CHECK_EQUAL(get("A").backend().input, "");
@@ -553,7 +556,7 @@ TEST(messages arrive eventually - even with 33 percent loss rate) {
 }
 
 TEST(messages arrive eventually - even with 66 percent loss rate) {
-  producer.consumer_timeout_factor(24);
+  producer.connection_timeout_factor(24);
   // Essentially the same test again, but with a loss rate of 66%.
   setup_actors({"A", "B", "C", "D"});
   producer.produce("a");

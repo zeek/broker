@@ -68,6 +68,9 @@ public:
     /// to adjust its timeouts for detecting failed producers.
     tick_interval_type heartbeat_interval;
 
+    /// Maximum number of missed heartbeats before connections time out.
+    tick_interval_type connection_timeout;
+
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, handshake& x) {
       return f(caf::meta::type_name("handshake"), x.offset,
@@ -114,6 +117,8 @@ public:
   using producer_message
     = caf::variant<handshake, event, retransmit_failed, heartbeat>;
 
+  struct default_producer_base {};
+
   /// Produces events (messages) for any number of consumers.
   /// @tparam Backend Hides the underlying (unreliable) communication layer. The
   ///                 backend must provide the following member functions:
@@ -127,8 +132,8 @@ public:
   ///                   indicate that a consumer got removed by the producer.
   ///                 - `void handshake_completed(producer*, const Handle&)`
   ///                   called to indicate that the producer received an ACK
-  template <class Backend>
-  class producer {
+  template <class Backend, class Base = default_producer_base>
+  class producer : public Base {
   public:
     // -- member types ---------------------------------------------------------
 
@@ -175,6 +180,13 @@ public:
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return nil;
+    }
+
+    void trigger_handshakes() {
+      for (auto& path : paths_)
+        if (path.offset == 0)
+          backend_->send(this, path.hdl,
+                         handshake{path.offset, heartbeat_interval_});
     }
 
     void handle_ack(const Handle& hdl, sequence_number_type seq) {
@@ -244,6 +256,7 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
+      BROKER_TRACE("");
       // Increase local time and send heartbeats.
       ++tick_;
       if (heartbeat_interval_ == 0)
@@ -253,13 +266,13 @@ public:
         backend_->broadcast(this, heartbeat{seq_});
       }
       // Check whether any consumer timed out.
-      auto timeout = consumer_timeout();
+      auto timeout = connection_timeout();
       assert(timeout > 0);
       size_t erased_paths = 0;
       for (auto i = paths_.begin(); i != paths_.end();) {
         if (tick_.value - i->last_seen.value >= timeout) {
           BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
-          backend_->drop(this, i->hdl, ec::consumer_timeout);
+          backend_->drop(this, i->hdl, ec::connection_timeout);
           i = paths_.erase(i);
           ++erased_paths;
         } else {
@@ -315,8 +328,16 @@ public:
       heartbeat_interval_ = value;
     }
 
-    auto consumer_timeout() const noexcept {
-      return uint64_t{heartbeat_interval_} * consumer_timeout_factor_;
+    auto connection_timeout() const noexcept {
+      return uint64_t{heartbeat_interval_} * connection_timeout_factor_;
+    }
+
+    auto connection_timeout_factor() const noexcept {
+      return connection_timeout_factor_;
+    }
+
+    void connection_timeout_factor(tick_interval_type value) noexcept {
+      connection_timeout_factor_ = value;
     }
 
     bool idle() const noexcept {
@@ -324,12 +345,10 @@ public:
       return std::all_of(paths_.begin(), paths_.end(), at_head);
     }
 
-    auto consumer_timeout_factor() const noexcept {
-      return consumer_timeout_factor_;
-    }
-
-    void consumer_timeout_factor(tick_interval_type value) noexcept {
-      consumer_timeout_factor_ = value;
+    /// Checks whether any path was added but not yet acknowledged.
+    bool has_pending_paths() const noexcept {
+      auto pending = [](const path& x) { return x.acked == 0; };
+      return std::any_of(paths_.begin(), paths_.end(), pending);
     }
 
     // -- path and event lookup ------------------------------------------------
@@ -379,9 +398,9 @@ public:
     tick_interval_type heartbeat_interval_ = 5;
 
     /// Factor for computing the timeout for consumers, i.e., after how many
-    /// ticks not not receiving any message do we assume the consumer no longer
-    /// exists.
-    tick_interval_type consumer_timeout_factor_ = 4;
+    /// heartbeats of not receiving any message do we assume the consumer no
+    /// longer exists.
+    tick_interval_type connection_timeout_factor_ = 4;
   };
 
   // -- implementation of the consumer -----------------------------------------
@@ -422,6 +441,12 @@ public:
         : seq(seq), content(std::forward<T>(x)) {
         // nop
       }
+
+      template <class Inspector>
+      friend typename Inspector::result_type inspect(Inspector& f,
+                                                     optional_event& x) {
+        return f(caf::meta::type_name("optional_event"), x.seq, x.content);
+      }
     };
 
     using buf_type = std::deque<optional_event>;
@@ -437,14 +462,42 @@ public:
     /// Initializes the consumer from the settings in the handshake.
     /// @returns `true` if the consumer was initialized, `false` on a repeated
     ///          handshake that got dropped by the consumer.
-    bool handle_handshake(sequence_number_type offset,
+    bool handle_handshake(Handle producer_hdl, sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
+      BROKER_TRACE(BROKER_ARG(producer_hdl)
+                   << BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       if (initialized())
         return false;
+      producer_ = std::move(producer_hdl);
+      return handle_handshake_impl(offset, heartbeat_interval);
+    }
+
+    /// @copydoc handle_handshake
+    bool handle_handshake(sequence_number_type offset,
+                          tick_interval_type heartbeat_interval) {
+      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
+      if (initialized())
+        return false;
+      return handle_handshake_impl(offset, heartbeat_interval);
+    }
+
+    bool handle_handshake_impl(sequence_number_type offset,
+                               tick_interval_type heartbeat_interval) {
+      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
+      // Initialize state.
       next_seq_ = offset + 1;
       last_seq_ = next_seq_;
       heartbeat_interval_ = heartbeat_interval;
+      // Find the first message in the assigned offset and drop any buffered
+      // message before that point.
+      if (!buf_.empty()) {
+        auto pred = [=](const optional_event& x) { return x.seq > offset; };
+        auto i = std::find_if(buf_.begin(), buf_.end(), pred);
+        buf_.erase(buf_.begin(), i);
+      }
+      // Consume buffered messages if possible and send initial ACK.
       try_consume_buffer();
+      send_ack();
       return true;
     }
 
@@ -458,6 +511,7 @@ public:
     }
 
     void handle_event(sequence_number_type seq, Payload payload) {
+      BROKER_TRACE(BROKER_ARG(seq) << BROKER_ARG(payload));
       if (next_seq_ == seq) {
         // Process immediately.
         backend_->consume(this, payload);
@@ -501,10 +555,14 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
+      BROKER_TRACE(BROKER_ARG2("next_seq", next_seq_)
+                   << BROKER_ARG2("last_seq", last_seq_)
+                   << BROKER_ARG2("buf.size", buf().size()));
       ++tick_;
       // Ask for repeated handshake each heartbeat interval when not fully
       // initialized yet.
       if (!initialized()) {
+        BROKER_DEBUG("not fully initialized: waiting for producer handshake");
         ++idle_ticks_;
         if (idle_ticks_ >= nack_timeout_) {
           idle_ticks_ = 0;
@@ -516,6 +574,7 @@ public:
       bool progressed = next_seq_ > last_tick_seq_;
       last_tick_seq_ = next_seq_;
       if (progressed) {
+        BROKER_DEBUG("made progress since last tick");
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
         if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
@@ -523,6 +582,7 @@ public:
         return;
       }
       ++idle_ticks_;
+      BROKER_DEBUG("made no progress for" << idle_ticks_ << "ticks");
       if (next_seq_ < last_seq_ && idle_ticks_ >= nack_timeout_) {
         idle_ticks_ = 0;
         auto first = next_seq_;
@@ -579,12 +639,36 @@ public:
       return heartbeat_interval_;
     }
 
+    auto heartbeat_interval(tick_interval_type value) noexcept {
+      heartbeat_interval_ = value;
+    }
+
+    auto connection_timeout() const noexcept {
+      return uint64_t{heartbeat_interval_} * connection_timeout_factor_;
+    }
+
+    auto connection_timeout_factor() const noexcept {
+      return connection_timeout_factor_;
+    }
+
+    void connection_timeout_factor(tick_interval_type value) noexcept {
+      connection_timeout_factor_ = value;
+    }
+
     auto nack_timeout() const noexcept {
       return nack_timeout_;
     }
 
-    void nack_timeout(uint8_t value) noexcept {
+    void nack_timeout(tick_interval_type value) noexcept {
       nack_timeout_ = value;
+    }
+
+    auto next_seq() const noexcept {
+      return next_seq_;
+    }
+
+    auto last_seq() const noexcept {
+      return last_seq_;
     }
 
     bool initialized() const noexcept {
@@ -664,13 +748,18 @@ public:
     sequence_number_type last_tick_seq_ = 0;
 
     /// Number of ticks without progress.
-    uint8_t idle_ticks_ = 0;
+    tick_interval_type idle_ticks_ = 0;
 
     /// Frequency of ACK messages (configured by the master).
-    uint8_t heartbeat_interval_ = 0;
+    tick_interval_type heartbeat_interval_ = 0;
 
     /// Number of ticks without progress before sending a NACK.
-    uint8_t nack_timeout_ = 5;
+    tick_interval_type nack_timeout_ = 5;
+
+    /// Factor for computing the timeout for producers, i.e., after how many
+    /// heartbeats of not receiving any message do we assume the producer no
+    /// longer exists.
+    tick_interval_type connection_timeout_factor_ = 4;
   };
 };
 

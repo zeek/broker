@@ -121,6 +121,13 @@ class Subscriber:
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
     def get(self, *args, **kwargs):
         msg = self._subscriber.get(*args, **kwargs)
 
@@ -161,6 +168,13 @@ class StatusSubscriber(_broker.Subscriber):
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
     def get(self, *args, **kwargs):
         x = self._subscriber.get(*args, **kwargs)
         return self._to_result(x)
@@ -198,6 +212,13 @@ class Publisher:
     def __init__(self, internal_publisher):
         self._publisher = internal_publisher
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._publisher.reset()
+        self._publisher = None
+
     def demand(self):
         return self._publisher.demand()
 
@@ -226,11 +247,19 @@ class Publisher:
 
 class Store:
     # This class does not derive from the internal class because we
-    # need to pass in existign instances. That means we need to
+    # need to pass in existing instances. That means we need to
     # wrap all methods, even those that just reuse the internal
     # implementation.
     def __init__(self, internal_store):
         self._store = internal_store
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._store.reset()
+        self._parent = None
+        self._store = None
 
     def name(self):
         return self._store.name()
@@ -328,6 +357,13 @@ class Store:
     def _to_expiry(self, e):
         return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
 
+    def await_idle(self, timeout=None):
+        return self._store.await_idle(self._to_expiry(timeout))
+
+    # Points to the "owning" Endpoint to make sure Python cleans this object up
+    # before destroying the endpoint.
+    _parent = None
+
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20):
         topics = _make_topics(topics)
@@ -360,13 +396,30 @@ class Endpoint(_broker.Endpoint):
         bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
         for (k, v) in opts.items():
             bopts[k] = Data.from_py(v)
-
         s = _broker.Endpoint.attach_master(self, name, type, bopts)
-        return Store(s.get()) if s.is_valid() else None
+        if not s.is_valid():
+            return None
+        result = Store(s.get())
+        # This extra reference establishes a parent-child relation between the
+        # two Python objects, making sure that the garbage collector destroys
+        # the store *before* cleaning up the endpoint
+        result._parent = self
+        return result
 
     def attach_clone(self, name):
         s = _broker.Endpoint.attach_clone(self, name)
-        return Store(s.get()) if s.is_valid() else None
+        if not s.is_valid():
+            return None
+        result = Store(s.get())
+        # Same as above: make sure Python cleans up the store first.
+        result._parent = self
+        return result
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.shutdown()
 
 class Message:
     def to_broker(self):
@@ -505,48 +558,48 @@ class Data(_broker.Data):
 # class Store:
 #   def __init__(self, handle):
 #     self.store = handle
-# 
+#
 #   def name(self):
 #     return self.store.name()
-# 
+#
 # class Mailbox:
 #   def __init__(self, handle):
 #     self.mailbox = handle
-# 
+#
 #   def descriptor(self):
 #     return self.mailbox.descriptor()
-# 
+#
 #   def empty(self):
 #     return self.mailbox.empty()
-# 
+#
 #   def count(self, n = -1):
 #     return self.mailbox.count(n)
-# 
-# 
+#
+#
 # class Message:
 #   def __init__(self, handle):
 #     self.message = handle
-# 
+#
 #   def topic(self):
 #     return self.message.topic().string()
-# 
+#
 #   def data(self):
 #     return self.message.data() # TODO: unwrap properly
-# 
+#
 #   def __str__(self):
 #     return "%s -> %s" % (self.topic(), str(self.data()))
-# 
-# 
+#
+#
 # class BlockingEndpoint(Endpoint):
 #   def __init__(self, handle):
 #     super(BlockingEndpoint, self).__init__(handle)
-# 
+#
 #   def subscribe(self, topic):
 #     self.endpoint.subscribe(topic)
-# 
+#
 #   def unsubscribe(self, topic):
 #     self.endpoint.unsubscribe(topic)
-# 
+#
 #   def receive(self, x):
 #     if x == Status:
 #       return self.endpoint.receive()
@@ -554,7 +607,7 @@ class Data(_broker.Data):
 #       return Message(self.endpoint.receive())
 #     else:
 #       raise BrokerError("invalid receive type")
-# 
+#
 #   #def receive(self):
 #   #  if fun1 is None:
 #   #    return Message(self.endpoint.receive())
@@ -565,29 +618,29 @@ class Data(_broker.Data):
 #   #      return self.endpoint.receive_msg(fun1)
 #   #    raise BrokerError("invalid receive callback arity; must be 1 or 2")
 #   #  return self.endpoint.receive_msg_or_status(fun1, fun2)
-# 
+#
 #   def mailbox(self):
 #     return Mailbox(self.endpoint.mailbox())
-# 
-# 
+#
+#
 # class NonblockingEndpoint(Endpoint):
 #   def __init__(self, handle):
 #     super(NonblockingEndpoint, self).__init__(handle)
-# 
+#
 #   def subscribe(self, topic, fun):
 #     self.endpoint.subscribe_msg(topic, fun)
-# 
+#
 #   def on_status(fun):
 #     self.endpoint.subscribe_status(fun)
-# 
+#
 #   def unsubscribe(self, topic):
 #     self.endpoint.unsubscribe(topic)
-# 
-# 
+#
+#
 # class Context:
 #   def __init__(self):
 #     self.context = _broker.Context()
-# 
+#
 #   def spawn(self, api):
 #     if api == Blocking:
 #       return BlockingEndpoint(self.context.spawn_blocking())
@@ -595,4 +648,4 @@ class Data(_broker.Data):
 #       return NonblockingEndpoint(self.context.spawn_nonblocking())
 #     else:
 #       raise BrokerError("invalid API flag: " + str(api))
-# 
+#
