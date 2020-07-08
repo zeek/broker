@@ -1,4 +1,8 @@
 
+1.4.0-dev.157 | 2020-07-08 08:33:03 -0700
+
+  * Change default console logging verbosity to "error" (Jon Siwek, Corelight)
+
 1.4.0-dev.155 | 2020-07-07 12:40:20 -0700
 
   * Improve error messages emitted from SQLite backend (Jon Siwek, Corelight)
