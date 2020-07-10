@@ -211,7 +211,7 @@ struct node {
   caf::uri id;
 
   /// Stores the names of all Broker endpoints we connect to at startup.
-  std::vector<std::string> peers;
+  std::set<std::string> peers;
 
   /// Stores the topics we subscribe to at startup.
   std::vector<std::string> topics;
@@ -226,14 +226,14 @@ struct node {
   bool forward = true;
 
   /// Stores how many messages we produce using the gernerator file. If `none`,
-  // we produce the number of messages in the generator file.
+  /// we produce the number of messages in the generator file.
   caf::optional<size_t> num_outputs;
 
   /// Stores parent nodes in the pub/sub topology.
   std::vector<node*> left;
 
-  /// Stores child nodes in the pub/sub topology. These nodes are our peers we
-  // connect to at startup.
+  /// Stores child nodes in the pub/sub topology. These nodes are the peers we
+  /// connect to at startup.
   std::vector<node*> right;
 
   /// Points to an actor that manages the Broker endpoint.
@@ -270,22 +270,39 @@ std::vector<broker::topic> topics(const node& x) {
   return result;
 }
 
-size_t max_left_depth(const node& x, size_t interim = 0) {
-  if (interim > max_nodes)
-    return interim;
-  size_t result = interim;
-  for (const auto y : x.left)
-    result = std::max(result, max_left_depth(*y, interim + 1));
-  return result;
-}
+#define HAS_ROUTING_LOOP_FUN(direction)                                        \
+  size_t has_##direction##_loop(const node& x,                                 \
+                                std::vector<std::string> path) {               \
+    if (!x.forward)                                                            \
+      return false;                                                            \
+    auto in_path = [&path](const node& n) {                                    \
+      return std::find(path.begin(), path.end(), n.name) != path.end();        \
+    };                                                                         \
+    size_t res = path.size();                                                  \
+    for (const auto y : x.direction) {                                         \
+      if (in_path(*y))                                                         \
+        return true;                                                           \
+      auto cpy = path;                                                         \
+      cpy.emplace_back(y->name);                                               \
+      if (has_##direction##_loop(*y, std::move(cpy)))                          \
+        return true;                                                           \
+    }                                                                          \
+    return false;                                                              \
+  }                                                                            \
+                                                                               \
+  bool has_##direction##_loop(const node& x) {                                 \
+    for (const auto y : x.direction)                                           \
+      if (has_##direction##_loop(*y, {x.name, y->name}))                       \
+        return true;                                                           \
+    return false;                                                              \
+  }
 
-size_t max_right_depth(const node& x, size_t interim = 0) {
-  if (interim > max_nodes)
-    return interim;
-  size_t result = interim;
-  for (const auto y : x.right)
-    result = std::max(result, max_right_depth(*y, interim + 1));
-  return result;
+HAS_ROUTING_LOOP_FUN(left)
+
+HAS_ROUTING_LOOP_FUN(right)
+
+bool has_routing_loop(const node& x) {
+  return has_left_loop(x) || has_right_loop(x);
 }
 
 template <class T>
@@ -718,16 +735,32 @@ bool build_node_tree(std::vector<node>& nodes) {
   // Sanity check: each node must be part of the multi-root tree.
   for (auto& x : nodes) {
     if (x.left.empty() && x.right.empty()) {
-      err::println(x.name, " has no peers");
+      err::println(x.name, " has no peering relation to any other node");
       return false;
     }
   }
   // Sanity check: there must be no loop.
-  auto max_depth = nodes.size() - 1;
   for (auto& x : nodes) {
-    if (max_left_depth(x) > max_depth || max_right_depth(x) > max_depth) {
-      err::println("starting at node '", x.name, "' results in a loop");
+    if (has_routing_loop(x) && is_sender(x)) {
+      err::println("starting at node '", x.name, "' results in a routing loop");
       return false;
+    }
+  }
+  // Reduce the number of connections on startup to a minimum: if A peers to B
+  // and B peers to A, then we can safely drop the "B peers to A" part from the
+  // config.
+  for (auto& x : nodes) {
+    for (auto& y : x.right) {
+      auto& y_peers = y->right;
+      if (auto i = std::find(y_peers.begin(), y_peers.end(), &x);
+          i != y_peers.end()) {
+        // x peers to y and y peers to x on startup -> drop the latter relation.
+        y->peers.erase(x.name);
+        y_peers.erase(i);
+        if (auto j = std::find(x.left.begin(), x.left.end(), y);
+            j != x.left.end())
+          x.left.erase(j);
+      }
     }
   }
   return true;
@@ -779,8 +812,9 @@ int generate_config(std::vector<std::string> directories) {
   std::map<std::string, std::string> node_to_handle;
   std::map<std::string, std::string> handle_to_node;
   std::vector<node> nodes;
+  verbose::println("first pass: extract IDs, config and subscriptions");
   for (const auto& directory : directories) {
-    // Sanity check.
+    verbose::println("scan ", directory);
     for (auto fname : required_files) {
       auto fpath = directory + fname;
       if (!is_file(fpath)) {
@@ -788,7 +822,7 @@ int generate_config(std::vector<std::string> directories) {
         return EXIT_FAILURE;
       }
     }
-    // Extract the node name and check uniqueness.
+    verbose::println("extract the node name and check uniqueness");
     std::string name;
     auto sep = directory.find_last_of('/');
     if (sep != std::string::npos)
@@ -802,7 +836,7 @@ int generate_config(std::vector<std::string> directories) {
     nodes.emplace_back();
     auto& node = nodes.back();
     node.name = name;
-    // Get the node_id for this node and make sure its unique.
+    verbose::println("read id.txt and make sure it contains a unique ID");
     auto handle = trim(read(directory + "/id.txt"));
     if (handle.empty()) {
       err::println("empty file: ", directory + "/id.txt");
@@ -818,15 +852,19 @@ int generate_config(std::vector<std::string> directories) {
     node_to_handle.emplace(name, handle);
     handle_to_node.emplace(handle, name);
     // Set various node fields.
+    auto to_set = [](std::vector<std::string>&& xs) {
+      return std::set<std::string>{std::make_move_iterator(xs.begin()),
+                                   std::make_move_iterator(xs.end())};
+    };
     node.generator_file = directory + "/messages.dat";
-    node.peers = readlines(directory + "/peers.txt", false);
-    // Read and de-duplicate topics.
+    node.peers = to_set(readlines(directory + "/peers.txt", false));
+    verbose::println("read and de-duplicate topics from topics.txt");
     node.topics = readlines(directory + "/topics.txt", false);
     std::sort(node.topics.begin(), node.topics.end());
     auto e = std::unique(node.topics.begin(), node.topics.end());
     if (e != node.topics.end())
       node.topics.erase(e, node.topics.end());
-    // Fetch crucial config parameters.
+    verbose::println("fetch config parameters for this node from broker.conf");
     auto conf_file = directory + "/broker.conf";
     if (auto conf = actor_system_config::parse_config_file(conf_file.c_str())) {
       node.forward = caf::get_or(*conf, "broker.forward", true);
@@ -836,8 +874,11 @@ int generate_config(std::vector<std::string> directories) {
       return EXIT_FAILURE;
     }
   }
-  // We are done with our first pass. Now, we resolve all the peer handles.
+  verbose::println("second pass: resolve all peer handles");
   for (auto& node : nodes) {
+    // Currently, node.peers contains CAF node IDs. Now that we computed unique
+    // names for each peer, we replace the cryptic IDs with the names.
+    std::set<std::string> peer_names;
     for (auto& peer : node.peers) {
       if (handle_to_node.count(peer) == 0) {
         err::println("missing data: cannot resolve peer ID ", peer);
@@ -848,10 +889,11 @@ int generate_config(std::vector<std::string> directories) {
         err::println("corrupted data: ", peer, " cannot peer with itself");
         return EXIT_FAILURE;
       }
-      peer = peer_name;
+      peer_names.emplace(std::move(peer_name));
     }
+    std::swap(node.peers, peer_names);
   }
-  // Check whether our nodes connect to a valid tree.
+  verbose::println("reconstruct node tree");
   if (!build_node_tree(nodes))
     return EXIT_FAILURE;
   // Compute for each node how many messages it produces per topic.
@@ -944,7 +986,7 @@ int generate_config(std::vector<std::string> directories) {
   }
   // Print generated config and return.
   verbose::println("done 🎉");
-  auto print_field = [&](const char* name, const std::vector<std::string>& xs) {
+  auto print_field = [&](const char* name, const auto& xs) {
     if (xs.empty())
       return;
     out::println("    ", name, " = [");
@@ -994,7 +1036,7 @@ void print_peering_node(const std::string& prefix, const node& x, bool is_last,
     }
   };
   std::string next_prefix = prefix;
-  if (x.right.empty()) {
+  if (x.left.empty()) {
     next_prefix += "    ";
   } else if (is_last) {
     first_prefix = "└── ";
@@ -1010,12 +1052,12 @@ void print_peering_node(const std::string& prefix, const node& x, bool is_last,
   print_topics();
   verbose::println(prefix, inner_prefix, "└── peers:");
   printed_nodes.emplace(x.name);
-  if (x.left.empty()) {
+  if (x.right.empty()) {
     verbose::println(next_prefix, "└── (none)");
     return;
   }
-  for (size_t i = 0; i < x.left.size(); ++i)
-    print_peering_node(next_prefix, *x.left[i], i == x.left.size() - 1,
+  for (size_t i = 0; i < x.right.size(); ++i)
+    print_peering_node(next_prefix, *x.right[i], i == x.right.size() - 1,
                        printed_nodes);
 }
 
@@ -1145,8 +1187,12 @@ int main(int argc, char** argv) {
       auto new_total = std::accumulate(n.inputs_by_node.begin(),
                                        n.inputs_by_node.end(), size_t{0}, plus);
       n.num_inputs = new_total;
-      n.peers.erase(std::remove_if(n.peers.begin(), n.peers.end(), is_excluded),
-                    n.peers.end());
+      for (auto i = n.peers.begin(); i != n.peers.end();) {
+        if (is_excluded(*i))
+          i = n.peers.erase(i);
+        else
+          ++i;
+      }
     }
   }
   // Sanity check: we need to have at least two nodes.
@@ -1163,15 +1209,19 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   // Print the node setup in verbose mode.
   if (verbose::enabled()) {
-    verbose::println("Peering tree (multiple roots are allowed):");
     std::vector<const node*> root_nodes;
     for (const auto& x : nodes)
-      if (x.right.empty())
+      if (x.left.empty())
         root_nodes.emplace_back(&x);
-    std::set<std::string> tmp;
-    for (const auto x : root_nodes)
-      print_peering_node("", *x, true, tmp);
-    verbose::println();
+    if (root_nodes.empty()) {
+      verbose::println("note: topology does not form a tree");
+    } else {
+      verbose::println("peering tree (multiple roots are allowed):");
+      std::set<std::string> tmp;
+      for (const auto x : root_nodes)
+        print_peering_node("", *x, true, tmp);
+      verbose::println();
+    }
   }
   // Get rollin'.
   caf::actor_system sys{cfg};
