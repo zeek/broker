@@ -211,7 +211,7 @@ struct node {
   caf::uri id;
 
   /// Stores the names of all Broker endpoints we connect to at startup.
-  std::vector<std::string> peers;
+  std::set<std::string> peers;
 
   /// Stores the topics we subscribe to at startup.
   std::vector<std::string> topics;
@@ -746,6 +746,23 @@ bool build_node_tree(std::vector<node>& nodes) {
       return false;
     }
   }
+  // Reduce the number of connections on startup to a minimum: if A peers to B
+  // and B peers to A, then we can safely drop the "B peers to A" part from the
+  // config.
+  for (auto& x : nodes) {
+    for (auto& y : x.right) {
+      auto& y_peers = y->right;
+      if (auto i = std::find(y_peers.begin(), y_peers.end(), &x);
+          i != y_peers.end()) {
+        // x peers to y and y peers to x on startup -> drop the latter relation.
+        y->peers.erase(x.name);
+        y_peers.erase(i);
+        if (auto j = std::find(x.left.begin(), x.left.end(), y);
+            j != x.left.end())
+          x.left.erase(j);
+      }
+    }
+  }
   return true;
 }
 
@@ -835,8 +852,12 @@ int generate_config(std::vector<std::string> directories) {
     node_to_handle.emplace(name, handle);
     handle_to_node.emplace(handle, name);
     // Set various node fields.
+    auto to_set = [](std::vector<std::string>&& xs) {
+      return std::set<std::string>{std::make_move_iterator(xs.begin()),
+                                   std::make_move_iterator(xs.end())};
+    };
     node.generator_file = directory + "/messages.dat";
-    node.peers = readlines(directory + "/peers.txt", false);
+    node.peers = to_set(readlines(directory + "/peers.txt", false));
     verbose::println("read and de-duplicate topics from topics.txt");
     node.topics = readlines(directory + "/topics.txt", false);
     std::sort(node.topics.begin(), node.topics.end());
@@ -855,6 +876,9 @@ int generate_config(std::vector<std::string> directories) {
   }
   verbose::println("second pass: resolve all peer handles");
   for (auto& node : nodes) {
+    // Currently, node.peers contains CAF node IDs. Now that we computed unique
+    // names for each peer, we replace the cryptic IDs with the names.
+    std::set<std::string> peer_names;
     for (auto& peer : node.peers) {
       if (handle_to_node.count(peer) == 0) {
         err::println("missing data: cannot resolve peer ID ", peer);
@@ -865,8 +889,9 @@ int generate_config(std::vector<std::string> directories) {
         err::println("corrupted data: ", peer, " cannot peer with itself");
         return EXIT_FAILURE;
       }
-      peer = peer_name;
+      peer_names.emplace(std::move(peer_name));
     }
+    std::swap(node.peers, peer_names);
   }
   verbose::println("reconstruct node tree");
   if (!build_node_tree(nodes))
@@ -961,7 +986,7 @@ int generate_config(std::vector<std::string> directories) {
   }
   // Print generated config and return.
   verbose::println("done 🎉");
-  auto print_field = [&](const char* name, const std::vector<std::string>& xs) {
+  auto print_field = [&](const char* name, const auto& xs) {
     if (xs.empty())
       return;
     out::println("    ", name, " = [");
@@ -1162,8 +1187,12 @@ int main(int argc, char** argv) {
       auto new_total = std::accumulate(n.inputs_by_node.begin(),
                                        n.inputs_by_node.end(), size_t{0}, plus);
       n.num_inputs = new_total;
-      n.peers.erase(std::remove_if(n.peers.begin(), n.peers.end(), is_excluded),
-                    n.peers.end());
+      for (auto i = n.peers.begin(); i != n.peers.end();) {
+        if (is_excluded(*i))
+          i = n.peers.erase(i);
+        else
+          ++i;
+      }
     }
   }
   // Sanity check: we need to have at least two nodes.
