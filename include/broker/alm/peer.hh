@@ -108,7 +108,7 @@ public:
   explicit peer(caf::local_actor* selfptr) {
     using caf::get_or;
     auto& cfg = selfptr->system().config();
-    disable_forwarding_ = !get_or(cfg, "broker.forward", true);
+    disable_forwarding_ = get_or(cfg, "broker.disable-forwarding", false);
     namespace pb = broker::defaults::path_blacklist;
     blacklist_.aging_interval
       = get_or(cfg, "broker.path-blacklist.aging-interval", pb::aging_interval);

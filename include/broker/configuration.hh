@@ -8,10 +8,10 @@ struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
 
-  /// If true, endpoints will forward incoming subscriptions and other
-  /// routing-related messages to peers. Setting this flag to `false` turns the
+  /// If true, endpoints no longer forward incoming subscriptions and other
+  /// routing-related messages to peers. Setting this flag to `true` turns the
   /// endpoint into a leaf node that never offers forwarding paths to others.
-  bool forward = true;
+  bool disable_forwarding = false;
 
   /// Whether to use real/wall clock time for data store time-keeping
   /// tasks or whether the application will simulate time on its own.

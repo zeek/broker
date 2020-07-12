@@ -116,9 +116,8 @@ configuration::configuration(skip_init_t) {
   opt_group{custom_options_, "?broker"}
     .add(options_.disable_ssl, "disable-ssl",
          "forces Broker to use unencrypted communication")
-    .add(options_.forward, "forward",
-         "configures whether this endpoint forwards events to peers "
-         "(default: true)")
+    .add(options_.disable_forwarding, "disable-forwarding",
+         "if true, turns the endpoint into a leaf node")
     .add<std::string>("recording-directory",
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
@@ -273,8 +272,7 @@ void configuration::init_global_state() {
 
 void configuration::sync_options() {
   set("broker.disable-ssl", options_.disable_ssl);
-  set("broker.forward", options_.forward);
-  set("broker.use-real-time", options_.use_real_time);
+  set("broker.disable-forwarding", options_.disable_forwarding);
 }
 
 } // namespace broker
