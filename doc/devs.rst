@@ -418,6 +418,135 @@ unidirectional).
 The stream transport is a CAF `stream manager`_, i.e., it inherits from
 ``caf::stream_manager``.
 
+.. _devs.channels:
+
+Channels
+--------
+
+Channels model logical connections between one *producer* and any number of
+*consumers* on top of an unreliable transport. Changes in the topology of Broker
+at runtime can cause reordering of messages if a faster path appears or loss of
+messages if a path disappears.
+
+In places where Broker requires ordered and reliable communication, e.g.,
+communication between clone and master actors, the class
+``broker::detail::channel`` provides a building block to add ordering and
+reliability.
+
+A channel is unaware of the underlying transport. Further, it leaves most
+details of the handshaking mechanism to the user as well. The class defines
+message types as well as interfaces for ``producer`` and ``consumer``
+implementations (both use CRTP to interface with user code).
+
+Channels in Data Store Actors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In general, the master actor broadcasts state updates to its clones. This maps
+directly to the one-producer-many-consumers model of ``channel``. However,
+clones can also take the role a producer when forwarding mutating operations to
+the master.
+
+In a nutshell, the master actor (see ``master_actor.hh``) always has a producer
+attached to it and any number of consumers:
+
+.. code-block:: cpp
+
+  using producer_type = channel_type::producer<master_state>;
+
+  using consumer_type = channel_type::consumer<master_state>;
+
+  producer_type output;
+
+  std::unordered_map<entity_id, consumer_type> inputs;
+
+Conversely, the clone actor (see ``clone_actor.hh``) always has a consumer
+attached to it and it *may* have a producer:
+
+.. code-block:: cpp
+
+  using consumer_type = channel_type::consumer<clone_state>;
+
+  using producer_type = channel_type::producer<clone_state, producer_base>;
+
+  consumer_type input;
+
+  std::unique_ptr<producer_type> output_ptr;
+
+Clones initialize the field ``output_ptr`` lazily on the first mutating
+operation they need to forward to the master.
+
+Mapping to Command Messages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The message types defined in ``channel`` are never used for actor-to-actor
+communication directly. Instead, masters and clones exchange ``command_message``
+objects, which consist of a ``topic`` and an ``internal_command``. The essential
+interface for latter is defined as follows:
+
+.. code-block:: cpp
+
+  enum class command_tag {
+    action,
+    producer_control,
+    consumer_control,
+  };
+
+  class internal_command {
+  public:
+    // ...
+    using variant_type
+      = caf::variant<put_command, put_unique_command, put_unique_result_command,
+                     erase_command, expire_command, add_command, subtract_command,
+                     clear_command, attach_clone_command, attach_writer_command,
+                     keepalive_command, cumulative_ack_command, nack_command,
+                     ack_clone_command, retransmit_failed_command>;
+
+    detail::sequence_number_type seq;
+
+    entity_id sender;
+
+    variant_type content;
+  };
+
+  command_tag tag_of(const internal_command& cmd);
+
+Furthermore, data store actors define ``channel_type`` as
+``channel<entity_id, internal_command>``. When processing an
+``internal_command``, the receiver first looks at the tag.
+
+Control messages directly map to channel messages:
+
++-----------------------------------+-----------------------------------+
+| Internal Command Type             | Channel Message Type              |
++===================================+===================================+
+| ``attach_writer_command``         | ``channel::handshake``            |
++-----------------------------------+-----------------------------------+
+| ``ack_clone_command``             | ``channel::handshake``            |
++-----------------------------------+-----------------------------------+
+| ``cumulative_ack_command``        | ``channel::cumulative_ack``       |
++-----------------------------------+-----------------------------------+
+| ``nack_command``                  | ``channel::nack``                 |
++-----------------------------------+-----------------------------------+
+| ``keepalive_command``             | ``channel::heartbeat``            |
++-----------------------------------+-----------------------------------+
+| ``retransmit_failed_command``     | ``channel::retransmit_failed``    |
++-----------------------------------+-----------------------------------+
+
+Note that ``attach_clone_command`` does *not* map to any channel message type.
+This message is the discovery message used by clones to find the master. When
+receiving it, the master initiates the handshake on the channel by sending
+``ack_clone_command`` (which contains a snapshot of the state and is thus *not*
+broadcasted).
+
+When a clone adds a writer, it already knows the master and thus skips the
+discovery phase by directly sending the ``attach_writer_command`` handshake.
+
+All internal commands that contain an *action*,
+such as ``put_comand``, get forwarded to the channel as payload. Either by
+calling ``produce`` on a ``producer`` or by calling ``handle_event`` on a
+consumer. The latter then calls ``consume`` on the data store actor with the
+``internal_command`` messages in the order defined by the sequence number.
+
 .. _actor system: https://actor-framework.readthedocs.io/en/stable/Actors.html#environment-actor-systems
 .. |alm::stream_transport| replace:: ``alm::stream_transport``
 .. |alm::peer| replace:: ``alm::peer``

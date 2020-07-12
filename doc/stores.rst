@@ -6,7 +6,7 @@ Data Stores
 In addition to transmitting :ref:`data <data-model>` via publish/subscribe
 communication, Broker also offers a mechanism to store this very data.
 Data stores provide a distributed key-value interface that leverages the
-existing :ref:`peer communication channels <communication>`.
+existing :ref:`peer communication <communication>`.
 
 Aspects
 -------
@@ -21,10 +21,10 @@ Users interact with a data store through the frontend, which is either a
 *master* or a *clone*. A master is authoritative for the store, whereas a clone
 represents a local cache that is connected to the master. A clone cannot exist
 without a master. Only the master can perform mutating operations on the store,
-which it pushes out to all its clones. A clone has a full copy of the data for
-faster access, but sends any modifying operations to its master first. Only
-when the master propagates back the change, the result of the operation becomes
-visible at the clone.
+which it pushes out to all its clones. A clone has a full copy of the data in
+memory for faster access, but sends any modifying operations to its master
+first. Only when the master propagates back the change, the result of the
+operation becomes visible at the clone.
 
 It is possible to attach one or more data stores to an endpoint, but each store
 must have a unique master name. For example, two peers cannot both have a
@@ -84,7 +84,7 @@ The factory function ``endpoint::attach_master`` has the following signature:
 
 The function takes as first argument the global name of the store, as
 second argument the type of store
-(``broker::{memory,sqlite,rocksdb}``), and as third argument
+(``broker::backend::{memory,sqlite,rocksdb}``), and as third argument
 optionally a set of backend options, such as the path where to keep
 the backend on the filesystem. The function returns a
 ``expected<store>`` which encapsulates a type-erased reference to the
@@ -92,8 +92,8 @@ data store.
 
 .. note::
 
-  The type ``expected<T>`` encapsulates an instance of type ``T`` or a
-  ``status``, with an interface that has "pointer semantics" for syntactic
+  The type ``expected<T>`` encapsulates an instance of type ``T`` or an
+  ``error``, with an interface that has "pointer semantics" for syntactic
   convenience:
 
   .. code-block:: cpp
@@ -106,7 +106,7 @@ data store.
     else
       std::cout << to_string(x.error()) << std::endl;
 
-In the failure case, the ``expected<T>::error()`` holds an ``error``.
+In the failure case, the ``expected<T>::error()`` returns the ``error``.
 
 Modification
 ~~~~~~~~~~~~
@@ -165,7 +165,7 @@ Data stores support the following mutating operations:
     For an existing vector at ``key``, removes its last value. If
     ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
-    
+
 Direct Retrieval
 ~~~~~~~~~~~~~~~~
 
@@ -232,3 +232,33 @@ ID that is hauled through the response:
 The proxy provides the same set of retrieval methods as the direct
 interface, with all of them returning the corresponding ID to retrieve
 the result once it has come in.
+
+
+Intra-store Communication
+-------------------------
+
+Broker uses two reserved topics to model communication between masters and
+clones: *M* and *C*. Masters subscribe to *M* when attached to an endpoint and
+publish to *C* to broadcast state transitions to its clones. Clones subscribe to
+*C* when attached to an endpoint and publish to *M* for propagating mutating
+operations to the master.
+
+These topics also enable clones to find the master without knowing which
+endpoint it was attached to. When starting a clone, it periodically publishes a
+handshake to *M* until the master responds. This rendezvous process also makes
+it easier to setup cluster instances, because users can attach clones while
+connection to the master has not been established yet.
+
+The publish/subscribe layer of Broker generally targets loosely coupled
+deployments and does neither ensure ordering nor guarantee delivery. Without
+these two properties, masters and clones could quickly run out of sync when
+messages arrive out of order or get lost. Hence, masters and clones use "virtual
+channels" to implement reliable and ordered communication on top of the
+publish/subscribe layer. The master includes a sequence number when publishing
+to *C* in order to enable clones to detect out-of-order delivery and ask the
+master to retransmit lost messages. Cumulative ACKs and per-clone state allow
+the master to delete transmitted messages as well as to detect unresponsive
+clones using timeouts.
+
+For the low-level details of the channel abstraction, see the
+:ref:`channels section in the developer guide <devs.channels>`.
