@@ -88,7 +88,7 @@ public:
   // -- nested types -----------------------------------------------------------
 
   struct blacklist_type {
-    blacklist<peer_id_type> entries;
+    alm::blacklist<peer_id_type> entries;
 
     caf::timespan aging_interval;
 
@@ -278,7 +278,7 @@ public:
       BROKER_WARNING("received message from an unrecognized peer");
       return false;
     }
-    if (forwarder->hdl == nullptr) {
+    if (!forwarder->hdl) {
       BROKER_WARNING("received message from a peer we don't have a direct "
                      " connection to");
       return false;

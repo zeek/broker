@@ -150,14 +150,14 @@ public:
 
   /// Returns the amound of values than can be extracted immediately without
   /// blocking.
-  size_t available() const {
+  size_t available() const noexcept {
     return queue_->buffer_size();
   }
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  int fd() const {
-    return queue_->fd();
+  int fd() const noexcept {
+    return static_cast<int>(queue_->fd());
   }
 
 protected:

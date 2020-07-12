@@ -92,9 +92,13 @@ uint16_t gateway::listen_internal(const std::string& address, uint16_t port) {
 uint16_t gateway::listen_impl(const caf::actor& core,
                               const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
-  auto publish = ptr_->cfg.options().disable_ssl
-                 ? caf::io::publish<caf::actor>
-                 : caf::openssl::publish<caf::actor>;
+  using pub_fun = caf::expected<uint16_t> (*)(const caf::actor& hdl, uint16_t,
+                                              const char*, bool);
+  pub_fun publish;
+  if (ptr_->cfg.options().disable_ssl)
+    publish = caf::io::publish<caf::actor>;
+  else
+    publish = caf::openssl::publish<caf::actor>;
   if (auto res = publish(core, port, addr, true))
     return *res;
   return 0;

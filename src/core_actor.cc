@@ -1,5 +1,7 @@
 #include "broker/core_actor.hh"
 
+#include <ciso646>
+
 #include "broker/domain_options.hh"
 
 namespace broker {

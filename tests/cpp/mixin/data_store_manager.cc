@@ -155,7 +155,7 @@ TEST(clones wait for remote masters to appear) {
   res.receive(
     [&](const caf::actor& hdl) {
       clone = hdl;
-      REQUIRE(clone != nullptr);
+      REQUIRE(clone);
       CHECK_EQUAL(deref<clone_actor_type>(clone).state.input.producer(),
                   entity_id::nil());
     },

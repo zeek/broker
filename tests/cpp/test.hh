@@ -17,6 +17,8 @@
 #include "broker/detail/channel.hh"
 #include "broker/endpoint.hh"
 
+#include <ciso646>
+
 // -- test setup macros --------------------------------------------------------
 
 #define TEST CAF_TEST
