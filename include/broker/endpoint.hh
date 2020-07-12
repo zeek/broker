@@ -23,6 +23,7 @@
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
+#include "broker/defaults.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
@@ -355,11 +356,23 @@ public:
 
   // --- testing ---------------------------------------------------------------
 
-  /// Blocks execution of the current thread until `whom` was added to the
-  /// routing table and its subscription flooding reached this endpoint.
-  /// @note This member function is not meant for use in production and exists
-  ///       to make testing easier.
-  void await_peer(endpoint_id whom);
+  /// Blocks execution of the current thread until either `whom` was added to
+  /// the routing table and its subscription flooding reached this endpoint or a
+  /// timeout occurs.
+  /// @param whom ID of another endpoint.
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block. Note: passing `none` uses the
+  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  [[nodiscard]] bool
+  await_peer(endpoint_id whom, timespan timeout = defaults::await_peer_timeout);
+
+  /// Asynchronously runs `callback()` when `whom` was added to the routing
+  /// table and its subscription flooding reached this endpoint.
+  /// @param whom ID of another endpoint.
+  /// @param callback A function object wrapping code for asynchronous
+  ///                 execution when the peer was added.
+  void await_peer(endpoint_id whom, std::function<void(bool)> callback,
+                  timespan timeout = defaults::await_peer_timeout);
 
   // --- properties ------------------------------------------------------------
 

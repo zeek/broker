@@ -51,6 +51,18 @@ PYBIND11_MAKE_OPAQUE(broker::set)
 PYBIND11_MAKE_OPAQUE(broker::table)
 PYBIND11_MAKE_OPAQUE(broker::vector)
 
+namespace {
+
+broker::endpoint_id node_from_str(const std::string& node_str) {
+  caf::node_id node;
+  if (auto err = caf::parse(node_str, node))
+    throw std::invalid_argument(
+      "endpoint::await_peer called with invalid endpoint ID");
+  return node;
+};
+
+} // namespace
+
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
   py::module mb = m.def_submodule("zeek", "Zeek-specific bindings");
@@ -328,10 +340,11 @@ PYBIND11_MODULE(_broker, m) {
 	    })
     .def("await_peer",
          [](broker::endpoint& ep, const std::string& node_str) {
-           caf::node_id node;
-           if (auto err = caf::parse(node_str, node))
-             throw std::invalid_argument("endpoint::await_peer called with invalid endpoint ID");
-           ep.await_peer(node);
+           return ep.await_peer(node_from_str(node_str));
+         })
+    .def("await_peer",
+         [](broker::endpoint& ep, const std::string& node_str, broker::timespan timeout) {
+           return ep.await_peer(node_from_str(node_str), timeout);
          })
    ;
 }

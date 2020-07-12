@@ -11,6 +11,8 @@ const caf::string_view recording_directory = "";
 
 const size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
+const caf::timespan await_peer_timeout = 10s;
+
 } // namespace broker::defaults
 
 namespace broker::defaults::store {

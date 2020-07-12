@@ -11,6 +11,9 @@ extern const caf::string_view recording_directory;
 
 extern const size_t output_generator_file_cap;
 
+/// Configures the default timeout of @ref endpoint::await_peer.
+extern const caf::timespan await_peer_timeout;
+
 } // namespace broker::defaults
 
 namespace broker::defaults::store {

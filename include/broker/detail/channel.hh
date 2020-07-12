@@ -23,9 +23,9 @@ using sequence_number_type = uint64_t;
 /// Integer type for measuring configurable intervals in ticks.
 using tick_interval_type = uint16_t;
 
-/// A message-driven channel for ensuring reliable and ordererd transport over
-/// an unreliable and unordered communication layer. A channel belongs to a
-/// single producer with any number of consumers.
+/// A message-driven channel for ensuring reliable and ordered transport over an
+/// unreliable and unordered communication layer. A channel connects a single
+/// producer with any number of consumers.
 template <class Handle, class Payload>
 class channel {
 public:

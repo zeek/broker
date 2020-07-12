@@ -358,7 +358,10 @@ class Store:
         return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
 
     def await_idle(self, timeout=None):
-        return self._store.await_idle(self._to_expiry(timeout))
+        if timeout:
+            return self._store.await_idle(_broker.Timespan(float(timeout)))
+        else:
+            return self._store.await_idle()
 
     # Points to the "owning" Endpoint to make sure Python cleans this object up
     # before destroying the endpoint.
@@ -414,6 +417,12 @@ class Endpoint(_broker.Endpoint):
         # Same as above: make sure Python cleans up the store first.
         result._parent = self
         return result
+
+    def await_peer(self, node, timeout=None):
+        if timeout:
+            return  _broker.Endpoint.await_peer(self, node, _broker.Timespan(float(timeout)))
+        else:
+            return  _broker.Endpoint.await_peer(self, node)
 
     def __enter__(self):
         return self

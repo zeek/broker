@@ -460,18 +460,40 @@ expected<store> endpoint::attach_clone(std::string name,
   return res;
 }
 
-void endpoint::await_peer(endpoint_id whom) {
-  BROKER_TRACE(BROKER_ARG(whom));
+bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
+  bool result = false;
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), caf::infinite, atom::await_v, whom)
+  self->request(core(), timeout, atom::await_v, whom)
     .receive(
       [&]([[maybe_unused]] endpoint_id& discovered) {
         BROKER_ASSERT(whom == discovered);
+        result = true;
       },
       [&](caf::error& e) {
-        throw std::logic_error("endpoint::await_peer request failed: "
-                               + to_string(e));
+        // nop
       });
+  return result;
+}
+
+void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
+                          timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
+  if (!callback) {
+    BROKER_ERROR("invalid callback received for await_peer");
+    return;
+  }
+  auto f = [whom, cb{std::move(callback)}](caf::event_based_actor* self,
+                                           caf::actor core, timespan t) {
+    self->request(core, t, atom::await_v, whom)
+      .then(
+        [&]([[maybe_unused]] endpoint_id& discovered) {
+          BROKER_ASSERT(whom == discovered);
+          cb(true);
+        },
+        [&](caf::error& e) { cb(false); });
+  };
+  core()->home_system().spawn(f, core(), timeout);
 }
 
 } // namespace broker

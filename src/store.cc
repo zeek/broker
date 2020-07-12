@@ -6,6 +6,7 @@
 #include <caf/actor.hpp>
 #include <caf/actor_cast.hpp>
 #include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
@@ -297,12 +298,30 @@ void store::clear() {
                     make_internal_command<clear_command>(frontend_id()));
 }
 
-bool store::await_idle(optional<timespan> timeout) {
-  auto t = timeout ? *timeout : defaults::store::await_idle_timeout;
+bool store::await_idle(timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(timeout));
   bool result = false;
-  state_->self->request(state_->frontend, t, atom::await_v, atom::idle_v)
-    .receive([&result](atom::ok) { result = true; }, [](const error&) {});
+  state_->self->request(state_->frontend, timeout, atom::await_v, atom::idle_v)
+    .receive([&result](atom::ok) { result = true; },
+             [](const error&) {
+               // nop
+             });
   return result;
+}
+
+void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(timeout));
+  if (!callback) {
+    BROKER_ERROR("invalid callback received for await_peer");
+    return;
+  }
+  auto await_actor = [cb{std::move(callback)}](caf::event_based_actor* self,
+                                               caf::actor frontend,
+                                               timespan t) {
+    self->request(frontend, t, atom::await_v, atom::idle_v)
+      .then([cb](atom::ok) { cb(true); }, [cb](const error&) { cb(false); });
+  };
+  state_->self->spawn(await_actor, state_->frontend, timeout);
 }
 
 void store::reset() {

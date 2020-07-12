@@ -53,7 +53,8 @@ void init_store(py::module& m) {
     .def("remove_from", &broker::store::remove_from)
     .def("push", &broker::store::push)
     .def("pop", &broker::store::pop)
-    .def("await_idle", &broker::store::await_idle)
+    .def("await_idle", [](broker::store& st) { return st.await_idle(); })
+    .def("await_idle", [](broker::store& st, broker::timespan timeout) { return st.await_idle(timeout); })
     .def("reset", &broker::store::reset);
 
 // Don't need.

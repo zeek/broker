@@ -294,11 +294,23 @@ public:
   /// @param timeout An optional timeout for the configuring the maximum time
   ///                this function may block. Note: passing `none` uses the
   ///                default value, i.e., `defaults::store::await_idle_timeout`.
-  /// @note This member function is not meant for use in production and exists
-  ///       to make testing easier.
   /// @returns `true` if the frontend actor responded before the timeout,
   ///          `false` otherwise.
-  bool await_idle(optional<timespan> timeout);
+  [[nodiscard]] bool await_idle(timespan timeout
+                                = defaults::store::await_idle_timeout);
+
+  /// Asynchronously runs `callback(true)` when the frontend actor reached an
+  /// IDLE state or `callback(false)` if the optional timeout triggered first
+  /// (or in case of an error).
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block. Note: passing `none` uses the
+  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  /// @param callback A function object wrapping code for asynchronous
+  ///                 execution. The argument for the callback is `true` if the
+  ///                 frontend actor responded before the timeout, `false`
+  ///                 otherwise.
+  void await_idle(std::function<void(bool)> callback,
+                  timespan timeout = defaults::store::await_idle_timeout);
 
   /// Release any state held by the object, rendering it invalid.
   /// @warning Performing *any* action on this object afterwards invokes
