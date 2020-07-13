@@ -1,4 +1,8 @@
 
+1.4.0-dev.162 | 2020-07-13 09:19:40 -0700
+
+  * GH-129: improve logging for stale store expiry reminders (Jon Siwek, Corelight)
+
 1.4.0-dev.160 | 2020-07-10 16:51:18 -0700
 
   * broker-cluster-benchmark: Avoid extra peerings on startup (Dominik Charousset)
