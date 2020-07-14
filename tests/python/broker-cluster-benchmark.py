@@ -41,7 +41,7 @@ def test_config_generation(exe, recording_dir, expected):
     PIPE = subprocess.PIPE
     dirs = [f.path for f in os.scandir(recording_dir) if f.is_dir()]
     cmd = [exe, '--logger.verbosity=quiet', '--generate-config'] + dirs
-    with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, close_fds=True, text=True) as proc:
+    with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True) as proc:
         ret = proc.wait()
         if ret != 0:
             raise RuntimeError('failed to generate config: ' + proc.stderr.read())
@@ -59,7 +59,7 @@ def test_config_generation(exe, recording_dir, expected):
 def run_benchmark(exe, config):
     PIPE = subprocess.PIPE
     cmd = [exe, '--logger.verbosity=quiet', '--cluster-config-file=-']
-    with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, close_fds=True, text=True) as proc:
+    with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, close_fds=True, universal_newlines=True) as proc:
         proc.stdin.write(config)
         proc.stdin.close()
         ret = proc.wait()
