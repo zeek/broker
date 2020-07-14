@@ -797,6 +797,9 @@ int generate_config(std::vector<std::string> directories) {
     "/topics.txt",
     "/broker.conf",
   };
+  // Make sure we always produce a stable config file that does not depend on
+  // argument ordering.
+  std::sort(directories.begin(), directories.end());
   // Remove trailing slashes to make working with the directories easier.
   verbose::println("scan ", directories.size(), " directories");
   for (auto& directory : directories) {
