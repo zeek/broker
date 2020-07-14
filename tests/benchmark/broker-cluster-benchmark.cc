@@ -1085,7 +1085,14 @@ int main(int argc, char** argv) {
   };
   caf::settings cluster_config;
   if (auto path = get_if<string>(&cfg, "cluster-config-file")) {
-    if (auto file_content = config::parse_config_file(path->c_str())) {
+    if (*path == "-") {
+      if (auto file_content = config::parse_config(std::cin)) {
+        cluster_config = std::move(*file_content);
+      } else {
+        err::println("unable to parse cluster config from STDIN");
+        return EXIT_FAILURE;
+      }
+    } else if (auto file_content = config::parse_config_file(path->c_str())) {
       cluster_config = std::move(*file_content);
     } else {
       err::println("unable to parse cluster config file: ",
