@@ -108,7 +108,7 @@ freebsd_task:
 memcheck_task:
   container:
     # Just uses a recent/common distro to run memory error/leak checks.
-    dockerfile: ci/ubuntu-18.04/Dockerfile
+    dockerfile: ci/debian-9/Dockerfile
     cpu: 8
     # AddressSanitizer uses more memory than normal config.
     memory: 8GB
