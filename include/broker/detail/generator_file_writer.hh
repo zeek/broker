@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include <caf/binary_serializer.hpp>
+#include <caf/byte.hpp>
 #include <caf/fwd.hpp>
 #include <caf/variant.hpp>
 
@@ -30,6 +32,8 @@ public:
       data_message,
       command_message,
     };
+
+    static std::array<caf::byte, header_size> header();
   };
 
   using data_or_command_message = caf::variant<data_message, command_message>;
