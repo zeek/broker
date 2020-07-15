@@ -1,6 +1,6 @@
 # -- Global test harness setup ------------------------------------------------
 
-set(BROKER_TEST_TIMEOUT 180)
+set(BROKER_TEST_TIMEOUT 60)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
@@ -110,4 +110,7 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(topic)
   make_python_test(broker-cluster-benchmark
                    $<TARGET_FILE:broker-cluster-benchmark>)
+
+  # allow some extra time for the benchmark integration test
+  set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
