@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <functional>
 #include <memory>
 
 #include <caf/binary_deserializer.hpp>
@@ -27,6 +28,9 @@ public:
 
   using mapped_pointer = void*;
 
+  using read_raw_callback
+    = std::function<bool(value_type*, caf::span<const caf::byte>)>;
+
   generator_file_reader(file_handle fd, mapper_handle mapper,
                         mapped_pointer addr, size_t file_size);
 
@@ -46,6 +50,10 @@ public:
   void rewind();
 
   caf::error read(value_type& x);
+
+  /// Reads from the input until an error occurs, reaching the end of the input,
+  /// or the callback returns `false`.
+  caf::error read_raw(read_raw_callback f);
 
   caf::error skip();
 
