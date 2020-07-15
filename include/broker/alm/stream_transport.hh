@@ -469,18 +469,17 @@ public:
   void handle(caf::inbound_path* path,
               caf::downstream_msg::batch& batch) override {
     BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(batch));
-    auto& d = dref();
     using peer_batch = typename peer_trait::batch;
     if (batch.xs.template match_elements<peer_batch>()) {
       for (auto& x : batch.xs.template get_mutable_as<peer_batch>(0))
-        d.handle_publication(x);
+        dref().handle_publication(x);
       return;
     }
-    auto try_publish = [&](auto trait) {
+    auto try_publish = [&, this](auto trait) {
       using batch_type = typename decltype(trait)::batch;
       if (batch.xs.template match_elements<batch_type>()) {
         for (auto& x : batch.xs.template get_mutable_as<batch_type>(0))
-          d.publish(x);
+          dref().publish(x);
         return true;
       }
       return false;

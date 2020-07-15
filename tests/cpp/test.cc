@@ -13,6 +13,7 @@
 #include "broker/core_actor.hh"
 
 #ifdef BROKER_WINDOWS
+#undef ERROR // The Windows headers fail if this macro is predefined.
 #include "Winsock2.h"
 #endif
 
