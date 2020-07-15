@@ -285,15 +285,14 @@ public:
     subtract(key, key, expiry);
   }
 
+  // --await-idle-start
   /// Blocks execution of the current thread until the frontend actor reached an
   /// IDLE state. On a master, this means that all clones have caught up with
   /// the master and have ACKed the most recent command. On a clone, this means
   /// that the master has ACKed any pending put commands from this store and
   /// that the clone is not waiting on any out-of-order messages from the
   /// master.
-  /// @param timeout An optional timeout for the configuring the maximum time
-  ///                this function may block. Note: passing `none` uses the
-  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  /// @param timeout The maximum amount of time this function may block.
   /// @returns `true` if the frontend actor responded before the timeout,
   ///          `false` otherwise.
   [[nodiscard]] bool await_idle(timespan timeout
@@ -302,15 +301,14 @@ public:
   /// Asynchronously runs `callback(true)` when the frontend actor reached an
   /// IDLE state or `callback(false)` if the optional timeout triggered first
   /// (or in case of an error).
-  /// @param timeout An optional timeout for the configuring the maximum time
-  ///                this function may block. Note: passing `none` uses the
-  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  /// @param timeout The maximum amount of time this function may block.
   /// @param callback A function object wrapping code for asynchronous
   ///                 execution. The argument for the callback is `true` if the
   ///                 frontend actor responded before the timeout, `false`
   ///                 otherwise.
   void await_idle(std::function<void(bool)> callback,
                   timespan timeout = defaults::store::await_idle_timeout);
+  // --await-idle-end
 
   /// Release any state held by the object, rendering it invalid.
   /// @warning Performing *any* action on this object afterwards invokes

@@ -547,6 +547,109 @@ calling ``produce`` on a ``producer`` or by calling ``handle_event`` on a
 consumer. The latter then calls ``consume`` on the data store actor with the
 ``internal_command`` messages in the order defined by the sequence number.
 
+Cluster Setup and Testing
+-------------------------
+
+Peering, path discovery, subscription propagation, etc. takes some unspecified
+amount of time when setting up a cluster. If a single manager is responsible for
+this setup, the work flow usually relies on some feedback to the manager to
+signal when the cluster is fully connected and ready to use. The same applies
+when writing high-level integration tests.
+
+In order to wait for two nodes to add each other their routing tables and
+exchange subscriptions, the class ``endpoint`` provides the member function
+``await_peer``:
+
+.. literalinclude:: ../include/broker/endpoint.hh
+   :language: cpp
+   :start-after: --await-peer-start
+   :end-before: --await-peer-end
+
+The first overload blocks the caller, until a timeout (or error) occurs or the
+awaited peer has connected. The second overload is an asynchronous version that
+takes a callback instead. On success, the endpoint calls the callback with
+``true`` and otherwise it calls the callback with ``false``.
+
+To retrieve the ``endpoint_id`` from an ``endpoint`` object, simply call
+``node_id()``. For example, if both endpoints belong to the same process:
+
+.. code-block:: cpp
+
+  endpoint ep0;
+  endpoint ep1;
+  // ... call listen and peer ...
+  ep0.await_peer(ep1.node_id());
+  ep1.await_peer(ep0.node_id());
+
+Note that ``ep0.await_peer(...)`` only confirms that  ``ep0`` has a path to the
+other endpoint and received a list of subscribed topics. To confirm a mutual
+relation, always call ``await_peer`` on both endpoints.
+
+The Python bindings also expose the blocking overload of ``await_peer``. For
+example, connecting three endpoints with data stores attached to them in a unit
+test can follow this recipe:
+
+.. literalinclude:: ../tests/python/store.py
+   :language: python
+   :start-after: --tri-setup-start
+   :end-before: --tri-setup-end
+
+.. note::
+
+  When setting up a cluster, make sure to add subscribers (and data stores)
+  *before* establishing the peering relations. Otherwise, the subscriptions get
+  flooded after all connections have been established. This means any
+  broadcasted event that arrives before the subscriptions gets lost.
+
+Data Stores
+~~~~~~~~~~~
+
+When working with data stores, the member function ``store::await_idle`` allows
+establishing a predefined order:
+
+.. literalinclude:: ../include/broker/store.hh
+   :language: cpp
+   :start-after: --await-idle-start
+   :end-before: --await-idle-end
+
+What *idle* means depends on the role:
+
+For a *master*, idle means the following:
+  - There are no pending handshakes to clones.
+  - All clones have ACKed the latest command.
+  - All input buffers are empty, i.e., there exists no buffered command from a
+    writer.
+
+For a *clone*, idle means the following:
+  - The clone successfully connected to the master.
+  - The input buffer is empty, i.e., there exists no buffered command from the
+    master.
+  - All local writes (if any) have been ACKed by the master.
+
+Just like ``await_peer``, calling ``await_idle`` on only one ``store`` object
+usually does not guarantee the desired state. For example, consider a setup with
+one master (``m``) and three clones (``c0``, ``c1``, and ``c2``). When calling
+``put`` on ``c0``, ``await_idle`` would return after ``m`` has ACKed that it
+received the ``put`` command. At this point, ``c1`` and ``c2`` might not yet
+have seen the command. Hence, the process must also call ``await_idle`` on the
+master before it make the assumption that all data stores are in sync:
+
+.. code-block:: cpp
+
+  c0.put("foo", "bar");
+  if (!c0.await_idle()) {
+    // ... handle timeout ...
+  }
+  if (!m.await_idle()) {
+    // ... handle timeout ...
+  }
+
+.. note::
+
+  In the example above, calling ``await_idle`` on ``c1`` and ``c2`` as well is
+  *not* necessary. The master enters the *idle* mode after all clones have ACKed
+  the latest command.
+
 .. _actor system: https://actor-framework.readthedocs.io/en/stable/Actors.html#environment-actor-systems
 .. |alm::stream_transport| replace:: ``alm::stream_transport``
 .. |alm::peer| replace:: ``alm::peer``

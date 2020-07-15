@@ -354,15 +354,16 @@ public:
     clock_->send_later(std::move(who), after, std::move(msg));
   }
 
-  // --- testing ---------------------------------------------------------------
+  // --- setup and testing -----------------------------------------------------
 
+  // --await-peer-start
   /// Blocks execution of the current thread until either `whom` was added to
   /// the routing table and its subscription flooding reached this endpoint or a
   /// timeout occurs.
   /// @param whom ID of another endpoint.
   /// @param timeout An optional timeout for the configuring the maximum time
-  ///                this function may block. Note: passing `none` uses the
-  ///                default value, i.e., `defaults::store::await_idle_timeout`.
+  ///                this function may block.
+  /// @returns `true` if `whom` was added before the timeout, `false` otherwise.
   [[nodiscard]] bool
   await_peer(endpoint_id whom, timespan timeout = defaults::await_peer_timeout);
 
@@ -370,9 +371,11 @@ public:
   /// table and its subscription flooding reached this endpoint.
   /// @param whom ID of another endpoint.
   /// @param callback A function object wrapping code for asynchronous
-  ///                 execution when the peer was added.
+  ///                 execution. The argument for the callback is `true` if
+  ///                 `whom` was added before the timeout, `false` otherwise.
   void await_peer(endpoint_id whom, std::function<void(bool)> callback,
                   timespan timeout = defaults::await_peer_timeout);
+  // --await-peer-end
 
   // --- properties ------------------------------------------------------------
 

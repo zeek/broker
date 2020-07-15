@@ -31,6 +31,7 @@ def create_stores(self):
     return (ep0, ep1, ep2, m, c1, c2)
 
 # Runs a test with one master and two clones
+# --tri-setup-start
 def run_tri_setup(self, f):
     with broker.Endpoint() as ep0, \
          broker.Endpoint() as ep1, \
@@ -45,19 +46,23 @@ def run_tri_setup(self, f):
         self.assertTrue(ep2.peer("127.0.0.1", port))
 
         # wait until the nodes are fully connected
-        ep0.await_peer(ep1.node_id())
-        ep1.await_peer(ep0.node_id())
-        ep0.await_peer(ep2.node_id())
-        ep2.await_peer(ep0.node_id())
-        ep1.await_peer(ep2.node_id())
-        ep2.await_peer(ep1.node_id())
+        self.assertTrue(ep0.await_peer(ep1.node_id()))
+        self.assertTrue(ep1.await_peer(ep0.node_id()))
+        self.assertTrue(ep0.await_peer(ep2.node_id()))
+        self.assertTrue(ep2.await_peer(ep0.node_id()))
+        self.assertTrue(ep1.await_peer(ep2.node_id()))
+        self.assertTrue(ep2.await_peer(ep1.node_id()))
+
+        # wait until the clones have connected to the master
+        self.assertTrue(c1.await_idle())
+        self.assertTrue(c2.await_idle())
 
         f(m, c1, c2)
-
+# --tri-setup-end
 
 def await_idle(self, *argv):
     for store in argv:
-        self.assertEqual(store.await_idle(), True);
+        self.assertTrue(store.await_idle());
 
 class TestStore(unittest.TestCase):
     def test_basic(self):
