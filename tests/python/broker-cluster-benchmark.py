@@ -40,7 +40,7 @@ class Environment:
 def test_config_generation(exe, recording_dir, expected):
     PIPE = subprocess.PIPE
     dirs = [f.path for f in os.scandir(recording_dir) if f.is_dir()]
-    cmd = [exe, '--logger.verbosity=quiet', '--generate-config'] + dirs
+    cmd = [exe, '--logger.verbosity=quiet', '--mode=generate-config'] + dirs
     with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True) as proc:
         ret = proc.wait()
         if ret != 0:

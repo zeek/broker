@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -17,6 +18,7 @@
 #include "broker/atoms.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
+#include "broker/detail/generator_file_writer.hh"
 #include "broker/endpoint.hh"
 #include "broker/subscriber.hh"
 
@@ -171,10 +173,12 @@ struct config : actor_system_config {
     opt_group{custom_options_, "global"}
       .add<std::string>("cluster-config-file,c",
                         "path to the cluster configuration file")
-      .add<bool>("dump-stats", "prints stats for all given generator files")
+      .add<string>(
+        "mode",
+        "one of: benchmark (default), dump-stats (print stats for generator "
+        "files), generate-config (create a config for given recording), or "
+        "shrink-generator-file (reduce entries in a .dat file)")
       .add<bool>("verbose,v", "enable verbose output")
-      .add<bool>("generate-config",
-                 "creates a config file from given recording directories")
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
@@ -789,7 +793,7 @@ bool verify_node_tree(std::vector<node>& nodes) {
   return true;
 }
 
-int generate_config(std::vector<std::string> directories) {
+int generate_config(string_list directories) {
   constexpr const char* required_files[] = {
     "/id.txt",
     "/messages.dat",
@@ -1019,6 +1023,70 @@ int generate_config(std::vector<std::string> directories) {
   return EXIT_SUCCESS;
 }
 
+int shrink_generator_file(const string& in_file, const string& out_file,
+                          size_t new_size) {
+  if (!broker::detail::is_file(in_file)) {
+    err::println("input file ", in_file, " not found");
+    return EXIT_FAILURE;
+  }
+  if (broker::detail::is_file(out_file)) {
+    err::println("output file ", out_file, " already exists");
+    return EXIT_FAILURE;
+  }
+  auto gptr = broker::detail::make_generator_file_reader(in_file);
+  if (gptr == nullptr) {
+    err::println("unable to open ", in_file, " as generator file");
+    return EXIT_FAILURE;
+  }
+  auto out = fopen(out_file.c_str(), "w");
+  if (out == nullptr) {
+    err::println("unable to open ", out_file, " for writing");
+    return EXIT_FAILURE;
+  }
+  using format = broker::detail::generator_file_writer::format;
+  auto out_guard = caf::detail::make_scope_guard([out] { fclose(out); });
+  auto header = format::header();
+  if (fwrite(header.data(), 1, header.size(), out) != header.size()) {
+    err::println("unable to write to ", out_file);
+    return EXIT_FAILURE;
+  }
+  int return_code = EXIT_SUCCESS;
+  using value_type = broker::detail::generator_file_reader::value_type;
+  using bytes = caf::span<const caf::byte>;
+  auto f = [&, i{size_t{0}}](value_type* val, bytes chunk) mutable {
+    if (fwrite(chunk.data(), 1, chunk.size(), out) != chunk.size()) {
+      err::println("unable to write to ", out_file);
+      return_code = EXIT_FAILURE;
+      return false;
+    }
+    if (val && ++i == new_size)
+      return false;
+    return true;
+  };
+  if (auto err = gptr->read_raw(f)) {
+    err::println("error while reading the generator file ", to_string(err));
+    return EXIT_FAILURE;
+  }
+  return return_code;
+}
+
+int shrink_generator_file(string_list args) {
+  if (args.size() != 3) {
+    err::println("invalid arguments to shrink-generator-file mode");
+    err::println("expected three positional arguments: INPUT OUTPUT NEW_SIZE");
+    return EXIT_FAILURE;
+  }
+  size_t new_size;
+  try {
+    new_size = std::stoul(args[2]);
+  } catch (std::exception&ex) {
+    err::println("unable to parse NEW_SIZE argument: ", ex.what());
+    err::println("expected three positional arguments: INPUT OUTPUT NEW_SIZE");
+    return EXIT_FAILURE;
+  }
+  return shrink_generator_file(args[0], args[1], new_size);
+}
+
 // -- main ---------------------------------------------------------------------
 
 void print_peering_node(const std::string& prefix, const node& x, bool is_last,
@@ -1064,6 +1132,28 @@ void print_peering_node(const std::string& prefix, const node& x, bool is_last,
                        printed_nodes);
 }
 
+enum program_mode_t {
+  invalid_mode,
+  benchmark_mode,
+  dump_stats_mode,
+  generate_config_mode,
+  shrink_generator_file_mode,
+};
+
+program_mode_t get_mode(const config& cfg) {
+  auto mode_str = get_if<std::string>(&cfg, "mode");
+  if (!mode_str || *mode_str == "benchmark")
+    return benchmark_mode;
+  else if (*mode_str == "dump-stats")
+    return dump_stats_mode;
+  else if (*mode_str == "generate-config")
+    return generate_config_mode;
+  else if (*mode_str == "shrink-generator-file")
+    return shrink_generator_file_mode;
+  else
+    return invalid_mode;
+}
+
 int main(int argc, char** argv) {
   // Read CAF configuration.
   config cfg;
@@ -1074,12 +1164,19 @@ int main(int argc, char** argv) {
   // Exit for `--help` etc.
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
-  // Enable global flags.
+  // Enable global flags and fetch mode of operation.
   if (get_or(cfg, "verbose", false))
     verbose::is_enabled = true;
-  // Generate config file when demanded.
-  if (get_or(cfg, "generate-config", false))
+  auto mode = get_mode(cfg);
+  if (mode == invalid_mode) {
+    err::println("invalid mode");
+    return EXIT_FAILURE;
+  }
+  // Dispatch to modes that don't read a cluster config.
+  if (mode == generate_config_mode)
     return generate_config(cfg.remainder);
+  else if (mode == shrink_generator_file_mode)
+    return shrink_generator_file(cfg.remainder);
   // Read cluster config.
   auto excluded_nodes = get_or(cfg, "excluded-nodes", string_list{});
   auto is_excluded = [&](const string& node_name) {
@@ -1109,7 +1206,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   // Check for dump-stats mode.
-  if (get_or(cfg, "dump-stats", false)) {
+  if (mode == dump_stats_mode) {
     std::vector<string> file_names;
     std::function<void(const caf::settings&)> read_file_names;
     read_file_names = [&](const caf::settings& xs) {
