@@ -1403,14 +1403,9 @@ int main(int argc, char** argv) {
       x.mgr = nullptr;
     }
     verbose::println("all nodes done, bye 👋");
+    return EXIT_SUCCESS;
   } catch (caf::error err) {
-    err::println("fatal eror: ", to_string(err));
-    for (auto& x : nodes)
-      self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
-    for (auto& x : nodes) {
-      self->wait_for(x.mgr);
-      x.mgr = nullptr;
-    }
-    return EXIT_FAILURE;
+    err::println("fatal error: ", to_string(err));
+    abort();
   }
 }
