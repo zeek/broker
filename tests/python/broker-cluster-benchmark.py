@@ -1,5 +1,7 @@
 import os, sys, zipfile, subprocess, shutil
 
+from subprocess import PIPE
+
 # -- setup and cleanup --------------------------------------------------------
 
 test_recording = 'zeek-dns-traffic-recording'
@@ -38,14 +40,12 @@ class Environment:
 # -- integration testing ------------------------------------------------------
 
 def test_config_generation(exe, recording_dir, expected):
-    PIPE = subprocess.PIPE
     dirs = [f.path for f in os.scandir(recording_dir) if f.is_dir()]
     cmd = [exe, '--logger.verbosity=quiet', '--mode=generate-config'] + dirs
     with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True) as proc:
-        ret = proc.wait()
-        if ret != 0:
-            raise RuntimeError('failed to generate config: ' + proc.stderr.read())
-        output = proc.stdout.read()
+        output, errors = proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError('failed to generate config: ' + errors)
         if output != expected:
             sys.stderr.write('*** ERROR: generate-config procuded wrong result\n')
             sys.stderr.write('\n*** EXPECTED:\n')
@@ -57,17 +57,17 @@ def test_config_generation(exe, recording_dir, expected):
         return output
 
 def run_benchmark(exe, config):
-    PIPE = subprocess.PIPE
     cmd = [exe, '--logger.verbosity=quiet', '--cluster-config-file=-']
     with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, close_fds=True, universal_newlines=True) as proc:
         proc.stdin.write(config)
         proc.stdin.close()
-        ret = proc.wait()
-        if ret != 0:
-            raise RuntimeError('failed to run the benchmark: ' + proc.stderr.read())
+        proc.stdin = None
+        output, errors = proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError('failed to run the benchmark: ' + errors)
         print('run_benchmark: pass')
         sys.stdout.write('*** Benchmark output:\n')
-        sys.stdout.write(proc.stdout.read())
+        sys.stdout.write(output)
 
 
 # -- main ---------------------------------------------------------------------
