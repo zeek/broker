@@ -1,4 +1,8 @@
 
+1.4.0-dev.165 | 2020-07-16 18:30:03 -0700
+
+  * Update CAF to release/0.17 branch (Jon Siwek, Corelight)
+
 1.4.0-dev.164 | 2020-07-14 14:56:23 -0700
 
   * Properly initialize stack buffers in the flare (Dominik Charousset)
