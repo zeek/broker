@@ -1,4 +1,8 @@
 
+1.4.0-dev.171 | 2020-07-24 15:28:49 -0700
+
+  * Update embedded CAF 0.17.6 (Jon Siwek, Corelight)
+
 1.4.0-dev.170 | 2020-07-24 13:53:33 -0700
 
   * Use std::move in some broker::store methods (Jon Siwek, Corelight)
