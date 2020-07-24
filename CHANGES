@@ -1,4 +1,8 @@
 
+1.4.0-dev.169 | 2020-07-24 11:28:34 -0700
+
+  * Silence self-assign-overloaded warning on Clang (Dominik Charousset)
+
 1.4.0-dev.165 | 2020-07-16 18:30:03 -0700
 
   * Update CAF to release/0.17 branch (Jon Siwek, Corelight)
