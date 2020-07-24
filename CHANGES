@@ -1,4 +1,8 @@
 
+1.4.0-dev.170 | 2020-07-24 13:53:33 -0700
+
+  * Use std::move in some broker::store methods (Jon Siwek, Corelight)
+
 1.4.0-dev.169 | 2020-07-24 11:28:34 -0700
 
   * Silence self-assign-overloaded warning on Clang (Dominik Charousset)
