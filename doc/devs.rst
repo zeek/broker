@@ -465,9 +465,39 @@ Publishing Data
 ~~~~~~~~~~~~~~~
 
 Whenever `the core actor`_ receives data from a local publisher, it scans its
-routing table for all nodes subscribed to the topic (prefix matching).
+routing table for all peers that subscribed to the topic (using prefix
+matching). Afterwards, the core actor computes the shortest paths to all
+receivers and combines then into a single `multipath <Source Routing>`_ before
+sending the data to the first hops. Because the class ``multipath`` models a
+directed, tree-like data structure, messages always have a finite number of
+hops. In addition to the ``multipath``, the core actor also sends the list of
+receivers.
 
-*TODO: implement and discuss source routing.*
+Whenever a core actor receives published data, it first checks whether the list
+of receivers includes its own ID. On a match, the core actor forwards the data
+to all local subscribers for the topic. Then, the core actor retrieves the next
+hops from the ``multipath`` and forwards the data accordingly, only including
+the ``multipath`` branch that is relevant to the next hop. For example, consider
+the core actor with ID ``X`` receives the following ``multipath``:
+
+.. code-block:: text
+
+  X ─┬──> A
+     └──> B ────> C
+
+The next hops are ``A`` and ``B``. Hence, it forwards the data to ``A`` with the
+upper branch (``A``) and to ``B`` with the lower branch (``B ────> C``). The
+peer ``A`` terminates the upper branch, while ``B`` will forward the data to
+``C`` on the lower branch.
+
+Because Broker separates routing information (stored as ``multipath``) from
+recipients (stored as list of ``endpoint_id``), users can also publish data to a
+single peer in the network to emulate direct sending (unicast). In this case,
+the core actor computes the shortest path to the receiver, converts it to a
+(trivial) ``multipath`` and then sends the data with a single ID in the list of
+receivers. Because all in-between hops ignore the payload unless the list of
+receivers includes their ID, only the single receiver is going to process the
+content of the message.
 
 .. _devs.channels:
 
