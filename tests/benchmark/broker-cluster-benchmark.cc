@@ -599,10 +599,23 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   self->state.children.emplace_back(c);
 }
 
+// Using to_string on the host directly can result in surrounding quotes if the
+// host type is stored as a string.
+std::string host_to_string(const caf::uri::host_type& x) {
+  auto f = [](const auto& inner) -> std::string {
+    using inner_type = std::decay_t<decltype(inner)>;
+    if constexpr (std::is_same<inner_type, std::string>::value)
+      return inner;
+    else
+      return to_string(inner);
+  };
+  return caf::visit(f, x);
+}
+
 caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
                        const node* this_node, const node* peer) {
   const auto& authority = peer->id.authority();
-  auto host = to_string(authority.host);
+  auto host = host_to_string(authority.host);
   ep.peer(host, authority.port, broker::timeout::seconds(1));
   for (;;) {
     auto ss_res = ss.get();
@@ -642,8 +655,10 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
         auto& authority = this_node->id.authority();
-        verbose::println(this_node->name, " starts listening at ", authority);
-        auto port = st.ep.listen(to_string(authority.host), authority.port);
+        auto addr = host_to_string(authority.host);
+        verbose::println(this_node->name, " starts listening at ", addr, ":",
+                         authority.port);
+        auto port = st.ep.listen(addr, authority.port);
         if (port != authority.port) {
           err::println(this_node->name, " opened port ", port, " instead of ",
                        authority.port);
@@ -983,7 +998,7 @@ int generate_config(string_list directories) {
       uri_str += "local:";
       uri_str += node.name;
     } else {
-      uri_str += "tcp://[::1]:";
+      uri_str += "tcp://127.0.0.1:";
       uri_str += std::to_string(port++);
     }
     if (auto err = caf::parse(uri_str, node.id)) {
