@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="284 -214 590 2227" width="590" height="2227">
+  <defs>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledDiamond_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -3 7 6" markerWidth="7" markerHeight="6" color="#666a6b">
+      <g>
+        <path d="M 4.8 0 L 2.4 -1.8 L 0 0 L 2.4 1.8 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="UMLInheritance_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-6 -4 7 8" markerWidth="7" markerHeight="8" color="#666a6b">
+      <g>
+        <path d="M -4.32 0 L 0 2.52 L 0 -2.52 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <filter id="Shadow" filterUnits="userSpaceOnUse" x="225" y="-436.7">
+      <feOffset in="SourceAlpha" result="offset" dx="0" dy="2"/>
+      <feFlood flood-color="#919191" flood-opacity=".25" result="flood"/>
+      <feComposite in="flood" in2="offset" operator="in" result="color"/>
+      <feMerge>
+        <feMergeNode in="color"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <font-face font-family="Helvetica Neue" font-size="14" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Courier New" font-size="12" panose-1="2 7 3 9 2 2 5 2 4 4" units-per-em="1000" underline-position="-232.91016" underline-thickness="41.015625" slope="0" x-height="422.85156" cap-height="571.28906" ascent="832.5195" descent="-300.29297" font-weight="400">
+      <font-face-src>
+        <font-face-name name="CourierNewPSMT"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Courier New" font-size="12" panose-1="2 7 6 9 2 2 5 2 4 4" units-per-em="1000" underline-position="-232.91016" underline-thickness="100.09766" slope="0" x-height="443.3594" cap-height="591.7969" ascent="832.5195" descent="-300.29297" font-weight="700">
+      <font-face-src>
+        <font-face-name name="CourierNewPS-BoldMT"/>
+      </font-face-src>
+    </font-face>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.17.1\n2020-07-25 08:43:07 +0000</metadata>
+  <g id="Canvas_1" stroke="none" stroke-opacity="1" fill="none" stroke-dasharray="none" fill-opacity="1">
+    <title>Canvas 1</title>
+    <g id="Canvas_1_Layer_1">
+      <title>Layer 1</title>
+      <g id="Line_113">
+        <line x1="481.6886" y1="1887" x2="481.6886" y2="1951.9" marker-end="url(#FilledDiamond_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Line_112">
+        <line x1="481.6886" y1="1759.5" x2="481.6886" y2="1824.4" marker-end="url(#FilledDiamond_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Line_24">
+        <line x1="482.1886" y1="321.64" x2="482.1886" y2="386" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_25">
+        <title>Note</title>
+        <g id="Graphic_27" filter="url(#Shadow)">
+          <path d="M 743 -213 L 858 -213 L 873 -198 L 873 -138 L 743 -138 Z" fill="white"/>
+          <path d="M 743 -213 L 858 -213 L 873 -198 L 873 -138 L 743 -138 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 -200.088)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="15.047" y="13">Stores routing </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="9.986" y="29.392">information and </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="15.047" y="45.783997">subscriptions.</tspan>
+          </text>
+        </g>
+        <g id="Line_26">
+          <path d="M 858 -213 L 858 -198 L 873 -198 L 873 -198" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_28">
+        <line x1="683.93575" y1="-123.38239" x2="742" y2="-174.61761" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Group_30">
+        <title>Note</title>
+        <g id="Graphic_32" filter="url(#Shadow)">
+          <path d="M 743 310.5 L 858 310.5 L 873 325.5 L 873 385.5 L 743 385.5 Z" fill="white"/>
+          <path d="M 743 310.5 L 858 310.5 L 873 325.5 L 873 385.5 L 743 385.5 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 323.412)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="31.777" y="13">Provides </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x=".263" y="29.392">messaging to/from </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="15.691" y="45.783997">remote peers.</tspan>
+          </text>
+        </g>
+        <g id="Line_31">
+          <path d="M 858 310.5 L 858 325.5 L 873 325.5 L 873 325.5" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_29">
+        <line x1="678.3772" y1="398" x2="742" y2="348.77372" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_33">
+        <line x1="482.1886" y1="572.14" x2="482.1886" y2="636.5" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_39">
+        <title>Note</title>
+        <g id="Graphic_41" filter="url(#Shadow)">
+          <path d="M 743 563 L 858 563 L 873 578 L 873 638 L 743 638 Z" fill="white"/>
+          <path d="M 743 563 L 858 563 L 873 578 L 873 638 L 743 638 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 575.912)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="20.752" y="13">Connects to</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="2.734" y="29.392">remote peers with </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="4.673" y="45.783997">automatic retries.</tspan>
+          </text>
+        </g>
+        <g id="Line_40">
+          <path d="M 858 563 L 858 578 L 873 578 L 873 578" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_38">
+        <line x1="679.3772" y1="647.7572" x2="742" y2="601.2428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_46">
+        <line x1="482.1886" y1="786.64" x2="482.1886" y2="851" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_43">
+        <title>Note</title>
+        <g id="Graphic_45" filter="url(#Shadow)">
+          <path d="M 743 777.5 L 858 777.5 L 873 792.5 L 873 852.5 L 743 852.5 Z" fill="white"/>
+          <path d="M 743 777.5 L 858 777.5 L 873 792.5 L 873 852.5 L 743 852.5 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 790.412)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="7.788" y="13">Manages clones</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="7.914" y="29.392"> and masters for </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="22.047" y="45.783997">data stores.</tspan>
+          </text>
+        </g>
+        <g id="Line_44">
+          <path d="M 858 777.5 L 858 792.5 L 873 792.5 L 873 792.5" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_42">
+        <line x1="679.3772" y1="862.2572" x2="742" y2="815.7428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_63">
+        <line x1="482.1886" y1="1145.14" x2="482.1886" y2="1209.5" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_60">
+        <title>Note</title>
+        <g id="Graphic_62" filter="url(#Shadow)">
+          <path d="M 743 1136 L 858 1136 L 873 1151 L 873 1211 L 743 1211 Z" fill="white"/>
+          <path d="M 743 1136 L 858 1136 L 873 1151 L 873 1211 L 743 1211 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 1148.912)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="28.662" y="13">Publishes</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="4.036" y="29.392">statuses/errors to </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x=".284" y="45.783997">well-known topics.</tspan>
+          </text>
+        </g>
+        <g id="Line_61">
+          <path d="M 858 1136 L 858 1151 L 873 1151 L 873 1151" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_59">
+        <line x1="679.3772" y1="1220.7572" x2="742" y2="1174.2428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_72">
+        <line x1="482.1886" y1="1413.64" x2="482.1886" y2="1478" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_69">
+        <title>Note</title>
+        <g id="Graphic_71" filter="url(#Shadow)">
+          <path d="M 743 1404.5 L 858 1404.5 L 873 1419.5 L 873 1479.5 L 743 1479.5 Z" fill="white"/>
+          <path d="M 743 1404.5 L 858 1404.5 L 873 1419.5 L 873 1479.5 L 743 1479.5 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 1417.412)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="32.813" y="13">Records</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="17.119" y="29.392">meta data for </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="12.443" y="45.783997">benchmarking.</tspan>
+          </text>
+        </g>
+        <g id="Line_70">
+          <path d="M 858 1404.5 L 858 1419.5 L 873 1419.5 L 873 1419.5" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_68">
+        <line x1="679.3772" y1="1489.2572" x2="742" y2="1442.7428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_90">
+        <line x1="482.1886" y1="1628.14" x2="482.1886" y2="1692.5" marker-start="url(#UMLInheritance_Marker)" stroke="#666a6b" stroke-linecap="square" stroke-linejoin="bevel" stroke-width="2"/>
+      </g>
+      <g id="Group_87">
+        <title>Note</title>
+        <g id="Graphic_89" filter="url(#Shadow)">
+          <path d="M 743 1619 L 858 1619 L 873 1634 L 873 1694 L 743 1694 Z" fill="white"/>
+          <path d="M 743 1619 L 858 1619 L 873 1634 L 873 1694 L 743 1694 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 1631.912)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="22.957" y="13">Instantiates</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="5.975" y="29.392">class hierarchy &amp;</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="5.842" y="45.783997">creates behavior.</tspan>
+          </text>
+        </g>
+        <g id="Line_88">
+          <path d="M 858 1619 L 858 1634 L 873 1634 L 873 1634" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_86">
+        <line x1="679.3772" y1="1703.7572" x2="742" y2="1657.2428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Group_105">
+        <title>Note</title>
+        <g id="Graphic_107" filter="url(#Shadow)">
+          <path d="M 743 1761 L 858 1761 L 873 1776 L 873 1836 L 743 1836 Z" fill="white"/>
+          <path d="M 743 1761 L 858 1761 L 873 1776 L 873 1836 L 743 1836 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 1773.912)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="17.511" y="13">Wraps a core </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x=".256" y="29.392">manager and adds </tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="22.698" y="45.783997">setup logic.</tspan>
+          </text>
+        </g>
+        <g id="Line_106">
+          <path d="M 858 1761 L 858 1776 L 873 1776 L 873 1776" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_104">
+        <line x1="678.3772" y1="1846.5" x2="742" y2="1799.2428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Group_109">
+        <title>Note</title>
+        <g id="Graphic_111" filter="url(#Shadow)">
+          <path d="M 743 1887 L 858 1887 L 873 1902 L 873 1962 L 743 1962 Z" fill="white"/>
+          <path d="M 743 1887 L 858 1887 L 873 1902 L 873 1962 L 743 1962 Z" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(749 1899.608)" fill="#515556">
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="18.421" y="13">Executes the</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" x="10.777" y="29.392">core logic of an </tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="28.249312" y="45.783997">endpoint</tspan>
+            <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="#515556" y="45.783997">.</tspan>
+          </text>
+        </g>
+        <g id="Line_110">
+          <path d="M 858 1887 L 858 1902 L 873 1902 L 873 1902" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </g>
+      </g>
+      <g id="Line_108">
+        <line x1="678.3772" y1="1972.5" x2="742" y2="1925.2428" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Group_2">
+        <g id="Graphic_4">
+          <title>Class Name</title>
+          <rect x="286" y="-133.5" width="396.93575" height="22" fill="white"/>
+          <rect x="286" y="-133.5" width="396.93575" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 -129.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="160.0626" y="10">alm::peer</tspan>
+          </text>
+        </g>
+        <g id="Graphic_3">
+          <title>Operations</title>
+          <rect x="286" y="-111.5" width="396.93575" height="422" fill="white"/>
+          <rect x="286" y="-111.5" width="396.93575" height="422" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 -105.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ tbl(): routing_table_type</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">+ filter(): filter_type</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">+ timestamp(): uint64_t</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">+ peer_filter(id: peer_id_type): filter_type</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">+ subscribe(filter: filter_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">+ publish&lt;T&gt;(msg: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="118">+ distance_to(peer: peer_id_type): optional&lt;size_t&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="136">+ handle_filter_update(path: vector&lt;peer_id&gt;,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="154">                       filter: filter_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="172">                       timestamp: uint64_t)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="190">+ handle_publication(msg: message_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="208">+ ship(msg: message_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="226">+ ship(msg: message_type, receiver: peer_id_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="244">+ ship_locally&lt;T&gt;(msg: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="262">+ peer_connected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="280">                 hdl: communication_handle_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="298">+ peer_disconnected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="316">                    hdl: communication_handle_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="334">                    reason: error)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="352">+ peer_removed(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="370">               hdl: communication_handle_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="388">+ cannot_remove_peer&lt;T&gt;(x: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="406">+ peer_unavailable&lt;T&gt;(x: T)</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_6">
+        <g id="Graphic_7">
+          <title>Operations</title>
+          <rect x="286" y="409" width="392.37722" height="152" fill="white"/>
+          <rect x="286" y="409" width="392.37722" height="152" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 415)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ self(): caf::event_based_actor</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">+ connected_to(hdl: communication_handle_type): bool</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">+ start_peering(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">                hdl: communication_handle_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">                rp: caf::response_promise)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">+ ship_locally&lt;T&gt;(msg: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="118">+ peer_connected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="136">                 hdl: communication_handle_type)</tspan>
+          </text>
+        </g>
+        <g id="Graphic_8">
+          <title>Class Name</title>
+          <rect x="286" y="387" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="387" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 391)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="114.57631" y="10">alm::stream_transport</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_34">
+        <g id="Graphic_36">
+          <title>Operations</title>
+          <rect x="286" y="659.5" width="392.37722" height="116" fill="white"/>
+          <rect x="286" y="659.5" width="392.37722" height="116" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 665.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ try_peering(addr: network_info,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">              rp: caf::response_promise,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">              retry_count: uint32_t)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">+ try_publish(addr: network_info, msg: data_message,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">              rp: caf::response_promise)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">+ cache(): detail::network_cache</tspan>
+          </text>
+        </g>
+        <g id="Graphic_35">
+          <title>Class Name</title>
+          <rect x="286" y="637.5" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="637.5" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 641.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="132.57924" y="10">mixin::connector</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_47">
+        <g id="Graphic_49">
+          <title>Operations</title>
+          <rect x="286" y="874" width="392.37722" height="260" fill="white"/>
+          <rect x="286" y="874" width="392.37722" height="260" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 880)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ has_remote_master(name: string): bool</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">+ masters(): map&lt;string, caf::actor&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">+ clones(): multimap&lt;string, caf::actor&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">+ attach_master(name: string, type: backend,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">                opts: backend_options)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">  : caf::result&lt;caf::actor&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="118">+ attach_clone(name: string,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="136">               resync_interval: double,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="154">               stale_interval: double,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="172">               mutation_buffer_interval: double)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="190">  : caf::result&lt;caf::actor&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="208">+ get_master(name: string): caf::result&lt;caf::actor&gt;</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="226">+ snapshot(name: string, clone: caf::actor)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="244">+ detach_stores()</tspan>
+          </text>
+        </g>
+        <g id="Graphic_48">
+          <title>Class Name</title>
+          <rect x="286" y="852" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="852" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 856)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="100.17397" y="10">mixin::data_store_manager</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_64">
+        <g id="Graphic_66">
+          <title>Operations</title>
+          <rect x="286" y="1232.5" width="392.37722" height="170" fill="white"/>
+          <rect x="286" y="1232.5" width="392.37722" height="170" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1238.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ peer_connected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">                 hdl: communication_handle_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">+ peer_disconnected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">                    hdl: communication_handle_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">                    reason: error)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">+ peer_removed(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="118">               hdl: communication_handle_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="136">+ cannot_remove_peer&lt;T&gt;(x: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="154">+ peer_unavailable&lt;T&gt;(x: T)</tspan>
+          </text>
+        </g>
+        <g id="Graphic_65">
+          <title>Class Name</title>
+          <rect x="286" y="1210.5" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="1210.5" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1214.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="136.17982" y="10">mixin::notifier</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_73">
+        <g id="Graphic_75">
+          <title>Operations</title>
+          <rect x="286" y="1501" width="392.37722" height="116" fill="white"/>
+          <rect x="286" y="1501" width="392.37722" height="116" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1507)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ subscribe(filter: filter_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">+ ship(msg: message_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="46">+ ship(msg: message_type, receiver: peer_id_type)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="64">+ ship_locally&lt;T&gt;(msg: T)</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="82">+ peer_connected(peer: peer_id_type,</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="100">                 hdl: communication_handle_type)</tspan>
+          </text>
+        </g>
+        <g id="Graphic_74">
+          <title>Class Name</title>
+          <rect x="286" y="1479" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="1479" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1483)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="136.17982" y="10">mixin::recorder</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_91">
+        <g id="Graphic_93">
+          <title>Operations</title>
+          <rect x="286" y="1715.5" width="392.37722" height="44" fill="white"/>
+          <rect x="286" y="1715.5" width="392.37722" height="44" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1721.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ make_behavior(): caf::behavior</tspan>
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="28">+ id(): peer_id_type</tspan>
+          </text>
+        </g>
+        <g id="Graphic_92">
+          <title>Class Name</title>
+          <rect x="286" y="1693.5" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="1693.5" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1697.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="146.98158" y="10">core_manager</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_94">
+        <g id="Graphic_96">
+          <title>Operations</title>
+          <rect x="286" y="1859.5" width="392.37722" height="26" fill="white"/>
+          <rect x="286" y="1859.5" width="392.37722" height="26" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1865.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ mgr: caf::intrusive_ptr&lt;core_manager&gt;</tspan>
+          </text>
+        </g>
+        <g id="Graphic_95">
+          <title>Class Name</title>
+          <rect x="286" y="1837.5" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="1837.5" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1841.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="154.18275" y="10">core_state</tspan>
+          </text>
+        </g>
+      </g>
+      <g id="Group_101">
+        <g id="Graphic_103">
+          <title>Operations</title>
+          <rect x="286" y="1985.5" width="392.37722" height="26" fill="white"/>
+          <rect x="286" y="1985.5" width="392.37722" height="26" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1991.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="400" fill="#515556" x="0" y="10">+ state: core_state</tspan>
+          </text>
+        </g>
+        <g id="Graphic_102">
+          <title>Class Name</title>
+          <rect x="286" y="1963.5" width="392.37722" height="22" fill="white"/>
+          <rect x="286" y="1963.5" width="392.37722" height="22" stroke="#b9c0c1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          <text transform="translate(292 1967.5)" fill="#515556">
+            <tspan font-family="Courier New" font-size="12" font-weight="700" fill="#515556" x="78.57045" y="10">caf::stateful_actor&lt;core_state&gt;</tspan>
+          </text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

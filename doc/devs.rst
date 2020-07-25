@@ -20,7 +20,7 @@ From a user perspective, a Broker endpoint is the  primary component in the API
 that hosts the *core actor* plus any number of *subscribers* and *publishers*.
 The figure below shows a simplified architecture of Broker in terms of actors.
 
-.. figure:: _images/endpoint.png
+.. figure:: _images/endpoint.svg
   :align: center
   :alt: Simplified architecture of a Broker endpoint in terms of actors.
 
@@ -33,191 +33,12 @@ Because the core actor has many roles to fill, its implementation spreads
 severall classes. The following UML class diagram shows all classes involved in
 implementing the core actor with an exempt of the relevant member functions.
 
-.. figure:: _images/core-actor-uml.png
+.. figure:: _images/core-actor-uml.svg
   :align: center
   :alt: All classes involved in implementing the core actor.
 
 
 In a distributed setting, each core actor represents one *peer*.
-
-Multi-Hop Routing / Application-Layer Multicast (ALM)
------------------------------------------------------
-
-Broker follows a peer-to-peer (P2P) approach in order to make setting up and
-running a cluster convenient and straightforward for users. At the same time, we
-wish to avoid "too much magic". Ultimately, want the users to decide the
-topology that best fits their deployment.
-
-Theoretically, IP multicast offers the most efficient option for publishing
-events. However, IP multicast implements neither reliability nor encryption by
-default. Further, IP multicast is not routed in the Internet. Extensions for
-reliability and security exist, but we cannot rely on Broker users to provide
-this infrastructure. To run "out of the box", we rely on TCP connections only
-and minimize message duplication via ALM.
-
-Goals
-  - Connections are secured/authenticated through TLS & certificates.
-  - Broker puts no constraints on topologies, i.e., users may establish all
-    peering relations that make sense in their deployment without having to
-    form a tree. Loops are explicitly allowed.
-  - Broker detects (and slows down) any publisher that produces data at a faster
-    rate than the subscribers or the network can handle.
-  - Each peer can publish to each topic. No central coordinator or root node
-    exists.
-  - Broker minimizes messages in the network with (application-layer) multicast
-    in order to scale effectively.
-
-Non-Goals
-  - Dynamic connection management and auto-balancing of a distribution tree.
-    While Broker generally follows a P2P philosophy, we still wish to give users
-    full control over Broker's topology. Also, Broker does not target
-    Internet-wide deployments with very high churn rates and unreliable nodes.
-
-Peers
-~~~~~
-
-Each Broker peer in the network has:
-
-- A globally unique ID. Currently, we use ``caf::node_id`` to identify peers.
-  CAF computes this ID automatically by combining a 160-bit hash value (based on
-  a seed plus various node-specific information) with the OS-specific process
-  ID.
-- A filter for incoming messages. The core actor combines the filters of all
-  subscribers running in the endpoint to a single filter. The core actor removes
-  all redundant entries. For example, if the user starts subscribers with the
-  filters ``[/zeek/event/foo]``, ``[/zeek/event/bar]``, and ``[/zeek/event]``,
-  then core actor combines these three filters to ``[/zeek/event]``. Due to the
-  prefix matching, this one entry implicitly includes ``/zeek/event/foo`` and
-  ``/zeek/event/bar``. When distributing incoming messages to subscribers, each
-  individual subscriber of course only receives messages that match its filter.
-- A logical clock (`Lamport timestamps
-  <https://en.wikipedia.org/wiki/Lamport_timestamps>`_). This 64-bit integer
-  enables detection of repeated messages and ordering of events. Whenever a peer
-  sends a message to others, it increments its logical time and includes the
-  current value in the message. This timestamp is crucial for detecting outdated
-  or repeated subscriptions in the `Subscription Flooding`_.
-- A routing table with paths to *all* known peers in the network.
-- A ``peer_filters_`` map of type ``map<peer_id_type, filter_type>`` for storing
-  the current filter of each known peer.
-
-Timestamps
-~~~~~~~~~~
-
-Broker has two types for modelling logical clocks:
-
-#. ``broker::alm::lamport_timestamp``
-#. ``broker::alm::vector_timestamp``
-
-The former type is a thin wrapper (AKA *strong typedef*) for a 64-bit unsigned
-integer. It provides ``operator++`` as well as the comparison operators. Each
-peer keeps its own Lamport timestamp. The peer increments the timestamp whenever
-it changes its routing table or its filter.
-
-The latter type is a list of ``lamport_timestamp``. Broker uses vector
-timestamps to versionize paths.
-
-Routing Tables
-~~~~~~~~~~~~~~
-
-A routing table maps peer IDs to versioned paths. Conceptually, the routing
-table maps each peer to a set of paths that lead to it.
-
-.. code-block:: C++
-
-  using path = std::vector<peer_id>;
-  using versioned_paths = std::map<path, vector_timestamp>;
-  using routing_table = std::map<peer_id, versioned_paths>;
-
-.. note::
-
-  The actual implementation of the routing table is slightly more complex, since
-  it also maps the peer IDs to communication handles (needed by CAF for message
-  passing).
-
-Source Routing
-~~~~~~~~~~~~~~
-
-Broker uses source routing. Messages between peers contain the forwarding path,
-encoded as an ``alm::multipath`` object.
-
-The ``multipath`` class implements a recursive data structure for encoding
-branching paths (directed acyclic graphs). For example:
-
-.. code-block:: text
-
-  A ────> B ─┬──> C
-             └──> D ────> E
-
-In this scenario, A sends a message to B, which then forwards to C and D. After
-receiving the message, D also forward to E. This gives senders full control over
-the path that a message travels in the network.
-
-Furthermore, a message also contains IDs of receivers. Not every peer that
-receives a message subscribed to its content. Hence, peers that are not in the
-list of receivers only forward the message without inspecting the payload.
-
-Subscription Flooding
-~~~~~~~~~~~~~~~~~~~~~
-
-Whenever the filter of a peer changes, it sends a *subscription* message to all
-peers it has a direct connection to (neighbors). When establishing a new
-peering relation, the handshake also includes the *subscription* message.
-
-The subscription message consists of:
-
-#. A ``peer_id_list`` for storing the path of this message. Initially, this list
-   only contains the ID of the sender.
-#. The ``filter`` for selecting messages. A node only receives messages for
-   topics that pass its filter (prefix matching).
-#. A 64-bit (unsigned) timestamp. This is the logical time of the sender for
-   this event.
-
-Whenever receiving a *subscription* message (this ultimately calls
-``handle_filter_update`` in ``include/broker/alm/peer.hh``), a peer first checks
-whether the path already contains its ID, in which case it discards the message
-since it contains a loop.
-
-If a peer sees the sender (the first entry in the path) for the first time, it
-stores the filter in its ``peer_filters_`` map and the new path in its routing
-table. Otherwise, it checks the timestamp of the message:
-
-- If the timestamp is *less* than the last timestamp, a peer simply drops the
-  outdated message.
-- If the timestamp is *equal* to the last timestamp, a peer checks whether the
-  message contains a new path and updates it routing table if necessary. Complex
-  topologies can have multiple paths between two peers. The flooding eventually
-  reveals all existing paths between two peers.
-- If the timestamp is *greater* than the last timestamp, a peer overrides the
-  subscription of the sender and stores the path in its routing table if
-  necessary.
-
-All messages that were not discarded by this point get forwarded to all direct
-connections that are not yet in the path. For that, a peer adds itself to the
-path and forwards the message otherwise unchanged (in particular, the timestamp
-remains unchanged, since it represent the logical time *of the sender*).
-
-By flooding the subscriptions in this way, Broker is able to detect all possible
-paths between nodes. However, this mechanism can cause a high volume of messages
-for topologies with many loops that result in a large number of possible paths
-between all nodes.
-
-The number of messages generated by the flooding depends on the topology. In a
-trivial chain topology of :math:`n` nodes (:math:`n_0` peers with :math:`n_1`,
-:math:`n_1` peers with :math:`n_2`, and so on), we generate a total of
-:math:`n-1` messages. In a full mesh, however, we generate :math:`(n-1)^2`
-messages.
-
-Should we observe severe performance degradations as a result of the flooding,
-Broker could limit the maximum path length or select only a limited set of paths
-(ideally, this subset should be as distinct as possible).
-
-Publishing Data
-~~~~~~~~~~~~~~~
-
-Whenever `the core actor`_ receives data from a local publisher, it scans its
-routing table for all nodes subscribed to the topic (prefix matching).
-
-*TODO: implement and discuss source routing.*
 
 Implementation
 --------------
@@ -411,12 +232,242 @@ all message handlers defines the messaging interface of the core actor.
 ``alm::stream_transport``
 *************************
 
-This class implements a communication backend for |alm::peer|_ that connects two
-actors by using two CAF stream paths (one for each direction, because paths are
-unidirectional).
+This communication backend for |alm::peer|_ connects two actors by using two CAF
+stream paths (one for each direction, because paths are unidirectional).
 
 The stream transport is a CAF `stream manager`_, i.e., it inherits from
-``caf::stream_manager``.
+``caf::stream_manager``. Aside from multiplexing the streaming traffic for data
+and command messages, this class also implements a handshake to establish the
+CAF streams between two peers.
+
+``mixin::connector``
+********************
+
+The ``connector`` augments peers with a ``(atom::peer, network_info) -> void``
+message handler. This allows endpoints to hide the details for connecting to
+remote nodes by offering an API that operates on network addresses. Internally,
+each ``connector`` caches known network addresses and lazily connects to new
+ones. When connection attempts fail, the ``connector`` automatically retries
+to connects for a preconfigured number of times.
+
+``mixin::data_store_manager``
+*****************************
+
+This mixin adds state and message handlers to peers for attaching
+:ref:`data store frontends <data-stores>`, i.e., *masters* and *clones*.
+
+``mixin::notifier``
+*******************
+
+This mixin hooks into the callbacks of |alm::peer|_ to publish ``status`` and
+``error`` messages to ``topics::statuses`` and ``topics::errors``, respectively.
+
+``mixin::recorder``
+*******************
+
+The ``recorder`` augments peers with additional logic for recording meta data at
+runtime. Recording is optional and depends on whether the user sets the
+configuration parameter ``broker.recording-directory`` to a valid directory.
+
+After recording meta data for a Broker application, users can use the recording
+as input to broker-cluster-benchmark_.
+
+``core_manager``
+****************
+
+All mixins as well as the classes living in the namespace ``alm`` are templates.
+The core manager instantiates all templates, defines the class hierarchy and
+provides an ``id()`` member function that is required by |alm::peer|_.
+
+``core_state``
+**************
+
+By deriving from ``alm::stream_transport``, the ``core_manager`` becomes a
+`stream manager`_. The manager internally multiplexes all streams necessary.
+Hence, the core actor only needs a single instance of ``core_manager``. This
+state class simply defines a member ``mgr`` that holds a ``core_manager`` and
+provides the necessary glue code we need for using actors of type
+``caf::stateful_actor<core_state>`` (aliased as ``core_actor_type``).
+
+Application-Layer Multicast (ALM)
+---------------------------------
+
+Broker follows a peer-to-peer (P2P) approach in order to make setting up and
+running a cluster convenient and straightforward for users. At the same time, we
+wish to avoid "too much magic". Ultimately, we want the users to decide the
+topology that best fits their deployment.
+
+Theoretically, IP multicast offers the most efficient option for publishing
+events. However, IP multicast implements neither reliability nor encryption by
+default. Further, IP multicast is not routed in the Internet. Extensions for
+reliability and security exist, but we cannot rely on Broker users to provide
+this infrastructure. To run "out of the box", we set up an overlay network on
+top of TCP connections that minimizes message duplication through a custom
+routing protocol implementing application-layer multicast.
+
+Goals
+  - Connections are secured/authenticated through TLS & certificates.
+  - Broker puts no constraints on topologies, i.e., users may establish all
+    peering relations that make sense in their deployment without having to
+    form a tree. Loops are explicitly allowed.
+  - Broker detects (and slows down) any publisher that produces data at a faster
+    rate than the subscribers or the network can handle.
+  - Each peer can publish to each topic. No central coordinator or root node
+    exists.
+  - Broker minimizes messages in the network with (application-layer) multicast
+    in order to scale effectively.
+
+Non-Goals
+  - Dynamic connection management and auto-balancing of a distribution tree.
+    While Broker generally follows a P2P philosophy, we still wish to give users
+    full control over Broker's topology. Also, Broker does not target
+    Internet-wide deployments with very high churn rates and unreliable nodes.
+
+Peers
+~~~~~
+
+Each Broker peer in the network has:
+
+- A globally unique ID. Currently, we use ``caf::node_id`` to identify peers.
+  CAF computes this ID automatically by combining a 160-bit hash value (based on
+  a seed plus various node-specific information) with the OS-specific process
+  ID.
+- A filter for incoming messages. The core actor combines the filters of all
+  subscribers running in the endpoint to a single filter. The core actor removes
+  all redundant entries. For example, if the user starts subscribers with the
+  filters ``[/zeek/event/foo]``, ``[/zeek/event/bar]``, and ``[/zeek/event]``,
+  then core actor combines these three filters to ``[/zeek/event]``. Due to the
+  prefix matching, this one entry implicitly includes ``/zeek/event/foo`` and
+  ``/zeek/event/bar``. When distributing incoming messages to subscribers, each
+  individual subscriber of course only receives messages that match its filter.
+- A logical clock (`Lamport timestamps
+  <https://en.wikipedia.org/wiki/Lamport_timestamps>`_). This 64-bit integer
+  enables detection of repeated messages and ordering of events. Whenever a peer
+  sends a message to others, it increments its logical time and includes the
+  current value in the message. This timestamp is crucial for detecting outdated
+  or repeated subscriptions in the `Subscription Flooding`_.
+- A routing table with paths to *all* known peers in the network.
+- A ``peer_filters_`` map of type ``map<peer_id_type, filter_type>`` for storing
+  the current filter of each known peer.
+
+Timestamps
+~~~~~~~~~~
+
+Broker has two types for modelling logical clocks:
+
+#. ``broker::alm::lamport_timestamp``
+#. ``broker::alm::vector_timestamp``
+
+The former type is a thin wrapper (AKA *strong typedef*) for a 64-bit unsigned
+integer. It provides ``operator++`` as well as the comparison operators. Each
+peer keeps its own Lamport timestamp. The peer increments the timestamp whenever
+it changes its routing table or its filter.
+
+The latter type is a list of ``lamport_timestamp``. Broker uses vector
+timestamps to versionize paths.
+
+Routing Tables
+~~~~~~~~~~~~~~
+
+A routing table maps peer IDs to versioned paths. Conceptually, the routing
+table maps each peer to a set of paths that lead to it.
+
+.. code-block:: C++
+
+  using path = std::vector<peer_id>;
+  using versioned_paths = std::map<path, vector_timestamp>;
+  using routing_table = std::map<peer_id, versioned_paths>;
+
+.. note::
+
+  The actual implementation of the routing table is slightly more complex, since
+  it also maps the peer IDs to communication handles (needed by CAF for message
+  passing).
+
+Source Routing
+~~~~~~~~~~~~~~
+
+Broker uses source routing. Messages between peers contain the forwarding path,
+encoded as an ``alm::multipath`` object.
+
+The ``multipath`` class implements a recursive data structure for encoding
+branching paths (directed acyclic graphs). For example:
+
+.. code-block:: text
+
+  A ────> B ─┬──> C
+             └──> D ────> E
+
+In this scenario, A sends a message to B, which then forwards to C and D. After
+receiving the message, D also forward to E. This gives senders full control over
+the path that a message travels in the network.
+
+Furthermore, a message also contains IDs of receivers. Not every peer that
+receives a message subscribed to its content. Hence, peers that are not in the
+list of receivers only forward the message without inspecting the payload.
+
+Subscription Flooding
+~~~~~~~~~~~~~~~~~~~~~
+
+Whenever the filter of a peer changes, it sends a *subscription* message to all
+peers it has a direct connection to (neighbors). When establishing a new
+peering relation, the handshake also includes the *subscription* message.
+
+The subscription message consists of:
+
+#. A ``peer_id_list`` for storing the path of this message. Initially, this list
+   only contains the ID of the sender.
+#. The ``filter`` for selecting messages. A node only receives messages for
+   topics that pass its filter (prefix matching).
+#. A 64-bit (unsigned) timestamp. This is the logical time of the sender for
+   this event.
+
+Whenever receiving a *subscription* message (this ultimately calls
+``handle_filter_update`` in ``include/broker/alm/peer.hh``), a peer first checks
+whether the path already contains its ID, in which case it discards the message
+since it contains a loop.
+
+If a peer sees the sender (the first entry in the path) for the first time, it
+stores the filter in its ``peer_filters_`` map and the new path in its routing
+table. Otherwise, it checks the timestamp of the message:
+
+- If the timestamp is *less* than the last timestamp, a peer simply drops the
+  outdated message.
+- If the timestamp is *equal* to the last timestamp, a peer checks whether the
+  message contains a new path and updates it routing table if necessary. Complex
+  topologies can have multiple paths between two peers. The flooding eventually
+  reveals all existing paths between two peers.
+- If the timestamp is *greater* than the last timestamp, a peer overrides the
+  subscription of the sender and stores the path in its routing table if
+  necessary.
+
+All messages that were not discarded by this point get forwarded to all direct
+connections that are not yet in the path. For that, a peer adds itself to the
+path and forwards the message otherwise unchanged (in particular, the timestamp
+remains unchanged, since it represent the logical time *of the sender*).
+
+By flooding the subscriptions in this way, Broker is able to detect all possible
+paths between nodes. However, this mechanism can cause a high volume of messages
+for topologies with many loops that result in a large number of possible paths
+between all nodes.
+
+The number of messages generated by the flooding depends on the topology. In a
+trivial chain topology of :math:`n` nodes (:math:`n_0` peers with :math:`n_1`,
+:math:`n_1` peers with :math:`n_2`, and so on), we generate a total of
+:math:`n-1` messages. In a full mesh, however, we generate :math:`(n-1)^2`
+messages.
+
+Should we observe severe performance degradations as a result of the flooding,
+Broker could limit the maximum path length or select only a limited set of paths
+(ideally, this subset should be as distinct as possible).
+
+Publishing Data
+~~~~~~~~~~~~~~~
+
+Whenever `the core actor`_ receives data from a local publisher, it scans its
+routing table for all nodes subscribed to the topic (prefix matching).
+
+*TODO: implement and discuss source routing.*
 
 .. _devs.channels:
 
@@ -433,13 +484,97 @@ communication between clone and master actors, the class
 ``broker::detail::channel`` provides a building block to add ordering and
 reliability.
 
-A channel is unaware of the underlying transport. Further, it leaves most
-details of the handshaking mechanism to the user as well. The class defines
-message types as well as interfaces for ``producer`` and ``consumer``
-implementations (both use CRTP to interface with user code).
+A channel is unaware of the underlying transport and leaves the rendezvous
+process (i.e., how producers learn handles of new consumers) to the user. The
+class ``channel`` defines message types as well as interfaces for ``producer``
+and ``consumer`` implementations (both use CRTP to interface with user code).
+
+Producer
+~~~~~~~~
+
+The producer requires a ``Backend`` template parameter and expects a pointer of
+type ``Backend*`` in its constructor. This backend implements a transport layer
+for the channel and must provide the following interface (pseudo code):
+
+.. code-block:: cpp
+
+  interface Backend {
+    // Sends a unicast message to `hdl`.
+    void send(producer*, const Handle& hdl, const T& msg);
+
+    // Sends a multicast message to all consumers.
+    void broadcast(producer*, const T& msg)
+
+    // Called to indicate that a consumer got removed by the producer.
+    void drop(producer*, const Handle& hdl, ec reason)
+
+    // Called to indicate that the producer received the initial ACK.
+    void handshake_completed(producer*, const Handle& hdl)
+  };
+
+The first argument is always the ``this`` pointer of the producer. This enables
+the backend to multiplex more than one producer at a time. The type ``Handle``
+identifies a single consumer. In the data store actors, this is an
+``entity_id``. Finally, ``T`` is one of the following message types:
+
++-----------------------+----------------------------------------------------+
+| Type                  | Semantics                                          |
++=======================+====================================================+
+| ``handshake``         | Transmits the first sequence number to a consumer. |
++-----------------------+----------------------------------------------------+
+| ``event``             | Transmits ordered data to consumers.               |
++-----------------------+----------------------------------------------------+
+| ``retransmit_failed`` | Notifies that an event is no longer available.     |
++-----------------------+----------------------------------------------------+
+| ``heartbeat``         | Keeps connections to consumers alive.              |
++-----------------------+----------------------------------------------------+
+
+Consumer
+~~~~~~~~
+
+Similar to the producer, the consumer also requires a ``Backend`` for providing
+a transport and consuming incoming events (pseudo code):
+
+.. code-block:: cpp
+
+  interface Backend {
+    // process a single event.
+    void consume(consumer*, Payload)
+
+    // Sends a control message to the producer.
+    void send(consumer*, T)`
+
+    // Process a lost event. The callback may abort further processing by
+    // returning a non-default error. In this case, the consumer immediately
+    // calls `close` with the returned error.
+    error consume_nil(consumer*)
+
+    // Drops this consumer. After calling this function, no further function
+    // calls on the consumer are allowed (except calling the destructor).
+    void close(consumer*, error)
+  };
+
+The first argument is always the ``this`` pointer of the consumer. This enables
+the backend to multiplex more than one consumer at a time. The member function
+``send`` always implicitly transmits control messages to the single producer.
+The type ``Payload`` is a template parameter of ``channel`` and denotes the
+content of ``event`` messages of the producer. Finally, ``T`` is one of the
+following message types:
+
++--------------------+----------------------------------------------------+
+| Type               | Semantics                                          |
++====================+====================================================+
+| ``cumulative_ack`` | Notifies the producer which events were processed. |
++--------------------+----------------------------------------------------+
+| ``nack``           | Notifies the producer that events got lost.        |
++--------------------+----------------------------------------------------+
+
+Consumers send ``cumulative_ack`` messages periodically, even if no messages
+were received. This enables the producer to keep track of which consumers are
+still alive and reachable.
 
 Channels in Data Store Actors
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------
 
 In general, the master actor broadcasts state updates to its clones. This maps
 directly to the one-producer-many-consumers model of ``channel``. However,
@@ -475,13 +610,15 @@ attached to it and it *may* have a producer:
 Clones initialize the field ``output_ptr`` lazily on the first mutating
 operation they need to forward to the master.
 
-Mapping to Command Messages
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Mapping Channel to Command Messages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The message types defined in ``channel`` are never used for actor-to-actor
 communication directly. Instead, masters and clones exchange ``command_message``
-objects, which consist of a ``topic`` and an ``internal_command``. The essential
-interface for latter is defined as follows:
+objects, which consist of a ``topic`` and an ``internal_command`` (the
+``Payload`` type for the channels). Masters and clones convert between Broker
+message types and channel message types on the fly (using a surjective mapping).
+The essential interface for ``internal_command`` is defined as follows:
 
 .. code-block:: cpp
 
@@ -570,7 +707,7 @@ awaited peer has connected. The second overload is an asynchronous version that
 takes a callback instead. On success, the endpoint calls the callback with
 ``true`` and otherwise it calls the callback with ``false``.
 
-To retrieve the ``endpoint_id`` from an ``endpoint`` object, simply call
+To retrieve the ``entity_id`` from an ``endpoint`` object, simply call
 ``node_id()``. For example, if both endpoints belong to the same process:
 
 .. code-block:: cpp
@@ -654,3 +791,4 @@ master before it make the assumption that all data stores are in sync:
 .. |alm::stream_transport| replace:: ``alm::stream_transport``
 .. |alm::peer| replace:: ``alm::peer``
 .. _stream manager: http://actor-framework.org/doc/classcaf_1_1stream__manager.html
+.. _broker-cluster-benchmark: https://github.com/zeek/broker/tree/master/tests/benchmark#clustering-broker-cluster-benchmark
