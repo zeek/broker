@@ -1,4 +1,8 @@
 
+1.4.0 | 2020-07-27 10:28:25 -0700
+
+  * Release 1.4.0
+
 1.4.0-dev.171 | 2020-07-24 15:28:49 -0700
 
   * Update embedded CAF 0.17.6 (Jon Siwek, Corelight)

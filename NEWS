@@ -1,6 +1,11 @@
 Broker 1.4.0
 ============
 
+- Adds a new ``broker::store_event`` API that can be used to observe
+  data store modifications.
+
+- Adds support for Windows platform.
+
 - RocksDB support is now opt-in instead of automatically detected and used
   at configuration-time.  Use the ``--enable-rocksdb`` and
   ``--with-rocksdb=`` flags to opt-in.

@@ -11,7 +11,7 @@ using type = unsigned;
 constexpr type major = 1;
 constexpr type minor = 4;
 constexpr type patch = 0;
-constexpr auto suffix = "-dev";
+constexpr auto suffix = "";
 
 constexpr type protocol = 2;
 
