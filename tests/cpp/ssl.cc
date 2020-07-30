@@ -19,21 +19,25 @@ using namespace broker;
 
 namespace {
 
+#if CAF_VERSION < 1800
+#define CFG_PREFIX
+#else
+#define CFG_PREFIX "caf."
+#endif
+
 configuration make_config(std::string cert_id) {
   configuration cfg;
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  // cfg.set("scheduler.policy", caf::atom("testing"));
-  cfg.set("logger.inline-output",  true);
-
-//  cfg.scheduler_policy = caf::atom("testing");
-  if ( cert_id.size() ) {
+  cfg.set(CFG_PREFIX "logger.inline-output", true);
+  if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
     auto cd = std::string(test_dir) + "/cpp/certs/";
-    cfg.set("openssl.cafile", cd + "ca.pem");
-    cfg.set("openssl.certificate", cd + "cert." + cert_id + ".pem");
-    cfg.set("openssl.key", cd + "key." + cert_id + ".pem");
-    MESSAGE("using certififcate " << cfg.openssl_certificate << ", key " << cfg.openssl_key);
+    cfg.set(CFG_PREFIX "openssl.cafile", cd + "ca.pem");
+    cfg.set(CFG_PREFIX "openssl.certificate", cd + "cert." + cert_id + ".pem");
+    cfg.set(CFG_PREFIX "openssl.key", cd + "key." + cert_id + ".pem");
+    MESSAGE("using certififcate " << cfg.openssl_certificate << ", key "
+                                  << cfg.openssl_key);
   }
   return cfg;
 }
@@ -101,11 +105,6 @@ MESSAGE("prepare authenticated connection");
 
   MESSAGE("disconnect venus_auth from mercury_auth");
   venus_auth.ep.unpeer("mercury", 4040);
-  MESSAGE("venus_auth to shutdown");
-  venus_auth.ep.shutdown();
-  MESSAGE("mercury_auth to shutdown");
-  mercury_auth.ep.shutdown();
-  MESSAGE("all done");
 }
 
 CAF_TEST(authenticated_failure_no_ssl_peer) {
@@ -116,11 +115,6 @@ CAF_TEST(authenticated_failure_no_ssl_peer) {
   MESSAGE("venus_auth peer with earth_no_auth on port " << p);
   auto b = venus_auth.ep.peer("127.0.0.1", p, timeout::seconds(0));
   CAF_REQUIRE(not b);
-
-  MESSAGE("venus_auth to shutdown");
-  venus_auth.ep.shutdown();
-  MESSAGE("earth_no_auth to shutdown");
-  earth_no_auth.ep.shutdown();
 }
 
 CAF_TEST(authenticated_failure_wrong_ssl_peer) {
@@ -131,11 +125,6 @@ CAF_TEST(authenticated_failure_wrong_ssl_peer) {
   MESSAGE("venus_auth peer with earth_wrong_auth on port " << p);
   auto b = venus_auth.ep.peer("127.0.0.1", p, timeout::seconds(0));
   CAF_REQUIRE(not b);
-
-  MESSAGE("venus_auth to shutdown");
-  venus_auth.ep.shutdown();
-  MESSAGE("earth_wrong_auth to shutdown");
-  earth_wrong_auth.ep.shutdown();
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

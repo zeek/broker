@@ -17,6 +17,12 @@
 #include "Winsock2.h"
 #endif
 
+#if CAF_VERSION < 1800
+#define CFG_PREFIX
+#else
+#define CFG_PREFIX "caf."
+#endif
+
 using namespace caf;
 using namespace broker;
 
@@ -26,7 +32,7 @@ base_fixture::base_fixture()
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
     credit_round_interval(
-      get_or(sys.config(), "stream.credit-round-interval",
+      get_or(sys.config(), CFG_PREFIX "stream.credit-round-interval",
              caf::defaults::stream::credit_round_interval)) {
   init_socket_api();
 }
@@ -60,13 +66,6 @@ configuration base_fixture::make_config() {
   options.disable_ssl = true;
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
-#if CAF_VERSION < 1800
-  auto& base_cfg = static_cast<caf::actor_system_config&>(cfg);
-  base_cfg.add_message_types<caf::id_block::broker_test>();
-  cfg.set("logger.verbosity", caf::atom("TRACE"));
-#else
-  cfg.set("logger.verbosity", "TRACE");
-#endif
   cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
 }
