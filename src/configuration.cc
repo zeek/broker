@@ -52,7 +52,18 @@ auto concat(Ts... xs) {
   return result;
 }
 
+[[noreturn]] void throw_illegal_log_level(const char* var, const char* cstr) {
+  auto what
+    = concat("illegal value for environment variable ", var, ": '", cstr,
+             "' (legal values: 'trace', 'debug', 'info', 'warning', 'error')");
+  throw std::invalid_argument(what);
+}
+
 #if CAF_VERSION < 1800
+
+constexpr caf::string_view file_verbosity_key = "logger.file-verbosity";
+
+constexpr caf::string_view console_verbosity_key = "logger.console-verbosity";
 
 bool valid_log_level(caf::atom_value x) {
   using caf::atom_uint;
@@ -69,36 +80,33 @@ bool valid_log_level(caf::atom_value x) {
   }
 }
 
-optional<caf::atom_value> to_log_level(const char* cstr) {
+caf::atom_value to_log_level(const char* var, const char* cstr) {
   caf::string_view str{cstr, strlen(cstr)};
   auto atm = caf::to_lowercase(caf::atom_from_string(str));
   if (valid_log_level(atm))
     return atm;
-  return nil;
+  throw_illegal_log_level(var, cstr);
 }
 
 #else
+
+constexpr caf::string_view file_verbosity_key = "caf.logger.file.verbosity";
+
+constexpr caf::string_view console_verbosity_key = "caf.logger.console.verbosity";
 
 bool valid_log_level(caf::string_view x) {
   return x == "trace" || x == "debug" || x == "info" || x == "warning"
          || x == "error" || x == "quiet";
 }
 
-optional<std::string> to_log_level(const char* cstr) {
-  caf::string_view str{cstr, strlen(cstr)};
+std::string to_log_level(const char* var, const char* cstr) {
+  std::string str = cstr;
   if (valid_log_level(str))
-    return std::string{str.begin(), str.end()};
-  return nil;
+    return str;
+  throw_illegal_log_level(var, cstr);
 }
 
 #endif
-
-[[noreturn]] void throw_illegal_log_level(const char* var, const char* cstr) {
-  auto what
-    = concat("illegal value for environment variable ", var, ": '", cstr,
-             "' (legal values: 'trace', 'debug', 'info', 'warning', 'error')");
-  throw std::invalid_argument(what);
-}
 
 } // namespace
 
@@ -106,9 +114,6 @@ configuration::configuration(skip_init_t) {
   // Add runtime type information for Broker types.
   init_global_state();
   add_message_types(*this);
-  // Ensure that we're only talking to compatible Broker instances.
-  std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
-  set("middleman.app-identifiers", std::move(ids));
   // Add custom options to the CAF parser.
   opt_group{custom_options_, "?broker"}
     .add(options_.disable_ssl, "disable_ssl",
@@ -118,17 +123,16 @@ configuration::configuration(skip_init_t) {
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages");
+  // Ensure that we're only talking to compatible Broker instances.
+  std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
   // Override CAF defaults.
 #if CAF_VERSION < 1800
   using caf::atom;
   using caf::atom_value;
-#else
-  auto atom = [](std::string x) { return x; };
-  using atom_value = std::string;
-#endif
   set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
   set("logger.file-verbosity", atom("quiet"));
   set("logger.console-format", "[%c/%p] %d %m");
+  set("middleman.app-identifiers", std::move(ids));
   // Enable console output (and color it if stdout is a TTY) but set verbosty to
   // errors-only. Users can still override via the environment variable
   // BROKER_CONSOLE_VERBOSITY.
@@ -142,8 +146,21 @@ configuration::configuration(skip_init_t) {
                                     atom("caf_net"), atom("caf_flow"),
                                     atom("caf_stream")};
   set("logger.component-blacklist", std::move(blacklist));
+#else
+  set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
+  set("caf.logger.file.verbosity", "quiet");
+  set("caf.logger.console.format", "[%c/%p] %d %m");
+  set("caf.logger.console.verbosity", "error");
+  // Broker didn't load the MM module yet. Use `put` to suppress the 'failed to
+  // set config parameter' warning on the command line.
+  put(content, "caf.middleman.app-identifiers", std::move(ids));
+  // Turn off all CAF output by default.
+  std::vector<std::string> excluded_components{"caf", "caf_io", "caf_net",
+                                               "caf_flow", "caf_stream"};
+  set("caf.logger.file.excluded-components", excluded_components);
+  set("caf.logger.console.excluded-components", std::move(excluded_components));
+#endif
 }
-
 
 configuration::configuration(broker_options opts) : configuration(skip_init) {
   options_ = opts;
@@ -172,16 +189,12 @@ void configuration::init(int argc, char** argv) {
   }
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
-    if (auto level = to_log_level(console_verbosity))
-      set("logger.console-verbosity", *level);
-    else
-      throw_illegal_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
+    auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
+    set(console_verbosity_key, level);
   }
   if (auto file_verbosity = getenv("BROKER_FILE_VERBOSITY")) {
-    if (auto level = to_log_level(file_verbosity))
-      set("logger.file-verbosity", *level);
-    else
-      throw_illegal_log_level("BROKER_FILE_VERBOSITY", file_verbosity);
+    auto level = to_log_level("BROKER_FILE_VERBOSITY", file_verbosity);
+    set(file_verbosity_key, level);
   }
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);

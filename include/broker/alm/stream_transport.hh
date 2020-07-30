@@ -311,8 +311,7 @@ public:
     // Create necessary state and send message to remote core.
     pending_connections().emplace(remote_peer,
                                   pending_connection{0, std::move(rp)});
-    self()->send(self() * remote_peer, atom::peer::value, dref().filter(),
-                 self());
+    self()->send(self() * remote_peer, atom::peer_v, dref().filter(), self());
     self()->monitor(remote_peer);
   }
 
@@ -499,7 +498,7 @@ public:
   // -- communication that bypasses the streams --------------------------------
 
   void ship(data_message& msg, const communication_handle_type& hdl) {
-    self()->send(hdl, atom::publish::value, atom::local::value, std::move(msg));
+    self()->send(hdl, atom::publish_v, atom::local_v, std::move(msg));
   }
 
   template <class T>

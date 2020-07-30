@@ -58,15 +58,17 @@ configuration make_config() {
   broker_options options;
   options.disable_ssl = true;
   configuration cfg(options);
+  cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
 #if CAF_VERSION < 1800
   using caf::atom;
-#else
-  auto atom = [](std::string x) { return x; };
-#endif
-  cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
   cfg.set("middleman.network-backend", atom("testing"));
   cfg.set("scheduler.policy", atom("testing"));
   cfg.set("logger.inline-output", true);
+#else
+  cfg.set("caf.middleman.network-backend", "testing");
+  cfg.set("caf.scheduler.policy", "testing");
+  cfg.set("caf.logger.inline-output", true);
+#endif
   return cfg;
 }
 
