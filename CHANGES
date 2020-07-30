@@ -1,4 +1,66 @@
 
+1.5.0-dev.12 | 2020-07-27 18:17:13 -0700
+
+  * Use 127.0.0.1 instead of ::1 for cluster configs (Dominik Charousset)
+
+  * Call abort() on errors during cluster benchmarks (Dominik Charousset)
+
+    Orderly shutdowns seem to fail for some categories of errors. Calling
+    `abort` ensures that the program at least always terminates, even though
+    this means skipping cleanup of system resources such as open ports.
+
+  * Make cluster-benchmark tool modular, add new mode (Dominik Charousset)
+
+    Rather than using flags to change the behavior, the configuration of the
+    tool now asks for a mode. This makes the tool easier to extend and use.
+    Previously the behavior of mutualy exclusive flags (for example, setting
+    both `--generate-config` and `--dump-stats`) was not well defined.
+
+    Furthermore, this commits adds another mode: `shrink-generator-file`.
+    This enables users to reduce the size of recordings retrospectively.
+
+  * Add factory function for creating generator file headers (Dominik Charousset)
+
+  * Add new read_raw method to expose generator file input bytes (Dominik Charousset)
+
+  * Make broker-cluster-benchmark config file output independent of argv order (Dominik Charousset)
+
+  * Add integration test for broker-cluster-benchmark (Dominik Charousset)
+
+  * Support reading the cluster benchmark config from STDIN (Dominik Charousset)
+
+1.5.0-dev | 2020-07-27 10:45:17 -0700
+
+  * Update NEWS for v1.5.0-dev placeholder (Jon Siwek, Corelight)
+
+1.4.0 | 2020-07-27 10:28:25 -0700
+
+  * Release 1.4.0
+
+1.4.0-dev.171 | 2020-07-24 15:28:49 -0700
+
+  * Update embedded CAF 0.17.6 (Jon Siwek, Corelight)
+
+1.4.0-dev.170 | 2020-07-24 13:53:33 -0700
+
+  * Use std::move in some broker::store methods (Jon Siwek, Corelight)
+
+1.4.0-dev.169 | 2020-07-24 11:28:34 -0700
+
+  * Silence self-assign-overloaded warning on Clang (Dominik Charousset)
+
+1.4.0-dev.165 | 2020-07-16 18:30:03 -0700
+
+  * Update CAF to release/0.17 branch (Jon Siwek, Corelight)
+
+1.4.0-dev.164 | 2020-07-14 14:56:23 -0700
+
+  * Properly initialize stack buffers in the flare (Dominik Charousset)
+
+1.4.0-dev.162 | 2020-07-13 09:19:40 -0700
+
+  * GH-129: improve logging for stale store expiry reminders (Jon Siwek, Corelight)
+
 1.4.0-dev.160 | 2020-07-10 16:51:18 -0700
 
   * broker-cluster-benchmark: Avoid extra peerings on startup (Dominik Charousset)

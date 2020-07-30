@@ -224,7 +224,7 @@ public:
         break;
     }
 
-    add(key, amount, init_type, expiry);
+    add(std::move(key), std::move(amount), init_type, std::move(expiry));
   }
 
   /// Decrements a value by a given amount. This is supported for all
@@ -233,7 +233,7 @@ public:
   /// @param value The amount to decrement the value.
   /// @param expiry An optional new expiration time for *key*.
   void decrement(data key, data amount, optional<timespan> expiry = {}) {
-    subtract(key, amount, expiry);
+    subtract(std::move(key), std::move(amount), std::move(expiry));
   }
 
   /// Appends a string to another one.
@@ -241,7 +241,7 @@ public:
   /// @param str The string to append.
   /// @param expiry An optional new expiration time for *key*.
   void append(data key, data str, optional<timespan> expiry = {}) {
-    add(key, str, data::type::string, expiry);
+    add(std::move(key), std::move(str), data::type::string, std::move(expiry));
   }
 
   /// Inserts an index into a set.
@@ -249,7 +249,7 @@ public:
   /// @param index The index to insert.
   /// @param expiry An optional new expiration time for *key*.
   void insert_into(data key, data index, optional<timespan> expiry = {}) {
-    add(key, index, data::type::set, expiry);
+    add(std::move(key), std::move(index), data::type::set, std::move(expiry));
   }
 
   /// Inserts an index into a table.
@@ -259,7 +259,8 @@ public:
   /// @param expiry An optional new expiration time for *key*.
   void insert_into(data key, data index, data value,
                    optional<timespan> expiry = {}) {
-    add(key, vector({index, value}), data::type::table, expiry);
+    add(std::move(key), vector({std::move(index), std::move(value)}),
+        data::type::table, std::move(expiry));
   }
 
   /// Removes am index from a set or table.
@@ -267,7 +268,7 @@ public:
   /// @param index The index to remove.
   /// @param expiry An optional new expiration time for *key*.
   void remove_from(data key, data index, optional<timespan> expiry = {}) {
-    subtract(key, index, expiry);
+    subtract(std::move(key), std::move(index), std::move(expiry));
   }
 
   /// Appends a value to a vector.
@@ -275,14 +276,15 @@ public:
   /// @param value The value to append.
   /// @param expiry An optional new expiration time for *key*.
   void push(data key, data value, optional<timespan> expiry = {}) {
-    add(key, value, data::type::vector, expiry);
+    add(std::move(key), std::move(value), data::type::vector,
+        std::move(expiry));
   }
 
   /// Removes the last value of a vector.
   /// @param key The key of the vector from which to remove the last value.
   /// @param expiry An optional new expiration time for *key*.
   void pop(data key, optional<timespan> expiry = {}) {
-    subtract(key, key, expiry);
+    subtract(key, key, std::move(expiry));
   }
 
   // --await-idle-start

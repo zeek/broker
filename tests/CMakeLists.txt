@@ -1,6 +1,6 @@
 # -- Global test harness setup ------------------------------------------------
 
-set(BROKER_TEST_TIMEOUT 20)
+set(BROKER_TEST_TIMEOUT 60)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
@@ -80,6 +80,16 @@ foreach(suite ${suites})
   make_cpp_test("${suite}")
 endforeach ()
 
+## -- Benchmark ---------------------------------------------------------------
+
+add_executable(broker-benchmark benchmark/broker-benchmark.cc)
+target_link_libraries(broker-benchmark ${libbroker})
+install(TARGETS broker-benchmark DESTINATION bin)
+
+add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
+target_link_libraries(broker-cluster-benchmark ${libbroker})
+install(TARGETS broker-cluster-benchmark DESTINATION bin)
+
 # -- Python -------------------------------------------------------------------
 
 if (BROKER_PYTHON_BINDINGS)
@@ -90,7 +100,7 @@ if (BROKER_PYTHON_BINDINGS)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
     set(test_name python-${name})
     add_test(NAME ${test_name}
-             COMMAND ${PYTHON_EXECUTABLE} ${script}
+             COMMAND ${PYTHON_EXECUTABLE} ${script} ${ARGN}
              WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
@@ -107,14 +117,9 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(ssl-tests)
   make_python_test(store)
   make_python_test(topic)
+  make_python_test(broker-cluster-benchmark
+                   $<TARGET_FILE:broker-cluster-benchmark>)
+
+  # allow some extra time for the benchmark integration test
+  set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
-
-## -- Benchmark
-
-add_executable(broker-benchmark benchmark/broker-benchmark.cc)
-target_link_libraries(broker-benchmark ${libbroker})
-install(TARGETS broker-benchmark DESTINATION bin)
-
-add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
-target_link_libraries(broker-cluster-benchmark ${libbroker})
-install(TARGETS broker-cluster-benchmark DESTINATION bin)

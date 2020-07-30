@@ -12,6 +12,16 @@
 namespace broker {
 namespace detail {
 
+auto generator_file_writer::format::header()
+  -> std::array<caf::byte, header_size> {
+  std::array<caf::byte, header_size> result;
+  auto m = format::magic;
+  auto v = format::version;
+  memcpy(result.data(), &m, sizeof(m));
+  memcpy(result.data() + sizeof(m), &v, sizeof(v));
+  return result;
+}
+
 generator_file_writer::generator_file_writer()
   : sink_(nullptr, buf_), flush_threshold_(1024) {
   buf_.reserve(2028);
@@ -30,12 +40,8 @@ caf::error generator_file_writer::open(std::string file_name) {
   f_.open(file_name, std::ofstream::binary);
   if (!f_.is_open())
     return make_error(ec::cannot_open_file, file_name);
-  auto magic = format::magic;
-  auto version = format::version;
-  char header[sizeof(magic) + sizeof(version)];
-  memcpy(header, &magic, sizeof(magic));
-  memcpy(header + sizeof(magic), &version, sizeof(version));
-  if (!f_.write(header, sizeof(header))) {
+  auto header = format::header();
+  if (!f_.write(reinterpret_cast<char*>(header.data()), header.size())) {
     BROKER_ERROR("unable to write to file:" << file_name);
     f_.close();
     return make_error(ec::cannot_write_file, file_name);

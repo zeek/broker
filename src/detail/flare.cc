@@ -61,6 +61,14 @@ namespace {
 
 constexpr size_t stack_buffer_size = 256;
 
+struct stack_buffer {
+  char data[stack_buffer_size];
+
+  stack_buffer() {
+    memset(data, 0, stack_buffer_size);
+  }
+};
+
 } // namespace
 
 flare::flare() {
@@ -92,11 +100,11 @@ flare::native_socket flare::fd() const {
 }
 
 void flare::fire(size_t num) {
-  char tmp[stack_buffer_size];
+  stack_buffer tmp;
   size_t remaining = num;
   while (remaining > 0) {
     int len = static_cast<int>(std::min(remaining, stack_buffer_size));
-    auto n = PIPE_WRITE(fds_[1], tmp, len);
+    auto n = PIPE_WRITE(fds_[1], tmp.data, len);
     if (n <= 0) {
       BROKER_ERROR("unable to write flare pipe!");
       std::terminate();
@@ -106,10 +114,10 @@ void flare::fire(size_t num) {
 }
 
 size_t flare::extinguish() {
-  char tmp[stack_buffer_size];
+  stack_buffer tmp;
   size_t result = 0;
   for (;;) {
-    auto n = PIPE_READ(fds_[0], tmp, stack_buffer_size);
+    auto n = PIPE_READ(fds_[0], tmp.data, stack_buffer_size);
     if (n > 0)
       result += static_cast<size_t>(n);
     else if (n == -1 && try_again_later())

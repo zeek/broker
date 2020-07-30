@@ -92,7 +92,7 @@ by scanning all specified directories. For example, the following command
 prints a configuration for a recorded Broker session with two endpoints:
 
 ```sh
-broker-cluster-benchmark --generate-config recordings/server recordings/client
+broker-cluster-benchmark --mode=generate-config recordings/server recordings/client
 ```
 
 The tool assumes the directories `server` and `client` to contain the following
@@ -158,15 +158,15 @@ Broker's source distribution includes a working setup to get started at
 ### Inspecting Generator Files
 
 If you're unsure which topics appear in a generator file or how many messages
-it contains, you can add the `--dump-stats`  flag:
+it contains, you can add the `dump-stats`  mode:
 
 ```sh
-broker-cluster-benchmark -c cluster.conf -v --dump-stats
+broker-cluster-benchmark -c cluster.conf -v --mode=dump-stats
 ```
 
-Adding the flag causes the tool to only print the contents of all generator
-files and then exit. The output simply includes all generator files, which
-topics they contain and how many messages they produce:
+In this mode, the tool only prints the contents of all generator files and then
+exits. The output simply includes all generator files, which topics they contain
+and how many messages they produce:
 
 ```sh
 mars.dat

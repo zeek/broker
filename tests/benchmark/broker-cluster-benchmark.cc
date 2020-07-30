@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -19,6 +20,7 @@
 #include "broker/atoms.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
+#include "broker/detail/generator_file_writer.hh"
 #include "broker/endpoint.hh"
 #include "broker/subscriber.hh"
 
@@ -173,10 +175,12 @@ struct config : actor_system_config {
     opt_group{custom_options_, "global"}
       .add<std::string>("cluster-config-file,c",
                         "path to the cluster configuration file")
-      .add<bool>("dump-stats", "prints stats for all given generator files")
+      .add<string>(
+        "mode",
+        "one of: benchmark (default), dump-stats (print stats for generator "
+        "files), generate-config (create a config for given recording), or "
+        "shrink-generator-file (reduce entries in a .dat file)")
       .add<bool>("verbose,v", "enable verbose output")
-      .add<bool>("generate-config",
-                 "creates a config file from given recording directories")
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
     set("scheduler.max-threads", 1);
@@ -562,10 +566,23 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   self->state.children.emplace_back(c);
 }
 
+// Using to_string on the host directly can result in surrounding quotes if the
+// host type is stored as a string.
+std::string host_to_string(const caf::uri::host_type& x) {
+  auto f = [](const auto& inner) -> std::string {
+    using inner_type = std::decay_t<decltype(inner)>;
+    if constexpr (std::is_same<inner_type, std::string>::value)
+      return inner;
+    else
+      return to_string(inner);
+  };
+  return caf::visit(f, x);
+}
+
 caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
                        const node* this_node, const node* peer) {
   const auto& authority = peer->id.authority();
-  auto host = to_string(authority.host);
+  auto host = host_to_string(authority.host);
   ep.peer(host, authority.port, broker::timeout::seconds(1));
   for (;;) {
     auto ss_res = ss.get();
@@ -605,8 +622,10 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
         auto& authority = this_node->id.authority();
-        verbose::println(this_node->name, " starts listening at ", authority);
-        auto port = st.ep.listen(to_string(authority.host), authority.port);
+        auto addr = host_to_string(authority.host);
+        verbose::println(this_node->name, " starts listening at ", addr, ":",
+                         authority.port);
+        auto port = st.ep.listen(addr, authority.port);
         if (port != authority.port) {
           err::println(this_node->name, " opened port ", port, " instead of ",
                        authority.port);
@@ -749,7 +768,7 @@ bool verify_node_tree(std::vector<node>& nodes) {
   return true;
 }
 
-int generate_config(std::vector<std::string> directories) {
+int generate_config(string_list directories) {
   constexpr const char* required_files[] = {
     "/id.txt",
     "/messages.dat",
@@ -757,6 +776,9 @@ int generate_config(std::vector<std::string> directories) {
     "/topics.txt",
     "/broker.conf",
   };
+  // Make sure we always produce a stable config file that does not depend on
+  // argument ordering.
+  std::sort(directories.begin(), directories.end());
   // Remove trailing slashes to make working with the directories easier.
   verbose::println("scan ", directories.size(), " directories");
   for (auto& directory : directories) {
@@ -941,7 +963,7 @@ int generate_config(std::vector<std::string> directories) {
       uri_str += "local:";
       uri_str += node.name;
     } else {
-      uri_str += "tcp://[::1]:";
+      uri_str += "tcp://127.0.0.1:";
       uri_str += std::to_string(port++);
     }
     if (auto err = caf::parse(uri_str, node.id)) {
@@ -979,6 +1001,70 @@ int generate_config(std::vector<std::string> directories) {
   }
   out::println("}");
   return EXIT_SUCCESS;
+}
+
+int shrink_generator_file(const string& in_file, const string& out_file,
+                          size_t new_size) {
+  if (!broker::detail::is_file(in_file)) {
+    err::println("input file ", in_file, " not found");
+    return EXIT_FAILURE;
+  }
+  if (broker::detail::is_file(out_file)) {
+    err::println("output file ", out_file, " already exists");
+    return EXIT_FAILURE;
+  }
+  auto gptr = broker::detail::make_generator_file_reader(in_file);
+  if (gptr == nullptr) {
+    err::println("unable to open ", in_file, " as generator file");
+    return EXIT_FAILURE;
+  }
+  auto out = fopen(out_file.c_str(), "w");
+  if (out == nullptr) {
+    err::println("unable to open ", out_file, " for writing");
+    return EXIT_FAILURE;
+  }
+  using format = broker::detail::generator_file_writer::format;
+  auto out_guard = caf::detail::make_scope_guard([out] { fclose(out); });
+  auto header = format::header();
+  if (fwrite(header.data(), 1, header.size(), out) != header.size()) {
+    err::println("unable to write to ", out_file);
+    return EXIT_FAILURE;
+  }
+  int return_code = EXIT_SUCCESS;
+  using value_type = broker::detail::generator_file_reader::value_type;
+  using bytes = caf::span<const caf::byte>;
+  auto f = [&, i{size_t{0}}](value_type* val, bytes chunk) mutable {
+    if (fwrite(chunk.data(), 1, chunk.size(), out) != chunk.size()) {
+      err::println("unable to write to ", out_file);
+      return_code = EXIT_FAILURE;
+      return false;
+    }
+    if (val && ++i == new_size)
+      return false;
+    return true;
+  };
+  if (auto err = gptr->read_raw(f)) {
+    err::println("error while reading the generator file ", to_string(err));
+    return EXIT_FAILURE;
+  }
+  return return_code;
+}
+
+int shrink_generator_file(string_list args) {
+  if (args.size() != 3) {
+    err::println("invalid arguments to shrink-generator-file mode");
+    err::println("expected three positional arguments: INPUT OUTPUT NEW_SIZE");
+    return EXIT_FAILURE;
+  }
+  size_t new_size;
+  try {
+    new_size = std::stoul(args[2]);
+  } catch (std::exception&ex) {
+    err::println("unable to parse NEW_SIZE argument: ", ex.what());
+    err::println("expected three positional arguments: INPUT OUTPUT NEW_SIZE");
+    return EXIT_FAILURE;
+  }
+  return shrink_generator_file(args[0], args[1], new_size);
 }
 
 // -- main ---------------------------------------------------------------------
@@ -1026,6 +1112,28 @@ void print_peering_node(const std::string& prefix, const node& x, bool is_last,
                        printed_nodes);
 }
 
+enum program_mode_t {
+  invalid_mode,
+  benchmark_mode,
+  dump_stats_mode,
+  generate_config_mode,
+  shrink_generator_file_mode,
+};
+
+program_mode_t get_mode(const config& cfg) {
+  auto mode_str = get_if<std::string>(&cfg, "mode");
+  if (!mode_str || *mode_str == "benchmark")
+    return benchmark_mode;
+  else if (*mode_str == "dump-stats")
+    return dump_stats_mode;
+  else if (*mode_str == "generate-config")
+    return generate_config_mode;
+  else if (*mode_str == "shrink-generator-file")
+    return shrink_generator_file_mode;
+  else
+    return invalid_mode;
+}
+
 int main(int argc, char** argv) {
   // Read CAF configuration.
   config cfg;
@@ -1036,12 +1144,19 @@ int main(int argc, char** argv) {
   // Exit for `--help` etc.
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
-  // Enable global flags.
+  // Enable global flags and fetch mode of operation.
   if (get_or(cfg, "verbose", false))
     verbose::is_enabled = true;
-  // Generate config file when demanded.
-  if (get_or(cfg, "generate-config", false))
+  auto mode = get_mode(cfg);
+  if (mode == invalid_mode) {
+    err::println("invalid mode");
+    return EXIT_FAILURE;
+  }
+  // Dispatch to modes that don't read a cluster config.
+  if (mode == generate_config_mode)
     return generate_config(cfg.remainder);
+  else if (mode == shrink_generator_file_mode)
+    return shrink_generator_file(cfg.remainder);
   // Read cluster config.
   auto excluded_nodes = get_or(cfg, "excluded-nodes", string_list{});
   auto is_excluded = [&](const string& node_name) {
@@ -1050,7 +1165,14 @@ int main(int argc, char** argv) {
   };
   caf::settings cluster_config;
   if (auto path = get_if<string>(&cfg, "cluster-config-file")) {
-    if (auto file_content = config::parse_config_file(path->c_str())) {
+    if (*path == "-") {
+      if (auto file_content = config::parse_config(std::cin)) {
+        cluster_config = std::move(*file_content);
+      } else {
+        err::println("unable to parse cluster config from STDIN");
+        return EXIT_FAILURE;
+      }
+    } else if (auto file_content = config::parse_config_file(path->c_str())) {
       cluster_config = std::move(*file_content);
     } else {
       err::println("unable to parse cluster config file: ",
@@ -1064,7 +1186,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   // Check for dump-stats mode.
-  if (get_or(cfg, "dump-stats", false)) {
+  if (mode == dump_stats_mode) {
     std::vector<string> file_names;
     std::function<void(const caf::settings&)> read_file_names;
     read_file_names = [&](const caf::settings& xs) {
@@ -1261,14 +1383,9 @@ int main(int argc, char** argv) {
       x.mgr = nullptr;
     }
     verbose::println("all nodes done, bye 👋");
+    return EXIT_SUCCESS;
   } catch (caf::error err) {
-    err::println("fatal eror: ", to_string(err));
-    for (auto& x : nodes)
-      self->send_exit(x.mgr, caf::exit_reason::user_shutdown);
-    for (auto& x : nodes) {
-      self->wait_for(x.mgr);
-      x.mgr = nullptr;
-    }
-    return EXIT_FAILURE;
+    err::println("fatal error: ", to_string(err));
+    abort();
   }
 }

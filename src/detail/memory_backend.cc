@@ -60,7 +60,7 @@ expected<void> memory_backend::clear() {
 expected<bool> memory_backend::expire(const data& key, timestamp ts) {
   auto i = store_.find(key);
   if (i == store_.end())
-    return ec::no_such_key;
+    return false;
   if (!i->second.second || ts < i->second.second)
     return false;
   store_.erase(i);

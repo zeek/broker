@@ -153,9 +153,9 @@ void master_state::remind(timespan expiry, const data& key) {
 void master_state::expire(data& key) {
   BROKER_INFO("EXPIRE" << key);
   if (auto result = backend->expire(key, clock->now()); !result) {
-    BROKER_ERROR("failed to expire key:" << to_string(result.error()));
+    BROKER_ERROR("EXPIRE" << key << "(FAILED)" << to_string(result.error()));
   } else if (!*result) {
-    BROKER_WARNING("ignoring stale expiration reminder");
+    BROKER_INFO("EXPIRE" << key << "(IGNORE/STALE)");
   } else {
     expire_command cmd{std::move(key), id};
     emit_expire_event(cmd);

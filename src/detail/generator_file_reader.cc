@@ -141,10 +141,22 @@ void generator_file_reader::rewind() {
 caf::error generator_file_reader::read(value_type& x) {
   if (at_end())
     return ec::end_of_file;
+  auto f = [&x](value_type* ptr, caf::span<const caf::byte>) {
+    // Skip topic entries.
+    if (ptr == nullptr)
+      return true;
+    x = std::move(*ptr);
+    return false;
+  };
+  return read_raw(f);
+}
+
+caf::error generator_file_reader::read_raw(read_raw_callback f) {
   using entry_type = generator_file_writer::format::entry_type;
-  // Read until we got a data_message, a command_message, or an error.
-  for (;;) {
+  // Read until we've reached the end or the callback return false.
+  while (!at_end()) {
     entry_type entry{};
+    auto pos = source_.remainder().data();
     BROKER_TRY(source_(entry));
     switch (entry) {
       case entry_type::new_topic: {
@@ -152,6 +164,9 @@ caf::error generator_file_reader::read(value_type& x) {
         BROKER_TRY(source_(str));
         if (!sealed_)
           topic_table_.emplace_back(str);
+        auto consumed = caf::make_span(pos, source_.remainder().data());
+        if (!f(nullptr, consumed))
+          return caf::none;
         break;
       }
       case entry_type::data_message: {
@@ -161,10 +176,14 @@ caf::error generator_file_reader::read(value_type& x) {
           return ec::invalid_topic_key;
         data value;
         BROKER_TRY(generator_(value));
-        x = make_data_message(topic_table_[topic_id], std::move(value));
         if (!sealed_)
           ++data_entries_;
-        return caf::none;
+        value_type x
+          = make_data_message(topic_table_[topic_id], std::move(value));
+        auto consumed = caf::make_span(pos, source_.remainder().data());
+        if (!f(&x, consumed))
+          return caf::none;
+        break;
       }
       case entry_type::command_message: {
         uint16_t topic_id;
@@ -173,13 +192,18 @@ caf::error generator_file_reader::read(value_type& x) {
           return ec::invalid_topic_key;
         internal_command cmd;
         BROKER_TRY(generator_(cmd));
-        x = make_command_message(topic_table_[topic_id], std::move(cmd));
         if (!sealed_)
           ++command_entries_;
-        return caf::none;
+        value_type x
+          = make_command_message(topic_table_[topic_id], std::move(cmd));
+        auto consumed = caf::make_span(pos, source_.remainder().data());
+        if (!f(&x, consumed))
+          return caf::none;
+        break;
       }
     }
   }
+  return caf::none;
 }
 
 caf::error generator_file_reader::skip() {

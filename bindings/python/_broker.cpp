@@ -111,8 +111,14 @@ PYBIND11_MODULE(_broker, m) {
 
   py::bind_vector<std::vector<broker::peer_info>>(m, "VectorPeerInfo");
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
   py::class_<broker::topic>(m, "Topic")
     .def(py::init<std::string>())
+    // Without the enclosing pragmas, this line raises a nonsensical self-assign
+    // warning on Clang. See https://bugs.llvm.org/show_bug.cgi?id=43124.
     .def(py::self /= py::self,
          "Appends a topic component with a separator")
     .def(py::self / py::self,
@@ -121,6 +127,9 @@ PYBIND11_MODULE(_broker, m) {
          "Get the underlying string representation of the topic",
          py::return_value_policy::reference_internal)
     .def("__repr__", [](const broker::topic& t) { return t.string(); });
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
   py::bind_vector<std::vector<broker::topic>>(m, "VectorTopic");
 
