@@ -10,6 +10,8 @@
 #include <caf/send.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
+#include "broker/detail/retry_policy_result.hh"
+#include "broker/detail/trivial_retry_policy.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 
@@ -423,7 +425,7 @@ public:
   ///                   After calling this function, no further function calls
   ///                   on the consumer are allowed (except calling the
   ///                   destructor).
-  template <class Backend>
+  template <class Backend, class RetryPolicy = trivial_retry_policy>
   class consumer {
   public:
     // -- member types ---------------------------------------------------------
@@ -498,6 +500,7 @@ public:
       // Consume buffered messages if possible and send initial ACK.
       try_consume_buffer();
       send_ack();
+      retry_policy_.reset();
       return true;
     }
 
@@ -564,9 +567,19 @@ public:
       if (!initialized()) {
         BROKER_DEBUG("not fully initialized: waiting for producer handshake");
         ++idle_ticks_;
-        if (idle_ticks_ >= nack_timeout_) {
-          idle_ticks_ = 0;
-          backend_->send(this, nack{std::vector<sequence_number_type>{0}});
+        switch (retry_policy_(idle_ticks_, nack_timeout_)){
+          default:
+            break;
+          case retry_policy_result::try_again:
+            idle_ticks_ = 0;
+            backend_->send(this, nack{std::vector<sequence_number_type>{0}});
+            break;
+          case retry_policy_result::abort:{
+            auto err = make_error(ec::connection_timeout,
+                                  "reached max. number of connection retries");
+            backend_->close(this, std::move(err));
+            return;
+          }
         }
         return;
       }
@@ -760,6 +773,10 @@ public:
     /// heartbeats of not receiving any message do we assume the producer no
     /// longer exists.
     tick_interval_type connection_timeout_factor_ = 4;
+
+    /// Configures waiting intervals between attempts to connect to the producer
+    /// and (optionally) a maximum number of retry attempts before aborting.
+    RetryPolicy retry_policy_;
   };
 };
 

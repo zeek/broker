@@ -301,6 +301,7 @@ set(BROKER_SRC
   src/detail/meta_data_writer.cc
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
+  src/detail/retry_policy_result.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
   src/domain_options.cc

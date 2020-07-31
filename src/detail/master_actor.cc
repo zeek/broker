@@ -173,7 +173,7 @@ void master_state::consume(consumer_type*, command_message& msg) {
 void master_state::consume(put_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry"
-                    << (x.expiry ? to_string(*x.expiry) : "none"));
+                    << (x.expiry ? caf::deep_to_string(*x.expiry) : "none"));
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
   auto result = backend->put(x.key, x.value, et);
@@ -193,7 +193,7 @@ void master_state::consume(put_command& x) {
 void master_state::consume(put_unique_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry"
-                           << (x.expiry ? to_string(*x.expiry) : "none"));
+                           << (x.expiry ? caf::deep_to_string(*x.expiry) : "none"));
   auto broadcast_result = [this, &x](bool inserted) {
     broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
     if (x.who) {
