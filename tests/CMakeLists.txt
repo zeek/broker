@@ -15,7 +15,9 @@ set(tests
   cpp/backend.cc
   cpp/core_actor.cc
   cpp/data.cc
+  cpp/detail/channel.cc
   cpp/detail/data_generator.cc
+  cpp/detail/exponential_backoff_retry_policy.cc
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
   cpp/detail/meta_command_writer.cc
@@ -38,7 +40,6 @@ set(tests
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
- cpp/detail/channel.cc
 )
 
 # Setup correct broker library (static/shared).
