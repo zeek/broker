@@ -58,15 +58,16 @@ private:
   peer_id id_;
 };
 
-using async_peer_actor_type = caf::stateful_actor<async_peer_actor_state>;
+class async_peer_actor : public caf::stateful_actor<async_peer_actor_state> {
+public:
+  using super = caf::stateful_actor<async_peer_actor_state>;
 
-struct async_peer_actor {
-  using type = async_peer_actor_type;
+  async_peer_actor(caf::actor_config& cfg, peer_id id) : super(cfg) {
+    state.id(std::move(id));
+  }
 
-  caf::behavior operator()(async_peer_actor_type* self, peer_id id) const {
-    auto& st = self->state;
-    st.id(std::move(id));
-    return st.make_behavior();
+  caf::behavior make_behavior() override {
+    return state.make_behavior();
   }
 };
 
@@ -116,16 +117,18 @@ struct stream_peer_actor_state {
   caf::intrusive_ptr<stream_peer_manager> mgr;
 };
 
-using stream_peer_actor_type = caf::stateful_actor<stream_peer_actor_state>;
+class stream_peer_actor : public caf::stateful_actor<stream_peer_actor_state> {
+public:
+  using super = caf::stateful_actor<stream_peer_actor_state>;
 
-struct stream_peer_actor {
-  using type = stream_peer_actor_type;
-
-  caf::behavior operator()(type* self, peer_id id) const {
-    auto& mgr = self->state.mgr;
-    mgr = caf::make_counted<stream_peer_manager>(self);
+  stream_peer_actor(caf::actor_config& cfg, peer_id id) : super(cfg) {
+    auto& mgr = state.mgr;
+    mgr = caf::make_counted<stream_peer_manager>(this);
     mgr->id(std::move(id));
-    return mgr->make_behavior();
+  }
+
+  caf::behavior make_behavior() override {
+    return state.mgr->make_behavior();
   }
 };
 
@@ -180,7 +183,7 @@ struct fixture
 
   fixture() {
     for (auto& id : peer_ids{A, B, C, D, E, F, G, H, I, J})
-      peers[id] = this->sys.spawn(ActorImpl{}, id);
+      peers[id] = this->sys.template spawn<ActorImpl>(id);
   }
 
   void connect_peers() {
@@ -191,7 +194,7 @@ struct fixture
     };
     for (auto& [id, links] : connections)
       for (auto& link : links)
-        anon_send(peers[id], atom::peer::value, link, peers[link]);
+        anon_send(peers[id], atom::peer_v, link, peers[link]);
     this->run(tick_interval);
     BROKER_ASSERT(get(A).connected_to(peers[B]));
     BROKER_ASSERT(get(A).connected_to(peers[C]));
@@ -211,10 +214,9 @@ struct fixture
 
   auto& get(const peer_id& id) {
     if constexpr (std::is_same<ActorImpl, stream_peer_actor>::value)
-      return *this->template deref<typename ActorImpl::type>(peers[id])
-                .state.mgr;
+      return *this->template deref<ActorImpl>(peers[id]).state.mgr;
     else
-      return this->template deref<typename ActorImpl::type>(peers[id]).state;
+      return this->template deref<ActorImpl>(peers[id]).state;
   }
 
   template <class... Ts>
@@ -263,7 +265,7 @@ TEST(topologies with loops resolve to simple forwarding tables) {
   connect_peers();
   using peer_vec = std::vector<peer_id>;
   MESSAGE("after all links are connected, G subscribes to topic 'foo'");
-  anon_send(peers[G], atom::subscribe::value, filter_type{topic{"foo"}});
+  anon_send(peers[G], atom::subscribe_v, filter_type{topic{"foo"}});
   run(tick_interval);
   MESSAGE("after the subscription, all routing tables store a distance to G");
   CHECK_DISTANCE(A, G, 2);
@@ -276,7 +278,7 @@ TEST(topologies with loops resolve to simple forwarding tables) {
   CHECK_DISTANCE(I, G, 2);
   CHECK_DISTANCE(J, G, 1);
   MESSAGE("publishing to foo on A will send through C");
-  anon_send(peers[A], atom::publish::value, make_data_message("foo", 42));
+  anon_send(peers[A], atom::publish_v, make_data_message("foo", 42));
   expect((atom::publish, data_message), from(_).to(peers["A"]));
   expect((atom::publish, message_type),
          from(peers[A])
@@ -300,7 +302,7 @@ FIXTURE_SCOPE(stream_peer_tests, fixture<stream_peer_actor>)
 TEST(peers can revoke paths) {
   connect_peers();
   MESSAGE("after B loses its connection to E, all paths to E go through I");
-  anon_send(peers[B], atom::unpeer::value, peers[E]);
+  anon_send(peers[B], atom::unpeer_v, peers[E]);
   run(tick_interval);
   CHECK_EQUAL(shortest_path(A, E), ls(J, I, E));
   CHECK_EQUAL(shortest_path(B, E), ls(D, I, E));
@@ -316,7 +318,7 @@ TEST(peers can revoke paths) {
   CHECK_EQUAL(get(I).blacklist().entries.size(), 2u);
   CHECK_EQUAL(get(J).blacklist().entries.size(), 2u);
   MESSAGE("after I loses its connection to E, no paths to E remain");
-  anon_send(peers[I], atom::unpeer::value, peers[E]);
+  anon_send(peers[I], atom::unpeer_v, peers[E]);
   run(tick_interval);
   CHECK_UNREACHABLE(A, E);
   CHECK_UNREACHABLE(B, E);
@@ -354,10 +356,10 @@ TEST(peers can revoke paths) {
 TEST(only receivers forward messages locally) {
   connect_peers();
   MESSAGE("after all links are connected, G subscribes to topic 'foo'");
-  anon_send(peers[G], atom::subscribe::value, filter_type{topic{"foo"}});
+  anon_send(peers[G], atom::subscribe_v, filter_type{topic{"foo"}});
   run(tick_interval);
   MESSAGE("publishing to foo on A will result in only G having the message");
-  anon_send(peers[A], atom::publish::value, make_data_message("foo", 42));
+  anon_send(peers[A], atom::publish_v, make_data_message("foo", 42));
   run(tick_interval);
   CHECK_EQUAL(get(A).buf.size(), 0u);
   CHECK_EQUAL(get(B).buf.size(), 0u);

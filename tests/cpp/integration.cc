@@ -565,7 +565,7 @@ CAF_TEST(connection_retry) {
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
   mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
-    self->delayed_send(self, std::chrono::seconds(2), caf::ok_atom::value);
+    self->delayed_send(self, std::chrono::seconds(2), caf::ok_atom_v);
     return {
       [&](caf::ok_atom) {
         MESSAGE("start listening on mercury:4040");

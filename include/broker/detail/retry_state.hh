@@ -16,5 +16,3 @@ struct retry_state {
 };
 
 } // namespace broker::detail
-
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)

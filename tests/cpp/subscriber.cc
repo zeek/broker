@@ -8,6 +8,7 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
@@ -35,7 +36,8 @@ namespace {
 
 void driver(event_based_actor* self, const actor& sink) {
   using buf_type = std::vector<data_message>;
-  self->make_source(
+  attach_stream_source(
+    self,
     // Destination.
     sink,
     // Initialize send buffer with 10 elements.
@@ -64,8 +66,8 @@ struct fixture : base_fixture {
   fixture() {
     core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"});
     core2 = ep.core();
-    anon_send(core1, atom::no_events::value);
-    anon_send(core2, atom::no_events::value);
+    anon_send(core1, atom::no_events_v);
+    anon_send(core2, atom::no_events_v);
     run();
     core1_id = caf::make_node_id(unbox(caf::make_uri("test:core1")));
     core2_id = caf::make_node_id(unbox(caf::make_uri("test:core2")));
@@ -89,8 +91,8 @@ struct fixture : base_fixture {
 CAF_TEST_FIXTURE_SCOPE(subscriber_tests, fixture)
 
 CAF_TEST(blocking_subscriber) {
-  anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
-  self->send(core1, atom::peer::value, core2_id, core2);
+  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  self->send(core1, atom::peer_v, core2_id, core2);
   run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
@@ -114,8 +116,8 @@ CAF_TEST(blocking_subscriber) {
 }
 
 CAF_TEST(nonblocking_subscriber) {
-  anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
-  self->send(core1, atom::peer::value, core2_id, core2);
+  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  self->send(core1, atom::peer_v, core2_id, core2);
   run();
   // Connect a subscriber (leaf) to core2.
   using buf = std::vector<data_message>;

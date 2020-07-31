@@ -16,6 +16,7 @@
 #include "broker/configuration.hh"
 #include "broker/detail/channel.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 
 #include <ciso646>
 
@@ -79,6 +80,12 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
 
   CAF_ADD_TYPE_ID(broker_test, (producer_msg))
   CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (broker::detail::channel<std::string, std::string>::producer_message))
+  CAF_ADD_TYPE_ID(broker_test, (broker::detail::channel<std::string, std::string>::consumer_message))
+  CAF_ADD_TYPE_ID(broker_test, (broker::generic_node_message<std::string>))
+  CAF_ADD_TYPE_ID(broker_test, (std::vector<broker::generic_node_message<std::string>>))
+  CAF_ADD_TYPE_ID(broker_test, (caf::stream<broker::generic_node_message<std::string>>))
+  CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>))
 
 CAF_END_TYPE_ID_BLOCK(broker_test)
 

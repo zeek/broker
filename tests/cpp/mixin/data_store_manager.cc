@@ -123,7 +123,7 @@ TEST(peers propagate new masters) {
       CHECK_EQUAL(i->second, hdl);
       kono_master = hdl;
     },
-    [&](const caf::error& err) { FAIL(sys.render(err)); });
+    [&](const caf::error& err) { FAIL(err); });
   MESSAGE("repeated attach messages return the original actor handle");
   inject((atom::store, atom::master, atom::attach, std::string, backend,
           backend_options),

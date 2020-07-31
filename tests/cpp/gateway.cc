@@ -138,7 +138,7 @@ struct fixture : test_coordinator_fixture<> {
     };
     for (auto& [id, links] : connections)
       for (auto& link : links)
-        anon_send(peers[id], atom::peer::value, link, peers[link]);
+        anon_send(peers[id], atom::peer_v, link, peers[link]);
     run();
   }
 

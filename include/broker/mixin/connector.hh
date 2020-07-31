@@ -6,10 +6,9 @@
 #include "broker/atoms.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/network_cache.hh"
+#include "broker/detail/retry_state.hh"
 #include "broker/error.hh"
 #include "broker/message.hh"
-
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(caf::response_promise)
 
 namespace broker::mixin {
 
@@ -52,7 +51,7 @@ public:
           return;
         }
         // TODO: replace infinite with some useful default / config parameter
-        self->request(hdl, caf::infinite, atom::get::value, atom::id::value)
+        self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
           .then(
             [=](const peer_id_type& remote_id) mutable {
               dref().start_peering(remote_id, hdl, std::move(rp));
@@ -64,8 +63,8 @@ public:
         if (addr.retry.count() == 0 && ++count < 10) {
           rp.deliver(std::move(err));
         } else {
-          self->delayed_send(self, addr.retry, atom::peer::value,
-                             atom::retry::value, addr, std::move(rp), count);
+          self->delayed_send(self, addr.retry,
+                             detail::retry_state{addr, std::move(rp), count});
         }
       });
   }
@@ -83,7 +82,7 @@ public:
           return;
         }
         // TODO: replace infinite with some useful default / config parameter
-        self->request(hdl, caf::infinite, atom::get::value, atom::id::value)
+        self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
           .then(
             [=, msg{std::move(msg)}](const peer_id_type& remote_id) mutable {
               ids_.emplace(hdl, remote_id);
@@ -104,18 +103,17 @@ public:
       [=](atom::peer, const network_info& addr) {
         dref().try_peering(addr, super::self()->make_response_promise(), 0);
       },
-      [=](atom::peer, atom::retry, const network_info& addr,
-          caf::response_promise& rp,
-          uint32_t count) { dref().try_peering(addr, std::move(rp), count); },
       [=](atom::publish, const network_info& addr, data_message& msg) {
         dref().try_publish(addr, msg, super::self()->make_response_promise());
       },
-      lift<atom::peer>(d, &Subtype::try_peering),
       [=](atom::unpeer, const network_info& addr) {
         if (auto hdl = cache_.find(addr))
           dref().unpeer(*hdl);
         else
           dref().cannot_remove_peer(addr);
+      },
+      [=](detail::retry_state& x) {
+        dref().try_peering(x.addr, std::move(x.rp), x.count);
       });
   }
 

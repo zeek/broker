@@ -68,7 +68,7 @@ struct store::state {
 
   template <class T, class... Ts>
   expected<T> request(Ts&&... xs) {
-    expected<T> res{caf::no_error};
+    expected<T> res{T{}};
     self->request(frontend, timeout::frontend, std::forward<Ts>(xs)...)
       .receive([&](T& x) { res = std::move(x); },
                [&](caf::error& e) { res = std::move(e); });

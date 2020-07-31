@@ -190,7 +190,7 @@ public:
     peer_id_list path{dref().id()};
     vector_timestamp ts{timestamp_};
     for_each_direct(tbl_, [&](auto&, auto& hdl) {
-      dref().send(hdl, atom::subscribe::value, path, ts, filter_);
+      dref().send(hdl, atom::subscribe_v, path, ts, filter_);
     });
   }
 
@@ -203,7 +203,7 @@ public:
     peer_id_list path{dref().id()};
     vector_timestamp ts{timestamp_};
     for_each_direct(tbl_, [&, this](const auto& id, const auto& hdl) {
-      dref().send(hdl, atom::revoke::value, path, ts, lost_peer, filter_);
+      dref().send(hdl, atom::revoke_v, path, ts, lost_peer, filter_);
     });
   }
 
@@ -372,7 +372,7 @@ public:
       path_ts.emplace_back(timestamp_);
       for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
         if (!contains(path, pid))
-          dref().send(hdl, atom::subscribe::value, path, path_ts, filter);
+          dref().send(hdl, atom::subscribe_v, path, path_ts, filter);
       });
     }
     // If we have learned new peers, we flood our own subscriptions as well.
@@ -418,8 +418,7 @@ public:
       path_ts.emplace_back(timestamp_);
       for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
         if (!contains(path, pid))
-          dref().send(hdl, atom::revoke::value, path, path_ts, revoked_hop,
-                      filter);
+          dref().send(hdl, atom::revoke_v, path, path_ts, revoked_hop, filter);
       });
     }
     // If we have learned new peers, we flood our own subscriptions as well.
@@ -470,7 +469,7 @@ public:
     BROKER_TRACE(BROKER_ARG(msg));
     const auto& path = get_path(msg);
     if (auto i = tbl_.find(path.head()); i != tbl_.end()) {
-      dref().send(i->second.hdl, atom::publish::value, std::move(msg));
+      dref().send(i->second.hdl, atom::publish_v, std::move(msg));
     } else {
       BROKER_WARNING("cannot ship message: no path found to" << path.head());
     }

@@ -8,6 +8,7 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
+#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
@@ -49,10 +50,11 @@ struct consumer_state {
 using consumer_actor = stateful_actor<consumer_state>;
 
 behavior consumer(consumer_actor* self, filter_type ts, const actor& src) {
-  self->send(self * src, atom::join::value, std::move(ts));
+  self->send(self * src, atom::join_v, std::move(ts));
   return {
     [=](const stream_type& in) {
-      self->make_sink(
+      attach_stream_sink(
+        self,
         // Input stream.
         in,
         // Initialize state.
@@ -81,8 +83,8 @@ struct fixture : base_fixture {
   fixture() {
     core1 = ep.core();
     core2 = sys.spawn(core_actor, filter_type{"z"});
-    anon_send(core1, atom::no_events::value);
-    anon_send(core2, atom::no_events::value);
+    anon_send(core1, atom::no_events_v);
+    anon_send(core2, atom::no_events_v);
     run();
     core1_id = caf::make_node_id(unbox(caf::make_uri("test:core1")));
     core2_id = caf::make_node_id(unbox(caf::make_uri("test:core2")));
@@ -107,10 +109,10 @@ CAF_TEST_FIXTURE_SCOPE(publisher_tests, fixture)
 
 CAF_TEST(blocking_publishers) {
   // Spawn/get/configure core actors.
-  anon_send(core2, atom::subscribe::value, filter_type{"a"});
+  anon_send(core2, atom::subscribe_v, filter_type{"a"});
   run();
   inject((atom::peer, caf::node_id, caf::actor),
-         from(self).to(core1).with(atom::peer::value, core2_id, core2));
+         from(self).to(core1).with(atom::peer_v, core2_id, core2));
   // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
   auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
   run();
@@ -144,10 +146,10 @@ CAF_TEST(blocking_publishers) {
 
 CAF_TEST(nonblocking_publishers) {
   // Spawn/get/configure core actors.
-  anon_send(core2, atom::subscribe::value, filter_type{"a", "b", "c"});
+  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
   run();
   inject((atom::peer, caf::node_id, caf::actor),
-         from(self).to(core1).with(atom::peer::value, core2_id, core2));
+         from(self).to(core1).with(atom::peer_v, core2_id, core2));
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   run();

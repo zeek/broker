@@ -29,7 +29,7 @@ public:
                   << remote_peer);
       return;
     }
-    send(hdl, atom::peer::value, d.id(), d.filter(), d.timestamp());
+    send(hdl, atom::peer_v, d.id(), d.filter(), d.timestamp());
   }
 
   /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
@@ -52,8 +52,8 @@ public:
     vector_timestamp path_ts{timestamp};
     d.handle_filter_update(path, path_ts, filter);
     // Reply with our own filter.
-    return caf::make_message(atom::peer::value, atom::ok::value, d.id(),
-                             d.filter(), d.timestamp());
+    return caf::make_message(atom::peer_v, atom::ok_v, d.id(), d.filter(),
+                             d.timestamp());
   }
 
   auto handle_peering_response(const peer_id_type& remote_id,

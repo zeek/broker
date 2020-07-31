@@ -219,7 +219,7 @@ TEST(master_with_clone) {
   // --- phase 5: peer from earth to mars --------------------------------------
   auto foo_master = "foo" / topics::master_suffix;
 // Initiate handshake between core1 and core2.
-  earth.self->send(core1, atom::peer::value, core2_proxy.node(), core2_proxy);
+  earth.self->send(core1, atom::peer_v, core2_proxy.node(), core2_proxy);
   run(tick_interval);
   // --- phase 6: attach a clone on mars ---------------------------------------
   mars.sched.inline_next_enqueue();

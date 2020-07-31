@@ -4,6 +4,9 @@
 
 #include "test.hh"
 
+#include "caf/attach_stream_sink.hpp"
+#include "caf/attach_stream_source.hpp"
+
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 #include "broker/logger.hh"
@@ -17,8 +20,6 @@ using namespace broker::detail;
 using element_type = endpoint::stream_type::value_type;
 
 namespace {
-
-using restart_atom = caf::atom_constant<caf::atom("restart")>;
 
 struct driver_state {
   using buf_type = std::vector<element_type>;
@@ -39,7 +40,8 @@ using driver_actor_type = caf::stateful_actor<driver_state>;
 caf::behavior driver(driver_actor_type* self, const actor& sink,
                      bool restartable) {
   self->state.restartable = restartable;
-  auto ptr = self->make_source(
+  auto ptr = caf::attach_stream_source(
+    self,
     // Destination.
     sink,
     // Initialize state.
@@ -63,7 +65,7 @@ caf::behavior driver(driver_actor_type* self, const actor& sink,
     }
   ).ptr();
   return {
-    [=](restart_atom) {
+    [=](atom::restart) {
       self->state.reset();
       self->state.restartable = false;
       ptr->push();
@@ -80,10 +82,11 @@ using consumer_actor_type = caf::stateful_actor<consumer_state>;
 
 caf::behavior consumer(consumer_actor_type* self, filter_type filter,
                        const actor& src) {
-  self->send(self * src, atom::join::value, std::move(filter));
+  self->send(self * src, atom::join_v, std::move(filter));
   return {
     [=](const endpoint::stream_type& in) {
-      self->make_sink(
+      caf::attach_stream_sink(
+        self,
         // Input stream.
         in,
         // Initialize state.
@@ -127,7 +130,7 @@ struct fixture : base_fixture {
       broker_options opts;
       opts.disable_ssl = true;
       auto hdl = sys.spawn(core_actor, filter_type{"a", "b", "c"});
-      anon_send(core1, atom::no_events::value);
+      anon_send(core1, atom::no_events_v);
       run();
       mgr(hdl).id(make_node_id(unbox(id)));
       if (mgr(hdl).filter() != filter_type{"a", "b", "c"})
@@ -175,7 +178,7 @@ TEST(local_peers) {
   CHECK_EQUAL(mgr(core2).worker_manager().num_paths(), 1u);
   MESSAGE("trigger handshake between peers");
   inject((atom::peer, node_id, actor),
-         from(self).to(core1).with(atom::peer::value, id(core2), core2));
+         from(self).to(core1).with(atom::peer_v, id(core2), core2));
   run();
   MESSAGE("core1 & core2 should report each other as peered");
   using actor_list = std::vector<actor>;
@@ -191,7 +194,7 @@ TEST(local_peers) {
   CHECK_EQUAL(log(leaf), data_msgs({{"b", T}, {"b", F}, {"b", T}, {"b", F}}));
   MESSAGE("send message 'directly' from core1 to core2");
   inject((atom::publish, endpoint_info, data_message),
-         from(self).to(core1).with(atom::publish::value,
+         from(self).to(core1).with(atom::publish_v,
                                    endpoint_info{id(core2), caf::none},
                                    make_data_message(topic("b"), data{true})));
   run();
@@ -199,7 +202,7 @@ TEST(local_peers) {
   CHECK_EQUAL(log(leaf),
               data_msgs({{"b", T}, {"b", F}, {"b", T}, {"b", F}, {"b", T}}));
   MESSAGE("unpeer core1 from core2");
-  anon_send(core1, atom::unpeer::value, core2);
+  anon_send(core1, atom::unpeer_v, core2);
   run();
   MESSAGE("check whether both core1 and core2 report no more peers");
   CHECK_EQUAL(mgr(core1).peer_handles().size(), 0u);
@@ -218,13 +221,13 @@ TEST(triangle_peering) {
   run();
   MESSAGE("initiate handshake between core1 and core2");
   inject((atom::peer, node_id, actor),
-         from(self).to(core1).with(atom::peer::value, id(core2), core2));
+         from(self).to(core1).with(atom::peer_v, id(core2), core2));
   // Check if core1 reports a pending peer.
   CHECK_EQUAL(mgr(core1).pending_connections().count(id(core2)), 1u);
   run();
   MESSAGE("initiate handshake between core2 and core3");
   inject((atom::peer, node_id, actor),
-         from(self).to(core2).with(atom::peer::value, id(core3), core3));
+         from(self).to(core2).with(atom::peer_v, id(core3), core3));
   CHECK_EQUAL(mgr(core2).pending_connections().count(id(core3)), 1u);
   run();
   MESSAGE("check if all cores properly report the peering setup");
@@ -260,7 +263,7 @@ TEST(sequenced_peering) {
   run();
   MESSAGE("peer core1 to core2");
   inject((atom::peer, node_id, actor),
-         from(self).to(core1).with(atom::peer::value, id(core2), core2));
+         from(self).to(core1).with(atom::peer_v, id(core2), core2));
   run();
   CHECK(mgr(core1).connected_to(core2));
   CHECK(mgr(core2).connected_to(core1));
@@ -277,13 +280,13 @@ TEST(sequenced_peering) {
   CHECK(mgr(core1).pending_connections().empty());
   MESSAGE("peer core3 to core1");
   inject((atom::peer, node_id, actor),
-         from(self).to(core3).with(atom::peer::value, id(core1), core1));
+         from(self).to(core3).with(atom::peer_v, id(core1), core1));
   run();
   CHECK(mgr(core1).connected_to(core3));
   CHECK(mgr(core3).connected_to(core1));
   CHECK(not mgr(core1).connected_to(core2));
   CAF_MESSAGE("restart driver and check the logs again");
-  anon_send(d1, restart_atom::value);
+  anon_send(d1, atom::restart_v);
   run();
   CHECK_EQUAL(log(leaf1), data_msgs({{"b", T}, {"b", F}, {"b", T}, {"b", F}}));
   CHECK_EQUAL(log(leaf2), data_msgs({{"b", T}, {"b", F}, {"b", T}, {"b", F}}));

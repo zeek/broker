@@ -41,7 +41,7 @@ public:
       f(*y);
       return;
     }
-    self->request(mm_, infinite, connect_atom::value, x.address, x.port)
+    self->request(mm_, infinite, connect_atom_v, x.address, x.port)
       .then(
         [=](const node_id&, strong_actor_ptr& res,
             std::set<std::string>& ifs) mutable {

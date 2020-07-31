@@ -278,11 +278,10 @@ public:
     auto& d = dref();
     // We avoid conflicts in the handshake process by always having the node
     // with the smaller ID initiate the peering. Otherwise, we could end up in a
-    // deadlock during handshake if both sides send step 1 at the sime time.
+    // deadlock during handshake if both sides send step 1 at the same time.
     if (remote_peer < d.id()) {
       self()
-        ->request(hdl, std::chrono::minutes(10), atom::peer::value, d.id(),
-                  self())
+        ->request(hdl, std::chrono::minutes(10), atom::peer_v, d.id(), self())
         .then(
           [=](atom::peer, atom::ok, const peer_id_type& peered_id) mutable {
             if (dref().id() != peered_id) {
@@ -291,7 +290,7 @@ public:
                                     peered_id, remote_peer));
               return;
             }
-            rp.deliver(atom::peer::value, atom::ok::value, remote_peer);
+            rp.deliver(atom::peer_v, atom::ok_v, remote_peer);
           },
           [=](caf::error& err) mutable { rp.deliver(std::move(err)); });
       return;
@@ -310,7 +309,7 @@ public:
     auto& pending = pending_connections_[remote_peer];
     pending.hdl = hdl;
     pending.promises.emplace_back(std::move(rp));
-    self()->send(hdl, atom::peer::value, self(), d.id());
+    self()->send(hdl, atom::peer_v, self(), d.id());
   }
 
   // Establishes a stream from B to A.
@@ -379,9 +378,8 @@ public:
     vector_timestamp path_ts{timestamp};
     d.handle_filter_update(path, path_ts, filter);
     // Add streaming slots for this connection.
-    auto data = std::make_tuple(atom::ok::value,
-                                caf::actor_cast<caf::actor>(self()), d.id(),
-                                d.filter(), d.timestamp());
+    auto data = std::make_tuple(atom::ok_v, caf::actor_cast<caf::actor>(self()),
+                                d.id(), d.filter(), d.timestamp());
     auto oslot = d.template add_unchecked_outbound_path<message_type>(
       hdl, std::move(data));
     out_.template assign<typename peer_trait::manager>(oslot);
@@ -459,7 +457,7 @@ public:
     if (i == pending_connections_.end())
       return;
     for (auto& promise : i->second.promises)
-      promise.deliver(atom::peer::value, atom::ok::value, peer_id);
+      promise.deliver(atom::peer_v, atom::ok_v, peer_id);
     pending_connections_.erase(i);
     super::peer_connected(peer_id, hdl);
   }
@@ -588,7 +586,6 @@ public:
       // Forward additional message handlers.
       std::move(fs)...,
       // Expose to member functions to messaging API.
-      lift<atom::peer>(d, &Derived::start_peering),
       lift<atom::peer>(d, &Derived::handle_peering_request),
       lift<>(d, &Derived::handle_peering_handshake_1),
       lift<>(d, &Derived::handle_peering_handshake_2),

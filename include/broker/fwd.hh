@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <caf/allowed_unsafe_message_type.hpp>
 #include <caf/config.hpp>
 #include <caf/fwd.hpp>
 #include <caf/type_id.hpp>
@@ -139,7 +140,7 @@ class mailbox;
   using name = caf::name##_atom;                                               \
   constexpr auto name##_v = caf::name##_atom_v;
 
-namespace broker::atom{
+namespace broker::atom {
 
 BROKER_CAF_ATOM_ALIAS(add)
 BROKER_CAF_ATOM_ALIAS(connect)
@@ -244,8 +245,8 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::ec))
   BROKER_ADD_TYPE_ID((broker::endpoint_info))
-  BROKER_ADD_TYPE_ID((broker::enum_value))
   BROKER_ADD_TYPE_ID((broker::entity_id))
+  BROKER_ADD_TYPE_ID((broker::enum_value))
   BROKER_ADD_TYPE_ID((broker::erase_command))
   BROKER_ADD_TYPE_ID((broker::expire_command))
   BROKER_ADD_TYPE_ID((broker::filter_type))
@@ -290,3 +291,5 @@ CAF_END_TYPE_ID_BLOCK(broker)
 
 #undef BROKER_ADD_ATOM
 #undef BROKER_ADD_TYPE_ID
+
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)

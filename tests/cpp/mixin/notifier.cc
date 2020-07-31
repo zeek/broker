@@ -162,7 +162,7 @@ struct fixture : test_coordinator_fixture<> {
 FIXTURE_SCOPE(notifier_tests, fixture)
 
 TEST(connect and graceful disconnect emits peer_added and peer_lost) {
-  anon_send(peers[id_a], atom::peer::value, id_b, peers[id_b]);
+  anon_send(peers[id_a], atom::peer_v, id_b, peers[id_b]);
   run();
   CHECK_EQUAL(log(id_a), make_log("endpoint_discovered", "peer_added"));
   anon_send_exit(peers[id_b], caf::exit_reason::user_shutdown);
@@ -172,7 +172,7 @@ TEST(connect and graceful disconnect emits peer_added and peer_lost) {
 }
 
 TEST(connect and ungraceful disconnect emits peer_added and peer_lost) {
-  anon_send(peers[id_a], atom::peer::value, id_b, peers[id_b]);
+  anon_send(peers[id_a], atom::peer_v, id_b, peers[id_b]);
   run();
   CHECK_EQUAL(log(id_a), make_log("endpoint_discovered", "peer_added"));
   anon_send_exit(peers[id_b], caf::exit_reason::kill);
