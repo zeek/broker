@@ -70,8 +70,8 @@ public:
                                          defaults::store::connection_timeout));
   }
 
-  template <class Backend>
-  void init(channel_type::consumer<Backend>& in) {
+  template <class Backend, class RetryPolicy>
+  void init(channel_type::consumer<Backend, RetryPolicy>& in) {
     using caf::get_or;
     auto& cfg = self->config();
     auto heartbeat_interval = get_or(cfg, "broker.store.heartbeat-interval",

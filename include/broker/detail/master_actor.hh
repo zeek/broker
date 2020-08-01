@@ -8,9 +8,10 @@
 #include <caf/event_based_actor.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/abstract_backend.hh"
+#include "broker/detail/exponential_backoff_retry_policy.hh"
 #include "broker/detail/store_actor.hh"
 #include "broker/endpoint.hh"
-#include "broker/detail/abstract_backend.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/internal_command.hh"
@@ -29,7 +30,9 @@ public:
 
   using producer_type = channel_type::producer<master_state>;
 
-  using consumer_type = channel_type::consumer<master_state>;
+  using consumer_type
+    = channel_type::consumer<master_state,
+                             detail::exponential_backoff_retry_policy>;
 
   /// Owning smart pointer to a backend.
   using backend_pointer = std::unique_ptr<abstract_backend>;

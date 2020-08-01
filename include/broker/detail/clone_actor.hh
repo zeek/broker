@@ -9,6 +9,7 @@
 #include <caf/behavior.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/exponential_backoff_retry_policy.hh"
 #include "broker/detail/store_actor.hh"
 #include "broker/endpoint.hh"
 #include "broker/entity_id.hh"
@@ -23,7 +24,9 @@ public:
 
   using super = store_actor_state;
 
-  using consumer_type = channel_type::consumer<clone_state>;
+  using consumer_type
+    = channel_type::consumer<clone_state,
+                             detail::exponential_backoff_retry_policy>;
 
   struct producer_base {
     /// Stores whether writes are currently disabled by the clone. This flag
