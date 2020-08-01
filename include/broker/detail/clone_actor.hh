@@ -89,6 +89,8 @@ public:
 
   void send(producer_type*, const entity_id&, channel_type::retransmit_failed);
 
+  void send(producer_type*, const entity_id&, channel_type::close);
+
   void broadcast(producer_type*, channel_type::heartbeat);
 
   void broadcast(producer_type*, const channel_type::event&);

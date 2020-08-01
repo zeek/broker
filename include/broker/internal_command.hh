@@ -128,15 +128,18 @@ struct clear_command {
     return f(caf::meta::type_name(#name), __VA_ARGS__);                        \
   }
 
+/// Tags the class as `control` command, and implements an inspect overload.
+#define BROKER_EMPTY_CONTROL_COMMAND(origin, name)                             \
+  static constexpr auto tag = command_tag::origin##_control;                   \
+  template <class Inspector>                                                   \
+  friend typename Inspector::result_type inspect(Inspector& f,                 \
+                                                 name##_command&) {            \
+    return f(caf::meta::type_name(#name));                                     \
+  }
+
 /// Causes the master to add `remote_clone` to its list of clones.
 struct attach_clone_command {
-  static constexpr auto tag = command_tag::consumer_control;
-
-  template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f,
-                                                 attach_clone_command&) {
-    return f(caf::meta::type_name("attach_clone"));
-  }
+  BROKER_EMPTY_CONTROL_COMMAND(consumer, attach_clone)
 };
 
 /// Causes the master to add a store writer to its list of inputs. Also acts as
@@ -168,7 +171,17 @@ struct nack_command {
   BROKER_CONTROL_COMMAND(consumer, nack, seqs)
 };
 
-/// Informs all receivers that the sender is still alive.
+/// Causes the master to remove a clone.
+struct remove_clone_command {
+  BROKER_EMPTY_CONTROL_COMMAND(consumer, remove_clone)
+};
+
+/// Causes a store writer to remove the master.
+struct remove_reader_command {
+  BROKER_EMPTY_CONTROL_COMMAND(consumer, remove_reader)
+};
+
+/// Informs all receivers that the master is still alive.
 struct keepalive_command {
   detail::sequence_number_type seq;
   BROKER_CONTROL_COMMAND(producer, keepalive, seq)
@@ -180,7 +193,20 @@ struct retransmit_failed_command {
   BROKER_CONTROL_COMMAND(producer, retransmit_failed, seq)
 };
 
+/// Notifies all receivers that a writer has shut down.
+struct writer_shutdown_command {
+  detail::sequence_number_type final_seq;
+  BROKER_CONTROL_COMMAND(producer, writer_shutdown, final_seq)
+};
+
+/// Notifies all receivers that the master has shut down.
+struct master_shutdown_command {
+  detail::sequence_number_type final_seq;
+  BROKER_CONTROL_COMMAND(producer, master_shutdown, final_seq)
+};
+
 #undef BROKER_CONTROL_COMMAND
+#undef BROKER_EMPTY_CONTROL_COMMAND
 
 // -- variant setup ------------------------------------------------------------
 
@@ -200,8 +226,12 @@ public:
     keepalive_command,
     cumulative_ack_command,
     nack_command,
+    remove_clone_command,
+    remove_reader_command,
     ack_clone_command,
     retransmit_failed_command,
+    writer_shutdown_command,
+    master_shutdown_command,
   };
 
   using variant_type
@@ -209,7 +239,9 @@ public:
                    erase_command, expire_command, add_command, subtract_command,
                    clear_command, attach_clone_command, attach_writer_command,
                    keepalive_command, cumulative_ack_command, nack_command,
-                   ack_clone_command, retransmit_failed_command>;
+                   remove_clone_command, remove_reader_command,
+                   ack_clone_command, retransmit_failed_command,
+                   writer_shutdown_command, master_shutdown_command>;
 
   detail::sequence_number_type seq;
 
@@ -242,8 +274,12 @@ constexpr command_tag command_tag_by_type[] = {
   keepalive_command::tag,
   cumulative_ack_command::tag,
   nack_command::tag,
+  remove_clone_command::tag,
+  remove_reader_command::tag,
   ack_clone_command::tag,
   retransmit_failed_command::tag,
+  writer_shutdown_command::tag,
+  master_shutdown_command::tag,
 };
 
 inline command_tag tag_of(const internal_command& cmd) {

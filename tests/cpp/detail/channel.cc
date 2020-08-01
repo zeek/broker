@@ -32,6 +32,7 @@ struct consumer_backend {
   fixture* fix = nullptr;
   bool closed = false;
   bool fail_on_nil = false;
+  error reason;
 
   consumer_backend() = default;
 
@@ -58,8 +59,9 @@ struct consumer_backend {
   template <class T>
   void send(consumer_type*, const T& x);
 
-  void close(consumer_type*, error) {
+  void close(consumer_type*, error err) {
     closed = true;
+    reason = std::move(err);
   }
 };
 
@@ -227,6 +229,10 @@ struct producer_visitor {
   void operator()(channel_type::nack& msg) {
     ch->handle_nack(src, msg.seqs);
   }
+
+  void operator()(channel_type::drop&) {
+    ch->handle_drop(src);
+  }
 };
 
 caf::behavior producer_actor(caf::event_based_actor* self,
@@ -266,6 +272,10 @@ struct consumer_visitor {
 
   void operator()(channel_type::retransmit_failed& msg) {
     ch->handle_retransmit_failed(msg.seq);
+  }
+
+  void operator()(channel_type::close& x) {
+    ch->handle_close(x.final_seq);
   }
 };
 
@@ -429,6 +439,15 @@ TEST(consumers buffer events until receiving the handshake) {
   CHECK_EQUAL(cb.input, "abc");
 }
 
+TEST(consumers shut down when receiving close messages){
+  consumer_backend cb{"A"};
+  consumer_type consumer{&cb};
+  consumer.handle_handshake(2, 3);
+  consumer.handle_close(3);
+  CHECK_EQUAL(cb.closed, true);
+  CHECK_EQUAL(cb.reason, ec::producer_no_longer_available);
+}
+
 TEST(consumers send cumulative ACK messages) {
   consumer_backend cb{"A"};
   consumer_type consumer{&cb};
@@ -517,6 +536,31 @@ TEST(producers become idle after all consumers ACKed all messages) {
   CHECK_EQUAL(get("D").backend().input, "abcdefghijkl");
 }
 
+TEST(producers remove paths when receiving drop messages){
+  setup_actors({"A", "B", "C", "D"});
+  run();
+  CHECK(producer.has_path("A"));
+  CHECK(producer.has_path("B"));
+  CHECK(producer.has_path("C"));
+  CHECK(producer.has_path("D"));
+  MESSAGE("the producers removes the path to C when receiving a drop from it");
+  producer_log.clear();
+  producer.handle_drop("C");
+  CHECK_EQUAL(producer_log, "\nC <- close(1)");
+  CHECK(producer.has_path("A"));
+  CHECK(producer.has_path("B"));
+  CHECK(producer.has_path("D"));
+  CHECK_NOT(producer.has_path("C"));
+  MESSAGE("producers always respond to drop with close");
+  producer_log.clear();
+  producer.handle_drop("C");
+  CHECK_EQUAL(producer_log, "\nC <- close(1)");
+  CHECK(producer.has_path("A"));
+  CHECK(producer.has_path("B"));
+  CHECK(producer.has_path("D"));
+  CHECK_NOT(producer.has_path("C"));
+}
+
 TEST(messages arrive eventually - even with 33 percent loss rate) {
   producer.connection_timeout_factor(12);
   // Essentially the same test as above, but with a loss rate of 33%.
@@ -577,7 +621,7 @@ TEST(messages arrive eventually - even with 66 percent loss rate) {
   run();
   for (size_t round = 1; !producer.idle(); ++round) {
     if (round == 500)
-      FAIL("system didn't reach a stable state after 200 rounds");
+      FAIL("system didn't reach a stable state after 500 rounds");
     tick();
     ship(0.66);
     run();

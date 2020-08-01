@@ -146,6 +146,10 @@ void clone_state::dispatch(command_message& msg) {
           output_ptr->handle_nack(cmd.sender, inner.seqs);
           break;
         }
+        case internal_command::type::remove_reader_command: {
+          output_ptr->handle_drop(cmd.sender);
+          break;
+        }
         default: {
           BROKER_ERROR("received bogus consumer control message:" << cmd);
         }
@@ -211,7 +215,7 @@ void clone_state::consume(clear_command& x) {
 error clone_state::consume_nil(consumer_type* src) {
   BROKER_ERROR("clone out of sync: lost message from the master!");
   // TODO: Implement me.
-  return ec::broken_clone;
+  return ec::clone_out_of_sync;
 }
 
 void clone_state::close(consumer_type* src, [[maybe_unused]] error reason) {
@@ -266,6 +270,17 @@ void clone_state::send(producer_type* ptr, const entity_id&,
     return;
   auto msg = make_command_message(
     master_topic, internal_command{0, id, retransmit_failed_command{what.seq}});
+  self->send(core, atom::publish_v, std::move(msg));
+}
+
+void clone_state::send(producer_type* ptr, const entity_id&,
+                       channel_type::close what) {
+  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
+  if (ptr->stalled)
+    return;
+  auto msg = make_command_message(
+    master_topic,
+    internal_command{0, id, writer_shutdown_command{what.final_seq}});
   self->send(core, atom::publish_v, std::move(msg));
 }
 

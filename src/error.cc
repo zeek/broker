@@ -39,7 +39,8 @@ const char* ec_names[] = {
   "producer_timeout",
   "bad_member_function_call",
   "repeated_request_id",
-  "broken_clone",
+  "clone_out_of_sync",
+  "producer_no_longer_available",
 };
 
 } // namespace

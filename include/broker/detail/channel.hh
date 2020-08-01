@@ -56,6 +56,14 @@ public:
     }
   };
 
+  /// Notifies the producer that a consumer drops out of the channel.
+  struct drop {
+    template <class Inspector>
+    friend typename Inspector::result_type inspect(Inspector& f, drop&) {
+      return f(caf::meta::type_name("drop"));
+    }
+  };
+
   // -- member types: messages from the producer to consumers ------------------
 
   /// Notifies a consumer which is the first sequence number after it started
@@ -111,11 +119,21 @@ public:
     }
   };
 
+  /// Notifies a consumer that the producer closed the channel.
+  struct close {
+    sequence_number_type final_seq;
+
+    template <class Inspector>
+    friend typename Inspector::result_type inspect(Inspector& f, close& x) {
+      return f(caf::meta::type_name("close"), x.final_seq);
+    }
+  };
+
   // -- implementation of the producer -----------------------------------------
 
   /// Messages sent by the producer.
   using producer_message
-    = caf::variant<handshake, event, retransmit_failed, heartbeat>;
+    = caf::variant<handshake, event, retransmit_failed, heartbeat, close>;
 
   struct default_producer_base {};
 
@@ -131,7 +149,7 @@ public:
   ///                 - `void drop(producer*, const Handle&, ec)` called to
   ///                   indicate that a consumer got removed by the producer.
   ///                 - `void handshake_completed(producer*, const Handle&)`
-  ///                   called to indicate that the producer received an ACK
+  ///                   called to indicate that the producer received an ACK.
   template <class Backend, class Base = default_producer_base>
   class producer : public Base {
   public:
@@ -165,6 +183,7 @@ public:
     // -- message processing ---------------------------------------------------
 
     void produce(Payload content) {
+      BROKER_TRACE(BROKER_ARG(content));
       if (paths_.empty())
         return;
       ++seq_;
@@ -174,6 +193,7 @@ public:
     }
 
     error add(const Handle& hdl) {
+      BROKER_TRACE(BROKER_ARG(hdl));
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
       BROKER_DEBUG("add" << hdl << "to the channel");
@@ -190,6 +210,7 @@ public:
     }
 
     void handle_ack(const Handle& hdl, sequence_number_type seq) {
+      BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(seq));
       sequence_number_type acked = seq;
       // Iterate all paths once, fetching minimum acknowledged sequence number
       // and updating the path belonging to `hdl` in one go.
@@ -220,6 +241,7 @@ public:
 
     void handle_nack(const Handle& hdl,
                      const std::vector<sequence_number_type>& seqs) {
+      BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(seqs));
       // Sanity checks.
       if (seqs.empty())
         return;
@@ -251,6 +273,18 @@ public:
         else
           backend_->send(this, hdl, retransmit_failed{seq});
       }
+    }
+
+    void handle_drop(const Handle& hdl) {
+      BROKER_TRACE(BROKER_ARG(hdl));
+      // Always ACK drop messages with a `close` message.
+      backend_->send(this, hdl, close{seq_});
+      // Drop events from the buffer if possible and erase path.
+      auto p = find_path(hdl);
+      if (p == paths_.end())
+        return;
+      handle_ack(hdl, seq_);
+      paths_.erase(p);
     }
 
     // -- time-based processing ------------------------------------------------
@@ -363,6 +397,10 @@ public:
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
 
+    auto has_path(const Handle& hdl) const noexcept {
+      return find_path(hdl) == paths_.end();
+    }
+
     auto find_event(sequence_number_type seq) const noexcept {
       auto has_seq = [seq](const event& x) { return x.seq == seq; };
       return std::find_if(buf_.begin(), buf_.end(), has_seq);
@@ -406,7 +444,7 @@ public:
   // -- implementation of the consumer -----------------------------------------
 
   /// Messages sent by the consumer.
-  using consumer_message = caf::variant<cumulative_ack, nack>;
+  using consumer_message = caf::variant<cumulative_ack, nack, drop>;
 
   /// Handles events (messages) from a single producer.
   /// @tparam Backend Hides the underlying (unreliable) communication layer. The
@@ -502,6 +540,7 @@ public:
     }
 
     void handle_heartbeat(sequence_number_type seq) {
+      BROKER_TRACE(BROKER_ARG(seq));
       // Do nothing when receiving this before the handshake or if the master
       // did not produce any events yet.
       if (last_seq_ == 0 || seq == 0)
@@ -533,6 +572,7 @@ public:
     }
 
     void handle_retransmit_failed(sequence_number_type seq) {
+      BROKER_TRACE(BROKER_ARG(seq));
       if (next_seq_ == seq) {
         // Process immediately.
         if (auto err = backend_->consume_nil(this)) {
@@ -550,6 +590,12 @@ public:
         else if (i->seq != seq)
           buf_.emplace(i, seq);
       }
+    }
+
+    void handle_close(sequence_number_type final_seq) {
+      BROKER_TRACE(BROKER_ARG(final_seq));
+      auto err = make_error(ec::producer_no_longer_available);
+      backend_->close(this, std::move(err));
     }
 
     // -- time-based processing ------------------------------------------------

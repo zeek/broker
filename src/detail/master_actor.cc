@@ -130,6 +130,10 @@ void master_state::dispatch(command_message& msg) {
           output.handle_nack(cmd.sender, inner.seqs);
           break;
         }
+        case internal_command::type::remove_clone_command: {
+          output.handle_drop(cmd.sender);
+          break;
+        }
         default: {
           BROKER_ERROR("received bogus consumer control message:" << cmd);
         }
@@ -386,6 +390,15 @@ void master_state::send(producer_type*, const entity_id& whom,
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
   auto cmd = make_command_message(
     clones_topic, internal_command{0, id, retransmit_failed_command{msg.seq}});
+  self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
+}
+
+void master_state::send(producer_type*, const entity_id& whom,
+                        channel_type::close msg) {
+  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
+  auto cmd = make_command_message(
+    clones_topic,
+    internal_command{0, id, master_shutdown_command{msg.final_seq}});
   self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
 }
 

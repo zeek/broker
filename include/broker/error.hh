@@ -79,7 +79,9 @@ enum class ec : uint8_t {
   /// Attempted to use the same request_id twice.
   repeated_request_id,
   /// A clone ran out of sync with the master.
-  broken_clone,
+  clone_out_of_sync,
+  /// A consumer shuts down, because the producer has shut down (gracefully).
+  producer_no_longer_available,
 };
 // --ec-enum-end
 
