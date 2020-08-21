@@ -1,4 +1,8 @@
 
+1.5.0-dev.16 | 2020-08-21 11:41:06 -0700
+
+  * Respect --config-file= CLI parameters (Dominik Charousset, Corelight)
+
 1.5.0-dev.14 | 2020-07-30 16:08:56 -0700
 
   * Fix build with CAF 0.18 (Dominik Charousset)
