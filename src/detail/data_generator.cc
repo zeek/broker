@@ -7,6 +7,7 @@
 #include <caf/binary_serializer.hpp>
 #include <caf/sec.hpp>
 
+#include "broker/detail/inspect_objects.hh"
 #include "broker/detail/meta_data_writer.hh"
 #include "broker/logger.hh"
 
@@ -22,15 +23,14 @@ using std::string;
   }
 
 #define READ(var_name)                                                         \
-  if (auto err = source_(var_name))                                            \
+  if (auto err = detail::inspect_objects(source_, var_name))                   \
   return err
 
 #define GENERATE(var_name)                                                     \
   if (auto err = generate(var_name))                                           \
   return err
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 namespace {
 
@@ -351,5 +351,4 @@ uint8_t data_generator::next_byte() {
   return static_cast<uint8_t>(byte_generator_(engine_));
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

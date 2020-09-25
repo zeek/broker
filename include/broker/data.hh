@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/config.hpp>
 #include <caf/default_sum_type_access.hpp>
 #include <caf/fwd.hpp>
 #include <caf/sum_type_access.hpp>
@@ -16,6 +17,9 @@
 #include "broker/address.hh"
 #include "broker/bad_variant_access.hh"
 #include "broker/convert.hh"
+#include "broker/detail/hash.hh"
+#include "broker/detail/is_legacy_inspector.hh"
+#include "broker/detail/type_traits.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
@@ -23,9 +27,6 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
-
-#include "broker/detail/hash.hh"
-#include "broker/detail/type_traits.hh"
 
 namespace broker {
 
@@ -218,10 +219,17 @@ constexpr bool has_data_tag() {
   return detail::is_complete<detail::data_tag_oracle<T>>;
 }
 
-/// @relates data
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, data& x) {
-  return inspect(f, x.get_data());
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return inspect(f, x.get_data());
+  else
+    return f.apply_object(x.get_data());
+}
+
+template <class Inspector>
+bool inspect_value(Inspector& f, data& x) {
+  return f.apply_value(x.get_data());
 }
 
 /// @relates data

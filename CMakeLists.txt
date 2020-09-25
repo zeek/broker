@@ -279,6 +279,7 @@ endif()
 set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
+  src/alm/multipath.cc
   src/configuration.cc
   src/convert.cc
   src/core_actor.cc
@@ -297,7 +298,6 @@ set(BROKER_SRC
   src/detail/master_actor.cc
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
-  src/detail/meta_command_writer.cc
   src/detail/meta_data_writer.cc
   src/detail/network_cache.cc
   src/detail/prefix_matcher.cc

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -35,8 +36,12 @@ public:
   friend bool operator<(const port& lhs, const port& rhs);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, port& p) {
-    return f(p.num_, p.proto_);
+  friend typename Inspector::result_type inspect(Inspector& f, port& x) {
+    if constexpr (detail::is_legacy_inspector<Inspector>)
+      return f(x.num_, x.proto_);
+    else
+      return f.object(x).fields(f.field("num_", x.num_),
+                                f.field("proto_", x.proto_));
   }
 
 private:

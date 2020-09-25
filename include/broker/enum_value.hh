@@ -4,6 +4,7 @@
 #include <ostream>
 #include <string>
 
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -34,8 +35,17 @@ inline bool operator<(const enum_value& lhs, const enum_value& rhs) {
 
 /// @relates enum_value
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, enum_value& e) {
-  return f(e.name);
+typename Inspector::result_type inspect(Inspector& f, enum_value& x) {
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(x.name);
+  else
+    return f.apply_object(x.name);
+}
+
+/// @relates enum_value
+template <class Inspector>
+bool inspect_value(Inspector& f, enum_value& x) {
+  return f.apply_value(x.name);
 }
 
 /// @relates enum_value

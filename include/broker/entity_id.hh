@@ -8,6 +8,7 @@
 #include <caf/node_id.hpp>
 
 #include "broker/detail/hash.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -44,7 +45,12 @@ struct entity_id {
 /// @relates entity_id
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, entity_id& x) {
-  return f(caf::meta::type_name("entity_id"), x.endpoint, x.object);
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(caf::meta::type_name("entity_id"), x.endpoint, x.object);
+  else
+    return f.object(x)
+      .pretty_name("entity_id")
+      .fields(f.field("endpoint", x.endpoint), f.field("object", x.object));
 }
 
 /// @relates entity_id

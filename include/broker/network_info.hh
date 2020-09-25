@@ -5,8 +5,9 @@
 
 #include <caf/fwd.hpp>
 
-#include "broker/timeout.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/operators.hh"
+#include "broker/timeout.hh"
 
 namespace broker {
 
@@ -32,8 +33,13 @@ bool operator<(const network_info& x, const network_info& y);
 
 /// @relates network_info
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, network_info& info) {
-  return f(info.address, info.port, info.retry);
+typename Inspector::result_type inspect(Inspector& f, network_info& x) {
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(x.address, x.port, x.retry);
+  else
+    return f.object(x).fields(f.field("address", x.address),
+                              f.field("port", x.port),
+                              f.field("retry", x.retry));
 }
 
 /// @relates network_info

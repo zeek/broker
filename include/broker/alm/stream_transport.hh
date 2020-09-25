@@ -235,12 +235,8 @@ public:
     auto slot = i->second;
     // Fetch the buffer for that slot and enqueue the message.
     auto& nested = out_.template get<typename peer_trait::manager>();
-    auto j = nested.states().find(slot);
-    if (j == nested.states().end()) {
+    if (!nested.push_to(slot, std::move(msg)))
       BROKER_WARNING("unable to access state for output slot");
-      return;
-    }
-    j->second.buf.emplace_back(std::move(msg));
   }
 
   /// Sends an asynchronous message instead of pushing the data to the stream.
@@ -464,6 +460,33 @@ public:
 
   // -- overridden member functions of caf::stream_manager ---------------------
 
+#if CAF_VERSION >= 1800
+  bool congested(const caf::inbound_path& path) const noexcept override {
+    // The default assumes that all inbound paths write to the same output. This
+    // is not true for Broker. We have two paths per peer: one inbound and one
+    // outbound. We can safely assume that any batch we receive on the inbound
+    // path won't send data to the outbound path of the same peer.
+    size_t num_paths = 0;
+    size_t max_buf_size = 0;
+    size_t max_batch_size = 0;
+    out_.for_each_path([&](const caf::outbound_path& x) {
+      // Ignore the output path to the peer.
+      if (x.hdl == path.hdl)
+        return;
+      ++num_paths;
+      max_buf_size = std::max(max_buf_size, out_.buffered(x.slots.sender));
+      max_batch_size
+        = std::max(max_batch_size, static_cast<size_t>(x.desired_batch_size));
+    });
+    if (num_paths == 0) {
+      // We can't be congested without downstream pahts.
+      return false;
+    }
+    // Store up to two full batches.
+    return max_buf_size >= (max_batch_size * 2);
+  }
+#endif
+
   void handle(caf::inbound_path* path,
               caf::downstream_msg::batch& batch) override {
     BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(batch));
@@ -609,7 +632,7 @@ public:
         worker_manager().set_filter(slot, filter);
         self()->send(listener, true);
       },
-      // Allow local publishers to hoook directly into the stream.
+      // Allow local publishers to hook directly into the stream.
       [this](caf::stream<data_message> in) { add_unchecked_inbound_path(in); },
       [this](caf::stream<node_message_content> in) {
         add_unchecked_inbound_path(in);

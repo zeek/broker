@@ -124,9 +124,22 @@ public:
   friend std::string to_string(const status& s);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, status& s) {
-    auto verify = [&s] { return s.verify(); };
-    return f(s.code_, s.context_, s.message_, caf::meta::load_callback(verify));
+  friend typename Inspector::result_type inspect(Inspector& f, status& x) {
+    if constexpr (detail::is_legacy_inspector<Inspector>) {
+      auto verify = [&x] { return x.verify(); };
+      return f(x.code_, x.context_, x.message_,
+               caf::meta::load_callback(verify));
+    } else {
+      auto verify = [&x] {
+        if (auto err = x.verify())
+          return false;
+        return true;
+      };
+      return f.object(x)
+        .on_load(verify) //
+        .fields(f.field("code_", x.code_), f.field("context_", x.context_),
+                f.field("message_", x.message_));
+    }
   }
 
   /// Maps `src` to `["status", code, context, message]`, whereas:

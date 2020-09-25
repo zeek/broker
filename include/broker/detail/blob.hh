@@ -6,14 +6,15 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 
-namespace broker {
-namespace detail {
+#include "broker/detail/inspect_objects.hh"
+
+namespace broker::detail {
 
 template <class T, class... Ts>
 auto to_blob(T&& x, Ts&&... xs) {
   typename caf::binary_serializer::container_type buf;
   caf::binary_serializer sink{nullptr, buf};
-  sink(std::forward<T>(x), std::forward<Ts>(xs)...);
+  detail::inspect_objects(sink, x, xs...);
   return buf;
 }
 
@@ -22,7 +23,7 @@ T from_blob(const void* buf, size_t size) {
   caf::binary_deserializer source{nullptr, reinterpret_cast<const char*>(buf),
                                   size};
   T result;
-  source(result);
+  detail::inspect_objects(source, result);
   return result;
 }
 
@@ -31,5 +32,4 @@ T from_blob(const Container& buf) {
   return from_blob<T>(buf.data(), buf.size());
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

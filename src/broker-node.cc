@@ -561,7 +561,7 @@ int main(int argc, char** argv) {
   for (auto& peer : peers) {
     auto& auth = peer.authority();
     if (peer.scheme() == "tcp" && !auth.empty()) {
-      auto host = to_string(auth.host);
+      auto host = caf::deep_to_string(auth.host);
       auto port = auth.port;
       verbose::println("diconnect from ", host, " on port ", port, " ...");
       ep.unpeer_nosync(host, port);

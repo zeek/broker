@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/deep_to_string.hpp>
 #include <caf/variant.hpp>
 
 #pragma GCC diagnostic push
@@ -158,7 +159,7 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
     .def("get",
          [](broker::optional<topic_data_pair>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return to_string(i); });
+    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
 
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get",

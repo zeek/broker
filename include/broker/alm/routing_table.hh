@@ -9,10 +9,12 @@
 #include <utility>
 
 #include <caf/actor_clock.hpp>
+#include <caf/meta/type_name.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/iterator_range.hh"
 #include "broker/detail/map_index_iterator.hh"
 #include "broker/optional.hh"
@@ -72,8 +74,15 @@ public:
 };
 
 template <class Inspector, class PeerId, class CommunicationHandle>
-auto inspect(Inspector& f, routing_table_row<PeerId, CommunicationHandle>& x) {
-  return f(caf::meta::type_name("row"), x.hdl, x.distances, x.paths);
+typename Inspector::result_type
+inspect(Inspector& f, routing_table_row<PeerId, CommunicationHandle>& x) {
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(caf::meta::type_name("row"), x.hdl, x.distances, x.paths);
+  else
+    return f.object(x)
+      .pretty_name("row") //
+      .fields(f.field("hdl", x.hdl), f.field("distances", x.distances),
+              f.field("paths", x.paths));
 }
 
 /// Stores direct connections to peers as well as distances to all other peers
@@ -312,7 +321,13 @@ bool operator<(const std::tuple<Revoker, Timestamp, Hop>& x,
 /// @relates blacklist_entry
 template <class Inspector, class Id>
 typename Inspector::result_type inspect(Inspector& f, blacklist_entry<Id>& x) {
-  return f(caf::meta::type_name("blacklist_entry"), x.revoker, x.ts, x.hop);
+  if constexpr(detail::is_legacy_inspector<Inspector>)
+    return f(caf::meta::type_name("blacklist_entry"), x.revoker, x.ts, x.hop);
+  else
+    return f.object(x)
+      .pretty_name("blacklist_entry")
+      .fields(f.field("revoker", x.revoker), f.field("ts", x.ts),
+              f.field("hop", x.hop));
 }
 
 /// A container for storing path revocations, sorted by `revoker` then `ts` then

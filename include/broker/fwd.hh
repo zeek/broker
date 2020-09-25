@@ -31,9 +31,11 @@ struct expire_command;
 struct keepalive_command;
 struct nack_command;
 struct network_info;
+struct none;
 struct peer_info;
 struct put_command;
 struct put_unique_command;
+struct put_unique_result_command;
 struct retransmit_failed_command;
 struct subtract_command;
 
@@ -256,12 +258,14 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::network_info))
   BROKER_ADD_TYPE_ID((broker::node_message))
   BROKER_ADD_TYPE_ID((broker::node_message_content))
-  BROKER_ADD_TYPE_ID((broker::optional<broker::timespan>) )
-  BROKER_ADD_TYPE_ID((broker::optional<broker::timestamp>) )
+  BROKER_ADD_TYPE_ID((broker::none))
+  BROKER_ADD_TYPE_ID((broker::optional<broker::timespan>))
+  BROKER_ADD_TYPE_ID((broker::optional<broker::timestamp>))
   BROKER_ADD_TYPE_ID((broker::peer_info))
   BROKER_ADD_TYPE_ID((broker::port))
   BROKER_ADD_TYPE_ID((broker::put_command))
   BROKER_ADD_TYPE_ID((broker::put_unique_command))
+  BROKER_ADD_TYPE_ID((broker::put_unique_result_command))
   BROKER_ADD_TYPE_ID((broker::retransmit_failed_command))
   BROKER_ADD_TYPE_ID((broker::sc))
   BROKER_ADD_TYPE_ID((broker::set))

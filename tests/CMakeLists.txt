@@ -18,7 +18,6 @@ set(tests
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
-  cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
   cpp/domain_options.cc
   cpp/error.cc
@@ -58,7 +57,7 @@ macro(make_cpp_test suite)
   if (${test_name} STREQUAL radix_tree)
     set(test_verbosity 3)  # otherwise it just produces way too much output
   endif ()
-  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "${suite}" ${ARGN})
+  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "^${suite}$" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
   set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
                        "BROKER_TEST_DIR=${BROKER_TEST_DIR}")

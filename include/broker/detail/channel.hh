@@ -10,6 +10,7 @@
 #include <caf/send.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 
@@ -40,7 +41,12 @@ public:
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f,
                                                    cumulative_ack& x) {
-      return f(caf::meta::type_name("cumulative_ack"), x.seq);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("cumulative_ack"), x.seq);
+      else
+        return f.object(x)
+          .pretty_name("cumulative_ack")
+          .fields(f.field("seq", x.seq));
     }
   };
 
@@ -52,7 +58,10 @@ public:
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, nack& x) {
-      return f(caf::meta::type_name("nack"), x.seqs);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("nack"), x.seqs);
+      else
+        return f.object(x).pretty_name("nack").fields(f.field("seqs", x.seqs));
     }
   };
 
@@ -73,8 +82,14 @@ public:
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, handshake& x) {
-      return f(caf::meta::type_name("handshake"), x.offset,
-               x.heartbeat_interval);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("handshake"), x.offset,
+                 x.heartbeat_interval);
+      else
+        return f.object(x)
+          .pretty_name("handshake")
+          .fields(f.field("offset", x.offset),
+                  f.field("heartbeat_interval", x.heartbeat_interval));
     }
   };
 
@@ -85,7 +100,11 @@ public:
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, event& x) {
-      return f(caf::meta::type_name("event"), x.seq, x.content);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("event"), x.seq, x.content);
+      else
+        return f.object(x).pretty_name("event").fields(
+          f.field("seq", x.seq), f.field("content", x.content));
     }
   };
 
@@ -96,7 +115,12 @@ public:
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f,
                                                    retransmit_failed& x) {
-      return f(caf::meta::type_name("retransmit_failed"), x.seq);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("retransmit_failed"), x.seq);
+      else
+        return f.object(x)
+          .pretty_name("retransmit_failed")
+          .fields(f.field("seq", x.seq));
     }
   };
 
@@ -107,7 +131,12 @@ public:
 
     template <class Inspector>
     friend typename Inspector::result_type inspect(Inspector& f, heartbeat& x) {
-      return f(caf::meta::type_name("heartbeat"), x.seq);
+      if constexpr (is_legacy_inspector<Inspector>)
+        return f(caf::meta::type_name("heartbeat"), x.seq);
+      else
+        return f.object(x)
+          .pretty_name("heartbeat")
+          .fields(f.field("seq", x.seq));
     }
   };
 
@@ -445,7 +474,12 @@ public:
       template <class Inspector>
       friend typename Inspector::result_type inspect(Inspector& f,
                                                      optional_event& x) {
-        return f(caf::meta::type_name("optional_event"), x.seq, x.content);
+        if constexpr (is_legacy_inspector<Inspector>)
+          return f(caf::meta::type_name("optional_event"), x.seq, x.content);
+        else
+          return f.object(x)
+            .pretty_name("optional_event")
+            .fields(f.field("seq", x.seq), f.field("content", x.content));
       }
     };
 

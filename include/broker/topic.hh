@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -56,8 +57,16 @@ public:
   bool prefix_of(const topic& t) const;
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, topic& t) {
-    return f(t.str_);
+  friend typename Inspector::result_type inspect(Inspector& f, topic& x) {
+    if constexpr (detail::is_legacy_inspector<Inspector>)
+      return f(x.str_);
+    else
+      return f.object(x).fields(f.field("str", x.str_));
+  }
+
+  template <class Inspector>
+  friend bool inspect_value(Inspector& f, topic& x) {
+    return f.apply_value(x.str_);
   }
 
 private:

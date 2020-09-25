@@ -10,6 +10,7 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 
+#include "broker/detail/inspect_objects.hh"
 #include "broker/detail/meta_data_writer.hh"
 
 using namespace broker;
@@ -28,11 +29,11 @@ struct fixture {
   }
 
   void add_meta(data::type tag) {
-    CHECK_EQUAL(sink(tag), caf::none);
+    CHECK_EQUAL(detail::inspect_objects(sink, tag), caf::none);
   }
 
   void add_meta(data::type tag, uint32_t container_size) {
-    CHECK_EQUAL(sink(tag, container_size), caf::none);
+    CHECK_EQUAL(detail::inspect_objects(sink, tag, container_size), caf::none);
   }
 
   data generate() {

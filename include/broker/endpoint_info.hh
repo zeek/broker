@@ -31,8 +31,13 @@ inline bool operator!=(const endpoint_info& x, const endpoint_info& y) {
 
 /// @relates endpoint_info
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
-  return f(caf::meta::type_name("endpoint_info"), info.node, info.network);
+typename Inspector::result_type inspect(Inspector& f, endpoint_info& x) {
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(caf::meta::type_name("endpoint_info"), x.node, x.network);
+  else
+    return f.object(x)
+      .pretty_name("endpoint_info")
+      .fields(f.field("node", x.node), f.field("network", x.network));
 }
 
 /// @relates endpoint_info

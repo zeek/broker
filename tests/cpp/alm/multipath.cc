@@ -8,6 +8,7 @@
 #include <caf/binary_serializer.hpp>
 
 #include "broker/alm/routing_table.hh"
+#include "broker/detail/inspect_objects.hh"
 
 using namespace broker;
 
@@ -25,7 +26,7 @@ TEST(multipaths are default constructible) {
   multipath p;
   CHECK_EQUAL(p.id(), "");
   CHECK_EQUAL(p.nodes().size(), 0u);
-  CHECK_EQUAL(caf::deep_to_string(p), R"__((""))__");
+  CHECK_EQUAL(caf::deep_to_string(p), "()");
 }
 
 TEST(users can fill multipaths with emplace_node) {
@@ -36,15 +37,14 @@ TEST(users can fill multipaths with emplace_node) {
   auto ab = p.emplace_node("ab").first;
   ab->emplace_node("abb");
   ab->emplace_node("aba");
-  CHECK_EQUAL(
-    caf::deep_to_string(p),
-    R"__(("a", [("ab", [("aba"), ("abb")]), ("ac", [("aca"), ("acb")])]))__");
+  CHECK_EQUAL(caf::deep_to_string(p),
+              "(a, [(ab, [(aba), (abb)]), (ac, [(aca), (acb)])])");
 }
 
 TEST(multipaths are constructible from linear paths) {
   linear_path abc{"a", "b", "c"};
   multipath path{abc.begin(), abc.end()};
-  CHECK_EQUAL(caf::deep_to_string(path), R"__(("a", [("b", [("c")])]))__");
+  CHECK_EQUAL(caf::deep_to_string(path), "(a, [(b, [(c)])])");
 }
 
 TEST(multipaths are copy constructible and comparable) {
@@ -75,7 +75,7 @@ TEST(splicing merges linear paths into multipaths) {
   for (const auto& lp : {abc, abd, aef, aefg})
     CHECK(path.splice(lp));
   CHECK_EQUAL(caf::deep_to_string(path),
-              R"__(("a", [("b", [("c"), ("d")]), ("e", [("f", [("g")])])]))__");
+              "(a, [(b, [(c), (d)]), (e, [(f, [(g)])])])");
 }
 
 TEST(multipaths are serializable) {
@@ -93,13 +93,13 @@ TEST(multipaths are serializable) {
   MESSAGE("serializer the path into a buffer");
   {
     caf::binary_serializer sink{sys, buf};
-    CHECK_EQUAL(sink(path), caf::none);
+    CHECK_EQUAL(detail::inspect_objects(sink, path), caf::none);
   }
   multipath copy{"a"};
   MESSAGE("deserializers a copy from the path from the buffer");
   {
     caf::binary_deserializer source{sys,buf};
-    CHECK_EQUAL(source(copy), caf::none);
+    CHECK_EQUAL(detail::inspect_objects(source, copy), caf::none);
   }
   MESSAGE("after a serialization roundtrip, the path is equal to its copy");
   CHECK_EQUAL(path, copy);

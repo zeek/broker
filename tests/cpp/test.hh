@@ -15,6 +15,7 @@
 
 #include "broker/configuration.hh"
 #include "broker/detail/channel.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 
@@ -54,40 +55,58 @@
 
 // -- custom message types for channel.cc --------------------------------------
 
+using string_channel = broker::detail::channel<std::string, std::string>;
+
 struct producer_msg {
   std::string source;
-  broker::detail::channel<std::string, std::string>::producer_message content;
+  string_channel::producer_message content;
 };
 
 struct consumer_msg {
   std::string source;
-  broker::detail::channel<std::string, std::string>::consumer_message content;
+  string_channel::consumer_message content;
 };
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, producer_msg& x) {
-  return f(x.source, x.content);
-}
-
-template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, consumer_msg& x) {
-  return f(x.source, x.content);
-}
 
 // -- ID block for all message types in test suites ----------------------------
 
 CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
 
-  CAF_ADD_TYPE_ID(broker_test, (producer_msg))
-  CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
-  CAF_ADD_TYPE_ID(broker_test, (broker::detail::channel<std::string, std::string>::producer_message))
-  CAF_ADD_TYPE_ID(broker_test, (broker::detail::channel<std::string, std::string>::consumer_message))
   CAF_ADD_TYPE_ID(broker_test, (broker::generic_node_message<std::string>))
-  CAF_ADD_TYPE_ID(broker_test, (std::vector<broker::generic_node_message<std::string>>))
   CAF_ADD_TYPE_ID(broker_test, (caf::stream<broker::generic_node_message<std::string>>))
+  CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (producer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (std::vector<broker::generic_node_message<std::string>>))
   CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::consumer_message))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::cumulative_ack))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::event))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::handshake))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::heartbeat))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::nack))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::producer_message))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::retransmit_failed))
 
 CAF_END_TYPE_ID_BLOCK(broker_test)
+
+// -- inspection support -------------------------------------------------------
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, producer_msg& x) {
+  if constexpr (broker::detail::is_legacy_inspector<Inspector>)
+    return f(x.source, x.content);
+  else
+    return f.object(x).fields(f.field("source", x.source),
+                              f.field("content", x.content));
+}
+
+template <class Inspector>
+typename Inspector::result_type inspect(Inspector& f, consumer_msg& x) {
+  if constexpr (broker::detail::is_legacy_inspector<Inspector>)
+    return f(x.source, x.content);
+  else
+    return f.object(x).fields(f.field("source", x.source),
+                              f.field("content", x.content));
+}
 
 // -- fixtures -----------------------------------------------------------------
 

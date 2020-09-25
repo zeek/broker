@@ -10,6 +10,7 @@
 #include "caf/sec.hpp"
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/is_legacy_inspector.hh"
 
 namespace broker::alm {
 
@@ -21,7 +22,7 @@ public:
 
   using multipath_type = std::remove_pointer_t<mutable_pointer>;
 
-  using value_type = typename multipath_type::value_type;
+  using value_type = multipath_type;
 
   explicit multipath_node_set(Pointer this_ptr) : this_(this_ptr) {
     //nop
@@ -44,8 +45,17 @@ public:
   }
 
   template <class... Ts>
-  decltype(auto) emplace(Ts&&... xs) {
+  auto emplace(Ts&&... xs) {
     return this_->emplace_node(std::forward<Ts>(xs)...);
+  }
+
+  template <class Iterator, class T>
+  auto insert(Iterator iter, T&& value) {
+    return this_->insert(iter, std::forward<T>(value));
+  }
+
+  void clear() {
+    this_->nodes_clear();
   }
 
 private:
@@ -180,6 +190,16 @@ public:
     return size_;
   }
 
+  void
+  nodes_clear() noexcept(nothrow_assign //
+                           && std::is_nothrow_constructible<PeerId>::value) {
+    for (auto iter = nodes_begin(); iter != nodes_end(); ++iter) {
+      multipath tmp;
+      *iter = std::move(tmp);
+    }
+    size_ = 0;
+  }
+
   std::pair<iterator, bool> emplace_node(PeerId id) {
     node_less pred;
     auto insertion_point = std::lower_bound(nodes_begin(), nodes_end(), id,
@@ -191,6 +211,13 @@ public:
     } else {
       return {insert_at(insertion_point, std::move(id)), true};
     }
+  }
+
+  iterator insert(iterator, multipath value) {
+    auto [iter, added] = emplace_node(value.id());
+    if (added)
+      *iter = std::move(value);
+    return iter;
   }
 
   /// Tries to merge `x` into this multipath.
@@ -235,7 +262,8 @@ public:
   }
 
   template <class Inspector>
-  friend auto inspect(Inspector& f, multipath& x) {
+  friend typename Inspector::result_type inspect_legacy(Inspector& f,
+                                                        multipath& x) {
     if constexpr (Inspector::reads_state) {
       auto tag = caf::meta::omittable_if_empty();
       auto nodes = x.nodes();
@@ -257,6 +285,29 @@ public:
           return typename Inspector::result_type{caf::sec::runtime_error};
       }
       return f.end_sequence();
+    }
+  }
+
+  template <class Inspector>
+  friend typename Inspector::result_type inspect(Inspector& f, multipath& x) {
+    if constexpr (detail::is_legacy_inspector<Inspector>)
+      return inspect_legacy(f, x);
+    else if constexpr (Inspector::is_loading) {
+      multipath tmp;
+      auto nodes = tmp.nodes();
+      auto write_back = [&x, &tmp] {
+        x = std::move(tmp);
+        return true;
+      };
+      return f.object(tmp)
+        .pretty_name("multipath")
+        .on_load(write_back)
+        .fields(f.field("id", tmp.id_), f.field("nodes", nodes));
+    } else {
+      auto nodes = x.nodes();
+      return f.object(x)
+        .pretty_name("multipath")
+        .fields(f.field("id", x.id_), f.field("nodes", nodes));
     }
   }
 
@@ -329,6 +380,9 @@ template <class PeerId>
 bool operator!=(const multipath<PeerId>& x, const multipath<PeerId>& y) {
   return !(x == y);
 }
+
+/// @relates multipath
+std::string to_string(const alm::multipath<std::string>& x);
 
 /// Fills the `routes` list such that all reachable receivers are included.
 /// @param receivers List of nodes that should receive a certain message.

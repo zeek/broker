@@ -69,7 +69,11 @@ public:
     // nop
   }
 
+#if CAF_VERSION >= 1800
+  bool congested(const inbound_path&) const noexcept override {
+#else
   bool congested() const noexcept override {
+#endif
     return queue_->buffer_size() >= max_qsize_;
   }
 

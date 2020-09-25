@@ -1,5 +1,6 @@
 #pragma once
 
+#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/peer_flags.hh"
 #include "broker/peer_status.hh"
@@ -15,8 +16,13 @@ struct peer_info {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, peer_info& pi) {
-  return f(pi.peer, pi.flags, pi.status);
+typename Inspector::result_type inspect(Inspector& f, peer_info& x) {
+  if constexpr (detail::is_legacy_inspector<Inspector>)
+    return f(x.peer, x.flags, x.status);
+  else
+    return f.object(x).fields(f.field("peer", x.peer),
+                              f.field("flags", x.flags),
+                              f.field("status", x.status));
 }
 
 } // namespace broker

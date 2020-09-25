@@ -212,6 +212,10 @@ void receivedStats(endpoint& ep, data x) {
     max_exceeded_counter = 0;
 }
 
+struct source_state {
+  static inline const char* name = "source";
+};
+
 void client_mode(endpoint& ep, const std::string& host, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
@@ -242,17 +246,23 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   if (verbose)
     std::cout << "*** endpoint is now peering to remote" << std::endl;
   if (batch_rate == 0) {
-    ep.publish_all(
-      [](caf::unit_t&) {},
-      [](caf::unit_t&, caf::downstream<data_message>& out, size_t hint) {
-      for (size_t i = 0; i < hint; ++i) {
-      auto name = "event_" + std::to_string(event_type);
-      out.push(data_message{"/benchmark/events",
-               zeek::Event(std::move(name), createEventArgs())});
-      }
+    ep.system().spawn(
+      [](caf::stateful_actor<source_state>* self, caf::actor core) {
+        caf::attach_stream_source(
+          self, core, [](caf::unit_t&) {},
+          [self](caf::unit_t&, caf::downstream<data_message>& out,
+                 size_t hint) {
+            // get_downstream_queue().total_task_size();
+            for (size_t i = 0; i < hint; ++i) {
+              auto name = "event_" + std::to_string(event_type);
+              out.push(
+                data_message{"/benchmark/events",
+                             zeek::Event(std::move(name), createEventArgs())});
+            }
+          },
+          [](const caf::unit_t&) { return false; });
       },
-      [](const caf::unit_t&) { return false; }
-      );
+      ep.core());
     for (;;) {
       // Print status events.
       auto ev = ss.get();
@@ -296,32 +306,46 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
 }
 
+struct sink_state {
+  static inline const char* name = "sink";
+};
+
 // This mode mimics what benchmark.bro does.
 void server_mode(endpoint& ep, const std::string& iface, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/events.
-  ep.subscribe_nosync(
-    {"/benchmark/events"},
-    [](caf::unit_t&) {
-      // nop
+  ep.system().spawn(
+    [](caf::stateful_actor<sink_state>* self, caf::actor core) {
+      std::vector<topic> topics{"/benchmark/events"};
+      self->send(self * core, atom::join_v, std::move(topics));
+      self->become([=](broker::endpoint::stream_type in) {
+        caf::attach_stream_sink(
+          self, in,
+          [](caf::unit_t&) {
+            // nop
+          },
+          [self](caf::unit_t&, data_message x) {
+            auto msg = move_data(x);
+            // Count number of events (counts each element in a batch as one
+            // event).
+            if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
+              ++num_events;
+            } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
+              zeek::Batch batch(std::move(msg));
+              num_events += batch.batch().size();
+            } else {
+              std::cerr << "unexpected message type" << std::endl;
+              exit(1);
+            }
+          },
+          [](caf::unit_t&, const caf::error&) {
+            // nop
+          });
+        self->unbecome();
+      });
     },
-    [&](caf::unit_t&, data_message x) {
-      auto msg = move_data(x);
-      // Count number of events (counts each element in a batch as one event).
-      if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
-        ++num_events;
-      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
-        zeek::Batch batch(std::move(msg));
-        num_events += batch.batch().size();
-      } else {
-        std::cerr << "unexpected message type" << std::endl;
-        exit(1);
-      }
-    },
-    [](caf::unit_t&, const caf::error&) {
-      // nop
-    });
+    ep.core());
   // Listen on /benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
   ep.subscribe_nosync(
