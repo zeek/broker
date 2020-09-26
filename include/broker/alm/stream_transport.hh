@@ -235,8 +235,17 @@ public:
     auto slot = i->second;
     // Fetch the buffer for that slot and enqueue the message.
     auto& nested = out_.template get<typename peer_trait::manager>();
+#if CAF_VERSION >= 1800
     if (!nested.push_to(slot, std::move(msg)))
       BROKER_WARNING("unable to access state for output slot");
+#else
+    if (auto j = nested.states().find(slot); j != nested.states().end()) {
+      j->second.buf.emplace_back(std::move(msg));
+    } else {
+      BROKER_WARNING("unable to access state for output slot");
+      return;
+    }
+#endif
   }
 
   /// Sends an asynchronous message instead of pushing the data to the stream.
