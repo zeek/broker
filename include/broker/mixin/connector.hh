@@ -24,6 +24,8 @@ namespace broker::mixin {
 template <class Base, class Subtype>
 class connector : public Base {
 public:
+  // -- member types -----------------------------------------------------------
+
   using extended_base = connector;
 
   using super = Base;
@@ -32,14 +34,19 @@ public:
 
   using communication_handle_type = typename Base::communication_handle_type;
 
+  // -- constructors, destructors, and assignment operators --------------------
+
   template <class... Ts>
   explicit connector(Ts&&... xs)
     : super(std::forward<Ts>(xs)...), cache_(super::self()) {
     // nop
   }
 
+  // -- lazy connection management ---------------------------------------------
+
   void try_peering(const network_info& addr, caf::response_promise rp,
                    uint32_t count) {
+    BROKER_TRACE(BROKER_ARG(addr) << BROKER_ARG(count));
     auto self = super::self();
     // Fetch the comm. handle from the cache and with that fetch the ID from the
     // remote peer via direct request messages.
@@ -59,9 +66,9 @@ public:
             [=](error& err) mutable { rp.deliver(std::move(err)); });
       },
       [=](error err) mutable {
-        dref().peer_unavailable(addr);
-        if (addr.retry.count() == 0 && ++count < 10) {
+        if (addr.retry.count() == 0 || ++count >= 10) {
           rp.deliver(std::move(err));
+          dref().peer_unavailable(addr);
         } else {
           self->delayed_send(self, addr.retry,
                              detail::retry_state{addr, std::move(rp), count});
@@ -94,6 +101,8 @@ public:
       deliver_err);
   }
 
+  // -- factories --------------------------------------------------------------
+
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
     using detail::lift;
@@ -117,6 +126,60 @@ public:
       });
   }
 
+  // -- callbacks --------------------------------------------------------------
+
+  void peer_disconnected(const peer_id_type& peer_id,
+                         const communication_handle_type& hdl,
+                         const error& reason) {
+    // Lost network connection: try reconnecting.
+    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl) << BROKER_ARG(reason));
+    if (auto addr = cache_.find(hdl)) {
+      // Drop any previous state and trigger a new connection cycle.
+      ids_.erase(hdl);
+      cache_.remove(hdl);
+      // The naive thing to do here would be calling
+      // `dref().try_peering(*addr, {}, 0)` to trigger the reconnect loop.
+      // However, `peer_disconnected` is not necessarily triggered by a
+      // disconnect. Broker endpoints tear down the peering relations as part of
+      // a regular shutdown. Hence, we must somehow delay the reconnect attempts
+      // until the connection actually ceased to exist.
+      // TODO: when fully switching to CAF 0.18, we should use the new node
+      //       monitoring and `node_down_msg` signaling instead for a cleaner
+      //       and ultimately more robust implementation. Using attach on the
+      //       actor handle assumes that the down message triggers after losing
+      //       connection to the remote endpoint actor. That's not necessarily
+      //       the case, though. We could still see the down message before CAF
+      //       actually shuts down the connection. Shutting down the endpoint
+      //       actor generally comes last before tearing down a Broker process,
+      //       so adding the 250ms delay at least makes it very unlikely that
+      //       the connection still exists. Still, this entire block is a hack
+      //       and we should move on to node monitoring once we no longer care
+      //       for CAF 0.17 compatibility.
+      auto weak_self = dref().self()->address();
+      hdl->attach_functor(
+        [weak_self, addr{std::move(*addr)}](const caf::error& rsn) mutable {
+          // Trigger reconnect after 250ms when still alive and kicking.
+          if (auto strong_self = caf::actor_cast<caf::actor>(weak_self))
+            caf::delayed_anon_send(caf::actor(strong_self),
+                                   std::chrono::milliseconds{250}, atom::peer_v,
+                                   std::move(addr));
+        });
+    }
+    super::peer_disconnected(peer_id, hdl, reason);
+  }
+
+  void peer_removed(const peer_id_type& peer_id,
+                    const communication_handle_type& hdl) {
+    // Graceful removal by the user: remove all state associated to the peer.
+    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
+    ids_.erase(hdl);
+    cache_.remove(hdl);
+    super::peer_removed(peer_id, hdl);
+  }
+
+
+  // -- properties -------------------------------------------------------------
+
   auto& cache() {
     return cache_;
   }
@@ -130,7 +193,7 @@ private:
   detail::network_cache cache_;
 
   /// Maps remote actor handles to peer IDs.
-  std::unordered_map<caf::actor, peer_id_type> ids_;
+  std::unordered_map<communication_handle_type, peer_id_type> ids_;
 };
 
 } // namespace broker::mixin

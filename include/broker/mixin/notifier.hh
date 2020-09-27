@@ -62,7 +62,10 @@ public:
     // a manual cache lookup and simply omit the network information if we
     // cannot find a cached entry.
     network_info peer_addr;
-    if (auto addr = dref().cache().find(hdl))
+    // Going through super here instead of using dref() makes sure that the
+    // cache belongs to a mixin that runs its callback for `peer_disconnected`
+    // later (potentially removing `hdl` from the cache).
+    if (auto addr = super::cache().find(hdl))
       peer_addr = *addr;
     emit(peer_id, peer_addr, sc_constant<sc::peer_lost>(),
          "lost connection to remote peer");
