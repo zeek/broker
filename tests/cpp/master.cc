@@ -163,8 +163,8 @@ TEST(local_master) {
   // check log
   run(tick_interval);
   CHECK_EQUAL(log, pattern_list({
-                     "insert\\(foo, hello, world, null, .+\\)",
-                     "update\\(foo, hello, world, universe, null, .+\\)",
+                     "insert\\(foo, hello, world, (null|none), .+\\)",
+                     "update\\(foo, hello, world, universe, (null|none), .+\\)",
                      "erase\\(foo, hello, .+\\)",
                      "insert\\(foo, bar, baz, .+\\)",
                    }));
@@ -267,9 +267,9 @@ TEST(master_with_clone) {
   // check log
   CHECK_EQUAL(mars.log, earth.log);
   CHECK_EQUAL(mars.log, pattern_list({
-                          "insert\\(foo, test, 123, null, .+\\)",
-                          "insert\\(foo, user, neverlord, null, .+\\)",
-                          "insert\\(foo, bar, baz, null, .+\\)",
+                          "insert\\(foo, test, 123, (null|none), .+\\)",
+                          "insert\\(foo, user, neverlord, (null|none), .+\\)",
+                          "insert\\(foo, bar, baz, (null|none), .+\\)",
                         }));
 }
 

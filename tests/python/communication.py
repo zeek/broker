@@ -138,10 +138,7 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
             # Async version.
-            ep1.peer_nosync("127.0.0.1", 1947, 1.0)
-            st1 = es1.get()
-            self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
-
+            ep1.peer_nosync("127.0.0.1", 1947, 0.0)
             st1 = es1.get()
             self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
