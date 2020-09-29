@@ -1,6 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
@@ -8,6 +11,7 @@
 
 #include "broker/defaults.hh"
 #include "broker/detail/channel.hh"
+#include "broker/detail/store_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/optional.hh"
@@ -85,6 +89,22 @@ public:
     in.heartbeat_interval(heartbeat_interval);
     in.connection_timeout_factor(connection_timeout);
     in.nack_timeout(nack_timeout);
+  }
+
+  template <class... Fs>
+  caf::behavior make_behavior(Fs... fs) {
+    return {
+      std::move(fs)...,
+      [this](atom::increment, store_state_ptr ptr) {
+        attached_states.emplace(std::move(ptr), size_t{0}).first->second += 1;
+      },
+      [this](atom::decrement, store_state_ptr ptr) {
+        auto& xs = attached_states;
+        if (auto i = xs.find(ptr); i != xs.end())
+          if (--(i->second) == 0)
+            xs.erase(i);
+      },
+    };
   }
 
   // -- event signaling --------------------------------------------------------
@@ -167,6 +187,16 @@ public:
 
   /// Stores promises to fulfill when reaching an idle state.
   std::vector<caf::response_promise> idle_callbacks;
+
+  /// Strong pointers for all locally attached store objects. The stores
+  /// themselves only keep weak pointers to their state in order to couple the
+  /// validity of their state to the lifetime of their (frontend) actor. The
+  /// `size_t` value reflects the number of `store` objects that currently have
+  /// access to the stored state.
+  /// @note the state keeps an actor handle to this actor, but CAF breaks this
+  ///       cycle automatically by destroying this vector when the actor
+  ///       terminates.
+  std::unordered_map<store_state_ptr, size_t> attached_states;
 };
 
 } // namespace broker::detail

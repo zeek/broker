@@ -130,9 +130,13 @@ class IdentifierUpdate;
 namespace broker::detail {
 
 struct retry_state;
+struct store_state;
 
 class flare_actor;
 class mailbox;
+
+using store_state_ptr = std::shared_ptr<store_state>;
+using weak_store_state_ptr = std::weak_ptr<store_state>;
 
 } // namespace broker::detail
 
@@ -245,6 +249,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
+  BROKER_ADD_TYPE_ID((broker::detail::store_state_ptr))
   BROKER_ADD_TYPE_ID((broker::ec))
   BROKER_ADD_TYPE_ID((broker::endpoint_info))
   BROKER_ADD_TYPE_ID((broker::entity_id))
@@ -297,3 +302,4 @@ CAF_END_TYPE_ID_BLOCK(broker)
 #undef BROKER_ADD_TYPE_ID
 
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::store_state_ptr)

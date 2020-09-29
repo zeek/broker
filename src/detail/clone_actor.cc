@@ -452,7 +452,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
   // Schedule first tick.
   clock->send_later(self, defaults::store::tick_interval,
                     caf::make_message(atom::tick_v));
-  return {
+  return self->state.make_behavior(
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& cmd) {
       auto& st = self->state;
@@ -679,7 +679,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
 
           // self->state.command(cmd);
         });
-    }};
+    });
 }
 
 } // namespace broker::detail

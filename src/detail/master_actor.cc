@@ -445,7 +445,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
   // Schedule first tick.
   clock->send_later(self, self->state.tick_interval,
                     caf::make_message(atom::tick_v));
-  return {
+  return self->state.make_behavior(
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& cmd) {
       // Locally received message are already ordered and reliable. Hence, we
@@ -560,7 +560,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
         [](caf::unit_t&, const caf::error&) {
           // nop
         });
-    }};
+    });
 }
 
 } // namespace detail

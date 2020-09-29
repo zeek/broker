@@ -45,8 +45,6 @@ public:
     request_id id;
   };
 
-  struct state;
-
   /// A utility to decouple store request from response processing.
   class proxy {
   public:
@@ -56,7 +54,7 @@ public:
     /// @param s The store to create a proxy for.
     explicit proxy(store& s);
 
-    /// Performs a request to check existance of a value.
+    /// Performs a request to check existence of a value.
     /// @returns A unique identifier for this request to correlate it with a
     /// response.
     request_id exists(data key);
@@ -128,9 +126,9 @@ public:
   // --- inspectors -----------------------------------------------------------
 
   /// Retrieves the name of the store.
-  /// @returns The store name.
-  /// @pre `initialized()`
-  const std::string& name() const;
+  /// @returns A copy of the store name or an empty string when calling this
+  ///          function on an invalid object.
+  std::string name() const;
 
   /// Checks whether a key exists in the store.
   /// @returns A boolean that's if the key exists.
@@ -147,7 +145,7 @@ public:
   /// @param expiry An optional expiration time for *key*.
   /// @returns A true data value if inserted or false if key already existed.
   expected<data> put_unique(data key, data value,
-                            optional<timespan> expiry = {}) const;
+                            optional<timespan> expiry = {});
 
   /// For containers values, retrieves a specific index from the value. This
   /// is supported for sets, tables, and vectors.
@@ -162,9 +160,7 @@ public:
   expected<data> keys() const;
 
   /// Returns whether the store was fully initialized
-  bool initialized() const noexcept {
-    return state_ != nullptr;
-  }
+  bool initialized() const noexcept;
 
   /// Returns whether the store was fully initialized
   explicit operator bool() const noexcept {
@@ -173,7 +169,7 @@ public:
 
   /// Retrieves the frontend.
   /// @pre `initialized()`
-  const caf::actor& frontend() const;
+  caf::actor frontend() const;
 
   /// Returns a globally unique identifier for the frontend actor.
   entity_id frontend_id() const;
@@ -345,7 +341,17 @@ private:
 
   // -- member variables -------------------------------------------------------
 
-  std::shared_ptr<state> state_;
+  // If we would only consider the native C++ API, we could store a regular
+  // shared pointer here and rely on scoping to make sure that store objects get
+  // destroyed before the broker::endpoint shuts down (and takes the frontend
+  // actor down with it). However, Zeek scripts in particular commonly declare
+  // store objects as global variables. Hence, we need a way to invalidate store
+  // objects once the frontend actor shuts down. We achieve this by storing only
+  // a weak pointer to the state here and have the frontend actor keeping this
+  // state alive by holding on to a strong reference. Once the frontend actor
+  // terminates, the state becomes invalid since no other objects holds a strong
+  // reference to the state.
+  detail::weak_store_state_ptr state_;
 };
 
 } // namespace broker

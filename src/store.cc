@@ -1,7 +1,7 @@
-#include <utility>
-#include <string>
+#include "broker/store.hh"
 
-#include "broker/logger.hh"
+#include <string>
+#include <utility>
 
 #include <caf/actor.hpp>
 #include <caf/actor_cast.hpp>
@@ -11,19 +11,11 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
-#include "broker/store.hh"
+#include "broker/detail/flare_actor.hh"
+#include "broker/detail/store_state.hh"
 #include "broker/expected.hh"
 #include "broker/internal_command.hh"
-#include "broker/detail/flare_actor.hh"
-
-/// Checks whether the store has been initialized and returns an error
-/// otherwise.
-#define CHECK_INITIALIZED()                                                    \
-  do {                                                                         \
-    if (!initialized())                                                        \
-      return make_error(ec::bad_member_function_call,                          \
-                        "store not initialized");                              \
-  } while (false)
+#include "broker/logger.hh"
 
 /// Checks whether the store has been initialized and logs an error message
 /// otherwise before "returning" void.
@@ -43,56 +35,45 @@ auto make_internal_command(Ts&&... xs) {
   return internal_command{0, entity_id::nil(), T{std::forward<Ts>(xs)...}};
 }
 
+template <class... Ts>
+broker::expected<broker::data>
+fetch(const broker::detail::weak_store_state_ptr& state, Ts&&... xs) {
+  using namespace broker;
+  if (auto ptr = state.lock())
+    return ptr->request<data>(std::forward<Ts>(xs)...);
+  return make_error(ec::bad_member_function_call,
+                    "store state not initialized");
+}
+
+template <class F>
+broker::expected<broker::data>
+with_state(const broker::detail::weak_store_state_ptr& state, F f) {
+  using namespace broker;
+  if (auto ptr = state.lock())
+    return f(*ptr);
+  return make_error(ec::bad_member_function_call,
+                    "store state not initialized");
+}
+
 } // namespace
 
 using namespace broker::detail;
 
 namespace broker {
 
-struct store::state {
-  std::string name;
-  caf::actor frontend;
-  caf::scoped_actor self;
-  request_id req_id = 1;
-
-  state(std::string name, caf::actor frontend_hdl)
-    : name(std::move(name)),
-      frontend(std::move(frontend_hdl)),
-      self(frontend->home_system()) {
-    BROKER_DEBUG("created state for store" << name);
-  }
-
-  ~state() {
-    BROKER_DEBUG("destroyed state for store" << name);
-  }
-
-  template <class T, class... Ts>
-  expected<T> request(Ts&&... xs) {
-    expected<T> res{T{}};
-    self->request(frontend, timeout::frontend, std::forward<Ts>(xs)...)
-      .receive([&](T& x) { res = std::move(x); },
-               [&](caf::error& e) { res = std::move(e); });
-    return res;
-  }
-
-  template <class... Ts>
-  void anon_send(Ts&&... xs) {
-    caf::anon_send(frontend, std::forward<Ts>(xs)...);
-  }
-};
-
 // -- constructors, destructors, and assignment operators ----------------------
 
 store::store() {
-  // Required out-of-line for std::shared_ptr<state>.
+  // Required out-of-line for weak_store_state_ptr.
 }
 
 store::store(store&& other) : state_(std::move(other.state_)) {
-  // Required out-of-line for std::shared_ptr<state>.
+  // Required out-of-line for weak_store_state_ptr.
 }
 
 store::store(const store& other) : state_(other.state_) {
-  // Required out-of-line for std::shared_ptr<state>.
+  if (auto ptr = state_.lock())
+    caf::anon_send(ptr->frontend, atom::increment_v, ptr);
 }
 
 store::store(caf::actor frontend, std::string name) {
@@ -105,23 +86,33 @@ store::store(caf::actor frontend, std::string name) {
     BROKER_ERROR("store::store called with empty name");
     return;
   }
-  state_ = std::make_shared<state>(std::move(name), std::move(frontend));
+  auto ptr = std::make_shared<detail::store_state>(std::move(name), frontend);
+  state_ = ptr;
+  caf::anon_send(frontend, atom::increment_v, std::move(ptr));
 }
 
 store& store::operator=(store&& other) {
-  // Required out-of-line for std::shared_ptr<state>.
+  if (auto ptr = state_.lock())
+    caf::anon_send(ptr->frontend, atom::decrement_v, ptr);
   state_ = std::move(other.state_);
   return *this;
 }
 
 store& store::operator=(const store& other) {
-  // Required out-of-line for std::shared_ptr<state>.
-  state_ = other.state_;
+  if (auto ptr = state_.lock())
+    caf::anon_send(ptr->frontend, atom::decrement_v, ptr);
+  if (auto new_ptr = other.state_.lock()) {
+    state_ = new_ptr;
+    caf::anon_send(new_ptr->frontend, atom::decrement_v, new_ptr);
+  } else {
+    state_.reset();
+  }
   return *this;
 }
 
 store::~store() {
-  // Required out-of-line for std::shared_ptr<state>.
+  if (auto ptr = state_.lock())
+    caf::anon_send(ptr->frontend, atom::decrement_v, ptr);
 }
 
 store::proxy::proxy(store& st) : frontend_{st.frontend()} {
@@ -166,26 +157,27 @@ request_id store::proxy::keys() {
   return id_;
 }
 
-const caf::actor& store::frontend() const {
-  BROKER_ASSERT(initialized());
-  return state_->frontend;
+caf::actor store::frontend() const {
+  if (auto ptr = state_.lock())
+    return ptr->frontend;
+  return {};
 }
 
 entity_id store::frontend_id() const {
-  if (initialized())
-    return entity_id::from(state_->frontend);
+  if (auto ptr = state_.lock())
+    return entity_id::from(ptr->frontend);
   return entity_id::nil();
 }
 
 caf::actor store::self_hdl() const {
-  if (initialized())
-    return caf::actor{state_->self.ptr()};
+  if (auto ptr = state_.lock())
+    return caf::actor{ptr->self.ptr()};
   return caf::actor{};
 }
 
 entity_id store::self_id() const {
-  if (initialized())
-    return entity_id::from(state_->self);
+  if (auto ptr = state_.lock())
+    return entity_id::from(ptr->self);
   return entity_id::nil();
 }
 
@@ -231,97 +223,106 @@ std::vector<store::response> store::proxy::receive(size_t n) {
   return rval;
 }
 
-const std::string& store::name() const {
-  BROKER_ASSERT(initialized());
-  return state_->name;
+std::string store::name() const {
+  if (auto ptr = state_.lock())
+    return ptr->name;
+  return {};
 }
 
 expected<data> store::exists(data key) const {
-  CHECK_INITIALIZED();
-  return state_->request<data>(atom::exists_v, std::move(key));
+  return fetch(state_, atom::exists_v, std::move(key));
 }
 
 expected<data> store::get(data key) const {
-  CHECK_INITIALIZED();
-  return state_->request<data>(atom::get_v, std::move(key));
+  return fetch(state_, atom::get_v, std::move(key));
 }
 
-expected<data> store::put_unique(data key, data val, optional<timespan> expiry) const {
-  CHECK_INITIALIZED();
-  return state_->request<data>(atom::local_v,
+expected<data> store::put_unique(data key, data val,
+                                 optional<timespan> expiry) {
+  return with_state(state_, [&](detail::store_state& state) {
+    return state.request<data>(atom::local_v,
                                make_internal_command<put_unique_command>(
                                  std::move(key), std::move(val), expiry,
-                                 self_id(), state_->req_id++, frontend_id()));
+                                 entity_id::from(state.self), state.req_id++,
+                                 frontend_id()));
+  });
 }
 
 expected<data> store::get_index_from_value(data key, data index) const {
-  CHECK_INITIALIZED();
-  return state_->request<data>(atom::get_v, std::move(key), std::move(index));
+  return fetch(state_, atom::get_v, std::move(key), std::move(index));
 }
 
 expected<data> store::keys() const {
-  CHECK_INITIALIZED();
-  return state_->request<data>(atom::get_v, atom::keys_v);
+  return fetch(state_, atom::get_v, atom::keys_v);
+}
+
+bool store::initialized() const noexcept {
+  return !state_.expired();
 }
 
 void store::put(data key, data value, optional<timespan> expiry) {
-  CHECK_INITIALIZED_VOID();
-  state_->anon_send(atom::local_v,
-                    make_internal_command<put_command>(
-                      std::move(key), std::move(value), expiry, frontend_id()));
+  if (auto ptr = state_.lock())
+    ptr->anon_send(atom::local_v,
+                   make_internal_command<put_command>(
+                     std::move(key), std::move(value), expiry, frontend_id()));
 }
 
 void store::erase(data key) {
-  CHECK_INITIALIZED_VOID();
-  state_->anon_send(atom::local_v, make_internal_command<erase_command>(
-                                     std::move(key), frontend_id()));
+  if (auto ptr = state_.lock())
+    ptr->anon_send(atom::local_v, make_internal_command<erase_command>(
+                                    std::move(key), frontend_id()));
 }
 
 void store::add(data key, data value, data::type init_type,
                 optional<timespan> expiry) {
-  CHECK_INITIALIZED_VOID();
-  state_->anon_send(atom::local_v, make_internal_command<add_command>(
-                                     std::move(key), std::move(value),
-                                     init_type, expiry, frontend_id()));
+  if (auto ptr = state_.lock())
+    ptr->anon_send(atom::local_v, make_internal_command<add_command>(
+                                    std::move(key), std::move(value), init_type,
+                                    expiry, frontend_id()));
 }
 
 void store::subtract(data key, data value, optional<timespan> expiry) {
-  CHECK_INITIALIZED_VOID();
-  state_->anon_send(atom::local_v,
-                    make_internal_command<subtract_command>(
-                      std::move(key), std::move(value), expiry, frontend_id()));
+  if (auto ptr = state_.lock())
+    ptr->anon_send(atom::local_v,
+                   make_internal_command<subtract_command>(
+                     std::move(key), std::move(value), expiry, frontend_id()));
 }
 
 void store::clear() {
-  CHECK_INITIALIZED_VOID();
-  state_->anon_send(atom::local_v,
-                    make_internal_command<clear_command>(frontend_id()));
+  if (auto ptr = state_.lock())
+    ptr->anon_send(atom::local_v,
+                   make_internal_command<clear_command>(frontend_id()));
 }
 
 bool store::await_idle(timespan timeout) {
   BROKER_TRACE(BROKER_ARG(timeout));
   bool result = false;
-  state_->self->request(state_->frontend, timeout, atom::await_v, atom::idle_v)
-    .receive([&result](atom::ok) { result = true; },
-             [](const error&) {
-               // nop
-             });
+  if (auto ptr = state_.lock())
+    ptr->self->request(ptr->frontend, timeout, atom::await_v, atom::idle_v)
+      .receive([&result](atom::ok) { result = true; },
+               []([[maybe_unused]] const error& err) {
+                 BROKER_ERROR("await_idle failed: " << err);
+               });
   return result;
 }
 
 void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
   BROKER_TRACE(BROKER_ARG(timeout));
   if (!callback) {
-    BROKER_ERROR("invalid callback received for await_peer");
+    BROKER_ERROR("invalid callback received for await_idle");
     return;
   }
-  auto await_actor = [cb{std::move(callback)}](caf::event_based_actor* self,
-                                               caf::actor frontend,
-                                               timespan t) {
-    self->request(frontend, t, atom::await_v, atom::idle_v)
-      .then([cb](atom::ok) { cb(true); }, [cb](const error&) { cb(false); });
-  };
-  state_->self->spawn(await_actor, state_->frontend, timeout);
+  if (auto ptr = state_.lock()) {
+    auto await_actor = [cb{std::move(callback)}](caf::event_based_actor* self,
+                                                 caf::actor frontend,
+                                                 timespan t) {
+      self->request(frontend, t, atom::await_v, atom::idle_v)
+        .then([cb](atom::ok) { cb(true); }, [cb](const error&) { cb(false); });
+    };
+    ptr->self->spawn(std::move(await_actor), ptr->frontend, timeout);
+  } else {
+    callback(false);
+  }
 }
 
 void store::reset() {
