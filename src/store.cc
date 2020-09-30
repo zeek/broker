@@ -8,6 +8,7 @@
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
+#include <caf/others.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
@@ -186,40 +187,48 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
+  BROKER_TRACE("");
   auto resp = response{error{}, 0};
   auto fa = caf::actor_cast<broker::detail::flare_actor*>(proxy_);
   fa->receive(
-    [&](data& x, request_id id) {
+    [&resp, fa](data& x, request_id id) {
       resp = {std::move(x), id};
       fa->extinguish_one();
     },
-    [&](caf::error& e, request_id id) {
-      BROKER_ERROR("proxy failed to receive response from store" << id);
-      resp = {std::move(e), id};
+    [&resp, fa](caf::error& err, request_id id) {
+      resp = {std::move(err), id};
       fa->extinguish_one();
-    }
-  );
+    },
+#if CAF_VERSION >= 1800
+    caf::others >> [&](caf::message& msg) -> caf::skippable_result {
+      BROKER_ERROR("proxy received an unexpected message:" << x);
+#else
+    caf::others >> [&](caf::message_view& x) -> caf::result<caf::message> {
+      BROKER_ERROR("proxy received an unexpected message:" << x.content());
+#endif
+      // We *must* make sure to consume any and all messages, because the flare
+      // actor messes with the mailbox signaling. The flare fires on each
+      // enqueued message and the flare actor reports data available as long as
+      // the flare count is > 0. However, the blocking actor is unaware of this
+      // flare and hence does not extinguish automatically when dequeueing a
+      // message from the mailbox. Without this default handler to actively
+      // discard unexpected messages, CAF would spin on the mailbox forever when
+      // attempting to skip unhandled inputs because flare_actor::await_data
+      // would always return `true`.
+      fa->extinguish_one();
+      resp.answer = caf::make_error(caf::sec::unexpected_message);
+      return resp.answer.error();
+    });
+  BROKER_DEBUG("received response from frontend:" << resp);
   return resp;
 }
 
 std::vector<store::response> store::proxy::receive(size_t n) {
+  BROKER_TRACE(BROKER_ARG(n));
   std::vector<store::response> rval;
   rval.reserve(n);
-  size_t i = 0;
-  auto fa = caf::actor_cast<broker::detail::flare_actor*>(proxy_);
-
-  fa->receive_for(i, n) (
-    [&](data& x, request_id id) {
-      rval.emplace_back(store::response{std::move(x), id});
-      fa->extinguish_one();
-    },
-    [&](caf::error& e, request_id id) {
-      BROKER_ERROR("proxy failed to receive response from store" << id);
-      rval.emplace_back(store::response{std::move(e), id});
-      fa->extinguish_one();
-    }
-  );
-
+  for (size_t i = 0; i < n; ++i)
+    rval.emplace_back(receive());
   return rval;
 }
 
