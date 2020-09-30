@@ -66,9 +66,10 @@ public:
             [=](error& err) mutable { rp.deliver(std::move(err)); });
       },
       [=](error err) mutable {
-        if (addr.retry.count() == 0 || ++count >= 10) {
+        dref().peer_unavailable(addr);
+        ++count; // Tracked, but currently unused; could implement max. count.
+        if (addr.retry.count() == 0) {
           rp.deliver(std::move(err));
-          dref().peer_unavailable(addr);
         } else {
           self->delayed_send(self, addr.retry,
                              detail::retry_state{addr, std::move(rp), count});

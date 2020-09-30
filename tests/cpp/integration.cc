@@ -587,7 +587,8 @@ CAF_TEST(connection_retry) {
   exec_loop();
   MESSAGE("check event logs");
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_added}));
-  CAF_CHECK_EQUAL(event_log(venus_es.poll()), event_log({sc::peer_added}));
+  CAF_CHECK_EQUAL(event_log(venus_es.poll()),
+                  event_log({ec::peer_unavailable, sc::peer_added}));
   MESSAGE("disconnect venus from mercury");
   venus.loop_after_next_enqueue();
   venus.ep.unpeer("mercury", 4040);
