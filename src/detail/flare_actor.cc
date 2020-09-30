@@ -5,6 +5,7 @@
 #include <caf/execution_unit.hpp>
 #include <caf/mailbox_element.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/logger.hh"
 
 namespace broker {
@@ -73,8 +74,11 @@ caf::mailbox_element_ptr flare_actor::dequeue() {
   std::unique_lock<std::mutex> lock{flare_mtx_};
   auto rval = blocking_actor::dequeue();
 
-  if (rval)
-    this->extinguish_one();
+  if (rval) {
+    [[maybe_unused]] auto extinguished = flare_.extinguish_one();
+    BROKER_ASSERT(extinguished);
+    --flare_count_;
+  }
 
   return rval;
 }
@@ -85,8 +89,8 @@ const char* flare_actor::name() const {
 
 void flare_actor::extinguish_one() {
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  auto extinguished = flare_.extinguish_one();
-  CAF_ASSERT(extinguished);
+  [[maybe_unused]] auto extinguished = flare_.extinguish_one();
+  BROKER_ASSERT(extinguished);
   --flare_count_;
 }
 
