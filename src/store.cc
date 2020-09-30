@@ -200,7 +200,7 @@ store::response store::proxy::receive() {
       fa->extinguish_one();
     },
 #if CAF_VERSION >= 1800
-    caf::others >> [&](caf::message& msg) -> caf::skippable_result {
+    caf::others >> [&](caf::message& x) -> caf::skippable_result {
       BROKER_ERROR("proxy received an unexpected message:" << x);
 #else
     caf::others >> [&](caf::message_view& x) -> caf::result<caf::message> {
