@@ -249,11 +249,12 @@ expected<data> store::get(data key) const {
 expected<data> store::put_unique(data key, data val,
                                  optional<timespan> expiry) {
   return with_state(state_, [&](detail::store_state& state) {
-    return state.request<data>(atom::local_v,
-                               make_internal_command<put_unique_command>(
-                                 std::move(key), std::move(val), expiry,
-                                 entity_id::from(state.self), state.req_id++,
-                                 frontend_id()));
+    auto tag = state.req_id++;
+    return state.request_tagged<data>(tag, atom::local_v,
+                                      make_internal_command<put_unique_command>(
+                                        std::move(key), std::move(val), expiry,
+                                        entity_id::from(state.self), tag,
+                                        frontend_id()));
   });
 }
 

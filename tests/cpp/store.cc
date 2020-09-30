@@ -127,6 +127,11 @@ TEST(proxy) {
   REQUIRE_EQUAL(resp.answer, error{ec::no_such_key});
   auto key_id = proxy.keys();
   auto key_resp = proxy.receive();
-  CAF_REQUIRE_EQUAL(key_resp.id, key_id);
-  CAF_REQUIRE_EQUAL(value_of(key_resp.answer), data(set{"foo"}));
+  REQUIRE_EQUAL(key_resp.id, key_id);
+  REQUIRE_EQUAL(value_of(key_resp.answer), data(set{"foo"}));
+  MESSAGE("master: put unique and receive the response");
+  auto put_unique_req = proxy.put_unique("foobar", 123);
+  auto put_unique_res = proxy.receive();
+  CHECK_EQUAL(put_unique_res.id, put_unique_req);
+  CHECK_EQUAL(value_of(put_unique_res.answer), data{true});
 }

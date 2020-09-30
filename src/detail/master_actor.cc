@@ -199,7 +199,7 @@ void master_state::consume(put_unique_command& x) {
     if (x.who) {
       local_request_key key{x.who, x.req_id};
       if (auto i = local_requests.find(key); i != local_requests.end()) {
-        i->second.deliver(data{inserted});
+        i->second.deliver(data{inserted}, x.req_id);
         local_requests.erase(i);
       }
     }
@@ -457,7 +457,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
           if (auto rp = self->make_response_promise(); rp.pending()) {
             store_actor_state::local_request_key key{ptr->who, ptr->req_id};
             if (!self->state.local_requests.emplace(key, rp).second) {
-              rp.deliver(ec::repeated_request_id);
+              rp.deliver(make_error(ec::repeated_request_id), ptr->req_id);
               return;
             }
           }

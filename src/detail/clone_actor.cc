@@ -184,7 +184,7 @@ void clone_state::consume(put_command& x) {
 void clone_state::consume(put_unique_result_command& cmd) {
   local_request_key key{cmd.who, cmd.req_id};
   if (auto i = local_requests.find(key); i != local_requests.end()) {
-    i->second.deliver(data{cmd.inserted});
+    i->second.deliver(data{cmd.inserted}, cmd.req_id);
     local_requests.erase(i);
   }
 }

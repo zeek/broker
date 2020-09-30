@@ -37,6 +37,23 @@ struct store_state {
     return res;
   }
 
+  template <class T, class... Ts>
+  expected<T> request_tagged(request_id tag, Ts&&... xs) {
+    expected<T> res{T{}};
+    self->request(frontend, timeout::frontend, std::forward<Ts>(xs)...)
+      .receive(
+        [&, tag](T& x, request_id res_tag) {
+          if (res_tag == tag) {
+            res = std::move(x);
+          } else {
+            BROKER_ERROR("frontend responded with unexpected tag");
+            res = make_error(caf::sec::runtime_error, "tag mismatch");
+          }
+        },
+        [&](caf::error& e) { res = std::move(e); });
+    return res;
+  }
+
   template <class... Ts>
   void anon_send(Ts&&... xs) {
     caf::anon_send(frontend, std::forward<Ts>(xs)...);
