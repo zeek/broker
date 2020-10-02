@@ -25,12 +25,14 @@ int main() {
     for ( int n = 0; n < 5; n++ ) {
         // Send event "ping(n)".
         zeek::Event ping("ping", {n});
-        ep.publish("/topic/test", ping);
+        ep.publish("/topic/test", ping.move_data());
 
         // Wait for "pong" reply event.
         auto msg = sub.get();
-        zeek::Event pong(move_data(msg));
-        std::cout << "received " << pong.name() << pong.args() << std::endl;
+        if (zeek::Event::valid(get_data(msg))) {
+          auto pong = zeek::Event::from(move_data(msg));
+          std::cout << "received " << pong.name() << pong.args() << std::endl;
+        }
     }
 
     return 0;
