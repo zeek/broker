@@ -7,14 +7,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
-	cpp/mixin/data_store_manager.cc
-	cpp/mixin/notifier.cc
   cpp/alm/multipath.cc
   cpp/alm/peer.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/core_actor.cc
   cpp/data.cc
+  cpp/detail/channel.cc
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
@@ -26,6 +25,8 @@ set(tests
   cpp/integration.cc
   cpp/master.cc
   cpp/mixin/connector.cc
+  cpp/mixin/data_store_manager.cc
+  cpp/mixin/notifier.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   cpp/ssl.cc
@@ -34,11 +35,18 @@ set(tests
   cpp/store.cc
   cpp/store_event.cc
   cpp/subscriber.cc
+  cpp/system/shutdown.cc
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
- cpp/detail/channel.cc
 )
+
+# Our sytem testing suites require `socketpair`, but Windows lacks this API.
+if (NOT MSVC)
+  list(APPEND tests
+    cpp/system/shutdown.cc
+  )
+endif()
 
 # Setup correct broker library (static/shared).
 if (ENABLE_SHARED)

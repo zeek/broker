@@ -1,0 +1,5 @@
+Unlike the other test suites bundled in `broker-test`, the suites in this
+directory perform system testing.
+
+All suites use `broker::endpoint` directly and there is some level of
+nondeterminism due to threading.
