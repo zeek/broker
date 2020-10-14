@@ -3,5 +3,7 @@
 echo %BROKER_CI_CPUS%
 wmic cpu get NumberOfCores, NumberOfLogicalProcessors/Format:List
 systeminfo
-
-choco install -y --no-progress openssl
+dir C:
+choco list --localonly
+cmake --version
+cmake --help
