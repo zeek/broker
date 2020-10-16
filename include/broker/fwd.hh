@@ -48,6 +48,7 @@ class endpoint;
 class internal_command;
 class port;
 class publisher;
+class shutdown_options;
 class status;
 class store;
 class subnet;
@@ -274,6 +275,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::retransmit_failed_command))
   BROKER_ADD_TYPE_ID((broker::sc))
   BROKER_ADD_TYPE_ID((broker::set))
+  BROKER_ADD_TYPE_ID((broker::shutdown_options))
   BROKER_ADD_TYPE_ID((broker::snapshot))
   BROKER_ADD_TYPE_ID((broker::status))
   BROKER_ADD_TYPE_ID((broker::subnet))

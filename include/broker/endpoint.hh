@@ -31,6 +31,7 @@
 #include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
+#include "broker/shutdown_options.hh"
 #include "broker/status.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/store.hh"
@@ -381,12 +382,17 @@ public:
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
   bool await_stores_on_shutdown() const {
-    return await_stores_on_shutdown_;
+    constexpr auto flag = shutdown_options::await_stores_on_shutdown;
+    return shutdown_options_.contains(flag);
   }
 
   /// Sets whether the endpoint waits for masters and slaves on shutdown.
   void await_stores_on_shutdown(bool x) {
-    await_stores_on_shutdown_ = x;
+    constexpr auto flag = shutdown_options::await_stores_on_shutdown;
+    if (x)
+      shutdown_options_.set(flag);
+    else
+      shutdown_options_.unset(flag);
   }
 
   bool is_shutdown() const {
@@ -428,7 +434,7 @@ private:
     mutable caf::actor_system system_;
   };
   caf::actor core_;
-  bool await_stores_on_shutdown_;
+  shutdown_options shutdown_options_;
   std::vector<caf::actor> children_;
   bool destroyed_;
   clock* clock_;

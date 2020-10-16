@@ -166,7 +166,6 @@ void pretty_print(std::ostream& out, const caf::settings& xs,
 
 endpoint::endpoint(configuration config)
   : config_(std::move(config)),
-    await_stores_on_shutdown_(false),
     destroyed_(false) {
   // Stop immediately if any helptext was printed.
   if (config_.cli_helptext_printed)
@@ -210,31 +209,28 @@ void endpoint::shutdown() {
   {
     BROKER_TRACE("");
     BROKER_INFO("shutting down endpoint");
-    destroyed_ = true;
-    if (!await_stores_on_shutdown_) {
-      BROKER_DEBUG("tell core actor to terminate stores");
-      anon_send(core_, atom::shutdown_v, atom::store_v);
-    }
+    caf::scoped_actor self{system_};
+    BROKER_DEBUG("send shutdown message to core actor");
+    self->monitor(core_);
+    self->send(core_, atom::shutdown_v, shutdown_options_);
+    self->receive( // Give the core 5s time to shut down gracefully.
+      [](const caf::down_msg&) {},
+      caf::after(std::chrono::seconds(5)) >>
+        [&] {
+          BROKER_WARNING("endpoint failed to shut down gracefully, kill");
+          self->send_exit(core_, caf::exit_reason::kill);
+          self->wait_for(core_);
+        });
     if (!children_.empty()) {
-      caf::scoped_actor self{system_};
-      BROKER_DEBUG("send exit messages to" << children_.size() << "children");
+      BROKER_DEBUG("kill remaining children if the core failed to stop them");
       for (auto& child : children_)
-        // exit_reason::kill seems more reliable than
-        // exit_reason::user_shutdown in terms of avoiding deadlocks/hangs,
-        // possibly due to the former having more explicit logic that will
-        // shut down streams.
         self->send_exit(child, caf::exit_reason::kill);
       BROKER_DEBUG("wait until all children have terminated");
       self->wait_for(children_);
       children_.clear();
     }
-    BROKER_DEBUG("send shutdown message to core actor");
-    // TODO: implement graceful shutdown (sending atom::shutdown currently
-    // results
-    //       in the endpoint hanging during shutdown) - doing it this way will
-    //       force all other endpoints into path revocation and timeout logic
-    anon_send_exit(core_, caf::exit_reason::kill);
   }
+  destroyed_ = true;
   core_ = nullptr;
   system_.~actor_system();
   delete clock_;

@@ -80,6 +80,8 @@ enum class ec : uint8_t {
   repeated_request_id,
   /// A clone ran out of sync with the master.
   broken_clone,
+  /// Canceled an operation because the system is shutting down.
+  shutting_down,
 };
 // --ec-enum-end
 

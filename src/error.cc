@@ -40,6 +40,7 @@ const char* ec_names[] = {
   "bad_member_function_call",
   "repeated_request_id",
   "broken_clone",
+  "shutting_down",
 };
 
 } // namespace

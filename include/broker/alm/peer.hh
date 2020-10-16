@@ -19,6 +19,7 @@
 #include "broker/filter_type.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
+#include "broker/shutdown_options.hh"
 
 namespace broker::alm {
 
@@ -148,9 +149,16 @@ public:
   }
 
   auto peer_handles() const {
-    std::vector<caf::actor> result;
+    std::vector<communication_handle_type> result;
     for (auto& kvp : tbl_)
       result.emplace_back(kvp.second.hdl);
+    return result;
+  }
+
+  auto peer_ids() const {
+    peer_id_list result;
+    for (auto& kvp : tbl_)
+      result.emplace_back(kvp.first);
     return result;
   }
 
@@ -584,8 +592,30 @@ public:
     // nop
   }
 
+  /// Called when the @ref endpoint signals system shutdown.
+  void shutdown(shutdown_options) {
+    BROKER_DEBUG("cancel any pending await_peer requests");
+    auto cancel = make_error(ec::shutting_down);
+    if (!awaited_peers_.empty()) {
+      for (auto& kvp : awaited_peers_)
+        kvp.second.deliver(cancel);
+      awaited_peers_.clear();
+    }
+    if (!disable_forwarding_) {
+      BROKER_DEBUG("revoke all paths through this peer");
+      ++timestamp_;
+      auto ids = peer_ids();
+      for (auto& x : ids)
+        flood_path_revocation(x);
+    }
+    BROKER_DEBUG("set shutdown behavior");
+    dref().self()->become(dref().make_shutdown_behavior());
+  }
+
   // -- factories --------------------------------------------------------------
 
+  /// Creates the default behavior for the actor that remains valid until the
+  /// system is shutting down.
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
     using detail::lift;
@@ -614,7 +644,8 @@ public:
             filter_extend(result, filter);
         return result;
       },
-      [=](atom::shutdown) {
+      [=](atom::shutdown, shutdown_options opts) {
+        dref().shutdown(opts);
         // TODO: this handler exists only for backwards-compatibility. Consider
         //       simply using CAF's exit messages instead of using this
         //       anti pattern.
@@ -634,6 +665,35 @@ public:
         else
           awaited_peers_.emplace(who, std::move(rp));
       },
+    };
+  }
+
+  /// Creates the behavior for the tear down period after receiving 'shutdown'
+  /// but before the actor actually terminates.
+  template <class... Fs>
+  caf::behavior make_shutdown_behavior(Fs... fs) {
+    using detail::drop;
+    return {
+      std::move(fs)...,
+      drop<atom::publish>(&Derived::publish_data),
+      drop<atom::publish>(&Derived::publish_command),
+      drop<atom::publish>(&Derived::publish_command_to),
+      drop<atom::subscribe>(&Derived::subscribe),
+      drop<atom::publish>(&Derived::handle_publication),
+      drop<atom::subscribe>(&Derived::handle_filter_update),
+      drop<atom::revoke>(&Derived::handle_path_revocation),
+      [res{dref().id()}](atom::get, atom::id) { return res; },
+      [](atom::get, atom::peer, atom::subscriptions) { return filter_type{}; },
+      [](atom::shutdown, shutdown_options opts) {
+        // nop: already shutting down
+      },
+      [](atom::publish, atom::local, const command_message&) {
+        // drop
+      },
+      [](atom::publish, atom::local, const data_message&) {
+        // drop
+      },
+      [](atom::await, peer_id_type) { return make_error(ec::shutting_down); },
     };
   }
 

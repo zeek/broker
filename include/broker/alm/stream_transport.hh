@@ -16,6 +16,7 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/message.hh"
+#include "broker/shutdown_options.hh"
 
 namespace broker::alm {
 
@@ -103,11 +104,25 @@ public:
   using hdl_to_slot_map
     = caf::detail::unordered_flat_map<caf::actor, caf::stream_slot>;
 
+  // -- imported member functions (silence hiding warnings) --------------------
+
+  using caf::stream_manager::shutdown;
+
   // -- constructors, destructors, and assignment operators --------------------
 
   explicit stream_transport(caf::event_based_actor* self)
     : super(self), caf::stream_manager(self), out_(this) {
     continuous(true);
+  }
+
+  ~stream_transport() {
+    if (tearing_down_) {
+      // The core actor removes this stream manager after clearing all output
+      // buffers. While we wait for this to happen, the core actor runs with the
+      // shutdown behavior. Since no stream remains and all connections to peers
+      // were closed, we can now tell the actor to complete shutdown.
+      dref().self()->quit();
+    }
   }
 
   // -- properties -------------------------------------------------------------
@@ -467,6 +482,20 @@ public:
     super::peer_connected(peer_id, hdl);
   }
 
+  void shutdown(shutdown_options options) {
+    if (!store_manager().paths().empty()) {
+      // TODO: honor wait-for-stores flag.
+      store_manager().abort(ec::shutting_down);
+    }
+    if (auto peers = dref().peer_ids(); !peers.empty()) {
+      for (auto& x : peers)
+        unpeer(x);
+    }
+    tearing_down_ = true;
+    continuous(false);
+    super::shutdown(options);
+  }
+
   // -- overridden member functions of caf::stream_manager ---------------------
 
 #if CAF_VERSION >= 1800
@@ -548,8 +577,8 @@ public:
     using caf::detail::make_scope_guard;
     auto rebind_from = caf::actor_cast<caf::actor>(x.rebind_from);
     auto rebind_to = caf::actor_cast<caf::actor>(x.rebind_to);
-    bool abort_connection = false;
-    if (rebind_from != rebind_to) {
+    bool abort_connection = tearing_down_;
+    if (!abort_connection && rebind_from != rebind_to) {
       auto update_map = [&](auto& map) {
         auto i = map.find(rebind_from);
         if (i == map.end()) {
@@ -647,12 +676,49 @@ public:
         add_unchecked_inbound_path(in);
       },
       // Special handlers for bypassing streams and/or forwarding.
-      [this](atom::publish, atom::local, data_message msg) {
+      [this](atom::publish, atom::local, data_message& msg) {
         publish_locally(msg);
       },
       [this](atom::unpeer, const caf::actor& hdl) { dref().unpeer(hdl); },
       [this](atom::unpeer, const peer_id_type& peer_id) {
         dref().unpeer(peer_id);
+      });
+  }
+
+  template <class... Fs>
+  caf::behavior make_shutdown_behavior(Fs... fs) {
+    using D = Derived;
+    using detail::reject;
+    return super::make_behavior(
+      std::move(fs)...,
+      reject<ec::shutting_down, atom::peer>(&D::handle_peering_request),
+      reject<ec::shutting_down>(&D::handle_peering_handshake_1),
+      reject<ec::shutting_down>(&D::handle_peering_handshake_2),
+      reject<ec::shutting_down, atom::join>(&D::add_worker),
+      reject<ec::shutting_down, atom::join>(&D::add_sending_worker),
+      reject<ec::shutting_down, atom::join, atom::store>(&D::add_sending_store),
+      [](atom::peer, const peer_id_type&, const caf::actor&) {
+        // drop
+      },
+      [](atom::join, atom::update, caf::stream_slot, filter_type&) {
+        // drop
+      },
+      [](atom::join, atom::update, caf::stream_slot, filter_type&,
+         const caf::actor&) {
+        // drop
+      },
+      [](caf::stream<data_message>) { return make_error(ec::shutting_down); },
+      [](caf::stream<node_message_content>) {
+        return make_error(ec::shutting_down);
+      },
+      [](atom::publish, atom::local, const data_message& msg) {
+        // drop
+      },
+      [](atom::unpeer, const caf::actor&) {
+        // drop
+      },
+      [](atom::unpeer, const peer_id_type&) {
+        // drop
       });
   }
 
@@ -842,6 +908,9 @@ protected:
 
   /// Stores nodes we have in-flight peering handshakes to.
   std::map<peer_id_type, pending_connection> pending_connections_;
+
+  /// Stores whether the `shutdown` callback was invoked.
+  bool tearing_down_ = false;
 
 private:
   Derived& dref() {

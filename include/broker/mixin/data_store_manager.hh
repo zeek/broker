@@ -16,6 +16,7 @@
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
 #include "broker/logger.hh"
+#include "broker/shutdown_options.hh"
 #include "broker/topic.hh"
 
 namespace broker::mixin {
@@ -141,6 +142,13 @@ public:
     };
     f(masters_);
     f(clones_);
+  }
+
+  // -- callbacks --------------------------------------------------------------
+
+  void shutdown(shutdown_options options) {
+    detach_stores();
+    super::shutdown(options);
   }
 
   // -- factories --------------------------------------------------------------
