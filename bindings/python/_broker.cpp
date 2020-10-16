@@ -60,7 +60,7 @@ broker::endpoint_id node_from_str(const std::string& node_str) {
     throw std::invalid_argument(
       "endpoint::await_peer called with invalid endpoint ID");
   return node;
-};
+}
 
 } // namespace
 

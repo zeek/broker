@@ -79,7 +79,7 @@ struct put_command  {
   data key;
   data value;
   caf::optional<timespan> expiry;
-  BROKER_ACTION_COMMAND(put, ("key", "value", "expiry"), key, value, expiry);
+  BROKER_ACTION_COMMAND(put, ("key", "value", "expiry"), key, value, expiry)
 };
 
 /// Sets a value in the key-value store if its key does not already exist.
