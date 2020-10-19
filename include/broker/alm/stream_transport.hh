@@ -15,6 +15,7 @@
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/shutdown_options.hh"
 
@@ -113,16 +114,6 @@ public:
   explicit stream_transport(caf::event_based_actor* self)
     : super(self), caf::stream_manager(self), out_(this) {
     continuous(true);
-  }
-
-  ~stream_transport() {
-    if (tearing_down_) {
-      // The core actor removes this stream manager after clearing all output
-      // buffers. While we wait for this to happen, the core actor runs with the
-      // shutdown behavior. Since no stream remains and all connections to peers
-      // were closed, we can now tell the actor to complete shutdown.
-      dref().self()->quit();
-    }
   }
 
   // -- properties -------------------------------------------------------------
@@ -483,9 +474,13 @@ public:
   }
 
   void shutdown(shutdown_options options) {
+    BROKER_TRACE(BROKER_ARG(options));
     if (!store_manager().paths().empty()) {
       // TODO: honor wait-for-stores flag.
-      store_manager().abort(ec::shutting_down);
+      auto cancel = make_error(ec::shutting_down);
+      auto xs = store_manager().open_path_slots();
+      for (auto x : xs)
+        out_.remove_path(x, cancel, false);
     }
     if (auto peers = dref().peer_ids(); !peers.empty()) {
       for (auto& x : peers)
@@ -685,43 +680,6 @@ public:
       });
   }
 
-  template <class... Fs>
-  caf::behavior make_shutdown_behavior(Fs... fs) {
-    using D = Derived;
-    using detail::reject;
-    return super::make_behavior(
-      std::move(fs)...,
-      reject<ec::shutting_down, atom::peer>(&D::handle_peering_request),
-      reject<ec::shutting_down>(&D::handle_peering_handshake_1),
-      reject<ec::shutting_down>(&D::handle_peering_handshake_2),
-      reject<ec::shutting_down, atom::join>(&D::add_worker),
-      reject<ec::shutting_down, atom::join>(&D::add_sending_worker),
-      reject<ec::shutting_down, atom::join, atom::store>(&D::add_sending_store),
-      [](atom::peer, const peer_id_type&, const caf::actor&) {
-        // drop
-      },
-      [](atom::join, atom::update, caf::stream_slot, filter_type&) {
-        // drop
-      },
-      [](atom::join, atom::update, caf::stream_slot, filter_type&,
-         const caf::actor&) {
-        // drop
-      },
-      [](caf::stream<data_message>) { return make_error(ec::shutting_down); },
-      [](caf::stream<node_message_content>) {
-        return make_error(ec::shutting_down);
-      },
-      [](atom::publish, atom::local, const data_message& msg) {
-        // drop
-      },
-      [](atom::unpeer, const caf::actor&) {
-        // drop
-      },
-      [](atom::unpeer, const peer_id_type&) {
-        // drop
-      });
-  }
-
 protected:
   /// Disconnects a peer by demand of the user.
   void unpeer(const peer_id_type& peer_id, const caf::actor& hdl) {
@@ -877,7 +835,8 @@ protected:
         disconnect(hdl, cause.reason, cause);
       }
     }
-    caf::stream_manager::handle(path, cause);
+    // Reset the actor handle to make sure no further messages travel upstream.
+    path->hdl = nullptr;
   }
 
   template <class Cause>
@@ -890,11 +849,12 @@ protected:
       if constexpr (std::is_same<caf::upstream_msg::drop, Cause>::value) {
         error dummy;
         disconnect(hdl, dummy, cause);
+        out_.remove_path(slots.receiver, dummy, false);
       } else {
         disconnect(hdl, cause.reason, cause);
+        out_.remove_path(slots.receiver, cause.reason, true);
       }
     }
-    caf::stream_manager::handle(slots, cause);
   }
 
   /// Organizes downstream communication to peers as well as local subscribers.

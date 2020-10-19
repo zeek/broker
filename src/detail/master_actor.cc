@@ -435,6 +435,8 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
                            std::string store_name,
                            master_state::backend_pointer backend,
                            endpoint::clock* clock) {
+  BROKER_TRACE(BROKER_ARG(this_endpoint)
+               << BROKER_ARG(core) << BROKER_ARG(store_name));
   // Setup.
   self->monitor(core);
   self->state.init(self, std::move(this_endpoint), std::move(store_name),
@@ -541,7 +543,7 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
       return caf::delegated<atom::ok>();
     },
     // --- stream handshake with core ------------------------------------------
-    [=](const store::stream_type& in) {
+    [=](store::stream_type in) {
       BROKER_DEBUG("received stream handshake from core");
       attach_stream_sink(
         self,

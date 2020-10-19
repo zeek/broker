@@ -26,10 +26,8 @@ class core_manager
 public:
   using super = extended_base;
 
-  core_manager(endpoint::clock* clock, caf::event_based_actor* self);
-
-  core_manager(endpoint::clock* clock, caf::event_based_actor* self,
-               const domain_options& adaptation);
+  core_manager(caf::node_id core_id, endpoint::clock* clock,
+               caf::event_based_actor* self, const domain_options* adaptation);
 
   const auto& id() const noexcept {
     return id_;
@@ -48,6 +46,8 @@ private:
 };
 
 struct core_state {
+  ~core_state();
+
   caf::intrusive_ptr<core_manager> mgr;
 
   static inline const char* name = "core";

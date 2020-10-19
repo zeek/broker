@@ -14,6 +14,7 @@
 #include "broker/detail/store_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
+#include "broker/logger.hh"
 #include "broker/optional.hh"
 #include "broker/topic.hh"
 
@@ -93,6 +94,7 @@ public:
 
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
+    BROKER_TRACE("");
     return {
       std::move(fs)...,
       [this](atom::increment, store_state_ptr ptr) {

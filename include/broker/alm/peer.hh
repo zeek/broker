@@ -593,7 +593,8 @@ public:
   }
 
   /// Called when the @ref endpoint signals system shutdown.
-  void shutdown(shutdown_options) {
+  void shutdown([[maybe_unused]] shutdown_options options) {
+    BROKER_TRACE(BROKER_ARG(options));
     BROKER_DEBUG("cancel any pending await_peer requests");
     auto cancel = make_error(ec::shutting_down);
     if (!awaited_peers_.empty()) {
@@ -608,8 +609,7 @@ public:
       for (auto& x : ids)
         flood_path_revocation(x);
     }
-    BROKER_DEBUG("set shutdown behavior");
-    dref().self()->become(dref().make_shutdown_behavior());
+    dref().self()->quit();
   }
 
   // -- factories --------------------------------------------------------------
@@ -646,11 +646,6 @@ public:
       },
       [=](atom::shutdown, shutdown_options opts) {
         dref().shutdown(opts);
-        // TODO: this handler exists only for backwards-compatibility. Consider
-        //       simply using CAF's exit messages instead of using this
-        //       anti pattern.
-        BROKER_DEBUG("received 'shutdown', call quit");
-        dref().self()->quit(caf::exit_reason::user_shutdown);
       },
       [=](atom::publish, atom::local, command_message& msg) {
         dref().ship_locally(msg);
@@ -665,35 +660,6 @@ public:
         else
           awaited_peers_.emplace(who, std::move(rp));
       },
-    };
-  }
-
-  /// Creates the behavior for the tear down period after receiving 'shutdown'
-  /// but before the actor actually terminates.
-  template <class... Fs>
-  caf::behavior make_shutdown_behavior(Fs... fs) {
-    using detail::drop;
-    return {
-      std::move(fs)...,
-      drop<atom::publish>(&Derived::publish_data),
-      drop<atom::publish>(&Derived::publish_command),
-      drop<atom::publish>(&Derived::publish_command_to),
-      drop<atom::subscribe>(&Derived::subscribe),
-      drop<atom::publish>(&Derived::handle_publication),
-      drop<atom::subscribe>(&Derived::handle_filter_update),
-      drop<atom::revoke>(&Derived::handle_path_revocation),
-      [res{dref().id()}](atom::get, atom::id) { return res; },
-      [](atom::get, atom::peer, atom::subscriptions) { return filter_type{}; },
-      [](atom::shutdown, shutdown_options opts) {
-        // nop: already shutting down
-      },
-      [](atom::publish, atom::local, const command_message&) {
-        // drop
-      },
-      [](atom::publish, atom::local, const data_message&) {
-        // drop
-      },
-      [](atom::await, peer_id_type) { return make_error(ec::shutting_down); },
     };
   }
 
