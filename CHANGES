@@ -1,4 +1,17 @@
 
+1.5.0-dev.20 | 2020-10-21 15:14:55 -0700
+
+  * Update Windows CI config (Jon Siwek, Corelight)
+
+    * Disable Cirrus Windows task: an updated Docker image on Cirrus-side
+      has unknown issues and trying to create one for ourselves also ended
+      with similar, unsuccessful results
+
+    * Provide an example Dockerfile that uses Visual Studio 2019, which may
+      help as a starting point for manual testing/development purposes
+
+    * Enable Travis for testing just Windows
+
 1.5.0-dev.16 | 2020-08-21 11:41:06 -0700
 
   * Respect --config-file= CLI parameters (Dominik Charousset, Corelight)
