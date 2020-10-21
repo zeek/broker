@@ -1,4 +1,8 @@
 
+1.5.0-dev.22 | 2020-10-21 15:37:57 -0700
+
+  * Move CI from Fedora 30 (EOL) to Fedora 32 (Jon Siwek, Corelight)
+
 1.5.0-dev.20 | 2020-10-21 15:14:55 -0700
 
   * Update Windows CI config (Jon Siwek, Corelight)
