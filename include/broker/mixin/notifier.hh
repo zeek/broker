@@ -170,40 +170,29 @@ private:
     static_assert(detail::has_network_info_v<EnumConstant>);
     if (disable_notifications_)
       return;
-    if (auto peer_id_opt = get_peer_id(dref().tbl(), hdl)) {
-      auto peer_id = std::move(*peer_id_opt);
-      auto on_cache_hit = [=](network_info x) { emit(peer_id, x, code, msg); };
-      auto on_cache_miss = [=](caf::error) { emit(peer_id, {}, code, msg); };
-      dref().cache().fetch(hdl, on_cache_hit, on_cache_miss);
-    } else {
-      auto on_cache_hit = [=](network_info x) { emit({}, x, code, msg); };
-      auto on_cache_miss = [=](caf::error) {
-        if constexpr (std::is_same<caf::node_id, peer_id_type>::value) {
-          emit(hdl.node(), {}, code, msg);
-        } else {
-          BROKER_DEBUG(
-            "cannot resolve actor handle to network info or ID:" << hdl);
-          emit({}, {}, code, msg);
-        }
-      };
-      dref().cache().fetch(hdl, on_cache_hit, on_cache_miss);
-    }
+    auto unbox_or_default = [](auto maybe_value) {
+      if (maybe_value)
+        return std::move(*maybe_value);
+      return typename decltype(maybe_value)::value_type{};
+    };
+    emit(unbox_or_default(get_peer_id(dref().tbl(), hdl)),
+         unbox_or_default(dref().cache().find(hdl)), code, msg);
   }
 
   template <class EnumConstant>
   void emit(const peer_id_type& peer_id, EnumConstant code, const char* msg) {
+    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG2("code", EnumConstant::value)
+                                     << BROKER_ARG(msg));
     if (disable_notifications_)
       return;
     using value_type = typename EnumConstant::value_type;
     if constexpr (detail::has_network_info_v<EnumConstant>) {
-      auto on_cache_hit = [=](network_info x) { emit(peer_id, x, code, msg); };
-      auto on_cache_miss = [=](caf::error) { emit(peer_id, {}, code, msg); };
+      network_info net;
       auto& tbl = dref().tbl();
-      if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl) {
-        dref().cache().fetch(i->second.hdl, on_cache_hit, on_cache_miss);
-      } else {
-        on_cache_miss({});
-      }
+      if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl)
+        if (auto maybe_net = dref().cache().find(i->second.hdl))
+          net = std::move(*maybe_net);
+       emit(peer_id, net, code, msg);
     } else if constexpr (std::is_same<value_type, sc>::value) {
       emit(status::make<EnumConstant::value>(peer_id, msg));
     } else {

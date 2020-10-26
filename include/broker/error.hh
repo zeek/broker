@@ -82,6 +82,8 @@ enum class ec : uint8_t {
   broken_clone,
   /// Canceled an operation because the system is shutting down.
   shutting_down,
+  /// Canceled a peering request due to invalid or inconsistent data.
+  invalid_peering_request,
 };
 // --ec-enum-end
 

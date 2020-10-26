@@ -41,6 +41,7 @@ const char* ec_names[] = {
   "repeated_request_id",
   "broken_clone",
   "shutting_down",
+  "invalid_peering_request",
 };
 
 } // namespace

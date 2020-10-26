@@ -147,6 +147,7 @@ configuration::configuration(skip_init_t) {
   set("logger.file-verbosity", atom("quiet"));
   set("logger.console-format", "[%c/%p] %d %m");
   set("middleman.app-identifiers", std::move(ids));
+  set("middleman.workers", 0);
   // Enable console output (and color it if stdout is a TTY) but set verbosty to
   // errors-only. Users can still override via the environment variable
   // BROKER_CONSOLE_VERBOSITY.
@@ -168,6 +169,7 @@ configuration::configuration(skip_init_t) {
   // Broker didn't load the MM module yet. Use `put` to suppress the 'failed to
   // set config parameter' warning on the command line.
   put(content, "caf.middleman.app-identifiers", std::move(ids));
+  put(content, "caf.middleman.workers", 0);
   // Turn off all CAF output by default.
   std::vector<std::string> excluded_components{"caf", "caf_io", "caf_net",
                                                "caf_flow", "caf_stream"};

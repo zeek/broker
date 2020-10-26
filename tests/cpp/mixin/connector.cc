@@ -27,6 +27,10 @@ struct connector_mock_base {
     return self_;
   }
 
+  auto id() {
+    return self_->node();
+  }
+
   void start_peering(const peer_id_type& remote_id, const caf::actor& hdl,
                      caf::response_promise promise) {
     promise.deliver(remote_id, hdl);

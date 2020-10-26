@@ -58,9 +58,11 @@ public:
           return;
         }
         // TODO: replace infinite with some useful default / config parameter
-        self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
+        self->request(hdl, caf::infinite, atom::ping_v, dref().id(), self)
           .then(
-            [=](const peer_id_type& remote_id) mutable {
+            [=](atom::pong, const peer_id_type& remote_id,
+                [[maybe_unused]] communication_handle_type hdl2) mutable {
+              BROKER_ASSERT(hdl == hdl2);
               dref().start_peering(remote_id, hdl, std::move(rp));
             },
             [=](error& err) mutable { rp.deliver(std::move(err)); });
@@ -124,6 +126,19 @@ public:
       },
       [=](detail::retry_state& x) {
         dref().try_peering(x.addr, std::move(x.rp), x.count);
+      },
+      [=](atom::ping, const peer_id_type& peer_id,
+          const communication_handle_type& hdl) {
+        // This step only exists to populate the network caches on both sides
+        // before starting the actual handshake.
+        auto rp = dref().self()->make_response_promise();
+        cache_.fetch(
+          hdl,
+          [this, rp](const network_info&) mutable {
+            rp.deliver(atom::pong_v, dref().id(), dref().self());
+          },
+          [rp](error err) mutable { rp.deliver(std::move(err)); });
+        return rp;
       });
   }
 

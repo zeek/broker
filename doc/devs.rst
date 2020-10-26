@@ -238,7 +238,80 @@ stream paths (one for each direction, because paths are unidirectional).
 The stream transport is a CAF `stream manager`_, i.e., it inherits from
 ``caf::stream_manager``. Aside from multiplexing the streaming traffic for data
 and command messages, this class also implements a handshake to establish the
-CAF streams between two peers.
+CAF streams between two peers as depicted below.
+
+.. code-block:: none
+
+           +-------------+                  +-------------+
+           | Originator  |                  |  Responder  |
+           +------+------+                  +------+------+
+                  |                                |
+   endpoint::peer |                                |
+  +-------------->+                                |
+                  |                                |
+                  +---+                            |
+                  |   | try_peering                |
+                  +<--+                            |
+                  |                                |
+                  | (ping, peer_id, actor)         |
+                  +------------------------------->+
+                  |                                |
+                  |         (pong, peer_id, actor) |
+                  +<-------------------------------+
+                  |                                |
+                  +---+                            |
+                  |   | start_peering              |
+                  +<--+                            |
+                  |                                |
+                  | (peer, init, peer_id, actor)   |
+                  +------------------------------->+
+                  |                                |
+                  |                                +---+
+                  |                                |   | handle_peering_request
+                  |                                +<--+
+                  |         (caf::open_stream_msg) |
+                  +<-------------------------------+
+                  |                                |
+                  +---+                            |
+                  |   | handle_peering_handshake_1 |
+                  +<--+                            |
+                  |                                |
+                  | (caf::open_stream_msg)         |
+                  | (caf::upstream_msg::ack_open)  |
+                  +------------------------------->+
+                  |                                |
+                  |                                +---+
+                  |                                |   | handle_peering_handshake_2
+                  |                                +<--+
+                  |  (caf::upstream_msg::ack_open) |
+                  +<-------------------------------+
+                  |                                |
+                  +---+                            +---+
+                  |   | peer_added                 |   | peer_added
+                  +<--+                            +<--+
+                  |                                |
+
+The diagram above depicts message flow between two peering Broker nodes.
+Messaging for resolving network information, establishing connections, etc.
+were omitted for brevity.
+
+After the user calls ``endpoint::peer``, the Originator sends a ping to the
+Responder before starting the actual peering process. This step exists only for
+populating the network cache on both ends.
+
+The ``(peer, init, ...)`` message triggers the actual handshake by invoking
+``handle_peering_request``. This step creates a CAF stream from the Originator
+to the Responder.
+
+After receiving the  ``open_stream_msg``, the Originator calls
+``handle_peering_handshake_1`` which emits two messages: (1) another
+``open_stream_msg`` to establish a CAF stream from the Responder to the
+Originator (this message invokes ``handle_peering_handshake_2`` at the
+Responder) and (2) an ``ack_open`` message for the CAF stream.
+
+Both sides call ``peer_added`` after receiving the ``ack_open`` message from the
+other party, since this is the last message in the handshake process for both
+sides. At this point, the Broker endpoints are fully connected.
 
 ``mixin::connector``
 ********************

@@ -144,7 +144,7 @@ struct fixture : test_coordinator_fixture<> {
 
   ~fixture() {
     for (auto& kvp : peers)
-      anon_send_exit(kvp.second, caf::exit_reason::user_shutdown);
+      anon_send_exit(kvp.second, caf::exit_reason::kill);
   }
 
   auto& get(const peer_id& id) {
@@ -199,9 +199,10 @@ TEST(gateways separate internal and external domain) {
 TEST(gateways forward messages between the domains) {
   for_each_peer([](auto& state) { state.subscribe({"foo", "bar"}); });
   connect_peers();
-  MESSAGE("publish to 'foo' on A and to 'bar' on I");
+  MESSAGE("publish to 'foo' on A");
   anon_send(peers[A], atom::publish_v, make_data_message("foo", 42));
   run();
+  MESSAGE("publish to 'bar' on I");
   anon_send(peers[I], atom::publish_v, make_data_message("bar", 23));
   run();
   MESSAGE("all peers must have received messages from both domains");

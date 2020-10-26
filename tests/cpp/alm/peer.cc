@@ -209,7 +209,7 @@ struct fixture
 
   ~fixture() {
     for (auto& kvp : peers)
-      anon_send_exit(kvp.second, caf::exit_reason::user_shutdown);
+      anon_send_exit(kvp.second, caf::exit_reason::kill);
   }
 
   auto& get(const peer_id& id) {

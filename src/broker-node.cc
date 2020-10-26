@@ -53,8 +53,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker::end)
 
   BROKER_NODE_ADD_ATOM(blocking, "blocking")
   BROKER_NODE_ADD_ATOM(generate, "generate")
-  BROKER_NODE_ADD_ATOM(ping, "ping")
-  BROKER_NODE_ADD_ATOM(pong, "pong")
   BROKER_NODE_ADD_ATOM(relay, "relay")
   BROKER_NODE_ADD_ATOM(stream, "stream")
 
