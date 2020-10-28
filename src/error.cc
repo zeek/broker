@@ -32,6 +32,18 @@ const char* ec_names[] = {
   "end_of_file",
   "invalid_tag",
   "invalid_status",
+  "conversion_failed",
+  "consumer_exists",
+  "consumer_timeout",
+  "producer_timeout",
+  "bad_member_function_call",
+  "repeated_request_id",
+  "broken_clone",
+  "shutting_down",
+  "invalid_peering_request",
+  "repeated_peering_handshake_request",
+  "unexpected_handshake_message",
+  "invalid_handshake_state",
 };
 
 } // namespace

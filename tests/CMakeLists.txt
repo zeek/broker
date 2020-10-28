@@ -14,6 +14,7 @@ set(tests
   cpp/detail/generator_file_writer.cc
   cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
+  cpp/detail/peer_handshake.cc
   cpp/error.cc
   cpp/filter_type.cc
   cpp/integration.cc

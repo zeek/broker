@@ -64,6 +64,31 @@ enum class ec : uint8_t {
   invalid_tag,
   /// Deserialized an invalid status.
   invalid_status,
+  /// Converting between two data types or formats failed.
+  conversion_failed,
+  /// Adding a consumer to a producer failed because the producer already added
+  /// the consumer.
+  consumer_exists,
+  /// A producer or consumer did not receive any message from a consumer within
+  /// the configured timeout.
+  connection_timeout,
+  /// Called a member function without satisfying its preconditions.
+  bad_member_function_call,
+  /// Attempted to use the same request_id twice.
+  repeated_request_id,
+  /// A clone ran out of sync with the master.
+  broken_clone,
+  /// Canceled an operation because the system is shutting down.
+  shutting_down,
+  /// Canceled a peering request due to invalid or inconsistent data.
+  invalid_peering_request,
+  /// Broker attempted to trigger a second handshake to a peer while the first
+  /// handshake did not complete.
+  repeated_peering_handshake_request,
+  /// Received an unexpected or duplicate message during endpoint handshake.
+  unexpected_handshake_message,
+  /// Handshake failed due to invalid state transitions.
+  invalid_handshake_state,
 };
 // --ec-enum-end
 

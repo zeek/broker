@@ -151,6 +151,14 @@ public:
     return pending_connections_;
   }
 
+  optional<peer_id_type>
+  lookup_pending_peer(const caf::actor& hdl) const noexcept {
+    for (auto& kvp : pending_connections_)
+      if (kvp.second.hdl == hdl)
+        return kvp.first;
+    return {};
+  }
+
   /// Returns the downstream_manager for peer traffic.
   auto& peer_manager() noexcept {
     return out().template get<typename peer_trait::manager>();
@@ -421,6 +429,7 @@ public:
 
   /// Subscribes `self->sender()` to `store_manager()`.
   auto add_sending_store(const filter_type& filter) {
+    BROKER_TRACE(BROKER_ARG(filter));
     using element_type = typename store_trait::element;
     using result_type = caf::outbound_stream_slot<element_type>;
     auto slot = add_unchecked_outbound_path<element_type>();
@@ -434,6 +443,7 @@ public:
 
   /// Subscribes `hdl` to `store_manager()`.
   caf::error add_store(const caf::actor& hdl, const filter_type& filter) {
+    BROKER_TRACE(BROKER_ARG(filter));
     using element_type = typename store_trait::element;
     auto slot = add_unchecked_outbound_path<element_type>(hdl);
     if (slot == caf::invalid_stream_slot)
