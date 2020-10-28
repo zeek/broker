@@ -309,9 +309,15 @@ After receiving the  ``open_stream_msg``, the Originator calls
 Originator (this message invokes ``handle_peering_handshake_2`` at the
 Responder) and (2) an ``ack_open`` message for the CAF stream.
 
-Both sides call ``peer_added`` after receiving the ``ack_open`` message from the
-other party, since this is the last message in the handshake process for both
-sides. At this point, the Broker endpoints are fully connected.
+Both sides call ``peer_added`` after receiving the final message in the
+handshake process. At this point, the Broker endpoints are fully connected.
+
+.. note::
+
+  The responer may process ``open_stream_msg`` and ``upstream_msg::ack_open`` in
+  any order. Since there is a lot of bookkeeping involved during the handshake,
+  this is tracked internally with a finite-state machine
+  (see ``detail::peer_handshake``).
 
 ``mixin::connector``
 ********************

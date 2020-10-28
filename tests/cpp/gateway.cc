@@ -56,6 +56,7 @@ private:
 
 struct peer_actor_state {
   caf::intrusive_ptr<peer_manager> mgr;
+  static inline const char* name = "peer";
 };
 
 using peer_actor_type = caf::stateful_actor<peer_actor_state>;
@@ -136,9 +137,12 @@ struct fixture : test_coordinator_fixture<> {
       {K, {H}},
       {L, {J}},
     };
+    auto link_id = [this](const std::string& str) {
+      return (str == "internal" || str == "external") ? G : str;
+    };
     for (auto& [id, links] : connections)
       for (auto& link : links)
-        anon_send(peers[id], atom::peer_v, link, peers[link]);
+        anon_send(peers[id], atom::peer_v, link_id(link), peers[link]);
     run();
   }
 

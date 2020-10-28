@@ -6,9 +6,11 @@
 #include <caf/actor_cast.hpp>
 #include <caf/downstream_msg.hpp>
 #include <caf/intrusive_ptr.hpp>
+#include <caf/make_counted.hpp>
 #include <caf/ref_counted.hpp>
 #include <caf/response_promise.hpp>
 #include <caf/stream_slot.hpp>
+#include <caf/upstream_msg.hpp>
 #include <caf/variant.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
@@ -85,6 +87,33 @@ public:
     constexpr bool has_flag(int flag) const {
       return (state & flag) == flag;
     }
+
+    std::string pretty_state() const {
+      std::string result;
+      switch (state) {
+        case init_state:
+          result = "init";
+          break;
+        case fail_state:
+          result = "fail";
+          break;
+        case done_state:
+          result = "done";
+          break;
+        case started:
+          result = "started";
+          break;
+        default:
+          BROKER_ASSERT(has_flag(started));
+          if (has_flag(has_open_stream_msg)) {
+            result = "has_open_stream_msg";
+          } else {
+            BROKER_ASSERT(has_flag(has_ack_open_msg));
+            result = "has_ack_open_msg";
+          }
+      }
+      return result;
+    }
   };
 
   /// Implementation for the Originator of the handshake. This FSM is a simple
@@ -121,6 +150,7 @@ public:
     // -- state transitions ----------------------------------------------------
 
     bool start() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       auto parent = this->parent;
       switch (this->state) {
         case fsm::init_state: {
@@ -131,7 +161,7 @@ public:
           BROKER_ASSERT(self != nullptr);
           self
             ->request(parent->remote_hdl, std::chrono::minutes(10),
-                      atom::peer_v, atom::init_v, transport->id(), self)
+                      atom::peer_v, atom::init_v, transport->local_id(), self)
             .then(
               [](atom::peer, atom::ok, const peer_id_type&) {
                 // Note: we do *not* fulfill the promise here. We do so after
@@ -143,8 +173,14 @@ public:
                 // This message handler may "outlive" the transport, so we hold
                 // on to a strong reference. Calling `fail` on the parent is
                 // safe even after the transport terminated since it only
-                // accesses local and actor state.
-                strong_parent->fail(ec::peer_disconnect_during_handshake);
+                // accesses local and actor state. We discard the error in case
+                // the FSM made state transitions in the meantime, because then
+                // we have other mechanisms that detect errors plus the error we
+                // receive here may be a stale request timeout.
+                if (this->state == fsm::started) {
+                  strong_parent->fail(ec::peer_disconnect_during_handshake);
+                  strong_parent->transport->cleanup(strong_parent);
+                }
               });
           return true;
         }
@@ -157,6 +193,7 @@ public:
     }
 
     bool handle_open_stream_msg() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       switch (this->state) {
         case fsm::started: {
           auto parent = this->parent;
@@ -175,6 +212,7 @@ public:
     }
 
     bool handle_ack_open_msg() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       auto parent = this->parent;
       switch (this->state) {
         case fsm::started | fsm::has_open_stream_msg: {
@@ -230,6 +268,7 @@ public:
     // -- state transitions ----------------------------------------------------
 
     bool start() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       auto parent = this->parent;
       auto transport = parent->transport;
       switch (this->state) {
@@ -247,6 +286,7 @@ public:
     }
 
     bool handle_open_stream_msg() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       auto parent = this->parent;
       auto transport = parent->transport;
       switch (this->state) {
@@ -265,6 +305,7 @@ public:
     }
 
     bool handle_ack_open_msg() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       auto parent = this->parent;
       switch (this->state) {
         case fsm::started:
@@ -281,6 +322,7 @@ public:
     }
 
     bool post_msg_action() {
+      BROKER_TRACE(BROKER_ARG2("state", this->pretty_state()));
       if (this->done()) {
         return this->parent->done_transition();
       } else {
@@ -295,7 +337,9 @@ public:
 
   using input_msg_type
     = caf::variant<caf::downstream_msg::batch, caf::downstream_msg::close,
-                   caf::downstream_msg::forced_close>;
+                   caf::downstream_msg::forced_close, caf::upstream_msg::drop,
+                   caf::upstream_msg::forced_drop, caf::upstream_msg::ack_batch,
+                   caf::message>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -309,12 +353,17 @@ public:
   [[nodiscard]] bool originator_start_peering(peer_id_type peer_id,
                                               caf::actor peer_hdl,
                                               caf::response_promise rp = {}) {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
+                 << BROKER_ARG(peer_id) << BROKER_ARG(peer_hdl)
+                 << BROKER_ARG2("rp.pending", rp.pending()));
+    remote_id = std::move(peer_id);
+    remote_hdl = std::move(peer_hdl);
+    if (rp.pending())
+      promises.emplace_back(std::move(rp));
     if (caf::holds_alternative<caf::unit_t>(impl)) {
-      remote_id = std::move(peer_id);
-      remote_hdl = std::move(peer_hdl);
-      if (rp.pending())
-        promises.emplace_back(std::move(rp));
       impl = originator{this};
+      return caf::get<originator>(impl).start();
+    } else if (is_originator() && !started()) {
       return caf::get<originator>(impl).start();
     } else {
       fail(ec::invalid_handshake_state);
@@ -323,23 +372,32 @@ public:
   }
 
   /// Processes the open_stream_msg addressed at the Originator.
-  [[nodiscard]] bool originator_handle_open_stream_msg(filter_type filter) {
-    if (!is_originator()) {
+  [[nodiscard]] bool
+  originator_handle_open_stream_msg(filter_type filter,
+                                    alm::lamport_timestamp timestamp) {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
+                 << BROKER_ARG(filter) << BROKER_ARG(timestamp));
+    if (is_originator()) {
+      remote_filter = std::move(filter);
+      remote_timestamp = timestamp;
+      return caf::get<originator>(impl).handle_open_stream_msg();
+    } else {
       fail(ec::invalid_handshake_state);
       return false;
-    } else {
-      remote_filter = std::move(filter);
-      return caf::get<originator>(impl).handle_open_stream_msg();
     }
   }
 
   /// Starts the handshake. This FSM takes on the role of the Originator.
   [[nodiscard]] bool responder_start_peering(peer_id_type peer_id,
                                              caf::actor peer_hdl) {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
+                 << BROKER_ARG(peer_id) << BROKER_ARG(peer_hdl));
+    remote_id = std::move(peer_id);
+    remote_hdl = std::move(peer_hdl);
     if (caf::holds_alternative<caf::unit_t>(impl)) {
-      remote_id = std::move(peer_id);
-      remote_hdl = std::move(peer_hdl);
       impl = responder{this};
+      return caf::get<responder>(impl).start();
+    } else if (is_responder() && !started()) {
       return caf::get<responder>(impl).start();
     } else {
       fail(ec::invalid_handshake_state);
@@ -348,22 +406,26 @@ public:
   }
 
   /// Processes the open_stream_msg addressed at the responder.
-  [[nodiscard]] bool responder_handle_open_stream_msg(filter_type filter) {
-    if (!is_responder()) {
+  [[nodiscard]] bool
+  responder_handle_open_stream_msg(filter_type filter,
+                                   alm::lamport_timestamp timestamp) {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
+                 << BROKER_ARG(filter) << BROKER_ARG(timestamp));
+    if (is_responder()) {
+      remote_filter = std::move(filter);
+      remote_timestamp = timestamp;
+      return caf::get<responder>(impl).handle_open_stream_msg();
+    } else {
       fail(ec::invalid_handshake_state);
       return false;
-    } else {
-      remote_filter = std::move(filter);
-      return caf::get<responder>(impl).handle_open_stream_msg();
     }
   }
 
   /// Processes the `ack_open` message. Unlike the other functions, the message
   /// is always the same, whether Originator or Responder receive it. Hence,
   /// this function internally dispatches on the implementation type of the FSM.
-  [[nodiscard]] bool handle_ack_open_msg(caf::actor rebind_hdl) {
-    if (remote_hdl != rebind_hdl)
-      remote_hdl = std::move(rebind_hdl);
+  [[nodiscard]] bool handle_ack_open_msg() {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl()));
     return visit_impl(
       [this](caf::unit_t&) {
         fail(ec::invalid_handshake_state);
@@ -375,7 +437,13 @@ public:
   // -- callbacks for the FSM implementations ----------------------------------
 
   bool done_transition() {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl()));
     if (transport->finalize(this)) {
+      if (!promises.empty()) {
+        for (auto& promise : promises)
+          promise.deliver(atom::peer_v, atom::ok_v, remote_id);
+        promises.clear();
+      }
       return true;
     } else {
       fail(ec::invalid_handshake_state);
@@ -388,6 +456,7 @@ public:
   /// Fulfills all response promises with `reason`, sets `err` to `reason` and
   /// sets the FSM state to `fail_state`;
   void fail(error reason) {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl()) << BROKER_ARG(reason));
     if (err) {
       BROKER_ERROR("cannot fail a handshake twice");
     } else {
@@ -447,6 +516,10 @@ public:
                       [](const auto& obj) { return obj.state; });
   }
 
+  auto started() const noexcept {
+    return state() != fsm::init_state;
+  }
+
   auto done() const noexcept {
     return state() == fsm::done_state;
   }
@@ -463,6 +536,24 @@ public:
     return caf::actor_cast<caf::actor>(transport->self());
   }
 
+  std::string pretty_impl() const {
+    return visit_impl([](const caf::unit_t&) { return "indeterminate"; },
+                      [](const originator&) { return "originator"; },
+                      [](const responder&) { return "responder"; });
+  }
+
+  // -- FSM management ---------------------------------------------------------
+
+  /// Forces the implementation to `responder` if the FSM has not started yet.
+  bool to_responder() {
+    if (!started()) {
+      impl = responder{this};
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   // -- message buffering ------------------------------------------------------
 
   /// Pushes an input message (one of the three CAF downstream messages) to the
@@ -470,31 +561,32 @@ public:
   /// message until the handshake completed.
   template <class T>
   void input_buffer_emplace(T&& x) {
-    input_buffer.emplace(std::forward<T>(x));
+    input_buffer.emplace_back(std::forward<T>(x));
   }
 
   /// Replays buffered inputs by calling `transport->handle(...)` for each
   /// message in the buffer.
   /// @note Call only after the handshake completed and ideally as the last
   ///       member function on this object before destroying it.
-  bool replay_input_buffer() {
-    auto path = get_inbound_path(in);
+  void replay_input_buffer() {
+    BROKER_TRACE(BROKER_ARG2("impl", pretty_impl()));
+    auto in_path = transport->get_inbound_path(in);
+    auto out_path = transport->out().path(out);
     if (!done()) {
-      fail(make_error(ec::invalid_handshake_state,
-                      "replay_input_buffer called on pending handshake"));
-      return false;
-    } else if (path == nullptr) {
-      fail(make_error(ec::invalid_handshake_state,
-                      "no inbound path found for input slot"));
-      return false;
+      BROKER_ERROR("replay_input_buffer called on pending handshake");
+    } else if (in_path == nullptr) {
+      BROKER_ERROR("no path found for input slot");
+    } else if (out_path == nullptr) {
+      BROKER_ERROR("no path found for output slot");
     } else {
       if (!input_buffer.empty()) {
-        auto f = [t{transport}, path](auto& msg) { t->handle(path, msg); };
+        auto f = [t{transport}, in_path, out_path](auto& msg) {
+          t->handle_buffered_msg(in_path, out_path, msg);
+        };
         for (auto& msg : input_buffer)
           caf::visit(f, msg);
         input_buffer.clear();
       }
-      return true;
     }
   }
 

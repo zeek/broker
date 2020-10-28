@@ -28,7 +28,7 @@ struct mock_transport_state {
     return self_ptr;
   }
 
-  std::string id() const {
+  std::string local_id() const {
     return "A";
   }
 
@@ -56,6 +56,11 @@ struct mock_transport_state {
   bool finalize(handshake_type*) {
     log.emplace_back("finalize");
     return true;
+  }
+
+  template <class... Ts>
+  void cleanup(Ts&&...) {
+    log.emplace_back("cleanup");
   }
 
   template <class... Ts>
@@ -172,7 +177,7 @@ TEST(the originator creates both streams in handle_open_stream_msg) {
   AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
   AUT_EXEC(CHECK(!state.handshake->has_input_slot()));
   AUT_EXEC(CHECK(!state.handshake->has_output_slot()));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({})));
+  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
   AUT_EXEC(CHECK(state.handshake->has_input_slot()));
   AUT_EXEC(CHECK(state.handshake->has_output_slot()));
   CHECK(log_includes({"add input slot", "add output slot"}));
@@ -182,8 +187,8 @@ TEST(the originator creates both streams in handle_open_stream_msg) {
 TEST(the originator closes both streams on error) {
   auto responder = sys.spawn(dummy_peer);
   AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({})));
-  AUT_EXEC(CHECK(!state.handshake->originator_handle_open_stream_msg({})));
+  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
+  AUT_EXEC(CHECK(!state.handshake->originator_handle_open_stream_msg({}, {})));
   CHECK(log_includes({"add input slot", "add output slot", "remove input slot",
                       "remove output slot"}));
 }
@@ -191,8 +196,8 @@ TEST(the originator closes both streams on error) {
 TEST(the originator updates routing table and triggers callbacks on success) {
   auto responder = sys.spawn(dummy_peer);
   AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({})));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg(responder)));
+  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
+  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
   CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
   CHECK(log_excludes({"remove input slot", "remove output slot"}));
 }
@@ -212,10 +217,10 @@ TEST(the responder opens the output stream first) {
   AUT_EXEC(CHECK(state.handshake->responder_start_peering("B", originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({})));
+  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({}, {})));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg(originator)));
+  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
   CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
@@ -228,10 +233,10 @@ TEST(the responder accepts messages from the originator in any order) {
   AUT_EXEC(CHECK(state.handshake->responder_start_peering("B", originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg(originator)));
+  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
   AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({})));
+  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({}, {})));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
   CHECK(log_includes({"add input slot", "add output slot", "finalize"}));

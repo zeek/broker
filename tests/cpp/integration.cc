@@ -259,15 +259,25 @@ bool global_fixture::try_exec() {
 }
 
 void global_fixture::exec_loop() {
-  /*
-  while (try_exec())
+  auto try_trigger_timeout = [this] {
+    std::vector<caf::actor_clock::duration_type> ts;
+    for (auto& kvp : peers) {
+      auto& tac = kvp.second->sched.clock();
+      if (!tac.schedule().empty())
+        ts.emplace_back(tac.schedule().begin()->first - tac.now());
+    }
+    if (!ts.empty()) {
+      auto dt = std::min_element(ts.begin(), ts.end());
+      for (auto& kvp : peers)
+        kvp.second->sched.clock().advance_time(*dt);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  auto exec = [](auto& kvp) { return kvp.second->try_exec(); };
+  while (std::any_of(peers.begin(), peers.end(), exec) || try_trigger_timeout())
     ; // rinse and repeat
-  // */
-  std::vector<peer_fixture*> xs;
-  for (auto& kvp : peers)
-    xs.emplace_back(kvp.second);
-  exec_all_fixtures(xs.begin(), xs.end());
-  // */
 }
 
 // A fixture for simple setups consisting of three nodes.
@@ -478,7 +488,8 @@ std::vector<code> event_log(std::initializer_list<code> xs) {
   return {xs};
 }
 
-std::vector<code> event_log(const std::vector<event_value>& xs) {
+std::vector<code> event_log(const std::vector<event_value>& xs,
+                            bool make_unique = false) {
   // For the purpose of this test, we only care about the peer_* statuses.
   auto predicate = [](const auto& x) {
     if constexpr (std::is_same<std::decay_t<decltype(x)>, status>::value) {
@@ -493,6 +504,8 @@ std::vector<code> event_log(const std::vector<event_value>& xs) {
   for (auto& x : xs)
     if (caf::visit(predicate, x))
       ys.emplace_back(x);
+  if (make_unique)
+    ys.erase(std::unique(ys.begin(), ys.end()), ys.end());
   return ys;
 }
 
@@ -587,7 +600,7 @@ CAF_TEST(connection_retry) {
   exec_loop();
   MESSAGE("check event logs");
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()), event_log({sc::peer_added}));
-  CAF_CHECK_EQUAL(event_log(venus_es.poll()),
+  CAF_CHECK_EQUAL(event_log(venus_es.poll(), true),
                   event_log({ec::peer_unavailable, sc::peer_added}));
   MESSAGE("disconnect venus from mercury");
   venus.loop_after_next_enqueue();

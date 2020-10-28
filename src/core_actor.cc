@@ -29,7 +29,7 @@ caf::behavior core_manager::make_behavior() {
     });
     // Add all pending peerings from the stream transport.
     for (const auto& [peer_id, pending_conn] : pending_connections()) {
-      endpoint_info ep{peer_id, cache().find(pending_conn.hdl)};
+      endpoint_info ep{peer_id, cache().find(pending_conn->remote_hdl)};
       result.push_back(
         {std::move(ep), peer_flags::remote, peer_status::connected});
     }

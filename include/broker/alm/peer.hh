@@ -270,7 +270,7 @@ public:
 
   /// Checks whether a path and its associated vector timestamp are non-empty,
   /// loop-free and not blacklisted.
-  bool valid (peer_id_list& path, vector_timestamp path_ts) {
+  bool valid(peer_id_list& path, vector_timestamp path_ts) {
     // Drop if empty or if path and path_ts have different sizes.
     if (path.empty()) {
       BROKER_WARNING("drop message: path empty");
@@ -367,7 +367,7 @@ public:
     return {std::move(new_peers), added_tbl_entry};
   }
 
-  void handle_filter_update(peer_id_list& path, vector_timestamp path_ts,
+  void handle_filter_update(peer_id_list& path, vector_timestamp& path_ts,
                             const filter_type& filter) {
     BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts) << BROKER_ARG(filter));
     // Handle message content (drop nonsense messages and blacklisted paths).
@@ -397,7 +397,7 @@ public:
     age_blacklist();
   }
 
-  void handle_path_revocation(peer_id_list& path, vector_timestamp path_ts,
+  void handle_path_revocation(peer_id_list& path, vector_timestamp& path_ts,
                               const peer_id_type& revoked_hop,
                               const filter_type& filter) {
     BROKER_TRACE(BROKER_ARG(path)
@@ -441,6 +441,7 @@ public:
   }
 
   void handle_publication(message_type& msg) {
+    BROKER_TRACE(BROKER_ARG(msg));
     // Verify that we are supposed to handle this message.
     auto& path = get_unshared_path(msg);
     if (path.head() != dref().id()) {
@@ -618,6 +619,7 @@ public:
   /// system is shutting down.
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
+    BROKER_DEBUG("make behavior for peer" << dref().id());
     using detail::lift;
     auto& d = dref();
     return {
