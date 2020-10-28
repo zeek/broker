@@ -18,6 +18,7 @@ set(tests
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
+  cpp/detail/peer_handshake.cc
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc

@@ -42,6 +42,9 @@ const char* ec_names[] = {
   "broken_clone",
   "shutting_down",
   "invalid_peering_request",
+  "repeated_peering_handshake_request",
+  "unexpected_handshake_message",
+  "invalid_handshake_state",
 };
 
 } // namespace

@@ -84,6 +84,13 @@ enum class ec : uint8_t {
   shutting_down,
   /// Canceled a peering request due to invalid or inconsistent data.
   invalid_peering_request,
+  /// Broker attempted to trigger a second handshake to a peer while the first
+  /// handshake did not complete.
+  repeated_peering_handshake_request,
+  /// Received an unexpected or duplicate message during endpoint handshake.
+  unexpected_handshake_message,
+  /// Handshake failed due to invalid state transitions.
+  invalid_handshake_state,
 };
 // --ec-enum-end
 
