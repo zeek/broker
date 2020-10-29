@@ -475,7 +475,7 @@ public:
 
   /// Forwards `msg` to all receivers.
   void ship(message_type& msg) {
-    BROKER_TRACE(BROKER_ARG(msg));
+    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG2("path", get_path(msg)));
     const auto& path = get_path(msg);
     if (auto i = tbl_.find(path.head()); i != tbl_.end()) {
       dref().send(i->second.hdl, atom::publish_v, std::move(msg));

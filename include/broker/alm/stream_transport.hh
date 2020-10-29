@@ -287,26 +287,18 @@ public:
   // -- sending ----------------------------------------------------------------
 
   void stream_send(const caf::actor& receiver, message_type& msg) {
+    BROKER_TRACE(BROKER_ARG(receiver) << BROKER_ARG(msg));
     // Fetch the output slot for reaching the receiver.
-    auto i = hdl_to_ostream_.find(receiver);
-    if (i == hdl_to_ostream_.end()) {
-      BROKER_WARNING("unable to locate output slot for receiver");
-      return;
-    }
-    auto slot = i->second;
-    // Fetch the buffer for that slot and enqueue the message.
-    auto& nested = out_.template get<typename peer_trait::manager>();
-#if CAF_VERSION >= 1800
-    if (!nested.push_to(slot, std::move(msg)))
-      BROKER_WARNING("unable to access state for output slot");
-#else
-    if (auto j = nested.states().find(slot); j != nested.states().end()) {
-      j->second.buf.emplace_back(std::move(msg));
+    if (auto i = hdl_to_ostream_.find(receiver); i != hdl_to_ostream_.end()) {
+      auto slot = i->second;
+      BROKER_DEBUG("push to slot" << slot);
+      // Fetch the buffer for that slot and enqueue the message.
+      auto& nested = out_.template get<typename peer_trait::manager>();
+      if (!nested.push_to(slot, std::move(msg)))
+        BROKER_WARNING("unable to access state for output slot");
     } else {
-      BROKER_WARNING("unable to access state for output slot");
-      return;
+      BROKER_WARNING("unable to locate output slot for receiver");
     }
-#endif
   }
 
   /// Sends an asynchronous message instead of pushing the data to the stream.
@@ -314,6 +306,8 @@ public:
   /// point) or for any other communication that bypasses the stream.
   template <class... Ts>
   void async_send(const caf::actor& receiver, Ts&&... xs) {
+    BROKER_TRACE(BROKER_ARG(receiver)
+                 << BROKER_ARG2("xs", std::forward_as_tuple(xs...)));
     self()->send(receiver, std::forward<Ts>(xs)...);
   }
 

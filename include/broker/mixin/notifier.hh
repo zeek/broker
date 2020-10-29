@@ -171,9 +171,10 @@ private:
     if (disable_notifications_)
       return;
     auto unbox_or_default = [](auto maybe_value) {
+      using value_type = std::decay_t<decltype(*maybe_value)>;
       if (maybe_value)
         return std::move(*maybe_value);
-      return typename decltype(maybe_value)::value_type{};
+      return value_type{};
     };
     emit(unbox_or_default(get_peer_id(dref().tbl(), hdl)),
          unbox_or_default(dref().cache().find(hdl)), code, msg);

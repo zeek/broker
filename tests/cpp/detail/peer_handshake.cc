@@ -84,9 +84,22 @@ struct mock_transport_state {
   std::function<void(mock_transport_state&)> f;
 
   std::vector<std::string> log;
+
+  static inline const char* name = "actor-under-test";
 };
 
-using aut_type = caf::stateful_actor<mock_transport_state>;
+class aut_type : public caf::stateful_actor<mock_transport_state> {
+public:
+  using super = caf::stateful_actor<mock_transport_state>;
+
+  explicit aut_type(caf::actor_config& cfg) : super(cfg) {
+    // nop
+  }
+
+  caf::behavior make_behavior() override {
+    return state.make_behavior();
+  }
+};
 
 using peer_id_type = std::string;
 
@@ -106,7 +119,7 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
   // Utility to run some piece of code inside the AUT.
   void aut_exec(std::function<void(mock_transport_state&)> f) {
     aut_state().f = std::move(f);
-    inject((atom::run), to(aut).with(atom::run_v));
+    inject((atom::run), from(self).to(aut).with(atom::run_v));
   }
 
   auto& log() {
