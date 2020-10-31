@@ -14,9 +14,6 @@
 #include <mutex>
 #include <vector>
 
-#include <sys/socket.h>
-#include <sys/types.h>
-
 using namespace broker;
 
 namespace {
