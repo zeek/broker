@@ -52,7 +52,7 @@ public:
     // remote peer via direct request messages.
     cache_.fetch(
       addr,
-      [=](communication_handle_type hdl) {
+      [=](communication_handle_type hdl) mutable {
         // TODO: replace hardcoded timeout with some configuration parameter
         self
           ->request(hdl, std::chrono::minutes(10), atom::ping_v, dref().id(),
