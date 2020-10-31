@@ -28,7 +28,6 @@ namespace {
 configuration make_config(std::string cert_id) {
   configuration cfg;
   cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-  cfg.set(CFG_PREFIX "logger.inline-output", true);
   if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
@@ -76,15 +75,19 @@ struct ssl_auth_fixture {
 CAF_TEST_FIXTURE_SCOPE(ssl_auth_use_cases, ssl_auth_fixture)
 
 CAF_TEST(authenticated_session) {
-MESSAGE("prepare authenticated connection");
+  MESSAGE("prepare authenticated connection");
+  MESSAGE("mercury: " << mercury_auth.ep.node_id());
+  MESSAGE("venus: " << venus_auth.ep.node_id());
   auto mercury_auth_es = mercury_auth.ep.make_subscriber({"/broker/test"});
   auto venus_auth_es = venus_auth.ep.make_subscriber({"/broker/test"});
 
   MESSAGE("mercury_auth listen");
   auto p = mercury_auth.ep.listen("127.0.0.1", 0);
   MESSAGE("venus_auth peer with mecury_auth on port " << p);
-  auto b = venus_auth.ep.peer("127.0.0.1", p);
-  CAF_REQUIRE(b);
+  auto venus_peered = venus_auth.ep.peer("127.0.0.1", p);
+  CAF_REQUIRE(venus_peered);
+  auto mercury_peered = mercury_auth.ep.await_peer(venus_auth.ep.node_id());
+  CAF_REQUIRE(mercury_peered);
 
   data_message ping{"/broker/test", "ping"};
   data_message pong{"/broker/test", "pong"};
@@ -128,4 +131,3 @@ CAF_TEST(authenticated_failure_wrong_ssl_peer) {
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
-
