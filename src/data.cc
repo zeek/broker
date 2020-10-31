@@ -114,6 +114,19 @@ struct data_converter {
     return convert(x, str);
   }
 
+  result_type operator()(timespan ts) {
+    if (convert(ts.count(), str)) {
+      str += "ns";
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  result_type operator()(timestamp ts) {
+    return (*this)(ts.time_since_epoch());
+  }
+
   result_type operator()(bool b) {
     str = b ? 'T' : 'F';
     return true;
