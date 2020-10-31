@@ -193,14 +193,29 @@ configuration::configuration(int argc, char** argv) : configuration(skip_init) {
 }
 
 void configuration::init(int argc, char** argv) {
+  std::vector<std::string> args;
+  if (argc > 1 && argv != nullptr)
+    args.assign(argv + 1, argv + argc);
   // Load CAF modules.
   load<caf::io::middleman>();
   if (not options_.disable_ssl)
     load<caf::openssl::manager>();
-  // Phase 1: parse broker.conf (overrides hard-coded defaults).
+  // Phase 1: parse broker.conf or configuration file specified by the user on
+  //          the command line (overrides hard-coded defaults).
   if (!options_.ignore_broker_conf) {
-    if (auto err = parse(0, nullptr, conf_file)) {
-      auto what = concat("Error while reading ", conf_file, ": ", to_string(err));
+    std::vector<std::string> args_subset;
+    auto predicate = [](const std::string& str) {
+      return str.compare(0, 14, "--config-file=") != 0;
+    };
+    auto sep = std::stable_partition(args.begin(), args.end(), predicate);
+    if(sep != args.end()) {
+      args_subset.assign(std::make_move_iterator(sep),
+                         std::make_move_iterator(args.end()));
+      args.erase(sep, args.end());
+    }
+    if (auto err = parse(std::move(args_subset), conf_file)) {
+      auto what = concat("Error while reading ", conf_file, ": ",
+                         to_string(err));
       throw std::runtime_error(what);
     }
   }
@@ -228,12 +243,12 @@ void configuration::init(int argc, char** argv) {
     set("broker.output-generator-file-cap", static_cast<size_t>(value));
   }
   // Phase 3: parse command line arguments.
-  if (argc == 0 || argv == nullptr)
-    return;
-  std::stringstream dummy;
-  if (auto err = parse(argc, argv, dummy)) {
-    auto what = concat("Error while parsing CLI arguments: ", to_string(err));
-    throw std::runtime_error(what);
+  if (!args.empty()) {
+    std::stringstream dummy;
+    if (auto err = parse(std::move(args), dummy)) {
+      auto what = concat("Error while parsing CLI arguments: ", to_string(err));
+      throw std::runtime_error(what);
+    }
   }
 }
 

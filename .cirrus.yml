@@ -29,10 +29,10 @@ unix_env: &UNIX_ENV
 # Linux EOL timelines: https://linuxlifecycle.com/
 # Fedora (~13 months): https://fedoraproject.org/wiki/Fedora_Release_Life_Cycle
 
-fedora30_task:
+fedora32_task:
   container:
-    # Fedora 30 EOL: Around June 2020
-    dockerfile: ci/fedora-30/Dockerfile
+    # Fedora 32 EOL: Around May 2021
+    dockerfile: ci/fedora-32/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -120,9 +120,17 @@ memcheck_task:
     BROKER_CI_MEMCHECK: true
 
 windows_task:
-  << : *BRANCH_WHITELIST
+  # The Windows task is currently disabled on Cirrus since it times out for
+  # unknown reason (seems to hang during downloading/running the Docker image),
+  # so Travis is used instead.
+  only_if: false
+  # 2 hour timeout just for potential of building Docker image taking a while
+  timeout_in: 120m
   windows_container:
-    image: cirrusci/windowsservercore:cmake
+    # image: cirrusci/windowsservercore:cmake
+    # image: zeekurity/broker-ci-windows:latest
+    dockerfile: ci/windows/Dockerfile
+    os_version: 2019
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU Windows VM.
     memory: 8GB

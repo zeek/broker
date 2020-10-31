@@ -1,4 +1,29 @@
 
+1.5.0-dev.22 | 2020-10-21 15:37:57 -0700
+
+  * Move CI from Fedora 30 (EOL) to Fedora 32 (Jon Siwek, Corelight)
+
+1.5.0-dev.20 | 2020-10-21 15:14:55 -0700
+
+  * Update Windows CI config (Jon Siwek, Corelight)
+
+    * Disable Cirrus Windows task: an updated Docker image on Cirrus-side
+      has unknown issues and trying to create one for ourselves also ended
+      with similar, unsuccessful results
+
+    * Provide an example Dockerfile that uses Visual Studio 2019, which may
+      help as a starting point for manual testing/development purposes
+
+    * Enable Travis for testing just Windows
+
+1.5.0-dev.16 | 2020-08-21 11:41:06 -0700
+
+  * Respect --config-file= CLI parameters (Dominik Charousset, Corelight)
+
+1.5.0-dev.14 | 2020-07-30 16:08:56 -0700
+
+  * Fix build with CAF 0.18 (Dominik Charousset)
+
 1.5.0-dev.12 | 2020-07-27 18:17:13 -0700
 
   * Use 127.0.0.1 instead of ::1 for cluster configs (Dominik Charousset)

@@ -1,0 +1,33 @@
+os: windows
+
+language: cpp
+
+branches:
+  only:
+  - master
+  - /^release\/.*$/
+
+notifications:
+  email:
+    recipients:
+    - zeek-commits-internal@zeek.org
+
+before_install:
+  - df -h
+  - choco list --localonly
+  - cmake --version
+  - cmake --help
+
+install:
+  - choco install -y --no-progress openssl
+
+script:
+  - mkdir build && cd build
+  # Travis environment has 2-cores
+  - cmake -A x64 -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS="-MP2" ..
+  - cmake --build . --target install --config release
+  - ctest -C release
+
+after_failure:
+  - cat CMakeFiles/CMakeOutput.log
+  - cat CMakeFiles/CMakeError.log
