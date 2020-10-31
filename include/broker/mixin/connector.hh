@@ -52,18 +52,16 @@ public:
     // remote peer via direct request messages.
     cache_.fetch(
       addr,
-      [=](communication_handle_type hdl) mutable {
-        if (auto i = ids_.find(hdl); i != ids_.end()) {
-          dref().start_peering(i->second, hdl, std::move(rp));
-          return;
-        }
-        // TODO: replace infinite with some useful default / config parameter
-        self->request(hdl, caf::infinite, atom::ping_v, dref().id(), self)
+      [=](communication_handle_type hdl) {
+        // TODO: replace hardcoded timeout with some configuration parameter
+        self
+          ->request(hdl, std::chrono::minutes(10), atom::ping_v, dref().id(),
+                    self)
           .then(
             [=](atom::pong, const peer_id_type& remote_id,
-                [[maybe_unused]] communication_handle_type hdl2) mutable {
+                [[maybe_unused]] communication_handle_type hdl2) {
               BROKER_ASSERT(hdl == hdl2);
-              dref().start_peering(remote_id, hdl, std::move(rp));
+              dref().start_peering(remote_id, hdl, rp);
             },
             [=](error& err) mutable { rp.deliver(std::move(err)); });
       },
@@ -74,7 +72,7 @@ public:
           rp.deliver(std::move(err));
         } else {
           self->delayed_send(self, addr.retry,
-                             detail::retry_state{addr, std::move(rp), count});
+                             detail::retry_state{addr, rp, count});
         }
       });
   }
