@@ -52,6 +52,9 @@ bool convert(const data& src, endpoint_info& dst);
 /// @relates endpoint_info
 bool convert(const endpoint_info& src, data& dst);
 
+/// @relates endpoint_info
+std::string to_string(const endpoint_info& x);
+
 // Enable `can_convert` for `endpoint_info`.
 template <>
 struct can_convert_predicate<endpoint_info> {
