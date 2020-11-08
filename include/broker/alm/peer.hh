@@ -344,7 +344,6 @@ public:
     auto added_tbl_entry = add_or_update_path(
       tbl_, path[0], peer_id_list{path.rbegin(), path.rend()},
       vector_timestamp{path_ts.rbegin(), path_ts.rend()});
-    BROKER_ASSERT(new_peers.empty() || added_tbl_entry);
     // Increase local time, but only if we have changed the routing table.
     // Otherwise, we would cause infinite flooding, because the peers would
     // never agree on a vector time.
@@ -354,8 +353,10 @@ public:
     }
     // Store the subscription if it's new.
     const auto& subscriber = path[0];
-    peer_timestamps_[subscriber] = path_ts[0];
-    peer_filters_[subscriber] = filter;
+    if (path_ts[0] > peer_timestamps_[subscriber]) {
+      peer_timestamps_[subscriber] = path_ts[0];
+      peer_filters_[subscriber] = filter;
+    }
     // Trigger await callbacks if necessary.
     if (auto [first, last] = awaited_peers_.equal_range(subscriber);
         first != last) {
