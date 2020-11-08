@@ -46,11 +46,16 @@ const char* ec_names[] = {
   "invalid_handshake_state",
 };
 
+template <class T, size_t N>
+constexpr size_t array_size(const T (&)[N]) {
+  return N;
+}
+
 } // namespace
 
 const char* to_string(ec code) noexcept {
   auto index = static_cast<uint8_t>(code);
-  BROKER_ASSERT(index < sizeof(ec_names));
+  BROKER_ASSERT(index < array_size(ec_names));
   return ec_names[index];
 }
 

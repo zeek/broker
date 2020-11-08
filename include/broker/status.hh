@@ -121,8 +121,6 @@ public:
 
   friend bool operator==(sc x, const status& y);
 
-  friend std::string to_string(const status& s);
-
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, status& x) {
     if constexpr (detail::is_legacy_inspector<Inspector>) {
@@ -167,6 +165,9 @@ private:
   endpoint_info context_;
   std::string message_;
 };
+
+/// @relates status
+std::string to_string(const status& x);
 
 /// @relates status
 template <sc S, class... Ts>
@@ -227,6 +228,9 @@ private:
 
   const vector* xs_;
 };
+
+/// @relates status_view
+std::string to_string(status_view sv);
 
 /// @relates status_view
 inline status_view make_status_view(const data& src) {
