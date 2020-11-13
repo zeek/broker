@@ -173,7 +173,6 @@ configuration::configuration(skip_init_t) {
   // Turn off all CAF output by default.
   std::vector<std::string> excluded_components{"caf", "caf_io", "caf_net",
                                                "caf_flow", "caf_stream"};
-  set("caf.logger.file.excluded-components", excluded_components);
   set("caf.logger.console.excluded-components", std::move(excluded_components));
 #endif
 }

@@ -56,7 +56,7 @@ else ()
   set(libbroker broker_static)
 endif ()
 add_executable(broker-test ${tests})
-target_link_libraries(broker-test ${libbroker})
+target_link_libraries(broker-test ${libbroker} CAF::test)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 

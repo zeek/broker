@@ -209,17 +209,21 @@ else ()
   if ( BROKER_ENABLE_DEBUG )
     set(CAF_ENABLE_RUNTIME_CHECKS ON)
   endif ()
-  set(CAF_NO_EXAMPLES ON)
-  set(CAF_NO_OPENCL ON)
-  set(CAF_NO_TOOLS ON)
-  set(CAF_NO_PYTHON ON)
-  set(CAF_NO_UNIT_TESTS ON)
-  if (ENABLE_STATIC)
-    set(CAF_BUILD_STATIC ON)
-  elseif (ENABLE_STATIC_ONLY)
-    set(CAF_BUILD_STATIC_ONLY ON)
+  set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TESTING OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
+  if (ENABLE_STATIC_ONLY)
+    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   endif ()
   add_subdirectory(caf)
+  message(STATUS "Building bundled CAF version ${CAF_VERSION}")
+  set(CAF_LIBRARIES CAF::openssl CACHE INTERNAL "")
+  set(caf_lib_dirs "")
+  foreach(target CAF::core CAF::io CAF::openssl)
+    get_target_property(dirs ${target} INTERFACE_INCLUDE_DIRECTORIES)
+    list(APPEND caf_lib_dirs "${dirs}")
+  endforeach()
+  set(CAF_INCLUDE_DIRS "${caf_lib_dirs}" CACHE INTERNAL "")
 endif ()
 
 set(CAF_VERSION_REQUIRED 0.17.5)
@@ -228,9 +232,6 @@ if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
   message(FATAL_ERROR "Broker requires at least CAF version"
     " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
 endif ()
-
-include_directories(BEFORE ${CAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 # RocksDB
 if (BROKER_ENABLE_ROCKSDB)
@@ -315,6 +316,7 @@ set(BROKER_SRC
   src/gateway.cc
   src/internal_command.cc
   src/mailbox.cc
+  src/message.cc
   src/network_info.cc
   src/peer_status.cc
   src/port.cc
@@ -338,7 +340,9 @@ if (ENABLE_SHARED)
                         VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
-  target_link_libraries(broker ${LINK_LIBS})
+ target_link_libraries(broker PUBLIC ${LINK_LIBS} CAF::openssl)
+  target_include_directories(broker INTERFACE
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
   install(TARGETS broker DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
@@ -348,7 +352,9 @@ if (ENABLE_STATIC)
   if (NOT DISABLE_PYTHON_BINDINGS)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
-  target_link_libraries(broker_static ${LINK_LIBS})
+  target_link_libraries(broker_static PUBLIC ${LINK_LIBS} CAF::openssl)
+  target_include_directories(broker_static INTERFACE
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
   install(TARGETS broker_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
@@ -357,10 +363,10 @@ endif ()
 macro(add_tool name)
   add_executable(${name} src/${name}.cc ${ARGN})
   if (ENABLE_SHARED)
-    target_link_libraries(${name} ${LINK_LIBS} broker)
+    target_link_libraries(${name} PRIVATE ${LINK_LIBS} broker)
     add_dependencies(${name} broker)
   else()
-    target_link_libraries(${name} ${LINK_LIBS} broker_static)
+    target_link_libraries(${name} PRIVATE ${LINK_LIBS} broker_static)
     add_dependencies(${name} broker_static)
   endif()
 endmacro()
