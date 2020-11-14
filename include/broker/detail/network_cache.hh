@@ -35,44 +35,59 @@ public:
 
   template <class OnResult, class OnError>
   void fetch(const network_info& x, OnResult f, OnError g) {
+    BROKER_TRACE(BROKER_ARG(x));
     using namespace caf;
-    auto y = find(x);
-    if (y) {
-      f(*y);
+    if (auto result = find(x)) {
+      BROKER_DEBUG("found" << x << "in cache, call OnResult immediately with"
+                           << *result);
+      f(*result);
       return;
     }
+    BROKER_DEBUG("ask middleman to establish a connection to" << x);
     self->request(mm_, infinite, connect_atom_v, x.address, x.port)
       .then(
         [=](const node_id&, strong_actor_ptr& res,
             std::set<std::string>& ifs) mutable {
           if (!ifs.empty()) {
+            BROKER_DEBUG(
+              "unexpected actor messaging interface for remote core");
             error err{sec::unexpected_actor_messaging_interface};
             g(err);
           } else if (res == nullptr) {
+            BROKER_DEBUG(
+              "connected to CAF node without broker endpoint at given port");
             error err{sec::no_actor_published_at_port};
             g(err);
           } else {
+            BROKER_DEBUG("resolved" << x << "to actor handle" << res);
             auto hdl = actor_cast<actor>(std::move(res));
             hdls_.emplace(x, hdl);
             addrs_.emplace(hdl, x);
             f(std::move(hdl));
           }
         },
-        [=](error& err) mutable { g(err); });
+        [=](error& err) mutable {
+          BROKER_DEBUG("middleman was unable to connect to" << x
+                                                            << BROKER_ARG(err));
+          g(err);
+        });
   }
 
   template <class OnResult, class OnError>
   void fetch(const caf::actor& x, OnResult f, OnError g) {
+    BROKER_TRACE(BROKER_ARG(x));
     using namespace caf;
-    auto y = find(x);
-    if (y) {
-      f(*y);
+    if (auto result = find(x)) {
+      BROKER_DEBUG("found" << x << "in cache, call OnResult immediately with"
+                           << *result);
+      f(*result);
       return;
     }
     self->request(mm_, infinite, atom::get_v, x.node())
       .then(
         [=](const node_id&, std::string& address, uint16_t port) mutable {
           network_info result{std::move(address), port};
+          BROKER_DEBUG("resolved" << x << "to" << result);
           hdls_.emplace(result, x);
           addrs_.emplace(x, result);
           f(std::move(result));
