@@ -169,15 +169,17 @@ public:
       //       the connection still exists. Still, this entire block is a hack
       //       and we should move on to node monitoring once we no longer care
       //       for CAF 0.17 compatibility.
-      auto weak_self = dref().self()->address();
-      hdl->attach_functor(
-        [weak_self, addr{std::move(*addr)}](const caf::error& rsn) mutable {
-          // Trigger reconnect after 250ms when still alive and kicking.
-          if (auto strong_self = caf::actor_cast<caf::actor>(weak_self))
-            caf::delayed_anon_send(caf::actor(strong_self),
-                                   std::chrono::milliseconds{250}, atom::peer_v,
-                                   std::move(addr));
-        });
+      if (addr->retry.count() > 0) {
+        auto weak_self = dref().self()->address();
+        hdl->attach_functor(
+          [weak_self, addr{std::move(*addr)}](const caf::error& rsn) mutable {
+            // Trigger reconnect after 250ms when still alive and kicking.
+            if (auto strong_self = caf::actor_cast<caf::actor>(weak_self))
+              caf::delayed_anon_send(caf::actor(strong_self),
+                                     std::chrono::milliseconds{250},
+                                     atom::peer_v, std::move(addr));
+          });
+      }
     }
     super::peer_disconnected(peer_id, hdl, reason);
   }
