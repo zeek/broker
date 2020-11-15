@@ -206,4 +206,13 @@ get_command_message(const generic_node_message<PeerId>& x) {
   return get<command_message>(get_content(x));
 }
 
+/// Converts `msg` to a human-readable string representation.
+std::string to_string(const data_message& msg);
+
+/// Converts `msg` to a human-readable string representation.
+std::string to_string(const command_message& msg);
+
+/// Converts `msg` to a human-readable string representation.
+std::string to_string(const node_message& msg);
+
 } // namespace broker

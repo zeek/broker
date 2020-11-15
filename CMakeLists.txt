@@ -315,6 +315,7 @@ set(BROKER_SRC
   src/gateway.cc
   src/internal_command.cc
   src/mailbox.cc
+  src/message.cc
   src/network_info.cc
   src/peer_status.cc
   src/port.cc
