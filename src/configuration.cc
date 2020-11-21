@@ -256,7 +256,7 @@ caf::settings configuration::dump_content() const {
   auto result = super::dump_content();
   auto& grp = result["broker"].as_dictionary();
   put_missing(grp, "disable-ssl", options_.disable_ssl);
-  put_missing(grp, "disable-forwarding", options_.disable_ssl);
+  put_missing(grp, "disable-forwarding", options_.disable_forwarding);
   if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
     put_missing(grp, "recording-directory", *path);
   if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
