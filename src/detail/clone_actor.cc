@@ -210,13 +210,15 @@ void clone_state::consume(clear_command& x) {
 
 error clone_state::consume_nil(consumer_type* src) {
   BROKER_ERROR("clone out of sync: lost message from the master!");
-  // TODO: Implement me.
+  // By returning an error, we cause the channel to abort and call `close`.
   return ec::broken_clone;
 }
 
 void clone_state::close(consumer_type* src, [[maybe_unused]] error reason) {
   BROKER_ERROR(BROKER_ARG(reason));
-  // TODO: Implement me.
+  // TODO: send some 'bye, bye' message to enable the master to remove this
+  //       clone early, rather than waiting for timeout, see:
+  //       https://github.com/zeek/broker/issues/142
 }
 
 void clone_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
@@ -299,9 +301,10 @@ void clone_state::broadcast(producer_type* ptr,
   self->send(core, atom::publish_v, what.content);
 }
 
-void clone_state::drop(producer_type*, const entity_id&, ec reason) {
+void clone_state::drop(producer_type*, const entity_id&,
+                       [[maybe_unused]] ec reason) {
   BROKER_TRACE(BROKER_ARG(reason));
-  // TODO: implement me
+  // TODO: see comment in close()
 }
 
 void clone_state::handshake_completed(producer_type*, const entity_id&) {
@@ -403,49 +406,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
                    std::move(core), clock);
   self->set_down_handler([=](const caf::down_msg& msg) {
     self->state.on_down_msg(msg.source, msg.reason);
-    // TODO: reimplement?
-    //   if (msg.source == core) {
-    //     BROKER_INFO("core is down, kill clone as well");
-    //     self->quit(msg.reason);
-    //   } else {
-    //     BROKER_INFO("lost master");
-    //     self->state.master = nullptr;
-    //     // self->state.awaiting_snapshot = true;
-    //     // self->state.awaiting_snapshot_sync = true;
-    //     // self->state.pending_remote_updates.clear();
-    //     // self->state.pending_remote_updates.shrink_to_fit();
-    //     self->send(self, atom::master_v, atom::resolve_v);
-
-    //     if ( stale_interval >= 0 )
-    //       {
-    //       self->state.stale_time = now(clock) + stale_interval;
-    //       auto si = std::chrono::duration<double>(stale_interval);
-    //       auto ts = std::chrono::duration_cast<timespan>(si);
-    //       auto msg = caf::make_message(atom::tick_v,
-    //                                    atom::stale_check_v);
-    //       clock->send_later(self, ts, std::move(msg));
-    //       }
-
-    //     if ( mutation_buffer_interval > 0 )
-    //       {
-    //       self->state.unmutable_time = now(clock) + mutation_buffer_interval;
-    //       auto si = std::chrono::duration<double>(mutation_buffer_interval);
-    //       auto ts = std::chrono::duration_cast<timespan>(si);
-    //       auto msg = caf::make_message(atom::tick_v,
-    //                                    atom::mutable_check_v);
-    //       clock->send_later(self, ts, std::move(msg));
-    //       }
-    //   }
   });
-
-  // if (mutation_buffer_interval > 0) {
-  //   self->state.unmutable_time = now(clock) + mutation_buffer_interval;
-  //   auto si = std::chrono::duration<double>(mutation_buffer_interval);
-  //   auto ts = std::chrono::duration_cast<timespan>(si);
-  //   auto msg = caf::make_message(atom::tick_v, atom::mutable_check_v);
-  //   clock->send_later(self, ts, std::move(msg));
-  // }
-
   // Ask the master to add this clone.
   self->state.send(std::addressof(self->state.input),
                    clone_state::channel_type::nack{{0}});
@@ -467,83 +428,9 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       auto msg = make_command_message(st.master_topic, std::move(cmd));
       out.produce(std::move(msg));
     },
-    // TODO: implement me -> still necessary?
-    // [=](set_command& x) {
-    //   self->state(x);
-    //   self->state.awaiting_snapshot = false;
-
-    //   if ( ! self->state.awaiting_snapshot_sync ) {
-    //     for ( auto& update : self->state.pending_remote_updates )
-    //       self->state.command(update);
-
-    //     self->state.pending_remote_updates.clear();
-    //     self->state.pending_remote_updates.shrink_to_fit();
-    //   }
-    // },
     [=](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
     },
-    // TODO: implement me -> still necessary?
-    // [=](atom::master, atom::resolve) {
-    //   if ( self->state.master )
-    //     return;
-
-    //   BROKER_INFO("request master resolve");
-    //   self->send(self->state.core, atom::store_v, atom::master_v,
-    //              atom::resolve_v, self->state.id, self);
-    //   auto ri = std::chrono::duration<double>(resync_interval);
-    //   auto ts = std::chrono::duration_cast<timespan>(ri);
-    //   auto msg = caf::make_message(atom::master_v, atom::resolve_v);
-    //   clock->send_later(self, ts, std::move(msg));
-    // },
-    // [=](atom::master, caf::actor& master) {
-    //   if ( self->state.master )
-    //     return;
-
-    //   BROKER_INFO("resolved master");
-    //   self->state.master = std::move(master);
-    //   self->state.is_stale = false;
-    //   self->state.stale_time = -1.0;
-    //   self->state.unmutable_time = -1.0;
-    //   self->monitor(self->state.master);
-
-    //   for ( auto& cmd : self->state.mutation_buffer )
-    //     self->state.forward(std::move(cmd));
-
-    //   self->state.mutation_buffer.clear();
-    //   self->state.mutation_buffer.shrink_to_fit();
-
-    //   self->send(self->state.core, atom::store_v, atom::master_v,
-    //              atom::snapshot_v, self->state.id, self);
-    // },
-    // [=](atom::master, caf::error err) {
-    //   if ( self->state.master )
-    //     return;
-
-    //   BROKER_INFO("error resolving master " << caf::to_string(err));
-    // },
-    // TODO: are these two obsolete?
-    // [=](atom::tick, atom::stale_check) {
-    //   if ( self->state.stale_time < 0 )
-    //     return;
-
-    //   // Checking the timestamp is needed in the case there are multiple
-    //   // connects/disconnects within a short period of time (we don't want
-    //   // to go stale too early).
-    //   if ( now(clock) < self->state.stale_time )
-    //     return;
-
-    //   self->state.is_stale = true;
-    // },
-    // [=](atom::tick, atom::mutable_check) {
-    //   // TODO: implement me
-    //   // if ( self->state.unmutable_time < 0 )
-    //   //   return;
-    //   // if ( now(clock) < self->state.unmutable_time )
-    //   //   return;
-    //   // self->state.mutation_buffer.clear();
-    //   // self->state.mutation_buffer.shrink_to_fit();
-    // },
     [=](atom::tick) {
       auto& st = self->state;
       st.tick();
@@ -660,24 +547,6 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
         // processing step
         [=](caf::unit_t&, store::stream_type::value_type msg) {
           self->state.dispatch(msg);
-          // TODO: implement me
-          // // TODO: our operator() overloads require mutable references, but
-          // //       only a fraction actually benefit from it.
-          // auto cmd = move_command(y);
-          // if (caf::holds_alternative<snapshot_sync_command>(cmd)) {
-          //   self->state.command(cmd);
-          //   return;
-          // }
-
-          // if ( self->state.awaiting_snapshot_sync )
-          //   return;
-
-          // if ( self->state.awaiting_snapshot ) {
-          //   self->state.pending_remote_updates.emplace_back(std::move(cmd));
-          //   return;
-          // }
-
-          // self->state.command(cmd);
         });
     });
 }
