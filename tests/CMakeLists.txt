@@ -8,7 +8,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
 set(tests
   cpp/alm/multipath.cc
-  cpp/alm/peer.cc
+  cpp/alm/peer/async_transport.cc
+  cpp/alm/peer/stream_transport.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/core_actor.cc
