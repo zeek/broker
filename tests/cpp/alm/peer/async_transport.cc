@@ -121,6 +121,15 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
       peers[id] = sys.spawn<async_peer_actor>(id);
   }
 
+  auto& get(const peer_id& id) {
+    return deref<async_peer_actor>(peers[id]).state;
+  }
+
+  template <class... Ts>
+  auto ls(Ts... xs) {
+    return std::vector<peer_id>{std::move(xs)...};
+  }
+
   void connect_peers() {
     std::map<peer_id, peer_ids> connections{
       {A, {B, C, J}}, {B, {A, D, E}},    {C, {A, F, G, H}}, {D, {B, I}},
@@ -145,15 +154,6 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
   ~fixture() {
     for (auto& kvp : peers)
       anon_send_exit(kvp.second, caf::exit_reason::kill);
-  }
-
-  auto& get(const peer_id& id) {
-    return deref<async_peer_actor>(peers[id]).state;
-  }
-
-  template <class... Ts>
-  auto ls(Ts... xs) {
-    return std::vector<peer_id>{std::move(xs)...};
   }
 
   std::map<peer_id, caf::actor> peers;
