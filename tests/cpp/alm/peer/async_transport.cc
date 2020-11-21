@@ -8,14 +8,10 @@
 #include "broker/alm/peer.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/lift.hh"
-#include "broker/endpoint.hh"
-#include "broker/logger.hh"
 
 using broker::alm::async_transport;
 using broker::alm::peer;
 using broker::defaults::store::tick_interval;
-using broker::detail::lift;
 
 using namespace broker;
 
@@ -30,11 +26,13 @@ using message_type = generic_node_message<peer_id>;
 class async_peer_actor_state
   : public async_transport<async_peer_actor_state, peer_id> {
 public:
-  async_peer_actor_state(caf::event_based_actor* self) : self_(self) {
+  using self_pointer = caf::event_based_actor*;
+
+  async_peer_actor_state(self_pointer self) : self_(self) {
     // nop
   }
 
-  const auto& id() const noexcept {
+  const peer_id& id() const noexcept {
     return id_;
   }
 
@@ -42,7 +40,7 @@ public:
     id_ = std::move(new_id);
   }
 
-  auto self() {
+  self_pointer self() {
     return self_;
   }
 
@@ -52,7 +50,7 @@ public:
   }
 
 private:
-  caf::event_based_actor* self_;
+  self_pointer self_;
   peer_id id_;
 };
 
@@ -121,13 +119,8 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
       peers[id] = sys.spawn<async_peer_actor>(id);
   }
 
-  auto& get(const peer_id& id) {
+  async_peer_actor_state& get(const peer_id& id) {
     return deref<async_peer_actor>(peers[id]).state;
-  }
-
-  template <class... Ts>
-  auto ls(Ts... xs) {
-    return std::vector<peer_id>{std::move(xs)...};
   }
 
   void connect_peers() {

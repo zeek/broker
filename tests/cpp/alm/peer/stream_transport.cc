@@ -8,14 +8,10 @@
 #include "broker/alm/stream_transport.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/lift.hh"
-#include "broker/endpoint.hh"
-#include "broker/logger.hh"
 
 using broker::alm::peer;
 using broker::alm::stream_transport;
 using broker::defaults::store::tick_interval;
-using broker::detail::lift;
 
 using namespace broker;
 
@@ -36,7 +32,7 @@ public:
     // nop
   }
 
-  const auto& id() const noexcept {
+  const peer_id& id() const noexcept {
     return id_;
   }
 
@@ -44,14 +40,14 @@ public:
     id_ = std::move(new_id);
   }
 
-  auto hdl() noexcept {
+  caf::actor hdl() noexcept {
     return caf::actor_cast<caf::actor>(self());
   }
 
-  template <class T>
-  void ship_locally(const T& msg) {
-    if constexpr (std::is_same<T, data_message>::value)
-      buf.emplace_back(msg);
+  using super::ship_locally;
+
+  void ship_locally(const data_message& msg) {
+    buf.emplace_back(msg);
     super::ship_locally(msg);
   }
 
@@ -138,16 +134,11 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
       peers[id] = sys.spawn<stream_peer_actor>(id);
   }
 
-  auto& get(const peer_id& id) {
+  stream_peer_manager& get(const peer_id& id) {
     return *deref<stream_peer_actor>(peers[id]).state.mgr;
   }
 
-  template <class... Ts>
-  auto ls(Ts... xs) {
-    return std::vector<peer_id>{std::move(xs)...};
-  }
-
-  auto shortest_path(const peer_id& from, const peer_id& to) {
+  peer_ids shortest_path(const peer_id& from, const peer_id& to) {
     return get(from).shortest_path(to);
   }
 
@@ -180,27 +171,6 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
   std::map<peer_id, caf::actor> peers;
 };
 
-struct message_pattern {
-  topic t;
-  data d;
-  std::vector<peer_id> ps;
-};
-
-bool operator==(const message_pattern& x, const message_type& y) {
-  if (!is_data_message(y))
-    return false;
-  const auto& dm = get_data_message(y);
-  if (x.t != get_topic(dm))
-    return false;
-  if (x.d != get_data(dm))
-    return false;
-  return x.ps == get_receivers(y);
-}
-
-bool operator==(const message_type& x, const message_pattern& y) {
-  return y == x;
-}
-
 } // namespace
 
 #define CHECK_UNREACHABLE(src, dst)                                            \
@@ -213,9 +183,9 @@ TEST(peers can revoke paths) {
   MESSAGE("after B loses its connection to E, all paths to E go through I");
   anon_send(peers[B], atom::unpeer_v, peers[E]);
   run(tick_interval);
-  CHECK_EQUAL(shortest_path(A, E), ls(J, I, E));
-  CHECK_EQUAL(shortest_path(B, E), ls(D, I, E));
-  CHECK_EQUAL(shortest_path(D, E), ls(I, E));
+  CHECK_EQUAL(shortest_path(A, E), peer_ids({J, I, E}));
+  CHECK_EQUAL(shortest_path(B, E), peer_ids({D, I, E}));
+  CHECK_EQUAL(shortest_path(D, E), peer_ids({I, E}));
   MESSAGE("B and E both revoked the path");
   CHECK_EQUAL(get(A).blacklist().entries.size(), 2u);
   CHECK_EQUAL(get(B).blacklist().entries.size(), 1u);
