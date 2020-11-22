@@ -1,5 +1,6 @@
+# The Community Cluster allows up to 8 CPUs and up to 24 GB of memory.
 cpus: &CPUS 8
-memory: &MEMORY 6GB
+memory: &MEMORY 24GB
 
 config: &CONFIG --build-type=release --enable-static
 memcheck_config: &MEMCHECK_CONFIG --build-type=debug --sanitizers=address
