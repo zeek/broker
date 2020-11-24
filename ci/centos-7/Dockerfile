@@ -9,7 +9,7 @@ RUN yum -y install \
   && yum clean all && rm -rf /var/cache/yum
 
 RUN yum -y install \
-    devtoolset-7 \
+    devtoolset-9 \
   && yum clean all && rm -rf /var/cache/yum
 
 RUN yum -y install \
@@ -23,7 +23,7 @@ RUN yum -y install \
   && yum clean all && rm -rf /var/cache/yum
 
 RUN echo 'unset BASH_ENV PROMPT_COMMAND ENV' > /usr/bin/broker-ci-env && \
-    echo 'source /opt/rh/devtoolset-7/enable' >> /usr/bin/broker-ci-env
+    echo 'source /opt/rh/devtoolset-9/enable' >> /usr/bin/broker-ci-env
 
 ENV BASH_ENV="/usr/bin/broker-ci-env" \
     ENV="/usr/bin/broker-ci-env" \
