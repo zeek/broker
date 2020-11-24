@@ -14,7 +14,9 @@ template <class T, class... Ts>
 auto to_blob(T&& x, Ts&&... xs) {
   typename caf::binary_serializer::container_type buf;
   caf::binary_serializer sink{nullptr, buf};
-  detail::inspect_objects(sink, x, xs...);
+  auto err = detail::inspect_objects(sink, x, xs...);
+  // TODO: maybe throw? No other way to report errors at this point.
+  static_cast<void>(err);
   return buf;
 }
 
@@ -23,7 +25,9 @@ T from_blob(const void* buf, size_t size) {
   caf::binary_deserializer source{nullptr, reinterpret_cast<const char*>(buf),
                                   size};
   T result;
-  detail::inspect_objects(source, result);
+  auto err = detail::inspect_objects(source, result);
+  // TODO: maybe throw? No other way to report errors at this point.
+  static_cast<void>(err);
   return result;
 }
 

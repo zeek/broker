@@ -334,7 +334,10 @@ clone_state::producer_type& clone_state::output() {
       output_ptr->stalled = false;
     // We reach the master by publishing to its topic. Hence, we actually don't
     // need a handle to it at all for the writer.
-    output_ptr->add(entity_id::nil());
+    auto always_ok = output_ptr->add(entity_id::nil());
+    // Silence warning regarding ignoring the error. Adding the first path
+    // cannot fail.
+    static_cast<void>(always_ok);
   }
   return *output_ptr;
 }
