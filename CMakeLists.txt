@@ -378,8 +378,8 @@ if (NOT DISABLE_PYTHON_BINDINGS)
     set(PYTHONINTERP_FOUND false)
   endif ()
 
-  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 2.7)
-    message(WARNING "Skipping Python bindings: Python 2.7 or Python 3 required")
+  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 3.5)
+    message(WARNING "Skipping Python bindings: Python 3.5 or greater required")
     set(PYTHONINTERP_FOUND false)
   endif ()
 
