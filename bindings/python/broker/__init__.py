@@ -47,14 +47,6 @@ except:
 
     utc = UTC()
 
-# Check the Python version
-py2 = (sys.version_info.major < 3)
-
-# Python 2/3 compatibility: Make sure the "long" and "unicode" types are defined
-if not py2:
-    long = int
-    unicode = str
-
 Version = _broker.Version
 Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
@@ -80,7 +72,7 @@ BrokerOptions = _broker.BrokerOptions
 # for comparision against the enum.
 _EC_eq = _broker.EC.__eq__
 def _our_EC_eq(self, other):
-    if isinstance(other, (int, long)):
+    if isinstance(other, int):
         return other == int(self)
     else:
         return _EC_eq(self, other)
@@ -386,7 +378,7 @@ class Data(_broker.Data):
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
 
-        elif isinstance(x, (bool, int, long, float, str, unicode, bytes,
+        elif isinstance(x, (bool, int, float, str, bytes,
                             Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
             _broker.Data.__init__(self, x)
 
@@ -396,15 +388,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, _broker.Timespan(ns))
 
         elif isinstance(x, datetime.datetime):
-            if py2:
-                if x.tzinfo:
-                    secs = (x - datetime.datetime(1970, 1, 1, tzinfo=utc)).total_seconds()
-                else:
-                    # Assume the naive datetime is in local time
-                    secs = time.mktime(x.timetuple()) + x.microsecond/1e6
-            else:
-                secs = x.timestamp()
-
+            secs = x.timestamp()
             _broker.Data.__init__(self, _broker.Timestamp(secs))
 
         elif isinstance(x, ipaddress.IPv4Address):
