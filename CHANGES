@@ -1,4 +1,16 @@
 
+1.5.0-dev.30 | 2020-11-26 18:12:38 +0000
+
+  * Update macOS CI to use system default Python 3 (Jon Siwek, Corelight)
+
+  * Remove Python 2 compatibility logic (Jon Siwek, Corelight)
+
+  * Update CMake logic to enforce Python >= 3.5 for Python Bindings (Jon Siwek, Corelight)
+
+  * Update Python Bindings docs for new Python >= 3.5 requirements (Jon Siwek, Corelight)
+
+  * Update cmake submodules with changes related to Python 2 EOL (Jon Siwek, Corelight)
+
 1.5.0-dev.22 | 2020-10-21 15:37:57 -0700
 
   * Move CI from Fedora 30 (EOL) to Fedora 32 (Jon Siwek, Corelight)

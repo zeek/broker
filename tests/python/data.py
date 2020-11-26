@@ -4,9 +4,6 @@
 # sure that the transparent conversion works as expected.
 #
 
-# This is needed in order to use the "ipaddress" module on Python 2.7.
-from __future__ import unicode_literals
-
 import datetime
 import time
 import math
@@ -15,9 +12,6 @@ import sys
 import unittest
 
 import broker
-
-# Check the Python version
-py2 = (sys.version_info.major < 3)
 
 
 class TestDataConstruction(unittest.TestCase):
@@ -43,17 +37,6 @@ class TestDataConstruction(unittest.TestCase):
     def check_to_py(self, b, p):
         b2p = broker.Data.to_py(b)
         #print("[to_py] data({} / {}) -> ({} / {})".format(str(b), b.get_type(), b2p, type(b2p)))
-
-        if py2:
-            # Python 2.7 compatibility: convert objects of type 'int' to 'long'
-            # to match the type returned by broker.Data.to_py(b)
-            if isinstance(p, int) and not isinstance(p, bool):
-                p = long(p)
-
-            # Python 2.7 compatibility: convert objects of type 'str' to
-            # 'unicode' to match the type returned by broker.Data.to_py(b)
-            if isinstance(p, str):
-                p = unicode(p)
 
         self.assertIsInstance(b2p, type(p))
 
@@ -113,24 +96,14 @@ class TestDataConstruction(unittest.TestCase):
 
         self.check_to_broker_and_back(-42, '-42', broker.Data.Type.Integer)
 
-        # Test a value that is beyond range of unsigned 32-bit integer (on
-        # 32-bit python 2.x systems, this will be type 'long')
+        # Test a value that is beyond range of unsigned 32-bit integer
         self.check_to_broker_and_back(5123123123, '5123123123', broker.Data.Type.Integer)
-
-        if py2:
-            # Explicitly pass a 'long' value (this is not relevant for python 3)
-            self.check_to_broker_and_back(long(5), '5', broker.Data.Type.Integer)
 
     def test_count(self):
         self.check_to_broker_and_back(broker.Count(42), '42', broker.Data.Type.Count)
 
-        # Test a value that is beyond range of unsigned 32-bit integer (on
-        # 32-bit python 2.x systems, this will be type 'long')
+        # Test a value that is beyond range of unsigned 32-bit integer
         self.check_to_broker_and_back(broker.Count(5123123123), '5123123123', broker.Data.Type.Count)
-
-        if py2:
-            # Explicitly pass a 'long' value (this is not relevant for python 3)
-            self.check_to_broker_and_back(broker.Count(long(5)), '5', broker.Data.Type.Count)
 
     def test_count_overflow(self):
         with self.assertRaises(Exception) as context:
@@ -182,9 +155,8 @@ class TestDataConstruction(unittest.TestCase):
         today = datetime.datetime.now(broker.utc)
         self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
 
-        if not py2:
-            today = datetime.datetime.now(datetime.timezone.utc)
-            self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
+        today = datetime.datetime.now(datetime.timezone.utc)
+        self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
 
         today = datetime.datetime.now()
         self.check_to_broker_and_back(today, None, broker.Data.Type.Timestamp)
@@ -207,17 +179,6 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_broker_and_back('foo', 'foo', broker.Data.Type.String)
         self.check_to_broker_and_back('\ttab', '\ttab', broker.Data.Type.String)
         self.check_to_broker_and_back('new\n', 'new\n', broker.Data.Type.String)
-
-        if py2:
-            # These test cases are not relevant for Python 3
-
-            # Explicitly pass a 'unicode' value (this is relevant in case
-            # unicode_literals isn't imported)
-            self.check_to_broker_and_back(u'foo2', 'foo2', broker.Data.Type.String)
-
-            # Explicitly pass a 'str' value (this is relevant in case
-            # unicode_literals is imported)
-            self.check_to_broker_and_back(str('foo3'), 'foo3', broker.Data.Type.String)
 
     def test_address_v4(self):
         addr = ipaddress.IPv4Address('0.0.0.0')

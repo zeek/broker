@@ -44,9 +44,8 @@ installed:
     * OpenSSL headers/libraries          (http://www.openssl.org)
     * CMake 3.0 or greater               (https://cmake.org)
 
-The optional Python bindings also require Python 2.7 or greater
-along with Python development packages.  For Python 2.7, you'll
-also need the ``ipaddress`` backport from Python 3.
+The optional Python bindings also require Python 3.5 or greater
+along with Python development packages.
 
 By default, Broker will use an integrated version of the C++ Actor
 Framework (CAF; https://actor-framework.org), though there's still the
