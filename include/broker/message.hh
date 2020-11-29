@@ -26,16 +26,11 @@ using command_channel = detail::channel<entity_id, command_message>;
 
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
-template <class PeerId>
-using generic_node_message = caf::cow_tuple< // Fields:
-  node_message_content,                      // 0: content
-  alm::multipath<PeerId>,                    // 1: path
-  std::vector<PeerId>                        // 2: receivers
+using node_message = caf::cow_tuple< // Fields:
+  node_message_content,              // 0: content
+  alm::multipath<endpoint_id>,       // 1: path
+  std::vector<endpoint_id>           // 2: receivers
   >;
-
-/// A message for node-to-node communication with either a user-defined data
-/// message or a broker-internal command messages.
-using node_message = generic_node_message<caf::node_id>;
 
 /// Returns whether `x` contains a ::node_message.
 inline bool is_data_message(const node_message_content& x) {
@@ -43,8 +38,7 @@ inline bool is_data_message(const node_message_content& x) {
 }
 
 /// Returns whether `x` contains a ::node_message.
-template <class PeerId>
-bool is_data_message(const generic_node_message<PeerId>& x) {
+inline bool is_data_message(const node_message& x) {
   return is_data_message(get<0>(x));
 }
 
@@ -54,8 +48,7 @@ inline bool is_command_message(const node_message_content& x) {
 }
 
 /// Returns whether `x` contains a ::command_message.
-template <class PeerId>
-bool is_command_message(const generic_node_message<PeerId>& x) {
+inline bool is_command_message(const node_message& x) {
   return is_command_message(get<0>(x));
 }
 
@@ -97,8 +90,7 @@ inline const topic& get_topic(const node_message_content& x) {
 }
 
 /// Retrieves the topic from a ::generic_message.
-template <class PeerId>
-const topic& get_topic(const generic_node_message<PeerId>& x) {
+inline const topic& get_topic(const node_message& x) {
   return get_topic(get<0>(x));
 }
 
@@ -119,14 +111,14 @@ inline topic&& move_topic(command_message& x) {
 inline topic&& move_topic(node_message_content& x) {
   if (is_data_message(x))
     return move_topic(caf::get<data_message>(x));
-  return move_topic(caf::get<command_message>(x));
+  else
+    return move_topic(caf::get<command_message>(x));
 }
 
 /// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
 /// its content if other ::node_message objects hold references to it.
-template <class PeerId>
-topic&& move_topic(generic_node_message<PeerId>& x) {
-  return move_topic(get<0>(x));
+inline topic&& move_topic(node_message& x) {
+  return move_topic(get<0>(x.unshared()));
 }
 
 /// Retrieves the data from a ::data_message.
@@ -153,56 +145,47 @@ inline internal_command&& move_command(command_message& x) {
 }
 
 /// Retrieves the content from a ::data_message.
-template <class PeerId>
-const node_message_content& get_content(const generic_node_message<PeerId>& x) {
+inline const node_message_content& get_content(const node_message& x) {
   return get<0>(x);
 }
 
 /// Moves the content out of a ::node_message. Causes `x` to make a lazy copy of
 /// its content if other ::node_message objects hold references to it.
-template <class PeerId>
-node_message_content&& move_content(generic_node_message<PeerId>& x) {
-  return std::move(get<0>(x));
+inline node_message_content&& move_content(node_message& x) {
+  return std::move(get<0>(x.unshared()));
 }
 
 /// Retrieves the path from a ::data_message.
-template <class PeerId>
-const auto& get_path(const generic_node_message<PeerId>& x) {
+inline const auto& get_path(const node_message& x) {
   return get<1>(x);
 }
 
 /// Get unshared access the path field of a ::node_message. Causes `x` to make a
 /// lazy copy of its content if other ::node_message objects hold references to
 /// it.
-template <class PeerId>
-auto& get_unshared_path(generic_node_message<PeerId>& x) {
+inline auto& get_unshared_path(node_message& x) {
   return get<1>(x.unshared());
 }
 
 /// Retrieves the receivers from a ::data_message.
-template <class PeerId>
-const auto& get_receivers(const generic_node_message<PeerId>& x) {
+inline const auto& get_receivers(const node_message& x) {
   return get<2>(x);
 }
 
 /// Get unshared access the receivers field of a ::node_message. Causes `x` to
 /// make a lazy copy of its content if other ::node_message objects hold
 /// references to it.
-template <class PeerId>
-auto& get_unshared_receivers(generic_node_message<PeerId>& x) {
+inline auto& get_unshared_receivers(node_message& x) {
   return get<2>(x.unshared());
 }
 
 /// Shortcut for `get<data_message>(get_content(x))`.
-template <class PeerId>
-const data_message& get_data_message(const generic_node_message<PeerId>& x) {
+inline const data_message& get_data_message(const node_message& x) {
   return get<data_message>(get_content(x));
 }
 
 /// Shortcut for `get<command_message>(get_content(x))`.
-template <class PeerId>
-const command_message&
-get_command_message(const generic_node_message<PeerId>& x) {
+inline const command_message& get_command_message(const node_message& x) {
   return get<command_message>(get_content(x));
 }
 

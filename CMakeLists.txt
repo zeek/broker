@@ -283,6 +283,8 @@ set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
   src/alm/multipath.cc
+  src/alm/peer.cc
+  src/alm/stream_transport.cc
   src/configuration.cc
   src/convert.cc
   src/core_actor.cc

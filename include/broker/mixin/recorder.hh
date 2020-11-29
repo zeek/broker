@@ -5,44 +5,46 @@
 
 namespace broker::mixin {
 
-template <class Base, class Subtype>
+template <class Base>
 class recorder : public Base {
 public:
+  // -- member types -----------------------------------------------------------
+
   using super = Base;
 
   using extended_base = recorder;
 
-  using message_type = typename super::message_type;
-
-  using peer_id_type = typename super::peer_id_type;
-
-  using communication_handle_type = typename super::communication_handle_type;
+  // -- constructors, destructors, and assignment operators --------------------
 
   template <class... Ts>
-  explicit recorder(Ts&&... xs)
-    : super(std::forward<Ts>(xs)...), rec_(super::self()) {
+  explicit recorder(caf::event_based_actor* self, Ts&&... xs)
+    : super(self, std::forward<Ts>(xs)...), rec_(super::self()) {
     // nop
   }
 
-  void ship(message_type& msg) {
+  recorder() = delete;
+
+  recorder(const recorder&) = delete;
+
+  recorder& operator=(const recorder&) = delete;
+
+  // -- overrides --------------------------------------------------------------
+
+  void send(const caf::actor& receiver, atom::publish,
+            node_message msg) override {
     if (rec_)
       rec_.try_record(msg);
-    super::ship(msg);
+    super::send(receiver, atom::publish_v, std::move(msg));
   }
 
-  void ship(data_message& msg, const peer_id_type& receiver) {
-    // TODO: extend recording interface to cover direct messages
-    super::ship(msg, receiver);
-  }
-
-  void subscribe(const filter_type& what) {
+  void subscribe(const filter_type& what) override {
     if (rec_)
       rec_.record_subscription(what);
     super::subscribe(what);
   }
 
-  void peer_connected(const peer_id_type& remote_id,
-                      const communication_handle_type& hdl) {
+  void peer_connected(const endpoint_id& remote_id,
+                      const caf::actor& hdl) override {
     if (rec_)
       rec_.record_peer(remote_id);
     super::peer_connected(remote_id, hdl);

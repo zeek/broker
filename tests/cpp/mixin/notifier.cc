@@ -34,7 +34,7 @@ struct dummy_cache {
   bool enabled = true;
 };
 
-template <class Base, class Subtype>
+template <class Base>
 class cache_holder : public Base {
 public:
   template <class... Ts>
@@ -51,10 +51,7 @@ private:
 };
 
 class stream_peer_manager
-  : public //
-    caf::extend<stream_transport<stream_peer_manager, peer_id>,
-                stream_peer_manager>:: //
-    with<cache_holder, mixin::notifier> {
+  : public mixin::notifier<cache_holder<stream_transport>> {
 public:
   using super = extended_base;
 
@@ -62,19 +59,10 @@ public:
     // nop
   }
 
-  const auto& id() const noexcept {
-    return id_;
-  }
-
-  void id(caf::node_id new_id) noexcept {
-    id_ = std::move(new_id);
-  }
-
   using super::ship_locally;
 
   void ship_locally(const data_message& msg) {
-    if (is_internal(get_topic(msg)))
-    {
+    if (is_internal(get_topic(msg))) {
       if (auto status = status_view::make(get_data(msg)))
         log.emplace_back(to_string(status.code()));
       else if (auto err = error_view::make(get_data(msg)))
@@ -84,9 +72,6 @@ public:
   }
 
   std::vector<std::string> log;
-
-private:
-  caf::node_id id_;
 };
 
 struct stream_peer_actor_state {

@@ -18,6 +18,7 @@
 #include "broker/detail/overload.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
+#include "broker/fwd.hh"
 #include "broker/logger.hh"
 
 namespace broker::detail {
@@ -27,10 +28,6 @@ namespace broker::detail {
 template <class Transport>
 class peer_handshake : public caf::ref_counted {
 public:
-  // -- member types -----------------------------------------------------------
-
-  using peer_id_type = typename Transport::peer_id_type;
-
   // -- nested types -----------------------------------------------------------
 
   /// FSM scaffold for both implementations.
@@ -161,9 +158,9 @@ public:
           BROKER_ASSERT(self != nullptr);
           self
             ->request(parent->remote_hdl, std::chrono::minutes(10),
-                      atom::peer_v, atom::init_v, transport->local_id(), self)
+                      atom::peer_v, atom::init_v, transport->id(), self)
             .then(
-              [](atom::peer, atom::ok, const peer_id_type&) {
+              [](atom::peer, atom::ok, const endpoint_id&) {
                 // Note: we do *not* fulfill the promise here. We do so after
                 // receiving the ack_open.
               },
@@ -350,7 +347,7 @@ public:
   // -- state transitions ------------------------------------------------------
 
   /// Starts the handshake. This FSM takes on the role of the Originator.
-  [[nodiscard]] bool originator_start_peering(peer_id_type peer_id,
+  [[nodiscard]] bool originator_start_peering(endpoint_id peer_id,
                                               caf::actor peer_hdl,
                                               caf::response_promise rp = {}) {
     BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
@@ -388,7 +385,7 @@ public:
   }
 
   /// Starts the handshake. This FSM takes on the role of the Originator.
-  [[nodiscard]] bool responder_start_peering(peer_id_type peer_id,
+  [[nodiscard]] bool responder_start_peering(endpoint_id peer_id,
                                              caf::actor peer_hdl) {
     BROKER_TRACE(BROKER_ARG2("impl", pretty_impl())
                  << BROKER_ARG(peer_id) << BROKER_ARG(peer_hdl));
@@ -597,7 +594,7 @@ public:
   Transport* transport;
 
   /// ID of the remote endpoint.
-  peer_id_type remote_id;
+  endpoint_id remote_id;
 
   /// Communication handle for the remote endpoint.
   caf::actor remote_hdl;

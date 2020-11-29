@@ -21,7 +21,7 @@ namespace broker::mixin {
 /// (atom::publish, network_info addr, data_message msg) -> void
 /// => try_publish(addr, msg, self->make_response_promise())
 /// ~~~
-template <class Base, class Subtype>
+template <class Base>
 class connector : public Base {
 public:
   // -- member types -----------------------------------------------------------
@@ -30,16 +30,24 @@ public:
 
   using super = Base;
 
-  using peer_id_type = typename super::peer_id_type;
-
-  using communication_handle_type = typename Base::communication_handle_type;
-
   // -- constructors, destructors, and assignment operators --------------------
 
   template <class... Ts>
-  explicit connector(Ts&&... xs)
-    : super(std::forward<Ts>(xs)...), cache_(super::self()) {
+  explicit connector(caf::event_based_actor* self, Ts&&... xs)
+    : super(self, std::forward<Ts>(xs)...), cache_(self) {
     // nop
+  }
+
+  connector() = delete;
+
+  connector(const connector&) = delete;
+
+  connector& operator=(const connector&) = delete;
+
+  // -- properties -------------------------------------------------------------
+
+  detail::network_cache& cache() {
+    return cache_;
   }
 
   // -- lazy connection management ---------------------------------------------
@@ -52,21 +60,21 @@ public:
     // remote peer via direct request messages.
     cache_.fetch(
       addr,
-      [=](communication_handle_type hdl) mutable {
+      [=](caf::actor hdl) mutable {
         // TODO: replace hardcoded timeout with some configuration parameter
         self
-          ->request(hdl, std::chrono::minutes(10), atom::ping_v, dref().id(),
+          ->request(hdl, std::chrono::minutes(10), atom::ping_v, this->id(),
                     self)
           .then(
-            [=](atom::pong, const peer_id_type& remote_id,
-                [[maybe_unused]] communication_handle_type hdl2) {
+            [=](atom::pong, const endpoint_id& remote_id,
+                [[maybe_unused]] caf::actor hdl2) {
               BROKER_ASSERT(hdl == hdl2);
-              dref().start_peering(remote_id, hdl, rp);
+              this->start_peering(remote_id, hdl, rp);
             },
             [=](error& err) mutable { rp.deliver(std::move(err)); });
       },
       [=](error err) mutable {
-        dref().peer_unavailable(addr);
+        this->peer_unavailable(addr);
         ++count; // Tracked, but currently unused; could implement max. count.
         if (addr.retry.count() == 0) {
           rp.deliver(std::move(err));
@@ -83,18 +91,18 @@ public:
     auto deliver_err = [=](error err) mutable { rp.deliver(std::move(err)); };
     cache_.fetch(
       addr,
-      [=, msg{std::move(msg)}](communication_handle_type hdl) mutable {
+      [=, msg{std::move(msg)}](caf::actor hdl) mutable {
         if (auto i = ids_.find(hdl); i != ids_.end()) {
-          dref().ship(msg, i->second);
+          this->ship(msg, i->second);
           rp.deliver(caf::unit);
           return;
         }
         // TODO: replace infinite with some useful default / config parameter
         self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
           .then(
-            [=, msg{std::move(msg)}](const peer_id_type& remote_id) mutable {
+            [=, msg{std::move(msg)}](const endpoint_id& remote_id) mutable {
               ids_.emplace(hdl, remote_id);
-              dref().ship(msg, remote_id);
+              this->ship(msg, remote_id);
               rp.deliver(caf::unit);
             },
             deliver_err);
@@ -107,44 +115,41 @@ public:
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
     using detail::lift;
-    auto& d = dref();
     return super::make_behavior(
       std::move(fs)...,
       [=](atom::peer, const network_info& addr) {
-        dref().try_peering(addr, super::self()->make_response_promise(), 0);
+        this->try_peering(addr, super::self()->make_response_promise(), 0);
       },
       [=](atom::publish, const network_info& addr, data_message& msg) {
-        dref().try_publish(addr, msg, super::self()->make_response_promise());
+        this->try_publish(addr, msg, super::self()->make_response_promise());
       },
       [=](atom::unpeer, const network_info& addr) {
         if (auto hdl = cache_.find(addr))
-          dref().unpeer(*hdl);
+          this->unpeer(*hdl);
         else
-          dref().cannot_remove_peer(addr);
+          this->cannot_remove_peer(addr);
       },
       [=](detail::retry_state& x) {
-        dref().try_peering(x.addr, std::move(x.rp), x.count);
+        this->try_peering(x.addr, std::move(x.rp), x.count);
       },
-      [=](atom::ping, const peer_id_type& peer_id,
-          const communication_handle_type& hdl) {
+      [=](atom::ping, const endpoint_id& peer_id, const caf::actor& hdl) {
         // This step only exists to populate the network caches on both sides
         // before starting the actual handshake.
-        auto rp = dref().self()->make_response_promise();
+        auto rp = this->self()->make_response_promise();
         cache_.fetch(
           hdl,
           [this, rp](const network_info&) mutable {
-            rp.deliver(atom::pong_v, dref().id(), dref().self());
+            rp.deliver(atom::pong_v, this->id(), this->self());
           },
           [rp](error err) mutable { rp.deliver(std::move(err)); });
         return rp;
       });
   }
 
-  // -- callbacks --------------------------------------------------------------
+  // -- overrides --------------------------------------------------------------
 
-  void peer_disconnected(const peer_id_type& peer_id,
-                         const communication_handle_type& hdl,
-                         const error& reason) {
+  void peer_disconnected(const endpoint_id& peer_id, const caf::actor& hdl,
+                         const error& reason) override {
     // Lost network connection: try reconnecting.
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl) << BROKER_ARG(reason));
     if (auto addr = cache_.find(hdl)) {
@@ -152,7 +157,7 @@ public:
       ids_.erase(hdl);
       cache_.remove(hdl);
       // The naive thing to do here would be calling
-      // `dref().try_peering(*addr, {}, 0)` to trigger the reconnect loop.
+      // `this->try_peering(*addr, {}, 0)` to trigger the reconnect loop.
       // However, `peer_disconnected` is not necessarily triggered by a
       // disconnect. Broker endpoints tear down the peering relations as part of
       // a regular shutdown. Hence, we must somehow delay the reconnect attempts
@@ -170,7 +175,7 @@ public:
       //       and we should move on to node monitoring once we no longer care
       //       for CAF 0.17 compatibility.
       if (addr->retry.count() > 0) {
-        auto weak_self = dref().self()->address();
+        auto weak_self = this->self()->address();
         hdl->attach_functor(
           [weak_self, addr{std::move(*addr)}](const caf::error& rsn) mutable {
             // Trigger reconnect after 250ms when still alive and kicking.
@@ -184,8 +189,8 @@ public:
     super::peer_disconnected(peer_id, hdl, reason);
   }
 
-  void peer_removed(const peer_id_type& peer_id,
-                    const communication_handle_type& hdl) {
+  void peer_removed(const endpoint_id& peer_id,
+                    const caf::actor& hdl) override {
     // Graceful removal by the user: remove all state associated to the peer.
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
     ids_.erase(hdl);
@@ -193,23 +198,12 @@ public:
     super::peer_removed(peer_id, hdl);
   }
 
-
-  // -- properties -------------------------------------------------------------
-
-  auto& cache() {
-    return cache_;
-  }
-
 private:
-  Subtype& dref() {
-    return static_cast<Subtype&>(*this);
-  }
-
   /// Associates network addresses to remote actor handles and vice versa.
   detail::network_cache cache_;
 
   /// Maps remote actor handles to peer IDs.
-  std::unordered_map<communication_handle_type, peer_id_type> ids_;
+  std::unordered_map<caf::actor, endpoint_id> ids_;
 };
 
 } // namespace broker::mixin

@@ -1,47 +1,130 @@
 #define SUITE alm.peer.async_transport
 
-#include "broker/core_actor.hh"
+#include "broker/alm/peer.hh"
 
-#include "test.hh"
+#include "alm/peer/fixture.hh"
 
-#include "broker/alm/async_transport.hh"
 #include "broker/alm/peer.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
 
-using broker::alm::async_transport;
-using broker::alm::peer;
 using broker::defaults::store::tick_interval;
 
 using namespace broker;
+using namespace broker::alm;
 
 namespace {
 
-using peer_id = std::string;
-
-using message_type = generic_node_message<peer_id>;
-
-// -- transport layer ----------------------------------------------------------
-
-class async_peer_actor_state
-  : public async_transport<async_peer_actor_state, peer_id> {
+/// A transport based on asynchronous messages. For testing only.
+class async_transport : public peer {
 public:
-  using self_pointer = caf::event_based_actor*;
+  using super = peer;
 
-  async_peer_actor_state(self_pointer self) : self_(self) {
+  async_transport(caf::event_based_actor* self) : peer(self) {
     // nop
   }
 
-  const peer_id& id() const noexcept {
-    return id_;
+  void start_peering(const endpoint_id& remote_peer, caf::actor hdl) {
+    BROKER_TRACE(BROKER_ARG(remote_peer) << BROKER_ARG(hdl));
+    if (!tbl().emplace(std::move(remote_peer), std::move(hdl)).second) {
+      BROKER_INFO("start_peering ignored: already peering with "
+                  << remote_peer);
+      return;
+    }
+    self()->send(hdl, atom::peer_v, id(), filter(), timestamp());
   }
 
-  void id(peer_id new_id) noexcept {
-    id_ = std::move(new_id);
+  auto handle_peering(const endpoint_id& remote_id,
+                      const filter_type& remote_filter,
+                      lamport_timestamp remote_timestamp) {
+    BROKER_TRACE(BROKER_ARG(remote_id));
+    // Check whether we already send outbound traffic to the peer. Could use
+    // `BROKER_ASSERT` instead, because this mustn't get called for known peers.
+    auto src = caf::actor_cast<caf::actor>(self()->current_sender());
+    if (!tbl().emplace(remote_id, src).second)
+      BROKER_INFO("received repeated peering request");
+    // Propagate filter to peers.
+    std::vector<endpoint_id> path{remote_id};
+    vector_timestamp path_ts{remote_timestamp};
+    handle_filter_update(path, path_ts, remote_filter);
+    // Reply with our own filter.
+    return caf::make_message(atom::peer_v, atom::ok_v, id(), filter(),
+                             timestamp());
   }
 
-  self_pointer self() {
-    return self_;
+  auto handle_peering_response(const endpoint_id& remote_id,
+                               const filter_type& filter,
+                               lamport_timestamp timestamp) {
+    auto src = caf::actor_cast<caf::actor>(self()->current_sender());
+    if (!tbl().emplace(remote_id, src).second)
+      BROKER_INFO("received repeated peering response");
+    // Propagate filter to peers.
+    std::vector<endpoint_id> path{remote_id};
+    vector_timestamp path_ts{timestamp};
+    handle_filter_update(path, path_ts, filter);
+  }
+
+  void send(const caf::actor& receiver, atom::publish,
+            node_message content) override {
+    self()->send(receiver, atom::publish_v, std::move(content));
+  }
+
+  void send(const caf::actor& receiver, atom::subscribe,
+            const endpoint_id_list& path, const vector_timestamp& ts,
+            const filter_type& filter) override {
+    self()->send(receiver, atom::subscribe_v, path, ts, filter);
+  }
+
+  void send(const caf::actor& receiver, atom::revoke,
+            const endpoint_id_list& path, const vector_timestamp& ts,
+            const endpoint_id& lost_peer, const filter_type& filter) override {
+    self()->send(receiver, atom::revoke_v, path, ts, lost_peer, filter);
+  }
+
+  void ship_locally(const data_message&) override {
+    // nop
+  }
+
+  void ship_locally(const command_message& msg) override {
+    // nop
+  }
+
+  template <class... Fs>
+  caf::behavior make_behavior(Fs... fs) {
+    using detail::lift;
+    return {
+      std::move(fs)...,
+      lift<atom::peer>(*this, &async_transport::start_peering),
+      lift<atom::peer>(*this, &async_transport::handle_peering),
+      lift<atom::peer, atom::ok>(*this,
+                                 &async_transport::handle_peering_response),
+      lift<atom::publish>(*this, &async_transport::publish_data),
+      lift<atom::publish>(*this, &async_transport::publish_command),
+      lift<atom::subscribe>(*this, &async_transport::subscribe),
+      lift<atom::publish>(*this, &async_transport::handle_publication),
+      lift<atom::subscribe>(*this, &async_transport::handle_filter_update),
+    };
+  }
+};
+
+// -- transport layer ----------------------------------------------------------
+
+class async_peer_actor_state : public async_transport {
+public:
+  using self_pointer = caf::event_based_actor*;
+
+  async_peer_actor_state(self_pointer self) : async_transport(self) {
+    // nop
+  }
+
+  async_peer_actor_state() = delete;
+
+  async_peer_actor_state(const async_peer_actor_state&) = delete;
+
+  async_peer_actor_state& operator=(const async_peer_actor_state&) = delete;
+
+  auto& mgr() {
+    return *this;
   }
 
   bool connected_to(const caf::actor& hdl) const noexcept {
@@ -49,16 +132,18 @@ public:
     return std::any_of(tbl().begin(), tbl().end(), predicate);
   }
 
-private:
-  self_pointer self_;
-  peer_id id_;
+  std::vector<endpoint_id> shortest_path(const endpoint_id& to) {
+    if (auto ptr = alm::shortest_path(tbl(), to))
+      return *ptr;
+    return {};
+  }
 };
 
 class async_peer_actor : public caf::stateful_actor<async_peer_actor_state> {
 public:
   using super = caf::stateful_actor<async_peer_actor_state>;
 
-  async_peer_actor(caf::actor_config& cfg, peer_id id) : super(cfg) {
+  async_peer_actor(caf::actor_config& cfg, endpoint_id id) : super(cfg) {
     state.id(std::move(id));
   }
 
@@ -67,9 +152,28 @@ public:
   }
 };
 
-// -- fixture ------------------------------------------------------------------
+struct message_pattern {
+  topic t;
+  data d;
+  std::vector<endpoint_id> ps;
+};
 
-// In this fixture, we're setting up this messy topology full of loops:
+bool operator==(const message_pattern& x, const node_message& y) {
+  if (!is_data_message(y))
+    return false;
+  const auto& dm = get_data_message(y);
+  if (x.t != get_topic(dm))
+    return false;
+  if (x.d != get_data(dm))
+    return false;
+  return x.ps == get_receivers(y);
+}
+
+bool operator==(const node_message& x, const message_pattern& y) {
+  return y == x;
+}
+
+// Our topology:
 //
 //                                     +---+
 //                               +-----+ D +-----+
@@ -98,93 +202,17 @@ public:
 //                                     +---+
 //
 
-#define PEER_ID(id) std::string id = #id
-
-struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
-  using peer_ids = std::vector<peer_id>;
-
-  PEER_ID(A);
-  PEER_ID(B);
-  PEER_ID(C);
-  PEER_ID(D);
-  PEER_ID(E);
-  PEER_ID(F);
-  PEER_ID(G);
-  PEER_ID(H);
-  PEER_ID(I);
-  PEER_ID(J);
-
-  fixture() {
-    for (auto& id : peer_ids{A, B, C, D, E, F, G, H, I, J})
-      peers[id] = sys.spawn<async_peer_actor>(id);
-  }
-
-  async_peer_actor_state& get(const peer_id& id) {
-    return deref<async_peer_actor>(peers[id]).state;
-  }
-
-  void connect_peers() {
-    std::map<peer_id, peer_ids> connections{
-      {A, {B, C, J}}, {B, {A, D, E}},    {C, {A, F, G, H}}, {D, {B, I}},
-      {E, {B, I}},    {F, {C, G}},       {I, {D, E, J}},    {G, {C, F, H, J}},
-      {H, {C, G, J}}, {J, {A, I, G, H}},
-    };
-    for (auto& [id, links] : connections)
-      for (auto& link : links)
-        anon_send(peers[id], atom::peer_v, link, peers[link]);
-    this->run(tick_interval);
-    BROKER_ASSERT(get(A).connected_to(peers[B]));
-    BROKER_ASSERT(get(A).connected_to(peers[C]));
-    BROKER_ASSERT(get(A).connected_to(peers[J]));
-    BROKER_ASSERT(not get(A).connected_to(peers[D]));
-    BROKER_ASSERT(not get(A).connected_to(peers[E]));
-    BROKER_ASSERT(not get(A).connected_to(peers[F]));
-    BROKER_ASSERT(not get(A).connected_to(peers[G]));
-    BROKER_ASSERT(not get(A).connected_to(peers[H]));
-    BROKER_ASSERT(not get(A).connected_to(peers[I]));
-  }
-
-  ~fixture() {
-    for (auto& kvp : peers)
-      anon_send_exit(kvp.second, caf::exit_reason::kill);
-  }
-
-  std::map<peer_id, caf::actor> peers;
-};
-
-struct message_pattern {
-  topic t;
-  data d;
-  std::vector<peer_id> ps;
-};
-
-bool operator==(const message_pattern& x, const message_type& y) {
-  if (!is_data_message(y))
-    return false;
-  const auto& dm = get_data_message(y);
-  if (x.t != get_topic(dm))
-    return false;
-  if (x.d != get_data(dm))
-    return false;
-  return x.ps == get_receivers(y);
-}
-
-bool operator==(const message_type& x, const message_pattern& y) {
-  return y == x;
-}
-
 } // namespace
 
 #define CHECK_DISTANCE(src, dst, val)                                          \
   CHECK_EQUAL(alm::distance_to(get(src).tbl(), dst), size_t{val})
 
-FIXTURE_SCOPE(async_peer_tests, fixture)
+FIXTURE_SCOPE(async_peer_tests, fixture<async_peer_actor>)
 
 TEST(topologies with loops resolve to simple forwarding tables) {
   connect_peers();
-  using peer_vec = std::vector<peer_id>;
   MESSAGE("after all links are connected, G subscribes to topic 'foo'");
-  anon_send(peers[G], atom::subscribe_v, filter_type{topic{"foo"}});
+  anon_send(peers["G"], atom::subscribe_v, filter_type{topic{"foo"}});
   run(tick_interval);
   MESSAGE("after the subscription, all routing tables store a distance to G");
   CHECK_DISTANCE(A, G, 2);
@@ -197,16 +225,16 @@ TEST(topologies with loops resolve to simple forwarding tables) {
   CHECK_DISTANCE(I, G, 2);
   CHECK_DISTANCE(J, G, 1);
   MESSAGE("publishing to foo on A will send through C");
-  anon_send(peers[A], atom::publish_v, make_data_message("foo", 42));
+  anon_send(peers["A"], atom::publish_v, make_data_message("foo", 42));
   expect((atom::publish, data_message), from(_).to(peers["A"]));
-  expect((atom::publish, message_type),
-         from(peers[A])
-           .to(peers[C])
-           .with(_, message_pattern{"foo", 42, peer_vec{G}}));
-  expect((atom::publish, message_type),
-         from(peers[C])
-           .to(peers[G])
-           .with(_, message_pattern{"foo", 42, peer_vec{G}}));
+  expect((atom::publish, node_message),
+         from(peers["A"]) //
+           .to(peers["C"])
+           .with(_, message_pattern{"foo", 42, endpoint_id_list{G}}));
+  expect((atom::publish, node_message),
+         from(peers["C"]) //
+           .to(peers["G"])
+           .with(_, message_pattern{"foo", 42, endpoint_id_list{G}}));
 }
 
 FIXTURE_SCOPE_END()

@@ -13,7 +13,8 @@ core_state::~core_state() {
 core_manager::core_manager(caf::node_id core_id, endpoint::clock* clock,
                            caf::event_based_actor* self,
                            const domain_options* adaptation)
-  : super(clock, self), id_(std::move(core_id)) {
+  : super(self, clock) {
+  id(std::move(core_id));
   if (adaptation && adaptation->disable_forwarding)
     disable_forwarding(true);
 }

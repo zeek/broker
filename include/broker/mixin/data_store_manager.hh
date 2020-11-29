@@ -21,15 +21,9 @@
 
 namespace broker::mixin {
 
-template <class Base, class Subtype>
+template <class Base>
 class data_store_manager : public Base {
 public:
-  // --- preconditions ---------------------------------------------------------
-
-  // The store manager spawns clone and master actors. Both implementations
-  // assume endpoint_id as peer_id type.
-  static_assert(std::is_same<typename Base::peer_id_type, endpoint_id>::value);
-
   // --- member types ----------------------------------------------------------
 
   using super = Base;
@@ -43,10 +37,17 @@ public:
   // --- construction and destruction ------------------------------------------
 
   template <class... Ts>
-  explicit data_store_manager(endpoint::clock* clock, Ts&&... xs)
-    : super(std::forward<Ts>(xs)...), clock_(clock) {
+  data_store_manager(caf::event_based_actor* self, endpoint::clock* clock,
+                     Ts&&... xs)
+    : super(self, std::forward<Ts>(xs)...), clock_(clock) {
     // nop
   }
+
+  data_store_manager() = delete;
+
+  data_store_manager(const data_store_manager&) = delete;
+
+  data_store_manager& operator=(const data_store_manager&) = delete;
 
   // -- properties -------------------------------------------------------------
 
@@ -55,7 +56,7 @@ public:
   bool has_remote_master(const std::string& name) {
     // If we don't have a master recorded locally, we could still have a
     // propagated filter to a remote core hosting a master.
-    return dref().has_remote_subscriber(name / topics::master_suffix);
+    return this->has_remote_subscriber(name / topics::master_suffix);
   }
 
   const auto& masters() const noexcept {
@@ -85,9 +86,9 @@ public:
     BROKER_INFO("spawning new master:" << name);
     auto self = super::self();
     auto ms = self->template spawn<spawn_flags>(
-      detail::master_actor, dref().id(), self, name, std::move(ptr), clock_);
+      detail::master_actor, this->id(), self, name, std::move(ptr), clock_);
     filter_type filter{name / topics::master_suffix};
-    if (auto err = dref().add_store(ms, filter))
+    if (auto err = this->add_store(ms, filter))
       return err;
     masters_.emplace(name, ms);
     return ms;
@@ -109,10 +110,10 @@ public:
     BROKER_INFO("spawning new clone:" << name);
     auto self = super::self();
     auto cl = self->template spawn<spawn_flags>(
-      detail::clone_actor, dref().id(), self, name, resync_interval,
+      detail::clone_actor, this->id(), self, name, resync_interval,
       stale_interval, mutation_buffer_interval, clock_);
     filter_type filter{name / topics::clone_suffix};
-    if (auto err = dref().add_store(cl, filter))
+    if (auto err = this->add_store(cl, filter))
       return err;
     clones_.emplace(name, cl);
     return cl;
@@ -144,9 +145,9 @@ public:
     f(clones_);
   }
 
-  // -- callbacks --------------------------------------------------------------
+  // -- overrides --------------------------------------------------------------
 
-  void shutdown(shutdown_options options) {
+  void shutdown(shutdown_options options) override {
     detach_stores();
     super::shutdown(options);
   }
@@ -156,13 +157,16 @@ public:
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
     using detail::lift;
-    auto& d = dref();
     return super::make_behavior(
       std::move(fs)...,
-      lift<atom::store, atom::clone, atom::attach>(d, &Subtype::attach_clone),
-      lift<atom::store, atom::master, atom::attach>(d, &Subtype::attach_master),
-      lift<atom::store, atom::master, atom::get>(d, &Subtype::get_master),
-      lift<atom::shutdown, atom::store>(d, &Subtype::detach_stores),
+      lift<atom::store, atom::clone, atom::attach>(
+        *this, &data_store_manager::attach_clone),
+      lift<atom::store, atom::master, atom::attach>(
+        *this, &data_store_manager::attach_master),
+      lift<atom::store, atom::master, atom::get>(
+        *this, &data_store_manager::get_master),
+      lift<atom::shutdown, atom::store>(*this,
+                                        &data_store_manager::detach_stores),
       [this](atom::store, atom::master, atom::resolve, std::string& name,
              caf::actor& who_asked) {
         // TODO: get rid of the who_asked parameter and use proper
@@ -173,7 +177,7 @@ public:
           self->send(who_asked, atom::master_v, i->second);
           return;
         }
-        auto peers = dref().peer_handles();
+        auto peers = this->peer_handles();
         if (peers.empty()) {
           BROKER_INFO("no peers to ask for the master");
           self->send(who_asked, atom::master_v,
@@ -188,12 +192,6 @@ public:
   }
 
 private:
-  // -- CRTP scaffold ----------------------------------------------------------
-
-  Subtype& dref() {
-    return static_cast<Subtype&>(*this);
-  }
-
   // -- member variables -------------------------------------------------------
 
   /// Enables manual time management by the user.

@@ -14,10 +14,9 @@
 namespace broker::alm {
 
 /// A transport based on asynchronous messages. For testing only.
-template <class Derived, class PeerId>
-class async_transport : public peer<Derived, PeerId, caf::actor> {
+class async_transport : public peer {
 public:
-  using super = peer<PeerId, caf::actor, Derived>;
+  using super = peer<Derived, PeerId>;
 
   using peer_id_type = PeerId;
 

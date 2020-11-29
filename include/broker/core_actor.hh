@@ -18,31 +18,19 @@ namespace broker {
 /// (atom::publish, endpoint_info receiver, data_message msg) -> void
 /// => ship(msg, receiver.node)
 /// ~~~
-class core_manager
-  : public caf::extend<alm::stream_transport<core_manager, caf::node_id>,
-                       core_manager>:: //
-    with<mixin::connector, mixin::data_store_manager, mixin::notifier,
-         mixin::recorder> {
+class core_manager : public                              //
+                     mixin::notifier<                    //
+                       mixin::connector<                 //
+                         mixin::data_store_manager<      //
+                           mixin::recorder<              //
+                             alm::stream_transport>>>> { //
 public:
   using super = extended_base;
 
   core_manager(caf::node_id core_id, endpoint::clock* clock,
                caf::event_based_actor* self, const domain_options* adaptation);
 
-  const auto& id() const noexcept {
-    return id_;
-  }
-
-  /// Overrides the peer ID (use for testing only).
-  /// @private
-  void id(caf::node_id id) {
-    id_ = std::move(id);
-  }
-
   caf::behavior make_behavior();
-
-private:
-  caf::node_id id_;
 };
 
 struct core_state {

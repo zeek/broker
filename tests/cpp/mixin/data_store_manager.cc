@@ -27,36 +27,23 @@ endpoint_id operator""_e(const char* cstr, size_t len) {
   return caf::make_node_id(unbox(res));
 }
 
-class peer_manager
-  : public caf::extend<stream_transport<peer_manager, peer_id>,
-                       peer_manager>::with<mixin::data_store_manager> {
+class peer_manager : public mixin::data_store_manager<stream_transport> {
 public:
-  using super = extended_base;
+  using super = mixin::data_store_manager<stream_transport>;
 
   peer_manager(endpoint::clock* clock, caf::event_based_actor* self)
-    : super(clock, self) {
+    : super(self, clock) {
     // nop
   }
 
-  const auto& id() const noexcept {
-    return id_;
-  }
+  using super::ship_locally;
 
-  void id(peer_id new_id) noexcept {
-    id_ = std::move(new_id);
-  }
-
-  template <class T>
-  void ship_locally(const T& msg) {
-    if constexpr (std::is_same<T, data_message>::value)
-      buf.emplace_back(msg);
+  void ship_locally(const data_message& msg) {
+    buf.emplace_back(msg);
     super::ship_locally(msg);
   }
 
   std::vector<data_message> buf;
-
-private:
-  peer_id id_;
 };
 
 struct peer_actor_state {

@@ -102,6 +102,7 @@ using caf::optional;
 using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
 using endpoint_id = caf::node_id;
+using endpoint_id_list = std::vector<endpoint_id>;
 using node_message_content = caf::variant<data_message, command_message>;
 
 template <class PeerId>

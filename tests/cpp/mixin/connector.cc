@@ -15,11 +15,11 @@ namespace {
 using str_set = std::set<std::string>;
 
 struct connector_mock_base {
-  using peer_id_type = std::string;
-
-  using communication_handle_type = caf::actor;
-
   connector_mock_base(caf::event_based_actor* self) : self_(self) {
+    // nop
+  }
+
+  virtual ~connector_mock_base() {
     // nop
   }
 
@@ -31,7 +31,7 @@ struct connector_mock_base {
     return self_->node();
   }
 
-  void start_peering(const peer_id_type& remote_id, const caf::actor& hdl,
+  void start_peering(const endpoint_id& remote_id, const caf::actor& hdl,
                      caf::response_promise promise) {
     promise.deliver(remote_id, hdl);
   }
@@ -58,6 +58,15 @@ struct connector_mock_base {
 
   template <class... Ts>
   void peer_unavailable(const Ts&...) {
+    // nop
+  }
+
+  virtual void peer_disconnected(const endpoint_id&, const caf::actor&,
+                                 const error&) {
+    // nop
+  }
+
+  virtual void peer_removed(const endpoint_id&, const caf::actor&) {
     // nop
   }
 
@@ -88,9 +97,8 @@ caf::behavior dummy_mm(caf::stateful_actor<dummy_mm_state>* self, size_t n,
   };
 }
 
-struct aut_state
-  : caf::extend<connector_mock_base, aut_state>::with<mixin::connector> {
-  using super = extended_base;
+struct aut_state : mixin::connector<connector_mock_base> {
+  using super = mixin::connector<connector_mock_base>;
 
   aut_state(caf::event_based_actor* self) : super(self) {
     // nop

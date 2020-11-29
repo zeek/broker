@@ -13,32 +13,24 @@ namespace {
 
 // -- actor type: peer with stream transport -----------------------------------
 
-using peer_id = std::string;
+using peer_id = endpoint_id;
 
-class peer_manager : public alm::stream_transport<peer_manager, peer_id> {
+class peer_manager : public alm::stream_transport {
 public:
-  using super = alm::stream_transport<peer_manager, peer_id>;
+  using super = alm::stream_transport;
 
   peer_manager(caf::event_based_actor* self) : super(self) {
     // nop
-  }
-
-  const auto& id() const noexcept {
-    return id_;
-  }
-
-  void id(peer_id new_id) noexcept {
-    id_ = std::move(new_id);
   }
 
   auto hdl() noexcept {
     return caf::actor_cast<caf::actor>(self());
   }
 
-  template <class T>
-  void ship_locally(const T& msg) {
-    if constexpr (std::is_same<T, data_message>::value)
-      buf.emplace_back(msg);
+  using super::ship_locally;
+
+  void ship_locally(const data_message& msg) {
+    buf.emplace_back(msg);
     super::ship_locally(msg);
   }
 
@@ -49,9 +41,6 @@ public:
   }
 
   std::vector<data_message> buf;
-
-private:
-  peer_id id_;
 };
 
 struct peer_actor_state {
@@ -95,54 +84,43 @@ caf::behavior peer_actor(peer_actor_type* self, peer_id id) {
 //                      +---+                     +---+           +---+
 //
 
-#define PEER_ID(id) peer_id id = #id
+#define PEER_ID(var, num) peer_id var = make_peer_id(num)
+#define PEER_EXPAND(var) std::make_pair(std::string{#var}, var)
 
 struct fixture : test_coordinator_fixture<> {
-  using peer_ids = std::vector<peer_id>;
+  static endpoint_id make_peer_id(uint8_t num) {
+    std::array<uint8_t, 20> host_id;
+    host_id.fill(num);
+    return caf::make_node_id(num, host_id);
+  }
 
-  PEER_ID(A);
-  PEER_ID(B);
-  PEER_ID(C);
-  PEER_ID(D);
-  PEER_ID(E);
-  PEER_ID(F);
-  PEER_ID(G);
-  PEER_ID(H);
-  PEER_ID(I);
-  PEER_ID(J);
-  PEER_ID(K);
-  PEER_ID(L);
+  PEER_ID(A, 1);
+  PEER_ID(B, 2);
+  PEER_ID(C, 3);
+  PEER_ID(D, 4);
+  PEER_ID(E, 5);
+  PEER_ID(F, 6);
+  PEER_ID(G, 7);
+  PEER_ID(H, 8);
+  PEER_ID(I, 9);
+  PEER_ID(J, 10);
+  PEER_ID(K, 11);
+  PEER_ID(L, 12);
 
   fixture() {
     peers["internal"] = sys.spawn(peer_actor, G);
     peers["external"] = sys.spawn(peer_actor, G);
     gateway::setup(peers["internal"], peers["external"]);
     // Note: skips G on purpose. This ID is used by `internal` and `external`.
-    for (const auto& id : {A, B, C, D, E, F, H, I, J, K, L})
-      peers[id] = sys.spawn(peer_actor, id);
-    run();
-  }
-
-  void connect_peers() {
-    std::map<peer_id, peer_ids> connections{
-      {A, {B, C}},
-      {B, {A, D}},
-      {C, {A, F}},
-      {D, {B, "internal"}},
-      {E, {"internal"}},
-      {F, {C, "internal"}},
-      {H, {K, "external"}},
-      {I, {"external"}},
-      {J, {L, "external"}},
-      {K, {H}},
-      {L, {J}},
+    std::vector<std::pair<std::string, endpoint_id>> cfg{
+      PEER_EXPAND(A), PEER_EXPAND(B), PEER_EXPAND(C), PEER_EXPAND(D),
+      PEER_EXPAND(E), PEER_EXPAND(F), PEER_EXPAND(H), PEER_EXPAND(I),
+      PEER_EXPAND(J), PEER_EXPAND(K), PEER_EXPAND(L),
     };
-    auto link_id = [this](const std::string& str) {
-      return (str == "internal" || str == "external") ? G : str;
-    };
-    for (auto& [id, links] : connections)
-      for (auto& link : links)
-        anon_send(peers[id], atom::peer_v, link_id(link), peers[link]);
+    for (const auto& [name, id] : cfg) {
+      names[id] = name;
+      peers[name] = sys.spawn(peer_actor, id);
+    }
     run();
   }
 
@@ -151,8 +129,12 @@ struct fixture : test_coordinator_fixture<> {
       anon_send_exit(kvp.second, caf::exit_reason::kill);
   }
 
-  auto& get(const peer_id& id) {
-    return *deref<peer_actor_type>(peers[id]).state.mgr;
+  auto& get(const caf::actor& hdl) {
+    return *deref<peer_actor_type>(hdl).state.mgr;
+  }
+
+  auto& get(const endpoint_id& id) {
+    return get(peers[names[id]]);
   }
 
   template <class Fun>
@@ -162,7 +144,31 @@ struct fixture : test_coordinator_fixture<> {
     run();
   }
 
-  std::map<peer_id, caf::actor> peers;
+  void connect_peers() {
+    std::map<std::string, std::vector<std::string>> connections{
+      {"A", {"B", "C"}},
+      {"B", {"A", "D"}},
+      {"C", {"A", "F"}},
+      {"D", {"B", "internal"}},
+      {"E", {"internal"}},
+      {"F", {"C", "internal"}},
+      {"H", {"K", "external"}},
+      {"I", {"external"}},
+      {"J", {"L", "external"}},
+      {"K", {"H"}},
+      {"L", {"J"}},
+    };
+    auto link_id = [this](const std::string& name) {
+      return get(peers[name]).id();
+    };
+    for (auto& [id, links] : connections)
+      for (auto& link : links)
+        anon_send(peers[id], atom::peer_v, link_id(link), peers[link]);
+    run();
+  }
+
+  std::map<endpoint_id, std::string> names;
+  std::map<std::string, caf::actor> peers;
 };
 
 } // namespace
@@ -204,10 +210,10 @@ TEST(gateways forward messages between the domains) {
   for_each_peer([](auto& state) { state.subscribe({"foo", "bar"}); });
   connect_peers();
   MESSAGE("publish to 'foo' on A");
-  anon_send(peers[A], atom::publish_v, make_data_message("foo", 42));
+  anon_send(peers["A"], atom::publish_v, make_data_message("foo", 42));
   run();
   MESSAGE("publish to 'bar' on I");
-  anon_send(peers[I], atom::publish_v, make_data_message("bar", 23));
+  anon_send(peers["I"], atom::publish_v, make_data_message("bar", 23));
   run();
   MESSAGE("all peers must have received messages from both domains");
   using log_t = std::vector<data_message>;

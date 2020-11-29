@@ -11,9 +11,13 @@ using namespace broker;
 
 namespace {
 
-struct mock_transport_state {
-  using peer_id_type = std::string;
+broker::endpoint_id make_peer_id(uint8_t num) {
+  std::array<uint8_t, 20> host_id;
+  host_id.fill(num);
+  return caf::make_node_id(num, host_id);
+}
 
+struct mock_transport_state {
   using message_type = int;
 
   using handshake_type = detail::peer_handshake<mock_transport_state>;
@@ -28,8 +32,8 @@ struct mock_transport_state {
     return self_ptr;
   }
 
-  std::string local_id() const {
-    return "A";
+  endpoint_id id() const {
+    return make_peer_id(1);
   }
 
   caf::behavior make_behavior() {
@@ -101,11 +105,12 @@ public:
   }
 };
 
-using peer_id_type = std::string;
-
 using fsm = detail::peer_handshake<mock_transport_state>::fsm;
 
 struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
+  endpoint_id A = make_peer_id(1);
+  endpoint_id B = make_peer_id(2);
+
   caf::actor aut;
 
   fixture() {
@@ -155,9 +160,9 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
 
 caf::behavior dummy_peer() {
   return {
-    [](atom::peer, atom::init, peer_id_type,
-       caf::actor) -> caf::result<atom::peer, atom::ok, peer_id_type> {
-      return {atom::peer_v, atom::ok_v, "B"};
+    [](atom::peer, atom::init, endpoint_id,
+       caf::actor) -> caf::result<atom::peer, atom::ok, endpoint_id> {
+      return {atom::peer_v, atom::ok_v, make_peer_id(2)};
     },
   };
 }
@@ -172,22 +177,22 @@ TEST(calling start_peering on the originator twice fails the handshake) {
   auto responder = sys.spawn(dummy_peer);
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::init_state));
   MESSAGE("start_peering transitions to 'started' and sends an init message");
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
+  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
-  expect((atom::peer, atom::init, peer_id_type, caf::actor),
-         from(aut).to(responder).with(_, _, "A", aut));
-  expect((atom::peer, atom::ok, peer_id_type),
-         from(responder).to(aut).with(_, _, "B"));
+  expect((atom::peer, atom::init, endpoint_id, caf::actor),
+         from(aut).to(responder).with(_, _, A, aut));
+  expect((atom::peer, atom::ok, endpoint_id),
+         from(responder).to(aut).with(_, _, B));
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
   MESSAGE("calling start_peering again is an error");
-  AUT_EXEC(CHECK(!state.handshake->originator_start_peering("B", responder)));
+  AUT_EXEC(CHECK(!state.handshake->originator_start_peering(B, responder)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::fail_state));
   AUT_EXEC(CHECK(state.handshake->failed()));
 }
 
 TEST(the originator creates both streams in handle_open_stream_msg) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
+  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
   AUT_EXEC(CHECK(!state.handshake->has_input_slot()));
   AUT_EXEC(CHECK(!state.handshake->has_output_slot()));
   AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
@@ -199,7 +204,7 @@ TEST(the originator creates both streams in handle_open_stream_msg) {
 
 TEST(the originator closes both streams on error) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
+  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
   AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
   AUT_EXEC(CHECK(!state.handshake->originator_handle_open_stream_msg({}, {})));
   CHECK(log_includes({"add input slot", "add output slot", "remove input slot",
@@ -208,7 +213,7 @@ TEST(the originator closes both streams on error) {
 
 TEST(the originator updates routing table and triggers callbacks on success) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering("B", responder)));
+  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
   AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
   AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
   CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
@@ -218,16 +223,16 @@ TEST(the originator updates routing table and triggers callbacks on success) {
 TEST(calling start_peering on the responder twice fails the handshake) {
   auto originator = sys.spawn(dummy_peer);
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::init_state));
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering("B", originator)));
+  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
-  AUT_EXEC(CHECK(!state.handshake->responder_start_peering("B", originator)));
+  AUT_EXEC(CHECK(!state.handshake->responder_start_peering(B, originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::fail_state));
   AUT_EXEC(CHECK(state.handshake->failed()));
 }
 
 TEST(the responder opens the output stream first) {
   auto originator = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering("B", originator)));
+  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
   AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({}, {})));
@@ -243,7 +248,7 @@ TEST(the responder opens the output stream first) {
 TEST(the responder accepts messages from the originator in any order) {
   // Same test as above, but ack_open_msg and open_stream_msg are swapped.
   auto originator = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering("B", originator)));
+  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
   AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
   AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
   AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
