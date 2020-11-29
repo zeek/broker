@@ -52,17 +52,16 @@ Mixins
 ~~~~~~
 
 Mixins (cf. `Wikipedia:Mixin <https://en.wikipedia.org/wiki/Mixin>`_) allow
-Broker to implement static polymorphism while also avoiding multiple
-inheritance. In a nutshell, this means we use *function hiding* (as opposed to
-*function overriding* of ``virtual`` member functions) for adding or altering
-functionality of functions. Rather than using *pure virtual* member functions in
-base types, we use CRTP to call member function on the derived type.
+Broker to avoid the
+`diamond problem <https://en.wikipedia.org/wiki/Multiple_inheritance>_` by
+binding the base class late in order to instantiate an entire class hierarchy
+using single inheritance only.
 
 Mixins usually follow this scaffold:
 
 .. code-block:: C++
 
-  template <class Base, class Subtype>
+  template <class Base>
   class my_mixin : public Base {
   public:
 
@@ -71,36 +70,20 @@ Mixins usually follow this scaffold:
     using extended_base = my_mixin;
 
     // ... implementation ...
-
-  private:
-    auto& dref() {
-      return *static_cast<Subtype*>(this);
-    }
-
-    // ... more implementation ...
   };
 
-By using exactly two template parameters in the order shown above as well as
-defining ``extended_base``, we can use CAF's ``extend`` utility:
+Given two mixins ``M1`` and ``M2``, we can instantiate a class hierarchy
+for ``my_class`` as follows:
 
 .. code-block:: C++
 
-  class my_class : public caf::extend<my_base, my_class>::with<M1, M2, M3> {
+  class my_class : public M1<M2<my_base>> {
     // ...
   };
 
-In the example above, ``my_base`` is the base type of our inheritance graph.
-``M1``, ``M2`` and ``M3`` are mixins. The final inheritance graph is
-``my_class`` → ``M1`` → ``M2`` → ``M3`` → ``my_base`` (where A → B means *A
-inherits from B*).
-
-CAF's ``extend`` is of course just syntactic sugar for:
-
-.. code-block:: C++
-
-  class my_class : public M1<M2<M3<my_base, my_class>, my_class>, my_class> {
-    // ...
-  };
+By using this technique, we avoid any ambiguity that multiple inheritance could
+cause. ``M1`` overrides/hides functions of ``M2``, which in turn can
+override/hide functions of ``my_base``.
 
 Lifting
 ~~~~~~~
@@ -166,47 +149,47 @@ block testable and reusable while avoiding runtime costs for the decoupling.
 
 This class models a Broker peer in the network. It implements the management of
 subscriptions, maintains a routing table for sending data to peers, and provides
-callbacks for its subtypes.
+a set of virtual functions that subtypes may override to add or change
+functionality.
 
-The callback are:
+The virtual functions are:
 
-- ``ship_locally``
+- ``subscribe``
+- ``handle_filter_update``
+- ``handle_path_revocation``
+- ``handle_publication``
+- ``peer_discovered``
 - ``peer_connected``
 - ``peer_disconnected``
 - ``peer_removed``
+- ``peer_unreachable``
 - ``cannot_remove_peer``
 - ``peer_unavailable``
+- ``shutdown``
+- ``send`` (pure)
+- ``ship_locally`` (pure)
 
 Please refer to the Doxygen documentation for a detailed explanation as well as
 parameters. The important thing to note is that the peer allows extending its
-basic functionality by extending the callbacks. Also note that we use static
-polymorphism. Any subtype that wishes to extend functionality of the peer
-*hides* the function of its base type and calls the implementation of its base
-type in the function body.
+basic functionality by extending the callbacks. Any subtype that wishes to
+extend functionality of the peer should always call the function on its super
+type at the end.
 
 For example, the following code shows how the ``notifier`` extends the
 ``peer_connected`` callback:
 
 .. code-block:: C++
 
-  void peer_connected(const peer_id_type& peer_id,
-                      const communication_handle_type& hdl) {
+  void peer_connected(const endpoint_id& peer_id,
+                      const caf::actor& hdl) override {
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
-    emit(peer_id, sc::peer_added, "handshake successful");
+    emit(peer_id, sc_constant<sc::peer_added>(), "handshake successful");
     super::peer_connected(peer_id, hdl);
   }
 
-The ``peer`` is implemented at as template not only because of CRTP, but also to
-allow Broker to configure the types used for the global ID (``PeerId``) and for
-communication handles to other peers (``CommunicationHandle``). The core actor
-sets ``PeerId = caf::node_id`` and ``CommunicationHandle = caf::actor``.
-However, some unit tests use different template parameters.
-
-The member function ``ship`` implements `publishing data`_, but the class
-``peer`` has no code for actually sending messages. The peer leaves this to its
-derived types and requires that ``dref().send(...)`` is well-formed. The core
-actor uses a |alm::stream_transport|_ as communication backend for the
-peer.
+The class ``peer`` implements `publishing data`_, but it has no code for
+actually sending messages. The peer leaves it to the derived types (in
+particular |alm::stream_transport|_) to provide an implementation for ``send``.
 
 Most functions in the ``peer`` are straightforward, but one member function in
 particular is worth discussing:
@@ -232,8 +215,9 @@ all message handlers defines the messaging interface of the core actor.
 ``alm::stream_transport``
 *************************
 
-This communication backend for |alm::peer|_ connects two actors by using two CAF
-stream paths (one for each direction, because paths are unidirectional).
+This class provides the default communication backend for |alm::peer|_ and
+connects peers by using two CAF stream paths (one for each direction, because
+paths are unidirectional).
 
 The stream transport is a CAF `stream manager`_, i.e., it inherits from
 ``caf::stream_manager``. Aside from multiplexing the streaming traffic for data
@@ -242,54 +226,54 @@ CAF streams between two peers as depicted below.
 
 .. code-block:: none
 
-           +-------------+                  +-------------+
-           | Originator  |                  |  Responder  |
-           +------+------+                  +------+------+
-                  |                                |
-   endpoint::peer |                                |
-  +-------------->+                                |
-                  |                                |
-                  +---+                            |
-                  |   | try_peering                |
-                  +<--+                            |
-                  |                                |
-                  | (ping, peer_id, actor)         |
-                  +------------------------------->+
-                  |                                |
-                  |         (pong, peer_id, actor) |
-                  +<-------------------------------+
-                  |                                |
-                  +---+                            |
-                  |   | start_peering              |
-                  +<--+                            |
-                  |                                |
-                  | (peer, init, peer_id, actor)   |
-                  +------------------------------->+
-                  |                                |
-                  |                                +---+
-                  |                                |   | handle_peering_request
-                  |                                +<--+
-                  |         (caf::open_stream_msg) |
-                  +<-------------------------------+
-                  |                                |
-                  +---+                            |
-                  |   | handle_peering_handshake_1 |
-                  +<--+                            |
-                  |                                |
-                  | (caf::open_stream_msg)         |
-                  | (caf::upstream_msg::ack_open)  |
-                  +------------------------------->+
-                  |                                |
-                  |                                +---+
-                  |                                |   | handle_peering_handshake_2
-                  |                                +<--+
-                  |  (caf::upstream_msg::ack_open) |
-                  +<-------------------------------+
-                  |                                |
-                  +---+                            +---+
-                  |   | peer_added                 |   | peer_added
-                  +<--+                            +<--+
-                  |                                |
+           +-------------+                    +-------------+
+           | Originator  |                    |  Responder  |
+           +------+------+                    +------+------+
+                  |                                  |
+   endpoint::peer |                                  |
+  +-------------->+                                  |
+                  |                                  |
+                  +---+                              |
+                  |   | try_peering                  |
+                  +<--+                              |
+                  |                                  |
+                  | (ping, endpoint_id, actor)       |
+                  +--------------------------------->+
+                  |                                  |
+                  |       (pong, endpoint_id, actor) |
+                  +<---------------------------------+
+                  |                                  |
+                  +---+                              |
+                  |   | start_peering                |
+                  +<--+                              |
+                  |                                  |
+                  | (peer, init, endpoint_id, actor) |
+                  +--------------------------------->+
+                  |                                  |
+                  |                                  +---+
+                  |                                  |   | handle_peering_request
+                  |                                  +<--+
+                  |         (caf::open_stream_msg)   |
+                  +<---------------------------------+
+                  |                                  |
+                  +---+                              |
+                  |   | handle_peering_handshake_1   |
+                  +<--+                              |
+                  |                                  |
+                  | (caf::open_stream_msg)           |
+                  | (caf::upstream_msg::ack_open)    |
+                  +--------------------------------->+
+                  |                                  |
+                  |                                  +---+
+                  |                                  |   | handle_peering_handshake_2
+                  |                                  +<--+
+                  |    (caf::upstream_msg::ack_open) |
+                  +<---------------------------------+
+                  |                                  |
+                  +---+                              +---+
+                  |   | peer_added                   |   | peer_added
+                  +<--+                              +<--+
+                  |                                  |
 
 The diagram above depicts message flow between two peering Broker nodes.
 Messaging for resolving network information, establishing connections, etc.
@@ -426,7 +410,7 @@ Each Broker peer in the network has:
   current value in the message. This timestamp is crucial for detecting outdated
   or repeated subscriptions in the `Subscription Flooding`_.
 - A routing table with paths to *all* known peers in the network.
-- A ``peer_filters_`` map of type ``map<peer_id_type, filter_type>`` for storing
+- A ``peer_filters_`` map of type ``map<endpoint_id, filter_type>`` for storing
   the current filter of each known peer.
 
 Timestamps
@@ -453,9 +437,9 @@ table maps each peer to a set of paths that lead to it.
 
 .. code-block:: C++
 
-  using path = std::vector<peer_id>;
+  using path = std::vector<endpoint_id>;
   using versioned_paths = std::map<path, vector_timestamp>;
-  using routing_table = std::map<peer_id, versioned_paths>;
+  using routing_table = std::map<endpoint_id, versioned_paths>;
 
 .. note::
 
@@ -494,8 +478,8 @@ peering relation, the handshake also includes the *subscription* message.
 
 The subscription message consists of:
 
-#. A ``peer_id_list`` for storing the path of this message. Initially, this list
-   only contains the ID of the sender.
+#. A ``endpoint_id_list`` for storing the path of this message. Initially, this
+   list only contains the ID of the sender.
 #. The ``filter`` for selecting messages. A node only receives messages for
    topics that pass its filter (prefix matching).
 #. A 64-bit (unsigned) timestamp. This is the logical time of the sender for
