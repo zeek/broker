@@ -112,11 +112,8 @@ public:
 
   // -- factories --------------------------------------------------------------
 
-  template <class... Fs>
-  caf::behavior make_behavior(Fs... fs) {
-    using detail::lift;
-    return super::make_behavior(
-      std::move(fs)...,
+  caf::behavior make_behavior() override {
+    return caf::message_handler{
       [=](atom::peer, const network_info& addr) {
         this->try_peering(addr, super::self()->make_response_promise(), 0);
       },
@@ -143,7 +140,9 @@ public:
           },
           [rp](error err) mutable { rp.deliver(std::move(err)); });
         return rp;
-      });
+      },
+    }
+      .or_else(super::make_behavior());
   }
 
   // -- overrides --------------------------------------------------------------

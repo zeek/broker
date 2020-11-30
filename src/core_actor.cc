@@ -20,22 +20,25 @@ core_manager::core_manager(caf::node_id core_id, endpoint::clock* clock,
 }
 
 caf::behavior core_manager::make_behavior() {
-  return super::make_behavior([=](atom::get, atom::peer) {
-    std::vector<peer_info> result;
-    // Add all direct connections from the routing table.
-    alm::for_each_direct(tbl(), [&, this](const auto& id, const auto& hdl) {
-      endpoint_info ep{id, cache().find(hdl)};
-      result.push_back(
-        {std::move(ep), peer_flags::remote, peer_status::peered});
-    });
-    // Add all pending peerings from the stream transport.
-    for (const auto& [peer_id, pending_conn] : pending_connections()) {
-      endpoint_info ep{peer_id, cache().find(pending_conn->remote_hdl)};
-      result.push_back(
-        {std::move(ep), peer_flags::remote, peer_status::connected});
-    }
-    return result;
-  });
+  return caf::message_handler{
+    [=](atom::get, atom::peer) {
+      std::vector<peer_info> result;
+      // Add all direct connections from the routing table.
+      alm::for_each_direct(tbl(), [&, this](const auto& id, const auto& hdl) {
+        endpoint_info ep{id, cache().find(hdl)};
+        result.push_back(
+          {std::move(ep), peer_flags::remote, peer_status::peered});
+      });
+      // Add all pending peerings from the stream transport.
+      for (const auto& [peer_id, pending_conn] : pending_connections()) {
+        endpoint_info ep{peer_id, cache().find(pending_conn->remote_hdl)};
+        result.push_back(
+          {std::move(ep), peer_flags::remote, peer_status::connected});
+      }
+      return result;
+    },
+  }
+    .or_else(super::make_behavior());
 }
 
 caf::behavior core_actor_t::operator()(core_actor_type* self,

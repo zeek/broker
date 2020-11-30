@@ -393,53 +393,11 @@ public:
   /// Called when the @ref endpoint signals system shutdown.
   virtual void shutdown(shutdown_options options);
 
-  // -- factories --------------------------------------------------------------
+  // -- initialization ---------------------------------------------------------
 
   /// Creates the default behavior for the actor that remains valid until the
   /// system is shutting down.
-  template <class... Fs>
-  caf::behavior make_behavior(Fs... fs) {
-    BROKER_DEBUG("make behavior for peer" << id_);
-    using detail::lift;
-    return {
-      std::move(fs)...,
-      lift<atom::publish>(*this, &peer::publish_data),
-      lift<atom::publish>(*this, &peer::publish_command),
-      lift<atom::publish>(*this, &peer::publish_command_to),
-      lift<atom::subscribe>(*this, &peer::subscribe),
-      lift<atom::publish>(*this, &peer::handle_publication),
-      lift<atom::subscribe>(*this, &peer::handle_filter_update),
-      lift<atom::revoke>(*this, &peer::handle_path_revocation),
-      [=](atom::get, atom::id) { return id_; },
-      [=](atom::get, atom::peer, atom::subscriptions) {
-        // For backwards-compatibility, we only report the filter of our
-        // direct peers. Returning all filter would make more sense in an
-        // ALM setting, but that would change the semantics of
-        // endpoint::peer_filter.
-        auto is_direct_peer
-          = [this](const auto& peer_id) { return tbl_.count(peer_id) != 0; };
-        filter_type result;
-        for (const auto& [peer, filter] : peer_filters_)
-          if (is_direct_peer(peer))
-            filter_extend(result, filter);
-        return result;
-      },
-      [=](atom::shutdown, shutdown_options opts) { shutdown(opts); },
-      [=](atom::publish, atom::local, command_message& msg) {
-        ship_locally(msg);
-      },
-      [=](atom::publish, atom::local, data_message& msg) {
-        ship_locally(msg);
-      },
-      [=](atom::await, endpoint_id who) {
-        auto rp = self_->make_response_promise();
-        if (auto i = peer_filters_.find(who); i != peer_filters_.end())
-          rp.deliver(who);
-        else
-          awaited_peers_.emplace(who, std::move(rp));
-      },
-    };
-  }
+  virtual caf::behavior make_behavior();
 
 private:
   // -- implementation details -------------------------------------------------

@@ -107,16 +107,13 @@ public:
 
   // -- initialization ---------------------------------------------------------
 
-  template <class... Fs>
-  caf::behavior make_behavior(Fs... fs) {
-    using detail::lift;
-    return super::make_behavior(
-      fs...,
+  caf::behavior make_behavior() override {
+    return caf::message_handler{
       [this](atom::no_events) {
-        BROKER_DEBUG("disabled notifications");
+        BROKER_DEBUG("disable notifications");
         disable_notifications_ = true;
       },
-      [=](atom::publish, endpoint_info& receiver, data_message& msg) {
+      [this](atom::publish, endpoint_info& receiver, data_message& msg) {
         this->ship(msg, receiver.node);
       },
       [](atom::add, atom::status, const caf::actor&) {
@@ -124,7 +121,9 @@ public:
         //       to register status subscribers for synchronization. Eventually,
         //       we should either re-implement the synchronization if necessary
         //       or remove this handler.
-      });
+      },
+    }
+      .or_else(super::make_behavior());
   }
 
 private:

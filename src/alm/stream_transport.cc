@@ -641,6 +641,52 @@ stream_transport::downstream_manager_type& stream_transport::out() {
   return out_;
 }
 
+// -- initialization -----------------------------------------------------------
+
+caf::behavior stream_transport::make_behavior() {
+  using detail::lift;
+  return caf::message_handler{
+    // Expose to member functions to messaging API.
+    lift<atom::peer, atom::init>(*this,
+                                 &stream_transport::handle_peering_request),
+    lift<>(*this, &stream_transport::handle_peering_handshake_1),
+    lift<>(*this, &stream_transport::handle_peering_handshake_2),
+    lift<atom::join>(*this, &stream_transport::add_worker),
+    lift<atom::join>(*this, &stream_transport::add_sending_worker),
+    lift<atom::join, atom::store>(*this, &stream_transport::add_sending_store),
+    // Trigger peering to remotes.
+    [this](atom::peer, const endpoint_id& remote_peer, const caf::actor& hdl) {
+      start_peering(remote_peer, hdl, self()->make_response_promise());
+    },
+    // Per-stream subscription updates.
+    [this](atom::join, atom::update, caf::stream_slot slot,
+           filter_type& filter) {
+      subscribe(filter);
+      worker_manager().set_filter(slot, filter);
+    },
+    [this](atom::join, atom::update, caf::stream_slot slot, filter_type& filter,
+           const caf::actor& listener) {
+      subscribe(filter);
+      worker_manager().set_filter(slot, filter);
+      self()->send(listener, true);
+    },
+    // Allow local publishers to hook directly into the stream.
+    [this](caf::stream<data_message> in) { add_unchecked_inbound_path(in); },
+    [this](caf::stream<node_message_content> in) {
+      add_unchecked_inbound_path(in);
+    },
+    // Special handlers for bypassing streams and/or forwarding.
+    [this](atom::publish, atom::local, data_message& msg) {
+      ship_locally(msg);
+    },
+    [this](atom::unpeer, const caf::actor& hdl) { unpeer(hdl); },
+    [this](atom::unpeer, const endpoint_id& peer_id) { unpeer(peer_id); },
+  }
+    .or_else(super::make_behavior());
+}
+
+// -- utility ------------------------------------------------------------------
+
 void stream_transport::unpeer(const endpoint_id& peer_id,
                               const caf::actor& hdl) {
   BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));

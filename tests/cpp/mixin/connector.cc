@@ -70,6 +70,10 @@ struct connector_mock_base {
     // nop
   }
 
+  virtual caf::behavior make_behavior() {
+    return {};
+  }
+
   caf::event_based_actor* self_;
 };
 

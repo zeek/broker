@@ -154,11 +154,9 @@ public:
 
   // -- factories --------------------------------------------------------------
 
-  template <class... Fs>
-  caf::behavior make_behavior(Fs... fs) {
+  caf::behavior make_behavior() override {
     using detail::lift;
-    return super::make_behavior(
-      std::move(fs)...,
+    return caf::message_handler{
       lift<atom::store, atom::clone, atom::attach>(
         *this, &data_store_manager::attach_clone),
       lift<atom::store, atom::master, atom::attach>(
@@ -188,7 +186,9 @@ public:
           = self->template spawn<spawn_flags>(detail::master_resolver);
         self->send(resolver, std::move(peers), std::move(name),
                    std::move(who_asked));
-      });
+      },
+    }
+      .or_else(super::make_behavior());
   }
 
 private:
