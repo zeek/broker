@@ -1,4 +1,8 @@
 
+1.5.0-dev.34 | 2020-12-02 11:05:55 -0800
+
+  * Update minimum required CMake to 3.5 (Jon Siwek, Corelight)
+
 1.5.0-dev.32 | 2020-12-02 10:57:29 -0800
 
   * Upgrade pybind11 to v2.6.1 and fix compatibility issues (Jon Siwek, Corelight)
