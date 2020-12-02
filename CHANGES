@@ -1,4 +1,8 @@
 
+1.5.0-dev.32 | 2020-12-02 10:57:29 -0800
+
+  * Upgrade pybind11 to v2.6.1 and fix compatibility issues (Jon Siwek, Corelight)
+
 1.5.0-dev.30 | 2020-11-26 18:12:38 +0000
 
   * Update macOS CI to use system default Python 3 (Jon Siwek, Corelight)
