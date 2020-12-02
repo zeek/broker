@@ -6,8 +6,8 @@
 
 #include <pybind11/stl_bind.h>
 
-NAMESPACE_BEGIN(pybind11)
-NAMESPACE_BEGIN(detail)
+PYBIND11_NAMESPACE_BEGIN(PYBIND11_NAMESPACE)
+PYBIND11_NAMESPACE_BEGIN(detail)
 
 /* For a set data structure, recursively check the value type (which is std::pair for maps) */
 template <typename T>
@@ -107,7 +107,7 @@ template <typename Set, typename Class_> auto set_if_insertion_operator(Class_ &
          "Return the canonical string representation of this set.");
 }
 
-NAMESPACE_END(detail)
+PYBIND11_NAMESPACE_END(detail)
 
 //
 // std::set
@@ -147,4 +147,4 @@ class_<Set, holder_type> bind_set(module &m, std::string const &name, Args&&... 
     return cl;
 }
 
-NAMESPACE_END(pybind11)
+PYBIND11_NAMESPACE_END(PYBIND11_NAMESPACE)

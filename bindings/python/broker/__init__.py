@@ -149,7 +149,7 @@ class Subscriber:
     def remove_topic(self, topic, block=False):
         return self._subscriber.remove_topic(_make_topic(topic), block)
 
-class StatusSubscriber(_broker.Subscriber):
+class StatusSubscriber():
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
