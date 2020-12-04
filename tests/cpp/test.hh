@@ -16,6 +16,8 @@
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 
+#include <cassert>
+
 // -- test setup macros --------------------------------------------------------
 
 #define TEST CAF_TEST
