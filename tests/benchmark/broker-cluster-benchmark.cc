@@ -181,13 +181,8 @@ struct config : actor_system_config {
       .add<bool>("verbose,v", "enable verbose output")
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
-    set("scheduler.max-threads", 1);
-#if CAF_VERSION < 1800
-    set("logger.file-verbosity", caf::atom("quiet"));
-    broker::configuration::add_message_types(*this);
-#else
-    set("logger.file-verbosity", "quiet");
-#endif
+    set("caf.scheduler.max-threads", 1);
+    set("caf.logger.file.verbosity", "quiet");
   }
 
   string usage() {
@@ -1170,6 +1165,7 @@ program_mode_t get_mode(const config& cfg) {
 }
 
 int main(int argc, char** argv) {
+  broker::configuration::init_global_state();
   // Read CAF configuration.
   config cfg;
   if (auto err = cfg.parse(argc, argv)) {

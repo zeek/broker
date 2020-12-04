@@ -1429,29 +1429,5 @@ operator=(iterator rhs) {
   return *this;
 }
 
-template <class Inspector, class T, size_t N>
-auto inspect(Inspector& f, radix_tree<T, N>& rt) {
-  if constexpr (Inspector::reads_state) {
-    auto n = rt.size();
-    if (auto err = f.begin_sequence(n))
-      return err;
-    for (auto& ts : rt)
-      if (auto err = f(ts.first))
-        return err;
-    return f.end_sequence();
-  } else {
-    size_t n = 0;
-    if (auto err = f.begin_sequence(n))
-      return err;
-    for (size_t i = 0; i < n; ++i) {
-      std::string str;
-      if (auto err = f(str))
-        return err;
-      rt.insert({std::move(str), true});
-    }
-    return f.end_sequence();
-  }
-}
-
 } // namespace detail
 } // namespace broker

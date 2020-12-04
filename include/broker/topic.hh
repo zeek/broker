@@ -56,8 +56,8 @@ public:
   bool prefix_of(const topic& t) const;
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, topic& t) {
-    return f(t.str_);
+  friend bool inspect(Inspector& f, topic& x) {
+    return f.object(x).fields(f.field("str", x.str_));
   }
 
 private:

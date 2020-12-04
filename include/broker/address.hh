@@ -72,8 +72,10 @@ public:
   }
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, address& x) {
-    return f(x.addr_);
+  friend bool inspect(Inspector& f, address& x) {
+    // We transparently expose the member variable. Hence, broker::address and
+    // caf::ip_address are one and the same to CAF inspectors.
+    return inspect(f, x.addr_);
   }
 
   friend bool convert(const address& a, std::string& str) {

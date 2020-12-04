@@ -124,9 +124,11 @@ public:
   friend std::string to_string(const status& s);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, status& s) {
-    auto verify = [&s] { return s.verify(); };
-    return f(s.code_, s.context_, s.message_, caf::meta::load_callback(verify));
+  friend bool inspect(Inspector& f, status& x) {
+    auto verify = [&x] { return x.verify(); };
+    return f.object(x).on_load(verify).fields(f.field("code", x.code_),
+                                              f.field("context", x.context_),
+                                              f.field("message", x.message_));
   }
 
   /// Maps `src` to `["status", code, context, message]`, whereas:

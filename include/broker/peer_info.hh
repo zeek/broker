@@ -15,8 +15,9 @@ struct peer_info {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, peer_info& pi) {
-  return f(pi.peer, pi.flags, pi.status);
+bool inspect(Inspector& f, peer_info& x) {
+  return f.object(x).fields(f.field("peer", x.peer), f.field("flags", x.flags),
+                            f.field("status", x.status));
 }
 
 } // namespace broker

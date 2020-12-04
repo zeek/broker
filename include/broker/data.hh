@@ -211,8 +211,8 @@ constexpr data::type data_tag() {
 
 /// @relates data
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, data& x) {
-  return inspect(f, x.get_data());
+bool inspect(Inspector& f, data& x) {
+  return f.object(x).fields(f.field("data", x.get_data()));
 }
 
 /// @relates data

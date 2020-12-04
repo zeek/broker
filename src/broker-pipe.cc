@@ -19,7 +19,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config.hpp>
 #include <caf/config_option_adder.hpp>

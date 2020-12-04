@@ -27,8 +27,8 @@ public:
   friend bool operator<(const subnet& lhs, const subnet& rhs);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, subnet& sn) {
-    return f(sn.net_, sn.len_);
+  friend bool inspect(Inspector& f, subnet& x) {
+    return f.object(x).fields(f.field("net", x.net_), f.field("len", x.len_));
   }
 
 private:

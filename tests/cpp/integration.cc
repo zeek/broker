@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <caf/actor_system.hpp>
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/defaults.hpp>
 #include <caf/downstream.hpp>

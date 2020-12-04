@@ -1,5 +1,7 @@
 #include "broker/store_event.hh"
 
+#include <caf/deep_to_string.hpp>
+
 namespace broker {
 
 namespace {
@@ -70,9 +72,9 @@ std::string to_string(const store_event::insert& x) {
   result += ", ";
   result += to_string(x.value());
   result += ", ";
-  result += to_string(x.expiry());
+  result += caf::deep_to_string(x.expiry());
   result += ", ";
-  result += to_string(x.publisher());
+  result += caf::deep_to_string(x.publisher());
   result += ')';
   return result;
 }
@@ -87,9 +89,9 @@ std::string to_string(const store_event::update& x) {
   result += ", ";
   result += to_string(x.new_value());
   result += ", ";
-  result += to_string(x.expiry());
+  result += caf::deep_to_string(x.expiry());
   result += ", ";
-  result += to_string(x.publisher());
+  result += caf::deep_to_string(x.publisher());
   result += ')';
   return result;
 }

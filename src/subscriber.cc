@@ -68,7 +68,9 @@ public:
     // nop
   }
 
-  bool congested() const noexcept override {
+  using super::congested;
+
+  bool congested(const inbound_path&) const noexcept override {
     return queue_->buffer_size() >= max_qsize_;
   }
 

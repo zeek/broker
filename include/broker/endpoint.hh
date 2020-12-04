@@ -147,6 +147,16 @@ public:
   bool peer(const std::string& address, uint16_t port,
             timeout::seconds retry = timeout::seconds(10));
 
+  /// Initiates a peering with a remote endpoint.
+  /// @param info Bundles IP address, port, and retry interval for connecting to
+  ///             the remote endpoint.
+  /// @returns True if connection was successfulluy set up.
+  /// @note The endpoint will also receive a status message indicating
+  ///       success or failure.
+  bool peer(const network_info& info) {
+    return peer(info.address, info.port, info.retry);
+  }
+
   /// Initiates a peering with a remote endpoint, without waiting
   /// for the operation to complete.
   /// @param address The IP address of the remote endpoint.
