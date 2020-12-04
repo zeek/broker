@@ -1,12 +1,16 @@
 FROM ubuntu:18.04
 
-RUN apt-get update && apt-get -y install \
-    git \
+RUN apt install -y \
     cmake \
-    make \
-    gcc \
-    g++ \
+    g++-8 \
+    gcc-8 \
+    git \
     libssl-dev \
+    make \
     python3 \
     python3-dev \
-  && rm -rf /var/lib/apt/lists/*
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CC=/usr/bin/gcc-8
+ENV CXX=/usr/bin/g++-8
