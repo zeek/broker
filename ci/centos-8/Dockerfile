@@ -1,4 +1,4 @@
-FROM fedora:32
+FROM centos:8
 
 RUN yum install -y \
     cmake \
@@ -6,7 +6,6 @@ RUN yum install -y \
     gcc-c++ \
     git \
     make \
-    openssl \
     openssl-devel \
     python3 \
     python3-devel \

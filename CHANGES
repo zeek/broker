@@ -1,4 +1,14 @@
 
+1.5.0-dev.40 | 2020-12-04 11:32:19 -0800
+
+  * Suppress interactive tzdata setup on Ubuntu (Dominik Charousset)
+
+  * Call update on Debian-based distros before install (Dominik Charousset)
+
+  * Update CI build matrix (Dominik Charousset)
+
+  * Update and streamline Docker files (Dominik Charousset)
+
 1.5.0-dev.34 | 2020-12-02 11:05:55 -0800
 
   * Update minimum required CMake to 3.5 (Jon Siwek, Corelight)

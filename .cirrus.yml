@@ -29,6 +29,14 @@ unix_env: &UNIX_ENV
 # Linux EOL timelines: https://linuxlifecycle.com/
 # Fedora (~13 months): https://fedoraproject.org/wiki/Fedora_Release_Life_Cycle
 
+fedora33_task:
+  container:
+    # Fedora 33 EOL: Around November 2022
+    dockerfile: ci/fedora-33/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 fedora32_task:
   container:
     # Fedora 32 EOL: Around May 2021
@@ -37,10 +45,26 @@ fedora32_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+centos8_task:
+  container:
+    # CentOS 8 EOL: May 31, 2029
+    dockerfile: ci/centos-8/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 centos7_task:
   container:
     # CentOS 7 EOL: June 30, 2024
     dockerfile: ci/centos-7/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+debian10_task:
+  container:
+    # Debian 10 EOL: June 2024
+    dockerfile: ci/debian-10/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -57,6 +81,14 @@ debian9_32bit_task:
   container:
     # Debian 9 EOL: June 2022
     dockerfile: ci/debian-9-32bit/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+ubuntu20_task:
+  container:
+    # Ubuntu 20.04 EOL: April 2025
+    dockerfile: ci/ubuntu-20.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
