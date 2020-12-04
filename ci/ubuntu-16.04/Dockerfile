@@ -1,15 +1,16 @@
 FROM ubuntu:16.04
 
-RUN apt install -y \
-    clang-8 \
-    cmake \
-    git \
-    libc++-8-dev \
-    libc++abi-8-dev \
-    libssl-dev \
-    make \
-    python3 \
-    python3-dev \
+RUN apt update -y \
+    && apt install -y \
+       clang-8 \
+       cmake \
+       git \
+       libc++-8-dev \
+       libc++abi-8-dev \
+       libssl-dev \
+       make \
+       python3 \
+       python3-dev \
     && apt autoclean \
     && rm -rf /var/lib/apt/lists/*
 
