@@ -108,7 +108,6 @@ public:
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
-  caf::timespan credit_round_interval;
 
   using super::run;
 

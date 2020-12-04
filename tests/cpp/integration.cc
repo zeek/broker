@@ -139,10 +139,7 @@ struct peer_fixture {
       sys(ep.system()),
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
-      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
-      credit_round_interval(get_or(sys.config(),
-                            "stream.credit-round-interval",
-                            caf::defaults::stream::credit_round_interval)) {
+      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code

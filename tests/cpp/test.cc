@@ -16,12 +16,6 @@
 #include "Winsock2.h"
 #endif
 
-#if CAF_VERSION < 1800
-#define CFG_PREFIX
-#else
-#define CFG_PREFIX "caf."
-#endif
-
 using namespace caf;
 using namespace broker;
 
@@ -29,10 +23,7 @@ base_fixture::base_fixture()
   : ep(make_config()),
     sys(ep.system()),
     self(sys),
-    sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
-    credit_round_interval(
-      get_or(sys.config(), CFG_PREFIX "stream.credit-round-interval",
-             caf::defaults::stream::credit_round_interval)) {
+    sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
 }
 

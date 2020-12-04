@@ -390,7 +390,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
     // "Hide" unhandled-exception warning if users throw.
     self->set_exception_handler(
       [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
-        return caf::exit_reason::unhandled_exception;
+        return caf::sec::runtime_error;
       }
     );
 #endif // CAF_NO_EXCEPTION
