@@ -1,6 +1,6 @@
 # -- Project Setup ------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5...3.18 FATAL_ERROR)
 project(broker C CXX)
 include(cmake/CommonCMakeConfig.cmake)
 include(GNUInstallDirs)
@@ -196,14 +196,15 @@ set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
 set(CAF_VERSION_MIN_REQUIRED 0.18.0)
 
-if ( CAF_ROOT )
+if ( CAF_LIBRARIES )
+  message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
+elseif ( CAF_ROOT )
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
   if (CMAKE_VERSION VERSION_LESS 3.12)
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED CONFIG
                  COMPONENTS openssl test io core
                  PATHS "${CAF_ROOT}")
   else()
-    cmake_policy(SET CMP0074 NEW)
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED CONFIG
                  COMPONENTS openssl test io core)
   endif()
@@ -226,7 +227,7 @@ else ()
   if (ENABLE_STATIC_ONLY)
     set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   endif ()
-  message(STATUS "Using bundled CAF version ${CAF_VERSION}")
+  message(STATUS "Using bundled CAF")
   add_subdirectory(caf)
   set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
   set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
