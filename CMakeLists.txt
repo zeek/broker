@@ -196,7 +196,7 @@ set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
 set(CAF_VERSION_MIN_REQUIRED 0.18.0)
 
-if ( CAF_LIBRARIES )
+if ( TARGET CAF::core )
   message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
 elseif ( CAF_ROOT )
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
@@ -238,14 +238,6 @@ else ()
   endforeach()
   set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
   set(CAF_FOUND TRUE CACHE INTERNAL "")
-
-endif ()
-
-set(CAF_VERSION_REQUIRED 0.17.5)
-
-if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
-  message(FATAL_ERROR "Broker requires at least CAF version"
-    " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
@@ -331,6 +323,7 @@ set(BROKER_SRC
   src/filter_type.cc
   src/internal_command.cc
   src/mailbox.cc
+  src/message.cc
   src/network_info.cc
   src/peer_status.cc
   src/port.cc
