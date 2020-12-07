@@ -233,8 +233,8 @@ else ()
   set(caf_dirs "")
   foreach(comp core io openssl test)
     list(APPEND caf_dirs
-         "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}}"
-         "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}}")
+         "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}"
+         "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}")
   endforeach()
   set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
   set(CAF_FOUND TRUE CACHE INTERNAL "")
