@@ -52,4 +52,7 @@ struct can_convert_predicate<endpoint_info> {
   }
 };
 
+/// @relates endpoint_info
+std::string to_string(const endpoint_info& x);
+
 } // namespace broker

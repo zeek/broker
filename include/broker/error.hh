@@ -80,7 +80,7 @@ template <ec Value>
 using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
-const char* to_string(ec code) noexcept;
+std::string to_string(ec code) noexcept;
 
 /// @relates ec
 bool convert(const std::string& str, ec& code) noexcept;

@@ -218,6 +218,9 @@ private:
 };
 
 /// @relates status_view
+std::string to_string(status_view s);
+
+/// @relates status_view
 inline status_view make_status_view(const data& src) {
   return status_view::make(src);
 }

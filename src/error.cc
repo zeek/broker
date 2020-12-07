@@ -36,7 +36,7 @@ const char* ec_names[] = {
 
 } // namespace
 
-const char* to_string(ec code) noexcept {
+std::string to_string(ec code) noexcept {
   auto index = static_cast<uint8_t>(code);
   BROKER_ASSERT(index < sizeof(ec_names));
   return ec_names[index];
