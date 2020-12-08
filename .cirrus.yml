@@ -12,6 +12,7 @@ branch_whitelist: &BRANCH_WHITELIST
   only_if: >
     $CIRRUS_PR != '' ||
     $CIRRUS_BRANCH == 'master' ||
+    $CIRRUS_BRANCH == 'topic/neverlord/cirrus.*' ||
     $CIRRUS_BRANCH =~ 'release/.*'
 
 ci_template: &CI_TEMPLATE
