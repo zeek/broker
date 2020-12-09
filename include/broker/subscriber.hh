@@ -52,6 +52,20 @@ public:
 
   void remove_topic(topic x, bool block = false);
 
+  // --- miscellaneous ---------------------------------------------------------
+
+  /// Release any state held by the object, rendering it invalid.
+  /// @warning Performing *any* action on this object afterwards invokes
+  ///          undefined behavior, except:
+  ///          - Destroying the object by calling the destructor.
+  ///          - Using copy- or move-assign from a valid `store` to "revive"
+  ///            this object.
+  ///          - Calling `reset` again (multiple invocations are no-ops).
+  /// @note This member function specifically targets the Python bindings. When
+  ///       writing Broker applications using the native C++ API, there's no
+  ///       point in calling this member function.
+  void reset();
+
 protected:
   void became_not_full() override;
 

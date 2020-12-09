@@ -106,12 +106,23 @@ def _make_topics(ts):
     return _broker.VectorTopic(ts)
 
 # This class does not derive from the internal class because we
-# need to pass in existign instances. That means we need to
+# need to pass in existinn instances. That means we need to
 # wrap all methods, even those that just reuse the internal
 # implementation.
 class Subscriber:
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
+    def reset(self):
+        self._subscriber.reset()
+        self._subscriber = None
 
     def get(self, *args, **kwargs):
         msg = self._subscriber.get(*args, **kwargs)
@@ -153,6 +164,17 @@ class StatusSubscriber():
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
+    def reset(self):
+        self._subscriber.reset()
+        self._subscriber = None
+
     def get(self, *args, **kwargs):
         x = self._subscriber.get(*args, **kwargs)
         return self._to_result(x)
@@ -184,11 +206,22 @@ class StatusSubscriber():
 
 class Publisher:
     # This class does not derive from the internal class because we
-    # need to pass in existign instances. That means we need to
+    # need to pass in existing instances. That means we need to
     # wrap all methods, even those that just reuse the internal
     # implementation.
     def __init__(self, internal_publisher):
         self._publisher = internal_publisher
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._publisher.reset()
+        self._publisher = None
+
+    def reset(self):
+        self._publisher.reset()
+        self._publisher = None
 
     def demand(self):
         return self._publisher.demand()
@@ -218,11 +251,22 @@ class Publisher:
 
 class Store:
     # This class does not derive from the internal class because we
-    # need to pass in existign instances. That means we need to
+    # need to pass in existing instances. That means we need to
     # wrap all methods, even those that just reuse the internal
     # implementation.
     def __init__(self, internal_store):
         self._store = internal_store
+        # Points to the "owning" Endpoint to make sure Python cleans this object up
+        # before destroying the endpoint.
+        self._parent = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._store.reset()
+        self._parent = None
+        self._store = None
 
     def name(self):
         return self._store.name()
@@ -354,11 +398,29 @@ class Endpoint(_broker.Endpoint):
             bopts[k] = Data.from_py(v)
 
         s = _broker.Endpoint.attach_master(self, name, type, bopts)
-        return Store(s.get()) if s.is_valid() else None
+        if not s.is_valid():
+            return None
+        result = Store(s.get())
+        # This extra reference establishes a parent-child relation between the
+        # two Python objects, making sure that the garbage collector destroys
+        # the store *before* cleaning up the endpoint
+        result._parent = self
+        return result
 
     def attach_clone(self, name):
         s = _broker.Endpoint.attach_clone(self, name)
-        return Store(s.get()) if s.is_valid() else None
+        if not s.is_valid():
+            return None
+        result = Store(s.get())
+        # Same as above: make sure Python cleans up the store first.
+        result._parent = self
+        return result
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.shutdown()
 
 class Message:
     def to_broker(self):

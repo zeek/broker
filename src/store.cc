@@ -186,4 +186,7 @@ store::store(caf::actor actor, std::string name)
   // nop
 }
 
+void store::reset() {
+}
+
 } // namespace broker

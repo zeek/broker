@@ -6,6 +6,14 @@ import time
 
 import broker
 
+def cleanup(es, ss):
+    for s in ss:
+        if s:
+            s.reset()
+
+    for e in es:
+        e.shutdown()
+
 def setup_peers(opts1=None, opts2=None, opts3=None, opts4=None, create_s1=True, create_s2=True, create_s3=True, create_s4=True):
     def cfg(opts):
         return broker.Configuration(opts) if opts else broker.Configuration(broker.BrokerOptions())
@@ -42,6 +50,7 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/foo', 'Foo!'))
         x = s1.get()
         self.assertEqual(x, ('/test/bar', 'Bar!'))
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
     def test_two_hops_with_forward(self):
         # Two hops that are not subscribed, but configured to forward.
@@ -58,6 +67,7 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/foo', 'Foo!'))
         x = s1.get()
         self.assertEqual(x, ('/test/bar', 'Bar!'))
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
     def test_two_hops_forwarding_disabled(self):
         # Two hops that are subscribed, so they would forward but we disable.
@@ -69,6 +79,7 @@ class TestCommunication(unittest.TestCase):
         ep1.publish("/test/foo", "Foo!") # Shouldn't arrive
         x = s4.get(1.0)
         self.assertEqual(x, None)
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
     def test_two_hops_without_forward(self):
         # Two hops that are not subscribed, and hence don't forward.
@@ -76,6 +87,7 @@ class TestCommunication(unittest.TestCase):
 
         ep1.publish("/test/foo", "Foo!")
         x = s4.get(1.0)
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
         self.assertEqual(x, None)
 
     def test_two_hops_ttl(self):
@@ -91,6 +103,7 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/foo', 'Foo!'))
         x = s4.get(1.0)
         self.assertEqual(x, None) # Doesn't get here anymore.
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
 if __name__ == '__main__':
     #TestCommunication().test_two_hops()

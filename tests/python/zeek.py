@@ -76,37 +76,36 @@ def RunZeek(script, port):
 
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
-        ep = broker.Endpoint()
-        sub = ep.make_subscriber("/test")
-        port = ep.listen("127.0.0.1", 0)
+        with broker.Endpoint() as ep, \
+             ep.make_subscriber("/test") as sub:
 
-        p = multiprocessing.Process(target=RunZeek, args=(ZeekPing, port))
-        p.daemon = True
-        p.start()
+            port = ep.listen("127.0.0.1", 0)
 
-        for i in range(0, 6):
-            (t, msg) = sub.get()
-            ev = broker.zeek.Event(msg)
-            (s, c) = ev.args()
-            expected_arg = "x" + "Xx" * i
+            p = multiprocessing.Process(target=RunZeek, args=(ZeekPing, port))
+            p.daemon = True
+            p.start()
 
-            if i == 5:
-                expected_arg = expected_arg.encode('utf-8') + b'\x82'
+            for i in range(0, 6):
+                (t, msg) = sub.get()
+                ev = broker.zeek.Event(msg)
+                (s, c) = ev.args()
+                expected_arg = "x" + "Xx" * i
 
-            self.assertEqual(ev.name(), "ping")
-            self.assertEqual(s, expected_arg)
-            self.assertEqual(c, i)
+                if i == 5:
+                    expected_arg = expected_arg.encode('utf-8') + b'\x82'
 
-            if i < 3:
-                ev = broker.zeek.Event("pong", s + "X", c)
-            elif i < 5:
-                ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c)
-            else:
-                ev = broker.zeek.Event("pong", 'done', c)
+                self.assertEqual(ev.name(), "ping")
+                self.assertEqual(s, expected_arg)
+                self.assertEqual(c, i)
 
-            ep.publish("/test", ev)
+                if i < 3:
+                    ev = broker.zeek.Event("pong", s + "X", c)
+                elif i < 5:
+                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c)
+                else:
+                    ev = broker.zeek.Event("pong", 'done', c)
 
-        ep.shutdown()
+                ep.publish("/test", ev)
 
 if __name__ == '__main__':
     unittest.main(verbosity=3)
