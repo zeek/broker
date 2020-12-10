@@ -1,4 +1,8 @@
 
+1.5.0-dev.43 | 2020-12-09 17:27:31 -0800
+
+  * Update SQLite to 3.34.0 (Jon Siwek, Corelight)
+
 1.5.0-dev.42 | 2020-12-04 13:05:41 -0800
 
   * Add FreeBSD 11.4 and 12.2 to CI (Jon Siwek, Corelight)
