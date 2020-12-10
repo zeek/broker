@@ -3,7 +3,6 @@
 #include <caf/actor.hpp>
 #include <caf/actor_cast.hpp>
 #include <caf/allowed_unsafe_message_type.hpp>
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>

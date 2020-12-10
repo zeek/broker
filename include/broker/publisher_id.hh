@@ -31,8 +31,9 @@ struct publisher_id {
 
 /// @relates publisher_id
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, publisher_id& x) {
-  return f(caf::meta::type_name("publisher_id"), x.endpoint, x.object);
+bool inspect(Inspector& f, publisher_id& x) {
+  return f.object(x).fields(f.field("endpoint", x.endpoint),
+                            f.field("object", x.object));
 }
 
 /// @relates publisher_id

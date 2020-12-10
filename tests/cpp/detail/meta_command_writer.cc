@@ -1,6 +1,7 @@
 #define SUITE meta_command_writer
 
 #include "broker/detail/meta_command_writer.hh"
+#include "broker/detail/read_value.hh"
 
 #include "test.hh"
 
@@ -35,8 +36,8 @@ struct fixture {
   T pull() {
     caf::binary_deserializer source{nullptr, buf.data() + read_pos,
                                     buf.size() - read_pos};
-    T result{};
-    CHECK_EQUAL(source(result), caf::none);
+    auto result = T{};
+    CHECK_EQUAL(detail::read_value(source, result), caf::none);
     read_pos = buf.size() - source.remaining();
     return result;
   }

@@ -47,9 +47,11 @@ caf::error meta_command_writer::operator()(const expire_command& x) {
 }
 
 caf::error meta_command_writer::operator()(const add_command& x) {
-  auto& sink = writer_.sink();
+  static_assert(
+    std::is_same<uint8_t, std::underlying_type_t<data::type>>::value);
   BROKER_TRY(apply_tag(internal_command_uint_tag<add_command>()),
-             writer_(x.key), writer_(x.value), sink(x.init_type));
+             writer_(x.key), writer_(x.value),
+             apply_tag(static_cast<uint8_t>(x.init_type)));
   return caf::none;
 }
 
@@ -79,7 +81,10 @@ caf::error meta_command_writer::operator()(const clear_command& x) {
 
 caf::error meta_command_writer::apply_tag(uint8_t tag) {
   auto& sink = writer_.sink();
-  return sink(tag);
+  if (sink.value(tag))
+    return {};
+  else
+    return sink.get_error();
 }
 
 } // namespace detail

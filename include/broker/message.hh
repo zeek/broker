@@ -66,9 +66,10 @@ inline bool is_command_message(const node_message& x) {
 
 /// @relates node_message
 template <class Inspector, class PeerId>
-typename Inspector::result_type
-inspect(Inspector& f, generic_node_message<PeerId>& x) {
-  return f(x.content, x.ttl, x.receivers);
+bool inspect(Inspector& f, generic_node_message<PeerId>& x) {
+  return f.object(x).fields(f.field("content", x.content),
+                            f.field("ttl", x.ttl),
+                            f.field("receivers", x.receivers));
 }
 
 /// Generates a ::data_message.
@@ -169,5 +170,11 @@ template <class PeerId>
 const node_message_content& get_content(const generic_node_message<PeerId>& x) {
   return x.content;
 }
+
+/// Converts `msg` to a human-readable string representation.
+std::string to_string(const data_message& msg);
+
+/// Converts `msg` to a human-readable string representation.
+std::string to_string(const command_message& msg);
 
 } // namespace broker

@@ -35,8 +35,9 @@ public:
   friend bool operator<(const port& lhs, const port& rhs);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, port& p) {
-    return f(p.num_, p.proto_);
+  friend bool inspect(Inspector& f, port& x) {
+    return f.object(x).fields(f.field("num", x.num_),
+                              f.field("proto", x.proto_));
   }
 
 private:

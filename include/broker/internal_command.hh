@@ -6,7 +6,6 @@
 #include <caf/actor.hpp>
 #include <caf/variant.hpp>
 #include <caf/optional.hpp>
-#include <caf/meta/type_name.hpp>
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"
@@ -24,8 +23,10 @@ struct put_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, put_command& x) {
-  return f(caf::meta::type_name("put"), x.key, x.value, x.expiry, x.publisher);
+bool inspect(Inspector& f, put_command& x) {
+  return f.object(x).fields(f.field("key", x.key), f.field("value", x.value),
+                            f.field("expiry", x.expiry),
+                            f.field("publisher", x.publisher));
 }
 
 /// Sets a value in the key-value store if its key does not already exist.
@@ -39,9 +40,11 @@ struct put_unique_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, put_unique_command& x) {
-  return f(caf::meta::type_name("put_unique"), x.key, x.value, x.expiry, x.who,
-           x.req_id, x.publisher);
+bool inspect(Inspector& f, put_unique_command& x) {
+  return f.object(x).fields(f.field("key", x.key), f.field("value", x.value),
+                            f.field("expiry", x.expiry), f.field("who", x.who),
+                            f.field("req_id", x.req_id),
+                            f.field("publisher", x.publisher));
 }
 
 /// Removes a value in the key-value store.
@@ -51,8 +54,9 @@ struct erase_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, erase_command& x) {
-  return f(caf::meta::type_name("erase"), x.key, x.publisher);
+bool inspect(Inspector& f, erase_command& x) {
+  return f.object(x).fields(f.field("key", x.key),
+                            f.field("publisher", x.publisher));
 }
 
 /// Removes a value in the key-value store as a result of an expiration. The
@@ -65,8 +69,9 @@ struct expire_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, expire_command& x) {
-  return f(caf::meta::type_name("expire"), x.key, x.publisher);
+bool inspect(Inspector& f, expire_command& x) {
+  return f.object(x).fields(f.field("key", x.key),
+                            f.field("publisher", x.publisher));
 }
 
 /// Adds a value to the existing value.
@@ -79,9 +84,11 @@ struct add_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, add_command& x) {
-  return f(caf::meta::type_name("add"), x.key, x.value, x.init_type, x.expiry,
-           x.publisher);
+bool inspect(Inspector& f, add_command& x) {
+  return f.object(x).fields(f.field("key", x.key), f.field("value", x.value),
+                            f.field("init_type", x.init_type),
+                            f.field("expiry", x.expiry),
+                            f.field("publisher", x.publisher));
 }
 
 /// Subtracts a value to the existing value.
@@ -93,9 +100,10 @@ struct subtract_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, subtract_command& x) {
-  return f(caf::meta::type_name("subtract"), x.key, x.value, x.expiry,
-           x.publisher);
+bool inspect(Inspector& f, subtract_command& x) {
+  return f.object(x).fields(f.field("key", x.key), f.field("value", x.value),
+                            f.field("expiry", x.expiry),
+                            f.field("publisher", x.publisher));
 }
 
 /// Causes the master to reply with a snapshot of its state.
@@ -105,8 +113,9 @@ struct snapshot_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, snapshot_command& x) {
-  return f(caf::meta::type_name("snapshot"), x.remote_core, x.remote_clone);
+bool inspect(Inspector& f, snapshot_command& x) {
+  return f.object(x).fields(f.field("remote_core", x.remote_core),
+                            f.field("remote_clone", x.remote_clone));
 }
 
 /// Since snapshots are sent to clones on a different channel, this allows
@@ -117,8 +126,8 @@ struct snapshot_sync_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, snapshot_sync_command& x) {
-  return f(caf::meta::type_name("snapshot_sync"), x.remote_clone);
+bool inspect(Inspector& f, snapshot_sync_command& x) {
+  return f.object(x).fields(f.field("remote_clone", x.remote_clone));
 }
 
 /// Sets the full state of all receiving replicates to the included snapshot.
@@ -127,8 +136,8 @@ struct set_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, set_command& x) {
-  return f(caf::meta::type_name("set"), x.state);
+bool inspect(Inspector& f, set_command& x) {
+  return f.object(x).fields(f.field("state", x.state));
 }
 
 /// Drops all values.
@@ -137,8 +146,8 @@ struct clear_command {
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, clear_command&) {
-  return f(caf::meta::type_name("clear"));
+bool inspect(Inspector& f, clear_command& x) {
+  return f.object(x).fields();
 }
 
 class internal_command {
@@ -180,8 +189,8 @@ internal_command make_internal_command(Ts&&... xs) {
 }
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, internal_command& x) {
-  return f(caf::meta::type_name("internal_command"), x.content);
+bool inspect(Inspector& f, internal_command& x) {
+  return f.object(x).fields(f.field("content", x.content));
 }
 
 namespace detail {

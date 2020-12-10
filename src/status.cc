@@ -180,6 +180,24 @@ optional<endpoint_info> status_view::context() const {
   return {std::move(ei)};
 }
 
+std::string to_string(status_view s) {
+  std::string result = to_string(s.code());
+  result += '(';
+  if (auto ctx = s.context()) {
+    result += to_string(ctx->node);
+    if (ctx->network) {
+      result += ", ";
+      result += to_string(*ctx->network);
+    }
+    result += ", ";
+  }
+  result += '"';
+  if (auto msg = s.message())
+	result += *msg;
+  result += "\")";
+  return result;
+}
+
 status_view status_view::make(const data& src) {
   return status_view{convertible_to_status(src) ? &get<vector>(src) : nullptr};
 }

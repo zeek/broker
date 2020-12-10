@@ -27,7 +27,9 @@ namespace {
 
 configuration make_config(std::string cert_id) {
   configuration cfg;
-  cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
+  if (auto err = cfg.parse(caf::test::engine::argc(),
+                           caf::test::engine::argv()))
+    CAF_FAIL("parsing the config failed: " << to_string(err));
   cfg.set(CFG_PREFIX "logger.inline-output", true);
   if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");

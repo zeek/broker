@@ -52,7 +52,8 @@ void init_store(py::module& m) {
     .def("insert_into", (void (broker::store::*)(broker::data, broker::data, broker::data, broker::optional<broker::timespan>) const) &broker::store::insert_into)
     .def("remove_from", &broker::store::remove_from)
     .def("push", &broker::store::push)
-    .def("pop", &broker::store::pop);
+    .def("pop", &broker::store::pop)
+    .def("reset", &broker::store::reset);
 
 // Don't need.
 //  py::class_<broker::store::response>(store, "Response")

@@ -2,14 +2,15 @@
 
 import broker
 
-ep = broker.Endpoint()
-s = ep.make_subscriber('/test')
-ss = ep.make_status_subscriber(True);
-ep.listen('127.0.0.1', 9999)
+with broker.Endpoint() as ep, \
+     ep.make_subscriber('/test') as s, \
+     ep.make_status_subscriber(True) as ss:
 
-m = ep.attach_master('mystore',
-                     broker.Backend.SQLite, {'path': 'mystore.sqlite'})
+    ep.listen('127.0.0.1', 9999)
 
-while True:
-    print(ss.get())
-    print(m.get('foo'))
+    m = ep.attach_master('mystore',
+                         broker.Backend.SQLite, {'path': 'mystore.sqlite'})
+
+    while True:
+        print(ss.get())
+        print(m.get('foo'))

@@ -1,7 +1,18 @@
 Broker 2.0.0
 ============
 
+- Broker 2.0.0 now depends on CAF 0.18.0 with a wire format targeting
+  compatibility with Zeek 4.0.x.
+
+- CMake 3.5+ is now required to compiler Broker.
+
 - Support for the optional Python Bindings now requires at least Python 3.5
+
+- For proper resource management/cleanup, the Python API now requires
+  using Endpoint, Subscriber, StatusSubscriber, and Store objects within a
+  `with` statement or alternatively doing an explicit call to the
+  `reset()` method of subscriber/store objects before the associated
+  Endpoint's `shutdown()` method.
 
 Broker 1.4.0
 ============

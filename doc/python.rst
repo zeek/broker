@@ -157,7 +157,7 @@ similar to the C++ interface:
 .. literalinclude:: ../tests/python/communication.py
    :language: python
    :start-after: --error-start
-   :lines: 1-3,5-6
+   :lines: 1-4,6-7
    :end-before: --error-end
 
 .. literalinclude:: ../tests/python/communication.py

@@ -19,7 +19,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config.hpp>
 #include <caf/config_option_adder.hpp>
@@ -258,8 +257,13 @@ int main(int argc, char** argv) {
   }
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
-  cfg.parse(argc, argv);
-  broker::endpoint ep{std::move(cfg)};
+  config cfg_copy;
+  if (auto err = cfg_copy.parse(argc, argv)) {
+    std::cerr << "*** error while reading config: " << to_string(err)
+              << std::endl;
+    return EXIT_FAILURE;
+  }
+  broker::endpoint ep{std::move(cfg_copy)};
   auto el = ep.system().spawn(event_listener);
   // Publish endpoint at demanded port.
   if (cfg.local_port != 0)

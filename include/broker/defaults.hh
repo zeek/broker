@@ -1,15 +1,20 @@
 #pragma once
 
 #include "caf/string_view.hpp"
+#include "caf/timespan.hpp"
 
 // This header contains hard-coded default values for various Broker options.
 
-namespace broker {
-namespace defaults {
+namespace broker::defaults {
 
 extern const caf::string_view recording_directory;
 
 extern const size_t output_generator_file_cap;
 
-} // namespace defaults
-} // namespace broker
+} // namespace broker::defaults
+
+namespace broker::defaults::store {
+
+extern const caf::timespan tick_interval;
+
+} // namespace broker::defaults::store

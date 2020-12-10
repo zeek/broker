@@ -34,8 +34,8 @@ inline bool operator<(const enum_value& lhs, const enum_value& rhs) {
 
 /// @relates enum_value
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, enum_value& e) {
-  return f(e.name);
+bool inspect(Inspector& f, enum_value& e) {
+  return f.object(e).fields(f.field("name", e.name));
 }
 
 /// @relates enum_value

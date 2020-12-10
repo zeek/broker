@@ -133,7 +133,8 @@ PYBIND11_MODULE(_broker, m) {
     .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
     .def("publish", (void (broker::publisher::*)(broker::data d)) &broker::publisher::publish)
     .def("publish_batch",
-       [](broker::publisher& p, std::vector<broker::data> xs) { p.publish(xs); });
+       [](broker::publisher& p, std::vector<broker::data> xs) { p.publish(xs); })
+    .def("reset", &broker::publisher::reset);
 
   using subscriber_base = broker::subscriber_base<broker::subscriber::value_type>;
   using topic_data_pair = std::pair<broker::topic, broker::data>;
@@ -145,7 +146,7 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
     .def("get",
          [](broker::optional<topic_data_pair>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return to_string(i); });
+    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
 
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get",
@@ -199,7 +200,8 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::subscriber, subscriber_base>(m, "Subscriber")
     .def("add_topic", &broker::subscriber::add_topic)
-    .def("remove_topic", &broker::subscriber::remove_topic);
+    .def("remove_topic", &broker::subscriber::remove_topic)
+    .def("reset", &broker::subscriber::reset);
 
   py::bind_vector<std::vector<broker::status_subscriber::value_type>>(m, "VectorStatusSubscriberValueType");
 
@@ -231,7 +233,8 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::status_subscriber& ep) -> std::vector<broker::status_subscriber::value_type> {
 	   return ep.poll(); })
     .def("available", &broker::status_subscriber::available)
-    .def("fd", &broker::status_subscriber::fd);
+    .def("fd", &broker::status_subscriber::fd)
+    .def("reset", &broker::status_subscriber::reset);
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
@@ -289,7 +292,7 @@ PYBIND11_MODULE(_broker, m) {
         bcfg.openssl_certificate = cfg.openssl_certificate;
         bcfg.openssl_key = cfg.openssl_key;
         if ( cfg.max_threads > 0 )
-          bcfg.set("scheduler.max-threads", cfg.max_threads);
+          bcfg.set("caf.scheduler.max-threads", cfg.max_threads);
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })

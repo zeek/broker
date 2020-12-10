@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include <caf/atom.hpp>
 #include <caf/config.hpp>
 #include <caf/init_global_meta_objects.hpp>
 #include <caf/io/middleman.hpp>
@@ -59,37 +58,6 @@ auto concat(Ts... xs) {
   throw std::invalid_argument(what);
 }
 
-#if CAF_VERSION < 1800
-
-constexpr caf::string_view file_verbosity_key = "logger.file-verbosity";
-
-constexpr caf::string_view console_verbosity_key = "logger.console-verbosity";
-
-bool valid_log_level(caf::atom_value x) {
-  using caf::atom_uint;
-  switch (atom_uint(x)) {
-    default:
-      return false;
-    case atom_uint("trace"):
-    case atom_uint("debug"):
-    case atom_uint("info"):
-    case atom_uint("warning"):
-    case atom_uint("error"):
-    case atom_uint("quiet"):
-      return true;
-  }
-}
-
-caf::atom_value to_log_level(const char* var, const char* cstr) {
-  caf::string_view str{cstr, strlen(cstr)};
-  auto atm = caf::to_lowercase(caf::atom_from_string(str));
-  if (valid_log_level(atm))
-    return atm;
-  throw_illegal_log_level(var, cstr);
-}
-
-#else
-
 constexpr caf::string_view file_verbosity_key = "caf.logger.file.verbosity";
 
 constexpr caf::string_view console_verbosity_key = "caf.logger.console.verbosity";
@@ -105,8 +73,6 @@ std::string to_log_level(const char* var, const char* cstr) {
     return str;
   throw_illegal_log_level(var, cstr);
 }
-
-#endif
 
 } // namespace
 
@@ -126,27 +92,6 @@ configuration::configuration(skip_init_t) {
   // Ensure that we're only talking to compatible Broker instances.
   std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
   // Override CAF defaults.
-#if CAF_VERSION < 1800
-  using caf::atom;
-  using caf::atom_value;
-  set("logger.file-name", "broker_[PID]_[TIMESTAMP].log");
-  set("logger.file-verbosity", atom("quiet"));
-  set("logger.console-format", "[%c/%p] %d %m");
-  set("middleman.app-identifiers", std::move(ids));
-  // Enable console output (and color it if stdout is a TTY) but set verbosty to
-  // errors-only. Users can still override via the environment variable
-  // BROKER_CONSOLE_VERBOSITY.
-  if (isatty(STDOUT_FILENO))
-    set("logger.console", atom("colored"));
-  else
-    set("logger.console", atom("uncolored"));
-  set("logger.console-verbosity", atom("error"));
-  // Turn off all CAF output by default.
-  std::vector<atom_value> blacklist{atom("caf"), atom("caf_io"),
-                                    atom("caf_net"), atom("caf_flow"),
-                                    atom("caf_stream")};
-  set("logger.component-blacklist", std::move(blacklist));
-#else
   set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
   set("caf.logger.file.verbosity", "quiet");
   set("caf.logger.console.format", "[%c/%p] %d %m");
@@ -159,7 +104,6 @@ configuration::configuration(skip_init_t) {
                                                "caf_flow", "caf_stream"};
   set("caf.logger.file.excluded-components", excluded_components);
   set("caf.logger.console.excluded-components", std::move(excluded_components));
-#endif
 }
 
 configuration::configuration(broker_options opts) : configuration(skip_init) {
@@ -248,18 +192,6 @@ caf::settings configuration::dump_content() const {
   return result;
 }
 
-#if CAF_VERSION < 1800
-
-void configuration::add_message_types(caf::actor_system_config& cfg) {
-  cfg.add_message_types<caf::id_block::broker>();
-}
-
-void configuration::init_global_state() {
-  // nop
-}
-
-#else
-
 void configuration::add_message_types(caf::actor_system_config&) {
   // nop
 }
@@ -278,7 +210,5 @@ void configuration::init_global_state() {
     caf::core::init_global_meta_objects();
   });
 }
-
-#endif
 
 } // namespace broker

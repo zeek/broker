@@ -22,8 +22,10 @@ struct endpoint_info {
 
 /// @relates endpoint_info
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, endpoint_info& info) {
-  return f(info.node, info.network);
+bool inspect(Inspector& f, endpoint_info& x) {
+  return f.object(x)
+    .pretty_name("endpoint_info")
+    .fields(f.field("node", x.node), f.field("network", x.network));
 }
 
 /// @relates endpoint_info
@@ -49,5 +51,8 @@ struct can_convert_predicate<endpoint_info> {
     return convertible_to_endpoint_info(src);
   }
 };
+
+/// @relates endpoint_info
+std::string to_string(const endpoint_info& x);
 
 } // namespace broker

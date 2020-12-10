@@ -68,7 +68,9 @@ public:
     // nop
   }
 
-  bool congested() const noexcept override {
+  using super::congested;
+
+  bool congested(const inbound_path&) const noexcept override {
     return queue_->buffer_size() >= max_qsize_;
   }
 
@@ -153,14 +155,15 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
 } // namespace <anonymous>
 
 subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
-  : super(max_qsize), ep_(e) {
-  BROKER_INFO("creating subscriber for topic(s)" << ts);
-  worker_ = ep_.get().system().spawn(subscriber_worker, &ep_.get(), queue_, std::move(ts),
-                               max_qsize);
+  : super(max_qsize), filter_(std::move(ts)), ep_(e) {
+  BROKER_INFO("creating subscriber for topic(s)" << filter_);
+  worker_ = ep_.get().system().spawn(subscriber_worker, &ep_.get(), queue_,
+                                     filter_, max_qsize);
 }
 
 subscriber::~subscriber() {
-  anon_send_exit(worker_, exit_reason::user_shutdown);
+  if ( worker_ )
+    anon_send_exit(worker_, exit_reason::user_shutdown);
 }
 
 size_t subscriber::rate() const {
@@ -205,6 +208,13 @@ void subscriber::set_rate_calculation(bool x) {
 
 void subscriber::became_not_full() {
   anon_send(worker_, atom::resume_v);
+}
+
+void subscriber::reset() {
+  if (!worker_)
+    return;
+  anon_send_exit(worker_, exit_reason::user_shutdown);
+  worker_ = nullptr;
 }
 
 } // namespace broker

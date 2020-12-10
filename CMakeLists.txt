@@ -1,6 +1,6 @@
 # -- Project Setup ------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5...3.18 FATAL_ERROR)
 project(broker C CXX)
 include(cmake/CommonCMakeConfig.cmake)
 include(GNUInstallDirs)
@@ -194,36 +194,52 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-if ( CAF_ROOT_DIR )
-  find_package(CAF COMPONENTS openssl test io core REQUIRED)
-  set(caf_dir    "${CAF_LIBRARY_CORE}")
-  set(caf_config "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp")
-  get_filename_component(caf_dir ${caf_dir} PATH)
+set(CAF_VERSION_MIN_REQUIRED 0.18.0)
 
-  if (EXISTS "${caf_dir}/../libcaf_core")
-    get_filename_component(caf_dir ${caf_dir} PATH)
-  else ()
-    set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
-  endif ()
+if ( TARGET CAF::core )
+  message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
+elseif ( CAF_ROOT )
+  # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
+  if (CMAKE_VERSION VERSION_LESS 3.12)
+    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED CONFIG
+                 COMPONENTS openssl test io core
+                 PATHS "${CAF_ROOT}")
+  else()
+    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED CONFIG
+                 COMPONENTS openssl test io core)
+  endif()
+  message(STATUS "Using system CAF version ${CAF_VERSION}")
+  # TODO: drop these legacy variables and simply use the targets consistently
+  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(caf_dirs "")
+  foreach(caf_lib IN LISTS CAF_LIBRARIES ITEMS CAF::test)
+    get_target_property(dirs ${caf_lib} INTERFACE_INCLUDE_DIRECTORIES)
+    if ( dirs )
+      list(APPEND caf_dirs ${dirs})
+    endif ()
+  endforeach()
+  list(REMOVE_DUPLICATES caf_dirs)
+  list(GET caf_dirs 0 caf_dir)
+  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
 else ()
-  set(CAF_NO_EXAMPLES ON)
-  set(CAF_NO_OPENCL ON)
-  set(CAF_NO_TOOLS ON)
-  set(CAF_NO_PYTHON ON)
-  set(CAF_NO_UNIT_TESTS ON)
-  if (ENABLE_STATIC)
-    set(CAF_BUILD_STATIC ON)
-  elseif (ENABLE_STATIC_ONLY)
-    set(CAF_BUILD_STATIC_ONLY ON)
+  set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TESTING OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
+  if (ENABLE_STATIC_ONLY)
+    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   endif ()
+  message(STATUS "Using bundled CAF")
   add_subdirectory(caf)
-endif ()
-
-set(CAF_VERSION_REQUIRED 0.17.5)
-
-if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
-  message(FATAL_ERROR "Broker requires at least CAF version"
-    " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
+  set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
+  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(caf_dirs "")
+  foreach(comp core io openssl test)
+    list(APPEND caf_dirs
+         "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}"
+         "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}")
+  endforeach()
+  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
+  set(CAF_FOUND TRUE CACHE INTERNAL "")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
@@ -309,6 +325,7 @@ set(BROKER_SRC
   src/filter_type.cc
   src/internal_command.cc
   src/mailbox.cc
+  src/message.cc
   src/network_info.cc
   src/peer_status.cc
   src/port.cc

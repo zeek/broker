@@ -11,6 +11,7 @@
 #include <caf/binary_serializer.hpp>
 
 #include "broker/detail/meta_data_writer.hh"
+#include "broker/detail/write_value.hh"
 
 using namespace broker;
 
@@ -28,11 +29,12 @@ struct fixture {
   }
 
   void add_meta(data::type tag) {
-    CHECK_EQUAL(sink(tag), caf::none);
+    CHECK_EQUAL(detail::write_value(sink, tag), caf::none);
   }
 
   void add_meta(data::type tag, uint32_t container_size) {
-    CHECK_EQUAL(sink(tag, container_size), caf::none);
+    CHECK_EQUAL(detail::write_value(sink, tag), caf::none);
+    CHECK_EQUAL(detail::write_value(sink, container_size), caf::none);
   }
 
   data generate() {

@@ -74,4 +74,13 @@ bool convert(const endpoint_info& src, data& dst) {
   return true;
 }
 
+std::string to_string(const endpoint_info& x) {
+  std::string result = "endpoint_info(";
+  result += to_string(x.node);
+  result += ", ";
+  result += caf::deep_to_string(x.network);
+  result += ')';
+  return result;
+}
+
 } // namespace broker
