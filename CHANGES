@@ -1,4 +1,13 @@
 
+1.5.0-dev.62 | 2020-12-12 18:28:25 -0800
+
+  * Change `configure --prefix` to not set CMAKE_INSTALL_LIBDIR (Jon Siwek, Corelight)
+
+    In places where that libdir option is used and not explicitly set
+    before, it will already correctly prepend CMAKE_INSTALL_PREFIX.  Having
+    the configure script use the hardcoded 'lib' also prevented the
+    automatic use of 'lib64' on platforms that prefer it.
+
 1.5.0-dev.61 | 2020-12-10 14:07:51 -0800
 
   * Add Jenkinsfile for re-enabling Windows builds (Dominik Charousset, Corelight)
