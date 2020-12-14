@@ -1,4 +1,8 @@
 
+1.5.0-dev.63 | 2020-12-14 10:38:14 -0800
+
+  * Update CAF submodule to fix handling of --libdir (Jon Siwek, Corelight)
+
 1.5.0-dev.62 | 2020-12-12 18:28:25 -0800
 
   * Change `configure --prefix` to not set CMAKE_INSTALL_LIBDIR (Jon Siwek, Corelight)
