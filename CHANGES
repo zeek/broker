@@ -1,4 +1,8 @@
 
+2.0.0-rc1 | 2020-12-14 10:38:43 -0800
+
+  * Release 2.0.0-rc1.
+
 1.5.0-dev.63 | 2020-12-14 10:38:14 -0800
 
   * Update CAF submodule to fix handling of --libdir (Jon Siwek, Corelight)

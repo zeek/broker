@@ -8,10 +8,10 @@ namespace version {
 /// The type used for version numbers.
 using type = unsigned;
 
-constexpr type major = 1;
-constexpr type minor = 5;
+constexpr type major = 2;
+constexpr type minor = 0;
 constexpr type patch = 0;
-constexpr auto suffix = "-dev";
+constexpr auto suffix = "-rc1";
 
 constexpr type protocol = 2;
 
