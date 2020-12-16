@@ -16,11 +16,11 @@
 #include "caf/string_algorithms.hpp"
 #include "caf/term.hpp"
 
-#include "broker/atoms.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
 #include "broker/detail/generator_file_writer.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/subscriber.hh"
 
 using caf::actor_system_config;
@@ -242,13 +242,8 @@ struct node {
   /// Stores how many inputs we receive per node.
   inputs_by_node_map inputs_by_node;
 
-#if CAF_VERSION < 1800
-  /// Stores the CAF log level for this node.
-  caf::atom_value log_verbosity = caf::atom("quiet");
-#else
   /// Stores the CAF log level for this node.
   std::string log_verbosity = "quiet";
-#endif
 };
 
 bool is_sender(const node& x) {
@@ -382,9 +377,9 @@ struct node_manager_state {
     opts.disable_ssl = true;
     opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
-    cfg.set("middleman.workers", 0);
-    cfg.set("logger.file-name", this_node->name + ".log");
-    cfg.set("logger.file-verbosity", this_node->log_verbosity);
+    cfg.set("caf.middleman.workers", 0);
+    cfg.set("caf.logger.file.path", this_node->name + ".log");
+    cfg.set("caf.logger.file.verbosity", this_node->log_verbosity);
     new (&ep) broker::endpoint(std::move(cfg));
   }
 };
@@ -530,14 +525,8 @@ struct consumer_state {
       },
       [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
       [=](caf::unit_t&, const caf::error& err) {
-#if CAF_VERSION < 1800
-        auto& types = self->system().types();
-        verbose::println(this_node->name, " stops receiving ",
-                         types.portable_name(caf::make_rtti_pair<T>()));
-#else
         verbose::println(this_node->name, " stops receiving ",
                          caf::type_name_v<T>);
-#endif
       });
   }
 
