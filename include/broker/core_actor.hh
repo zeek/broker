@@ -92,8 +92,6 @@ public:
   void peer_connected(const peer_id_type& peer_id,
                       const communication_handle_type& hdl);
 
-  void sync_with_status_subscribers(caf::actor new_peer);
-
 private:
   // --- member variables ------------------------------------------------------
 
@@ -105,9 +103,6 @@ private:
 
   /// Set to `true` after receiving a shutdown message from the endpoint.
   bool shutting_down_ = false;
-
-  /// Keeps track of all actors that subscribed to status updates.
-  std::unordered_set<caf::actor> status_subscribers_;
 
   /// Keeps track of all actors that currently wait for handshakes to
   /// complete.
