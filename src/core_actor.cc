@@ -82,33 +82,7 @@ bool core_manager::has_remote_subscriber(const topic& x) noexcept {
 void core_manager::peer_connected(const peer_id_type& peer_id,
                                   const communication_handle_type& hdl) {
   super::peer_connected(peer_id, hdl);
-  if (status_subscribers_.empty()) {
-    // Just in case it was blocked, then status subscribers got removed
-    // before reaching here.
-    unblock_peer(hdl);
-    return;
-  }
-  peers_awaiting_status_sync_[hdl] = status_subscribers_.size();
-  auto sync_peer_status = [this](caf::actor new_peer) {
-    auto it = peers_awaiting_status_sync_.find(new_peer);
-    if (it == peers_awaiting_status_sync_.end())
-      return;
-    auto& c = it->second;
-    if (--c > 0)
-      return;
-    peers_awaiting_status_sync_.erase(new_peer);
-    unblock_peer(std::move(new_peer));
-  };
-  for (auto& ss : status_subscribers_) {
-    auto to = caf::infinite;
-    self()
-      ->request(ss, to, atom::sync_point_v)
-      .then([=](atom::sync_point) mutable { sync_peer_status(std::move(hdl)); },
-            [=](caf::error& e) mutable {
-              status_subscribers_.erase(ss);
-              sync_peer_status(std::move(hdl));
-            });
-  }
+  unblock_peer(hdl);
 }
 
 caf::behavior core_manager::make_behavior(){
@@ -157,8 +131,7 @@ caf::behavior core_manager::make_behavior(){
         BROKER_WARNING("Received unexpected or repeated step #2 handshake.");
         return;
       }
-      if (!status_subscribers_.empty())
-        block_peer(peer_hdl);
+      block_peer(peer_hdl);
       ack_peering(in, peer_hdl);
       start_handshake<false>(peer_hdl, std::move(filter));
       // Emit peer added event.
@@ -182,8 +155,7 @@ caf::behavior core_manager::make_behavior(){
         BROKER_DEBUG("Drop repeated step #3 handshake.");
         return;
       }
-      if (!status_subscribers_.empty())
-        block_peer(peer_hdl);
+      block_peer(peer_hdl);
       peer_connected(peer_hdl.node(), peer_hdl);
       ack_peering(in, peer_hdl);
     },
@@ -344,9 +316,6 @@ caf::behavior core_manager::make_behavior(){
       strong_actor_ptr dummy;
       for (auto& kvp : store_manager().paths())
         self()->send_exit(kvp.second->hdl, caf::exit_reason::user_shutdown);
-    },
-    [=](atom::add, atom::status, caf::actor& ss) {
-      status_subscribers_.emplace(std::move(ss));
     });
 }
 

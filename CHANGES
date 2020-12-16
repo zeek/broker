@@ -1,4 +1,8 @@
 
+2.1.0-dev.2 | 2020-12-16 15:04:30 -0800
+
+  * Make sure status updates are visible before data (Dominik Charousset, Corelight)
+
 2.1.0-dev | 2020-12-14 20:16:02 -0800
 
   * Update NEWS for start of v2.1.0 development (Jon Siwek, Corelight)
