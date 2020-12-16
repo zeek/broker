@@ -1,4 +1,8 @@
 
+2.0.0-rc1.1 | 2020-12-16 15:12:05 -0800
+
+  * Make sure status updates are visible before data (Dominik Charousset, Corelight)
+
 2.0.0-rc1 | 2020-12-14 10:38:43 -0800
 
   * Release 2.0.0-rc1.
