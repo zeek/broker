@@ -1,3 +1,8 @@
+
+2.1.0-dev.6 | 2020-12-17 16:04:25 -0800
+
+  * Remove explicit use of config mode for finding CAF (Dominik Charousset, Corelight)
+
 2.1.0-dev.4 | 2020-12-17 10:36:12 -0700
 
   * Merge remote-tracking branch 'origin/topic/neverlord/broker-cluster-benchmark'
