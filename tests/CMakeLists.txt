@@ -10,6 +10,7 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
+  cpp/detail/base64.cc
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc
   cpp/detail/meta_command_writer.cc

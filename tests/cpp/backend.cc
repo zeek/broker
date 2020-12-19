@@ -45,16 +45,19 @@ class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(backend::memory, opts));
-    auto& path = caf::get<std::string>(opts["path"]);
-    // Make sure both backends have their own filesystem storage to work with.
-    path += ".sqlite";
-    paths_.push_back(path);
-    backends_.push_back(detail::make_backend(backend::sqlite, opts));
+    auto sqlite_opts = opts;
+    auto& sqlite_path = caf::get<std::string>(sqlite_opts["path"]);
+    sqlite_path += ".sqlite";
+    paths_.push_back(sqlite_path);
+    auto ldb = detail::make_backend(backend::sqlite, std::move(sqlite_opts));
+    backends_.push_back(std::move(ldb));
 #ifdef BROKER_HAVE_ROCKSDB
-    auto base = path;
-    path = base + ".rocksdb";
-    paths_.push_back(path);
-    backends_.push_back(detail::make_backend(backend::rocksdb, opts));
+    auto rocksdb_opts = opts;
+    auto& rocksdb_path = caf::get<std::string>(rocksdb_opts["path"]);
+    rocksdb_path += ".rocksdb";
+    paths_.push_back(rocksdb_path);
+    auto rdb = detail::make_backend(backend::rocksdb, std::move(rocksdb_opts));
+    backends_.push_back(std::move(rdb));
 #endif
   }
 
@@ -198,15 +201,13 @@ struct fixture : base_fixture {
 
   std::unique_ptr<detail::abstract_backend> backend;
 
-  template <class F>
-  auto run(F expr, const char* expr_str) {
-    auto res = expr();
-    if (!res)
-      FAIL(expr_str << " failed: " << res.error());
-    if constexpr (std::is_same<decltype(res), expected<void>>::value)
-      return caf::unit;
-    else
-      return std::move(*res);
+  auto val_of(expected<void>& x) {
+    return caf::unit;
+  }
+
+  template <class T>
+  T&& val_of(expected<T>& x) {
+    return std::move(*x);
   }
 };
 
@@ -214,7 +215,14 @@ struct fixture : base_fixture {
 
 FIXTURE_SCOPE(backend_tests, fixture)
 
-#define RUN(statement) run([&] { return statement; }, #statement)
+#define RUN(statement)                                                         \
+  ([&] {                                                                       \
+    if (auto res = statement) {                                                \
+      return val_of(res);                                                      \
+    } else {                                                                   \
+      FAIL(#statement << " failed: " << res.error());                          \
+    }                                                                          \
+  })()
 
 TEST(put/get) {
   RUN(backend->put("foo", 7));
