@@ -5,4 +5,4 @@ sysctl hw.model hw.machine hw.ncpu hw.physicalcpu hw.logicalcpu
 set -e
 set -x
 
-brew install cmake openssl
+brew install cmake openssl rocksdb

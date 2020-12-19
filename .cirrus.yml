@@ -3,6 +3,7 @@ memory: &MEMORY 6GB
 
 config: &CONFIG --build-type=release --enable-static
 memcheck_config: &MEMCHECK_CONFIG --build-type=debug --sanitizers=address
+macos_config: &MACOS_CONFIG --build-type=release --enable-static --with-rocksdb=/usr/local
 
 resources_template: &RESOURCES_TEMPLATE
   cpu: *CPUS
@@ -120,7 +121,7 @@ macos_task:
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   env:
-    BROKER_CI_CONFIGURE_FLAGS: *CONFIG
+    BROKER_CI_CONFIGURE_FLAGS: *MACOS_CONFIG
     BROKER_CI_CPUS: 4
     # No permission to write to default location of /broker
     CIRRUS_WORKING_DIR: /tmp/broker
