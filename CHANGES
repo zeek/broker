@@ -1,3 +1,8 @@
+
+2.0.0-rc1.3 | 2020-12-21 10:59:18 -0800
+
+  * Add macOS Big Sur to CI (Jon Siwek, Corelight)
+
 2.0.0-rc1.2 | 2020-12-17 10:40:23 -0700
 
   * Fix CAF configuration parameter names (Dominik Charousset, Corelight)
