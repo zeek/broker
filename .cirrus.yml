@@ -8,6 +8,15 @@ resources_template: &RESOURCES_TEMPLATE
   cpu: *CPUS
   memory: *MEMORY
 
+macos_resources_template: &MACOS_RESOURCES_TEMPLATE
+  # cpu/memory setting is implicitly 2 core / 4 thread and 8GB, and
+  # trying to set it explicitly results in an error.
+  env:
+    BROKER_CI_CPUS: 4
+    BROKER_CI_CONFIGURE_FLAGS: *CONFIG
+    # No permission to write to default location of /broker
+    CIRRUS_WORKING_DIR: /tmp/broker
+
 branch_whitelist: &BRANCH_WHITELIST
   only_if: >
     $CIRRUS_PR != '' ||
@@ -109,21 +118,21 @@ ubuntu16_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-# Apple doesn't publish official long-term support timelines, so easiest
-# option is to only support the latest macOS release or whatever latest
-# image is available.
-macos_task:
+# Apple doesn't publish official long-term support timelines.
+# We aim to support both the current and previous macOS release.
+macos_big_sur_task:
   osx_instance:
-    image: catalina-base
-    # cpu/memory setting is implicitly 2 core / 4 thread and 8GB, and
-    # trying to set it explicitly results in an error.
+    image: big-sur-base
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
-  env:
-    BROKER_CI_CONFIGURE_FLAGS: *CONFIG
-    BROKER_CI_CPUS: 4
-    # No permission to write to default location of /broker
-    CIRRUS_WORKING_DIR: /tmp/broker
+  << : *MACOS_RESOURCES_TEMPLATE
+
+macos_catalina_task:
+  osx_instance:
+    image: catalina-base
+  prepare_script: ./ci/macos/prepare.sh
+  << : *CI_TEMPLATE
+  << : *MACOS_RESOURCES_TEMPLATE
 
 # FreeBSD EOL timelines: https://www.freebsd.org/security/security.html#sup
 freebsd12_task:
