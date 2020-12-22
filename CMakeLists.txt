@@ -245,17 +245,6 @@ endif ()
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
-# RocksDB
-if (BROKER_ENABLE_ROCKSDB)
-  find_package(RocksDB)
-  if (ROCKSDB_FOUND)
-    set(BROKER_HAVE_ROCKSDB true)
-    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
-    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
-  endif ()
-endif ()
-
 # -- libroker -----------------------------------------------------------------
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BROKER_VERSION LIMIT_COUNT 1)
@@ -458,7 +447,6 @@ endmacro()
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
-display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
 display(ZEEK_FOUND "${ZEEK_FOUND_MSG}" zeek_summary)
 
@@ -479,7 +467,6 @@ set(summary
     "\nCXXFLAGS:        ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${BuildType}}"
     "\n"
     "\nCAF:             ${caf_summary}"
-    "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
     "\nZeek:            ${zeek_summary}"
     "\n=================================================================")

@@ -26,12 +26,11 @@ abstraction operating with the complete :ref:`data model
 store *frontend*, which is either an authoritative *master* or a
 *clone* replica. The master can choose to keep its data in various
 *backends*, currently either in-memory, or persistently through
-`SQLite <https://www.sqlite.org>`_, or `RocksDB
-<http://rocksdb.org>`_.
+`SQLite <https://www.sqlite.org>`_.
 
 :ref:`python` discusses the Broker's Python bindings, which
 transparently expose all of the library's functionality to Python
-scripts. 
+scripts.
 
 Synopsis
 --------
