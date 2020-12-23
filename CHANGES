@@ -1,4 +1,13 @@
 
+2.1.0-dev.10 | 2020-12-23 10:13:37 -0800
+
+  * Call `ctest` instead of `make test` in CI builds (Dominik Charousset, Corelight)
+
+    Setting `CTEST_OUTPUT_ON_FAILURE` and then calling `make test` seems to
+    lose the flag at some point. Calling `ctest` directly and passing
+    `--output-on-failure` makes sure that we actually get the test output in
+    case of an error.
+
 2.1.0-dev.8 | 2020-12-21 10:53:48 -0800
 
   * Add macOS Big Sur to CI (Jon Siwek, Corelight)
