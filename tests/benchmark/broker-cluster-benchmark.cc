@@ -266,8 +266,7 @@ std::vector<broker::topic> topics(const node& x) {
 }
 
 #define HAS_ROUTING_LOOP_FUN(direction)                                        \
-  size_t has_##direction##_loop(const node& x,                                 \
-                                std::vector<std::string> path) {               \
+  bool has_##direction##_loop(const node& x, std::vector<std::string> path) {  \
     if (!x.forward)                                                            \
       return false;                                                            \
     auto in_path = [&path](const node& n) {                                    \
@@ -366,7 +365,8 @@ struct node_manager_state {
   }
 
   ~node_manager_state() {
-    ep.~endpoint();
+    if (this_node != nullptr)
+      ep.~endpoint();
   }
 
   void init(node* this_node_ptr) {
