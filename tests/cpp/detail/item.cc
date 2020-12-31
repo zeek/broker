@@ -6,6 +6,10 @@
 
 #include <exception>
 
+namespace broker::detail {
+
+} // namespace broker::detail
+
 using namespace broker;
 
 namespace {

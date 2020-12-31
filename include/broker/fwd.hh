@@ -109,11 +109,13 @@ namespace broker::detail {
 
 struct retry_state;
 
+class central_dispatcher;
 class flare_actor;
 class item;
 class item_allocator;
 class item_stash;
 class mailbox;
+class unipath_manager;
 
 void intrusive_ptr_release(item*) noexcept;
 void intrusive_ptr_add_ref(item*) noexcept;

@@ -301,6 +301,7 @@ set(BROKER_SRC
   src/data.cc
   src/defaults.cc
   src/detail/abstract_backend.cc
+  src/detail/central_dispatcher.cc
   src/detail/clone_actor.cc
   src/detail/core_recorder.cc
   src/detail/data_generator.cc
@@ -322,6 +323,7 @@ set(BROKER_SRC
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
+  src/detail/unipath_manager.cc
   src/endpoint.cc
   src/endpoint_info.cc
   src/error.cc

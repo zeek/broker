@@ -88,7 +88,9 @@ configuration::configuration(skip_init_t) {
     .add<std::string>("recording-directory",
                       "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
-                 "maximum number of entries when recording published messages");
+                 "maximum number of entries when recording published messages")
+    .add<size_t>("max-pending-inputs-per-source",
+                 "maximum number of items we buffer per peer or publisher");
   // Ensure that we're only talking to compatible Broker instances.
   std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
   // Override CAF defaults.

@@ -9,6 +9,10 @@ namespace broker::detail {
 
 class item_stash {
 public:
+  // -- member types -----------------------------------------------------------
+
+  using variant_type = caf::variant<data_message, command_message>;
+
   // -- intrusive_ptr support --------------------------------------------------
 
   friend void intrusive_ptr_release(item*) noexcept;
@@ -36,6 +40,9 @@ public:
                      caf::stream_manager* origin);
 
   item_ptr next_item(command_message&& msg, uint16_t msg_ttl,
+                     caf::stream_manager* origin);
+
+  item_ptr next_item(variant_type&& msg, uint16_t msg_ttl,
                      caf::stream_manager* origin);
 
 private:

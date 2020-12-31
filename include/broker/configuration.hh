@@ -2,6 +2,8 @@
 
 #include <caf/actor_system_config.hpp>
 
+#include "broker/defaults.hh"
+
 namespace broker {
 
 struct broker_options {
@@ -15,7 +17,7 @@ struct broker_options {
   /// they have traversed more than this many hops. Note that the 1st
   /// receiver inserts the TTL (not the sender!). The 1st receiver does
   /// already count against the TTL.
-  unsigned int ttl = 20;
+  unsigned int ttl = defaults::ttl;
 
   /// Whether to use real/wall clock time for data store time-keeping
   /// tasks or whether the application will simulate time on its own.

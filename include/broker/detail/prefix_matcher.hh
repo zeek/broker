@@ -5,11 +5,11 @@
 
 #include <caf/cow_tuple.hpp>
 #include <caf/message.hpp>
+#include <caf/variant.hpp>
 
 #include "broker/topic.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 struct prefix_matcher {
   using filter_type = std::vector<topic>;
@@ -22,6 +22,4 @@ struct prefix_matcher {
   }
 };
 
-
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

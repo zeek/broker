@@ -31,6 +31,12 @@ item_ptr item_stash::next_item(command_message&& msg, uint16_t msg_ttl,
   return item_ptr{new (ptr) item(std::move(msg), msg_ttl, origin, this), false};
 }
 
+item_ptr item_stash::next_item(variant_type&& msg, uint16_t msg_ttl,
+                               caf::stream_manager* origin) {
+  auto ptr = next();
+  return item_ptr{new (ptr) item(std::move(msg), msg_ttl, origin, this), false};
+}
+
 item* item_stash::next() {
   if (!stash_.empty()) {
     auto result = stash_.back();
