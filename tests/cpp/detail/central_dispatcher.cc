@@ -28,6 +28,7 @@ caf::behavior testee_impl(testee_actor* self){
       auto& st = self->state;
       if (st.in == nullptr) {
         st.in = make_data_source(&st.dispatcher);
+        CHECK(!st.in->blocks_inputs());
         st.in->add_unchecked_inbound_path(handshake);
         return caf::unit;
       } else {

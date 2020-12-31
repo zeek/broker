@@ -290,6 +290,23 @@ public:
     }
   }
 
+  void block_inputs() override {
+    block_inputs_ = true;
+  }
+
+  void unblock_inputs() override {
+    if (block_inputs_) {
+      block_inputs_ = false;
+      for (auto& batch : blocked_batches_)
+        handle(nullptr, batch);
+      blocked_batches_.clear();
+    }
+  }
+
+  bool blocks_inputs() override {
+    return block_inputs_;
+  }
+
   bool done() const override {
     if constexpr (std::is_same<Base, unipath_manager_in_only>::value)
       return super::done();
@@ -310,8 +327,11 @@ public:
   using super::handle;
 
   void handle(caf::inbound_path*, caf::downstream_msg::batch& x) override {
-    BROKER_DEBUG(BROKER_ARG2("batch.size", x.xs_size));
-    if (auto view = caf::make_typed_message_view<std::vector<T>>(x.xs)) {
+    BROKER_DEBUG(BROKER_ARG2("batch.size", x.xs_size)
+                 << BROKER_ARG(block_inputs_));
+    if (block_inputs_) {
+      blocked_batches_.push_back(std::move(x));
+    } else if (auto view = caf::make_typed_message_view<std::vector<T>>(x.xs)) {
       auto& vec = get<0>(view);
       if (vec.size() <= stash_->available()) {
         items_.reserve(vec.size());
@@ -350,6 +370,8 @@ private:
   item_stash_ptr stash_;
   std::vector<item_ptr> items_;
   uint16_t ttl_;
+  bool block_inputs_ = false;
+  std::vector<caf::downstream_msg::batch> blocked_batches_;
 };
 
 } // namespace
@@ -361,6 +383,18 @@ unipath_manager::unipath_manager(central_dispatcher* dispatcher)
 
 unipath_manager::~unipath_manager() {
   // nop
+}
+
+void unipath_manager::block_inputs() {
+  // nop
+}
+
+void unipath_manager::unblock_inputs() {
+  // nop
+}
+
+bool unipath_manager::blocks_inputs() {
+  return false;
 }
 
 unipath_manager_ptr make_data_source(central_dispatcher* dispatcher) {
@@ -393,6 +427,7 @@ unipath_manager_ptr make_peer_manager(central_dispatcher* dispatcher) {
   using base_t = unipath_manager_out<node_message>;
   using impl_t = unipath_manager_in<node_message, base_t>;
   auto result = caf::make_counted<impl_t>(dispatcher);
+  result->block_inputs();
   dispatcher->add(result);
   return result;
 }
