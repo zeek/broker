@@ -1,4 +1,8 @@
 
+2.1.0-dev.12 | 2021-01-04 15:40:56 -0800
+
+  * broker-cluster-benchmark: Fix type mismatch and potential cleanup issue (Dominik Charousset, Corelight)
+
 2.1.0-dev.10 | 2020-12-23 10:13:37 -0800
 
   * Call `ctest` instead of `make test` in CI builds (Dominik Charousset, Corelight)
