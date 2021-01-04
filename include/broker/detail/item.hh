@@ -2,6 +2,7 @@
 
 #include <caf/stream_manager.hpp>
 
+#include "broker/detail/item_scope.hh"
 #include "broker/detail/item_stash.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
@@ -15,10 +16,6 @@ public:
   // -- friends ----------------------------------------------------------------
 
   friend item_stash;
-
-  // -- member types -----------------------------------------------------------
-
-  using variant_type = caf::variant<data_message, command_message>;
 
   // -- intrusive_ptr support --------------------------------------------------
 
@@ -58,6 +55,10 @@ public:
     return msg_ttl_;
   }
 
+  item_scope scope() const noexcept {
+    return scope_;
+  }
+
   const caf::stream_manager_ptr& origin() const noexcept {
     return origin_;
   }
@@ -67,9 +68,10 @@ private:
 
   template <class T>
   item(T&& msg, uint16_t msg_ttl, caf::stream_manager* origin,
-       item_stash* owner)
+       item_stash* owner, item_scope scope)
     : msg_(std::forward<T>(msg)),
       msg_ttl_(msg_ttl),
+      scope_(scope),
       origin_(origin),
       owner_(owner) {
     // nop
@@ -78,8 +80,9 @@ private:
   // -- member variables -------------------------------------------------------
 
   size_t ref_count_ = 1;
-  variant_type msg_;
+  node_message_content msg_;
   uint16_t msg_ttl_;
+  item_scope scope_;
   caf::stream_manager_ptr origin_;
   item_stash_ptr owner_;
 };

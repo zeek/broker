@@ -312,6 +312,7 @@ set(BROKER_SRC
   src/detail/generator_file_writer.cc
   src/detail/item.cc
   src/detail/item_allocator.cc
+  src/detail/item_scope.cc
   src/detail/item_stash.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc

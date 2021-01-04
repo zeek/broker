@@ -19,6 +19,8 @@ public:
   /// Enqueues given items to all nested output paths.
   void enqueue(caf::span<const item_ptr> ptrs);
 
+  void enqueue(const item_ptr& ptr);
+
   /// Tries to emit batches on all nested output paths.
   void ship();
 
@@ -30,6 +32,10 @@ public:
 
   auto self() const noexcept {
     return self_;
+  }
+
+  const auto& managers() const noexcept {
+    return nested_;
   }
 
 private:

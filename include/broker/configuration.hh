@@ -67,8 +67,9 @@ public:
 
   static constexpr skip_init_t skip_init = skip_init_t{};
 
-  /// Default-constructs a configuration.
   configuration();
+
+  configuration(configuration&&) = default;
 
   /// Constructs a configuration with non-default Broker options.
   explicit configuration(broker_options opts);

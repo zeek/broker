@@ -22,6 +22,10 @@ void central_dispatcher::enqueue(caf::span<const item_ptr> ptrs) {
   }
 }
 
+void central_dispatcher::enqueue(const item_ptr& ptr) {
+  enqueue(caf::make_span(&ptr, 1));
+}
+
 void central_dispatcher::ship() {
   for (auto& ptr : nested_)
     ptr->push();

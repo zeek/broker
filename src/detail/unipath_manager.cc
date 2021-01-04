@@ -16,10 +16,16 @@
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
+#include "broker/topic.hh"
 
 namespace broker::detail {
 
 namespace {
+
+bool ends_with(caf::string_view str, caf::string_view suffix) {
+  return str.size() >= suffix.size()
+         && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
 
 // A downstream manager with at most one outbound path.
 template <class T>
@@ -45,12 +51,18 @@ public:
         const auto& msg = ptr->msg();
         if (ptr->origin() != super::parent()) {
           if constexpr (std::is_same<T, node_message>::value) {
-            if (ptr->ttl() > 1 && accept(filter_, msg)) {
+            // Somewhat hacky, but don't forward data store clone messages.
+            if (ptr->scope() != item_scope::local
+                && ptr->ttl() > 1
+                && !ends_with(get_topic(msg).string(),
+                              topics::clone_suffix.string())
+                && accept(filter_, msg)) {
               cache_.emplace_back(make_node_message(msg, ptr->ttl() - 1));
               items_.emplace_back(ptr);
               ++accepted;
             }
-          } else if (caf::holds_alternative<T>(msg)) {
+          } else if (ptr->scope() != item_scope::remote
+                     && caf::holds_alternative<T>(msg)) {
             const auto& unboxed = caf::get<T>(msg);
             if (accept(filter_, unboxed)) {
               cache_.emplace_back(unboxed);
@@ -186,14 +198,16 @@ class unipath_manager_out : public unipath_manager {
 public:
   using super = unipath_manager;
 
-  explicit unipath_manager_out(central_dispatcher* dispatcher)
-    : super(dispatcher), out_(this) {
+  unipath_manager_out(central_dispatcher* dispatcher,
+                      unipath_manager::observer* observer)
+    : super(dispatcher, observer), out_(this) {
     // nop
   }
 
   template <class Filter>
-  unipath_manager_out(central_dispatcher* dispatcher, Filter&& filter)
-    : super(dispatcher), out_(this) {
+  unipath_manager_out(central_dispatcher* dispatcher,
+                      unipath_manager::observer* observer, Filter&& filter)
+    : unipath_manager_out(dispatcher, observer) {
     out_.filter_ = std::forward<Filter>(filter);
   }
 
@@ -209,12 +223,24 @@ public:
     out_.filter_ = std::move(new_filter);
   }
 
+  bool accepts(const topic&t) const noexcept override {
+    prefix_matcher accept;
+    return accept(out_.filter_, t);
+  }
+
+  caf::type_id_t message_type() const noexcept override {
+    return caf::type_id_v<T>;
+  }
+
   caf::downstream_manager& out() override {
     return out_;
   }
 
   bool done() const override {
-    return !out_.has_path();
+    auto open_paths = out_.num_paths()
+                      + this->pending_handshakes_
+                      + this->inbound_paths_.size();
+    return open_paths == 0 || !super::self_->has_behavior();
   }
 
   bool idle() const noexcept override {
@@ -227,6 +253,28 @@ public:
     }
   }
 
+  using super::handle;
+
+  bool handle(caf::stream_slots slots,
+              caf::upstream_msg::ack_open& x) override {
+    BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(x));
+    auto rebind_from = x.rebind_from;
+    auto rebind_to = x.rebind_to;
+    if (x.rebind_from != x.rebind_to) {
+      BROKER_ERROR("unipath managers disallow rebinding!");
+      this->closing(false, caf::sec::runtime_error);
+      return false;
+    } else if (caf::stream_manager::handle(slots, x)) {
+      if (auto ptr = this->observer_)
+        ptr->downstream_connected(this, caf::actor_cast<caf::actor>(rebind_to));
+      return true;
+    } else {
+      BROKER_ERROR("unipath manager failed to process ack_open!");
+      this->closing(false, caf::sec::runtime_error);
+      return false;
+    }
+  }
+
 protected:
   unipath_downstream<T> out_;
 };
@@ -235,8 +283,9 @@ class unipath_manager_in_only : public unipath_manager {
 public:
   using super = unipath_manager;
 
-  unipath_manager_in_only(central_dispatcher* dispatcher)
-    : super(dispatcher), out_(this) {
+  unipath_manager_in_only(central_dispatcher* dispatcher,
+                          unipath_manager::observer* observer)
+    : super(dispatcher, observer), out_(this) {
     // nop
   }
 
@@ -252,12 +301,16 @@ public:
     // nop
   }
 
+  bool accepts(const topic&) const noexcept override {
+    return false;
+  }
+
   caf::downstream_manager& out() override {
     return out_;
   }
 
   bool done() const override {
-    return !continuous() && inbound_paths_.empty();
+    return inbound_paths_.empty() || !super::self_->has_behavior();
   }
 
   bool idle() const noexcept override {
@@ -274,8 +327,9 @@ public:
   using super = Base;
 
   template <class... Ts>
-  explicit unipath_manager_in(central_dispatcher* dispatcher, Ts&&... xs)
-    : super(dispatcher, std::forward<Ts>(xs)...) {
+  explicit unipath_manager_in(central_dispatcher* dispatcher,
+                              unipath_manager::observer* observer, Ts&&... xs)
+    : super(dispatcher, observer, std::forward<Ts>(xs)...) {
     auto sptr = super::self();
     auto& cfg = sptr->system().config();
     auto stash_size = caf::get_or(cfg, "broker.max-pending-inputs-per-source",
@@ -307,12 +361,8 @@ public:
     return block_inputs_;
   }
 
-  bool done() const override {
-    if constexpr (std::is_same<Base, unipath_manager_in_only>::value)
-      return super::done();
-    else
-      return !this->continuous() && this->inbound_paths_.empty()
-             && this->pending_handshakes_ == 0 && this->out_.clean();
+  caf::type_id_t message_type() const noexcept override {
+    return caf::type_id_v<T>;
   }
 
   bool idle() const noexcept override {
@@ -341,7 +391,8 @@ public:
             auto ttl = std::min(ttl_, x.ttl);
             ptr = stash_->next_item(std::move(x.content), ttl, this);
           } else {
-            ptr = stash_->next_item(std::move(x), ttl_, this);
+            ptr = stash_->next_item(std::move(x), ttl_, this,
+                                    item_scope::remote);
           }
           items_.emplace_back(std::move(ptr));
         }
@@ -376,8 +427,14 @@ private:
 
 } // namespace
 
-unipath_manager::unipath_manager(central_dispatcher* dispatcher)
-  : super(dispatcher->self()), dispatcher_(dispatcher) {
+// -- unipath_manager ----------------------------------------------------------
+
+unipath_manager::observer::~observer() {
+  // nop
+}
+
+unipath_manager::unipath_manager(central_dispatcher* dispatcher, observer* obs)
+  : super(dispatcher->self()), dispatcher_(dispatcher), observer_(obs) {
   // nop
 }
 
@@ -397,39 +454,132 @@ bool unipath_manager::blocks_inputs() {
   return false;
 }
 
+bool unipath_manager::has_inbound_path() const noexcept {
+  return inbound_paths().size() == 1;
+}
+
+bool unipath_manager::has_outbound_path() const noexcept {
+  return out().num_paths() == 1;
+}
+
+caf::stream_slot unipath_manager::inbound_path_slot() const noexcept {
+  if (auto& vec = inbound_paths(); vec.size() == 1)
+    return vec[0]->slots.receiver;
+  else
+    return caf::invalid_stream_slot;
+}
+
+caf::stream_slot unipath_manager::outbound_path_slot() const noexcept {
+  // Work around missing `const` qualifier for `path_slots`.
+  auto mutable_this = const_cast<unipath_manager*>(this);
+  if (auto vec = mutable_this->out().path_slots(); vec.size() == 1)
+    return vec[0];
+  else
+    return caf::invalid_stream_slot;
+}
+
+caf::actor unipath_manager::hdl() const noexcept {
+  if (auto& vec = inbound_paths(); vec.size() == 1) {
+    return caf::actor_cast<caf::actor>(vec[0]->hdl);
+  } else {
+    // We only ever have 0 or 1 path. Hence, for_each_path gets called either
+    // once or not at all.
+    caf::actor result;
+    out().for_each_path([&](const caf::outbound_path& x) {
+      result = caf::actor_cast<caf::actor>(x.hdl);
+    });
+    return result;
+  }
+}
+
+void unipath_manager::handle(caf::inbound_path* path,
+                             caf::downstream_msg::close& x) {
+  closing(true, {});
+  super::handle(path, x);
+}
+
+void unipath_manager::handle(caf::inbound_path* path,
+                             caf::downstream_msg::forced_close& x) {
+  closing(false, x.reason);
+  super::handle(path, x);
+}
+
+void unipath_manager::handle(caf::stream_slots slots,
+                             caf::upstream_msg::drop& x) {
+  closing(true, {});
+  super::handle(slots, x);
+}
+
+void unipath_manager::handle(caf::stream_slots slots,
+                             caf::upstream_msg::forced_drop& x) {
+  closing(false, x.reason);
+  super::handle(slots, x);
+}
+
+void unipath_manager::closing(bool graceful, const caf::error& reason) {
+  if (observer_) {
+    observer_->closing(this, graceful, reason);
+    observer_ = nullptr;
+  }
+}
+
+// -- free functions -----------------------------------------------------------
+
 unipath_manager_ptr make_data_source(central_dispatcher* dispatcher) {
   using impl_t = unipath_manager_in<data_message>;
-  return caf::make_counted<impl_t>(dispatcher);
+  return caf::make_counted<impl_t>(dispatcher, nullptr);
 }
 
 unipath_manager_ptr make_command_source(central_dispatcher* dispatcher) {
   using impl_t = unipath_manager_in<command_message>;
-  return caf::make_counted<impl_t>(dispatcher);
+  return caf::make_counted<impl_t>(dispatcher, nullptr);
+}
+
+unipath_manager_ptr make_source(central_dispatcher* dispatcher,
+                                caf::stream<data_message> in) {
+  auto mgr = make_data_source(dispatcher);
+  mgr->add_unchecked_inbound_path(in);
+  return mgr;
+}
+
+unipath_manager_ptr make_source(central_dispatcher* dispatcher,
+                                caf::stream<command_message> in) {
+  auto mgr = make_command_source(dispatcher);
+  mgr->add_unchecked_inbound_path(in);
+  return mgr;
+}
+
+unipath_manager_ptr make_source(central_dispatcher* dispatcher,
+                                caf::stream<node_message_content> in) {
+  using impl_t = unipath_manager_in<node_message_content>;
+  auto mgr = caf::make_counted<impl_t>(dispatcher, nullptr);
+  mgr->add_unchecked_inbound_path(in);
+  return mgr;
 }
 
 unipath_manager_ptr make_data_sink(central_dispatcher* dispatcher,
                                    filter_type filter) {
   using impl_t = unipath_manager_out<data_message>;
-  auto result = caf::make_counted<impl_t>(dispatcher, std::move(filter));
-  dispatcher->add(result);
-  return result;
+  auto ptr = caf::make_counted<impl_t>(dispatcher, nullptr, std::move(filter));
+  dispatcher->add(ptr);
+  return ptr;
 }
 
 unipath_manager_ptr make_command_sink(central_dispatcher* dispatcher,
                                       filter_type filter) {
   using impl_t = unipath_manager_out<command_message>;
-  auto result = caf::make_counted<impl_t>(dispatcher, std::move(filter));
-  dispatcher->add(result);
-  return result;
+  auto ptr = caf::make_counted<impl_t>(dispatcher, nullptr, std::move(filter));
+  dispatcher->add(ptr);
+  return ptr;
 }
 
-unipath_manager_ptr make_peer_manager(central_dispatcher* dispatcher) {
+unipath_manager_ptr make_peer_manager(central_dispatcher* dispatcher,
+                                      unipath_manager::observer* observer) {
   using base_t = unipath_manager_out<node_message>;
   using impl_t = unipath_manager_in<node_message, base_t>;
-  auto result = caf::make_counted<impl_t>(dispatcher);
-  result->block_inputs();
-  dispatcher->add(result);
-  return result;
+  auto ptr = caf::make_counted<impl_t>(dispatcher, observer);
+  ptr->block_inputs();
+  return ptr;
 }
 
 } // namespace broker::detail
