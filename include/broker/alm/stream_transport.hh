@@ -155,14 +155,18 @@ public:
       mgr->stop();
       mgr_to_hdl_.erase(mgr);
       hdl_to_mgr_.erase(i);
-      dref().peer_removed(hdl.node(), hdl);
+      dref().peer_removed(peer_id, hdl);
     } else if (auto j = pending_connections_.find(hdl);
                j != pending_connections_.end()) {
       auto mgr = j->second.mgr;
       mgr->unobserve();
       mgr->stop();
-      j->second.rp.deliver(make_error(ec::peer_disconnect_during_handshake));
+      auto err = make_error(ec::peer_disconnect_during_handshake);
+      j->second.rp.deliver(err);
       pending_connections_.erase(j);
+      dref().peer_unavailable(peer_id, hdl, err);
+    } else {
+      dref().cannot_remove_peer(peer_id, hdl);
     }
     // Shut down when the last peer stops listening.
     if (dref().shutting_down() && pending_connections_.empty()
@@ -173,9 +177,8 @@ public:
   /// Disconnects a peer by demand of the user.
   void unpeer(const caf::actor& hdl) {
     BROKER_TRACE(BROKER_ARG(hdl));
-    if (!hdl)
-      return;
-    unpeer(hdl.node(), hdl);
+    if (hdl)
+      unpeer(hdl.node(), hdl);
   }
 
   /// Starts the handshake process for a new peering (step #1 in core_actor.cc).
@@ -335,7 +338,7 @@ public:
   /// Subscribes `hdl` to `store_manager()`.
   caf::error add_store(const caf::actor& hdl, const filter_type& filter) {
     BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(filter));
-    auto mgr = make_command_sink(&dispatcher_, std::move(filter));
+    auto mgr = make_command_sink(&dispatcher_, filter);
     auto res = mgr->template add_unchecked_outbound_path<command_message>(hdl);
     if (res != caf::invalid_stream_slot) {
       dref().subscribe(filter);

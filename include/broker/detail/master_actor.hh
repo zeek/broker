@@ -36,6 +36,7 @@ public:
 
   template <class T>
   void broadcast_cmd_to_clones(T cmd) {
+    BROKER_DEBUG("broadcast" << cmd << "to" << clones.size() << "clones");
     if (!clones.empty())
       broadcast(internal_command{std::move(cmd)});
   }

@@ -35,11 +35,13 @@ caf::behavior testee_impl(testee_actor* self){
         return make_error(caf::sec::runtime_error, "only one input allowed");
       }
     },
-    [self](atom::publish, caf::actor publisher) -> caf::result<void> {
+    [self](atom::join, caf::actor consumer) -> caf::result<void> {
       auto& st = self->state;
       if (st.out == nullptr) {
-        st.out = make_data_sink(&st.dispatcher, {"test"});
-        st.out->add_unchecked_outbound_path<data_message>(publisher);
+        st.out = make_peer_manager(&st.dispatcher, nullptr);
+        st.out->filter({"test"});
+        st.out->add_unchecked_outbound_path<node_message>(consumer);
+        st.dispatcher.add(st.out);
         return caf::unit;
       } else {
         return make_error(caf::sec::runtime_error, "only one output allowed");
@@ -55,16 +57,17 @@ struct consumer_state {
 using consumer_actor = caf::stateful_actor<consumer_state>;
 
 caf::behavior consumer_impl(consumer_actor* self, caf::actor testee) {
-  self->send(testee, atom::publish_v, self);
+  self->send(testee, atom::join_v, self);
   return {
-    [self](caf::stream<data_message> in) {
+    [self](caf::stream<node_message> in) {
       caf::attach_stream_sink(
         self, in,
         // Initialization step.
         [](caf::unit_t&) {},
         // Processing step.
-        [self](caf::unit_t&, data_message x) {
+        [self](caf::unit_t&, node_message x) {
           auto& buf = self->state.buf;
+          REQUIRE(is_data_message(x));
           buf.emplace_back(get_data(x));
           if (buf.size() % 100 == 0)
             MESSAGE("consumed " << buf.size() << " data message");

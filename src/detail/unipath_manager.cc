@@ -42,8 +42,6 @@ public:
   using super::super;
 
   ptrdiff_t enqueue(caf::span<const item_ptr> ptrs) {
-    BROKER_DEBUG(BROKER_ARG2("ptrs.size", ptrs.size())
-                 << BROKER_ARG2("has_path", has_path()));
     if (path_) {
       prefix_matcher accept;
       ptrdiff_t accepted = 0;
@@ -54,8 +52,6 @@ public:
             // Somewhat hacky, but don't forward data store clone messages.
             if (ptr->scope() != item_scope::local
                 && ptr->ttl() > 1
-                && !ends_with(get_topic(msg).string(),
-                              topics::clone_suffix.string())
                 && accept(filter_, msg)) {
               cache_.emplace_back(make_node_message(msg, ptr->ttl() - 1));
               items_.emplace_back(ptr);
@@ -72,8 +68,12 @@ public:
           }
         }
       }
+      BROKER_DEBUG(BROKER_ARG2("ptrs.size", ptrs.size())
+                   << BROKER_ARG(accepted));
       return accepted;
     } else {
+      BROKER_DEBUG("no path available"
+                   << BROKER_ARG2("ptrs.size", ptrs.size()));
       return -1;
     }
   }
@@ -377,6 +377,7 @@ public:
   using super::handle;
 
   void handle(caf::inbound_path*, caf::downstream_msg::batch& x) override {
+    BROKER_TRACE(BROKER_ARG(x));
     BROKER_DEBUG(BROKER_ARG2("batch.size", x.xs_size)
                  << BROKER_ARG(block_inputs_));
     if (block_inputs_) {
@@ -388,7 +389,12 @@ public:
         for (auto& x : vec) {
           item_ptr ptr;
           if constexpr (std::is_same<T, node_message>::value) {
-            auto ttl = std::min(ttl_, x.ttl);
+            // Somewhat hacky, but don't forward data store clone messages.
+            uint16_t ttl;
+            if (ends_with(get_topic(x).string(), topics::clone_suffix.string()))
+              ttl = 1;
+            else
+              ttl = std::min(ttl_, x.ttl);
             ptr = stash_->next_item(std::move(x.content), ttl, this);
           } else {
             ptr = stash_->next_item(std::move(x), ttl_, this,
