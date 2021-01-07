@@ -93,6 +93,8 @@ public:
 
   // -- overrides --------------------------------------------------------------
 
+  bool congested(const caf::inbound_path&) const noexcept override;
+
   void handle(caf::inbound_path*, caf::downstream_msg::close&) override;
 
   void handle(caf::inbound_path*, caf::downstream_msg::forced_close&) override;

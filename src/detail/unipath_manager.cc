@@ -27,6 +27,19 @@ bool ends_with(caf::string_view str, caf::string_view suffix) {
          && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
+void try_grant_more_credit(caf::stream_manager* mgr) {
+  for (auto path : mgr->inbound_paths()) {
+    if (path->hdl) {
+      auto available = path->available_credit();
+      if (available >= path->desired_batch_size
+          || (path->assigned_credit == 0 && available > 0)) {
+        if (auto acquired = mgr->acquire_credit(path, available); acquired > 0)
+          path->emit_ack_batch(mgr->self(), acquired);
+      }
+    }
+  }
+}
+
 // A downstream manager with at most one outbound path.
 template <class T>
 class unipath_downstream : public caf::downstream_manager {
@@ -113,8 +126,22 @@ public:
       BROKER_ASSERT(path_ != nullptr);
       auto old_size = cache_.size();
       path_->emit_batches(super::self(), cache_, forced || path_->closing);
-      if (auto delta = old_size - cache_.size(); delta > 0)
-        items_.erase(items_.begin(), items_.begin() + delta);
+      if (auto delta = old_size - cache_.size(); delta > 0) {
+        // Get all stream managers that reclaim items as a result of us
+        // releasing erasing elements from items_. Then drop the items and check
+        // for each manager if they can grant new credit again.
+        auto first = items_.begin();
+        auto last = items_.begin() + delta;
+        for (auto i = first; i != last; ++i)
+          if ((*i)->unique() && (*i)->origin())
+            mgr_cache_.emplace_back((*i)->origin());
+        items_.erase(first, last);
+        std::sort(mgr_cache_.begin(), mgr_cache_.end());
+        auto e = std::unique(mgr_cache_.begin(), mgr_cache_.end());
+        for (auto i = mgr_cache_.begin(); i != e; ++i)
+          try_grant_more_credit(i->get());
+        mgr_cache_.clear();
+      }
     }
   }
 
@@ -191,6 +218,7 @@ public:
   filter_type filter_;
   std::vector<T> cache_;
   std::vector<item_ptr> items_;
+  std::vector<caf::stream_manager_ptr> mgr_cache_;
 };
 
 template <class T>
@@ -405,6 +433,7 @@ public:
         super::dispatcher_->enqueue(items_);
         super::dispatcher_->ship();
         items_.clear();
+        try_grant_more_credit(this);
       } else {
         BROKER_ERROR("received more data then we have allowed!");
       }
@@ -496,6 +525,15 @@ caf::actor unipath_manager::hdl() const noexcept {
     });
     return result;
   }
+}
+
+bool unipath_manager::congested(const caf::inbound_path&) const noexcept {
+  // This function usually makes sure that stream managers stop processing
+  // inputs once they cannot make progress sending. However, the way Broker uses
+  // streams deviates from the way "regular" stream managers operate.
+  // Essentially, a unipath_manager is a two-way channel. Hence, we cannot ever
+  // become "congested" here since inputs and outputs are not correlated.
+  return false;
 }
 
 void unipath_manager::handle(caf::inbound_path* path,
