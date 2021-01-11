@@ -23,7 +23,6 @@
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/memory_backend.hh"
-#include "broker/detail/rocksdb_backend.hh"
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -50,12 +49,6 @@ public:
     path += ".sqlite";
     paths_.push_back(path);
     backends_.push_back(detail::make_backend(backend::sqlite, opts));
-#ifdef BROKER_HAVE_ROCKSDB
-    auto base = path;
-    path = base + ".rocksdb";
-    paths_.push_back(path);
-    backends_.push_back(detail::make_backend(backend::rocksdb, opts));
-#endif
   }
 
   ~meta_backend() {

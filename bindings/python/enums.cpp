@@ -68,6 +68,5 @@ void init_enums(py::module& m) {
   py::enum_<broker::backend>(m, "Backend")
     .value("Memory", broker::backend::memory)
     .value("SQLite", broker::backend::sqlite)
-    .value("RocksDB", broker::backend::rocksdb)
     .export_values();
 }

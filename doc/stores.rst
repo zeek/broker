@@ -54,11 +54,6 @@ The master can choose to keep its data in various backends:
    SQLite3 format on disk. While offering persistence, it does not scale
    well to large volumes.
 
-3. `RocksDB <http://rocksdb.org>`_. This backend relies on an
-   industrial-strength, high-performance database with a variety of tuning
-   knobs. If your application requires persistence and also needs to scale,
-   this backend is your best choice.
-
 Operations
 ----------
 
@@ -84,7 +79,7 @@ The factory function ``endpoint::attach_master`` has the following signature:
 
 The function takes as first argument the global name of the store, as
 second argument the type of store
-(``broker::{memory,sqlite,rocksdb}``), and as third argument
+(``broker::{memory,sqlite}``), and as third argument
 optionally a set of backend options, such as the path where to keep
 the backend on the filesystem. The function returns a
 ``expected<store>`` which encapsulates a type-erased reference to the
@@ -165,7 +160,7 @@ Data stores support the following mutating operations:
     For an existing vector at ``key``, removes its last value. If
     ``expiry`` is given, the modified entry's expiration time will be
     updated accordingly.
-    
+
 Direct Retrieval
 ~~~~~~~~~~~~~~~~
 

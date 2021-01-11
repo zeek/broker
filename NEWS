@@ -1,7 +1,8 @@
 Broker 2.1.0
 ============
 
-- Nothing notable yet.
+- The RocksDB data store backend was removed as building with it was previously
+  broken/unusable.
 
 Broker 2.0.0
 ============
