@@ -10,7 +10,4 @@ enum class backend : uint8_t {
   sqlite, ///< A SQLite3 backend.
 };
 
-[[deprecated("Use broker::backend::memory.")]] constexpr auto memory = backend::memory;
-[[deprecated("Use broker::backend::sqlite.")]] constexpr auto sqlite = backend::sqlite;
-
 } // namespace broker

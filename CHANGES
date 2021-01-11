@@ -1,4 +1,10 @@
 
+2.1.0-dev.16 | 2021-01-11 11:05:53 -0800
+
+  * Remove deprecated broker::memory/broker::sqlite enums (Jon Siwek, Corelight)
+
+  * Remove unused and broken rocksdb backend (Dominik Charousset, Corelight)
+
 2.1.0-dev.12 | 2021-01-04 15:40:56 -0800
 
   * broker-cluster-benchmark: Fix type mismatch and potential cleanup issue (Dominik Charousset, Corelight)
