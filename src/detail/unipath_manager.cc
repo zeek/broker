@@ -64,7 +64,7 @@ public:
           if constexpr (std::is_same<T, node_message>::value) {
             // Somewhat hacky, but don't forward data store clone messages.
             if (ptr->scope() != item_scope::local
-                && ptr->ttl() > 1
+                && ptr->ttl() > 0
                 && accept(filter_, msg)) {
               cache_.emplace_back(make_node_message(msg, ptr->ttl() - 1));
               items_.emplace_back(ptr);

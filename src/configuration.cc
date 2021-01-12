@@ -111,6 +111,7 @@ configuration::configuration(skip_init_t) {
 configuration::configuration(broker_options opts) : configuration(skip_init) {
   options_ = opts;
   set("broker.ttl", opts.ttl);
+  put(content, "broker.forward", opts.forward);
   init(0, nullptr);
 }
 
