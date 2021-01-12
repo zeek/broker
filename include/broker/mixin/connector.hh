@@ -8,6 +8,7 @@
 #include "broker/detail/network_cache.hh"
 #include "broker/detail/retry_state.hh"
 #include "broker/error.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 namespace broker::mixin {
@@ -40,15 +41,19 @@ public:
 
   void try_peering(const network_info& addr, caf::response_promise rp,
                    uint32_t count) {
+    BROKER_TRACE(BROKER_ARG(count));
     auto self = super::self();
     // Fetch the comm. handle from the cache and with that fetch the ID from the
     // remote peer via direct request messages.
     cache_.fetch(
       addr,
       [=](communication_handle_type hdl) mutable {
+        BROKER_DEBUG("lookup successful:" << BROKER_ARG(addr)
+                                          << BROKER_ARG(hdl));
         dref().start_peering(hdl.node(), hdl, std::move(rp));
       },
       [=](error err) mutable {
+        BROKER_DEBUG("lookup failed:" << BROKER_ARG(addr) << BROKER_ARG(err));
         dref().peer_unavailable(addr);
         if (addr.retry.count() == 0 && ++count < 10) {
           rp.deliver(std::move(err));
@@ -77,6 +82,7 @@ public:
     if (!dref().shutting_down()) {
       auto x = cache_.find(hdl);
       if (x && x->retry != timeout::seconds(0)) {
+        cache_.remove(hdl);
         BROKER_INFO("will try reconnecting to" << *x << "in"
                                                << to_string(x->retry));
         auto self = super::self();
