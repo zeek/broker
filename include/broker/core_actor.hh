@@ -32,12 +32,17 @@
 
 namespace broker {
 
-class core_manager
-  : public caf::extend<alm::stream_transport<core_manager, caf::node_id>,
-                       core_manager>:: //
+class core_state
+  : public caf::extend<alm::stream_transport<core_state, caf::node_id>,
+                       core_state>:: //
     with<mixin::connector, mixin::notifier, mixin::data_store_manager,
          mixin::recorder> {
 public:
+  // --- constants -------------------------------------------------------------
+
+  /// Gives this actor a recognizable name in log output.
+  static inline const char* name = "core";
+
   // --- member types ----------------------------------------------------------
 
   using super = extended_base;
@@ -49,8 +54,9 @@ public:
 
   // --- construction ----------------------------------------------------------
 
-  core_manager(caf::event_based_actor* ptr, const filter_type& filter,
-               broker_options opts, endpoint::clock* ep_clock);
+  core_state(caf::event_based_actor* ptr, const filter_type& filter,
+             broker_options opts = broker_options{},
+             endpoint::clock* ep_clock = nullptr);
 
   // --- initialization --------------------------------------------------------
 
@@ -58,15 +64,15 @@ public:
 
   // --- properties ------------------------------------------------------------
 
-  const auto& filter() const {
+  const auto& filter() const noexcept {
     return filter_;
   }
 
-  const auto& options() const {
+  const auto& options() const noexcept {
     return options_;
   }
 
-  bool shutting_down() const {
+  bool shutting_down() const noexcept {
     return shutting_down_;
   }
 
@@ -109,21 +115,6 @@ private:
   std::unordered_map<caf::actor, size_t> peers_awaiting_status_sync_;
 };
 
-struct core_state {
-  /// Establishes all invariants.
-  void init(filter_type initial_filter, broker_options opts,
-            endpoint::clock* ep_clock);
-
-  /// Multiplexes local streams and streams for peers.
-  caf::intrusive_ptr<core_manager> mgr;
-
-  /// Gives this actor a recognizable name in log output.
-  static inline const char* name = "core";
-};
-
 using core_actor_type = caf::stateful_actor<core_state>;
-
-caf::behavior core_actor(core_actor_type* self, filter_type initial_filter,
-                         broker_options opts, endpoint::clock* clock);
 
 } // namespace broker

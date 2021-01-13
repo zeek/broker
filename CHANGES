@@ -1,4 +1,8 @@
 
+2.1.0-dev.25 | 2021-01-12 20:19:56 -0800
+
+  * GH-165: Fix possible deadlock by implementing new origin-based credit strategy (Dominik Charousset, Corelight)
+
 2.1.0-dev.16 | 2021-01-11 11:05:53 -0800
 
   * Remove deprecated broker::memory/broker::sqlite enums (Jon Siwek, Corelight)

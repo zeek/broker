@@ -81,7 +81,7 @@ CAF_TEST(blocking_publishers) {
   broker_options options;
   options.disable_ssl = true;
   auto core1 = ep.core();
-  auto core2 = sys.spawn(core_actor, filter_type{"a"}, options, nullptr);
+  auto core2 = sys.spawn<core_actor_type>(filter_type{"a"}, options, nullptr);
   anon_send(core1, atom::subscribe_v, filter_type{"a"});
   anon_send(core1, atom::no_events_v);
   anon_send(core2, atom::no_events_v);
@@ -136,7 +136,8 @@ CAF_TEST(nonblocking_publishers) {
   broker_options options;
   options.disable_ssl = true;
   auto core1 = ep.core();
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
+                                          options, nullptr);
   anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
   anon_send(core1, atom::no_events_v);
   anon_send(core2, atom::no_events_v);

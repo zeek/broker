@@ -39,23 +39,30 @@ using namespace caf;
 
 namespace broker {
 
-core_manager::core_manager(caf::event_based_actor* ptr,
-                           const filter_type& initial_filter,
-                           broker_options opts, endpoint::clock* ep_clock)
+core_state::core_state(caf::event_based_actor* ptr,
+                       const filter_type& initial_filter, broker_options opts,
+                       endpoint::clock* ep_clock)
   : super(ep_clock, ptr, initial_filter),
     options_(opts),
     filter_(initial_filter) {
   cache().set_use_ssl(!options_.disable_ssl);
+  // We monitor remote inbound peerings and local outbound peerings.
+  self_->set_down_handler([this](const caf::down_msg& down) {
+    if (!down.source)
+      ; // Ignore bogus message.
+    else if (auto hdl = caf::actor_cast<caf::actor>(down.source))
+      drop_peer(hdl, false, down.reason);
+  });
 }
 
-void core_manager::update_filter_on_peers() {
+void core_state::update_filter_on_peers() {
   BROKER_TRACE("");
-  for_each_peer([&](const actor& hdl) {
+  for_each_peer([this](const actor& hdl) {
     self()->send(hdl, atom::update_v, filter_);
   });
 }
 
-void core_manager::subscribe(filter_type xs) {
+void core_state::subscribe(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
   // Status and error topics are internal topics.
   auto internal_only = [](const topic& x) {
@@ -72,20 +79,16 @@ void core_manager::subscribe(filter_type xs) {
   }
 }
 
-bool core_manager::has_remote_subscriber(const topic& x) noexcept {
-  return peer_manager().any_filter([&](const peer_filter& filter) {
-    auto e = filter.second.end();
-    return std::find(filter.second.begin(), e, x) != e;
-  });
+bool core_state::has_remote_subscriber(const topic& x) noexcept {
+  return any_peer_manager([&x](const auto& mgr) { return mgr->accepts(x); });
 }
 
-void core_manager::peer_connected(const peer_id_type& peer_id,
-                                  const communication_handle_type& hdl) {
+void core_state::peer_connected(const peer_id_type& peer_id,
+                                const communication_handle_type& hdl) {
   super::peer_connected(peer_id, hdl);
-  unblock_peer(hdl);
 }
 
-caf::behavior core_manager::make_behavior(){
+caf::behavior core_state::make_behavior() {
   return super::make_behavior(
     // --- filter manipulation -------------------------------------------------
     [=](atom::subscribe, filter_type& f) {
@@ -131,33 +134,19 @@ caf::behavior core_manager::make_behavior(){
         BROKER_WARNING("Received unexpected or repeated step #2 handshake.");
         return;
       }
-      block_peer(peer_hdl);
-      ack_peering(in, peer_hdl);
       start_handshake<false>(peer_hdl, std::move(filter));
-      // Emit peer added event.
-      peer_connected(peer_hdl.node(), peer_hdl);
-      // Send handle to the actor that initiated a peering (if available).
-      auto i = pending_connections().find(peer_hdl);
-      if (i != pending_connections().end()) {
-        i->second.rp.deliver(peer_hdl);
-        pending_connections().erase(i);
-      }
+      ack_peering(in, peer_hdl);
     },
     // Step #3: - A establishes a stream to B
     //          - B has a stream to A and vice versa now
     [=](const stream<node_message>& in, ok_atom, caf::actor& peer_hdl) {
       BROKER_TRACE(BROKER_ARG(in) << BROKER_ARG(peer_hdl));
-      if (!has_outbound_path_to(peer_hdl)) {
+      if (!pending_connections().count(peer_hdl)) {
         BROKER_ERROR("Received a step #3 handshake, but no #1 previously.");
-        return;
-      }
-      if (has_inbound_path_from(peer_hdl)) {
-        BROKER_DEBUG("Drop repeated step #3 handshake.");
-        return;
-      }
-      block_peer(peer_hdl);
-      peer_connected(peer_hdl.node(), peer_hdl);
-      ack_peering(in, peer_hdl);
+      } else if (ack_peering(in, peer_hdl))
+        try_finalize_handshake(peer_hdl);
+      else
+        BROKER_DEBUG("Drop (repeated?) step #3 handshake.");
     },
     // --- asynchronous communication to peers ---------------------------------
     [=](atom::update, filter_type f) {
@@ -180,12 +169,12 @@ caf::behavior core_manager::make_behavior(){
     },
     [=](atom::join, atom::update, stream_slot slot, filter_type& filter) {
       subscribe(filter);
-      worker_manager().set_filter(slot, std::move(filter));
+      set_filter(slot, std::move(filter));
     },
     [=](atom::join, atom::update, stream_slot slot, filter_type& filter,
         caf::actor& who_asked) {
       subscribe(filter);
-      worker_manager().set_filter(slot, std::move(filter));
+      set_filter(slot, std::move(filter));
       self()->send(who_asked, true);
     },
     [=](atom::join, atom::store, const filter_type& filter) {
@@ -193,11 +182,11 @@ caf::behavior core_manager::make_behavior(){
     },
     [=](endpoint::stream_type in) {
       BROKER_TRACE("add data_message input stream");
-      add_unchecked_inbound_path(in);
+      detail::make_source(&dispatcher_, in);
     },
     [=](stream<node_message::value_type> in) {
       BROKER_TRACE("add node_message::value_type input stream");
-      add_unchecked_inbound_path(in);
+      detail::make_source(&dispatcher_, in);
     },
     [=](atom::publish, data_message& x) {
       BROKER_TRACE(BROKER_ARG(x));
@@ -255,18 +244,16 @@ caf::behavior core_manager::make_behavior(){
         add(hdl, peer_status::peered);
       });
       // collect pending peers
-      for (auto& [hdl, state] : pending_connections())
-        if (state.slot != invalid_stream_slot)
-          add(hdl, peer_status::connected);
-        else
-          add(hdl, peer_status::connecting);
+      for (const auto& kvp : pending_connections())
+        add(kvp.first, peer_status::connecting);
       return result;
     },
     [=](atom::get, atom::peer, atom::subscriptions) {
       std::vector<topic> result;
       // Collect filters for all peers.
-      for_each_filter([&](const peer_filter& x) {
-        result.insert(result.end(), x.second.begin(), x.second.end());
+      for_each_filter([&](auto x) {
+        result.insert(result.end(), std::make_move_iterator(x.begin()),
+                      std::make_move_iterator(x.end()));
       });
       // Sort and drop duplicates.
       std::sort(result.begin(), result.end());
@@ -278,9 +265,6 @@ caf::behavior core_manager::make_behavior(){
     // --- destructive state manipulations -------------------------------------
     [=](atom::unpeer, actor x) { unpeer(x); },
     [=](atom::shutdown) {
-      auto& peers = peer_manager();
-      peers.selector().active_sender = nullptr;
-      peers.fan_out_flush();
       self()->quit(exit_reason::user_shutdown);
       /* -- To consider:
          -- Terminating the actor after receiving shutdown unconditionally can
@@ -313,38 +297,11 @@ caf::behavior core_manager::make_behavior(){
       */
     },
     [=](atom::shutdown, atom::store) {
-      strong_actor_ptr dummy;
-      for (auto& kvp : store_manager().paths())
-        self()->send_exit(kvp.second->hdl, caf::exit_reason::user_shutdown);
+      for (auto& kvp : masters_)
+        self()->send_exit(kvp.second, caf::exit_reason::user_shutdown);
+      for (auto& kvp : clones_)
+        self()->send_exit(kvp.second, caf::exit_reason::user_shutdown);
     });
-}
-
-caf::behavior core_actor(core_actor_type* self, filter_type filter,
-                         broker_options options, endpoint::clock* clock) {
-  auto& st = self->state;
-  st.mgr = caf::make_counted<core_manager>(self, filter, options, clock);
-  // We monitor remote inbound peerings and local outbound peerings.
-  self->set_down_handler([self](const caf::down_msg& down) {
-    if (!down.source) {
-      // Ignore bogus message.
-      return;
-    }
-    // Only required because the initial `peer` message can get lost.
-    auto& mgr = *self->state.mgr;
-    auto hdl = caf::actor_cast<caf::actor>(down.source);
-    if (!hdl) {
-      // We store strong pointers in pending_connections_. Hence, this cast can
-      // never fail for actors we still care about.
-      return;
-    }
-    auto i = mgr.pending_connections().find(hdl);
-    if (i != mgr.pending_connections().end()) {
-      self->state.mgr->peer_unavailable(hdl.node(), hdl, down.reason);
-      i->second.rp.deliver(down.reason);
-      mgr.pending_connections().erase(i);
-    }
-  });
-  return st.mgr->make_behavior();
 }
 
 } // namespace broker

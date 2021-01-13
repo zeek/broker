@@ -109,8 +109,18 @@ namespace broker::detail {
 
 struct retry_state;
 
+class central_dispatcher;
 class flare_actor;
+class item;
+class item_allocator;
+class item_stash;
 class mailbox;
+class unipath_manager;
+
+void intrusive_ptr_release(item*) noexcept;
+void intrusive_ptr_add_ref(item*) noexcept;
+
+using item_ptr = caf::intrusive_ptr<item>;
 
 } // namespace broker::detail
 
@@ -120,7 +130,7 @@ class mailbox;
   using name = caf::name##_atom;                                               \
   constexpr auto name##_v = caf::name##_atom_v;
 
-namespace broker::atom{
+namespace broker::atom {
 
 BROKER_CAF_ATOM_ALIAS(add)
 BROKER_CAF_ATOM_ALIAS(connect)
