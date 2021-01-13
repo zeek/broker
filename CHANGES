@@ -1,4 +1,8 @@
 
+2.0.0-rc1.5 | 2021-01-12 21:01:53 -0800
+
+  * GH-165: Fix possible deadlock by implementing new origin-based credit strategy (Dominik Charousset, Corelight)
+
 2.0.0-rc1.4 | 2021-01-04 15:42:32 -0800
 
   * broker-cluster-benchmark: Fix type mismatch and potential cleanup issue (Dominik Charousset, Corelight)

@@ -23,7 +23,7 @@ struct driver_state {
   using buf_type = std::vector<element_type>;
   bool restartable = false;
   buf_type xs;
-  static const char* name;
+  static inline const char* name = "driver";
   void reset() {
     xs = data_msgs({{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false},
                     {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}});
@@ -32,8 +32,6 @@ struct driver_state {
     reset();
   }
 };
-
-const char* driver_state::name = "driver";
 
 caf::behavior driver(caf::stateful_actor<driver_state>* self,
                      const caf::actor& sink, bool restartable) {
@@ -133,8 +131,8 @@ CAF_TEST(local_peers) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
+  auto core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
   anon_send(core1, atom::no_events_v);
   anon_send(core2, atom::no_events_v);
   run();
@@ -247,9 +245,9 @@ CAF_TEST(triangle_peering) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
+  auto core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
+  auto core3 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
   anon_send(core1, atom::no_events_v);
   anon_send(core2, atom::no_events_v);
   anon_send(core3, atom::no_events_v);
@@ -367,9 +365,9 @@ CAF_TEST(sequenced_peering) {
   // Spawn core actors and disable events.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  auto core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
-  auto core3 = sys.spawn(core_actor, filter_type{"a", "b", "c"}, options, nullptr);
+  auto core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
+  auto core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
+  auto core3 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, options);
   CAF_MESSAGE(BROKER_ARG(core1));
   CAF_MESSAGE(BROKER_ARG(core2));
   CAF_MESSAGE(BROKER_ARG(core3));
@@ -473,8 +471,8 @@ struct error_signaling_fixture : base_fixture {
     core1 = ep.core();
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-    core2 = sys.spawn(core_actor, filter_type{"a", "b", "c"},
-                      ep.config().options(), nullptr);
+    core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
+                                       ep.config().options());
     CAF_MESSAGE(BROKER_ARG(core2));
     run();
     CAF_MESSAGE("init done");
@@ -557,7 +555,7 @@ CAF_TEST(failed_handshake_stage2) {
   CAF_MESSAGE("run remaining messages");
   run();
   CAF_MESSAGE("check log of the event subscriber");
-  BROKER_CHECK_LOG(es.poll(), sc::peer_added, sc::peer_lost);
+  BROKER_CHECK_LOG(es.poll(), ec::peer_unavailable);
 }
 
 // Simulates a connection abort after receiving stage #1 handshake.

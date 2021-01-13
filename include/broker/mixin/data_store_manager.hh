@@ -177,7 +177,7 @@ public:
       });
   }
 
-private:
+protected:
   // -- CRTP scaffold ----------------------------------------------------------
 
   Subtype& dref() {

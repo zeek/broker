@@ -140,16 +140,29 @@ inline topic&& move_topic(node_message& x) {
   return move_topic(x.content);
 }
 
-
-/// Retrieves the data from a ::data_message.
+/// Retrieves the data from a @ref data_message.
 inline const data& get_data(const data_message& x) {
   return get<1>(x);
 }
 
-/// Moves the data out of a ::data_message. Causes `x` to make a lazy copy of
-/// its content if other ::data_message objects hold references to it.
+/// Moves the data out of a @ref data_message. Causes `x` to make a lazy copy of
+/// its content if other @ref data_message objects hold references to it.
 inline data&& move_data(data_message& x) {
   return std::move(get<1>(x.unshared()));
+}
+
+/// Unboxes the content of `x` and calls `get_data` on the nested
+/// @ref data_message.
+/// @pre `is_data_message(x)`
+inline const data& get_data(const node_message& x) {
+  return get_data(get<data_message>(x.content));
+}
+
+/// Unboxes the content of `x` and calls `move_data` on the nested
+/// @ref data_message.
+/// @pre `is_data_message(x)`
+inline data&& move_data(node_message& x) {
+  return move_data(get<data_message>(x.content));
 }
 
 /// Retrieves the command content from a ::command_message.

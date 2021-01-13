@@ -242,6 +242,8 @@ TEST(master_with_clone) {
   run_until_idle();
   MESSAGE("once clone and master are idle, they are in sync");
   earth.sched.inline_next_enqueue();
+  CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
+  earth.sched.inline_next_enqueue();
   CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});
   mars.sched.inline_next_enqueue();
   CHECK_EQUAL(value_of(ds_mars.get("test")), data{123});
