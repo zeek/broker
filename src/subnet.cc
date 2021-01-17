@@ -4,9 +4,10 @@
 #include <string>
 #include <tuple>
 
+#include <caf/hash/fnv.hpp>
+
 #include "broker/address.hh"
 #include "broker/subnet.hh"
-#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -47,6 +48,10 @@ uint8_t subnet::length() const {
   return net_.is_v4() ? len_ - 96 : len_;
 }
 
+size_t subnet::hash() const {
+  return caf::hash::fnv<size_t>::compute(net_, len_);
+}
+
 bool operator==(const subnet& lhs, const subnet& rhs) {
   return lhs.len_ == rhs.len_ && lhs.net_ == rhs.net_;
 }
@@ -64,10 +69,3 @@ bool convert(const subnet& sn, std::string& str) {
 }
 
 } // namespace broker
-
-size_t std::hash<broker::subnet>::operator()(const broker::subnet& v) const {
-  auto result = size_t{0};
-  broker::detail::hash_combine(result, v.network());
-  broker::detail::hash_combine(result, v.length());
-  return result;
-}

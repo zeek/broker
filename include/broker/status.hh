@@ -4,8 +4,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <caf/meta/load_callback.hpp>
-
 #include "broker/convert.hh"
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"

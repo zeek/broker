@@ -31,6 +31,8 @@ public:
   /// @return The port's transport protocol.
   protocol type() const;
 
+  size_t hash() const;
+
   friend bool operator==(const port& lhs, const port& rhs);
   friend bool operator<(const port& lhs, const port& rhs);
 
@@ -60,8 +62,12 @@ bool convert(const std::string& str, port& p);
 } // namespace broker
 
 namespace std {
+
 template <>
 struct hash<broker::port> {
-  size_t operator()(const broker::port&) const;
+  size_t operator()(const broker::port& x) const {
+    return x.hash();
+  }
 };
+
 } // namespace std;

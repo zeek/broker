@@ -4,10 +4,7 @@
 #include <string>
 #include <tuple>
 
-#include <caf/meta/type_name.hpp>
 #include <caf/node_id.hpp>
-
-#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -27,6 +24,9 @@ struct publisher_id {
   explicit operator bool() const noexcept {
     return static_cast<bool>(endpoint);
   }
+
+  /// Computes a hash value for this object.
+  size_t hash() const;
 };
 
 /// @relates publisher_id
@@ -61,11 +61,7 @@ namespace std {
 template <>
 struct hash<broker::publisher_id> {
   size_t operator()(const broker::publisher_id& x) const noexcept {
-    // TODO: use caf::hash::fnv when switching to CAF 0.18.
-    hash<caf::node_id> f;
-    auto result = f(x.endpoint);
-    broker::detail::hash_combine(result, x.object);
-    return result;
+    return x.hash();
   }
 };
 
