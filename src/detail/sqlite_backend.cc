@@ -390,7 +390,7 @@ expected<bool> sqlite_backend::exists(const data& key) const {
   auto guard = make_statement_guard(impl_->exists);
 	auto [key_ok, key_blob] = to_blob(key);
   if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::get: to_blob(key) failed");
+    BROKER_DEBUG("sqlite_backend::exists: to_blob(key) failed");
     return ec::invalid_data;
   }
   auto result = sqlite3_bind_blob64(impl_->exists, 1, key_blob.data(),
