@@ -1,5 +1,7 @@
 #include "broker/data.hh"
 
+#include <string_view>
+
 #include <caf/hash/fnv.hpp>
 #include <caf/node_id.hpp>
 
@@ -258,6 +260,54 @@ bool convert(const caf::node_id& node, data& d) {
   else
     d = nil;
   return true;
+}
+
+namespace {
+
+using namespace std::literals::string_view_literals;
+
+static_assert(std::is_unsigned<data::type_ut>::value);
+
+constexpr auto data_type_strings = std::array{
+  "broker::data::type::address"sv,
+  "broker::data::type::boolean"sv,
+  "broker::data::type::count"sv,
+  "broker::data::type::enum_value"sv,
+  "broker::data::type::integer"sv,
+  "broker::data::type::none"sv,
+  "broker::data::type::port"sv,
+  "broker::data::type::real"sv,
+  "broker::data::type::set"sv,
+  "broker::data::type::string"sv,
+  "broker::data::type::subnet"sv,
+  "broker::data::type::table"sv,
+  "broker::data::type::timespan"sv,
+  "broker::data::type::timestamp"sv,
+  "broker::data::type::vector"sv,
+};
+
+using data_type_converter_t
+  = detail::enum_converter<data::type, decltype(data_type_strings)>;
+
+constexpr data_type_converter_t data_type_converter
+  = data_type_converter_t{&data_type_strings};
+
+} // namespace
+
+bool convert(data::type src, data::type_ut& dst) {
+  return data_type_converter(src, dst);
+}
+
+bool convert(data::type src, std::string& dst) {
+  return data_type_converter(src, dst);
+}
+
+bool convert(data::type_ut src, data::type& dst) {
+  return data_type_converter(src, dst);
+}
+
+bool convert(const std::string& src, data::type& dst) {
+  return data_type_converter(src, dst);
 }
 
 } // namespace broker

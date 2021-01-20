@@ -16,6 +16,7 @@
 #include "broker/address.hh"
 #include "broker/bad_variant_access.hh"
 #include "broker/convert.hh"
+#include "broker/detail/enum_inspect.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
@@ -88,6 +89,8 @@ public:
     timestamp,
     vector
   };
+
+  using type_ut = std::underlying_type_t<data::type>;
 
 	template <class T>
 	using from = detail::conditional_t<
@@ -207,11 +210,7 @@ constexpr data::type data_tag() {
   return detail::data_tag_oracle<T>::value;
 }
 
-/// @relates data
-template <class Inspector>
-bool inspect(Inspector& f, data& x) {
-  return f.object(x).fields(f.field("data", x.get_data()));
-}
+// --  generic conversion support ----------------------------------------------
 
 /// @relates data
 bool convert(const data& d, std::string& str);
@@ -223,11 +222,41 @@ bool convert(const data& d, caf::node_id& node);
 bool convert(const caf::node_id& node, data& d);
 
 /// @relates data
+bool convert(data::type, data::type_ut&);
+
+/// @relates data
+bool convert(data::type, std::string&);
+
+/// @relates data
+bool convert(data::type_ut, data::type&);
+
+/// @relates data
+bool convert(const std::string&, data::type&);
+
+// --  string conversion support -----------------------------------------------
+
+/// @relates data
 inline std::string to_string(const broker::data& d) {
   std::string s;
   convert(d, s);
   return s;
 }
+
+// --  type inspection ---------------------------------------------------------
+
+/// @relates data
+template <class Inspector>
+bool inspect(Inspector& f, data::type& x) {
+  return detail::enum_inspect(f, x);
+}
+
+/// @relates data
+template <class Inspector>
+bool inspect(Inspector& f, data& x) {
+  return f.object(x).fields(f.field("data", x.get_data()));
+}
+
+// --  free operator overloads -------------------------------------------------
 
 inline bool operator<(const data& x, const data& y) {
   return x.get_data() < y.get_data();

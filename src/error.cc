@@ -1,5 +1,7 @@
 #include "broker/error.hh"
 
+#include <string_view>
+
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/endpoint_info.hh"
@@ -10,58 +12,70 @@ namespace broker {
 
 namespace {
 
-const char* ec_names[] = {
-  "none",
-  "unspecified",
-  "peer_incompatible",
-  "peer_invalid",
-  "peer_unavailable",
-  "peer_disconnect_during_handshake",
-  "peer_timeout",
-  "master_exists",
-  "no_such_master",
-  "no_such_key",
-  "request_timeout",
-  "type_clash",
-  "invalid_data",
-  "backend_failure",
-  "stale_data",
-  "cannot_open_file",
-  "cannot_write_file",
-  "invalid_topic_key",
-  "end_of_file",
-  "invalid_tag",
-  "invalid_status",
+using namespace std::literals::string_view_literals;
+
+constexpr auto ec_strings = std::array{
+  "none"sv,
+  "unspecified"sv,
+  "peer_incompatible"sv,
+  "peer_invalid"sv,
+  "peer_unavailable"sv,
+  "peer_disconnect_during_handshake"sv,
+  "peer_timeout"sv,
+  "master_exists"sv,
+  "no_such_master"sv,
+  "no_such_key"sv,
+  "request_timeout"sv,
+  "type_clash"sv,
+  "invalid_data"sv,
+  "backend_failure"sv,
+  "stale_data"sv,
+  "cannot_open_file"sv,
+  "cannot_write_file"sv,
+  "invalid_topic_key"sv,
+  "end_of_file"sv,
+  "invalid_tag"sv,
+  "invalid_status"sv,
 };
+
+using ec_converter_t = detail::enum_converter<ec, decltype(ec_strings)>;
+
+constexpr ec_converter_t ec_converter = ec_converter_t{&ec_strings};
 
 } // namespace
 
-std::string to_string(ec code) noexcept {
-  auto index = static_cast<uint8_t>(code);
-  BROKER_ASSERT(index < sizeof(ec_names));
-  return ec_names[index];
+bool convert(ec src, ec_ut& dst) noexcept {
+  return ec_converter(src, dst);
 }
 
-bool convert(const std::string& str, ec& code) noexcept {
-  auto predicate = [&](const char* cstr) { return cstr == str; };
-  auto begin = std::begin(ec_names);
-  auto end = std::end(ec_names);
-  auto i = std::find_if(begin, end, predicate);
-  if (i == begin || i == end)
-    return false;
-  code = static_cast<ec>(std::distance(begin, i));
-  return true;
+bool convert(ec src, std::string& dst) {
+  return ec_converter(src, dst);
 }
 
-bool convert(const data& src, ec& code) noexcept {
+bool convert(ec_ut src, ec& dst) noexcept {
+  return ec_converter(src, dst);
+}
+
+bool convert(const std::string& src, ec& dst) noexcept {
+  return ec_converter(src, dst);
+}
+
+bool convert(const data& src, ec& dst) noexcept {
   if (auto val = get_if<enum_value>(src))
-    return convert(val->name, code);
-  return false;
+    return convert(val->name, dst);
+  else
+    return false;
 }
 
 bool convertible_to_ec(const data& src) noexcept {
   ec dummy;
   return convert(src, dummy);
+}
+
+std::string to_string(ec code) {
+  std::string result;
+  convert(code, result);
+  return result;
 }
 
 bool convertible_to_error(const vector& xs) noexcept {

@@ -75,7 +75,7 @@ TEST(ec is convertible to and from string) {
   CHECK_EQUAL(from_string<ec>("invalid_topic_key"), ec::invalid_topic_key);
   CHECK_EQUAL(from_string<ec>("end_of_file"), ec::end_of_file);
   CHECK_EQUAL(from_string<ec>("invalid_tag"), ec::invalid_tag);
-  CHECK_EQUAL(from_string<ec>("none"), nil);
+  CHECK_EQUAL(from_string<ec>("none"), ec::none);
   CHECK_EQUAL(from_string<ec>("foo"), nil);
 }
 

@@ -10,6 +10,7 @@
 #include <caf/make_message.hpp>
 
 #include "broker/convert.hh"
+#include "broker/detail/enum_inspect.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -67,6 +68,9 @@ enum class ec : uint8_t {
 };
 // --ec-enum-end
 
+/// Convenience alias for the underlying integer type of @ref ec.
+using ec_ut = std::underlying_type_t<ec>;
+
 /// Evaluates to `true` if an ::error with code `E` can contain a `network_info`
 /// in its context.
 /// @relates ec
@@ -80,7 +84,13 @@ template <ec Value>
 using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
-std::string to_string(ec code) noexcept;
+bool convert(ec src, ec_ut& dst) noexcept;
+
+/// @relates ec
+bool convert(ec src, std::string& dst);
+
+/// @relates ec
+bool convert(ec_ut src, ec& dst) noexcept;
 
 /// @relates ec
 bool convert(const std::string& str, ec& code) noexcept;
@@ -91,6 +101,9 @@ bool convert(const data& str, ec& code) noexcept;
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
 
+/// @relates ec
+std::string to_string(ec code);
+
 template <>
 struct can_convert_predicate<ec> {
   static bool check(const data& src) noexcept {
@@ -98,6 +111,10 @@ struct can_convert_predicate<ec> {
   }
 };
 
+template <class Inspector>
+bool inspect(Inspector& f, ec& x) {
+  return detail::enum_inspect(f, x);
+}
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.

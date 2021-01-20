@@ -41,4 +41,18 @@ constexpr bool is_inbound(peer_flags p) {
   return (static_cast<int>(p) & static_cast<int>(peer_flags::inbound)) != 0;
 }
 
+/// @relates peer_flags
+bool convert(peer_flags src, int& dst) noexcept;
+
+/// @relates peer_flags
+bool convert(int src, peer_flags& dst) noexcept;
+
+/// @relates backend
+template <class Inspector>
+bool inspect(Inspector& f, peer_flags& x) {
+  auto get = [&x] { return static_cast<int>(x); };
+  auto set = [&x](int val) { return convert(val, x); };
+  return f.apply(get, set);
+}
+
 } // namespace broker

@@ -284,6 +284,7 @@ endif()
 set(BROKER_SRC
   ${OPTIONAL_SRC}
   src/address.cc
+  src/backend.cc
   src/configuration.cc
   src/convert.cc
   src/core_actor.cc
@@ -322,6 +323,7 @@ set(BROKER_SRC
   src/mailbox.cc
   src/message.cc
   src/network_info.cc
+  src/peer_flags.cc
   src/peer_status.cc
   src/port.cc
   src/publisher.cc

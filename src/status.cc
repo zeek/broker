@@ -1,5 +1,8 @@
 #include "broker/status.hh"
 
+#include <array>
+
+#include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/error.hh"
@@ -8,51 +11,57 @@ using namespace std::string_literals;
 
 namespace broker {
 
-const char* to_string(sc code) noexcept {
-  switch (code) {
-    default:
-      BROKER_ASSERT(!"missing to_string implementation");
-      return "<unknown>";
-    case sc::unspecified:
-      return "unspecified";
-    case sc::peer_added:
-      return "peer_added";
-    case sc::peer_removed:
-      return "peer_removed";
-    case sc::peer_lost:
-      return "peer_lost";
-    case sc::endpoint_discovered:
-      return "endpoint_discovered";
-    case sc::endpoint_unreachable:
-      return "endpoint_unreachable";
-  }
+namespace {
+
+using namespace std::literals::string_view_literals;
+
+constexpr auto sc_strings = std::array{
+  "unspecified"sv,
+  "peer_added"sv,
+  "peer_removed"sv,
+  "peer_lost"sv,
+  "endpoint_discovered"sv,
+  "endpoint_unreachable"sv,
+};
+
+using sc_converter_t = detail::enum_converter<sc, decltype(sc_strings)>;
+
+constexpr sc_converter_t sc_converter = sc_converter_t{&sc_strings};
+
+} // namespace
+
+bool convert(sc src, sc_ut& dst) noexcept {
+  return sc_converter(src, dst);
 }
 
-#define BROKER_SC_FROM_STRING(value)                                           \
-  if (str == #value) {                                                         \
-    code = sc::value;                                                          \
-    return true;                                                               \
-  }
+bool convert(sc src, std::string& dst) {
+  return sc_converter(src, dst);
+}
 
-bool convert(const std::string& str, sc& code) noexcept {
-  BROKER_SC_FROM_STRING(unspecified)
-  BROKER_SC_FROM_STRING(peer_added)
-  BROKER_SC_FROM_STRING(peer_removed)
-  BROKER_SC_FROM_STRING(peer_lost)
-  BROKER_SC_FROM_STRING(endpoint_discovered)
-  BROKER_SC_FROM_STRING(endpoint_unreachable)
-  return false;
+bool convert(sc_ut src, sc& dst) noexcept {
+  return sc_converter(src, dst);
+}
+
+bool convert(const std::string& src, sc& dst) noexcept {
+  return sc_converter(src, dst);
 }
 
 bool convert(const data& src, sc& code) noexcept {
   if (auto val = get_if<enum_value>(src))
     return convert(val->name, code);
-  return false;
+  else
+    return false;
 }
 
 bool convertible_to_sc(const data& src) noexcept {
   sc dummy;
   return convert(src, dummy);
+}
+
+std::string to_string(sc code) {
+  std::string result;
+  convert(code, result);
+  return result;
 }
 
 sc status::code() const {

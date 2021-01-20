@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <ostream>
 #include <string>
@@ -143,3 +144,50 @@ auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
 }
 
 } // namespace broker
+
+namespace broker::detail {
+
+// Default implementation for converting Enumerations to and from
+// integers/strings based on an array that contains all constant names. Requires
+// that the enum has ascending values!
+template <class Enum, class ArrayType>
+struct enum_converter {
+  using integer_type = std::underlying_type_t<Enum>;
+
+  static_assert(std::is_unsigned<integer_type>::value);
+
+  const ArrayType* constants;
+
+  bool operator()(Enum src, integer_type& dst) const noexcept {
+    dst = static_cast<integer_type>(src);
+    return true;
+  }
+
+  bool operator()(Enum src, std::string& dst) const {
+    auto index = static_cast<integer_type>(src);
+    auto str = (*constants)[index];
+    dst.assign(str.begin(), str.end());
+    return true;
+  }
+
+  bool operator()(integer_type src, Enum& dst) const noexcept {
+    if (src < constants->size()) {
+      dst = static_cast<Enum>(src);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  bool operator()(const std::string& src, Enum& dst) const noexcept {
+    for (integer_type index = 0; index < constants->size(); ++index) {
+      if (src == (*constants)[index]) {
+        dst = static_cast<Enum>(index);
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+} // namespace broker::detail

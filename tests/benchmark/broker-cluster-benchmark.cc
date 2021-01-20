@@ -314,9 +314,9 @@ struct strip_optional<caf::optional<T>> {
     std::string field_name = #field;                                           \
     caf::replace_all(field_name, "_", "-");                                    \
     using field_type = typename strip_optional<decltype(result.field)>::type;  \
-    if (auto value = get_if<field_type>(&parameters, field_name))              \
+    if (auto value = caf::get_as<field_type>(parameters, field_name))          \
       result.field = std::move(*value);                                        \
-    else if (auto type_erased_value = get_if(&parameters, field_name))         \
+    else if (auto type_erased_value = caf::get_if(&parameters, field_name))    \
       return make_error(caf::sec::invalid_argument, result.name,               \
                         "illegal type for field", field_name);                 \
     else if (strcmp(#qualifier, "mandatory") == 0)                             \

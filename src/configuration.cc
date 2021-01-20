@@ -189,9 +189,9 @@ caf::settings configuration::dump_content() const {
   put_missing(grp, "disable_ssl", options_.disable_ssl);
   put_missing(grp, "ttl", options_.ttl);
   put_missing(grp, "forward", options_.forward);
-  if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
-    put_missing(grp, "recording-directory", *path);
-  if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
+  if (auto path = get_as<std::string>(content, "broker.recording-directory"))
+    put_missing(grp, "recording-directory", std::move(*path));
+  if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
     put_missing(grp, "output-generator-file-cap", *cap);
   return result;
 }

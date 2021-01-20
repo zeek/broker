@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "broker/convert.hh"
+#include "broker/detail/enum_inspect.hh"
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/endpoint_info.hh"
@@ -33,12 +34,21 @@ enum class sc : uint8_t {
 };
 // --sc-enum-end
 
+/// Convenience alias for the underlying integer type of @ref sc.
+using sc_ut = std::underlying_type_t<sc>;
+
 /// @relates sc
 template <sc S>
 using sc_constant = std::integral_constant<sc, S>;
 
 /// @relates sc
-const char* to_string(sc code) noexcept;
+bool convert(sc src, sc_ut& dst) noexcept;
+
+/// @relates sc
+bool convert(sc src, std::string& dst);
+
+/// @relates sc
+bool convert(sc_ut src, sc& dst) noexcept;
 
 /// @relates sc
 bool convert(const std::string& str, sc& code) noexcept;
@@ -48,6 +58,14 @@ bool convert(const data& str, sc& code) noexcept;
 
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
+
+/// @relates sc
+std::string to_string(sc code);
+
+template <class Inspector>
+bool inspect(Inspector& f, sc& x) {
+  return detail::enum_inspect(f, x);
+}
 
 /// Evaluates to `true` if a ::status with code `S` requires an `endpoint_info`
 /// context.

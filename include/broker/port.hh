@@ -2,7 +2,9 @@
 
 #include <cstdint>
 #include <string>
+#include <type_traits>
 
+#include "broker/detail/enum_inspect.hh"
 #include "broker/detail/operators.hh"
 
 namespace broker {
@@ -18,6 +20,8 @@ public:
     udp,
     icmp,
   };
+
+  using protocol_ut = std::underlying_type_t<protocol>;
 
   /// Default construct empty port, 0/unknown.
   port();
@@ -58,6 +62,24 @@ bool convert(const port& p, std::string& str);
 
 /// @relates port
 bool convert(const std::string& str, port& p);
+
+/// @relates port
+bool convert(port::protocol, port::protocol_ut&);
+
+/// @relates port
+bool convert(port::protocol, std::string&);
+
+/// @relates port
+bool convert(port::protocol_ut, port::protocol&);
+
+/// @relates port
+bool convert(const std::string&, port::protocol&);
+
+/// @relates port
+template <class Inspector>
+bool inspect(Inspector& f, port::protocol& x) {
+  return detail::enum_inspect(f, x);
+}
 
 } // namespace broker
 
