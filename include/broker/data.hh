@@ -209,6 +209,21 @@ constexpr data::type data_tag() {
 
 /// @relates data
 template <class Inspector>
+bool inspect(Inspector& f, data::type& x) {
+  auto get = [&] { return static_cast<uint8_t>(x); };
+  auto set = [&](uint8_t val) {
+    if (val <= static_cast<uint8_t>(data::type::vector)) {
+      x = static_cast<data::type>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
+
+/// @relates data
+template <class Inspector>
 bool inspect(Inspector& f, data& x) {
   return f.object(x).fields(f.field("data", x.get_data()));
 }
