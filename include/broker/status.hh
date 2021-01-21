@@ -51,6 +51,21 @@ bool convert(const data& str, sc& code) noexcept;
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
 
+/// @relates sc
+template <class Inspector>
+bool inspect(Inspector& f, sc& x) {
+  auto get = [&] { return static_cast<uint8_t>(x); };
+  auto set = [&](uint8_t val) {
+    if (val <= static_cast<uint8_t>(sc::endpoint_unreachable)) {
+      x = static_cast<sc>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
+
 /// Evaluates to `true` if a ::status with code `S` requires an `endpoint_info`
 /// context.
 /// @relates sc
