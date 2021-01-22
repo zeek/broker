@@ -1,4 +1,21 @@
 
+2.1.0-dev.33 | 2021-01-21 16:15:32 -0800
+
+  * Fix deprecation warnings with latest CAF (Dominik Charousset, Corelight)
+
+  * Clean up remaining caf::hash::fnv TODO (Dominik Charousset, Corelight)
+
+    CAF 0.18 introduced an FNV hashing visitor that we can use instead of
+    rolling custom hash algorithms and hash combinators.
+
+  * Replace unsafe (to|from)_blob functions (Dominik Charousset, Corelight)
+
+    The utility functions `to_blob` and `from_blob` in
+    `broker/detail/blob.hh` silently ignored any error during serialization
+    and deserialization. Since the functions were only used by the SQLite
+    backend, the new implementations with proper error propagation (and
+    cleaned up interface) moved to `sqlite_backend.cc`.
+
 2.1.0-dev.27 | 2021-01-19 21:07:18 -0800
 
   * Update Cirrus CI naming for MacOS images (Christian Kreibich, Corelight)

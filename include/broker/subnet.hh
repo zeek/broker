@@ -23,6 +23,8 @@ public:
   /// @return the prefix length of the subnet.
   uint8_t length() const;
 
+  size_t hash() const;
+
   friend bool operator==(const subnet& lhs, const subnet& rhs);
   friend bool operator<(const subnet& lhs, const subnet& rhs);
 
@@ -50,8 +52,12 @@ bool convert(const subnet& sn, std::string& str);
 } // namespace broker
 
 namespace std {
+
 template <>
 struct hash<broker::subnet> {
-  size_t operator()(const broker::subnet&) const;
+  size_t operator()(const broker::subnet& x) const {
+    return x.hash();
+  }
 };
+
 } // namespace std;

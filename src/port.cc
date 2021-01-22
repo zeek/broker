@@ -6,8 +6,9 @@
 #include <tuple>
 #include <type_traits>
 
+#include <caf/hash/fnv.hpp>
+
 #include "broker/port.hh"
-#include "broker/detail/hash.hh"
 
 namespace broker {
 
@@ -78,13 +79,8 @@ bool convert(const std::string& str, port& p) {
   return true;
 }
 
-} // namespace broker
-
-size_t std::hash<broker::port>::operator()(const broker::port& v) const {
-  using broker::port;
-  auto result = size_t{0};
-  broker::detail::hash_combine(result, v.number());
-  auto p = static_cast<std::underlying_type<port::protocol>::type>(v.type());
-  broker::detail::hash_combine(result, p);
-  return result;
+size_t port::hash() const {
+  return caf::hash::fnv<size_t>::compute(num_, proto_);
 }
+
+} // namespace broker

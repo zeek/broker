@@ -41,4 +41,19 @@ constexpr bool is_inbound(peer_flags p) {
   return (static_cast<int>(p) & static_cast<int>(peer_flags::inbound)) != 0;
 }
 
+/// @relates peer_flags
+template <class Inspector>
+bool inspect(Inspector& f, peer_flags& x) {
+  auto get = [&] { return static_cast<int>(x); };
+  auto set = [&](int val) {
+    if ((val & 0x0F) == val) {
+      x = static_cast<peer_flags>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
+
 } // namespace broker

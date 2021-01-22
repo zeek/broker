@@ -71,6 +71,8 @@ public:
     return addr_.compare(other.addr_);
   }
 
+  size_t hash() const;
+
   template <class Inspector>
   friend bool inspect(Inspector& f, address& x) {
     // We transparently expose the member variable. Hence, broker::address and
@@ -106,7 +108,9 @@ namespace std {
 /// @relates address
 template <>
 struct hash<broker::address> {
-  size_t operator()(const broker::address&) const;
+  size_t operator()(const broker::address& x) const {
+    return x.hash();
+  }
 };
 
 } // namespace std
