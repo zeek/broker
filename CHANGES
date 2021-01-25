@@ -1,4 +1,8 @@
 
+2.0.0-rc2 | 2021-01-25 12:42:52 -0800
+
+  * Release 2.0.0-rc2.
+
 2.0.0-rc1.7 | 2021-01-25 12:42:31 -0800
 
   * Update embedded CAF to 0.18 (Jon Siwek, Corelight)
