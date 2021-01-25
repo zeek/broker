@@ -1,4 +1,10 @@
 
+2.1.0-dev.36 | 2021-01-25 12:27:58 -0800
+
+  * Update embedded CAF to 0.18 (Jon Siwek, Corelight)
+
+  * Add CI support for running cluster benchmarks (Tim Wojtulewicz, Corelight)
+
 2.1.0-dev.33 | 2021-01-21 16:15:32 -0800
 
   * Fix deprecation warnings with latest CAF (Dominik Charousset, Corelight)
