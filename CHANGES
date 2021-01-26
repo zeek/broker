@@ -1,4 +1,8 @@
 
+2.0.0-rc2.2 | 2021-01-25 21:46:01 -0800
+
+  * Add Travis CI config for Windows OS (Jon Siwek, Corelight)
+
 2.0.0-rc2 | 2021-01-25 12:42:52 -0800
 
   * Release 2.0.0-rc2.
