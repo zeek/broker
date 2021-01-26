@@ -1,4 +1,10 @@
 
+2.1.0-dev.39 | 2021-01-25 21:17:05 -0800
+
+  * Add missing comments to example Windows Dockerfile (Jon Siwek, Corelight)
+
+  * Add Travis CI config for Windows OS (Jon Siwek, Corelight)
+
 2.1.0-dev.36 | 2021-01-25 12:27:58 -0800
 
   * Update embedded CAF to 0.18 (Jon Siwek, Corelight)

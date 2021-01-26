@@ -32,12 +32,12 @@ RUN powershell -NoLogo -NoProfile -Command `
 
 RUN choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake openssl
 
-Download the Build Tools bootstrapper.
+# Download the Build Tools bootstrapper.
 ADD https://aka.ms/vs/16/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
 
-Install Build Tools and additional workloads, excluding workloads and
-components with known issues.  Based on example from:
-https://docs.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2019
+# Install Build Tools and additional workloads, excluding workloads and
+# components with known issues.  Based on example from:
+# https://docs.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2019
 RUN C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache `
     --installPath C:\BuildTools `
     --add Microsoft.VisualStudio.Workload.VCTools `
