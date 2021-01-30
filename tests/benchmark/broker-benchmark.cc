@@ -27,6 +27,42 @@ using namespace broker;
 
 namespace {
 
+struct bench_node {
+  std::string host;
+  uint16_t port;
+};
+
+std::string to_string(const bench_node& node) {
+  auto result = node.host;
+  result += ':';
+  result += std::to_string(node.port);
+  return result;
+}
+
+bool from_string(const std::string& in, bench_node& out) {
+  std::vector<std::string> groups;
+  caf::split(groups, in, ':');
+  if (groups.size() != 2)
+    return false;
+  out.host = std::move(groups[0]);
+  auto cv_port = caf::config_value{std::move(groups[1])};
+  if (auto port = caf::get_as<uint16_t>(cv_port)) {
+    out.port = *port;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+template<class Inspector>
+bool inspect(Inspector& f, bench_node&x) {
+  auto get = [&x] { return to_string(x); };
+  auto set = [&x](const std::string& str) { return from_string(str, x); };
+  return f.apply(get, set);
+}
+
+using bench_node_list = std::vector<bench_node>;
+
 int event_type = 1;
 double batch_rate = 1;
 int batch_size = 1;
@@ -141,15 +177,20 @@ vector createEventArgs() {
     }
 }
 
-void send_batch(endpoint& ep, publisher& p) {
+template <class Publisher>
+void send_batch(Publisher& p) {
   auto name = "event_" + std::to_string(event_type);
-  vector batch;
+  [[maybe_unused]] vector batch;
   for (int i = 0; i < batch_size; i++) {
     auto ev = zeek::Event(std::string(name), createEventArgs());
-    batch.emplace_back(std::move(ev));
+    if constexpr (std::is_same<endpoint, Publisher>::value)
+      p.publish("/benchmark/events", ev.move_data());
+    else
+      batch.emplace_back(std::move(ev));
   }
   total_sent += batch.size();
-  p.publish(std::move(batch));
+  if constexpr (!std::is_same<endpoint, Publisher>::value)
+    p.publish(std::move(batch));
 }
 
 void receivedStats(endpoint& ep, data x) {
@@ -179,7 +220,7 @@ void receivedStats(endpoint& ep, data x) {
   auto send_rate = double(total_sent - last_sent) / dt_sent;
   auto in_flight = (total_sent - total_recv);
 
-  std::cerr << to_string(t) << " "
+  std::cerr << t << " "
             << "[batch_size=" << batch_size << "] "
             << "in_flight=" << in_flight << " "
             << "d_t=" << dt_recv << " "
@@ -212,7 +253,8 @@ void receivedStats(endpoint& ep, data x) {
     max_exceeded_counter = 0;
 }
 
-void client_mode(endpoint& ep, const std::string& host, int port) {
+// Uses a publisher object for sending data.
+void default_client_mode(endpoint& ep, const std::string& host, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/stats to print server updates.
@@ -276,7 +318,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     std::this_thread::sleep_until(timeout);
     // Ship some data.
     if (p.free_capacity() > 1) {
-      send_batch(ep, p);
+      send_batch(p);
     } else {
       std::cout << "*** skip batch: publisher queue full" << std::endl;
     }
@@ -296,8 +338,62 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
 }
 
+// Calls endpoint::publish instead of using a publisher object.
+void central_push_client_mode(endpoint& ep) {
+  if (batch_rate == 0) {
+    std::cerr << "*** cowardly refuse to publish without rate limit in central "
+                 "push mode\n";
+    return;
+  }
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // Subscribe to /benchmark/stats to print server updates.
+  ep.subscribe_nosync(
+    {"/benchmark/stats"},
+    [](caf::unit_t&) {
+      // nop
+    },
+    [&](caf::unit_t&, data_message ) {
+      // Print everything we receive.
+      // receivedStats(ep, move_data(x));
+    },
+    [](caf::unit_t&, const caf::error&) {
+      // nop
+    });
+  // Publish one message per interval.
+  using std::chrono::duration_cast;
+  using fractional_second = std::chrono::duration<double>;
+  auto p = ep.make_publisher("/benchmark/events");
+  fractional_second fractional_inc_interval{rate_increase_interval};
+  auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
+  timestamp timeout = std::chrono::system_clock::now();
+  auto interval = duration_cast<timespan>(std::chrono::seconds(1));
+  interval /= batch_rate;
+  auto interval_timeout = timeout + interval;
+  for (;;) {
+    // Sleep until next timeout.
+    timeout += interval;
+    std::this_thread::sleep_until(timeout);
+    // Ship some data.
+    send_batch(ep);
+    // Increase batch size when reaching interval_timeout.
+    if (rate_increase_interval > 0 && rate_increase_amount > 0) {
+      auto now = std::chrono::system_clock::now();
+      if (now >= interval_timeout) {
+        batch_size += rate_increase_amount;
+        interval_timeout += interval;
+      }
+    }
+    // Print status events.
+    auto status_events = ss.poll();
+    if (verbose)
+      for (auto& ev : status_events)
+        std::cout << caf::deep_to_string(ev) << std::endl;
+  }
+}
+
 // This mode mimics what benchmark.bro does.
-void server_mode(endpoint& ep, const std::string& iface, int port) {
+void server_mode(endpoint& ep) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/events.
@@ -336,8 +432,6 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     [](caf::unit_t&, const caf::error&) {
       // nop
     });
-  // Start listening for peers.
-  ep.listen(iface, port);
   // Collects stats once per second until receiving stop message.
   using std::chrono::duration_cast;
   timestamp timeout = std::chrono::system_clock::now();
@@ -366,6 +460,9 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
 struct config : configuration {
   using super = configuration;
 
+  uint16_t listen_port = 0;
+  bench_node_list peers;
+
   config() : configuration(skip_init) {
     opt_group{custom_options_, "global"}
       .add(event_type, "event-type,t",
@@ -380,7 +477,9 @@ struct config : configuration {
       .add(max_received, "max-received,m", "stop benchmark after given count")
       .add(max_in_flight, "max-in-flight,f", "report when exceeding this count")
       .add(server, "server", "run in server mode")
-      .add(verbose, "verbose", "enable status output");
+      .add(listen_port, "port,p", "publish at given port")
+      .add(verbose, "verbose", "enable status output")
+      .add(peers, "peers", "peers to connect to on startup");
   }
 
   using super::init;
@@ -393,13 +492,14 @@ struct config : configuration {
 void usage(const config& cfg, const char* cmd_name) {
   std::cerr << "Usage: " << cmd_name
             << " [<options>] <zeek-host>[:<port>] | [--disable-ssl] --server "
-               "<interface>:port\n\n"
+               "<interface>:port...\n\n"
             << cfg.help_text();
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
+  // Parsing and sanity checking.
   config cfg;
   try {
     cfg.init(argc, argv);
@@ -410,39 +510,42 @@ int main(int argc, char** argv) {
   }
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
-  if (cfg.remainder.size() != 1) {
+  if (cfg.remainder.size() != 0) {
     std::cerr << "*** too many arguments\n\n";
     usage(cfg, argv[0]);
     return EXIT_FAILURE;
   }
-  // Local variables configurable via CLI.
-  auto arg = cfg.remainder[0];
-  auto separator = arg.find(':');
-  if (separator == std::string::npos) {
-    std::cerr << "*** invalid argument\n\n";
-    usage(cfg, argv[0]);
-    return EXIT_FAILURE;
-  }
-  std::string host = arg.substr(0, separator);
-  uint16_t port = 9999;
-  try {
-    auto str_port = arg.substr(separator + 1);
-    if (!str_port.empty()) {
-      auto int_port = std::stoi(str_port);
-      if (int_port < 0 || int_port > std::numeric_limits<uint16_t>::max())
-        throw std::out_of_range("not an uint16_t");
-      port = static_cast<uint16_t>(int_port);
+  if (server) {
+    if (cfg.listen_port == 0) {
+      std::cerr << "*** running in server mode but no port given\n";
+      return EXIT_FAILURE;
     }
-  } catch (std::exception& e) {
-    std::cerr << "*** invalid port: " << e.what() << "\n\n";
-    usage(cfg, argv[0]);
-    return EXIT_FAILURE;
+  } else {
+    if (cfg.peers.empty()) {
+      std::cerr << "*** running in client mode but no peers given\n";
+      return EXIT_FAILURE;
+    }
+  }
+  // Setup local Broker endpoint.
+  endpoint ep(std::move(cfg));
+  if (cfg.listen_port != 0)
+    ep.listen(std::string{}, cfg.listen_port);
+  for (const auto& p : cfg.peers) {
+    if (verbose)
+      std::cout << "*** init peering to " << to_string(p) << '\n';
+    if (auto res = ep.peer(p.host, p.port, timeout::seconds{1}); !res) {
+      std::cerr << "*** unable to establish peering to " << to_string(p)
+                << '\n';
+      return EXIT_FAILURE;
+    }
+    if (verbose)
+      std::cout << "*** endpoint is now peering to " << to_string(p) << '\n';
   }
   // Run benchmark.
-  endpoint ep(std::move(cfg));
   if (server)
-    server_mode(ep, host, port);
+    server_mode(ep);
   else
-    client_mode(ep, host, port);
+    central_push_client_mode(ep);
+//    client_mode(ep, host, port);
   return EXIT_SUCCESS;
 }
