@@ -12,7 +12,6 @@
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/central_dispatcher.hh"
-#include "broker/detail/item.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
@@ -27,16 +26,35 @@ bool ends_with(caf::string_view str, caf::string_view suffix) {
          && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-void try_grant_more_credit(caf::stream_manager* mgr) {
-  for (auto path : mgr->inbound_paths()) {
-    if (path->hdl) {
-      auto available = path->available_credit();
-      if (available >= path->desired_batch_size
-          || (path->assigned_credit == 0 && available > 0)) {
-        if (auto acquired = mgr->acquire_credit(path, available); acquired > 0)
-          path->emit_ack_batch(mgr->self(), acquired);
-      }
-    }
+// Checks whether a downstream of type T is eligible for inputs of given scope.
+template <class T>
+bool is_eligible(item_scope x) {
+  if constexpr (std::is_same<T, data_message>::value) {
+    // Paths to data_message receivers are always local subscribers.
+    return x != item_scope::remote;
+  } else if constexpr (std::is_same<T, command_message>::value) {
+    // Paths to command_message receivers are also always local subscribers.
+    return x != item_scope::remote;
+  } else {
+    // Paths to node_message receivers are always peers.
+    static_assert(std::is_same<T, node_message>::value);
+    return x != item_scope::local;
+  }
+}
+
+// Checks whether a downstream of type T is eligible a given message.
+template <class T>
+bool is_eligible(const node_message& msg) {
+  if constexpr (std::is_same<T, data_message>::value) {
+    // Paths to data_message receivers are always local subscribers.
+    return is_data_message(msg.content);
+  } else if constexpr (std::is_same<T, command_message>::value) {
+    // Paths to command_message receivers are also always local subscribers.
+    return  is_command_message(msg.content);
+  } else {
+    // Paths to node_message receivers are always peers.
+    static_assert(std::is_same<T, node_message>::value);
+    return msg.ttl > 0;
   }
 }
 
@@ -52,42 +70,30 @@ public:
 
   using unique_path_ptr = std::unique_ptr<caf::outbound_path>;
 
-  using super::super;
+  unipath_downstream(caf::stream_manager* parent) : super(parent) {
+    // nop
+  }
 
-  ptrdiff_t enqueue(caf::span<const item_ptr> ptrs) {
+  bool enqueue(item_scope scope, caf::span<const node_message> messages) {
     if (path_) {
-      prefix_matcher accept;
-      ptrdiff_t accepted = 0;
-      for (auto&& ptr : ptrs) {
-        const auto& msg = ptr->msg();
-        if (ptr->origin() != super::parent()) {
-          if constexpr (std::is_same<T, node_message>::value) {
-            // Somewhat hacky, but don't forward data store clone messages.
-            if (ptr->scope() != item_scope::local
-                && ptr->ttl() > 0
-                && accept(filter_, msg)) {
-              cache_.emplace_back(make_node_message(msg, ptr->ttl() - 1));
-              items_.emplace_back(ptr);
-              ++accepted;
-            }
-          } else if (ptr->scope() != item_scope::remote
-                     && caf::holds_alternative<T>(msg)) {
-            const auto& unboxed = caf::get<T>(msg);
-            if (accept(filter_, unboxed)) {
-              cache_.emplace_back(unboxed);
-              items_.emplace_back(ptr);
-              ++accepted;
+      if (is_eligible<T>(scope)) {
+        prefix_matcher matches_filter;
+        for (const auto& msg : messages) {
+          if (is_eligible<T>(msg) && matches_filter(filter_, msg)) {
+            if constexpr (std::is_same<T, data_message>::value) {
+              cache_.emplace_back(caf::get<data_message>(msg.content));
+            } else if constexpr (std::is_same<T, command_message>::value) {
+              cache_.emplace_back(caf::get<command_message>(msg.content));
+            } else {
+              cache_.emplace_back(msg);
             }
           }
         }
       }
-      BROKER_DEBUG(BROKER_ARG2("ptrs.size", ptrs.size())
-                   << BROKER_ARG(accepted));
-      return accepted;
+      return true;
     } else {
-      BROKER_DEBUG("no path available"
-                   << BROKER_ARG2("ptrs.size", ptrs.size()));
-      return -1;
+      BROKER_DEBUG("no path available");
+      return false;
     }
   }
 
@@ -109,7 +115,6 @@ public:
       super::about_to_erase(path_.get(), silent, &reason);
       path_.reset();
       cache_.clear();
-      items_.clear();
       return true;
     } else {
       return false;
@@ -123,25 +128,8 @@ public:
   void emit_batches_impl(bool forced) {
     if (!cache_.empty()) {
       BROKER_DEBUG(BROKER_ARG2("cache.size", cache_.size()));
-      BROKER_ASSERT(path_ != nullptr);
-      auto old_size = cache_.size();
-      path_->emit_batches(super::self(), cache_, forced || path_->closing);
-      if (auto delta = old_size - cache_.size(); delta > 0) {
-        // Get all stream managers that reclaim items as a result of us
-        // releasing erasing elements from items_. Then drop the items and check
-        // for each manager if they can grant new credit again.
-        auto first = items_.begin();
-        auto last = items_.begin() + delta;
-        for (auto i = first; i != last; ++i)
-          if ((*i)->unique() && (*i)->origin())
-            mgr_cache_.emplace_back((*i)->origin());
-        items_.erase(first, last);
-        std::sort(mgr_cache_.begin(), mgr_cache_.end());
-        auto e = std::unique(mgr_cache_.begin(), mgr_cache_.end());
-        for (auto i = mgr_cache_.begin(); i != e; ++i)
-          try_grant_more_credit(i->get());
-        mgr_cache_.clear();
-      }
+      if (path_)
+        path_->emit_batches(super::self(), cache_, forced || path_->closing);
     }
   }
 
@@ -217,8 +205,6 @@ public:
   unique_path_ptr path_;
   filter_type filter_;
   std::vector<T> cache_;
-  std::vector<item_ptr> items_;
-  std::vector<caf::stream_manager_ptr> mgr_cache_;
 };
 
 template <class T>
@@ -239,8 +225,12 @@ public:
     out_.filter_ = std::forward<Filter>(filter);
   }
 
-  ptrdiff_t enqueue(caf::span<const item_ptr> ptrs) override {
-    return out_.enqueue(ptrs);
+  bool enqueue(const unipath_manager* source, item_scope scope,
+               caf::span<const node_message> xs) override {
+    if (source != this)
+      return out_.enqueue(scope, xs);
+    else
+      return true;
   }
 
   filter_type filter() override {
@@ -317,8 +307,9 @@ public:
     // nop
   }
 
-  ptrdiff_t enqueue(caf::span<const item_ptr>) override {
-    return -1;
+  bool enqueue(const unipath_manager*, item_scope,
+               caf::span<const node_message>) override {
+    return false;
   }
 
   filter_type filter() override {
@@ -360,15 +351,12 @@ public:
     : super(dispatcher, observer, std::forward<Ts>(xs)...) {
     auto sptr = super::self();
     auto& cfg = sptr->system().config();
-    auto stash_size = caf::get_or(cfg, "broker.max-pending-inputs-per-source",
-                                  defaults::max_pending_inputs_per_source);
-    stash_ = dispatcher->new_item_stash(stash_size);
     if (caf::get_or(cfg, "broker.forward", true)) {
       ttl_ = caf::get_or(cfg, "broker.ttl", defaults::ttl);
     } else {
-      // Limit TTL to 1 when forwarding was disabled. This causes all peer
+      // Set TTL to 0 when forwarding was disabled. This causes all peer
       // managers to drop node messages instead of forwarding them.
-      ttl_ = 1;
+      ttl_ = 0;
     }
   }
 
@@ -394,15 +382,44 @@ public:
   }
 
   bool idle() const noexcept override {
-    if constexpr (std::is_same<Base, unipath_manager_in_only>::value) {
-      return super::idle();
-    } else {
-      auto& dm = this->out_;
-      return dm.stalled() || (dm.clean() && this->inbound_paths_idle());
-    }
+    // The difference from the default implementation is that we do *not* check
+    // for out_.stalled(). This is because we limit credit by in-flights from
+    // this manager rather than by available credit downstream.
+    return this->out_.clean() && this->inbound_paths_idle();
   }
 
   using super::handle;
+
+  void handle_batch(std::vector<node_message>& xs) {
+    auto old_size = pending_.size();
+    for (auto& x : xs) {
+      if (x.ttl == 0) {
+        BROKER_WARNING("received node message with TTL 0: dropped");
+        continue;
+      }
+      // Somewhat hacky, but don't forward data store clone messages.
+      auto ttl = ends_with(get_topic(x).string(), topics::clone_suffix.string())
+                 ? uint16_t{0}
+                 : std::min(ttl_, static_cast<uint16_t>(x.ttl - 1));
+      x.ttl = ttl;
+      pending_.emplace_back(std::move(x));
+    }
+    if (auto added = pending_.size() - old_size; added > 0) {
+      auto ys = caf::make_span(std::addressof(pending_[old_size]), added);
+      super::dispatcher_->enqueue(this, item_scope::global, ys);
+    }
+  }
+
+  template <class MessageType>
+  void handle_batch(std::vector<MessageType>& xs) {
+    auto old_size = pending_.size();
+    for (auto& x : xs)
+      pending_.emplace_back(make_node_message(std::move(x), ttl_));
+    if (auto added = pending_.size() - old_size; added > 0) {
+      auto ys = caf::make_span(std::addressof(pending_[old_size]), added);
+      super::dispatcher_->enqueue(this, item_scope::remote, ys);
+    }
+  }
 
   void handle(caf::inbound_path*, caf::downstream_msg::batch& b) override {
     BROKER_TRACE(BROKER_ARG(b));
@@ -411,53 +428,38 @@ public:
     if (block_inputs_) {
       blocked_batches_.push_back(std::move(b));
     } else if (auto view = caf::make_typed_message_view<std::vector<T>>(b.xs)) {
-      auto& vec = get<0>(view);
-      if (vec.size() <= stash_->available()) {
-        items_.reserve(vec.size());
-        for (auto& x : vec) {
-          item_ptr ptr;
-          if constexpr (std::is_same<T, node_message>::value) {
-            // Somewhat hacky, but don't forward data store clone messages.
-            uint16_t ttl;
-            if (ends_with(get_topic(x).string(), topics::clone_suffix.string()))
-              ttl = 1;
-            else
-              ttl = std::min(ttl_, x.ttl);
-            ptr = stash_->next_item(std::move(x.content), ttl, this);
-          } else {
-            ptr = stash_->next_item(std::move(x), ttl_, this,
-                                    item_scope::remote);
-          }
-          items_.emplace_back(std::move(ptr));
-        }
-        super::dispatcher_->enqueue(items_);
-        super::dispatcher_->ship();
-        items_.clear();
-        try_grant_more_credit(this);
-      } else {
-        BROKER_ERROR("received more data then we have allowed!");
-      }
+      handle_batch(get<0>(view));
+      super::dispatcher_->ship();
     } else {
       BROKER_ERROR("received unexpected batch type (dropped)");
     }
   }
 
   int32_t acquire_credit(caf::inbound_path* in, int32_t desired) override {
-    auto available = static_cast<int32_t>(stash_->available());
-    BROKER_ASSERT(in->assigned_credit <= available);
+    // Drop pending inputs that are no longer referenced by output paths.
+    auto is_shipped = [](const node_message& msg) {
+      if (is_data_message(msg)) {
+        return caf::get<data_message>(msg.content).unique();
+      } else {
+        return caf::get<command_message>(msg.content).unique();
+      }
+    };
+    pending_.erase(std::remove_if(pending_.begin(), pending_.end(), is_shipped),
+                   pending_.end());
+    // Limit credit by pending (in-flight) messages from this path.
     auto total = in->assigned_credit + desired;
-    if (total <= available)
-      return desired;
+    auto used = static_cast<int32_t>(pending_.size());
+    if (auto delta = total - used; delta > 0)
+      return delta;
     else
-      return available - in->assigned_credit;
+      return 0;
   }
 
 private:
-  item_stash_ptr stash_;
-  std::vector<item_ptr> items_;
   uint16_t ttl_;
   bool block_inputs_ = false;
   std::vector<caf::downstream_msg::batch> blocked_batches_;
+  std::vector<node_message> pending_;
 };
 
 } // namespace
@@ -487,6 +489,10 @@ void unipath_manager::unblock_inputs() {
 
 bool unipath_manager::blocks_inputs() {
   return false;
+}
+
+void unipath_manager::post_enqueue_cleanup() {
+  // nop
 }
 
 bool unipath_manager::has_inbound_path() const noexcept {
