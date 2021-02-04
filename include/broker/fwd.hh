@@ -22,6 +22,7 @@ struct enum_value;
 struct erase_command;
 struct expire_command;
 struct network_info;
+struct node_message;
 struct none;
 struct peer_info;
 struct put_command;
@@ -51,15 +52,6 @@ class topic;
 enum class backend : uint8_t;
 enum class ec : uint8_t;
 enum class sc : uint8_t;
-
-// -- templates ----------------------------------------------------------------
-
-template <class PeerId>
-struct generic_node_message;
-
-// -- type aliases -------------------------------------------------------------
-
-using node_message = generic_node_message<caf::node_id>;
 
 // -- STD type aliases ---------------------------------------------------------
 
@@ -111,16 +103,8 @@ struct retry_state;
 
 class central_dispatcher;
 class flare_actor;
-class item;
-class item_allocator;
-class item_stash;
 class mailbox;
 class unipath_manager;
-
-void intrusive_ptr_release(item*) noexcept;
-void intrusive_ptr_add_ref(item*) noexcept;
-
-using item_ptr = caf::intrusive_ptr<item>;
 
 } // namespace broker::detail
 

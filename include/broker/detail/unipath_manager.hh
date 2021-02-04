@@ -5,6 +5,7 @@
 #include <caf/fwd.hpp>
 #include <caf/stream_manager.hpp>
 
+#include "broker/detail/item_scope.hh"
 #include "broker/fwd.hh"
 
 namespace broker::detail {
@@ -36,8 +37,9 @@ public:
 
   using super::handle;
 
-  /// Pushes items downstream.
-  virtual ptrdiff_t enqueue(caf::span<const item_ptr> ptrs) = 0;
+  virtual bool enqueue(const unipath_manager* source, item_scope scope,
+                       caf::span<const node_message> xs)
+    = 0;
 
   /// Returns the filter that this manager applies to enqueued items.
   virtual filter_type filter() = 0;
@@ -48,6 +50,8 @@ public:
   /// Checks whether the filter of this manager accepts messages for the given
   /// topic.
   [[nodiscard]] virtual bool accepts(const topic&) const noexcept = 0;
+
+  virtual void post_enqueue_cleanup();
 
   /// Causes the manager to cache incoming batches until `unblock_inputs()` gets
   /// called.
