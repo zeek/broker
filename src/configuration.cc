@@ -158,6 +158,9 @@ void configuration::init(int argc, char** argv) {
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
   }
+  if (auto env = getenv("BROKER_METRICS_PORT")) {
+    put(content, "caf.middleman.prometheus-http.port", atoi(env));
+  }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
     auto value = strtol(env, &end, 10);
