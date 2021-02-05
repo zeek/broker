@@ -160,6 +160,8 @@ void configuration::init(int argc, char** argv) {
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
     put(content, "caf.middleman.prometheus-http.port", atoi(env));
+    put(content, "caf.metrics-filters.actors.includes",
+        std::vector<std::string>{"core"});
   }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
