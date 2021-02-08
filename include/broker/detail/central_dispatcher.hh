@@ -19,9 +19,6 @@ public:
   void enqueue(const unipath_manager* source, item_scope scope,
                caf::span<const node_message> messages);
 
-  /// Tries to emit batches on all nested output paths.
-  void ship();
-
   /// Adds a new output path to the dispatcher.
   void add(unipath_manager_ptr sink);
 

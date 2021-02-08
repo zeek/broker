@@ -4,6 +4,7 @@
 
 #include <caf/actor_system_config.hpp>
 #include <caf/downstream_manager.hpp>
+#include <caf/downstream_manager_base.hpp>
 #include <caf/outbound_path.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/settings.hpp>
@@ -28,15 +29,14 @@ bool ends_with(caf::string_view str, caf::string_view suffix) {
 
 // Checks whether a downstream of type T is eligible for inputs of given scope.
 template <class T>
-bool is_eligible(item_scope x) {
-  if constexpr (std::is_same<T, data_message>::value) {
-    // Paths to data_message receivers are always local subscribers.
-    return x != item_scope::remote;
-  } else if constexpr (std::is_same<T, command_message>::value) {
-    // Paths to command_message receivers are also always local subscribers.
+[[nodiscard]] constexpr bool is_eligible(item_scope x) noexcept {
+  if constexpr (std::is_same<T, data_message>::value
+                || std::is_same<T, command_message>::value) {
+    // Paths to data_message and command_message receivers always belong to
+    // local subscribers.
     return x != item_scope::remote;
   } else {
-    // Paths to node_message receivers are always peers.
+    // Paths to node_message receivers always forward data to peers.
     static_assert(std::is_same<T, node_message>::value);
     return x != item_scope::local;
   }
@@ -44,7 +44,7 @@ bool is_eligible(item_scope x) {
 
 // Checks whether a downstream of type T is eligible a given message.
 template <class T>
-bool is_eligible(const node_message& msg) {
+[[nodiscard]] bool is_eligible(const node_message& msg) noexcept {
   if constexpr (std::is_same<T, data_message>::value) {
     // Paths to data_message receivers are always local subscribers.
     return is_data_message(msg.content);
@@ -60,9 +60,9 @@ bool is_eligible(const node_message& msg) {
 
 // A downstream manager with at most one outbound path.
 template <class T>
-class unipath_downstream : public caf::downstream_manager {
+class unipath_downstream : public caf::downstream_manager_base {
 public:
-  using super = downstream_manager;
+  using super = caf::downstream_manager_base;
 
   using output_type = T;
 
@@ -70,31 +70,46 @@ public:
 
   using unique_path_ptr = std::unique_ptr<caf::outbound_path>;
 
-  unipath_downstream(caf::stream_manager* parent) : super(parent) {
+  unipath_downstream(caf::stream_manager* parent)
+    : super(parent, caf::type_id_v<T>) {
     // nop
   }
 
-  bool enqueue(item_scope scope, caf::span<const node_message> messages) {
-    if (path_) {
-      if (is_eligible<T>(scope)) {
-        prefix_matcher matches_filter;
-        for (const auto& msg : messages) {
-          if (is_eligible<T>(msg) && matches_filter(filter_, msg)) {
-            if constexpr (std::is_same<T, data_message>::value) {
-              cache_.emplace_back(caf::get<data_message>(msg.content));
-            } else if constexpr (std::is_same<T, command_message>::value) {
-              cache_.emplace_back(caf::get<command_message>(msg.content));
-            } else {
-              cache_.emplace_back(msg);
-            }
+  ~unipath_downstream() {
+    if (!cache_.empty())
+      super::dropped_messages(cache_.size());
+  }
+
+  bool enqueue(item_scope scope, caf::span<const node_message> messages,
+               long pending_handshakes) {
+    BROKER_TRACE(BROKER_ARG(scope)
+                 << BROKER_ARG(pending_handshakes)
+                 << BROKER_ARG2("num-messages", messages.size()));
+    if (is_eligible<T>(scope)) {
+      prefix_matcher matches_filter;
+      auto old_size = cache_.size();
+      for (const auto& msg : messages) {
+        if (is_eligible<T>(msg) && matches_filter(filter_, msg)) {
+          if constexpr (std::is_same<T, data_message>::value) {
+            cache_.emplace_back(caf::get<data_message>(msg.content));
+          } else if constexpr (std::is_same<T, command_message>::value) {
+            cache_.emplace_back(caf::get<command_message>(msg.content));
+          } else {
+            cache_.emplace_back(msg);
           }
         }
       }
-      return true;
-    } else {
-      BROKER_DEBUG("no path available");
-      return false;
+      if (auto added = cache_.size() - old_size; added > 0) {
+        super::generated_messages(added);
+        if (path_) {
+          emit_batches_impl(false);
+          return true;
+        } else {
+          return pending_handshakes != 0;
+        }
+      }
     }
+    return path_ || pending_handshakes != 0;
   }
 
   bool has_path() const noexcept {
@@ -111,6 +126,7 @@ public:
 
   bool remove_path(caf::stream_slot x, caf::error reason,
                    bool silent) noexcept override {
+    BROKER_TRACE(BROKER_ARG(x) << BROKER_ARG(reason) << BROKER_ARG(silent));
     if (is_this_slot(x)) {
       super::about_to_erase(path_.get(), silent, &reason);
       path_.reset();
@@ -126,19 +142,23 @@ public:
   }
 
   void emit_batches_impl(bool forced) {
-    if (!cache_.empty()) {
-      BROKER_DEBUG(BROKER_ARG2("cache.size", cache_.size()));
-      if (path_)
-        path_->emit_batches(super::self(), cache_, forced || path_->closing);
+    auto old_size = cache_.size();
+    path_->emit_batches(super::self(), cache_, forced || path_->closing);
+    auto new_size = cache_.size();
+    if (auto shipped = old_size - new_size; shipped > 0) {
+      super::shipped_messages(shipped);
+      super::last_send_ = super::self()->now();
     }
   }
 
   void emit_batches() override {
-    emit_batches_impl(false);
+    if (path_ && !cache_.empty())
+      emit_batches_impl(false);
   }
 
   void force_emit_batches() override {
-    emit_batches_impl(true);
+    if (path_ && !cache_.empty())
+      emit_batches_impl(true);
   }
 
   void clear_paths() override {
@@ -169,6 +189,7 @@ public:
   }
 
   bool insert_path(unique_path_ptr ptr) override {
+    BROKER_TRACE(BROKER_ARG(ptr));
     using std::swap;
     if (!path_) {
       swap(path_, ptr);
@@ -222,15 +243,17 @@ public:
   unipath_manager_out(central_dispatcher* dispatcher,
                       unipath_manager::observer* observer, Filter&& filter)
     : unipath_manager_out(dispatcher, observer) {
+    BROKER_TRACE(BROKER_ARG(filter));
     out_.filter_ = std::forward<Filter>(filter);
   }
 
   bool enqueue(const unipath_manager* source, item_scope scope,
                caf::span<const node_message> xs) override {
-    if (source != this)
-      return out_.enqueue(scope, xs);
-    else
+    if (source != this) {
+      return out_.enqueue(scope, xs, pending_handshakes_);
+    } else {
       return true;
+    }
   }
 
   filter_type filter() override {
@@ -238,6 +261,7 @@ public:
   }
 
   void filter(filter_type new_filter) override {
+    BROKER_TRACE(BROKER_ARG(new_filter));
     out_.filter_ = std::move(new_filter);
   }
 
@@ -351,11 +375,13 @@ public:
     : super(dispatcher, observer, std::forward<Ts>(xs)...) {
     auto sptr = super::self();
     auto& cfg = sptr->system().config();
-    if (caf::get_or(cfg, "broker.forward", true)) {
+    if (!std::is_same<T, node_message>::value
+        || caf::get_or(cfg, "broker.forward", true)) {
       ttl_ = caf::get_or(cfg, "broker.ttl", defaults::ttl);
     } else {
-      // Set TTL to 0 when forwarding was disabled. This causes all peer
-      // managers to drop node messages instead of forwarding them.
+      // Set TTL to 0 when forwarding was disabled and this manager receives
+      // node messages from other peers. This causes all peer managers to drop
+      // node messages instead of forwarding them.
       ttl_ = 0;
     }
   }
@@ -402,6 +428,10 @@ public:
                  ? uint16_t{0}
                  : std::min(ttl_, static_cast<uint16_t>(x.ttl - 1));
       x.ttl = ttl;
+      // We are using the reference count as a means to detect whether all
+      // receivers have processed the message. Hence, we must make sure that the
+      // reference count to the message's content is 1 at this point.
+      force_unshared(x);
       pending_.emplace_back(std::move(x));
     }
     if (auto added = pending_.size() - old_size; added > 0) {
@@ -413,8 +443,10 @@ public:
   template <class MessageType>
   void handle_batch(std::vector<MessageType>& xs) {
     auto old_size = pending_.size();
-    for (auto& x : xs)
+    for (auto& x : xs) {
+      force_unshared(x);
       pending_.emplace_back(make_node_message(std::move(x), ttl_));
+    }
     if (auto added = pending_.size() - old_size; added > 0) {
       auto ys = caf::make_span(std::addressof(pending_[old_size]), added);
       super::dispatcher_->enqueue(this, item_scope::remote, ys);
@@ -429,7 +461,6 @@ public:
       blocked_batches_.push_back(std::move(b));
     } else if (auto view = caf::make_typed_message_view<std::vector<T>>(b.xs)) {
       handle_batch(get<0>(view));
-      super::dispatcher_->ship();
     } else {
       BROKER_ERROR("received unexpected batch type (dropped)");
     }
@@ -489,10 +520,6 @@ void unipath_manager::unblock_inputs() {
 
 bool unipath_manager::blocks_inputs() {
   return false;
-}
-
-void unipath_manager::post_enqueue_cleanup() {
-  // nop
 }
 
 bool unipath_manager::has_inbound_path() const noexcept {

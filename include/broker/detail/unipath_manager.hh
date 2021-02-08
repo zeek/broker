@@ -51,8 +51,6 @@ public:
   /// topic.
   [[nodiscard]] virtual bool accepts(const topic&) const noexcept = 0;
 
-  virtual void post_enqueue_cleanup();
-
   /// Causes the manager to cache incoming batches until `unblock_inputs()` gets
   /// called.
   virtual void block_inputs();
