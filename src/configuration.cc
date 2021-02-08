@@ -101,6 +101,7 @@ configuration::configuration(skip_init_t) {
   // Broker didn't load the MM module yet. Use `put` to suppress the 'failed to
   // set config parameter' warning on the command line.
   put(content, "caf.middleman.app-identifiers", std::move(ids));
+  put(content, "caf.middleman.workers", 0);
   // Turn off all CAF output by default.
   std::vector<std::string> excluded_components{"caf", "caf_io", "caf_net",
                                                "caf_flow", "caf_stream"};

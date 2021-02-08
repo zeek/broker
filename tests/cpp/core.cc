@@ -345,11 +345,7 @@ CAF_TEST(triangle_peering) {
   self->send(leaf1, atom::get_v);
   sched.prioritize(leaf1);
   consume_message();
-  self->receive(
-    [&](const buf& xs) {
-      CAF_REQUIRE(xs.empty());
-    }
-  );
+  self->receive([&](const buf& xs) { CAF_CHECK_EQUAL(xs, buf{}); });
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, caf::exit_reason::user_shutdown);
