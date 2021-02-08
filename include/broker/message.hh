@@ -73,8 +73,8 @@ command_message make_command_message(Topic&& t, Command&& d) {
 
 /// Generates a ::node_message.
 template <class Value>
-node_message make_node_message(Value value, uint16_t ttl) {
-  return {std::move(value), ttl};
+node_message make_node_message(Value&& value, uint16_t ttl) {
+  return {std::forward<Value>(value), ttl};
 }
 
 /// Retrieves the topic from a ::data_message.
@@ -168,6 +168,31 @@ inline internal_command::variant_type&& move_command(command_message& x) {
 /// Retrieves the content from a ::data_message.
 inline const node_message_content& get_content(const node_message& x) {
   return x.content;
+}
+
+/// Force `x` to become uniquely referenced. Performs a deep-copy of the content
+/// in case they is more than one reference to it. If `x` is the only object
+/// referring to the content, this function does nothing.
+inline void force_unshared(data_message& x) {
+  x.unshared();
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(command_message& x) {
+  x.unshared();
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(node_message_content& x) {
+  if (caf::holds_alternative<data_message>(x))
+    force_unshared(get<data_message>(x));
+  else
+    force_unshared(get<command_message>(x));
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(node_message& x) {
+  force_unshared(x.content);
 }
 
 /// Converts `msg` to a human-readable string representation.

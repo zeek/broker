@@ -19,11 +19,6 @@ void central_dispatcher::enqueue(const unipath_manager* source,
   sinks_.erase(std::remove_if(sinks_.begin(), sinks_.end(), f), sinks_.end());
 }
 
-void central_dispatcher::ship() {
-  for (auto& sink : sinks_)
-    sink->push();
-}
-
 void central_dispatcher::add(unipath_manager_ptr sink) {
   sinks_.emplace_back(std::move(sink));
 }
