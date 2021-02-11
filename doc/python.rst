@@ -148,6 +148,28 @@ indexed by vectors, tables are mapped to Python dictionaries, Python
 dictionaries only allow immutable index types, and so we must use a
 ``tuple`` to represent a ``vector``.
 
+Most types should map to `Zeek Types
+<https://docs.zeek.org/en/master/script-reference/types.html>`_ intuitively,
+but to explain how to represent `Zeek records
+<https://docs.zeek.org/en/master/script-reference/types.html#type-record>`_:
+use a Python ``tuple`` with uninitialized ``&optional`` record fields being a
+``None`` value.  For example, this Zeek record type:
+
+.. code-block:: zeek
+
+  type MyRec: record {
+	  n: count;
+	  o: addr &optional;
+	  s: string;
+	  t: table[int] of string;
+  };
+
+Might be represented by this Python value:
+
+.. code-block:: python
+
+  (broker.Count(42), None, "hi", {1: "one", 2: "two"})
+
 Status and Error Messages
 -------------------------
 
