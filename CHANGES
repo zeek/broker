@@ -1,4 +1,12 @@
 
+2.1.0-dev.42 | 2021-02-11 12:10:05 -0800
+
+  * Disable syntax highlighting for some overview documentation (Jon Siwek, Corelight)
+
+  * Add Python bindings example docs for representing Zeek records (Jon Siwek, Corelight)
+
+  * Fix typo in data model documentation (Jon Siwek, Corelight)
+
 2.1.0-dev.39 | 2021-01-25 21:17:05 -0800
 
   * Add missing comments to example Windows Dockerfile (Jon Siwek, Corelight)
