@@ -9,10 +9,8 @@ resources_template: &RESOURCES_TEMPLATE
   memory: *MEMORY
 
 macos_resources_template: &MACOS_RESOURCES_TEMPLATE
-  # cpu/memory setting is implicitly 2 core / 4 thread and 8GB, and
-  # trying to set it explicitly results in an error.
   env:
-    BROKER_CI_CPUS: 4
+    BROKER_CI_CPUS: 12
     BROKER_CI_CONFIGURE_FLAGS: *CONFIG
     # No permission to write to default location of /broker
     CIRRUS_WORKING_DIR: /tmp/broker

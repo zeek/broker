@@ -1,4 +1,8 @@
 
+2.1.0-dev.48 | 2021-02-16 13:58:19 -0800
+
+  * Increase CPUs used for macOS CI builds (Jon Siwek, Corelight)
+
 2.1.0-dev.47 | 2021-02-16 12:30:36 -0800
 
   * broker-benchmark: Fix heap-buffer overflow when receiving stats (Dominik Charousset, Corelight)
