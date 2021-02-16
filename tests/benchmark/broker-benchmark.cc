@@ -152,12 +152,28 @@ void send_batch(endpoint& ep, publisher& p) {
   p.publish(std::move(batch));
 }
 
-void receivedStats(endpoint& ep, data x) {
+const vector* inner_vector(const vector& vec) {
+  for (auto& x : vec)
+    if (auto ptr = caf::get_if<vector>(&x))
+      return inner_vector(*ptr);
+  return &vec;
+}
+
+void receivedStats(endpoint& ep, const data& x) {
   // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
-  // We are only interested in the '[1ns, 1ns, 0]' part.
-  auto xvec = caf::get<vector>(x);
-  auto yvec = caf::get<vector>(xvec[2]);
-  auto rec = caf::get<vector>(yvec[1]);
+  // We are only interested in the '[1ns, 1ns, 0]' part (the inner vector).
+  if (!caf::holds_alternative<vector>(x)) {
+    std::cerr << "received invalid stats (not a vector): " << to_string(x)
+              << '\n';
+    return;
+  }
+  auto inner = inner_vector(caf::get<vector>(x));
+  if (inner->size() != 3) {
+    std::cerr << "received invalid stats (most inner vector has size "
+              << inner->size() << ", expected 3): " << to_string(x) << '\n';
+    return;
+  }
+  auto& rec = *inner;
 
   double t;
   convert(caf::get<timestamp>(rec[0]), t);
@@ -223,7 +239,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     },
     [&](caf::unit_t&, data_message x) {
       // Print everything we receive.
-      receivedStats(ep, move_data(x));
+      receivedStats(ep, get_data(x));
     },
     [](caf::unit_t&, const caf::error&) {
       // nop
@@ -351,7 +367,7 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     auto stats = vector{now, now - last_time, count{reset_num_events()}};
     if (verbose)
       std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
-    zeek::Event ev("stats_update", vector{std::move(stats)});
+    zeek::Event ev("stats_update", std::move(stats));
     ep.publish("/benchmark/stats", std::move(ev));
     // Advance time and print status events.
     last_time = now;

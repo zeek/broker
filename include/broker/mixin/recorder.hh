@@ -12,8 +12,6 @@ public:
 
   using extended_base = recorder;
 
-  using message_type = typename super::message_type;
-
   using peer_id_type = typename super::peer_id_type;
 
   using communication_handle_type = typename super::communication_handle_type;

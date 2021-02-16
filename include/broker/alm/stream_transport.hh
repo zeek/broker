@@ -54,8 +54,6 @@ public:
 
   using peer_id_type = PeerId;
 
-  using message_type = generic_node_message<PeerId>;
-
   using communication_handle_type = caf::actor;
 
   using manager_ptr = detail::unipath_manager_ptr;
@@ -90,7 +88,6 @@ public:
                                     defaults::output_generator_file_cap);
       }
     }
-    stash_ = dispatcher_.new_item_stash(0);
   }
 
   // -- initialization ---------------------------------------------------------
@@ -253,7 +250,7 @@ public:
   /// @param peer_hdl Handle to the peering (remote) core actor.
   /// @returns `false` if the peer is already connected, `true` otherwise.
   /// @pre Current message is an `open_stream_msg`.
-  bool ack_peering(const caf::stream<message_type>& in,
+  bool ack_peering(const caf::stream<node_message>& in,
                    const caf::actor& peer_hdl) {
     BROKER_TRACE(BROKER_ARG(peer_hdl));
     BROKER_ASSERT(hdl_to_mgr_.count(peer_hdl) == 0);
@@ -354,42 +351,30 @@ public:
   template <class T>
   void local_push(T msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    if (stash_->empty())
-      stash_->replenish(item_stash_replenish_size);
-    dispatcher_.enqueue(stash_->next_item(std::move(msg), ttl(), nullptr,
-                                          detail::item_scope::local));
+    auto wrapped = make_node_message(std::move(msg), ttl());
+    dispatcher_.enqueue(nullptr, detail::item_scope::local,
+                        caf::make_span(&wrapped, 1));
   }
 
   /// Pushes messages to peers without forwarding it to local subscribers.
-  void remote_push(message_type msg) {
+  void remote_push(node_message msg) {
     BROKER_TRACE(BROKER_ARG(msg));
-    if (stash_->empty())
-      stash_->replenish(item_stash_replenish_size);
-    dispatcher_.enqueue(stash_->next_item(std::move(msg.content), msg.ttl,
-                                          nullptr, detail::item_scope::remote));
+    dispatcher_.enqueue(nullptr, detail::item_scope::remote,
+                        caf::make_span(&msg, 1));
   }
 
-  /// Pushes data to peers and workers.
+  /// Pushes data to peers.
   void push(data_message msg) {
-    BROKER_TRACE(BROKER_ARG(msg));
-    if (stash_->empty())
-      stash_->replenish(item_stash_replenish_size);
-    dispatcher_.enqueue(
-      stash_->next_item(msg, ttl(), nullptr, detail::item_scope::remote));
+    remote_push(make_node_message(std::move(msg), ttl()));
   }
 
-  /// Pushes data to peers and stores.
+  /// Pushes data to peers.
   void push(command_message msg) {
-    BROKER_TRACE(BROKER_ARG(msg));
-    if (stash_->empty())
-      stash_->replenish(item_stash_replenish_size);
-    dispatcher_.enqueue(
-      stash_->next_item(msg, ttl(), nullptr, detail::item_scope::remote));
+    remote_push(make_node_message(std::move(msg), ttl()));
   }
 
-  /// Pushes data to peers and stores.
-  void push(message_type msg) {
-    BROKER_TRACE(BROKER_ARG(msg));
+  /// Pushes data to peers.
+  void push(node_message msg) {
     remote_push(std::move(msg));
   }
 
@@ -404,7 +389,7 @@ public:
     push(std::move(msg));
   }
 
-  void ship(message_type& msg) {
+  void ship(node_message& msg) {
     push(std::move(msg));
   }
 
@@ -580,10 +565,6 @@ protected:
   /// Our dispatcher "singleton" that holds the item allocator as well as
   /// pointers to all active unipath managers for outbound traffic.
   detail::central_dispatcher dispatcher_;
-
-  /// Stash for generating items that users publish directly on the core instead
-  /// of going through a publisher.
-  detail::item_stash_ptr stash_;
 
   /// Maps peer handles to their respective unipath manager.
   hdl_to_mgr_map hdl_to_mgr_;

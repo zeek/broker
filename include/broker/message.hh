@@ -17,35 +17,23 @@ using data_message = caf::cow_tuple<topic, data>;
 /// A broker-internal message with topic and command.
 using command_message = caf::cow_tuple<topic, internal_command>;
 
-/// A message for node-to-node communication with either a user-defined data
-/// message or a broker-internal command messages.
-template <class PeerId>
-struct generic_node_message {
-  /// Content type of the message.
-  using value_type = caf::variant<data_message, command_message>;
-
-  /// Container type for storing a list of receivers.
-  using receiver_list = std::vector<PeerId>;
-
-  /// Content of the message.
-  value_type content;
-
-  /// Time-to-life counter.
-  uint16_t ttl;
-
-  /// Receivers of this message.
-  receiver_list receivers;
-};
-
 /// Value type of `node_message`.
 using node_message_content = caf::variant<data_message, command_message>;
 
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
-using node_message = generic_node_message<caf::node_id>;
+struct node_message {
+  using value_type = node_message_content;
+
+  /// Content of the message.
+  node_message_content content;
+
+  /// Time-to-life counter.
+  uint16_t ttl;
+};
 
 /// Returns whether `x` contains a ::node_message.
-inline bool is_data_message(const node_message::value_type& x) {
+inline bool is_data_message(const node_message_content& x) {
   return caf::holds_alternative<data_message>(x);
 }
 
@@ -55,7 +43,7 @@ inline bool is_data_message(const node_message& x) {
 }
 
 /// Returns whether `x` contains a ::command_message.
-inline bool is_command_message(const node_message::value_type& x) {
+inline bool is_command_message(const node_message_content& x) {
   return caf::holds_alternative<command_message>(x);
 }
 
@@ -65,11 +53,10 @@ inline bool is_command_message(const node_message& x) {
 }
 
 /// @relates node_message
-template <class Inspector, class PeerId>
-bool inspect(Inspector& f, generic_node_message<PeerId>& x) {
+template <class Inspector>
+bool inspect(Inspector& f, node_message& x) {
   return f.object(x).fields(f.field("content", x.content),
-                            f.field("ttl", x.ttl),
-                            f.field("receivers", x.receivers));
+                            f.field("ttl", x.ttl));
 }
 
 /// Generates a ::data_message.
@@ -86,10 +73,8 @@ command_message make_command_message(Topic&& t, Command&& d) {
 
 /// Generates a ::node_message.
 template <class Value>
-node_message
-make_node_message(Value value, uint16_t ttl,
-                  typename node_message::receiver_list receivers = {}) {
-  return {std::move(value), ttl, std::move(receivers)};
+node_message make_node_message(Value&& value, uint16_t ttl) {
+  return {std::forward<Value>(value), ttl};
 }
 
 /// Retrieves the topic from a ::data_message.
@@ -103,10 +88,11 @@ inline const topic& get_topic(const command_message& x) {
 }
 
 /// Retrieves the topic from a ::generic_message.
-inline const topic& get_topic(const node_message::value_type& x) {
+inline const topic& get_topic(const node_message_content& x) {
   if (is_data_message(x))
     return get_topic(caf::get<data_message>(x));
-  return get_topic(caf::get<command_message>(x));
+  else
+    return get_topic(caf::get<command_message>(x));
 }
 
 /// Retrieves the topic from a ::generic_message.
@@ -128,10 +114,11 @@ inline topic&& move_topic(command_message& x) {
 
 /// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
 /// its content if other ::node_message objects hold references to it.
-inline topic&& move_topic(node_message::value_type& x) {
+inline topic&& move_topic(node_message_content& x) {
   if (is_data_message(x))
     return move_topic(caf::get<data_message>(x));
-  return move_topic(caf::get<command_message>(x));
+  else
+    return move_topic(caf::get<command_message>(x));
 }
 
 /// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
@@ -179,9 +166,33 @@ inline internal_command::variant_type&& move_command(command_message& x) {
 }
 
 /// Retrieves the content from a ::data_message.
-template <class PeerId>
-const node_message_content& get_content(const generic_node_message<PeerId>& x) {
+inline const node_message_content& get_content(const node_message& x) {
   return x.content;
+}
+
+/// Force `x` to become uniquely referenced. Performs a deep-copy of the content
+/// in case they is more than one reference to it. If `x` is the only object
+/// referring to the content, this function does nothing.
+inline void force_unshared(data_message& x) {
+  x.unshared();
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(command_message& x) {
+  x.unshared();
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(node_message_content& x) {
+  if (caf::holds_alternative<data_message>(x))
+    force_unshared(get<data_message>(x));
+  else
+    force_unshared(get<command_message>(x));
+}
+
+/// @copydoc force_unshared
+inline void force_unshared(node_message& x) {
+  force_unshared(x.content);
 }
 
 /// Converts `msg` to a human-readable string representation.

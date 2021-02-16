@@ -1,4 +1,28 @@
 
+2.1.0-dev.47 | 2021-02-16 12:30:36 -0800
+
+  * broker-benchmark: Fix heap-buffer overflow when receiving stats (Dominik Charousset, Corelight)
+
+  * Fix metrics and TTL of locally published data (Dominik Charousset, Corelight)
+
+  * Implement more lightweight origin credit tracking (Dominik Charousset, Corelight)
+
+    The item-based tracking of message origins keeps all context for input
+    messages. However, benchmarking reveled that this nice-to-have property
+    comes at an expensive price.
+
+    The new approach for tracking how many inputs for each origin are
+    currently in the system leverages the reference count of Broker messages
+    that we need in any case rather than introducing additional state.
+
+  * Disable background deserialization (Dominik Charousset, Corelight)
+
+    Zeek configures only a few threads to the CAF thread pool. This may
+    introduce some heavy delays for the deserialization that takes place in
+    the background. Disabling this feature altogether makes sure that
+    messages will not end up in some queues even though it puts more
+    pressure on the multiplexer's thread.
+
 2.1.0-dev.42 | 2021-02-11 12:10:05 -0800
 
   * Disable syntax highlighting for some overview documentation (Jon Siwek, Corelight)
