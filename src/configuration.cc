@@ -163,6 +163,18 @@ void configuration::init(int argc, char** argv) {
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
   }
+  if (auto env = getenv("BROKER_METRICS_PORT")) {
+    char* end = nullptr;
+    auto port = strtol(env, &end, 10);
+    if (errno == ERANGE || *end != '\0' || port <= 0 || port > 0xFFFF) {
+      auto what = concat("invalid value for BROKER_METRICS_PORT: ", env,
+                         " (expected a non-zero port number)");
+      throw std::invalid_argument(what);
+    }
+    put(content, "caf.middleman.prometheus-http.port", port);
+    put(content, "caf.metrics-filters.actors.includes",
+        std::vector<std::string>{core_state::name});
+  }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
     auto value = strtol(env, &end, 10);

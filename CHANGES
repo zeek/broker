@@ -1,4 +1,8 @@
 
+2.1.0-dev.50 | 2021-02-22 15:45:38 -0800
+
+  * Enable metrics exposition via BROKER_METRICS_PORT (Dominik Charousset, Corelight)
+
 2.1.0-dev.48 | 2021-02-16 13:58:19 -0800
 
   * Increase CPUs used for macOS CI builds (Jon Siwek, Corelight)
