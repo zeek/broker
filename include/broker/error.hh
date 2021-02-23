@@ -91,6 +91,8 @@ enum class ec : uint8_t {
   unexpected_handshake_message,
   /// Handshake failed due to invalid state transitions.
   invalid_handshake_state,
+  /// Dispatching a message failed because no path to the receiver exists.
+  no_path_to_peer,
 };
 // --ec-enum-end
 
@@ -107,7 +109,7 @@ template <ec Value>
 using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
-const char* to_string(ec code) noexcept;
+std::string to_string(ec code) noexcept;
 
 /// @relates ec
 bool convert(const std::string& str, ec& code) noexcept;
@@ -118,13 +120,27 @@ bool convert(const data& str, ec& code) noexcept;
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
 
+/// @relates ec
+template <class Inspector>
+bool inspect(Inspector& f, ec& x) {
+  auto get = [&] { return static_cast<uint8_t>(x); };
+  auto set = [&](uint8_t val) {
+    if (val <= static_cast<uint8_t>(ec::invalid_status)) {
+      x = static_cast<ec>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
+
 template <>
 struct can_convert_predicate<ec> {
   static bool check(const data& src) noexcept {
     return convertible_to_ec(src);
   }
 };
-
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.

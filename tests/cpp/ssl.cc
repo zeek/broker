@@ -19,22 +19,19 @@ using namespace broker;
 
 namespace {
 
-#if CAF_VERSION < 1800
-#define CFG_PREFIX
-#else
-#define CFG_PREFIX "caf."
-#endif
-
 configuration make_config(std::string cert_id) {
   configuration cfg;
-  cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
+  if (auto err = cfg.parse(caf::test::engine::argc(),
+                           caf::test::engine::argv()))
+    CAF_FAIL("parsing the config failed: " << to_string(err));
+  cfg.set("caf.logger.inline-output", true);
   if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
     auto cd = std::string(test_dir) + "/cpp/certs/";
-    cfg.set(CFG_PREFIX "openssl.cafile", cd + "ca.pem");
-    cfg.set(CFG_PREFIX "openssl.certificate", cd + "cert." + cert_id + ".pem");
-    cfg.set(CFG_PREFIX "openssl.key", cd + "key." + cert_id + ".pem");
+    cfg.set("caf.openssl.cafile", cd + "ca.pem");
+    cfg.set("caf.openssl.certificate", cd + "cert." + cert_id + ".pem");
+    cfg.set("caf.openssl.key", cd + "key." + cert_id + ".pem");
     MESSAGE("using certififcate " << cfg.openssl_certificate << ", key "
                                   << cfg.openssl_key);
   }

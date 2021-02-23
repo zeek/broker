@@ -9,9 +9,9 @@
 #include <string>
 
 #include "broker/config.hh"
-#include "broker/detail/hash.hh"
 
 #include <caf/detail/network_order.hpp>
+#include <caf/hash/fnv.hpp>
 
 namespace broker {
 
@@ -95,8 +95,8 @@ bool address::mask(uint8_t top_bits_to_keep) {
   return true;
 }
 
-} // namespace broker
-
-size_t std::hash<broker::address>::operator()(const broker::address& v) const {
-  return broker::detail::hash_range(v.bytes().begin(), v.bytes().end());
+size_t address::hash() const {
+  return caf::hash::fnv<size_t>::compute(addr_);
 }
+
+} // namespace broker

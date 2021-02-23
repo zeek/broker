@@ -3,8 +3,8 @@
 #include <caf/error.hpp>
 #include <caf/sec.hpp>
 
-#include "broker/detail/inspect_objects.hh"
 #include "broker/detail/meta_data_writer.hh"
+#include "broker/detail/write_value.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
@@ -69,8 +69,8 @@ caf::error generator_file_writer::write(const data_message& x) {
   meta_data_writer writer{sink_};
   uint16_t tid;
   auto entry = format::entry_type::data_message;
-  BROKER_TRY(topic_id(get_topic(x), tid),
-             detail::inspect_objects(sink_, entry, tid), writer(get_data(x)));
+  BROKER_TRY(topic_id(get_topic(x), tid), write_value(sink_, entry),
+             write_value(sink_, tid), writer(get_data(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
   return caf::none;
@@ -80,9 +80,8 @@ caf::error generator_file_writer::write(const command_message& x) {
   meta_data_writer writer{sink_};
   uint16_t tid;
   auto entry = format::entry_type::command_message;
-  BROKER_TRY(topic_id(get_topic(x), tid),
-             detail::inspect_objects(sink_, entry, tid),
-             writer(get_command(x)));
+  BROKER_TRY(topic_id(get_topic(x), tid), write_value(sink_, entry),
+             write_value(sink_, tid), writer(get_command(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
   return caf::none;
@@ -100,8 +99,7 @@ caf::error generator_file_writer::topic_id(const topic& x, uint16_t& id) {
   if (i == e) {
     // Write the new topic to file first.
     auto entry = format::entry_type::new_topic;
-    if (auto err = detail::inspect_objects(sink_, entry, x.string()))
-      return err;
+    BROKER_TRY(write_value(sink_, entry), write_value(sink_, x.string()));
     id = static_cast<uint16_t>(topic_table_.size());
     topic_table_.emplace_back(x);
     return caf::none;
@@ -127,7 +125,9 @@ generator_file_writer_ptr make_generator_file_writer(const std::string& fname) {
 
 generator_file_writer& operator<<(generator_file_writer& out,
                                   const data_message& x) {
-  out.write(x);
+  if (auto err = out.write(x)) {
+    BROKER_ERROR("error writing data message to generator file:" << to_string(err));
+  }
   return out;
 }
 

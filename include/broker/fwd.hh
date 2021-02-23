@@ -92,6 +92,9 @@ class multipath;
 
 struct lamport_timestamp;
 
+class peer;
+class stream_transport;
+
 } // namespace broker::alm
 
 // -- CAF type aliases ---------------------------------------------------------
@@ -134,8 +137,16 @@ namespace broker::detail {
 struct retry_state;
 struct store_state;
 
+class central_dispatcher;
 class flare_actor;
 class mailbox;
+class peer_manager;
+class unipath_command_sink;
+class unipath_data_sink;
+class unipath_manager;
+class unipath_source;
+
+enum class item_scope : uint8_t;
 
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
@@ -165,6 +176,8 @@ BROKER_CAF_ATOM_ALIAS(update)
 
 } // namespace broker::atom
 
+#undef BROKER_CAF_ATOM_ALIAS
+
 // -- type announcements and custom atoms --------------------------------------
 
 // Our type aliases for `timespan` and `timestamp` are identical to
@@ -177,8 +190,7 @@ static_assert(caf::has_type_id<broker::timespan>::value,
 static_assert(caf::has_type_id<broker::timestamp>::value,
               "broker::timestamp != caf::timestamp");
 
-#define BROKER_ADD_ATOM(name, text)                                            \
-  CAF_ADD_ATOM(broker, broker::atom, name, text)
+#define BROKER_ADD_ATOM(...) CAF_ADD_ATOM(broker, broker::atom, __VA_ARGS__)
 
 #define BROKER_ADD_TYPE_ID(type) CAF_ADD_TYPE_ID(broker, type)
 
@@ -186,56 +198,56 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
 
   // -- atoms for generic communication ----------------------------------------
 
-  BROKER_ADD_ATOM(ack, "ack")
+  BROKER_ADD_ATOM(ack)
   BROKER_ADD_ATOM(default_, "default")
-  BROKER_ADD_ATOM(id, "id")
-  BROKER_ADD_ATOM(init, "init")
-  BROKER_ADD_ATOM(name, "name")
-  BROKER_ADD_ATOM(network, "network")
-  BROKER_ADD_ATOM(peer, "peer")
-  BROKER_ADD_ATOM(ping, "ping")
-  BROKER_ADD_ATOM(pong, "pong")
-  BROKER_ADD_ATOM(read, "read")
-  BROKER_ADD_ATOM(retry, "retry")
-  BROKER_ADD_ATOM(run, "run")
-  BROKER_ADD_ATOM(shutdown, "shutdown")
-  BROKER_ADD_ATOM(status, "status")
-  BROKER_ADD_ATOM(unpeer, "unpeer")
-  BROKER_ADD_ATOM(write, "write")
+  BROKER_ADD_ATOM(id)
+  BROKER_ADD_ATOM(init)
+  BROKER_ADD_ATOM(name)
+  BROKER_ADD_ATOM(network)
+  BROKER_ADD_ATOM(peer)
+  BROKER_ADD_ATOM(ping)
+  BROKER_ADD_ATOM(pong)
+  BROKER_ADD_ATOM(read)
+  BROKER_ADD_ATOM(retry)
+  BROKER_ADD_ATOM(run)
+  BROKER_ADD_ATOM(shutdown)
+  BROKER_ADD_ATOM(status)
+  BROKER_ADD_ATOM(unpeer)
+  BROKER_ADD_ATOM(write)
 
   // -- atoms for communication with workers -----------------------------------
 
-  BROKER_ADD_ATOM(resume, "resume")
+  BROKER_ADD_ATOM(resume)
 
   // -- atoms for communication with stores ------------------------------------
 
-  BROKER_ADD_ATOM(attach, "attach")
-  BROKER_ADD_ATOM(await, "await")
-  BROKER_ADD_ATOM(clear, "clear")
-  BROKER_ADD_ATOM(clone, "clone")
-  BROKER_ADD_ATOM(decrement, "decrement")
-  BROKER_ADD_ATOM(erase, "erase")
-  BROKER_ADD_ATOM(exists, "exists")
-  BROKER_ADD_ATOM(expire, "expire")
-  BROKER_ADD_ATOM(idle, "idle")
-  BROKER_ADD_ATOM(increment, "increment")
-  BROKER_ADD_ATOM(keys, "keys")
-  BROKER_ADD_ATOM(local, "local")
-  BROKER_ADD_ATOM(master, "master")
-  BROKER_ADD_ATOM(mutable_check, "mutable")
-  BROKER_ADD_ATOM(resolve, "resolve")
-  BROKER_ADD_ATOM(restart, "restart")
-  BROKER_ADD_ATOM(revoke, "subtract")
-  BROKER_ADD_ATOM(stale_check, "stale")
-  BROKER_ADD_ATOM(store, "store")
-  BROKER_ADD_ATOM(subtract, "subtract")
-  BROKER_ADD_ATOM(sync_point, "sync_point")
+  BROKER_ADD_ATOM(attach)
+  BROKER_ADD_ATOM(await)
+  BROKER_ADD_ATOM(clear)
+  BROKER_ADD_ATOM(clone)
+  BROKER_ADD_ATOM(decrement)
+  BROKER_ADD_ATOM(erase)
+  BROKER_ADD_ATOM(exists)
+  BROKER_ADD_ATOM(expire)
+  BROKER_ADD_ATOM(idle)
+  BROKER_ADD_ATOM(increment)
+  BROKER_ADD_ATOM(keys)
+  BROKER_ADD_ATOM(local)
+  BROKER_ADD_ATOM(master)
+  BROKER_ADD_ATOM(mutable_check)
+  BROKER_ADD_ATOM(resolve)
+  BROKER_ADD_ATOM(restart)
+  BROKER_ADD_ATOM(revoke)
+  BROKER_ADD_ATOM(stale_check)
+  BROKER_ADD_ATOM(store)
+  BROKER_ADD_ATOM(subtract)
+  BROKER_ADD_ATOM(sync_point)
 
   // -- atoms for communciation with the core actor ----------------------------
 
-  BROKER_ADD_ATOM(no_events, "noEvents")
-  BROKER_ADD_ATOM(snapshot, "snapshot")
-  BROKER_ADD_ATOM(subscriptions, "subs")
+  BROKER_ADD_ATOM(no_events)
+  BROKER_ADD_ATOM(snapshot)
+  BROKER_ADD_ATOM(subscriptions)
 
   // -- Broker type announcements ----------------------------------------------
 

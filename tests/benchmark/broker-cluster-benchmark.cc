@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdio>
 #include <iostream>
+#include <numeric>
 #include <string>
 #include <thread>
 
@@ -17,11 +18,11 @@
 #include "caf/string_algorithms.hpp"
 #include "caf/term.hpp"
 
-#include "broker/atoms.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/generator_file_reader.hh"
 #include "broker/detail/generator_file_writer.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/subscriber.hh"
 
 using caf::actor_system_config;
@@ -183,13 +184,8 @@ struct config : actor_system_config {
       .add<bool>("verbose,v", "enable verbose output")
       .add<string_list>("excluded-nodes,e",
                         "excludes given nodes from the setup");
-    set("scheduler.max-threads", 1);
-#if CAF_VERSION < 1800
-    set("logger.file-verbosity", caf::atom("quiet"));
-    broker::configuration::add_message_types(*this);
-#else
-    set("logger.file-verbosity", "quiet");
-#endif
+    set("caf.scheduler.max-threads", 1);
+    set("caf.logger.file.verbosity", "quiet");
   }
 
   string usage() {
@@ -248,13 +244,8 @@ struct node {
   /// Stores how many inputs we receive per node.
   inputs_by_node_map inputs_by_node;
 
-#if CAF_VERSION < 1800
-  /// Stores the CAF log level for this node.
-  caf::atom_value log_verbosity = caf::atom("quiet");
-#else
   /// Stores the CAF log level for this node.
   std::string log_verbosity = "quiet";
-#endif
 };
 
 bool is_sender(const node& x) {
@@ -291,9 +282,9 @@ struct strip_optional<caf::optional<T>> {
     std::string field_name = #field;                                           \
     caf::replace_all(field_name, "_", "-");                                    \
     using field_type = typename strip_optional<decltype(result.field)>::type;  \
-    if (auto value = get_if<field_type>(&parameters, field_name))              \
+    if (auto value = caf::get_as<field_type>(parameters, field_name))          \
       result.field = std::move(*value);                                        \
-    else if (auto type_erased_value = get_if(&parameters, field_name))         \
+    else if (auto type_erased_value = caf::get_if(&parameters, field_name))    \
       return make_error(caf::sec::invalid_argument, result.name,               \
                         "illegal type for field", field_name);                 \
     else if (strcmp(#qualifier, "mandatory") == 0)                             \
@@ -342,7 +333,8 @@ struct node_manager_state {
   }
 
   ~node_manager_state() {
-    ep.~endpoint();
+    if (this_node != nullptr)
+      ep.~endpoint();
   }
 
   void init(node* this_node_ptr) {
@@ -353,9 +345,9 @@ struct node_manager_state {
     opts.disable_ssl = true;
     opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
-    cfg.set("middleman.workers", 0);
-    cfg.set("logger.file-name", this_node->name + ".log");
-    cfg.set("logger.file-verbosity", this_node->log_verbosity);
+    cfg.set("caf.middleman.workers", 0);
+    cfg.set("caf.logger.file.path", this_node->name + ".log");
+    cfg.set("caf.logger.file.verbosity", this_node->log_verbosity);
     new (&ep) broker::endpoint(std::move(cfg));
   }
 };
@@ -501,14 +493,8 @@ struct consumer_state {
       },
       [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
       [=](caf::unit_t&, const caf::error& err) {
-#if CAF_VERSION < 1800
-        auto& types = self->system().types();
-        verbose::println(this_node->name, " stops receiving ",
-                         types.portable_name(caf::make_rtti_pair<T>()));
-#else
         verbose::println(this_node->name, " stops receiving ",
                          caf::type_name_v<T>);
-#endif
       });
   }
 
@@ -1135,6 +1121,7 @@ program_mode_t get_mode(const config& cfg) {
 }
 
 int main(int argc, char** argv) {
+  broker::configuration::init_global_state();
   // Read CAF configuration.
   config cfg;
   if (auto err = cfg.parse(argc, argv)) {

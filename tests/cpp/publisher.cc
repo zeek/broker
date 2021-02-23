@@ -76,20 +76,20 @@ behavior consumer(consumer_actor* self, filter_type ts, const actor& src) {
 
 struct fixture : base_fixture {
   // Returns the core manager for given actor.
-  auto& mgr(caf::actor hdl) {
-    return *deref<core_actor_type>(hdl).state.mgr;
+  auto& state(caf::actor hdl) {
+    return deref<core_actor_type>(hdl).state;
   }
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn(core_actor, filter_type{"z"});
+    core2 = sys.spawn<core_actor_type>(filter_type{"z"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();
     core1_id = caf::make_node_id(unbox(caf::make_uri("test:core1")));
     core2_id = caf::make_node_id(unbox(caf::make_uri("test:core2")));
-    mgr(core1).id(core1_id);
-    mgr(core2).id(core2_id);
+    state(core1).id(core1_id);
+    state(core2).id(core2_id);
   }
 
   ~fixture() {

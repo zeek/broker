@@ -30,11 +30,10 @@ public:
 
   // -- overrides --------------------------------------------------------------
 
-  void send(const caf::actor& receiver, atom::publish,
-            node_message msg) override {
+  void dispatch(node_message&& msg) override {
     if (rec_)
       rec_.try_record(msg);
-    super::send(receiver, atom::publish_v, std::move(msg));
+    super::dispatch(std::move(msg));
   }
 
   void subscribe(const filter_type& what) override {

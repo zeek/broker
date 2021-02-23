@@ -15,6 +15,7 @@
 #include "broker/detail/lift.hh"
 #include "broker/detail/peer_handshake.hh"
 #include "broker/detail/prefix_matcher.hh"
+#include "broker/detail/unipath_manager.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/fwd.hh"
@@ -42,7 +43,7 @@ namespace broker::alm {
 /// (atom::unpeer, actor hdl) -> void
 /// => disconnect(hdl)
 /// ~~~
-class stream_transport : public peer, public caf::stream_manager {
+class stream_transport : public peer, public detail::unipath_manager::observer {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -50,66 +51,13 @@ public:
 
   using endpoint_id_list = std::vector<endpoint_id>;
 
-  using handshake_type = detail::peer_handshake<stream_transport>;
+  /// Maps peer actor handles to their stream managers.
+  using hdl_to_mgr_map
+    = std::unordered_map<caf::actor, detail::peer_manager_ptr>;
 
-  using handshake_ptr = detail::peer_handshake_ptr<stream_transport>;
-
-  /// Helper trait for defining streaming-related types for local actors
-  /// (workers and stores).
-  template <class T>
-  struct local_trait {
-    /// Type of a single element in the stream.
-    using element = caf::cow_tuple<topic, T>;
-
-    /// Type of a full batch in the stream.
-    using batch = std::vector<element>;
-
-    /// Type of the downstream_manager that broadcasts data to local actors.
-    using manager = caf::broadcast_downstream_manager<element, filter_type,
-                                                      detail::prefix_matcher>;
-  };
-
-  /// Streaming-related types for workers.
-  using worker_trait = local_trait<data>;
-
-  /// Streaming-related types for stores.
-  using store_trait = local_trait<internal_command>;
-
-  /// Streaming-related types for sources that produce both types of messages.
-  struct var_trait {
-    using batch = std::vector<node_message_content>;
-  };
-
-  /// Streaming-related types for peers.
-  struct peer_trait {
-    /// Type of a single element in the stream.
-    using element = node_message;
-
-    using batch = std::vector<element>;
-
-    /// Type of the downstream_manager that broadcasts data to local actors.
-    using manager = caf::broadcast_downstream_manager<element>;
-  };
-
-  /// Composed downstream_manager type for bundled dispatching.
-  using downstream_manager_type
-    = caf::fused_downstream_manager<typename peer_trait::manager,
-                                    typename worker_trait::manager,
-                                    typename store_trait::manager>;
-
-  /// Maps a peer handle to the slot for outbound communication. Our routing
-  /// table translates peer IDs to actor handles, but we need one additional
-  /// step to get to the associated stream.
-  using hdl_to_slot_map
-    = caf::detail::unordered_flat_map<caf::actor, caf::stream_slot>;
-
-  using worker_slot = caf::outbound_stream_slot<typename worker_trait::element>;
-
-  using store_slot = caf::outbound_stream_slot<typename store_trait::element>;
-
-  // -- imported member functions (silence hiding warnings) --------------------
-
-  using caf::stream_manager::shutdown;
+  /// Maps stream managers to peer actor handles.
+  using mgr_to_hdl_map
+    = std::unordered_map<detail::peer_manager_ptr, caf::actor>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -117,75 +65,54 @@ public:
 
   // -- properties -------------------------------------------------------------
 
-  /// Returns the slot for outgoing traffic to `hdl`.
-  optional<caf::stream_slot> output_slot(const caf::actor& hdl) const noexcept;
-
-  /// Returns the slot for incoming traffic from `hdl`.
-  optional<caf::stream_slot> input_slot(const caf::actor& hdl) const noexcept;
-
-  /// Returns whether this manager has inbound and outbound streams from and to
-  /// `hdl`.`
-  bool connected_to(const caf::actor& hdl) const noexcept;
-
-  const auto& pending_connections() const noexcept {
-    return pending_connections_;
-  }
-
-  /// Returns the handshake state for `peer_id` or `nullptr`.
-  handshake_ptr pending_connection(const endpoint_id& peer_id) const noexcept;
-
-  /// Like `pending_connection`, but inserts and returns a new handshake object
-  /// if none exists yet.
-  handshake_ptr pending_connection_or_insert(const endpoint_id& peer_id);
-
-  /// Returns the handshake state for `peer_id` or `nullptr`.
-  /// @note This overload has complexity `O(n)`.
-  handshake_ptr pending_connection(const caf::actor& hdl) const noexcept;
-
-  /// Returns the handshake state for `in` or `nullptr`.
-  handshake_ptr pending_slot(caf::stream_slot in) const noexcept;
-
-  peer_trait::manager& peer_manager() noexcept;
-
-  worker_trait::manager& worker_manager() noexcept;
-
-  store_trait::manager& store_manager() noexcept;
-
-  caf::event_based_actor* self() noexcept {
-    // We inherit this function from both base types. We are explicitly picking
-    // one here for disambiguation.
-    return super::self();
-  }
+  /// Returns whether this manager has connection to `hdl`.`
+  [[nodiscard]] bool connected_to(const caf::actor& hdl) const noexcept;
 
   // -- adding local subscribers -----------------------------------------------
 
-  /// Subscribes `self->current_sender()` to `worker_manager()`.
-  worker_slot add_sending_worker(const filter_type& filter);
+  /// Subscribes `current_sender()` to @p data_message events that match
+  /// @p filter.
+  /// @pre `current_sender() != nullptr`
+  caf::outbound_stream_slot<data_message>
+  add_sending_worker(filter_type filter);
 
-  /// Subscribes `hdl` to `worker_manager()`.
-  error add_worker(const caf::actor& hdl, const filter_type& filter);
+  /// Subscribes @p hdl to @p data_message events that match @p filter.
+  error add_worker(const caf::actor& hdl, filter_type filter);
 
-  /// Subscribes `self->sender()` to `store_manager()`.
-  store_slot add_sending_store(const filter_type& filter);
+  /// Subscribes `current_sender()` to @p command_message events that match
+  /// @p filter.
+  /// @pre `current_sender() != nullptr`
+  caf::outbound_stream_slot<command_message>
+  add_sending_store(filter_type filter);
 
-  /// Subscribes `hdl` to `store_manager()`.
-  error add_store(const caf::actor& hdl, const filter_type& filter);
+  /// Subscribes @p hdl to @p command_message events that match @p filter.
+  error add_store(const caf::actor& hdl, filter_type filter);
 
-  // -- sending ----------------------------------------------------------------
+  // -- overrides for peer::publish --------------------------------------------
 
-  void send(const caf::actor& receiver, atom::publish,
-            node_message content) override;
+  void publish(const caf::actor& dst, atom::subscribe,
+               const endpoint_id_list& path, const vector_timestamp& ts,
+               const filter_type& new_filter) override;
 
-  void send(const caf::actor& receiver, atom::subscribe,
-            const endpoint_id_list& path, const vector_timestamp& ts,
-            const filter_type& new_filter) override;
+  void publish(const caf::actor& dst, atom::revoke,
+               const endpoint_id_list& path, const vector_timestamp& ts,
+               const endpoint_id& lost_peer,
+               const filter_type& new_filter) override;
 
-  void send(const caf::actor& receiver, atom::revoke,
-            const endpoint_id_list& path, const vector_timestamp& ts,
-            const endpoint_id& lost_peer,
-            const filter_type& new_filter) override;
+  using super::publish_locally;
+
+  void publish_locally(const data_message& msg) override;
+
+  void publish_locally(const command_message& msg) override;
 
   // -- peering ----------------------------------------------------------------
+
+  detail::peer_manager_ptr
+  get_or_insert_pending(const endpoint_id& remote_peer);
+
+  detail::peer_manager_ptr get_pending(const caf::actor& hdl);
+
+  detail::peer_manager_ptr get_pending(const endpoint_id& remote_peer);
 
   // Initiates peering between A (this node) and B (remote peer).
   void start_peering(const endpoint_id& remote_peer, const caf::actor& hdl,
@@ -211,45 +138,13 @@ public:
                                   const filter_type& filter,
                                   lamport_timestamp timestamp);
 
-  void cleanup(handshake_ptr ptr);
+  // void cleanup(detail::peer_handshake_ptr ptr);
 
-  void cleanup_and_replay_buffer_if_done(handshake_ptr ptr);
+  // void cleanup_and_replay_buffer_if_done(detail::peer_handshake_ptr ptr);
 
-  caf::stream_slot make_inbound_path(handshake_type* hs);
-
-  caf::stream_slot make_outbound_path(handshake_type* hs);
-
-  using caf::stream_manager::finalize;
-
-  bool finalize(handshake_type* hs);
-
-  void handle_buffered_msg(caf::inbound_path*, caf::outbound_path*,
-                           node_message& msg);
-
-  void handle_buffered_msg(caf::inbound_path*, caf::outbound_path*,
-                           caf::message& msg);
-
-  template <class DownstreamMsg>
-  std::enable_if_t<std::is_same<typename DownstreamMsg::outer_type,
-                                caf::downstream_msg>::value>
-  handle_buffered_msg(caf::inbound_path* path, caf::outbound_path*,
-                      DownstreamMsg& msg) {
-    handle(path, msg);
-  }
-
-  template <class UpstreamMsg>
-  std::enable_if_t<std::is_same<typename UpstreamMsg::outer_type,
-                                caf::upstream_msg>::value>
-  handle_buffered_msg(caf::inbound_path*, caf::outbound_path* path,
-                      UpstreamMsg& msg) {
-    handle(path->slots.invert(), msg);
-  }
+  bool finalize(detail::peer_handshake* hs);
 
   // -- overrides for alm::peer ------------------------------------------------
-
-  void ship_locally(const data_message& msg) override;
-
-  void ship_locally(const command_message& msg) override;
 
   void shutdown(shutdown_options options) override;
 
@@ -260,35 +155,31 @@ public:
                               const endpoint_id& revoked_hop,
                               const filter_type& filter) override;
 
-  // -- overridden member functions of caf::stream_manager ---------------------
+  // -- overrides for detail::central_dispatcher -------------------------------
 
-#if CAF_VERSION >= 1800
-  bool congested(const caf::inbound_path& path) const noexcept override;
-#endif
+  /// @private
+  template <class T>
+  void dispatch_impl(const T& msg);
 
-  void handle(caf::inbound_path* path,
-              caf::downstream_msg::batch& batch) override;
+  void dispatch(const data_message& msg) override;
 
-  void handle(caf::inbound_path* path, caf::downstream_msg::close& x) override;
+  void dispatch(const command_message& msg) override;
 
-  void handle(caf::inbound_path* path,
-              caf::downstream_msg::forced_close& x) override;
+  void dispatch(node_message&& msg) override;
 
-  void handle(caf::stream_slots slots,
-              caf::upstream_msg::ack_batch& x) override;
+  void flush() override;
 
-  void handle(caf::stream_slots slots, caf::upstream_msg::drop& x) override;
+  // -- overrides for detail::unipath_manager::observer ------------------------
 
-  void handle(caf::stream_slots slots,
-              caf::upstream_msg::forced_drop& x) override;
+  void closing(detail::unipath_manager* ptr, bool graceful,
+               const error& reason) override;
 
-  bool handle(caf::stream_slots slots, caf::upstream_msg::ack_open& x) override;
+  void downstream_connected(detail::unipath_manager* ptr,
+                            const caf::actor& hdl) override;
 
-  bool done() const override;
+  bool finalize_handshake(detail::peer_manager*) override;
 
-  bool idle() const noexcept override;
-
-  downstream_manager_type& out() override;
+  void abort_handshake(detail::peer_manager*) override;
 
   // -- initialization ---------------------------------------------------------
 
@@ -296,6 +187,18 @@ public:
 
 protected:
   // -- utility ----------------------------------------------------------------
+
+  /// Updates the filter of a data or command sink.
+  bool update_filter(caf::stream_slot slot, filter_type&& filter);
+
+  /// Removes state for `hdl` and returns whether any cleanup steps were
+  /// performed.
+  /// @param reason When removed by user action `null`, otherwise a pointer to
+  ///               the error that triggered the cleanup.
+  bool peer_cleanup(const endpoint_id& peer_id, const error* reason = nullptr);
+
+  /// Disconnects a peer as a result of an error.
+  void drop_peer(const caf::actor& hdl, const error& reason);
 
   /// Disconnects a peer by demand of the user.
   void unpeer(const endpoint_id& peer_id, const caf::actor& hdl);
@@ -306,92 +209,23 @@ protected:
   /// Disconnects a peer by demand of the user.
   void unpeer(const caf::actor& hdl);
 
-  /// Disconnects a peer as a result of receiving a `drop`, `forced_drop`,
-  /// `close`, or `force_close` message.
-  template <class Cause>
-  void disconnect(const caf::actor& hdl, const error& reason, const Cause&) {
-    BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(reason));
-    hdl_to_slot_map* affected_map;
-    hdl_to_slot_map* complementary_map;
-    if constexpr (std::is_same<typename Cause::outer_type,
-                               caf::downstream_msg>::value) {
-      affected_map = &hdl_to_istream_;
-      complementary_map = &hdl_to_ostream_;
-    } else {
-      affected_map = &hdl_to_ostream_;
-      complementary_map = &hdl_to_istream_;
-    }
-    if (auto hs = pending_connection(hdl); hs != nullptr) {
-      BROKER_DEBUG("lost peer" << hs->remote_id << "during handshake");
-      hs->fail(ec::peer_disconnect_during_handshake);
-      cleanup(std::move(hs));
-    } else if (auto peer_id = get_peer_id(tbl(), hdl); !peer_id) {
-      BROKER_DEBUG("unable to resolve handle via routing table");
-    } else if (affected_map->erase(hdl) > 0) {
-      // Call peer_disconnected only after in- and outbound paths were closed.
-      if (complementary_map->count(hdl) == 0)
-        peer_disconnected(*peer_id, hdl, reason);
-    } else {
-      // Not an error. Usually caused by receiving a drop/close message after
-      // we've already cleared up the state for some other reason.
-      BROKER_DEBUG("path already closed");
-    }
-  }
+  /// Tries to find a peer manager for `peer_id` in pending_ or hdl_to_mgr_.
+  detail::peer_manager* peer_lookup(const endpoint_id& peer_id);
 
-  template <class Cause>
-  void handle_impl(caf::inbound_path* path, Cause& cause) {
-    BROKER_TRACE(BROKER_ARG(cause));
-    if (path->hdl == nullptr) {
-      BROKER_ERROR("closed inbound path with invalid communication handle");
-    } else {
-      auto hdl = caf::actor_cast<caf::actor>(path->hdl);
-      if constexpr (std::is_same<caf::downstream_msg::close, Cause>::value) {
-        error dummy;
-        disconnect(hdl, dummy, cause);
-      } else {
-        disconnect(hdl, cause.reason, cause);
-      }
-    }
-    // Reset the actor handle to make sure no further messages travel upstream.
-    path->hdl = nullptr;
-  }
+  /// Maps peer handles to their respective unipath manager.
+  hdl_to_mgr_map hdl_to_mgr_;
 
-  template <class Cause>
-  void handle_impl(caf::stream_slots slots, Cause& cause) {
-    BROKER_TRACE(BROKER_ARG(slots) << BROKER_ARG(cause));
-    auto path = out_.path(slots.receiver);
-    if (!path || path->hdl == nullptr) {
-      BROKER_DEBUG("closed outbound path with invalid communication handle");
-    } else {
-      auto hdl = caf::actor_cast<caf::actor>(path->hdl);
-      if constexpr (std::is_same<caf::upstream_msg::drop, Cause>::value) {
-        error dummy;
-        disconnect(hdl, dummy, cause);
-        out_.remove_path(slots.receiver, dummy, false);
-      } else {
-        disconnect(hdl, cause.reason, cause);
-        out_.remove_path(slots.receiver, cause.reason, true);
-      }
-    }
-  }
+  /// Maps unipath managers to their respective peer handle.
+  mgr_to_hdl_map mgr_to_hdl_;
 
-  /// Organizes downstream communication to peers as well as local subscribers.
-  downstream_manager_type out_;
+  /// Stores connections to peer that yet have to finish the handshake.
+  std::unordered_map<endpoint_id, detail::peer_manager_ptr> pending_;
 
-  /// Maps communication handles to output slots.
-  hdl_to_slot_map hdl_to_ostream_;
+  /// Stores local data message subscribers .
+  std::vector<detail::unipath_data_sink_ptr> data_sinks_;
 
-  /// Maps communication handles to input slots.
-  hdl_to_slot_map hdl_to_istream_;
-
-  /// Stores in-flight peering handshakes.
-  std::unordered_map<endpoint_id, handshake_ptr> pending_connections_;
-
-  /// Maps stream slots that still need to wait for the handshake to complete.
-  std::unordered_map<caf::stream_slot, handshake_ptr> pending_slots_;
-
-  /// Stores whether the `shutdown` callback was invoked.
-  bool tearing_down_ = false;
+  /// Stores local command message subscribers .
+  std::vector<detail::unipath_command_sink_ptr> command_sinks_;
 };
 
 } // namespace broker::alm

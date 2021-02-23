@@ -11,7 +11,7 @@
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/generator_file_writer.hh"
-#include "broker/detail/inspect_objects.hh"
+#include "broker/detail/read_value.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
@@ -158,11 +158,11 @@ caf::error generator_file_reader::read_raw(read_raw_callback f) {
   while (!at_end()) {
     entry_type entry{};
     auto pos = source_.remainder().data();
-    BROKER_TRY(detail::inspect_objects(source_, entry));
+    BROKER_TRY(read_value(source_, entry));
     switch (entry) {
       case entry_type::new_topic: {
         std::string str;
-        BROKER_TRY(detail::inspect_objects(source_, str));
+        BROKER_TRY(read_value(source_, str));
         if (!sealed_)
           topic_table_.emplace_back(str);
         auto consumed = caf::make_span(pos, source_.remainder().data());
@@ -172,7 +172,7 @@ caf::error generator_file_reader::read_raw(read_raw_callback f) {
       }
       case entry_type::data_message: {
         uint16_t topic_id;
-        BROKER_TRY(detail::inspect_objects(source_, topic_id));
+        BROKER_TRY(read_value(source_, topic_id));
         if (topic_id >= topic_table_.size())
           return ec::invalid_topic_key;
         data value;
@@ -188,7 +188,7 @@ caf::error generator_file_reader::read_raw(read_raw_callback f) {
       }
       case entry_type::command_message: {
         uint16_t topic_id;
-        BROKER_TRY(detail::inspect_objects(source_, topic_id));
+        BROKER_TRY(read_value(source_, topic_id));
         if (topic_id >= topic_table_.size())
           return ec::invalid_topic_key;
         internal_command cmd;

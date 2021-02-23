@@ -4,20 +4,21 @@ import broker
 import sys
 import time
 
-ep = broker.Endpoint()
-s = ep.make_subscriber('/test')
-ss = ep.make_status_subscriber(True);
-ep.peer('127.0.0.1', 9999, 1.0)
+with broker.Endpoint() as ep, \
+     ep.make_subscriber('/test') as s, \
+     ep.make_status_subscriber(True) as ss:
 
-st = ss.get();
+    ep.peer('127.0.0.1', 9999, 1.0)
 
-if not (type(st) == broker.Status and st.code() == broker.SC.PeerAdded):
-    print('could not connect')
-    sys.exit(1)
+    st = ss.get();
 
-c = ep.attach_clone('mystore')
+    if not (type(st) == broker.Status and st.code() == broker.SC.PeerAdded):
+        print('could not connect')
+        sys.exit(1)
 
-while True:
-    time.sleep(1)
-    c.increment('foo', 1)
-    print(c.get('foo'))
+    c = ep.attach_clone('mystore')
+
+    while True:
+        time.sleep(1)
+        c.increment('foo', 1)
+        print(c.get('foo'))

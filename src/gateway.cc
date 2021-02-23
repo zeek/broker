@@ -19,8 +19,8 @@ struct gateway::impl {
        const domain_options* adapt_external = nullptr)
     : cfg(std::move(source_config)), sys(cfg) {
     // Spin up two cores.
-    internal = sys.spawn(core_actor, filter_type{}, nullptr, adapt_internal);
-    external = sys.spawn(core_actor, filter_type{}, nullptr, adapt_external);
+    internal = sys.spawn<core_actor_type>(filter_type{}, nullptr, adapt_internal);
+    external = sys.spawn<core_actor_type>(filter_type{}, nullptr, adapt_external);
     gateway::setup(internal, external);
   }
 

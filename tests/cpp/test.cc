@@ -17,12 +17,6 @@
 #include "Winsock2.h"
 #endif
 
-#if CAF_VERSION < 1800
-#define CFG_PREFIX
-#else
-#define CFG_PREFIX "caf."
-#endif
-
 using namespace caf;
 using namespace broker;
 
@@ -30,10 +24,7 @@ base_fixture::base_fixture()
   : ep(make_config()),
     sys(ep.system()),
     self(sys),
-    sched(dynamic_cast<scheduler_type&>(sys.scheduler())),
-    credit_round_interval(
-      get_or(sys.config(), CFG_PREFIX "stream.credit-round-interval",
-             caf::defaults::stream::credit_round_interval)) {
+    sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
 }
 
@@ -83,9 +74,7 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
-#if CAF_VERSION >= 1800
   caf::init_global_meta_objects<caf::id_block::broker_test>();
-#endif
   broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;

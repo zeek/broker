@@ -1,5 +1,6 @@
 #include "broker/data.hh"
 
+#include <caf/hash/fnv.hpp>
 #include <caf/node_id.hpp>
 
 #include "broker/convert.hh"
@@ -184,26 +185,26 @@ bool convert(const caf::node_id& node, data& d) {
 
 } // namespace broker
 
-namespace std {
+namespace broker::detail {
 
-namespace {
-
-struct hasher {
-  using result_type = size_t;
-
-  template <class T>
-  result_type operator()(const T& x) const {
-    return std::hash<T>{}(x);
-  }
-};
-
-} // namespace <anonymous>
-
-size_t hash<broker::data>::operator()(const broker::data& v) const {
-  size_t result = 0;
-  broker::detail::hash_combine(result, v.get_data().index());
-  broker::detail::hash_combine(result, caf::visit(hasher{}, v));
-  return result;
+size_t fnv_hash(const broker::data& x) {
+  return caf::hash::fnv<size_t>::compute(x);
 }
 
-} // namespace std
+size_t fnv_hash(const broker::set& x) {
+  return caf::hash::fnv<size_t>::compute(x);
+}
+
+size_t fnv_hash(const broker::vector& x) {
+  return caf::hash::fnv<size_t>::compute(x);
+}
+
+size_t fnv_hash(const broker::table::value_type& x) {
+  return caf::hash::fnv<size_t>::compute(x);
+}
+
+size_t fnv_hash(const broker::table& x) {
+  return caf::hash::fnv<size_t>::compute(x);
+}
+
+} // namespace broker::detail

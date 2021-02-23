@@ -1,4 +1,208 @@
 
+2.1.0-dev.48 | 2021-02-16 13:58:19 -0800
+
+  * Increase CPUs used for macOS CI builds (Jon Siwek, Corelight)
+
+2.1.0-dev.47 | 2021-02-16 12:30:36 -0800
+
+  * broker-benchmark: Fix heap-buffer overflow when receiving stats (Dominik Charousset, Corelight)
+
+  * Fix metrics and TTL of locally published data (Dominik Charousset, Corelight)
+
+  * Implement more lightweight origin credit tracking (Dominik Charousset, Corelight)
+
+    The item-based tracking of message origins keeps all context for input
+    messages. However, benchmarking reveled that this nice-to-have property
+    comes at an expensive price.
+
+    The new approach for tracking how many inputs for each origin are
+    currently in the system leverages the reference count of Broker messages
+    that we need in any case rather than introducing additional state.
+
+  * Disable background deserialization (Dominik Charousset, Corelight)
+
+    Zeek configures only a few threads to the CAF thread pool. This may
+    introduce some heavy delays for the deserialization that takes place in
+    the background. Disabling this feature altogether makes sure that
+    messages will not end up in some queues even though it puts more
+    pressure on the multiplexer's thread.
+
+2.1.0-dev.42 | 2021-02-11 12:10:05 -0800
+
+  * Disable syntax highlighting for some overview documentation (Jon Siwek, Corelight)
+
+  * Add Python bindings example docs for representing Zeek records (Jon Siwek, Corelight)
+
+  * Fix typo in data model documentation (Jon Siwek, Corelight)
+
+2.1.0-dev.39 | 2021-01-25 21:17:05 -0800
+
+  * Add missing comments to example Windows Dockerfile (Jon Siwek, Corelight)
+
+  * Add Travis CI config for Windows OS (Jon Siwek, Corelight)
+
+2.1.0-dev.36 | 2021-01-25 12:27:58 -0800
+
+  * Update embedded CAF to 0.18 (Jon Siwek, Corelight)
+
+  * Add CI support for running cluster benchmarks (Tim Wojtulewicz, Corelight)
+
+2.1.0-dev.33 | 2021-01-21 16:15:32 -0800
+
+  * Fix deprecation warnings with latest CAF (Dominik Charousset, Corelight)
+
+  * Clean up remaining caf::hash::fnv TODO (Dominik Charousset, Corelight)
+
+    CAF 0.18 introduced an FNV hashing visitor that we can use instead of
+    rolling custom hash algorithms and hash combinators.
+
+  * Replace unsafe (to|from)_blob functions (Dominik Charousset, Corelight)
+
+    The utility functions `to_blob` and `from_blob` in
+    `broker/detail/blob.hh` silently ignored any error during serialization
+    and deserialization. Since the functions were only used by the SQLite
+    backend, the new implementations with proper error propagation (and
+    cleaned up interface) moved to `sqlite_backend.cc`.
+
+2.1.0-dev.27 | 2021-01-19 21:07:18 -0800
+
+  * Update Cirrus CI naming for MacOS images (Christian Kreibich, Corelight)
+
+    The docs on https://cirrus-ci.org/guide/macOS/ changed from
+    "osx_instance" to "macos_instance", so let's reflect that.
+
+2.1.0-dev.25 | 2021-01-12 20:19:56 -0800
+
+  * GH-165: Fix possible deadlock by implementing new origin-based credit strategy (Dominik Charousset, Corelight)
+
+2.1.0-dev.16 | 2021-01-11 11:05:53 -0800
+
+  * Remove deprecated broker::memory/broker::sqlite enums (Jon Siwek, Corelight)
+
+  * Remove unused and broken rocksdb backend (Dominik Charousset, Corelight)
+
+2.1.0-dev.12 | 2021-01-04 15:40:56 -0800
+
+  * broker-cluster-benchmark: Fix type mismatch and potential cleanup issue (Dominik Charousset, Corelight)
+
+2.1.0-dev.10 | 2020-12-23 10:13:37 -0800
+
+  * Call `ctest` instead of `make test` in CI builds (Dominik Charousset, Corelight)
+
+    Setting `CTEST_OUTPUT_ON_FAILURE` and then calling `make test` seems to
+    lose the flag at some point. Calling `ctest` directly and passing
+    `--output-on-failure` makes sure that we actually get the test output in
+    case of an error.
+
+2.1.0-dev.8 | 2020-12-21 10:53:48 -0800
+
+  * Add macOS Big Sur to CI (Jon Siwek, Corelight)
+
+2.1.0-dev.6 | 2020-12-17 16:04:25 -0800
+
+  * Remove explicit use of config mode for finding CAF (Dominik Charousset, Corelight)
+
+2.1.0-dev.4 | 2020-12-17 10:36:12 -0700
+
+  * Merge remote-tracking branch 'origin/topic/neverlord/broker-cluster-benchmark'
+
+    * origin/topic/neverlord/broker-cluster-benchmark:
+      Fix CAF configuration parameter names (Tim Wojtulewicz, Corelight)
+
+  * Fix CAF configuration parameter names (Dominik Charousset, Corelight)
+
+2.1.0-dev.2 | 2020-12-16 15:04:30 -0800
+
+  * Make sure status updates are visible before data (Dominik Charousset, Corelight)
+
+2.1.0-dev | 2020-12-14 20:16:02 -0800
+
+  * Update NEWS for start of v2.1.0 development (Jon Siwek, Corelight)
+
+1.5.0-dev.63 | 2020-12-14 10:38:14 -0800
+
+  * Update CAF submodule to fix handling of --libdir (Jon Siwek, Corelight)
+
+1.5.0-dev.62 | 2020-12-12 18:28:25 -0800
+
+  * Change `configure --prefix` to not set CMAKE_INSTALL_LIBDIR (Jon Siwek, Corelight)
+
+    In places where that libdir option is used and not explicitly set
+    before, it will already correctly prepend CMAKE_INSTALL_PREFIX.  Having
+    the configure script use the hardcoded 'lib' also prevented the
+    automatic use of 'lib64' on platforms that prefer it.
+
+1.5.0-dev.61 | 2020-12-10 14:07:51 -0800
+
+  * Add Jenkinsfile for re-enabling Windows builds (Dominik Charousset, Corelight)
+
+  * Add Python context manager support (Dominik Charousset, Corelight)
+
+    For proper resource management/cleanup, the Python API now requires
+    using Endpoint, Subscriber, StatusSubscriber, and Store objects within a
+    `with` statement or alternatively doing an explicit call to the
+    ``reset()`` method of subscriber/store objects before the associated
+    Endpoint's ``shutdown()`` method.
+
+    Co-authored-by: Jon Siwek <jsiwek@corelight.com>
+
+  * Disable Windows builds via Travis CI (Dominik Charousset, Corelight)
+
+    Remove the YAML file for Travis CI due to issues with getting Visual
+    Studio 2019 with support for `std::filesystem` working on Travis. This
+    is supposed to be a temporary measure until either finding a fix for the
+    setup or re-enabling Windows build through some other means.
+
+  * Fix handling of initial subscription set (Dominik Charousset, Corelight)
+
+  * Add missing to_string overloads (Dominik Charousset, Corelight)
+
+  * Make CMake scaffold more robust against re-runs (Dominik Charousset, Corelight)
+
+  * Clean up deprecation warnings for CAF 0.18 (Dominik Charousset, Corelight)
+
+  * Fix CAF paths for bundled CAF version (Dominik Charousset, Corelight)
+
+  * Migrate to CAF 0.18, update CAF submodule (Dominik Charousset, Corelight)
+
+1.5.0-dev.43 | 2020-12-09 17:27:31 -0800
+
+  * Update SQLite to 3.34.0 (Jon Siwek, Corelight)
+
+1.5.0-dev.42 | 2020-12-04 13:05:41 -0800
+
+  * Add FreeBSD 11.4 and 12.2 to CI (Jon Siwek, Corelight)
+
+1.5.0-dev.40 | 2020-12-04 11:32:19 -0800
+
+  * Suppress interactive tzdata setup on Ubuntu (Dominik Charousset)
+
+  * Call update on Debian-based distros before install (Dominik Charousset)
+
+  * Update CI build matrix (Dominik Charousset)
+
+  * Update and streamline Docker files (Dominik Charousset)
+
+1.5.0-dev.34 | 2020-12-02 11:05:55 -0800
+
+  * Update minimum required CMake to 3.5 (Jon Siwek, Corelight)
+
+1.5.0-dev.32 | 2020-12-02 10:57:29 -0800
+
+  * Upgrade pybind11 to v2.6.1 and fix compatibility issues (Jon Siwek, Corelight)
+
+1.5.0-dev.30 | 2020-11-26 18:12:38 +0000
+
+  * Update macOS CI to use system default Python 3 (Jon Siwek, Corelight)
+
+  * Remove Python 2 compatibility logic (Jon Siwek, Corelight)
+
+  * Update CMake logic to enforce Python >= 3.5 for Python Bindings (Jon Siwek, Corelight)
+
+  * Update Python Bindings docs for new Python >= 3.5 requirements (Jon Siwek, Corelight)
+
+  * Update cmake submodules with changes related to Python 2 EOL (Jon Siwek, Corelight)
+
 1.5.0-dev.22 | 2020-10-21 15:37:57 -0700
 
   * Move CI from Fedora 30 (EOL) to Fedora 32 (Jon Siwek, Corelight)

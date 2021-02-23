@@ -41,7 +41,7 @@ class Environment:
 
 def test_config_generation(exe, recording_dir, expected):
     dirs = [f.path for f in os.scandir(recording_dir) if f.is_dir()]
-    cmd = [exe, '--logger.verbosity=quiet', '--mode=generate-config'] + dirs
+    cmd = [exe, '--caf.logger.console.verbosity=quiet', '--mode=generate-config'] + dirs
     with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True) as proc:
         output, errors = proc.communicate()
         if proc.returncode != 0:
@@ -57,7 +57,7 @@ def test_config_generation(exe, recording_dir, expected):
         return output
 
 def run_benchmark(exe, config):
-    cmd = [exe, '--logger.verbosity=quiet', '--cluster-config-file=-']
+    cmd = [exe, '--caf.logger.console.verbosity=quiet', '--cluster-config-file=-']
     with subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, close_fds=True, universal_newlines=True) as proc:
         proc.stdin.write(config)
         proc.stdin.close()

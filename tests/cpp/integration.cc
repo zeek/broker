@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <caf/actor_system.hpp>
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/defaults.hpp>
 #include <caf/downstream.hpp>
@@ -59,17 +58,12 @@ configuration make_config() {
   broker_options options;
   options.disable_ssl = true;
   configuration cfg(options);
-  cfg.parse(caf::test::engine::argc(), caf::test::engine::argv());
-#if CAF_VERSION < 1800
-  using caf::atom;
-  cfg.set("middleman.network-backend", atom("testing"));
-  cfg.set("scheduler.policy", atom("testing"));
-  cfg.set("logger.inline-output", true);
-#else
+  if (auto err = cfg.parse(caf::test::engine::argc(),
+                           caf::test::engine::argv()))
+    CAF_FAIL("parsing the config failed: " << to_string(err));
   cfg.set("caf.middleman.network-backend", "testing");
   cfg.set("caf.scheduler.policy", "testing");
   cfg.set("caf.logger.inline-output", true);
-#endif
   return cfg;
 }
 
@@ -134,9 +128,9 @@ struct peer_fixture {
   caf::timespan credit_round_interval;
 
   // Returns the core manager for given core actor.
-  auto& mgr(caf::actor hdl) {
+  auto& state(caf::actor hdl) {
     auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
-    return *dynamic_cast<core_actor_type&>(*ptr).state.mgr;
+    return dynamic_cast<core_actor_type&>(*ptr).state;
   }
 
   // Initializes this peer and registers it at parent.
@@ -147,14 +141,13 @@ struct peer_fixture {
       sys(ep.system()),
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
-      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())),
-      credit_round_interval(get_or(sys.config(),
-                            "stream.credit-round-interval",
-                            caf::defaults::stream::credit_round_interval)) {
+      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())) {
+    // Register at parent.
+    parent->peers.emplace(name, this);
     // Run initialization code
     exec_loop();
     // Give the core actor a recognizable ID.
-    mgr(ep.core()).id(caf::make_node_id(unbox(caf::make_uri("test:" + name))));
+    state(ep.core()).id(caf::make_node_id(unbox(caf::make_uri("test:" + name))));
     // Register at parent.
     parent->peers.emplace(name, this);
   }

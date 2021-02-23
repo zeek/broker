@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "broker/detail/is_legacy_inspector.hh"
-
 namespace broker::alm {
 
 /// A logical clock using a 64-bit counter.
@@ -60,10 +58,7 @@ constexpr lamport_timestamp operator+(uint64_t x, lamport_timestamp y) {
 /// @relates lamport_timestamp
 template <class Inspector>
 typename Inspector::result_type inspect(Inspector& f, lamport_timestamp& x) {
-  if constexpr (detail::is_legacy_inspector<Inspector>)
-    return f(x.value);
-  else
-    return f.object(x).fields(f.field("value", x.value));
+  return f.apply(x.value);
 }
 
 /// @relates lamport_timestamp

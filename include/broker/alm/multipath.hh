@@ -10,7 +10,6 @@
 #include "caf/sec.hpp"
 
 #include "broker/detail/assert.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 
 namespace broker::alm {
 
@@ -261,38 +260,18 @@ public:
                          other.nodes_end(), is_equal);
   }
 
-  template <class Inspector>
-  friend typename Inspector::result_type inspect_legacy(Inspector& f,
-                                                        multipath& x) {
-    if constexpr (Inspector::reads_state) {
-      auto tag = caf::meta::omittable_if_empty();
-      auto nodes = x.nodes();
-      return f(std::tie(x.id_, tag, nodes));
-    } else {
-      if (auto err = f(x.id_))
-        return err;
-      size_t num_children = 0;
-      if (auto err = f.begin_sequence(num_children))
-        return err;
-      x.size_ = 0;
-      for (size_t i = 0; i < num_children; ++i) {
-        multipath tmp;
-        if (auto err = inspect(f, tmp))
-          return err;
-        // TODO: this assumes Inspector::result_type is constructible from
-        //       caf::sec.
-        if (!x.merge(std::move(tmp)))
-          return typename Inspector::result_type{caf::sec::runtime_error};
-      }
-      return f.end_sequence();
-    }
+  bool contains(const PeerId& id) const noexcept {
+    if (id_ == id)
+      return true;
+    else if (nodes_)
+      return nodes_->contains(id);
+    else
+      return false;
   }
 
   template <class Inspector>
   friend typename Inspector::result_type inspect(Inspector& f, multipath& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>)
-      return inspect_legacy(f, x);
-    else if constexpr (Inspector::is_loading) {
+    if constexpr (Inspector::is_loading) {
       multipath tmp;
       auto nodes = tmp.nodes();
       auto write_back = [&x, &tmp] {

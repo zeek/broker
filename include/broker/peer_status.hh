@@ -15,6 +15,22 @@ enum class peer_status {
   reconnecting,   ///< Reconnecting after a lost connection.
 };
 
+/// @relates peer_status
 const char* to_string(peer_status);
+
+/// @relates peer_status
+template <class Inspector>
+bool inspect(Inspector& f, peer_status& x) {
+  auto get = [&] { return static_cast<int>(x); };
+  auto set = [&](int val) {
+    if (val >= 0 && val <= static_cast<int>(peer_status::reconnecting)) {
+      x = static_cast<peer_status>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
 
 } // namespace broker

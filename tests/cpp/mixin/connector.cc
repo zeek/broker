@@ -42,18 +42,19 @@ struct connector_mock_base {
   }
 
   template <class... Ts>
-  void ship(Ts&&...) {
-    CAF_FAIL("connector_mock_base::ship called");
+  bool dispatch_to(Ts&&...) {
+    CAF_FAIL("connector_mock_base::" << __func__ << " called");
+    return false;
   }
 
   template <class... Ts>
   void unpeer(Ts&&...) {
-    CAF_FAIL("connector_mock_base::unpeer called");
+    CAF_FAIL("connector_mock_base::" << __func__ << " called");
   }
 
   template <class... Ts>
   void cannot_remove_peer(Ts&&...) {
-    CAF_FAIL("connector_mock_base::cannot_remove_peer called");
+    CAF_FAIL("connector_mock_base::" << __func__ << " called");
   }
 
   template <class... Ts>

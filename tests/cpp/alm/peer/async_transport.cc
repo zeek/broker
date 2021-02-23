@@ -64,46 +64,113 @@ public:
     handle_filter_update(path, path_ts, filter);
   }
 
-  void send(const caf::actor& receiver, atom::publish,
-            node_message content) override {
-    self()->send(receiver, atom::publish_v, std::move(content));
+  void flush() override {
+    // nop
   }
 
-  void send(const caf::actor& receiver, atom::subscribe,
-            const endpoint_id_list& path, const vector_timestamp& ts,
-            const filter_type& filter) override {
+  template <class T>
+  void dispatch_impl(const T& msg) {
+    const auto& topic = get_topic(msg);
+    detail::prefix_matcher matches;
+    endpoint_id_list receivers;
+    for (const auto& [peer, filter] : peer_filters_)
+      if (matches(filter, topic))
+        receivers.emplace_back(peer);
+    if (!receivers.empty()) {
+      std::vector<multipath_type> paths;
+      std::vector<endpoint_id> unreachables;
+      generate_paths(receivers, tbl_, paths, unreachables);
+      for (auto&& path : paths) {
+        auto wrapped = node_message{msg, std::move(path), receivers};
+        if (auto row = find_row(tbl_, get_path(wrapped).head()))
+          self()->send(row->hdl, atom::publish_v, std::move(wrapped));
+        else
+          BROKER_WARNING("cannot ship message: no path");
+      }
+      if (!unreachables.empty())
+        BROKER_WARNING("cannot ship message: no path to any of"
+                       << unreachables);
+    }
+  }
+
+  void dispatch(const data_message& msg) override {
+    dispatch_impl(msg);
+  }
+
+  void dispatch(const command_message& msg) override {
+    dispatch_impl(msg);
+  }
+
+  void dispatch(node_message&& msg) override {
+    auto& [content, path, receivers] = msg.unshared();
+    if (receivers.empty()) {
+      BROKER_WARNING("received a node message with no receivers");
+      return;
+    }
+    auto predicate = [this](const endpoint_id& nid) { return nid == id_; };
+    if (auto i = std::remove_if(receivers.begin(), receivers.end(), predicate);
+        i != receivers.end()) {
+      receivers.erase(i, receivers.end());
+      publish_locally(content);
+    }
+    // Forward to remaining receivers.
+    if (!receivers.empty()) {
+      std::vector<multipath_type> paths;
+      std::vector<endpoint_id> unreachables;
+      generate_paths(receivers, tbl_, paths, unreachables);
+      for (auto&& path : paths) {
+        auto wrapped = node_message{content, std::move(path), receivers};
+        if (auto row = find_row(tbl_, get_path(wrapped).head()))
+          self()->send(row->hdl, atom::publish_v, std::move(wrapped));
+        else
+          BROKER_WARNING("cannot ship message: no path");
+      }
+      if (!unreachables.empty())
+        BROKER_WARNING("cannot ship message: no path to any of"
+                       << unreachables);
+    }
+  }
+
+  void publish(const caf::actor& receiver, atom::subscribe,
+               const endpoint_id_list& path, const vector_timestamp& ts,
+               const filter_type& filter) override {
     self()->send(receiver, atom::subscribe_v, path, ts, filter);
   }
 
-  void send(const caf::actor& receiver, atom::revoke,
-            const endpoint_id_list& path, const vector_timestamp& ts,
-            const endpoint_id& lost_peer, const filter_type& filter) override {
+  void publish(const caf::actor& receiver, atom::revoke,
+               const endpoint_id_list& path, const vector_timestamp& ts,
+               const endpoint_id& lost_peer,
+               const filter_type& filter) override {
     self()->send(receiver, atom::revoke_v, path, ts, lost_peer, filter);
   }
 
-  void ship_locally(const data_message&) override {
+  using super::publish_locally;
+
+  void publish_locally(const data_message&) override {
     // nop
   }
 
-  void ship_locally(const command_message& msg) override {
+  void publish_locally(const command_message&) override {
     // nop
   }
 
-  template <class... Fs>
-  caf::behavior make_behavior(Fs... fs) {
+  caf::behavior make_behavior() override {
     using detail::lift;
-    return {
-      std::move(fs)...,
+    return caf::message_handler{
+      [this](atom::publish, node_message& msg) {
+        this->dispatch(std::move(msg));
+      },
+      [this](atom::publish, const data_message& msg) {
+        this->dispatch(msg);
+      },
       lift<atom::peer>(*this, &async_transport::start_peering),
       lift<atom::peer>(*this, &async_transport::handle_peering),
       lift<atom::peer, atom::ok>(*this,
                                  &async_transport::handle_peering_response),
-      lift<atom::publish>(*this, &async_transport::publish_data),
-      lift<atom::publish>(*this, &async_transport::publish_command),
       lift<atom::subscribe>(*this, &async_transport::subscribe),
-      lift<atom::publish>(*this, &async_transport::handle_publication),
       lift<atom::subscribe>(*this, &async_transport::handle_filter_update),
-    };
+    }
+      .or_else(super::make_behavior());
   }
 };
 

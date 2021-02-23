@@ -1,7 +1,9 @@
-#include <tuple>
-#include <utility>
+#include "broker/network_info.hh"
+
 #include <chrono>
 #include <string>
+#include <tuple>
+#include <utility>
 
 #include <caf/uri.hpp>
 
@@ -38,6 +40,11 @@ bool operator==(const network_info& x, const network_info& y) {
 
 bool operator<(const network_info& x, const network_info& y) {
   return std::tie(x.address, x.port) < std::tie(y.address, y.port);
+}
+
+std::string to_string(const network_info& info) {
+  using std::to_string;
+  return info.address + ':' + to_string(info.port);
 }
 
 } // namespace broker

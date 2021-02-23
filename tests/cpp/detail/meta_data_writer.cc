@@ -9,7 +9,7 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 
-#include "broker/detail/inspect_objects.hh"
+#include "broker/detail/read_value.hh"
 
 using namespace broker;
 
@@ -35,7 +35,7 @@ struct fixture {
     caf::binary_deserializer source{nullptr, buf.data() + read_pos,
                                     buf.size() - read_pos};
     T result{};
-    CHECK_EQUAL(detail::inspect_objects(source, result), caf::none);
+    CHECK_EQUAL(detail::read_value(source, result), caf::none);
     read_pos = static_cast<size_t>(source.current() - buf.data());
     return result;
   }

@@ -7,8 +7,8 @@
 #include <caf/binary_serializer.hpp>
 #include <caf/sec.hpp>
 
-#include "broker/detail/inspect_objects.hh"
 #include "broker/detail/meta_data_writer.hh"
+#include "broker/detail/read_value.hh"
 #include "broker/logger.hh"
 
 using std::string;
@@ -21,10 +21,6 @@ using std::string;
     x = std::move(tmp);                                                        \
     break;                                                                     \
   }
-
-#define READ(var_name)                                                         \
-  if (auto err = detail::inspect_objects(source_, var_name))                   \
-  return err
 
 #define GENERATE(var_name)                                                     \
   if (auto err = generate(var_name))                                           \
@@ -54,7 +50,8 @@ void recreate(data_generator& self, T& xs) {
   }
   xs = std::move(tmp);
 }
-}
+
+} // namespace
 
 data_generator::data_generator(caf::binary_deserializer& meta_data_source,
                                unsigned seed)
@@ -74,8 +71,8 @@ caf::error data_generator::operator()(internal_command& x) {
 }
 
 caf::error data_generator::generate(data& x) {
-  data::type tag{};
-  READ(tag);
+  auto tag = data::type{};
+  BROKER_TRY(read_value(source_, tag));
   return generate(tag, x);
 }
 
@@ -104,7 +101,7 @@ caf::error data_generator::generate(data::type tag, data& x) {
 
 caf::error data_generator::generate(internal_command& x) {
   internal_command::type tag{};
-  READ(tag);
+  BROKER_TRY(read_value(source_, tag));
   return generate(tag, x);
 }
 
@@ -147,7 +144,7 @@ caf::error data_generator::generate(internal_command::type tag,
       data::type init_type{};
       GENERATE(key);
       GENERATE(val);
-      READ(init_type);
+      BROKER_TRY(read_value(source_, init_type));
       x.content = add_command{std::move(key), std::move(val), init_type, nil};
       break;
     }
@@ -217,7 +214,7 @@ caf::error data_generator::generate(internal_command::type tag,
 
 caf::error data_generator::generate(vector& xs) {
   uint32_t size = 0;
-  READ(size);
+  BROKER_TRY(read_value(source_, size));
   for (size_t i = 0; i < size; ++i) {
     data value;
     GENERATE(value);
@@ -228,7 +225,7 @@ caf::error data_generator::generate(vector& xs) {
 
 caf::error data_generator::generate(set& xs) {
   uint32_t size = 0;
-  READ(size);
+  BROKER_TRY(read_value(source_, size));
   data value;
   for (size_t i = 0; i < size; ++i) {
     GENERATE(value);
@@ -240,7 +237,7 @@ caf::error data_generator::generate(set& xs) {
 
 caf::error data_generator::generate(table& xs) {
   uint32_t size = 0;
-  READ(size);
+  BROKER_TRY(read_value(source_, size));
   data key;
   data value;
   for (size_t i = 0; i < size; ++i) {
@@ -254,7 +251,7 @@ caf::error data_generator::generate(table& xs) {
 
 caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
   uint32_t size = 0;
-  READ(size);
+  BROKER_TRY(read_value(source_, size));
   data key;
   data value;
   for (size_t i = 0; i < size; ++i) {
@@ -268,7 +265,7 @@ caf::error data_generator::generate(std::unordered_map<data, data>& xs) {
 
 caf::error data_generator::generate(std::string& x) {
   uint32_t string_size = 0;
-  READ(string_size);
+  BROKER_TRY(read_value(source_, string_size));
   x.insert(x.end(), string_size, 'x');
   return caf::none;
 }

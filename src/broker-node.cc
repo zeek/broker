@@ -13,7 +13,6 @@
 #include <utility>
 #include <vector>
 
-#include <caf/atom.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
@@ -205,15 +204,13 @@ public:
 // -- convenience get_or and get_if overloads for enpoint ----------------------
 
 template <class T>
-auto get_or(broker::endpoint& d, string_view key, const T& default_value)
-  -> decltype(caf::get_or(d.system().config(), key, default_value)) {
+auto get_or(broker::endpoint& d, string_view key, const T& default_value) {
   return caf::get_or(d.system().config(), key, default_value);
 }
 
 template <class T>
-auto get_if(broker::endpoint* d, string_view key)
-  -> decltype(caf::get_if<T>(&(d->system().config()), key)) {
-  return caf::get_if<T>(&(d->system().config()), key);
+auto get_as(broker::endpoint& d, string_view key) {
+  return caf::get_as<T>(d.system().config(), key);
 }
 
 // -- message creation and introspection ---------------------------------------
@@ -316,7 +313,7 @@ void generator(caf::event_based_actor* self, caf::actor core,
                broker::detail::generator_file_reader_ptr ptr) {
   using generator_ptr = broker::detail::generator_file_reader_ptr;
   using value_type = broker::node_message_content;
-  if (auto limit = get_if<size_t>(&self->config(), "num-messages")) {
+  if (auto limit = get_as<size_t>(self->config(), "num-messages")) {
     struct state {
       generator_ptr gptr;
       size_t remaining;
@@ -484,14 +481,14 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
   // Get mode (mandatory).
-  auto mode = get_if<std::string>(&ep, "mode");
+  auto mode = get_as<std::string>(ep, "mode");
   if (!mode) {
     node_name = "unnamed-node";
     err::println("no mode specified");
     return EXIT_FAILURE;
   }
   // Get process name, using the mode name as fallback.
-  if (auto cfg_name = get_if<string>(&ep, "name"))
+  if (auto cfg_name = get_as<string>(ep, "name"))
     node_name = *cfg_name;
   else
     node_name = *mode;
@@ -523,7 +520,7 @@ int main(int argc, char** argv) {
     });
   }
   // Publish endpoint at demanded port.
-  if (auto local_port = get_if<uint16_t>(&ep, "local-port")) {
+  if (auto local_port = get_as<uint16_t>(ep, "local-port")) {
     verbose::println("listen for peers on port ", *local_port);
     ep.listen({}, *local_port);
   }

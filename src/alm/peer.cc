@@ -2,6 +2,8 @@
 
 namespace broker::alm {
 
+// -- constructors, destructors, and assignment operators ----------------------
+
 peer::peer(caf::event_based_actor* selfptr) : self_(selfptr) {
   blacklist_.aging_interval = defaults::path_blacklist::aging_interval;
   blacklist_.max_age = defaults::path_blacklist::max_age;
@@ -22,6 +24,53 @@ peer::~peer() {
   // nop
 }
 
+// -- central_dispatcher overrides ---------------------------------------------
+
+caf::event_based_actor* peer::this_actor() noexcept {
+  return self();
+}
+
+endpoint_id peer::this_endpoint() const {
+  return id();
+}
+
+filter_type peer::local_filter() const {
+  return filter_;
+}
+
+alm::lamport_timestamp peer::local_timestamp() const noexcept {
+  return timestamp_;
+}
+
+// -- additional dispatch overloads --------------------------------------------
+
+template <class T>
+bool peer::dispatch_to_impl(T&& msg, endpoint_id&& receiver) {
+  if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
+    multipath<endpoint_id> path{ptr->begin(), ptr->end()};
+    endpoint_id_list receivers;
+    receivers.emplace_back(std::move(receiver));
+    dispatch(make_node_message(std::forward<T>(msg), std::move(path),
+                               std::move(receivers)));
+    return true;
+  } else {
+    BROKER_DEBUG("drop message: no path to" << receiver);
+    return false;
+  }
+}
+
+bool peer::dispatch_to(data_message msg, endpoint_id receiver) {
+  BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
+  return dispatch_to_impl(std::move(msg), std::move(receiver));
+}
+
+bool peer::dispatch_to(command_message msg, endpoint_id receiver) {
+  BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
+  return dispatch_to_impl(std::move(msg), std::move(receiver));
+}
+
+// -- convenience functions for subscription information -----------------------
+
 bool peer::has_remote_subscriber(const topic& x) const noexcept {
   detail::prefix_matcher matches;
   for (const auto& [peer, filter] : peer_filters_)
@@ -35,11 +84,13 @@ bool peer::contains(const endpoint_id_list& ids, const endpoint_id& id) {
   return std::any_of(ids.begin(), ids.end(), predicate);
 }
 
+// -- flooding -----------------------------------------------------------------
+
 void peer::flood_subscriptions() {
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
   for_each_direct(tbl_, [&](auto&, auto& hdl) {
-    send(hdl, atom::subscribe_v, path, ts, filter_);
+    publish(hdl, atom::subscribe_v, path, ts, filter_);
   });
 }
 
@@ -50,7 +101,7 @@ void peer::flood_path_revocation(const endpoint_id& lost_peer) {
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
   for_each_direct(tbl_, [&, this](const auto& id, const auto& hdl) {
-    send(hdl, atom::revoke_v, path, ts, lost_peer, filter_);
+    publish(hdl, atom::revoke_v, path, ts, lost_peer, filter_);
   });
 }
 
@@ -167,7 +218,7 @@ void peer::handle_filter_update(endpoint_id_list& path,
     path_ts.emplace_back(timestamp_);
     for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
       if (!contains(path, pid))
-        send(hdl, atom::subscribe_v, path, path_ts, filter);
+        publish(hdl, atom::subscribe_v, path, path_ts, filter);
     });
   }
   // If we have learned new peers, we flood our own subscriptions as well.
@@ -214,7 +265,7 @@ void peer::handle_path_revocation(endpoint_id_list& path,
     path_ts.emplace_back(timestamp_);
     for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
       if (!contains(path, pid))
-        send(hdl, atom::revoke_v, path, path_ts, revoked_hop, filter);
+        publish(hdl, atom::revoke_v, path, path_ts, revoked_hop, filter);
     });
   }
   // If we have learned new peers, we flood our own subscriptions as well.
@@ -228,36 +279,15 @@ void peer::handle_path_revocation(endpoint_id_list& path,
   age_blacklist();
 }
 
-void peer::handle_publication(node_message& msg) {
+// -- interface to the transport -----------------------------------------------
+
+void peer::publish_locally(const node_message_content& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // Verify that we are supposed to handle this message.
-  auto& path = get_unshared_path(msg);
-  if (path.head() != id_) {
-    BROKER_WARNING("Received a message for a different node: drop.");
-    return;
-  }
-  // Dispatch locally if we are on the list of receivers.
-  auto& receivers = get_unshared_receivers(msg);
-  auto i = std::remove(receivers.begin(), receivers.end(), id_);
-  if (i != receivers.end()) {
-    receivers.erase(i, receivers.end());
-    if (is_data_message(msg))
-      ship_locally(get_data_message(msg));
-    else
-      ship_locally(get_command_message(msg));
-  }
-  if (receivers.empty()) {
-    if (!path.nodes().empty())
-      BROKER_WARNING("More nodes in path but list of receivers is empty.");
-    return;
-  }
-  if (disable_forwarding_) {
-    BROKER_WARNING("Asked to forward a message, but forwarding is disabled.");
-    return;
-  }
-  for (auto& node : path.nodes()) {
-    node_message nmsg{caf::get<0>(msg), std::move(node), receivers};
-    ship(nmsg);
+  if (is_data_message(msg)) {
+    publish_locally(get_data_message(msg));
+  } else {
+    BROKER_ASSERT(is_command_message(msg));
+    publish_locally(get_command_message(msg));
   }
 }
 
@@ -328,11 +358,22 @@ caf::behavior peer::make_behavior() {
   BROKER_DEBUG("make behavior for peer" << id_);
   using detail::lift;
   return {
-    lift<atom::publish>(*this, &peer::publish_data),
-    lift<atom::publish>(*this, &peer::publish_command),
-    lift<atom::publish>(*this, &peer::publish_command_to),
+    [this](atom::publish, data_message& msg) {
+      dispatch(msg);
+    },
+    [this](atom::publish, command_message& msg) {
+      dispatch(msg);
+    },
+    [this](atom::publish, command_message& msg, endpoint_id& receiver) {
+      if (receiver == id_)
+        publish_locally(msg);
+      else
+        dispatch_to(std::move(msg), std::move(receiver));
+    },
+    [this](atom::publish, node_message& msg) {
+      dispatch(std::move(msg));
+    },
     lift<atom::subscribe>(*this, &peer::subscribe),
-    lift<atom::publish>(*this, &peer::handle_publication),
     lift<atom::subscribe>(*this, &peer::handle_filter_update),
     lift<atom::revoke>(*this, &peer::handle_path_revocation),
     [=](atom::get, atom::id) { return id_; },
@@ -351,9 +392,11 @@ caf::behavior peer::make_behavior() {
     },
     [=](atom::shutdown, shutdown_options opts) { shutdown(opts); },
     [=](atom::publish, atom::local, command_message& msg) {
-      ship_locally(msg);
+      dispatch(msg);
     },
-    [=](atom::publish, atom::local, data_message& msg) { ship_locally(msg); },
+    [=](atom::publish, atom::local, data_message& msg) {
+      dispatch(msg);
+    },
     [=](atom::await, endpoint_id who) {
       auto rp = self_->make_response_promise();
       if (auto i = peer_filters_.find(who); i != peer_filters_.end())

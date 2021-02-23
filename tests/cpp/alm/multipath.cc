@@ -8,7 +8,6 @@
 #include <caf/binary_serializer.hpp>
 
 #include "broker/alm/routing_table.hh"
-#include "broker/detail/inspect_objects.hh"
 
 using namespace broker;
 
@@ -93,13 +92,13 @@ TEST(multipaths are serializable) {
   MESSAGE("serializer the path into a buffer");
   {
     caf::binary_serializer sink{sys, buf};
-    CHECK_EQUAL(detail::inspect_objects(sink, path), caf::none);
+    CHECK(sink.apply(path));
   }
   multipath copy{"a"};
   MESSAGE("deserializers a copy from the path from the buffer");
   {
     caf::binary_deserializer source{sys,buf};
-    CHECK_EQUAL(detail::inspect_objects(source, copy), caf::none);
+    CHECK(source.apply(copy));
   }
   MESSAGE("after a serialization roundtrip, the path is equal to its copy");
   CHECK_EQUAL(path, copy);

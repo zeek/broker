@@ -1,6 +1,6 @@
 #include "broker/store_event.hh"
 
-#include "caf/deep_to_string.hpp"
+#include <caf/deep_to_string.hpp>
 
 namespace broker {
 

@@ -20,6 +20,7 @@ before_install:
 
 install:
   - choco install -y --no-progress openssl
+  - choco install -y --no-progress visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows10SDK.18362"
 
 script:
   - mkdir build && cd build

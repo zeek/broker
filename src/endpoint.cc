@@ -190,11 +190,14 @@ endpoint::endpoint(configuration config)
   }
   // Initialize remaining state.
   new (&system_) caf::actor_system(config_);
-  clock_ = new clock(&system_, config_.options().use_real_time);
-  if (( !config_.options().disable_ssl) && !system_.has_openssl_manager())
-      detail::die("CAF OpenSSL manager is not available");
-  BROKER_INFO("creating endpoint");
-  core_ = system_.spawn(core_actor, filter_type{}, clock_);
+  auto opts = config_.options();
+  clock_ = new clock(&system_, opts.use_real_time);
+  if (system_.has_openssl_manager() || opts.disable_ssl) {
+    BROKER_INFO("creating endpoint");
+    core_ = system_.spawn<core_actor_type>(filter_type{}, clock_);
+  } else {
+    detail::die("CAF OpenSSL manager is not available");
+  }
 }
 
 endpoint::~endpoint() {
@@ -275,10 +278,12 @@ bool endpoint::peer(const std::string& address, uint16_t port,
 
 bool endpoint::peer(const caf::uri& locator, timeout::seconds retry) {
   BROKER_TRACE(BROKER_ARG(locator) << BROKER_ARG(retry));
-  if (auto info = to<network_info>(locator))
+  if (auto info = to<network_info>(locator)) {
     return peer(info->address, info->port, retry);
-  BROKER_INFO("invalid URI:" << locator);
-  return false;
+  } else {
+    BROKER_INFO("invalid URI:" << locator);
+    return false;
+  }
 }
 
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
@@ -403,7 +408,7 @@ caf::actor endpoint::make_actor(actor_init_fun f) {
     // "Hide" unhandled-exception warning if users throw.
     self->set_exception_handler(
       [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
-        return caf::exit_reason::unhandled_exception;
+        return caf::sec::runtime_error;
       }
     );
 #endif // CAF_NO_EXCEPTION

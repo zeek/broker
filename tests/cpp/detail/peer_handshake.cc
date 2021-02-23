@@ -4,9 +4,6 @@
 
 #include "test.hh"
 
-#include "broker/alm/lamport_timestamp.hh"
-#include "broker/alm/routing_table.hh"
-
 using namespace broker;
 
 namespace {
@@ -17,15 +14,84 @@ broker::endpoint_id make_peer_id(uint8_t num) {
   return caf::make_node_id(num, host_id);
 }
 
+class mock_transport : public peer, public detail::unipath_manager::observer {
+public:
+  mock_transport(caf::event_based_actor* self) : self(self), hs(this) {
+    // nop
+  }
+
+  caf::event_based_actor* this_actor() noexcept override {
+    return self;
+  }
+
+  endpoint_id this_endpoint() const override {
+    return make_peer_id(1);
+  }
+
+  caf::actor remote_hdl() const override {
+    return hdl;
+  }
+
+  detail::peer_handshake* handshake() noexcept override {
+    return &hs;
+  }
+
+  void handshake_failed(error) override {
+    log.emplace_back("failed");
+  }
+
+  bool finalize_handshake() override {
+    log.emplace_back("finalized");
+    return true;
+  }
+
+  friend void intrusive_ptr_add_ref(mock_transport* ptr) noexcept {
+    ptr->ref();
+  }
+
+  friend void intrusive_ptr_release(mock_transport* ptr) noexcept {
+    ptr->deref();
+  }
+
+  caf::event_based_actor* self;
+
+  caf::actor hdl;
+
+  detail::peer_handshake hs;
+
+  bool has_inbound_path = false;
+
+  bool has_outbound_path = false;
+
+  std::vector<std::string> log;
+
+private:
+  bool make_path(bool& flag, const char* line) {
+    if (!flag) {
+      log.emplace_back(line);
+      flag = true;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  void add_transport_ref() noexcept override {
+    ref();
+  }
+
+  void release_transport_ref() noexcept override {
+    deref();
+  }
+};
+
+using mock_transport_ptr = caf::intrusive_ptr<mock_transport>;
+
 struct mock_transport_state {
   using message_type = int;
 
-  using handshake_type = detail::peer_handshake<mock_transport_state>;
-
-  using handshake_ptr_type = detail::peer_handshake_ptr<mock_transport_state>;
-
   mock_transport_state(caf::event_based_actor* self) : self_ptr(self) {
-    handshake = caf::make_counted<handshake_type>(this);
+    transport = caf::make_counted<mock_transport>(self);
   }
 
   auto self() const noexcept {
@@ -34,6 +100,10 @@ struct mock_transport_state {
 
   endpoint_id id() const {
     return make_peer_id(1);
+  }
+
+  auto& handshake() {
+    return transport->hs;
   }
 
   caf::behavior make_behavior() {
@@ -47,47 +117,21 @@ struct mock_transport_state {
     };
   }
 
-  caf::stream_slot make_inbound_path(handshake_type*) {
-    log.emplace_back("add input slot");
-    return caf::stream_slot{123};
+  bool originator_start_peering(endpoint_id peer_id, caf::actor peer_hdl) {
+    transport->hdl = peer_hdl;
+    return handshake().originator_start_peering(peer_id, {});
   }
 
-  caf::stream_slot make_outbound_path(handshake_type*) {
-    log.emplace_back("add output slot");
-    return caf::stream_slot{321};
+  bool responder_start_peering(endpoint_id peer_id, caf::actor peer_hdl) {
+    transport->hdl = peer_hdl;
+    return handshake().responder_start_peering(peer_id);
   }
 
-  bool finalize(handshake_type*) {
-    log.emplace_back("finalize");
-    return true;
-  }
-
-  template <class... Ts>
-  void cleanup(Ts&&...) {
-    log.emplace_back("cleanup");
-  }
-
-  template <class... Ts>
-  void remove_input_path(Ts&&...) {
-    log.emplace_back("remove input slot");
-  }
-
-  template <class... Ts>
-  void remove_path(Ts&&...) {
-    log.emplace_back("remove output slot");
-  }
-
-  auto& out() {
-    return *this;
-  }
+  mock_transport_ptr transport;
 
   caf::event_based_actor* self_ptr;
 
-  handshake_ptr_type handshake;
-
   std::function<void(mock_transport_state&)> f;
-
-  std::vector<std::string> log;
 
   static inline const char* name = "actor-under-test";
 };
@@ -105,7 +149,7 @@ public:
   }
 };
 
-using fsm = detail::peer_handshake<mock_transport_state>::fsm;
+using fsm = detail::peer_handshake::fsm;
 
 struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
   endpoint_id A = make_peer_id(1);
@@ -128,31 +172,30 @@ struct fixture : time_aware_fixture<fixture, test_coordinator_fixture<>> {
   }
 
   auto& log() {
-    return aut_state().log;
+    return aut_state().transport->log;
   }
 
   bool log_includes(std::vector<std::string> lines) {
     auto in_log = [this](const std::string& line) {
-      auto& log = aut_state().log;
+      auto& log = aut_state().transport->log;
       return std::find(log.begin(), log.end(), line) != log.end();
     };
     if (std::all_of(lines.begin(), lines.end(), in_log)) {
       return true;
     } else {
-      MESSAGE("log_includes check failed for log " << aut_state().log);
+      MESSAGE("log_includes check failed for log " << log());
       return false;
     }
   }
 
   bool log_excludes(std::vector<std::string> lines) {
     auto not_in_log = [this](const std::string& line) {
-      auto& log = aut_state().log;
-      return std::find(log.begin(), log.end(), line) == log.end();
+      return std::find(log().begin(), log().end(), line) == log().end();
     };
     if (std::all_of(lines.begin(), lines.end(), not_in_log)) {
       return true;
     } else {
-      MESSAGE("log_excludes check failed for log " << aut_state().log);
+      MESSAGE("log_excludes check failed for log " << log());
       return false;
     }
   }
@@ -169,96 +212,101 @@ caf::behavior dummy_peer() {
 
 } // namespace
 
-#define AUT_EXEC(stmt) aut_exec([&](mock_transport_state& state) { stmt; })
+#define AUT_EXEC(stmt)                                                         \
+  aut_exec([&](mock_transport_state& state) {                                  \
+    [[maybe_unused]] auto& handshake = state.handshake();                      \
+    [[maybe_unused]] auto& transport = *state.transport;                       \
+    stmt;                                                                      \
+  })
 
 FIXTURE_SCOPE(peer_handshake_tests, fixture)
 
 TEST(calling start_peering on the originator twice fails the handshake) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::init_state));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::init_state));
   MESSAGE("start_peering transitions to 'started' and sends an init message");
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
+  AUT_EXEC(CHECK(state.originator_start_peering(B, responder)));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::started));
   expect((atom::peer, atom::init, endpoint_id, caf::actor),
          from(aut).to(responder).with(_, _, A, aut));
   expect((atom::peer, atom::ok, endpoint_id),
          from(responder).to(aut).with(_, _, B));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::started));
   MESSAGE("calling start_peering again is an error");
-  AUT_EXEC(CHECK(!state.handshake->originator_start_peering(B, responder)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::fail_state));
-  AUT_EXEC(CHECK(state.handshake->failed()));
+  AUT_EXEC(CHECK(!state.originator_start_peering(B, responder)));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::fail_state));
+  AUT_EXEC(CHECK(handshake.failed()));
 }
 
 TEST(the originator creates both streams in handle_open_stream_msg) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
-  AUT_EXEC(CHECK(!state.handshake->has_input_slot()));
-  AUT_EXEC(CHECK(!state.handshake->has_output_slot()));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
-  AUT_EXEC(CHECK(state.handshake->has_input_slot()));
-  AUT_EXEC(CHECK(state.handshake->has_output_slot()));
+  AUT_EXEC(CHECK(state.originator_start_peering(B, responder)));
+  AUT_EXEC(CHECK(!transport.has_inbound_path));
+  AUT_EXEC(CHECK(!transport.has_outbound_path));
+  AUT_EXEC(CHECK(handshake.originator_handle_open_stream_msg()));
+  AUT_EXEC(CHECK(transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
   CHECK(log_includes({"add input slot", "add output slot"}));
-  CHECK(log_excludes({"finalize"}));
+  CHECK(log_excludes({"finalized"}));
 }
 
-TEST(the originator closes both streams on error) {
+TEST(calling handle_open_stream_msg on the originator twice is an error) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
-  AUT_EXEC(CHECK(!state.handshake->originator_handle_open_stream_msg({}, {})));
-  CHECK(log_includes({"add input slot", "add output slot", "remove input slot",
-                      "remove output slot"}));
+  AUT_EXEC(CHECK(state.originator_start_peering(B, responder)));
+  AUT_EXEC(CHECK(handshake.originator_handle_open_stream_msg()));
+  AUT_EXEC(CHECK(!handshake.originator_handle_open_stream_msg()));
+  CHECK(log_includes({"add input slot", "add output slot", "failed"}));
 }
 
-TEST(the originator updates routing table and triggers callbacks on success) {
+TEST(the originator triggers callbacks on success) {
   auto responder = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->originator_start_peering(B, responder)));
-  AUT_EXEC(CHECK(state.handshake->originator_handle_open_stream_msg({}, {})));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
-  CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
-  CHECK(log_excludes({"remove input slot", "remove output slot"}));
+  AUT_EXEC(CHECK(state.originator_start_peering(B, responder)));
+  AUT_EXEC(CHECK(handshake.originator_handle_open_stream_msg()));
+  AUT_EXEC(CHECK(handshake.handle_ack_open_msg()));
+  CHECK(log_includes({"add input slot", "add output slot", "finalized"}));
+  CHECK(log_excludes({"failed"}));
 }
 
 TEST(calling start_peering on the responder twice fails the handshake) {
   auto originator = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::init_state));
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::started));
-  AUT_EXEC(CHECK(!state.handshake->responder_start_peering(B, originator)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->state(), fsm::fail_state));
-  AUT_EXEC(CHECK(state.handshake->failed()));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::init_state));
+  AUT_EXEC(CHECK(state.responder_start_peering(B, originator)));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::started));
+  AUT_EXEC(CHECK(!state.responder_start_peering(B, originator)));
+  AUT_EXEC(CHECK_EQUAL(handshake.state(), fsm::fail_state));
+  AUT_EXEC(CHECK(handshake.failed()));
+  CHECK(log_includes({"failed"}));
 }
 
 TEST(the responder opens the output stream first) {
   auto originator = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({}, {})));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
-  CHECK(log_excludes({"remove input slot", "remove output slot"}));
+  AUT_EXEC(CHECK(state.responder_start_peering(B, originator)));
+  AUT_EXEC(CHECK(!transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  AUT_EXEC(CHECK(handshake.responder_handle_open_stream_msg()));
+  AUT_EXEC(CHECK(transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  AUT_EXEC(CHECK(handshake.handle_ack_open_msg()));
+  AUT_EXEC(CHECK(transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  CHECK(log_includes({"add input slot", "add output slot", "finalized"}));
+  CHECK(log_excludes({"failed"}));
 }
 
 TEST(the responder accepts messages from the originator in any order) {
   // Same test as above, but ack_open_msg and open_stream_msg are swapped.
   auto originator = sys.spawn(dummy_peer);
-  AUT_EXEC(CHECK(state.handshake->responder_start_peering(B, originator)));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->handle_ack_open_msg()));
-  AUT_EXEC(CHECK_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK(state.handshake->responder_handle_open_stream_msg({}, {})));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->in, caf::invalid_stream_slot));
-  AUT_EXEC(CHECK_NOT_EQUAL(state.handshake->out, caf::invalid_stream_slot));
-  CHECK(log_includes({"add input slot", "add output slot", "finalize"}));
-  CHECK(log_excludes({"remove input slot", "remove output slot"}));
+  AUT_EXEC(CHECK(state.responder_start_peering(B, originator)));
+  AUT_EXEC(CHECK(!transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  AUT_EXEC(CHECK(handshake.handle_ack_open_msg()));
+  AUT_EXEC(CHECK(!transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  AUT_EXEC(CHECK(handshake.responder_handle_open_stream_msg()));
+  AUT_EXEC(CHECK(transport.has_inbound_path));
+  AUT_EXEC(CHECK(transport.has_outbound_path));
+  CHECK(log_includes({"add input slot", "add output slot", "finalized"}));
+  CHECK(log_excludes({"failed"}));
 }
 
 FIXTURE_SCOPE_END()

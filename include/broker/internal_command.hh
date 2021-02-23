@@ -6,11 +6,9 @@
 #include <caf/actor.hpp>
 #include <caf/variant.hpp>
 #include <caf/optional.hpp>
-#include <caf/meta/type_name.hpp>
 
 #include "broker/data.hh"
 #include "broker/detail/channel.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/snapshot.hh"
@@ -61,17 +59,13 @@ bool inspect_impl(Inspector& f, T& obj, caf::string_view pretty_name,
   friend typename Inspector::result_type inspect(Inspector& f,                 \
                                                  name##_command& x) {          \
     auto& [__VA_ARGS__, publisher] = x;                                        \
-    if constexpr (detail::is_legacy_inspector<Inspector>) {                    \
-      return f(caf::meta::type_name(#name), __VA_ARGS__, publisher);           \
-    } else {                                                                   \
-      caf::string_view field_names[] = {                                       \
-        BROKER_PP_EXPAND field_names_pack,                                     \
-        "publisher",                                                           \
-      };                                                                       \
-      auto refs = std::forward_as_tuple(__VA_ARGS__, publisher);               \
-      std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;   \
-      return detail::inspect_impl(f, x, #name, field_names, refs, iseq);       \
-    }                                                                          \
+    caf::string_view field_names[] = {                                         \
+      BROKER_PP_EXPAND field_names_pack,                                       \
+      "publisher",                                                             \
+    };                                                                         \
+    auto refs = std::forward_as_tuple(__VA_ARGS__, publisher);                 \
+    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;     \
+    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);         \
   }
 
 /// Sets a value in the key-value store.
@@ -141,14 +135,10 @@ struct clear_command {
   entity_id publisher;
   static constexpr auto tag = command_tag::action;
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f,
-                                                 clear_command& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>)
-      return f(caf::meta::type_name("clear"), x.publisher);
-    else
-      return f.object(x)
-        .pretty_name("clear") //
-        .fields(f.field("publisher", x.publisher));
+  friend bool inspect(Inspector& f, clear_command& x) {
+    return f.object(x)
+      .pretty_name("clear") //
+      .fields(f.field("publisher", x.publisher));
   }
 };
 
@@ -163,14 +153,10 @@ struct clear_command {
   friend typename Inspector::result_type inspect(Inspector& f,                 \
                                                  name##_command& x) {          \
     auto& [__VA_ARGS__] = x;                                                   \
-    if constexpr (detail::is_legacy_inspector<Inspector>) {                    \
-      return f(caf::meta::type_name(#name), __VA_ARGS__);                      \
-    } else {                                                                   \
-      caf::string_view field_names[] = {BROKER_PP_EXPAND field_names_pack};    \
-      auto refs = std::forward_as_tuple(__VA_ARGS__);                          \
-      std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;   \
-      return detail::inspect_impl(f, x, #name, field_names, refs, iseq);       \
-    }                                                                          \
+    caf::string_view field_names[] = {BROKER_PP_EXPAND field_names_pack};    \
+    auto refs = std::forward_as_tuple(__VA_ARGS__);                          \
+    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;   \
+    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);       \
   }
 
 /// Causes the master to add `remote_clone` to its list of clones.
@@ -178,12 +164,8 @@ struct attach_clone_command {
   static constexpr auto tag = command_tag::consumer_control;
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f,
-                                                 attach_clone_command& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>)
-      return f(caf::meta::type_name("attach_clone"));
-    else
-      return f.object(x).pretty_name("attach_clone").fields();
+  friend bool inspect(Inspector& f, attach_clone_command& x) {
+    return f.object(x).pretty_name("attach_clone").fields();
   }
 };
 
@@ -271,15 +253,9 @@ public:
 };
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, internal_command& x) {
-  if constexpr (detail::is_legacy_inspector<Inspector>)
-    return f(caf::meta::type_name("internal_command"), x.seq, x.sender,
-             x.content);
-  else
-    return f.object(x)
-      .pretty_name("internal_command")
-      .fields(f.field("seq", x.seq), f.field("sender", x.sender),
-              f.field("content", x.content));
+bool inspect(Inspector& f, internal_command& x) {
+  return f.object(x).fields(f.field("seq", x.seq), f.field("sender", x.sender),
+                            f.field("content", x.content));
 }
 
 } // namespace broker

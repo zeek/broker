@@ -13,6 +13,7 @@
 #include "broker/atoms.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
+#include "broker/detail/central_dispatcher.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/error.hh"
@@ -24,9 +25,10 @@
 
 namespace broker::alm {
 
-/// CRTP base class that represents a Broker peer in the network. This class
-/// implements subscription and path management for the overlay. Data transport
-/// as well as shipping data to local subscribers is implemented by `Derived`.
+/// Base class that represents a Broker peer in the network. This class
+/// implements subscription and path management for the overlay. Member
+/// functions for data transport as well as shipping data to local subscribers
+/// remain pure virtual.
 ///
 /// The derived class *must* provide the following interface:
 ///
@@ -70,7 +72,7 @@ namespace broker::alm {
 /// (atom::await, PeerId) -> void
 /// => await_endpoint()
 /// ~~~
-class peer {
+class peer : public detail::central_dispatcher {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -80,6 +82,12 @@ public:
 
   // -- constants --------------------------------------------------------------
 
+  /// Configures how many (additional) items the stream transport caches for
+  /// published events that bypass streaming.
+  static constexpr size_t item_stash_replenish_size = 32;
+
+  /// Checks whether move-assigning an ID to the peer results in a `noexcept`
+  /// operation.
   static constexpr bool has_nothrow_assignable_id
     = std::is_nothrow_move_assignable<endpoint_id>::value;
 
@@ -180,6 +188,34 @@ public:
 
   static bool contains(const endpoint_id_list& ids, const endpoint_id& id);
 
+  // -- topic management -------------------------------------------------------
+
+  virtual void subscribe(const filter_type& what);
+
+  // -- detail::central_dispatcher overrides -----------------------------------
+
+  caf::event_based_actor* this_actor() noexcept final;
+
+  endpoint_id this_endpoint() const final;
+
+  filter_type local_filter() const final;
+
+  alm::lamport_timestamp local_timestamp() const noexcept final;
+
+  // -- additional dispatch overloads ------------------------------------------
+
+  /// @private
+  template <class T>
+  bool dispatch_to_impl(T&& msg, endpoint_id&& receiver);
+
+  /// Dispatches `msg` to `receiver`, ignoring subscription filters.
+  /// @returns `true` on success, `false` if no path to the receiver exists.
+  bool dispatch_to(data_message msg, endpoint_id receiver);
+
+  /// Dispatches `msg` to `receiver`, ignoring subscription filters.
+  /// @returns `true` on success, `false` if no path to the receiver exists.
+  bool dispatch_to(command_message msg, endpoint_id receiver);
+
   // -- flooding ---------------------------------------------------------------
 
   /// Floods the subscriptions on this peer to all other peers.
@@ -189,52 +225,6 @@ public:
   /// Floods a path revocation to all other peers.
   /// @note The functions does *not* bump the Lamport timestamp before sending.
   void flood_path_revocation(const endpoint_id& lost_peer);
-
-  // -- publish and subscribe functions ----------------------------------------
-
-  /// Adds a new topic to the local filter and floods the new topic filter to
-  /// peers on changes.
-  virtual void subscribe(const filter_type& what);
-
-  // Note: publish isn't virtual, because the customization point is `send`.
-  template <class T>
-  void publish(const T& content) {
-    BROKER_TRACE(BROKER_ARG(content));
-    const auto& topic = get_topic(content);
-    detail::prefix_matcher matches;
-    endpoint_id_list receivers;
-    for (const auto& [peer, filter] : peer_filters_)
-      if (matches(filter, topic))
-        receivers.emplace_back(peer);
-    if (receivers.empty()) {
-      BROKER_DEBUG("drop message: no subscribers found for topic" << topic);
-      return;
-    }
-    ship(content, receivers);
-  }
-
-  void publish(node_message_content& content) {
-    if (is_data_message(content))
-      publish(get<data_message>(content));
-    else
-      publish(get<command_message>(content));
-  }
-
-  void publish_data(data_message& content) {
-    publish(content);
-  }
-
-  void publish_command(command_message& content) {
-    publish(content);
-  }
-
-  void publish_command_to(command_message& content, const endpoint_id& dst) {
-    BROKER_TRACE(BROKER_ARG(content) << BROKER_ARG(dst));
-    if (dst == id_)
-      ship_locally(content);
-    else
-      ship(content, dst);
-  }
 
   /// Checks whether a path and its associated vector timestamp are non-empty,
   /// loop-free and not blacklisted.
@@ -266,78 +256,44 @@ public:
                                       const endpoint_id& revoked_hop,
                                       const filter_type& filter);
 
-  virtual void handle_publication(node_message& msg);
+  // -- interface to the transport ---------------------------------------------
 
-  /// Forwards `msg` to a single `receiver`.
-  template <class T>
-  void ship(T& msg, const endpoint_id& receiver) {
-    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
-    if (auto ptr = shortest_path(tbl_, receiver)) {
-      node_message wrapped{std::move(msg),
-                           multipath_type{ptr->begin(), ptr->end()},
-                           endpoint_id_list{receiver}};
-      ship(wrapped);
-    } else {
-      BROKER_WARNING("cannot ship message: no path found to" << receiver);
-    }
-  }
-
-  /// Wraps `msg` to a `node_message` and then delegates to the virtual `ship`
-  /// overload.
-  template <class T>
-  void ship(T& msg, const endpoint_id_list& receivers) {
-    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receivers));
-    std::vector<multipath_type> paths;
-    std::vector<endpoint_id> unreachables;
-    generate_paths(receivers, tbl_, paths, unreachables);
-    for (auto& path : paths) {
-      node_message wrapped{msg, std::move(path), receivers};
-      ship(wrapped);
-    }
-    if (!unreachables.empty())
-      BROKER_WARNING("no paths to " << unreachables);
-  }
-
-  /// Forwards `msg` to all receivers.
-  void ship(node_message& msg) {
-    BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG2("path", get_path(msg)));
-    const auto& path = get_path(msg);
-    if (auto i = tbl_.find(path.head()); i != tbl_.end()) {
-      send(i->second.hdl, atom::publish_v, std::move(msg));
-    } else {
-      BROKER_WARNING("cannot ship message: no path found to" << path.head());
-    }
-  }
-
-  // -- transport --------------------------------------------------------------
-
-  /// Publishes `msg` to the peer `receiver`.
-  virtual void send(const caf::actor& receiver, atom::publish,
-                    node_message content)
+  /// Publishes (floods) a subscription update to @p dst.
+  /// @param dst Destination (receiver) for the published data.
+  /// @param path Lists Broker peers that forwarded the subscription on the
+  ///             overlay in chronological order.
+  /// @param ts Stores the logical time of each peer at the time of forwarding.
+  /// @param new_filter The new filter to apply to the origin of the update.
+  virtual void publish(const caf::actor& dst, atom::subscribe,
+                       const endpoint_id_list& path, const vector_timestamp& ts,
+                       const filter_type& new_filter)
     = 0;
 
-  /// Updates subscriptions for this peer by sending a filter update to
-  /// `receiver`.
-  virtual void send(const caf::actor& receiver, atom::subscribe,
-                    const endpoint_id_list& path, const vector_timestamp& ts,
-                    const filter_type& new_filter)
+  /// Publishes (floods) a path revocation update to @p dst.
+  /// @param dst Destination (receiver) for the published data.
+  /// @param path Lists Broker peers that forwarded the subscription on the
+  ///             overlay in chronological order.
+  /// @param ts Stores the logical time of each peer at the time of forwarding.
+  /// @param lost_peer ID of the affected peer, i.e., the origin of the update
+  ///                  lost its communication path to @p lost_peer.
+  /// @param new_filter The new filter to apply to the origin of the update.
+  virtual void publish(const caf::actor& dst, atom::revoke,
+                       const endpoint_id_list& path, const vector_timestamp& ts,
+                       const endpoint_id& lost_peer,
+                       const filter_type& new_filter)
     = 0;
 
-  /// Informs `receiver` about a path revocation.
-  virtual void send(const caf::actor& receiver, atom::revoke,
-                    const endpoint_id_list& path, const vector_timestamp& ts,
-                    const endpoint_id& lost_peer, const filter_type& new_filter)
-    = 0;
+  /// Publishes @p msg to all local subscribers.
+  /// @param msg The published data.
+  virtual void publish_locally(const data_message& msg) = 0;
 
-  /// Called whenever new data for local subscribers became available.
-  /// @param msg Data or command message, either received by peers or generated
-  ///            from a local publisher.
-  virtual void ship_locally(const data_message& msg) = 0;
+  /// Publishes @p msg to all local subscribers.
+  /// @param msg The published command.
+  virtual void publish_locally(const command_message& msg) = 0;
 
-  /// Called whenever new data for local subscribers became available.
-  /// @param msg Data or command message, either received by peers or generated
-  ///            from a local publisher.
-  virtual void ship_locally(const command_message& msg) = 0;
+  /// Publishes @p msg to all local subscribers.
+  /// @param msg The published message, either data or a command.
+  void publish_locally(const node_message_content& msg);
 
   // -- callbacks --------------------------------------------------------------
 
@@ -399,7 +355,7 @@ public:
   /// system is shutting down.
   virtual caf::behavior make_behavior();
 
-private:
+protected:
   // -- implementation details -------------------------------------------------
 
   void cleanup(const endpoint_id& peer_id, const caf::actor& hdl);

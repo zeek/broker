@@ -66,11 +66,11 @@ struct fixture : time_aware_fixture<fixture<Impl>, test_coordinator_fixture<>> {
   }
 
   auto& get(const broker::endpoint_id& id) {
-    return this->template deref<Impl>(peers[names[id]]).state.mgr();
+    return this->template deref<Impl>(peers[names[id]]).state;
   }
 
   auto& get(const caf::actor& hdl) {
-    return this->template deref<Impl>(hdl).state.mgr();
+    return this->template deref<Impl>(hdl).state;
   }
 
   auto shortest_path(const broker::endpoint_id& from,

@@ -1,7 +1,4 @@
 
-# This is needed in order to use the "ipaddress" module on Python 2.7.
-from __future__ import unicode_literals
-
 import unittest
 import multiprocessing
 import sys
@@ -17,7 +14,6 @@ class TestCommunication(unittest.TestCase):
              broker.Endpoint() as ep2, \
              ep1.make_subscriber("/test") as s1, \
              ep2.make_subscriber("/test") as s2:
-
             port = ep1.listen("127.0.0.1", 0)
             self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
 
@@ -138,7 +134,10 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
             # Async version.
-            ep1.peer_nosync("127.0.0.1", 1947, 0.0)
+            ep1.peer_nosync("127.0.0.1", 1947, 1.0)
+            st1 = es1.get()
+            self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
+
             st1 = es1.get()
             self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 

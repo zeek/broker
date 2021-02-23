@@ -14,7 +14,6 @@
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/iterator_range.hh"
 #include "broker/detail/map_index_iterator.hh"
 #include "broker/optional.hh"
@@ -76,13 +75,10 @@ public:
 template <class Inspector, class PeerId, class CommunicationHandle>
 typename Inspector::result_type
 inspect(Inspector& f, routing_table_row<PeerId, CommunicationHandle>& x) {
-  if constexpr (detail::is_legacy_inspector<Inspector>)
-    return f(caf::meta::type_name("row"), x.hdl, x.distances, x.paths);
-  else
-    return f.object(x)
-      .pretty_name("row") //
-      .fields(f.field("hdl", x.hdl), f.field("distances", x.distances),
-              f.field("paths", x.paths));
+  return f.object(x)
+    .pretty_name("row") //
+    .fields(f.field("hdl", x.hdl), f.field("distances", x.distances),
+            f.field("paths", x.paths));
 }
 
 /// Stores direct connections to peers as well as distances to all other peers
@@ -190,10 +186,12 @@ bool erase_direct(RoutingTable& tbl,
                   OnRemovePeer on_remove) {
   using mapped_type = typename RoutingTable::mapped_type;
   using handle_type = typename mapped_type::communication_handle_type;
+  auto whom_hdl = handle_type{};
   // Reset the connection handle.
   if (auto i = tbl.find(whom); i == tbl.end()) {
     return false;
   } else {
+    whom_hdl = i->second.hdl;
     auto& hdl = i->second.hdl;
     if constexpr (std::is_integral<handle_type>::value)
       hdl = 0;
@@ -321,13 +319,10 @@ bool operator<(const std::tuple<Revoker, Timestamp, Hop>& x,
 /// @relates blacklist_entry
 template <class Inspector, class Id>
 typename Inspector::result_type inspect(Inspector& f, blacklist_entry<Id>& x) {
-  if constexpr(detail::is_legacy_inspector<Inspector>)
-    return f(caf::meta::type_name("blacklist_entry"), x.revoker, x.ts, x.hop);
-  else
-    return f.object(x)
-      .pretty_name("blacklist_entry")
-      .fields(f.field("revoker", x.revoker), f.field("ts", x.ts),
-              f.field("hop", x.hop));
+  return f.object(x)
+    .pretty_name("blacklist_entry")
+    .fields(f.field("revoker", x.revoker), f.field("ts", x.ts),
+            f.field("hop", x.hop));
 }
 
 /// A container for storing path revocations, sorted by `revoker` then `ts` then

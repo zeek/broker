@@ -9,26 +9,32 @@ from inspect import currentframe, getframeinfo
 
 def create_stores(self):
     ep0 = broker.Endpoint()
-    m = ep0.attach_master("test", broker.Backend.Memory)
-    port = ep0.listen("127.0.0.1", 0)
-
     ep1 = broker.Endpoint()
-    c1 = ep1.attach_clone("test")
-    self.assertEqual(ep1.peer("127.0.0.1", port), True)
-
     ep2 = broker.Endpoint()
-    c2 = ep2.attach_clone("test")
-    es2 = ep2.make_status_subscriber()
-    self.assertEqual(ep2.peer("127.0.0.1", port), True)
 
-    ep0.await_peer(ep1.node_id())
-    ep1.await_peer(ep0.node_id())
-    ep0.await_peer(ep2.node_id())
-    ep2.await_peer(ep0.node_id())
-    ep1.await_peer(ep2.node_id())
-    ep2.await_peer(ep1.node_id())
+    with ep0.make_subscriber("/test") as s0, \
+         ep1.make_subscriber("/test") as s1, \
+         ep1.make_status_subscriber() as es1, \
+         ep2.make_subscriber("/test") as s2, \
+         ep2.make_status_subscriber() as es2:
 
-    return (ep0, ep1, ep2, m, c1, c2)
+        p = ep0.listen("127.0.0.1", 0)
+        ep1.peer("127.0.0.1", p)
+        ep2.peer("127.0.0.1", p)
+
+        # TODO: This doesn't work. Once it does, remove the event handshake.
+        # es1.get()
+        # es2.get()
+        ep0.publish("/test", "go-ahead")
+        s1.get()
+        s2.get()
+        ####
+
+        m = ep0.attach_master("test", broker.Backend.Memory)
+        c1 = ep1.attach_clone("test")
+        c2 = ep2.attach_clone("test")
+
+        return (ep0, ep1, ep2, m, c1, c2)
 
 # Runs a test with one master and two clones
 # --tri-setup-start
@@ -69,6 +75,7 @@ class TestStore(unittest.TestCase):
         # --master-start
         with broker.Endpoint() as ep1, \
              ep1.attach_master("test", broker.Backend.Memory) as m:
+
             m.put("key", "value")
             x = m.get("key")
             # x == "value"

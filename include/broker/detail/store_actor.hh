@@ -7,6 +7,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/hash/fnv.hpp>
 #include <caf/response_handle.hpp>
 
 #include "broker/defaults.hh"
@@ -28,15 +29,8 @@ namespace std {
 
 template <>
 struct hash<broker::detail::local_request_key> {
-  using value_type = broker::detail::local_request_key;
-
-  size_t operator()(const value_type& x) const noexcept {
-    // TODO: use caf::hash::fnv when switching to CAF 0.18.
-    hash<value_type::first_type> f;
-    hash<value_type::second_type> g;
-    auto result = f(x.first);
-    broker::detail::hash_combine(result, g(x.second));
-    return result;
+  size_t operator()(const broker::detail::local_request_key& x) const noexcept {
+    return caf::hash::fnv<size_t>::compute(x.first, x.second);
   }
 };
 

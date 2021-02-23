@@ -14,12 +14,13 @@ set(tests
   cpp/backend.cc
   cpp/core_actor.cc
   cpp/data.cc
+  cpp/detail/central_dispatcher.cc
   cpp/detail/channel.cc
   cpp/detail/data_generator.cc
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
-  cpp/detail/peer_handshake.cc
+  cpp/detail/unipath_manager.cc
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
@@ -57,7 +58,7 @@ else ()
   set(libbroker broker_static)
 endif ()
 add_executable(broker-test ${tests})
-target_link_libraries(broker-test ${libbroker})
+target_link_libraries(broker-test ${libbroker} CAF::test)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 

@@ -47,14 +47,6 @@ except:
 
     utc = UTC()
 
-# Check the Python version
-py2 = (sys.version_info.major < 3)
-
-# Python 2/3 compatibility: Make sure the "long" and "unicode" types are defined
-if not py2:
-    long = int
-    unicode = str
-
 Version = _broker.Version
 Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
@@ -80,7 +72,7 @@ BrokerOptions = _broker.BrokerOptions
 # for comparision against the enum.
 _EC_eq = _broker.EC.__eq__
 def _our_EC_eq(self, other):
-    if isinstance(other, (int, long)):
+    if isinstance(other, int):
         return other == int(self)
     else:
         return _EC_eq(self, other)
@@ -114,7 +106,7 @@ def _make_topics(ts):
     return _broker.VectorTopic(ts)
 
 # This class does not derive from the internal class because we
-# need to pass in existign instances. That means we need to
+# need to pass in existing instances. That means we need to
 # wrap all methods, even those that just reuse the internal
 # implementation.
 class Subscriber:
@@ -125,6 +117,10 @@ class Subscriber:
         return self
 
     def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
+    def reset(self):
         self._subscriber.reset()
         self._subscriber = None
 
@@ -164,7 +160,7 @@ class Subscriber:
     def remove_topic(self, topic, block=False):
         return self._subscriber.remove_topic(_make_topic(topic), block)
 
-class StatusSubscriber(_broker.Subscriber):
+class StatusSubscriber():
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
@@ -172,6 +168,10 @@ class StatusSubscriber(_broker.Subscriber):
         return self
 
     def __exit__(self, type, value, traceback):
+        self._subscriber.reset()
+        self._subscriber = None
+
+    def reset(self):
         self._subscriber.reset()
         self._subscriber = None
 
@@ -206,7 +206,7 @@ class StatusSubscriber(_broker.Subscriber):
 
 class Publisher:
     # This class does not derive from the internal class because we
-    # need to pass in existign instances. That means we need to
+    # need to pass in existing instances. That means we need to
     # wrap all methods, even those that just reuse the internal
     # implementation.
     def __init__(self, internal_publisher):
@@ -216,6 +216,10 @@ class Publisher:
         return self
 
     def __exit__(self, type, value, traceback):
+        self._publisher.reset()
+        self._publisher = None
+
+    def reset(self):
         self._publisher.reset()
         self._publisher = None
 
@@ -252,6 +256,17 @@ class Store:
     # implementation.
     def __init__(self, internal_store):
         self._store = internal_store
+        # Points to the "owning" Endpoint to make sure Python cleans this object up
+        # before destroying the endpoint.
+        self._parent = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._store.reset()
+        self._parent = None
+        self._store = None
 
     def __enter__(self):
         return self
@@ -448,7 +463,7 @@ class Data(_broker.Data):
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
 
-        elif isinstance(x, (bool, int, long, float, str, unicode, bytes,
+        elif isinstance(x, (bool, int, float, str, bytes,
                             Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
             _broker.Data.__init__(self, x)
 
@@ -458,15 +473,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, _broker.Timespan(ns))
 
         elif isinstance(x, datetime.datetime):
-            if py2:
-                if x.tzinfo:
-                    secs = (x - datetime.datetime(1970, 1, 1, tzinfo=utc)).total_seconds()
-                else:
-                    # Assume the naive datetime is in local time
-                    secs = time.mktime(x.timetuple()) + x.microsecond/1e6
-            else:
-                secs = x.timestamp()
-
+            secs = x.timestamp()
             _broker.Data.__init__(self, _broker.Timestamp(secs))
 
         elif isinstance(x, ipaddress.IPv4Address):

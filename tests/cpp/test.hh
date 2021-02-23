@@ -15,10 +15,10 @@
 
 #include "broker/configuration.hh"
 #include "broker/detail/channel.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 
+#include <cassert>
 #include <ciso646>
 
 // -- test setup macros --------------------------------------------------------
@@ -91,21 +91,15 @@ CAF_END_TYPE_ID_BLOCK(broker_test)
 // -- inspection support -------------------------------------------------------
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, producer_msg& x) {
-  if constexpr (broker::detail::is_legacy_inspector<Inspector>)
-    return f(x.source, x.content);
-  else
-    return f.object(x).fields(f.field("source", x.source),
-                              f.field("content", x.content));
+bool inspect(Inspector& f, producer_msg& x) {
+  return f.object(x).fields(f.field("source", x.source),
+                            f.field("content", x.content));
 }
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, consumer_msg& x) {
-  if constexpr (broker::detail::is_legacy_inspector<Inspector>)
-    return f(x.source, x.content);
-  else
-    return f.object(x).fields(f.field("source", x.source),
-                              f.field("content", x.content));
+bool inspect(Inspector& f, consumer_msg& x) {
+  return f.object(x).fields(f.field("source", x.source),
+                            f.field("content", x.content));
 }
 
 // -- fixtures -----------------------------------------------------------------
@@ -166,7 +160,6 @@ public:
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
-  caf::timespan credit_round_interval;
 
   using super::run;
 

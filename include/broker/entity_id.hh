@@ -4,11 +4,8 @@
 #include <string>
 #include <tuple>
 
-#include <caf/meta/type_name.hpp>
 #include <caf/node_id.hpp>
 
-#include "broker/detail/hash.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -40,17 +37,17 @@ struct entity_id {
   static entity_id from(const Handle& hdl) {
     return hdl ? entity_id{hdl->node(), hdl->id()} : nil();
   }
+
+  /// Computes a hash value for this object.
+  size_t hash() const noexcept;
 };
 
 /// @relates entity_id
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, entity_id& x) {
-  if constexpr (detail::is_legacy_inspector<Inspector>)
-    return f(caf::meta::type_name("entity_id"), x.endpoint, x.object);
-  else
-    return f.object(x)
-      .pretty_name("entity_id")
-      .fields(f.field("endpoint", x.endpoint), f.field("object", x.object));
+bool inspect(Inspector& f, entity_id& x) {
+  return f.object(x)
+    .pretty_name("entity_id")
+    .fields(f.field("endpoint", x.endpoint), f.field("object", x.object));
 }
 
 /// @relates entity_id
@@ -78,11 +75,7 @@ namespace std {
 template <>
 struct hash<broker::entity_id> {
   size_t operator()(const broker::entity_id& x) const noexcept {
-    // TODO: use caf::hash::fnv when switching to CAF 0.18.
-    hash<caf::node_id> f;
-    auto result = f(x.endpoint);
-    broker::detail::hash_combine(result, x.object);
-    return result;
+    return x.hash();
   }
 };
 

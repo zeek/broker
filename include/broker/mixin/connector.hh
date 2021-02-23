@@ -8,6 +8,7 @@
 #include "broker/detail/network_cache.hh"
 #include "broker/detail/retry_state.hh"
 #include "broker/error.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 namespace broker::mixin {
@@ -93,24 +94,30 @@ public:
       addr,
       [=, msg{std::move(msg)}](caf::actor hdl) mutable {
         if (auto i = ids_.find(hdl); i != ids_.end()) {
-          this->ship(msg, i->second);
-          rp.deliver(caf::unit);
-          return;
+          if (this->dispatch_to(msg, i->second)) {
+            rp.deliver();
+          } else {
+            auto err = make_error(ec::no_path_to_peer, to_string(addr));
+            rp.deliver(std::move(err));
+          }
+        } else {
+          // TODO: replace infinite with some useful default / config parameter
+          self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
+            .then(
+              [=, msg{std::move(msg)}](const endpoint_id& remote_id) mutable {
+                ids_.emplace(hdl, remote_id);
+                if (this->dispatch_to(msg, i->second)) {
+                  rp.deliver();
+                } else {
+                  auto err = make_error(ec::no_path_to_peer, to_string(addr));
+                  rp.deliver(std::move(err));
+                }
+              },
+              deliver_err);
         }
-        // TODO: replace infinite with some useful default / config parameter
-        self->request(hdl, caf::infinite, atom::get_v, atom::id_v)
-          .then(
-            [=, msg{std::move(msg)}](const endpoint_id& remote_id) mutable {
-              ids_.emplace(hdl, remote_id);
-              this->ship(msg, remote_id);
-              rp.deliver(caf::unit);
-            },
-            deliver_err);
       },
       deliver_err);
   }
-
-  // -- factories --------------------------------------------------------------
 
   caf::behavior make_behavior() override {
     return caf::message_handler{

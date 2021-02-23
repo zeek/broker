@@ -31,6 +31,9 @@ configuration make_config(std::string file_path_template) {
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", std::move(file_path_template));
+  //cfg.set("caf.logger.file.verbosity", "trace");
+  //cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
+
 #endif
   return cfg;
 }
@@ -181,7 +184,7 @@ TEST(status listeners receive peering events) {
         },
         [](caf::unit_t&, const error&) {});
       if (!ep.peer("127.0.0.1", port))
-        hard_error("endpoint::listen failed");
+        hard_error("endpoint::peer failed");
       MESSAGE("second endpoint peered to 127.0.0.1:" << port);
     }
     checkpoint.arrive_and_wait();

@@ -2,6 +2,8 @@
 
 #include <caf/actor_system_config.hpp>
 
+#include "broker/defaults.hh"
+
 namespace broker {
 
 struct broker_options {
@@ -61,8 +63,9 @@ public:
 
   static constexpr skip_init_t skip_init = skip_init_t{};
 
-  /// Default-constructs a configuration.
   configuration();
+
+  configuration(configuration&&) = default;
 
   /// Constructs a configuration with non-default Broker options.
   explicit configuration(broker_options opts);

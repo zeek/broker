@@ -1,6 +1,6 @@
 # -- Project Setup ------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5...3.18 FATAL_ERROR)
 project(broker C CXX)
 include(cmake/CommonCMakeConfig.cmake)
 include(GNUInstallDirs)
@@ -194,54 +194,56 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-if ( CAF_ROOT_DIR )
-  find_package(CAF COMPONENTS openssl test io core REQUIRED)
-  set(caf_dir    "${CAF_LIBRARY_CORE}")
-  set(caf_config "${CAF_INCLUDE_DIR_CORE}/caf/config.hpp")
-  get_filename_component(caf_dir ${caf_dir} PATH)
+set(CAF_VERSION_MIN_REQUIRED 0.18.0)
 
-  if (EXISTS "${caf_dir}/../libcaf_core")
-    get_filename_component(caf_dir ${caf_dir} PATH)
-  else ()
-    set(caf_dir "${CAF_INCLUDE_DIR_CORE}")
-  endif ()
+if ( TARGET CAF::core )
+  message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
+elseif ( CAF_ROOT )
+  # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
+  if (CMAKE_VERSION VERSION_LESS 3.12)
+    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
+                 COMPONENTS openssl test io core
+                 PATHS "${CAF_ROOT}")
+  else()
+    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
+                 COMPONENTS openssl test io core)
+  endif()
+  message(STATUS "Using system CAF version ${CAF_VERSION}")
+  # TODO: drop these legacy variables and simply use the targets consistently
+  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(caf_dirs "")
+  foreach(caf_lib IN LISTS CAF_LIBRARIES ITEMS CAF::test)
+    get_target_property(dirs ${caf_lib} INTERFACE_INCLUDE_DIRECTORIES)
+    if ( dirs )
+      list(APPEND caf_dirs ${dirs})
+    endif ()
+  endforeach()
+  list(REMOVE_DUPLICATES caf_dirs)
+  list(GET caf_dirs 0 caf_dir)
+  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
 else ()
-  if ( BROKER_ENABLE_DEBUG )
-    set(CAF_ENABLE_RUNTIME_CHECKS ON)
+  set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TESTING OFF CACHE INTERNAL "")
+  set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
+  if (ENABLE_STATIC_ONLY)
+    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   endif ()
-  set(CAF_NO_EXAMPLES ON)
-  set(CAF_NO_OPENCL ON)
-  set(CAF_NO_TOOLS ON)
-  set(CAF_NO_PYTHON ON)
-  set(CAF_NO_UNIT_TESTS ON)
-  if (ENABLE_STATIC)
-    set(CAF_BUILD_STATIC ON)
-  elseif (ENABLE_STATIC_ONLY)
-    set(CAF_BUILD_STATIC_ONLY ON)
-  endif ()
+  message(STATUS "Using bundled CAF")
   add_subdirectory(caf)
-endif ()
-
-set(CAF_VERSION_REQUIRED 0.17.5)
-
-if (CAF_VERSION VERSION_LESS CAF_VERSION_REQUIRED)
-  message(FATAL_ERROR "Broker requires at least CAF version"
-    " ${CAF_VERSION_REQUIRED}, detected version: ${CAF_VERSION}")
+  set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
+  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(caf_dirs "")
+  foreach(comp core io openssl test)
+    list(APPEND caf_dirs
+         "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}"
+         "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}")
+  endforeach()
+  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
+  set(CAF_FOUND TRUE CACHE INTERNAL "")
 endif ()
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
-
-# RocksDB
-if (BROKER_ENABLE_ROCKSDB)
-  find_package(RocksDB)
-  if (ROCKSDB_FOUND)
-    set(BROKER_HAVE_ROCKSDB true)
-    include_directories(BEFORE ${ROCKSDB_INCLUDE_DIRS})
-    set(LINK_LIBS ${LINK_LIBS} ${ROCKSDB_LIBRARIES})
-    set(OPTIONAL_SRC ${OPTIONAL_SRC} src/detail/rocksdb_backend.cc)
-  endif ()
-endif ()
 
 # -- libroker -----------------------------------------------------------------
 
@@ -291,6 +293,7 @@ set(BROKER_SRC
   src/data.cc
   src/defaults.cc
   src/detail/abstract_backend.cc
+  src/detail/central_dispatcher.cc
   src/detail/clone_actor.cc
   src/detail/core_recorder.cc
   src/detail/data_generator.cc
@@ -299,15 +302,18 @@ set(BROKER_SRC
   src/detail/flare_actor.cc
   src/detail/generator_file_reader.cc
   src/detail/generator_file_writer.cc
+  src/detail/item_scope.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/meta_data_writer.cc
   src/detail/network_cache.cc
+  src/detail/peer_handshake.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
+  src/detail/unipath_manager.cc
   src/domain_options.cc
   src/endpoint.cc
   src/endpoint_info.cc
@@ -388,8 +394,8 @@ if (NOT DISABLE_PYTHON_BINDINGS)
     set(PYTHONINTERP_FOUND false)
   endif ()
 
-  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 2.7)
-    message(WARNING "Skipping Python bindings: Python 2.7 or Python 3 required")
+  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 3.5)
+    message(WARNING "Skipping Python bindings: Python 3.5 or greater required")
     set(PYTHONINTERP_FOUND false)
   endif ()
 
@@ -451,7 +457,6 @@ endmacro()
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
 display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
-display(ROCKSDB_FOUND "${ROCKSDB_INCLUDE_DIRS}" rocksdb_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
 display(ZEEK_FOUND "${ZEEK_FOUND_MSG}" zeek_summary)
 
@@ -472,7 +477,6 @@ set(summary
     "\nCXXFLAGS:        ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${BuildType}}"
     "\n"
     "\nCAF:             ${caf_summary}"
-    "\nRocksDB:         ${rocksdb_summary}"
     "\nPython bindings: ${python_summary}"
     "\nZeek:            ${zeek_summary}"
     "\n=================================================================")

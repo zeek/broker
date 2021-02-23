@@ -9,8 +9,6 @@
 #include <caf/ip_address.hpp>
 #include <caf/string_view.hpp>
 
-#include "broker/detail/is_legacy_inspector.hh"
-
 namespace broker {
 
 /// Stores an IPv4 or IPv6 address.
@@ -73,6 +71,17 @@ public:
     return addr_.compare(other.addr_);
   }
 
+  size_t hash() const;
+
+  // -- inspection support -----------------------------------------------------
+
+  template <class Inspector>
+  friend bool inspect(Inspector& f, address& x) {
+    // We transparently expose the member variable. Hence, broker::address and
+    // caf::ip_address are one and the same to CAF inspectors.
+    return inspect(f, x.addr_);
+  }
+
   // -- conversion support -----------------------------------------------------
 
   friend bool convert(const address& a, std::string& str) {
@@ -86,24 +95,6 @@ public:
     return true;
   }
 
-  // -- inspection support -----------------------------------------------------
-
-  // We transparently expose the member variable. Hence, broker::address and
-  // caf::ip_address are one and the same to CAF inspectors.
-
-  template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, address& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>)
-      return f(x.addr_);
-    else
-      return f.apply_object(x);
-  }
-
-  template <class Inspector>
-  friend bool inspect_value(Inspector& f, address& x) {
-    return f.apply_value(x.addr_);
-  }
-
 private:
   caf::ip_address addr_;
 };
@@ -115,7 +106,9 @@ namespace std {
 /// @relates address
 template <>
 struct hash<broker::address> {
-  size_t operator()(const broker::address&) const;
+  size_t operator()(const broker::address& x) const {
+    return x.hash();
+  }
 };
 
 } // namespace std

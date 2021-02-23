@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <string>
 
-#include "broker/detail/is_legacy_inspector.hh"
-
 namespace broker {
 
 class shutdown_options {
@@ -27,11 +25,7 @@ public:
 
   template <class Inspector>
   friend auto inspect(Inspector& f, shutdown_options& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>) {
-      return f(x.flags_);
-    } else {
-      return f.object(x).fields(f.field("flags", x.flags_));
-    }
+    return f.object(x).fields(f.field("flags", x.flags_));
   }
 
 private:

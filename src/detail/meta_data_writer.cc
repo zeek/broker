@@ -2,7 +2,6 @@
 
 #include <caf/binary_serializer.hpp>
 
-#include "broker/detail/inspect_objects.hh"
 #include "broker/internal_command.hh"
 
 namespace broker::detail {
@@ -130,17 +129,10 @@ private:
   template <class T>
   bool apply(T x) {
     if constexpr (std::is_integral<T>::value) {
-#if CAF_VERSION >= 1800
       if (!f_.value(x)) {
         err_ = f_.get_error();
         return false;
       }
-#else
-      if (auto err = f_(x)) {
-        err_ = std::move(err);
-        return false;
-      }
-#endif
       return true;
     } else {
       static_assert(std::is_enum<T>::value);

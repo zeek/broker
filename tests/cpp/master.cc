@@ -218,7 +218,7 @@ TEST(master_with_clone) {
   CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
   auto foo_master = "foo" / topics::master_suffix;
-// Initiate handshake between core1 and core2.
+  // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer_v, core2_proxy.node(), core2_proxy);
   run(tick_interval);
   // --- phase 6: attach a clone on mars ---------------------------------------
@@ -249,6 +249,8 @@ TEST(master_with_clone) {
   };
   run_until_idle();
   MESSAGE("once clone and master are idle, they are in sync");
+  earth.sched.inline_next_enqueue();
+  CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   earth.sched.inline_next_enqueue();
   CHECK_EQUAL(value_of(ds_earth.get("user")), data{"neverlord"});
   mars.sched.inline_next_enqueue();

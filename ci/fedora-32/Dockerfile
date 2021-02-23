@@ -1,13 +1,14 @@
 FROM fedora:32
 
-RUN yum -y install \
-    git \
+RUN yum install -y \
     cmake \
-    make \
     gcc \
     gcc-c++ \
+    git \
+    make \
     openssl \
     openssl-devel \
     python3 \
     python3-devel \
-  && yum clean all && rm -rf /var/cache/yum
+    && yum clean all \
+    && rm -rf /var/cache/yum

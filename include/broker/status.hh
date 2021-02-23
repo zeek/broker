@@ -4,8 +4,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <caf/meta/load_callback.hpp>
-
 #include "broker/convert.hh"
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
@@ -50,6 +48,21 @@ bool convert(const data& str, sc& code) noexcept;
 
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
+
+/// @relates sc
+template <class Inspector>
+bool inspect(Inspector& f, sc& x) {
+  auto get = [&] { return static_cast<uint8_t>(x); };
+  auto set = [&](uint8_t val) {
+    if (val <= static_cast<uint8_t>(sc::endpoint_unreachable)) {
+      x = static_cast<sc>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
+}
 
 /// Evaluates to `true` if a ::status with code `S` requires an `endpoint_info`
 /// context.
@@ -122,22 +135,11 @@ public:
   friend bool operator==(sc x, const status& y);
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, status& x) {
-    if constexpr (detail::is_legacy_inspector<Inspector>) {
-      auto verify = [&x] { return x.verify(); };
-      return f(x.code_, x.context_, x.message_,
-               caf::meta::load_callback(verify));
-    } else {
-      auto verify = [&x] {
-        if (auto err = x.verify())
-          return false;
-        return true;
-      };
-      return f.object(x)
-        .on_load(verify) //
-        .fields(f.field("code_", x.code_), f.field("context_", x.context_),
-                f.field("message_", x.message_));
-    }
+  friend bool inspect(Inspector& f, status& x) {
+    auto verify = [&x] { return x.verify(); };
+    return f.object(x).on_load(verify).fields(f.field("code", x.code_),
+                                              f.field("context", x.context_),
+                                              f.field("message", x.message_));
   }
 
   /// Maps `src` to `["status", code, context, message]`, whereas:

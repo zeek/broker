@@ -17,8 +17,6 @@
 #include "broker/address.hh"
 #include "broker/bad_variant_access.hh"
 #include "broker/convert.hh"
-#include "broker/detail/hash.hh"
-#include "broker/detail/is_legacy_inspector.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
@@ -220,16 +218,23 @@ constexpr bool has_data_tag() {
 }
 
 template <class Inspector>
-typename Inspector::result_type inspect(Inspector& f, data& x) {
-  if constexpr (detail::is_legacy_inspector<Inspector>)
-    return inspect(f, x.get_data());
-  else
-    return f.apply_object(x.get_data());
+bool inspect(Inspector& f, data::type& x) {
+  auto get = [&] { return static_cast<uint8_t>(x); };
+  auto set = [&](uint8_t val) {
+    if (val <= static_cast<uint8_t>(data::type::vector)) {
+      x = static_cast<data::type>(val);
+      return true;
+    } else {
+      return false;
+    }
+  };
+  return f.apply(get, set);
 }
 
+/// @relates data
 template <class Inspector>
-bool inspect_value(Inspector& f, data& x) {
-  return f.apply_value(x.get_data());
+bool inspect(Inspector& f, data& x) {
+  return f.object(x).fields(f.field("data", x.get_data()));
 }
 
 /// @relates data
@@ -345,9 +350,22 @@ bool contains(const data& d) {
   if (auto xs = get_if<vector>(d))
     return contains<Ts...>(*xs);
   return false;
- }
-
+}
 } // namespace broker
+
+namespace broker::detail {
+
+size_t fnv_hash(const broker::data& x);
+
+size_t fnv_hash(const broker::set& x);
+
+size_t fnv_hash(const broker::vector& x);
+
+size_t fnv_hash(const broker::table::value_type& x);
+
+size_t fnv_hash(const broker::table& x);
+
+} // namespace broker::detail
 
 // --- treat data as sum type (equivalent to variant) --------------------------
 
@@ -364,29 +382,37 @@ namespace std {
 
 template <>
 struct hash<broker::data> {
-  size_t operator()(const broker::data& d) const;
-};
-
-template <>
-struct hash<broker::set>
-  : broker::detail::container_hasher<broker::set> {};
-
-template <>
-struct hash<broker::vector>
-  : broker::detail::container_hasher<broker::vector> {};
-
-template <>
-struct hash<broker::table::value_type> {
-  inline size_t operator()(const broker::table::value_type& p) const {
-    size_t result = 0;
-    broker::detail::hash_combine(result, p.first);
-    broker::detail::hash_combine(result, p.second);
-    return result;
+  size_t operator()(const broker::data& x) const {
+    return broker::detail::fnv_hash(x);
   }
 };
 
 template <>
-struct hash<broker::table>
-  : broker::detail::container_hasher<broker::table> {};
+struct hash<broker::set> {
+  size_t operator()(const broker::set& x) const{
+    return broker::detail::fnv_hash(x);
+  }
+};
+
+template <>
+struct hash<broker::vector> {
+  size_t operator()(const broker::vector& x) const{
+    return broker::detail::fnv_hash(x);
+  }
+};
+
+template <>
+struct hash<broker::table::value_type> {
+  size_t operator()(const broker::table::value_type& x) const{
+    return broker::detail::fnv_hash(x);
+  }
+};
+
+template <>
+struct hash<broker::table> {
+  size_t operator()(const broker::table& x) const{
+    return broker::detail::fnv_hash(x);
+  }
+};
 
 } // namespace std

@@ -6,6 +6,14 @@ import time
 
 import broker
 
+def cleanup(es, ss):
+    for s in ss:
+        if s:
+            s.reset()
+
+    for e in es:
+        e.shutdown()
+
 def setup_peers(opts1=None, opts2=None, opts3=None, opts4=None, create_s1=True, create_s2=True, create_s3=True, create_s4=True):
     def cfg(opts):
         return broker.Configuration(opts) if opts else broker.Configuration(broker.BrokerOptions())
@@ -45,6 +53,7 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/foo', 'Foo!'))
         x = s1.get()
         self.assertEqual(x, ('/test/bar', 'Bar!'))
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
     def test_two_unsubscribed_hops(self):
         # Two hops that are not subscribed, but still forward due to the source
@@ -61,6 +70,7 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/foo', 'Foo!'))
         x = s1.get()
         self.assertEqual(x, ('/test/bar', 'Bar!'))
+        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
 if __name__ == '__main__':
     #TestCommunication().test_two_hops()

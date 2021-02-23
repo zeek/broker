@@ -28,7 +28,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
-    --libdir=DIR           installation directory for static and dynamic
+    --libdir=PATH          installation directory for static and dynamic
                            libraries [PREFIX/lib]
     --python-home=PATH     explicit installation method for optional Python
                            bindings [PATH/lib/python], the path tracks
@@ -40,8 +40,6 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --disable-python       don't try to build python bindings
     --disable-docs         don't try to build local documentation
     --disable-tests        don't try to build unit tests
-    --enable-rocksdb       try to find and a RocksDB installation and use it
-    --with-rocksdb=PATH    path to RocksDB installation, implies --enable-rocksdb
     --with-python=PATH     path to Python executable
     --with-python-config=PATH
                            path to python-config executable
@@ -107,7 +105,6 @@ while [ $# -ne 0 ]; do
             ;;
         --prefix=*)
             append_cache_entry CMAKE_INSTALL_PREFIX PATH   $optarg
-            append_cache_entry CMAKE_INSTALL_LIBDIR PATH   $optarg/lib
             append_cache_entry BROKER_PYTHON_HOME   PATH   $optarg
             ;;
         --libdir=*)
@@ -147,17 +144,10 @@ while [ $# -ne 0 ]; do
             append_cache_entry BROKER_DISABLE_TESTS BOOL    true
             ;;
         --with-caf=*)
-            append_cache_entry CAF_ROOT_DIR         PATH    $optarg
+            append_cache_entry CAF_ROOT             PATH    $optarg
             ;;
         --with-openssl=*)
             append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg
-            ;;
-        --enable-rocksdb)
-            append_cache_entry BROKER_ENABLE_ROCKSDB BOOL true
-            ;;
-        --with-rocksdb=*)
-            append_cache_entry BROKER_ENABLE_ROCKSDB BOOL true
-            append_cache_entry ROCKSDB_ROOT_DIR     PATH    $optarg
             ;;
         --with-python=*)
             append_cache_entry PYTHON_EXECUTABLE    PATH    $optarg

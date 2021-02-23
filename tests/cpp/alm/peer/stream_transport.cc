@@ -18,23 +18,19 @@ namespace {
 
 // -- transport layer ----------------------------------------------------------
 
-class stream_peer_manager : public stream_transport {
+class testee_state : public stream_transport {
 public:
   using super = stream_transport;
 
-  stream_peer_manager(caf::event_based_actor* self) : super(self) {
-    // nop
+  static inline const char* name = "testee";
+
+  testee_state(caf::event_based_actor* self, endpoint_id id) : super(self) {
+    super::id(std::move(id));
   }
 
-  caf::actor hdl() noexcept {
-    return caf::actor_cast<caf::actor>(self());
-  }
-
-  using super::ship_locally;
-
-  void ship_locally(const data_message& msg) {
+  void publish_locally(const data_message& msg) override {
     buf.emplace_back(msg);
-    super::ship_locally(msg);
+    super::publish_locally(msg);
   }
 
   std::vector<endpoint_id> shortest_path(const endpoint_id& to) {
@@ -46,28 +42,7 @@ public:
   std::vector<data_message> buf;
 };
 
-struct stream_peer_actor_state {
-  caf::intrusive_ptr<stream_peer_manager> mgr_ptr;
-
-  auto& mgr() {
-    return *mgr_ptr;
-  }
-};
-
-class stream_peer_actor : public caf::stateful_actor<stream_peer_actor_state> {
-public:
-  using super = caf::stateful_actor<stream_peer_actor_state>;
-
-  stream_peer_actor(caf::actor_config& cfg, endpoint_id id) : super(cfg) {
-    auto& mgr_ptr = state.mgr_ptr;
-    mgr_ptr = caf::make_counted<stream_peer_manager>(this);
-    mgr_ptr->id(std::move(id));
-  }
-
-  caf::behavior make_behavior() override {
-    return state.mgr_ptr->make_behavior();
-  }
-};
+using stream_peer_actor = caf::stateful_actor<testee_state>;
 
 // Our topology:
 //

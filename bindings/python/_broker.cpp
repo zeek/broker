@@ -304,7 +304,7 @@ PYBIND11_MODULE(_broker, m) {
         bcfg.openssl_certificate = cfg.openssl_certificate;
         bcfg.openssl_key = cfg.openssl_key;
         if ( cfg.max_threads > 0 )
-          bcfg.set("scheduler.max-threads", cfg.max_threads);
+          bcfg.set("caf.scheduler.max-threads", cfg.max_threads);
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
