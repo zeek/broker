@@ -18,6 +18,28 @@
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+// A thin wrapper around the 'count' type, because Python has no notion of
+// unsigned integers.
+struct count_type {
+  count_type(broker::count c) : value{c} {}
+  bool operator==(const count_type& other) const { return value == other.value; }
+  bool operator!=(const count_type& other) const { return value != other.value; }
+  bool operator<(const count_type& other) const { return value < other.value; }
+  bool operator<=(const count_type& other) const { return value <= other.value; }
+  bool operator>(const count_type& other) const { return value > other.value; }
+  bool operator>=(const count_type& other) const { return value >= other.value; }
+  broker::count value;
+};
+
+namespace std {
+template <>
+struct hash<count_type> {
+  size_t operator()(const count_type& v) const {
+    return std::hash<broker::count>{}(v.value);
+  }
+};
+}
+
 void init_data(py::module& m) {
 
   py::class_<broker::address> address_type{m, "Address"};
@@ -54,24 +76,12 @@ void init_data(py::module& m) {
     .value("Host", broker::address::byte_order::host)
     .value("Network", broker::address::byte_order::network);
 
-  // A thin wrapper around the 'count' type, because Python has no notion of
-  // unsigned integers.
-  struct count_type {
-    count_type(broker::count c) : value{c} {}
-    bool operator==(const count_type& other) const { return value == other.value; }
-    bool operator!=(const count_type& other) const { return value != other.value; }
-    bool operator<(const count_type& other) const { return value < other.value; }
-    bool operator<=(const count_type& other) const { return value <= other.value; }
-    bool operator>(const count_type& other) const { return value > other.value; }
-    bool operator>=(const count_type& other) const { return value >= other.value; }
-    broker::count value;
-  };
-
   py::class_<count_type>(m, "Count")
     .def(py::init<py::int_>())
     .def_readwrite("value", &count_type::value)
     .def("__str__", [](const count_type& c) { return broker::to_string(c.value); })
     .def("__repr__", [](const count_type& c) { return "Count(" + broker::to_string(c.value) + ")"; })
+    .def(hash(py::self))
     .def(py::self < py::self)
     .def(py::self <= py::self)
     .def(py::self > py::self)
