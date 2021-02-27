@@ -274,8 +274,14 @@ class TestDataConstruction(unittest.TestCase):
             self.check_to_py(v, i + 1)
 
         # Test a table that contains different data types
-        p = {True: 42, broker.Port(22, broker.Port.TCP): False, (1,2,3): [4,5,6]}
-        d = self.check_to_broker(p, '{T -> 42, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}', broker.Data.Type.Table)
+        p = { True: 42,
+              broker.Port(22, broker.Port.TCP): False,
+              (1,2,3): [4,5,6],
+              broker.Count(13): "test",
+            }
+        d = self.check_to_broker(p,
+                '{T -> 42, 13 -> test, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}',
+                broker.Data.Type.Table)
 
         t = d.as_table()
 
@@ -287,6 +293,9 @@ class TestDataConstruction(unittest.TestCase):
 
         self.check_to_broker(t[broker.Data((1, 2, 3))], "(4, 5, 6)", broker.Data.Type.Vector)
         self.check_to_py(t[broker.Data([1, 2, 3])], (4, 5, 6))
+
+        self.check_to_broker(t[broker.Data(broker.Count(13))], "test", broker.Data.Type.String)
+        self.check_to_py(t[broker.Data(broker.Count(13))], "test")
 
     def test_vector(self):
         # Test an empty vector
