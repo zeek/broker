@@ -1,4 +1,8 @@
 
+2.1.0-dev.52 | 2021-02-26 17:57:58 -0800
+
+  * Fix to allow hashing of Python binding's broker.Count type (Jon Siwek, Corelight)
+
 2.1.0-dev.50 | 2021-02-22 15:45:38 -0800
 
   * Enable metrics exposition via BROKER_METRICS_PORT (Dominik Charousset, Corelight)
