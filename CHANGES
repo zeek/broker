@@ -1,4 +1,8 @@
 
+2.0.0 | 2021-02-26 18:00:46 -0800
+
+  * Release 2.0.0.
+
 2.0.0-rc3.1 | 2021-02-26 17:59:35 -0800
 
   * Fix to allow hashing of Python binding's broker.Count type (Jon Siwek, Corelight)
