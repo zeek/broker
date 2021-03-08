@@ -74,7 +74,8 @@ public:
       return ec::master_exists;
     }
     auto ptr = detail::make_backend(backend_type, std::move(opts));
-    BROKER_ASSERT(ptr != nullptr);
+    if (!ptr)
+      return ec::backend_failure;
     BROKER_INFO("spawning new master:" << name);
     auto self = super::self();
     auto ms = self->template spawn<spawn_flags>(detail::master_actor, self,

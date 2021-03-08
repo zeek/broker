@@ -19,6 +19,8 @@ public:
 
   ~sqlite_backend();
 
+  bool init_failed() const;
+
   expected<void> put(const data& key, data value,
                      optional<timestamp> expiry) override;
 

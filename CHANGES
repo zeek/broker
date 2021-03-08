@@ -1,3 +1,20 @@
+
+2.1.0-dev.56 | 2021-03-08 12:27:52 -0800
+
+  * Improve error handling for data store backend creation failures (Jon Siwek, Corelight)
+
+    * Change broker::filesystem::detail functions that rely on
+      std::filesystem to use non-throwing calls
+
+    * Add error messages to some broker::filesystem::detail functions:
+      mkdirs(), remove(), and remove_all()
+
+    * Use sqlite3_errmsg() to emit reason for sqlite3_open() failures
+
+    * Change sqlite backend initialization failures to be non-fatal
+
+    Related to https://github.com/zeek/zeek/issues/1426
+
 2.1.0-dev.54 | 2021-03-02 19:59:06 -0700
 
   * Add lgtm configuration (Tim Wojtulewicz, Corelight)

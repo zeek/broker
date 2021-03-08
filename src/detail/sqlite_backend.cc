@@ -81,7 +81,6 @@ struct sqlite_backend::impl {
     auto dir = detail::dirname(path);
     if ( ! dir.empty() ) {
       if ( ! detail::is_directory(dir) && ! detail::mkdirs(dir) ) {
-        BROKER_ERROR("failed to create database dir:" << dir);
         return false;
       }
     }
@@ -92,8 +91,9 @@ struct sqlite_backend::impl {
     auto result = sqlite3_open(path.c_str(), &db);
     BROKER_LSAN_ENABLE();
     if (result != SQLITE_OK) {
+      BROKER_ERROR("failed to open database:" << path << ":" << sqlite3_errmsg(db));
       sqlite3_close(db);
-      BROKER_ERROR("failed to open database:" << path);
+      db = nullptr;
       return false;
     }
     // Create table for store meta data.
@@ -103,6 +103,8 @@ struct sqlite_backend::impl {
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
       BROKER_ERROR("failed to create meta data table");
+      sqlite3_close(db);
+      db = nullptr;
       return false;
     }
     // Create table for actual data.
@@ -112,6 +114,8 @@ struct sqlite_backend::impl {
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
       BROKER_ERROR("failed to create store table");
+      sqlite3_close(db);
+      db = nullptr;
       return false;
     }
     // Store Broker version in meta table.
@@ -123,6 +127,8 @@ struct sqlite_backend::impl {
     result = sqlite3_exec(db, tmp, nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
       BROKER_ERROR("failed to insert Broker version");
+      sqlite3_close(db);
+      db = nullptr;
       return false;
     }
     // Prepare statements.
@@ -147,6 +153,8 @@ struct sqlite_backend::impl {
     for (auto& stmt: statements)
       if (!prepare(stmt.first, stmt.second)) {
         BROKER_ERROR("failed to prepare statement:" << stmt.second);
+        sqlite3_close(db);
+        db = nullptr;
         return false;
       }
     return true;
@@ -217,6 +225,10 @@ sqlite_backend::sqlite_backend(backend_options opts)
 }
 
 sqlite_backend::~sqlite_backend() {
+}
+
+bool sqlite_backend::init_failed() const {
+  return ! impl_->db;
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
