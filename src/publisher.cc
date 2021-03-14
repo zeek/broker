@@ -30,7 +30,7 @@ struct publisher_worker_state {
   size_t counter = 0;
   bool shutting_down = false;
 
-  static const char* name;
+  static inline const char* name = "broker.publisher";
 
   void tick() {
     if (buf.size() < sample_size) {
@@ -48,8 +48,6 @@ struct publisher_worker_state {
            : 0;
   }
 };
-
-const char* publisher_worker_state::name = "publisher_worker";
 
 behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
                           endpoint* ep,

@@ -123,7 +123,7 @@ public:
 
   std::unique_ptr<producer_type> output_ptr;
 
-  static inline constexpr const char* name = "clone_actor";
+  static inline constexpr const char* name = "broker.clone";
 };
 
 // -- master actor -------------------------------------------------------------

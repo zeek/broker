@@ -213,7 +213,7 @@ void receivedStats(endpoint& ep, data x) {
 }
 
 struct source_state {
-  static inline const char* name = "source";
+  static inline const char* name = "broker.benchmark.source";
 };
 
 void client_mode(endpoint& ep, const std::string& host, int port) {
@@ -307,7 +307,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
 }
 
 struct sink_state {
-  static inline const char* name = "sink";
+  static inline const char* name = "broker.benchmark.sink";
 };
 
 // This mode mimics what benchmark.bro does.

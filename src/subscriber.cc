@@ -32,7 +32,7 @@ struct subscriber_worker_state {
 
   bool calculate_rate = true;
 
-  static const char* name;
+  static inline const char* name = "broker.subscriber";
 
   void tick() {
     if (buf.size() < sample_size) {
@@ -50,8 +50,6 @@ struct subscriber_worker_state {
            : 0;
   }
 };
-
-const char* subscriber_worker_state::name = "subscriber_worker";
 
 class subscriber_sink : public stream_sink<data_message> {
 public:

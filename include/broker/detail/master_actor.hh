@@ -134,7 +134,7 @@ public:
   std::unordered_map<entity_id, command_message> open_handshakes;
 
   /// Gives this actor a recognizable name in log files.
-  static inline constexpr const char* name = "master_actor";
+  static inline constexpr const char* name = "broker.master";
 };
 
 // -- master actor -------------------------------------------------------------

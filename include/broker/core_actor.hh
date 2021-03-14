@@ -26,7 +26,7 @@ class core_state : public                              //
 public:
   using super = extended_base;
 
-  static inline const char* name = "core";
+  static inline const char* name = "broker.core";
 
   explicit core_state(caf::event_based_actor* self, filter_type initial_filter,
                       endpoint::clock* clock = nullptr,

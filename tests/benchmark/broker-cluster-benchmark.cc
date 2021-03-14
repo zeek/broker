@@ -355,10 +355,8 @@ struct node_manager_state {
 using node_manager_actor = caf::stateful_actor<node_manager_state>;
 
 struct generator_state {
-  static const char* name;
+  static inline const char* name = "broker.benchmark.generator";
 };
-
-const char* generator_state::name = "generator";
 
 void generator(caf::stateful_actor<generator_state>* self, node* this_node,
                caf::actor core, broker::detail::generator_file_reader_ptr ptr) {
@@ -502,12 +500,11 @@ struct consumer_state {
   node* this_node;
   caf::event_based_actor* self;
   size_t connected_streams = 0;
-  static const char* name;
   std::chrono::steady_clock::time_point start;
   caf::actor observer;
-};
 
-const char* consumer_state::name = "consumer";
+  static inline const char* name = "broker.benchmark.consumer";
+};
 
 caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
