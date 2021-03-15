@@ -134,3 +134,9 @@ if (BROKER_PYTHON_BINDINGS)
   # # allow some extra time for the benchmark integration test
   # set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
+
+# -- Python -------------------------------------------------------------------
+
+if (BROKER_ENABLE_MICRO_BENCHMARKS)
+  add_subdirectory(micro-benchmark)
+endif ()
