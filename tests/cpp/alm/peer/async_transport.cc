@@ -77,9 +77,9 @@ public:
       if (matches(filter, topic))
         receivers.emplace_back(peer);
     if (!receivers.empty()) {
-      std::vector<multipath_type> paths;
+      std::vector<multipath> paths;
       std::vector<endpoint_id> unreachables;
-      generate_paths(receivers, tbl_, paths, unreachables);
+      multipath::generate(receivers, tbl_, paths, unreachables);
       for (auto&& path : paths) {
         auto wrapped = node_message{msg, std::move(path), receivers};
         if (auto row = find_row(tbl_, get_path(wrapped).head()))
@@ -115,9 +115,9 @@ public:
     }
     // Forward to remaining receivers.
     if (!receivers.empty()) {
-      std::vector<multipath_type> paths;
+      std::vector<multipath> paths;
       std::vector<endpoint_id> unreachables;
-      generate_paths(receivers, tbl_, paths, unreachables);
+      multipath::generate(receivers, tbl_, paths, unreachables);
       for (auto&& path : paths) {
         auto wrapped = node_message{content, std::move(path), receivers};
         if (auto row = find_row(tbl_, get_path(wrapped).head()))

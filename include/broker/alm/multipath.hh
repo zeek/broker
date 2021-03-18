@@ -7,58 +7,253 @@
 
 #include "caf/meta/omittable_if_empty.hpp"
 #include "caf/meta/type_name.hpp"
+#include "caf/node_id.hpp"
 #include "caf/sec.hpp"
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/monotonic_buffer_resource.hh"
+#include "broker/fwd.hh"
 
 namespace broker::alm {
 
-/// Helper class for giving multipath children an STL-like interface.
-template <class Pointer>
-class multipath_node_set {
+struct multipath_tree {
+  explicit multipath_tree(endpoint_id id);
+  ~multipath_tree();
+  multipath_node* root;
+  detail::monotonic_buffer_resource mem;
+};
+
+template<class T>
+class node_iterator {
 public:
-  using mutable_pointer = std::remove_const_t<Pointer>;
+  using iterator_category = std::forward_iterator_tag;
 
-  using multipath_type = std::remove_pointer_t<mutable_pointer>;
+  using difference_type = ptrdiff_t;
 
-  using value_type = multipath_type;
+  using value_type = T;
 
-  explicit multipath_node_set(Pointer this_ptr) : this_(this_ptr) {
-    //nop
+  using pointer = value_type*;
+
+  using reference = value_type&;
+
+  explicit node_iterator(pointer ptr) noexcept : ptr_(ptr) {
+    // nop
   }
 
-  auto begin() const {
-    return this_->nodes_begin();
+  node_iterator(const node_iterator&) noexcept = default;
+
+  node_iterator& operator=(const node_iterator&) noexcept = default;
+
+  node_iterator operator++(int) {
+    node_iterator cpy{ptr_};
+    ptr_ = ptr_->right_;
+    return cpy;
   }
 
-  auto end() const {
-    return this_->nodes_end();
+  node_iterator& operator++() {
+    ptr_ = ptr_->right_;
+    return *this;
   }
 
-  auto size() const {
-    return this_->nodes_count();
+  reference operator*() {
+    return *ptr_;
   }
 
-  auto empty() const {
-    return size() == 0;
+  pointer operator->() {
+    return ptr_;
   }
 
-  template <class... Ts>
-  auto emplace(Ts&&... xs) {
-    return this_->emplace_node(std::forward<Ts>(xs)...);
-  }
-
-  template <class Iterator, class T>
-  auto insert(Iterator iter, T&& value) {
-    return this_->insert(iter, std::forward<T>(value));
-  }
-
-  void clear() {
-    this_->nodes_clear();
+  pointer get() {
+    return ptr_;
   }
 
 private:
-  Pointer this_;
+  pointer ptr_;
+};
+
+template <class T, class U>
+auto operator==(node_iterator<T> x, node_iterator<U> y)
+  -> decltype(x.get() == y.get()) {
+  return x.get() == y.get();
+}
+
+template <class T, class U>
+auto operator!=(node_iterator<T> x, node_iterator<U> y)
+  -> decltype(x.get() != y.get()) {
+  return x.get() != y.get();
+}
+
+class multipath_group {
+public:
+  friend class multipath;
+  friend class multipath_node;
+
+  using iterator = node_iterator<multipath_node>;
+
+  using const_iterator = node_iterator<const multipath_node>;
+
+  multipath_group() noexcept = default;
+
+  multipath_group(const multipath_group&) = delete;
+
+  multipath_group& operator=(const multipath_group&) = delete;
+
+  ~multipath_group();
+
+  size_t size() const noexcept {
+    return size_;
+  }
+
+  bool empty() const noexcept {
+    return size_ == 0;
+  }
+
+  iterator begin() noexcept {
+    return iterator{first_};
+  }
+
+  const_iterator begin() const noexcept {
+    return const_iterator{first_};
+  }
+
+  iterator end() noexcept {
+    return iterator{nullptr};
+  }
+
+  const_iterator end() const noexcept {
+    return const_iterator{nullptr};
+  }
+
+  bool equals(const multipath_group& other) const noexcept;
+
+  bool contains(const endpoint_id& id) const noexcept;
+
+  std::pair<multipath_node*, bool>
+  emplace(detail::monotonic_buffer_resource& mem, const endpoint_id& id);
+
+  bool emplace(multipath_node* node);
+
+private:
+  template <class MakeNewNode>
+  std::pair<multipath_node*, bool> emplace_impl(const endpoint_id& id,
+                                                MakeNewNode make_new_node);
+
+  void shallow_delete() noexcept;
+
+  size_t size_ = 0;
+  multipath_node* first_ = nullptr;
+};
+
+
+class multipath_node {
+public:
+  friend class multipath;
+  friend class multipath_group;
+  friend class node_iterator<const multipath_node>;
+  friend class node_iterator<multipath_node>;
+  friend struct multipath_tree;
+
+  explicit multipath_node(const endpoint_id& id) noexcept : id_(id) {
+    // nop
+  }
+
+  multipath_node() = delete;
+
+  multipath_node(const multipath_node&) = delete;
+
+  multipath_node& operator=(const multipath_node&) = delete;
+
+  ~multipath_node();
+
+  const auto& head() const noexcept {
+    return id_;
+  }
+
+  auto& nodes() noexcept {
+    return down_;
+  }
+
+  const auto& nodes() const noexcept {
+    return down_;
+  }
+
+  bool equals(const multipath_node& other) const noexcept;
+
+  bool contains(const endpoint_id& id) const noexcept;
+
+  void stringify(std::string& buf) const;
+
+private:
+  template <class Inspector>
+  bool save_children(Inspector& f) {
+    if (f.begin_sequence(down_.size()))
+      for (auto& child : down_)
+        if (!child.save(f))
+          return false;
+    return f.end_sequence();
+  }
+
+  template <class Inspector>
+  bool save(Inspector& f) {
+    // We are lying to the inspector about the type, because multipath_node and
+    // multipath_group are internal implementation details.
+    return f.begin_object(caf::type_id_v<multipath>, "broker::alm::multipath")
+           && f.begin_field("head")  // <head>
+           && f.apply(id_)           //   <id>
+           && f.end_field()          // </head>
+           && f.begin_field("nodes") // <nodes>
+           && save_children(f)       //   [...]
+           && f.end_field()          // </nodes>
+           && f.end_object();
+  }
+
+  template <class Inspector>
+  bool load_children(detail::monotonic_buffer_resource& mem, Inspector& f) {
+    size_t n = 0;
+    if (f.begin_sequence(n)) {
+      for (size_t i = 0; i < n; ++i) {
+        auto child = detail::new_instance<multipath_node>(mem, endpoint_id{});
+        if (!child->load(mem, f)) {
+          child->shallow_delete();
+          return false;
+        }
+        if (!down_.emplace(child)) {
+          child->shallow_delete();
+          f.emplace_error(caf::sec::field_invariant_check_failed,
+                          "a multipath may not contain duplicates");
+          return false;
+        }
+      }
+    }
+    return f.end_sequence();
+  }
+
+  template <class Inspector>
+  bool load(detail::monotonic_buffer_resource& mem, Inspector& f) {
+    return f.begin_object(caf::type_id_v<multipath>, "broker::alm::multipath")
+           && f.begin_field("head")  // <head>
+           && f.apply(id_)           //   <id>
+           && f.end_field()          // </head>
+           && f.begin_field("nodes") // <nodes>
+           && load_children(mem, f)  //   [...]
+           && f.end_field()          // </nodes>
+           && f.end_object();
+  }
+
+  void shallow_delete() noexcept;
+
+  template <class Iterator, class Sentinel>
+  void splice_cont(detail::monotonic_buffer_resource& mem, Iterator first,
+                   Sentinel last) {
+    if (first != last) {
+      auto child = down_.emplace(mem, *first).first;
+      child->splice_cont(mem, ++first, last);
+    }
+  }
+
+  endpoint_id id_;
+  multipath_node* right_ = nullptr;
+  multipath_group down_;
 };
 
 /// A recursive data structure for encoding branching paths for source routing.
@@ -72,205 +267,65 @@ private:
 /// In this topology, the sender A sends a message to B that B then has to
 /// forward to C and D. After that, C is the final destination on that branch,
 /// but D has to forward the message also to E.
-template <class PeerId>
 class multipath {
 public:
-  using pointer = multipath*;
+  using tree_ptr = std::shared_ptr<multipath_tree>;
 
-  using const_pointer = const multipath*;
+  multipath();
 
-  using iterator = pointer;
-
-  using value_type = PeerId;
-
-  static constexpr size_t block_size = 16;
-
-  static constexpr bool nothrow_move
-    = std::is_nothrow_move_constructible<PeerId>::value;
-
-  static constexpr bool nothrow_assign
-    = std::is_nothrow_move_assignable<PeerId>::value;
-
-  struct node_less {
-    bool operator()(const multipath& x, const PeerId& y) const noexcept {
-      return x.id() < y;
-    }
-
-    bool operator()(const PeerId& x, const multipath& y) const noexcept {
-      return x < y.id();
-    }
-  };
-
-  multipath() noexcept(std::is_nothrow_constructible<PeerId>::value) = default;
-
-  explicit multipath(PeerId id) noexcept(nothrow_move) : id_(std::move(id)) {
-    // nop
-  }
+  explicit multipath(const endpoint_id& id);
 
   /// Constructs a multipath from the linear path `[first, last)`.
   /// @pre `first != last`
-  template <class Iterator>
-  explicit multipath(Iterator first, Iterator last) : id_(*first) {
-    auto pos = this;
-    for (++first; first != last; ++first)
-      pos = pos->emplace_node(*first).first;
-  }
-
-  multipath(multipath&& other) noexcept(nothrow_move)
-    : id_(std::move(other.id_)),
-      nodes_(nullptr),
-      size_(other.size_),
-      reserved_(other.reserved_) {
-    using std::swap;
-    swap(nodes_, other.nodes_);
-  }
-
-  multipath(const multipath& other) {
-    *this = other;
-  }
-
-  multipath& operator=(multipath&& other) noexcept(nothrow_assign) {
-    using std::swap;
-    swap(id_, other.id_);
-    swap(nodes_, other.nodes_);
-    size_ = other.size_;
-    reserved_ = other.reserved_;
-    return *this;
-  }
-
-  multipath& operator=(const multipath& other) {
-    size_ = 0;
-    id_ = other.id_;
-    for (const auto& node : other.nodes()) {
-      auto& child = *emplace_node(node.id()).first;
-      child = node;
+  template <class Iterator, class Sentinel>
+  explicit multipath(Iterator first, Sentinel last) : multipath() {
+    if (first != last) {
+      head_->id_ = *first;
+      auto pos = head_;
+      for (++first; first != last; ++first)
+        pos = pos->down_.emplace(tree_->mem, *first).first;
     }
-    return *this;
   }
 
-  ~multipath() noexcept {
-    delete[] nodes_;
+  multipath(const tree_ptr&, multipath_node*);
+
+  explicit multipath(const tree_ptr& tptr) : multipath(tptr, tptr->root) {
+    // nop
   }
 
-  const auto& id() const noexcept {
-    return id_;
-  }
+  multipath(multipath&& other) noexcept = default;
 
-  /// Returns the root ID of the path.
+  multipath(const multipath& other) = default;
+
+  multipath& operator=(multipath&& other) noexcept = default;
+
+  multipath& operator=(const multipath& other) = default;
+
   const auto& head() const noexcept {
-    return id_;
+    return head_->id_;
   }
 
-  auto nodes() noexcept {
-    return multipath_node_set<pointer>{this};
+  bool equals(const multipath& other) const noexcept;
+
+  bool contains(const endpoint_id& id) const noexcept;
+
+  size_t num_nodes() const noexcept {
+    return head_->down_.size();
   }
 
-  auto nodes() const noexcept {
-    return multipath_node_set<const_pointer>{this};
-  }
-
-  auto nodes_begin() noexcept {
-    return nodes_;
-  }
-
-  auto nodes_end() noexcept {
-    return nodes_ + size_;
-  }
-
-  auto nodes_begin() const noexcept {
-    return nodes_;
-  }
-
-  auto nodes_end() const noexcept {
-    return nodes_ + size_;
-  }
-
-  auto nodes_count() const noexcept {
-    return size_;
-  }
-
-  void
-  nodes_clear() noexcept(nothrow_assign //
-                           && std::is_nothrow_constructible<PeerId>::value) {
-    for (auto iter = nodes_begin(); iter != nodes_end(); ++iter) {
-      multipath tmp;
-      *iter = std::move(tmp);
-    }
-    size_ = 0;
-  }
-
-  std::pair<iterator, bool> emplace_node(PeerId id) {
-    node_less pred;
-    auto insertion_point = std::lower_bound(nodes_begin(), nodes_end(), id,
-                                            pred);
-    if (insertion_point == nodes_end()) {
-      return {append(std::move(id)), true};
-    } else if (insertion_point->id() == id) {
-      return {insertion_point, false};
-    } else {
-      return {insert_at(insertion_point, std::move(id)), true};
-    }
-  }
-
-  iterator insert(iterator, multipath value) {
-    auto [iter, added] = emplace_node(value.id());
-    if (added)
-      *iter = std::move(value);
-    return iter;
-  }
-
-  /// Tries to merge `x` into this multipath.
-  /// @returns `false` if `x.id()` is already in ::nodes, `true` otherwise.
-  bool merge(multipath&& x) {
-    auto [iter, inserted] = emplace_node(std::move(x.id_));
-    if (!inserted)
-      return false;
-    for (size_t i = 0; i < x.size_; ++i)
-      if (!iter->merge(std::move(x.nodes_[i])))
-        return false;
-    return true;
-  }
-
-  template <class Iterator>
-  bool splice(Iterator first, Iterator last) {
-    if (first == last)
-      return true;
-    if (*first != id_)
-      return false;
-    if (++first == last)
-      return true;
-    auto child = emplace_node(*first).first;
-    if (++first == last)
-      return true;
-    child->splice_cont(first, last);
-    return true;
-  }
-
-  template <class LinearPath>
-  bool splice(const LinearPath& path) {
-    return splice(path.begin(), path.end());
-  }
-
-  bool equals(const multipath& other) const noexcept {
-    auto is_equal = [](const multipath& x, const multipath& y) {
-      return x.equals(y);
-    };
-    return id_ == other.id_
-           && std::equal(nodes_begin(), nodes_end(), other.nodes_begin(),
-                         other.nodes_end(), is_equal);
-  }
-
-  bool contains(const PeerId& id) const noexcept {
-    if (id_ == id)
-      return true;
-    else if (nodes_)
-      return nodes_->contains(id);
-    else
-      return false;
+  template <class F>
+  void for_each_node(F fun) const {
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
+      fun(multipath{tree_, i.get()});
   }
 
   template <class Inspector>
-  friend typename Inspector::result_type inspect(Inspector& f, multipath& x) {
+  friend bool inspect(Inspector& f, multipath& x) {
+    if constexpr (Inspector::is_loading)
+      return x.head_->load(x.tree_->mem, f);
+    else
+      return x.head_->save(f);
+    /*
     if constexpr (Inspector::is_loading) {
       multipath tmp;
       auto nodes = tmp.nodes();
@@ -288,109 +343,49 @@ public:
         .pretty_name("multipath")
         .fields(f.field("id", x.id_), f.field("nodes", nodes));
     }
+    */
   }
+
+  friend std::string to_string(const alm::multipath& x) {
+    std::string result;
+    x.head_->stringify(result);
+    return result;
+  }
+
+  /// Fills the `routes` list such that all reachable receivers are included.
+  /// @param receivers List of nodes that should receive a certain message.
+  /// @param tbl The routing table for shorest path lookups.
+  /// @param routes Stores the source routing paths.
+  /// @param unreachables Stores receivers without routing table entries.
+  static void generate(const std::vector<endpoint_id>& receivers,
+                       const routing_table& tbl, std::vector<multipath>& routes,
+                       std::vector<endpoint_id>& unreachables);
 
 private:
-  // Recursively splices a linear path into a multipath.
-  template <class Iterator>
-  void splice_cont(Iterator first, Iterator last) {
-    BROKER_ASSERT(first != last);
-    auto child = emplace_node(*first).first;
-    if (++first != last)
-      child->splice_cont(first, last);
+  std::pair<multipath_node*, bool> emplace(const endpoint_id& id) {
+    return head_->down_.emplace(tree_->mem, id);
   }
 
+  bool splice(const std::vector<endpoint_id>& path);
 
-  iterator append(PeerId&& id) {
-    grow_if_needed();
-    auto ptr = nodes_ + size_;
-    ++size_;
-    ptr->id_ = std::move(id);
-    return ptr;
-  }
+  /// Provides storage for children.
+  std::shared_ptr<multipath_tree> tree_;
 
-  iterator insert_at(iterator pos, PeerId&& id) {
-    grow_if_needed();
-    auto last = nodes_end();
-    std::move_backward(pos, last, last + 1);
-    *pos = multipath{std::move(id)};
-    ++size_;
-    return pos;
-  }
-
-  void grow_if_needed() {
-    if (size_ == reserved_) {
-      auto tmp = std::make_unique<multipath[]>(reserved_ + block_size);
-      if constexpr (nothrow_assign)
-        std::move(nodes_begin(), nodes_end(), tmp.get());
-      else
-        std::copy(nodes_begin(), nodes_end(), tmp.get());
-      auto ptr = nodes_;
-      nodes_ = tmp.release();
-      tmp.reset(ptr);
-      reserved_ += block_size;
-    }
-  }
-
-  /// Unique identifier of this node.
-  PeerId id_;
-
-  // Unfortunately, `std::vector` is not guaranteed to work with incomplete
-  // types, so we have to roll our own dynamic memory management here.
-
-  /// Stores the childen of this node, if any.
-  multipath* nodes_ = nullptr;
-
-  /// Current size of `nodes_`.
-  size_t size_ = 0;
-
-  /// Reserved capacity for `nodes_`.
-  size_t reserved_ = 0;
+  /// Stores information for this object.
+  multipath_node* head_;
 };
 
 /// @relates multipath
-template <class PeerId>
-bool operator==(const multipath<PeerId>& x, const multipath<PeerId>& y) {
+inline bool operator==(const multipath& x, const multipath& y) {
   return x.equals(y);
 }
 
 /// @relates multipath
-template <class PeerId>
-bool operator!=(const multipath<PeerId>& x, const multipath<PeerId>& y) {
+inline bool operator!=(const multipath& x, const multipath& y) {
   return !(x == y);
 }
 
 /// @relates multipath
-std::string to_string(const alm::multipath<std::string>& x);
-
-/// Fills the `routes` list such that all reachable receivers are included.
-/// @param receivers List of nodes that should receive a certain message.
-/// @param tbl The routing table for shorest path lookups.
-/// @param routes Stores the source routing paths.
-/// @param unreachables Stores receivers where the routing table lookup failed.
-/// @relates multipath
-/// @relatesalso routing_table
-template <class PeerId, class RoutingTable>
-void generate_paths(const std::vector<PeerId>& receivers,
-                    const RoutingTable& tbl,
-                    std::vector<multipath<PeerId>>& routes,
-                    std::vector<PeerId>& unreachables) {
-  auto route = [&](const PeerId& id) -> auto& {
-    for (auto& mpath : routes)
-      if (mpath.id() == id)
-        return mpath;
-    routes.emplace_back(id);
-    return routes.back();
-  };
-  for (auto& receiver : receivers) {
-    if (auto ptr = shortest_path(tbl, receiver)) {
-      auto& sp = *ptr;
-      BROKER_ASSERT(!sp.empty());
-      route(sp[0]).splice(sp);
-    } else {
-      unreachables.emplace_back(receiver);
-    }
-  }
-}
+std::string to_string(const alm::multipath& x);
 
 } // namespace broker::alm

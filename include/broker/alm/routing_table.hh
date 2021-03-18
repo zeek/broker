@@ -2,29 +2,33 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <map>
 #include <memory>
 #include <set>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 
+#include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
 #include <caf/meta/type_name.hpp>
+#include <caf/node_id.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/iterator_range.hh"
 #include "broker/detail/map_index_iterator.hh"
+#include "broker/fwd.hh"
 #include "broker/optional.hh"
 
 namespace broker::alm {
 
 /// Compares two paths by size, falling back to lexicographical comparison on
 /// equal sizes.
-template <class PeerId>
-struct path_less {
-  using path_type = std::vector<PeerId>;
+struct path_less_t {
+  using path_type = std::vector<endpoint_id>;
+
+  using versioned_path_type = std::pair<path_type, vector_timestamp>;
 
   /// Returns `true` if X is shorter than Y or both paths have equal length but
   /// X comes before Y lexicographically, `false` otherwise.
@@ -35,93 +39,83 @@ struct path_less {
       return x < y;
     return false;
   }
+
+  bool operator()(const path_type& x,
+                  const versioned_path_type& y) const noexcept {
+    return (*this)(x, y.first);
+  }
+
+  bool operator()(const versioned_path_type& x,
+                  const path_type& y) const noexcept {
+    return (*this)(x.first, y);
+  }
+
+  bool operator()(const versioned_path_type& x,
+                  const versioned_path_type& y) const noexcept {
+    return (*this)(x.first, y.first);
+  }
 };
+
+constexpr auto path_less = path_less_t{};
 
 /// Stores paths to all peers. For direct connection, also stores a
 /// communication handle for reaching the peer.
-template <class PeerId, class CommunicationHandle>
 class routing_table_row {
 public:
-  using peer_id_type = PeerId;
-
-  using communication_handle_type = CommunicationHandle;
+  /// Stores a linear path to another peer.
+  using path_type = std::vector<endpoint_id>;
 
   /// Stores a linear path to another peer with logical timestamps for when this
   /// route was announced.
-  using path_type = std::vector<peer_id_type>;
+  using versioned_path_type = std::pair<path_type, vector_timestamp>;
 
   /// Stores an implementation-specific handle for talking to the peer. The
   /// handle is null if no direct connection exists.
-  CommunicationHandle hdl;
+  caf::actor hdl;
 
   /// Stores all paths leading to this peer, using a vector timestamp for
   /// versioning (stores only the latest version). Sorted by path length.
-  std::map<path_type, vector_timestamp, path_less<PeerId>> versioned_paths;
-
-  /// Returns the sorted paths without the associated vector timestamp.
-  auto paths() const {
-    using namespace detail;
-    return make_iterator_range(map_first(versioned_paths.begin()),
-                               map_first(versioned_paths.end()));
-  }
+  std::vector<versioned_path_type> versioned_paths;
 
   routing_table_row() = default;
+  routing_table_row(routing_table_row&&) = default;
+  routing_table_row(const routing_table_row&) = default;
+  routing_table_row& operator=(routing_table_row&&) = default;
+  routing_table_row& operator=(const routing_table_row&) = default;
 
-  explicit routing_table_row(CommunicationHandle hdl) : hdl(std::move(hdl)) {
-    // nop
+  explicit routing_table_row(caf::actor hdl) : hdl(std::move(hdl)) {
+    versioned_paths.reserve(32);
   }
 };
 
-template <class Inspector, class PeerId, class CommunicationHandle>
-typename Inspector::result_type
-inspect(Inspector& f, routing_table_row<PeerId, CommunicationHandle>& x) {
-  return f.object(x)
-    .pretty_name("row") //
-    .fields(f.field("hdl", x.hdl), f.field("distances", x.distances),
-            f.field("paths", x.paths));
+template <class Inspector>
+bool inspect(Inspector& f, routing_table_row& x) {
+  return f.object(x).fields(f.field("hdl", x.hdl),
+                            f.field("paths", x.versioned_paths));
 }
 
 /// Stores direct connections to peers as well as distances to all other peers
 /// that we can reach indirectly.
-template <class Id, class Handle>
-using routing_table = std::map<Id, routing_table_row<Id, Handle>>;
+using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 /// Returns the ID  of the peer if `hdl` is a direct connection, `nil`
 /// otherwise.
-template <class Id, class Handle>
-optional<Id>
-get_peer_id(const routing_table<Id, Handle>& tbl, const Handle& hdl) {
-  auto predicate = [&](const auto& kvp) { return kvp.second.hdl == hdl; };
-  auto e = tbl.end();
-  auto i = std::find_if(tbl.begin(), e, predicate);
-  if (i != e)
-    return i->first;
-  return nil;
-}
+optional<endpoint_id> get_peer_id(const routing_table& tbl,
+                                  const caf::actor& hdl);
 
 /// Returns all hops to the destination (including `dst` itself) or
 /// `nullptr` if the destination is unreachable.
-template <class RoutingTable>
-const std::vector<typename RoutingTable::key_type>*
-shortest_path(const RoutingTable& tbl,
-              const typename RoutingTable::key_type& peer) {
-  if (auto i = tbl.find(peer);
-      i != tbl.end() && !i->second.versioned_paths.empty())
-    return std::addressof(i->second.versioned_paths.begin()->first);
-  return nullptr;
-}
+const std::vector<endpoint_id>* shortest_path(const routing_table& tbl,
+                                              const endpoint_id& peer);
 
 /// Checks whether the routing table `tbl` contains a path to the `peer`.
-template <class RoutingTable>
-bool reachable(const RoutingTable& tbl,
-               const typename RoutingTable::key_type& peer) {
+inline bool reachable(const routing_table& tbl, const endpoint_id& peer) {
   return tbl.count(peer) != 0;
 }
 
 /// Returns whether `tbl` contains a direct connection to `peer`.
-template <class RoutingTable>
-bool direct_connection(const RoutingTable& tbl,
-                       const typename RoutingTable::key_type& peer) {
+inline bool is_direct_connection(const routing_table& tbl,
+                                 const endpoint_id& peer) {
   if (auto i = tbl.find(peer); i != tbl.end())
     return static_cast<bool>(i->second.hdl);
   return false;
@@ -129,43 +123,41 @@ bool direct_connection(const RoutingTable& tbl,
 
 /// Returns the hop count on the shortest path or `nil` if no route to the peer
 /// exists.
-template <class RoutingTable>
-optional<size_t> distance_to(const RoutingTable& tbl,
-                             const typename RoutingTable::key_type& peer) {
+inline optional<size_t> distance_to(const routing_table& tbl,
+                                    const endpoint_id& peer) {
   if (auto ptr = shortest_path(tbl, peer))
     return ptr->size();
-  return nil;
+  else
+    return nil;
 }
 
 /// Erases all state for `whom` and also removes all paths that include `whom`.
 /// Other peers can become unreachable as a result. In this case, the algorithm
 /// calls `on_remove` and recurses for all unreachable peers.
-template <class RoutingTable, class OnRemovePeer>
-void erase(RoutingTable& tbl, const typename RoutingTable::key_type& whom,
+template <class OnRemovePeer>
+void erase(routing_table& tbl, const endpoint_id& whom,
            OnRemovePeer on_remove) {
-  using id_type = typename RoutingTable::key_type;
-  std::vector<id_type> unreachable_peers;
-  auto impl = [&](const id_type& peer) {
-    auto stale = [&](const auto& path) {
-      return std::find(path.begin(), path.end(), peer) != path.end();
+  std::vector<endpoint_id> unreachable_peers;
+  auto impl = [&](const endpoint_id& peer) {
+    auto stale = [&](const auto& vpath) {
+      return std::find(vpath.first.begin(), vpath.first.end(), peer)
+             != vpath.first.end();
     };
     tbl.erase(peer);
     for (auto& [id, row] : tbl) {
       auto& paths = row.versioned_paths;
-      for (auto i = paths.begin(); i != paths.end();) {
-        if (stale(i->first))
-          i = paths.erase(i);
-        else
-          ++i;
+      auto sep = std::remove_if(paths.begin(), paths.end(), stale);
+      if (sep != paths.end()) {
+        paths.erase(sep, paths.end());
+        if (paths.empty())
+          unreachable_peers.emplace_back(id);
       }
-      if (paths.empty())
-        unreachable_peers.emplace_back(id);
     }
   };
   impl(whom);
   while (!unreachable_peers.empty()) {
     // Our lambda modifies unreachable_peers, so we can't use iterators here.
-    id_type peer = std::move(unreachable_peers.back());
+    endpoint_id peer = std::move(unreachable_peers.back());
     unreachable_peers.pop_back();
     impl(peer);
     on_remove(peer);
@@ -180,23 +172,14 @@ void erase(RoutingTable& tbl, const typename RoutingTable::key_type& whom,
 /// @note The callback `on_remove` gets called while changing the routing table.
 ///       Hence, it must not mutate the routing table and ideally doesn't access
 ///       it at all.
-template <class RoutingTable, class OnRemovePeer>
-bool erase_direct(RoutingTable& tbl,
-                  const typename RoutingTable::key_type& whom,
+template <class OnRemovePeer>
+bool erase_direct(routing_table& tbl, const endpoint_id& whom,
                   OnRemovePeer on_remove) {
-  using mapped_type = typename RoutingTable::mapped_type;
-  using handle_type = typename mapped_type::communication_handle_type;
-  auto whom_hdl = handle_type{};
   // Reset the connection handle.
   if (auto i = tbl.find(whom); i == tbl.end()) {
     return false;
   } else {
-    whom_hdl = i->second.hdl;
-    auto& hdl = i->second.hdl;
-    if constexpr (std::is_integral<handle_type>::value)
-      hdl = 0;
-    else
-      hdl = nullptr;
+    i->second.hdl = nullptr;
   }
   // Drop all paths with whom as first hop.
   for (auto i = tbl.begin(); i != tbl.end();) {
@@ -218,8 +201,8 @@ bool erase_direct(RoutingTable& tbl,
   return true;
 }
 
-template <class Id, class Handle, class F>
-void for_each_direct(const routing_table<Id, Handle>& tbl, F fun) {
+template <class F>
+void for_each_direct(const routing_table& tbl, F fun) {
   for (auto& [peer, row] : tbl)
     if (row.hdl)
       fun(peer, row.hdl);
@@ -227,42 +210,17 @@ void for_each_direct(const routing_table<Id, Handle>& tbl, F fun) {
 
 /// Returns a pointer to the row of the remote peer if it exists, `nullptr`
 /// otherwise.
-template <class Id, class Handle>
-auto* find_row(const routing_table<Id, Handle>& tbl,
-               const typename routing_table<Id, Handle>::key_type& peer) {
-  using pointer = const typename routing_table<Id, Handle>::mapped_type*;
-  if (auto i = tbl.find(peer); i != tbl.end())
-    return std::addressof(i->second);
-  return static_cast<pointer>(nullptr);
-}
+const routing_table_row* find_row(const routing_table& tbl,
+                                  const endpoint_id& peer);
 
 /// @copydoc find_row.
-template <class Id, class Handle>
-auto* find_row(routing_table<Id, Handle>& tbl,
-               const typename routing_table<Id, Handle>::key_type& peer) {
-  using pointer = typename routing_table<Id, Handle>::mapped_type*;
-  if (auto i = tbl.find(peer); i != tbl.end())
-    return std::addressof(i->second);
-  return static_cast<pointer>(nullptr);
-}
+routing_table_row* find_row(routing_table& tbl, const endpoint_id& peer);
 
 /// Adds a path to the peer, inserting a new row for the peer is it does not
 /// exist yet.
 /// @return `true` if a new entry was added to `tbl`, `false` otherwise.
-template <class RoutingTable>
-bool add_or_update_path(RoutingTable& tbl,
-                        const typename RoutingTable::key_type& peer,
-                        std::vector<typename RoutingTable::key_type> path,
-                        vector_timestamp ts) {
-  auto& versioned_paths = tbl[peer].versioned_paths;
-  if (auto i = versioned_paths.find(path); i != versioned_paths.end()) {
-    if (i->second < ts)
-      i->second = std::move(ts);
-    return false;
-  }
-  versioned_paths.emplace(std::move(path), std::move(ts));
-  return true;
-}
+bool add_or_update_path(routing_table& tbl, const endpoint_id& peer,
+                        std::vector<endpoint_id> path, vector_timestamp ts);
 
 /// A 3-tuple for storing a revoked path between two peers with the logical time
 /// when the connection was severed.
@@ -404,9 +362,9 @@ blacklisted(const std::vector<PeerId>& path, const vector_timestamp& ts,
 
 /// Removes all entries form `tbl` where `blacklisted` returns true for given
 /// arguments.
-template <class PeerId, class Handle, class OnRemovePeer>
-void revoke(routing_table<PeerId, Handle>& tbl, const PeerId& revoker,
-            lamport_timestamp revoke_time, const PeerId& hop,
+template <class OnRemovePeer>
+void revoke(routing_table& tbl, const endpoint_id& revoker,
+            lamport_timestamp revoke_time, const endpoint_id& hop,
             OnRemovePeer callback) {
   auto i = tbl.begin();
   while (i != tbl.end()) {
@@ -423,9 +381,9 @@ void revoke(routing_table<PeerId, Handle>& tbl, const PeerId& revoker,
 }
 
 /// @copydoc revoke
-template <class PeerId, class Handle, class OnRemovePeer>
-void revoke(routing_table<PeerId, Handle>& tbl,
-            const blacklist_entry<PeerId>& entry, OnRemovePeer callback) {
+template <class OnRemovePeer>
+void revoke(routing_table& tbl, const blacklist_entry<endpoint_id>& entry,
+            OnRemovePeer callback) {
   return revoke(tbl, entry.revoker, entry.ts, entry.hop, callback);
 }
 

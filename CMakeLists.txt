@@ -286,6 +286,7 @@ set(BROKER_SRC
   src/address.cc
   src/alm/multipath.cc
   src/alm/peer.cc
+  src/alm/routing_table.cc
   src/alm/stream_transport.cc
   src/configuration.cc
   src/convert.cc
@@ -308,6 +309,7 @@ set(BROKER_SRC
   src/detail/master_resolver.cc
   src/detail/memory_backend.cc
   src/detail/meta_data_writer.cc
+  src/detail/monotonic_buffer_resource.cc
   src/detail/network_cache.cc
   src/detail/peer_handshake.cc
   src/detail/prefix_matcher.cc

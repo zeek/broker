@@ -20,6 +20,7 @@
 
 #include <cassert>
 #include <ciso646>
+#include <functional>
 
 // -- test setup macros --------------------------------------------------------
 
@@ -71,11 +72,8 @@ struct consumer_msg {
 
 CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
 
-  CAF_ADD_TYPE_ID(broker_test, (broker::generic_node_message<std::string>))
-  CAF_ADD_TYPE_ID(broker_test, (caf::stream<broker::generic_node_message<std::string>>))
   CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
   CAF_ADD_TYPE_ID(broker_test, (producer_msg))
-  CAF_ADD_TYPE_ID(broker_test, (std::vector<broker::generic_node_message<std::string>>))
   CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>))
   CAF_ADD_TYPE_ID(broker_test, (string_channel::consumer_message))
   CAF_ADD_TYPE_ID(broker_test, (string_channel::cumulative_ack))
@@ -160,6 +158,7 @@ public:
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
+  std::map<char, broker::endpoint_id> ids;
 
   using super::run;
 
@@ -170,6 +169,8 @@ public:
   static void init_socket_api();
 
   static void deinit_socket_api();
+
+  char id_by_value(const broker::endpoint_id& value);
 
   /// Dereferences `hdl` and downcasts it to `T`.
   template <class T = caf::scheduled_actor, class Handle = caf::actor>

@@ -47,7 +47,7 @@ alm::lamport_timestamp peer::local_timestamp() const noexcept {
 template <class T>
 bool peer::dispatch_to_impl(T&& msg, endpoint_id&& receiver) {
   if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
-    multipath<endpoint_id> path{ptr->begin(), ptr->end()};
+    multipath path{ptr->begin(), ptr->end()};
     endpoint_id_list receivers;
     receivers.emplace_back(std::move(receiver));
     dispatch(make_node_message(std::forward<T>(msg), std::move(path),

@@ -28,7 +28,7 @@ using command_channel = detail::channel<entity_id, command_message>;
 /// message or a broker-internal command messages.
 using node_message = caf::cow_tuple< // Fields:
   node_message_content,              // 0: content
-  alm::multipath<endpoint_id>,       // 1: path
+  alm::multipath,                    // 1: path
   std::vector<endpoint_id>           // 2: receivers
   >;
 
@@ -66,7 +66,7 @@ command_message make_command_message(Topic&& t, Command&& d) {
 
 /// Generates a ::node_message.
 template <class Value>
-node_message make_node_message(Value&& value, alm::multipath<endpoint_id> path,
+node_message make_node_message(Value&& value, alm::multipath path,
                                std::vector<endpoint_id> receivers) {
   return node_message{std::forward<Value>(value), std::move(path),
                       std::move(receivers)};

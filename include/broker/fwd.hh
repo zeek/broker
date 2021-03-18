@@ -83,37 +83,42 @@ using request_id = uint64_t;
 
 } // namespace broker
 
-// -- ALM types ----------------------------------------------------------------
-
-namespace broker::alm {
-
-template <class PeerId>
-class multipath;
-
-struct lamport_timestamp;
-
-class peer;
-class stream_transport;
-
-} // namespace broker::alm
-
-// -- CAF type aliases ---------------------------------------------------------
+// -- CAF type aliases (1) -----------------------------------------------------
 
 namespace broker {
 
 using caf::optional;
+using endpoint_id = caf::node_id;
+
+} // namespace broker
+
+// -- ALM types ----------------------------------------------------------------
+
+namespace broker::alm {
+
+class multipath;
+class multipath_group;
+class multipath_node;
+class peer;
+class routing_table_row;
+class stream_transport;
+
+struct lamport_timestamp;
+
+using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
+
+} // namespace broker::alm
+
+// -- CAF type aliases (2) -----------------------------------------------------
+
+namespace broker {
+
 using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
-using endpoint_id = caf::node_id;
 using endpoint_id_list = std::vector<endpoint_id>;
 using node_message_content = caf::variant<data_message, command_message>;
-
-template <class PeerId>
-using generic_node_message
-  = caf::cow_tuple<node_message_content, alm::multipath<PeerId>,
-                   std::vector<PeerId>>;
-
-using node_message = generic_node_message<caf::node_id>;
+using node_message = caf::cow_tuple<node_message_content, alm::multipath,
+                                    std::vector<endpoint_id>>;
 
 } // namespace broker
 
@@ -255,6 +260,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::add_command))
   BROKER_ADD_TYPE_ID((broker::address))
   BROKER_ADD_TYPE_ID((broker::alm::lamport_timestamp))
+  BROKER_ADD_TYPE_ID((broker::alm::multipath))
   BROKER_ADD_TYPE_ID((broker::attach_clone_command))
   BROKER_ADD_TYPE_ID((broker::attach_writer_command))
   BROKER_ADD_TYPE_ID((broker::backend))

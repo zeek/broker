@@ -1,5 +1,6 @@
 #include "broker/alm/multipath.hh"
 #include "broker/alm/routing_table.hh"
+#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint.hh"
 
 #include <benchmark/benchmark.h>
@@ -7,7 +8,6 @@
 #include <atomic>
 #include <limits>
 #include <random>
-
 
 // For the benchmarking, we use a simple tree structure topology:
 //
@@ -31,16 +31,14 @@ namespace {
 
 using broker::endpoint_id;
 
-using table_type = broker::alm::routing_table<endpoint_id, caf::actor>;
+using table_type = broker::alm::routing_table;
 
 using path_type = std::vector<endpoint_id>;
-
-std::atomic<bool> first_run;
 
 struct id_generator {
   using array_type = caf::hashed_node_id::host_id_type;
 
-  id_generator() : rng(0xB7357) {
+  id_generator() : rng(0xB7E57) {
     // nop
   }
 
@@ -61,10 +59,17 @@ class routing_table : public benchmark::Fixture {
 public:
   routing_table() {
     topologies.resize(10);
+    //v2_topologies.resize(10);
     ids.resize(10);
     receivers_10p.resize(10);
     id_generator g;
-    fill_tbl(g, {}, 0);
+    auto on_new_node = [this](size_t level, const endpoint_id& leaf_id) {
+      ids[level].emplace_back(leaf_id);
+    };
+    for (size_t index = 0; index < 10; ++index)
+      fill_tbl(topologies[index], g, {}, 0, index, on_new_node);
+    // for (size_t index = 0; index < 10; ++index)
+    //   fill_tbl(v2_topologies[index], g, {}, 0, index, [](auto&&...) {});
     // Sanity checking
 #ifndef NDEBUG
     for (size_t index = 0; index < 10; ++index)
@@ -89,51 +94,64 @@ public:
   // Receivers for the different generate_paths setup (10 percent).
   std::vector<std::vector<endpoint_id>> receivers_10p;
 
-private:
-  auto make_vt(size_t n) {
+  static auto make_vt(size_t n) {
     broker::alm::vector_timestamp result;
     result.resize(n);
     return result;
   }
 
-  auto make_vt(const path_type& p) {
+  static auto make_vt(const path_type& p) {
     return make_vt(p.size());
   }
 
-  void fill_tbl(id_generator& g, const path_type& p, size_t level) {
-    auto& tbl = topologies[level];
-    if (level > 0 && tbl.empty())
-      tbl = topologies[level - 1];
+  template <class Table, class OnNewNode>
+  static void fill_tbl(Table& tbl, id_generator& g, const path_type& p,
+                       size_t level, size_t max_level, OnNewNode on_new_node) {
     auto next_path = [](const auto& src, auto id) {
       auto result = src;
       result.emplace_back(id);
       return result;
     };
     auto add_entry = [&](const auto& id, const path_type& new_path) {
-      broker::alm::add_or_update_path(tbl, id, new_path, make_vt(new_path));
+      add_or_update_path(tbl, id, new_path, make_vt(new_path));
     };
     // Add first leaf node.
     auto leaf1_id = g.next();
     auto leaf1_path = next_path(p, leaf1_id);
-    ids[level].emplace_back(leaf1_id);
+    on_new_node(level, leaf1_id);
     add_entry(leaf1_id, leaf1_path);
     // Add second leaf node.
     auto leaf2_id = g.next();
     auto leaf2_path = next_path(p, leaf2_id);
-    ids[level].emplace_back(leaf2_id);
+    on_new_node(level, leaf2_id);
     add_entry(leaf2_id, leaf2_path);
     // Add paths between leaf1 and leaf2.
     add_entry(leaf2_id, next_path(leaf1_path, leaf2_id));
     add_entry(leaf1_id, next_path(leaf2_path, leaf1_id));
     // Enter next level.
-    if (level < 9) {
-      fill_tbl(g, leaf1_path, level + 1);
-      fill_tbl(g, leaf2_path, level + 1);
+    if (level < max_level) {
+      fill_tbl(tbl, g, leaf1_path, level + 1, max_level, on_new_node);
+      fill_tbl(tbl, g, leaf2_path, level + 1, max_level, on_new_node);
     }
   }
 };
 
 } // namespace
+
+// -- adding entries to a routing table ----------------------------------------
+
+BENCHMARK_DEFINE_F(routing_table, add_or_update_path)(benchmark::State& state) {
+  auto max_level = static_cast<size_t>(state.range(0));
+  for (auto _ : state) {
+    id_generator g;
+    table_type tbl;
+    fill_tbl(tbl, g, {}, 0, max_level, [](auto&&...) {});
+    benchmark::ClobberMemory();
+    benchmark::DoNotOptimize(tbl);
+  }
+}
+
+BENCHMARK_REGISTER_F(routing_table, add_or_update_path)->DenseRange(0, 9, 1);
 
 // -- shortest path to a "far away node" ---------------------------------------
 
@@ -159,9 +177,9 @@ BENCHMARK_DEFINE_F(routing_table, generate_paths_1)(benchmark::State& state) {
   const auto& id = ids[index].front();
   std::vector<endpoint_id> receivers{id};
   for (auto _ : state) {
-    std::vector<broker::alm::multipath<endpoint_id>> routes;
+    std::vector<broker::alm::multipath> routes;
     std::vector<endpoint_id> unreachables;
-    broker::alm::generate_paths(receivers, tbl, routes, unreachables);
+    broker::alm::multipath::generate(receivers, tbl, routes, unreachables);
     benchmark::ClobberMemory();
     benchmark::DoNotOptimize(routes);
     assert(unreachables.empty());
@@ -177,9 +195,9 @@ BENCHMARK_DEFINE_F(routing_table, generate_paths_10p)(benchmark::State& state) {
   const auto& tbl = topologies[index];
   const auto& receivers = receivers_10p[index];
   for (auto _ : state) {
-    std::vector<broker::alm::multipath<endpoint_id>> routes;
+    std::vector<broker::alm::multipath> routes;
     std::vector<endpoint_id> unreachables;
-    broker::alm::generate_paths(receivers, tbl, routes, unreachables);
+    broker::alm::multipath::generate(receivers, tbl, routes, unreachables);
     benchmark::ClobberMemory();
     benchmark::DoNotOptimize(routes);
     assert(unreachables.empty());
@@ -187,3 +205,37 @@ BENCHMARK_DEFINE_F(routing_table, generate_paths_10p)(benchmark::State& state) {
 }
 
 BENCHMARK_REGISTER_F(routing_table, generate_paths_10p)->DenseRange(0, 9, 1);
+
+// -- erase from the head of the routing table (direct connection) -------------
+
+BENCHMARK_DEFINE_F(routing_table, erase_front)(benchmark::State& state) {
+  auto index = static_cast<size_t>(state.range(0));
+  const auto& id = ids[0].front();
+  for (auto _ : state) {
+    state.PauseTiming();
+    auto cpy = topologies[index];
+    state.ResumeTiming();
+    broker::alm::erase(cpy, id, [](auto&&...) {});
+    benchmark::ClobberMemory();
+    benchmark::DoNotOptimize(cpy);
+  }
+}
+
+BENCHMARK_REGISTER_F(routing_table, erase_front)->DenseRange(0, 9, 1);
+
+// -- erase from the tail of the routing table (a far away node) ---------------
+
+BENCHMARK_DEFINE_F(routing_table, erase_back)(benchmark::State& state) {
+  auto index = static_cast<size_t>(state.range(0));
+  const auto& id = ids[index].front();
+  for (auto _ : state) {
+    state.PauseTiming();
+    auto cpy = topologies[index];
+    state.ResumeTiming();
+    broker::alm::erase(cpy, id, [](auto&&...) {});
+    benchmark::ClobberMemory();
+    benchmark::DoNotOptimize(cpy);
+  }
+}
+
+BENCHMARK_REGISTER_F(routing_table, erase_back)->DenseRange(0, 9, 1);

@@ -9,7 +9,7 @@ node_message make_node_message(node_message_content content,
                                std::vector<endpoint_id> receivers) {
   BROKER_ASSERT(!path.empty());
   return node_message{std::move(content),
-                      alm::multipath<endpoint_id>{path.begin(), path.end()},
+                      alm::multipath{path.begin(), path.end()},
                       std::move(receivers)};
 }
 
@@ -19,7 +19,7 @@ node_message make_node_message(node_message_content content,
   std::vector<endpoint_id> receivers;
   receivers.emplace_back(std::move(receiver));
   return node_message{std::move(content),
-                      alm::multipath<endpoint_id>{path.begin(), path.end()},
+                      alm::multipath{path.begin(), path.end()},
                       std::move(receivers)};
 }
 

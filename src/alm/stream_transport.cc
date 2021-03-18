@@ -141,7 +141,7 @@ void stream_transport::start_peering(const endpoint_id& remote_peer,
                                      const caf::actor& hdl,
                                      caf::response_promise rp) {
   BROKER_TRACE(BROKER_ARG(remote_peer) << BROKER_ARG(hdl));
-  if (direct_connection(tbl(), remote_peer)) {
+  if (is_direct_connection(tbl(), remote_peer)) {
     BROKER_DEBUG("start_peering ignored: already peering with" << remote_peer);
     rp.deliver(atom::peer_v, atom::ok_v, hdl);
   } else if (remote_peer < id()) {
@@ -210,7 +210,7 @@ caf::outbound_stream_slot<node_message, caf::actor, endpoint_id, filter_type,
 stream_transport::handle_peering_request(const endpoint_id& remote_peer,
                                          const caf::actor& hdl) {
   BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(remote_peer));
-  if (direct_connection(tbl(), remote_peer)) {
+  if (is_direct_connection(tbl(), remote_peer)) {
     BROKER_ERROR("drop peering request: already have a direct connection to"
                  << remote_peer);
     return {};
@@ -246,7 +246,7 @@ stream_transport::handle_peering_handshake_1(caf::stream<node_message>,
                                              lamport_timestamp timestamp) {
   BROKER_TRACE(BROKER_ARG(hdl) << BROKER_ARG(remote_peer) << BROKER_ARG(filter)
                                << BROKER_ARG(timestamp));
-  if (direct_connection(tbl(), remote_peer)) {
+  if (is_direct_connection(tbl(), remote_peer)) {
     BROKER_ERROR("drop peering handshake: already have a direct connection to"
                  << remote_peer);
     return {};
@@ -359,9 +359,9 @@ void stream_transport::dispatch_impl(const T& msg) {
       receivers.emplace_back(peer);
   BROKER_DEBUG("got" << receivers.size() << "receiver for" << msg);
   if (!receivers.empty()) {
-    std::vector<multipath_type> paths;
+    std::vector<alm::multipath> paths;
     std::vector<endpoint_id> unreachables;
-    generate_paths(receivers, tbl_, paths, unreachables);
+    alm::multipath::generate(receivers, tbl_, paths, unreachables);
     for (auto&& path : paths) {
       // Move receivers into the path-specific list.
       endpoint_id_list msg_recs;
@@ -403,8 +403,12 @@ void stream_transport::dispatch(const command_message& msg) {
 
 void stream_transport::dispatch(node_message&& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // Deconstruction and sanity checking.
-  auto& [content, path, receivers] = msg.unshared();
+  // Deconstruction and sanity checking. Can't use structured binding here due
+  // to limitations on lambda captures.
+  auto& tup = msg.unshared();
+  auto& content = get<0>(tup);
+  auto& path = get<1>(tup);
+  auto& receivers = get<2>(tup);
   if (receivers.empty()) {
     BROKER_WARNING("received a node message with no receivers");
     return;
@@ -419,13 +423,13 @@ void stream_transport::dispatch(node_message&& msg) {
       publish_locally(content);
     }
     // Forward to all next hops.
-    for (auto& next : path.nodes()) {
+    path.for_each_node([&](multipath&& next) {
       if (auto ptr = peer_lookup(next.head())) {
-        ptr->enqueue(node_message{content, next, receivers});
+        ptr->enqueue(node_message{content, std::move(next), receivers});
       } else {
         BROKER_DEBUG("cannot ship message: no path to" << next.head());
       }
-    }
+    });
   } else if (auto ptr = peer_lookup(path.head())) {
     ptr->enqueue(std::move(msg));
   } else {
@@ -511,7 +515,7 @@ bool stream_transport::finalize_handshake(detail::peer_manager* mgr) {
     if (!add_mapping()) {
       BROKER_ERROR("failed add mapping for the peer manager");
       return false;
-    } else if (direct_connection(tbl_, hs.remote_id)) {
+    } else if (is_direct_connection(tbl_, hs.remote_id)) {
       BROKER_ERROR("tried to complete handshake for already connected peer");
       mgr_to_hdl_.erase(mgr);
       hdl_to_mgr_.erase(hs.remote_hdl);

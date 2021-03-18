@@ -9,24 +9,29 @@ using namespace broker::literals;
 
 namespace {
 
-struct fixture {
-  using table_type = alm::routing_table<std::string, int>;
+struct fixture : base_fixture {
+  endpoint_id A;
 
-  std::string A = "A";
+  endpoint_id B;
 
-  std::string B = "B";
+  endpoint_id C;
 
-  std::string C = "C";
+  endpoint_id D;
 
-  std::string D = "D";
+  endpoint_id E;
 
-  std::string E = "E";
+  endpoint_id I;
 
-  std::string I = "I";
-
-  std::string J = "J";
+  endpoint_id J;
 
   fixture() {
+    A = ids['A'];
+    B = ids['B'];
+    C = ids['C'];
+    D = ids['D'];
+    E = ids['E'];
+    I = ids['I'];
+    J = ids['J'];
     // We use the subset of the topology that we use in the peer unit test:
     //
     //                                     +---+
@@ -44,12 +49,11 @@ struct fixture {
     //                     | A +-----------------------+ J |
     //                     +---+                       +---+
     //
-    auto add = [&](std::string id,
-                   std::vector<std::vector<std::string>> paths) {
-      auto& entry = tbl.emplace(id, table_type::mapped_type{0}).first->second;
+    auto add = [&](endpoint_id id,
+                   std::vector<std::vector<endpoint_id>> paths) {
+      auto& entry = tbl.emplace(id, caf::actor{}).first->second;
       for (auto& path : paths)
-        entry.versioned_paths.emplace(std::move(path),
-                                      alm::vector_timestamp(path.size()));
+        add_or_update_path(tbl, id, path, alm::vector_timestamp(path.size()));
     };
     add(B, {{B}, {J, I, D, B}, {J, I, E, B}});
     add(D, {{B, D}, {J, I, D}});
@@ -58,16 +62,16 @@ struct fixture {
     add(J, {{J}, {B, D, I, J}, {B, E, I, J}});
   }
 
-  // Creates a list of IDs (strings).
+  // Creates a list of IDs (endpoint IDs).
   template <class... Ts>
   auto ls(Ts... xs) {
-    return std::vector<std::string>{std::move(xs)...};
+    return std::vector<endpoint_id>{std::move(xs)...};
   }
 
-  alm::routing_table<std::string, int> tbl;
+  alm::routing_table tbl;
 };
 
-void nop(const std::string&) {
+void nop(const endpoint_id&) {
   // nop
 }
 
@@ -157,7 +161,7 @@ TEST(blacklisting removes revokes paths) {
   }
   MESSAGE("after revoking J -> I, we no longer reach D");
   {
-    std::vector<std::string> unreachables;
+    std::vector<endpoint_id> unreachables;
     auto callback = [&](const auto& x) { unreachables.emplace_back(x); };
     revoke(tbl, J, alm::lamport_timestamp{2}, I, callback);
     CHECK_EQUAL(unreachables, ls(D));
@@ -184,7 +188,7 @@ TEST(blacklisting does not affect newer paths) {
 }
 
 TEST(inseting into blacklists creates a sorted list) {
-  using blacklist = alm::blacklist<std::string>;
+  using blacklist = alm::blacklist<endpoint_id>;
   blacklist lst;
   struct dummy_self {
     auto clock() {
@@ -196,8 +200,8 @@ TEST(inseting into blacklists creates a sorted list) {
       return dummy_clock{};
     }
   };
-  auto emplace = [&](std::string revoker, alm::lamport_timestamp rtime,
-                     std::string hop) {
+  auto emplace = [&](endpoint_id revoker, alm::lamport_timestamp rtime,
+                     endpoint_id hop) {
     dummy_self self;
     return alm::emplace(lst, &self, revoker, rtime, hop);
   };

@@ -74,12 +74,6 @@ namespace broker::alm {
 /// ~~~
 class peer : public detail::central_dispatcher {
 public:
-  // -- member types -----------------------------------------------------------
-
-  using routing_table_type = routing_table<endpoint_id, caf::actor>;
-
-  using multipath_type = multipath<endpoint_id>;
-
   // -- constants --------------------------------------------------------------
 
   /// Configures how many (additional) items the stream transport caches for
@@ -371,7 +365,7 @@ protected:
   /// Stores routing information for reaching other peers. The *transport* adds
   /// new entries to this table (before calling ::peer_connected) and the peer
   /// removes entries in its ::peer_disconnected callback implementation.
-  routing_table_type tbl_;
+  routing_table tbl_;
 
   /// A logical timestamp.
   lamport_timestamp timestamp_;
