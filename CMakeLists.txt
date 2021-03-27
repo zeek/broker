@@ -254,7 +254,7 @@ list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
 list(GET _version_numbers 1 BROKER_VERSION_MINOR)
 
 # The SO number shall increase only if binary interface changes.
-set(BROKER_SOVERSION 2)
+set(BROKER_SOVERSION 4)
 set(ENABLE_SHARED true)
 
 if (ENABLE_STATIC_ONLY)
