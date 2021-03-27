@@ -61,6 +61,7 @@ configuration make_config() {
                            caf::test::engine::argv()))
     CAF_FAIL("parsing the config failed: " << to_string(err));
   cfg.set("caf.middleman.network-backend", "testing");
+  cfg.set("caf.middleman.heartbeat-interval", caf::timespan{0});
   cfg.set("caf.scheduler.policy", "testing");
   cfg.set("caf.logger.inline-output", true);
   return cfg;
