@@ -352,42 +352,52 @@ void stream_transport::flush() {
 template <class T>
 void stream_transport::dispatch_impl(const T& msg) {
   const auto& topic = get_topic(msg);
-  detail::prefix_matcher matches;
-  endpoint_id_list receivers;
-  for (const auto& [peer, filter] : peer_filters_)
-    if (matches(filter, topic))
-      receivers.emplace_back(peer);
-  BROKER_DEBUG("got" << receivers.size() << "receiver for" << msg);
-  if (!receivers.empty()) {
-    std::vector<alm::multipath> paths;
-    std::vector<endpoint_id> unreachables;
-    alm::multipath::generate(receivers, tbl_, paths, unreachables);
-    for (auto&& path : paths) {
-      // Move receivers into the path-specific list.
-      endpoint_id_list msg_recs;
-      msg_recs.reserve(receivers.size());
-      for (auto i = receivers.begin(); i != receivers.end();) {
-        if (path.contains(*i)) {
-          msg_recs.emplace_back(std::move(*i));
-          i = receivers.erase(i);
+  if (auto i = dispatch_cache_.find(topic); i != dispatch_cache_.end()) {
+    for (auto& [first_hop, path, receivers] : i->second)
+      first_hop->enqueue(node_message{msg, path, receivers});
+  } else {
+    detail::prefix_matcher matches;
+    endpoint_id_list receivers;
+    for (const auto& [peer, filter] : peer_filters_)
+      if (matches(filter, topic))
+        receivers.emplace_back(peer);
+    BROKER_DEBUG("got" << receivers.size() << "receiver for" << msg);
+    dispatch_cache_entries entries;
+    if (!receivers.empty()) {
+      std::vector<alm::multipath> paths;
+      std::vector<endpoint_id> unreachables;
+      alm::multipath::generate(receivers, tbl_, paths, unreachables);
+      for (auto&& path : paths) {
+        // Move receivers into the path-specific list.
+        endpoint_id_list msg_recs;
+        msg_recs.reserve(receivers.size());
+        for (auto i = receivers.begin(); i != receivers.end();) {
+          if (path.contains(*i)) {
+            msg_recs.emplace_back(std::move(*i));
+            i = receivers.erase(i);
+          } else {
+            ++i;
+          }
+        }
+        // Ship to the first hop.
+        if (!msg_recs.empty()) {
+          if (auto hop = peer_lookup(path.head())) {
+            entries.emplace_back(dispatch_cache_entry{hop, path, msg_recs});
+            auto nm = node_message{msg, std::move(path), std::move(msg_recs)};
+            hop->enqueue(std::move(nm));
+          } else {
+            BROKER_WARNING("cannot ship message: no path to" << path.head());
+          }
         } else {
-          ++i;
+          BROKER_ERROR("generate_paths produced a path without receivers!");
         }
       }
-      // Ship to the first hop.
-      if (!msg_recs.empty()) {
-        auto wrapped = node_message{msg, std::move(path), std::move(msg_recs)};
-        auto&& next_hop = get_path(wrapped).head();
-        if (auto ptr = peer_lookup(get_path(wrapped).head()))
-          ptr->enqueue(std::move(wrapped));
-        else
-          BROKER_WARNING("cannot ship message: no path to" << next_hop);
-      } else {
-        BROKER_ERROR("generate_paths produced a path without receivers!");
-      }
+      if (!unreachables.empty())
+        BROKER_WARNING("cannot ship message: no path to any of"
+                       << unreachables);
     }
-    if (!unreachables.empty())
-      BROKER_WARNING("cannot ship message: no path to any of" << unreachables);
+    if (!entries.empty())
+      dispatch_cache_.emplace(topic, std::move(entries));
   }
 }
 

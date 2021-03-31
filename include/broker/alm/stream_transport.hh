@@ -226,6 +226,16 @@ protected:
 
   /// Stores local command message subscribers .
   std::vector<detail::unipath_command_sink_ptr> command_sinks_;
+
+  struct dispatch_cache_entry {
+    detail::peer_manager* first_hop;
+    multipath path;
+    endpoint_id_list receivers;
+  };
+
+  using dispatch_cache_entries = std::vector<dispatch_cache_entry>;
+
+  std::unordered_map<topic, dispatch_cache_entries> dispatch_cache_;
 };
 
 } // namespace broker::alm

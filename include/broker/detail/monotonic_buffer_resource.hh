@@ -9,9 +9,7 @@ namespace broker::detail {
 // TODO: drop this class once the PMR API is available on supported platforms.
 class monotonic_buffer_resource {
 public:
-  monotonic_buffer_resource() {
-    allocate_block(nullptr);
-  }
+  monotonic_buffer_resource();
 
   monotonic_buffer_resource(const monotonic_buffer_resource&) = delete;
 
@@ -37,12 +35,18 @@ private:
     void* bytes;
   };
 
-  void allocate_block(block* prev_block);
+  void allocate_block();
+
+  block* first_block() noexcept;
 
   void destroy() noexcept;
 
   size_t remaining_ = 0;
   block* current_;
+
+  static constexpr size_t page0_size = 1024 - sizeof(size_t) - sizeof(block*);
+
+  std::byte page0_[page0_size ];
 };
 
 // Non-standard convenience function to avoid having to implement a drop-in

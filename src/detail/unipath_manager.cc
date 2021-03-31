@@ -386,7 +386,7 @@ public:
       blocked_batches_.emplace_back(std::move(b));
     } else if (auto view = caf::make_typed_message_view<std::vector<T>>(b.xs)) {
       for (auto& x : get<0>(view)) {
-        if constexpr (std::is_same<T,node_message>::value){
+        if constexpr (std::is_same<T, node_message>::value) {
           force_unshared(get<0>(x.unshared()));
           auto content = get_content(x);
           super::dispatcher_->dispatch(std::move(x));
