@@ -64,34 +64,40 @@ void print_line(std::ostream& out, const std::string& line) {
   out << line << std::endl;
 }
 
-class config : public broker::configuration {
-public:
-  using super = broker::configuration;
-
+struct parameters {
   std::string mode;
   std::string impl;
   std::string topic;
   std::vector<std::string> peers;
   uint16_t local_port = 0;
   size_t message_cap = std::numeric_limits<size_t>::max();
-  config() {
+};
+
+class config : public broker::configuration {
+public:
+  using super = broker::configuration;
+
+  config(parameters* param) : super(skip_init) {
+    assert(param != nullptr);
     opt_group{custom_options_, "global"}
     .add<bool>(rate, "rate,r",
                "print the rate of messages once per second instead of the "
                "message content")
-    .add(peers, "peers,p",
+    .add(param->peers, "peers,p",
          "list of peers we connect to on startup (host:port notation)")
-    .add(local_port, "local-port,l",
+    .add(param->local_port, "local-port,l",
          "local port for publishing this endpoint at (ignored if 0)")
-    .add(topic, "topic,t",
+    .add(param->topic, "topic,t",
          "topic for sending/receiving messages")
-    .add(mode, "mode,m",
+    .add(param->mode, "mode,m",
          "set mode ('publish' or 'subscribe')")
-    .add(impl, "impl,i",
+    .add(param->impl, "impl,i",
          "set mode implementation ('blocking', 'select', or 'stream')")
-    .add(message_cap, "message-cap,c",
+    .add(param->message_cap, "message-cap,c",
          "set a maximum for received/sent messages");
   }
+
+  using super::init;
 };
 
 void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
@@ -241,35 +247,37 @@ caf::behavior event_listener(caf::event_based_actor* self) {
     guard_type guard{cout_mtx};
     std::cerr << what;
   };
-  return {[=](broker::atom::local, broker::error& x) { print(to_string(x)); },
-          [=](broker::atom::local, broker::status& x) { print(to_string(x)); }};
+  return {
+    [=](broker::atom::local, broker::error& x) { print(to_string(x)); },
+    [=](broker::atom::local, broker::status& x) { print(to_string(x)); },
+  };
 }
 
 } // namespace <anonymous>
 
 int main(int argc, char** argv) {
   // Parse CLI parameters using our config.
-  config cfg;
-  if (auto err = cfg.parse(argc, argv)) {
-    std::cerr << "*** error while reading config: " << to_string(err)
-              << std::endl;
+  parameters params;
+  config cfg{&params};
+  try {
+    cfg.init(argc, argv);
+  } catch (std::exception& ex) {
+    std::cerr << "*** error while reading config: " << ex.what() << '\n';
     return EXIT_FAILURE;
   }
-  if (cfg.cli_helptext_printed)
+  if (cfg.cli_helptext_printed) {
     return EXIT_SUCCESS;
-  config cfg_copy;
-  if (auto err = cfg_copy.parse(argc, argv)) {
-    std::cerr << "*** error while reading config: " << to_string(err)
-              << std::endl;
+  } else if (!cfg.remainder.empty()) {
+    std::cerr << "*** too many arguments\n\n";
     return EXIT_FAILURE;
   }
-  broker::endpoint ep{std::move(cfg_copy)};
+  broker::endpoint ep{std::move(cfg)};
   auto el = ep.system().spawn(event_listener);
   // Publish endpoint at demanded port.
-  if (cfg.local_port != 0)
-    ep.listen({}, cfg.local_port);
+  if (params.local_port != 0)
+    ep.listen({}, params.local_port);
   // Connect to the requested peers.
-  for (auto& p : cfg.peers) {
+  for (auto& p : params.peers) {
     std::vector<std::string> fields;
     caf::split(fields, p, ':');
     if (fields.size() != 2) {
@@ -323,8 +331,8 @@ int main(int argc, char** argv) {
     {"subscribe", "stream"},
   };
   auto b = std::begin(as);
-  auto i = std::find(b, std::end(as), std::make_pair(cfg.mode, cfg.impl));
+  auto i = std::find(b, std::end(as), std::make_pair(params.mode, params.impl));
   auto f = fs[std::distance(b, i)];
-  f(ep, cfg.topic, cfg.message_cap);
+  f(ep, params.topic, params.message_cap);
   anon_send_exit(el, caf::exit_reason::user_shutdown);
 }
