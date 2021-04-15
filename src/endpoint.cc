@@ -17,6 +17,7 @@
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/detail/telemetry_scraper.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
@@ -198,6 +199,12 @@ endpoint::endpoint(configuration config)
     core_ = system_.spawn<core_actor_type>(filter_type{}, opts, clock_);
   } else {
     detail::die("SSL is enabled but CAF OpenSSL manager is not available");
+  }
+  // Spin up scraper if configured.
+  if (auto str = caf::get_as<std::string>(config_, "broker.metrics-topic");
+      str && !str->empty()) {
+    BROKER_INFO("publish metrics on topic" << str);
+    system_.spawn<detail::telemetry_scraper_actor>(core_, std::move(*str));
   }
 }
 

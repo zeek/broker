@@ -87,6 +87,16 @@ configuration::configuration(skip_init_t) {
     .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
     .add<std::string>("recording-directory",
                       "path for storing recorded meta information")
+    .add<std::string>(
+      "metrics-topic",
+      "if set, Broker publishes its metrics periodically on the given topic")
+    .add<std::vector<std::string>>(
+      "metrics-publish-filter",
+      "if setting a metrics-topic, this filter selects metrics prefixes to "
+      "publish on the topic")
+    .add<caf::timespan>("metrics-publish-interval",
+                        "if setting a metrics-topic, this timespan configures "
+                        "the interval between publishing metrics on the topic")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages")
     .add<size_t>("max-pending-inputs-per-source",
@@ -174,6 +184,34 @@ void configuration::init(int argc, char** argv) {
     put(content, "caf.middleman.prometheus-http.port", port);
     put(content, "caf.metrics-filters.actors.includes",
         std::vector<std::string>{core_state::name});
+  }
+  if (auto env = getenv("BROKER_METRICS_TOPIC")) {
+    set("broker.metrics-topic", env);
+  }
+  if (auto env = getenv("BROKER_METRICS_PUBLISH_INTERVAL")) {
+    auto val = caf::config_value{env};
+    if (auto ts_val = caf::get_as<caf::timespan>(val)) {
+      set("broker.metrics-publish-interval", *ts_val);
+    } else {
+      throw std::invalid_argument(
+        "BROKER_METRICS_PUBLISH_INTERVAL: invalid syntax");
+    }
+  }
+  if (auto env = getenv("BROKER_METRICS_PUBLISH_FILTER")) {
+    auto trim = [](std::string& x) {
+      auto predicate = [](int ch) { return !std::isspace(ch); };
+      x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
+      x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
+    };
+    auto is_empty = [](const std::string& x) { return x.empty(); };
+    std::vector<std::string> filter;
+    caf::split(filter, caf::string_view{env, strlen(env)}, ',',
+               caf::token_compress_on);
+    std::for_each(filter.begin(), filter.end(), trim);
+    filter.erase(std::remove_if(filter.begin(), filter.end(), is_empty),
+                 filter.end());
+    if (!filter.empty())
+      set("broker.metrics-publish-filter", std::move(filter));
   }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
