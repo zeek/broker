@@ -3,6 +3,7 @@ find_package(benchmark REQUIRED)
 add_executable(micro-benchmark
   "src/main.cc"
   "src/routing-table.cc"
+  "src/serialization.cc"
 )
 
 target_include_directories(micro-benchmark PRIVATE "include")
