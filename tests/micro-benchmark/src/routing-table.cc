@@ -1,6 +1,5 @@
 #include "broker/alm/multipath.hh"
 #include "broker/alm/routing_table.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint.hh"
 
 #include <benchmark/benchmark.h>
