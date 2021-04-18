@@ -4,6 +4,7 @@ add_executable(micro-benchmark
   "src/main.cc"
   "src/routing-table.cc"
   "src/serialization.cc"
+  "src/streaming.cc"
 )
 
 target_include_directories(micro-benchmark PRIVATE "include")
