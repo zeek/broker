@@ -206,8 +206,8 @@ caf::settings configuration::dump_content() const {
     put_missing(grp, "recording-directory", *path);
   if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
     put_missing(grp, "output-generator-file-cap", *cap);
-  namespace pb = broker::defaults::path_blacklist;
-  auto& sub_grp = grp["path-blacklist"].as_dictionary();
+  namespace pb = broker::defaults::path_revocations;
+  auto& sub_grp = grp["path-revocations"].as_dictionary();
   put_missing(sub_grp, "aging-interval", pb::aging_interval);
   put_missing(sub_grp, "max-age", pb::max_age);
   return result;

@@ -87,8 +87,8 @@ public:
 
   // -- nested types -----------------------------------------------------------
 
-  struct blacklist_type {
-    alm::blacklist<endpoint_id> entries;
+  struct revocations_type {
+    alm::revocations<endpoint_id> entries;
 
     caf::timespan aging_interval;
 
@@ -164,8 +164,8 @@ public:
     return result;
   }
 
-  auto& blacklist() const noexcept {
-    return blacklist_;
+  auto& revocations() const noexcept {
+    return revocations_;
   }
 
   bool disable_forwarding() const noexcept {
@@ -221,15 +221,15 @@ public:
   void flood_path_revocation(const endpoint_id& lost_peer);
 
   /// Checks whether a path and its associated vector timestamp are non-empty,
-  /// loop-free and not blacklisted.
+  /// loop-free and not revoked.
   bool valid(endpoint_id_list& path, vector_timestamp path_ts);
 
-  /// Removes all entries from the blacklist that exceeded their maximum age.
+  /// Removes all entries from the revocations that exceeded their maximum age.
   /// The purpose of this function is to clean up state periodically to avoid
-  /// unbound growth of the blacklist. Calling it at fixed intervals is not
+  /// unbound growth of the revocations. Calling it at fixed intervals is not
   /// required. Triggering aging on peer messages suffices, since only peer
-  /// messages can grow the blacklist in the first place.
-  void age_blacklist();
+  /// messages can grow the revocations in the first place.
+  void age_revocations();
 
   /// Adds the reverse `path` to the routing table and stores the subscription
   /// if it is new.
@@ -380,7 +380,7 @@ protected:
   std::unordered_map<endpoint_id, filter_type> peer_filters_;
 
   /// Stores revoked paths.
-  blacklist_type blacklist_;
+  revocations_type revocations_;
 
   /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
   /// node to other peers.

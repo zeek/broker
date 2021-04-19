@@ -37,10 +37,10 @@ extern const caf::timespan await_idle_timeout;
 
 } // namespace broker::defaults::store
 
-namespace broker::defaults::path_blacklist {
+namespace broker::defaults::path_revocations {
 
 extern const caf::timespan aging_interval;
 
 extern const caf::timespan max_age;
 
-} // namespace broker::defaults::path_blacklist
+} // namespace broker::defaults::path_revocations

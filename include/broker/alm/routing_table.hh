@@ -225,7 +225,7 @@ bool add_or_update_path(routing_table& tbl, const endpoint_id& peer,
 /// A 3-tuple for storing a revoked path between two peers with the logical time
 /// when the connection was severed.
 template <class PeerId>
-struct blacklist_entry {
+struct revocation {
   /// The source of the event.
   PeerId revoker;
 
@@ -235,50 +235,50 @@ struct blacklist_entry {
   /// The disconnected hop.
   PeerId hop;
 
-  /// Time when this blacklist entry got created.
+  /// Time when this revocations entry got created.
   caf::actor_clock::time_point first_seen;
 };
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class PeerId>
-bool operator==(const blacklist_entry<PeerId>& x,
-                const blacklist_entry<PeerId>& y) noexcept {
+bool operator==(const revocation<PeerId>& x,
+                const revocation<PeerId>& y) noexcept {
   return std::tie(x.revoker, x.ts, x.hop) == std::tie(y.revoker, y.ts, y.hop);
 }
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class PeerId>
-bool operator!=(const blacklist_entry<PeerId>& x,
-                const blacklist_entry<PeerId>& y) noexcept {
+bool operator!=(const revocation<PeerId>& x,
+                const revocation<PeerId>& y) noexcept {
   return !(x == y);
 }
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class PeerId>
-bool operator<(const blacklist_entry<PeerId>& x,
-               const blacklist_entry<PeerId>& y) noexcept {
+bool operator<(const revocation<PeerId>& x,
+               const revocation<PeerId>& y) noexcept {
   return std::tie(x.revoker, x.ts, x.hop) < std::tie(y.revoker, y.ts, y.hop);
 }
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class PeerId, class Revoker, class Timestamp, class Hop>
-bool operator<(const blacklist_entry<PeerId>& x,
+bool operator<(const revocation<PeerId>& x,
                const std::tuple<Revoker, Timestamp, Hop>& y) noexcept {
   return std::tie(x.revoker, x.ts, x.hop) < y;
 }
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class PeerId, class Revoker, class Timestamp, class Hop>
 bool operator<(const std::tuple<Revoker, Timestamp, Hop>& x,
-               const blacklist_entry<PeerId>& y) noexcept {
+               const revocation<PeerId>& y) noexcept {
   return x < std::tie(y.revoker, y.ts, y.hop);
 }
 
-/// @relates blacklist_entry
+/// @relates revocation
 template <class Inspector, class Id>
-typename Inspector::result_type inspect(Inspector& f, blacklist_entry<Id>& x) {
+typename Inspector::result_type inspect(Inspector& f, revocation<Id>& x) {
   return f.object(x)
-    .pretty_name("blacklist_entry")
+    .pretty_name("revocation")
     .fields(f.field("revoker", x.revoker), f.field("ts", x.ts),
             f.field("hop", x.hop));
 }
@@ -286,17 +286,17 @@ typename Inspector::result_type inspect(Inspector& f, blacklist_entry<Id>& x) {
 /// A container for storing path revocations, sorted by `revoker` then `ts` then
 /// `hop`.
 template <class PeerId>
-using blacklist = std::vector<blacklist_entry<PeerId>>;
+using revocations = std::vector<revocation<PeerId>>;
 
-/// Inserts a new entry into the sorted blacklist constructed in-place with the
-/// given args if this entry does not exist yet.
+/// Inserts a new entry into the sorted list of revocations, constructed
+/// in-place with the given args if this entry does not exist yet.
 template <class PeerId, class Self, class Revoker, class Hop>
-auto emplace(blacklist<PeerId>& lst, Self* self, Revoker&& revoker,
+auto emplace(revocations<PeerId>& lst, Self* self, Revoker&& revoker,
              lamport_timestamp ts, Hop&& hop) {
   auto i = std::lower_bound(lst.begin(), lst.end(), std::tie(revoker, ts, hop));
   if (i == lst.end() || i->revoker != revoker || i->ts != ts || i->hop != hop) {
-    blacklist_entry<PeerId> entry{std::forward<Revoker>(revoker), ts,
-                                  std::forward<Hop>(hop), self->clock().now()};
+    revocation<PeerId> entry{std::forward<Revoker>(revoker), ts,
+                             std::forward<Hop>(hop), self->clock().now()};
     auto j = lst.emplace(i, std::move(entry));
     return std::make_pair(j, true);
   }
@@ -304,7 +304,7 @@ auto emplace(blacklist<PeerId>& lst, Self* self, Revoker&& revoker,
 }
 
 template <class PeerId, class Revoker>
-auto equal_range(blacklist<PeerId>& lst, const Revoker& revoker) {
+auto equal_range(revocations<PeerId>& lst, const Revoker& revoker) {
   auto key_less = [](const auto& x, const auto& y) {
     if constexpr (std::is_same<std::decay_t<decltype(y)>, Revoker>::value)
       return x.revoker < y;
@@ -320,9 +320,8 @@ auto equal_range(blacklist<PeerId>& lst, const Revoker& revoker) {
 /// Checks whether `path` routes through either `revoker -> hop` or
 /// `hop -> revoker` with a timestamp <= `revoke_time`.
 template <class PeerId>
-bool blacklisted(const std::vector<PeerId>& path,
-                 const vector_timestamp& path_ts, const PeerId& revoker,
-                 lamport_timestamp ts, const PeerId& hop) {
+bool revoked(const std::vector<PeerId>& path, const vector_timestamp& path_ts,
+             const PeerId& revoker, lamport_timestamp ts, const PeerId& hop) {
   BROKER_ASSERT(path.size() == path_ts.size());
   // Short-circuit trivial cases.
   if (path.size() <= 1)
@@ -340,27 +339,26 @@ bool blacklisted(const std::vector<PeerId>& path,
   return false;
 }
 
-/// @copydoc blacklisted
+/// @copydoc revoked
 template <class PeerId>
-bool blacklisted(const std::vector<PeerId>& path, const vector_timestamp& ts,
-                 const blacklist_entry<PeerId>& entry) {
-  return blacklisted(path, ts, entry.revoker, entry.ts, entry.hop);
+bool revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
+             const revocation<PeerId>& entry) {
+  return revoked(path, ts, entry.revoker, entry.ts, entry.hop);
 }
 
-/// Checks whether `path` is blacklisted by any entry in `entries`.
+/// Checks whether `path` is revoked by any entry in `entries`.
 template <class PeerId, class Container>
 std::enable_if_t<
-  std::is_same<typename Container::value_type, blacklist_entry<PeerId>>::value,
-  bool>
-blacklisted(const std::vector<PeerId>& path, const vector_timestamp& ts,
-            const Container& entries) {
+  std::is_same<typename Container::value_type, revocation<PeerId>>::value, bool>
+revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
+        const Container& entries) {
   for (const auto& entry : entries)
-    if (blacklisted(path, ts, entry))
+    if (revoked(path, ts, entry))
       return true;
   return false;
 }
 
-/// Removes all entries form `tbl` where `blacklisted` returns true for given
+/// Removes all entries form `tbl` where `revoked` returns true for given
 /// arguments.
 template <class OnRemovePeer>
 void revoke(routing_table& tbl, const endpoint_id& revoker,
@@ -369,7 +367,7 @@ void revoke(routing_table& tbl, const endpoint_id& revoker,
   auto i = tbl.begin();
   while (i != tbl.end()) {
     detail::erase_if(i->second.versioned_paths, [&](auto& kvp) {
-      return blacklisted(kvp.first, kvp.second, revoker, revoke_time, hop);
+      return revoked(kvp.first, kvp.second, revoker, revoke_time, hop);
     });
     if (i->second.versioned_paths.empty()) {
       callback(i->first);
@@ -382,7 +380,7 @@ void revoke(routing_table& tbl, const endpoint_id& revoker,
 
 /// @copydoc revoke
 template <class OnRemovePeer>
-void revoke(routing_table& tbl, const blacklist_entry<endpoint_id>& entry,
+void revoke(routing_table& tbl, const revocation<endpoint_id>& entry,
             OnRemovePeer callback) {
   return revoke(tbl, entry.revoker, entry.ts, entry.hop, callback);
 }

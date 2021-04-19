@@ -111,40 +111,40 @@ TEST(erase_direct drops the direct path but peers can remain reachable) {
   }
 }
 
-TEST(blacklisted scans pahts for revoked paths){
-  using alm::blacklisted;
+TEST(peers may revoke paths) {
+  using alm::revoked;
   auto path = ls(A, B, C, D);
   auto ts = alm::vector_timestamp{{2_lt, 2_lt, 2_lt, 2_lt}};
-  MESSAGE("blacklist entries for X -> Y with timestamp 3 (newer) hit");
+  MESSAGE("revocations entries for X -> Y with timestamp 3 (newer) hit");
   {
-    CHECK(blacklisted(path, ts, A, 3_lt, B));
-    CHECK(blacklisted(path, ts, B, 3_lt, A));
-    CHECK(blacklisted(path, ts, B, 3_lt, C));
-    CHECK(blacklisted(path, ts, C, 3_lt, B));
-    CHECK(blacklisted(path, ts, C, 3_lt, D));
-    CHECK(blacklisted(path, ts, D, 3_lt, C));
+    CHECK(revoked(path, ts, A, 3_lt, B));
+    CHECK(revoked(path, ts, B, 3_lt, A));
+    CHECK(revoked(path, ts, B, 3_lt, C));
+    CHECK(revoked(path, ts, C, 3_lt, B));
+    CHECK(revoked(path, ts, C, 3_lt, D));
+    CHECK(revoked(path, ts, D, 3_lt, C));
   }
-  MESSAGE("blacklist entries for X -> Y with timestamp 2 (same) hit");
+  MESSAGE("revocations entries for X -> Y with timestamp 2 (same) hit");
   {
-    CHECK(blacklisted(path, ts, A, 2_lt, B));
-    CHECK(blacklisted(path, ts, B, 2_lt, A));
-    CHECK(blacklisted(path, ts, B, 2_lt, C));
-    CHECK(blacklisted(path, ts, C, 2_lt, B));
-    CHECK(blacklisted(path, ts, C, 2_lt, D));
-    CHECK(blacklisted(path, ts, D, 2_lt, C));
+    CHECK(revoked(path, ts, A, 2_lt, B));
+    CHECK(revoked(path, ts, B, 2_lt, A));
+    CHECK(revoked(path, ts, B, 2_lt, C));
+    CHECK(revoked(path, ts, C, 2_lt, B));
+    CHECK(revoked(path, ts, C, 2_lt, D));
+    CHECK(revoked(path, ts, D, 2_lt, C));
   }
-  MESSAGE("blacklist entries for X -> Y with timestamp 1 (oder) do not hit");
+  MESSAGE("revocations entries for X -> Y with timestamp 1 (oder) do not hit");
   {
-    CHECK(not blacklisted(path, ts, A, 1_lt, B));
-    CHECK(not blacklisted(path, ts, B, 1_lt, A));
-    CHECK(not blacklisted(path, ts, B, 1_lt, C));
-    CHECK(not blacklisted(path, ts, C, 1_lt, B));
-    CHECK(not blacklisted(path, ts, C, 1_lt, D));
-    CHECK(not blacklisted(path, ts, D, 1_lt, C));
+    CHECK(not revoked(path, ts, A, 1_lt, B));
+    CHECK(not revoked(path, ts, B, 1_lt, A));
+    CHECK(not revoked(path, ts, B, 1_lt, C));
+    CHECK(not revoked(path, ts, C, 1_lt, B));
+    CHECK(not revoked(path, ts, C, 1_lt, D));
+    CHECK(not revoked(path, ts, D, 1_lt, C));
   }
 }
 
-TEST(blacklisting removes revokes paths) {
+TEST(revocationsing removes revokes paths) {
   MESSAGE("before revoking B -> D, we reach D in two hops");
   {
     auto path = shortest_path(tbl, D);
@@ -169,7 +169,7 @@ TEST(blacklisting removes revokes paths) {
   }
 }
 
-TEST(blacklisting does not affect newer paths) {
+TEST(revocationsing does not affect newer paths) {
   MESSAGE("set all timestamps to 3");
   {
     for (auto& row : tbl)
@@ -187,9 +187,9 @@ TEST(blacklisting does not affect newer paths) {
   }
 }
 
-TEST(inseting into blacklists creates a sorted list) {
-  using blacklist = alm::blacklist<endpoint_id>;
-  blacklist lst;
+TEST(inseting into revocationss creates a sorted list) {
+  using revocations = alm::revocations<endpoint_id>;
+  revocations lst;
   struct dummy_self {
     auto clock() {
       struct dummy_clock {
@@ -205,8 +205,8 @@ TEST(inseting into blacklists creates a sorted list) {
     dummy_self self;
     return alm::emplace(lst, &self, revoker, rtime, hop);
   };
-  auto to_blacklist = [](auto range) {
-    return blacklist(range.first, range.second);
+  auto to_revocations = [](auto range) {
+    return revocations(range.first, range.second);
   };
   MESSAGE("filling the list with new entries inserts");
   CHECK(emplace(A, 1_lt, B).second);
@@ -219,18 +219,18 @@ TEST(inseting into blacklists creates a sorted list) {
   CHECK(not emplace(A, 1_lt, B).second);
   CHECK(not emplace(B, 7_lt, A).second);
   MESSAGE("the final list is sorted on revoker, ts, hop");
-  CHECK_EQUAL(lst, blacklist({{A, 1_lt, B},
+  CHECK_EQUAL(lst, revocations({{A, 1_lt, B},
                               {A, 2_lt, C},
                               {A, 3_lt, B},
                               {B, 7_lt, A},
                               {C, 1_lt, A},
                               {C, 2_lt, A}}));
   MESSAGE("equal_range allows access to subranges by revoker");
-  CHECK_EQUAL(to_blacklist(equal_range(lst, A)),
-              blacklist({{A, 1_lt, B}, {A, 2_lt, C}, {A, 3_lt, B}}));
-  CHECK_EQUAL(to_blacklist(equal_range(lst, B)), blacklist({{B, 7_lt, A}}));
-  CHECK_EQUAL(to_blacklist(equal_range(lst, C)),
-              blacklist({{C, 1_lt, A}, {C, 2_lt, A}}));
+  CHECK_EQUAL(to_revocations(equal_range(lst, A)),
+              revocations({{A, 1_lt, B}, {A, 2_lt, C}, {A, 3_lt, B}}));
+  CHECK_EQUAL(to_revocations(equal_range(lst, B)), revocations({{B, 7_lt, A}}));
+  CHECK_EQUAL(to_revocations(equal_range(lst, C)),
+              revocations({{C, 1_lt, A}, {C, 2_lt, A}}));
 }
 
 FIXTURE_SCOPE_END()

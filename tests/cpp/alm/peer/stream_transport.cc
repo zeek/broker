@@ -88,15 +88,15 @@ TEST(peers can revoke paths) {
   CHECK_EQUAL(shortest_path(B, E), endpoint_id_list({D, I, E}));
   CHECK_EQUAL(shortest_path(D, E), endpoint_id_list({I, E}));
   MESSAGE("B and E both revoked the path");
-  CHECK_EQUAL(get(A).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(B).blacklist().entries.size(), 1u);
-  CHECK_EQUAL(get(C).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(D).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(E).blacklist().entries.size(), 1u);
-  CHECK_EQUAL(get(F).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(H).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(I).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(J).blacklist().entries.size(), 2u);
+  CHECK_EQUAL(get(A).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(B).revocations().entries.size(), 1u);
+  CHECK_EQUAL(get(C).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(D).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(E).revocations().entries.size(), 1u);
+  CHECK_EQUAL(get(F).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(H).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(I).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(J).revocations().entries.size(), 2u);
   MESSAGE("after I loses its connection to E, no paths to E remain");
   anon_send(peers["I"], atom::unpeer_v, peers["E"]);
   run(tick_interval);
@@ -109,28 +109,28 @@ TEST(peers can revoke paths) {
   CHECK_UNREACHABLE(H, E);
   CHECK_UNREACHABLE(I, E);
   CHECK_UNREACHABLE(J, E);
-  MESSAGE("blacklists contain one additional entry after I <-> E revocation");
+  MESSAGE("revocationss contain one additional entry after I <-> E revocation");
   // Note: we skip E on purpose here.
-  CHECK_EQUAL(get(A).blacklist().entries.size(), 3u);
-  CHECK_EQUAL(get(B).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(C).blacklist().entries.size(), 3u);
-  CHECK_EQUAL(get(D).blacklist().entries.size(), 3u);
-  CHECK_EQUAL(get(F).blacklist().entries.size(), 3u);
-  CHECK_EQUAL(get(H).blacklist().entries.size(), 3u);
-  CHECK_EQUAL(get(I).blacklist().entries.size(), 2u);
-  CHECK_EQUAL(get(J).blacklist().entries.size(), 3u);
-  MESSAGE("after max-age has expired, all peers clear their blacklist");
-  sched.clock().current_time += defaults::path_blacklist::max_age;
+  CHECK_EQUAL(get(A).revocations().entries.size(), 3u);
+  CHECK_EQUAL(get(B).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(C).revocations().entries.size(), 3u);
+  CHECK_EQUAL(get(D).revocations().entries.size(), 3u);
+  CHECK_EQUAL(get(F).revocations().entries.size(), 3u);
+  CHECK_EQUAL(get(H).revocations().entries.size(), 3u);
+  CHECK_EQUAL(get(I).revocations().entries.size(), 2u);
+  CHECK_EQUAL(get(J).revocations().entries.size(), 3u);
+  MESSAGE("after max-age has expired, all peers clear their revocations");
+  sched.clock().current_time += defaults::path_revocations::max_age;
   for (auto& id : {A, B, C, D, F, H, I, J})
-    get(id).age_blacklist();
-  CHECK_EQUAL(get(A).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(B).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(C).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(D).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(F).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(H).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(I).blacklist().entries.size(), 0u);
-  CHECK_EQUAL(get(J).blacklist().entries.size(), 0u);
+    get(id).age_revocations();
+  CHECK_EQUAL(get(A).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(B).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(C).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(D).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(F).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(H).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(I).revocations().entries.size(), 0u);
+  CHECK_EQUAL(get(J).revocations().entries.size(), 0u);
 }
 
 TEST(only receivers forward messages locally) {

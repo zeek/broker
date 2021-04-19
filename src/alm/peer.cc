@@ -5,19 +5,19 @@ namespace broker::alm {
 // -- constructors, destructors, and assignment operators ----------------------
 
 peer::peer(caf::event_based_actor* selfptr) : self_(selfptr) {
-  blacklist_.aging_interval = defaults::path_blacklist::aging_interval;
-  blacklist_.max_age = defaults::path_blacklist::max_age;
-  blacklist_.next_aging_cycle = caf::actor_clock::time_point{};
+  revocations_.aging_interval = defaults::path_revocations::aging_interval;
+  revocations_.max_age = defaults::path_revocations::max_age;
+  revocations_.next_aging_cycle = caf::actor_clock::time_point{};
   using caf::get_or;
   auto& cfg = selfptr->system().config();
   disable_forwarding_ = get_or(cfg, "broker.disable-forwarding", false);
-  namespace pb = broker::defaults::path_blacklist;
-  blacklist_.aging_interval
-    = get_or(cfg, "broker.path-blacklist.aging-interval", pb::aging_interval);
-  blacklist_.max_age
-    = get_or(cfg, "broker.path-blacklist.max-age", pb::max_age);
-  blacklist_.next_aging_cycle
-    = selfptr->clock().now() + blacklist_.aging_interval;
+  namespace pb = broker::defaults::path_revocations;
+  revocations_.aging_interval
+    = get_or(cfg, "broker.path-revocations.aging-interval", pb::aging_interval);
+  revocations_.max_age
+    = get_or(cfg, "broker.path-revocations.max-age", pb::max_age);
+  revocations_.next_aging_cycle
+    = selfptr->clock().now() + revocations_.aging_interval;
 }
 
 peer::~peer() {
@@ -141,27 +141,27 @@ bool peer::valid(endpoint_id_list& path, vector_timestamp path_ts) {
     BROKER_DEBUG("drop message: path contains a loop");
     return false;
   }
-  // Drop all messages that arrive after blacklisting a path.
-  if (blacklisted(path, path_ts, blacklist_.entries)) {
-    BROKER_DEBUG("drop message from a blacklisted path");
+  // Drop all messages that arrive after revocationsing a path.
+  if (revoked(path, path_ts, revocations_.entries)) {
+    BROKER_DEBUG("drop message from a revoked path");
     return false;
   }
   return true;
 }
 
-void peer::age_blacklist() {
-  if (blacklist_.entries.empty())
+void peer::age_revocations() {
+  if (revocations_.entries.empty())
     return;
   auto now = self()->clock().now();
-  if (now < blacklist_.next_aging_cycle)
+  if (now < revocations_.next_aging_cycle)
     return;
   auto predicate = [this, now](const auto& entry) {
-    return entry.first_seen + blacklist_.max_age <= now;
+    return entry.first_seen + revocations_.max_age <= now;
   };
-  auto& entries = blacklist_.entries;
+  auto& entries = revocations_.entries;
   entries.erase(std::remove_if(entries.begin(), entries.end(), predicate),
                 entries.end());
-  blacklist_.next_aging_cycle = now + blacklist_.aging_interval;
+  revocations_.next_aging_cycle = now + revocations_.aging_interval;
 }
 
 std::pair<endpoint_id_list, bool>
@@ -205,7 +205,7 @@ void peer::handle_filter_update(endpoint_id_list& path,
                                 vector_timestamp& path_ts,
                                 const filter_type& filter) {
   BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts) << BROKER_ARG(filter));
-  // Handle message content (drop nonsense messages and blacklisted paths).
+  // Handle message content (drop nonsense messages and revoked paths).
   if (!valid(path, path_ts))
     return;
   auto new_peers = std::move(handle_update(path, path_ts, filter).first);
@@ -229,7 +229,7 @@ void peer::handle_filter_update(endpoint_id_list& path,
     flood_subscriptions();
   }
   // Clean up some state if possible.
-  age_blacklist();
+  age_revocations();
 }
 
 void peer::handle_path_revocation(endpoint_id_list& path,
@@ -246,7 +246,7 @@ void peer::handle_path_revocation(endpoint_id_list& path,
   auto&& [new_peers, increased_time] = handle_update(path, path_ts, filter);
   // Handle the recovation part of the message.
   auto [i, added]
-    = emplace(blacklist_.entries, self_, path[0], path_ts[0], revoked_hop);
+    = emplace(revocations_.entries, self_, path[0], path_ts[0], revoked_hop);
   if (added) {
     if (!increased_time)
       ++timestamp_;
@@ -273,7 +273,7 @@ void peer::handle_path_revocation(endpoint_id_list& path,
     flood_subscriptions();
   }
   // Clean up some state if possible.
-  age_blacklist();
+  age_revocations();
 }
 
 // -- interface to the transport -----------------------------------------------
