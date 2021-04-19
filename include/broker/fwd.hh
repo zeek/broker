@@ -117,8 +117,7 @@ using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
 using endpoint_id_list = std::vector<endpoint_id>;
 using node_message_content = caf::variant<data_message, command_message>;
-using node_message = caf::cow_tuple<node_message_content, alm::multipath,
-                                    std::vector<endpoint_id>>;
+using node_message = caf::cow_tuple<node_message_content, alm::multipath>;
 
 } // namespace broker
 

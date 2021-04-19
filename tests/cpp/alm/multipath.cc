@@ -19,11 +19,11 @@ namespace {
 
 struct fixture : base_fixture {
   void stringify(const multipath& path, std::string& result) {
-    if (!path.head()) {
+    if (!path.head().id()) {
       result += "()";
     } else {
       result += '(';
-      result += id_by_value(path.head());
+      result += id_by_value(path.head().id());
       if (path.num_nodes() > 0) {
         result += ", [";
         path.for_each_node([this, &result, first{true}](const auto& n) mutable {
@@ -74,7 +74,7 @@ FIXTURE_SCOPE(multipath_tests, fixture)
 
 TEST(multipaths are default constructible) {
   multipath p;
-  CHECK(!p.head());
+  CHECK(!p.head().id());
   CHECK_EQUAL(p.num_nodes(), 0u);
   CHECK_EQUAL(stringify(p), "()");
 }
@@ -82,11 +82,11 @@ TEST(multipaths are default constructible) {
 TEST(multipath trees grow with emplace) {
   make_tree('A');
   auto ac = emplace('C').first;
-  CHECK_EQUAL(ac->head(), ids['C']);
+  CHECK_EQUAL(ac->head().id(), ids['C']);
   emplace(ac, 'D');
   emplace(ac, 'E');
   auto ab = emplace('B').first;
-  CHECK_EQUAL(ab->head(), ids['B']);
+  CHECK_EQUAL(ab->head().id(), ids['B']);
   emplace(ab, 'F');
   emplace(ab, 'G');
   std::string buf;

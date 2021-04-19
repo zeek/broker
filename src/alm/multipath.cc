@@ -139,21 +139,13 @@ multipath::multipath(const tree_ptr& t, multipath_node* h)
   // nop
 }
 
-bool multipath::equals(const multipath& other) const noexcept {
-  return head_->equals(*other.head_);
-}
-
-bool multipath::contains(const endpoint_id& id) const noexcept {
-  return head_->contains(id);
-}
-
 void multipath::generate(const std::vector<endpoint_id>& receivers,
                          const routing_table& tbl,
                          std::vector<multipath>& routes,
                          std::vector<endpoint_id>& unreachables) {
   auto route = [&](const endpoint_id& id) -> auto& {
     for (auto& mpath : routes)
-      if (mpath.head() == id)
+      if (mpath.head().id() == id)
         return mpath;
     routes.emplace_back(id);
     return routes.back();
@@ -169,19 +161,14 @@ void multipath::generate(const std::vector<endpoint_id>& receivers,
   }
 }
 
-bool multipath::splice(const std::vector<endpoint_id>& path) {
-  auto first = path.begin();
-  auto last = path.end();
-  if (first == last)
-    return true;
-  if (*first != head())
-    return false;
-  if (++first != last) {
-    auto child = head_->down_.emplace(tree_->mem, *first).first;
-    for (++first; first != last; ++first)
-      child = child->down_.emplace(tree_->mem, *first).first;
+void multipath::splice(const std::vector<endpoint_id>& path) {
+  BROKER_ASSERT(path.empty() || path[0] == head().id());
+  if (!path.empty()) {
+    auto child = head_;
+    for (auto i = path.begin() + 1; i != path.end(); ++i)
+      child = child->down_.emplace(tree_->mem, *i).first;
+    child->is_receiver_ = true;
   }
-  return true;
 }
 
 } // namespace broker::alm

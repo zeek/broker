@@ -81,8 +81,8 @@ public:
       std::vector<endpoint_id> unreachables;
       multipath::generate(receivers, tbl_, paths, unreachables);
       for (auto&& path : paths) {
-        auto wrapped = node_message{msg, std::move(path), receivers};
-        if (auto row = find_row(tbl_, get_path(wrapped).head()))
+        auto wrapped = node_message{msg, std::move(path)};
+        if (auto row = find_row(tbl_, get_path(wrapped).head().id()))
           self()->send(row->hdl, atom::publish_v, std::move(wrapped));
         else
           BROKER_WARNING("cannot ship message: no path");
@@ -102,32 +102,20 @@ public:
   }
 
   void dispatch(node_message&& msg) override {
-    auto& [content, path, receivers] = msg.unshared();
-    if (receivers.empty()) {
-      BROKER_WARNING("received a node message with no receivers");
-      return;
-    }
-    auto predicate = [this](const endpoint_id& nid) { return nid == id_; };
-    if (auto i = std::remove_if(receivers.begin(), receivers.end(), predicate);
-        i != receivers.end()) {
-      receivers.erase(i, receivers.end());
-      publish_locally(content);
-    }
-    // Forward to remaining receivers.
-    if (!receivers.empty()) {
-      std::vector<multipath> paths;
-      std::vector<endpoint_id> unreachables;
-      multipath::generate(receivers, tbl_, paths, unreachables);
-      for (auto&& path : paths) {
-        auto wrapped = node_message{content, std::move(path), receivers};
-        if (auto row = find_row(tbl_, get_path(wrapped).head()))
-          self()->send(row->hdl, atom::publish_v, std::move(wrapped));
+    auto& [content, path] = msg.unshared();
+    if (path.head().id() != id()) {
+      BROKER_WARNING("received a message for another node");
+    } else {
+      if (path.head().is_receiver())
+        publish_locally(content);
+      path.for_each_node([this, cptr{&content}](multipath&& nested) {
+        if (auto row = find_row(tbl_, nested.head().id()); row && row->hdl)
+          self()->send(row->hdl, atom::publish_v,
+                       make_node_message(*cptr, std::move(nested)));
         else
-          BROKER_WARNING("cannot ship message: no path");
-      }
-      if (!unreachables.empty())
-        BROKER_WARNING("cannot ship message: no path to any of"
-                       << unreachables);
+          BROKER_WARNING("cannot ship message: no direct connection to"
+                         << nested.head().id());
+      });
     }
   }
 
@@ -225,15 +213,28 @@ struct message_pattern {
   std::vector<endpoint_id> ps;
 };
 
+bool matches(const multipath& path, const std::vector<endpoint_id>& receivers) {
+  auto& head = path.head();
+  auto i = std::find(receivers.begin(), receivers.end(), head.id());
+  if (head.is_receiver() == (i != receivers.end())) {
+    auto result = true;
+    path.for_each_node([&result, &receivers](const multipath& nested) {
+      result &= matches(nested, receivers);
+    });
+    return result;
+  } else {
+    return false;
+  }
+}
+
 bool operator==(const message_pattern& x, const node_message& y) {
-  if (!is_data_message(y))
+  const auto& [content, path] = y.data();
+  if (!is_data_message(content)) {
     return false;
-  const auto& dm = get_data_message(y);
-  if (x.t != get_topic(dm))
-    return false;
-  if (x.d != get_data(dm))
-    return false;
-  return x.ps == get_receivers(y);
+  } else {
+    const auto& dm = get_data_message(content);
+    return x.t == get_topic(dm) && x.d == get_data(dm) && matches(path, x.ps);
+  }
 }
 
 bool operator==(const node_message& x, const message_pattern& y) {

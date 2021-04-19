@@ -165,8 +165,20 @@ public:
 
   ~multipath_node();
 
+  auto& head() noexcept {
+    return *this;
+  }
+
   const auto& head() const noexcept {
+    return *this;
+  }
+
+  const auto& id() const noexcept {
     return id_;
+  }
+
+  bool is_receiver() const noexcept {
+    return is_receiver_;
   }
 
   auto& nodes() noexcept {
@@ -197,13 +209,17 @@ private:
   bool save(Inspector& f) {
     // We are lying to the inspector about the type, because multipath_node and
     // multipath_group are internal implementation details.
-    return f.begin_object(caf::type_id_v<multipath>, "broker::alm::multipath")
-           && f.begin_field("head")  // <head>
-           && f.apply(id_)           //   <id>
-           && f.end_field()          // </head>
-           && f.begin_field("nodes") // <nodes>
-           && save_children(f)       //   [...]
-           && f.end_field()          // </nodes>
+    return f.begin_object(caf::type_id_v<multipath>,
+                          caf::type_name_v<multipath>)
+           && f.begin_field("id")          // <id>
+           && f.apply(id_)                 //   <value>
+           && f.end_field()                // </id>
+           && f.begin_field("is_receiver") // <is_receiver>
+           && f.apply(is_receiver_)        //   <value>
+           && f.end_field()                // </is_receiver>
+           && f.begin_field("nodes")       // <nodes>
+           && save_children(f)             //   [...]
+           && f.end_field()                // </nodes>
            && f.end_object();
   }
 
@@ -230,13 +246,17 @@ private:
 
   template <class Inspector>
   bool load(detail::monotonic_buffer_resource& mem, Inspector& f) {
-    return f.begin_object(caf::type_id_v<multipath>, "broker::alm::multipath")
-           && f.begin_field("head")  // <head>
-           && f.apply(id_)           //   <id>
-           && f.end_field()          // </head>
-           && f.begin_field("nodes") // <nodes>
-           && load_children(mem, f)  //   [...]
-           && f.end_field()          // </nodes>
+    return f.begin_object(caf::type_id_v<multipath>,
+                          caf::type_name_v<multipath>)
+           && f.begin_field("id")          // <id>
+           && f.apply(id_)                 //   <value>
+           && f.end_field()                // </id>
+           && f.begin_field("is_receiver") // <is_receiver>
+           && f.apply(is_receiver_)        //   <value>
+           && f.end_field()                // </is_receiver>
+           && f.begin_field("nodes")       // <nodes>
+           && load_children(mem, f)        //   [...]
+           && f.end_field()                // </nodes>
            && f.end_object();
   }
 
@@ -252,6 +272,7 @@ private:
   }
 
   endpoint_id id_;
+  bool is_receiver_ = false;
   multipath_node* right_ = nullptr;
   multipath_group down_;
 };
@@ -302,12 +323,16 @@ public:
   multipath& operator=(const multipath& other) = default;
 
   const auto& head() const noexcept {
-    return head_->id_;
+    return *head_;
   }
 
-  bool equals(const multipath& other) const noexcept;
+  bool equals(const multipath& other) const noexcept {
+    return head_->equals(*other.head_);
+  }
 
-  bool contains(const endpoint_id& id) const noexcept;
+  bool contains(const endpoint_id& id) const noexcept {
+    return head_->contains(id);
+  }
 
   size_t num_nodes() const noexcept {
     return head_->down_.size();
@@ -347,7 +372,10 @@ private:
     return head_->down_.emplace(tree_->mem, id);
   }
 
-  bool splice(const std::vector<endpoint_id>& path);
+  // Splices a linear path into this multipath. The last entry in the path is
+  // automatically tagged as a receiver.
+  // @pre `!path.empty() && path[0] == id()`
+  void splice(const std::vector<endpoint_id>& path);
 
   /// Provides storage for children.
   std::shared_ptr<multipath_tree> tree_;

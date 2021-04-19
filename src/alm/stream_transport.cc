@@ -363,28 +363,11 @@ void stream_transport::dispatch_impl(const T& msg) {
     std::vector<endpoint_id> unreachables;
     alm::multipath::generate(receivers, tbl_, paths, unreachables);
     for (auto&& path : paths) {
-      // Move receivers into the path-specific list.
-      endpoint_id_list msg_recs;
-      msg_recs.reserve(receivers.size());
-      for (auto i = receivers.begin(); i != receivers.end();) {
-        if (path.contains(*i)) {
-          msg_recs.emplace_back(std::move(*i));
-          i = receivers.erase(i);
-        } else {
-          ++i;
-        }
-      }
-      // Ship to the first hop.
-      if (!msg_recs.empty()) {
-        auto wrapped = node_message{msg, std::move(path), std::move(msg_recs)};
-        auto&& next_hop = get_path(wrapped).head();
-        if (auto ptr = peer_lookup(get_path(wrapped).head()))
-          ptr->enqueue(std::move(wrapped));
-        else
-          BROKER_WARNING("cannot ship message: no path to" << next_hop);
-      } else {
-        BROKER_ERROR("generate_paths produced a path without receivers!");
-      }
+      if (auto ptr = peer_lookup(path.head().id()))
+        ptr->enqueue(make_node_message(msg, std::move(path)));
+      else
+        BROKER_WARNING("cannot ship message: no direct path to"
+                       << path.head().id());
     }
     if (!unreachables.empty())
       BROKER_WARNING("cannot ship message: no path to any of" << unreachables);
@@ -408,32 +391,22 @@ void stream_transport::dispatch(node_message&& msg) {
   auto& tup = msg.unshared();
   auto& content = get<0>(tup);
   auto& path = get<1>(tup);
-  auto& receivers = get<2>(tup);
-  if (receivers.empty()) {
-    BROKER_WARNING("received a node message with no receivers");
-    return;
-  }
   // Push to local subscribers if the message is addressed at this node and this
   // node is on the list of receivers.
-  if (path.head() == id_) {
-    auto predicate = [this](const endpoint_id& nid) { return nid == id_; };
-    if (auto i = std::remove_if(receivers.begin(), receivers.end(), predicate);
-        i != receivers.end()) {
-      receivers.erase(i, receivers.end());
+  if (path.head().id() != id_) {
+      BROKER_WARNING("received a message for another node");
+  } else {
+    if (path.head().is_receiver())
       publish_locally(content);
-    }
     // Forward to all next hops.
-    path.for_each_node([&](multipath&& next) {
-      if (auto ptr = peer_lookup(next.head())) {
-        ptr->enqueue(node_message{content, std::move(next), receivers});
+    path.for_each_node([&](multipath&& nested) {
+      if (auto ptr = peer_lookup(nested.head().id())) {
+        ptr->enqueue(node_message{content, std::move(nested)});
       } else {
-        BROKER_DEBUG("cannot ship message: no path to" << next.head());
+        BROKER_WARNING("cannot ship message: no direct connection to"
+                       << nested.head().id());
       }
     });
-  } else if (auto ptr = peer_lookup(path.head())) {
-    ptr->enqueue(std::move(msg));
-  } else {
-    BROKER_DEBUG("cannot ship message: no path to" << path.head());
   }
 }
 

@@ -28,9 +28,7 @@ using command_channel = detail::channel<entity_id, command_message>;
 /// message or a broker-internal command messages.
 using node_message = caf::cow_tuple< // Fields:
   node_message_content,              // 0: content
-  alm::multipath,                    // 1: path
-  std::vector<endpoint_id>           // 2: receivers
-  >;
+  alm::multipath>;                   // 1: path
 
 /// Returns whether `x` contains a ::node_message.
 inline bool is_data_message(const node_message_content& x) {
@@ -66,10 +64,8 @@ command_message make_command_message(Topic&& t, Command&& d) {
 
 /// Generates a ::node_message.
 template <class Value>
-node_message make_node_message(Value&& value, alm::multipath path,
-                               std::vector<endpoint_id> receivers) {
-  return node_message{std::forward<Value>(value), std::move(path),
-                      std::move(receivers)};
+node_message make_node_message(Value&& value, alm::multipath path) {
+  return node_message{std::forward<Value>(value), std::move(path)};
 }
 
 /// Retrieves the topic from a ::data_message.
@@ -191,21 +187,6 @@ inline const auto& get_path(const node_message& x) {
 inline auto& get_unshared_path(node_message& x) {
   return get<1>(x.unshared());
 }
-
-/// Retrieves the receivers from a ::data_message.
-inline const auto& get_receivers(const node_message& x) {
-  return get<2>(x);
-}
-
-/// Get unshared access the receivers field of a ::node_message. Causes `x` to
-/// make a lazy copy of its content if other ::node_message objects hold
-/// references to it.
-inline auto& get_unshared_receivers(node_message& x) {
-  return get<2>(x.unshared());
-}
-
-/// Queries whether `get_receivers(msg)` contains @p ptr.
-bool addressed_to(const node_message& msg, const caf::strong_actor_ptr& ptr);
 
 /// Shortcut for `get<data_message>(get_content(x))`.
 /// @pre `is_data_message(x)`
