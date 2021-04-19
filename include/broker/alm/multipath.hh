@@ -325,25 +325,6 @@ public:
       return x.head_->load(x.tree_->mem, f);
     else
       return x.head_->save(f);
-    /*
-    if constexpr (Inspector::is_loading) {
-      multipath tmp;
-      auto nodes = tmp.nodes();
-      auto write_back = [&x, &tmp] {
-        x = std::move(tmp);
-        return true;
-      };
-      return f.object(tmp)
-        .pretty_name("multipath")
-        .on_load(write_back)
-        .fields(f.field("id", tmp.id_), f.field("nodes", nodes));
-    } else {
-      auto nodes = x.nodes();
-      return f.object(x)
-        .pretty_name("multipath")
-        .fields(f.field("id", x.id_), f.field("nodes", nodes));
-    }
-    */
   }
 
   friend std::string to_string(const alm::multipath& x) {
