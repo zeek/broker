@@ -46,7 +46,7 @@ public:
       dmsg[index] = make_data_message("/micro/benchmark",
                                       g.next_data(index + 1));
       to_bytes(dmsg[index], dmsg_buf[index]);
-      nmsg[index] = make_node_message(dmsg[index], alm::multipath{dst}, {dst});
+      nmsg[index] = make_node_message(dmsg[index], alm::multipath{dst});
       to_bytes(nmsg[index], nmsg_buf[index]);
       legacy_nmsg[index] = legacy_node_message{dmsg[index], 20};
       to_bytes(legacy_nmsg[index], legacy_nmsg_buf[index]);

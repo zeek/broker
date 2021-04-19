@@ -401,6 +401,7 @@ void run_streaming_benchmark() {
   cout << std::fixed << std::setprecision(6); // Microsecond resolution.
   generator g;
   auto nid = g.next_endpoint_id();
+  auto uid = g.next_uuid();
   print_header();
   // TODO: allow users to specify the index range. We currently only enable
   //       message type 1 since it's reasonably fast.
@@ -410,14 +411,17 @@ void run_streaming_benchmark() {
       return str;
     };
     auto dmsg = make_data_message("/micro/benchmark", g.next_data(index + 1));
-    auto nmsg = make_node_message(dmsg, alm::multipath{nid}, {nid});
+    auto nmsg = make_node_message(dmsg, alm::multipath{nid});
     auto lmsg = legacy_node_message{dmsg, 20};
+    auto umsg = uuid_node_message{dmsg, uuid_multipath{uid, true}};
     run_single_system(suffixed("/single-system/data-message/"), n, dmsg);
     run_single_system(suffixed("/single-system/node-message/"), n, nmsg);
     run_single_system(suffixed("/single-system/legacy-node-message/"), n, lmsg);
+    run_single_system(suffixed("/single-system/uuid-node-message/"), n, umsg);
     run_distributed(suffixed("/distributed/data-message/"), n, dmsg);
     run_distributed(suffixed("/distributed/node-message/"), n, nmsg);
     run_distributed(suffixed("/distributed/legacy-node-message/"), n, lmsg);
+    run_distributed(suffixed("/distributed/uuid-node-message/"), n, umsg);
   }
   print_footer();
 }

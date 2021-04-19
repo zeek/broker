@@ -12,6 +12,129 @@
 using namespace broker;
 using namespace std::literals;
 
+// -- custom types -------------------------------------------------------------
+
+uuid_multipath_tree::uuid_multipath_tree(uuid id, bool is_receiver) {
+  root = broker::detail::new_instance<uuid_multipath_node>(mem, id, is_receiver);
+}
+
+uuid_multipath_tree::~uuid_multipath_tree() {
+  // nop; we can simply "wink out" the tree structure.
+}
+
+uuid_multipath_group::~uuid_multipath_group() {
+  delete first_;
+}
+
+bool
+uuid_multipath_group::equals(const uuid_multipath_group& other) const noexcept {
+  auto eq = [](const auto& lhs, const auto& rhs) { return lhs.equals(rhs); };
+  return std::equal(begin(), end(), other.begin(), other.end(), eq);
+}
+
+bool uuid_multipath_group::contains(uuid id) const noexcept {
+  auto pred = [&id](const uuid_multipath_node& node) {
+    return node.contains(id);
+  };
+  return std::any_of(begin(), end(), pred);
+}
+
+template <class MakeNewNode>
+std::pair<uuid_multipath_node*, bool>
+uuid_multipath_group::emplace_impl(uuid id, MakeNewNode make_new_node) {
+  if (size_ == 0) {
+    first_ = make_new_node();
+    size_ = 1;
+    return {first_, true};
+  } else {
+    // Insertion sorts by ID.
+    BROKER_ASSERT(first_ != nullptr);
+    if (first_->id_ == id) {
+      return {first_, false};
+    } else if (first_->id_ > id) {
+      ++size_;
+      auto new_node = make_new_node();
+      new_node->right_ = first_;
+      first_ = new_node;
+      return {new_node, true};
+    }
+    auto pos = first_;
+    auto next = pos->right_;
+    while (next != nullptr) {
+      if (next->id_ == id) {
+        return {next, false};
+      } else if (next->id_ > id) {
+        ++size_;
+        auto new_node = make_new_node();
+        pos->right_ = new_node;
+        new_node->right_ = next;
+        return {new_node, true};
+      } else {
+        pos = next;
+        next = next->right_;
+      }
+    }
+    ++size_;
+    auto new_node = make_new_node();
+    BROKER_ASSERT(pos->right_ == nullptr);
+    pos->right_ = new_node;
+    return {new_node, true};
+  }
+}
+
+std::pair<uuid_multipath_node*, bool>
+uuid_multipath_group::emplace(detail::monotonic_buffer_resource& mem, uuid id,
+                              bool is_receiver) {
+  auto make_new_node = [&mem, id, is_receiver] {
+    return broker::detail::new_instance<uuid_multipath_node>(mem, id,
+                                                             is_receiver);
+  };
+  return emplace_impl(id, make_new_node);
+}
+
+bool uuid_multipath_group::emplace(uuid_multipath_node* new_node) {
+  auto make_new_node = [new_node] { return new_node; };
+  return emplace_impl(new_node->id_, make_new_node).second;
+}
+
+uuid_multipath_node::~uuid_multipath_node() {
+  delete right_;
+}
+
+bool
+uuid_multipath_node::equals(const uuid_multipath_node& other) const noexcept {
+  return id_ == other.id_ && down_.equals(other.down_);
+}
+
+bool uuid_multipath_node::contains(uuid what) const noexcept {
+  return id_ == what || down_.contains(what);
+}
+
+uuid_multipath::uuid_multipath() {
+  tree_ = std::make_shared<uuid_multipath_tree>(uuid{}, false);
+  head_ = tree_->root;
+}
+
+uuid_multipath::uuid_multipath(uuid id, bool is_receiver) {
+  tree_ = std::make_shared<uuid_multipath_tree>(id, is_receiver);
+  head_ = tree_->root;
+}
+
+uuid_multipath::uuid_multipath(const tree_ptr& t, uuid_multipath_node* h)
+  : tree_(t), head_(h) {
+  // nop
+}
+
+bool uuid_multipath::equals(const uuid_multipath& other) const noexcept {
+  return head_->equals(*other.head_);
+}
+
+bool uuid_multipath::contains(uuid what) const noexcept {
+  return head_->contains(what);
+}
+
+// -- benchmark utilities ------------------------------------------------------
+
 namespace {
 
 struct vector_builder {
@@ -59,6 +182,10 @@ endpoint_id generator::next_endpoint_id() {
 count generator::next_count() {
   std::uniform_int_distribution<count> d;
   return d(rng_);
+}
+
+caf::uuid generator::next_uuid() {
+  return caf::uuid::random(rng_());
 }
 
 std::string generator::next_string(size_t length) {
