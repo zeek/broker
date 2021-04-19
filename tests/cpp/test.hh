@@ -181,7 +181,6 @@ public:
     return dynamic_cast<T&>(*ptr);
   }
 
-private:
   static broker::configuration make_config();
 };
 

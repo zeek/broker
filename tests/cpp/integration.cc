@@ -54,19 +54,6 @@ using caf::io::connection_handle;
 
 namespace {
 
-configuration make_config() {
-  broker_options options;
-  options.disable_ssl = true;
-  configuration cfg(options);
-  if (auto err = cfg.parse(caf::test::engine::argc(),
-                           caf::test::engine::argv()))
-    CAF_FAIL("parsing the config failed: " << to_string(err));
-  cfg.set("caf.middleman.network-backend", "testing");
-  cfg.set("caf.scheduler.policy", "testing");
-  cfg.set("caf.logger.inline-output", true);
-  return cfg;
-}
-
 struct peer_fixture;
 
 // Holds state shared by all peers. There exists exactly one global fixture.
@@ -137,7 +124,7 @@ struct peer_fixture {
   peer_fixture(global_fixture* parent_ptr, std::string peer_name)
     : parent(parent_ptr),
       name(std::move(peer_name)),
-      ep(make_config()),
+      ep(base_fixture::make_config()),
       sys(ep.system()),
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
