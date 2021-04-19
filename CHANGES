@@ -1,4 +1,8 @@
 
+2.1.0-dev.63 | 2021-04-19 16:01:51 -0700
+
+  * Remove redundant code in "integration" test (Dominik Charousset, Corelight)
+
 2.1.0-dev.61 | 2021-03-27 14:15:37 -0700
 
   * Bump libbroker soversion to 4 (Jon Siwek, Corelight)
