@@ -27,16 +27,18 @@ using uuid_node_message
 
 // -- type IDs -----------------------------------------------------------------
 
+#define MICRO_BENCH_ADD_TYPE(type) CAF_ADD_TYPE_ID(micro_benchmarks, type)
+
 CAF_BEGIN_TYPE_ID_BLOCK(micro_benchmarks, caf::id_block::broker::end)
 
-  CAF_ADD_TYPE_ID(micro_benchmarks, (caf::stream<legacy_node_message>))
-  CAF_ADD_TYPE_ID(micro_benchmarks, (legacy_node_message))
-  CAF_ADD_TYPE_ID(micro_benchmarks, (std::vector<legacy_node_message>))
+  MICRO_BENCH_ADD_TYPE((caf::stream<legacy_node_message>))
+  MICRO_BENCH_ADD_TYPE((legacy_node_message))
+  MICRO_BENCH_ADD_TYPE((std::vector<legacy_node_message>))
 
-  CAF_ADD_TYPE_ID(micro_benchmarks, (caf::stream<uuid_node_message>))
-  CAF_ADD_TYPE_ID(micro_benchmarks, (std::vector<uuid_node_message>))
-  CAF_ADD_TYPE_ID(micro_benchmarks, (uuid_multipath))
-  CAF_ADD_TYPE_ID(micro_benchmarks, (uuid_node_message))
+  MICRO_BENCH_ADD_TYPE((caf::stream<uuid_node_message>))
+  MICRO_BENCH_ADD_TYPE((std::vector<uuid_node_message>))
+  MICRO_BENCH_ADD_TYPE((uuid_multipath))
+  MICRO_BENCH_ADD_TYPE((uuid_node_message))
 
 CAF_END_TYPE_ID_BLOCK(micro_benchmarks)
 
