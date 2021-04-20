@@ -385,16 +385,21 @@ void stream_transport::dispatch(const command_message& msg) {
 }
 
 void stream_transport::dispatch(node_message&& msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
+  BROKER_TRACE(BROKER_ARG(id_)<<BROKER_ARG(msg));
   // Deconstruction and sanity checking. Can't use structured binding here due
   // to limitations on lambda captures.
   auto& tup = msg.unshared();
   auto& content = get<0>(tup);
   auto& path = get<1>(tup);
   // Push to local subscribers if the message is addressed at this node and this
-  // node is on the list of receivers.
+  // node is a receiver.
   if (path.head().id() != id_) {
-      BROKER_WARNING("received a message for another node");
+    if (auto ptr = peer_lookup(path.head().id())) {
+      ptr->enqueue(node_message{std::move(content), std::move(path)});
+    } else {
+      BROKER_WARNING("cannot ship message: no direct connection to"
+                     << path.head().id());
+    }
   } else {
     if (path.head().is_receiver())
       publish_locally(content);

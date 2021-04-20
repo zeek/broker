@@ -305,6 +305,7 @@ public:
       auto pos = head_;
       for (++first; first != last; ++first)
         pos = pos->down_.emplace(tree_->mem, *first).first;
+      pos->is_receiver_ = true;
     }
   }
 
