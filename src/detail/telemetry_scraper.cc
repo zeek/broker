@@ -26,6 +26,28 @@ table to_table(const std::vector<ct::label>& labels) {
   return result;
 }
 
+// Packs buckets + sum into a Broker vector, where each bucket is a pair of
+// numbers (upper bound plus count).
+template <class Buckets, class ValueType>
+vector pack_histogram(const Buckets& buckets, ValueType sum) {
+  vector result;
+  result.reserve(buckets.size() + 1); // +1 for the trailing sum
+  for (auto& bucket : buckets) {
+    vector packed_bucket;
+    packed_bucket.reserve(2);
+    packed_bucket.emplace_back(bucket.upper_bound);
+    packed_bucket.emplace_back(bucket.count.value());
+    result.emplace_back(std::move(packed_bucket));
+  }
+  result.emplace_back(sum);
+  return result;
+}
+
+template <class Histogram>
+vector pack_histogram(const Histogram* ptr) {
+  return pack_histogram(ptr->buckets(), ptr->sum());
+}
+
 } // namespace
 
 // -- initialization -----------------------------------------------------------
@@ -110,6 +132,22 @@ void telemetry_scraper_state::operator()(const ct::metric_family* family,
                                          const ct::int_gauge* gauge) {
   if (selected(family))
     add_row(family, "gauge", to_table(instance->labels()), gauge->value());
+}
+
+void telemetry_scraper_state::operator()(const ct::metric_family* family,
+                                         const ct::metric* instance,
+                                         const ct::dbl_histogram* histogram) {
+  if (selected(family))
+    add_row(family, "histogram", to_table(instance->labels()),
+            pack_histogram(histogram));
+}
+
+void telemetry_scraper_state::operator()(const ct::metric_family* family,
+                                         const ct::metric* instance,
+                                         const ct::int_histogram* histogram) {
+  if (selected(family))
+    add_row(family, "histogram", to_table(instance->labels()),
+            pack_histogram(histogram));
 }
 
 // -- utility functions --------------------------------------------------------

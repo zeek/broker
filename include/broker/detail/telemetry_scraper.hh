@@ -40,6 +40,14 @@ struct telemetry_scraper_state {
                   const caf::telemetry::metric* instance,
                   const caf::telemetry::int_gauge* gauge);
 
+  void operator()(const caf::telemetry::metric_family* family,
+                  const caf::telemetry::metric* instance,
+                  const caf::telemetry::dbl_histogram* histogram);
+
+  void operator()(const caf::telemetry::metric_family* family,
+                  const caf::telemetry::metric* instance,
+                  const caf::telemetry::int_histogram* histogram);
+
   template <class T>
   void operator()(const caf::telemetry::metric_family*,
                   const caf::telemetry::metric*, const T*) {
