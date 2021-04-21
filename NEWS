@@ -1,3 +1,11 @@
+Broker 2.0.1
+============
+
+- Fix broker-pipe crash with static CAF builds
+
+- Prevent use of LeakSanitizer on FreeBSD since it's not supported on that
+  platform and will break compilation
+
 Broker 2.0.0
 ============
 

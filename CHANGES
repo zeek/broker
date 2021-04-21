@@ -1,4 +1,14 @@
 
+2.0.1 | 2021-04-21 10:29:19 -0700
+
+  * Release 2.0.1.
+
+  * Fix broker-pipe crash with static CAF builds (Dominik Charousset, Corelight)
+
+  * Prevent use of LeakSanitizer on FreeBSD (Jon Siwek, Corelight)
+
+  * Bump libbroker soversion to 3 (Jon Siwek, Corelight)
+
 2.0.0 | 2021-02-26 18:00:46 -0800
 
   * Release 2.0.0.
