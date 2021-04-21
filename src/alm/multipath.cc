@@ -96,7 +96,9 @@ multipath_node::~multipath_node() {
 }
 
 bool multipath_node::equals(const multipath_node& other) const noexcept {
-  return id_ == other.id_ && down_.equals(other.down_);
+  return id_ == other.id_
+         && is_receiver_ == other.is_receiver_
+         && down_.equals(other.down_);
 }
 
 bool multipath_node::contains(const endpoint_id& id) const noexcept {
