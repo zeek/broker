@@ -21,6 +21,9 @@ struct metric_row {
   std::string prefix;
   std::string name;
   std::string type;
+  std::string unit;
+  std::string helptext;
+  bool is_sum;
   table labels;
   data value;
 };
@@ -29,17 +32,21 @@ template <class Inspector>
 bool inspect(Inspector& f, metric_row& row) {
   return f.object(row).fields(
     f.field("prefix", row.prefix), f.field("name", row.name),
-    f.field("type", row.type), f.field("labels", row.labels),
-    f.field("value", row.value));
+    f.field("type", row.type), f.field("unit", row.unit),
+    f.field("helptext", row.helptext), f.field("is_sum", row.is_sum),
+    f.field("labels", row.labels), f.field("value", row.value));
 }
 
 bool operator==(const metric_row& lhs, const vector& rhs) {
-  return rhs.size() == 5
+  return rhs.size() == 8
          && lhs.prefix == rhs[0]
          && lhs.name == rhs[1]
          && lhs.type == rhs[2]
-         && lhs.labels == rhs[3]
-         && lhs.value == rhs[4];
+         && lhs.unit == rhs[3]
+         && lhs.helptext == rhs[4]
+         && lhs.is_sum == rhs[5]
+         && lhs.labels == rhs[6]
+         && lhs.value == rhs[7];
 }
 
 bool operator==(const vector& lhs, const metric_row& rhs) {
@@ -113,11 +120,12 @@ TEST(the scraper runs once per interval) {
   expect((atom::publish, data_message), from(aut).to(core));
   if (CHECK(state().tbl.size() == 2)) {
     CHECK_EQUAL(state().tbl[0],
-                (metric_row{"foo", "bar", "gauge", table{}, data{1}}));
+                (metric_row{"foo", "bar", "gauge", "1", "FooBar!", false,
+                            table{}, data{1}}));
     CHECK_EQUAL(
       state().tbl[1],
-      (metric_row{"foo", "hist", "histogram", table{{"sys", "broker"}},
-                  foo_hist_buckets(1, 1, 0, 0, 16)}));
+      (metric_row{"foo", "hist", "histogram", "seconds", "FooHist!", false,
+                  table{{"sys", "broker"}}, foo_hist_buckets(1, 1, 0, 0, 16)}));
   }
   foo_bar->inc();
   foo_hist->observe(64);
@@ -126,11 +134,12 @@ TEST(the scraper runs once per interval) {
   expect((atom::publish, data_message), from(aut).to(core));
   if (CHECK(state().tbl.size() == 2)) {
     CHECK_EQUAL(state().tbl[0],
-                (metric_row{"foo", "bar", "gauge", table{}, data{2}}));
+                (metric_row{"foo", "bar", "gauge", "1", "FooBar!", false,
+                            table{}, data{2}}));
     CHECK_EQUAL(
       state().tbl[1],
-      (metric_row{"foo", "hist", "histogram", table{{"sys", "broker"}},
-                  foo_hist_buckets(1, 1, 0, 1, 80)}));
+      (metric_row{"foo", "hist", "histogram", "seconds", "FooHist!", false,
+                  table{{"sys", "broker"}}, foo_hist_buckets(1, 1, 0, 1, 80)}));
   }
 }
 

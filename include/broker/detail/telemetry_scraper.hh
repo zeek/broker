@@ -64,10 +64,13 @@ struct telemetry_scraper_state {
   void add_row(const caf::telemetry::metric_family* family, std::string type,
                table labels, T value) {
     vector row;
-    row.reserve(5);
+    row.reserve(8);
     row.emplace_back(family->prefix());
     row.emplace_back(family->name());
     row.emplace_back(std::move(type));
+    row.emplace_back(family->unit());
+    row.emplace_back(family->helptext());
+    row.emplace_back(family->is_sum());
     row.emplace_back(std::move(labels));
     row.emplace_back(std::move(value));
     tbl.emplace_back(std::move(row));
