@@ -240,3 +240,156 @@ std::string to_string(const command_message& msg);
 std::string to_string(const node_message& msg);
 
 } // namespace broker
+
+// CAF ships node messages in batches. However, simply packing node messages
+// into a list can result in a lot of redundant data on the wire. Chances are
+// the node messages share some topics or source routing information.
+//
+// In order to pack data more efficiently on the wire, we specialize
+// caf::inspector_access for the batch type and then pull out topics and
+// multipaths. The actual payload (either broker::data or internal_command) then
+// references topic and path by index and we re-assemble everything back to node
+// messages during deserialization.
+//
+// All intermediary buffers are thread-local variables in order to reduce the
+// number of heap allocations. These buffers grow to the size of the largest
+// batch during runtime and then reach a state where they no longer need to
+// allocate any new memory.
+
+namespace broker::detail {
+
+template <class T>
+class indexed_cache {
+public:
+  using value_type = T;
+
+  uint32_t operator[](const T& val) {
+    for (size_t index = 0; index < buf_.size(); ++index)
+      if (buf_[index] == val)
+        return static_cast<uint32_t>(index);
+    auto res = static_cast<uint32_t>(buf_.size());
+    buf_.emplace_back(val);
+    return res;
+  }
+
+  const T* find(uint32_t index) {
+    if (index < buf_.size())
+      return std::addressof(buf_[index]);
+    else
+      return nullptr;
+  }
+
+  void clear() {
+    return buf_.clear();
+  }
+
+  template <class Inspector>
+  friend bool inspect(Inspector& f, indexed_cache& x) {
+    return f.apply(x.buf_);
+  }
+
+private:
+  std::vector<T> buf_;
+};
+
+using topic_cache_type = indexed_cache<topic>;
+
+using path_cache_type = indexed_cache<alm::multipath>;
+
+using content_buf_type = std::vector<
+  std::tuple<uint32_t, uint32_t, caf::variant<data, internal_command>>>;
+
+topic_cache_type& thread_local_topic_cache();
+
+path_cache_type& thread_local_path_cache();
+
+content_buf_type& thread_local_content_buf();
+
+} // namespace broker::detail
+
+namespace caf {
+
+template <>
+struct inspector_access<std::vector<broker::node_message>>
+: inspector_access_base<std::vector<broker::node_message>> {
+  using value_type = std::vector<broker::node_message>;
+
+  template <class Inspector>
+  static bool load(Inspector& f, value_type& x) {
+    auto& paths = broker::detail::thread_local_path_cache();
+    auto& topics = broker::detail::thread_local_topic_cache();
+    auto& contents = broker::detail::thread_local_content_buf();
+    auto ok = f.begin_tuple(3)     //
+              && f.apply(paths)    //
+              && f.apply(topics)   //
+              && f.apply(contents) //
+              && f.end_tuple();
+    if (ok) {
+      x.clear();
+      for (auto& [path_index, topic_index, val] : contents) {
+        auto* path_ptr = paths.find(path_index);
+        auto* topic_ptr = topics.find(topic_index);
+        if (path_ptr && topic_ptr) {
+          if (holds_alternative<broker::data>(val)) {
+            auto& dval = get<broker::data>(val);
+            auto dmsg = make_data_message(*topic_ptr, std::move(dval));
+            x.emplace_back(make_node_message(std::move(dmsg), *path_ptr));
+          } else {
+            auto& cval = get<broker::internal_command>(val);
+            auto cmsg = make_command_message(*topic_ptr, std::move(cval));
+            x.emplace_back(make_node_message(std::move(cmsg), *path_ptr));
+          }
+        } else {
+          f.emplace_error(caf::sec::load_callback_failed,
+                          "batch re-assembly failed");
+          return false;
+        }
+      }
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  template <class Inspector>
+  static bool save(Inspector& f, value_type& x) {
+    auto& paths = broker::detail::thread_local_path_cache();
+    auto& topics = broker::detail::thread_local_topic_cache();
+    auto& contents = broker::detail::thread_local_content_buf();
+    paths.clear();
+    topics.clear();
+    contents.clear();
+    for (auto& entry : x) {
+      auto& [content, path] = entry.data();
+      auto path_index = paths[get_path(entry)];
+      if (is_data_message(content)) {
+        auto& [topic, value] = get_data_message(content).data();
+        auto topic_index = topics[topic];
+        contents.emplace_back(topic_index, path_index, value);
+      } else {
+        auto& [topic, cmd] = get_command_message(content).data();
+        auto topic_index = topics[topic];
+        contents.emplace_back(topic_index, path_index, cmd);
+      }
+    }
+    return f.begin_tuple(3)     //
+           && f.apply(paths)    //
+           && f.apply(topics)   //
+           && f.apply(contents) //
+           && f.end_tuple();
+  }
+
+  template <class Inspector>
+  static bool apply(Inspector& f, value_type& x) {
+    if (!f.has_human_readable_format()) {
+      if constexpr (Inspector::is_loading)
+        return load(f, x);
+      else
+        return save(f, x);
+    } else {
+      return f.list(x);
+    }
+  }
+};
+
+} // namespace caf
