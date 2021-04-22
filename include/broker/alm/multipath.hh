@@ -348,9 +348,9 @@ public:
   template <class Inspector>
   friend bool inspect(Inspector& f, multipath& x) {
     if constexpr (Inspector::is_loading)
-      return x.head_->load(x.tree_->mem, f);
+      return x.load(f);
     else
-      return x.head_->save(f);
+      return x.save(f);
   }
 
   friend std::string to_string(const alm::multipath& x) {
@@ -371,6 +371,16 @@ public:
 private:
   std::pair<multipath_node*, bool> emplace(const endpoint_id& id) {
     return head_->down_.emplace(tree_->mem, id);
+  }
+
+  template <class Inspector>
+  bool load(Inspector& f) {
+    return head_->load(tree_->mem, f);
+  }
+
+  template <class Inspector>
+  bool save(Inspector& f) {
+    return head_->save(f);
   }
 
   // Splices a linear path into this multipath. The last entry in the path is
