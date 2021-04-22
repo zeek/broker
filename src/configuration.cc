@@ -202,9 +202,9 @@ caf::settings configuration::dump_content() const {
   auto& grp = result["broker"].as_dictionary();
   put_missing(grp, "disable-ssl", options_.disable_ssl);
   put_missing(grp, "disable-forwarding", options_.disable_forwarding);
-  if (auto path = get_if<std::string>(&content, "broker.recording-directory"))
+  if (auto path = get_as<std::string>(content, "broker.recording-directory"))
     put_missing(grp, "recording-directory", *path);
-  if (auto cap = get_if<size_t>(&content, "broker.output-generator-file-cap"))
+  if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
     put_missing(grp, "output-generator-file-cap", *cap);
   namespace pb = broker::defaults::path_revocations;
   auto& sub_grp = grp["path-revocations"].as_dictionary();
