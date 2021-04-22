@@ -115,7 +115,7 @@ void operator<<(executor exec, F fun) {
     f(state, state.mgr->handshake());
   };
   exec.fix->aut_exec(exec.hdl, std::move(g));
-};
+}
 
 } // namespace
 
