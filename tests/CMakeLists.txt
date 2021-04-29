@@ -15,7 +15,8 @@ set(tests
   cpp/detail/generator_file_writer.cc
   cpp/detail/meta_command_writer.cc
   cpp/detail/meta_data_writer.cc
-  cpp/detail/telemetry_scraper.cc
+  cpp/detail/telemetry/collector.cc
+  cpp/detail/telemetry/exporter.cc
   cpp/error.cc
   cpp/filter_type.cc
   cpp/integration.cc

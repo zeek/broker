@@ -1,23 +1,27 @@
 #include <iostream>
 #include <unordered_set>
+#include <thread>
 
-#include <caf/config.hpp>
-#include <caf/node_id.hpp>
-#include <caf/actor_system.hpp>
-#include <caf/scoped_actor.hpp>
-#include <caf/exit_reason.hpp>
-#include <caf/error.hpp>
-#include <caf/send.hpp>
 #include <caf/actor.hpp>
-#include <caf/message.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/config.hpp>
+#include <caf/error.hpp>
+#include <caf/exit_reason.hpp>
 #include <caf/io/middleman.hpp>
+#include <caf/io/network/default_multiplexer.hpp>
+#include <caf/io/network/multiplexer.hpp>
+#include <caf/message.hpp>
+#include <caf/node_id.hpp>
 #include <caf/openssl/publish.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/send.hpp>
 
 #include "broker/core_actor.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/detail/telemetry_scraper.hh"
+#include "broker/detail/telemetry/exporter.hh"
+#include "broker/detail/telemetry/prometheus.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
@@ -113,6 +117,89 @@ void endpoint::clock::send_later(caf::actor dest, timespan after,
   ++pending_count_;
 }
 
+endpoint::background_task::~background_task() {
+  // nop
+}
+
+namespace {
+
+class prometheus_http_task : public endpoint::background_task {
+public:
+  prometheus_http_task(caf::actor_system& sys) : mpx_(&sys) {
+    // nop
+  }
+
+  template <class T>
+  bool has(caf::string_view name) {
+    auto res = caf::get_as<T>(mpx_.system().config(), name);
+    return static_cast<bool>(res);
+  }
+
+  expected<uint16_t> start(uint16_t port, caf::actor core,
+                           const char* in = nullptr, bool reuse = false) {
+    caf::io::doorman_ptr dptr;
+    if (auto maybe_dptr = mpx_.new_tcp_doorman(port, in, reuse)) {
+      dptr = std::move(*maybe_dptr);
+    } else {
+      return maybe_dptr.error();
+    }
+    auto actual_port = dptr->port();
+    using impl = detail::telemetry::prometheus_actor;
+    mpx_supervisor_ = mpx_.make_supervisor();
+    caf::actor_config cfg{&mpx_};
+    worker_ = mpx_.system().spawn_impl<impl, caf::hidden>(cfg, std::move(dptr),
+                                                          std::move(core));
+    struct { // TODO: replace with std::latch when available.
+      std::mutex mx;
+      std::condition_variable cv;
+      bool lit = false;
+      void ignite() {
+        std::unique_lock<std::mutex> guard{mx};
+        lit = true;
+        cv.notify_all();
+      }
+      void wait() {
+        std::unique_lock<std::mutex> guard{mx};
+        while (!lit)
+          cv.wait(guard);
+      }
+    } beacon;
+    auto run_mpx = [this, &beacon] {
+      CAF_LOG_TRACE("");
+      mpx_.thread_id(std::this_thread::get_id());
+      beacon.ignite();
+      mpx_.run();
+    };
+    thread_ = mpx_.system().launch_thread("broker.prom", run_mpx);
+    beacon.wait();
+    return actual_port;
+  }
+
+  ~prometheus_http_task() {
+    if (mpx_supervisor_) {
+      mpx_.dispatch([=] {
+        auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
+        auto ptr = static_cast<caf::io::broker*>(base_ptr);
+        if (!ptr->getf(caf::abstract_actor::is_terminated_flag)) {
+          ptr->context(&mpx_);
+          ptr->quit();
+          ptr->finalize();
+        }
+      });
+      mpx_supervisor_.reset();
+      thread_.join();
+    }
+  }
+
+private:
+  caf::io::network::default_multiplexer mpx_;
+  caf::io::network::multiplexer::supervisor_ptr mpx_supervisor_;
+  caf::actor worker_;
+  std::thread thread_;
+};
+
+} // namespace
+
 // --- endpoint class ----------------------------------------------------------
 
 caf::node_id endpoint::node_id() const {
@@ -200,11 +287,22 @@ endpoint::endpoint(configuration config)
   } else {
     detail::die("SSL is enabled but CAF OpenSSL manager is not available");
   }
-  // Spin up scraper if configured.
-  if (auto str = caf::get_as<std::string>(config_, "broker.metrics-topic");
-      str && !str->empty()) {
-    BROKER_INFO("publish metrics on topic" << str);
-    system_.spawn<detail::telemetry_scraper_actor>(core_, std::move(*str));
+  // Spin up a Prometheus actor if configured or an exporter.
+  namespace dt = detail::telemetry;
+  if (auto port = caf::get_as<uint16_t>(config_, "broker.metrics.port")) {
+    auto ptask = std::make_unique<prometheus_http_task>(system_);
+    auto addr = caf::get_or(config_, "broker.metrics.address", std::string{});
+    if (auto actual_port = ptask->start(*port, core_,
+                                        addr.empty() ? nullptr : addr.c_str(),
+                                        false)) {
+      BROKER_INFO("expose metrics on port" << *actual_port);
+      background_tasks_.emplace_back(std::move(ptask));
+    } else {
+      BROKER_ERROR("failed to expose metrics:" << actual_port.error());
+    }
+  } else if (auto params = dt::exporter_params::from(config_)) {
+    BROKER_INFO("publish metrics to topic" << params->target);
+    system_.spawn<dt::exporter_actor>(core_, std::move(*params));
   }
 }
 
@@ -235,6 +333,8 @@ void endpoint::shutdown() {
     self->wait_for(children_);
     children_.clear();
   }
+  BROKER_DEBUG("stop background tasks");
+  background_tasks_.clear();
   BROKER_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown_v);
   core_ = nullptr;

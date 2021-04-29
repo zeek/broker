@@ -103,6 +103,10 @@ public:
     std::atomic<size_t> pending_count_;
   };
 
+  struct background_task {
+    virtual ~background_task();
+  };
+
   // --- construction and destruction ------------------------------------------
 
   endpoint(configuration config = {});
@@ -397,6 +401,7 @@ private:
   std::vector<caf::actor> children_;
   bool destroyed_;
   clock* clock_;
+  std::vector<std::unique_ptr<background_task>> background_tasks_;
 };
 
 } // namespace broker

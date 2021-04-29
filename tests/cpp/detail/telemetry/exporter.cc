@@ -1,10 +1,13 @@
-#define SUITE detail.telemetry_scraper
+#define SUITE detail.telemetry.exporter
 
-#include "broker/detail/telemetry_scraper.hh"
+#include "broker/detail/telemetry/exporter.hh"
 
 #include "test.hh"
 
+#include "broker/detail/telemetry/metric_view.hh"
+
 using namespace broker;
+
 using namespace std::literals::chrono_literals;
 
 namespace {
@@ -38,15 +41,13 @@ bool inspect(Inspector& f, metric_row& row) {
 }
 
 bool operator==(const metric_row& lhs, const vector& rhs) {
-  return rhs.size() == 8
-         && lhs.prefix == rhs[0]
-         && lhs.name == rhs[1]
-         && lhs.type == rhs[2]
-         && lhs.unit == rhs[3]
-         && lhs.helptext == rhs[4]
-         && lhs.is_sum == rhs[5]
-         && lhs.labels == rhs[6]
-         && lhs.value == rhs[7];
+  if (auto mv = detail::telemetry::metric_view{rhs})
+    return lhs.prefix == mv.prefix() && lhs.name == mv.name()
+           && lhs.type == mv.type_str() && lhs.unit == mv.unit()
+           && lhs.helptext == mv.helptext() && lhs.is_sum == mv.is_sum()
+           && lhs.labels == mv.labels() && lhs.value == mv.value();
+  else
+    return false;
 }
 
 bool operator==(const vector& lhs, const metric_row& rhs) {
@@ -81,8 +82,9 @@ struct fixture : base_fixture {
     bar_foo = reg.gauge_singleton("bar", "foo", "BarFoo!");
     std::vector<std::string> selection{"foo"};
     core = sys.spawn(dummy_core);
-    aut = sys.spawn<detail::telemetry_scraper_actor>(
-      core, std::move(selection), caf::timespan{2s}, "/all/them/metrics");
+    aut = sys.spawn<detail::telemetry::exporter_actor>(
+      core, std::move(selection), caf::timespan{2s}, "/all/them/metrics",
+      "exporter-1");
     sched.run();
   }
 
@@ -91,7 +93,15 @@ struct fixture : base_fixture {
   }
 
   auto& state() {
-    return deref<detail::telemetry_scraper_actor>(aut).state;
+    return deref<detail::telemetry::exporter_actor>(aut).state;
+  }
+
+  const auto& rows() {
+    return state().impl.rows();
+  }
+
+  const auto& row(size_t index) {
+    return rows().at(index);
   }
 
   data foo_hist_buckets(int64_t le_8, int64_t le_16, int64_t le_32,
@@ -108,38 +118,43 @@ struct fixture : base_fixture {
 
 } // namespace
 
-FIXTURE_SCOPE(telemetry_scraper_tests, fixture)
+FIXTURE_SCOPE(telemetry_exporter_tests, fixture)
 
-TEST(the scraper runs once per interval) {
-  CHECK(state().tbl.empty());
+TEST(the exporter runs once per interval) {
+  CHECK(rows().empty());
   foo_bar->inc();
   foo_hist->observe(4);
   foo_hist->observe(12);
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
   expect((atom::publish, data_message), from(aut).to(core));
-  if (CHECK(state().tbl.size() == 2)) {
-    CHECK_EQUAL(state().tbl[0],
-                (metric_row{"foo", "bar", "gauge", "1", "FooBar!", false,
-                            table{}, data{1}}));
-    CHECK_EQUAL(
-      state().tbl[1],
-      (metric_row{"foo", "hist", "histogram", "seconds", "FooHist!", false,
-                  table{{"sys", "broker"}}, foo_hist_buckets(1, 1, 0, 0, 16)}));
+  auto is_meta_data = [this](const data& x) {
+    using namespace std::literals;
+    if (auto row = get_if<vector>(x); row && row->size() == 2)
+      return row->at(0) == "exporter-1"s && is<timestamp>(row->at(1));
+    else
+      return false;
+  };
+  if (CHECK(rows().size() == 3)) {
+    CHECK(is_meta_data(row(0)));
+    CHECK_EQUAL(row(1), (metric_row{"foo", "bar", "gauge", "1", "FooBar!",
+                                    false, table{}, data{1}}));
+    CHECK_EQUAL(row(2), (metric_row{"foo", "hist", "histogram", "seconds",
+                                    "FooHist!", false, table{{"sys", "broker"}},
+                                    foo_hist_buckets(1, 1, 0, 0, 16)}));
   }
   foo_bar->inc();
   foo_hist->observe(64);
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
   expect((atom::publish, data_message), from(aut).to(core));
-  if (CHECK(state().tbl.size() == 2)) {
-    CHECK_EQUAL(state().tbl[0],
-                (metric_row{"foo", "bar", "gauge", "1", "FooBar!", false,
-                            table{}, data{2}}));
-    CHECK_EQUAL(
-      state().tbl[1],
-      (metric_row{"foo", "hist", "histogram", "seconds", "FooHist!", false,
-                  table{{"sys", "broker"}}, foo_hist_buckets(1, 1, 0, 1, 80)}));
+  if (CHECK(rows().size() == 3)) {
+    CHECK(is_meta_data(row(0)));
+    CHECK_EQUAL(row(1), (metric_row{"foo", "bar", "gauge", "1", "FooBar!",
+                                    false, table{}, data{2}}));
+    CHECK_EQUAL(row(2), (metric_row{"foo", "hist", "histogram", "seconds",
+                                    "FooHist!", false, table{{"sys", "broker"}},
+                                    foo_hist_buckets(1, 1, 0, 1, 80)}));
   }
 }
 

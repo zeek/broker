@@ -50,6 +50,15 @@ bool topic::prefix_of(const topic& t) const {
          && t.str_.compare(0, str_.size(), str_) == 0;
 }
 
+std::string_view topic::suffix() const noexcept {
+  if (auto index = str_.find_last_of(sep); index != std::string::npos) {
+    auto first = index + 1;
+    return {str_.data() + first, str_.size() - first};
+  } else {
+    return {str_};
+  }
+}
+
 bool operator==(const topic& lhs, const topic& rhs) {
   return lhs.string() == rhs.string();
 }

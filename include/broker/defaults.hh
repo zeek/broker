@@ -15,8 +15,6 @@ constexpr uint16_t ttl = 20;
 
 constexpr size_t max_pending_inputs_per_source = 512;
 
-constexpr caf::timespan metrics_publish_interval = std::chrono::seconds(1);
-
 } // namespace broker::defaults
 
 namespace broker::defaults::store {
@@ -24,3 +22,9 @@ namespace broker::defaults::store {
 extern const caf::timespan tick_interval;
 
 } // namespace broker::defaults::store
+
+namespace broker::defaults::metrics {
+
+constexpr caf::timespan export_interval = std::chrono::seconds(1);
+
+} // namespace broker::defaults::metrics::export

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -55,9 +56,13 @@ public:
   /// Returns whether this topic is a prefix match for `t`.
   bool prefix_of(const topic& t) const;
 
+  /// Returns the suffix of the topic, i.e., the characters after the last
+  /// separator. For example, the suffix of `/foo/bar` is `bar`.
+  std::string_view suffix() const noexcept;
+
   template <class Inspector>
   friend bool inspect(Inspector& f, topic& x) {
-    return f.object(x).fields(f.field("str", x.str_));
+    return f.apply(x.str_);
   }
 
 private:

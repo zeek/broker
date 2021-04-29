@@ -74,9 +74,27 @@ std::string to_log_level(const char* var, const char* cstr) {
   throw_illegal_log_level(var, cstr);
 }
 
+std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
+  auto trim = [](std::string& x) {
+    auto predicate = [](int ch) { return !std::isspace(ch); };
+    x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
+    x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
+  };
+  auto is_empty = [](const std::string& x) { return x.empty(); };
+  std::vector<std::string> result;
+  caf::split(result, caf::string_view{str, strlen(str)}, delim,
+             caf::token_compress_on);
+  std::for_each(result.begin(), result.end(), trim);
+  result.erase(std::remove_if(result.begin(), result.end(), is_empty),
+               result.end());
+  return result;
+}
+
 } // namespace
 
 configuration::configuration(skip_init_t) {
+  using std::string;
+  using string_list = std::vector<string>;
   // Add runtime type information for Broker types.
   init_global_state();
   add_message_types(*this);
@@ -85,24 +103,30 @@ configuration::configuration(skip_init_t) {
     .add(options_.disable_ssl, "disable_ssl",
          "forces Broker to use unencrypted communication")
     .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
-    .add<std::string>("recording-directory",
-                      "path for storing recorded meta information")
-    .add<std::string>(
-      "metrics-topic",
-      "if set, Broker publishes its metrics periodically on the given topic")
-    .add<std::vector<std::string>>(
-      "metrics-publish-filter",
-      "if setting a metrics-topic, this filter selects metrics prefixes to "
-      "publish on the topic")
-    .add<caf::timespan>("metrics-publish-interval",
-                        "if setting a metrics-topic, this timespan configures "
-                        "the interval between publishing metrics on the topic")
+    .add<string>("recording-directory",
+                 "path for storing recorded meta information")
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages")
     .add<size_t>("max-pending-inputs-per-source",
                  "maximum number of items we buffer per peer or publisher");
+  opt_group{custom_options_, "broker.metrics"}
+    .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
+    .add<string>("address", "bind address for the HTTP server socket")
+    .add<string>("endpoint-name",
+                 "name for this endpoint in metrics (when exporting: suffix of "
+                 "the topic by default)");
+  opt_group{custom_options_, "broker.metrics.export"}
+    .add<string>("topic",
+                 "if set, causes Broker to publish its metrics "
+                 "periodically on the given topic")
+    .add<caf::timespan>("interval",
+                        "time between publishing metrics on the topic")
+    .add<string_list>("prefixes",
+                      "selects metric prefixes to publish on the topic");
+  opt_group{custom_options_, "broker.metrics.import"} //
+    .add<string_list>("topics", "topics for collecting remote metrics from");
   // Ensure that we're only talking to compatible Broker instances.
-  std::vector<std::string> ids{"broker.v" + std::to_string(version::protocol)};
+  string_list ids{"broker.v" + std::to_string(version::protocol)};
   // Override CAF defaults.
   set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
   set("caf.logger.file.verbosity", "quiet");
@@ -113,8 +137,8 @@ configuration::configuration(skip_init_t) {
   put(content, "caf.middleman.app-identifiers", std::move(ids));
   put(content, "caf.middleman.workers", 0);
   // Turn off all CAF output by default.
-  std::vector<std::string> excluded_components{"caf", "caf_io", "caf_net",
-                                               "caf_flow", "caf_stream"};
+  string_list excluded_components{"caf", "caf_io", "caf_net", "caf_flow",
+                                  "caf_stream"};
   set("caf.logger.file.excluded-components", excluded_components);
   set("caf.logger.console.excluded-components", std::move(excluded_components));
 }
@@ -161,6 +185,8 @@ void configuration::init(int argc, char** argv) {
       throw std::runtime_error(what);
     }
   }
+  put(content, "caf.metrics-filters.actors.includes",
+      std::vector<std::string>{core_state::name});
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
     auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
@@ -174,44 +200,38 @@ void configuration::init(int argc, char** argv) {
     set("broker.recording-directory", env);
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
-    char* end = nullptr;
-    auto port = strtol(env, &end, 10);
-    if (errno == ERANGE || *end != '\0' || port <= 0 || port > 0xFFFF) {
+    caf::config_value val{env};
+    if (auto port = caf::get_as<uint16_t>(val)) {
+      set("broker.metrics.port", *port);
+    } else {
       auto what = concat("invalid value for BROKER_METRICS_PORT: ", env,
                          " (expected a non-zero port number)");
       throw std::invalid_argument(what);
     }
-    put(content, "caf.middleman.prometheus-http.port", port);
-    put(content, "caf.metrics-filters.actors.includes",
-        std::vector<std::string>{core_state::name});
   }
-  if (auto env = getenv("BROKER_METRICS_TOPIC")) {
-    set("broker.metrics-topic", env);
+  if (auto env = getenv("BROKER_METRICS_ENDPOINT_NAME")) {
+    set("broker.metrics.endpoint-name", env);
   }
-  if (auto env = getenv("BROKER_METRICS_PUBLISH_INTERVAL")) {
-    auto val = caf::config_value{env};
-    if (auto ts_val = caf::get_as<caf::timespan>(val)) {
-      set("broker.metrics-publish-interval", *ts_val);
+  if (auto env = getenv("BROKER_METRICS_EXPORT_TOPIC")) {
+    set("broker.metrics.export.topic", env);
+  }
+  if (auto env = getenv("BROKER_METRICS_EXPORT_INTERVAL")) {
+    caf::config_value val{env};
+    if (auto interval = caf::get_as<caf::timespan>(val)) {
+      set("broker.metrics.export.interval", *interval);
     } else {
-      throw std::invalid_argument(
-        "BROKER_METRICS_PUBLISH_INTERVAL: invalid syntax");
+      auto what = concat("invalid value for BROKER_METRICS_EXPORT_INTERVAL: ",
+                         env, " (expected an interval such as '5s')");
+      throw std::invalid_argument(what);
     }
   }
-  if (auto env = getenv("BROKER_METRICS_PUBLISH_FILTER")) {
-    auto trim = [](std::string& x) {
-      auto predicate = [](int ch) { return !std::isspace(ch); };
-      x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
-      x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
-    };
-    auto is_empty = [](const std::string& x) { return x.empty(); };
-    std::vector<std::string> filter;
-    caf::split(filter, caf::string_view{env, strlen(env)}, ',',
-               caf::token_compress_on);
-    std::for_each(filter.begin(), filter.end(), trim);
-    filter.erase(std::remove_if(filter.begin(), filter.end(), is_empty),
-                 filter.end());
-    if (!filter.empty())
-      set("broker.metrics-publish-filter", std::move(filter));
+  if (auto env = getenv("BROKER_METRICS_EXPORT_PREFIXES")) {
+    if (auto prefixes = split_and_trim(env); !prefixes.empty())
+      set("broker.metrics.export.prefixes", std::move(prefixes));
+  }
+  if (auto env = getenv("BROKER_METRICS_IMPORT_TOPICS")) {
+    if (auto topics = split_and_trim(env); !topics.empty())
+      set("broker.metrics.import.topics", std::move(topics));
   }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
