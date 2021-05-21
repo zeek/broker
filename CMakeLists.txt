@@ -242,8 +242,10 @@ else ()
   set(CAF_FOUND TRUE CACHE INTERNAL "")
 endif ()
 
+add_subdirectory(caf-incubator)
+
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
+set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES} CAF::net)
 
 # -- libroker -----------------------------------------------------------------
 

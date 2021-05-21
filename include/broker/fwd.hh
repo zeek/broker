@@ -138,6 +138,11 @@ class IdentifierUpdate;
 
 namespace broker::detail {
 
+enum class packed_message_type : uint8_t {
+  data,
+  command,
+};
+
 struct retry_state;
 struct store_state;
 
@@ -151,6 +156,9 @@ class unipath_manager;
 class unipath_source;
 
 enum class item_scope : uint8_t;
+
+using packed_message
+  = caf::cow_tuple<packed_message_type, topic, caf::byte_buffer>;
 
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
@@ -269,6 +277,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
+  BROKER_ADD_TYPE_ID((broker::detail::packed_message))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::detail::store_state_ptr))
   BROKER_ADD_TYPE_ID((broker::ec))

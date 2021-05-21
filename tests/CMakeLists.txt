@@ -24,6 +24,7 @@ set(tests
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
+  cpp/flow_controller.cc
   cpp/gateway.cc
   cpp/integration.cc
   cpp/master.cc
@@ -95,6 +96,10 @@ endforeach ()
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
 install(TARGETS broker-benchmark DESTINATION bin)
+
+add_executable(neo-broker-benchmark benchmark/neo-broker-benchmark.cc)
+target_link_libraries(neo-broker-benchmark ${libbroker})
+install(TARGETS neo-broker-benchmark DESTINATION bin)
 
 add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
 target_link_libraries(broker-cluster-benchmark ${libbroker})

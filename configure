@@ -150,6 +150,9 @@ while [ $# -ne 0 ]; do
         --with-caf=*)
             append_cache_entry CAF_ROOT             PATH    $optarg
             ;;
+        --with-incubator=*)
+            append_cache_entry CAFIncubator_ROOT    PATH    $optarg
+            ;;
         --with-openssl=*)
             append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg
             ;;
