@@ -42,8 +42,6 @@ namespace broker {
 
 namespace {
 
-constexpr const char* conf_file = "broker.conf";
-
 template <class... Ts>
 auto concat(Ts... xs) {
   std::string result;
@@ -148,6 +146,7 @@ configuration::configuration(broker_options opts) : configuration(skip_init) {
   set("broker.ttl", opts.ttl);
   put(content, "broker.forward", opts.forward);
   init(0, nullptr);
+  config_file_path = "broker.conf";
 }
 
 configuration::configuration() : configuration(skip_init) {
@@ -179,8 +178,8 @@ void configuration::init(int argc, char** argv) {
                          std::make_move_iterator(args.end()));
       args.erase(sep, args.end());
     }
-    if (auto err = parse(std::move(args_subset), conf_file)) {
-      auto what = concat("Error while reading ", conf_file, ": ",
+    if (auto err = parse(std::move(args_subset))) {
+      auto what = concat("Error while reading configuration file: ",
                          to_string(err));
       throw std::runtime_error(what);
     }
