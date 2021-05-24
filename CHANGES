@@ -1,4 +1,10 @@
 
+2.1.0-dev.67 | 2021-05-24 15:22:34 -0700
+
+  * Change how actor_system_config::config_file_path is set (Jon Siwek, Corelight)
+
+    Mainly avoid conflict with an upcoming change
+
 2.1.0-dev.66 | 2021-05-24 15:01:34 -0700
 
   * Update embedded CAF to 0.18.3 (Jon Siwek, Corelight)
