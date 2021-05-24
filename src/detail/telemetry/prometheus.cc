@@ -102,13 +102,10 @@ caf::behavior prometheus_actor::make_behavior() {
       // neither Broker-side import nor export of metrics, we fall back to the
       // default CAF Prometheus export.
       auto hdr = caf::as_bytes(caf::make_span(request_ok));
-      if (exporter_) {
-        collector_.insert_or_update(exporter_->impl.rows());
-      } else {
-        BROKER_ASSERT(scraper_ != nullptr);
-        fallback_->scrape(system().metrics());
-        collector_.insert_or_update(fallback_->rows());
-      }
+      BROKER_ASSERT(exporter_ != nullptr);
+      if (!exporter_->running())
+        exporter_->impl.scrape(system().metrics());
+      collector_.insert_or_update(exporter_->impl.rows());
       auto text = collector_.prometheus_text();
       auto payload = caf::as_bytes(caf::make_span(text));
       auto& dst = wr_buf(msg.handle);
@@ -149,29 +146,9 @@ caf::behavior prometheus_actor::make_behavior() {
         });
     },
   };
-  if (auto params = exporter_params::from(config())) {
-    exporter_.reset(new exporter_state_type(this, core_, std::move(*params)));
-    return bhvr.or_else(exporter_->make_behavior());
-  } else {
-    // exporter_state::make_behavior monitors the core, so when not calling that
-    // function then we need to perform this step here.
-    monitor(core_);
-    set_down_handler([this](const caf::down_msg& dm) {
-      if (dm.source == core_) {
-        BROKER_INFO(name() << "received a down message from the core: bye");
-        quit(dm.reason);
-      }
-    });
-    // We still respect "broker.metrics.export.prefixes" to allow users to limit
-    // the amount of data in Prometheus. However, other export parameters are
-    // ignored.
-    auto prefixes = caf::get_or(config(), "broker.metrics.export.prefixes",
-                                std::vector<std::string>{});
-    auto id = caf::get_or(config(), "broker.metrics.endpoint-name",
-                          "localhost");
-    fallback_.reset(new scraper(std::move(prefixes), std::move(id)));
-    return bhvr;
-  }
+  auto params = exporter_params::from(config());
+  exporter_.reset(new exporter_state_type(this, core_, std::move(params)));
+  return bhvr.or_else(exporter_->make_behavior());
 }
 
 } // namespace broker::detail::telemetry

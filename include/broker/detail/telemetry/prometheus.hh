@@ -42,7 +42,6 @@ public:
   caf::behavior make_behavior() override;
 
 private:
-
   /// Caches input per open connection for parsing the HTTP header.
   std::unordered_map<caf::io::connection_handle, caf::byte_buffer> requests_;
 
@@ -58,9 +57,6 @@ private:
   /// Optional export of local metrics if the user configured a value for
   /// "broker.metrics.export.topic".
   std::unique_ptr<exporter_state_type> exporter_;
-
-  /// Fallback scraper if the user leaves "broker.metrics.export.topic" empty.
-  std::unique_ptr<scraper> fallback_;
 };
 
 } // namespace broker::detail::telemetry

@@ -191,6 +191,10 @@ public:
     }
   }
 
+  caf::actor telemetry_exporter() {
+    return worker_;
+  }
+
 private:
   caf::io::network::default_multiplexer mpx_;
   caf::io::network::multiplexer::supervisor_ptr mpx_supervisor_;
@@ -199,6 +203,36 @@ private:
 };
 
 } // namespace
+
+// --- metrics_exporter_t::endpoint class --------------------------------------
+
+void endpoint::metrics_exporter_t::set_interval(caf::timespan new_interval) {
+  if (new_interval.count() > 0)
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v, new_interval);
+}
+
+void endpoint::metrics_exporter_t::set_target(topic new_target) {
+  if (!new_target.empty())
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+                   std::move(new_target));
+}
+
+void endpoint::metrics_exporter_t::set_id(std::string new_id) {
+  if (!new_id.empty())
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+                   std::move(new_id));
+}
+
+void endpoint::metrics_exporter_t::set_prefixes(
+  std::vector<std::string> new_prefixes) {
+  // We only wrap the prefixes into a filter to get around assigning a type ID
+  // to std::vector<std::string> (which technically would require us to change
+  // Broker ID on the network).
+  filter_type boxed;
+  for (auto& prefix : new_prefixes)
+    boxed.emplace_back(std::move(prefix));
+  caf::anon_send(parent_->telemetry_exporter_, atom::put_v, std::move(boxed));
+}
 
 // --- endpoint class ----------------------------------------------------------
 
@@ -296,13 +330,15 @@ endpoint::endpoint(configuration config)
                                         addr.empty() ? nullptr : addr.c_str(),
                                         false)) {
       BROKER_INFO("expose metrics on port" << *actual_port);
+      telemetry_exporter_ = ptask->telemetry_exporter();
       background_tasks_.emplace_back(std::move(ptask));
     } else {
       BROKER_ERROR("failed to expose metrics:" << actual_port.error());
     }
-  } else if (auto params = dt::exporter_params::from(config_)) {
-    BROKER_INFO("publish metrics to topic" << params->target);
-    system_.spawn<dt::exporter_actor>(core_, std::move(*params));
+  } else {
+    auto params = dt::exporter_params::from(config_);
+    telemetry_exporter_
+      = system_.spawn<dt::exporter_actor>(core_, std::move(params));
   }
 }
 
@@ -335,6 +371,8 @@ void endpoint::shutdown() {
   }
   BROKER_DEBUG("stop background tasks");
   background_tasks_.clear();
+  anon_send_exit(telemetry_exporter_, caf::exit_reason::user_shutdown);
+  telemetry_exporter_ = nullptr;
   BROKER_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown_v);
   core_ = nullptr;

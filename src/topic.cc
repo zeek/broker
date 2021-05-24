@@ -45,6 +45,10 @@ const std::string& topic::string() const {
   return str_;
 }
 
+std::string&& topic::move_string() && {
+  return std::move(str_);
+}
+
 bool topic::prefix_of(const topic& t) const {
   return str_.size() <= t.str_.size()
          && t.str_.compare(0, str_.size(), str_) == 0;

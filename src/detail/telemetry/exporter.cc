@@ -9,27 +9,30 @@
 
 namespace broker::detail::telemetry {
 
-optional<exporter_params>
-exporter_params::from(const caf::actor_system_config& cfg) {
+exporter_params exporter_params::from(const caf::actor_system_config& cfg) {
+  using std::string;
   using dict_type = caf::config_value::dictionary;
-  if (auto dict = caf::get_if<dict_type>(&cfg, "broker.metrics.export")) {
-    if (auto tp = caf::get_if<std::string>(dict, "topic"); tp && !tp->empty()) {
-      auto t = topic{*tp};
-      auto id = caf::get_or(cfg, "broker.metrics.endpoint-name",
-                            caf::string_view{t.suffix()});
-      auto interval = caf::get_or(*dict, "interval",
-                                  defaults::metrics::export_interval);
-      if (interval.count() == 0)
-        interval = defaults::metrics::export_interval;
-      return exporter_params{
-        caf::get_or(*dict, "prefixes", std::vector<std::string>{}),
-        interval,
-        std::move(t),
-        std::move(id),
-      };
-    }
+  exporter_params result;
+  if (auto idp = caf::get_if<string>(&cfg, "broker.metrics.endpoint-name");
+      idp && !idp->empty()) {
+    result.id = *idp;
   }
-  return {};
+  if (auto dict = caf::get_if<dict_type>(&cfg, "broker.metrics.export")) {
+    if (auto tp = caf::get_if<string>(dict, "topic"); tp && !tp->empty()) {
+      result.target = *tp;
+      if (result.id.empty())
+        result.id = result.target.suffix();
+    }
+    result.interval
+      = caf::get_or(*dict, "interval", defaults::metrics::export_interval);
+    if (result.interval.count() == 0)
+      result.interval = defaults::metrics::export_interval;
+  }
+  return result;
+}
+
+[[nodiscard]] bool exporter_params::valid() const noexcept {
+  return !target.empty();
 }
 
 } // namespace broker::detail::telemetry

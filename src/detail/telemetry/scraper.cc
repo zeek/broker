@@ -92,6 +92,11 @@ void scraper::scrape(caf::telemetry::metric_registry& registry) {
   registry.collect(*this);
 }
 
+void scraper::id(std::string new_id) {
+  id_ = std::move(new_id);
+  rows_.clear(); // Force re-creation of the meta information on next scrape.
+}
+
 void scraper::operator()(const ct::metric_family* family,
                          const ct::metric* instance,
                          const ct::dbl_counter* counter) {

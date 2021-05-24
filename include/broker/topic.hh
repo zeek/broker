@@ -53,12 +53,20 @@ public:
   /// @returns A reference to the underlying string.
   const std::string& string() const;
 
+  /// Retrieves an rvalue reference to the underlying string representation.
+  std::string&& move_string() &&;
+
   /// Returns whether this topic is a prefix match for `t`.
   bool prefix_of(const topic& t) const;
 
   /// Returns the suffix of the topic, i.e., the characters after the last
   /// separator. For example, the suffix of `/foo/bar` is `bar`.
   std::string_view suffix() const noexcept;
+
+  /// Returns whether this topic was default-constructed.
+  [[nodiscard]] bool empty() const noexcept {
+    return str_.empty();
+  }
 
   template <class Inspector>
   friend bool inspect(Inspector& f, topic& x) {

@@ -12,13 +12,19 @@ using namespace std::literals::chrono_literals;
 
 namespace {
 
-caf::behavior dummy_core() {
-  return {
-    [](atom::publish, data_message) {
-      // nop
-    },
-  };
-}
+struct dummy_core_state {
+  data_message last_message;
+
+  caf::behavior make_behavior() {
+    return {
+      [this](atom::publish, data_message& msg) {
+        last_message = std::move(msg);
+      },
+    };
+  }
+};
+
+using dummy_core_actor = caf::stateful_actor<dummy_core_state>;
 
 struct metric_row {
   std::string prefix;
@@ -81,9 +87,9 @@ struct fixture : base_fixture {
     foo_hist = foo_hist_fam->get_or_add({{"sys", "broker"}});
     bar_foo = reg.gauge_singleton("bar", "foo", "BarFoo!");
     std::vector<std::string> selection{"foo"};
-    core = sys.spawn(dummy_core);
+    core = sys.spawn<dummy_core_actor>();
     aut = sys.spawn<detail::telemetry::exporter_actor>(
-      core, std::move(selection), caf::timespan{2s}, "/all/them/metrics",
+      core, std::move(selection), caf::timespan{2s}, "all/them/metrics",
       "exporter-1");
     sched.run();
   }
@@ -94,6 +100,10 @@ struct fixture : base_fixture {
 
   auto& state() {
     return deref<detail::telemetry::exporter_actor>(aut).state;
+  }
+
+  auto& core_state() {
+    return deref<dummy_core_actor>(core).state;
   }
 
   const auto& rows() {
@@ -121,7 +131,6 @@ struct fixture : base_fixture {
 FIXTURE_SCOPE(telemetry_exporter_tests, fixture)
 
 TEST(the exporter runs once per interval) {
-  CHECK(rows().empty());
   foo_bar->inc();
   foo_hist->observe(4);
   foo_hist->observe(12);
@@ -156,6 +165,65 @@ TEST(the exporter runs once per interval) {
                                     "FooHist!", false, table{{"sys", "broker"}},
                                     foo_hist_buckets(1, 1, 0, 1, 80)}));
   }
+}
+
+TEST(the exporter allows changing the interval at runtime) {
+  inject((atom::put, timespan), to(aut).with(atom::put_v, timespan{3s}));
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  sched.advance_time(2s);
+  disallow((caf::tick_atom), to(aut));
+  sched.advance_time(1s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+}
+
+TEST(the exporter allows changing the topic at runtime) {
+  auto last_topic = [this] { return get_topic(core_state().last_message); };
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  CHECK_EQUAL(last_topic(), "all/them/metrics");
+  inject((atom::put, topic), to(aut).with(atom::put_v, "foo/bar"_t));
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  CHECK_EQUAL(last_topic(), "foo/bar");
+}
+
+TEST(the exporter allows changing the ID at runtime) {
+  auto has_id = [this](const data& x, const std::string& what) {
+    using namespace std::literals;
+    if (auto row = get_if<vector>(x); row && row->size() == 2)
+      return row->at(0) == what;
+    else
+      return false;
+  };
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  if (CHECK(!rows().empty()))
+    CHECK(has_id(row(0), "exporter-1"));
+  inject((atom::put, std::string), to(aut).with(atom::put_v, "foobar"));
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  if (CHECK(!rows().empty()))
+    CHECK(has_id(row(0), "foobar"));
+}
+
+TEST(the exporter allows changing the prefix selection at runtime) {
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  CHECK_EQUAL(rows().size(), 3u);
+  inject((atom::put, filter_type),
+         to(aut).with(atom::put_v, filter_type{"foo", "bar"}));
+  sched.advance_time(2s);
+  expect((caf::tick_atom), to(aut));
+  expect((atom::publish, data_message), from(aut).to(core));
+  CHECK_EQUAL(rows().size(), 4u);
 }
 
 FIXTURE_SCOPE_END()

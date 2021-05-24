@@ -103,9 +103,41 @@ public:
     std::atomic<size_t> pending_count_;
   };
 
+  /// Utility class for configuring the metrics exporter.
+  class metrics_exporter_t {
+  public:
+    explicit metrics_exporter_t(endpoint* parent) : parent_(parent) {
+      // nop
+    }
+
+    metrics_exporter_t(const metrics_exporter_t&) noexcept = default;
+    metrics_exporter_t& operator=(const metrics_exporter_t&) noexcept = default;
+
+    /// Changes the frequency for publishing scraped metrics to the topic.
+    /// Passing a zero-length interval has no effect.
+    void set_interval(caf::timespan new_interval);
+
+    /// Sets a new target topic for the metrics. Passing an empty topic has no
+    /// effect.
+    void set_target(topic new_target);
+
+    /// Sets a new ID for the metrics exporter. Passing an empty string has no
+    /// effect.
+    void set_id(std::string new_id);
+
+    /// Sets a prefix selection for the metrics exporter. An empty vector means
+    /// *all*.
+    void set_prefixes(std::vector<std::string> new_prefixes);
+
+  private:
+    endpoint* parent_;
+  };
+
   struct background_task {
     virtual ~background_task();
   };
+
+  friend class metrics_exporter_t;
 
   // --- construction and destruction ------------------------------------------
 
@@ -358,6 +390,11 @@ public:
     await_stores_on_shutdown_ = x;
   }
 
+  /// Returns a configuration object for the metrics exporter.
+  metrics_exporter_t metrics_exporter() {
+    return metrics_exporter_t{this};
+  }
+
   bool is_shutdown() const {
     return destroyed_;
   }
@@ -397,6 +434,7 @@ private:
     mutable caf::actor_system system_;
   };
   caf::actor core_;
+  caf::actor telemetry_exporter_;
   bool await_stores_on_shutdown_;
   std::vector<caf::actor> children_;
   bool destroyed_;

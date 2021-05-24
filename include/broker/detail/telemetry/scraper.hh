@@ -35,6 +35,8 @@ public:
     return id_;
   }
 
+  void id(std::string new_id);
+
   [[nodiscard]] const auto& rows() const noexcept {
     return rows_;
   }
