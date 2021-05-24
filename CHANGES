@@ -1,4 +1,10 @@
 
+2.1.0-dev.66 | 2021-05-24 15:01:34 -0700
+
+  * Update embedded CAF to 0.18.3 (Jon Siwek, Corelight)
+
+    And migrate a now-deprecated actor_system_config::parse() usage.
+
 2.1.0-dev.65 | 2021-04-19 16:14:38 -0700
 
   * Fix broker-pipe crash with static CAF builds (Dominik Charousset, Corelight)

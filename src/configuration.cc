@@ -145,7 +145,8 @@ void configuration::init(int argc, char** argv) {
                          std::make_move_iterator(args.end()));
       args.erase(sep, args.end());
     }
-    if (auto err = parse(std::move(args_subset), conf_file)) {
+    config_file_path = conf_file;
+    if (auto err = parse(std::move(args_subset))) {
       auto what = concat("Error while reading ", conf_file, ": ",
                          to_string(err));
       throw std::runtime_error(what);
