@@ -22,3 +22,9 @@ namespace broker::defaults::store {
 extern const caf::timespan tick_interval;
 
 } // namespace broker::defaults::store
+
+namespace broker::defaults::metrics {
+
+constexpr caf::timespan export_interval = std::chrono::seconds(1);
+
+} // namespace broker::defaults::metrics::export

@@ -45,9 +45,22 @@ const std::string& topic::string() const {
   return str_;
 }
 
+std::string&& topic::move_string() && {
+  return std::move(str_);
+}
+
 bool topic::prefix_of(const topic& t) const {
   return str_.size() <= t.str_.size()
          && t.str_.compare(0, str_.size(), str_) == 0;
+}
+
+std::string_view topic::suffix() const noexcept {
+  if (auto index = str_.find_last_of(sep); index != std::string::npos) {
+    auto first = index + 1;
+    return {str_.data() + first, str_.size() - first};
+  } else {
+    return {str_};
+  }
 }
 
 bool operator==(const topic& lhs, const topic& rhs) {

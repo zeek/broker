@@ -1,3 +1,18 @@
+2.1.0-dev.75 | 2021-06-01 10:18:00 -0700
+
+  * Make telemetry exporter configurable at runtime (Dominik Charousset, Corelight)
+
+  * Raise CAF dependency to 0.18.3 (Dominik Charousset, Corelight)
+
+  * Update CAF submodule (Dominik Charousset, Corelight)
+
+  * Enable Broker to collect cluster metrics (Dominik Charousset, Corelight)
+
+  * Add remaining meta data to scrape output (Dominik Charousset, Corelight)
+
+  * Add support for histograms to the scraper (Dominik Charousset, Corelight)
+
+  * Implement new publishing mode for local metrics (Dominik Charousset, Corelight)
 
 2.1.0-dev.67 | 2021-05-24 15:22:34 -0700
 

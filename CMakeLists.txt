@@ -194,7 +194,7 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-set(CAF_VERSION_MIN_REQUIRED 0.18.0)
+set(CAF_VERSION_MIN_REQUIRED 0.18.3)
 
 if ( TARGET CAF::core )
   message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
@@ -310,6 +310,11 @@ set(BROKER_SRC
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
+  src/detail/telemetry/collector.cc
+  src/detail/telemetry/exporter.cc
+  src/detail/telemetry/metric_view.cc
+  src/detail/telemetry/prometheus.cc
+  src/detail/telemetry/scraper.cc
   src/detail/unipath_manager.cc
   src/endpoint.cc
   src/endpoint_info.cc
