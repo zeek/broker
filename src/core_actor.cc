@@ -24,10 +24,11 @@
 
 namespace broker {
 
-core_state::core_state(caf::event_based_actor* self, filter_type initial_filter,
-                       endpoint::clock* clock, const domain_options* adaptation)
+core_state::core_state(caf::event_based_actor* self, endpoint_id this_peer,
+                       filter_type initial_filter, endpoint::clock* clock,
+                       const domain_options* adaptation)
   : super(self, clock) {
-  id(self->node());
+  id(this_peer);
   if (adaptation && adaptation->disable_forwarding)
     disable_forwarding(true);
   if (!initial_filter.empty())

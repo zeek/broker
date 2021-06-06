@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
+#include <caf/async/publisher.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/variant.hpp>
 
@@ -12,20 +15,57 @@
 
 namespace broker {
 
+/// Tags a packed message with the type of the serialized data.
+enum class alm_message_type : uint8_t {
+  data = 0x01,
+  command = 0x02,
+  syn = 0x10,
+  syn_ack = 0x20,
+  ack = 0x30,
+};
+
+/// Tags a packed message with the type of the serialized data. This enumeration
+/// is a subset of @ref alm_message_type.
+enum class packed_message_type : uint8_t {
+  data = 0x01,
+  command = 0x02,
+};
+
+/// A Broker-internal message with a payload received from the ALM layer.
+using packed_message
+  = caf::cow_tuple<packed_message_type, alm::multipath, topic,
+                   std::shared_ptr<std::vector<std::byte>>>;
+
 /// A user-defined message with topic and data.
 using data_message = caf::cow_tuple<topic, data>;
 
-/// A broker-internal message with topic and command.
+/// A Broker-internal message with topic and command.
 using command_message = caf::cow_tuple<topic, internal_command>;
 
-/// A broker-internal message between two endpoints.
+template <class T>
+struct packed_message_type_oracle;
+
+template <>
+struct packed_message_type_oracle<data_message> {
+  static constexpr auto value = packed_message_type::data;
+};
+
+template <>
+struct packed_message_type_oracle<command_message> {
+  static constexpr auto value = packed_message_type::command;
+};
+
+template <class T>
+constexpr auto packed_message_type_v = packed_message_type_oracle<T>::value;
+
+/// A Broker-internal message between two endpoints.
 using node_message_content = caf::variant<data_message, command_message>;
 
 /// Ordered, reliable communication channel between data stores.
 using command_channel = detail::channel<entity_id, command_message>;
 
 /// A message for node-to-node communication with either a user-defined data
-/// message or a broker-internal command messages.
+/// message or a Broker-internal command messages.
 using node_message = caf::cow_tuple< // Fields:
   node_message_content,              // 0: content
   alm::multipath>;                   // 1: path
@@ -304,6 +344,18 @@ topic_cache_type& thread_local_topic_cache();
 path_cache_type& thread_local_path_cache();
 
 content_buf_type& thread_local_content_buf();
+
+struct command_message_publisher {
+  caf::async::publisher<command_message> hdl;
+};
+
+struct data_message_publisher {
+  caf::async::publisher<data_message> hdl;
+};
+
+struct packed_message_publisher {
+  caf::async::publisher<packed_message> hdl;
+};
 
 } // namespace broker::detail
 

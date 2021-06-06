@@ -20,16 +20,13 @@ data make_data_error(ec code, vector context = {}) {
 
 struct fixture {
   // A node ID in CAF's default format (host hash + process ID).
-  caf::node_id nid;
+  endpoint_id nid;
 
   // Output of to_string(nid).
   std::string nid_str;
 
   fixture() {
-    auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
-    if (!id)
-      FAIL("caf::make_node_id failed");
-    nid = std::move(*id);
+    nid = endpoint_id::random(0x5EED);
     nid_str = to_string(nid);
   }
 };
@@ -119,7 +116,7 @@ TEST(errors with category broker are convertible to and from data) {
       {vector{nil, "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "no such peer"s})),
     make_error(ec::peer_invalid,
-               endpoint_info{caf::node_id{},
+               endpoint_info{endpoint_id{},
                              network_info{"foo", 8080, timeout::seconds{42}}},
                "invalid host"s));
 }

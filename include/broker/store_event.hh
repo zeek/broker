@@ -29,7 +29,7 @@ public:
   ///   key: data,
   ///   value: data,
   ///   expiry: optional<timespan>,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -73,7 +73,7 @@ public:
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[5])) {
+      if (auto value = to<endpoint_id>((*xs_)[5])) {
         return {std::move(*value), get<uint64_t>((*xs_)[6])};
       }
       return {};
@@ -96,9 +96,9 @@ public:
   ///   key: data,
   ///   value: data,
   ///   expiry: optional<timespan>
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
-  /// ]`.
+  /// ].
   /// ```
   class update {
   public:
@@ -141,7 +141,7 @@ public:
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[6])) {
+      if (auto value = to<endpoint_id>((*xs_)[6])) {
         return {*value, get<uint64_t>((*xs_)[7])};
       }
       return {};
@@ -162,7 +162,7 @@ public:
   ///   "erase",
   ///   store_id: string,
   ///   key: data,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -193,7 +193,7 @@ public:
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[3])) {
+      if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
       }
       return {};
@@ -214,7 +214,7 @@ public:
   ///   "expire",
   ///   store_id: string,
   ///   key: data,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -245,7 +245,7 @@ public:
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[3])) {
+      if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
       }
       return {};

@@ -12,7 +12,6 @@
 #include "broker/logger.hh"
 
 using caf::actor;
-using caf::node_id;
 
 // TODO: implement me
 

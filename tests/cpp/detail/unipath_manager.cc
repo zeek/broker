@@ -14,9 +14,8 @@ using fsm = detail::peer_handshake::fsm;
 namespace {
 
 broker::endpoint_id make_peer_id(uint8_t num) {
-  std::array<uint8_t, 20> host_id;
-  host_id.fill(num);
-  return caf::make_node_id(num, host_id);
+  auto seed = static_cast<unsigned>(0x5EED00 | num);
+  return broker::endpoint_id::random(seed);
 }
 
 class testee_state : public alm::stream_transport {

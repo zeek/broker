@@ -81,13 +81,13 @@ struct fixture : base_fixture {
   }
 
   fixture() {
+    core1_id = endpoint_id::random(0x5EED1);
+    core2_id = endpoint_id::random(0x5EED2);
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(filter_type{"z"});
+    core2 = sys.spawn<core_actor_type>(core2_id, filter_type{"z"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();
-    core1_id = caf::make_node_id(unbox(caf::make_uri("test:core1")));
-    core2_id = caf::make_node_id(unbox(caf::make_uri("test:core2")));
     state(core1).id(core1_id);
     state(core2).id(core2_id);
   }
@@ -97,8 +97,8 @@ struct fixture : base_fixture {
     anon_send_exit(core2, exit_reason::user_shutdown);
   }
 
-  caf::node_id core1_id;
-  caf::node_id core2_id;
+  endpoint_id core1_id;
+  endpoint_id core2_id;
   caf::actor core1;
   caf::actor core2;
 };
@@ -111,7 +111,7 @@ CAF_TEST(blocking_publishers) {
   // Spawn/get/configure core actors.
   anon_send(core2, atom::subscribe_v, filter_type{"a"});
   run();
-  inject((atom::peer, caf::node_id, caf::actor),
+  inject((atom::peer, endpoint_id, caf::actor),
          from(self).to(core1).with(atom::peer_v, core2_id, core2));
   // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
   auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
@@ -148,7 +148,7 @@ CAF_TEST(nonblocking_publishers) {
   // Spawn/get/configure core actors.
   anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
   run();
-  inject((atom::peer, caf::node_id, caf::actor),
+  inject((atom::peer, endpoint_id, caf::actor),
          from(self).to(core1).with(atom::peer_v, core2_id, core2));
   // Connect a consumer (leaf) to core2.
   auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);

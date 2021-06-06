@@ -77,7 +77,8 @@ store::store(const store& other) : state_(other.state_) {
     caf::anon_send(ptr->frontend, atom::increment_v, ptr);
 }
 
-store::store(caf::actor frontend, std::string name) {
+store::store(endpoint_id this_peer, caf::actor frontend, std::string name)
+  : this_peer_(this_peer) {
   BROKER_TRACE(BROKER_ARG(frontend) << BROKER_ARG(name));
   if (!frontend) {
     BROKER_ERROR("store::store called with frontend == nullptr");
@@ -116,7 +117,8 @@ store::~store() {
     caf::anon_send(ptr->frontend, atom::decrement_v, ptr);
 }
 
-store::proxy::proxy(store& st) : frontend_{st.frontend()} {
+store::proxy::proxy(store& st)
+  : frontend_{st.frontend()}, this_peer_{st.this_peer()} {
   proxy_ = frontend_.home_system().spawn<flare_actor>();
 }
 
@@ -139,8 +141,8 @@ request_id store::proxy::put_unique(data key, data val, optional<timespan> expir
     return 0;
   send_as(proxy_, frontend_, atom::local_v,
           make_internal_command<put_unique_command>(
-            std::move(key), std::move(val), expiry, entity_id::from(proxy_),
-            ++id_, frontend_id()));
+            std::move(key), std::move(val), expiry,
+            entity_id{this_peer_, proxy_.id()}, ++id_, frontend_id()));
   return id_;
 }
 
@@ -166,7 +168,7 @@ caf::actor store::frontend() const {
 
 entity_id store::frontend_id() const {
   if (auto ptr = state_.lock())
-    return entity_id::from(ptr->frontend);
+    return entity_id{this_peer_, ptr->frontend.id()};
   return entity_id::nil();
 }
 
@@ -178,7 +180,7 @@ caf::actor store::self_hdl() const {
 
 entity_id store::self_id() const {
   if (auto ptr = state_.lock())
-    return entity_id::from(ptr->self);
+    return entity_id{this_peer_, ptr->self->id()};
   return entity_id::nil();
 }
 
@@ -253,8 +255,8 @@ expected<data> store::put_unique(data key, data val,
     return state.request_tagged<data>(tag, atom::local_v,
                                       make_internal_command<put_unique_command>(
                                         std::move(key), std::move(val), expiry,
-                                        entity_id::from(state.self), tag,
-                                        frontend_id()));
+                                        entity_id{this_peer_, state.self->id()},
+                                        tag, frontend_id()));
   });
 }
 

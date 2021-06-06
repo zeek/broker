@@ -14,6 +14,7 @@
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/central_dispatcher.hh"
+#include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/error.hh"
@@ -371,13 +372,14 @@ protected:
   lamport_timestamp timestamp_;
 
   /// Keeps track of the logical timestamps last seen from other peers.
-  std::unordered_map<endpoint_id, lamport_timestamp> peer_timestamps_;
+  std::unordered_map<endpoint_id, lamport_timestamp, detail::fnv>
+    peer_timestamps_;
 
   /// Stores prefixes with subscribers on this peer.
   filter_type filter_;
 
   /// Stores all filters from other peers.
-  std::unordered_map<endpoint_id, filter_type> peer_filters_;
+  std::unordered_map<endpoint_id, filter_type, detail::fnv> peer_filters_;
 
   /// Stores revoked paths.
   revocations_type revocations_;

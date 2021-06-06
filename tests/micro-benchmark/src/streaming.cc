@@ -370,7 +370,7 @@ void run_distributed(std::string benchmark_name, size_t num, ValueType msg) {
           ->request(basp, caf::infinite, caf::connect_atom_v, std::move(scribe),
                     uint16_t{1234})
           .receive(
-            [&consumer](caf::node_id&, caf::strong_actor_ptr& ptr,
+            [&consumer](endpoint_id&, caf::strong_actor_ptr& ptr,
                         std::set<std::string>&) {
               if (ptr) {
                 consumer = caf::actor_cast<caf::actor>(ptr);

@@ -23,29 +23,15 @@ data make_data_status(sc code, vector context, std::string text) {
 }
 
 struct fixture {
-  // A node ID in CAF's default format (host hash + process ID).
-  caf::node_id def_id;
+  // A node ID.
+  endpoint_id id;
 
-  // Output of to_string(def_id).
-  std::string def_id_str;
-
-  // A node ID in CAF's URI format (e.g., ip://foo:123).
-  caf::node_id uri_id;
-
-  // Output of to_string(uri_id).
-  std::string uri_id_str;
+  // Output of to_string(id).
+  std::string id_str;
 
   fixture() {
-    auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
-    if (!id)
-      FAIL("caf::make_node_id failed");
-    def_id = std::move(*id);
-    def_id_str = to_string(def_id);
-    auto tmp = caf::make_uri("ip://foo:8080");
-    if (!tmp)
-      FAIL("caf::make_uri failed");
-    uri_id = caf::make_node_id(std::move(*tmp));
-    uri_id_str = to_string(uri_id);
+    id = endpoint_id::random(0x5EED);
+    id_str = to_string(id);
   }
 };
 
@@ -72,47 +58,37 @@ TEST(sc is convertible to and from string) {
 TEST(status is convertible to and from data) {
   CHECK_EQUAL(get_as<data>(status{}),
               vector({"status"s, enum_value{"unspecified"}, nil, nil}));
-  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({uri_id, nil}, "text")),
-              make_data_status(sc::peer_added, {uri_id_str, nil, nil, nil},
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({id, nil}, "text")),
+              make_data_status(sc::peer_added, {id_str, nil, nil, nil},
                                "text"));
-  CHECK_EQUAL(get_as<status>(make_data_status(
-                sc::peer_added, {uri_id_str, nil, nil, nil}, "text")),
-              status::make<sc::peer_added>({uri_id, nil}, "text"));
-  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({def_id, nil}, "text")),
-              make_data_status(sc::peer_added, {def_id_str, nil, nil, nil},
+  CHECK_EQUAL(get_as<status>(make_data_status(sc::peer_added,
+                                              {id_str, nil, nil, nil}, "text")),
+              status::make<sc::peer_added>({id, nil}, "text"));
+  CHECK_EQUAL(get_as<data>(status::make<sc::endpoint_discovered>(id, "text")),
+              make_data_status(sc::endpoint_discovered, {id_str, nil, nil, nil},
                                "text"));
-  CHECK_EQUAL(get_as<status>(make_data_status(
-                sc::peer_added, {def_id_str, nil, nil, nil}, "text")),
-              status::make<sc::peer_added>({def_id, nil}, "text"));
-  CHECK_EQUAL(get_as<data>(
-                status::make<sc::endpoint_discovered>(def_id, "text")),
-              make_data_status(sc::endpoint_discovered,
-                               {def_id_str, nil, nil, nil}, "text"));
-  CHECK_EQUAL(get_as<data>(
-                status::make<sc::endpoint_discovered>(def_id, "text")),
-              make_data_status(sc::endpoint_discovered,
-                               {def_id_str, nil, nil, nil}, "text"));
+  CHECK_EQUAL(get_as<data>(status::make<sc::endpoint_discovered>(id, "text")),
+              make_data_status(sc::endpoint_discovered, {id_str, nil, nil, nil},
+                               "text"));
   CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>(
-                {def_id, network_info{"foo", 8080, timeout::seconds{42}}},
-                "text")),
+                {id, network_info{"foo", 8080, timeout::seconds{42}}}, "text")),
               make_data_status(sc::peer_added,
-                               {def_id_str, "foo"s,
-                                port{8080, port::protocol::tcp}, count{42}},
+                               {id_str, "foo"s, port{8080, port::protocol::tcp},
+                                count{42}},
                                "text"));
-  CHECK_EQUAL(
-    get_as<status>(make_data_status(
-      sc::peer_added,
-      {def_id_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
-      "text")),
-    status::make<sc::peer_added>(
-      {def_id, network_info{"foo", 8080, timeout::seconds{42}}}, "text"));
+  CHECK_EQUAL(get_as<status>(make_data_status(
+                sc::peer_added,
+                {id_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
+                "text")),
+              status::make<sc::peer_added>(
+                {id, network_info{"foo", 8080, timeout::seconds{42}}}, "text"));
 }
 
 TEST(status views operate directly on raw data) {
-  data raw{vector{"status"s, enum_value{"peer_added"},
-                  vector{def_id_str, "foo"s, port{8080, port::protocol::tcp},
-                         count{42}},
-                  "text"s}};
+  data raw{
+    vector{"status"s, enum_value{"peer_added"},
+           vector{id_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
+           "text"s}};
   auto view = make_status_view(raw);
   REQUIRE(view.valid());
   CHECK_EQUAL(view.code(), sc::peer_added);
@@ -120,7 +96,7 @@ TEST(status views operate directly on raw data) {
   auto cxt = view.context();
   REQUIRE(cxt);
   REQUIRE(cxt->network);
-  CHECK_EQUAL(cxt->node, def_id);
+  CHECK_EQUAL(cxt->node, id);
   CHECK_EQUAL(cxt->network->address, "foo");
   CHECK_EQUAL(cxt->network->port, 8080u);
 }

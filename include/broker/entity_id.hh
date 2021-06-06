@@ -29,13 +29,13 @@ struct entity_id {
 
   /// Returns an invalid ID.
   static entity_id nil() noexcept {
-    return {caf::node_id{}, 0};
+    return {endpoint_id{}, 0};
   }
 
   /// Converts the handle type to an entity ID.
   template <class Handle>
-  static entity_id from(const Handle& hdl) {
-    return hdl ? entity_id{hdl->node(), hdl->id()} : nil();
+  static entity_id from(endpoint_id ep, const Handle& hdl) {
+    return hdl ? entity_id{ep, hdl->id()} : nil();
   }
 
   /// Computes a hash value for this object.

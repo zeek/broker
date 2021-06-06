@@ -16,7 +16,7 @@ constexpr const char* type_strings[] = {
 bool is_entity_id(const vector& xs, size_t endpoint_index,
                   size_t object_index) {
   return (is<none>(xs[endpoint_index]) && is<none>(xs[object_index]))
-         || (can_convert_to<caf::node_id>(xs[endpoint_index])
+         || (can_convert_to<endpoint_id>(xs[endpoint_index])
              && is<uint64_t>(xs[object_index]));
 }
 

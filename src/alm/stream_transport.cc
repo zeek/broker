@@ -1,5 +1,7 @@
 #include "broker/alm/stream_transport.hh"
 
+#include <caf/binary_serializer.hpp>
+
 #include "broker/detail/overload.hh"
 
 namespace broker::alm {
@@ -525,7 +527,93 @@ void stream_transport::abort_handshake(detail::peer_manager* mgr) {
 
 // -- initialization -----------------------------------------------------------
 
+namespace {
+
+template <class T>
+class pack_step {
+public:
+  using input_type = T;
+
+  using output_type = packed_message;
+
+  explicit pack_step(stream_transport* state) noexcept : state_(state) {
+    // nop
+  }
+
+  pack_step(const pack_step& other) noexcept : state_(other.state_) {
+    // nop
+  }
+
+  template <class Next, class... Steps>
+  bool on_next(const T& msg, Next& next, Steps&... steps) {
+    receivers_cache_.clear();
+    const auto& dst = get_topic(msg);
+    detail::prefix_matcher matches;
+    for (const auto& [peer, filter] : state_->peer_filters())
+      if (matches(filter, dst))
+        receivers_cache_.emplace_back(peer);
+    BROKER_DEBUG("got" << receivers_cache_.size() << "receiver for" << msg);
+    if (!receivers_cache_.empty()) {
+      // Clear caches.
+      routes_cache_.clear();
+      unreachables_cache_.clear();
+      buf_.clear();
+      // Serialize payload.
+      caf::binary_serializer sink{nullptr, buf_};
+      std::ignore = sink.apply(get<1>(msg));
+      auto first = reinterpret_cast<std::byte*>(buf_.data());
+      auto last = first + buf_.size();
+      auto payload = std::make_shared<std::vector<std::byte>>(first, last);
+      // Emit packed messages.
+      alm::multipath::generate(receivers_cache_, state_->tbl(), routes_cache_,
+                               unreachables_cache_);
+      for (auto& route : routes_cache_) {
+        auto packed = packed_message{packed_message_type_v<T>, std::move(route),
+                                     dst, std::move(payload)};
+        if (!next.on_next(packed, steps...))
+          return false;
+      }
+      if (!unreachables_cache_.empty())
+        BROKER_WARNING("cannot ship message: no path to any of"
+                       << unreachables_cache_);
+    }
+    return true;
+  }
+
+  template <class Next, class... Steps>
+  void on_complete(Next& next, Steps&... steps) {
+    next.on_complete(steps...);
+  }
+
+  template <class Next, class... Steps>
+  void on_error(const error& what, Next& next, Steps&... steps) {
+    next.on_error(what, steps...);
+  }
+
+private:
+  stream_transport* state_;
+  std::vector<endpoint_id> receivers_cache_;
+  std::vector<multipath> routes_cache_;
+  std::vector<endpoint_id> unreachables_cache_;
+  caf::byte_buffer buf_;
+};
+
+} // namespace
+
 caf::behavior stream_transport::make_behavior() {
+  auto init_merger = [this](auto& ptr) {
+    ptr.emplace(self());
+    ptr->delay_error(true);
+    ptr->shutdown_on_last_complete(false);
+  };
+  init_merger(data_inputs_);
+  init_merger(command_inputs_);
+  init_merger(central_merge_);
+  central_merge_->add(
+    data_inputs_->as_observable().transform(pack_step<data_message>{this}));
+  central_merge_->add(command_inputs_->as_observable().transform(
+    pack_step<command_message>{this}));
+
   using detail::lift;
   return caf::message_handler{
     // Expose to member functions to messaging API.

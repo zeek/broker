@@ -64,13 +64,13 @@ struct fixture : base_fixture {
   }
 
   fixture() {
-    core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"});
+    core1_id = endpoint_id::random(0x5EED1);
+    core2_id = endpoint_id::random(0x5EED2);
+    core1 = sys.spawn<core_actor_type>(core1_id, filter_type{"a", "b", "c"});
     core2 = ep.core();
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();
-    core1_id = caf::make_node_id(unbox(caf::make_uri("test:core1")));
-    core2_id = caf::make_node_id(unbox(caf::make_uri("test:core2")));
     state(core1).id(core1_id);
     state(core2).id(core2_id);
   }
@@ -80,8 +80,8 @@ struct fixture : base_fixture {
     anon_send_exit(core2, exit_reason::user_shutdown);
   }
 
-  caf::node_id core1_id;
-  caf::node_id core2_id;
+  endpoint_id core1_id;
+  endpoint_id core2_id;
   caf::actor core1;
   caf::actor core2;
 };

@@ -8,10 +8,12 @@
 #include <caf/detail/scope_guard.hpp>
 #include <caf/detail/unordered_flat_map.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/flow/merge.hpp>
 #include <caf/fused_downstream_manager.hpp>
 
 #include "broker/alm/peer.hh"
 #include "broker/alm/routing_table.hh"
+#include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/peer_handshake.hh"
 #include "broker/detail/prefix_matcher.hh"
@@ -219,13 +221,20 @@ protected:
   mgr_to_hdl_map mgr_to_hdl_;
 
   /// Stores connections to peer that yet have to finish the handshake.
-  std::unordered_map<endpoint_id, detail::peer_manager_ptr> pending_;
+  std::unordered_map<endpoint_id, detail::peer_manager_ptr, detail::fnv>
+    pending_;
 
   /// Stores local data message subscribers .
   std::vector<detail::unipath_data_sink_ptr> data_sinks_;
 
   /// Stores local command message subscribers .
   std::vector<detail::unipath_command_sink_ptr> command_sinks_;
+
+  caf::flow::merger_impl_ptr<data_message> data_inputs_;
+
+  caf::flow::merger_impl_ptr<command_message> command_inputs_;
+
+  caf::flow::merger_impl_ptr<packed_message> central_merge_;
 };
 
 } // namespace broker::alm

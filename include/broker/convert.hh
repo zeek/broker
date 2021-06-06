@@ -8,6 +8,7 @@
 #include <caf/fwd.hpp>
 
 #include "broker/detail/type_traits.hh"
+#include "broker/fwd.hh"
 #include "broker/optional.hh"
 
 namespace broker::detail {
@@ -22,9 +23,9 @@ namespace broker {
 template <class T>
 struct can_convert_predicate;
 
-// Enable `can_convert` for `caf::node_id`.
+// Enable `can_convert` for `endpoint_id`.
 template <>
-struct can_convert_predicate<caf::node_id> {
+struct can_convert_predicate<endpoint_id> {
   static bool check(const data& src) {
     return detail::can_convert_data_to_node(src);
   }

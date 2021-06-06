@@ -46,7 +46,7 @@ struct testee_state : public detail::central_dispatcher {
   }
 
   auto receivers() {
-    return std::vector<caf::node_id>{self->node()};
+    return std::vector<endpoint_id>{this_endpoint()};
   }
 
   void dispatch(const data_message& msg) override {
@@ -67,7 +67,7 @@ struct testee_state : public detail::central_dispatcher {
   }
 
   endpoint_id this_endpoint() const override {
-    return self->node();
+    return this_id;
   }
 
   filter_type local_filter() const override {
@@ -82,6 +82,8 @@ struct testee_state : public detail::central_dispatcher {
     if (out)
       out->push();
   }
+
+  endpoint_id this_id = endpoint_id::random(0x5EED);
 };
 
 using testee_actor = caf::stateful_actor<testee_state>;

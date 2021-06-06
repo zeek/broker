@@ -11,6 +11,7 @@
 #include <caf/config.hpp>
 #include <caf/fwd.hpp>
 #include <caf/type_id.hpp>
+#include <caf/uuid.hpp>
 
 namespace broker {
 
@@ -88,7 +89,7 @@ using request_id = uint64_t;
 namespace broker {
 
 using caf::optional;
-using endpoint_id = caf::node_id;
+using endpoint_id = caf::uuid;
 
 } // namespace broker
 
@@ -103,9 +104,11 @@ class peer;
 class routing_table_row;
 class stream_transport;
 
+struct endpoint_id_hasher;
 struct lamport_timestamp;
 
-using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
+using routing_table
+  = std::unordered_map<endpoint_id, routing_table_row, endpoint_id_hasher>;
 
 } // namespace broker::alm
 
@@ -138,6 +141,9 @@ class IdentifierUpdate;
 
 namespace broker::detail {
 
+struct command_message_publisher;
+struct data_message_publisher;
+struct packed_message_publisher;
 struct retry_state;
 struct store_state;
 
@@ -269,6 +275,9 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
+  BROKER_ADD_TYPE_ID((broker::detail::command_message_publisher))
+  BROKER_ADD_TYPE_ID((broker::detail::data_message_publisher))
+  BROKER_ADD_TYPE_ID((broker::detail::packed_message_publisher))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::detail::store_state_ptr))
   BROKER_ADD_TYPE_ID((broker::ec))
@@ -316,12 +325,19 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message_content>))
   BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>))
-  BROKER_ADD_TYPE_ID((std::vector<caf::node_id>))
+  BROKER_ADD_TYPE_ID((std::vector<caf::uuid>))
+
+#if CAF_VERSION < 1900
+  BROKER_ADD_TYPE_ID((caf::uuid))
+#endif
 
 CAF_END_TYPE_ID_BLOCK(broker)
 
 #undef BROKER_ADD_ATOM
 #undef BROKER_ADD_TYPE_ID
 
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::command_message_publisher)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::data_message_publisher)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::packed_message_publisher)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::store_state_ptr)

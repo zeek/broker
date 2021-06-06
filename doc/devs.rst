@@ -391,10 +391,7 @@ Peers
 
 Each Broker peer in the network has:
 
-- A globally unique ID. Currently, we use ``caf::node_id`` to identify peers.
-  CAF computes this ID automatically by combining a 160-bit hash value (based on
-  a seed plus various node-specific information) with the OS-specific process
-  ID.
+- A globally unique ID. Currently, we use a randomized UUID to identify peers.
 - A filter for incoming messages. The core actor combines the filters of all
   subscribers running in the endpoint to a single filter. The core actor removes
   all redundant entries. For example, if the user starts subscribers with the

@@ -52,7 +52,7 @@ public:
 
     /// Constructs a proxy for a given store.
     /// @param s The store to create a proxy for.
-    explicit proxy(store& s);
+    proxy(store& s);
 
     /// Performs a request to check existence of a value.
     /// @returns A unique identifier for this request to correlate it with a
@@ -100,13 +100,14 @@ public:
 
     /// Returns a globally unique identifier for the frontend actor.
     entity_id frontend_id() const noexcept {
-      return {frontend_.node(), frontend_.id()};
+      return {this_peer_, frontend_.id()};
     }
 
   private:
     request_id id_ = 0;
     caf::actor frontend_;
     caf::actor proxy_;
+    endpoint_id this_peer_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------
@@ -165,6 +166,11 @@ public:
   /// Returns whether the store was fully initialized
   explicit operator bool() const noexcept {
     return initialized();
+  }
+
+  /// Returns the ID for the local ALM peer.
+  endpoint_id this_peer() const noexcept {
+    return this_peer_;
   }
 
   /// Retrieves the frontend.
@@ -321,7 +327,7 @@ public:
   void reset();
 
 private:
-  store(caf::actor actor, std::string name);
+  store(endpoint_id this_peer, caf::actor actor, std::string name);
 
   /// Adds a value to another one, with a type-specific meaning of
   /// "add". This is the backend for a number of the modifiers methods.
@@ -340,6 +346,8 @@ private:
   void subtract(data key, data value, optional<timespan> expiry = {});
 
   // -- member variables -------------------------------------------------------
+
+  endpoint_id this_peer_;
 
   // If we would only consider the native C++ API, we could store a regular
   // shared pointer here and rely on scoping to make sure that store objects get

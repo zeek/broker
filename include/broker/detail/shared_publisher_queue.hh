@@ -46,7 +46,7 @@ public:
     auto& xs = this->xs_;
     if (xs.empty()) {
       this->pending_ = static_cast<long>(num);
-      return false;
+      return 0;
     }
     auto n = std::min(num, xs.size());
     auto b = xs.begin();

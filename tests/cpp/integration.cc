@@ -133,8 +133,6 @@ struct peer_fixture {
     parent->peers.emplace(name, this);
     // Run initialization code
     exec_loop();
-    // Give the core actor a recognizable ID.
-    state(ep.core()).id(caf::make_node_id(unbox(caf::make_uri("test:" + name))));
     // Register at parent.
     parent->peers.emplace(name, this);
   }

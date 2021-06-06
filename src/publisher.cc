@@ -4,6 +4,8 @@
 #include <numeric>
 
 #include <caf/attach_stream_source.hpp>
+#include <caf/flow/observable.hpp>
+#include <caf/scheduled_actor/flow.hpp>
 #include <caf/send.hpp>
 
 #include "broker/data.hh"
@@ -25,81 +27,91 @@ constexpr size_t sample_size = 10;
 /// Defines how many items are stored in the queue.
 constexpr size_t queue_size = 30;
 
+using queue_ptr = detail::shared_publisher_queue_ptr<>;
+
+using buffered_observable_impl
+  = caf::flow::buffered_observable_impl<data_message>;
+
+using buffered_observable_ptr = caf::intrusive_ptr<buffered_observable_impl>;
+
 struct publisher_worker_state {
-  std::vector<size_t> buf;
-  size_t counter = 0;
+  caf::event_based_actor* self;
+  buffered_observable_ptr ptr;
   bool shutting_down = false;
 
   static inline const char* name = "broker.publisher";
 
-  void tick() {
-    if (buf.size() < sample_size) {
-      buf.push_back(counter);
-    } else {
-      std::rotate(buf.begin(), buf.begin() + 1, buf.end());
-      buf.back() = counter;
-    }
-    counter = 0;
+  explicit publisher_worker_state(caf::event_based_actor* self) : self(self) {
+    // nop
   }
 
-  size_t rate() {
-    return !buf.empty()
-           ? std::accumulate(buf.begin(), buf.end(), size_t{0}) / buf.size()
-           : 0;
+  caf::behavior make_behavior() {
+    return {
+      [=](atom::resume) {
+        if (ptr)
+          ptr->try_push();
+      },
+      [=](atom::shutdown) {
+        shutting_down = true;
+        self->unbecome();
+        if (ptr)
+          ptr->try_push();
+      },
+    };
   }
 };
 
-behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
-                          endpoint* ep,
-                          detail::shared_publisher_queue_ptr<> qptr) {
-  auto handler
-    = attach_stream_source(
-        self, ep->core(),
-        [](unit_t&) {
-          // nop
-        },
-        [=](unit_t&, downstream<data_message>& out, size_t num) {
-          auto& st = self->state;
-          auto consumed = qptr->consume(
-            num, [&](data_message&& x) { out.push(std::move(x)); });
-          if (consumed > 0) {
-            st.counter += consumed;
-          }
-        },
-        [=](const unit_t&) {
-          return self->state.shutting_down && qptr->buffer_size() == 0;
-        })
-        .ptr();
-  //self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
-  return {
-    [=](atom::resume) {
-      if (handler->generate_messages())
-        handler->push();
-    },
-    [=](atom::tick) {
-      auto& st = self->state;
-      st.tick();
-      qptr->rate(st.rate());
-      self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
-    },
-    [=](atom::shutdown) {
-      self->state.shutting_down = true;
-      self->unbecome();
-      handler->generate_messages();
-      // triggers the stream to terminate if the queue is already empty
-      handler->push();
-    }
-  };
-}
+using publisher_worker_actor = caf::stateful_actor<publisher_worker_state>;
+
+class queue_reader {
+public:
+  using output_type = data_message;
+
+  queue_reader(queue_ptr ptr, publisher_worker_state* state)
+    : ptr_(std::move(ptr)), state_(state) {
+    // nop
+  }
+
+  queue_reader(queue_reader&&) = default;
+  queue_reader(const queue_reader&) = default;
+  queue_reader& operator=(queue_reader&&) = default;
+  queue_reader& operator=(const queue_reader&) = default;
+
+  template <class Step, class... Steps>
+  void pull(size_t n, Step& step, Steps&... steps) {
+    auto m = std::max(last_pull_size_, n);
+    auto consumed = ptr_->consume(m, [&](const data_message& item) {
+      // TODO: on_next may return false, in which case we are supposed to stop
+      //       early. However, `consume` does not support this yet.
+      std::ignore = step.on_next(item, steps...);
+    });
+    last_pull_size_ = m - consumed;
+    if (consumed == 0 && state_->shutting_down)
+      step.on_complete(steps...);
+  }
+
+private:
+  // When calling consume again after an unsuccessful run, we must ask for *at
+  // least* as many items on the queue again (see
+  // shared_publisher_queue::consume).
+  size_t last_pull_size_ = 0;
+
+  queue_ptr ptr_;
+
+  publisher_worker_state* state_;
+};
 
 } // namespace <anonymous>
 
 publisher::publisher(endpoint& ep, topic t)
   : drop_on_destruction_(false),
     queue_(detail::make_shared_publisher_queue(queue_size)),
-    worker_(ep.system().spawn(publisher_worker, &ep, queue_)),
     topic_(std::move(t)) {
-  // nop
+  auto src = caf::async::publisher_from<publisher_worker_actor>(
+    ep.system(), [this](auto* self) {
+      worker_ = self;
+      return self->make_observable().lift(queue_reader{queue_, &(self->state)});
+    });
 }
 
 publisher::~publisher() {

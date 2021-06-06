@@ -26,16 +26,10 @@ namespace {
 
 template <class RandomNumberGenerator>
 broker::endpoint_id random_endpoint_id(RandomNumberGenerator& rng) {
-  using array_type = caf::hashed_node_id::host_id_type;
-  using value_type = array_type::value_type;
-  std::uniform_int_distribution<> d{0, std::numeric_limits<value_type>::max()};
-  array_type result;
-  for (auto& x : result)
-    x = static_cast<value_type>(d(rng));
-  return caf::make_node_id(d(rng), result);
+  return broker::endpoint_id::random(rng());
 }
 
-}//
+} // namespace
 
 base_fixture::base_fixture()
   : ep(make_config()),

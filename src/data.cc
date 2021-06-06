@@ -168,14 +168,14 @@ bool convert(const data& d, std::string& str) {
   return true;
 }
 
-bool convert(const data& d, caf::node_id& node){
+bool convert(const data& d, endpoint_id& node){
   if (is<std::string>(d))
     if (auto err = caf::parse(get<std::string>(d), node); !err)
       return true;
   return false;
 }
 
-bool convert(const caf::node_id& node, data& d) {
+bool convert(const endpoint_id& node, data& d) {
   if (node)
     d = to_string(node);
   else

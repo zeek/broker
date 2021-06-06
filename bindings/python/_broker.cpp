@@ -55,7 +55,7 @@ PYBIND11_MAKE_OPAQUE(broker::vector)
 namespace {
 
 broker::endpoint_id node_from_str(const std::string& node_str) {
-  caf::node_id node;
+  broker::endpoint_id node;
   if (auto err = caf::parse(node_str, node))
     throw std::invalid_argument(
       "endpoint::await_peer called with invalid endpoint ID");

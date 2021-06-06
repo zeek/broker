@@ -10,8 +10,8 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
+#include <caf/hash/fnv.hpp>
 #include <caf/meta/type_name.hpp>
-#include <caf/node_id.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"
@@ -94,9 +94,16 @@ bool inspect(Inspector& f, routing_table_row& x) {
                             f.field("paths", x.versioned_paths));
 }
 
+struct endpoint_id_hasher {
+  inline size_t operator()(endpoint_id x) const noexcept {
+    return caf::hash::fnv<size_t>::compute(x);
+  }
+};
+
 /// Stores direct connections to peers as well as distances to all other peers
 /// that we can reach indirectly.
-using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
+using routing_table
+  = std::unordered_map<endpoint_id, routing_table_row, endpoint_id_hasher>;
 
 /// Returns the ID  of the peer if `hdl` is a direct connection, `nil`
 /// otherwise.

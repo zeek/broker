@@ -241,10 +241,10 @@ bool inspect(Inspector& f, data& x) {
 bool convert(const data& d, std::string& str);
 
 /// @relates data
-bool convert(const data& d, caf::node_id& node);
+bool convert(const data& d, endpoint_id& node);
 
 /// @relates data
-bool convert(const caf::node_id& node, data& d);
+bool convert(const endpoint_id& node, data& d);
 
 /// @relates data
 inline std::string to_string(const broker::data& d) {

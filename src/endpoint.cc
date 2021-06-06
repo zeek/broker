@@ -114,10 +114,6 @@ void endpoint::clock::send_later(caf::actor dest, timespan after,
 
 // --- endpoint class ----------------------------------------------------------
 
-caf::node_id endpoint::node_id() const {
-  return core()->node();
-}
-
 namespace {
 
 struct indentation {
@@ -165,8 +161,7 @@ void pretty_print(std::ostream& out, const caf::settings& xs,
 } // namespace
 
 endpoint::endpoint(configuration config)
-  : config_(std::move(config)),
-    destroyed_(false) {
+  : config_(std::move(config)), destroyed_(false), id_(endpoint_id::random()) {
   // Stop immediately if any helptext was printed.
   if (config_.cli_helptext_printed)
     exit(0);
@@ -194,7 +189,7 @@ endpoint::endpoint(configuration config)
   clock_ = new clock(&system_, opts.use_real_time);
   if (system_.has_openssl_manager() || opts.disable_ssl) {
     BROKER_INFO("creating endpoint");
-    core_ = system_.spawn<core_actor_type>(filter_type{}, clock_);
+    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_);
   } else {
     detail::die("CAF OpenSSL manager is not available");
   }
@@ -425,16 +420,14 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::store_v, atom::master_v,
-                atom::attach_v, name, type, std::move(opts))
-  .receive(
-    [&](caf::actor& master) {
-      res = store{std::move(master), std::move(name)};
-    },
-    [&](caf::error& e) {
-      res = std::move(e);
-    }
-  );
+  self
+    ->request(core(), caf::infinite, atom::store_v, atom::master_v,
+              atom::attach_v, name, type, std::move(opts))
+    .receive(
+      [&](caf::actor& master) {
+        res = store{id_, std::move(master), std::move(name)};
+      },
+      [&](caf::error& e) { res = std::move(e); });
   return res;
 }
 
@@ -448,16 +441,15 @@ expected<store> endpoint::attach_clone(std::string name,
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{core()->home_system()};
-  self->request(core(), caf::infinite, atom::store_v, atom::clone_v,
-                atom::attach_v, name, resync_interval, stale_interval,
-                mutation_buffer_interval).receive(
-    [&](caf::actor& clone) {
-      res = store{std::move(clone), std::move(name)};
-    },
-    [&](caf::error& e) {
-      res = std::move(e);
-    }
-  );
+  self
+    ->request(core(), caf::infinite, atom::store_v, atom::clone_v,
+              atom::attach_v, name, resync_interval, stale_interval,
+              mutation_buffer_interval)
+    .receive(
+      [&](caf::actor& clone) {
+        res = store{id_, std::move(clone), std::move(name)};
+      },
+      [&](caf::error& e) { res = std::move(e); });
   return res;
 }
 

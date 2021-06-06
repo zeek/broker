@@ -37,9 +37,8 @@
 template <class Impl>
 struct fixture : time_aware_fixture<fixture<Impl>, test_coordinator_fixture<>> {
   static broker::endpoint_id make_peer_id(uint8_t num) {
-    std::array<uint8_t, 20> host_id;
-    host_id.fill(num);
-    return caf::make_node_id(num, host_id);
+    auto seed = static_cast<unsigned>(0x5EED00 | num);
+    return broker::endpoint_id::random(seed);
   }
 
   PEER_ID(A, 1);

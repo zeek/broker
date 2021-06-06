@@ -17,12 +17,12 @@ timespan operator""_ns(unsigned long long value) {
 
 struct fixture {
   fixture() {
-    if (auto err = caf::parse(node_str, node))
-      FAIL("unable to parse node ID: " << err);
+    node = endpoint_id::random(0x5EED);
+    node_str = to_string(node);
   }
 
-  std::string node_str = "BBF10F9E6CD6304859D19F494A0C5688E5DAD801#11334";
-  caf::node_id node;
+  endpoint_id node;
+  std::string node_str;
   uint64_t obj = 42;
 };
 

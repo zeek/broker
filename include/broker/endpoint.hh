@@ -15,7 +15,6 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
-#include <caf/node_id.hpp>
 #include <caf/stream.hpp>
 #include <caf/timespan.hpp>
 #include <caf/timestamp.hpp>
@@ -127,7 +126,9 @@ public:
   void shutdown();
 
   /// @returns a unique node id for this endpoint.
-  caf::node_id node_id() const;
+  endpoint_id node_id() const noexcept {
+    return id_;
+  }
 
   // --- peer management -------------------------------------------------------
 
@@ -438,6 +439,7 @@ private:
   std::vector<caf::actor> children_;
   bool destroyed_;
   clock* clock_;
+  endpoint_id id_;
 };
 
 } // namespace broker

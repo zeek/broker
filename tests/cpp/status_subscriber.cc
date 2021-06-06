@@ -28,10 +28,7 @@ namespace {
 
 struct fixture : base_fixture {
   fixture() {
-    auto x = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
-    if (!x)
-      FAIL("caf::make_node_id failed");
-    node = std::move(*x);
+    node = endpoint_id::random(0x5EED);
     node_str = to_string(node);
   }
 
@@ -51,7 +48,7 @@ struct fixture : base_fixture {
                    make_data_message(topics::statuses, std::move(xs)));
   }
 
-  caf::node_id node;
+  endpoint_id node;
 
   std::string node_str;
 };

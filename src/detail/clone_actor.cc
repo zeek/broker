@@ -287,8 +287,7 @@ void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
     }
   }
   auto msg = make_command_message(
-    master_topic,
-    internal_command{0, entity_id::from(self), keepalive_command{what.seq}});
+    master_topic, internal_command{0, id, keepalive_command{what.seq}});
   self->send(core, atom::publish_v, std::move(msg));
 }
 
@@ -424,7 +423,7 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
       }
       auto& out = st.output();
       cmd.seq = out.next_seq();
-      cmd.sender = entity_id::from(self);
+      cmd.sender = self->state.id;
       auto msg = make_command_message(st.master_topic, std::move(cmd));
       out.produce(std::move(msg));
     },

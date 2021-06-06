@@ -22,7 +22,7 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   // - Field 2 - 4 are either *all* none or all defined.
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src))
-    return can_convert_to<caf::node_id>(src[0]);
+    return can_convert_to<endpoint_id>(src[0]);
   return false;
 }
 
@@ -39,7 +39,7 @@ bool convert(const data& src, endpoint_info& dst) {
     if (auto err = caf::parse(*str, dst.node))
       return false;
   } else if (is<none>(xs[0])) {
-    dst.node = caf::node_id{};
+    dst.node = endpoint_id{};
   } else {
     // Type mismatch.
     return false;
