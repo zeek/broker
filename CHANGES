@@ -1,3 +1,12 @@
+2.1.0-dev.78 | 2021-06-07 09:22:35 -0700
+
+  * Remove noexcept from functions that may throw
+
+    Functions that access a `variant` of a `metric_view` may throw
+    `broker::bad_variant_access`. (Dominik Charousset, Corelight)
+
+  * Fix uninitialized field warnings (Dominik Charousset, Corelight)
+
 2.1.0-dev.75 | 2021-06-01 10:18:00 -0700
 
   * Make telemetry exporter configurable at runtime (Dominik Charousset, Corelight)

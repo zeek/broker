@@ -55,12 +55,12 @@ public:
   }
 
   /// @pre `valid()`
-  const std::string& prefix() const noexcept {
+  const std::string& prefix() const {
     return {get<std::string>(field::prefix)};
   }
 
   /// @pre `valid()`
-  const std::string& name() const noexcept {
+  const std::string& name() const {
     return {get<std::string>(field::name)};
   }
 
@@ -70,31 +70,32 @@ public:
   }
 
   /// @pre `valid()`
-  const std::string& type_str() const noexcept {
+  const std::string& type_str() const {
     return {get<std::string>(field::type)};
   }
 
   /// @pre `valid()`
-  const std::string& unit() const noexcept {
+  const std::string& unit() const {
     return {get<std::string>(field::unit)};
   }
 
   /// @pre `valid()`
-  const std::string& helptext() const noexcept {
+  const std::string& helptext() const {
     return {get<std::string>(field::helptext)};
   }
 
   /// @pre `valid()`
-  bool is_sum() const noexcept {
+  bool is_sum() const {
     return get<bool>(field::is_sum);
   }
 
-  const table& labels() const noexcept {
+  /// @pre `valid()`
+  const table& labels() const {
     return get<table>(field::labels);
   }
 
   /// @pre `valid()`
-  const data& value() const noexcept {
+  const data& value() const {
     return (*row_)[index(field::value)];
   }
 

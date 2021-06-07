@@ -32,7 +32,7 @@ public:
   }
 
 private:
-  T value_;
+  T value_ = 0;
 };
 
 template <class T>
@@ -59,7 +59,7 @@ public:
   }
 
 private:
-  T value_;
+  T value_ = 0;
 };
 
 template <class T>
@@ -108,7 +108,7 @@ public:
 
 private:
   std::vector<std::pair<T, int64_t>> buckets_;
-  T sum_;
+  T sum_ = 0;
 };
 
 } // namespace
