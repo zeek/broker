@@ -380,21 +380,27 @@ void endpoint::publish(std::vector<data_message> xs) {
 }
 
 publisher endpoint::make_publisher(topic ts) {
-  publisher result{*this, std::move(ts)};
-  children_.emplace_back(result.worker());
-  return result;
+  // TODO: implement me
+  // publisher result{*this, std::move(ts)};
+  // children_.emplace_back(result.worker());
+  // return result;
+  throw std::runtime_error("not implemented");
 }
 
 status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
-  status_subscriber result{*this, receive_statuses};
-  children_.emplace_back(result.worker());
-  return result;
+  // TODO: implement me
+  // status_subscriber result{*this, receive_statuses};
+  // children_.emplace_back(result.worker());
+  // return result;
+  throw std::runtime_error("not implemented");
 }
 
 subscriber endpoint::make_subscriber(std::vector<topic> ts, size_t max_qsize) {
-  subscriber result{*this, std::move(ts), max_qsize};
-  children_.emplace_back(result.worker());
-  return result;
+  // TODO: implement me
+  // subscriber result{*this, std::move(ts), max_qsize};
+  // children_.emplace_back(result.worker());
+  // return result;
+  throw std::runtime_error("not implemented");
 }
 
 caf::actor endpoint::make_actor(actor_init_fun f) {

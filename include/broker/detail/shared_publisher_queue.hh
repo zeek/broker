@@ -1,5 +1,6 @@
 #pragma once
 
+#include <caf/async/notifiable.hpp>
 #include <caf/intrusive_ptr.hpp>
 #include <caf/make_counted.hpp>
 
@@ -7,12 +8,11 @@
 #include "broker/detail/shared_queue.hh"
 #include "broker/message.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
-/// Synchronizes a publisher with a background worker. Uses the `pending` flag
-/// and the `flare` to signalize demand to the user. Users can write as long as
-/// the flare remains active. The worker consumes items, while the user
+/// A producer-consumer queue for transferring data from a publisher to the
+/// core. Uses a `flare` to signal demand to the user. Users can write as long
+/// as the flare remains active. The core consumes items, while the user
 /// produces them.
 ///
 /// The protocol on the flare is as follows:
@@ -35,42 +35,36 @@ public:
     this->fx_.fire();
   }
 
-  // Called to pull items out of the queue. Signals demand to the user if less
-  // than `num` items can be published from the buffer. When calling consume
-  // again after an unsuccessful run, `num` must not be smaller than on the
-  // previous call. Otherwise, the demand signaled on the flare runs out of
-  // sync.
+  /// Must be called before calling `produce` or `consume` on the queue.
+  void init(caf::async::notifiable hdl) {
+    notify_hdl_ = std::move(hdl);
+  }
+
+  /// Pulls up to `num` items out of the queue.
   template <class F>
   size_t consume(size_t num, F fun) {
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
-    if (xs.empty()) {
-      this->pending_ = static_cast<long>(num);
+    auto old_size = xs.size();
+    auto n = std::min(num, old_size);
+    if (n == 0)
       return 0;
-    }
-    auto n = std::min(num, xs.size());
     auto b = xs.begin();
     auto e = b + static_cast<ptrdiff_t>(n);
     for (auto i = b; i != e; ++i)
       fun(std::move(*i));
-    auto old_size = xs.size();
     xs.erase(b, e);
     auto new_size = xs.size();
-    // Extinguish the flare if we reach the capacity or fire it if we drop
-    // below the capacity again.
-    if (new_size >= capacity_ && old_size < capacity_)
-      this->fx_.extinguish();
-    else if (new_size < capacity_ && old_size >= capacity_)
+    // Fire it if we drop below the capacity again.
+    if (new_size < capacity_ && old_size >= capacity_)
       this->fx_.fire();
-    if (num - n > 0)
-      this->pending_ = static_cast<long>(num - n);
     return n;
   }
 
   /// Returns true if the caller must wake up the consumer. This function can
   /// go beyond the capacity of the queue.
   template <class Iterator>
-  bool produce(const topic& t, Iterator first, Iterator last) {
+  void produce(const topic& t, Iterator first, Iterator last) {
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
     if (xs.size() >= capacity_)
@@ -81,13 +75,14 @@ public:
       xs.emplace_back(t, std::move(*first));
     if (xs.size() >= capacity_) {
       // Extinguish the flare to cause the *next* produce to block.
-      this->fx_.extinguish();
+      this->fx_.extinguish_one();
     }
-    return xs_old_size == 0;
+    if (xs_old_size == 0)
+      notify_hdl_.notify_event();
   }
 
-  // Returns true if the caller must wake up the consumer.
-  bool produce(const topic& t, data&& y) {
+  /// Returns true if the caller must wake up the consumer.
+  void produce(const topic& t, data&& y) {
     guard_type guard{this->mtx_};
     auto& xs = this->xs_;
     if (xs.size() >= capacity_)
@@ -97,9 +92,26 @@ public:
     xs.emplace_back(t, std::move(y));
     if (xs.size() >= capacity_) {
       // Extinguish the flare to cause the *next* produce to block.
-      this->fx_.extinguish();
+      this->fx_.extinguish_one();
     }
-    return xs_old_size == 0;
+    if (xs_old_size == 0)
+      notify_hdl_.notify_event();
+  }
+
+  /// Called by the producer to signal to the core that no more items get
+  /// produced.
+  /// @warning Calling `produce` after closing the queue causes undefined
+  ///          behavior.
+  /// @note Calling `close` multiple times is ok. Every call past the first is
+  ///       simply a no-op.
+  void close(bool drop_remaining = false) {
+    guard_type guard{this->mtx_};
+    if (notify_hdl_) {
+      notify_hdl_.notify_close();
+      notify_hdl_ = nullptr;
+      if (drop_remaining)
+        this->xs_.clear();
+    }
   }
 
   size_t capacity() const {
@@ -108,20 +120,16 @@ public:
 
 private:
   void await_consumer(guard_type& guard) {
-    // Block the caller until the consumer catched up.
+    // Block the caller until the consumer catches up.
     guard.unlock();
     this->fx_.await_one();
     guard.lock();
   }
 
-  /// @pre xs.size() < capacity_
-  ptrdiff_t free_space() {
-    return static_cast<ptrdiff_t>(capacity_ - this->xs.size());
-  }
+  /// Configures the amount of items for xs_.
+  size_t capacity_;
 
-
-  // Configures the amound of items for xs_.
-  const size_t capacity_;
+  caf::async::notifiable notify_hdl_;
 };
 
 template <class ValueType = data_message>
@@ -134,5 +142,4 @@ make_shared_publisher_queue(size_t buffer_size) {
   return caf::make_counted<shared_publisher_queue<ValueType>>(buffer_size);
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

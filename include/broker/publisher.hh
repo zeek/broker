@@ -28,6 +28,10 @@ public:
 
   using guard_type = std::unique_lock<std::mutex>;
 
+  using queue_type = detail::shared_publisher_queue<data_message>;
+
+  using queue_ptr = caf::intrusive_ptr<queue_type>;
+
   // --- constructors and destructors ------------------------------------------
 
   publisher(publisher&&) = default;
@@ -40,12 +44,13 @@ public:
 
   ~publisher();
 
-  // --- accessors -------------------------------------------------------------
+  // --- factories -------------------------------------------------------------
 
-  /// Returns the current demand on this publisher. The demand is the amount of
-  /// messages that can send to the core immediately plus a small desired
-  /// buffer size to minimize latency (usually 5 extra items).
-  size_t demand() const;
+  static publisher make(endpoint& ep, topic t);
+
+  static publisher make(caf::actor sink, topic t);
+
+  // --- accessors -------------------------------------------------------------
 
   /// Returns the current size of the output queue.
   size_t buffered() const;
@@ -54,17 +59,8 @@ public:
   size_t capacity() const;
 
   /// Returns the free capacity of the output queue, i.e., how many items can
-  /// be enqueued before it starts blocking. The free capacity is calculated as
-  /// `capacity - buffered`.
+  /// be enqueued before it starts blocking.
   size_t free_capacity() const;
-
-  /// Returns a rough estimate of the throughput per second of this publisher.
-  size_t send_rate() const;
-
-  /// Returns a reference to the background worker.
-  const caf::actor& worker() const {
-    return worker_;
-  }
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
@@ -102,12 +98,11 @@ public:
 
 private:
   // -- force users to use `endpoint::make_publsiher` -------------------------
-  publisher(endpoint& ep, topic t);
+  publisher(queue_ptr q, topic t);
 
-  bool drop_on_destruction_;
-  detail::shared_publisher_queue_ptr<> queue_;
-  caf::actor worker_;
+  queue_ptr queue_;
   topic topic_;
+  bool drop_on_destruction_ = false;
 };
 
 using publisher_id [[deprecated("use entity_id instead")]] = entity_id;

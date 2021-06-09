@@ -97,11 +97,8 @@ CAF_TEST(blocking_subscriber) {
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   auto sub = ep.make_subscriber(filter_type{"b"});
-  sub.set_rate_calculation(false);
-  auto leaf = sub.worker();
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
-  CAF_MESSAGE("leaf: " << to_string(leaf));
   // Initiate handshake between core1 and core2.
   run();
   // Spin up driver on core1.

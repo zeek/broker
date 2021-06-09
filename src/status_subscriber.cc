@@ -53,9 +53,7 @@ using value_type = status_subscriber::value_type;
 
 } // namespace
 
-status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
-  : impl_(ep, make_status_topics(receive_statuses),
-          std::numeric_limits<long>::max()) {
+status_subscriber::status_subscriber(subscriber impl) : impl_(std::move(impl)) {
   // nop
 }
 

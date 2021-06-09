@@ -81,19 +81,6 @@ public:
 
   // --- properties ------------------------------------------------------------
 
-  /// @copydoc subscriber::set_rate_calculation
-  void set_rate_calculation(bool x) {
-    impl_.set_rate_calculation(x);
-  }
-
-  size_t rate() const {
-    return impl_.rate();
-  }
-
-  const caf::actor& worker() const {
-    return impl_.worker();
-  }
-
   size_t available() const {
     return impl_.available();
   }
@@ -118,7 +105,8 @@ public:
 
 private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
-  status_subscriber(endpoint& ep, bool receive_statuses = false);
+//  status_subscriber(endpoint& ep, bool receive_statuses = false);
+  status_subscriber(subscriber impl);
 
   value_type convert(const data_message& msg);
 

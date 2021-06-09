@@ -20,6 +20,8 @@ set(tests
   cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
+  cpp/detail/shared_publisher_queue.cc
+  cpp/detail/shared_subscriber_queue.cc
   cpp/detail/unipath_manager.cc
   cpp/domain_options.cc
   cpp/error.cc

@@ -121,8 +121,6 @@ CAF_TEST(blocking_publishers) {
   auto pub2 = ep.make_publisher("a/b");
   pub1.drop_all_on_destruction();
   pub2.drop_all_on_destruction();
-  auto d1 = pub1.worker();
-  auto d2 = pub2.worker();
   run();
   // Data flows from our publishers to core1 to core2 and finally to leaf.
   using buf = std::vector<data_message>;

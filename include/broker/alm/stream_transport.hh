@@ -13,6 +13,7 @@
 
 #include "broker/alm/peer.hh"
 #include "broker/alm/routing_table.hh"
+#include "broker/detail/flow_controller.hh"
 #include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/peer_handshake.hh"
@@ -45,7 +46,9 @@ namespace broker::alm {
 /// (atom::unpeer, actor hdl) -> void
 /// => disconnect(hdl)
 /// ~~~
-class stream_transport : public peer, public detail::unipath_manager::observer {
+class stream_transport : public peer,
+                         public detail::unipath_manager::observer,
+                         public detail::flow_controller {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -183,6 +186,20 @@ public:
 
   void abort_handshake(detail::peer_manager*) override;
 
+  // -- overrides for flow_controller ------------------------------------------
+
+  caf::scheduled_actor* ctx() override;
+
+  void add_source(caf::flow::observable<data_message> source) override;
+
+  void add_source(caf::flow::observable<command_message> source) override;
+
+  void add_sink(caf::flow::observer<data_message> sink) override;
+
+  void add_sink(caf::flow::observer<command_message> sink) override;
+
+  void add_filter(const filter_type& filter) override;
+
   // -- initialization ---------------------------------------------------------
 
   caf::behavior make_behavior() override;
@@ -235,6 +252,10 @@ protected:
   caf::flow::merger_impl_ptr<command_message> command_inputs_;
 
   caf::flow::merger_impl_ptr<packed_message> central_merge_;
+
+  caf::flow::observable<data_message> data_outputs_;
+
+  caf::flow::observable<command_message> command_outputs_;
 };
 
 } // namespace broker::alm

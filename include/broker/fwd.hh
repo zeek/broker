@@ -9,6 +9,7 @@
 
 #include <caf/allowed_unsafe_message_type.hpp>
 #include <caf/config.hpp>
+#include <caf/flow/fwd.hpp>
 #include <caf/fwd.hpp>
 #include <caf/type_id.hpp>
 #include <caf/uuid.hpp>
@@ -149,6 +150,8 @@ struct store_state;
 
 class central_dispatcher;
 class flare_actor;
+class flow_controller;
+class flow_controller_callback;
 class mailbox;
 class peer_manager;
 class unipath_command_sink;
@@ -156,10 +159,27 @@ class unipath_data_sink;
 class unipath_manager;
 class unipath_source;
 
+template <class T>
+class shared_publisher_queue;
+
+template <class T>
+class shared_subscriber_queue;
+
 enum class item_scope : uint8_t;
 
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
+
+using flow_controller_callback_ptr
+  = caf::intrusive_ptr<flow_controller_callback>;
+
+template <class T>
+using shared_publisher_queue_ptr
+  = caf::intrusive_ptr<shared_publisher_queue<T>>;
+
+template <class T>
+using shared_subscriber_queue_ptr
+  = caf::intrusive_ptr<shared_subscriber_queue<T>>;
 
 } // namespace broker::detail
 
@@ -275,8 +295,8 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
-  BROKER_ADD_TYPE_ID((broker::detail::command_message_publisher))
   BROKER_ADD_TYPE_ID((broker::detail::data_message_publisher))
+  BROKER_ADD_TYPE_ID((broker::detail::flow_controller_callback_ptr))
   BROKER_ADD_TYPE_ID((broker::detail::packed_message_publisher))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::detail::store_state_ptr))
@@ -338,6 +358,7 @@ CAF_END_TYPE_ID_BLOCK(broker)
 
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::command_message_publisher)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::data_message_publisher)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::flow_controller_callback_ptr)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::packed_message_publisher)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::store_state_ptr)

@@ -301,6 +301,8 @@ set(BROKER_SRC
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
+  src/detail/flow_controller.cc
+  src/detail/flow_controller_callback.cc
   src/detail/generator_file_reader.cc
   src/detail/generator_file_writer.cc
   src/detail/item_scope.cc

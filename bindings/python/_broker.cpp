@@ -34,7 +34,6 @@
 #include "broker/status_subscriber.hh"
 #include "broker/store.hh"
 #include "broker/subscriber.hh"
-#include "broker/subscriber_base.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
 #include "broker/version.hh"
@@ -137,11 +136,8 @@ PYBIND11_MODULE(_broker, m) {
   m.def("Infinite", [] { return broker::infinite; });
 
   py::class_<broker::publisher>(m, "Publisher")
-    .def("demand", &broker::publisher::demand)
     .def("buffered", &broker::publisher::buffered)
     .def("capacity", &broker::publisher::capacity)
-    .def("free_capacity", &broker::publisher::free_capacity)
-    .def("send_rate", &broker::publisher::send_rate)
     .def("fd", &broker::publisher::fd)
     .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
     .def("publish", (void (broker::publisher::*)(broker::data d)) &broker::publisher::publish)
@@ -149,7 +145,6 @@ PYBIND11_MODULE(_broker, m) {
        [](broker::publisher& p, std::vector<broker::data> xs) { p.publish(xs); })
     .def("reset", &broker::publisher::reset);
 
-  using subscriber_base = broker::subscriber_base<broker::subscriber::value_type>;
   using topic_data_pair = std::pair<broker::topic, broker::data>;
 
   py::bind_vector<std::vector<topic_data_pair>>(m, "VectorPairTopicData");
@@ -161,15 +156,15 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::optional<topic_data_pair>& i) { return *i; })
     .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
 
-  py::class_<subscriber_base>(m, "SubscriberBase")
+  py::class_<broker::subscriber>(m, "Subscriber")
     .def("get",
-         [](subscriber_base& ep) -> topic_data_pair {
+         [](broker::subscriber& ep) -> topic_data_pair {
        auto res = ep.get();
        return std::make_pair(broker::get_topic(res), broker::get_data(res));
       })
 
     .def("get",
-         [](subscriber_base& ep, double secs) -> broker::optional<topic_data_pair> {
+         [](broker::subscriber& ep, double secs) -> broker::optional<topic_data_pair> {
 	    auto res = ep.get(broker::to_duration(secs));
         caf::optional<topic_data_pair> rval;
         if (res) {
@@ -180,7 +175,7 @@ PYBIND11_MODULE(_broker, m) {
 	  })
 
     .def("get",
-         [](subscriber_base& ep, size_t num) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep, size_t num) -> std::vector<topic_data_pair> {
 	   auto res = ep.get(num);
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -190,7 +185,7 @@ PYBIND11_MODULE(_broker, m) {
       })
 
     .def("get",
-         [](subscriber_base& ep, size_t num, double secs) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep, size_t num, double secs) -> std::vector<topic_data_pair> {
 	   auto res = ep.get(num, broker::to_duration(secs));
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -200,7 +195,7 @@ PYBIND11_MODULE(_broker, m) {
 	  })
 
     .def("poll",
-         [](subscriber_base& ep) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep) -> std::vector<topic_data_pair> {
        auto res = ep.poll();
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -208,10 +203,8 @@ PYBIND11_MODULE(_broker, m) {
          rval.emplace_back(std::make_pair(broker::get_topic(e), broker::get_data(e)));
        return rval;
       })
-    .def("available", &subscriber_base::available)
-    .def("fd", &subscriber_base::fd);
-
-  py::class_<broker::subscriber, subscriber_base>(m, "Subscriber")
+    .def("available", &broker::subscriber::available)
+    .def("fd", &broker::subscriber::fd)
     .def("add_topic", &broker::subscriber::add_topic)
     .def("remove_topic", &broker::subscriber::remove_topic)
     .def("reset", &broker::subscriber::reset);

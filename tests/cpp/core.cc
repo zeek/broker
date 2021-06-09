@@ -467,7 +467,6 @@ struct error_signaling_fixture : base_fixture {
   status_subscriber es;
 
   error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
-    es.set_rate_calculation(false);
     core1 = ep.core();
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});

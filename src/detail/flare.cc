@@ -145,7 +145,7 @@ void flare::await_one() {
     if (n < 0 && !try_again_later())
       std::terminate();
     if (n == 1) {
-      CAF_ASSERT(p.revents & POLLIN);
+      BROKER_ASSERT(p.revents & POLLIN);
       return;
     }
   }
@@ -158,7 +158,7 @@ bool flare::await_one_impl(int ms_timeout) {
   if (n < 0 && !try_again_later())
     std::terminate();
   if (n == 1) {
-    CAF_ASSERT(p.revents & POLLIN);
+    BROKER_ASSERT(p.revents & POLLIN);
     return true;
   }
   return false;

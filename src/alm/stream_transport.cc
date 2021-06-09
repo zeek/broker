@@ -1,7 +1,9 @@
 #include "broker/alm/stream_transport.hh"
 
+#include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 
+#include "broker/detail/flow_controller_callback.hh"
 #include "broker/detail/overload.hh"
 
 namespace broker::alm {
@@ -525,6 +527,61 @@ void stream_transport::abort_handshake(detail::peer_manager* mgr) {
   }
 }
 
+// -- overrides for flow_controller --------------------------------------------
+
+caf::scheduled_actor* stream_transport::ctx() {
+  return self();
+}
+
+void stream_transport::add_source(caf::flow::observable<data_message> source) {
+  data_inputs_->add(std::move(source));
+}
+
+void stream_transport::add_source(
+  caf::flow::observable<command_message> source) {
+  command_inputs_->add(std::move(source));
+}
+
+void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
+  if (!data_outputs_) {
+    data_outputs_ //
+      = central_merge_->as_observable()
+          .filter([](const packed_message& msg) {
+            return get<0>(msg) == packed_message_type::data;
+          })
+          .map([](const packed_message& msg) {
+            caf::binary_deserializer src{nullptr, *get<3>(msg)};
+            data content;
+            std::ignore = src.apply(content);
+            return data_message{get<2>(msg), std::move(content)};
+          })
+          .as_observable();
+  }
+  data_outputs_.attach(sink);
+}
+
+void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
+  if (!command_outputs_) {
+    command_outputs_ //
+      = central_merge_->as_observable()
+          .filter([](const packed_message& msg) {
+            return get<0>(msg) == packed_message_type::command;
+          })
+          .map([](const packed_message& msg) {
+            caf::binary_deserializer src{nullptr, *get<3>(msg)};
+            internal_command content;
+            std::ignore = src.apply(content);
+            return command_message{get<2>(msg), std::move(content)};
+          })
+          .as_observable();
+  }
+  command_outputs_.attach(sink);
+}
+
+void stream_transport::add_filter(const filter_type& filter) {
+  subscribe(filter);
+}
+
 // -- initialization -----------------------------------------------------------
 
 namespace {
@@ -629,9 +686,8 @@ caf::behavior stream_transport::make_behavior() {
       start_peering(remote_peer, hdl, self()->make_response_promise());
     },
     // Per-stream subscription updates.
-    [this](atom::join, atom::update, caf::stream_slot slot,
-           filter_type& filter) {
-      update_filter(slot, std::move(filter));
+    [this](atom::join, atom::update, caf::stream_slot slot, filter_type& ts) {
+      update_filter(slot, std::move(ts));
     },
     [this](atom::join, atom::update, caf::stream_slot slot, filter_type& filter,
            const caf::actor& listener) {
@@ -639,18 +695,17 @@ caf::behavior stream_transport::make_behavior() {
       self()->send(listener, res);
     },
     // Allow local publishers to hook directly into the stream.
-    [this](caf::stream<data_message> in) {
-      make_unipath_source(this, in);
-    },
+    [this](caf::stream<data_message> in) { make_unipath_source(this, in); },
     [this](caf::stream<node_message_content> in) {
       make_unipath_source(this, in);
     },
     // // Special handlers for bypassing streams and/or forwarding.
     [this](atom::publish, atom::local, data_message& msg) {
-     publish_locally(msg);
+      publish_locally(msg);
     },
     [this](atom::unpeer, const caf::actor& hdl) { unpeer(hdl); },
     [this](atom::unpeer, const endpoint_id& peer_id) { unpeer(peer_id); },
+    [this](const detail::flow_controller_callback_ptr& f) { (*f)(this); },
   }
     .or_else(super::make_behavior());
 }

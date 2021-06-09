@@ -384,14 +384,10 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   MESSAGE("subscribe to 'zeek/events' on venus");
   auto venus_s1 = venus.ep.make_subscriber({"zeek/events"});
   auto venus_s2 = venus.ep.make_subscriber({"zeek/events"});
-  venus_s1.set_rate_calculation(false);
-  venus_s2.set_rate_calculation(false);
   exec_loop();
   MESSAGE("subscribe to 'zeek/events/errors' on earth");
   auto earth_s1 = earth.ep.make_subscriber({"zeek/events/errors"});
   auto earth_s2 = earth.ep.make_subscriber({"zeek/events/errors"});
-  earth_s1.set_rate_calculation(false);
-  earth_s2.set_rate_calculation(false);
   exec_loop();
   MESSAGE("verify subscriptions");
   mercury.loop_after_next_enqueue();
@@ -492,8 +488,6 @@ CAF_TEST(unpeering) {
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
   auto earth_es = earth.ep.make_status_subscriber(true);
-  for (auto es : {&mercury_es, &venus_es, &earth_es})
-    es->set_rate_calculation(false);
   exec_loop();
   connect_peers();
   CAF_CHECK_EQUAL(event_log(mercury_es.poll()),
@@ -536,7 +530,6 @@ CAF_TEST(unpeering) {
 CAF_TEST(unpeering_without_connections) {
   MESSAGE("get events from all peers");
   auto venus_es = venus.ep.make_status_subscriber(true);
-  venus_es.set_rate_calculation(false);
   exec_loop();
   MESSAGE("disconnect venus from non-existing peer");
   venus.loop_after_next_enqueue();
@@ -549,8 +542,6 @@ CAF_TEST(connection_retry) {
   MESSAGE("get events from mercury and venus");
   auto mercury_es = mercury.ep.make_status_subscriber(true);
   auto venus_es = venus.ep.make_status_subscriber(true);
-  for (auto es : {&mercury_es, &venus_es})
-    es->set_rate_calculation(false);
   exec_loop();
   MESSAGE("initiate peering from venus to mercury (will fail)");
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
