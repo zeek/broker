@@ -10,8 +10,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
-#include <caf/attach_stream_sink.hpp>
-#include <caf/attach_stream_source.hpp>
+#include <caf/disposable.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/fwd.hpp>
 #include <caf/message.hpp>
@@ -19,10 +18,12 @@
 #include <caf/timespan.hpp>
 #include <caf/timestamp.hpp>
 
+#include "broker/activity.hh"
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/sink_driver.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
@@ -232,32 +233,6 @@ public:
 
   publisher make_publisher(topic ts);
 
-  /// Starts a background worker from the given set of functions that publishes
-  /// a series of messages. The worker will run in the background, but `init`
-  /// is guaranteed to be called before the function returns.
-  template <class Init, class GetNext, class AtEnd>
-  caf::actor publish_all(Init init, GetNext f, AtEnd pred) {
-    std::mutex mx;
-    std::condition_variable cv;
-    auto res = make_actor([=, &mx, &cv](caf::event_based_actor* self) {
-      caf::attach_stream_source(self, core(), init, f, pred);
-      std::unique_lock<std::mutex> guard{mx};
-      cv.notify_one();
-    });
-    std::unique_lock<std::mutex> guard{mx};
-    cv.wait(guard);
-    return res;
-  }
-
-  /// Identical to ::publish_all, but does not guarantee that `init` is called
-  /// before the function returns.
-  template <class Init, class GetNext, class AtEnd>
-  caf::actor publish_all_nosync(Init init, GetNext f, AtEnd pred) {
-    return make_actor([=](caf::event_based_actor* self) {
-      attach_stream_source(self, core(), init, f, pred);
-    });
-  }
-
   // --- subscribing events ----------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for receiving error and
@@ -272,42 +247,29 @@ public:
   // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
-  subscriber make_subscriber(std::vector<topic> ts, size_t max_qsize = 20u);
+  subscriber make_subscriber(filter_type filter, size_t max_qsize = 64u);
 
   /// Starts a background worker from the given set of function that consumes
   /// incoming messages. The worker will run in the background, but `init` is
   /// guaranteed to be called before the function returns.
-  template <class Init, class HandleMessage, class Cleanup>
-  caf::actor subscribe(std::vector<topic> topics, Init init, HandleMessage f,
-                       Cleanup cleanup) {
-    std::mutex mx;
-    std::condition_variable cv;
-    auto res = make_actor([=,&mx,&cv](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join_v, std::move(topics));
-      self->become([=](const stream_type& in) {
-        caf::attach_stream_sink(self, in, init, f, cleanup);
-        self->unbecome();
-      });
-      std::unique_lock<std::mutex> guard{mx};
-      cv.notify_one();
-    });
-    std::unique_lock<std::mutex> guard{mx};
-    cv.wait(guard);
-    return res;
+  template <class Init, class OnNext, class Cleanup>
+  activity subscribe(filter_type filter, Init init, OnNext on_next,
+                     Cleanup cleanup) {
+    return do_subscribe(std::move(filter),
+                        detail::make_sink_driver(std::move(init),
+                                                 std::move(on_next),
+                                                 std::move(cleanup)));
   }
 
   /// Identical to ::subscribe, but does not guarantee that `init` is called
   /// before the function returns.
-  template <class Init, class HandleMessage, class Cleanup>
-  caf::actor subscribe_nosync(std::vector<topic> topics, Init init,
-                              HandleMessage f, Cleanup cleanup) {
-    return make_actor([=](caf::event_based_actor* self) {
-      self->send(self * core(), atom::join_v, std::move(topics));
-      self->become([=](const stream_type& in) {
-        caf::attach_stream_sink(self, in, init, f, cleanup);
-        self->unbecome();
-      });
-    });
+  template <class Init, class OnNext, class Cleanup>
+  activity subscribe_nosync(filter_type filter, Init init, OnNext on_next,
+                            Cleanup cleanup) {
+    return do_subscribe_nosync(std::move(filter),
+                               detail::make_sink_driver(std::move(init),
+                                                        std::move(on_next),
+                                                        std::move(cleanup)));
   }
 
   // --- data stores -----------------------------------------------------------
@@ -319,8 +281,7 @@ public:
   /// @returns A handle to the frontend representing the master or an error if
   ///          a master with *name* exists already.
   expected<store> attach_master(std::string name, backend type,
-                                backend_options opts=backend_options());
-
+                                backend_options opts = backend_options());
 
   /// Attaches and/or creates a *clone* data store to an existing master.
   /// @param name The name of the clone.
@@ -346,9 +307,9 @@ public:
   ///                                 never buffer commands.
   /// @returns A handle to the frontend representing the clone, or an error if
   ///          a master *name* could not be found.
-  expected<store> attach_clone(std::string name, double resync_interval=10.0,
-                               double stale_interval=300.0,
-                               double mutation_buffer_interval=120.0);
+  expected<store> attach_clone(std::string name, double resync_interval = 10.0,
+                               double stale_interval = 300.0,
+                               double mutation_buffer_interval = 120.0);
 
   // --- messaging -------------------------------------------------------------
 
@@ -428,7 +389,9 @@ protected:
   caf::actor subscriber_;
 
 private:
-  caf::actor make_actor(actor_init_fun f);
+  activity do_subscribe(filter_type filter, detail::sink_driver_ptr sink);
+
+  activity do_subscribe_nosync(filter_type filter, detail::sink_driver_ptr sink);
 
   configuration config_;
   union {
@@ -436,7 +399,7 @@ private:
   };
   caf::actor core_;
   shutdown_options shutdown_options_;
-  std::vector<caf::actor> children_;
+  std::vector<activity> activities_;
   bool destroyed_;
   clock* clock_;
   endpoint_id id_;

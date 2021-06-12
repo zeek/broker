@@ -14,6 +14,12 @@ class topic;
 
 namespace detail {
 
+template <class>
+struct always_false : std::false_type {};
+
+template <class T>
+inline constexpr bool always_false_v = always_false<T>::value;
+
 // std::enable_if_t shortcut from C++14.
 template <bool B, class T = void>
 using enable_if_t = typename std::enable_if<B, T>::type;
@@ -88,6 +94,9 @@ struct are_same<T0, T1, Ts...> :
     are_same<T1, Ts...>,
     std::false_type
   > {};
+
+template <class... Ts>
+inline constexpr bool are_same_v = are_same<Ts...>::value;
 
 // Trait that checks for an overload of convert(const From&, T&).
 template <class From, class To>
@@ -172,11 +181,82 @@ std::false_type is_complete_test(...);
 /// Checks whether `T` is complete type. Passing a forward declaration or
 /// undefined template specialization evaluates to `false`.
 template <class T>
-constexpr bool is_complete
+inline constexpr bool is_complete
   = decltype(is_complete_test(std::declval<T*>()))::value;
 
 template <class... Ts>
 struct type_list {};
+
+template <class U>
+auto has_apply_operator_test(U*) -> decltype(&U::operator(), std::true_type());
+
+auto has_apply_operator_test(...) -> std::false_type;
+
+template <class T>
+inline constexpr bool has_apply_operator
+  = decltype(has_apply_operator_test(std::declval<T*>()))::value;
+
+template <class F>
+struct normalized_signature;
+
+template <class R, class... Ts>
+struct normalized_signature<R(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R (*)(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R (*)(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) const> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) const noexcept> {
+  using type = R(Ts...);
+};
+
+template <class F>
+using normalized_signature_t = typename normalized_signature<F>::type;
+
+template <class F, bool HasApplyOperator = has_apply_operator<F>>
+struct signature_of_oracle;
+
+template <class F>
+struct signature_of_oracle<F, false> {
+  using type = normalized_signature_t<F>;
+};
+
+template <class F>
+struct signature_of_oracle<F, true> {
+  using type = normalized_signature_t<decltype(&F::operator())>;
+};
+
+template <class F>
+using signature_of_t = typename signature_of_oracle<F>::type;
 
 } // namespace detail
 } // namespace broker

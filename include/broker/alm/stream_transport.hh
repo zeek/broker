@@ -198,6 +198,12 @@ public:
 
   void add_sink(caf::flow::observer<command_message> sink) override;
 
+  caf::async::publisher<data_message>
+  select_local_data(const filter_type& filter) override;
+
+  caf::async::publisher<command_message>
+  select_local_commands(const filter_type& filter) override;
+
   void add_filter(const filter_type& filter) override;
 
   // -- initialization ---------------------------------------------------------
@@ -230,6 +236,10 @@ protected:
 
   /// Tries to find a peer manager for `peer_id` in pending_ or hdl_to_mgr_.
   detail::peer_manager* peer_lookup(const endpoint_id& peer_id);
+
+  void init_data_outputs();
+
+  void init_command_outputs();
 
   /// Maps peer handles to their respective unipath manager.
   hdl_to_mgr_map hdl_to_mgr_;

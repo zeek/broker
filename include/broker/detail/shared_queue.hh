@@ -16,7 +16,8 @@
 
 namespace broker::detail {
 
-/// Base class for `shared_publisher_queue` and `shared_subscriber_queue`.
+/// Base class for `shared_publisher_queue` and `shared_subscriber_queue` that
+/// provides a flare for synchronization.
 template <class ValueType = data_message>
 class shared_queue : public caf::ref_counted {
 public:

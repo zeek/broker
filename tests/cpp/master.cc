@@ -86,7 +86,7 @@ bool operator==(const string_list& xs, const pattern_list& ys) {
 
 struct fixture : base_fixture {
   string_list log;
-  caf::actor logger;
+  activity logger;
 
   caf::timespan tick_interval = defaults::store::tick_interval;
 
@@ -113,7 +113,7 @@ struct fixture : base_fixture {
   }
 
   ~fixture() {
-    anon_send_exit(logger, caf::exit_reason::user_shutdown);
+    logger.cancel();
   }
 };
 

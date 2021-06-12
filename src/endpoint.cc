@@ -1,22 +1,24 @@
 #include <iostream>
 #include <unordered_set>
 
-#include <caf/config.hpp>
-#include <caf/node_id.hpp>
-#include <caf/actor_system.hpp>
-#include <caf/scoped_actor.hpp>
-#include <caf/exit_reason.hpp>
-#include <caf/error.hpp>
-#include <caf/send.hpp>
 #include <caf/actor.hpp>
-#include <caf/message.hpp>
+#include <caf/actor_system.hpp>
+#include <caf/config.hpp>
+#include <caf/error.hpp>
+#include <caf/exit_reason.hpp>
 #include <caf/io/middleman.hpp>
+#include <caf/message.hpp>
+#include <caf/node_id.hpp>
 #include <caf/openssl/publish.hpp>
+#include <caf/scheduled_actor/flow.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/send.hpp>
 
 #include "broker/core_actor.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/detail/flow_controller_callback.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
@@ -219,13 +221,14 @@ void endpoint::shutdown() {
           self->send_exit(core_, caf::exit_reason::kill);
           self->wait_for(core_);
         });
-    if (!children_.empty()) {
-      BROKER_DEBUG("kill remaining children if the core failed to stop them");
-      for (auto& child : children_)
-        self->send_exit(child, caf::exit_reason::kill);
-      BROKER_DEBUG("wait until all children have terminated");
-      self->wait_for(children_);
-      children_.clear();
+    if (!activities_.empty()) {
+      BROKER_DEBUG("cancel background activities");
+      for (auto& hdl : activities_)
+        hdl.cancel();
+      BROKER_DEBUG("wait until all background activities have completed");
+      for (auto& hdl : activities_)
+        hdl.wait();
+      activities_.clear();
     }
   }
   destroyed_ = true;
@@ -380,11 +383,7 @@ void endpoint::publish(std::vector<data_message> xs) {
 }
 
 publisher endpoint::make_publisher(topic ts) {
-  // TODO: implement me
-  // publisher result{*this, std::move(ts)};
-  // children_.emplace_back(result.worker());
-  // return result;
-  throw std::runtime_error("not implemented");
+  return publisher::make(*this, std::move(ts));
 }
 
 status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
@@ -395,29 +394,62 @@ status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
   throw std::runtime_error("not implemented");
 }
 
-subscriber endpoint::make_subscriber(std::vector<topic> ts, size_t max_qsize) {
-  // TODO: implement me
-  // subscriber result{*this, std::move(ts), max_qsize};
-  // children_.emplace_back(result.worker());
-  // return result;
-  throw std::runtime_error("not implemented");
+subscriber endpoint::make_subscriber(filter_type filter, size_t queue_size) {
+  return subscriber::make(*this, std::move(filter), queue_size);
 }
 
-caf::actor endpoint::make_actor(actor_init_fun f) {
-  auto hdl = system_.spawn([=](caf::event_based_actor* self) {
-#ifndef CAF_NO_EXCEPTION
-    // "Hide" unhandled-exception warning if users throw.
-    self->set_exception_handler(
-      [](caf::scheduled_actor* thisptr, std::exception_ptr& e) -> caf::error {
-        return caf::sec::runtime_error;
-      }
-    );
-#endif // CAF_NO_EXCEPTION
-    // Run callback.
-    f(self);
+namespace {
+
+struct worker_state {
+  static inline const char* name = "broker.subscriber";
+};
+
+using worker_actor = caf::stateful_actor<worker_state>;
+
+} // namespace
+
+activity endpoint::do_subscribe(filter_type filter,
+                                detail::sink_driver_ptr sink) {
+  BROKER_ASSERT(sink != nullptr);
+  using observer_t = caf::flow::observer<data_message>;
+  auto hdl_prm = std::make_shared<std::promise<caf::actor>>();
+  auto hdl_fut = hdl_prm->get_future();
+  auto cb = detail::make_flow_controller_callback(
+    [flt{std::move(filter)}, snk{std::move(sink)}, prm{std::move(hdl_prm)}] //
+    (detail::flow_controller * ctrl) mutable {
+      ctrl->add_filter(flt);
+      ctrl->select_local_data(flt).subscribe_with<worker_actor>(
+        ctrl->ctx()->system(), [&](auto* self, auto in) {
+          snk->init();
+          in.attach(observer_t{std::move(snk)});
+          prm->set_value(caf::actor{self});
+        });
+    });
+  caf::anon_send(core(), std::move(cb));
+  auto hdl = hdl_fut.get();
+  activities_.emplace_back(activity{std::move(hdl)});
+  return activities_.back();
+}
+
+activity endpoint::do_subscribe_nosync(filter_type filter,
+                                       detail::sink_driver_ptr sink) {
+  using observer_t = caf::flow::observer<data_message>;
+  auto hdl = system_.spawn([=](worker_actor* self) -> caf::behavior {
+    return {
+      [self, sink](detail::data_message_publisher pub) {
+        self->observe(pub.hdl).attach(observer_t{sink});
+      },
+    };
   });
-  children_.emplace_back(hdl);
-  return hdl;
+  auto cb = detail::make_flow_controller_callback(
+    [flt{std::move(filter)}, hdl](detail::flow_controller* ctrl) mutable {
+      ctrl->add_filter(flt);
+      auto pub = ctrl->select_local_data(flt);
+      caf::anon_send(hdl, detail::data_message_publisher{std::move(pub)});
+    });
+  caf::anon_send(core(), std::move(cb));
+  activities_.emplace_back(activity{std::move(hdl)});
+  return activities_.back();
 }
 
 expected<store> endpoint::attach_master(std::string name, backend type,

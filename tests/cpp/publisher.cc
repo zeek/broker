@@ -142,48 +142,4 @@ CAF_TEST(blocking_publishers) {
   anon_send_exit(leaf, exit_reason::user_shutdown);
 }
 
-CAF_TEST(nonblocking_publishers) {
-  // Spawn/get/configure core actors.
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  run();
-  inject((atom::peer, endpoint_id, caf::actor),
-         from(self).to(core1).with(atom::peer_v, core2_id, core2));
-  // Connect a consumer (leaf) to core2.
-  auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  run();
-  // publish_all uses thread communication which would deadlock when using our
-  // test_scheduler. We avoid this by pushing the call to publish_all to its
-  // own thread.
-  ep.publish_all_nosync(
-    // Initialize send buffer with 10 elements.
-    [](buf_type& xs) {
-      xs = data_msgs({{"a", 0},
-                      {"b", true},
-                      {"a", 1},
-                      {"a", 2},
-                      {"b", false},
-                      {"b", true},
-                      {"a", 3},
-                      {"b", false},
-                      {"a", 4},
-                      {"a", 5}});
-    },
-    // Get next element.
-    [](buf_type& xs, downstream<data_message>& out, size_t num) {
-      auto n = std::min(num, xs.size());
-      for (size_t i = 0u; i < n; ++i)
-        out.push(xs[i]);
-      xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-    },
-    // Did we reach the end?.
-    [](const buf_type& xs) { return xs.empty(); });
-  // Communication is identical to the driver-driven test in test/cpp/core.cc
-  run();
-  // Check log of the consumer.
-  auto expected
-    = data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
-  CAF_CHECK_EQUAL(deref<consumer_actor>(leaf).state.xs, expected);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
-}
-
 CAF_TEST_FIXTURE_SCOPE_END()

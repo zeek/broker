@@ -73,6 +73,16 @@ public:
     FAIL("unexpected function call");
   }
 
+  caf::async::publisher<data_message>
+  select_local_data(const filter_type&) override {
+    FAIL("unexpected function call");
+  }
+
+  caf::async::publisher<command_message>
+  select_local_commands(const filter_type&) override {
+    FAIL("unexpected function call");
+  }
+
   void add_filter(const filter_type&) override {
     // nop
   }

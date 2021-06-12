@@ -182,24 +182,7 @@ struct peer_fixture {
   // Publishes all `(t, xs)...` tuples.
   template <class... Ts>
   void publish(topic t, Ts... xs) {
-    using buf_t = std::deque<data_message>;
-    auto buf
-      = std::make_shared<buf_t>(buf_t{make_data_message(t, std::move(xs))...});
-    ep.publish_all_nosync(
-      [](unit_t&) {
-        // nop
-      },
-      [=](unit_t&, caf::downstream<data_message>& out, size_t num) {
-        auto n = std::min(num, buf->size());
-        CAF_MESSAGE("push" << n << "values downstream");
-        for (size_t i = 0u; i < n; ++i)
-          out.push(buf->at(i));
-        buf->erase(buf->begin(), buf->begin() + static_cast<ptrdiff_t>(n));
-      },
-      [=](const unit_t&) {
-        return buf->empty();
-      }
-    );
+    (ep.publish(make_data_message(t, std::move(xs))), ...);
     parent->exec_loop();
   }
 

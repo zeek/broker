@@ -283,6 +283,7 @@ endif()
 
 set(BROKER_SRC
   ${OPTIONAL_SRC}
+  src/activity.cc
   src/address.cc
   src/alm/multipath.cc
   src/alm/peer.cc
@@ -379,8 +380,9 @@ macro(add_tool name)
 endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)
-  add_tool(broker-gateway)
-  add_tool(broker-node)
+  # TODO: fix these tools
+  # add_tool(broker-gateway)
+  # add_tool(broker-node)
   add_tool(broker-pipe)
 endif ()
 

@@ -195,7 +195,7 @@ void receivedStats(endpoint& ep, data x) {
 
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("/benchmark/terminate", ev);
+    ep.publish("benchmark/terminate", ev);
     std::this_thread::sleep_for(std::chrono::seconds(2)); // Give clients a bit.
     exit(0);
   }
@@ -219,9 +219,9 @@ struct source_state {
 void client_mode(endpoint& ep, const std::string& host, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
-  // Subscribe to /benchmark/stats to print server updates.
+  // Subscribe to benchmark/stats to print server updates.
   ep.subscribe_nosync(
-    {"/benchmark/stats"},
+    {"benchmark/stats"},
     [](caf::unit_t&) {
       // nop
     },
@@ -232,7 +232,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     [](caf::unit_t&, const caf::error&) {
       // nop
     });
-  // Publish events to /benchmark/events.
+  // Publish events to benchmark/events.
   // Connect to remote peer.
   if (verbose)
     std::cout << "*** init peering: host = " << host << ", port = " << port
@@ -246,23 +246,13 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   if (verbose)
     std::cout << "*** endpoint is now peering to remote" << std::endl;
   if (batch_rate == 0) {
-    ep.system().spawn(
-      [](caf::stateful_actor<source_state>* self, caf::actor core) {
-        caf::attach_stream_source(
-          self, core, [](caf::unit_t&) {},
-          [self](caf::unit_t&, caf::downstream<data_message>& out,
-                 size_t hint) {
-            // get_downstream_queue().total_task_size();
-            for (size_t i = 0; i < hint; ++i) {
-              auto name = "event_" + std::to_string(event_type);
-              out.push(
-                data_message{"/benchmark/events",
-                             zeek::Event(std::move(name), createEventArgs())});
-            }
-          },
-          [](const caf::unit_t&) { return false; });
-      },
-      ep.core());
+    auto pub = ep.make_publisher("benchmark/events");
+    auto producer = std::thread{[pub{std::move(pub)}]() mutable {
+      for (;;) {
+        auto name = "event_" + std::to_string(event_type);
+        pub.publish(zeek::Event{std::move(name), createEventArgs()});
+      }
+    }};
     for (;;) {
       // Print status events.
       auto ev = ss.get();
@@ -273,7 +263,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   // Publish one message per interval.
   using std::chrono::duration_cast;
   using fractional_second = std::chrono::duration<double>;
-  auto p = ep.make_publisher("/benchmark/events");
+  auto p = ep.make_publisher("benchmark/events");
   fractional_second fractional_inc_interval{rate_increase_interval};
   auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
   timestamp timeout = std::chrono::system_clock::now();
@@ -306,50 +296,40 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
 }
 
-struct sink_state {
-  static inline const char* name = "broker.benchmark.sink";
-};
-
 // This mode mimics what benchmark.bro does.
 void server_mode(endpoint& ep, const std::string& iface, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
-  // Subscribe to /benchmark/events.
-  ep.system().spawn(
-    [](caf::stateful_actor<sink_state>* self, caf::actor core) {
-      std::vector<topic> topics{"/benchmark/events"};
-      self->send(self * core, atom::join_v, std::move(topics));
-      self->become([=](broker::endpoint::stream_type in) {
-        caf::attach_stream_sink(
-          self, in,
-          [](caf::unit_t&) {
-            // nop
-          },
-          [self](caf::unit_t&, data_message x) {
-            auto msg = move_data(x);
-            // Count number of events (counts each element in a batch as one
-            // event).
-            if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
-              ++num_events;
-            } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
-              zeek::Batch batch(std::move(msg));
-              num_events += batch.batch().size();
-            } else {
-              std::cerr << "unexpected message type" << std::endl;
-              exit(1);
-            }
-          },
-          [](caf::unit_t&, const caf::error&) {
-            // nop
-          });
-        self->unbecome();
-      });
+  // Subscribe to benchmark/events.
+  ep.subscribe(
+    // Filter.
+    {"benchmark/events"},
+    // Init.
+    [](caf::unit_t&) {
+      // nop
     },
-    ep.core());
-  // Listen on /benchmark/terminate for stop message.
+    // OnNext.
+    [](caf::unit_t&, data_message x) {
+      auto msg = move_data(x);
+      // Count number of events (counts each element in a batch as one event).
+      if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
+        ++num_events;
+      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
+        zeek::Batch batch(std::move(msg));
+        num_events += batch.batch().size();
+      } else {
+        std::cerr << "unexpected message type" << std::endl;
+        exit(1);
+      }
+    },
+    // Cleanup.
+    [](caf::unit_t&, const caf::error&) {
+      // nop
+    });
+  // Listen on benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
   ep.subscribe_nosync(
-    {"/benchmark/terminate"},
+    {"benchmark/terminate"},
     [](caf::unit_t&) {
       // nop
     },
@@ -376,7 +356,7 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     if (verbose)
       std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
     zeek::Event ev("stats_update", vector{std::move(stats)});
-    ep.publish("/benchmark/stats", std::move(ev));
+    ep.publish("benchmark/stats", std::move(ev));
     // Advance time and print status events.
     last_time = now;
     auto status_events = ss.poll();
@@ -384,7 +364,7 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
       for (auto& ev : status_events)
         std::cout << caf::deep_to_string(ev) << std::endl;
   }
-  std::cout << "received stop message on /benchmark/terminate" << std::endl;
+  std::cout << "received stop message on benchmark/terminate" << std::endl;
 }
 
 struct config : configuration {

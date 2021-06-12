@@ -2,6 +2,7 @@
 
 #include <future>
 
+#include <caf/async/fwd.hpp>
 #include <caf/flow/fwd.hpp>
 
 #include "broker/fwd.hh"
@@ -64,6 +65,12 @@ public:
   virtual void add_sink(caf::flow::observer<data_message> sink) = 0;
 
   virtual void add_sink(caf::flow::observer<command_message> sink) = 0;
+
+  virtual caf::async::publisher<data_message>
+  select_local_data(const filter_type& filter) = 0;
+
+  virtual caf::async::publisher<command_message>
+  select_local_commands(const filter_type& filter) = 0;
 
   /// Extends the global filter with all topics from `filter`.
   virtual void add_filter(const filter_type& filter) = 0;

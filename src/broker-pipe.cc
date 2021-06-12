@@ -1,20 +1,21 @@
+#include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <utility>
-#include <algorithm>
-#include <chrono>
 #include <exception>
+#include <future>
+#include <iostream>
 #include <iterator>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <thread>
-#include <mutex>
-#include <cassert>
-#include <iostream>
+#include <utility>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
@@ -142,29 +143,6 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
 
 #endif // BROKER_WINDOWS
 
-void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
-                         size_t cap) {
-  auto worker = ep.publish_all(
-    [](size_t& msgs) { msgs = 0; },
-    [=](size_t& msgs, caf::downstream<data_message>& out, size_t hint) {
-      auto num = std::min(cap - msgs, hint);
-      std::string line;
-      for (size_t i = 0; i < num; ++i)
-        if (!std::getline(std::cin, line)) {
-          // Reached end of STDIO.
-          msgs = cap;
-          return;
-        } else {
-          out.push(make_data_message(topic_str, std::move(line)));
-        }
-      msgs += num;
-      msg_count += num;
-    },
-    [=](const size_t& msgs) { return msgs == cap; });
-  caf::scoped_actor self{ep.system()};
-  self->wait_for(worker);
-}
-
 void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
   auto in = ep.make_subscriber({topic_str});
@@ -213,24 +191,26 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
 
 void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
-  auto worker = ep.subscribe(
+  auto signal_promise = std::promise<void>{};
+  auto signal = signal_promise.get_future();
+  ep.subscribe(
+    // Filter.
     {topic_str},
-    [](size_t& msgs) {
-      msgs = 0;
-    },
-    [=](size_t& msgs, data_message x) {
+    // Init.
+    [](size_t& msgs) { msgs = 0; },
+    // OnNext.
+    [cap](size_t& msgs, data_message x) {
       ++msg_count;
       if (!rate)
         print_line(std::cout, deep_to_string(x));
       if (++msgs >= cap)
         throw std::runtime_error("Reached cap");
     },
-    [=](size_t&, const caf::error&) {
-      // nop
-    }
-  );
-  caf::scoped_actor self{ep.system()};
-  self->wait_for(worker);
+    // Cleanup.
+    [prom{std::move(signal_promise)}](size_t&, const caf::error&) mutable {
+      prom.set_value();
+    });
+  signal.wait();
 }
 
 caf::behavior event_listener(caf::event_based_actor* self) {
@@ -309,7 +289,6 @@ int main(int argc, char** argv) {
   mode_fun fs[] = {
     publish_mode_blocking,
     publish_mode_select,
-    publish_mode_stream,
     subscribe_mode_blocking,
     subscribe_mode_select,
     subscribe_mode_stream,
@@ -318,7 +297,6 @@ int main(int argc, char** argv) {
   std::pair<std::string, std::string> as[] = {
     {"publish", "blocking"},
     {"publish", "select"},
-    {"publish", "stream"},
     {"subscribe", "blocking"},
     {"subscribe", "select"},
     {"subscribe", "stream"},

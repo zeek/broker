@@ -2,6 +2,7 @@
 
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
+#include <caf/scheduled_actor/flow.hpp>
 
 #include "broker/detail/flow_controller_callback.hh"
 #include "broker/detail/overload.hh"
@@ -529,20 +530,7 @@ void stream_transport::abort_handshake(detail::peer_manager* mgr) {
 
 // -- overrides for flow_controller --------------------------------------------
 
-caf::scheduled_actor* stream_transport::ctx() {
-  return self();
-}
-
-void stream_transport::add_source(caf::flow::observable<data_message> source) {
-  data_inputs_->add(std::move(source));
-}
-
-void stream_transport::add_source(
-  caf::flow::observable<command_message> source) {
-  command_inputs_->add(std::move(source));
-}
-
-void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
+void stream_transport::init_data_outputs() {
   if (!data_outputs_) {
     data_outputs_ //
       = central_merge_->as_observable()
@@ -557,10 +545,9 @@ void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
           })
           .as_observable();
   }
-  data_outputs_.attach(sink);
 }
 
-void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
+void stream_transport::init_command_outputs() {
   if (!command_outputs_) {
     command_outputs_ //
       = central_merge_->as_observable()
@@ -575,7 +562,53 @@ void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
           })
           .as_observable();
   }
+}
+
+caf::scheduled_actor* stream_transport::ctx() {
+  return self();
+}
+
+void stream_transport::add_source(caf::flow::observable<data_message> source) {
+  data_inputs_->add(std::move(source));
+}
+
+void stream_transport::add_source(
+  caf::flow::observable<command_message> source) {
+  command_inputs_->add(std::move(source));
+}
+
+void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
+  init_data_outputs();
+  data_outputs_.attach(sink);
+}
+
+void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
+  init_command_outputs();
   command_outputs_.attach(sink);
+}
+
+caf::async::publisher<data_message>
+stream_transport::select_local_data(const filter_type& filter) {
+    init_data_outputs();
+    auto out = data_outputs_
+                 .filter([filter](const data_message& item) {
+                   detail::prefix_matcher f;
+                   return f(filter, item);
+                 })
+                 .as_observable();
+    return self()->to_async_publisher(out);
+}
+
+caf::async::publisher<command_message>
+stream_transport::select_local_commands(const filter_type& filter) {
+  init_command_outputs();
+  auto out = command_outputs_
+               .filter([filter](const command_message& item) {
+                 detail::prefix_matcher f;
+                 return f(filter, item);
+               })
+               .as_observable();
+  return self()->to_async_publisher(out);
 }
 
 void stream_transport::add_filter(const filter_type& filter) {
