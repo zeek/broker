@@ -1,6 +1,6 @@
-FROM fedora:32
+FROM fedora:34
 
-RUN yum install -y \
+RUN dnf install -y \
     cmake \
     gcc \
     gcc-c++ \
@@ -10,5 +10,5 @@ RUN yum install -y \
     openssl-devel \
     python3 \
     python3-devel \
-    && yum clean all \
-    && rm -rf /var/cache/yum
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
