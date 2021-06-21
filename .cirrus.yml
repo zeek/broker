@@ -41,7 +41,7 @@ unix_env: &UNIX_ENV
     # This is the https endpoint host and port used for benchmarking. It's kept
     # encrypted as a security measure to avoid leaking the host's information.
     BROKER_BENCHMARK_HOST: ENCRYPTED[91d00f9b8e7423899232f7fc66769d6fb95fdb381b0e1546d5922483b060c853394f4146533fa4946809e8b2b97fb6d6]
-    BROKER_BENCHMARK_PORT: ENCRYPTED[a24d77d825cbc3a924cbcd28c2d1d4b7a95e38dfa9996ac90609d63e70deba13e0e99a2ad7933570a7df7ef84ce55897]
+    BROKER_BENCHMARK_PORT: ENCRYPTED[a22877e5c27b0957d7c7e78e2b1e1ea73ac02544544f453aee5af3bed2e90437a5b85cd2893bf6a741dfe22976c7ebb6]
 
 # Linux EOL timelines: https://linuxlifecycle.com/
 # Fedora (~13 months): https://fedoraproject.org/wiki/Fedora_Release_Life_Cycle
