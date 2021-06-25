@@ -13,7 +13,6 @@
 #include "broker/atoms.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
-#include "broker/detail/central_dispatcher.hh"
 #include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/prefix_matcher.hh"
@@ -73,13 +72,9 @@ namespace broker::alm {
 /// (atom::await, PeerId) -> void
 /// => await_endpoint()
 /// ~~~
-class peer : public detail::central_dispatcher {
+class peer {
 public:
   // -- constants --------------------------------------------------------------
-
-  /// Configures how many (additional) items the stream transport caches for
-  /// published events that bypass streaming.
-  static constexpr size_t item_stash_replenish_size = 32;
 
   /// Checks whether move-assigning an ID to the peer results in a `noexcept`
   /// operation.
@@ -187,16 +182,6 @@ public:
 
   virtual void subscribe(const filter_type& what);
 
-  // -- detail::central_dispatcher overrides -----------------------------------
-
-  caf::event_based_actor* this_actor() noexcept final;
-
-  endpoint_id this_endpoint() const final;
-
-  filter_type local_filter() const final;
-
-  alm::lamport_timestamp local_timestamp() const noexcept final;
-
   // -- additional dispatch overloads ------------------------------------------
 
   /// @private
@@ -286,9 +271,11 @@ public:
   /// @param msg The published command.
   virtual void publish_locally(const command_message& msg) = 0;
 
-  /// Publishes @p msg to all local subscribers.
-  /// @param msg The published message, either data or a command.
-  void publish_locally(const node_message_content& msg);
+  virtual void dispatch(const data_message& msg) = 0;
+
+  virtual void dispatch(const command_message& msg) = 0;
+
+  virtual void dispatch(const node_message& msg) = 0;
 
   // -- callbacks --------------------------------------------------------------
 

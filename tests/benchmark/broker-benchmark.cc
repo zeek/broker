@@ -341,7 +341,13 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
       // nop
     });
   // Start listening for peers.
-  ep.listen(iface, port);
+  auto actual_port = ep.listen(iface, port);
+  if (actual_port == 0) {
+    std::cerr << "*** failed to listen on port " << port << '\n';
+    return;
+  } else if (verbose) {
+    std::cout << "*** listening on " << actual_port << '\n';
+  }
   // Collects stats once per second until receiving stop message.
   using std::chrono::duration_cast;
   timestamp timeout = std::chrono::system_clock::now();

@@ -24,36 +24,20 @@ peer::~peer() {
   // nop
 }
 
-// -- central_dispatcher overrides ---------------------------------------------
-
-caf::event_based_actor* peer::this_actor() noexcept {
-  return self();
-}
-
-endpoint_id peer::this_endpoint() const {
-  return id();
-}
-
-filter_type peer::local_filter() const {
-  return filter_;
-}
-
-alm::lamport_timestamp peer::local_timestamp() const noexcept {
-  return timestamp_;
-}
-
 // -- additional dispatch overloads --------------------------------------------
 
 template <class T>
 bool peer::dispatch_to_impl(T&& msg, endpoint_id&& receiver) {
-  if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
-    multipath path{ptr->begin(), ptr->end()};
-    dispatch(make_node_message(std::forward<T>(msg), std::move(path)));
-    return true;
-  } else {
-    BROKER_DEBUG("drop message: no path to" << receiver);
-    return false;
-  }
+  return false;
+  // TODO: implement me
+  // if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
+  //   multipath path{ptr->begin(), ptr->end()};
+  //   dispatch(make_node_message(std::forward<T>(msg), std::move(path)));
+  //   return true;
+  // } else {
+  //   BROKER_DEBUG("drop message: no path to" << receiver);
+  //   return false;
+  // }
 }
 
 bool peer::dispatch_to(data_message msg, endpoint_id receiver) {
@@ -276,18 +260,6 @@ void peer::handle_path_revocation(endpoint_id_list& path,
   age_revocations();
 }
 
-// -- interface to the transport -----------------------------------------------
-
-void peer::publish_locally(const node_message_content& msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
-  if (is_data_message(msg)) {
-    publish_locally(get_data_message(msg));
-  } else {
-    BROKER_ASSERT(is_command_message(msg));
-    publish_locally(get_command_message(msg));
-  }
-}
-
 // -- callbacks ----------------------------------------------------------------
 
 void peer::peer_discovered(const endpoint_id&) {
@@ -361,14 +333,14 @@ caf::behavior peer::make_behavior() {
     [this](atom::publish, command_message& msg) {
       dispatch(msg);
     },
-    [this](atom::publish, command_message& msg, endpoint_id& receiver) {
+    [this](atom::publish, const command_message& msg, endpoint_id receiver) {
       if (receiver == id_)
         publish_locally(msg);
       else
-        dispatch_to(std::move(msg), std::move(receiver));
+        dispatch_to(msg, std::move(receiver));
     },
-    [this](atom::publish, node_message& msg) {
-      dispatch(std::move(msg));
+    [this](atom::publish, const node_message& msg) {
+      dispatch(msg);
     },
     lift<atom::subscribe>(*this, &peer::subscribe),
     lift<atom::subscribe>(*this, &peer::handle_filter_update),

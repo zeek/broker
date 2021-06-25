@@ -106,6 +106,10 @@ public:
     std::atomic<size_t> pending_count_;
   };
 
+  struct background_task {
+    virtual ~background_task();
+  };
+
   // --- construction and destruction ------------------------------------------
 
   endpoint(configuration config = {});
@@ -237,7 +241,9 @@ public:
 
   /// Returns a subscriber connected to this endpoint for receiving error and
   /// (optionally) status events.
-  status_subscriber make_status_subscriber(bool receive_statuses = false);
+  status_subscriber
+  make_status_subscriber(bool receive_statuses = false,
+                         size_t queue_size = defaults::subscriber::queue_size);
 
   // --- forwarding events -----------------------------------------------------
 
@@ -247,7 +253,9 @@ public:
   // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
-  subscriber make_subscriber(filter_type filter, size_t max_qsize = 64u);
+  subscriber
+  make_subscriber(filter_type filter,
+                  size_t queue_size = defaults::subscriber::queue_size);
 
   /// Starts a background worker from the given set of function that consumes
   /// incoming messages. The worker will run in the background, but `init` is
@@ -397,12 +405,13 @@ private:
   union {
     mutable caf::actor_system system_;
   };
+  endpoint_id id_;
   caf::actor core_;
   shutdown_options shutdown_options_;
   std::vector<activity> activities_;
   bool destroyed_;
   clock* clock_;
-  endpoint_id id_;
+  std::vector<std::unique_ptr<background_task>> background_tasks_;
 };
 
 } // namespace broker

@@ -242,8 +242,14 @@ else ()
   set(CAF_FOUND TRUE CACHE INTERNAL "")
 endif ()
 
+set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
+set(CAF_INC_ENABLE_BB_MODULE OFF CACHE INTERNAL "")
+set(CAF_INC_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
+add_subdirectory(caf-incubator)
+
+
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
+set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES} CAF::net)
 
 # -- libroker -----------------------------------------------------------------
 
@@ -282,6 +288,9 @@ else()
 endif()
 
 set(BROKER_SRC
+  # src/detail/core_recorder.cc
+  # src/detail/generator_file_reader.cc
+  # src/detail/generator_file_writer.cc
   ${OPTIONAL_SRC}
   src/activity.cc
   src/address.cc
@@ -295,17 +304,15 @@ set(BROKER_SRC
   src/data.cc
   src/defaults.cc
   src/detail/abstract_backend.cc
-  src/detail/central_dispatcher.cc
   src/detail/clone_actor.cc
-  src/detail/core_recorder.cc
+  src/detail/connector.cc
+  src/detail/connector_adapter.cc
   src/detail/data_generator.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
   src/detail/flow_controller.cc
   src/detail/flow_controller_callback.cc
-  src/detail/generator_file_reader.cc
-  src/detail/generator_file_writer.cc
   src/detail/item_scope.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
@@ -314,11 +321,9 @@ set(BROKER_SRC
   src/detail/meta_data_writer.cc
   src/detail/monotonic_buffer_resource.cc
   src/detail/network_cache.cc
-  src/detail/peer_handshake.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
-  src/detail/unipath_manager.cc
   src/domain_options.cc
   src/endpoint.cc
   src/endpoint_info.cc

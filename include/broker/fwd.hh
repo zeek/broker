@@ -89,8 +89,10 @@ using request_id = uint64_t;
 
 namespace broker {
 
+using caf::error;
 using caf::optional;
 using endpoint_id = caf::uuid;
+using endpoint_id_list = std::vector<endpoint_id>;
 
 } // namespace broker
 
@@ -117,11 +119,13 @@ using routing_table
 
 namespace broker {
 
+enum class packed_message_type : uint8_t;
+
+using packed_message = caf::cow_tuple<packed_message_type, topic,
+                                      std::vector<std::byte>>;
 using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
-using endpoint_id_list = std::vector<endpoint_id>;
-using node_message_content = caf::variant<data_message, command_message>;
-using node_message = caf::cow_tuple<node_message_content, alm::multipath>;
+using node_message = caf::cow_tuple<alm::multipath, packed_message>;
 
 } // namespace broker
 
@@ -148,16 +152,11 @@ struct packed_message_publisher;
 struct retry_state;
 struct store_state;
 
-class central_dispatcher;
+class connector;
 class flare_actor;
 class flow_controller;
 class flow_controller_callback;
 class mailbox;
-class peer_manager;
-class unipath_command_sink;
-class unipath_data_sink;
-class unipath_manager;
-class unipath_source;
 
 template <class T>
 class shared_publisher_queue;
@@ -167,6 +166,9 @@ class shared_subscriber_queue;
 
 enum class item_scope : uint8_t;
 
+enum class connector_event_id : uint64_t;
+
+using connector_ptr = std::shared_ptr<connector>;
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
 
@@ -232,6 +234,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(default_, "default")
   BROKER_ADD_ATOM(id)
   BROKER_ADD_ATOM(init)
+  BROKER_ADD_ATOM(listen)
   BROKER_ADD_ATOM(name)
   BROKER_ADD_ATOM(network)
   BROKER_ADD_ATOM(peer)
@@ -295,6 +298,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
+  BROKER_ADD_TYPE_ID((broker::detail::connector_event_id))
   BROKER_ADD_TYPE_ID((broker::detail::data_message_publisher))
   BROKER_ADD_TYPE_ID((broker::detail::flow_controller_callback_ptr))
   BROKER_ADD_TYPE_ID((broker::detail::packed_message_publisher))
@@ -312,7 +316,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::nack_command))
   BROKER_ADD_TYPE_ID((broker::network_info))
   BROKER_ADD_TYPE_ID((broker::node_message))
-  BROKER_ADD_TYPE_ID((broker::node_message_content))
   BROKER_ADD_TYPE_ID((broker::none))
   BROKER_ADD_TYPE_ID((broker::optional<broker::timespan>))
   BROKER_ADD_TYPE_ID((broker::optional<broker::timestamp>))
@@ -338,14 +341,13 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((caf::stream<broker::command_message>))
   BROKER_ADD_TYPE_ID((caf::stream<broker::data_message>))
   BROKER_ADD_TYPE_ID((caf::stream<broker::node_message>))
-  BROKER_ADD_TYPE_ID((caf::stream<broker::node_message_content>))
+  BROKER_ADD_TYPE_ID((std::optional<broker::endpoint_id>))
   BROKER_ADD_TYPE_ID((std::vector<broker::alm::lamport_timestamp>))
   BROKER_ADD_TYPE_ID((std::vector<broker::command_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::data_message>))
+  BROKER_ADD_TYPE_ID((std::vector<broker::endpoint_id>))
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message>))
-  BROKER_ADD_TYPE_ID((std::vector<broker::node_message_content>))
   BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>))
-  BROKER_ADD_TYPE_ID((std::vector<caf::uuid>))
 
 #if CAF_VERSION < 1900
   BROKER_ADD_TYPE_ID((caf::uuid))

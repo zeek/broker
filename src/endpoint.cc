@@ -16,6 +16,7 @@
 
 #include "broker/core_actor.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/connector.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/flow_controller_callback.hh"
@@ -114,6 +115,34 @@ void endpoint::clock::send_later(caf::actor dest, timespan after,
   ++pending_count_;
 }
 
+endpoint::background_task::~background_task() {
+  // nop
+}
+
+namespace {
+
+struct connector_task : public endpoint::background_task {
+public:
+  ~connector_task() {
+    if (thread_.joinable())
+      thread_.join();
+  }
+
+  detail::connector_ptr start(caf::actor_system& sys) {
+    auto ptr = std::make_shared<detail::connector>();
+    thread_ = std::thread{[ptr, sys_ptr{&sys}] {
+      CAF_SET_LOGGER_SYS(sys_ptr);
+      ptr->run();
+    }};
+    return ptr;
+  }
+
+private:
+  std::thread thread_;
+};
+
+} // namespace
+
 // --- endpoint class ----------------------------------------------------------
 
 namespace {
@@ -163,7 +192,7 @@ void pretty_print(std::ostream& out, const caf::settings& xs,
 } // namespace
 
 endpoint::endpoint(configuration config)
-  : config_(std::move(config)), destroyed_(false), id_(endpoint_id::random()) {
+  : config_(std::move(config)), id_(endpoint_id::random()), destroyed_(false) {
   // Stop immediately if any helptext was printed.
   if (config_.cli_helptext_printed)
     exit(0);
@@ -185,13 +214,19 @@ endpoint::endpoint(configuration config)
                 << "\" for recording meta data\n";
     }
   }
-  // Initialize remaining state.
+  // Spin up the actor system.
   new (&system_) caf::actor_system(config_);
+  // Spin up the connector.
+  auto conn_task = std::make_unique<connector_task>();
+  auto conn_ptr = conn_task->start(system_);
+  background_tasks_.emplace_back(std::move(conn_task));
+  // Initialize remaining state.
   auto opts = config_.options();
   clock_ = new clock(&system_, opts.use_real_time);
   if (system_.has_openssl_manager() || opts.disable_ssl) {
     BROKER_INFO("creating endpoint");
-    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_);
+    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
+                                           std::move(conn_ptr));
   } else {
     detail::die("CAF OpenSSL manager is not available");
   }
@@ -230,6 +265,8 @@ void endpoint::shutdown() {
         hdl.wait();
       activities_.clear();
     }
+    BROKER_DEBUG("stop background tasks");
+    background_tasks_.clear();
   }
   destroyed_ = true;
   core_ = nullptr;
@@ -240,16 +277,24 @@ void endpoint::shutdown() {
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
-  BROKER_INFO("listening on"
+  BROKER_INFO("try listening on"
               << (address + ":" + std::to_string(port))
               << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
-  expected<uint16_t> res = caf::error{};
-  if (config_.options().disable_ssl)
-    res = system_.middleman().publish(core(), port, addr, true);
-  else
-    res = caf::openssl::publish(core(), port, addr, true);
-  return res ? *res : 0;
+  uint16_t result = 0;
+  caf::scoped_actor self{system_};
+  self->request(core_, caf::infinite, atom::listen_v, address, port)
+    .receive(
+      [&](atom::listen, atom::ok, uint16_t res) {
+        BROKER_DEBUG("listening on port" << res);
+        BROKER_ASSERT(res != 0);
+        result = res;
+      },
+      [&](caf::error& err) {
+        BROKER_DEBUG("cannot listen to" << address << "on port" << port << ":"
+                                        << err);
+      });
+  return result;
 }
 
 bool endpoint::peer(const std::string& address, uint16_t port,
@@ -260,17 +305,14 @@ bool endpoint::peer(const std::string& address, uint16_t port,
                                       << "[synchronous]");
   bool result = false;
   caf::scoped_actor self{system_};
-  self->request(core_, caf::infinite, atom::peer_v,
-                network_info{address, port, retry})
-  .receive(
-    [&](atom::peer, atom::ok, const endpoint_id&) {
-      result = true;
-    },
-    [&](caf::error& err) {
-      BROKER_DEBUG("Cannot peer to" << address << "on port"
-                    << port << ":" << err);
-    }
-  );
+  self
+    ->request(core_, caf::infinite, atom::peer_v,
+              network_info{address, port, retry})
+    .receive([&](atom::peer, atom::ok, endpoint_id) { result = true; },
+             [&](caf::error& err) {
+               BROKER_DEBUG("cannot peer to" << address << "on port" << port
+                                             << ":" << err);
+             });
   return result;
 }
 
@@ -386,12 +428,9 @@ publisher endpoint::make_publisher(topic ts) {
   return publisher::make(*this, std::move(ts));
 }
 
-status_subscriber endpoint::make_status_subscriber(bool receive_statuses) {
-  // TODO: implement me
-  // status_subscriber result{*this, receive_statuses};
-  // children_.emplace_back(result.worker());
-  // return result;
-  throw std::runtime_error("not implemented");
+status_subscriber endpoint::make_status_subscriber(bool receive_statuses,
+                                                   size_t queue_size) {
+  return status_subscriber::make(*this, receive_statuses, queue_size);
 }
 
 subscriber endpoint::make_subscriber(filter_type filter, size_t queue_size) {

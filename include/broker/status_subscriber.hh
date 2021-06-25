@@ -6,6 +6,7 @@
 #include <caf/variant.hpp>
 
 #include "broker/bad_variant_access.hh"
+#include "broker/defaults.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
 #include "broker/status.hh"
@@ -33,6 +34,12 @@ public:
   status_subscriber(status_subscriber&&) = default;
 
   status_subscriber& operator=(status_subscriber&&) = default;
+
+  // --- factories -------------------------------------------------------------
+
+  static status_subscriber
+  make(endpoint& ep, bool receive_statuses,
+       size_t queue_size = defaults::subscriber::queue_size);
 
   // --- access to values ------------------------------------------------------
 
@@ -106,7 +113,7 @@ public:
 private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
 //  status_subscriber(endpoint& ep, bool receive_statuses = false);
-  status_subscriber(subscriber impl);
+  explicit status_subscriber(subscriber impl);
 
   value_type convert(const data_message& msg);
 

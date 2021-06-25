@@ -330,7 +330,11 @@ PYBIND11_MODULE(_broker, m) {
        })
     .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
-    .def("make_status_subscriber", &broker::endpoint::make_status_subscriber, py::arg("receive_statuses") = false)
+    .def("make_status_subscriber",
+         [](broker::endpoint& ep, bool receive_statuses) {
+           return ep.make_status_subscriber(receive_statuses);
+         },
+         py::arg("receive_statuses") = false)
     .def("shutdown", &broker::endpoint::shutdown)
     .def("attach_master",
          [](broker::endpoint& ep, const std::string& name, broker::backend type,

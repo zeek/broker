@@ -73,50 +73,54 @@ public:
   caf::result<caf::actor> attach_master(const std::string& name,
                                         backend backend_type,
                                         backend_options opts) {
-    BROKER_TRACE(BROKER_ARG(name)
-                 << BROKER_ARG(backend_type) << BROKER_ARG(opts));
-    if (auto i = masters_.find(name); i != masters_.end())
-      return i->second;
-    if (has_remote_master(name)) {
-      BROKER_WARNING("remote master with same name exists already");
-      return ec::master_exists;
-    }
-    auto ptr = detail::make_backend(backend_type, std::move(opts));
-    BROKER_ASSERT(ptr != nullptr);
-    BROKER_INFO("spawning new master:" << name);
-    auto self = super::self();
-    auto ms = self->template spawn<spawn_flags>(
-      detail::master_actor, this->id(), self, name, std::move(ptr), clock_);
-    filter_type filter{name / topics::master_suffix};
-    if (auto err = this->add_store(ms, filter))
-      return err;
-    masters_.emplace(name, ms);
-    return ms;
+    // TODO: implement me
+    return ec::unspecified;
+    // BROKER_TRACE(BROKER_ARG(name)
+    //              << BROKER_ARG(backend_type) << BROKER_ARG(opts));
+    // if (auto i = masters_.find(name); i != masters_.end())
+    //   return i->second;
+    // if (has_remote_master(name)) {
+    //   BROKER_WARNING("remote master with same name exists already");
+    //   return ec::master_exists;
+    // }
+    // auto ptr = detail::make_backend(backend_type, std::move(opts));
+    // BROKER_ASSERT(ptr != nullptr);
+    // BROKER_INFO("spawning new master:" << name);
+    // auto self = super::self();
+    // auto ms = self->template spawn<spawn_flags>(
+    //   detail::master_actor, this->id(), self, name, std::move(ptr), clock_);
+    // filter_type filter{name / topics::master_suffix};
+    // if (auto err = this->add_store(ms, filter))
+    //   return err;
+    // masters_.emplace(name, ms);
+    // return ms;
   }
 
   /// Attaches a clone for given store to this peer.
   caf::result<caf::actor>
   attach_clone(const std::string& name, double resync_interval,
                double stale_interval, double mutation_buffer_interval) {
-    BROKER_TRACE(BROKER_ARG(name)
-                 << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
-                 << BROKER_ARG(mutation_buffer_interval));
-    if (auto i = masters_.find(name); i != masters_.end()) {
-      BROKER_WARNING("attempted to run clone & master on the same endpoint");
-      return ec::no_such_master;
-    }
-    if (auto i = clones_.find(name); i != clones_.end())
-      return i->second;
-    BROKER_INFO("spawning new clone:" << name);
-    auto self = super::self();
-    auto cl = self->template spawn<spawn_flags>(
-      detail::clone_actor, this->id(), self, name, resync_interval,
-      stale_interval, mutation_buffer_interval, clock_);
-    filter_type filter{name / topics::clone_suffix};
-    if (auto err = this->add_store(cl, filter))
-      return err;
-    clones_.emplace(name, cl);
-    return cl;
+    // TODO: implement me
+    return ec::unspecified;
+    // BROKER_TRACE(BROKER_ARG(name)
+    //              << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
+    //              << BROKER_ARG(mutation_buffer_interval));
+    // if (auto i = masters_.find(name); i != masters_.end()) {
+    //   BROKER_WARNING("attempted to run clone & master on the same endpoint");
+    //   return ec::no_such_master;
+    // }
+    // if (auto i = clones_.find(name); i != clones_.end())
+    //   return i->second;
+    // BROKER_INFO("spawning new clone:" << name);
+    // auto self = super::self();
+    // auto cl = self->template spawn<spawn_flags>(
+    //   detail::clone_actor, this->id(), self, name, resync_interval,
+    //   stale_interval, mutation_buffer_interval, clock_);
+    // filter_type filter{name / topics::clone_suffix};
+    // if (auto err = this->add_store(cl, filter))
+    //   return err;
+    // clones_.emplace(name, cl);
+    // return cl;
   }
 
   /// Returns whether the master for the given store runs at this peer.

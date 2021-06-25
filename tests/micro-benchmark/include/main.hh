@@ -22,8 +22,10 @@ class uuid_multipath;
 class uuid_multipath_group;
 class uuid_multipath_node;
 
-using uuid_node_message
-  = caf::cow_tuple<broker::node_message_content, uuid_multipath>;
+using node_message_content
+  = broker::variant<broker::data_message, broker::command_message>;
+
+using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
 // -- type IDs -----------------------------------------------------------------
 
@@ -48,7 +50,7 @@ CAF_END_TYPE_ID_BLOCK(micro_benchmarks)
 struct legacy_node_message {
 
   /// Content of the message.
-  broker::node_message_content content;
+  node_message_content content;
 
   /// Time-to-life counter.
   uint16_t ttl;

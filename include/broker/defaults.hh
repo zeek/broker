@@ -16,6 +16,12 @@ extern const caf::timespan await_peer_timeout;
 
 } // namespace broker::defaults
 
+namespace broker::defaults::subscriber {
+
+static constexpr size_t queue_size = 64;
+
+} // namespace broker::defaults::subscriber
+
 namespace broker::defaults::store {
 
 /// Configures the time interval for advancing the local Lamport time.

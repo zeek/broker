@@ -8,21 +8,19 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 
 set(tests
   cpp/alm/multipath.cc
-  cpp/alm/peer/async_transport.cc
-  cpp/alm/peer/stream_transport.cc
-  cpp/alm/routing_table.cc
+  # cpp/alm/peer/async_transport.cc
+  # cpp/alm/peer/stream_transport.cc
+  # cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/core_actor.cc
   cpp/data.cc
-  cpp/detail/central_dispatcher.cc
   cpp/detail/channel.cc
   cpp/detail/data_generator.cc
-  cpp/detail/generator_file_writer.cc
+  # cpp/detail/generator_file_writer.cc
   cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
   cpp/detail/shared_publisher_queue.cc
   cpp/detail/shared_subscriber_queue.cc
-  cpp/detail/unipath_manager.cc
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
@@ -98,9 +96,9 @@ add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${libbroker})
 install(TARGETS broker-benchmark DESTINATION bin)
 
-add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
-target_link_libraries(broker-cluster-benchmark ${libbroker})
-install(TARGETS broker-cluster-benchmark DESTINATION bin)
+# add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
+# target_link_libraries(broker-cluster-benchmark ${libbroker})
+# install(TARGETS broker-cluster-benchmark DESTINATION bin)
 
 # -- Python -------------------------------------------------------------------
 

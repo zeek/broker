@@ -120,36 +120,38 @@ public:
   }
 
   caf::behavior make_behavior() override {
-    return caf::message_handler{
-      [=](atom::peer, const network_info& addr) {
-        this->try_peering(addr, super::self()->make_response_promise(), 0);
-      },
-      [=](atom::publish, const network_info& addr, data_message& msg) {
-        this->try_publish(addr, msg, super::self()->make_response_promise());
-      },
-      [=](atom::unpeer, const network_info& addr) {
-        if (auto hdl = cache_.find(addr))
-          this->unpeer(*hdl);
-        else
-          this->cannot_remove_peer(addr);
-      },
-      [=](detail::retry_state& x) {
-        this->try_peering(x.addr, std::move(x.rp), x.count);
-      },
-      [=](atom::ping, const endpoint_id& peer_id, const caf::actor& hdl) {
-        // This step only exists to populate the network caches on both sides
-        // before starting the actual handshake.
-        auto rp = this->self()->make_response_promise();
-        cache_.fetch(
-          hdl,
-          [this, rp](const network_info&) mutable {
-            rp.deliver(atom::pong_v, this->id(), this->self());
-          },
-          [rp](error err) mutable { rp.deliver(std::move(err)); });
-        return rp;
-      },
-    }
-      .or_else(super::make_behavior());
+    // TODO: implement me
+    return super::make_behavior();
+    // return caf::message_handler{
+    //   [=](atom::peer, const network_info& addr) {
+    //     this->try_peering(addr, super::self()->make_response_promise(), 0);
+    //   },
+    //   [=](atom::publish, const network_info& addr, data_message& msg) {
+    //     this->try_publish(addr, msg, super::self()->make_response_promise());
+    //   },
+    //   [=](atom::unpeer, const network_info& addr) {
+    //     if (auto hdl = cache_.find(addr))
+    //       this->unpeer(*hdl);
+    //     else
+    //       this->cannot_remove_peer(addr);
+    //   },
+    //   [=](detail::retry_state& x) {
+    //     this->try_peering(x.addr, std::move(x.rp), x.count);
+    //   },
+    //   [=](atom::ping, const endpoint_id& peer_id, const caf::actor& hdl) {
+    //     // This step only exists to populate the network caches on both sides
+    //     // before starting the actual handshake.
+    //     auto rp = this->self()->make_response_promise();
+    //     cache_.fetch(
+    //       hdl,
+    //       [this, rp](const network_info&) mutable {
+    //         rp.deliver(atom::pong_v, this->id(), this->self());
+    //       },
+    //       [rp](error err) mutable { rp.deliver(std::move(err)); });
+    //     return rp;
+    //   },
+    // }
+    //   .or_else(super::make_behavior());
   }
 
   // -- overrides --------------------------------------------------------------

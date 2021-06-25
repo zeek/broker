@@ -93,6 +93,8 @@ enum class ec : uint8_t {
   invalid_handshake_state,
   /// Dispatching a message failed because no path to the receiver exists.
   no_path_to_peer,
+  /// Unable to accept or establish peerings since no connector is available.
+  no_connector_available,
 };
 // --ec-enum-end
 

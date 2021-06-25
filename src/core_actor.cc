@@ -26,8 +26,9 @@ namespace broker {
 
 core_state::core_state(caf::event_based_actor* self, endpoint_id this_peer,
                        filter_type initial_filter, endpoint::clock* clock,
-                       const domain_options* adaptation)
-  : super(self, clock) {
+                       const domain_options* adaptation,
+                       detail::connector_ptr conn)
+  : super(self, clock, std::move(conn)) {
   id(this_peer);
   if (adaptation && adaptation->disable_forwarding)
     disable_forwarding(true);
