@@ -370,9 +370,8 @@ void endpoint::shutdown() {
     children_.clear();
   }
   BROKER_DEBUG("stop background tasks");
-  background_tasks_.clear();
-  anon_send_exit(telemetry_exporter_, caf::exit_reason::user_shutdown);
   telemetry_exporter_ = nullptr;
+  background_tasks_.clear();
   BROKER_DEBUG("send shutdown message to core actor");
   anon_send(core_, atom::shutdown_v);
   core_ = nullptr;
