@@ -64,8 +64,9 @@ public:
     // a manual cache lookup and simply omit the network information if we
     // cannot find a cached entry.
     network_info peer_addr;
-    if (auto addr = this->cache().find(hdl))
-      peer_addr = *addr;
+    // TODO: fixme
+    // if (auto addr = this->cache().find(hdl))
+    //   peer_addr = *addr;
     emit(peer_id, peer_addr, sc_constant<sc::peer_lost>(),
          "lost connection to remote peer");
     super::peer_disconnected(peer_id, hdl, reason);
@@ -183,7 +184,9 @@ private:
       return value_type{};
     };
     emit(unbox_or_default(get_peer_id(this->tbl(), hdl)),
-         unbox_or_default(this->cache().find(hdl)), code, msg);
+         // TODO: fixme
+         //   unbox_or_default(this->cache().find(hdl)), code, msg);
+         network_info{}, code, msg);
   }
 
   template <class EnumConstant>
@@ -196,10 +199,11 @@ private:
     if constexpr (detail::has_network_info_v<EnumConstant>) {
       network_info net;
       auto& tbl = this->tbl();
-      if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl)
-        if (auto maybe_net = this->cache().find(i->second.hdl))
-          net = std::move(*maybe_net);
-       emit(peer_id, net, code, msg);
+      // TODO: fixme
+      // if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl)
+      // if (auto maybe_net = this->cache().find(i->second.hdl))
+      //   net = std::move(*maybe_net);
+      emit(peer_id, net, code, msg);
     } else if constexpr (std::is_same<value_type, sc>::value) {
       emit(status::make<EnumConstant::value>(peer_id, msg));
     } else {

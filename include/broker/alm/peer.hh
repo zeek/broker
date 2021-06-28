@@ -363,7 +363,7 @@ protected:
     peer_timestamps_;
 
   /// Stores prefixes with subscribers on this peer.
-  filter_type filter_;
+  shared_filter_ptr filter_;
 
   /// Stores all filters from other peers.
   std::unordered_map<endpoint_id, filter_type, detail::fnv> peer_filters_;

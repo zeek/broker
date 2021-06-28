@@ -49,16 +49,10 @@ caf::behavior core_state::make_behavior() {
     }
   });
   auto& cfg = self_->system().config();
-  cache().set_use_ssl(!caf::get_or(cfg, "broker.disable-ssl", false));
+  // cache().set_use_ssl(!caf::get_or(cfg, "broker.disable-ssl", false));
   return caf::message_handler{
     [=](atom::get, atom::peer) {
       std::vector<peer_info> result;
-      // Add all direct connections from the routing table.
-      alm::for_each_direct(tbl(), [&, this](const auto& id, const auto& hdl) {
-        endpoint_info ep{id, cache().find(hdl)};
-        result.push_back(
-          {std::move(ep), peer_flags::remote, peer_status::peered});
-      });
       // TODO: implement me
       // // Add all pending peerings from the stream transport.
       // for (const auto& [peer_id, pending_conn] : pending_connections()) {

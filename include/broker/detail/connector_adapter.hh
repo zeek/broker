@@ -18,17 +18,18 @@ public:
   template <class... Ts>
   using callback = std::function<void(Ts...)>;
 
-  using peering_callback = callback<endpoint_id, caf::net::stream_socket>;
+  using peering_callback
+    = callback<endpoint_id, alm::lamport_timestamp, const filter_type&,
+               caf::net::stream_socket>;
 
   using error_callback = callback<const caf::error&>;
 
   connector_adapter(caf::event_based_actor* self, connector_ptr conn,
-                    peering_callback on_peering);
+                    peering_callback on_peering, shared_filter_ptr filter);
 
   caf::message_handler message_handlers();
 
-  void async_connect(const network_info& addr,
-                     callback<endpoint_id, caf::net::stream_socket> on_success,
+  void async_connect(const network_info& addr, peering_callback on_success,
                      error_callback on_error);
 
   void async_drop(const network_info& addr,

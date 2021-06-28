@@ -11,8 +11,7 @@
 
 #include <caf/config.hpp>
 #include <caf/init_global_meta_objects.hpp>
-#include <caf/io/middleman.hpp>
-#include <caf/openssl/manager.hpp>
+#include <caf/net/middleman.hpp>
 
 #include "broker/address.hh"
 #include "broker/alm/lamport_timestamp.hh"
@@ -143,9 +142,7 @@ void configuration::init(int argc, char** argv) {
   if (argc > 1 && argv != nullptr)
     args.assign(argv + 1, argv + argc);
   // Load CAF modules.
-  load<caf::io::middleman>();
-  if (not options_.disable_ssl)
-    load<caf::openssl::manager>();
+  load<caf::net::middleman>();
   // Phase 1: parse broker.conf or configuration file specified by the user on
   //          the command line (overrides hard-coded defaults).
   if (!options_.ignore_broker_conf) {
@@ -227,8 +224,6 @@ std::once_flag init_global_state_flag;
 void configuration::init_global_state() {
   std::call_once(init_global_state_flag, [] {
     caf::init_global_meta_objects<caf::id_block::broker>();
-    caf::openssl::manager::init_global_meta_objects();
-    caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });
 }

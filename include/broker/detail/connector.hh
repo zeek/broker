@@ -36,10 +36,8 @@ public:
     virtual ~listener();
 
     /// Signals that a remote node has connected to this peer.
-    virtual void on_connection(endpoint_id peer, caf::net::socket_id fd) = 0;
-
-    /// Signals that a user-triggered connection succeeded.
     virtual void on_connection(connector_event_id event_id, endpoint_id peer,
+                               alm::lamport_timestamp ts, filter_type filter,
                                caf::net::socket_id fd)
       = 0;
 
@@ -54,7 +52,7 @@ public:
     virtual void on_shutdown() = 0;
   };
 
-  connector();
+  explicit connector(endpoint_id this_peer);
 
   ~connector();
 
@@ -68,12 +66,12 @@ public:
   void async_shutdown();
 
   /// @thread-safe
-  void init(std::unique_ptr<listener> sub);
+  void init(std::unique_ptr<listener> sub, shared_filter_ptr filter);
 
   void run();
 
 private:
-  void run_impl(listener* sub);
+  void run_impl(listener* sub, shared_filter_type* filter);
 
   void write_to_pipe(caf::span<const caf::byte> bytes);
 
@@ -84,6 +82,7 @@ private:
   std::mutex mtx_;
   std::condition_variable sub_cv_;
   std::unique_ptr<listener> sub_;
+  shared_filter_ptr filter_;
 };
 
 using connector_ptr = std::shared_ptr<connector>;

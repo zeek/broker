@@ -345,6 +345,14 @@ public:
       fun(multipath{tree_, i.get()});
   }
 
+  template <class F>
+  bool for_each_node_while(F fun) const {
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
+      if (!fun(multipath{tree_, i.get()}))
+        return false;
+    return true;
+  }
+
   template <class Inspector>
   friend bool inspect(Inspector& f, multipath& x) {
     if constexpr (Inspector::is_loading)

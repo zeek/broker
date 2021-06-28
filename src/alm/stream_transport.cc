@@ -25,11 +25,12 @@ stream_transport::stream_transport(caf::event_based_actor* self,
                                    detail::connector_ptr conn)
   : super(self) {
   if (conn) {
-    auto f = [this](endpoint_id remote_id, caf::net::stream_socket fd) {
-      std::ignore = init_new_peer(remote_id, fd);
+    auto f = [this](endpoint_id remote_id, alm::lamport_timestamp ts,
+                    const filter_type& filter, caf::net::stream_socket fd) {
+      std::ignore = init_new_peer(remote_id, ts, filter, fd);
     };
     connector_adapter_.reset(
-      new detail::connector_adapter(self, std::move(conn),f));
+      new detail::connector_adapter(self, std::move(conn), f, filter_));
   }
 }
 
@@ -184,39 +185,63 @@ void stream_transport::add_filter(const filter_type& filter) {
 
 namespace {
 
-class route_step {
+class dispatch_step {
 public:
   using input_type = node_message;
 
   using output_type = node_message;
 
-  explicit route_step(stream_transport* state) noexcept : state_(state) {
+  explicit dispatch_step(stream_transport* state) noexcept : state_(state) {
     // nop
   }
 
   template <class Next, class... Steps>
   bool on_next(const input_type& msg, Next& next, Steps&... steps) {
-    // TODO: implement me
-    return true;
+    auto& path = get_path(msg);
+    auto& content = caf::get<1>(msg);
+    if (path.head().id() != state_->id()) {
+      BROKER_ERROR("received a message for another node: drop");
+      return true;
+    }
+    if (path.head().is_receiver())
+      if (!next.on_next(msg, steps...))
+        return false;
+    return path.for_each_node_while([&](multipath node) {
+      auto sub = make_node_message(std::move(node), content);
+      return next.on_next(sub, steps...);
+    });
+  }
+
+  template <class Next, class... Steps>
+  void on_complete(Next& next, Steps&... steps) {
+    next.on_complete(steps...);
+  }
+
+  template <class Next, class... Steps>
+  void on_error(const error& what, Next& next, Steps&... steps) {
+    next.on_error(what, steps...);
   }
 
 private:
   stream_transport* state_;
+  std::vector<endpoint_id> receivers_cache_;
+  std::vector<multipath> routes_cache_;
+  std::vector<endpoint_id> unreachables_cache_;
 };
 
 template <class T>
-class pack_and_route_step {
+class pack_and_dispatch_step {
 public:
   using input_type = T;
 
   using output_type = node_message;
 
-  explicit pack_and_route_step(stream_transport* state) noexcept
+  explicit pack_and_dispatch_step(stream_transport* state) noexcept
     : state_(state) {
     // nop
   }
 
-  pack_and_route_step(const pack_and_route_step& other) noexcept
+  pack_and_dispatch_step(const pack_and_dispatch_step& other) noexcept
     : state_(other.state_) {
     // nop
   }
@@ -250,8 +275,8 @@ public:
                                    std::move(payload)};
       // Emit packed messages.
       for (auto& route : routes_cache_) {
-        auto msg = node_message{std::move(route), packed};
-        if (!next.on_next(msg, steps...))
+        auto nmsg = node_message{std::move(route), packed};
+        if (!next.on_next(nmsg, steps...))
           return false;
       }
       if (!unreachables_cache_.empty())
@@ -292,10 +317,10 @@ caf::behavior stream_transport::make_behavior() {
   init_merger(central_merge_);
   central_merge_->add(data_inputs_ //
                         ->as_observable()
-                        .transform(pack_and_route_step<data_message>{this}));
+                        .transform(pack_and_dispatch_step<data_message>{this}));
   central_merge_->add(command_inputs_ //
                         ->as_observable()
-                        .transform(pack_and_route_step<command_message>{this}));
+                        .transform(pack_and_dispatch_step<command_message>{this}));
   using caf::net::socket_id;
   using detail::lift;
   caf::message_handler base;
@@ -339,8 +364,10 @@ caf::behavior stream_transport::make_behavior() {
         }
         connector_adapter_->async_connect(
           addr,
-          [this, rp](endpoint_id peer, caf::net::stream_socket fd) mutable {
-            if (auto err = init_new_peer(peer, fd))
+          [this, rp](endpoint_id peer, alm::lamport_timestamp ts,
+                     const filter_type& filter,
+                     caf::net::stream_socket fd) mutable {
+            if (auto err = init_new_peer(peer, ts, filter, fd))
               rp.deliver(std::move(err));
             else
               rp.deliver(atom::peer_v, atom::ok_v, peer);
@@ -365,32 +392,39 @@ caf::behavior stream_transport::make_behavior() {
 // -- utility ------------------------------------------------------------------
 
 caf::error stream_transport::init_new_peer(endpoint_id peer,
+                                           alm::lamport_timestamp ts,
+                                           const filter_type& filter,
                                            caf::net::stream_socket sock) {
+  BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(sock));
   using caf::async::make_publishing_queue;
   using caf::net::make_socket_manager;
   if (peers_.count(peer) != 0) {
     caf::net::close(sock);
     return make_error(ec::repeated_peering_handshake_request);
   }
+  endpoint_id_list path{peer};
+  handle_update(path, vector_timestamp{ts}, filter);
   auto& sys = self_->system();
   auto out = central_merge_ //
                ->as_observable()
-               .filter([peer, this_peer{id()}](const node_message& msg) {
-                 return get_path(msg).head().id() == this_peer;
+               .filter([peer](const node_message& msg) {
+                 return get_path(msg).head().id() == peer;
                })
                .as_observable();
   peers_.emplace(peer, out.as_disposable());
-  auto async_out = self_->to_async_publisher(std::move(out));
+  auto async_out = self_->to_async_publisher(out);
   auto mpx = sys.network_manager().mpx_ptr();
   auto mgr
     = make_socket_manager<detail::protocol, caf::net::length_prefix_framing,
                           caf::net::stream_transport>(sock, mpx, id());
   auto in = mgr->top_layer().connect_flows(mgr.get(), std::move(async_out));
-  central_merge_->add(self_->observe(in).transform(route_step{this}));
   auto err = mgr->init(content(sys.config()));
-  if (err) {
+  if (!err) {
+    central_merge_->add(self_->observe(in).transform(dispatch_step{this}));
+  } else {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
     peers_.erase(peer);
+    std::move(out).as_disposable().dispose();
   }
   return err;
 }

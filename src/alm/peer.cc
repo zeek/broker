@@ -18,6 +18,7 @@ peer::peer(caf::event_based_actor* selfptr) : self_(selfptr) {
     = get_or(cfg, "broker.path-revocations.max-age", pb::max_age);
   revocations_.next_aging_cycle
     = selfptr->clock().now() + revocations_.aging_interval;
+  filter_ = std::make_shared<shared_filter_type>();
 }
 
 peer::~peer() {
@@ -70,8 +71,9 @@ bool peer::contains(const endpoint_id_list& ids, const endpoint_id& id) {
 void peer::flood_subscriptions() {
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
+  filter_type current_filter = filter_->read();
   for_each_direct(tbl_, [&](auto&, auto& hdl) {
-    publish(hdl, atom::subscribe_v, path, ts, filter_);
+    publish(hdl, atom::subscribe_v, path, ts, current_filter);
   });
 }
 
@@ -81,8 +83,9 @@ void peer::flood_path_revocation(const endpoint_id& lost_peer) {
   // newer timestamp with the path revocation.
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
+  filter_type current_filter = filter_->read();
   for_each_direct(tbl_, [&, this](const auto& id, const auto& hdl) {
-    publish(hdl, atom::revoke_v, path, ts, lost_peer, filter_);
+    publish(hdl, atom::revoke_v, path, ts, lost_peer, current_filter);
   });
 }
 
@@ -90,12 +93,21 @@ void peer::flood_path_revocation(const endpoint_id& lost_peer) {
 
 void peer::subscribe(const filter_type& what) {
   BROKER_TRACE(BROKER_ARG(what));
-  auto not_internal = [](const topic& x) { return !is_internal(x); };
-  if (filter_extend(filter_, what, not_internal)) {
-    ++timestamp_;
+  auto changed = filter_->update([this, &what](auto& version, auto& xs) {
+    auto not_internal = [](const topic& x) { return !is_internal(x); };
+    if (filter_extend(xs, what, not_internal)) {
+      version = ++timestamp_;
+      return true;
+    } else {
+      return false;
+    }
+  });
+  // Note: this is the only writer, so we need not worry about the filter
+  // changing again concurrently.
+  if (changed) {
     flood_subscriptions();
   } else {
-    BROKER_DEBUG("already subscribed to topic (or topic is internal):" << what);
+    BROKER_DEBUG("already subscribed to topics:" << what);
   }
 }
 

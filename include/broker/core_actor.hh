@@ -5,7 +5,6 @@
 #include "broker/alm/peer.hh"
 #include "broker/alm/stream_transport.hh"
 #include "broker/detail/connector.hh"
-#include "broker/mixin/connector.hh"
 #include "broker/mixin/data_store_manager.hh"
 #include "broker/mixin/notifier.hh"
 // #include "broker/mixin/recorder.hh"
@@ -18,11 +17,10 @@ namespace broker {
 /// (atom::publish, endpoint_info receiver, data_message msg) -> void
 /// => ship(msg, receiver.node)
 /// ~~~
-class core_state : public                           //
-                   mixin::notifier<                 //
-                     mixin::connector<              //
-                       mixin::data_store_manager<   //
-                         alm::stream_transport>>> { //
+class core_state : public                        //
+                   mixin::notifier<              //
+                     mixin::data_store_manager<  //
+                       alm::stream_transport>> { //
   // mixin::recorder<              //
   //   alm::stream_transport>>>> { //
 public:

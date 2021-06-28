@@ -9,7 +9,6 @@
 #include <caf/io/middleman.hpp>
 #include <caf/message.hpp>
 #include <caf/node_id.hpp>
-#include <caf/openssl/publish.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
@@ -128,8 +127,8 @@ public:
       thread_.join();
   }
 
-  detail::connector_ptr start(caf::actor_system& sys) {
-    auto ptr = std::make_shared<detail::connector>();
+  detail::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer) {
+    auto ptr = std::make_shared<detail::connector>(this_peer);
     thread_ = std::thread{[ptr, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
       ptr->run();
@@ -218,18 +217,14 @@ endpoint::endpoint(configuration config)
   new (&system_) caf::actor_system(config_);
   // Spin up the connector.
   auto conn_task = std::make_unique<connector_task>();
-  auto conn_ptr = conn_task->start(system_);
+  auto conn_ptr = conn_task->start(system_, id_);
   background_tasks_.emplace_back(std::move(conn_task));
   // Initialize remaining state.
   auto opts = config_.options();
   clock_ = new clock(&system_, opts.use_real_time);
-  if (system_.has_openssl_manager() || opts.disable_ssl) {
-    BROKER_INFO("creating endpoint");
-    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
-                                           std::move(conn_ptr));
-  } else {
-    detail::die("CAF OpenSSL manager is not available");
-  }
+  BROKER_INFO("creating endpoint");
+  core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
+                                         std::move(conn_ptr));
 }
 
 endpoint::~endpoint() {

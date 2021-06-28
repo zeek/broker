@@ -37,7 +37,9 @@
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
+#include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/overload.hh"
+#include "broker/filter_type.hh"
 #include "broker/message.hh"
 
 namespace {
@@ -220,31 +222,53 @@ constexpr auto responder_tag = responder_tag_t{};
 // TODO: make configurable
 constexpr size_t max_connection_attempts = 10;
 
-struct connect_state {
-  static constexpr size_t read_size = 17; // SYN-ACK flag (1 Byte) plus UUID.
+// Size of the 'constant' part of a handshake message without the leading
+// 4-Bytes to encode the payload size.
+static constexpr size_t handshake_prefix_size = 17;
 
+struct connect_state {
+  uint32_t payload_size = 0;
   uint32_t retry_count = 0;
+  caf::byte_buffer wr_buf_data;
   caf::const_byte_span wr_buf;
-  caf::byte rd_buf[read_size];
+  caf::byte_buffer rd_buf;
   size_t read_pos = 0;
   endpoint_id remote_id;
+  alm::lamport_timestamp remote_ts;
+  filter_type remote_filter;
   std::optional<network_info> addr;
   connector_event_id event_id = invalid_connector_event_id;
   bool is_originator;
   size_t connection_attempts = 0;
 
   template <class Tag>
-  connect_state(Tag, caf::const_byte_span handshake)
-    : wr_buf(handshake), is_originator(std::is_same_v<Tag, originator_tag_t>) {
-    // nop
+  connect_state(Tag, caf::const_byte_span hs_prefix, shared_filter_type* filter)
+    : wr_buf_data(hs_prefix.begin(), hs_prefix.end()),
+      is_originator(std::is_same_v<Tag, originator_tag_t>) {
+    rd_buf.resize(4); // Must provide space for the payload size.
+    update_wr_buf(filter);
   }
 
   template <class Tag>
-  connect_state(Tag tag, caf::const_byte_span handshake, connector_event_id eid,
-                network_info addr)
-    : connect_state(tag, handshake) {
+  connect_state(Tag tag, caf::const_byte_span hs_prefix, connector_event_id eid,
+                network_info addr, shared_filter_type* filter)
+    : connect_state(tag, hs_prefix, filter) {
     event_id = eid;
     this->addr.emplace(std::move(addr));
+  }
+
+  void update_wr_buf(shared_filter_type* filter) {
+    BROKER_ASSERT(wr_buf_data.size() >= handshake_prefix_size);
+    wr_buf_data.resize(handshake_prefix_size + 4);
+    [[maybe_unused]] auto ok = filter->read([this](auto ts, auto& xs) {
+      caf::binary_serializer sink{nullptr, wr_buf_data};
+      if (!sink.apply(ts) || !sink.apply(xs))
+        return false;
+      sink.seek(0);
+      return sink.apply(static_cast<uint32_t>(wr_buf_data.size() - 4));
+    });
+    BROKER_ASSERT(ok);
+    wr_buf = wr_buf_data;
   }
 
   rw_state continue_writing(caf::net::stream_socket fd) {
@@ -255,7 +279,12 @@ struct connect_state {
                : rw_state::failed;
     } else if (res > 0) {
       wr_buf = wr_buf.subspan(static_cast<size_t>(res));
-      return wr_buf.empty() ? rw_state::done : rw_state::indeterminate;
+      if (wr_buf.empty()) {
+        BROKER_DEBUG("finished sending handshake to peer");
+        return rw_state::done;
+      } else {
+        return rw_state::indeterminate;
+      }
     } else {
       // Socket closed (treat as error).
       return rw_state::failed;
@@ -266,18 +295,60 @@ struct connect_state {
     return continue_writing(caf::net::stream_socket{fd});
   }
 
+  bool parse_handshake() {
+    BROKER_TRACE("");
+    BROKER_ASSERT(rd_buf.size() == payload_size + 4);
+    caf::binary_deserializer src{nullptr, rd_buf};
+    src.skip(4); // No need to read the payload size again.
+    auto msg_type = alm_message_type{0};
+    auto expected_msg_type = is_originator ? alm_message_type::responder_hello
+                                           : alm_message_type::originator_hello;
+    auto ok = src.apply(msg_type)     //
+              && src.apply(remote_id) //
+              && src.apply(remote_ts) //
+              && src.apply(remote_filter);
+    if (ok)
+      BROKER_DEBUG(BROKER_ARG(msg_type)
+                   << BROKER_ARG(remote_id) << BROKER_ARG(remote_ts)
+                   << BROKER_ARG(remote_filter));
+    else
+      BROKER_DEBUG("failed to deserialize handshake:" << src.get_error());
+    return ok && src.remaining() == 0 && msg_type == expected_msg_type;
+  }
+
   rw_state continue_reading(caf::net::stream_socket fd) {
-    auto res = caf::net::read(fd, caf::make_span(rd_buf, read_size - read_pos));
-    if (res < 0) {
-      return caf::net::last_socket_error_is_temporary()
-               ? rw_state::indeterminate
-               : rw_state::failed;
-    } else if (res > 0) {
-      read_pos += static_cast<size_t>(res);
-      return read_pos == read_size ? rw_state::done : rw_state::indeterminate;
-    } else {
-      // Socket closed (treat as error).
-      return rw_state::failed;
+    BROKER_TRACE(BROKER_ARG(fd.id));
+    for (;;) {
+      auto read_size = payload_size + 4;
+      auto res = caf::net::read(fd, caf::make_span(rd_buf.data() + read_pos,
+                                                   read_size - read_pos));
+      BROKER_DEBUG(BROKER_ARG(res));
+      if (res < 0) {
+        return caf::net::last_socket_error_is_temporary()
+                 ? rw_state::indeterminate
+                 : rw_state::failed;
+      } else if (res == 0) {
+        // Socket closed (treat as error).
+        return rw_state::failed;
+      } else {
+        auto ures = static_cast<size_t>(res);
+        read_pos += ures;
+        if (read_pos == 4) {
+          BROKER_ASSERT(payload_size == 0);
+          caf::binary_deserializer src{nullptr, rd_buf};
+          [[maybe_unused]] auto ok = src.apply(payload_size);
+          BROKER_ASSERT(ok);
+          if (payload_size == 0)
+            return rw_state::failed;
+          BROKER_DEBUG("wait for payload of size" << payload_size);
+          rd_buf.resize(payload_size + 4);
+          return continue_reading(fd);
+        } else if (read_pos == read_size) {
+          return parse_handshake() ? rw_state::done : rw_state::failed;
+        } else {
+          return rw_state::indeterminate;
+        }
+      }
     }
   }
 
@@ -294,10 +365,6 @@ connect_state_ptr make_connect_state(Ts&&... xs) {
 }
 
 struct connect_manager {
-  /// Size of a handshake message without the leading 4-Bytes to encode the
-  /// payload size.
-  static constexpr size_t handshake_size = 17;
-
   /// Our pollset.
   std::vector<pollfd> fdset;
 
@@ -317,24 +384,26 @@ struct connect_manager {
   /// Wraps the callbacks for handshake completion.
   connector::listener* listener_;
 
-  /// Buffer for sending originator_hello handshakes.
-  uint8_t originator_buf[handshake_size + 4];
+  /// Grants access to the peer filter.
+  shared_filter_type* filter_;
 
-  /// Buffer for sending responder_hello handshakes.
-  uint8_t responder_buf[handshake_size + 4];
+  /// Caches the prefix of originator_hello handshakes.
+  uint8_t originator_buf[handshake_prefix_size + 4];
 
-  connect_manager(endpoint_id this_peer, connector::listener* ls)
-    : listener_(ls) {
-    static_assert(handshake_size <= 255);
+  /// Caches the prefix of responder_hello handshakes.
+  uint8_t responder_buf[handshake_prefix_size + 4];
+
+  connect_manager(endpoint_id this_peer, connector::listener* ls,
+                  shared_filter_type* filter)
+    : listener_(ls), filter_(filter) {
+    BROKER_TRACE(BROKER_ARG(this_peer));
     auto as_u8 = [](auto x) { return static_cast<uint8_t>(x); };
     // Prepare the originator handshake.
-    memset(originator_buf, 0, handshake_size);
-    originator_buf[3] = as_u8(handshake_size);
+    memset(originator_buf, 0, handshake_prefix_size);
     originator_buf[4] = as_u8(alm_message_type::originator_hello);
     memcpy(originator_buf + 5, this_peer.bytes().data(), 16);
     // Prepare the responder handshake.
-    memset(responder_buf, 0, handshake_size);
-    responder_buf[3] = as_u8(handshake_size);
+    memset(responder_buf, 0, handshake_prefix_size);
     responder_buf[4] = as_u8(alm_message_type::responder_hello);
     memcpy(responder_buf + 5, this_peer.bytes().data(), 16);
   }
@@ -375,18 +444,14 @@ struct connect_manager {
   void connect(connect_state_ptr state) {
     BROKER_ASSERT(state->is_originator);
     BROKER_ASSERT(state->addr != std::nullopt);
+    state->update_wr_buf(filter_);
     caf::uri::authority_type authority;
     authority.host = state->addr->address;
     authority.port = state->addr->port;
     auto event_id = state->event_id;
     if (auto sock = caf::net::make_connected_tcp_stream_socket(authority)) {
+      pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, rw_mask, 0});
-      // ...
-
-      if (valid(event_id))
-        listener_->on_connection(state->event_id, state->remote_id, sock->id);
-      else
-        listener_->on_connection(state->remote_id, sock->id);
     } else if (++state->connection_attempts < max_connection_attempts) {
       auto retry_interval = state->addr->retry;
       if (retry_interval.count() != 0) {
@@ -426,7 +491,7 @@ struct connect_manager {
   void connect(connector_event_id event_id, const network_info& addr) {
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr));
     connect(make_connect_state(originator_tag, originator_handshake(), event_id,
-                               addr));
+                               addr, filter_));
   }
 
   void listen(connector_event_id event_id, std::string& addr, uint16_t port) {
@@ -460,10 +525,8 @@ struct connect_manager {
   }
 
   void finalize(caf::net::socket_id fd, connect_state& state) {
-    if (state.event_id != invalid_connector_event_id)
-      listener_->on_connection(state.remote_id, fd);
-    else
-      listener_->on_connection(state.event_id, state.remote_id, fd);
+    listener_->on_connection(state.event_id, state.remote_id, state.remote_ts,
+                             state.remote_filter, fd);
   }
 
   void continue_reading(pollfd& entry) {
@@ -482,7 +545,8 @@ struct connect_manager {
     } else if (acceptors.count(entry.fd) != 0) {
       auto sock = caf::net::tcp_accept_socket{entry.fd};
       if (auto new_sock = caf::net::accept(sock)) {
-        auto st = make_connect_state(responder_tag, responder_handshake());
+        auto st = make_connect_state(responder_tag, responder_handshake(),
+                                     filter_);
         pending_fdset.push_back({new_sock->id, rw_mask, 0});
         pending.emplace(new_sock->id, st);
       }
@@ -510,12 +574,39 @@ struct connect_manager {
   }
 
   void abort(pollfd& entry) {
+    if (auto i = pending.find(entry.fd); i != pending.end()) {
+      auto state = std::move(i->second);
+      pending.erase(i);
+      if (state->is_originator) {
+        auto retry_interval = state->addr->retry;
+        if (retry_interval.count() > 0
+            && ++state->connection_attempts < max_connection_attempts) {
+          retry_schedule.emplace(caf::make_timestamp() + retry_interval,
+                                 std::move(state));
+          BROKER_DEBUG("failed to connect on socket"
+                       << entry.fd << "-> try again in" << retry_interval);
+        } else {
+          BROKER_DEBUG("failed to connect on socket" << entry.fd
+                                                     << "-> give up");
+          if (valid(state->event_id))
+            listener_->on_error(state->event_id,
+                                make_error(ec::peer_unavailable));
+        }
+      } else {
+        BROKER_DEBUG("incoming peering failed on socket" << entry.fd);
+      }
+    } else if (auto j = acceptors.find(entry.fd); j != acceptors.end()) {
+      BROKER_ERROR("acceptor failed: socket" << entry.fd);
+      acceptors.erase(j);
+    }
+    close(caf::net::socket{entry.fd});
     entry.events = 0;
   }
 
   void handle_timeouts() {
     auto now = caf::make_timestamp();
     while (!retry_schedule.empty() && retry_schedule.begin()->first <= now) {
+      // TODO: implement me
     }
   }
 
@@ -541,7 +632,7 @@ connector::listener::~listener() {
   // nop
 }
 
-connector::connector() {
+connector::connector(endpoint_id this_peer) : this_peer_(this_peer) {
   auto fds = caf::net::make_pipe();
   if (!fds) {
     auto err_str = to_string(fds.error());
@@ -597,39 +688,45 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes) {
   }
 }
 
-void connector::init(std::unique_ptr<listener> sub) {
+void connector::init(std::unique_ptr<listener> sub, shared_filter_ptr filter) {
+  BROKER_ASSERT(sub != nullptr);
+  BROKER_ASSERT(filter != nullptr);
   std::unique_lock guard{mtx_};
   if (sub_ != nullptr)
     throw std::logic_error("connector::init called twice");
+  BROKER_ASSERT(filter_ == nullptr);
   sub_ = std::move(sub);
+  filter_ = std::move(filter);
   sub_cv_.notify_all();
 }
 
 void connector::run() {
   BROKER_TRACE("");
-  // Wait for a subscriber before starting the loop.
+  // Wait for subscriber and filter before starting the loop.
   listener* sub = nullptr;
+  shared_filter_type* filter = nullptr;
   {
     std::unique_lock guard{mtx_};
     while (sub_ == nullptr)
       sub_cv_.wait(guard);
     sub = sub_.get();
+    filter = filter_.get();
   }
   try {
-    run_impl(sub);
+    run_impl(sub, filter);
   } catch ([[maybe_unused]] std::exception& ex) {
     BROKER_ERROR("exception:" << ex.what());
   }
   sub->on_shutdown();
 }
 
-void connector::run_impl(listener* sub) {
+void connector::run_impl(listener* sub, shared_filter_type* filter) {
   using std::find_if;
   // Poll isn't terribly efficient nor fast, but the connector is not a
   // performance-critical system component. It only establishes connections and
   // reads handshake messages, so poll() is 'good enough' and we chose it since
   // it's portable.
-  connect_manager mgr{this_peer_, sub};
+  connect_manager mgr{this_peer_, sub, filter};
   auto& fdset = mgr.fdset;
   fdset.push_back({pipe_rd_.id, read_mask, 0});
   pipe_reader prd{pipe_rd_};

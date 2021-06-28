@@ -8,15 +8,14 @@
 #include <caf/net/stream_socket.hpp>
 #include <caf/send.hpp>
 
+#include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/connector.hh"
+#include "broker/filter_type.hh"
 #include "broker/logger.hh"
 
 namespace broker::detail {
 
 namespace {
-
-template <class... Ts>
-using msg_view = caf::const_typed_message_view<Ts...>;
 
 class listener_impl : public connector::listener {
 public:
@@ -24,14 +23,11 @@ public:
     // nop
   }
 
-  void on_connection(endpoint_id peer, caf::net::socket_id fd) override {
-    caf::anon_send(hdl_, invalid_connector_event_id,
-                   caf::make_message(peer, fd));
-  }
-
   void on_connection(connector_event_id event_id, endpoint_id peer,
+                     alm::lamport_timestamp ts, filter_type filter,
                      caf::net::socket_id fd) override {
-    caf::anon_send(hdl_, event_id, caf::make_message(peer, fd));
+    caf::anon_send(hdl_, event_id,
+                   caf::make_message(peer, ts, std::move(filter), fd));
   }
 
   void on_drop(connector_event_id event_id,
@@ -56,12 +52,32 @@ private:
   caf::actor hdl_;
 };
 
+auto connection_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<endpoint_id, alm::lamport_timestamp,
+                                            filter_type, caf::net::socket_id>(
+    msg);
+}
+
+auto listen_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<uint16_t>(msg);
+}
+
+auto error_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<caf::error>(msg);
+}
+
+auto shutdown_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<atom::shutdown>(msg);
+}
+
 } // namespace
 
 connector_adapter::connector_adapter(caf::event_based_actor* self,
-                                     connector_ptr conn, peering_callback cb)
+                                     connector_ptr conn, peering_callback cb,
+                                     shared_filter_ptr filter)
   : conn_(std::move(conn)), on_peering_(std::move(cb)) {
-  conn_->init(std::make_unique<listener_impl>(caf::actor{self}));
+  conn_->init(std::make_unique<listener_impl>(caf::actor{self}),
+              std::move(filter));
 }
 
 connector_event_id connector_adapter::next_id() {
@@ -76,11 +92,12 @@ caf::message_handler connector_adapter::message_handlers() {
   return {
     [this](connector_event_id id, const caf::message& msg) {
       if (id == invalid_connector_event_id) {
-        if (auto xs1 = msg_view<atom::shutdown>{msg}) {
+        if (auto xs1 = shutdown_event(msg)) {
           BROKER_DEBUG("lost the connector");
           // TODO: implement me
-        } else if (auto xs2 = msg_view<endpoint_id, caf::net::socket_id>{msg}) {
-          on_peering_(get<0>(xs2), caf::net::stream_socket{get<1>(xs2)});
+        } else if (auto xs2 = connection_event(msg)) {
+          on_peering_(get<0>(xs2), get<1>(xs2), get<2>(xs2),
+                      caf::net::stream_socket{get<3>(xs2)});
         } else {
           BROKER_ERROR("connector_adapter received unexpected message:" << msg);
         }
@@ -92,17 +109,17 @@ caf::message_handler connector_adapter::message_handlers() {
   };
 }
 
-void connector_adapter::async_connect(
-  const network_info& addr,
-  callback<endpoint_id, caf::net::stream_socket> on_success,
-  error_callback on_error) {
+void connector_adapter::async_connect(const network_info& addr,
+                                      peering_callback on_success,
+                                      error_callback on_error) {
   using caf::get;
   using std::move;
   auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
-    if (auto xs = msg_view<endpoint_id, caf::net::socket_id>(msg)) {
-      f(get<0>(xs), caf::net::stream_socket{get<1>(xs)});
-    } else if (auto ys = msg_view<caf::error>(msg)) {
-      g(get<0>(ys));
+    if (auto xs1= connection_event(msg)) {
+      f(get<0>(xs1), get<1>(xs1), get<2>(xs1),
+        caf::net::stream_socket{get<3>(xs1)});
+    } else if (auto xs2 = error_event(msg)) {
+      g(get<0>(xs2));
     } else {
       auto err = caf::make_error(caf::sec::unexpected_message, msg);
       g(err);
@@ -119,9 +136,9 @@ void connector_adapter::async_listen(const std::string& host, uint16_t port,
   using caf::get;
   using std::move;
   auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
-    if (auto xs = msg_view<uint16_t>(msg)) {
+    if (auto xs = listen_event(msg)) {
       f(get<0>(xs));
-    } else if (auto ys = msg_view<caf::error>(msg)) {
+    } else if (auto ys = error_event(msg)) {
       g(get<0>(ys));
     } else {
       auto err = caf::make_error(caf::sec::unexpected_message, msg);

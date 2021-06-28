@@ -10,6 +10,9 @@
 
 namespace broker::detail {
 
+/// Implements the Broker message exchange protocol. Note: this only covers the
+/// communication after the handshake. The handshake process is implemented by
+/// the connector.
 class protocol {
 public:
   using input_tag = caf::tag::message_oriented;
@@ -82,6 +85,8 @@ public:
 
   template <class LowerLayerPtr>
   ptrdiff_t consume(LowerLayerPtr down, caf::byte_span buf) {
+    BROKER_DEBUG("got a message of" << buf.size() << "bytes on socket"
+                                    << down->handle().id);
     caf::binary_deserializer src{nullptr, buf};
     auto tag = alm_message_type{0};
     if (!src.apply(tag))
@@ -144,6 +149,8 @@ private:
   bool write(LowerLayerPtr down, const node_message& msg) {
     auto&& [msg_path, msg_content] = msg.data();
     auto&& [msg_type, msg_topic, payload] = msg_content.data();
+    BROKER_DEBUG("write a node message of type" << msg_type << "to socket"
+                                                << down->handle().id);
     down->begin_message();
     caf::binary_serializer sink{nullptr, down->message_buffer()};
     auto write_bytes = [&sink](caf::const_byte_span bytes) {

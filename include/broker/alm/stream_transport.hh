@@ -110,7 +110,9 @@ public:
 protected:
   // -- utility ----------------------------------------------------------------
 
-  caf::error init_new_peer(endpoint_id peer, caf::net::stream_socket fd);
+  caf::error init_new_peer(endpoint_id peer, alm::lamport_timestamp ts,
+                           const filter_type& filter,
+                           caf::net::stream_socket sock);
 
   /// Disconnects a peer by demand of the user.
   void unpeer(const endpoint_id& peer_id);
@@ -142,7 +144,7 @@ protected:
   /// Handle to the background worker for establishing peering relations.
   std::unique_ptr<detail::connector_adapter> connector_adapter_;
 
-  ///
+  /// Handles for aborting flows on unpeering.
   std::map<endpoint_id, caf::disposable> peers_;
 };
 
