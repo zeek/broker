@@ -1,3 +1,6 @@
+2.1.0-dev.83 | 2021-06-28 08:44:56 -0700
+
+  * Fix heap-use-after-free during shutdown (Dominik Charousset, Corelight)
 
 2.1.0-dev.81 | 2021-06-21 15:56:14 -0700
 
