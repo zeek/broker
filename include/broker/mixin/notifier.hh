@@ -49,16 +49,15 @@ public:
     super::peer_discovered(peer_id);
   }
 
-  void peer_connected(const endpoint_id& peer_id,
-                      const caf::actor& hdl) override {
-    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
+  void peer_connected(const endpoint_id& peer_id) override {
+    BROKER_TRACE(BROKER_ARG(peer_id));
     emit(peer_id, sc_constant<sc::peer_added>(), "handshake successful");
-    super::peer_connected(peer_id, hdl);
+    super::peer_connected(peer_id);
   }
 
-  void peer_disconnected(const endpoint_id& peer_id, const caf::actor& hdl,
+  void peer_disconnected(const endpoint_id& peer_id,
                          const error& reason) override {
-    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl) << BROKER_ARG(reason));
+    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(reason));
     // Calling emit() with the peer_id only trigges a network info lookup that
     // can stall this actor if we're already in shutdown mode. Hence, we perform
     // a manual cache lookup and simply omit the network information if we
@@ -69,15 +68,14 @@ public:
     //   peer_addr = *addr;
     emit(peer_id, peer_addr, sc_constant<sc::peer_lost>(),
          "lost connection to remote peer");
-    super::peer_disconnected(peer_id, hdl, reason);
+    super::peer_disconnected(peer_id, reason);
   }
 
-  void peer_removed(const endpoint_id& peer_id,
-                    const caf::actor& hdl) override {
-    BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
+  void peer_removed(const endpoint_id& peer_id) override {
+    BROKER_TRACE(BROKER_ARG(peer_id));
     emit(peer_id, sc_constant<sc::peer_removed>(),
          "removed connection to remote peer");
-    super::peer_removed(peer_id, hdl);
+    super::peer_removed(peer_id);
   }
 
   void peer_unreachable(const endpoint_id& peer_id) override {
@@ -95,10 +93,6 @@ public:
   }
 
   void cannot_remove_peer(const endpoint_id& x) override {
-    cannot_remove_peer_impl(x);
-  }
-
-  void cannot_remove_peer(const caf::actor& x) override {
     cannot_remove_peer_impl(x);
   }
 
@@ -169,24 +163,6 @@ private:
     } else {
       emit(make_error(Code, endpoint_info{{}, x}, msg));
     }
-  }
-
-  /// Reports an error to all status subscribers.
-  template <class EnumConstant>
-  void emit(const caf::actor& hdl, EnumConstant code, const char* msg) {
-    static_assert(detail::has_network_info_v<EnumConstant>);
-    if (disable_notifications_)
-      return;
-    auto unbox_or_default = [](auto maybe_value) {
-      using value_type = std::decay_t<decltype(*maybe_value)>;
-      if (maybe_value)
-        return std::move(*maybe_value);
-      return value_type{};
-    };
-    emit(unbox_or_default(get_peer_id(this->tbl(), hdl)),
-         // TODO: fixme
-         //   unbox_or_default(this->cache().find(hdl)), code, msg);
-         network_info{}, code, msg);
   }
 
   template <class EnumConstant>

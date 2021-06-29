@@ -36,16 +36,39 @@ stream_transport::stream_transport(caf::event_based_actor* self,
 
 // -- overrides for peer::publish ----------------------------------------------
 
-void stream_transport::publish(const caf::actor& dst, atom::subscribe,
+namespace {
+
+template <class BufferedObservable, class Msg>
+void push_impl(caf::scheduled_actor* self, BufferedObservable& impl,
+               const Msg& what) {
+  impl.append_to_buf(what);
+  impl.try_push();
+  self->handle_flow_events();
+}
+
+} // namespace
+
+void stream_transport::publish(endpoint_id dst, atom::subscribe,
                                const endpoint_id_list& path,
                                const vector_timestamp& ts,
                                const filter_type& new_filter) {
   BROKER_TRACE(BROKER_ARG(dst)
                << BROKER_ARG(path) << BROKER_ARG(ts) << BROKER_ARG(new_filter));
-  self_->send(dst, atom::subscribe_v, path, ts, new_filter);
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(path)         //
+                             && sink.apply(ts)        //
+                             && sink.apply(new_filter);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::routing_update ,
+                           topics::reserved,
+                           std::vector<std::byte>{data, data + buf_.size()}};
+  push_impl(self(), *central_merge_,
+            node_message{alm::multipath{dst, true}, std::move(pm)});
 }
 
-void stream_transport::publish(const caf::actor& dst, atom::revoke,
+void stream_transport::publish(endpoint_id dst, atom::revoke,
                                const endpoint_id_list& path,
                                const vector_timestamp& ts,
                                const endpoint_id& lost_peer,
@@ -53,27 +76,49 @@ void stream_transport::publish(const caf::actor& dst, atom::revoke,
   BROKER_TRACE(BROKER_ARG(dst)
                << BROKER_ARG(path) << BROKER_ARG(ts) << BROKER_ARG(lost_peer)
                << BROKER_ARG(new_filter));
-  self_->send(dst, atom::revoke_v, path, ts, lost_peer, new_filter);
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(path)         //
+                             && sink.apply(ts)        //
+                             && sink.apply(lost_peer) //
+                             && sink.apply(new_filter);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::path_revocation,
+                           topics::reserved,
+                           std::vector<std::byte>{data, data + buf_.size()}};
+  push_impl(self(), *central_merge_,
+            node_message{alm::multipath{dst, true}, std::move(pm)});
 }
+
+#ifdef NDEBUG
+#  define OBSERVABLE_CAST(var) dynamic_cast<buffered_t&>(var)
+#else
+#  define OBSERVABLE_CAST(var) static_cast<buffered_t&>(var)
+#endif
 
 void stream_transport::publish_locally(const data_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // TODO: implement me
+  using buffered_t = caf::flow::buffered_observable_impl<data_message>;
+  if (data_outputs_)
+    push_impl(self(), OBSERVABLE_CAST(*data_outputs_.ptr()), msg);
 }
 
 void stream_transport::publish_locally(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // TODO: implement me
+  using buffered_t = caf::flow::buffered_observable_impl<command_message>;
+  if (command_outputs_)
+    push_impl(self(), OBSERVABLE_CAST(*command_outputs_.ptr()), msg);
 }
 
 void stream_transport::dispatch(const data_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // TODO: implement me
+  push_impl(self(), *data_inputs_, msg);
 }
 
 void stream_transport::dispatch(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  // TODO: implement me
+  push_impl(self(), *command_inputs_, msg);
 }
 
 void stream_transport::dispatch(const node_message& msg) {
@@ -307,6 +352,7 @@ private:
 } // namespace
 
 caf::behavior stream_transport::make_behavior() {
+  // Create the merge nodes.
   auto init_merger = [this](auto& ptr) {
     ptr.emplace(self_);
     ptr->delay_error(true);
@@ -315,12 +361,60 @@ caf::behavior stream_transport::make_behavior() {
   init_merger(data_inputs_);
   init_merger(command_inputs_);
   init_merger(central_merge_);
+  // Connect incoming data messages to the central merge node.
   central_merge_->add(data_inputs_ //
                         ->as_observable()
                         .transform(pack_and_dispatch_step<data_message>{this}));
+  // Connect incoming command messages to the central merge node.
   central_merge_->add(command_inputs_ //
                         ->as_observable()
                         .transform(pack_and_dispatch_step<command_message>{this}));
+  // Consume routing updates for this peer from the central merge node.
+  central_merge_ //
+    ->as_observable()
+    .for_each([this](const node_message& msg) {
+      if (get_type(msg) == packed_message_type::routing_update
+          && get_path(msg).head().id() == id()
+          && get_path(msg).head().is_receiver()) {
+        endpoint_id_list path;
+        vector_timestamp ts;
+        filter_type new_filter;
+        caf::binary_deserializer src{nullptr, get_payload(msg)};
+        bool ok = src.apply(path)  //
+                  && src.apply(ts) //
+                  && src.apply(new_filter);
+        if (ok) {
+          handle_filter_update(path, ts, new_filter);
+        } else {
+          BROKER_ERROR("received malformed routing update:" << src.get_error());
+        }
+      }
+    });
+  // Consume path revocations for this peer from the central merge node.
+  central_merge_ //
+    ->as_observable()
+    .for_each([this](const node_message& msg) {
+      if (get_type(msg) == packed_message_type::path_revocation
+          && get_path(msg).head().id() == id()
+          && get_path(msg).head().is_receiver()) {
+        endpoint_id_list path;
+        vector_timestamp ts;
+        endpoint_id lost_peer;
+        filter_type new_filter;
+        caf::binary_deserializer src{nullptr, get_payload(msg)};
+        bool ok = src.apply(path)         //
+                  && src.apply(ts)        //
+                  && src.apply(lost_peer) //
+                  && src.apply(new_filter);
+        if (ok) {
+          handle_path_revocation(path, ts, lost_peer, new_filter);
+        } else {
+          BROKER_ERROR(
+            "received malformed path revocation:" << src.get_error());
+        }
+      }
+    });
+  // Create behavior for the actor.
   using caf::net::socket_id;
   using detail::lift;
   caf::message_handler base;
@@ -328,17 +422,6 @@ caf::behavior stream_transport::make_behavior() {
     base = connector_adapter_->message_handlers();
   return base
     .or_else(
-      // Per-stream subscription updates.
-      [this](atom::join, atom::update, caf::stream_slot slot, filter_type& ts) {
-        // TODO: still needed?
-        // update_filter(slot, std::move(ts));
-      },
-      [this](atom::join, atom::update, caf::stream_slot slot,
-             filter_type& filter, const caf::actor& listener) {
-        // TODO: still needed?
-        // auto res = update_filter(slot, std::move(filter));
-        // self_->send(listener, res);
-      },
       // // Special handlers for bypassing streams and/or forwarding.
       [this](atom::publish, atom::local, data_message& msg) {
         publish_locally(msg);
@@ -403,7 +486,6 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
     return make_error(ec::repeated_peering_handshake_request);
   }
   endpoint_id_list path{peer};
-  handle_update(path, vector_timestamp{ts}, filter);
   auto& sys = self_->system();
   auto out = central_merge_ //
                ->as_observable()
@@ -421,6 +503,11 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   auto err = mgr->init(content(sys.config()));
   if (!err) {
     central_merge_->add(self_->observe(in).transform(dispatch_step{this}));
+    auto update_res = handle_update(path, vector_timestamp{ts}, filter);
+    if (auto& new_peers = update_res.first; !new_peers.empty())
+      for (auto& id : new_peers)
+        peer_discovered(id);
+    peer_connected(peer);
   } else {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
     peers_.erase(peer);

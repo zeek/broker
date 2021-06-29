@@ -296,6 +296,8 @@ public:
 
   explicit multipath(const endpoint_id& id);
 
+  multipath(const endpoint_id& id, bool is_receiver);
+
   /// Constructs a multipath from the linear path `[first, last)`.
   /// @pre `first != last`
   template <class Iterator, class Sentinel>

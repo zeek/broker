@@ -168,7 +168,7 @@ TEST(source routing extracts multipaths from routing tables) {
   //
   alm::routing_table tbl;
   auto add = [&](char id, std::vector<std::vector<char>> paths) {
-    auto& entry = tbl.emplace(ids[id], caf::actor{}).first->second;
+    auto& entry = tbl.emplace(ids[id], alm::routing_table_row{}).first->second;
     for (auto& path : paths) {
       std::vector<endpoint_id> xs;
       for (auto c : path)

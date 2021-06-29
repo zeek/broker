@@ -136,6 +136,10 @@ multipath::multipath(const endpoint_id& id) {
   head_ = tree_->root;
 }
 
+multipath::multipath(const endpoint_id& id, bool is_receiver) : multipath(id) {
+  head_->is_receiver_ = is_receiver;
+}
+
 multipath::multipath(const tree_ptr& t, multipath_node* h)
   : tree_(t), head_(h) {
   // nop

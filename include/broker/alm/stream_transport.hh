@@ -58,13 +58,12 @@ public:
 
   // -- overrides for peer::publish --------------------------------------------
 
-  void publish(const caf::actor& dst, atom::subscribe,
-               const endpoint_id_list& path, const vector_timestamp& ts,
+  void publish(endpoint_id dst, atom::subscribe, const endpoint_id_list& path,
+               const vector_timestamp& ts,
                const filter_type& new_filter) override;
 
-  void publish(const caf::actor& dst, atom::revoke,
-               const endpoint_id_list& path, const vector_timestamp& ts,
-               const endpoint_id& lost_peer,
+  void publish(endpoint_id dst, atom::revoke, const endpoint_id_list& path,
+               const vector_timestamp& ts, const endpoint_id& lost_peer,
                const filter_type& new_filter) override;
 
   using super::publish_locally;
@@ -146,6 +145,9 @@ protected:
 
   /// Handles for aborting flows on unpeering.
   std::map<endpoint_id, caf::disposable> peers_;
+
+  /// Buffer for serializing messages.
+  caf::byte_buffer buf_;
 };
 
 } // namespace broker::alm

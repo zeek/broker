@@ -19,6 +19,8 @@ namespace broker {
 enum class alm_message_type : uint8_t {
   data = 0x01,
   command = 0x02,
+  routing_update = 0x03,
+  path_revocation = 0x04,
   originator_hello = 0x10,
   responder_hello = 0x20,
 };
@@ -28,6 +30,8 @@ enum class alm_message_type : uint8_t {
 enum class packed_message_type : uint8_t {
   data = 0x01,
   command = 0x02,
+  routing_update = 0x03,
+  path_revocation = 0x04,
 };
 
 /// A Broker-internal message with a payload received from the ALM layer.

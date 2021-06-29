@@ -179,17 +179,18 @@ public:
           self->send(who_asked, atom::master_v, i->second);
           return;
         }
-        auto peers = this->peer_handles();
-        if (peers.empty()) {
-          BROKER_INFO("no peers to ask for the master");
-          self->send(who_asked, atom::master_v,
-                     make_error(ec::no_such_master, "no peers"));
-          return;
-        }
-        auto resolver
-          = self->template spawn<spawn_flags>(detail::master_resolver);
-        self->send(resolver, std::move(peers), std::move(name),
-                   std::move(who_asked));
+        // TODO: implement me
+        // auto peers = this->peer_ids();
+        // if (peers.empty()) {
+        //   BROKER_INFO("no peers to ask for the master");
+        //   self->send(who_asked, atom::master_v,
+        //              make_error(ec::no_such_master, "no peers"));
+        //   return;
+        // }
+        // auto resolver
+        //   = self->template spawn<spawn_flags>(detail::master_resolver);
+        // self->send(resolver, std::move(peers), std::move(name),
+        //            std::move(who_asked));
       },
     }
       .or_else(super::make_behavior());

@@ -69,29 +69,23 @@ public:
   /// route was announced.
   using versioned_path_type = std::pair<path_type, vector_timestamp>;
 
-  /// Stores an implementation-specific handle for talking to the peer. The
-  /// handle is null if no direct connection exists.
-  caf::actor hdl;
-
   /// Stores all paths leading to this peer, using a vector timestamp for
   /// versioning (stores only the latest version). Sorted by path length.
   std::vector<versioned_path_type> versioned_paths;
 
-  routing_table_row() = default;
+
+  routing_table_row() {
+    versioned_paths.reserve(32);
+  }
   routing_table_row(routing_table_row&&) = default;
   routing_table_row(const routing_table_row&) = default;
   routing_table_row& operator=(routing_table_row&&) = default;
   routing_table_row& operator=(const routing_table_row&) = default;
-
-  explicit routing_table_row(caf::actor hdl) : hdl(std::move(hdl)) {
-    versioned_paths.reserve(32);
-  }
 };
 
 template <class Inspector>
 bool inspect(Inspector& f, routing_table_row& x) {
-  return f.object(x).fields(f.field("hdl", x.hdl),
-                            f.field("paths", x.versioned_paths));
+  return f.apply(x.versioned_paths);
 }
 
 struct endpoint_id_hasher {
@@ -104,11 +98,6 @@ struct endpoint_id_hasher {
 /// that we can reach indirectly.
 using routing_table
   = std::unordered_map<endpoint_id, routing_table_row, endpoint_id_hasher>;
-
-/// Returns the ID  of the peer if `hdl` is a direct connection, `nil`
-/// otherwise.
-optional<endpoint_id> get_peer_id(const routing_table& tbl,
-                                  const caf::actor& hdl);
 
 /// Returns all hops to the destination (including `dst` itself) or
 /// `nullptr` if the destination is unreachable.
@@ -123,9 +112,10 @@ inline bool reachable(const routing_table& tbl, const endpoint_id& peer) {
 /// Returns whether `tbl` contains a direct connection to `peer`.
 inline bool is_direct_connection(const routing_table& tbl,
                                  const endpoint_id& peer) {
-  if (auto i = tbl.find(peer); i != tbl.end())
-    return static_cast<bool>(i->second.hdl);
-  return false;
+  if (auto path = shortest_path(tbl, peer))
+    return path->size() == 1;
+  else
+    return false;
 }
 
 /// Returns the hop count on the shortest path or `nil` if no route to the peer
@@ -182,12 +172,8 @@ void erase(routing_table& tbl, const endpoint_id& whom,
 template <class OnRemovePeer>
 bool erase_direct(routing_table& tbl, const endpoint_id& whom,
                   OnRemovePeer on_remove) {
-  // Reset the connection handle.
-  if (auto i = tbl.find(whom); i == tbl.end()) {
+  if (auto i = tbl.find(whom); i == tbl.end())
     return false;
-  } else {
-    i->second.hdl = nullptr;
-  }
   // Drop all paths with whom as first hop.
   for (auto i = tbl.begin(); i != tbl.end();) {
     auto& paths = i->second.versioned_paths;
@@ -211,8 +197,9 @@ bool erase_direct(routing_table& tbl, const endpoint_id& whom,
 template <class F>
 void for_each_direct(const routing_table& tbl, F fun) {
   for (auto& [peer, row] : tbl)
-    if (row.hdl)
-      fun(peer, row.hdl);
+    if (!row.versioned_paths.empty()
+        && row.versioned_paths.front().first.size() == 1)
+      fun(peer);
 }
 
 /// Returns a pointer to the row of the remote peer if it exists, `nullptr`

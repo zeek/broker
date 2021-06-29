@@ -43,6 +43,8 @@ public:
   // consumed elements.
   template <class F>
   size_t consume(size_t num, size_t* size_before_consume, F fun) {
+    if (num == 0)
+      return 0;
     size_t n = 0;
     caf::flow::subscription sub_hdl;
     {
@@ -56,7 +58,8 @@ public:
       sub_hdl = sub_;
       if (size_before_consume)
         *size_before_consume = this->xs_.size();
-      auto n = std::min(num, this->xs_.size());
+      n = std::min(num, this->xs_.size());
+      assert(n>0);
       BROKER_ASSERT(n > 0);
       if (n == this->xs_.size()) {
         for (auto& x : this->xs_)

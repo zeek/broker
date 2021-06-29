@@ -2,16 +2,6 @@
 
 namespace broker::alm {
 
-optional<endpoint_id> get_peer_id(const routing_table& tbl,
-                                  const caf::actor& hdl) {
-  auto predicate = [&](const auto& kvp) { return kvp.second.hdl == hdl; };
-  auto e = tbl.end();
-  auto i = std::find_if(tbl.begin(), e, predicate);
-  if (i != e)
-    return i->first;
-  return nil;
-}
-
 const std::vector<endpoint_id>* shortest_path(const routing_table& tbl,
                                               const endpoint_id& peer) {
   if (auto i = tbl.find(peer);

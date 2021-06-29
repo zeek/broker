@@ -146,13 +146,6 @@ public:
     return timestamp_;
   }
 
-  auto peer_handles() const {
-    std::vector<caf::actor> result;
-    for (auto& kvp : tbl_)
-      result.emplace_back(kvp.second.hdl);
-    return result;
-  }
-
   auto peer_ids() const {
     endpoint_id_list result;
     for (auto& kvp : tbl_)
@@ -244,7 +237,7 @@ public:
   ///             overlay in chronological order.
   /// @param ts Stores the logical time of each peer at the time of forwarding.
   /// @param new_filter The new filter to apply to the origin of the update.
-  virtual void publish(const caf::actor& dst, atom::subscribe,
+  virtual void publish(endpoint_id dst, atom::subscribe,
                        const endpoint_id_list& path, const vector_timestamp& ts,
                        const filter_type& new_filter)
     = 0;
@@ -257,7 +250,7 @@ public:
   /// @param lost_peer ID of the affected peer, i.e., the origin of the update
   ///                  lost its communication path to @p lost_peer.
   /// @param new_filter The new filter to apply to the origin of the update.
-  virtual void publish(const caf::actor& dst, atom::revoke,
+  virtual void publish(endpoint_id dst, atom::revoke,
                        const endpoint_id_list& path, const vector_timestamp& ts,
                        const endpoint_id& lost_peer,
                        const filter_type& new_filter)
@@ -287,26 +280,20 @@ public:
 
   /// Called whenever this peer established a new connection.
   /// @param peer_id ID of the newly connected peer.
-  /// @param hdl Communication handle for exchanging messages with the new peer.
-  ///            The handle is default-constructed if no direct connection
-  ///            exists (yet).
   /// @note The new peer gets stored in the routing table *before* calling this
   ///       member function.
-  virtual void peer_connected(const endpoint_id& peer_id,
-                              const caf::actor& hdl);
+  virtual void peer_connected(const endpoint_id& peer_id);
 
   /// Called whenever this peer lost a connection to a remote peer.
   /// @param peer_id ID of the disconnected peer.
-  /// @param hdl Communication handle of the disconnected peer.
   /// @param reason None if we closed the connection gracefully, otherwise
   ///               contains the transport-specific error code.
   virtual void peer_disconnected(const endpoint_id& peer_id,
-                                 const caf::actor& hdl, const error& reason);
+                                 const error& reason);
 
   /// Called whenever this peer removed a direct connection to a remote peer.
   /// @param peer_id ID of the removed peer.
-  /// @param hdl Communication handle of the removed peer.
-  virtual void peer_removed(const endpoint_id& peer_id, const caf::actor& hdl);
+  virtual void peer_removed(const endpoint_id& peer_id);
 
   /// Called after removing the last path to `peer_id` from the routing table.
   /// @param peer_id ID of the (now unreachable) peer.
@@ -315,10 +302,6 @@ public:
   /// Called whenever the user tried to unpeer from an unknown peer.
   /// @param xs Either a peer ID, an actor handle or a network info.
   virtual void cannot_remove_peer(const endpoint_id& x);
-
-  /// Called whenever the user tried to unpeer from an unknown peer.
-  /// @param xs Either a peer ID, an actor handle or a network info.
-  virtual void cannot_remove_peer(const caf::actor& x);
 
   /// Called whenever the user tried to unpeer from an unknown peer.
   /// @param xs Either a peer ID, an actor handle or a network info.
@@ -340,7 +323,7 @@ public:
 protected:
   // -- implementation details -------------------------------------------------
 
-  void cleanup(const endpoint_id& peer_id, const caf::actor& hdl);
+  void cleanup(const endpoint_id& peer_id);
 
   // -- member variables -------------------------------------------------------
 

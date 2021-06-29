@@ -72,8 +72,8 @@ void peer::flood_subscriptions() {
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
   filter_type current_filter = filter_->read();
-  for_each_direct(tbl_, [&](auto&, auto& hdl) {
-    publish(hdl, atom::subscribe_v, path, ts, current_filter);
+  for_each_direct(tbl_, [&](auto receiver) {
+    publish(receiver, atom::subscribe_v, path, ts, current_filter);
   });
 }
 
@@ -84,8 +84,8 @@ void peer::flood_path_revocation(const endpoint_id& lost_peer) {
   endpoint_id_list path{id_};
   vector_timestamp ts{timestamp_};
   filter_type current_filter = filter_->read();
-  for_each_direct(tbl_, [&, this](const auto& id, const auto& hdl) {
-    publish(hdl, atom::revoke_v, path, ts, lost_peer, current_filter);
+  for_each_direct(tbl_, [&, this](auto receiver) {
+    publish(receiver, atom::revoke_v, path, ts, lost_peer, current_filter);
   });
 }
 
@@ -127,11 +127,12 @@ bool peer::valid(endpoint_id_list& path, vector_timestamp path_ts) {
     BROKER_WARNING("received message from an unrecognized peer");
     return false;
   }
-  if (!forwarder->hdl) {
-    BROKER_WARNING(
-      "received message from a peer we don't have a direct connection to");
-    return false;
-  }
+  // TODO: re-implement
+  // if (!forwarder->hdl) {
+  //   BROKER_WARNING(
+  //     "received message from a peer we don't have a direct connection to");
+  //   return false;
+  // }
   // Drop all paths that contain loops.
   if (contains(path, id_)) {
     BROKER_DEBUG("drop message: path contains a loop");
@@ -209,9 +210,9 @@ void peer::handle_filter_update(endpoint_id_list& path,
   if (!disable_forwarding_) {
     path.emplace_back(id_);
     path_ts.emplace_back(timestamp_);
-    for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
-      if (!contains(path, pid))
-        publish(hdl, atom::subscribe_v, path, path_ts, filter);
+    for_each_direct(tbl_, [&](auto& dst) {
+      if (!contains(path, dst))
+        publish(dst, atom::subscribe_v, path, path_ts, filter);
     });
   }
   // If we have learned new peers, we flood our own subscriptions as well.
@@ -256,9 +257,9 @@ void peer::handle_path_revocation(endpoint_id_list& path,
   if (!disable_forwarding_) {
     path.emplace_back(id_);
     path_ts.emplace_back(timestamp_);
-    for_each_direct(tbl_, [&](auto& pid, auto& hdl) {
-      if (!contains(path, pid))
-        publish(hdl, atom::revoke_v, path, path_ts, revoked_hop, filter);
+    for_each_direct(tbl_, [&](auto& dst) {
+      if (!contains(path, dst))
+        publish(dst, atom::revoke_v, path, path_ts, revoked_hop, filter);
     });
   }
   // If we have learned new peers, we flood our own subscriptions as well.
@@ -278,20 +279,19 @@ void peer::peer_discovered(const endpoint_id&) {
   // nop
 }
 
-void peer::peer_connected(const endpoint_id&, const caf::actor&) {
+void peer::peer_connected(const endpoint_id&) {
   // nop
 }
 
-void peer::peer_disconnected(const endpoint_id& peer_id, const caf::actor& hdl,
+void peer::peer_disconnected(const endpoint_id& peer_id,
                              [[maybe_unused]] const error& reason) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl) << BROKER_ARG(reason));
-  cleanup(peer_id, hdl);
+  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(reason));
+  cleanup(peer_id);
 }
 
-void peer::peer_removed([[maybe_unused]] const endpoint_id& peer_id,
-                        [[maybe_unused]] const caf::actor& hdl) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
-  cleanup(peer_id, hdl);
+void peer::peer_removed([[maybe_unused]] const endpoint_id& peer_id) {
+  BROKER_TRACE(BROKER_ARG(peer_id));
+  cleanup(peer_id);
 }
 
 void peer::peer_unreachable(const endpoint_id& peer_id) {
@@ -299,10 +299,6 @@ void peer::peer_unreachable(const endpoint_id& peer_id) {
 }
 
 void peer::cannot_remove_peer([[maybe_unused]] const endpoint_id& x) {
-  BROKER_DEBUG("cannot unpeer from uknown peer" << x);
-}
-
-void peer::cannot_remove_peer([[maybe_unused]] const caf::actor& x) {
   BROKER_DEBUG("cannot unpeer from uknown peer" << x);
 }
 
@@ -390,8 +386,8 @@ caf::behavior peer::make_behavior() {
 
 // -- implementation details ---------------------------------------------------
 
-void peer::cleanup(const endpoint_id& peer_id, const caf::actor& hdl) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(hdl));
+void peer::cleanup(const endpoint_id& peer_id) {
+  BROKER_TRACE(BROKER_ARG(peer_id));
   auto on_drop = [this](const endpoint_id& whom) { peer_unreachable(whom); };
   if (erase_direct(tbl_, peer_id, on_drop)) {
     ++timestamp_;
