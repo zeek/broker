@@ -4,8 +4,6 @@
 
 namespace broker {
 
-constexpr char topic::reserved[];
-
 std::vector<std::string> topic::split(const topic& t) {
   std::vector<std::string> result;
   std::string::size_type i = 0;
@@ -50,8 +48,7 @@ std::string&& topic::move_string() && {
 }
 
 bool topic::prefix_of(const topic& t) const {
-  return str_.size() <= t.str_.size()
-         && t.str_.compare(0, str_.size(), str_) == 0;
+  return is_prefix(t, str_);
 }
 
 std::string_view topic::suffix() const noexcept {
@@ -61,6 +58,11 @@ std::string_view topic::suffix() const noexcept {
   } else {
     return {str_};
   }
+}
+
+bool is_prefix(const topic& t, std::string_view prefix) noexcept {
+  const auto& str = t.string();
+  return str.size() <= prefix.size() && prefix.compare(0, str.size(), str) == 0;
 }
 
 bool operator==(const topic& lhs, const topic& rhs) {
@@ -92,6 +94,26 @@ bool is_internal(const topic& x) {
   auto pre = internal_prefix;
   return str.size() >= pre.size()
          && caf::string_view{str.data(), pre.size()} == pre;
+}
+
+topic topic::master_suffix() {
+  return from(master_suffix_str);
+}
+
+topic topic::clone_suffix() {
+  return from(clone_suffix_str);
+}
+
+topic topic::errors() {
+  return from(errors_str);
+}
+
+topic topic::statuses() {
+  return from(statuses_str);
+}
+
+topic topic::store_events() {
+  return from(store_events_str);
 }
 
 } // namespace broker

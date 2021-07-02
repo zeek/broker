@@ -8,7 +8,7 @@
 
 using namespace broker;
 
-using namespace std::literals::chrono_literals;
+using namespace std::literals;
 
 namespace {
 
@@ -21,7 +21,7 @@ struct collector_ptr {
 caf::behavior dummy_core(collector_ptr ptr) {
   return {
     [collector{ptr.value}](atom::publish, data_message msg) {
-      CHECK_EQUAL(get_topic(msg), "/all/them/metrics");
+      CHECK_EQUAL(get_topic(msg), "/all/them/metrics"sv);
       CHECK_GREATER_EQUAL(collector->insert_or_update(get_data(msg)), 6u);
     },
   };

@@ -66,8 +66,8 @@ void core_state::subscribe(filter_type xs) {
   BROKER_TRACE(BROKER_ARG(xs));
   // Status and error topics are internal topics.
   auto internal_only = [](const topic& x) {
-    return x == topics::errors || x == topics::statuses
-           || topics::store_events.prefix_of(x);
+    return x == topic::errors_str || x == topic::statuses_str
+           || is_prefix(x, topic::store_events_str);
   };
   xs.erase(std::remove_if(xs.begin(), xs.end(), internal_only), xs.end());
   if (xs.empty())

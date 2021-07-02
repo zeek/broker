@@ -48,7 +48,7 @@ public:
   bool has_remote_master(const std::string& name) {
     // If we don't have a master recorded locally, we could still have a
     // propagated filter to a remote core hosting a master.
-    return dref().has_remote_subscriber(name / topics::master_suffix);
+    return dref().has_remote_subscriber(name / topic::master_suffix());
   }
 
   const auto& masters() const noexcept {
@@ -80,7 +80,7 @@ public:
     auto self = super::self();
     auto ms = self->template spawn<spawn_flags>(detail::master_actor, self,
                                                 name, std::move(ptr), clock_);
-    filter_type filter{name / topics::master_suffix};
+    filter_type filter{name / topic::master_suffix()};
     if (auto err = dref().add_store(ms, filter))
       return err;
     masters_.emplace(name, ms);
@@ -106,7 +106,7 @@ public:
                                                 resync_interval, stale_interval,
                                                 mutation_buffer_interval,
                                                 clock_);
-    filter_type filter{name / topics::clone_suffix};
+    filter_type filter{name / topic::clone_suffix()};
     if (auto err = dref().add_store(cl, filter))
       return err;
     clones_.emplace(name, cl);
@@ -125,7 +125,7 @@ public:
   void snapshot(const std::string& name, caf::actor& clone) {
     auto msg = make_internal_command<snapshot_command>(super::self(),
                                                        std::move(clone));
-    dref().publish(make_command_message(name / topics::master_suffix, msg));
+    dref().publish(make_command_message(name / topic::master_suffix(), msg));
   }
 
   /// Detaches all masters and clones by sending exit messages to the

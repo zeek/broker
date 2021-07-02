@@ -8,7 +8,7 @@
 
 using namespace broker;
 
-using namespace std::literals::chrono_literals;
+using namespace std::literals;
 
 namespace {
 
@@ -184,12 +184,12 @@ TEST(the exporter allows changing the topic at runtime) {
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
   expect((atom::publish, data_message), from(aut).to(core));
-  CHECK_EQUAL(last_topic(), "all/them/metrics");
+  CHECK_EQUAL(last_topic(), "all/them/metrics"sv);
   inject((atom::put, topic), to(aut).with(atom::put_v, "foo/bar"_t));
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
   expect((atom::publish, data_message), from(aut).to(core));
-  CHECK_EQUAL(last_topic(), "foo/bar");
+  CHECK_EQUAL(last_topic(), "foo/bar"sv);
 }
 
 TEST(the exporter allows changing the ID at runtime) {

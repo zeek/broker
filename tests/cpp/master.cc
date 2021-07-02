@@ -93,7 +93,7 @@ struct fixture : base_fixture {
   fixture() {
     logger = ep.subscribe_nosync(
       // Topics.
-      {topics::store_events},
+      {topic::store_events()},
       // Init.
       [](caf::unit_t&) {},
       // Consume.
@@ -217,7 +217,7 @@ TEST(master_with_clone) {
   earth.sched.inline_next_enqueue(); // .get talks to the master
   CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
-  auto foo_master = "foo" / topics::master_suffix;
+  auto foo_master = "foo" / topic::master_suffix();
 // Initiate handshake between core1 and core2.
   earth.self->send(core1, atom::peer_v, core2_proxy);
   run(tick_interval);
