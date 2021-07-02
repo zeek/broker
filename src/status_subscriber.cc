@@ -10,7 +10,7 @@
 
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
   auto& t = get_topic(msg);                                                    \
-  if (t == topics::errors) {                                                   \
+  if (t == topic::errors_str) {                                                \
     if (auto value = to<error>(get_data(msg)))                                 \
       return value_type{std::move(*value)};                                    \
     BROKER_WARNING("received malformed error");                                \
@@ -22,7 +22,7 @@
 
 #define BROKER_APPEND_CONVERTED_MSG()                                          \
   auto& t = get_topic(msg);                                                    \
-  if (t == topics::errors) {                                                   \
+  if (t == topic::errors_str) {                                                \
     if (auto value = to<error>(get_data(msg)))                                 \
       result.emplace_back(std::move(*value));                                  \
     else                                                                       \
@@ -43,9 +43,9 @@ namespace {
 std::vector<topic> make_status_topics(bool receive_statuses) {
   std::vector<topic> result;
   result.reserve(2);
-  result.emplace_back(topics::errors);
+  result.emplace_back(topic::errors());
   if (receive_statuses)
-    result.emplace_back(topics::statuses);
+    result.emplace_back(topic::statuses());
   return result;
 }
 

@@ -56,7 +56,7 @@ void store_actor_state::init(caf::event_based_actor* self,
   this->clock = clock;
   this->id = std::move(id);
   this->core = std::move(core);
-  this->dst = topics::store_events / this->id;
+  this->dst = topic::store_events() / this->id;
 }
 
 void store_actor_state::emit_insert_event(const data& key, const data& value,

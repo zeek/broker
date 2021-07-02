@@ -34,7 +34,7 @@ void master_state::init(caf::event_based_actor* ptr, std::string&& nm,
                         backend_pointer&& bp, caf::actor&& parent,
                         endpoint::clock* ep_clock) {
   super::init(ptr, ep_clock, std::move(nm), std::move(parent));
-  clones_topic = id / topics::clone_suffix;
+  clones_topic = id / topic::clone_suffix();
   backend = std::move(bp);
   if (auto es = backend->expiries()) {
     for (auto& e : *es) {
