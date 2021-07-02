@@ -424,7 +424,7 @@ public:
         continue;
       }
       // Somewhat hacky, but don't forward data store clone messages.
-      auto ttl = ends_with(get_topic(x).string(), topics::clone_suffix.string())
+      auto ttl = ends_with(get_topic(x).string(), topic::clone_suffix_str)
                  ? uint16_t{0}
                  : std::min(ttl_, static_cast<uint16_t>(x.ttl - 1));
       x.ttl = ttl;

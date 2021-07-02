@@ -1,3 +1,12 @@
+2.1.0-dev.87 | 2021-07-02 10:02:22 -0700
+
+  * Fix is_prefix logic (Dominik Charousset, Corelight)
+
+  * Remove global topic variables (Dominik Charousset, Corelight)
+
+    Fix a potential memory corruption during static initialization by
+    avoiding global variables with non-trivial constructors.
+
 2.1.0-dev.83 | 2021-06-28 08:44:56 -0700
 
   * Fix heap-use-after-free during shutdown (Dominik Charousset, Corelight)

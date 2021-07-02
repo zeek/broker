@@ -35,7 +35,7 @@ static double now(endpoint::clock* clock) {
 void clone_state::init(caf::event_based_actor* ptr, std::string&& nm,
                        caf::actor&& parent, endpoint::clock* ep_clock) {
   super::init(ptr, ep_clock, std::move(nm), std::move(parent));
-  master_topic = id / topics::master_suffix;
+  master_topic = id / topic::master_suffix();
 }
 
 void clone_state::forward(internal_command&& x) {
