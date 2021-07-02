@@ -62,7 +62,8 @@ std::string_view topic::suffix() const noexcept {
 
 bool is_prefix(const topic& t, std::string_view prefix) noexcept {
   const auto& str = t.string();
-  return str.size() <= prefix.size() && prefix.compare(0, str.size(), str) == 0;
+  return str.size() >= prefix.size()
+         && str.compare(0, prefix.size(), prefix) == 0;
 }
 
 bool operator==(const topic& lhs, const topic& rhs) {
