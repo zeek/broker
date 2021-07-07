@@ -184,7 +184,8 @@ peer::handle_update(endpoint_id_list& path, vector_timestamp path_ts,
   }
   // Store the subscription if it's new.
   const auto& subscriber = path[0];
-  if (path_ts[0] > peer_timestamps_[subscriber]) {
+  if (auto ts = peer_timestamps_.find(subscriber);
+      ts == peer_timestamps_.end() || path_ts[0] > ts->second) {
     peer_timestamps_[subscriber] = path_ts[0];
     peer_filters_[subscriber] = filter;
   }

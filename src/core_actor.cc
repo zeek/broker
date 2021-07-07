@@ -41,11 +41,11 @@ core_state::~core_state() {
 }
 
 caf::behavior core_state::make_behavior() {
-  self_->set_exit_handler([self{self_}](caf::exit_msg& msg) {
+  self_->set_exit_handler([this](caf::exit_msg& msg) {
     if (msg.reason) {
       BROKER_DEBUG("shutting down after receiving an exit message with reason:"
                    << msg.reason);
-      self->quit(std::move(msg.reason));
+      shutdown(shutdown_options{});
     }
   });
   auto& cfg = self_->system().config();

@@ -130,7 +130,11 @@ void stream_transport::dispatch(const node_message& msg) {
 
 void stream_transport::shutdown(shutdown_options options) {
   BROKER_TRACE(BROKER_ARG(options));
-  // TODO: implement me
+  super::shutdown(options);
+  self_->handle_flow_events();
+  auto dispose_all = [](auto&... ptr) { (ptr->dispose(), ...); };
+  dispose_all(data_inputs_, command_inputs_, central_merge_);
+  self_->handle_flow_events();
 }
 
 // -- overrides for flow_controller --------------------------------------------
@@ -468,7 +472,10 @@ caf::behavior stream_transport::make_behavior() {
       [this](atom::unpeer, const endpoint_id& peer_id) {
         // TODO: implement me
       },
-      [this](const detail::flow_controller_callback_ptr& f) { (*f)(this); })
+      [this](const detail::flow_controller_callback_ptr& f) {
+        (*f)(this);
+        self_->handle_flow_events();
+      })
     .or_else(super::make_behavior());
 }
 
@@ -477,14 +484,10 @@ caf::behavior stream_transport::make_behavior() {
 caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
-                                           caf::net::stream_socket sock) {
-  BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(sock));
-  using caf::async::make_publishing_queue;
-  using caf::net::make_socket_manager;
-  if (peers_.count(peer) != 0) {
-    caf::net::close(sock);
+                                           connect_flows_fun connect_flows) {
+  BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(ts) << BROKER_ARG(filter));
+  if (peers_.count(peer) != 0)
     return make_error(ec::repeated_peering_handshake_request);
-  }
   endpoint_id_list path{peer};
   auto& sys = self_->system();
   auto out = central_merge_ //
@@ -495,25 +498,47 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                .as_observable();
   peers_.emplace(peer, out.as_disposable());
   auto async_out = self_->to_async_publisher(out);
+  auto in = connect_flows(std::move(async_out));
+  central_merge_->add(self_->observe(in).transform(dispatch_step{this}));
+  auto update_res = handle_update(path, vector_timestamp{ts}, filter);
+  if (auto& new_peers = update_res.first; !new_peers.empty())
+    for (auto& id : new_peers)
+      peer_discovered(id);
+  peer_connected(peer);
+  return caf::none;
+}
+
+caf::error stream_transport::init_new_peer(endpoint_id peer,
+                                           alm::lamport_timestamp ts,
+                                           const filter_type& filter,
+                                           caf::net::stream_socket sock) {
+  BROKER_TRACE(BROKER_ARG(peer)
+               << BROKER_ARG(ts) << BROKER_ARG(filter) << BROKER_ARG(sock));
+  using caf::async::make_publishing_queue;
+  using caf::net::make_socket_manager;
+  if (peers_.count(peer) != 0) {
+    caf::net::close(sock);
+    return make_error(ec::repeated_peering_handshake_request);
+  }
+  auto& sys = self_->system();
   auto mpx = sys.network_manager().mpx_ptr();
   auto mgr
     = make_socket_manager<detail::protocol, caf::net::length_prefix_framing,
                           caf::net::stream_transport>(sock, mpx, id());
-  auto in = mgr->top_layer().connect_flows(mgr.get(), std::move(async_out));
-  auto err = mgr->init(content(sys.config()));
-  if (!err) {
-    central_merge_->add(self_->observe(in).transform(dispatch_step{this}));
-    auto update_res = handle_update(path, vector_timestamp{ts}, filter);
-    if (auto& new_peers = update_res.first; !new_peers.empty())
-      for (auto& id : new_peers)
-        peer_discovered(id);
-    peer_connected(peer);
-  } else {
+  connect_flows_fun fn = [mgr](node_message_publisher out) {
+    return mgr->top_layer().connect_flows(mgr.get(), std::move(out));
+  };
+  if (auto err = init_new_peer(peer, ts, filter, std::move(fn))) {
+    return err;
+  } else if (err = mgr->init(content(sys.config())); err) {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
     peers_.erase(peer);
-    std::move(out).as_disposable().dispose();
+    // TODO: need to dispose in and out flows?
+    return err;
+  } else {
+    BROKER_DEBUG("successfully added peer" << peer << "on socket" << sock);
+    return caf::none;
   }
-  return err;
 }
 
 void stream_transport::unpeer(const endpoint_id& peer_id) {

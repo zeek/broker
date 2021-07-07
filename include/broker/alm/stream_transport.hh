@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <caf/async/publisher.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/detail/unordered_flat_map.hpp>
@@ -49,6 +50,11 @@ public:
   // -- member types -----------------------------------------------------------
 
   using super = peer;
+
+  using node_message_publisher = caf::async::publisher<node_message>;
+
+  using connect_flows_fun
+    = std::function<node_message_publisher(node_message_publisher)>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -106,12 +112,16 @@ public:
 
   caf::behavior make_behavior() override;
 
-protected:
-  // -- utility ----------------------------------------------------------------
+  caf::error init_new_peer(endpoint_id peer, alm::lamport_timestamp ts,
+                           const filter_type& filter,
+                           connect_flows_fun connect_flows);
 
   caf::error init_new_peer(endpoint_id peer, alm::lamport_timestamp ts,
                            const filter_type& filter,
                            caf::net::stream_socket sock);
+
+protected:
+  // -- utility ----------------------------------------------------------------
 
   /// Disconnects a peer by demand of the user.
   void unpeer(const endpoint_id& peer_id);

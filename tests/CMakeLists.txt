@@ -12,6 +12,7 @@ set(tests
   # cpp/alm/peer/stream_transport.cc
   # cpp/alm/routing_table.cc
   cpp/backend.cc
+  cpp/core.cc
   cpp/core_actor.cc
   cpp/data.cc
   cpp/detail/channel.cc
