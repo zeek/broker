@@ -25,6 +25,8 @@ enum class alm_message_type : uint8_t {
   responder_hello = 0x20,
 };
 
+std::string to_string(alm_message_type);
+
 /// Tags a packed message with the type of the serialized data. This enumeration
 /// is a subset of @ref alm_message_type.
 enum class packed_message_type : uint8_t {
@@ -33,6 +35,8 @@ enum class packed_message_type : uint8_t {
   routing_update = 0x03,
   path_revocation = 0x04,
 };
+
+std::string to_string(packed_message_type);
 
 /// A Broker-internal message with a payload received from the ALM layer.
 using packed_message = caf::cow_tuple<packed_message_type, topic,
