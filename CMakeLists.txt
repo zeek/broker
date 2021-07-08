@@ -194,7 +194,7 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-set(CAF_VERSION_MIN_REQUIRED 0.18.3)
+set(CAF_VERSION_MIN_REQUIRED 0.18.4)
 
 if ( TARGET CAF::core )
   message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")

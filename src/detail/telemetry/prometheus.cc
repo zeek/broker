@@ -103,8 +103,10 @@ caf::behavior prometheus_actor::make_behavior() {
       // default CAF Prometheus export.
       auto hdr = caf::as_bytes(caf::make_span(request_ok));
       BROKER_ASSERT(exporter_ != nullptr);
-      if (!exporter_->running())
+      if (!exporter_->running()) {
+        exporter_->proc_importer.update();
         exporter_->impl.scrape(system().metrics());
+      }
       collector_.insert_or_update(exporter_->impl.rows());
       auto text = collector_.prometheus_text();
       auto payload = caf::as_bytes(caf::make_span(text));

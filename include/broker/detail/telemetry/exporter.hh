@@ -8,6 +8,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/fwd.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/telemetry/importer/process.hpp>
 
 #include "broker/detail/next_tick.hh"
 #include "broker/detail/telemetry/scraper.hh"
@@ -44,6 +45,7 @@ public:
       core(std::move(core)),
       interval(interval),
       target(std::move(target)),
+      proc_importer(self->system().metrics()),
       impl(std::move(selected_prefixes), std::move(id)) {
     // nop
   }
@@ -69,6 +71,7 @@ public:
     return {
       [this](caf::tick_atom) {
         if (running_) {
+          proc_importer.update();
           impl.scrape(self->system().metrics());
           // Send nothing if we only have meta data (or nothing) to send.
           if (const auto& rows = impl.rows(); rows.size() > 1)
@@ -168,6 +171,9 @@ public:
 
   /// Configures the topic for periodically publishing scrape results to.
   topic target;
+
+  /// Adds metrics for CPU and RAM usage.
+  caf::telemetry::importer::process proc_importer;
 
   /// The actual exporter for collecting the metrics.
   scraper impl;
