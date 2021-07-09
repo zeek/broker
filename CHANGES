@@ -1,3 +1,7 @@
+2.1.0 | 2021-07-08 09:49:23 -0700
+
+  * Release 2.1.0.
+
 2.1.0-dev.90 | 2021-07-08 09:49:16 -0700
 
   * Raise CAF dependency to 0.18.4 and update embedded version (Tim Wojtulewicz, Corelight)
