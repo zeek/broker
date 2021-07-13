@@ -4,10 +4,7 @@
 
 #include "test.hh"
 
-#include <caf/attach_stream_sink.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/scheduled_actor/flow.hpp>
-#include <caf/test/io_dsl.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/detail/flow_controller_callback.hh"

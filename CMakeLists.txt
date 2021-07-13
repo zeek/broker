@@ -194,7 +194,7 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-set(CAF_VERSION_MIN_REQUIRED 0.18.3)
+set(CAF_VERSION_MIN_REQUIRED 0.18.4)
 
 if ( TARGET CAF::core )
   message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
@@ -202,15 +202,15 @@ elseif ( CAF_ROOT )
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
   if (CMAKE_VERSION VERSION_LESS 3.12)
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
-                 COMPONENTS openssl test io core
+                 COMPONENTS test core
                  PATHS "${CAF_ROOT}")
   else()
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
-                 COMPONENTS openssl test io core)
+                 COMPONENTS test core)
   endif()
   message(STATUS "Using system CAF version ${CAF_VERSION}")
   # TODO: drop these legacy variables and simply use the targets consistently
-  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(CAF_LIBRARIES CAF::core CACHE INTERNAL "")
   set(caf_dirs "")
   foreach(caf_lib IN LISTS CAF_LIBRARIES ITEMS CAF::test)
     get_target_property(dirs ${caf_lib} INTERFACE_INCLUDE_DIRECTORIES)
@@ -231,9 +231,9 @@ else ()
   message(STATUS "Using bundled CAF")
   add_subdirectory(caf)
   set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
-  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
+  set(CAF_LIBRARIES CAF::core CACHE INTERNAL "")
   set(caf_dirs "")
-  foreach(comp core io openssl test)
+  foreach(comp core test)
     list(APPEND caf_dirs
          "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}"
          "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}")
@@ -288,9 +288,12 @@ else()
 endif()
 
 set(BROKER_SRC
+  src/detail/connector.cc
   # src/detail/core_recorder.cc
   # src/detail/generator_file_reader.cc
   # src/detail/generator_file_writer.cc
+  # src/detail/network_cache.cc
+  # src/gateway.cc
   ${OPTIONAL_SRC}
   src/activity.cc
   src/address.cc
@@ -305,7 +308,6 @@ set(BROKER_SRC
   src/defaults.cc
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
-  src/detail/connector.cc
   src/detail/connector_adapter.cc
   src/detail/data_generator.cc
   src/detail/filesystem.cc
@@ -320,7 +322,7 @@ set(BROKER_SRC
   src/detail/memory_backend.cc
   src/detail/meta_data_writer.cc
   src/detail/monotonic_buffer_resource.cc
-  src/detail/network_cache.cc
+  src/detail/native_socket.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
@@ -330,7 +332,6 @@ set(BROKER_SRC
   src/entity_id.cc
   src/error.cc
   src/filter_type.cc
-  src/gateway.cc
   src/internal_command.cc
   src/mailbox.cc
   src/message.cc

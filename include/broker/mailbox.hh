@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#include <caf/io/network/native_socket.hpp>
+#include "broker/detail/native_socket.hh"
 
 namespace broker {
 
@@ -22,7 +22,7 @@ struct mailbox {
 public:
   /// Retrieves a descriptor that indicates whether a message can be received
   /// without blocking.
-  caf::io::network::native_socket descriptor();
+  detail::native_socket descriptor();
 
   /// Checks whether the mailbox is empty.
   bool empty();

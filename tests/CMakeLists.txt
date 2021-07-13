@@ -26,9 +26,9 @@ set(tests
   cpp/error.cc
   cpp/filter_type.cc
   cpp/gateway.cc
-  cpp/integration.cc
+  # cpp/integration.cc
   cpp/master.cc
-  cpp/mixin/connector.cc
+  # cpp/mixin/connector.cc
   cpp/mixin/data_store_manager.cc
   cpp/mixin/notifier.cc
   cpp/publisher.cc

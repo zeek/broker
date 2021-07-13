@@ -5,6 +5,11 @@
 #include <algorithm>
 #include <exception>
 
+#include <caf/error.hpp>
+#include <caf/expected.hpp>
+#include <caf/net/pipe_socket.hpp>
+#include <caf/net/socket.hpp>
+
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
 #include "broker/logger.hh"
@@ -72,16 +77,24 @@ struct stack_buffer {
 } // namespace
 
 flare::flare() {
-  using namespace caf::io::network;
-  auto [first, second] = create_pipe();
-  fds_[0] = first;
-  fds_[1] = second;
-  if (auto res = child_process_inherit(first, false); !res)
-    BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << res.error());
-  if (auto res = child_process_inherit(second, false); !res)
-    BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << res.error());
-  if (auto res = nonblocking(first, false); !res) {
-    BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << res.error());
+  auto expected_pair = caf::net::make_pipe();
+  if (!expected_pair) {
+    BROKER_ERROR("make_pipe failed: " << expected_pair.error());
+    std::terminate();
+  }
+  auto [first, second] = *expected_pair;
+  fds_[0] = first.id;
+  fds_[1] = second.id;
+  if (auto err = caf::net::child_process_inherit(first, false)) {
+    BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << err);
+    std::terminate();
+  }
+  if (auto err = caf::net::child_process_inherit(second, false)) {
+    BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
+    std::terminate();
+  }
+  if (auto err = caf::net::nonblocking(first, false)) {
+    BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
     std::terminate();
   }
   // Do not set the write handle to nonblock, because we want the producer to
@@ -90,12 +103,13 @@ flare::flare() {
 }
 
 flare::~flare() {
-  using caf::io::network::close_socket;
-  close_socket(fds_[0]);
-  close_socket(fds_[1]);
+  auto close_all = [](auto... xs) {
+    (caf::net::close(caf::net::socket{xs}), ...);
+  };
+  close_all(fds_[0], fds_[1]);
 }
 
-flare::native_socket flare::fd() const {
+native_socket flare::fd() const {
   return fds_[0];
 }
 

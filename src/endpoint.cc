@@ -6,7 +6,6 @@
 #include <caf/config.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
-#include <caf/io/middleman.hpp>
 #include <caf/message.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
@@ -122,21 +121,31 @@ namespace {
 
 struct connector_task : public endpoint::background_task {
 public:
+  connector_task() = default;
+  connector_task(connector_task&&) = default;
+  connector_task& operator=(connector_task&&) = default;
+
+  connector_task(const connector_task&) = delete;
+  connector_task& operator=(const connector_task&) = delete;
+
   ~connector_task() {
-    if (thread_.joinable())
+    if (connector_) {
+      connector_->async_shutdown();
       thread_.join();
+    }
   }
 
   detail::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer) {
-    auto ptr = std::make_shared<detail::connector>(this_peer);
-    thread_ = std::thread{[ptr, sys_ptr{&sys}] {
+    connector_ = std::make_shared<detail::connector>(this_peer);
+    thread_ = std::thread{[ptr{connector_}, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
       ptr->run();
     }};
-    return ptr;
+    return connector_;
   }
 
 private:
+  std::shared_ptr<detail::connector> connector_;
   std::thread thread_;
 };
 
@@ -260,8 +269,9 @@ void endpoint::shutdown() {
         hdl.wait();
       activities_.clear();
     }
-    BROKER_DEBUG("stop background tasks");
+    BROKER_DEBUG("stop" << background_tasks_.size() << "background tasks");
     background_tasks_.clear();
+    BROKER_DEBUG("destroy actor system (final shutdown step)");
   }
   destroyed_ = true;
   core_ = nullptr;

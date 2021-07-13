@@ -5,13 +5,10 @@
 #endif
 
 #include <caf/test/dsl.hpp>
-#include <caf/test/io_dsl.hpp>
 
 #include <caf/actor_system.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
-
-#include <caf/io/network/test_multiplexer.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/detail/channel.hh"
@@ -182,62 +179,6 @@ public:
   }
 
   static broker::configuration make_config();
-};
-
-template <class Fixture>
-class net_fixture : public point_to_point_fixture<Fixture> {
-public:
-  static_assert(std::is_base_of<base_fixture, Fixture>::value);
-
-  void run(caf::timespan t) {
-    auto& n1 = this->earth;
-    auto& n2 = this->mars;
-    assert(n1.sched.clock().now() == n2.sched.clock().now());
-    auto advance = [](auto& n) {
-      return n.sched.try_run_once() || n.mpx.try_exec_runnable()
-             || n.mpx.read_data();
-    };
-    auto exhaust = [&] {
-      while (advance(n1) || advance(n2))
-        ; // repeat
-    };
-    auto get_next_timeout = [](auto& result, auto& node) {
-      if (node.sched.has_pending_timeout()) {
-        auto t = node.sched.clock().schedule().begin()->first;
-        if (result)
-          result = std::min(*result, t);
-        else
-          result = t;
-      }
-    };
-    for (;;) {
-      exhaust();
-      caf::optional<caf::actor_clock::time_point> next_timeout;
-      get_next_timeout(next_timeout, n1);
-      get_next_timeout(next_timeout, n2);
-      if (!next_timeout) {
-        n1.sched.advance_time(t);
-        n2.sched.advance_time(t);
-        exhaust();
-        return;
-      }
-      auto delta = *next_timeout - n1.sched.clock().now();
-      if (delta >= t) {
-        n1.sched.advance_time(t);
-        n2.sched.advance_time(t);
-        exhaust();
-        return;
-      }
-      n1.sched.advance_time(delta);
-      n2.sched.advance_time(delta);
-      t -= delta;
-    }
-  }
-
-  template <class Rep, class Period>
-  void run(std::chrono::duration<Rep, Period> t) {
-    run(std::chrono::duration_cast<caf::timespan>(t));
-  }
 };
 
 inline broker::data value_of(caf::expected<broker::data> x) {

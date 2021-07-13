@@ -7,8 +7,6 @@
 #include <chrono>
 #include <regex>
 
-#include <caf/test/io_dsl.hpp>
-
 #include "broker/atoms.hh"
 #include "broker/backend.hh"
 #include "broker/data.hh"
@@ -174,6 +172,7 @@ TEST(local_master) {
 
 FIXTURE_SCOPE_END()
 
+/*
 FIXTURE_SCOPE(store_master, net_fixture<fixture>)
 
 TEST(master_with_clone) {
@@ -276,3 +275,4 @@ TEST(master_with_clone) {
 }
 
 FIXTURE_SCOPE_END()
+*/

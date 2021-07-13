@@ -11,7 +11,7 @@ mailbox make_mailbox(detail::flare_actor* actor) {
 
 } // namespace detail
 
-caf::io::network::native_socket mailbox::descriptor() {
+detail::native_socket mailbox::descriptor() {
   return actor_->descriptor();
 }
 
@@ -32,6 +32,7 @@ size_t mailbox::count(size_t) {
 }
 
 mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {
+  // nop
 }
 
 } // namespace broker

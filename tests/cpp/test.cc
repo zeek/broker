@@ -7,8 +7,6 @@
 #include <caf/test/unit_test_impl.hpp>
 
 #include <caf/defaults.hpp>
-#include <caf/io/middleman.hpp>
-#include <caf/io/network/test_multiplexer.hpp>
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
@@ -24,10 +22,34 @@ using namespace broker;
 
 namespace {
 
-template <class RandomNumberGenerator>
-broker::endpoint_id random_endpoint_id(RandomNumberGenerator& rng) {
-  return broker::endpoint_id::random(rng());
-}
+std::string_view uuid_strings[] = {
+  "685a1674-e15c-11eb-ba80-0242ac130004",
+  "685a1a2a-e15c-11eb-ba80-0242ac130004",
+  "685a1b2e-e15c-11eb-ba80-0242ac130004",
+  "685a1bec-e15c-11eb-ba80-0242ac130004",
+  "685a1caa-e15c-11eb-ba80-0242ac130004",
+  "685a1d5e-e15c-11eb-ba80-0242ac130004",
+  "685a1e1c-e15c-11eb-ba80-0242ac130004",
+  "685a1ed0-e15c-11eb-ba80-0242ac130004",
+  "685a20d8-e15c-11eb-ba80-0242ac130004",
+  "685a21a0-e15c-11eb-ba80-0242ac130004",
+  "685a2254-e15c-11eb-ba80-0242ac130004",
+  "685a2308-e15c-11eb-ba80-0242ac130004",
+  "685a23bc-e15c-11eb-ba80-0242ac130004",
+  "685a2470-e15c-11eb-ba80-0242ac130004",
+  "685a2524-e15c-11eb-ba80-0242ac130004",
+  "685a27ae-e15c-11eb-ba80-0242ac130004",
+  "685a286c-e15c-11eb-ba80-0242ac130004",
+  "685a2920-e15c-11eb-ba80-0242ac130004",
+  "685a29d4-e15c-11eb-ba80-0242ac130004",
+  "685a2a88-e15c-11eb-ba80-0242ac130004",
+  "685a2b3c-e15c-11eb-ba80-0242ac130004",
+  "685a2bf0-e15c-11eb-ba80-0242ac130004",
+  "685a2e2a-e15c-11eb-ba80-0242ac130004",
+  "685a2ef2-e15c-11eb-ba80-0242ac130004",
+  "685a2fa6-e15c-11eb-ba80-0242ac130004",
+  "685a305a-e15c-11eb-ba80-0242ac130004",
+};
 
 } // namespace
 
@@ -37,16 +59,9 @@ base_fixture::base_fixture()
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
-  // This somewhat convoluted way to fill the ids map makes sure that we fill
-  // up the map in a way that the values are sorted by their ID.
-  std::minstd_rand rng{0xDEADC0DE};
-  std::vector<endpoint_id> id_list;
-  for (auto i = 0; i < 'Z' - 'A'; ++i)
-    id_list.emplace_back(random_endpoint_id(rng));
-  std::sort(id_list.begin(), id_list.end());
   char id = 'A';
-  for (auto& val : id_list)
-    ids[id++] = val;
+  while (id <= 'Z')
+    ids[id++] = *caf::make_uuid(uuid_strings[id - 'A']);
 }
 
 base_fixture::~base_fixture() {
@@ -85,7 +100,6 @@ configuration base_fixture::make_config() {
   options.disable_ssl = true;
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
-  cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
 }
 

@@ -123,19 +123,15 @@ public:
 private:int flags_;
 };
 
-class system_shutdown : public std::exception {
-public:
-  system_shutdown() noexcept = default;
-
-  const char* what() const noexcept {
-    return "system signaled shutdown";
-  }
-};
-
 class pipe_reader {
 public:
-  explicit pipe_reader(caf::net::pipe_socket sock) noexcept : sock_(sock) {
+  pipe_reader(caf::net::pipe_socket sock, bool* done) noexcept
+    : sock_(sock), done_(done) {
     // nop
+  }
+
+  ~pipe_reader() {
+    caf::net::close(sock_);
   }
 
   template <class Manager>
@@ -164,8 +160,11 @@ private:
       if (!src.apply(tag))
         throw std::runtime_error{"error while parsing pipe input"};
       auto msg_type = static_cast<connector_msg>(tag);
-      if (msg_type == connector_msg::shutdown)
-        throw system_shutdown{};
+      if (msg_type == connector_msg::shutdown) {
+        BROKER_DEBUG("received shutdown event, stop the connector");
+        *done_ = true;
+        return;
+      }
       if (buf_.size() < 5)
         return; // Try again later.
       uint32_t len = 0;
@@ -203,6 +202,7 @@ private:
   caf::net::pipe_socket sock_;
   caf::byte_buffer buf_;
   caf::byte rd_buf_[512];
+  bool* done_;
 };
 
 enum class rw_state {
@@ -671,7 +671,6 @@ void connector::async_listen(connector_event_id event_id,
 }
 
 void connector::async_shutdown() {
-  std::unique_lock guard{mtx_};
   auto tag = connector_msg::shutdown;
   write_to_pipe(caf::as_bytes(caf::make_span(&tag, 1)));
 }
@@ -729,9 +728,10 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   connect_manager mgr{this_peer_, sub, filter};
   auto& fdset = mgr.fdset;
   fdset.push_back({pipe_rd_.id, read_mask, 0});
-  pipe_reader prd{pipe_rd_};
+  bool done = false;
+  pipe_reader prd{pipe_rd_, &done};
   // Loop until we receive a shutdown via the pipe.
-  for (;;) {
+  while (!done) {
     int presult =
 #ifdef CAF_WINDOWS
       ::WSAPoll(fdset.data(), static_cast<ULONG>(fdset.size()), -1);
@@ -777,6 +777,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
     mgr.handle_timeouts();
     mgr.prepare_next_cycle();
   }
+  // TODO: close sockets
 }
 
 } // namespace broker::detail
