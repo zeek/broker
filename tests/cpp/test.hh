@@ -139,7 +139,7 @@ private:
   }
 };
 
-/// A fixture that offes a `context` configured with `test_coordinator` as
+/// A fixture that hosts an endpoint configured with `test_coordinator` as
 /// scheduler as well as a `scoped_actor`.
 class base_fixture : public time_aware_fixture<base_fixture> {
 public:

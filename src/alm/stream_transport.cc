@@ -43,7 +43,6 @@ void push_impl(caf::scheduled_actor* self, BufferedObservable& impl,
                const Msg& what) {
   impl.append_to_buf(what);
   impl.try_push();
-  self->handle_flow_events();
 }
 
 } // namespace
@@ -61,7 +60,7 @@ void stream_transport::publish(endpoint_id dst, atom::subscribe,
                              && sink.apply(new_filter);
   BROKER_ASSERT(ok);
   auto data = reinterpret_cast<const std::byte*>(buf_.data());
-  auto pm = packed_message{packed_message_type::routing_update ,
+  auto pm = packed_message{packed_message_type::routing_update,
                            topics::reserved,
                            std::vector<std::byte>{data, data + buf_.size()}};
   push_impl(self(), *central_merge_,
@@ -474,7 +473,6 @@ caf::behavior stream_transport::make_behavior() {
       },
       [this](const detail::flow_controller_callback_ptr& f) {
         (*f)(this);
-        self_->handle_flow_events();
       })
     .or_else(super::make_behavior());
 }
@@ -505,6 +503,7 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
     for (auto& id : new_peers)
       peer_discovered(id);
   peer_connected(peer);
+  flood_subscriptions();
   return caf::none;
 }
 
