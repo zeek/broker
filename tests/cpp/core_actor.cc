@@ -76,21 +76,9 @@ struct fixture : test_coordinator_fixture<> {
 
   std::shared_ptr<std::vector<data_message>>
   collect_data(const endpoint_state& ep, filter_type filter) {
-    auto buf = std::make_shared<std::vector<data_message>>();
-    auto cb = detail::make_flow_controller_callback(
-      [=](detail::flow_controller* ctrl) mutable {
-        using actor_t = caf::event_based_actor;
-        auto& sys = ep.hdl.home_system();
-        ctrl->add_filter(filter);
-        ctrl->select_local_data(filter).subscribe_with<actor_t>(
-          sys, [=](actor_t*, caf::flow::observable<data_message> in) {
-            in.for_each(
-              [buf](const data_message& msg) { buf->emplace_back(msg); });
-          });
-      });
-    caf::anon_send(ep.hdl, std::move(cb));
+    auto res = base_fixture::collect_data(ep.hdl, std::move(filter));
     run();
-    return buf;
+    return res;
   }
 
   void push_data(const endpoint_state& ep, const data_message_list& xs) {

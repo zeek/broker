@@ -114,6 +114,11 @@ using bridge_actor = caf::stateful_actor<bridge_state>;
 
 } // namespace
 
+base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
+  auto& st = deref<core_actor_type>(core).state;
+  return endpoint_state{st.id(), st.timestamp(), st.filter()->read(), core};
+}
+
 caf::actor base_fixture::bridge(const endpoint_state& left,
                                 const endpoint_state& right) {
   using actor_t = bridge_actor;
@@ -163,12 +168,30 @@ caf::actor base_fixture::bridge(const endpoint_state& left,
 }
 
 caf::actor base_fixture::bridge(const endpoint& left, const endpoint& right) {
-  auto& left_state = deref<core_actor_type>(left.core()).state;
-  auto& right_state = deref<core_actor_type>(right.core()).state;
-  return bridge(endpoint_state{left.node_id(), left_state.timestamp(),
-                               left_state.filter()->read(), left.core()},
-                endpoint_state{right.node_id(), right_state.timestamp(),
-                               right_state.filter()->read(), right.core()});
+  return bridge(ep_state(left.core()), ep_state(right.core()));
+}
+
+caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {
+  return bridge(ep_state(left_core), ep_state(right_core));
+}
+
+std::shared_ptr<std::vector<data_message>>
+base_fixture::collect_data(caf::actor core, filter_type filter) {
+  auto buf = std::make_shared<std::vector<data_message>>();
+  auto cb
+    = detail::make_flow_controller_callback(
+      [=](detail::flow_controller* ctrl) mutable {
+        using actor_t = caf::event_based_actor;
+        auto& sys = core.home_system();
+        ctrl->add_filter(filter);
+        ctrl->select_local_data(filter).subscribe_with<actor_t>(
+          sys, [=](actor_t*, caf::flow::observable<data_message> in) {
+            in.for_each(
+              [buf](const data_message& msg) { buf->emplace_back(msg); });
+          });
+      });
+  caf::anon_send(core, std::move(cb));
+  return buf;
 }
 
 void base_fixture::run() {

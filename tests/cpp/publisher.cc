@@ -8,15 +8,11 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
-#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
-#include <caf/stateful_actor.hpp>
-#include <caf/stream.hpp>
 
 #include "broker/atoms.hh"
 #include "broker/configuration.hh"
@@ -28,51 +24,11 @@
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
-using std::cout;
-using std::endl;
-using std::string;
-
 using namespace broker;
-using namespace broker::detail;
-
-using namespace caf;
-
-using stream_type = stream<data_message>;
 
 namespace {
 
 using buf_type = std::vector<data_message>;
-
-struct consumer_state {
-  buf_type xs;
-};
-
-using consumer_actor = stateful_actor<consumer_state>;
-
-behavior consumer(consumer_actor* self, filter_type ts, const actor& src) {
-  self->send(self * src, atom::join_v, std::move(ts));
-  return {
-    [=](const stream_type& in) {
-      attach_stream_sink(
-        self,
-        // Input stream.
-        in,
-        // Initialize state.
-        [](unit_t&) {
-          // nop
-        },
-        // Process single element.
-        [=](unit_t&, data_message x) {
-          self->state.xs.emplace_back(std::move(x));
-        },
-        // Cleanup.
-        [](unit_t&, const caf::error&) {
-          // nop
-        }
-      );
-    },
-  };
-}
 
 struct fixture : base_fixture {
   // Returns the core manager for given actor.
@@ -81,24 +37,18 @@ struct fixture : base_fixture {
   }
 
   fixture() {
-    core1_id = endpoint_id::random(0x5EED1);
-    core2_id = endpoint_id::random(0x5EED2);
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(core2_id, filter_type{"z"});
+    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();
-    state(core1).id(core1_id);
-    state(core2).id(core2_id);
   }
 
   ~fixture() {
-    anon_send_exit(core1, exit_reason::user_shutdown);
-    anon_send_exit(core2, exit_reason::user_shutdown);
+    caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
+    caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
   }
 
-  endpoint_id core1_id;
-  endpoint_id core2_id;
   caf::actor core1;
   caf::actor core2;
 };
@@ -108,38 +58,39 @@ struct fixture : base_fixture {
 CAF_TEST_FIXTURE_SCOPE(publisher_tests, fixture)
 
 CAF_TEST(blocking_publishers) {
-  // Spawn/get/configure core actors.
-  anon_send(core2, atom::subscribe_v, filter_type{"a"});
+  auto buf = collect_data(core2, filter_type{"a/b"});
   run();
-  inject((atom::peer, endpoint_id, caf::actor),
-         from(self).to(core1).with(atom::peer_v, core2_id, core2));
-  // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
-  auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
+  MESSAGE("connect core1 to core2");
+  bridge(core1, core2);
   run();
-  // Spin up two publishers: one for "a" and one for "a/b".
+  MESSAGE("spin up two publishers, one for 'a' and one for 'a/b'");
+  sched.inline_next_enqueue();
   auto pub1 = ep.make_publisher("a");
+  sched.inline_next_enqueue();
   auto pub2 = ep.make_publisher("a/b");
   pub1.drop_all_on_destruction();
   pub2.drop_all_on_destruction();
   run();
-  // Data flows from our publishers to core1 to core2 and finally to leaf.
-  using buf = std::vector<data_message>;
+  MESSAGE("publish data and check correct forwarding");
   // First, set of published messages gets filtered out at core2.
   pub1.publish(0);
   run();
+  CHECK_EQUAL(buf->size(), 0u);
   // Second, set of published messages gets delivered to leaf.
   pub2.publish(true);
   run();
+  CHECK_EQUAL(buf->size(), 1u);
   // Third, set of published messages gets again filtered out at core2.
   pub1.publish({1, 2, 3});
   run();
+  CHECK_EQUAL(buf->size(), 1u);
   // Fourth, set of published messages gets delivered to leaf again.
   pub2.publish({false, true});
   run();
+  CHECK_EQUAL(buf->size(), 3u);
   // Check log of the consumer.
   auto expected = data_msgs({{"a/b", true}, {"a/b", false}, {"a/b", true}});
-  CAF_CHECK_EQUAL(deref<consumer_actor>(leaf).state.xs, expected);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
+  CAF_CHECK_EQUAL(*buf, expected);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

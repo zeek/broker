@@ -185,13 +185,24 @@ public:
     return dynamic_cast<T&>(*ptr);
   }
 
+  static endpoint_state ep_state(caf::actor core);
+
   static broker::configuration make_config();
 
+  /// Establishes a peering relation between `left` and `right`.
   static caf::actor bridge(const endpoint_state& left,
                            const endpoint_state& right);
 
+  /// Establishes a peering relation between `left` and `right`.
   static caf::actor bridge(const broker::endpoint& left,
                            const broker::endpoint& right);
+
+  static caf::actor bridge(caf::actor left_core, caf::actor right_core);
+
+  /// Collect data directly at a Broker core without using a
+  /// `broker::subscriber` or other public API.
+  static std::shared_ptr<std::vector<broker::data_message>>
+  collect_data(caf::actor core, broker::filter_type filter);
 };
 
 inline broker::data value_of(caf::expected<broker::data> x) {
