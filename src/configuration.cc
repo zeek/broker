@@ -94,7 +94,9 @@ configuration::configuration(skip_init_t) {
     .add<size_t>("output-generator-file-cap",
                  "maximum number of entries when recording published messages")
     .add<size_t>("max-pending-inputs-per-source",
-                 "maximum number of items we buffer per peer or publisher");
+                 "maximum number of items we buffer per peer or publisher")
+    .add<bool>("disable-connector",
+               "run without a connector (primarily only for testing)");
   sync_options();
   opt_group{custom_options_, "broker.store"}
     .add<caf::timespan>("tick-interval",

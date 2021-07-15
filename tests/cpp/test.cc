@@ -11,13 +11,13 @@
 
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
+#include "broker/detail/flow_controller_callback.hh"
 
 #ifdef BROKER_WINDOWS
 #undef ERROR // The Windows headers fail if this macro is predefined.
 #include "Winsock2.h"
 #endif
 
-using namespace caf;
 using namespace broker;
 
 namespace {
@@ -100,7 +100,75 @@ configuration base_fixture::make_config() {
   options.disable_ssl = true;
   configuration cfg{options};
   test_coordinator_fixture<configuration>::init_config(cfg);
+  cfg.set("broker.disable-connector", true);
   return cfg;
+}
+
+namespace {
+
+struct bridge_state {
+  static inline const char* name = "broker.test.bridge";
+};
+
+using bridge_actor = caf::stateful_actor<bridge_state>;
+
+} // namespace
+
+caf::actor base_fixture::bridge(const endpoint_state& left,
+                                const endpoint_state& right) {
+  using actor_t = bridge_actor;
+  using node_message_publisher = caf::async::publisher<node_message>;
+  using proc = caf::flow::broadcaster_impl<node_message>;
+  using proc_ptr = caf::intrusive_ptr<proc>;
+  proc_ptr left_to_right;
+  proc_ptr right_to_left;
+  auto& sys = left.hdl.home_system();
+  caf::event_based_actor* self = nullptr;
+  std::function<void()> launch;
+  std::tie(self, launch) = sys.make_flow_coordinator<actor_t>();
+  left_to_right.emplace(self);
+  right_to_left.emplace(self);
+  left_to_right
+    ->as_observable() //
+    .for_each([](const node_message& msg) { BROKER_DEBUG("->" << msg); });
+  right_to_left //
+    ->as_observable()
+    .for_each([](const node_message& msg) { BROKER_DEBUG("<-" << msg); });
+  auto connect_left = [=](node_message_publisher left_input) {
+    self->observe(left_input).attach(left_to_right->as_observer());
+    return self->to_async_publisher(right_to_left->as_observable());
+  };
+  auto connect_right = [=](node_message_publisher right_input) {
+    self->observe(right_input).attach(right_to_left->as_observer());
+    return self->to_async_publisher(left_to_right->as_observable());
+  };
+  using detail::flow_controller_callback;
+  auto lcb
+    = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
+        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
+        auto fn = [=](node_message_publisher in) { return connect_left(in); };
+        auto err = dptr->init_new_peer(right.id, right.ts, right.filter, fn);
+      });
+  caf::anon_send(left.hdl, std::move(lcb));
+  auto rcb
+    = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
+        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
+        auto fn = [=](node_message_publisher in) { return connect_right(in); };
+        auto err = dptr->init_new_peer(left.id, left.ts, left.filter, fn);
+      });
+  caf::anon_send(right.hdl, std::move(rcb));
+  auto hdl = caf::actor{self};
+  launch();
+  return hdl;
+}
+
+caf::actor base_fixture::bridge(const endpoint& left, const endpoint& right) {
+  auto& left_state = deref<core_actor_type>(left.core()).state;
+  auto& right_state = deref<core_actor_type>(right.core()).state;
+  return bridge(endpoint_state{left.node_id(), left_state.timestamp(),
+                               left_state.filter()->read(), left.core()},
+                endpoint_state{right.node_id(), right_state.timestamp(),
+                               right_state.filter()->read(), right.core()});
 }
 
 void base_fixture::run() {
@@ -120,5 +188,5 @@ int main(int argc, char** argv) {
   broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
-  return test::main(argc, argv);
+  return caf::test::main(argc, argv);
 }

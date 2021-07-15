@@ -224,10 +224,15 @@ endpoint::endpoint(configuration config)
   }
   // Spin up the actor system.
   new (&system_) caf::actor_system(config_);
-  // Spin up the connector.
-  auto conn_task = std::make_unique<connector_task>();
-  auto conn_ptr = conn_task->start(system_, id_);
-  background_tasks_.emplace_back(std::move(conn_task));
+  // Spin up the connector unless disabled via config.
+  detail::connector_ptr conn_ptr;
+  if (!caf::get_or(config_, "broker.disable-connector", false)) {
+    auto conn_task = std::make_unique<connector_task>();
+    conn_ptr = conn_task->start(system_, id_);
+    background_tasks_.emplace_back(std::move(conn_task));
+  } else {
+    BROKER_DEBUG("run without a connector (assuming test mode)");
+  }
   // Initialize remaining state.
   auto opts = config_.options();
   clock_ = new clock(&system_, opts.use_real_time);

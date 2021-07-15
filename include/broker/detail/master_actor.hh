@@ -16,8 +16,7 @@
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 class abstract_backend;
 
@@ -48,16 +47,15 @@ public:
 
   // -- initialization ---------------------------------------------------------
 
-  master_state();
+  master_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
+               std::string nm, backend_pointer bp, caf::actor parent,
+               endpoint::clock* clock);
 
-  /// Initializes the object.
-  void init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-            std::string&& nm, backend_pointer&& bp, caf::actor&& parent,
-            endpoint::clock* clock);
+  caf::behavior make_behavior();
 
   // -- callbacks for the behavior ---------------------------------------------
 
-  void dispatch(command_message& msg);
+  void dispatch(const command_message& msg);
 
   void tick();
 
@@ -141,10 +139,4 @@ public:
 
 using master_actor_type = caf::stateful_actor<master_state>;
 
-caf::behavior master_actor(master_actor_type* self, endpoint_id this_endpoint,
-                           caf::actor core, std::string store_name,
-                           master_state::backend_pointer backend,
-                           endpoint::clock* clock);
-
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

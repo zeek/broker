@@ -300,11 +300,11 @@ void peer::peer_unreachable(const endpoint_id& peer_id) {
 }
 
 void peer::cannot_remove_peer([[maybe_unused]] const endpoint_id& x) {
-  BROKER_DEBUG("cannot unpeer from uknown peer" << x);
+  BROKER_DEBUG("cannot unpeer from unknown peer" << x);
 }
 
 void peer::cannot_remove_peer([[maybe_unused]] const network_info& x) {
-  BROKER_DEBUG("cannot unpeer from uknown peer" << x);
+  BROKER_DEBUG("cannot unpeer from unknown peer" << x);
 }
 
 void peer::peer_unavailable(const network_info&) {

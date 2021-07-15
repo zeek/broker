@@ -5,6 +5,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
+#include <caf/scheduled_actor/flow.hpp>
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -73,27 +74,34 @@ public:
   caf::result<caf::actor> attach_master(const std::string& name,
                                         backend backend_type,
                                         backend_options opts) {
-    // TODO: implement me
-    return ec::unspecified;
-    // BROKER_TRACE(BROKER_ARG(name)
-    //              << BROKER_ARG(backend_type) << BROKER_ARG(opts));
-    // if (auto i = masters_.find(name); i != masters_.end())
-    //   return i->second;
-    // if (has_remote_master(name)) {
-    //   BROKER_WARNING("remote master with same name exists already");
-    //   return ec::master_exists;
-    // }
-    // auto ptr = detail::make_backend(backend_type, std::move(opts));
-    // BROKER_ASSERT(ptr != nullptr);
-    // BROKER_INFO("spawning new master:" << name);
-    // auto self = super::self();
-    // auto ms = self->template spawn<spawn_flags>(
-    //   detail::master_actor, this->id(), self, name, std::move(ptr), clock_);
-    // filter_type filter{name / topics::master_suffix};
-    // if (auto err = this->add_store(ms, filter))
-    //   return err;
-    // masters_.emplace(name, ms);
-    // return ms;
+    BROKER_TRACE(BROKER_ARG(name)
+                 << BROKER_ARG(backend_type) << BROKER_ARG(opts));
+    if (auto i = masters_.find(name); i != masters_.end())
+      return i->second;
+    if (has_remote_master(name)) {
+      BROKER_WARNING("remote master with same name exists already");
+      return ec::master_exists;
+    }
+    auto ptr = detail::make_backend(backend_type, std::move(opts));
+    BROKER_ASSERT(ptr != nullptr);
+    BROKER_INFO("spawning new master:" << name);
+    auto self = super::self();
+    auto& sys = self->system();
+    auto [ms, launch]
+      = sys.template make_flow_coordinator<detail::master_actor_type>(
+        this->id(), name, std::move(ptr), caf::actor{self}, clock_);
+    filter_type filter{name / topics::master_suffix};
+    caf::actor hdl{ms};
+    this->add_source(this->ctx()->observe(
+      ms->to_async_publisher(ms->state.out->as_observable())));
+    ms->observe(this->select_local_commands(filter))
+      .for_each([p{ms}](const command_message& msg) { p->state.dispatch(msg); },
+                [p{ms}](const caf::error& what) { p->quit(what); },
+                [p{ms}] { p->quit(); });
+    masters_.emplace(name, hdl);
+    launch();
+    self->link_to(hdl);
+    return hdl;
   }
 
   /// Attaches a clone for given store to this peer.
@@ -152,6 +160,7 @@ public:
   // -- overrides --------------------------------------------------------------
 
   void shutdown(shutdown_options options) override {
+    BROKER_TRACE(BROKER_ARG(options));
     detach_stores();
     super::shutdown(options);
   }

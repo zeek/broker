@@ -16,12 +16,7 @@ using namespace broker;
 namespace {
 
 struct fixture : test_coordinator_fixture<> {
-  struct endpoint_state {
-    endpoint_id id;
-    alm::lamport_timestamp ts;
-    filter_type filter;
-    caf::actor hdl;
-  };
+  using endpoint_state = base_fixture::endpoint_state;
 
   endpoint_state ep1;
 
@@ -74,52 +69,9 @@ struct fixture : test_coordinator_fixture<> {
   }
 
   caf::actor bridge(const endpoint_state& left, const endpoint_state& right) {
-    using actor_t = caf::event_based_actor;
-    using node_message_publisher = caf::async::publisher<node_message>;
-    using proc = caf::flow::broadcaster_impl<node_message>;
-    using proc_ptr = caf::intrusive_ptr<proc>;
-    proc_ptr left_to_right;
-    proc_ptr right_to_left;
-    auto& sys = left.hdl.home_system();
-    caf::event_based_actor* self = nullptr;
-    std::function<void()> launch;
-    std::tie(self, launch) = sys.make_flow_coordinator<actor_t>();
-    left_to_right.emplace(self);
-    right_to_left.emplace(self);
-    left_to_right
-      ->as_observable() //
-      .for_each([](const node_message& msg) { BROKER_DEBUG("->" << msg); });
-    right_to_left //
-      ->as_observable()
-      .for_each([](const node_message& msg) { BROKER_DEBUG("<-" << msg); });
-    auto connect_left = [=](node_message_publisher left_input) {
-      self->observe(left_input).attach(left_to_right->as_observer());
-      return self->to_async_publisher(right_to_left->as_observable());
-    };
-    auto connect_right = [=](node_message_publisher right_input) {
-      self->observe(right_input).attach(right_to_left->as_observer());
-      return self->to_async_publisher(left_to_right->as_observable());
-    };
-    using detail::flow_controller_callback;
-    auto lcb = detail::make_flow_controller_callback(
-      [=](detail::flow_controller* ptr) {
-        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
-        auto fn = [=](node_message_publisher in) { return connect_left(in); };
-        auto err = dptr->init_new_peer(right.id, right.ts, right.filter, fn);
-      });
-    inject((detail::flow_controller_callback_ptr), to(left.hdl).with(lcb));
-    auto rcb = detail::make_flow_controller_callback(
-      [=](detail::flow_controller* ptr) {
-        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
-        auto fn = [=](node_message_publisher in) { return connect_right(in); };
-        auto err = dptr->init_new_peer(left.id, left.ts, left.filter, fn);
-      });
-    inject((detail::flow_controller_callback_ptr), to(right.hdl).with(rcb));
-    launch();
-    run();
-    auto hdl = caf::actor{self};
-    bridges.emplace_back(hdl);
-    return hdl;
+    auto res = base_fixture::bridge(left, right);
+    bridges.emplace_back(res);
+    return res;
   }
 
   std::shared_ptr<std::vector<data_message>>
@@ -195,6 +147,7 @@ TEST(peers forward local data to direct peers) {
   ep2.filter = abc;
   spin_up(ep1, ep2);
   bridge(ep1, ep2);
+  run();
   CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
   CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
   MESSAGE("subscribe to data messages on ep2");
@@ -212,6 +165,7 @@ TEST(peers forward local data to any peer with forwarding paths) {
   spin_up(ep1, ep2, ep3);
   bridge(ep1, ep2);
   bridge(ep2, ep3);
+  run();
   CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
   CHECK_EQUAL(distance_from(ep1).to(ep3), 2_os);
   CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
@@ -223,6 +177,33 @@ TEST(peers forward local data to any peer with forwarding paths) {
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   CHECK_EQUAL(*buf, test_data);
+}
+
+TEST(peers propagate broken paths) {
+  MESSAGE("spin up: ep1, ep2 and ep3 and only ep3 subscribes to abc topics");
+  auto abc = filter_type{"a", "b", "c"};
+  ep1.filter = abc;
+  ep3.filter = abc;
+  spin_up(ep1, ep2, ep3);
+  bridge(ep1, ep2);
+  auto br = bridge(ep2, ep3);
+  run();
+  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
+  CHECK_EQUAL(distance_from(ep1).to(ep3), 2_os);
+  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
+  CHECK_EQUAL(distance_from(ep2).to(ep3), 1_os);
+  CHECK_EQUAL(distance_from(ep3).to(ep2), 1_os);
+  CHECK_EQUAL(distance_from(ep3).to(ep1), 2_os);
+  MESSAGE("disconnect ep3");
+  auto nil = optional<size_t>();
+  anon_send_exit(br, caf::exit_reason::user_shutdown);
+  run();
+  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
+  CHECK_EQUAL(distance_from(ep1).to(ep3), nil);
+  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
+  CHECK_EQUAL(distance_from(ep2).to(ep3), nil);
+  CHECK_EQUAL(distance_from(ep3).to(ep2), nil);
+  CHECK_EQUAL(distance_from(ep3).to(ep1), nil);
 }
 
 FIXTURE_SCOPE_END()

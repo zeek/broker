@@ -143,6 +143,13 @@ private:
 /// scheduler as well as a `scoped_actor`.
 class base_fixture : public time_aware_fixture<base_fixture> {
 public:
+  struct endpoint_state {
+    broker::endpoint_id id;
+    broker::alm::lamport_timestamp ts;
+    broker::filter_type filter;
+    caf::actor hdl;
+  };
+
   using super = time_aware_fixture<base_fixture>;
 
   using scheduler_type = caf::scheduler::test_coordinator;
@@ -171,7 +178,7 @@ public:
 
   /// Dereferences `hdl` and downcasts it to `T`.
   template <class T = caf::scheduled_actor, class Handle = caf::actor>
-  T& deref(const Handle& hdl) {
+  static T& deref(const Handle& hdl) {
     auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
     if (ptr == nullptr)
       CAF_FAIL("unable to cast handle to abstract_actor*");
@@ -179,6 +186,12 @@ public:
   }
 
   static broker::configuration make_config();
+
+  static caf::actor bridge(const endpoint_state& left,
+                           const endpoint_state& right);
+
+  static caf::actor bridge(const broker::endpoint& left,
+                           const broker::endpoint& right);
 };
 
 inline broker::data value_of(caf::expected<broker::data> x) {

@@ -239,7 +239,8 @@ public:
 
   using output_type = node_message;
 
-  explicit dispatch_step(stream_transport* state) noexcept : state_(state) {
+  explicit dispatch_step(stream_transport* state, endpoint_id src) noexcept
+    : state_(state), src_(src) {
     // nop
   }
 
@@ -262,16 +263,22 @@ public:
 
   template <class Next, class... Steps>
   void on_complete(Next& next, Steps&... steps) {
+    BROKER_DEBUG("peer" << src_ << "completed its flow");
+    caf::error default_reason;
+    state_->peer_disconnected(src_, default_reason);
     next.on_complete(steps...);
   }
 
   template <class Next, class... Steps>
   void on_error(const error& what, Next& next, Steps&... steps) {
+    BROKER_DEBUG("peer" << src_ << "aborted its flow:" << what);
+    state_->peer_disconnected(src_, what);
     next.on_error(what, steps...);
   }
 
 private:
   stream_transport* state_;
+  endpoint_id src_;
   std::vector<endpoint_id> receivers_cache_;
   std::vector<multipath> routes_cache_;
   std::vector<endpoint_id> unreachables_cache_;
@@ -497,7 +504,7 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   peers_.emplace(peer, out.as_disposable());
   auto async_out = self_->to_async_publisher(out);
   auto in = connect_flows(std::move(async_out));
-  central_merge_->add(self_->observe(in).transform(dispatch_step{this}));
+  central_merge_->add(self_->observe(in).transform(dispatch_step{this, peer}));
   auto update_res = handle_update(path, vector_timestamp{ts}, filter);
   if (auto& new_peers = update_res.first; !new_peers.empty())
     for (auto& id : new_peers)

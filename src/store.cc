@@ -68,18 +68,21 @@ store::store() {
   // Required out-of-line for weak_store_state_ptr.
 }
 
-store::store(store&& other) : state_(std::move(other.state_)) {
+store::store(store&& other)
+  : this_peer_(other.this_peer_), state_(std::move(other.state_)) {
   // Required out-of-line for weak_store_state_ptr.
 }
 
-store::store(const store& other) : state_(other.state_) {
+store::store(const store& other)
+  : this_peer_(other.this_peer_), state_(other.state_) {
   if (auto ptr = state_.lock())
     caf::anon_send(ptr->frontend, atom::increment_v, ptr);
 }
 
 store::store(endpoint_id this_peer, caf::actor frontend, std::string name)
   : this_peer_(this_peer) {
-  BROKER_TRACE(BROKER_ARG(frontend) << BROKER_ARG(name));
+  BROKER_TRACE(BROKER_ARG(this_peer)
+               << BROKER_ARG(frontend) << BROKER_ARG(name));
   if (!frontend) {
     BROKER_ERROR("store::store called with frontend == nullptr");
     return;
@@ -137,6 +140,8 @@ request_id store::proxy::get(data key) {
 }
 
 request_id store::proxy::put_unique(data key, data val, optional<timespan> expiry) {
+  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
+               <<BROKER_ARG(this_peer_));
   if (!frontend_)
     return 0;
   send_as(proxy_, frontend_, atom::local_v,
@@ -250,6 +255,8 @@ expected<data> store::get(data key) const {
 
 expected<data> store::put_unique(data key, data val,
                                  optional<timespan> expiry) {
+  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
+               <<BROKER_ARG(this_peer_));
   return with_state(state_, [&](detail::store_state& state) {
     auto tag = state.req_id++;
     return state.request_tagged<data>(tag, atom::local_v,

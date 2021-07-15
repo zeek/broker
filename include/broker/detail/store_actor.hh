@@ -7,6 +7,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/flow/observable.hpp>
 #include <caf/hash/fnv.hpp>
 #include <caf/response_handle.hpp>
 
@@ -193,6 +194,8 @@ public:
   ///       cycle automatically by destroying this vector when the actor
   ///       terminates.
   std::unordered_map<store_state_ptr, size_t> attached_states;
+
+  caf::flow::broadcaster_impl_ptr<command_message> out;
 };
 
 } // namespace broker::detail

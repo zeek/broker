@@ -127,6 +127,7 @@ TEST(local_master) {
   auto expected_ds = ep.attach_master("foo", backend::memory);
   REQUIRE(expected_ds.engaged());
   auto& ds = *expected_ds;
+  CHECK_EQUAL(ds.this_peer(), ep.node_id());
   MESSAGE(ds.frontend_id());
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream

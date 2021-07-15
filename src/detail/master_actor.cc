@@ -23,8 +23,7 @@
 #include "broker/detail/die.hh"
 #include "broker/detail/master_actor.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 static optional<timestamp> to_opt_timestamp(timestamp ts,
                                             optional<timespan> span) {
@@ -33,13 +32,11 @@ static optional<timestamp> to_opt_timestamp(timestamp ts,
 
 // -- initialization -----------------------------------------------------------
 
-master_state::master_state() : output(this) {
-  // nop
-}
-
-void master_state::init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-                        std::string&& nm, backend_pointer&& bp,
-                        caf::actor&& parent, endpoint::clock* ep_clock) {
+master_state::master_state(caf::event_based_actor* ptr,
+                           endpoint_id this_endpoint, std::string nm,
+                           backend_pointer bp, caf::actor parent,
+                           endpoint::clock* ep_clock)
+  : output(this) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
               std::move(parent));
   super::init(output);
@@ -59,7 +56,7 @@ void master_state::init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
   }
 }
 
-void master_state::dispatch(command_message& msg) {
+void master_state::dispatch(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or clone.
@@ -428,28 +425,22 @@ bool master_state::idle() const noexcept {
          && open_handshakes.empty();
 }
 
-// -- master actor -------------------------------------------------------------
+// -- initial behavior ---------------------------------------------------------
 
-caf::behavior master_actor(caf::stateful_actor<master_state>* self,
-                           endpoint_id this_endpoint, caf::actor core,
-                           std::string store_name,
-                           master_state::backend_pointer backend,
-                           endpoint::clock* clock) {
-  BROKER_TRACE(BROKER_ARG(this_endpoint)
-               << BROKER_ARG(core) << BROKER_ARG(store_name));
+caf::behavior master_state::make_behavior() {
+  BROKER_TRACE(BROKER_ARG(id) << BROKER_ARG(core) << BROKER_ARG(store_name));
   // Setup.
   self->monitor(core);
-  self->state.init(self, std::move(this_endpoint), std::move(store_name),
-                   std::move(backend), std::move(core), clock);
-  self->set_down_handler([self](const caf::down_msg& msg) {
-    self->state.on_down_msg(msg.source, msg.reason);
+  self->set_down_handler([this](const caf::down_msg& msg) {
+    on_down_msg(msg.source, msg.reason);
   });
   // Schedule first tick.
-  clock->send_later(self, self->state.tick_interval,
+  clock->send_later(self, tick_interval,
                     caf::make_message(atom::tick_v));
-  return self->state.make_behavior(
+  return super::make_behavior(
     // --- local communication -------------------------------------------------
-    [=](atom::local, internal_command& cmd) {
+    [this](atom::local, internal_command& cmd) {
+      BROKER_TRACE(BROKER_ARG(cmd));
       // Locally received message are already ordered and reliable. Hence, we
       // can process them immediately.
       auto tag = detail::tag_of(cmd);
@@ -458,92 +449,91 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
             ptr && ptr->who) {
           if (auto rp = self->make_response_promise(); rp.pending()) {
             store_actor_state::local_request_key key{ptr->who, ptr->req_id};
-            if (!self->state.local_requests.emplace(key, rp).second) {
+            if (!local_requests.emplace(key, rp).second) {
               rp.deliver(make_error(ec::repeated_request_id), ptr->req_id);
               return;
             }
           }
         }
-        auto f = [self](auto& cmd) { self->state.consume(cmd); };
+        auto f = [this](auto& cmd) { consume(cmd); };
         caf::visit(f, cmd.content);
       } else {
         BROKER_ERROR("received unexpected command locally: " << cmd);
       }
     },
-    [=](atom::tick) {
-      auto& st = self->state;
-      st.tick();
-      clock->send_later(self, self->state.tick_interval,
+    [this](atom::tick) {
+      tick();
+      clock->send_later(self, tick_interval,
                         caf::make_message(atom::tick_v));
-      if (!st.idle_callbacks.empty() && st.idle()) {
-        for (auto& rp : st.idle_callbacks)
+      if (!idle_callbacks.empty() && idle()) {
+        for (auto& rp : idle_callbacks)
           rp.deliver(atom::ok_v);
-        st.idle_callbacks.clear();
+        idle_callbacks.clear();
       }
     },
-    [=](atom::sync_point, caf::actor& who) {
+    [this](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
     },
-    [=](atom::expire, data& key) { self->state.expire(key); },
-    [=](atom::get, atom::keys) -> caf::result<data> {
-      auto x = self->state.backend->keys();
+    [this](atom::expire, data& key) { expire(key); },
+    [this](atom::get, atom::keys) -> caf::result<data> {
+      auto x = backend->keys();
       BROKER_INFO("KEYS ->" << x);
       return x;
     },
-    [=](atom::get, atom::keys, request_id id) {
-      auto x = self->state.backend->keys();
+    [this](atom::get, atom::keys, request_id id) {
+      auto x = backend->keys();
       BROKER_INFO("KEYS"
                   << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::exists, const data& key) -> caf::result<data> {
-      auto x = self->state.backend->exists(key);
+    [this](atom::exists, const data& key) -> caf::result<data> {
+      auto x = backend->exists(key);
       BROKER_INFO("EXISTS" << key << "->" << x);
       return {data{std::move(*x)}};
     },
-    [=](atom::exists, const data& key, request_id id) {
-      auto x = self->state.backend->exists(key);
+    [this](atom::exists, const data& key, request_id id) {
+      auto x = backend->exists(key);
       BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
       return caf::make_message(data{std::move(*x)}, id);
     },
-    [=](atom::get, const data& key) -> caf::result<data> {
-      auto x = self->state.backend->get(key);
+    [this](atom::get, const data& key) -> caf::result<data> {
+      auto x = backend->get(key);
       BROKER_INFO("GET" << key << "->" << x);
       return x;
     },
-    [=](atom::get, const data& key, const data& aspect) -> caf::result<data> {
-      auto x = self->state.backend->get(key, aspect);
+    [this](atom::get, const data& key,
+           const data& aspect) -> caf::result<data> {
+      auto x = backend->get(key, aspect);
       BROKER_INFO("GET" << key << aspect << "->" << x);
       return x;
     },
-    [=](atom::get, const data& key, request_id id) {
-      auto x = self->state.backend->get(key);
+    [this](atom::get, const data& key, request_id id) {
+      auto x = backend->get(key);
       BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::get, const data& key, const data& value, request_id id) {
-      auto x = self->state.backend->get(key, value);
+    [this](atom::get, const data& key, const data& value, request_id id) {
+      auto x = backend->get(key, value);
       BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->"
                         << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       return caf::make_message(std::move(x.error()), id);
     },
-    [=](atom::get, atom::name) { return self->state.store_name; },
-    [=](atom::await, atom::idle) -> caf::result<atom::ok> {
-      auto& st = self->state;
-      if (st.idle())
+    [this](atom::get, atom::name) { return store_name; },
+    [this](atom::await, atom::idle) -> caf::result<atom::ok> {
+      if (idle())
         return atom::ok_v;
       auto rp = self->make_response_promise();
-      st.idle_callbacks.emplace_back(std::move(rp));
+      idle_callbacks.emplace_back(std::move(rp));
       return caf::delegated<atom::ok>();
     },
     // --- stream handshake with core ------------------------------------------
-    [=](store::stream_type in) {
+    [this](store::stream_type in) {
       BROKER_DEBUG("received stream handshake from core");
       attach_stream_sink(
         self,
@@ -554,9 +544,9 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
           // nop
         },
         // processing step
-        [=](caf::unit_t&, command_message msg) {
+        [this](caf::unit_t&, command_message msg) {
           // forward to state
-          self->state.dispatch(msg);
+          dispatch(msg);
         },
         // cleanup
         [](caf::unit_t&, const caf::error&) {
@@ -565,5 +555,4 @@ caf::behavior master_actor(caf::stateful_actor<master_state>* self,
     });
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

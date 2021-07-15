@@ -50,7 +50,6 @@ void fill_vector(vector& vec, const Ts&... xs) {
 void store_actor_state::init(caf::event_based_actor* self,
                              endpoint_id this_endpoint, endpoint::clock* clock,
                              std::string&& store_name, caf::actor&& core) {
-auto ep_str=to_string(this_endpoint);
   BROKER_ASSERT(self != nullptr);
   BROKER_ASSERT(clock != nullptr);
   this->self = self;
@@ -63,6 +62,7 @@ auto ep_str=to_string(this_endpoint);
   auto& cfg = self->system().config();
   tick_interval = caf::get_or(cfg, "broker.store.tick-interval",
                               defaults::store::tick_interval);
+  out.emplace(self);
 }
 
 // -- event signaling ----------------------------------------------------------
