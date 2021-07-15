@@ -34,45 +34,30 @@ using namespace broker::detail;
 
 namespace {
 
-void driver(event_based_actor* self, const actor& sink) {
-  using buf_type = std::vector<data_message>;
-  attach_stream_source(
-    self,
-    // Destination.
-    sink,
-    // Initialize send buffer with 10 elements.
-    [](buf_type& xs) {
-      xs = data_msgs({{"a", 0},     {"b", true}, {"a", 1}, {"a", 2},
-                      {"b", false}, {"b", true}, {"a", 3}, {"b", false},
-                      {"a", 4},     {"a", 5}});
-    },
-    // Get next element.
-    [](buf_type& xs, downstream<data_message>& out, size_t num) {
-      auto n = std::min(num, xs.size());
-      for (size_t i = 0u; i < n; ++i)
-        out.push(xs[i]);
-      xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-    },
-    // Did we reach the end?.
-    [](const buf_type& xs) { return xs.empty(); });
-}
-
 struct fixture : base_fixture {
   // Returns the core manager for given actor.
   auto& state(caf::actor hdl) {
     return deref<core_actor_type>(hdl).state;
   }
 
+  std::vector<data_message> test_data;
+
   fixture() {
-    core1_id = endpoint_id::random(0x5EED1);
-    core2_id = endpoint_id::random(0x5EED2);
-    core1 = sys.spawn<core_actor_type>(core1_id, filter_type{"a", "b", "c"});
-    core2 = ep.core();
+    core1 = ep.core();
+    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a", "b", "c"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
+    test_data = data_msgs({{"a", 0},
+                           {"b", true},
+                           {"a", 1},
+                           {"a", 2},
+                           {"b", false},
+                           {"b", true},
+                           {"a", 3},
+                           {"b", false},
+                           {"a", 4},
+                           {"a", 5}});
     run();
-    state(core1).id(core1_id);
-    state(core2).id(core2_id);
   }
 
   ~fixture() {
@@ -80,43 +65,35 @@ struct fixture : base_fixture {
     anon_send_exit(core2, exit_reason::user_shutdown);
   }
 
-  endpoint_id core1_id;
-  endpoint_id core2_id;
   caf::actor core1;
   caf::actor core2;
 };
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(subscriber_tests, fixture)
+FIXTURE_SCOPE(subscriber_tests, fixture)
 
-CAF_TEST(blocking_subscriber) {
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  self->send(core1, atom::peer_v, core2_id, core2);
-  run();
-  // Connect a consumer (leaf) to core2.
-  // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
+TEST(blocking_subscriber) {
+  MESSAGE("subscribe to data on core1");
+  sched.inline_next_enqueue();
   auto sub = ep.make_subscriber(filter_type{"b"});
-  CAF_MESSAGE("core1: " << to_string(core1));
-  CAF_MESSAGE("core2: " << to_string(core2));
-  // Initiate handshake between core1 and core2.
   run();
-  // Spin up driver on core1.
-  auto d1 = sys.spawn(driver, core1);
-  CAF_MESSAGE("driver: " << to_string(d1));
+  MESSAGE("establish peering relation between the cores");
+  bridge(core1, core2);
+  run();
+  MESSAGE("publish data on core2");
+  push_data(core2, test_data);
   run();
   CAF_MESSAGE("check content of the subscriber's buffer");
   using buf = std::vector<data_message>;
   auto expected = data_msgs({{"b", true}, {"b", false},
                              {"b", true}, {"b", false}});
-  CAF_CHECK_EQUAL(sub.poll(), expected);
+  CHECK_EQUAL(sub.available(), 4u);
+  CHECK_EQUAL(sub.poll(), expected);
 }
 
-CAF_TEST(nonblocking_subscriber) {
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  self->send(core1, atom::peer_v, core2_id, core2);
-  run();
-  // Connect a subscriber (leaf) to core2.
+TEST(nonblocking_subscriber) {
+  MESSAGE("subscribe to data on core1");
   using buf = std::vector<data_message>;
   buf result;
   ep.subscribe_nosync(
@@ -131,13 +108,16 @@ CAF_TEST(nonblocking_subscriber) {
       // nop
     }
   );
-  // Spin up driver on core1.
-  auto d1 = sys.spawn(driver, core1);
-  // Communication is identical to the consumer-centric test in test/cpp/core.cc
+  MESSAGE("establish peering relation between the cores");
+  bridge(core1, core2);
   run();
+  MESSAGE("publish data on core2");
+  push_data(core2, test_data);
+  run();
+  MESSAGE("check content of the subscriber's buffer");
   auto expected = data_msgs({{"b", true}, {"b", false},
                              {"b", true}, {"b", false}});
-  CAF_REQUIRE_EQUAL(result, expected);
+  CHECK_EQUAL(result, expected);
 }
 
-CAF_TEST_FIXTURE_SCOPE_END()
+FIXTURE_SCOPE_END()

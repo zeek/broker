@@ -58,7 +58,11 @@ struct fixture : base_fixture {
 CAF_TEST_FIXTURE_SCOPE(status_subscriber_tests, fixture)
 
 CAF_TEST(base_tests) {
+  run();
+  sched.inline_next_enqueue();
   auto sub1 = ep.make_status_subscriber(true);
+  run();
+  sched.inline_next_enqueue();
   auto sub2 = ep.make_status_subscriber(false);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 0u);

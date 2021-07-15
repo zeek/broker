@@ -37,6 +37,7 @@ void flow_controller::connect(sink_queue_promise_ptr<data_message> promise,
   using adapter_type = detail::shared_subscriber_queue_adapter<data_message>;
   auto self = ctx();
   auto queue = caf::make_counted<sink_queue<data_message>>(queue_size);
+  add_filter(filter);
   queue->filter(filter);
   auto adapter = caf::make_counted<adapter_type>(self, queue,
                                                  std::move(promise));

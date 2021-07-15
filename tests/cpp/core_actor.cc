@@ -81,15 +81,8 @@ struct fixture : test_coordinator_fixture<> {
     return res;
   }
 
-  void push_data(const endpoint_state& ep, const data_message_list& xs) {
-    auto cb = detail::make_flow_controller_callback(
-      [=](detail::flow_controller* ctrl) mutable {
-        auto ctx = ctrl->ctx();
-        auto obs = ctx->make_observable().from_container(xs).as_observable();
-        ctrl->add_source(std::move(obs));
-      });
-    caf::anon_send(ep.hdl, std::move(cb));
-    run();
+  void push_data(const endpoint_state& ep, data_message_list xs) {
+    base_fixture::push_data(ep.hdl, xs);
   }
 
   auto& state(caf::actor hdl) {
@@ -142,6 +135,7 @@ TEST(peers forward local data to direct peers) {
   auto buf = collect_data(ep2, abc);
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
+  run();
   CHECK_EQUAL(*buf, test_data);
 }
 
@@ -164,6 +158,7 @@ TEST(peers forward local data to any peer with forwarding paths) {
   auto buf = collect_data(ep3, abc);
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
+  run();
   CHECK_EQUAL(*buf, test_data);
 }
 

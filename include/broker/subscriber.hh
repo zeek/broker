@@ -130,7 +130,7 @@ public:
 
   // --- accessors -------------------------------------------------------------
 
-  /// Returns the amound of values than can be extracted immediately without
+  /// Returns the amount of values than can be extracted immediately without
   /// blocking.
   size_t available() const noexcept {
     return queue_->buffer_size();

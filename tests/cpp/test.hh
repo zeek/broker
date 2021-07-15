@@ -203,6 +203,8 @@ public:
   /// `broker::subscriber` or other public API.
   static std::shared_ptr<std::vector<broker::data_message>>
   collect_data(caf::actor core, broker::filter_type filter);
+
+  static void push_data(caf::actor core, std::vector<broker::data_message> xs);
 };
 
 inline broker::data value_of(caf::expected<broker::data> x) {

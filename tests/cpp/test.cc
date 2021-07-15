@@ -175,6 +175,18 @@ caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {
   return bridge(ep_state(left_core), ep_state(right_core));
 }
 
+void base_fixture::push_data(caf::actor core,
+                             std::vector<broker::data_message> xs) {
+  auto cb = detail::make_flow_controller_callback(
+    [xs{std::move(xs)}](detail::flow_controller* ctrl) mutable {
+      auto ctx = ctrl->ctx();
+      auto obs
+        = ctx->make_observable().from_container(std::move(xs)).as_observable();
+      ctrl->add_source(std::move(obs));
+    });
+  caf::anon_send(core, std::move(cb));
+}
+
 std::shared_ptr<std::vector<data_message>>
 base_fixture::collect_data(caf::actor core, filter_type filter) {
   auto buf = std::make_shared<std::vector<data_message>>();
