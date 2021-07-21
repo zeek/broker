@@ -138,7 +138,7 @@ bool peer::valid(endpoint_id_list& path, vector_timestamp path_ts) {
     BROKER_DEBUG("drop message: path contains a loop");
     return false;
   }
-  // Drop all messages that arrive after revocationsing a path.
+  // Drop all messages that arrive after revoking a path.
   if (revoked(path, path_ts, revocations_.entries)) {
     BROKER_DEBUG("drop message from a revoked path");
     return false;
@@ -327,7 +327,13 @@ void peer::shutdown([[maybe_unused]] shutdown_options options) {
     for (auto& x : ids)
       flood_path_revocation(x);
   }
-  self_->quit();
+  self_->unbecome();
+  self_->set_default_handler(
+    [](caf::scheduled_actor* self, caf::message&) -> caf::skippable_result {
+      if (self->current_message_id().is_request())
+        return caf::make_error(caf::sec::request_receiver_down);
+      return caf::make_message();
+    });
 }
 
 // -- initialization -----------------------------------------------------------

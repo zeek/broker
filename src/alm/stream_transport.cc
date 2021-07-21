@@ -130,10 +130,17 @@ void stream_transport::dispatch(const node_message& msg) {
 void stream_transport::shutdown(shutdown_options options) {
   BROKER_TRACE(BROKER_ARG(options));
   super::shutdown(options);
-  self_->handle_flow_events();
-  auto dispose_all = [](auto&... ptr) { (ptr->dispose(), ...); };
-  dispose_all(data_inputs_, command_inputs_, central_merge_);
-  self_->handle_flow_events();
+  // Allow mergers to shut down.
+  auto shutdown_on_last_complete = [](auto&... ptr) {
+    (ptr->shutdown_on_last_complete(true), ...);
+  };
+  shutdown_on_last_complete(data_inputs_, command_inputs_, central_merge_);
+  // Cancel all incoming flows.
+  auto cancel_inputs = [](auto&... ptr) { (ptr->cancel_inputs(), ...); };
+  cancel_inputs(data_inputs_, command_inputs_);
+  connector_adapter_.reset();
+  for (auto& kvp : peers_)
+    kvp.second.first.dispose();
 }
 
 // -- overrides for flow_controller --------------------------------------------
@@ -252,9 +259,10 @@ public:
       BROKER_ERROR("received a message for another node: drop");
       return true;
     }
-    if (path.head().is_receiver())
+    if (path.head().is_receiver()) {
       if (!next.on_next(msg, steps...))
         return false;
+    }
     return path.for_each_node_while([&](multipath node) {
       auto sub = make_node_message(std::move(node), content);
       return next.on_next(sub, steps...);
@@ -383,9 +391,11 @@ caf::behavior stream_transport::make_behavior() {
   central_merge_ //
     ->as_observable()
     .for_each([this](const node_message& msg) {
-      if (get_type(msg) == packed_message_type::routing_update
-          && get_path(msg).head().id() == id()
-          && get_path(msg).head().is_receiver()) {
+      if (get_path(msg).head().id() != id()
+          || !get_path(msg).head().is_receiver())
+        return;
+      auto pmt = get_type(msg);
+      if (pmt == packed_message_type::routing_update) {
         endpoint_id_list path;
         vector_timestamp ts;
         filter_type new_filter;
@@ -398,15 +408,7 @@ caf::behavior stream_transport::make_behavior() {
         } else {
           BROKER_ERROR("received malformed routing update:" << src.get_error());
         }
-      }
-    });
-  // Consume path revocations for this peer from the central merge node.
-  central_merge_ //
-    ->as_observable()
-    .for_each([this](const node_message& msg) {
-      if (get_type(msg) == packed_message_type::path_revocation
-          && get_path(msg).head().id() == id()
-          && get_path(msg).head().is_receiver()) {
+      } else if (pmt == packed_message_type::path_revocation) {
         endpoint_id_list path;
         vector_timestamp ts;
         endpoint_id lost_peer;
@@ -501,10 +503,10 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                  return get_path(msg).head().id() == peer;
                })
                .as_observable();
-  peers_.emplace(peer, out.as_disposable());
   auto async_out = self_->to_async_publisher(out);
-  auto in = connect_flows(std::move(async_out));
-  central_merge_->add(self_->observe(in).transform(dispatch_step{this, peer}));
+  auto in = self_->observe(connect_flows(std::move(async_out)));
+  central_merge_->add(in.transform(dispatch_step{this, peer}));
+  peers_.emplace(peer, std::make_pair(in.as_disposable(), out.as_disposable()));
   auto update_res = handle_update(path, vector_timestamp{ts}, filter);
   if (auto& new_peers = update_res.first; !new_peers.empty())
     for (auto& id : new_peers)
@@ -538,8 +540,12 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
     return err;
   } else if (err = mgr->init(content(sys.config())); err) {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
-    peers_.erase(peer);
-    // TODO: need to dispose in and out flows?
+    if (auto i = peers_.find(peer); i != peers_.end()) {
+      auto& [in, out] = i->second;
+      in.dispose();
+      out.dispose();
+      peers_.erase(i);
+    }
     return err;
   } else {
     BROKER_DEBUG("successfully added peer" << peer << "on socket" << sock);

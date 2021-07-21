@@ -22,19 +22,11 @@ using string_list = std::vector<std::string>;
 
 configuration make_config(std::string file_path_template) {
   configuration cfg;
-#if CAF_VERSION < 1800
-  using caf::atom;
-  cfg.set("scheduler.max-threads", 2);
-  cfg.set("logger.console-verbosity", caf::atom("quiet"));
-  cfg.set("logger.file-name", std::move(file_path_template));
-#else
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", std::move(file_path_template));
-  //cfg.set("caf.logger.file.verbosity", "trace");
-  //cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
-
-#endif
+  // cfg.set("caf.logger.file.verbosity", "trace");
+  // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
   return cfg;
 }
 
@@ -94,13 +86,8 @@ private:
 };
 
 auto code_of(const error& err) {
-#if CAF_VERSION<1800
-  if (err.category() != caf::atom("broker"))
-    return ec::unspecified;
-#else
   if (err.category() != caf::type_id_v<broker::ec>)
     return ec::unspecified;
-#endif
   return static_cast<ec>(err.code());
 }
 
@@ -216,7 +203,7 @@ TEST(endpoints send published data before terminating) {
   auto beacon_ptr = std::make_shared<beacon>(); // Blocks t1 until data arrived.
   auto t1 = std::thread{[&]() mutable {
     endpoint ep{make_config(log_path_template("publish", "ep1"))};
-    ep.subscribe_nosync(
+    ep.subscribe(
       {"/foo/bar"}, [](caf::unit_t&) {},
       [ep1_log, beacon_ptr](caf::unit_t&, data_message msg)  {
         ep1_log->emplace_back(std::move(msg));

@@ -132,9 +132,6 @@ protected:
   /// Initialized the `command_outputs_` member lazily.
   void init_command_outputs();
 
-  /// Pushes events from the connector to the stream.
-  caf::flow::buffered_observable_impl_ptr<data_message> connector_inputs_;
-
   /// Collects inputs from @ref broker::publisher objects.
   caf::flow::merger_impl_ptr<data_message> data_inputs_;
 
@@ -154,7 +151,7 @@ protected:
   std::unique_ptr<detail::connector_adapter> connector_adapter_;
 
   /// Handles for aborting flows on unpeering.
-  std::map<endpoint_id, caf::disposable> peers_;
+  std::map<endpoint_id, std::pair<caf::disposable, caf::disposable>> peers_;
 
   /// Buffer for serializing messages.
   caf::byte_buffer buf_;

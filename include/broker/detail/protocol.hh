@@ -56,6 +56,7 @@ public:
           down->abort_reason(*err);
           return false;
         }
+        break;
       } else {
         break;
       }
@@ -89,16 +90,23 @@ public:
                                     << down->handle().id);
     caf::binary_deserializer src{nullptr, buf};
     auto tag = alm_message_type{0};
-    if (!src.apply(tag))
+    if (!src.apply(tag)) {
+      BROKER_ERROR("failed to serialize tag");
+      down->abort_reason(
+        make_error(ec::invalid_tag, "failed to serialize tag"));
       return -1;
+    }
     switch (tag) {
       case alm_message_type::data:
       case alm_message_type::command:
+      case alm_message_type::routing_update:
+      case alm_message_type::path_revocation:
         if (!handle_msg(down, src, static_cast<packed_message_type>(tag)))
           return -1;
         break;
       default:
-        // Illegal message type.
+        BROKER_ERROR("received unknown tag");
+        down->abort_reason(make_error(ec::invalid_tag, "received unknown tag"));
         return -1;
     }
     return static_cast<ptrdiff_t>(buf.size());
@@ -109,8 +117,8 @@ private:
   bool handle_msg(LowerLayerPtr down, caf::binary_deserializer& src,
                   packed_message_type tag) {
     auto fail = [&down] {
-      BROKER_ERROR("got malformed data message");
-      down->abort_reason(make_error(ec::invalid_message));
+      BROKER_ERROR("received malformed data");
+      down->abort_reason(make_error(ec::invalid_message, "malformed data"));
       return false;
     };
     // Extract path.

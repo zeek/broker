@@ -12,6 +12,7 @@
 #include "broker/error.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
+#include "broker/shutdown_options.hh"
 #include "broker/status.hh"
 #include "broker/topic.hh"
 
@@ -98,6 +99,26 @@ public:
 
   void cannot_remove_peer(const network_info& x) override {
     cannot_remove_peer_impl(x);
+  }
+
+  void shutdown(shutdown_options options) override {
+    // After calling shutdown, the flows may still push downstream whatever is
+    // buffered at the moment but no new data can arrive. Push remaining status
+    // updates to the buffer now to make sure they still arrive.
+    if (!disable_notifications_) {
+      for (auto& [peer_id, row] : super::tbl()) {
+        if (!row.versioned_paths.empty()) {
+          if (row.versioned_paths.front().first.size() == 1) {
+            emit(peer_id, sc_constant<sc::peer_removed>(),
+                 "removed connection to remote peer");
+          }
+          emit(peer_id, sc_constant<sc::endpoint_unreachable>(),
+               "lost the last path");
+        }
+      }
+      disable_notifications_ = true;
+    }
+    super::shutdown(std::move(options));
   }
 
   // -- initialization ---------------------------------------------------------
