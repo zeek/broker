@@ -41,6 +41,8 @@ struct put_unique_result_command;
 struct retransmit_failed_command;
 struct subtract_command;
 
+using publisher_id [[deprecated("use entity_id instead")]] = entity_id;
+
 // -- classes ------------------------------------------------------------------
 
 class address;

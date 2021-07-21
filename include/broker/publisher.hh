@@ -105,6 +105,4 @@ private:
   bool drop_on_destruction_ = false;
 };
 
-using publisher_id [[deprecated("use entity_id instead")]] = entity_id;
-
 } // namespace broker
