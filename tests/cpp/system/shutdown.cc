@@ -149,7 +149,7 @@ TEST(status listeners receive peering events) {
   auto t1 = std::thread{[&]() mutable {
     endpoint ep{make_config(log_path_template("peering-events", "ep1"))};
     ep.subscribe_nosync(
-      {topics::statuses}, [](caf::unit_t&) {},
+      {topic::statuses()}, [](caf::unit_t&) {},
       [ep1_log](caf::unit_t&, data_message msg) {
         ep1_log->emplace_back(std::move(msg));
       },
@@ -165,7 +165,7 @@ TEST(status listeners receive peering events) {
     /*lifetime scope of ep*/ {
       endpoint ep{make_config(log_path_template("peering-events", "ep2"))};
       ep.subscribe_nosync(
-        {topics::statuses}, [](caf::unit_t&) {},
+        {topic::statuses()}, [](caf::unit_t&) {},
         [ep2_log](caf::unit_t&, data_message msg) {
           ep2_log->emplace_back(std::move(msg));
         },

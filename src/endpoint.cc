@@ -1,14 +1,17 @@
 #include <iostream>
 #include <unordered_set>
+#include <thread>
 
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/config.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
+#include <caf/io/network/default_multiplexer.hpp>
 #include <caf/message.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
+#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
@@ -18,6 +21,8 @@
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/flow_controller_callback.hh"
+#include "broker/detail/telemetry/exporter.hh"
+#include "broker/detail/telemetry/prometheus.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
@@ -116,6 +121,121 @@ void endpoint::clock::send_later(caf::actor dest, timespan after,
 endpoint::background_task::~background_task() {
   // nop
 }
+
+namespace {
+
+class prometheus_http_task : public endpoint::background_task {
+public:
+  prometheus_http_task(caf::actor_system& sys) : mpx_(&sys) {
+    // nop
+  }
+
+  template <class T>
+  bool has(caf::string_view name) {
+    auto res = caf::get_as<T>(mpx_.system().config(), name);
+    return static_cast<bool>(res);
+  }
+
+  expected<uint16_t> start(uint16_t port, caf::actor core,
+                           const char* in = nullptr, bool reuse = false) {
+    caf::io::doorman_ptr dptr;
+    if (auto maybe_dptr = mpx_.new_tcp_doorman(port, in, reuse)) {
+      dptr = std::move(*maybe_dptr);
+    } else {
+      return maybe_dptr.error();
+    }
+    auto actual_port = dptr->port();
+    using impl = detail::telemetry::prometheus_actor;
+    mpx_supervisor_ = mpx_.make_supervisor();
+    caf::actor_config cfg{&mpx_};
+    worker_ = mpx_.system().spawn_impl<impl, caf::hidden>(cfg, std::move(dptr),
+                                                          std::move(core));
+    struct { // TODO: replace with std::latch when available.
+      std::mutex mx;
+      std::condition_variable cv;
+      bool lit = false;
+      void ignite() {
+        std::unique_lock<std::mutex> guard{mx};
+        lit = true;
+        cv.notify_all();
+      }
+      void wait() {
+        std::unique_lock<std::mutex> guard{mx};
+        while (!lit)
+          cv.wait(guard);
+      }
+    } beacon;
+    auto run_mpx = [this, &beacon] {
+      CAF_LOG_TRACE("");
+      mpx_.thread_id(std::this_thread::get_id());
+      beacon.ignite();
+      mpx_.run();
+    };
+    thread_ = mpx_.system().launch_thread("broker.prom", run_mpx);
+    beacon.wait();
+    return actual_port;
+  }
+
+  ~prometheus_http_task() {
+    if (mpx_supervisor_) {
+      mpx_.dispatch([=] {
+        auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
+        auto ptr = static_cast<caf::io::broker*>(base_ptr);
+        if (!ptr->getf(caf::abstract_actor::is_terminated_flag)) {
+          ptr->context(&mpx_);
+          ptr->quit();
+          ptr->finalize();
+        }
+      });
+      mpx_supervisor_.reset();
+      thread_.join();
+    }
+  }
+
+  caf::actor telemetry_exporter() {
+    return worker_;
+  }
+
+private:
+  caf::io::network::default_multiplexer mpx_;
+  caf::io::network::multiplexer::supervisor_ptr mpx_supervisor_;
+  caf::actor worker_;
+  std::thread thread_;
+};
+
+} // namespace
+
+// --- metrics_exporter_t::endpoint class --------------------------------------
+
+void endpoint::metrics_exporter_t::set_interval(caf::timespan new_interval) {
+  if (new_interval.count() > 0)
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v, new_interval);
+}
+
+void endpoint::metrics_exporter_t::set_target(topic new_target) {
+  if (!new_target.empty())
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+                   std::move(new_target));
+}
+
+void endpoint::metrics_exporter_t::set_id(std::string new_id) {
+  if (!new_id.empty())
+    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+                   std::move(new_id));
+}
+
+void endpoint::metrics_exporter_t::set_prefixes(
+  std::vector<std::string> new_prefixes) {
+  // We only wrap the prefixes into a filter to get around assigning a type ID
+  // to std::vector<std::string> (which technically would require us to change
+  // Broker ID on the network).
+  filter_type boxed;
+  for (auto& prefix : new_prefixes)
+    boxed.emplace_back(std::move(prefix));
+  caf::anon_send(parent_->telemetry_exporter_, atom::put_v, std::move(boxed));
+}
+
+// --- endpoint class ----------------------------------------------------------
 
 namespace {
 
@@ -239,6 +359,25 @@ endpoint::endpoint(configuration config)
   BROKER_INFO("creating endpoint");
   core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
                                          std::move(conn_ptr));
+  // Spin up a Prometheus actor if configured or an exporter.
+  namespace dt = detail::telemetry;
+  if (auto port = caf::get_as<uint16_t>(config_, "broker.metrics.port")) {
+    auto ptask = std::make_unique<prometheus_http_task>(system_);
+    auto addr = caf::get_or(config_, "broker.metrics.address", std::string{});
+    if (auto actual_port = ptask->start(*port, core_,
+                                        addr.empty() ? nullptr : addr.c_str(),
+                                        false)) {
+      BROKER_INFO("expose metrics on port" << *actual_port);
+      telemetry_exporter_ = ptask->telemetry_exporter();
+      background_tasks_.emplace_back(std::move(ptask));
+    } else {
+      BROKER_ERROR("failed to expose metrics:" << actual_port.error());
+    }
+  } else {
+    auto params = dt::exporter_params::from(config_);
+    telemetry_exporter_
+      = system_.spawn<dt::exporter_actor>(core_, std::move(params));
+  }
 }
 
 endpoint::~endpoint() {
@@ -278,8 +417,18 @@ void endpoint::shutdown() {
     background_tasks_.clear();
     BROKER_DEBUG("destroy actor system (final shutdown step)");
   }
+  BROKER_DEBUG("stop background tasks");
+  telemetry_exporter_ = nullptr;
+  background_tasks_.clear();
+  BROKER_DEBUG("send shutdown message to core actor");
+  anon_send(core_, atom::shutdown_v);
   destroyed_ = true;
   core_ = nullptr;
+  // TODO: there's got to be a better solution than calling the test coordinator
+  //       manually, or at least push this to the destructor of actor_system.
+  using caf::scheduler::test_coordinator;
+  if (auto sched = dynamic_cast<test_coordinator*>(&system_.scheduler()))
+    sched->run();
   system_.~actor_system();
   delete clock_;
   clock_ = nullptr;

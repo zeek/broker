@@ -57,7 +57,7 @@ public:
   bool has_remote_master(const std::string& name) {
     // If we don't have a master recorded locally, we could still have a
     // propagated filter to a remote core hosting a master.
-    return this->has_remote_subscriber(name / topics::master_suffix);
+    return this->has_remote_subscriber(name / topic::master_suffix());
   }
 
   const auto& masters() const noexcept {
@@ -83,14 +83,15 @@ public:
       return ec::master_exists;
     }
     auto ptr = detail::make_backend(backend_type, std::move(opts));
-    BROKER_ASSERT(ptr != nullptr);
+    if (!ptr)
+      return ec::backend_failure;
     BROKER_INFO("spawning new master:" << name);
     auto self = super::self();
     auto& sys = self->system();
     auto [ms, launch]
       = sys.template make_flow_coordinator<detail::master_actor_type>(
         this->id(), name, std::move(ptr), caf::actor{self}, clock_);
-    filter_type filter{name / topics::master_suffix};
+    filter_type filter{name / topic::master_suffix()};
     caf::actor hdl{ms};
     this->add_source(this->ctx()->observe(
       ms->to_async_publisher(ms->state.out->as_observable())));
@@ -124,7 +125,7 @@ public:
     // auto cl = self->template spawn<spawn_flags>(
     //   detail::clone_actor, this->id(), self, name, resync_interval,
     //   stale_interval, mutation_buffer_interval, clock_);
-    // filter_type filter{name / topics::clone_suffix};
+    // filter_type filter{name / topic::clone_suffix()};
     // if (auto err = this->add_store(cl, filter))
     //   return err;
     // clones_.emplace(name, cl);

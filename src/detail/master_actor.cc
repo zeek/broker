@@ -40,7 +40,7 @@ master_state::master_state(caf::event_based_actor* ptr,
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
               std::move(parent));
   super::init(output);
-  clones_topic = store_name / topics::clone_suffix;
+  clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);
   if (auto es = backend->expiries()) {
     for (auto& e : *es) {

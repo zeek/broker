@@ -194,7 +194,7 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
 
-set(CAF_VERSION_MIN_REQUIRED 0.18.4)
+set(CAF_VERSION_MIN_REQUIRED 0.18.5)
 
 if ( TARGET CAF::core )
   message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
@@ -202,7 +202,7 @@ elseif ( CAF_ROOT )
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
   if (CMAKE_VERSION VERSION_LESS 3.12)
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
-                 COMPONENTS test core
+                 COMPONENTS test core io
                  PATHS "${CAF_ROOT}")
   else()
     find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
@@ -210,7 +210,7 @@ elseif ( CAF_ROOT )
   endif()
   message(STATUS "Using system CAF version ${CAF_VERSION}")
   # TODO: drop these legacy variables and simply use the targets consistently
-  set(CAF_LIBRARIES CAF::core CACHE INTERNAL "")
+  set(CAF_LIBRARIES CAF::core CAF::io CACHE INTERNAL "")
   set(caf_dirs "")
   foreach(caf_lib IN LISTS CAF_LIBRARIES ITEMS CAF::test)
     get_target_property(dirs ${caf_lib} INTERFACE_INCLUDE_DIRECTORIES)
@@ -231,7 +231,7 @@ else ()
   message(STATUS "Using bundled CAF")
   add_subdirectory(caf)
   set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
-  set(CAF_LIBRARIES CAF::core CACHE INTERNAL "")
+  set(CAF_LIBRARIES CAF::core CAF::io CACHE INTERNAL "")
   set(caf_dirs "")
   foreach(comp core test)
     list(APPEND caf_dirs
@@ -260,7 +260,7 @@ list(GET _version_numbers 0 BROKER_VERSION_MAJOR)
 list(GET _version_numbers 1 BROKER_VERSION_MINOR)
 
 # The SO number shall increase only if binary interface changes.
-set(BROKER_SOVERSION 2)
+set(BROKER_SOVERSION 4)
 set(ENABLE_SHARED true)
 
 if (ENABLE_STATIC_ONLY)
@@ -326,6 +326,11 @@ set(BROKER_SRC
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
+  src/detail/telemetry/collector.cc
+  src/detail/telemetry/exporter.cc
+  src/detail/telemetry/metric_view.cc
+  src/detail/telemetry/prometheus.cc
+  src/detail/telemetry/scraper.cc
   src/domain_options.cc
   src/endpoint.cc
   src/endpoint_info.cc
@@ -377,10 +382,10 @@ endif ()
 macro(add_tool name)
   add_executable(${name} src/${name}.cc ${ARGN})
   if (ENABLE_SHARED)
-    target_link_libraries(${name} ${LINK_LIBS} broker)
+    target_link_libraries(${name} broker)
     add_dependencies(${name} broker)
   else()
-    target_link_libraries(${name} ${LINK_LIBS} broker_static)
+    target_link_libraries(${name} broker_static)
     add_dependencies(${name} broker_static)
   endif()
 endmacro()

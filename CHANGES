@@ -1,3 +1,118 @@
+2.2.0-dev.3 | 2021-07-16 19:02:24 -0700
+
+  * Raise CAF dependency to 0.18.5 and update embedded version (Tim Wojtulewicz, Corelight)
+
+2.1.0 | 2021-07-08 09:49:23 -0700
+
+  * Release 2.1.0.
+
+2.1.0-dev.90 | 2021-07-08 09:49:16 -0700
+
+  * Raise CAF dependency to 0.18.4 and update embedded version (Tim Wojtulewicz, Corelight)
+
+  * Bring back process metrics (Dominik Charousset, Corelight)
+
+2.1.0-dev.87 | 2021-07-02 10:02:22 -0700
+
+  * Fix is_prefix logic (Dominik Charousset, Corelight)
+
+  * Remove global topic variables (Dominik Charousset, Corelight)
+
+    Fix a potential memory corruption during static initialization by
+    avoiding global variables with non-trivial constructors.
+
+2.1.0-dev.83 | 2021-06-28 08:44:56 -0700
+
+  * Fix heap-use-after-free during shutdown (Dominik Charousset, Corelight)
+
+2.1.0-dev.81 | 2021-06-21 15:56:14 -0700
+
+  * CI support refresh to bring in line with Zeek (Christian Kreibich, Corelight)
+
+  * Update port used by benchmark host (Tim Wojtulewicz, Corelight)
+
+2.1.0-dev.78 | 2021-06-07 09:22:35 -0700
+
+  * Remove noexcept from functions that may throw
+
+    Functions that access a `variant` of a `metric_view` may throw
+    `broker::bad_variant_access`. (Dominik Charousset, Corelight)
+
+  * Fix uninitialized field warnings (Dominik Charousset, Corelight)
+
+2.1.0-dev.75 | 2021-06-01 10:18:00 -0700
+
+  * Make telemetry exporter configurable at runtime (Dominik Charousset, Corelight)
+
+  * Raise CAF dependency to 0.18.3 (Dominik Charousset, Corelight)
+
+  * Update CAF submodule (Dominik Charousset, Corelight)
+
+  * Enable Broker to collect cluster metrics (Dominik Charousset, Corelight)
+
+  * Add remaining meta data to scrape output (Dominik Charousset, Corelight)
+
+  * Add support for histograms to the scraper (Dominik Charousset, Corelight)
+
+  * Implement new publishing mode for local metrics (Dominik Charousset, Corelight)
+
+2.1.0-dev.67 | 2021-05-24 15:22:34 -0700
+
+  * Change how actor_system_config::config_file_path is set (Jon Siwek, Corelight)
+
+    Mainly avoid conflict with an upcoming change
+
+2.1.0-dev.66 | 2021-05-24 15:01:34 -0700
+
+  * Update embedded CAF to 0.18.3 (Jon Siwek, Corelight)
+
+    And migrate a now-deprecated actor_system_config::parse() usage.
+
+2.1.0-dev.65 | 2021-04-19 16:14:38 -0700
+
+  * Fix broker-pipe crash with static CAF builds (Dominik Charousset, Corelight)
+
+2.1.0-dev.63 | 2021-04-19 16:01:51 -0700
+
+  * Remove redundant code in "integration" test (Dominik Charousset, Corelight)
+
+2.1.0-dev.61 | 2021-03-27 14:15:37 -0700
+
+  * Bump libbroker soversion to 4 (Jon Siwek, Corelight)
+
+  * Update bundled CAF to 0.18.2 (Jon Siwek, Corelight)
+
+2.1.0-dev.58 | 2021-03-17 13:45:33 -0700
+
+  * Prevent use of LeakSanitizer on FreeBSD (Jon Siwek, Corelight)
+
+2.1.0-dev.56 | 2021-03-08 12:27:52 -0800
+
+  * Improve error handling for data store backend creation failures (Jon Siwek, Corelight)
+
+    * Change broker::filesystem::detail functions that rely on
+      std::filesystem to use non-throwing calls
+
+    * Add error messages to some broker::filesystem::detail functions:
+      mkdirs(), remove(), and remove_all()
+
+    * Use sqlite3_errmsg() to emit reason for sqlite3_open() failures
+
+    * Change sqlite backend initialization failures to be non-fatal
+
+    Related to https://github.com/zeek/zeek/issues/1426
+
+2.1.0-dev.54 | 2021-03-02 19:59:06 -0700
+
+  * Add lgtm configuration (Tim Wojtulewicz, Corelight)
+
+2.1.0-dev.52 | 2021-02-26 17:57:58 -0800
+
+  * Fix to allow hashing of Python binding's broker.Count type (Jon Siwek, Corelight)
+
+2.1.0-dev.50 | 2021-02-22 15:45:38 -0800
+
+  * Enable metrics exposition via BROKER_METRICS_PORT (Dominik Charousset, Corelight)
 
 2.1.0-dev.48 | 2021-02-16 13:58:19 -0800
 
@@ -103,11 +218,6 @@
   * Remove explicit use of config mode for finding CAF (Dominik Charousset, Corelight)
 
 2.1.0-dev.4 | 2020-12-17 10:36:12 -0700
-
-  * Merge remote-tracking branch 'origin/topic/neverlord/broker-cluster-benchmark'
-
-    * origin/topic/neverlord/broker-cluster-benchmark:
-      Fix CAF configuration parameter names (Tim Wojtulewicz, Corelight)
 
   * Fix CAF configuration parameter names (Dominik Charousset, Corelight)
 

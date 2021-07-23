@@ -50,3 +50,9 @@ extern const caf::timespan aging_interval;
 extern const caf::timespan max_age;
 
 } // namespace broker::defaults::path_revocations
+
+namespace broker::defaults::metrics {
+
+constexpr caf::timespan export_interval = std::chrono::seconds(1);
+
+} // namespace broker::defaults::metrics

@@ -1,8 +1,15 @@
 Broker 2.1.0
 ============
 
+- Broker 2.1.0 now depends on CAF 0.18.4
+
 - The RocksDB data store backend was removed as building with it was previously
   broken/unusable.
+
+- Added the ability to output metrics to Prometheus. This can be enabled by
+  setting the BROKER_METRICS_PORT environment variable. Currently the output
+  includes a number of CAF-related metrics and per-process CPU and Memory
+  metrics.
 
 Broker 2.0.0
 ============

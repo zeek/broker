@@ -155,6 +155,9 @@ protected:
 
   /// Buffer for serializing messages.
   caf::byte_buffer buf_;
+
+  /// Caches the reserved topic for peer-to-peer control messages.
+  topic reserved_;
 };
 
 } // namespace broker::alm

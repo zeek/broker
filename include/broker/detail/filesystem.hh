@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "broker/config.hh"
+#include "broker/logger.hh"
 
 #ifdef BROKER_HAS_STD_FILESYSTEM
 
@@ -13,16 +14,27 @@ namespace broker::detail {
 
 using path = std::filesystem::path;
 
-using std::filesystem::exists;
+inline bool exists(const path& p) {
+  std::error_code ec;
+  return std::filesystem::exists(p, ec);
+}
 
-using std::filesystem::is_directory;
+inline bool is_directory(const path& p) {
+  std::error_code ec;
+  return std::filesystem::is_directory(p, ec);
+}
 
 inline bool is_file(const path& p) {
-  return std::filesystem::is_regular_file(p);
+  std::error_code ec;
+  return std::filesystem::is_regular_file(p, ec);
 }
 
 inline bool mkdirs(const path& p) {
-  return std::filesystem::create_directories(p);
+  std::error_code ec;
+  auto rval = std::filesystem::create_directories(p, ec);
+  if ( ! rval )
+    BROKER_ERROR("failed to make directories: " << p.native() << ":" << ec.message());
+  return rval;
 }
 
 inline path dirname(path p) {
@@ -30,12 +42,20 @@ inline path dirname(path p) {
   return p;
 }
 
-using std::filesystem::remove;
+inline bool remove(const path& p) {
+  std::error_code ec;
+  auto rval = std::filesystem::remove(p, ec);
+  if ( ! rval )
+    BROKER_ERROR("failed to remove path: " << p.native() << ":" << ec.message());
+  return rval;
+}
 
 inline bool remove_all(const path& p) {
   std::error_code ec;
-  std::filesystem::remove_all(p, ec);
-  return static_cast<bool>(ec);
+  auto rval = std::filesystem::remove_all(p, ec);
+  if ( ! rval )
+    BROKER_ERROR("failed to recursively remove path: " << p.native() << ":" << ec.message());
+  return rval;
 }
 
 } // namespace broker::detail

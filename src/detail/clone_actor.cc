@@ -43,7 +43,7 @@ void clone_state::init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                        endpoint::clock* ep_clock) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
               std::move(parent));
-  master_topic = store_name / topics::master_suffix;
+  master_topic = store_name / topic::master_suffix();
   super::init(input);
 }
 

@@ -17,13 +17,14 @@ namespace broker::alm {
 
 // -- constructors, destructors, and assignment operators ----------------------
 
-stream_transport::stream_transport(caf::event_based_actor* self) : super(self) {
+stream_transport::stream_transport(caf::event_based_actor* self)
+  : super(self), reserved_(std::string{topic::reserved}) {
   // nop
 }
 
 stream_transport::stream_transport(caf::event_based_actor* self,
                                    detail::connector_ptr conn)
-  : super(self) {
+  : super(self), reserved_(std::string{topic::reserved}) {
   if (conn) {
     auto f = [this](endpoint_id remote_id, alm::lamport_timestamp ts,
                     const filter_type& filter, caf::net::stream_socket fd) {
@@ -60,8 +61,7 @@ void stream_transport::publish(endpoint_id dst, atom::subscribe,
                              && sink.apply(new_filter);
   BROKER_ASSERT(ok);
   auto data = reinterpret_cast<const std::byte*>(buf_.data());
-  auto pm = packed_message{packed_message_type::routing_update,
-                           topics::reserved,
+  auto pm = packed_message{packed_message_type::routing_update, reserved_,
                            std::vector<std::byte>{data, data + buf_.size()}};
   push_impl(self(), *central_merge_,
             node_message{alm::multipath{dst, true}, std::move(pm)});
@@ -83,8 +83,7 @@ void stream_transport::publish(endpoint_id dst, atom::revoke,
                              && sink.apply(new_filter);
   BROKER_ASSERT(ok);
   auto data = reinterpret_cast<const std::byte*>(buf_.data());
-  auto pm = packed_message{packed_message_type::path_revocation,
-                           topics::reserved,
+  auto pm = packed_message{packed_message_type::path_revocation, reserved_,
                            std::vector<std::byte>{data, data + buf_.size()}};
   push_impl(self(), *central_merge_,
             node_message{alm::multipath{dst, true}, std::move(pm)});

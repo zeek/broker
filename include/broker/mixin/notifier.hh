@@ -152,12 +152,12 @@ private:
   }
 
   void emit(const status& stat) {
-    auto dmsg = make_data_message(topics::statuses, get_as<data>(stat));
+    auto dmsg = make_data_message(topic::statuses(), get_as<data>(stat));
     this->publish_locally(std::move(dmsg));
   }
 
   void emit(const error& err) {
-    auto dmsg = make_data_message(topics::errors, get_as<data>(err));
+    auto dmsg = make_data_message(topic::errors(), get_as<data>(err));
     this->publish_locally(std::move(dmsg));
   }
 

@@ -13,8 +13,12 @@ std::unique_ptr<detail::abstract_backend> make_backend(backend type,
   switch (type) {
     case backend::memory:
       return std::make_unique<memory_backend>(std::move(opts));
-    case backend::sqlite:
-      return std::make_unique<sqlite_backend>(std::move(opts));
+    case backend::sqlite: {
+      auto rval = std::make_unique<sqlite_backend>(std::move(opts));
+      if (rval->init_failed())
+        return nullptr;
+      return rval;
+    }
   }
 
   die("invalid backend type");

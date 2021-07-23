@@ -15,11 +15,11 @@ auto sep = std::string{topic::sep};
 TEST(concatenation) {
   topic t;
   t /= "foo";
-  CHECK_EQUAL(t, "foo");
+  CHECK_EQUAL(t.string(), "foo");
   t /= "bar";
-  CHECK_EQUAL(t, "foo" + sep + "bar");
+  CHECK_EQUAL(t.string(), "foo" + sep + "bar");
   t /= "/baz";
-  CHECK_EQUAL(t, "foo" + sep + "bar" + sep + "baz");
+  CHECK_EQUAL(t.string(), "foo" + sep + "bar" + sep + "baz");
 }
 
 TEST(split) {
@@ -35,7 +35,7 @@ TEST(split) {
 TEST(join) {
   std::vector<std::string> xs{"/foo", "bar/", "/baz"};
   auto t = topic::join(xs);
-  CHECK_EQUAL(t, sep + "foo" + sep + "bar" + sep + "baz");
+  CHECK_EQUAL(t.string(), sep + "foo" + sep + "bar" + sep + "baz");
 }
 
 TEST(prefix) {
