@@ -62,6 +62,11 @@ public:
 
   stream_transport(caf::event_based_actor* self, detail::connector_ptr conn);
 
+  // -- properties -------------------------------------------------------------
+
+  /// Returns the @ref network_info associated to given `id` if available.
+  const network_info* addr_of(endpoint_id id) const noexcept;
+
   // -- overrides for peer::publish --------------------------------------------
 
   void publish(endpoint_id dst, atom::subscribe, const endpoint_id_list& path,
@@ -112,16 +117,22 @@ public:
 
   caf::behavior make_behavior() override;
 
-  caf::error init_new_peer(endpoint_id peer, alm::lamport_timestamp ts,
-                           const filter_type& filter,
+  caf::error init_new_peer(endpoint_id peer, const network_info& addr,
+                           alm::lamport_timestamp ts, const filter_type& filter,
                            connect_flows_fun connect_flows);
 
-  caf::error init_new_peer(endpoint_id peer, alm::lamport_timestamp ts,
-                           const filter_type& filter,
+  caf::error init_new_peer(endpoint_id peer, const network_info& addr,
+                           alm::lamport_timestamp ts, const filter_type& filter,
                            caf::net::stream_socket sock);
 
 protected:
   // -- utility ----------------------------------------------------------------
+
+  struct peer_state {
+    caf::disposable in;
+    caf::disposable out;
+    network_info addr;
+  };
 
   /// Disconnects a peer by demand of the user.
   void unpeer(const endpoint_id& peer_id);
@@ -151,7 +162,7 @@ protected:
   std::unique_ptr<detail::connector_adapter> connector_adapter_;
 
   /// Handles for aborting flows on unpeering.
-  std::map<endpoint_id, std::pair<caf::disposable, caf::disposable>> peers_;
+  std::map<endpoint_id, peer_state> peers_;
 
   /// Buffer for serializing messages.
   caf::byte_buffer buf_;

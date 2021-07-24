@@ -236,7 +236,7 @@ struct connect_state {
   endpoint_id remote_id;
   alm::lamport_timestamp remote_ts;
   filter_type remote_filter;
-  std::optional<network_info> addr;
+  network_info addr;
   connector_event_id event_id = invalid_connector_event_id;
   bool is_originator;
   size_t connection_attempts = 0;
@@ -254,7 +254,7 @@ struct connect_state {
                 network_info addr, shared_filter_type* filter)
     : connect_state(tag, hs_prefix, filter) {
     event_id = eid;
-    this->addr.emplace(std::move(addr));
+    this->addr = std::move(addr);
   }
 
   void update_wr_buf(shared_filter_type* filter) {
@@ -443,17 +443,17 @@ struct connect_manager {
 
   void connect(connect_state_ptr state) {
     BROKER_ASSERT(state->is_originator);
-    BROKER_ASSERT(state->addr != std::nullopt);
+    BROKER_ASSERT(!state->addr.address.empty());
     state->update_wr_buf(filter_);
     caf::uri::authority_type authority;
-    authority.host = state->addr->address;
-    authority.port = state->addr->port;
+    authority.host = state->addr.address;
+    authority.port = state->addr.port;
     auto event_id = state->event_id;
     if (auto sock = caf::net::make_connected_tcp_stream_socket(authority)) {
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, rw_mask, 0});
     } else if (++state->connection_attempts < max_connection_attempts) {
-      auto retry_interval = state->addr->retry;
+      auto retry_interval = state->addr.retry;
       if (retry_interval.count() != 0) {
         retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                std::move(state));
@@ -525,8 +525,8 @@ struct connect_manager {
   }
 
   void finalize(caf::net::socket_id fd, connect_state& state) {
-    listener_->on_connection(state.event_id, state.remote_id, state.remote_ts,
-                             state.remote_filter, fd);
+    listener_->on_connection(state.event_id, state.remote_id, state.addr,
+                             state.remote_ts, state.remote_filter, fd);
   }
 
   void continue_reading(pollfd& entry) {
@@ -547,6 +547,10 @@ struct connect_manager {
       if (auto new_sock = caf::net::accept(sock)) {
         auto st = make_connect_state(responder_tag, responder_handshake(),
                                      filter_);
+        if (auto addr = caf::net::remote_addr(*new_sock))
+          st->addr.address = std::move(*addr);
+        if (auto port = caf::net::remote_port(*new_sock))
+          st->addr.port = *port;
         pending_fdset.push_back({new_sock->id, rw_mask, 0});
         pending.emplace(new_sock->id, st);
       }
@@ -578,7 +582,7 @@ struct connect_manager {
       auto state = std::move(i->second);
       pending.erase(i);
       if (state->is_originator) {
-        auto retry_interval = state->addr->retry;
+        auto retry_interval = state->addr.retry;
         if (retry_interval.count() > 0
             && ++state->connection_attempts < max_connection_attempts) {
           retry_schedule.emplace(caf::make_timestamp() + retry_interval,

@@ -26,13 +26,22 @@ stream_transport::stream_transport(caf::event_based_actor* self,
                                    detail::connector_ptr conn)
   : super(self), reserved_(std::string{topic::reserved}) {
   if (conn) {
-    auto f = [this](endpoint_id remote_id, alm::lamport_timestamp ts,
-                    const filter_type& filter, caf::net::stream_socket fd) {
-      std::ignore = init_new_peer(remote_id, ts, filter, fd);
+    auto f = [this](endpoint_id remote_id, const network_info& addr,
+                    alm::lamport_timestamp ts, const filter_type& filter,
+                    caf::net::stream_socket fd) {
+      std::ignore = init_new_peer(remote_id, addr, ts, filter, fd);
     };
     connector_adapter_.reset(
       new detail::connector_adapter(self, std::move(conn), f, filter_));
   }
+}
+
+// -- properties -------------------------------------------------------------
+
+const network_info* stream_transport::addr_of(endpoint_id id) const noexcept {
+  if (auto i = peers_.find(id); i != peers_.end())
+    return std::addressof(i->second.addr);
+  return nullptr;
 }
 
 // -- overrides for peer::publish ----------------------------------------------
@@ -139,7 +148,7 @@ void stream_transport::shutdown(shutdown_options options) {
   cancel_inputs(data_inputs_, command_inputs_);
   connector_adapter_.reset();
   for (auto& kvp : peers_)
-    kvp.second.first.dispose();
+    kvp.second.in.dispose();
 }
 
 // -- overrides for flow_controller --------------------------------------------
@@ -458,10 +467,10 @@ caf::behavior stream_transport::make_behavior() {
         }
         connector_adapter_->async_connect(
           addr,
-          [this, rp](endpoint_id peer, alm::lamport_timestamp ts,
-                     const filter_type& filter,
+          [this, rp](endpoint_id peer, const network_info& addr,
+                     alm::lamport_timestamp ts, const filter_type& filter,
                      caf::net::stream_socket fd) mutable {
-            if (auto err = init_new_peer(peer, ts, filter, fd))
+            if (auto err = init_new_peer(peer, addr, ts, filter, fd))
               rp.deliver(std::move(err));
             else
               rp.deliver(atom::peer_v, atom::ok_v, peer);
@@ -469,9 +478,6 @@ caf::behavior stream_transport::make_behavior() {
           [this, rp](const caf::error& what) mutable {
             rp.deliver(std::move(what));
           });
-      },
-      [=](atom::unpeer, const network_info&) {
-        // TODO: implement me
       },
       [=](atom::unpeer, const network_info&) {
         // TODO: implement me
@@ -488,6 +494,7 @@ caf::behavior stream_transport::make_behavior() {
 // -- utility ------------------------------------------------------------------
 
 caf::error stream_transport::init_new_peer(endpoint_id peer,
+                                           const network_info& addr,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
                                            connect_flows_fun connect_flows) {
@@ -505,7 +512,8 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   auto async_out = self_->to_async_publisher(out);
   auto in = self_->observe(connect_flows(std::move(async_out)));
   central_merge_->add(in.transform(dispatch_step{this, peer}));
-  peers_.emplace(peer, std::make_pair(in.as_disposable(), out.as_disposable()));
+  peers_.emplace(peer,
+                 peer_state{in.as_disposable(), out.as_disposable(), addr});
   auto update_res = handle_update(path, vector_timestamp{ts}, filter);
   if (auto& new_peers = update_res.first; !new_peers.empty())
     for (auto& id : new_peers)
@@ -516,6 +524,7 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
 }
 
 caf::error stream_transport::init_new_peer(endpoint_id peer,
+                                           const network_info& addr,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
                                            caf::net::stream_socket sock) {
@@ -535,14 +544,14 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   connect_flows_fun fn = [mgr](node_message_publisher out) {
     return mgr->top_layer().connect_flows(mgr.get(), std::move(out));
   };
-  if (auto err = init_new_peer(peer, ts, filter, std::move(fn))) {
+  if (auto err = init_new_peer(peer, addr, ts, filter, std::move(fn))) {
     return err;
   } else if (err = mgr->init(content(sys.config())); err) {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
     if (auto i = peers_.find(peer); i != peers_.end()) {
-      auto& [in, out] = i->second;
-      in.dispose();
-      out.dispose();
+      auto& st = i->second;
+      st.in.dispose();
+      st.out.dispose();
       peers_.erase(i);
     }
     return err;

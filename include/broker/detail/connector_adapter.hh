@@ -19,8 +19,8 @@ public:
   using callback = std::function<void(Ts...)>;
 
   using peering_callback
-    = callback<endpoint_id, alm::lamport_timestamp, const filter_type&,
-               caf::net::stream_socket>;
+    = callback<endpoint_id, const network_info&, alm::lamport_timestamp,
+               const filter_type&, caf::net::stream_socket>;
 
   using error_callback = callback<const caf::error&>;
 

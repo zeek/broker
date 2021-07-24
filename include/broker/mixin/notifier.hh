@@ -59,14 +59,9 @@ public:
   void peer_disconnected(const endpoint_id& peer_id,
                          const error& reason) override {
     BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(reason));
-    // Calling emit() with the peer_id only trigges a network info lookup that
-    // can stall this actor if we're already in shutdown mode. Hence, we perform
-    // a manual cache lookup and simply omit the network information if we
-    // cannot find a cached entry.
     network_info peer_addr;
-    // TODO: fixme
-    // if (auto addr = this->cache().find(hdl))
-    //   peer_addr = *addr;
+    if (auto net_ptr = this->addr_of(peer_id))
+      peer_addr = *net_ptr;
     emit(peer_id, peer_addr, sc_constant<sc::peer_lost>(),
          "lost connection to remote peer");
     super::peer_disconnected(peer_id, reason);
@@ -195,11 +190,8 @@ private:
     using value_type = typename EnumConstant::value_type;
     if constexpr (detail::has_network_info_v<EnumConstant>) {
       network_info net;
-      auto& tbl = this->tbl();
-      // TODO: fixme
-      // if (auto i = tbl.find(peer_id); i != tbl.end() && i->second.hdl)
-      // if (auto maybe_net = this->cache().find(i->second.hdl))
-      //   net = std::move(*maybe_net);
+      if (auto net_ptr = this->addr_of(peer_id))
+        net = *net_ptr;
       emit(peer_id, net, code, msg);
     } else if constexpr (std::is_same<value_type, sc>::value) {
       emit(status::make<EnumConstant::value>(peer_id, msg));

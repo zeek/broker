@@ -37,8 +37,8 @@ public:
 
     /// Signals that a remote node has connected to this peer.
     virtual void on_connection(connector_event_id event_id, endpoint_id peer,
-                               alm::lamport_timestamp ts, filter_type filter,
-                               caf::net::socket_id fd)
+                               network_info addr, alm::lamport_timestamp ts,
+                               filter_type filter, caf::net::socket_id fd)
       = 0;
 
     virtual void

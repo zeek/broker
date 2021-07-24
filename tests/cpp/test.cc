@@ -152,14 +152,16 @@ caf::actor base_fixture::bridge(const endpoint_state& left,
     = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
         auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
         auto fn = [=](node_message_publisher in) { return connect_left(in); };
-        auto err = dptr->init_new_peer(right.id, right.ts, right.filter, fn);
+        auto err = dptr->init_new_peer(right.id, {to_string(right.id), 42},
+                                       right.ts, right.filter, fn);
       });
   caf::anon_send(left.hdl, std::move(lcb));
   auto rcb
     = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
         auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
         auto fn = [=](node_message_publisher in) { return connect_right(in); };
-        auto err = dptr->init_new_peer(left.id, left.ts, left.filter, fn);
+        auto err = dptr->init_new_peer(left.id, {to_string(left.id), 42},
+                                       left.ts, left.filter, fn);
       });
   caf::anon_send(right.hdl, std::move(rcb));
   auto hdl = caf::actor{self};
