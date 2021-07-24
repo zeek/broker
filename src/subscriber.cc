@@ -101,6 +101,7 @@ void subscriber::update_filter(bool block) {
       [qptr{queue_}, fs{filter_},
        tk{std::move(token)}](detail::flow_controller* ctrl) mutable {
         ctrl->update_filter(qptr, fs);
+        tk->set_value();
       });
     caf::anon_send(core_, std::move(f));
     fut.get();
