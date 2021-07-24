@@ -25,6 +25,8 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
                              ERROR, WARNING, INFO, DEBUG, TRACE
     --sanitizers=LIST      comma-separated list of sanitizer names to enable
+    --disable-sanitizer-optimizations
+                           build without any optimizations when using sanitizers
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -132,6 +134,9 @@ while [ $# -ne 0 ]; do
         --sanitizers=*)
             append_cache_entry BROKER_SANITIZERS    STRING    $optarg
             ;;
+        --disable-sanitizer-optimizations)
+            append_cache_entry BROKER_SANITIZER_OPTIMIZATIONS BOOL OFF
+          ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
