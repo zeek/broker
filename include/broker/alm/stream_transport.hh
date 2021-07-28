@@ -27,6 +27,8 @@
 
 namespace broker::alm {
 
+class dispatch_step;
+
 /// The transport registers these message handlers:
 ///
 /// ~~~
@@ -47,6 +49,10 @@ namespace broker::alm {
 /// ~~~
 class stream_transport : public peer, public detail::flow_controller {
 public:
+  // -- friends ----------------------------------------------------------------
+
+  friend class dispatch_step;
+
   // -- member types -----------------------------------------------------------
 
   using super = peer;
@@ -87,6 +93,10 @@ public:
 
   void dispatch(const command_message& msg) override;
 
+  void dispatch(alm::multipath path, const data_message& msg) override;
+
+  void dispatch(alm::multipath path, const command_message& msg) override;
+
   void dispatch(const node_message& msg) override;
 
   // -- overrides for alm::peer ------------------------------------------------
@@ -125,6 +135,10 @@ public:
                            alm::lamport_timestamp ts, const filter_type& filter,
                            caf::net::stream_socket sock);
 
+  /// @private
+  template <class T>
+  packed_message pack(const T& msg);
+
 protected:
   // -- utility ----------------------------------------------------------------
 
@@ -132,10 +146,30 @@ protected:
     caf::disposable in;
     caf::disposable out;
     network_info addr;
+    bool invalidated = false;
+
+    peer_state() = delete;
+
+    peer_state(caf::disposable in, caf::disposable out, network_info addr)
+      : in(std::move(in)), out(std::move(out)), addr(std::move(addr)) {
+      // nop
+    }
+    peer_state(peer_state&&) = default;
+    peer_state& operator=(peer_state&&) = default;
   };
+
+  using peer_state_map = std::map<endpoint_id, peer_state>;
+
+  peer_state_map::iterator find_peer(const network_info& addr) noexcept;
 
   /// Disconnects a peer by demand of the user.
   void unpeer(const endpoint_id& peer_id);
+
+  /// Disconnects a peer by demand of the user.
+  void unpeer(const network_info& peer_addr);
+
+  /// Disconnects a peer by demand of the user.
+  void unpeer(peer_state_map::iterator i);
 
   /// Initialized the `data_outputs_` member lazily.
   void init_data_outputs();
@@ -162,7 +196,7 @@ protected:
   std::unique_ptr<detail::connector_adapter> connector_adapter_;
 
   /// Handles for aborting flows on unpeering.
-  std::map<endpoint_id, peer_state> peers_;
+  peer_state_map peers_;
 
   /// Buffer for serializing messages.
   caf::byte_buffer buf_;

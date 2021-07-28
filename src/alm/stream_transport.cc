@@ -10,10 +10,23 @@
 #include <caf/scheduled_actor/flow.hpp>
 
 #include "broker/detail/flow_controller_callback.hh"
+#include "broker/detail/native_socket.hh"
 #include "broker/detail/overload.hh"
 #include "broker/detail/protocol.hh"
 
 namespace broker::alm {
+
+template <class T>
+packed_message stream_transport::pack(const T& msg) {
+  const auto& dst = get_topic(msg);
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  std::ignore = sink.apply(get<1>(msg));
+  auto first = reinterpret_cast<std::byte*>(buf_.data());
+  auto last = first + buf_.size();
+  auto payload = std::vector<std::byte>(first, last);
+  return packed_message{packed_message_type_v<T>, dst, std::move(payload)};
+}
 
 // -- constructors, destructors, and assignment operators ----------------------
 
@@ -128,6 +141,19 @@ void stream_transport::dispatch(const command_message& msg) {
   push_impl(self(), *command_inputs_, msg);
 }
 
+void stream_transport::dispatch(alm::multipath path, const data_message& msg) {
+  auto packed = pack(msg);
+  push_impl(self(), *central_merge_,
+            node_message{std::move(path), std::move(packed)});
+}
+
+void stream_transport::dispatch(alm::multipath path,
+                                const command_message& msg) {
+  auto packed = pack(msg);
+  push_impl(self(), *central_merge_,
+            node_message{std::move(path), std::move(packed)});
+}
+
 void stream_transport::dispatch(const node_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   // TODO: implement me
@@ -155,6 +181,7 @@ void stream_transport::shutdown(shutdown_options options) {
 
 void stream_transport::init_data_outputs() {
   if (!data_outputs_) {
+    BROKER_DEBUG("create data outputs");
     data_outputs_ //
       = central_merge_->as_observable()
           .filter([this_node{id_}](const node_message& msg) {
@@ -175,6 +202,7 @@ void stream_transport::init_data_outputs() {
 
 void stream_transport::init_command_outputs() {
   if (!command_outputs_) {
+    BROKER_DEBUG("create command outputs");
     command_outputs_ //
       = central_merge_->as_observable()
           .filter([this_node{id_}](const node_message& msg) {
@@ -246,8 +274,6 @@ void stream_transport::add_filter(const filter_type& filter) {
 
 // -- initialization -----------------------------------------------------------
 
-namespace {
-
 class dispatch_step {
 public:
   using input_type = node_message;
@@ -280,15 +306,25 @@ public:
   template <class Next, class... Steps>
   void on_complete(Next& next, Steps&... steps) {
     BROKER_DEBUG("peer" << src_ << "completed its flow");
-    caf::error default_reason;
-    state_->peer_disconnected(src_, default_reason);
+    auto& peers = state_->peers_;
+    if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
+      i->second.invalidated = true;
+      caf::error default_reason;
+      state_->peer_disconnected(src_, default_reason);
+      // TODO: schedule reconnect if necessary
+    }
     next.on_complete(steps...);
   }
 
   template <class Next, class... Steps>
   void on_error(const error& what, Next& next, Steps&... steps) {
     BROKER_DEBUG("peer" << src_ << "aborted its flow:" << what);
-    state_->peer_disconnected(src_, what);
+    auto& peers = state_->peers_;
+    if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
+      i->second.invalidated = true;
+      state_->peer_disconnected(src_, what);
+      // TODO: schedule reconnect if necessary
+    }
     next.on_error(what, steps...);
   }
 
@@ -330,21 +366,11 @@ public:
       // Clear caches.
       routes_cache_.clear();
       unreachables_cache_.clear();
-      buf_.clear();
-      // Compute paths.
       alm::multipath::generate(receivers_cache_, state_->tbl(), routes_cache_,
                                unreachables_cache_);
       if (routes_cache_.empty())
         return true;
-      // Serialize payload.
-      caf::binary_serializer sink{nullptr, buf_};
-      std::ignore = sink.apply(get<1>(msg));
-      auto first = reinterpret_cast<std::byte*>(buf_.data());
-      auto last = first + buf_.size();
-      auto payload = std::vector<std::byte>(first, last);
-      auto packed = packed_message{packed_message_type_v<T>, dst,
-                                   std::move(payload)};
-      // Emit packed messages.
+      auto packed = state_->pack(msg);
       for (auto& route : routes_cache_) {
         auto nmsg = node_message{std::move(route), packed};
         if (!next.on_next(nmsg, steps...))
@@ -372,10 +398,7 @@ private:
   std::vector<endpoint_id> receivers_cache_;
   std::vector<multipath> routes_cache_;
   std::vector<endpoint_id> unreachables_cache_;
-  caf::byte_buffer buf_;
 };
-
-} // namespace
 
 caf::behavior stream_transport::make_behavior() {
   // Create the merge nodes.
@@ -479,19 +502,27 @@ caf::behavior stream_transport::make_behavior() {
             rp.deliver(std::move(what));
           });
       },
-      [=](atom::unpeer, const network_info&) {
-        // TODO: implement me
+      [this](atom::unpeer, const network_info& peer_addr) {
+        unpeer(peer_addr);
       },
-      [this](atom::unpeer, const endpoint_id& peer_id) {
-        // TODO: implement me
+      [this](atom::unpeer, const endpoint_id& peer_id) { //
+        unpeer(peer_id);
       },
-      [this](const detail::flow_controller_callback_ptr& f) {
+      [this](const detail::flow_controller_callback_ptr& f) { //
         (*f)(this);
+      },
+      [this](atom::peer, detail::native_socket sock, endpoint_id peer,
+             std::string& fake_host,
+             const filter_type& filter) -> caf::result<void> {
+        auto fd = caf::net::stream_socket{sock};
+        auto ts = alm::lamport_timestamp{};
+        auto addr = network_info{std::move(fake_host), 0};
+        if (auto err = init_new_peer(peer, addr, ts, filter, fd))
+          return err;
+        return caf::unit;
       })
     .or_else(super::make_behavior());
 }
-
-// -- utility ------------------------------------------------------------------
 
 caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            const network_info& addr,
@@ -563,7 +594,40 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
 
 void stream_transport::unpeer(const endpoint_id& peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  // TODO: implement me
+  if (auto i = peers_.find(peer_id); i != peers_.end())
+    unpeer(i);
+  else
+    cannot_remove_peer(peer_id);
+}
+
+void stream_transport::unpeer(const network_info& peer_addr) {
+  BROKER_TRACE(BROKER_ARG(peer_addr));
+  if (auto i = find_peer(peer_addr); i != peers_.end())
+    unpeer(i);
+  else
+    cannot_remove_peer(peer_addr);
+}
+
+void stream_transport::unpeer(peer_state_map::iterator i) {
+  BROKER_ASSERT(i != peers_.end());
+  auto& st = i->second;
+  if (st.invalidated)
+    return;
+  st.invalidated = true;
+  st.in.dispose();
+  st.out.dispose();
+  auto id = i->first;
+  peer_removed(id);
+  peers_.erase(i);
+  cleanup(id);
+}
+
+// -- utility ------------------------------------------------------------------
+
+stream_transport::peer_state_map::iterator
+stream_transport::find_peer(const network_info& addr) noexcept {
+  auto has_addr = [&addr](const auto& kvp) { return kvp.second.addr == addr; };
+  return std::find_if(peers_.begin(), peers_.end(), has_addr);
 }
 
 } // namespace broker::alm

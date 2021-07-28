@@ -246,10 +246,12 @@ std::string store::name() const {
 }
 
 expected<data> store::exists(data key) const {
+  BROKER_TRACE(BROKER_ARG(key));
   return fetch(state_, atom::exists_v, std::move(key));
 }
 
 expected<data> store::get(data key) const {
+  BROKER_TRACE(BROKER_ARG(key));
   return fetch(state_, atom::get_v, std::move(key));
 }
 

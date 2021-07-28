@@ -28,27 +28,25 @@ peer::~peer() {
 // -- additional dispatch overloads --------------------------------------------
 
 template <class T>
-bool peer::dispatch_to_impl(T&& msg, endpoint_id&& receiver) {
-  return false;
-  // TODO: implement me
-  // if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
-  //   multipath path{ptr->begin(), ptr->end()};
-  //   dispatch(make_node_message(std::forward<T>(msg), std::move(path)));
-  //   return true;
-  // } else {
-  //   BROKER_DEBUG("drop message: no path to" << receiver);
-  //   return false;
-  // }
+bool peer::dispatch_to_impl(T&& msg, endpoint_id receiver) {
+  if (auto ptr = shortest_path(tbl_, receiver); ptr && !ptr->empty()) {
+    multipath path{ptr->begin(), ptr->end()};
+    dispatch(std::move(path), std::forward<T>(msg));
+    return true;
+  } else {
+    BROKER_DEBUG("drop message: no path to" << receiver);
+    return false;
+  }
 }
 
 bool peer::dispatch_to(data_message msg, endpoint_id receiver) {
   BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
-  return dispatch_to_impl(std::move(msg), std::move(receiver));
+  return dispatch_to_impl(std::move(msg), receiver);
 }
 
 bool peer::dispatch_to(command_message msg, endpoint_id receiver) {
   BROKER_TRACE(BROKER_ARG(msg) << BROKER_ARG(receiver));
-  return dispatch_to_impl(std::move(msg), std::move(receiver));
+  return dispatch_to_impl(std::move(msg), receiver);
 }
 
 // -- convenience functions for subscription information -----------------------

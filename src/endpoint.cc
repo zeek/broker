@@ -319,8 +319,17 @@ void pretty_print(std::ostream& out, const caf::settings& xs,
 
 } // namespace
 
+endpoint::endpoint() : endpoint(configuration{}, endpoint_id::random()) {
+  // nop
+}
+
 endpoint::endpoint(configuration config)
-  : config_(std::move(config)), id_(endpoint_id::random()), destroyed_(false) {
+  : endpoint(std::move(config), endpoint_id::random()) {
+  // nop
+}
+
+endpoint::endpoint(configuration config, endpoint_id this_peer)
+  : config_(std::move(config)), id_(this_peer), destroyed_(false) {
   // Stop immediately if any helptext was printed.
   if (config_.cli_helptext_printed)
     exit(0);
@@ -483,6 +492,22 @@ bool endpoint::peer(const caf::uri& locator, timeout::seconds retry) {
     BROKER_INFO("invalid URI:" << locator);
     return false;
   }
+}
+
+bool endpoint::mock_peer(detail::native_socket fd, endpoint_id peer_id,
+                         std::string fake_host, filter_type filter) {
+  BROKER_TRACE(BROKER_ARG(fd) << BROKER_ARG(peer_id) << BROKER_ARG(fake_host)
+                              << BROKER_ARG(filter));
+  bool result = false;
+  caf::scoped_actor self{system_};
+  self
+    ->request(core_, caf::infinite, atom::peer_v, fd, peer_id,
+              std::move(fake_host), std::move(filter))
+    .receive([&] { result = true; },
+             [&](caf::error& err) {
+               BROKER_ERROR("mock_peer failed:" << err);
+             });
+  return result;
 }
 
 void endpoint::peer_nosync(const std::string& address, uint16_t port,

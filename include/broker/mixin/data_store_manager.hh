@@ -92,7 +92,8 @@ public:
       = sys.template make_flow_coordinator<detail::master_actor_type>(
         this->id(), name, std::move(ptr), caf::actor{self}, clock_);
     filter_type filter{name / topic::master_suffix()};
-    caf::actor hdl{ms};
+    auto hdl = caf::actor{ms};
+    this->add_filter(filter);
     this->add_source(this->ctx()->observe(
       ms->to_async_publisher(ms->state.out->as_observable())));
     ms->observe(this->select_local_commands(filter))
@@ -109,27 +110,41 @@ public:
   caf::result<caf::actor>
   attach_clone(const std::string& name, double resync_interval,
                double stale_interval, double mutation_buffer_interval) {
-    // TODO: implement me
-    return ec::unspecified;
-    // BROKER_TRACE(BROKER_ARG(name)
-    //              << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
-    //              << BROKER_ARG(mutation_buffer_interval));
-    // if (auto i = masters_.find(name); i != masters_.end()) {
-    //   BROKER_WARNING("attempted to run clone & master on the same endpoint");
-    //   return ec::no_such_master;
-    // }
-    // if (auto i = clones_.find(name); i != clones_.end())
-    //   return i->second;
-    // BROKER_INFO("spawning new clone:" << name);
-    // auto self = super::self();
-    // auto cl = self->template spawn<spawn_flags>(
-    //   detail::clone_actor, this->id(), self, name, resync_interval,
-    //   stale_interval, mutation_buffer_interval, clock_);
-    // filter_type filter{name / topic::clone_suffix()};
-    // if (auto err = this->add_store(cl, filter))
-    //   return err;
-    // clones_.emplace(name, cl);
-    // return cl;
+    BROKER_TRACE(BROKER_ARG(name)
+                 << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
+                 << BROKER_ARG(mutation_buffer_interval));
+    if (auto i = masters_.find(name); i != masters_.end()) {
+      BROKER_WARNING("attempted to run clone & master on the same endpoint");
+      return ec::no_such_master;
+    }
+    auto self = super::self();
+    caf::actor hdl;
+    if (auto i = clones_.find(name); i != clones_.end()) {
+      hdl = i->second;
+    } else {
+      BROKER_INFO("spawning new clone:" << name);
+      auto& sys = self->system();
+      auto [cl, launch]
+        = sys.template make_flow_coordinator<detail::clone_actor_type>(
+          this->id(), name, caf::actor{self}, clock_);
+      filter_type filter{name / topic::clone_suffix()};
+      hdl = caf::actor{cl};
+      this->add_filter(filter);
+      this->add_source(this->ctx()->observe(
+        cl->to_async_publisher(cl->state.out->as_observable())));
+      cl->observe(this->select_local_commands(filter))
+        .for_each([p{cl}](
+                    const command_message& msg) { p->state.dispatch(msg); },
+                  [p{cl}](const caf::error& what) { p->quit(what); },
+                  [p{cl}] { p->quit(); });
+      clones_.emplace(name, hdl);
+      launch();
+    }
+    auto rp = self->make_response_promise();
+    self->request(hdl, caf::infinite, atom::await_v, atom::idle_v)
+      .then([rp, hdl](atom::ok) mutable { rp.deliver(hdl); },
+            [rp](caf::error& what) mutable { rp.deliver(std::move(what)); });
+    return rp;
   }
 
   /// Returns whether the master for the given store runs at this peer.

@@ -18,6 +18,34 @@
 #include "Winsock2.h"
 #endif
 
+barrier::barrier(ptrdiff_t num_threads) : num_threads_(num_threads), count_(0) {
+  // nop
+}
+
+void barrier::arrive_and_wait() {
+  std::unique_lock<std::mutex> guard{mx_};
+  if (++count_ == num_threads_) {
+    cv_.notify_all();
+    return;
+  }
+  cv_.wait(guard, [this] { return count_.load() == num_threads_; });
+}
+
+beacon::beacon() : value_(false) {
+  // nop
+}
+
+void beacon::set_true() {
+  std::unique_lock<std::mutex> guard{mx_};
+  value_ = true;
+  cv_.notify_all();
+}
+
+void beacon::wait() {
+  std::unique_lock<std::mutex> guard{mx_};
+  cv_.wait(guard, [this] { return value_.load(); });
+}
+
 using namespace broker;
 
 namespace {
@@ -117,6 +145,10 @@ using bridge_actor = caf::stateful_actor<bridge_state>;
 base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
   auto& st = deref<core_actor_type>(core).state;
   return endpoint_state{st.id(), st.timestamp(), st.filter()->read(), core};
+}
+
+std::pair<endpoint_id, endpoint_id> base_fixture::make_id_pair() {
+  return {*caf::make_uuid(uuid_strings[0]), *caf::make_uuid(uuid_strings[1])};
 }
 
 caf::actor base_fixture::bridge(const endpoint_state& left,

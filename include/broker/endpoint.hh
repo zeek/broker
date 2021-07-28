@@ -23,6 +23,7 @@
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/native_socket.hh"
 #include "broker/detail/sink_driver.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
@@ -144,7 +145,11 @@ public:
 
   // --- construction and destruction ------------------------------------------
 
-  endpoint(configuration config = {});
+  endpoint();
+  explicit endpoint(configuration config);
+
+  /// @private
+  endpoint(configuration config, endpoint_id this_peer);
 
   endpoint(endpoint&&) = delete;
   endpoint(const endpoint&) = delete;
@@ -207,6 +212,10 @@ public:
   ///       success or failure.
   bool peer(const caf::uri& locator,
             timeout::seconds retry = timeout::seconds(10));
+
+  /// @private
+  bool mock_peer(detail::native_socket fd, endpoint_id peer_id,
+                 std::string fake_host, filter_type filter);
 
   /// Initiates a peering with a remote endpoint, without waiting
   /// for the operation to complete.

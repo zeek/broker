@@ -8,6 +8,8 @@
 #include <thread>
 #include <utility>
 
+#include "caf/net/stream_socket.hpp"
+
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/data.hh"
@@ -134,4 +136,93 @@ TEST(proxy) {
   auto put_unique_res = proxy.receive();
   CHECK_EQUAL(put_unique_res.id, put_unique_req);
   CHECK_EQUAL(value_of(put_unique_res.answer), data{true});
+}
+
+TEST(clone operations - remote endpoint) {
+  auto name = std::string{"kono"};
+  auto [master_fd, clone_fd] = unbox(caf::net::make_stream_socket_pair());
+  auto ids = base_fixture::make_id_pair();
+  beacon setup;
+  beacon tear_down;
+  auto master_thread = std::thread{[=, &setup, &tear_down, fd{clone_fd}] {
+    auto ep = endpoint{configuration{}, ids.first};
+    auto ds = ep.attach_master(name, backend::memory);
+    auto clone_filter = filter_type{name / topic::clone_suffix()};
+    REQUIRE(ep.mock_peer(fd.id, ids.second, "clone", clone_filter));
+    setup.set_true();
+    tear_down.wait();
+  }};
+  setup.wait();
+  auto ep = endpoint{configuration{}, ids.second};
+  auto master_filter = filter_type{name / topic::master_suffix()};
+  REQUIRE(ep.mock_peer(master_fd.id, ids.first, "master", master_filter));
+  auto ds = ep.attach_clone(name);
+  if (!ds)
+    FAIL(ds.error());
+  auto await_idle = [&] {
+    using namespace std::literals;
+    if (!ds->await_idle(1s)) {
+      tear_down.set_true();
+      throw std::runtime_error("await_idle timeout");
+    }
+  };
+  MESSAGE("put");
+  ds->put("foo", 42);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data{42});
+  REQUIRE_EQUAL(error_of(ds->get("bar")), error{ec::no_such_key});
+  REQUIRE_EQUAL(ds->exists("foo"), true);
+  REQUIRE_EQUAL(ds->exists("bar"), false);
+  MESSAGE("erase");
+  ds->erase("foo");
+  await_idle();
+  REQUIRE_EQUAL(ds->get("foo"), error{ec::no_such_key});
+
+  MESSAGE("increment");
+  ds->increment("foo", 13u);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data{13u});
+
+  ds->increment("foo", 1u);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data{14u});
+
+  MESSAGE("decrement");
+  ds->decrement("foo", 1u);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data{13u});
+
+  MESSAGE("append");
+  ds->put("foo", "b");
+  ds->append("foo", "a");
+  ds->append("foo", "r");
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data{"bar"});
+  MESSAGE("insert_into");
+  ds->put("foo", set{1, 3});
+  ds->insert_into("foo", 2);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data(set{1, 2, 3}));
+  MESSAGE("remove_from");
+  ds->remove_from("foo", 2);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data(set{1, 3}));
+  MESSAGE("push");
+  ds->put("foo", vector{1, 2});
+  ds->push("foo", 3);
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data(vector{1, 2, 3}));
+  MESSAGE("pop");
+  ds->pop("foo");
+  await_idle();
+  REQUIRE_EQUAL(value_of(ds->get("foo")), data(vector{1, 2}));
+  MESSAGE("get overload");
+  ds->put("foo", set{2, 3});
+  await_idle();
+  REQUIRE_EQUAL(ds->get_index_from_value("foo", 1), false);
+  REQUIRE_EQUAL(ds->get_index_from_value("foo", 2), true);
+  MESSAGE("keys");
+  REQUIRE_EQUAL(value_of(ds->keys()), data(set{"foo"}));
+  tear_down.set_true();
+  master_thread.join();
 }

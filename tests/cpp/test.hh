@@ -97,6 +97,39 @@ bool inspect(Inspector& f, consumer_msg& x) {
                             f.field("content", x.content));
 }
 
+
+// -- synchronization ----------------------------------------------------------
+
+// Drop-in replacement for std::barrier (based on the TS API as of 2020).
+class barrier {
+public:
+  explicit barrier(ptrdiff_t num_threads);
+
+  void arrive_and_wait();
+
+private:
+  size_t num_threads_;
+  std::mutex mx_;
+  std::atomic<size_t> count_;
+  std::condition_variable cv_;
+};
+
+// Allows threads to wait on a boolean condition. Unlike promise<bool>, allows
+// calling `set_true` multiple times without side effects.
+class beacon {
+public:
+  beacon();
+
+  void set_true();
+
+  void wait();
+
+private:
+  std::mutex mx_;
+  std::atomic<bool> value_;
+  std::condition_variable cv_;
+};
+
 // -- fixtures -----------------------------------------------------------------
 
 struct empty_fixture_base {};
@@ -188,6 +221,8 @@ public:
   static endpoint_state ep_state(caf::actor core);
 
   static broker::configuration make_config();
+
+  static std::pair<broker::endpoint_id, broker::endpoint_id> make_id_pair();
 
   /// Establishes a peering relation between `left` and `right`.
   static caf::actor bridge(const endpoint_state& left,

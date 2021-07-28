@@ -39,18 +39,18 @@ public:
 
   // -- initialization ---------------------------------------------------------
 
-  clone_state();
-
-  /// Initializes the state.
-  void init(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-            std::string&& nm, caf::actor&& parent, endpoint::clock* ep_clock);
+  clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
+              std::string nm, caf::actor parent,
+              endpoint::clock* ep_clock);
 
   /// Sends `x` to the master.
   void forward(internal_command&& x);
 
+  caf::behavior make_behavior();
+
   // -- callbacks for the behavior ---------------------------------------------
 
-  void dispatch(command_message& msg);
+  void dispatch(const command_message& msg);
 
   void tick();
 

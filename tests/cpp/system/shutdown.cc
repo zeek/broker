@@ -36,55 +36,6 @@ template <class... Ts>
   abort();
 }
 
-// Drop-in replacement for std::barrier (based on the TS API as of 2020).
-class barrier {
-public:
-  explicit barrier(ptrdiff_t num_threads)
-    : num_threads_(num_threads), count_(0) {
-    // nop
-  }
-
-  void arrive_and_wait() {
-    std::unique_lock<std::mutex> guard{mx_};
-    if (++count_ == num_threads_) {
-      cv_.notify_all();
-      return;
-    }
-    cv_.wait(guard, [this] { return count_.load() == num_threads_; });
-  }
-
-private:
-  size_t num_threads_;
-  std::mutex mx_;
-  std::atomic<size_t> count_;
-  std::condition_variable cv_;
-};
-
-// Allows threads to wait on a boolean condition. Unlike promise<bool>, allows
-// calling `set_true` multiple times without side effects.
-class beacon {
-public:
-  beacon() : value_(false) {
-    // nop
-  }
-
-  void set_true() {
-    std::unique_lock<std::mutex> guard{mx_};
-    value_ = true;
-    cv_.notify_all();
-  }
-
-  void wait() {
-    std::unique_lock<std::mutex> guard{mx_};
-    cv_.wait(guard, [this] { return value_.load(); });
-  }
-
-private:
-  std::mutex mx_;
-  std::atomic<bool> value_;
-  std::condition_variable cv_;
-};
-
 auto code_of(const error& err) {
   if (err.category() != caf::type_id_v<broker::ec>)
     return ec::unspecified;

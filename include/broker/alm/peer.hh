@@ -179,7 +179,7 @@ public:
 
   /// @private
   template <class T>
-  bool dispatch_to_impl(T&& msg, endpoint_id&& receiver);
+  bool dispatch_to_impl(T&& msg, endpoint_id receiver);
 
   /// Dispatches `msg` to `receiver`, ignoring subscription filters.
   /// @returns `true` on success, `false` if no path to the receiver exists.
@@ -267,6 +267,10 @@ public:
   virtual void dispatch(const data_message& msg) = 0;
 
   virtual void dispatch(const command_message& msg) = 0;
+
+  virtual void dispatch(alm::multipath path, const data_message& msg) = 0;
+
+  virtual void dispatch(alm::multipath path, const command_message& msg) = 0;
 
   virtual void dispatch(const node_message& msg) = 0;
 
