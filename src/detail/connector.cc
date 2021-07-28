@@ -448,20 +448,30 @@ struct connect_manager {
     caf::uri::authority_type authority;
     authority.host = state->addr.address;
     authority.port = state->addr.port;
+    BROKER_DEBUG("try connecting to" << authority);
     auto event_id = state->event_id;
     if (auto sock = caf::net::make_connected_tcp_stream_socket(authority)) {
+      BROKER_DEBUG("established connection to" << authority
+                                               << "(initiate handshake)");
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, rw_mask, 0});
     } else if (++state->connection_attempts < max_connection_attempts) {
       auto retry_interval = state->addr.retry;
       if (retry_interval.count() != 0) {
+        BROKER_DEBUG("failed to connect to" << authority << "-> retry in"
+                                            << retry_interval);
         retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                std::move(state));
       } else if (valid(event_id)) {
+        BROKER_DEBUG("failed to connect to" << authority
+                                            << "-> fail (retry disabled)");
         listener_->on_error(event_id, make_error(ec::peer_unavailable));
       }
-    } else if (valid(event_id)) {
-      listener_->on_error(event_id, make_error(ec::peer_unavailable));
+    } else {
+      BROKER_DEBUG("failed to connect to"
+                   << authority << "-> fail (reached max connection attempts)");
+      if (valid(event_id))
+        listener_->on_error(event_id, make_error(ec::peer_unavailable));
     }
     // BROKER_ASSERT(state->is_originator);
     // BROKER_ASSERT(state->addr != std::nullopt);
@@ -607,10 +617,28 @@ struct connect_manager {
     entry.events = 0;
   }
 
+  int next_timeout() {
+    if (retry_schedule.empty()) {
+      return -1;
+    } else {
+      auto now = caf::make_timestamp();
+      auto ts = retry_schedule.begin()->first;
+      if (ts <= now) {
+        return 0;
+      } else {
+        namespace sc = std::chrono;
+        auto ms = sc::duration_cast<sc::milliseconds>(ts - now);
+        return static_cast<int>(ms.count());
+      }
+    }
+  }
+
   void handle_timeouts() {
     auto now = caf::make_timestamp();
     while (!retry_schedule.empty() && retry_schedule.begin()->first <= now) {
-      // TODO: implement me
+      auto i = retry_schedule.begin();
+      connect(std::move(i->second));
+      retry_schedule.erase(i);
     }
   }
 
@@ -738,9 +766,11 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   while (!done) {
     int presult =
 #ifdef CAF_WINDOWS
-      ::WSAPoll(fdset.data(), static_cast<ULONG>(fdset.size()), -1);
+      ::WSAPoll(fdset.data(), static_cast<ULONG>(fdset.size()),
+                mgr.next_timeout());
 #else
-      ::poll(fdset.data(), static_cast<nfds_t>(fdset.size()), -1);
+      ::poll(fdset.data(), static_cast<nfds_t>(fdset.size()),
+             mgr.next_timeout());
 #endif
     BROKER_DEBUG("poll on" << fdset.size() << "sockets returned" << presult);
     if (presult < 0) {
