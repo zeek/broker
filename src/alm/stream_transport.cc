@@ -154,11 +154,6 @@ void stream_transport::dispatch(alm::multipath path,
             node_message{std::move(path), std::move(packed)});
 }
 
-void stream_transport::dispatch(const node_message& msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
-  // TODO: implement me
-}
-
 // -- overrides for alm::peer --------------------------------------------------
 
 void stream_transport::shutdown(shutdown_options options) {
@@ -194,7 +189,9 @@ void stream_transport::init_data_outputs() {
             caf::binary_deserializer src{nullptr, get_payload(msg)};
             data content;
             std::ignore = src.apply(content);
-            return data_message{get_topic(msg), std::move(content)};
+            auto result = data_message{get_topic(msg), std::move(content)};
+            BROKER_DEBUG("dispatch data message locally:" << result);
+            return result;
           })
           .as_observable();
   }
@@ -310,8 +307,10 @@ public:
     if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
       i->second.invalidated = true;
       caf::error default_reason;
+      auto& addr = i->second.addr;
+      if (addr.retry.count() > 0)
+        caf::anon_send(state_->self(), atom::peer_v, addr);
       state_->peer_disconnected(src_, default_reason);
-      // TODO: schedule reconnect if necessary
     }
     next.on_complete(steps...);
   }
@@ -322,8 +321,10 @@ public:
     auto& peers = state_->peers_;
     if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
       i->second.invalidated = true;
+      auto& addr = i->second.addr;
+      if (addr.retry.count() > 0)
+        caf::anon_send(state_->self(), atom::peer_v, addr);
       state_->peer_disconnected(src_, what);
-      // TODO: schedule reconnect if necessary
     }
     next.on_error(what, steps...);
   }
@@ -587,7 +588,7 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
     }
     return err;
   } else {
-    BROKER_DEBUG("successfully added peer" << peer << "on socket" << sock);
+    BROKER_DEBUG("successfully added peer" << peer << "on socket" << sock.id);
     return caf::none;
   }
 }

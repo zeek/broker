@@ -53,13 +53,11 @@ caf::behavior core_state::make_behavior() {
   return caf::message_handler{
     [=](atom::get, atom::peer) {
       std::vector<peer_info> result;
-      // TODO: implement me
-      // // Add all pending peerings from the stream transport.
-      // for (const auto& [peer_id, pending_conn] : pending_connections()) {
-      //   endpoint_info ep{peer_id, cache().find(pending_conn->remote_hdl)};
-      //   result.push_back(
-      //     {std::move(ep), peer_flags::remote, peer_status::connected});
-      // }
+      for (const auto& [peer_id, state] : peers_) {
+        endpoint_info info{peer_id, state.addr};
+        result.push_back(
+          {std::move(info), peer_flags::remote, peer_status::connected});
+      }
       return result;
     },
   }

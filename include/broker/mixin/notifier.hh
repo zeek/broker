@@ -124,10 +124,6 @@ public:
         BROKER_DEBUG("disable notifications");
         disable_notifications_ = true;
       },
-      [this](atom::publish, endpoint_info& receiver, data_message& msg) {
-        // TODO: implement me
-        // this->ship(msg, receiver.node);
-      },
       [](atom::add, atom::status, const caf::actor&) {
         // TODO: this handler exists only for backwards-compatibility. It used
         //       to register status subscribers for synchronization. Eventually,

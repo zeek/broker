@@ -97,8 +97,6 @@ public:
 
   void dispatch(alm::multipath path, const command_message& msg) override;
 
-  void dispatch(const node_message& msg) override;
-
   // -- overrides for alm::peer ------------------------------------------------
 
   void shutdown(shutdown_options options) override;

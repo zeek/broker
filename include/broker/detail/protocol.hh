@@ -86,8 +86,6 @@ public:
 
   template <class LowerLayerPtr>
   ptrdiff_t consume(LowerLayerPtr down, caf::byte_span buf) {
-    BROKER_DEBUG("got a message of" << buf.size() << "bytes on socket"
-                                    << down->handle().id);
     caf::binary_deserializer src{nullptr, buf};
     auto tag = alm_message_type{0};
     if (!src.apply(tag)) {
@@ -146,6 +144,10 @@ private:
     auto last = reinterpret_cast<const std::byte*>(bytes.end());
     auto payload = std::vector<std::byte>{first, last};
     // Push data down the pipeline.
+    BROKER_DEBUG("got a message of type" << tag << "with a payload of"
+                                         << payload.size() << "bytes and topic"
+                                         << msg_topic << "on socket"
+                                         << down->handle().id);
     auto packed = packed_message{tag, msg_topic, std::move(payload)};
     auto msg = node_message{std::move(path), std::move(packed)};
     if (peer_messages_->push(std::move(msg)) == 0)

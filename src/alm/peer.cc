@@ -1,5 +1,7 @@
 #include "broker/alm/peer.hh"
 
+#include "broker/endpoint_info.hh"
+
 namespace broker::alm {
 
 // -- constructors, destructors, and assignment operators ----------------------
@@ -125,12 +127,12 @@ bool peer::valid(endpoint_id_list& path, vector_timestamp path_ts) {
     BROKER_WARNING("received message from an unrecognized peer");
     return false;
   }
-  // TODO: re-implement
-  // if (!forwarder->hdl) {
-  //   BROKER_WARNING(
-  //     "received message from a peer we don't have a direct connection to");
-  //   return false;
-  // }
+  if (!is_direct_connection(*forwarder)) {
+    BROKER_WARNING("received a message from peer"
+                   << path.back()
+                   << "but we don't have a direct connection to it");
+    return false;
+  }
   // Drop all paths that contain loops.
   if (contains(path, id_)) {
     BROKER_DEBUG("drop message: path contains a loop");
@@ -340,11 +342,15 @@ caf::behavior peer::make_behavior() {
   BROKER_DEBUG("make behavior for peer" << id_);
   using detail::lift;
   return {
-    [this](atom::publish, data_message& msg) {
+    [this](atom::publish, const data_message& msg) { //
       dispatch(msg);
     },
-    [this](atom::publish, command_message& msg) {
+    [this](atom::publish, const command_message& msg) { //
       dispatch(msg);
+    },
+    [this](atom::publish, const endpoint_info& receiver,
+           const data_message& msg) {
+      dispatch(multipath{receiver.node, true}, msg);
     },
     [this](atom::publish, const command_message& msg, endpoint_id receiver) {
       if (receiver == id_)
@@ -352,13 +358,12 @@ caf::behavior peer::make_behavior() {
       else
         dispatch_to(msg, std::move(receiver));
     },
-    [this](atom::publish, const node_message& msg) {
-      dispatch(msg);
-    },
     lift<atom::subscribe>(*this, &peer::subscribe),
     lift<atom::subscribe>(*this, &peer::handle_filter_update),
     lift<atom::revoke>(*this, &peer::handle_path_revocation),
-    [=](atom::get, atom::id) { return id_; },
+    [=](atom::get, atom::id) { //
+      return id_;
+    },
     [=](atom::get, atom::peer, atom::subscriptions) {
       // For backwards-compatibility, we only report the filter of our
       // direct peers. Returning all filter would make more sense in an
@@ -372,11 +377,13 @@ caf::behavior peer::make_behavior() {
           filter_extend(result, filter);
       return result;
     },
-    [=](atom::shutdown, shutdown_options opts) { shutdown(opts); },
-    [=](atom::publish, atom::local, command_message& msg) {
+    [=](atom::shutdown, shutdown_options opts) { //
+      shutdown(opts);
+    },
+    [=](atom::publish, atom::local, command_message& msg) { //
       dispatch(msg);
     },
-    [=](atom::publish, atom::local, data_message& msg) {
+    [=](atom::publish, atom::local, data_message& msg) { //
       dispatch(msg);
     },
     [=](atom::await, endpoint_id who) {

@@ -512,9 +512,10 @@ struct connect_manager {
     else
       authority.host = addr;
     authority.port = port;
-    if (auto sock = caf::net::make_tcp_accept_socket(authority)) {
+    if (auto sock = caf::net::make_tcp_accept_socket(authority, true)) {
       if (auto actual_port = caf::net::local_port(*sock)) {
-        BROKER_DEBUG("started listening on port" << *actual_port);
+        BROKER_DEBUG("started listening on port" << *actual_port << "socket"
+                                                 << sock->id);
         acceptors.emplace(sock->id);
         pending_fdset.push_back({sock->id, read_mask, 0});
         listener_->on_listen(event_id, *actual_port);
@@ -811,7 +812,10 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
     mgr.handle_timeouts();
     mgr.prepare_next_cycle();
   }
-  // TODO: close sockets
+  for (auto& entry : fdset) {
+    BROKER_DEBUG("close socket" << entry.fd);
+    caf::net::close(caf::net::socket{entry.fd});
+  }
 }
 
 } // namespace broker::detail

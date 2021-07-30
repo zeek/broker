@@ -11,6 +11,11 @@ const std::vector<endpoint_id>* shortest_path(const routing_table& tbl,
     return nullptr;
 }
 
+bool is_direct_connection(const routing_table_row& row) {
+  return !row.versioned_paths.empty()
+         && row.versioned_paths.front().first.size() == 1;
+}
+
 const routing_table_row* find_row(const routing_table& tbl,
                                   const endpoint_id& peer) {
   if (auto i = tbl.find(peer); i != tbl.end())

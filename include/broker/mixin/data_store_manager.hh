@@ -123,10 +123,12 @@ public:
       hdl = i->second;
     } else {
       BROKER_INFO("spawning new clone:" << name);
+      using std::chrono::duration_cast;
+      auto tout = duration_cast<timespan>(fractional_seconds{resync_interval});
       auto& sys = self->system();
       auto [cl, launch]
         = sys.template make_flow_coordinator<detail::clone_actor_type>(
-          this->id(), name, caf::actor{self}, clock_);
+          this->id(), name, tout, caf::actor{self}, clock_);
       filter_type filter{name / topic::clone_suffix()};
       hdl = caf::actor{cl};
       this->add_filter(filter);
@@ -143,7 +145,12 @@ public:
     auto rp = self->make_response_promise();
     self->request(hdl, caf::infinite, atom::await_v, atom::idle_v)
       .then([rp, hdl](atom::ok) mutable { rp.deliver(hdl); },
-            [rp](caf::error& what) mutable { rp.deliver(std::move(what)); });
+            [=](caf::error& what) mutable {
+              if (auto j = clones_.find(name);
+                  j != clones_.end() && j->second == hdl)
+                clones_.erase(j);
+              rp.deliver(std::move(what));
+            });
     return rp;
   }
 
@@ -194,29 +201,6 @@ public:
         *this, &data_store_manager::get_master),
       lift<atom::shutdown, atom::store>(*this,
                                         &data_store_manager::detach_stores),
-      [this](atom::store, atom::master, atom::resolve, std::string& name,
-             caf::actor& who_asked) {
-        // TODO: get rid of the who_asked parameter and use proper
-        // request/response semantics with forwarding/dispatching
-        auto self = super::self();
-        auto i = masters_.find(name);
-        if (i != masters_.end()) {
-          self->send(who_asked, atom::master_v, i->second);
-          return;
-        }
-        // TODO: implement me
-        // auto peers = this->peer_ids();
-        // if (peers.empty()) {
-        //   BROKER_INFO("no peers to ask for the master");
-        //   self->send(who_asked, atom::master_v,
-        //              make_error(ec::no_such_master, "no peers"));
-        //   return;
-        // }
-        // auto resolver
-        //   = self->template spawn<spawn_flags>(detail::master_resolver);
-        // self->send(resolver, std::move(peers), std::move(name),
-        //            std::move(who_asked));
-      },
     }
       .or_else(super::make_behavior());
   }

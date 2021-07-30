@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -40,7 +41,7 @@ public:
   // -- initialization ---------------------------------------------------------
 
   clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-              std::string nm, caf::actor parent,
+              std::string nm, caf::timespan master_timeout, caf::actor parent,
               endpoint::clock* ep_clock);
 
   /// Sends `x` to the master.
@@ -122,6 +123,14 @@ public:
   consumer_type input;
 
   std::unique_ptr<producer_type> output_ptr;
+
+  /// Stores the maximum amount of time that a master may take to perform the
+  /// handshake or re-appear after a dropout.
+  caf::timespan max_sync_interval;
+
+  /// If set, marks when the clone stops trying to connect or re-connect to a
+  /// master.
+  std::optional<caf::timestamp> sync_timeout;
 
   static inline constexpr const char* name = "broker.clone";
 };

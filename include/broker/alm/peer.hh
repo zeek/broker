@@ -272,8 +272,6 @@ public:
 
   virtual void dispatch(alm::multipath path, const command_message& msg) = 0;
 
-  virtual void dispatch(const node_message& msg) = 0;
-
   // -- callbacks --------------------------------------------------------------
 
   /// Called whenever this peer discovers a new peer in the network.

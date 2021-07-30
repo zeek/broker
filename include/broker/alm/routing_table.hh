@@ -109,6 +109,9 @@ inline bool reachable(const routing_table& tbl, const endpoint_id& peer) {
   return tbl.count(peer) != 0;
 }
 
+/// Returns whether `row` is a direct connection.
+bool is_direct_connection(const routing_table_row& row);
+
 /// Returns whether `tbl` contains a direct connection to `peer`.
 inline bool is_direct_connection(const routing_table& tbl,
                                  const endpoint_id& peer) {

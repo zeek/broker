@@ -35,9 +35,9 @@ static double now(endpoint::clock* clock) {
 // -- initialization -----------------------------------------------------------
 
 clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-                         std::string nm, caf::actor parent,
-                         endpoint::clock* ep_clock)
-  : input(this) {
+                         std::string nm, caf::timespan master_timeout,
+                         caf::actor parent, endpoint::clock* ep_clock)
+  : input(this), max_sync_interval(master_timeout) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
               std::move(parent));
   master_topic = store_name / topic::master_suffix();
@@ -398,9 +398,11 @@ caf::behavior clone_state::make_behavior() {
   });
   // Ask the master to add this clone.
   send(std::addressof(input), clone_state::channel_type::nack{{0}});
-  // Schedule first tick.
+  // Schedule first tick and set a timeout for the attach operation.
   clock->send_later(self, defaults::store::tick_interval,
                     caf::make_message(atom::tick_v));
+  if (max_sync_interval.count() > 0)
+    sync_timeout = caf::make_timestamp() + max_sync_interval;
   return super::make_behavior(
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& cmd) {
@@ -420,6 +422,19 @@ caf::behavior clone_state::make_behavior() {
     },
     [=](atom::tick) {
       tick();
+      if (sync_timeout) {
+        if (has_master()) {
+          sync_timeout.reset();
+        } else if (caf::make_timestamp() >= *sync_timeout) {
+          BROKER_ERROR("unable to find a master for" << store_name);
+          auto err = make_error(ec::no_such_master, store_name);
+          for (auto& rp : idle_callbacks)
+            rp.deliver(err);
+          idle_callbacks.clear();
+          self->quit(err);
+          return;
+        }
+      }
       clock->send_later(self, defaults::store::tick_interval,
                         caf::make_message(atom::tick_v));
       if (!idle_callbacks.empty() && idle()) {
