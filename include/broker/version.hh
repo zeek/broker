@@ -9,9 +9,9 @@ namespace version {
 using type = unsigned;
 
 constexpr type major = 2;
-constexpr type minor = 2;
+constexpr type minor = 1;
 constexpr type patch = 0;
-constexpr auto suffix = "-dev";
+constexpr auto suffix = "";
 
 constexpr type protocol = 2;
 
