@@ -80,7 +80,7 @@ flare::flare() {
     BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << res.error());
   if (auto res = child_process_inherit(second, false); !res)
     BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << res.error());
-  if (auto res = nonblocking(first, false); !res) {
+  if (auto res = nonblocking(first, true); !res) {
     BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << res.error());
     std::terminate();
   }
