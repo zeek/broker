@@ -1,5 +1,9 @@
 2.1.0 | 2021-07-16 19:02:24 -0700
 
+  * Fix publisher deadlock when passing large batches (Dominik Charousset, Corelight)
+
+  (cherry-picked from bef5e0b485c63e3da4bde9cf01285634a0587cc6)
+
   * Raise CAF dependency to 0.18.5 and update embedded version (Tim Wojtulewicz, Corelight)
 
   * Release 2.1.0.
