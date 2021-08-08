@@ -14,10 +14,16 @@ std::string to_string(alm_message_type x) {
       return "routing_update";
     case alm_message_type::path_revocation:
       return "path_revocation";
-    case alm_message_type::originator_hello:
-      return "originator_hello";
-    case alm_message_type::responder_hello:
-      return "responder_hello";
+    case alm_message_type::hello:
+      return "hello";
+    case alm_message_type::originator_syn:
+      return "originator_syn";
+    case alm_message_type::responder_syn_ack:
+      return "responder_syn_ack";
+    case alm_message_type::originator_ack:
+      return "originator_ack";
+    case alm_message_type::drop_conn:
+      return "drop_conn";
     default:
       return "invalid";
   }

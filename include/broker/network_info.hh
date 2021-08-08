@@ -19,6 +19,9 @@ struct network_info : detail::totally_ordered<network_info> {
   std::string address;
   uint16_t port;
   timeout::seconds retry;
+  bool has_retry_time() const noexcept {
+    return retry.count() != 0;
+  }
 };
 
 /// @relates network_info

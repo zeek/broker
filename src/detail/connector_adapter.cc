@@ -30,6 +30,11 @@ public:
                    caf::make_message(peer, addr, ts, std::move(filter), fd));
   }
 
+  void on_redundant_connection(connector_event_id event_id, endpoint_id peer,
+                               network_info addr) override {
+    caf::anon_send(hdl_, event_id, caf::make_message(peer, addr));
+  }
+
   void on_drop(connector_event_id event_id,
                std::optional<endpoint_id> peer) override {
     caf::anon_send(hdl_, event_id, caf::make_message(peer));
@@ -58,6 +63,10 @@ auto connection_event(const caf::message& msg) {
                                             caf::net::socket_id>(msg);
 }
 
+auto redundant_connection_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<endpoint_id, network_info>(msg);
+}
+
 auto listen_event(const caf::message& msg) {
   return caf::make_const_typed_message_view<uint16_t>(msg);
 }
@@ -74,10 +83,11 @@ auto shutdown_event(const caf::message& msg) {
 
 connector_adapter::connector_adapter(caf::event_based_actor* self,
                                      connector_ptr conn, peering_callback cb,
-                                     shared_filter_ptr filter)
+                                     shared_filter_ptr filter,
+                                     shared_peer_status_map_ptr peer_statuses)
   : conn_(std::move(conn)), on_peering_(std::move(cb)) {
   conn_->init(std::make_unique<listener_impl>(caf::actor{self}),
-              std::move(filter));
+              std::move(filter), std::move(peer_statuses));
 }
 
 connector_event_id connector_adapter::next_id() {
@@ -110,23 +120,26 @@ caf::message_handler connector_adapter::message_handlers() {
 }
 
 void connector_adapter::async_connect(const network_info& addr,
-                                      peering_callback on_success,
-                                      error_callback on_error) {
+                                      peering_callback f,
+                                      redundant_peering_callback g,
+                                      error_callback h) {
   using caf::get;
   using std::move;
-  auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
+  auto cb = [f{move(f)}, g{move(g)}, h{move(h)}](const caf::message& msg) {
     if (auto xs1= connection_event(msg)) {
       f(get<0>(xs1), get<1>(xs1), get<2>(xs1), get<3>(xs1),
         caf::net::stream_socket{get<4>(xs1)});
-    } else if (auto xs2 = error_event(msg)) {
-      g(get<0>(xs2));
+    } else if (auto xs2 = redundant_connection_event(msg)) {
+      g(get<0>(xs2), get<1>(xs2));
+    } else if (auto xs3 = error_event(msg)) {
+      h(get<0>(xs3));
     } else {
       auto err = caf::make_error(caf::sec::unexpected_message, msg);
-      g(err);
+      h(err);
     }
   };
   auto eid = next_id();
-  pending_.emplace(eid, std::move(h));
+  pending_.emplace(eid, std::move(cb));
   conn_->async_connect(eid, addr);
 }
 

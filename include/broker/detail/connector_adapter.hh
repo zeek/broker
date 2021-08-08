@@ -22,14 +22,19 @@ public:
     = callback<endpoint_id, const network_info&, alm::lamport_timestamp,
                const filter_type&, caf::net::stream_socket>;
 
+  using redundant_peering_callback = callback<endpoint_id, const network_info&>;
+
   using error_callback = callback<const caf::error&>;
 
   connector_adapter(caf::event_based_actor* self, connector_ptr conn,
-                    peering_callback on_peering, shared_filter_ptr filter);
+                    peering_callback on_peering,
+                    shared_filter_ptr filter,
+                    shared_peer_status_map_ptr peer_statuses);
 
   caf::message_handler message_handlers();
 
   void async_connect(const network_info& addr, peering_callback on_success,
+                     redundant_peering_callback on_redundant_peering,
                      error_callback on_error);
 
   void async_drop(const network_info& addr,

@@ -44,8 +44,8 @@ stream_transport::stream_transport(caf::event_based_actor* self,
                     caf::net::stream_socket fd) {
       std::ignore = init_new_peer(remote_id, addr, ts, filter, fd);
     };
-    connector_adapter_.reset(
-      new detail::connector_adapter(self, std::move(conn), f, filter_));
+    connector_adapter_.reset(new detail::connector_adapter(
+      self, std::move(conn), f, filter_, peers_statuses_));
   }
 }
 
@@ -498,6 +498,19 @@ caf::behavior stream_transport::make_behavior() {
               rp.deliver(std::move(err));
             else
               rp.deliver(atom::peer_v, atom::ok_v, peer);
+          },
+          [this, rp](endpoint_id peer, const network_info& addr) mutable {
+            if (auto i = peers_.find(peer); i != peers_.end()) {
+              // Override the address if this one has a retry field. This makes
+              // sure we "prefer" a user-defined address over addresses we read
+              // from sockets for incoming peerings.
+              if (addr.has_retry_time() && !i->second.addr.has_retry_time())
+                i->second.addr = addr;
+              rp.deliver(atom::peer_v, atom::ok_v, peer);
+            } else {
+              // Weird race on the state? Just try again.
+              rp.delegate(caf::actor{self()}, atom::peer_v, addr);
+            }
           },
           [this, rp](const caf::error& what) mutable {
             rp.deliver(std::move(what));

@@ -288,7 +288,6 @@ else()
 endif()
 
 set(BROKER_SRC
-  src/detail/connector.cc
   # src/detail/core_recorder.cc
   # src/detail/generator_file_reader.cc
   # src/detail/generator_file_writer.cc
@@ -308,6 +307,7 @@ set(BROKER_SRC
   src/defaults.cc
   src/detail/abstract_backend.cc
   src/detail/clone_actor.cc
+  src/detail/connector.cc
   src/detail/connector_adapter.cc
   src/detail/data_generator.cc
   src/detail/filesystem.cc
@@ -323,6 +323,7 @@ set(BROKER_SRC
   src/detail/meta_data_writer.cc
   src/detail/monotonic_buffer_resource.cc
   src/detail/native_socket.cc
+  src/detail/peer_status_map.cc
   src/detail/prefix_matcher.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc

@@ -17,6 +17,7 @@
 #include "broker/detail/flow_controller.hh"
 #include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
+#include "broker/detail/peer_status_map.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
@@ -195,6 +196,11 @@ protected:
 
   /// Handles for aborting flows on unpeering.
   peer_state_map peers_;
+
+  /// Synchronizes information about the current status of a peering with the
+  /// connector.
+  detail::shared_peer_status_map_ptr peers_statuses_
+    = std::make_shared<detail::peer_status_map>();
 
   /// Buffer for serializing messages.
   caf::byte_buffer buf_;

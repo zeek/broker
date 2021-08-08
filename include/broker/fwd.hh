@@ -161,6 +161,7 @@ class flare_actor;
 class flow_controller;
 class flow_controller_callback;
 class mailbox;
+class peer_status_map;
 
 template <class T>
 class shared_publisher_queue;
@@ -173,6 +174,7 @@ enum class item_scope : uint8_t;
 enum class connector_event_id : uint64_t;
 
 using connector_ptr = std::shared_ptr<connector>;
+using shared_peer_status_map_ptr = std::shared_ptr<peer_status_map>;
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
 

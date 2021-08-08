@@ -8,6 +8,7 @@
 #include <caf/net/stream_socket.hpp>
 #include <caf/uuid.hpp>
 
+#include "broker/detail/peer_status_map.hh"
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
 
@@ -41,6 +42,10 @@ public:
                                filter_type filter, caf::net::socket_id fd)
       = 0;
 
+    virtual void on_redundant_connection(connector_event_id event_id,
+                                         endpoint_id peer, network_info addr)
+      = 0;
+
     virtual void
     on_drop(connector_event_id event_id, std::optional<endpoint_id> peer)
       = 0;
@@ -66,7 +71,8 @@ public:
   void async_shutdown();
 
   /// @thread-safe
-  void init(std::unique_ptr<listener> sub, shared_filter_ptr filter);
+  void init(std::unique_ptr<listener> sub, shared_filter_ptr filter,
+            shared_peer_status_map_ptr peer_statuses);
 
   void run();
 
@@ -83,6 +89,7 @@ private:
   std::condition_variable sub_cv_;
   std::unique_ptr<listener> sub_;
   shared_filter_ptr filter_;
+  shared_peer_status_map_ptr peer_statuses_;
 };
 
 using connector_ptr = std::shared_ptr<connector>;

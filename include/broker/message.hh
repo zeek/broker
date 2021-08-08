@@ -17,12 +17,15 @@ namespace broker {
 
 /// Tags a packed message with the type of the serialized data.
 enum class alm_message_type : uint8_t {
-  data = 0x01,
-  command = 0x02,
-  routing_update = 0x03,
-  path_revocation = 0x04,
-  originator_hello = 0x10,
-  responder_hello = 0x20,
+  data = 0x01,              ///< Payload contains a @ref data_message.
+  command = 0x02,           ///< Payload contains a @ref command_message.
+  routing_update = 0x03,    ///< Payload contains a flooded update.
+  path_revocation = 0x04,   ///< Payload contains a revoked path.
+  hello = 0x10,             ///< Starts the handshake process.
+  originator_syn = 0x20,    ///< Ship filter and local time from orig to resp.
+  responder_syn_ack = 0x30, ///< Ship filter and local time from resp to orig.
+  originator_ack = 0x40,    ///< Finalizes the peering process.
+  drop_conn = 0x50,         ///< Drops a redundant connection.
 };
 
 std::string to_string(alm_message_type);
