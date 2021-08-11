@@ -13,6 +13,7 @@
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/overload.hh"
 #include "broker/detail/protocol.hh"
+#include "broker/logger.hh"
 
 namespace broker::alm {
 
@@ -45,7 +46,7 @@ stream_transport::stream_transport(caf::event_based_actor* self,
       std::ignore = init_new_peer(remote_id, addr, ts, filter, fd);
     };
     connector_adapter_.reset(new detail::connector_adapter(
-      self, std::move(conn), f, filter_, peers_statuses_));
+      self, std::move(conn), f, filter_, peer_statuses_));
   }
 }
 
@@ -306,6 +307,7 @@ public:
     auto& peers = state_->peers_;
     if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
       i->second.invalidated = true;
+      update_status();
       caf::error default_reason;
       auto& addr = i->second.addr;
       if (addr.retry.count() > 0)
@@ -321,6 +323,7 @@ public:
     auto& peers = state_->peers_;
     if (auto i = peers.find(src_); i != peers.end() && !i->second.invalidated) {
       i->second.invalidated = true;
+      update_status();
       auto& addr = i->second.addr;
       if (addr.retry.count() > 0)
         caf::anon_send(state_->self(), atom::peer_v, addr);
@@ -330,6 +333,19 @@ public:
   }
 
 private:
+  void update_status() {
+    auto status = peer_status::peered;
+    if (state_->peer_statuses_->update(src_, status,
+                                       peer_status::disconnected)) {
+      BROKER_DEBUG(src_ << ":: peered -> disconnected");
+    } else {
+      BROKER_ERROR("invalid status for peer" << BROKER_ARG2("peer", src_)
+                                             << BROKER_ARG(status)
+                                             << "(expected status: peered)");
+      state_->peer_statuses_->update(src_, status, peer_status::disconnected);
+    }
+  }
+
   stream_transport* state_;
   endpoint_id src_;
   std::vector<endpoint_id> receivers_cache_;
@@ -484,6 +500,7 @@ caf::behavior stream_transport::make_behavior() {
           [rp](const caf::error& what) mutable { rp.deliver(what); });
       },
       [=](atom::peer, const network_info& addr) {
+        BROKER_TRACE(BROKER_ARG(addr));
         auto rp = self_->make_response_promise();
         if (!connector_adapter_) {
           rp.deliver(make_error(ec::no_connector_available));
@@ -494,12 +511,16 @@ caf::behavior stream_transport::make_behavior() {
           [this, rp](endpoint_id peer, const network_info& addr,
                      alm::lamport_timestamp ts, const filter_type& filter,
                      caf::net::stream_socket fd) mutable {
+            BROKER_TRACE(BROKER_ARG(peer)
+                         << BROKER_ARG(addr) << BROKER_ARG(ts)
+                         << BROKER_ARG(filter) << BROKER_ARG(fd));
             if (auto err = init_new_peer(peer, addr, ts, filter, fd))
               rp.deliver(std::move(err));
             else
               rp.deliver(atom::peer_v, atom::ok_v, peer);
           },
           [this, rp](endpoint_id peer, const network_info& addr) mutable {
+            BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
             if (auto i = peers_.find(peer); i != peers_.end()) {
               // Override the address if this one has a retry field. This makes
               // sure we "prefer" a user-defined address over addresses we read
@@ -513,6 +534,7 @@ caf::behavior stream_transport::make_behavior() {
             }
           },
           [this, rp](const caf::error& what) mutable {
+            BROKER_TRACE(BROKER_ARG(what));
             rp.deliver(std::move(what));
           });
       },
@@ -544,8 +566,21 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            const filter_type& filter,
                                            connect_flows_fun connect_flows) {
   BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(ts) << BROKER_ARG(filter));
-  if (peers_.count(peer) != 0)
+  auto i = peers_.find(peer);
+  if (i != peers_.end() && !i->second.invalidated)
     return make_error(ec::repeated_peering_handshake_request);
+  auto& psm = *peer_statuses_;
+  auto status = peer_status::peered;
+  if (psm.insert(peer, status)) {
+    BROKER_DEBUG(peer << ":: () -> peered");
+  } else if (status == peer_status::connected
+             && psm.update(peer, status, peer_status::peered)) {
+    BROKER_DEBUG(peer << ":: connected -> peered");
+  } else {
+    BROKER_ERROR("invalid status for new peer" << BROKER_ARG(peer)
+                                               << BROKER_ARG(status));
+    return make_error(ec::invalid_status, to_string(status));
+  }
   endpoint_id_list path{peer};
   auto& sys = self_->system();
   auto out = central_merge_ //
@@ -557,8 +592,14 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   auto async_out = self_->to_async_publisher(out);
   auto in = self_->observe(connect_flows(std::move(async_out)));
   central_merge_->add(in.transform(dispatch_step{this, peer}));
-  peers_.emplace(peer,
-                 peer_state{in.as_disposable(), out.as_disposable(), addr});
+  if (i == peers_.end()) {
+    peers_.emplace(peer,
+                   peer_state{in.as_disposable(), out.as_disposable(), addr});
+  } else {
+    i->second.in = in.as_disposable();
+    i->second.out = out.as_disposable();
+    i->second.invalidated = false;
+  }
   auto update_res = handle_update(path, vector_timestamp{ts}, filter);
   if (auto& new_peers = update_res.first; !new_peers.empty())
     for (auto& id : new_peers)

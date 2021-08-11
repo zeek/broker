@@ -199,7 +199,7 @@ protected:
 
   /// Synchronizes information about the current status of a peering with the
   /// connector.
-  detail::shared_peer_status_map_ptr peers_statuses_
+  detail::shared_peer_status_map_ptr peer_statuses_
     = std::make_shared<detail::peer_status_map>();
 
   /// Buffer for serializing messages.

@@ -143,11 +143,13 @@ private:
   }
 
   void emit(const status& stat) {
+    BROKER_INFO("emit:" << stat);
     auto dmsg = make_data_message(topic::statuses(), get_as<data>(stat));
     this->publish_locally(std::move(dmsg));
   }
 
   void emit(const error& err) {
+    BROKER_INFO("emit:" << err);
     auto dmsg = make_data_message(topic::errors(), get_as<data>(err));
     this->publish_locally(std::move(dmsg));
   }
@@ -155,7 +157,6 @@ private:
   template <class Enum, Enum Code>
   void emit(const endpoint_id& peer_id, const network_info& x,
             std::integral_constant<Enum, Code>, const char* msg) {
-    BROKER_INFO("emit:" << Code << x);
     if (disable_notifications_)
       return;
     if constexpr (std::is_same<Enum, sc>::value)
@@ -167,7 +168,6 @@ private:
   template <class Enum, Enum Code>
   void emit(const network_info& x, std::integral_constant<Enum, Code>,
             const char* msg) {
-    BROKER_INFO("emit:" << Code << x);
     if (disable_notifications_)
       return;
     if constexpr (std::is_same<Enum, sc>::value) {

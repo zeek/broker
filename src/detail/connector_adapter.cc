@@ -26,29 +26,37 @@ public:
   void on_connection(connector_event_id event_id, endpoint_id peer,
                      network_info addr, alm::lamport_timestamp ts,
                      filter_type filter, caf::net::socket_id fd) override {
+    BROKER_TRACE(BROKER_ARG(event_id)
+                 << BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(ts)
+                 << BROKER_ARG(filter) << BROKER_ARG(fd));
     caf::anon_send(hdl_, event_id,
                    caf::make_message(peer, addr, ts, std::move(filter), fd));
   }
 
   void on_redundant_connection(connector_event_id event_id, endpoint_id peer,
                                network_info addr) override {
+    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer) << BROKER_ARG(addr));
     caf::anon_send(hdl_, event_id, caf::make_message(peer, addr));
   }
 
   void on_drop(connector_event_id event_id,
                std::optional<endpoint_id> peer) override {
+    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer));
     caf::anon_send(hdl_, event_id, caf::make_message(peer));
   }
 
   void on_listen(connector_event_id event_id, uint16_t port) override {
+    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(port));
     caf::anon_send(hdl_, event_id, caf::make_message(port));
   }
 
   void on_error(connector_event_id event_id, error reason) override {
+    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(reason));
     caf::anon_send(hdl_, event_id, caf::make_message(std::move(reason)));
   }
 
   void on_shutdown() override {
+    BROKER_TRACE("");
     caf::anon_send(hdl_, invalid_connector_event_id,
                    caf::make_message(atom::shutdown_v));
   }
@@ -100,8 +108,9 @@ connector_event_id connector_adapter::next_id() {
 caf::message_handler connector_adapter::message_handlers() {
   using caf::get;
   return {
-    [this](connector_event_id id, const caf::message& msg) {
-      if (id == invalid_connector_event_id) {
+    [this](connector_event_id event_id, const caf::message& msg) {
+      BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(msg));
+      if (event_id == invalid_connector_event_id) {
         if (auto xs1 = shutdown_event(msg)) {
           BROKER_DEBUG("lost the connector");
           // TODO: implement me
@@ -111,7 +120,7 @@ caf::message_handler connector_adapter::message_handlers() {
         } else {
           BROKER_ERROR("connector_adapter received unexpected message:" << msg);
         }
-      } else if (auto i = pending_.find(id); i != pending_.end()) {
+      } else if (auto i = pending_.find(event_id); i != pending_.end()) {
         i->second(msg);
         pending_.erase(i);
       }
@@ -123,6 +132,7 @@ void connector_adapter::async_connect(const network_info& addr,
                                       peering_callback f,
                                       redundant_peering_callback g,
                                       error_callback h) {
+  BROKER_TRACE(BROKER_ARG(addr));
   using caf::get;
   using std::move;
   auto cb = [f{move(f)}, g{move(g)}, h{move(h)}](const caf::message& msg) {
@@ -146,6 +156,7 @@ void connector_adapter::async_connect(const network_info& addr,
 void connector_adapter::async_listen(const std::string& host, uint16_t port,
                                      callback<uint16_t> on_success,
                                      error_callback on_error) {
+  BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
   using caf::get;
   using std::move;
   auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
