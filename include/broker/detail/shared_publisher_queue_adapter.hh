@@ -13,7 +13,7 @@ class shared_publisher_queue_adapter
 public:
   using super = caf::flow::buffered_observable_impl<T>;
 
-  using queue_ptr = detail::shared_publisher_queue_ptr<>;
+  using queue_ptr = detail::shared_publisher_queue_ptr<T>;
 
   explicit shared_publisher_queue_adapter(caf::flow::coordinator* ctx,
                                           queue_ptr queue)
