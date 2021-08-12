@@ -375,6 +375,7 @@ endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)
   add_tool(broker-pipe)
+  add_tool(broker-sink)
   add_tool(broker-node)
 endif ()
 
