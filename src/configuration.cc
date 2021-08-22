@@ -11,6 +11,7 @@
 
 #include <caf/config.hpp>
 #include <caf/init_global_meta_objects.hpp>
+#include <caf/io/middleman.hpp>
 #include <caf/net/middleman.hpp>
 
 #include "broker/address.hh"
@@ -291,6 +292,7 @@ std::once_flag init_global_state_flag;
 void configuration::init_global_state() {
   std::call_once(init_global_state_flag, [] {
     caf::init_global_meta_objects<caf::id_block::broker>();
+    caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });
 }
