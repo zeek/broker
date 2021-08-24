@@ -1,12 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
-#include <string>
-#include <vector>
+#include <future>
 #include <map>
 #include <mutex>
-#include <atomic>
+#include <string>
+#include <vector>
 
 #include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
@@ -227,6 +228,16 @@ public:
   ///       message indicating the result of the peering operation.
   void peer_nosync(const std::string& address, uint16_t port,
             timeout::seconds retry = timeout::seconds(10));
+
+  /// Initiates a peering with a remote endpoint, without waiting
+  /// for the operation to complete.
+  /// @param address The IP address of the remote endpoint.
+  /// @param port The TCP port of the remote endpoint.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///        cannot be established, or breaks.
+  /// @return A `future` for catching the result at a later time.
+  std::future<bool> peer_async(std::string address, uint16_t port,
+                               timeout::seconds retry = timeout::seconds(10));
 
   /// Shuts down a peering with a remote endpoint.
   /// @param address The IP address of the remote endpoint.

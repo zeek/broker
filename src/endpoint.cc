@@ -519,6 +519,54 @@ void endpoint::peer_nosync(const std::string& address, uint16_t port,
   caf::anon_send(core(), atom::peer_v, network_info{address, port, retry});
 }
 
+namespace {
+
+struct peer_async_state {
+  static inline const char* name = "broker.peer-async-helper";
+
+  caf::event_based_actor* self;
+  caf::actor core;
+  std::promise<bool> prom;
+  std::string host;
+  uint16_t port;
+  timeout::seconds retry;
+
+  peer_async_state(caf::event_based_actor* self, caf::actor core,
+                   std::promise<bool>&& prom, std::string host, uint16_t port,
+                   timeout::seconds retry)
+    : self(self),
+      core(std::move(core)),
+      prom(std::move(prom)),
+      host(std::move(host)),
+      port(port),
+      retry(retry) {
+    // nop
+  }
+
+  caf::behavior make_behavior() {
+    self
+      ->request(core, caf::infinite, atom::peer_v,
+                network_info{std::move(host), port, retry})
+      .then([this](atom::peer, atom::ok, endpoint_id) { prom.set_value(true); },
+            [this](const caf::error&) { prom.set_value(false); });
+    return {};
+  }
+};
+
+using peer_async_actor = caf::stateful_actor<peer_async_state>;
+
+} // namespace
+
+std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
+                                       timeout::seconds retry) {
+  BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
+  auto prom = std::promise<bool>{};
+  auto res = prom.get_future();
+  system_.spawn<peer_async_actor>(core_, std::move(prom), std::move(host), port,
+                                  retry);
+  return res;
+}
+
 bool endpoint::unpeer(const std::string& address, uint16_t port) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("stopping to peer with" << address << ":" << port
