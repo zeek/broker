@@ -79,14 +79,16 @@ public:
 private:
   void run_impl(listener* sub, shared_filter_type* filter);
 
-  void write_to_pipe(caf::span<const caf::byte> bytes);
+  void write_to_pipe(caf::span<const caf::byte> bytes,
+                     bool shutdown_after_write = false);
 
+  std::mutex mtx_;
+  std::condition_variable sub_cv_;
+  bool shutting_down_ = false;
   caf::net::pipe_socket pipe_wr_;
   caf::net::pipe_socket pipe_rd_;
   caf::uuid this_peer_;
   caf::actor worker_;
-  std::mutex mtx_;
-  std::condition_variable sub_cv_;
   std::unique_ptr<listener> sub_;
   shared_filter_ptr filter_;
   shared_peer_status_map_ptr peer_statuses_;

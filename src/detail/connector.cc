@@ -124,7 +124,8 @@ public:
       return "failed to read from pipe for an unknown reason";
   }
 
-private:int flags_;
+private:
+  int flags_;
 };
 
 class pipe_reader {
@@ -135,7 +136,7 @@ public:
   }
 
   ~pipe_reader() {
-    caf::net::close(sock_);
+    // nop
   }
 
   template <class Manager>
@@ -606,6 +607,18 @@ struct connect_manager {
       BROKER_DEBUG("established connection to" << authority
                                                << "(initiate handshake)"
                                                << BROKER_ARG2("fd", sock->id));
+      if (auto err = caf::net::nonblocking(*sock, true)) {
+        auto err_str = to_string(err);
+        fprintf(stderr, "failed to set pipe to nonblocking: %s\n",
+                err_str.c_str());
+        ::abort();
+      }
+      if (auto err = caf::net::allow_sigpipe(*sock, false)) {
+        auto err_str = to_string(err);
+        fprintf(stderr, "failed to disable sigpipe: %s\n",
+                err_str.c_str());
+        ::abort();
+      }
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, read_mask, 0});
       state->transition(&connect_state::await_hello_or_orig_syn);
@@ -1070,13 +1083,13 @@ connector::connector(endpoint_id this_peer) : this_peer_(this_peer) {
   if (auto err = caf::net::nonblocking(pipe_rd_, true)) {
     auto err_str = to_string(err);
     fprintf(stderr, "failed to set pipe to nonblocking: %s\n", err_str.c_str());
-    abort();
+    ::abort();
   }
 }
 
 connector::~connector() {
-  caf::net::close(pipe_wr_);
   caf::net::close(pipe_rd_);
+  caf::net::close(pipe_wr_);
 }
 
 void connector::async_connect(connector_event_id event_id,
@@ -1103,23 +1116,26 @@ void connector::async_listen(connector_event_id event_id,
 void connector::async_shutdown() {
   BROKER_TRACE("");
   auto buf = to_buf(connector_msg::shutdown);
-  write_to_pipe(buf);
+  write_to_pipe(buf, true);
 }
 
-void connector::write_to_pipe(caf::span<const caf::byte> bytes) {
+void connector::write_to_pipe(caf::span<const caf::byte> bytes,
+                              bool shutdown_after_write) {
   BROKER_TRACE(bytes.size() << "bytes");
   std::unique_lock guard{mtx_};
-  if (pipe_wr_.id == caf::net::invalid_socket_id) {
-    BROKER_ERROR("failed to write to the pipe");
-    throw std::runtime_error("failed to write to the pipe");
+  if (shutting_down_) {
+    const char* errmsg = "failed to write to the pipe: shutting down";
+    BROKER_ERROR(errmsg);
+    throw std::runtime_error(errmsg);
   }
   auto res = caf::net::write(pipe_wr_, bytes);
   if (res != static_cast<ptrdiff_t>(bytes.size())) {
-    BROKER_ERROR("failed to write to the pipe");
-    caf::net::close(pipe_wr_);
-    pipe_wr_.id = caf::net::invalid_socket_id;
-    throw std::runtime_error("failed to write to the pipe");
+    const char* errmsg = "wrong number of bytes written to the pipe";
+    BROKER_ERROR(errmsg);
+    throw std::runtime_error(errmsg);
   }
+  if (shutdown_after_write)
+    shutting_down_ = true;
 }
 
 void connector::init(std::unique_ptr<listener> sub, shared_filter_ptr filter,
