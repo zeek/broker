@@ -117,6 +117,8 @@ caf::message_handler connector_adapter::message_handlers() {
         } else if (auto xs2 = connection_event(msg)) {
           on_peering_(get<0>(xs2), get<1>(xs2), get<2>(xs2), get<3>(xs2),
                       caf::net::stream_socket{get<4>(xs2)});
+        } else if (auto xs3 = redundant_connection_event(msg)) {
+          // drop
         } else {
           BROKER_ERROR("connector_adapter received unexpected message:" << msg);
         }
