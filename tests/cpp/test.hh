@@ -130,6 +130,12 @@ private:
   std::condition_variable cv_;
 };
 
+// -- data processing ----------------------------------------------------------
+
+std::vector<std::string>
+normalize_status_log(const std::vector<broker::data_message>& xs,
+                     bool include_endpoint_id = false);
+
 // -- fixtures -----------------------------------------------------------------
 
 struct empty_fixture_base {};

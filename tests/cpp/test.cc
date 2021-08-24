@@ -18,6 +18,45 @@
 #include "Winsock2.h"
 #endif
 
+std::vector<std::string>
+normalize_status_log(const std::vector<broker::data_message>& xs,
+                     bool include_endpoint_id) {
+  using namespace broker;
+  auto stringify = [](const data_message& msg) {
+    std::string result = get_topic(msg).string();
+    result += ": ";
+    result += to_string(get_data(msg));
+    return result;
+  };
+  auto code_of = [](const error& err) {
+    if (err.category() != caf::type_id_v<broker::ec>)
+      return ec::unspecified;
+    return static_cast<ec>(err.code());
+  };
+  std::vector<std::string>
+    lines;
+  lines.reserve(xs.size());
+  for (auto& x : xs) {
+    if (auto err = to<error>(get_data(x))) {
+      lines.emplace_back(to_string(code_of(*err)));
+    } else if (auto stat = to<status>(get_data(x))) {
+      lines.emplace_back(to_string(stat->code()));
+      if (include_endpoint_id) {
+        auto& line = lines.back();
+        line += ": ";
+        if (auto ctx = stat->context()) {
+          line += to_string(ctx->node);
+        } else {
+          line += to_string(endpoint_id::nil());
+        }
+      }
+    } else {
+      lines.emplace_back(stringify(x));
+    }
+  }
+  return lines;
+}
+
 barrier::barrier(ptrdiff_t num_threads) : num_threads_(num_threads), count_(0) {
   // nop
 }

@@ -42,26 +42,6 @@ auto code_of(const error& err) {
   return static_cast<ec>(err.code());
 }
 
-auto normalize_status_log(const std::vector<data_message>& xs) {
-  auto stringify = [](const data_message& msg) {
-    std::string result = get_topic(msg).string();
-    result += ": ";
-    result += to_string(get_data(msg));
-    return result;
-  };
-  std::vector<std::string> lines;
-  lines.reserve(xs.size());
-  for (auto& x : xs) {
-    if (auto err = to<error>(get_data(x)))
-      lines.emplace_back(to_string(code_of(*err)));
-    else if (auto stat = to<status>(get_data(x)))
-      lines.emplace_back(to_string(stat->code()));
-    else
-      lines.emplace_back(stringify(x));
-  }
-  return lines;
-}
-
 struct fixture {
   fixture() {
     t0 = broker::now();

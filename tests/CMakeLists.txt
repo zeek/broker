@@ -40,6 +40,7 @@ set(tests
   cpp/store.cc
   cpp/store_event.cc
   cpp/subscriber.cc
+  cpp/system/peering.cc
   cpp/system/shutdown.cc
   cpp/test.cc
   cpp/topic.cc
