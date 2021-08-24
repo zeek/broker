@@ -514,7 +514,8 @@ caf::behavior stream_transport::make_behavior() {
             BROKER_TRACE(BROKER_ARG(peer)
                          << BROKER_ARG(addr) << BROKER_ARG(ts)
                          << BROKER_ARG(filter) << BROKER_ARG(fd));
-            if (auto err = init_new_peer(peer, addr, ts, filter, fd))
+            if (auto err = init_new_peer(peer, addr, ts, filter, fd);
+                err && err != ec::repeated_peering_handshake_request)
               rp.deliver(std::move(err));
             else
               rp.deliver(atom::peer_v, atom::ok_v, peer);
@@ -556,6 +557,30 @@ caf::behavior stream_transport::make_behavior() {
         if (auto err = init_new_peer(peer, addr, ts, filter, fd))
           return err;
         return caf::unit;
+      },
+      [this](atom::join, filter_type& filter) {
+        auto hdl = caf::actor_cast<caf::actor>(self()->current_sender());
+        if (!hdl)
+          return;
+        subscribe(filter);
+        init_data_outputs();
+        auto sub = data_outputs_
+                     .filter([filter](const data_message& item) {
+                       detail::prefix_matcher f;
+                       return f(filter, item);
+                     })
+                     .for_each([this, hdl](const data_message& msg) {
+                       self()->send(hdl, msg);
+                     });
+        auto weak_self = self()->address();
+        hdl->attach_functor([weak_self, sub] {
+          auto strong_self = caf::actor_cast<caf::actor>(weak_self);
+          if (!strong_self)
+            return;
+          auto cb = detail::make_flow_controller_callback(
+            [sub](detail::flow_controller*) mutable { sub.dispose(); });
+          caf::anon_send(strong_self, std::move(cb));
+        });
       })
     .or_else(super::make_behavior());
 }

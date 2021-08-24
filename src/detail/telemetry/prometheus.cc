@@ -68,7 +68,14 @@ caf::behavior prometheus_actor::make_behavior() {
   }
   if (!filter_.empty()) {
     BROKER_INFO("collect remote metrics from topics" << filter_);
-    send(caf::actor{this} * core_, atom::join_v, filter_);
+    send(core_, atom::join_v, filter_);
+    monitor(core_);
+    set_down_handler([this](const caf::down_msg& msg) {
+      if (msg.source == core_) {
+        BROKER_INFO("the core terminated:" << msg.reason);
+        quit(msg.reason);
+      }
+    });
   }
   auto bhvr = caf::message_handler{
     [this](const caf::io::new_data_msg& msg) {
@@ -130,22 +137,9 @@ caf::behavior prometheus_actor::make_behavior() {
       if (num_connections() + num_doormen() == 0)
         quit();
     },
-    [this](caf::stream<data_message> in) {
-      return caf::attach_stream_sink(
-        this, in,
-        // Init.
-        [](caf::unit_t&) {
-          // nop
-        },
-        // Consume.
-        [this](caf::unit_t&, data_message msg) {
-          collector_.insert_or_update(get_data(msg));
-        },
-        // Cleanup.
-        [=](caf::unit_t&, const caf::error& err) {
-          BROKER_INFO("the core terminated the stream:" << err);
-          quit(err);
-        });
+    [this](data_message msg) {
+      BROKER_TRACE(BROKER_ARG(msg));
+      collector_.insert_or_update(get_data(msg));
     },
   };
   auto params = exporter_params::from(config());
