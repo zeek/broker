@@ -91,6 +91,14 @@ centos7_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+debian11_task:
+  container:
+    # Debian 11 EOL: June 2026
+    dockerfile: ci/debian-11/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 debian10_task:
   container:
     # Debian 10 EOL: June 2024
@@ -143,14 +151,6 @@ ubuntu18_task:
   container:
     # Ubuntu 18.04 EOL: April 2023
     dockerfile: ci/ubuntu-18.04/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-ubuntu16_task:
-  container:
-    # Ubuntu 16.04 EOL: April 2021
-    dockerfile: ci/ubuntu-16.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
