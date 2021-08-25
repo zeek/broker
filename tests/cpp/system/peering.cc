@@ -163,7 +163,6 @@ FIXTURE_SCOPE(system_peering_tests, fixture)
 // then form a full mesh. All endpoints wait on a barrier before calling `peer`
 // on the endpoints to maximize conflict potential during handshaking.
 TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
-  signal(SIGPIPE, +[](int){__builtin_trap();});
   static constexpr size_t num_endpoints = 4;
   MESSAGE("initialize state");
   using data_message_list = std::vector<data_message>;
@@ -175,13 +174,15 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
   barrier peered{num_endpoints};
   barrier send_and_received{num_endpoints};
   std::array<std::thread, num_endpoints> threads;
-  std::array<std::atomic<caf::uuid>, num_endpoints> ep_ids;
+  std::array<std::shared_ptr<endpoint_id>, num_endpoints> ep_ids;
+  for (auto& ptr : ep_ids)
+    ptr = std::make_shared<endpoint_id>();
   MESSAGE("spin up threads");
   for (size_t index = 0; index != num_endpoints; ++index) {
     threads[index] = std::thread{[&, index] {
       auto log_ptr = ep_logs[index];
       endpoint ep{make_config("peering-events", index)};
-      ep_ids[index] = ep.node_id();
+      *ep_ids[index] = ep.node_id();
       barrier got_hellos{2};
       ep.subscribe_nosync(
         {topic::statuses(), "foo/bar"}, [](caf::unit_t&) {},
@@ -201,8 +202,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       for (size_t i = 0; i != num_endpoints; ++i) {
         if (i != index) {
           auto p = ports[i].load();
-          peer_results.emplace(ep_ids[i].load(),
-                               ep.peer_async("localhost", p, 0s));
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
         }
       }
       for (auto& [other_id, res] : peer_results) {
@@ -241,7 +241,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
   for (size_t index = 0; index != num_endpoints; ++index) {
     for (size_t i = 0; i != num_endpoints; ++i)
       if (i != index)
-        CHECK_EQUAL(grep_id(normalized_logs[index], ep_ids[i]), sequence);
+        CHECK_EQUAL(grep_id(normalized_logs[index], *ep_ids[i]), sequence);
     CHECK_EQUAL(sort(grep_hello(*ep_logs[index])), hellos[index]);
   }
 }

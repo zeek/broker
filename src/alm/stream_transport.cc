@@ -558,7 +558,7 @@ caf::behavior stream_transport::make_behavior() {
           return err;
         return caf::unit;
       },
-      [this](atom::join, filter_type& filter) {
+      [this](atom::join, filter_type& filter) mutable {
         auto hdl = caf::actor_cast<caf::actor>(self()->current_sender());
         if (!hdl)
           return;
@@ -573,7 +573,7 @@ caf::behavior stream_transport::make_behavior() {
                        self()->send(hdl, msg);
                      });
         auto weak_self = self()->address();
-        hdl->attach_functor([weak_self, sub] {
+        hdl->attach_functor([weak_self, sub]() mutable {
           auto strong_self = caf::actor_cast<caf::actor>(weak_self);
           if (!strong_self)
             return;

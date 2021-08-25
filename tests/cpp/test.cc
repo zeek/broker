@@ -127,8 +127,10 @@ base_fixture::base_fixture()
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
   char id = 'A';
-  while (id <= 'Z')
-    ids[id++] = *caf::make_uuid(uuid_strings[id - 'A']);
+  while (id <= 'Z') {
+    ids[id] = *caf::make_uuid(uuid_strings[id - 'A']);
+    ++id;
+  }
 }
 
 base_fixture::~base_fixture() {
