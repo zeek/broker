@@ -14,7 +14,19 @@
 #include <mutex>
 #include <vector>
 
-#define CHECK_FAILED(...)                                                      \
+#define SYNC_CHECK(stmt)                                                       \
+  ([&] {                                                                       \
+    std::unique_lock guard{print_mtx};                                         \
+    return CHECK(stmt);                                                        \
+  })()
+
+#define SYNC_CHECK_EQUAL(lhs, rhs)                                             \
+  ([&] {                                                                       \
+    std::unique_lock guard{print_mtx};                                         \
+    return CHECK_EQUAL(lhs, rhs);                                              \
+  })()
+
+#define SYNC_CHECK_FAILED(...)                                                 \
   ([](auto... xs) {                                                            \
     std::ostringstream str;                                                    \
     (str << ... << xs);                                                        \
@@ -27,6 +39,9 @@ using namespace std::literals;
 
 namespace {
 
+static constexpr size_t num_endpoints = 4;
+
+using data_message_list = std::vector<data_message>;
 using string_list = std::vector<std::string>;
 
 std::string log_path_template(const char* test_name, size_t endpoint_nr) {
@@ -74,10 +89,16 @@ void println(const Ts&... xs) {
 
 struct fixture {
   fixture() {
-    t0 = broker::now();
+    for (auto& ptr : ep_logs)
+      ptr = std::make_shared<data_message_list>();
+    for (auto& ptr : ep_ids)
+      ptr = std::make_shared<endpoint_id>();
   }
 
-  broker::timestamp t0;
+  std::array<std::shared_ptr<data_message_list>, num_endpoints> ep_logs;
+  std::array<std::atomic<uint16_t>, num_endpoints> ports;
+  std::array<std::thread, num_endpoints> threads;
+  std::array<std::shared_ptr<endpoint_id>, num_endpoints> ep_ids;
 };
 
 struct alternative {
@@ -163,20 +184,10 @@ FIXTURE_SCOPE(system_peering_tests, fixture)
 // then form a full mesh. All endpoints wait on a barrier before calling `peer`
 // on the endpoints to maximize conflict potential during handshaking.
 TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
-  static constexpr size_t num_endpoints = 4;
   MESSAGE("initialize state");
-  using data_message_list = std::vector<data_message>;
-  std::array<std::shared_ptr<data_message_list>, num_endpoints> ep_logs;
-  for (auto& ptr : ep_logs)
-    ptr = std::make_shared<data_message_list>();
-  std::array<std::atomic<uint16_t>, num_endpoints> ports;
   barrier listening{num_endpoints};
   barrier peered{num_endpoints};
   barrier send_and_received{num_endpoints};
-  std::array<std::thread, num_endpoints> threads;
-  std::array<std::shared_ptr<endpoint_id>, num_endpoints> ep_ids;
-  for (auto& ptr : ep_ids)
-    ptr = std::make_shared<endpoint_id>();
   MESSAGE("spin up threads");
   for (size_t index = 0; index != num_endpoints; ++index) {
     threads[index] = std::thread{[&, index] {
@@ -207,8 +218,8 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       }
       for (auto& [other_id, res] : peer_results) {
         if (!res.get()) {
-          CHECK_FAILED("endpoint ", to_string(ep.node_id()),
-                       " failed to connect to ", to_string(other_id));
+          SYNC_CHECK_FAILED("endpoint ", to_string(ep.node_id()),
+                            " failed to connect to ", to_string(other_id));
         }
       }
       peered.arrive_and_wait();
@@ -244,6 +255,74 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
         CHECK_EQUAL(grep_id(normalized_logs[index], *ep_ids[i]), sequence);
     CHECK_EQUAL(sort(grep_hello(*ep_logs[index])), hellos[index]);
   }
+}
+
+TEST(multiple clones can attach to a single master) {
+  static constexpr size_t num_endpoints = 4;
+  MESSAGE("initialize state");
+  barrier listening{num_endpoints};
+  barrier peered{num_endpoints};
+  barrier written_to_store{num_endpoints};
+  MESSAGE("spin up threads");
+  for (size_t index = 0; index != num_endpoints; ++index) {
+    threads[index] = std::thread{[&, index] {
+      endpoint ep{make_config("peering-events", index)};
+      *ep_ids[index] = ep.node_id();
+      store services;
+      if (index == 0) {
+        if (auto maybe_services = ep.attach_master("zeek/known/services",
+                                                   backend::memory)) {
+          services = std::move(*maybe_services);
+          services.put("foo-0", "bar");
+        } else {
+          SYNC_CHECK_FAILED("attach_master failed: ",
+                            to_string(maybe_services.error()));
+        }
+      }
+      auto port = ep.listen();
+      if (port == 0)
+        hard_error("endpoint ", to_string(ep.node_id()),
+                   " failed to open a port");
+      ports[index] = port;
+      std::map<endpoint_id, std::future<bool>> peer_results;
+      listening.arrive_and_wait();
+      for (size_t i = 0; i != num_endpoints; ++i) {
+        if (i != index) {
+          auto p = ports[i].load();
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
+        }
+      }
+      for (auto& [other_id, res] : peer_results) {
+        if (!res.get()) {
+          SYNC_CHECK_FAILED("endpoint ", to_string(ep.node_id()),
+                            " failed to connect to ", to_string(other_id));
+        }
+      }
+      peered.arrive_and_wait();
+      if (index != 0) {
+        if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.25);
+            SYNC_CHECK(maybe_services)) {
+          services = std::move(*maybe_services);
+          services.put("foo-" + std::to_string(index), "bar");
+          if (auto val = services.get("foo-0"s);
+              SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
+            SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
+          auto idle_res = services.await_idle();
+          SYNC_CHECK(idle_res);
+          written_to_store.arrive_and_wait();
+        }
+      } else {
+        written_to_store.arrive_and_wait();
+        auto keys_data = services.keys();
+        REQUIRE(keys_data);
+        REQUIRE(is<set>(*keys_data));
+        auto keys = std::move(get<set>(*keys_data));
+        CHECK_EQUAL(keys, set({"foo-0", "foo-1"s, "foo-2"s, "foo-3"s}));
+      }
+    }};
+  }
+  for (auto& hdl : threads)
+    hdl.join();
 }
 
 FIXTURE_SCOPE_END()
