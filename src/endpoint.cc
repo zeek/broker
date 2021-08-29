@@ -33,6 +33,43 @@
 
 namespace broker {
 
+// --- async helper ------------------------------------------------------------
+
+namespace {
+
+template <class OnValue, class OnError>
+struct async_helper_state {
+  static inline const char* name = "broker.async-helper";
+
+  caf::event_based_actor* self;
+  caf::actor core;
+  caf::message msg;
+  OnValue on_value;
+  OnError on_error;
+
+  async_helper_state(caf::event_based_actor* self, caf::actor core,
+                     caf::message msg, OnValue on_value, OnError on_error)
+    : self(self),
+      core(std::move(core)),
+      msg(std::move(msg)),
+      on_value(std::move(on_value)),
+      on_error(std::move(on_error)) {
+    // nop
+  }
+
+  caf::behavior make_behavior() {
+    self->request(core, caf::infinite, std::move(msg))
+      .then(std::move(on_value), std::move(on_error));
+    return {};
+  }
+};
+
+template <class OnValue, class OnError>
+using async_helper_actor
+  = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
+
+} // namespace
+
 // --- nested classes ----------------------------------------------------------
 
 endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
@@ -519,51 +556,22 @@ void endpoint::peer_nosync(const std::string& address, uint16_t port,
   caf::anon_send(core(), atom::peer_v, network_info{address, port, retry});
 }
 
-namespace {
-
-struct peer_async_state {
-  static inline const char* name = "broker.peer-async-helper";
-
-  caf::event_based_actor* self;
-  caf::actor core;
-  std::promise<bool> prom;
-  std::string host;
-  uint16_t port;
-  timeout::seconds retry;
-
-  peer_async_state(caf::event_based_actor* self, caf::actor core,
-                   std::promise<bool>&& prom, std::string host, uint16_t port,
-                   timeout::seconds retry)
-    : self(self),
-      core(std::move(core)),
-      prom(std::move(prom)),
-      host(std::move(host)),
-      port(port),
-      retry(retry) {
-    // nop
-  }
-
-  caf::behavior make_behavior() {
-    self
-      ->request(core, caf::infinite, atom::peer_v,
-                network_info{std::move(host), port, retry})
-      .then([this](atom::peer, atom::ok, endpoint_id) { prom.set_value(true); },
-            [this](const caf::error&) { prom.set_value(false); });
-    return {};
-  }
-};
-
-using peer_async_actor = caf::stateful_actor<peer_async_state>;
-
-} // namespace
-
 std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
                                        timeout::seconds retry) {
   BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
-  auto prom = std::promise<bool>{};
-  auto res = prom.get_future();
-  system_.spawn<peer_async_actor>(core_, std::move(prom), std::move(host), port,
-                                  retry);
+  auto prom = std::make_shared<std::promise<bool>>();
+  auto res = prom->get_future();
+  auto on_val = [prom](atom::peer, atom::ok, endpoint_id) mutable {
+    prom->set_value(true);
+  };
+  auto on_err = [prom](const caf::error&) {
+    prom->set_value(false);
+  };
+  using actor_t = async_helper_actor<decltype(on_val), decltype(on_err)>;
+  auto msg = caf::make_message(atom::peer_v,
+                               network_info{std::move(host), port, retry});
+  system_.spawn<actor_t>(core_, std::move(msg), std::move(on_val),
+                         std::move(on_err));
   return res;
 }
 
@@ -759,6 +767,31 @@ expected<store> endpoint::attach_clone(std::string name,
         res = store{id_, std::move(clone), std::move(name)};
       },
       [&](caf::error& e) { res = std::move(e); });
+  return res;
+}
+
+std::future<expected<store>>
+endpoint::attach_clone_async(std::string name, double resync_interval,
+                       double stale_interval, double mutation_buffer_interval) {
+  BROKER_TRACE(BROKER_ARG(name)
+               << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
+               << BROKER_ARG(mutation_buffer_interval));
+  BROKER_INFO("attaching clone store" << name);
+  using res_t = expected<store>;
+  auto prom = std::make_shared<std::promise<res_t>>();
+  auto res = prom->get_future();
+  auto on_val = [id{id_}, prom, name](caf::actor& clone) mutable {
+    prom->set_value(res_t{store{id, std::move(clone), std::move(name)}});
+  };
+  auto on_err = [prom](caf::error& err) {
+    prom->set_value(res_t{std::move(err)});
+  };
+  using actor_t = async_helper_actor<decltype(on_val), decltype(on_err)>;
+  auto msg = caf::make_message(atom::store_v, atom::clone_v, atom::attach_v,
+                               name, resync_interval, stale_interval,
+                               mutation_buffer_interval);
+  system_.spawn<actor_t>(core_, std::move(msg), std::move(on_val),
+                         std::move(on_err));
   return res;
 }
 

@@ -325,4 +325,73 @@ TEST(multiple clones can attach to a single master) {
     hdl.join();
 }
 
+TEST(the master may appear after launching the clones) {
+  static constexpr size_t num_endpoints = 4;
+  MESSAGE("initialize state");
+  barrier listening{num_endpoints};
+  barrier peered{num_endpoints};
+  barrier waiting_for_master{num_endpoints};
+  barrier written_to_store{num_endpoints};
+  MESSAGE("spin up threads");
+  for (size_t index = 0; index != num_endpoints; ++index) {
+    threads[index] = std::thread{[&, index] {
+      endpoint ep{make_config("peering-events", index)};
+      *ep_ids[index] = ep.node_id();
+      auto port = ep.listen();
+      if (port == 0)
+        hard_error("endpoint ", to_string(ep.node_id()),
+                   " failed to open a port");
+      ports[index] = port;
+      std::map<endpoint_id, std::future<bool>> peer_results;
+      listening.arrive_and_wait();
+      for (size_t i = 0; i != num_endpoints; ++i) {
+        if (i != index) {
+          auto p = ports[i].load();
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
+        }
+      }
+      for (auto& [other_id, res] : peer_results) {
+        if (!res.get()) {
+          SYNC_CHECK_FAILED("endpoint ", to_string(ep.node_id()),
+                            " failed to connect to ", to_string(other_id));
+        }
+      }
+      peered.arrive_and_wait();
+      store services;
+      if (index != 0) {
+        auto ft = ep.attach_clone_async("zeek/known/services", 0.25);
+        waiting_for_master.arrive_and_wait();
+        if (auto maybe_services = ft.get(); SYNC_CHECK(maybe_services)) {
+          services = std::move(*maybe_services);
+          services.put("foo-" + std::to_string(index), "bar");
+          if (auto val = services.get("foo-0"s);
+              SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
+            SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
+          auto idle_res = services.await_idle();
+          SYNC_CHECK(idle_res);
+          written_to_store.arrive_and_wait();
+        }
+      } else {
+        waiting_for_master.arrive_and_wait();
+        if (auto maybe_services = ep.attach_master("zeek/known/services",
+                                                   backend::memory)) {
+          services = std::move(*maybe_services);
+          services.put("foo-0", "bar");
+        } else {
+          SYNC_CHECK_FAILED("attach_master failed: ",
+                            to_string(maybe_services.error()));
+        }
+        written_to_store.arrive_and_wait();
+        auto keys_data = services.keys();
+        REQUIRE(keys_data);
+        REQUIRE(is<set>(*keys_data));
+        auto keys = std::move(get<set>(*keys_data));
+        CHECK_EQUAL(keys, set({"foo-0", "foo-1"s, "foo-2"s, "foo-3"s}));
+      }
+    }};
+  }
+  for (auto& hdl : threads)
+    hdl.join();
+}
+
 FIXTURE_SCOPE_END()

@@ -343,7 +343,10 @@ public:
   expected<store> attach_master(std::string name, backend type,
                                 backend_options opts = backend_options());
 
-  /// Attaches and/or creates a *clone* data store to an existing master.
+  /// Attaches and/or creates a *clone* data store. Once attached, the clone
+  /// tries to locate the master in the network. Note that this function does
+  /// *not* wait until the master has been located. Hence, the clone may still
+  /// raise a `no_such_master` error after some time.
   /// @param name The name of the clone.
   /// @param resync_interval The frequency at which the clone will attempt to
   ///                        reconnect/resynchronize with its master in the
@@ -370,6 +373,12 @@ public:
   expected<store> attach_clone(std::string name, double resync_interval = 10.0,
                                double stale_interval = 300.0,
                                double mutation_buffer_interval = 120.0);
+
+  /// Like `attach_clone`, but returns immediately.
+  std::future<expected<store>>
+  attach_clone_async(std::string name, double resync_interval = 10.0,
+                     double stale_interval = 300.0,
+                     double mutation_buffer_interval = 120.0);
 
   // --- messaging -------------------------------------------------------------
 

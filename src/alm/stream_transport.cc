@@ -267,6 +267,7 @@ stream_transport::select_local_commands(const filter_type& filter) {
 }
 
 void stream_transport::add_filter(const filter_type& filter) {
+  BROKER_TRACE(BROKER_ARG(filter));
   subscribe(filter);
 }
 
