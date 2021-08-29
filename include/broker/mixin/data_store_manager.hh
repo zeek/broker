@@ -142,16 +142,7 @@ public:
       clones_.emplace(name, hdl);
       launch();
     }
-    auto rp = self->make_response_promise();
-    self->request(hdl, caf::infinite, atom::await_v, atom::idle_v)
-      .then([rp, hdl](atom::ok) mutable { rp.deliver(hdl); },
-            [=](caf::error& what) mutable {
-              if (auto j = clones_.find(name);
-                  j != clones_.end() && j->second == hdl)
-                clones_.erase(j);
-              rp.deliver(std::move(what));
-            });
-    return rp;
+    return hdl;
   }
 
   /// Returns whether the master for the given store runs at this peer.
