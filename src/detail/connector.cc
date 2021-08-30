@@ -941,10 +941,10 @@ bool connect_state::await_hello(alm_message_type msg) {
             break;
           case peer_status::connected:
           case peer_status::peered:
+            BROKER_DEBUG("detected redundant connection for connected peer");
             send_drop_conn();
-            transition(&connect_state::fin);
-            return true;
-            break;
+            transition(&connect_state::err);
+            return false;
           case peer_status::disconnected:
             if (psm.update(remote_id, status, peer_status::reconnecting)) {
               BROKER_DEBUG(remote_id << ":: disconnected -> reconnecting");
