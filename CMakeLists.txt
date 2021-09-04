@@ -245,11 +245,10 @@ endif ()
 set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
 set(CAF_INC_ENABLE_BB_MODULE OFF CACHE INTERNAL "")
 set(CAF_INC_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
-add_subdirectory(caf-incubator)
-
+add_subdirectory(caf-incubator EXCLUDE_FROM_ALL)
 
 include_directories(BEFORE ${CAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES} CAF::net)
+set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 # -- libroker -----------------------------------------------------------------
 
@@ -294,6 +293,7 @@ set(BROKER_SRC
   # src/detail/network_cache.cc
   # src/gateway.cc
   ${OPTIONAL_SRC}
+  $<TARGET_OBJECTS:libcaf_net_obj>
   src/activity.cc
   src/address.cc
   src/alm/multipath.cc
@@ -365,17 +365,40 @@ if (ENABLE_SHARED)
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
   target_link_libraries(broker ${LINK_LIBS})
-  install(TARGETS broker DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_include_directories(broker
+    INTERFACE
+      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+      $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
+      ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
+  install(
+    TARGETS broker
+    EXPORT BrokerTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  set(BROKER_LIBRARY broker) # for BrokerConfig.cmake
+else()
+  set(BROKER_LIBRARY broker_static) # for BrokerConfig.cmake
 endif ()
 
 if (ENABLE_STATIC)
   add_library(broker_static STATIC ${BROKER_SRC})
   set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
-  if (NOT DISABLE_PYTHON_BINDINGS)
-    set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  endif()
+  set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_link_libraries(broker_static ${LINK_LIBS})
-  install(TARGETS broker_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_include_directories(broker_static
+    INTERFACE
+      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+      $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
+      ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
+  install(
+    TARGETS broker_static
+    EXPORT BrokerTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
 # -- Tools --------------------------------------------------------------------
@@ -459,6 +482,31 @@ endif ()
 if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
   add_subdirectory(doc)
 endif ()
+
+# -- CMake package install ----------------------------------------------------
+
+export(EXPORT BrokerTargets FILE BrokerTargets.cmake)
+
+install(
+  EXPORT BrokerTargets
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
+  VERSION ${BROKER_VERSION}
+  COMPATIBILITY ExactVersion)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/BrokerConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
+
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
+  DESTINATION
+    "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
 
 # -- Build Summary ------------------------------------------------------------
 

@@ -54,14 +54,12 @@ if (NOT MSVC)
   )
 endif()
 
-# Setup correct broker library (static/shared).
-if (ENABLE_SHARED)
-  set(libbroker broker)
-else ()
-  set(libbroker broker_static)
-endif ()
-add_executable(broker-test ${tests})
-target_link_libraries(broker-test ${libbroker} CAF::test)
+add_executable(broker-test ${tests} $<TARGET_OBJECTS:libcaf_net_obj>)
+target_link_libraries(broker-test ${BROKER_LIBRARY} CAF::test)
+target_include_directories(broker-test
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
+    ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -96,11 +94,11 @@ endforeach ()
 ## -- Benchmark ---------------------------------------------------------------
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
-target_link_libraries(broker-benchmark ${libbroker})
+target_link_libraries(broker-benchmark ${BROKER_LIBRARY})
 install(TARGETS broker-benchmark DESTINATION bin)
 
 # add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
-# target_link_libraries(broker-cluster-benchmark ${libbroker})
+# target_link_libraries(broker-cluster-benchmark ${BROKER_LIBRARY})
 # install(TARGETS broker-cluster-benchmark DESTINATION bin)
 
 # -- Python -------------------------------------------------------------------
