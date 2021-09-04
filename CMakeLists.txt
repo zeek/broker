@@ -371,8 +371,8 @@ if (ENABLE_SHARED)
       $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
-      ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
-      ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
+      ${PROJECT_SOURCE_DIR}/caf-incubator/libcaf_net
+      ${PROJECT_BINARY_DIR}/caf-incubator/libcaf_net)
   install(
     TARGETS broker
     EXPORT BrokerTargets
@@ -393,8 +393,8 @@ if (ENABLE_STATIC)
       $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
-      ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
-      ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
+      ${PROJECT_SOURCE_DIR}/caf-incubator/libcaf_net
+      ${PROJECT_BINARY_DIR}/caf-incubator/libcaf_net)
   install(
     TARGETS broker_static
     EXPORT BrokerTargets

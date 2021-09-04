@@ -58,8 +58,8 @@ add_executable(broker-test ${tests} $<TARGET_OBJECTS:libcaf_net_obj>)
 target_link_libraries(broker-test ${BROKER_LIBRARY} CAF::test)
 target_include_directories(broker-test
   PRIVATE
-    ${CMAKE_SOURCE_DIR}/caf-incubator/libcaf_net
-    ${CMAKE_BINARY_DIR}/caf-incubator/libcaf_net)
+    ${PROJECT_SOURCE_DIR}/caf-incubator/libcaf_net
+    ${PROJECT_BINARY_DIR}/caf-incubator/libcaf_net)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
