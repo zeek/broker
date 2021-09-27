@@ -15,6 +15,11 @@ struct lamport_timestamp {
   }
 };
 
+template <class Inspector>
+bool inspect(Inspector& f, lamport_timestamp& x) {
+  return f.apply(x.value);
+}
+
 /// @relates lamport_timestamp
 constexpr bool operator<(lamport_timestamp x, lamport_timestamp y) {
   return x.value < y.value;

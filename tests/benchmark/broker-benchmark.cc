@@ -220,7 +220,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to benchmark/stats to print server updates.
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"benchmark/stats"},
     [](caf::unit_t&) {
       // nop
@@ -328,7 +328,7 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     });
   // Listen on benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"benchmark/terminate"},
     [](caf::unit_t&) {
       // nop

@@ -1,6 +1,5 @@
 #include "broker/alm/stream_transport.hh"
 
-#include <caf/async/publishing_queue.hpp>
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 #include <caf/net/length_prefix_framing.hpp>
@@ -9,7 +8,6 @@
 #include <caf/net/stream_transport.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 
-#include "broker/detail/flow_controller_callback.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/overload.hh"
 #include "broker/detail/protocol.hh"
@@ -166,19 +164,18 @@ void stream_transport::shutdown(shutdown_options options) {
   };
   shutdown_on_last_complete(data_inputs_, command_inputs_, central_merge_);
   // Cancel all incoming flows.
-  auto cancel_inputs = [](auto&... ptr) { (ptr->cancel_inputs(), ...); };
-  cancel_inputs(data_inputs_, command_inputs_);
-  connector_adapter_.reset();
-  for (auto& kvp : peers_)
-    kvp.second.in.dispose();
+  BROKER_DEBUG("cancel" << subscriptions_.size() << "subscriptions");
+  for (auto& sub : subscriptions_)
+    sub.dispose();
+  subscriptions_.clear();
 }
 
-// -- overrides for flow_controller --------------------------------------------
+// -- utility ------------------------------------------------------------------
 
 void stream_transport::init_data_outputs() {
   if (!data_outputs_) {
     BROKER_DEBUG("create data outputs");
-    data_outputs_ //
+    data_outputs_
       = central_merge_->as_observable()
           .filter([this_node{id_}](const node_message& msg) {
             const auto& next_hop = get_path(msg).head();
@@ -219,56 +216,34 @@ void stream_transport::init_command_outputs() {
   }
 }
 
-caf::scheduled_actor* stream_transport::ctx() {
-  return self_;
-}
+// void stream_transport::add_source(caf::flow::observable<data_message> source) {
+//   data_inputs_->add(std::move(source));
+// }
+//
+// void stream_transport::add_source(
+//   caf::flow::observable<command_message> source) {
+//   command_inputs_->add(std::move(source));
+// }
+//
+// void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
+//   init_data_outputs();
+//   data_outputs_.attach(sink);
+// }
+//
+// void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
+//   init_command_outputs();
+//   command_outputs_.attach(sink);
+// }
 
-void stream_transport::add_source(caf::flow::observable<data_message> source) {
-  data_inputs_->add(std::move(source));
-}
-
-void stream_transport::add_source(
-  caf::flow::observable<command_message> source) {
-  command_inputs_->add(std::move(source));
-}
-
-void stream_transport::add_sink(caf::flow::observer<data_message> sink) {
-  init_data_outputs();
-  data_outputs_.attach(sink);
-}
-
-void stream_transport::add_sink(caf::flow::observer<command_message> sink) {
-  init_command_outputs();
-  command_outputs_.attach(sink);
-}
-
-caf::async::publisher<data_message>
-stream_transport::select_local_data(const filter_type& filter) {
-  init_data_outputs();
-  auto out = data_outputs_
-               .filter([filter](const data_message& item) {
-                 detail::prefix_matcher f;
-                 return f(filter, item);
-               })
-               .as_observable();
-  return self_->to_async_publisher(out);
-}
-
-caf::async::publisher<command_message>
+caf::flow::observable<command_message>
 stream_transport::select_local_commands(const filter_type& filter) {
   init_command_outputs();
-  auto out = command_outputs_
-               .filter([filter](const command_message& item) {
-                 detail::prefix_matcher f;
-                 return f(filter, item);
-               })
-               .as_observable();
-  return self_->to_async_publisher(out);
-}
-
-void stream_transport::add_filter(const filter_type& filter) {
-  BROKER_TRACE(BROKER_ARG(filter));
-  subscribe(filter);
+  return command_outputs_
+    .filter([filter](const command_message& item) {
+      detail::prefix_matcher f;
+      return f(filter, item);
+    })
+    .as_observable();
 }
 
 // -- initialization -----------------------------------------------------------
@@ -483,7 +458,6 @@ caf::behavior stream_transport::make_behavior() {
     base = connector_adapter_->message_handlers();
   return base
     .or_else(
-      // // Special handlers for bypassing streams and/or forwarding.
       [this](atom::publish, atom::local, data_message& msg) {
         publish_locally(msg);
       },
@@ -501,63 +475,39 @@ caf::behavior stream_transport::make_behavior() {
           [rp](const caf::error& what) mutable { rp.deliver(what); });
       },
       [=](atom::peer, const network_info& addr) {
-        BROKER_TRACE(BROKER_ARG(addr));
         auto rp = self_->make_response_promise();
-        if (!connector_adapter_) {
-          rp.deliver(make_error(ec::no_connector_available));
-          return;
-        }
-        connector_adapter_->async_connect(
-          addr,
-          [this, rp](endpoint_id peer, const network_info& addr,
-                     alm::lamport_timestamp ts, const filter_type& filter,
-                     caf::net::stream_socket fd) mutable {
-            BROKER_TRACE(BROKER_ARG(peer)
-                         << BROKER_ARG(addr) << BROKER_ARG(ts)
-                         << BROKER_ARG(filter) << BROKER_ARG(fd));
-            if (auto err = init_new_peer(peer, addr, ts, filter, fd);
-                err && err != ec::repeated_peering_handshake_request)
-              rp.deliver(std::move(err));
-            else
-              rp.deliver(atom::peer_v, atom::ok_v, peer);
-          },
-          [this, rp](endpoint_id peer, const network_info& addr) mutable {
-            BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
-            if (auto i = peers_.find(peer); i != peers_.end()) {
-              // Override the address if this one has a retry field. This makes
-              // sure we "prefer" a user-defined address over addresses we read
-              // from sockets for incoming peerings.
-              if (addr.has_retry_time() && !i->second.addr.has_retry_time())
-                i->second.addr = addr;
-              rp.deliver(atom::peer_v, atom::ok_v, peer);
-            } else {
-              // Weird race on the state? Just try again.
-              rp.delegate(caf::actor{self()}, atom::peer_v, addr);
-            }
-          },
-          [this, rp](const caf::error& what) mutable {
-            BROKER_TRACE(BROKER_ARG(what));
-            rp.deliver(std::move(what));
-          });
+        try_connect(addr, rp);
+        return rp;
       },
       [this](atom::unpeer, const network_info& peer_addr) {
         unpeer(peer_addr);
       },
-      [this](atom::unpeer, const endpoint_id& peer_id) { //
+      [this](atom::unpeer, endpoint_id peer_id) { //
         unpeer(peer_id);
       },
-      [this](const detail::flow_controller_callback_ptr& f) { //
-        (*f)(this);
-      },
-      [this](atom::peer, detail::native_socket sock, endpoint_id peer,
-             std::string& fake_host,
-             const filter_type& filter) -> caf::result<void> {
-        auto fd = caf::net::stream_socket{sock};
-        auto ts = alm::lamport_timestamp{};
-        auto addr = network_info{std::move(fake_host), 0};
-        if (auto err = init_new_peer(peer, addr, ts, filter, fd))
+      [this](atom::peer, endpoint_id peer, const network_info& addr,
+             alm::lamport_timestamp ts, const filter_type& filter,
+             detail::node_consumer_res in_res,
+             detail::node_producer_res out_res) -> caf::result<void> {
+        if (auto err = init_new_peer(peer, addr, ts, filter, in_res, out_res))
           return err;
-        return caf::unit;
+        else
+          return caf::unit;
+      },
+      [this](filter_type& filter, detail::data_producer_res snk) {
+        subscribe(filter);
+        init_data_outputs();
+        data_outputs_
+          .filter([filter = std::move(filter)](const data_message& item) {
+            detail::prefix_matcher f;
+            return f(filter, item);
+          })
+          .subscribe(std::move(snk));
+      },
+      [this](detail::data_consumer_res src) {
+        auto sub
+          = data_inputs_->add(self()->make_observable().from_resource(src));
+        subscriptions_.emplace_back(std::move(sub));
       },
       [this](atom::join, filter_type& filter) mutable {
         auto hdl = caf::actor_cast<caf::actor>(self()->current_sender());
@@ -578,8 +528,7 @@ caf::behavior stream_transport::make_behavior() {
           auto strong_self = caf::actor_cast<caf::actor>(weak_self);
           if (!strong_self)
             return;
-          auto cb = detail::make_flow_controller_callback(
-            [sub](detail::flow_controller*) mutable { sub.dispose(); });
+          auto cb = caf::make_action([sub]() mutable { sub.dispose(); });
           caf::anon_send(strong_self, std::move(cb));
         });
       })
@@ -590,7 +539,8 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            const network_info& addr,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
-                                           connect_flows_fun connect_flows) {
+                                           detail::node_consumer_res in_res,
+                                           detail::node_producer_res out_res) {
   BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(ts) << BROKER_ARG(filter));
   auto i = peers_.find(peer);
   if (i != peers_.end() && !i->second.invalidated)
@@ -609,21 +559,20 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   }
   endpoint_id_list path{peer};
   auto& sys = self_->system();
-  auto out = central_merge_ //
-               ->as_observable()
+  auto out = central_merge_->as_observable()
                .filter([peer](const node_message& msg) {
                  return get_path(msg).head().id() == peer;
                })
-               .as_observable();
-  auto async_out = self_->to_async_publisher(out);
-  auto in = self_->observe(connect_flows(std::move(async_out)));
-  central_merge_->add(in.transform(dispatch_step{this, peer}));
+               .subscribe(out_res);
+  auto in = self_->make_observable().from_resource(in_res);
+  central_merge_->add(in.transform(dispatch_step{this, peer}).as_observable());
+  subscriptions_.emplace_back(in.as_disposable());
   if (i == peers_.end()) {
-    peers_.emplace(peer,
-                   peer_state{in.as_disposable(), out.as_disposable(), addr});
+    peers_.emplace(peer, peer_state{std::move(in).as_disposable(),
+                                    std::move(out), addr});
   } else {
-    i->second.in = in.as_disposable();
-    i->second.out = out.as_disposable();
+    i->second.in = std::move(in).as_disposable();
+    i->second.out = std::move(out);
     i->second.invalidated = false;
   }
   auto update_res = handle_update(path, vector_timestamp{ts}, filter);
@@ -640,25 +589,30 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
                                            caf::net::stream_socket sock) {
+  namespace cn = caf::net;
   BROKER_TRACE(BROKER_ARG(peer)
                << BROKER_ARG(ts) << BROKER_ARG(filter) << BROKER_ARG(sock));
-  using caf::async::make_publishing_queue;
-  using caf::net::make_socket_manager;
+  using cn::make_socket_manager;
+  using caf::async::make_bounded_buffer_resource;
   if (peers_.count(peer) != 0) {
-    caf::net::close(sock);
+    BROKER_DEBUG("already connected to" << peer);
+    cn::close(sock);
     return make_error(ec::repeated_peering_handshake_request);
+  }
+  auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
+  auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+  if (auto err = init_new_peer(peer, addr, ts, filter, con1, prod2)) {
+    BROKER_ERROR("failed to initialize peering state" << BROKER_ARG(peer)
+                                                      << BROKER_ARG(err));
+    cn::close(sock);
+    return err;
   }
   auto& sys = self_->system();
   auto mpx = sys.network_manager().mpx_ptr();
-  auto mgr
-    = make_socket_manager<detail::protocol, caf::net::length_prefix_framing,
-                          caf::net::stream_transport>(sock, mpx, id());
-  connect_flows_fun fn = [mgr](node_message_publisher out) {
-    return mgr->top_layer().connect_flows(mgr.get(), std::move(out));
-  };
-  if (auto err = init_new_peer(peer, addr, ts, filter, std::move(fn))) {
-    return err;
-  } else if (err = mgr->init(content(sys.config())); err) {
+  auto mgr = make_socket_manager<detail::protocol, cn::length_prefix_framing,
+                                 cn::stream_transport>(sock, mpx, id());
+  mgr->top_layer().connect_flows(mgr.get(), con2, prod1);
+  if (auto err = mgr->init(content(sys.config())); err) {
     BROKER_ERROR("failed to initialize a peering connection:" << err);
     if (auto i = peers_.find(peer); i != peers_.end()) {
       auto& st = i->second;
@@ -692,8 +646,11 @@ void stream_transport::unpeer(const network_info& peer_addr) {
 void stream_transport::unpeer(peer_state_map::iterator i) {
   BROKER_ASSERT(i != peers_.end());
   auto& st = i->second;
-  if (st.invalidated)
+  if (st.invalidated) {
+    BROKER_DEBUG(i->first << "already invalidated");
     return;
+  }
+  BROKER_DEBUG("drop state for " << i->first);
   st.invalidated = true;
   st.in.dispose();
   st.out.dispose();
@@ -701,6 +658,60 @@ void stream_transport::unpeer(peer_state_map::iterator i) {
   peer_removed(id);
   peers_.erase(i);
   cleanup(id);
+}
+
+void stream_transport::try_connect(const network_info& addr,
+                                   caf::response_promise rp) {
+  BROKER_TRACE(BROKER_ARG(addr));
+  if (!connector_adapter_) {
+    rp.deliver(make_error(ec::no_connector_available));
+    return;
+  }
+  connector_adapter_->async_connect(
+    addr,
+    [this, rp](endpoint_id peer, const network_info& addr,
+               alm::lamport_timestamp ts, const filter_type& filter,
+               caf::net::stream_socket fd) mutable {
+      BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(ts)
+                                    << BROKER_ARG(filter) << BROKER_ARG(fd));
+      if (auto err = init_new_peer(peer, addr, ts, filter, fd);
+          err && err != ec::repeated_peering_handshake_request)
+        rp.deliver(std::move(err));
+      else
+        rp.deliver(atom::peer_v, atom::ok_v, peer);
+    },
+    [this, rp](endpoint_id peer, const network_info& addr) mutable {
+      BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
+      if (auto i = peers_.find(peer); i != peers_.end()) {
+        // Override the address if this one has a retry field. This makes
+        // sure we "prefer" a user-defined address over addresses we read
+        // from sockets for incoming peerings.
+        if (addr.has_retry_time() && !i->second.addr.has_retry_time())
+          i->second.addr = addr;
+        rp.deliver(atom::peer_v, atom::ok_v, peer);
+      } else {
+        // Race on the state. May happen if the remote peer already
+        // started a handshake and the connector thus drops this request
+        // as redundant. We should already have the connect event queued,
+        // so we just enqueue this request again and the second time
+        // we should find it in the cache.
+        using namespace std::literals;
+        self_->run_delayed(1ms, [this, peer, addr, rp]() mutable {
+          BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
+          if (auto i = peers_.find(peer); i != peers_.end()) {
+            if (addr.has_retry_time() && !i->second.addr.has_retry_time())
+              i->second.addr = addr;
+            rp.deliver(atom::peer_v, atom::ok_v, peer);
+          } else {
+            try_connect(addr, rp);
+          }
+        });
+      }
+    },
+    [this, rp](const caf::error& what) mutable {
+      BROKER_TRACE(BROKER_ARG(what));
+      rp.deliver(std::move(what));
+    });
 }
 
 // -- utility ------------------------------------------------------------------

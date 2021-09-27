@@ -12,8 +12,6 @@
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
 
-#include "broker/detail/shared_subscriber_queue.hh"
-
 namespace broker {
 
 using status_variant = caf::variant<none, error, status>;

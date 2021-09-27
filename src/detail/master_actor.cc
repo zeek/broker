@@ -32,13 +32,14 @@ static optional<timestamp> to_opt_timestamp(timestamp ts,
 
 // -- initialization -----------------------------------------------------------
 
-master_state::master_state(caf::event_based_actor* ptr,
-                           endpoint_id this_endpoint, std::string nm,
-                           backend_pointer bp, caf::actor parent,
-                           endpoint::clock* ep_clock)
+master_state::master_state(
+  caf::event_based_actor* ptr, endpoint_id this_endpoint, std::string nm,
+  backend_pointer bp, caf::actor parent, endpoint::clock* ep_clock,
+  caf::async::consumer_resource<command_message> in_res,
+  caf::async::producer_resource<command_message> out_res)
   : output(this) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
-              std::move(parent));
+              std::move(parent), std::move(in_res), std::move(out_res));
   super::init(output);
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);

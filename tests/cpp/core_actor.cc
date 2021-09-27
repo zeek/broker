@@ -7,7 +7,6 @@
 #include <caf/scheduled_actor/flow.hpp>
 
 #include "broker/configuration.hh"
-#include "broker/detail/flow_controller_callback.hh"
 #include "broker/endpoint.hh"
 #include "broker/logger.hh"
 

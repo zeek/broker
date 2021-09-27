@@ -6,7 +6,6 @@
 #include <deque>
 
 #include <caf/actor.hpp>
-#include <caf/meta/type_name.hpp>
 #include <caf/send.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"

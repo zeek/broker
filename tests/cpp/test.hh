@@ -153,7 +153,7 @@ public:
         return;
       } else {
         auto& clk = sched.clock();
-        auto next_timeout = clk.schedule().begin()->first;
+        auto next_timeout = clk.schedule.begin()->first;
         auto delta = next_timeout - clk.now();
         if (delta >= t) {
           sched.advance_time(t);

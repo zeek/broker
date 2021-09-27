@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <vector>
 
-#include <caf/async/publisher.hpp>
 #include <caf/cow_tuple.hpp>
+#include <caf/default_enum_inspect.hpp>
 #include <caf/variant.hpp>
 
 #include "broker/alm/multipath.hh"
@@ -28,7 +28,20 @@ enum class alm_message_type : uint8_t {
   drop_conn = 0x50,         ///< Drops a redundant connection.
 };
 
+/// @relates alm_message_type
 std::string to_string(alm_message_type);
+
+/// @relates alm_message_type
+bool from_string(caf::string_view, alm_message_type&);
+
+/// @relates alm_message_type
+bool from_integer(uint8_t, alm_message_type&);
+
+/// @relates alm_message_type
+template <class Inspector>
+bool inspect(Inspector& f, alm_message_type& x) {
+  return caf::default_enum_inspect(f, x);
+}
 
 /// Tags a packed message with the type of the serialized data. This enumeration
 /// is a subset of @ref alm_message_type.
@@ -39,7 +52,20 @@ enum class packed_message_type : uint8_t {
   path_revocation = 0x04,
 };
 
+/// @relates packed_message_type
 std::string to_string(packed_message_type);
+
+/// @relates packed_message_type
+bool from_string(caf::string_view, packed_message_type&);
+
+/// @relates packed_message_type
+bool from_integer(uint8_t, packed_message_type&);
+
+/// @relates packed_message_type
+template <class Inspector>
+bool inspect(Inspector& f, packed_message_type& x) {
+  return caf::default_enum_inspect(f, x);
+}
 
 /// A Broker-internal message with a payload received from the ALM layer.
 using packed_message = caf::cow_tuple<packed_message_type, topic,
@@ -246,17 +272,5 @@ topic_cache_type& thread_local_topic_cache();
 path_cache_type& thread_local_path_cache();
 
 content_buf_type& thread_local_content_buf();
-
-struct command_message_publisher {
-  caf::async::publisher<command_message> hdl;
-};
-
-struct data_message_publisher {
-  caf::async::publisher<data_message> hdl;
-};
-
-struct packed_message_publisher {
-  caf::async::publisher<packed_message> hdl;
-};
 
 } // namespace broker::detail

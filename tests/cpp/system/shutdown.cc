@@ -25,8 +25,8 @@ configuration make_config(std::string file_path_template) {
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", std::move(file_path_template));
-  // cfg.set("caf.logger.file.verbosity", "trace");
-  // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
+  cfg.set("caf.logger.file.verbosity", "trace");
+  cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
   return cfg;
 }
 
@@ -79,7 +79,7 @@ TEST(status listeners receive peering events) {
   barrier checkpoint{2}; // Makes sure that the endpoint in t2 shuts down first.
   auto t1 = std::thread{[&]() mutable {
     endpoint ep{make_config(log_path_template("peering-events", "ep1"))};
-    ep.subscribe_nosync(
+    ep.subscribe(
       {topic::statuses()}, [](caf::unit_t&) {},
       [ep1_log](caf::unit_t&, data_message msg) {
         ep1_log->emplace_back(std::move(msg));
@@ -95,7 +95,7 @@ TEST(status listeners receive peering events) {
   auto t2 = std::thread{[&, port{port_future.get()}] {
     /*lifetime scope of ep*/ {
       endpoint ep{make_config(log_path_template("peering-events", "ep2"))};
-      ep.subscribe_nosync(
+      ep.subscribe(
         {topic::statuses()}, [](caf::unit_t&) {},
         [ep2_log](caf::unit_t&, data_message msg) {
           ep2_log->emplace_back(std::move(msg));

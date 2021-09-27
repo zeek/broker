@@ -8,6 +8,7 @@
 #include <thread>
 #include <utility>
 
+#include "caf/async/bounded_buffer.hpp"
 #include "caf/net/stream_socket.hpp"
 
 #include "broker/backend.hh"
@@ -139,23 +140,29 @@ TEST(proxy) {
 }
 
 TEST(clone operations - remote endpoint) {
+  using caf::async::make_bounded_buffer_resource;
+  auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
+  auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
   auto name = std::string{"kono"};
-  auto [master_fd, clone_fd] = unbox(caf::net::make_stream_socket_pair());
   auto ids = base_fixture::make_id_pair();
   beacon setup;
   beacon tear_down;
-  auto master_thread = std::thread{[=, &setup, &tear_down, fd{clone_fd}] {
+  auto master_thread = std::thread{[=, &setup, &tear_down,
+                                    con1{std::move(con1)},
+                                    prod2{std::move(prod2)}] {
     auto ep = endpoint{configuration{}, ids.first};
     auto ds = ep.attach_master(name, backend::memory);
     auto clone_filter = filter_type{name / topic::clone_suffix()};
-    REQUIRE(ep.mock_peer(fd.id, ids.second, "clone", clone_filter));
+    anon_send(ep.core(), atom::peer_v, ids.second, network_info{"clone", 42},
+              alm::lamport_timestamp{}, clone_filter, con1, prod2);
     setup.set_true();
     tear_down.wait();
   }};
   setup.wait();
   auto ep = endpoint{configuration{}, ids.second};
   auto master_filter = filter_type{name / topic::master_suffix()};
-  REQUIRE(ep.mock_peer(master_fd.id, ids.first, "master", master_filter));
+  anon_send(ep.core(), atom::peer_v, ids.first, network_info{"master", 42},
+            alm::lamport_timestamp{}, master_filter, con2, prod1);
   auto ds = ep.attach_clone(name);
   if (!ds)
     FAIL(ds.error());

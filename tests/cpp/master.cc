@@ -89,7 +89,7 @@ struct fixture : base_fixture {
   caf::timespan tick_interval = defaults::store::tick_interval;
 
   fixture() {
-    logger = ep.subscribe_nosync(
+    logger = ep.subscribe(
       // Topics.
       {topic::store_events()},
       // Init.

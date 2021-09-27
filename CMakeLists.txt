@@ -313,8 +313,6 @@ set(BROKER_SRC
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
-  src/detail/flow_controller.cc
-  src/detail/flow_controller_callback.cc
   src/detail/item_scope.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
@@ -323,8 +321,10 @@ set(BROKER_SRC
   src/detail/meta_data_writer.cc
   src/detail/monotonic_buffer_resource.cc
   src/detail/native_socket.cc
+  src/detail/opaque_type.cc
   src/detail/peer_status_map.cc
   src/detail/prefix_matcher.cc
+  src/detail/sink_driver.cc
   src/detail/sqlite_backend.cc
   src/detail/store_actor.cc
   src/detail/telemetry/collector.cc

@@ -756,7 +756,12 @@ struct connect_manager {
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       auto state = std::move(i->second);
       pending.erase(i);
-      if (state->event_id != invalid_connector_event_id) {
+      if (state->redundant) {
+        BROKER_DEBUG("drop redundant connection on socket" << entry.fd);
+        if (state->event_id != invalid_connector_event_id)
+          listener->on_redundant_connection(state->event_id, state->remote_id,
+                                            state->addr);
+      } else if (state->event_id != invalid_connector_event_id) {
         auto retry_interval = state->addr.retry;
         if (retry_interval.count() > 0
             && ++state->connection_attempts < max_connection_attempts) {
@@ -872,7 +877,7 @@ void connect_state::send_drop_conn() {
   send_msg(caf::as_bytes(caf::make_span(mgr->drop_conn_buf)), false);
 }
 
-bool connect_state::handle_drop_conn(){
+bool connect_state::handle_drop_conn() {
   BROKER_TRACE("");
   redundant = true;
   transition(&connect_state::fin);
@@ -943,6 +948,7 @@ bool connect_state::await_hello(alm_message_type msg) {
           case peer_status::peered:
             BROKER_DEBUG("detected redundant connection for connected peer");
             send_drop_conn();
+            redundant = true;
             transition(&connect_state::err);
             return false;
           case peer_status::disconnected:

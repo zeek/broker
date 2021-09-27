@@ -3,7 +3,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <caf/async/publisher.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/detail/unordered_flat_map.hpp>
@@ -14,7 +13,6 @@
 #include "broker/alm/routing_table.hh"
 #include "broker/detail/connector.hh"
 #include "broker/detail/connector_adapter.hh"
-#include "broker/detail/flow_controller.hh"
 #include "broker/detail/hash.hh"
 #include "broker/detail/lift.hh"
 #include "broker/detail/peer_status_map.hh"
@@ -48,7 +46,7 @@ class dispatch_step;
 /// (atom::unpeer, actor hdl) -> void
 /// => disconnect(hdl)
 /// ~~~
-class stream_transport : public peer, public detail::flow_controller {
+class stream_transport : public peer {
 public:
   // -- friends ----------------------------------------------------------------
 
@@ -57,11 +55,6 @@ public:
   // -- member types -----------------------------------------------------------
 
   using super = peer;
-
-  using node_message_publisher = caf::async::publisher<node_message>;
-
-  using connect_flows_fun
-    = std::function<node_message_publisher(node_message_publisher)>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -102,37 +95,25 @@ public:
 
   void shutdown(shutdown_options options) override;
 
-  // -- overrides for flow_controller ------------------------------------------
-
-  caf::scheduled_actor* ctx() override;
-
-  void add_source(caf::flow::observable<data_message> source) override;
-
-  void add_source(caf::flow::observable<command_message> source) override;
-
-  void add_sink(caf::flow::observer<data_message> sink) override;
-
-  void add_sink(caf::flow::observer<command_message> sink) override;
-
-  caf::async::publisher<data_message>
-  select_local_data(const filter_type& filter) override;
-
-  caf::async::publisher<command_message>
-  select_local_commands(const filter_type& filter) override;
-
-  void add_filter(const filter_type& filter) override;
-
   // -- initialization ---------------------------------------------------------
 
   caf::behavior make_behavior() override;
 
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            alm::lamport_timestamp ts, const filter_type& filter,
-                           connect_flows_fun connect_flows);
+                           detail::node_consumer_res in_res,
+                           detail::node_producer_res out_res);
 
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            alm::lamport_timestamp ts, const filter_type& filter,
                            caf::net::stream_socket sock);
+
+  // -- flows ------------------------------------------------------------------
+
+  caf::flow::observable<command_message>
+  select_local_commands(const filter_type& filter);
+
+  // -- utility ----------------------------------------------------------------
 
   /// @private
   template <class T>
@@ -176,6 +157,9 @@ protected:
   /// Initialized the `command_outputs_` member lazily.
   void init_command_outputs();
 
+  /// Tries to asynchronously connect to addr via the connector.
+  void try_connect(const network_info& addr, caf::response_promise rp);
+
   /// Collects inputs from @ref broker::publisher objects.
   caf::flow::merger_impl_ptr<data_message> data_inputs_;
 
@@ -207,6 +191,9 @@ protected:
 
   /// Caches the reserved topic for peer-to-peer control messages.
   topic reserved_;
+
+  /// Stores the subscriptions for all our input sources.
+  std::vector<caf::disposable> subscriptions_;
 };
 
 } // namespace broker::alm

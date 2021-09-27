@@ -46,8 +46,6 @@ using string_list = std::vector<std::string>;
 
 std::string log_path_template(const char* test_name, size_t endpoint_nr) {
   std::string result;
-  result += broker::to_string(test_name);
-  result += ' ';
   result += test_name;
   result += ' ';
   result += "ep";
@@ -61,8 +59,8 @@ configuration make_config(const char* test_name, size_t endpoint_nr) {
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", log_path_template(test_name, endpoint_nr));
-  // cfg.set("caf.logger.file.verbosity", "trace");
-  // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
+  cfg.set("caf.logger.file.verbosity", "trace");
+  cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
   // cfg.set("broker.metrics.export.topic", "my/metrics/node-" + std::to_string(endpoint_nr));
   // cfg.set("broker.metrics.export.prefixes", std::vector{"caf"s,"broker"s});
   // if (endpoint_nr == 0) {
@@ -195,7 +193,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       endpoint ep{make_config("peering-events", index)};
       *ep_ids[index] = ep.node_id();
       barrier got_hellos{2};
-      ep.subscribe_nosync(
+      ep.subscribe(
         {topic::statuses(), "foo/bar"}, [](caf::unit_t&) {},
         [log_ptr, n{0}, &got_hellos](caf::unit_t&, data_message msg) mutable {
           if (get_topic(msg).string() == "foo/bar" && ++n == 3)

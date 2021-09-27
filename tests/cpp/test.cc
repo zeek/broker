@@ -11,7 +11,6 @@
 
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
-#include "broker/detail/flow_controller_callback.hh"
 
 #ifdef BROKER_WINDOWS
 #undef ERROR // The Windows headers fail if this macro is predefined.
@@ -194,49 +193,24 @@ std::pair<endpoint_id, endpoint_id> base_fixture::make_id_pair() {
 
 caf::actor base_fixture::bridge(const endpoint_state& left,
                                 const endpoint_state& right) {
-  using actor_t = bridge_actor;
-  using node_message_publisher = caf::async::publisher<node_message>;
-  using proc = caf::flow::broadcaster_impl<node_message>;
-  using proc_ptr = caf::intrusive_ptr<proc>;
-  proc_ptr left_to_right;
-  proc_ptr right_to_left;
+  using caf::async::make_bounded_buffer_resource;
   auto& sys = left.hdl.home_system();
-  caf::event_based_actor* self = nullptr;
-  std::function<void()> launch;
-  std::tie(self, launch) = sys.make_flow_coordinator<actor_t>();
-  left_to_right.emplace(self);
-  right_to_left.emplace(self);
-  left_to_right
-    ->as_observable() //
-    .for_each([](const node_message& msg) { BROKER_DEBUG("->" << msg); });
-  right_to_left //
-    ->as_observable()
-    .for_each([](const node_message& msg) { BROKER_DEBUG("<-" << msg); });
-  auto connect_left = [=](node_message_publisher left_input) {
-    self->observe(left_input).attach(left_to_right->as_observer());
-    return self->to_async_publisher(right_to_left->as_observable());
-  };
-  auto connect_right = [=](node_message_publisher right_input) {
-    self->observe(right_input).attach(right_to_left->as_observer());
-    return self->to_async_publisher(left_to_right->as_observable());
-  };
-  using detail::flow_controller_callback;
-  auto lcb
-    = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
-        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
-        auto fn = [=](node_message_publisher in) { return connect_left(in); };
-        auto err = dptr->init_new_peer(right.id, {to_string(right.id), 42},
-                                       right.ts, right.filter, fn);
-      });
-  caf::anon_send(left.hdl, std::move(lcb));
-  auto rcb
-    = detail::make_flow_controller_callback([=](detail::flow_controller* ptr) {
-        auto dptr = dynamic_cast<alm::stream_transport*>(ptr);
-        auto fn = [=](node_message_publisher in) { return connect_right(in); };
-        auto err = dptr->init_new_peer(left.id, {to_string(left.id), 42},
-                                       left.ts, left.filter, fn);
-      });
-  caf::anon_send(right.hdl, std::move(rcb));
+  auto [self, launch] = sys.spawn_inactive<bridge_actor>();
+  {
+    CAF_PUSH_AID_FROM_PTR(self);
+    auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
+    auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+    caf::anon_send(left.hdl, atom::peer_v, right.id,
+                   network_info{to_string(right.id), 42}, right.ts,
+                   right.filter, con1, prod2);
+    auto [con3, prod3] = make_bounded_buffer_resource<node_message>();
+    auto [con4, prod4] = make_bounded_buffer_resource<node_message>();
+    caf::anon_send(right.hdl, atom::peer_v, left.id,
+                   network_info{to_string(left.id), 42}, left.ts, left.filter,
+                   con3, prod4);
+    self->make_observable().from_resource(con2).subscribe(prod3);
+    self->make_observable().from_resource(con4).subscribe(prod1);
+  }
   auto hdl = caf::actor{self};
   launch();
   return hdl;
@@ -252,32 +226,36 @@ caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {
 
 void base_fixture::push_data(caf::actor core,
                              std::vector<broker::data_message> xs) {
-  auto cb = detail::make_flow_controller_callback(
-    [xs{std::move(xs)}](detail::flow_controller* ctrl) mutable {
-      auto ctx = ctrl->ctx();
-      auto obs
-        = ctx->make_observable().from_container(std::move(xs)).as_observable();
-      ctrl->add_source(std::move(obs));
-    });
-  caf::anon_send(core, std::move(cb));
+  for (auto& x : xs)
+    caf::anon_send(core, atom::publish_v, std::move(x));
 }
+
+namespace {
+
+struct data_collector_state {
+  static inline const char* name = "broker.test.data-collector";
+};
+
+using data_collector_actor = caf::stateful_actor<data_collector_state>;
+
+void data_collector_impl(data_collector_actor* self,
+                         std::shared_ptr<std::vector<data_message>> buf,
+                         caf::async::consumer_resource<data_message> res) {
+  self->make_observable()
+    .from_resource(std::move(res))
+    .for_each([buf](const data_message& msg) { buf->emplace_back(msg); });
+}
+
+} // namespace
 
 std::shared_ptr<std::vector<data_message>>
 base_fixture::collect_data(caf::actor core, filter_type filter) {
+  using actor_t = data_collector_actor;
+  auto& sys = core.home_system();
+  auto [con, prod] = caf::async::make_bounded_buffer_resource<data_message>();
   auto buf = std::make_shared<std::vector<data_message>>();
-  auto cb
-    = detail::make_flow_controller_callback(
-      [=](detail::flow_controller* ctrl) mutable {
-        using actor_t = caf::event_based_actor;
-        auto& sys = core.home_system();
-        ctrl->add_filter(filter);
-        ctrl->select_local_data(filter).subscribe_with<actor_t>(
-          sys, [=](actor_t*, caf::flow::observable<data_message> in) {
-            in.for_each(
-              [buf](const data_message& msg) { buf->emplace_back(msg); });
-          });
-      });
-  caf::anon_send(core, std::move(cb));
+  sys.spawn(data_collector_impl, buf, std::move(con));
+  anon_send(core, std::move(filter), std::move(prod));
   return buf;
 }
 

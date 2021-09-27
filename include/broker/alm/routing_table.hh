@@ -11,7 +11,6 @@
 #include <caf/actor.hpp>
 #include <caf/actor_clock.hpp>
 #include <caf/hash/fnv.hpp>
-#include <caf/meta/type_name.hpp>
 
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"

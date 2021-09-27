@@ -21,8 +21,6 @@ set(tests
   cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
   cpp/detail/peer_status_map.cc
-  cpp/detail/shared_publisher_queue.cc
-  cpp/detail/shared_subscriber_queue.cc
   cpp/detail/telemetry/collector.cc
   cpp/detail/telemetry/exporter.cc
   cpp/domain_options.cc

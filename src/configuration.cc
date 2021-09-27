@@ -20,7 +20,6 @@
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
 #include "broker/data.hh"
-#include "broker/detail/flow_controller_callback.hh"
 #include "broker/detail/retry_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"

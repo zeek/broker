@@ -36,10 +36,12 @@ static double now(endpoint::clock* clock) {
 
 clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                          std::string nm, caf::timespan master_timeout,
-                         caf::actor parent, endpoint::clock* ep_clock)
+                         caf::actor parent, endpoint::clock* ep_clock,
+                         caf::async::consumer_resource<command_message> in_res,
+                         caf::async::producer_resource<command_message> out_res)
   : input(this), max_sync_interval(master_timeout) {
   super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
-              std::move(parent));
+              std::move(parent), std::move(in_res), std::move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
 }

@@ -20,7 +20,6 @@
 #include "broker/detail/connector.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/detail/flow_controller_callback.hh"
 #include "broker/detail/telemetry/exporter.hh"
 #include "broker/detail/telemetry/prometheus.hh"
 #include "broker/endpoint.hh"
@@ -531,22 +530,6 @@ bool endpoint::peer(const caf::uri& locator, timeout::seconds retry) {
   }
 }
 
-bool endpoint::mock_peer(detail::native_socket fd, endpoint_id peer_id,
-                         std::string fake_host, filter_type filter) {
-  BROKER_TRACE(BROKER_ARG(fd) << BROKER_ARG(peer_id) << BROKER_ARG(fake_host)
-                              << BROKER_ARG(filter));
-  bool result = false;
-  caf::scoped_actor self{system_};
-  self
-    ->request(core_, caf::infinite, atom::peer_v, fd, peer_id,
-              std::move(fake_host), std::move(filter))
-    .receive([&] { result = true; },
-             [&](caf::error& err) {
-               BROKER_ERROR("mock_peer failed:" << err);
-             });
-  return result;
-}
-
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
 			   timeout::seconds retry) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
@@ -690,44 +673,23 @@ using worker_actor = caf::stateful_actor<worker_state>;
 activity endpoint::do_subscribe(filter_type filter,
                                 detail::sink_driver_ptr sink) {
   BROKER_ASSERT(sink != nullptr);
+  using caf::async::make_bounded_buffer_resource;
+  // Get a pair of connected resources.
+  auto [con_res, prod_res] = make_bounded_buffer_resource<data_message>();
+  // Subscribe a new worker to the consumer end.
   using observer_t = caf::flow::observer<data_message>;
-  auto hdl_prm = std::make_shared<std::promise<caf::actor>>();
-  auto hdl_fut = hdl_prm->get_future();
-  auto cb = detail::make_flow_controller_callback(
-    [flt{std::move(filter)}, snk{std::move(sink)}, prm{std::move(hdl_prm)}] //
-    (detail::flow_controller * ctrl) mutable {
-      ctrl->add_filter(flt);
-      ctrl->select_local_data(flt).subscribe_with<worker_actor>(
-        ctrl->ctx()->system(), [&](auto* self, auto in) {
-          snk->init();
-          in.attach(observer_t{std::move(snk)});
-          prm->set_value(caf::actor{self});
-        });
-    });
-  caf::anon_send(core(), std::move(cb));
-  auto hdl = hdl_fut.get();
-  activities_.emplace_back(activity{std::move(hdl)});
-  return activities_.back();
-}
-
-activity endpoint::do_subscribe_nosync(filter_type filter,
-                                       detail::sink_driver_ptr sink) {
-  using observer_t = caf::flow::observer<data_message>;
-  auto hdl = system_.spawn([=](worker_actor* self) -> caf::behavior {
-    return {
-      [self, sink](detail::data_message_publisher pub) {
-        self->observe(pub.hdl).attach(observer_t{sink});
-      },
-    };
-  });
-  auto cb = detail::make_flow_controller_callback(
-    [flt{std::move(filter)}, hdl](detail::flow_controller* ctrl) mutable {
-      ctrl->add_filter(flt);
-      auto pub = ctrl->select_local_data(flt);
-      caf::anon_send(hdl, detail::data_message_publisher{std::move(pub)});
-    });
-  caf::anon_send(core(), std::move(cb));
-  activities_.emplace_back(activity{std::move(hdl)});
+  auto [obs, launch_obs] = system().spawn_inactive<worker_actor>();
+  sink->init();
+  obs //
+    ->make_observable()
+    .from_resource(con_res)
+    .subscribe(observer_t{std::move(sink)});
+  auto worker = caf::actor{obs};
+  launch_obs();
+  // Hand the producer end to the core.
+  caf::anon_send(core(), std::move(filter), std::move(prod_res));
+  // Store background worker as activity and return.
+  activities_.emplace_back(activity{std::move(worker)});
   return activities_.back();
 }
 

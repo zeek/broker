@@ -22,7 +22,6 @@
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/detail/shared_queue.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/network_info.hh"

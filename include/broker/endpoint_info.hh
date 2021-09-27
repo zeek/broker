@@ -1,6 +1,5 @@
 #pragma once
 
-#include <caf/meta/type_name.hpp>
 #include <caf/node_id.hpp>
 
 #include <vector>

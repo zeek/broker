@@ -34,9 +34,9 @@ public:
   /// underlying pipe.
   void fire(size_t num = 1);
 
-  // Takes the object out of the "ready" state by consuming all bytes from the
-  // underlying pipe.
-  // @returns the number of consumed bytes
+  /// Takes the object out of the "ready" state by consuming all bytes from the
+  /// underlying pipe.
+  /// @returns the number of consumed bytes
   size_t extinguish();
 
   /// Attempts to consume only one byte from the pipe, potentially leaving the

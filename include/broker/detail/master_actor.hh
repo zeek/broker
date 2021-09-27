@@ -49,13 +49,15 @@ public:
 
   master_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                std::string nm, backend_pointer bp, caf::actor parent,
-               endpoint::clock* clock);
+               endpoint::clock* clock,
+               caf::async::consumer_resource<command_message> in_res,
+               caf::async::producer_resource<command_message> out_res);
 
   caf::behavior make_behavior();
 
   // -- callbacks for the behavior ---------------------------------------------
 
-  void dispatch(const command_message& msg);
+  void dispatch(const command_message& msg) override;
 
   void tick();
 

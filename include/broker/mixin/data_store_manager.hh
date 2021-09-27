@@ -88,20 +88,18 @@ public:
     BROKER_INFO("spawning new master:" << name);
     auto self = super::self();
     auto& sys = self->system();
-    auto [ms, launch]
-      = sys.template make_flow_coordinator<detail::master_actor_type>(
-        this->id(), name, std::move(ptr), caf::actor{self}, clock_);
+    using caf::async::make_bounded_buffer_resource;
+    auto [con1, prod1] = make_bounded_buffer_resource<command_message>();
+    auto [con2, prod2] = make_bounded_buffer_resource<command_message>();
+    auto hdl = sys.template spawn<detail::master_actor_type>(
+      this->id(), name, std::move(ptr), caf::actor{self}, clock_,
+      std::move(con1), std::move(prod2));
     filter_type filter{name / topic::master_suffix()};
-    auto hdl = caf::actor{ms};
-    this->add_filter(filter);
-    this->add_source(this->ctx()->observe(
-      ms->to_async_publisher(ms->state.out->as_observable())));
-    ms->observe(this->select_local_commands(filter))
-      .for_each([p{ms}](const command_message& msg) { p->state.dispatch(msg); },
-                [p{ms}](const caf::error& what) { p->quit(what); },
-                [p{ms}] { p->quit(); });
+    this->subscribe(filter);
+    this->select_local_commands(filter).subscribe(prod1);
+    this->command_inputs_->add(
+      this->self()->make_observable().from_resource(con2));
     masters_.emplace(name, hdl);
-    launch();
     self->link_to(hdl);
     return hdl;
   }
@@ -117,31 +115,25 @@ public:
       BROKER_WARNING("attempted to run clone & master on the same endpoint");
       return ec::no_such_master;
     }
+    if (auto i = clones_.find(name); i != clones_.end())
+      return  i->second;
+    BROKER_INFO("spawning new clone:" << name);
     auto self = super::self();
-    caf::actor hdl;
-    if (auto i = clones_.find(name); i != clones_.end()) {
-      hdl = i->second;
-    } else {
-      BROKER_INFO("spawning new clone:" << name);
-      using std::chrono::duration_cast;
-      auto tout = duration_cast<timespan>(fractional_seconds{resync_interval});
-      auto& sys = self->system();
-      auto [cl, launch]
-        = sys.template make_flow_coordinator<detail::clone_actor_type>(
-          this->id(), name, tout, caf::actor{self}, clock_);
-      filter_type filter{name / topic::clone_suffix()};
-      hdl = caf::actor{cl};
-      this->add_filter(filter);
-      this->add_source(this->ctx()->observe(
-        cl->to_async_publisher(cl->state.out->as_observable())));
-      cl->observe(this->select_local_commands(filter))
-        .for_each([p{cl}](
-                    const command_message& msg) { p->state.dispatch(msg); },
-                  [p{cl}](const caf::error& what) { p->quit(what); },
-                  [p{cl}] { p->quit(); });
-      clones_.emplace(name, hdl);
-      launch();
-    }
+    using std::chrono::duration_cast;
+    auto tout = duration_cast<timespan>(fractional_seconds{resync_interval});
+    auto& sys = self->system();
+    using caf::async::make_bounded_buffer_resource;
+    auto [con1, prod1] = make_bounded_buffer_resource<command_message>();
+    auto [con2, prod2] = make_bounded_buffer_resource<command_message>();
+    auto hdl = sys.template spawn<detail::clone_actor_type>(
+      this->id(), name, tout, caf::actor{self}, clock_, std::move(con1),
+      std::move(prod2));
+    filter_type filter{name / topic::clone_suffix()};
+    this->subscribe(filter);
+    this->select_local_commands(filter).subscribe(prod1);
+    this->command_inputs_->add(
+      this->self()->make_observable().from_resource(con2));
+    clones_.emplace(name, hdl);
     return hdl;
   }
 

@@ -164,7 +164,7 @@ struct peer_fixture {
 
   // Subscribes to a topic, storing all incoming tuples in `data`.
   void subscribe_to(topic t) {
-    ep.subscribe_nosync(
+    ep.subscribe(
       {t},
       [](unit_t&) {
         // nop

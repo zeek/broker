@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <caf/allowed_unsafe_message_type.hpp>
+#include <caf/async/fwd.hpp>
 #include <caf/config.hpp>
 #include <caf/flow/fwd.hpp>
 #include <caf/fwd.hpp>
@@ -150,16 +151,11 @@ class IdentifierUpdate;
 
 namespace broker::detail {
 
-struct command_message_publisher;
-struct data_message_publisher;
-struct packed_message_publisher;
 struct retry_state;
 struct store_state;
 
 class connector;
 class flare_actor;
-class flow_controller;
-class flow_controller_callback;
 class mailbox;
 class peer_status_map;
 
@@ -178,8 +174,12 @@ using shared_peer_status_map_ptr = std::shared_ptr<peer_status_map>;
 using store_state_ptr = std::shared_ptr<store_state>;
 using weak_store_state_ptr = std::weak_ptr<store_state>;
 
-using flow_controller_callback_ptr
-  = caf::intrusive_ptr<flow_controller_callback>;
+using command_consumer_res = caf::async::consumer_resource<command_message>;
+using command_producer_res = caf::async::producer_resource<command_message>;
+using data_consumer_res = caf::async::consumer_resource<data_message>;
+using data_producer_res = caf::async::producer_resource<data_message>;
+using node_consumer_res = caf::async::consumer_resource<node_message>;
+using node_producer_res = caf::async::producer_resource<node_message>;
 
 template <class T>
 using shared_publisher_queue_ptr
@@ -222,10 +222,10 @@ BROKER_CAF_ATOM_ALIAS(update)
 // `caf::timespan` and `caf::timestamp`. Hence, these types should have a type
 // ID assigned by CAF.
 
-static_assert(caf::has_type_id<broker::timespan>::value,
+static_assert(caf::has_type_id_v<broker::timespan>,
               "broker::timespan != caf::timespan");
 
-static_assert(caf::has_type_id<broker::timestamp>::value,
+static_assert(caf::has_type_id_v<broker::timestamp>,
               "broker::timestamp != caf::timestamp");
 
 #define BROKER_ADD_ATOM(...) CAF_ADD_ATOM(broker, broker::atom, __VA_ARGS__)
@@ -304,10 +304,13 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::cumulative_ack_command))
   BROKER_ADD_TYPE_ID((broker::data))
   BROKER_ADD_TYPE_ID((broker::data_message))
+  BROKER_ADD_TYPE_ID((broker::detail::command_consumer_res))
+  BROKER_ADD_TYPE_ID((broker::detail::command_producer_res))
   BROKER_ADD_TYPE_ID((broker::detail::connector_event_id))
-  BROKER_ADD_TYPE_ID((broker::detail::data_message_publisher))
-  BROKER_ADD_TYPE_ID((broker::detail::flow_controller_callback_ptr))
-  BROKER_ADD_TYPE_ID((broker::detail::packed_message_publisher))
+  BROKER_ADD_TYPE_ID((broker::detail::data_consumer_res))
+  BROKER_ADD_TYPE_ID((broker::detail::data_producer_res))
+  BROKER_ADD_TYPE_ID((broker::detail::node_consumer_res))
+  BROKER_ADD_TYPE_ID((broker::detail::node_producer_res))
   BROKER_ADD_TYPE_ID((broker::detail::retry_state))
   BROKER_ADD_TYPE_ID((broker::detail::store_state_ptr))
   BROKER_ADD_TYPE_ID((broker::ec))
@@ -364,9 +367,11 @@ CAF_END_TYPE_ID_BLOCK(broker)
 #undef BROKER_ADD_ATOM
 #undef BROKER_ADD_TYPE_ID
 
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::command_message_publisher)
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::data_message_publisher)
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::flow_controller_callback_ptr)
-CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::packed_message_publisher)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::command_consumer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::command_producer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::data_consumer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::data_producer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::node_consumer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::node_producer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::store_state_ptr)

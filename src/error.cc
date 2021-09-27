@@ -46,6 +46,7 @@ const char* ec_names[] = {
   "invalid_handshake_state",
   "no_path_to_peer",
   "no_connector_available",
+  "cannot_open_resource",
 };
 
 template <class T, size_t N>

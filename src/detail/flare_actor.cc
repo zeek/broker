@@ -45,7 +45,7 @@ bool flare_actor::await_data(timeout_type timeout) {
   return res;
 }
 
-void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
+bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
@@ -54,18 +54,18 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
       BROKER_DEBUG("firing flare");
       flare_.fire();
       ++flare_count_;
-      break;
+      return true;
     }
     case caf::detail::enqueue_result::queue_closed:
       if (mid.is_request()) {
         caf::detail::sync_request_bouncer bouncer{caf::exit_reason{}};
         bouncer(sender, mid);
       }
-      break;
+      return false;
     case caf::detail::enqueue_result::success: {
       flare_.fire();
       ++flare_count_;
-      break;
+      return true;
     }
   }
 }

@@ -56,8 +56,7 @@ bool inspect_impl(Inspector& f, T& obj, caf::string_view pretty_name,
   entity_id publisher;                                                         \
   static constexpr auto tag = command_tag::action;                             \
   template <class Inspector>                                                   \
-  friend typename Inspector::result_type inspect(Inspector& f,                 \
-                                                 name##_command& x) {          \
+  friend bool inspect(Inspector& f, name##_command& x) {                       \
     auto& [__VA_ARGS__, publisher] = x;                                        \
     caf::string_view field_names[] = {                                         \
       BROKER_PP_EXPAND field_names_pack,                                       \
@@ -150,13 +149,12 @@ struct clear_command {
 #define BROKER_CONTROL_COMMAND(origin, name, field_names_pack, ...)            \
   static constexpr auto tag = command_tag::origin##_control;                   \
   template <class Inspector>                                                   \
-  friend typename Inspector::result_type inspect(Inspector& f,                 \
-                                                 name##_command& x) {          \
+  friend bool inspect(Inspector& f, name##_command& x) {                       \
     auto& [__VA_ARGS__] = x;                                                   \
-    caf::string_view field_names[] = {BROKER_PP_EXPAND field_names_pack};    \
-    auto refs = std::forward_as_tuple(__VA_ARGS__);                          \
-    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;   \
-    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);       \
+    caf::string_view field_names[] = {BROKER_PP_EXPAND field_names_pack};      \
+    auto refs = std::forward_as_tuple(__VA_ARGS__);                            \
+    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;     \
+    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);         \
   }
 
 /// Causes the master to add `remote_clone` to its list of clones.

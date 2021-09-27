@@ -47,6 +47,7 @@ struct fixture : base_fixture {
   ~fixture() {
     caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
     caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
+    run();
   }
 
   caf::actor core1;
@@ -64,9 +65,7 @@ CAF_TEST(blocking_publishers) {
   bridge(core1, core2);
   run();
   MESSAGE("spin up two publishers, one for 'a' and one for 'a/b'");
-  sched.inline_next_enqueue();
   auto pub1 = ep.make_publisher("a");
-  sched.inline_next_enqueue();
   auto pub2 = ep.make_publisher("a/b");
   pub1.drop_all_on_destruction();
   pub2.drop_all_on_destruction();
@@ -91,6 +90,7 @@ CAF_TEST(blocking_publishers) {
   // Check log of the consumer.
   auto expected = data_msgs({{"a/b", true}, {"a/b", false}, {"a/b", true}});
   CAF_CHECK_EQUAL(*buf, expected);
+  //caf::anon_send_exit(connector,caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

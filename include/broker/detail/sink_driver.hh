@@ -77,9 +77,21 @@ struct sink_driver_cleanup_trait<void(State&)> {
   }
 };
 
-class sink_driver : public caf::flow::observer<data_message>::impl {
+class sink_driver : public caf::ref_counted,
+                    public caf::flow::observer<data_message>::impl {
 public:
+  ~sink_driver() override;
   virtual void init() = 0;
+  void ref_disposable() const noexcept final;
+  void deref_disposable() const noexcept final;
+
+  friend void intrusive_ptr_add_ref(const sink_driver* ptr) noexcept {
+    ptr->ref();
+  }
+
+  friend void intrusive_ptr_release(const sink_driver* ptr) noexcept {
+    ptr->deref();
+  }
 };
 
 using sink_driver_ptr = caf::intrusive_ptr<sink_driver>;
@@ -142,7 +154,7 @@ public:
     }
   }
 
-  void on_attach(caf::flow::subscription sub) override {
+  void on_subscribe(caf::flow::subscription sub) override {
     if (!completed_ && !sub_) {
       sub_ = std::move(sub);
       sub_.request(caf::defaults::flow::buffer_size);

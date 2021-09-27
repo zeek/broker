@@ -214,10 +214,6 @@ public:
   bool peer(const caf::uri& locator,
             timeout::seconds retry = timeout::seconds(10));
 
-  /// @private
-  bool mock_peer(detail::native_socket fd, endpoint_id peer_id,
-                 std::string fake_host, filter_type filter);
-
   /// Initiates a peering with a remote endpoint, without waiting
   /// for the operation to complete.
   /// @param address The IP address of the remote endpoint.
@@ -321,15 +317,12 @@ public:
                                                  std::move(cleanup)));
   }
 
-  /// Identical to ::subscribe, but does not guarantee that `init` is called
-  /// before the function returns.
   template <class Init, class OnNext, class Cleanup>
-  activity subscribe_nosync(filter_type filter, Init init, OnNext on_next,
-                            Cleanup cleanup) {
-    return do_subscribe_nosync(std::move(filter),
-                               detail::make_sink_driver(std::move(init),
-                                                        std::move(on_next),
-                                                        std::move(cleanup)));
+  [[deprecated("use subscribe() instead")]] activity
+  subscribe_nosync(filter_type filter, Init init, OnNext on_next,
+                   Cleanup cleanup) {
+    return subscribe(std::move(filter), std::move(init), std::move(on_next),
+                     std::move(cleanup));
   }
 
   // --- data stores -----------------------------------------------------------
@@ -464,8 +457,6 @@ protected:
 
 private:
   activity do_subscribe(filter_type filter, detail::sink_driver_ptr sink);
-
-  activity do_subscribe_nosync(filter_type filter, detail::sink_driver_ptr sink);
 
   configuration config_;
   union {

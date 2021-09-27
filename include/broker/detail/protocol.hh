@@ -1,8 +1,9 @@
 #pragma once
 
-#include <caf/net/observer_adapter.hpp>
-#include <caf/net/publisher_adapter.hpp>
+#include <caf/net/consumer_adapter.hpp>
+#include <caf/net/producer_adapter.hpp>
 #include <caf/tag/message_oriented.hpp>
+#include <caf/tag/no_auto_reading.hpp>
 #include <caf/uuid.hpp>
 
 #include "broker/alm/multipath.hh"
@@ -13,52 +14,95 @@ namespace broker::detail {
 /// Implements the Broker message exchange protocol. Note: this only covers the
 /// communication after the handshake. The handshake process is implemented by
 /// the connector.
-class protocol {
+class protocol : public caf::tag::no_auto_reading {
 public:
   using input_tag = caf::tag::message_oriented;
+
+  using consumer_resource = caf::async::consumer_resource<node_message>;
+
+  using consumer_buffer = consumer_resource::buffer_type;
+
+  using consumer_adapter_ptr = caf::net::consumer_adapter_ptr<consumer_buffer>;
+
+  using consumer_adapter = consumer_adapter_ptr::element_type;
+
+  using producer_resource = caf::async::producer_resource<node_message>;
+
+  using producer_buffer = producer_resource::buffer_type;
+
+  using producer_adapter_ptr = caf::net::producer_adapter_ptr<producer_buffer>;
+
+  using producer_adapter = producer_adapter_ptr::element_type;
 
   explicit protocol(caf::uuid this_peer) : this_peer_(this_peer) {
     // nop
   }
 
-  caf::async::publisher<node_message>
-  connect_flows(caf::net::socket_manager* mgr,
-                caf::async::publisher<node_message> in) {
-    using caf::make_counted;
-    // Connect outgoing items to the .
-    using controller_adapter_type = caf::net::observer_adapter<node_message>;
-    controller_messages_ = make_counted<controller_adapter_type>(mgr);
-    in.subscribe(controller_messages_->as_observer());
-    // Connect incoming traffic to the observer.
-    using peer_adapter_type = caf::net::publisher_adapter<node_message>;
-    peer_messages_ = make_counted<peer_adapter_type>(mgr, 64, 8);
-    return peer_messages_->as_publisher();
+  void connect_flows(caf::net::socket_manager* mgr, consumer_resource in,
+                     producer_resource out) {
+    in_ = consumer_adapter::try_open(mgr, in);
+    out_ = producer_adapter::try_open(mgr, out);
   }
 
   template <class LowerLayerPtr>
   caf::error
   init(caf::net::socket_manager* mgr, LowerLayerPtr&&, const caf::settings&) {
     mgr_ = mgr;
-    return caf::none;
+    if (!in_)
+      return make_error(ec::cannot_open_resource,
+                        "protocol instance failed to open consumer resource");
+    else if (!out_)
+      return make_error(ec::cannot_open_resource,
+                        "protocol instance failed to open producer resource");
+    else
+      return caf::none;
   }
 
   template <class LowerLayerPtr>
-  bool prepare_send(LowerLayerPtr down) {
-    while (down->can_send_more()) {
-      auto [val, done, err] = controller_messages_->poll();
-      if (val) {
-        if (!write(down, *val)) {
+  struct send_helper {
+    protocol* proto;
+    LowerLayerPtr down;
+    bool aborted = false;
+    size_t consumed = 0;
+
+    send_helper(protocol* proto, LowerLayerPtr down)
+      : proto(proto), down(down) {
+      // nop
+    }
+
+    void on_next(caf::span<const node_message> items) {
+      BROKER_ASSERT(item.size() == 1);
+      for (auto& item : items) {
+        if (!proto->write(down, item)) {
+          aborted = true;
           down->abort_reason(make_error(ec::invalid_message));
-          return false;
         }
-      } else if (done) {
-        if (err) {
-          down->abort_reason(*err);
-          return false;
-        }
-        break;
-      } else {
-        break;
+      }
+    }
+
+    void on_complete() {
+      // nop
+    }
+
+    void on_error(const caf::error&) {
+      // nop
+    }
+  };
+
+  template <class LowerLayerPtr>
+  bool prepare_send(LowerLayerPtr down) {
+    send_helper helper{this, down};
+    while (down->can_send_more() && in_) {
+      auto [ok, consumed] = in_->pull(caf::async::delay_errors, 1, helper);
+      if (!ok) {
+        in_ = nullptr;
+      } else if (helper.aborted) {
+        down->abort_reason(make_error(ec::invalid_message));
+        in_->cancel();
+        in_ = nullptr;
+        return false;
+      } else if (consumed == 0) {
+        return true;
       }
     }
     return true;
@@ -66,22 +110,24 @@ public:
 
   template <class LowerLayerPtr>
   bool done_sending(LowerLayerPtr) {
-    return !controller_messages_->has_data();
+    return !in_ || !in_->has_data();
   }
 
   template <class LowerLayerPtr>
   void abort(LowerLayerPtr, const caf::error& reason) {
-    peer_messages_->flush();
-    if (reason == caf::sec::socket_disconnected
-        || reason == caf::sec::discarded)
-      peer_messages_->on_complete();
-    else
-      peer_messages_->on_error(reason);
-  }
-
-  template <class LowerLayerPtr>
-  void after_reading(LowerLayerPtr) {
-    peer_messages_->flush();
+    BROKER_TRACE(BROKER_ARG(reason));
+    if (out_) {
+      if (reason == caf::sec::socket_disconnected
+          || reason == caf::sec::discarded)
+        out_->close();
+      else
+        out_->abort(reason);
+      out_ = nullptr;
+    }
+    if (in_) {
+      in_->cancel();
+      in_ = nullptr;
+    }
   }
 
   template <class LowerLayerPtr>
@@ -150,7 +196,7 @@ private:
                                          << down->handle().id);
     auto packed = packed_message{tag, msg_topic, std::move(payload)};
     auto msg = node_message{std::move(path), std::move(packed)};
-    if (peer_messages_->push(std::move(msg)) == 0)
+    if (out_->push(std::move(msg)) == 0)
       down->suspend_reading();
     return true;
   }
@@ -189,13 +235,11 @@ private:
   /// Points to the manager that runs this protocol stack.
   caf::net::socket_manager* mgr_ = nullptr;
 
-  /// Forwards outgoing messages to the peer. We write whatever we receive from
-  /// this channel to the socket.
-  caf::net::observer_adapter_ptr<node_message> controller_messages_;
+  /// Incoming node messages from the peer.
+  consumer_adapter_ptr in_;
 
-  /// After receiving messages from the socket, we publish peer messages to this
-  /// queue for processing by the controller.
-  caf::net::publisher_adapter_ptr<node_message> peer_messages_;
+  /// Outgoing node messages to the peer.
+  producer_adapter_ptr out_;
 };
 
 } // namespace broker::detail

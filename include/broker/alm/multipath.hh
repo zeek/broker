@@ -5,8 +5,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "caf/meta/omittable_if_empty.hpp"
-#include "caf/meta/type_name.hpp"
 #include "caf/node_id.hpp"
 #include "caf/sec.hpp"
 

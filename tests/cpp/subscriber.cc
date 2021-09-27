@@ -96,7 +96,7 @@ TEST(nonblocking_subscriber) {
   MESSAGE("subscribe to data on core1");
   using buf = std::vector<data_message>;
   buf result;
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"b"},
     [](unit_t&) {
       // nop

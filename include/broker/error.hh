@@ -95,6 +95,8 @@ enum class ec : uint8_t {
   no_path_to_peer,
   /// Unable to accept or establish peerings since no connector is available.
   no_connector_available,
+  /// Opening a resource failed.
+  cannot_open_resource,
 };
 // --ec-enum-end
 
@@ -214,7 +216,7 @@ inline error_view make_error_view(const data& src) {
 
 } // namespace broker
 
-CAF_ERROR_CODE_ENUM(broker::ec, "broker")
+CAF_ERROR_CODE_ENUM(broker::ec)
 
 #define BROKER_TRY_IMPL(statement)                                             \
   if (auto err = statement)                                                    \

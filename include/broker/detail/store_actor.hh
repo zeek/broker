@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/async/bounded_buffer.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/hash/fnv.hpp>
@@ -52,13 +53,19 @@ public:
 
   using local_request_key = std::pair<entity_id, request_id>;
 
+  // -- constructors, destructors, and assignment operators --------------------
+
+  virtual ~store_actor_state();
+
   // -- initialization ---------------------------------------------------------
 
   /// Initializes the state.
   /// @pre `ptr != nullptr`
   /// @pre `clock != nullptr`
   void init(caf::event_based_actor* self, endpoint_id this_endpoint,
-            endpoint::clock* clock, std::string&& id, caf::actor&& core);
+            endpoint::clock* clock, std::string&& id, caf::actor&& core,
+            caf::async::consumer_resource<command_message> in_res,
+            caf::async::producer_resource<command_message> out_res);
 
   template <class Backend, class Base>
   void init(channel_type::producer<Backend, Base>& out) {
@@ -153,6 +160,8 @@ public:
   }
 
   // -- callbacks for the behavior ---------------------------------------------
+
+  virtual void dispatch(const command_message& msg) = 0;
 
   void on_down_msg(const caf::actor_addr& source, const error& reason);
 

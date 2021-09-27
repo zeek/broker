@@ -6,7 +6,8 @@
 #include <caf/optional.hpp>
 
 #include "broker/data.hh"
-#include "broker/detail/shared_subscriber_queue.hh"
+#include "broker/detail/native_socket.hh"
+#include "broker/detail/opaque_type.hh"
 #include "broker/filter_type.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
@@ -23,13 +24,9 @@ public:
 
   friend class status_subscriber;
 
-  // --- nested types ----------------------------------------------------------
+  // -- member types -----------------------------------------------------------
 
-  // --- nested types ----------------------------------------------------------
-
-  using queue_type = detail::shared_subscriber_queue<data_message>;
-
-  using queue_ptr = caf::intrusive_ptr<queue_type>;
+  using optional_data_message = caf::optional<data_message>;
 
   // --- constructors and destructors ------------------------------------------
 
@@ -49,98 +46,65 @@ public:
 
   // --- access to values ------------------------------------------------------
 
+  /// Returns all currently available values without blocking.
+  std::vector<data_message> poll();
+
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available.
   data_message get();
 
-  /// Pulls a single value out of the stream. Blocks the current thread until
-  /// at least one value becomes available or a timeout occurred.
-  template <class Timeout,
-            class = std::enable_if_t<!std::is_integral<Timeout>::value>>
-  caf::optional<data_message> get(Timeout timeout) {
-    auto tmp = get(1, timeout);
-    if (tmp.size() == 1) {
-      auto x = std::move(tmp.front());
-      BROKER_DEBUG("received" << x);
-      return caf::optional<data_message>(std::move(x));
-    }
-    return caf::none;
-  }
-
-  /// Pulls `num` values out of the stream. Blocks the current thread until
-  /// `num` elements are available or a timeout occurs. Returns a partially
-  /// filled or empty vector on timeout, otherwise a vector containing exactly
-  /// `num` elements.
-  template <class Clock, class Duration>
-  std::vector<data_message>
-  get(size_t num, std::chrono::time_point<Clock, Duration> timeout) {
-    std::vector<data_message> result;
-    if (num == 0)
-      return result;
-    if (timeout <= std::chrono::system_clock::now())
-      return result;
-    result.reserve(num);
-    for (;;) {
-      if (!queue_->wait_on_flare_abs(timeout))
-        return result;
-      size_t prev_size = 0;
-      auto remaining = num - result.size();
-      auto got = queue_->consume(remaining, &prev_size, [&](data_message&& x) {
-        BROKER_DEBUG("received" << x);
-        result.emplace_back(std::move(x));
-      });
-      if (result.size() == num)
-        return result;
-    }
-  }
+  /// Returns `num` values, blocking the caller if necessary.
+  std::vector<data_message> get(size_t num);
 
   /// Pulls `num` values out of the stream. Blocks the current thread until
   /// `num` elements are available or a timeout occurs. Returns a partially
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
   template <class Duration>
-  std::vector<data_message> get(size_t num, Duration relative_timeout) {
-    if (!caf::is_infinite(relative_timeout)) {
-      auto timeout = caf::make_timestamp();
-      timeout += relative_timeout;
-      return get(num, timeout);
-    }
-    std::vector<data_message> result;
-    if (num == 0)
-      return result;
-    result.reserve(num);
-    for (;;) {
-      queue_->wait_on_flare();
-      size_t prev_size = 0;
-      auto remaining = num - result.size();
-      auto got = queue_->consume(remaining, &prev_size, [&](data_message&& x) {
-        BROKER_DEBUG("received" << x);
-        result.emplace_back(std::move(x));
-      });
-      if (result.size() == num)
-        return result;
-    }
+  std::vector<data_message>
+  get(size_t num, std::chrono::time_point<clock, Duration> abs_timeout) {
+    using std::chrono::time_point_cast;
+    return do_get(num, time_point_cast<timespan>(abs_timeout));
   }
 
-  /// Returns `num` values, blocking the caller if necessary.
-  std::vector<data_message> get(size_t num);
+  /// Pulls `num` values out of the stream. Blocks the current thread until
+  /// `num` elements are available or a timeout occurs. Returns a partially
+  /// filled or empty vector on timeout, otherwise a vector containing exactly
+  /// `num` elements.
+  template <class Rep, class Period>
+  std::vector<data_message>
+  get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
+    return do_get(num, now() + rel_timeout);
+  }
 
-  /// Returns all currently available values without blocking.
-  std::vector<data_message> poll();
+  /// Pulls a single value out of the stream. Blocks the current thread until
+  /// at least one value becomes available or a timeout occurred.
+  template <class Duration>
+  optional_data_message
+  get(std::chrono::time_point<clock, Duration> abs_timeout) {
+    optional_data_message result;
+    auto tmp = get(1, abs_timeout);
+    if (tmp.size() == 1)
+      result.emplace(std::move(tmp.front()));
+    return result;
+  }
+
+  /// Pulls a single value out of the stream. Blocks the current thread until
+  /// at least one value becomes available or a timeout occurred.
+  template <class Rep, class Period>
+  optional_data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
+    return get(now() + rel_timeout);
+  }
 
   // --- accessors -------------------------------------------------------------
 
   /// Returns the amount of values than can be extracted immediately without
   /// blocking.
-  size_t available() const noexcept {
-    return queue_->buffer_size();
-  }
+  size_t available() const noexcept;
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  int fd() const noexcept {
-    return static_cast<int>(queue_->fd());
-  }
+  detail::native_socket fd() const noexcept;
 
   // --- topic management ------------------------------------------------------
 
@@ -163,11 +127,22 @@ public:
   void reset();
 
 private:
-  subscriber(queue_ptr queue, filter_type filter, caf::actor core);
+  subscriber(detail::opaque_ptr queue, filter_type filter, caf::actor core);
 
   void update_filter(bool block);
 
-  queue_ptr queue_;
+  std::vector<data_message> do_get(size_t num, timestamp abs_timeout);
+
+  void do_get(std::vector<data_message>& buf, size_t num,
+              timestamp abs_timeout);
+
+  void wait();
+
+  bool wait_for(timespan);
+
+  bool wait_until(timestamp);
+
+  detail::opaque_ptr queue_;
 
   filter_type filter_;
 

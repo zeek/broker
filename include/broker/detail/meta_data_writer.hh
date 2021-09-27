@@ -7,7 +7,6 @@
 
 #include <caf/error.hpp>
 #include <caf/fwd.hpp>
-#include <caf/meta/annotation.hpp>
 #include <caf/none.hpp>
 #include <caf/variant.hpp>
 

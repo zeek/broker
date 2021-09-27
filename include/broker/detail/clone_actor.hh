@@ -42,7 +42,9 @@ public:
 
   clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
               std::string nm, caf::timespan master_timeout, caf::actor parent,
-              endpoint::clock* ep_clock);
+              endpoint::clock* ep_clock,
+              caf::async::consumer_resource<command_message> in_res,
+              caf::async::producer_resource<command_message> out_res);
 
   /// Sends `x` to the master.
   void forward(internal_command&& x);
@@ -51,7 +53,7 @@ public:
 
   // -- callbacks for the behavior ---------------------------------------------
 
-  void dispatch(const command_message& msg);
+  void dispatch(const command_message& msg) override;
 
   void tick();
 

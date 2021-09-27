@@ -5,13 +5,14 @@
 #include <vector>
 
 #include <caf/actor.hpp>
+#include <caf/intrusive_ptr.hpp>
 
 #include "broker/atoms.hh"
+#include "broker/detail/native_socket.hh"
+#include "broker/detail/opaque_type.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
-
-#include "broker/detail/shared_publisher_queue.hh"
 
 namespace broker {
 
@@ -28,9 +29,9 @@ public:
 
   using guard_type = std::unique_lock<std::mutex>;
 
-  using queue_type = detail::shared_publisher_queue<data_message>;
+  using queue_type = detail::opaque_type;
 
-  using queue_ptr = caf::intrusive_ptr<queue_type>;
+  using queue_ptr = caf::intrusive_ptr<detail::opaque_type>;
 
   // --- constructors and destructors ------------------------------------------
 
@@ -64,9 +65,7 @@ public:
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  auto fd() const {
-    return queue_->fd();
-  }
+  detail::native_socket fd() const;
 
   // --- mutators --------------------------------------------------------------
 
