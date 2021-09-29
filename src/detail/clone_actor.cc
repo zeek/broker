@@ -25,6 +25,8 @@
 
 #include <chrono>
 
+using std::move;
+
 namespace broker::detail {
 
 static double now(endpoint::clock* clock) {
@@ -40,15 +42,17 @@ clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                          caf::async::consumer_resource<command_message> in_res,
                          caf::async::producer_resource<command_message> out_res)
   : input(this), max_sync_interval(master_timeout) {
-  super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
-              std::move(parent), std::move(in_res), std::move(out_res));
+  super::init(ptr, move(this_endpoint), ep_clock, move(nm),
+              move(parent), move(in_res), move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
+  max_get_delay = caf::get_or(ptr->config(), "broker.store.max-get-delay",
+                              defaults::store::max_get_delay);
 }
 
 void clone_state::forward(internal_command&& x) {
   self->send(core, atom::publish_v,
-             make_command_message(master_topic, std::move(x)));
+             make_command_message(master_topic, move(x)));
 }
 
 void clone_state::dispatch(const command_message& msg) {
@@ -70,7 +74,7 @@ void clone_state::dispatch(const command_message& msg) {
   switch (tag) {
     case command_tag::action: {
       // Action messages from the master.
-      input.handle_event(seq, std::move(msg));
+      input.handle_event(seq, move(msg));
       break;
     }
     case command_tag::producer_control: {
@@ -81,7 +85,7 @@ void clone_state::dispatch(const command_message& msg) {
           if (input.handle_handshake(cmd.sender, inner.offset,
                                      inner.heartbeat_interval)) {
             BROKER_DEBUG("received ack_clone from" << cmd.sender);
-            set_store(std::move(inner.state));
+            set_store(move(inner.state));
             if (output_ptr) {
               output_ptr->stalled = false;
               output_ptr->trigger_handshakes();
@@ -171,12 +175,12 @@ void clone_state::consume(put_command& x) {
   BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry" << x.expiry);
   if (auto i = store.find(x.key); i != store.end()) {
     auto& value = i->second;
-    auto old_value = std::move(value);
+    auto old_value = move(value);
     emit_update_event(x, old_value);
-    value = std::move(x.value);
+    value = move(x.value);
   } else {
     emit_insert_event(x);
-    store.emplace(std::move(x.key), std::move(x.value));
+    store.emplace(move(x.key), move(x.value));
   }
 }
 
@@ -224,17 +228,17 @@ void clone_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
   BROKER_DEBUG(BROKER_ARG(ack));
   auto msg = make_command_message(
     master_topic, internal_command{0, id, cumulative_ack_command{ack.seq}});
-  self->send(core, atom::publish_v, std::move(msg), ptr->producer().endpoint);
+  self->send(core, atom::publish_v, move(msg), ptr->producer().endpoint);
 }
 
 void clone_state::send(consumer_type* ptr, channel_type::nack nack) {
   BROKER_DEBUG(BROKER_ARG(nack));
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, nack_command{std::move(nack.seqs)}});
+    master_topic, internal_command{0, id, nack_command{move(nack.seqs)}});
   if (ptr->initialized())
-    self->send(core, atom::publish_v, std::move(msg), ptr->producer().endpoint);
+    self->send(core, atom::publish_v, move(msg), ptr->producer().endpoint);
   else
-    self->send(core, atom::publish_v, std::move(msg));
+    self->send(core, atom::publish_v, move(msg));
 }
 
 // -- callbacks for the producer -----------------------------------------------
@@ -257,7 +261,7 @@ void clone_state::send(producer_type* ptr, const entity_id&,
     master_topic,
     internal_command{
       0, id, attach_writer_command{what.offset, what.heartbeat_interval}});
-  self->send(core, atom::publish_v, std::move(msg));
+  self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::send(producer_type* ptr, const entity_id&,
@@ -267,7 +271,7 @@ void clone_state::send(producer_type* ptr, const entity_id&,
     return;
   auto msg = make_command_message(
     master_topic, internal_command{0, id, retransmit_failed_command{what.seq}});
-  self->send(core, atom::publish_v, std::move(msg));
+  self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
@@ -287,7 +291,7 @@ void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
   }
   auto msg = make_command_message(
     master_topic, internal_command{0, id, keepalive_command{what.seq}});
-  self->send(core, atom::publish_v, std::move(msg));
+  self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::broadcast(producer_type* ptr,
@@ -344,7 +348,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
   // Short-circuit messages with an empty state.
   if (x.empty()) {
     if (!store.empty()) {
-      clear_command cmd{std::move(publisher)};
+      clear_command cmd{move(publisher)};
       consume(cmd);
     }
     return;
@@ -379,7 +383,11 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
         emit_insert_event(key, value, nil, publisher);
   }
   // Override local state.
-  store = std::move(x);
+  store = move(x);
+  // Trigger any GET messages waiting for a reply.
+  for (auto& callback : on_set_store_callbacks)
+    callback();
+  on_set_store_callbacks.clear();
 }
 
 bool clone_state::has_master() const noexcept {
@@ -416,8 +424,8 @@ caf::behavior clone_state::make_behavior() {
       auto& out = output();
       cmd.seq = out.next_seq();
       cmd.sender = id;
-      auto msg = make_command_message(master_topic, std::move(cmd));
-      out.produce(std::move(msg));
+      auto msg = make_command_message(master_topic, move(cmd));
+      out.produce(move(msg));
     },
     [=](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
@@ -458,7 +466,7 @@ caf::behavior clone_state::make_behavior() {
       auto x = keys();
       BROKER_INFO("KEYS"
                   << "with id" << id << "->" << x);
-      return caf::make_message(std::move(x), id);
+      return caf::make_message(move(x), id);
     },
     [=](atom::exists, const data& key) -> caf::result<data> {
       if (!has_master())
@@ -475,65 +483,71 @@ caf::behavior clone_state::make_behavior() {
       BROKER_INFO("EXISTS" << key << "with id" << id << "->" << r);
       return result;
     },
-    [=](atom::get, const data& key) -> caf::result<data> {
-      if (!has_master())
-        return {ec::stale_data};
-      expected<data> result = ec::no_such_key;
-      auto i = store.find(key);
-      if (i != store.end())
-        result = i->second;
-      BROKER_INFO("GET" << key << "->" << result);
-      return result;
+    [=](atom::get, data& key) -> caf::result<data> {
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp, key{move(key)}]() mutable {
+        if (rp.pending()) {
+          if (auto i = store.find(key); i != store.end()) {
+            BROKER_INFO("GET" << key << "->" << i->second);
+            rp.deliver(i->second);
+          } else {
+            BROKER_INFO("GET" << key << "-> no_such_key");
+            rp.deliver(caf::make_error(ec::no_such_key));
+          }
+        }
+      });
+      return rp;
     },
-    [=](atom::get, const data& key, const data& aspect) -> caf::result<data> {
-      if (!has_master())
-        return {ec::stale_data};
-      expected<data> result = ec::no_such_key;
-      auto i = store.find(key);
-      if (i != store.end())
-        result = caf::visit(retriever{aspect}, i->second);
-      BROKER_INFO("GET" << key << aspect << "->" << result);
-      return result;
+    [=](atom::get, data& key, data& aspect) -> caf::result<data> {
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp, key{move(key)}, aspect{move(aspect)}]() mutable {
+        if (auto i = store.find(key); i != store.end()) {
+          BROKER_INFO("GET" << key << aspect << "->" << i->second);
+          rp.deliver(caf::visit(retriever{aspect}, i->second));
+        } else {
+          BROKER_INFO("GET" << key << "-> no_such_key");
+          rp.deliver(caf::make_error(ec::no_such_key));
+        }
+      });
+      return rp;
     },
-    [=](atom::get, const data& key, request_id id) {
-      if (!has_master())
-        return caf::make_message(make_error(ec::stale_data), id);
-      caf::message result;
-      auto i = store.find(key);
-      if (i != store.end()) {
-        result = caf::make_message(i->second, id);
-        BROKER_INFO("GET" << key << "with id" << id << "->" << i->second);
-      } else {
-        result = caf::make_message(make_error(ec::no_such_key), id);
-        BROKER_INFO("GET" << key << "with id" << id << "-> no_such_key");
-      }
-      return result;
+    [=](atom::get, data& key, request_id id) {
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp, key{move(key)}, id]() mutable {
+        if (auto i = store.find(key); i != store.end()) {
+          BROKER_INFO("GET" << key << "with id" << id << "->" << i->second);
+          rp.deliver(i->second, id);
+        } else {
+          BROKER_INFO("GET" << key << "with id" << id << "-> no_such_key");
+          rp.deliver(make_error(ec::no_such_key), id);
+        }
+      });
+      return rp;
     },
-    [=](atom::get, const data& key, const data& aspect, request_id id) {
-      if (!has_master())
-        return caf::make_message(make_error(ec::stale_data), id);
-      caf::message result;
-      auto i = store.find(key);
-      if (i != store.end()) {
-        auto x = caf::visit(retriever{aspect}, i->second);
-        BROKER_INFO("GET" << key << aspect << "with id" << id << "->" << x);
-        if (x)
-          result = caf::make_message(*x, id);
-        else
-          result = caf::make_message(std::move(x.error()), id);
-      } else {
-        result = caf::make_message(make_error(ec::no_such_key), id);
-        BROKER_INFO("GET" << key << aspect << "with id" << id
-                          << "-> no_such_key");
-      }
-      return result;
+    [=](atom::get, data& key, data& aspect, request_id id) {
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp, key{move(key)}, asp{move(aspect)}, id]() mutable {
+        if (auto i = store.find(key); i != store.end()) {
+          auto x = caf::visit(retriever{asp}, i->second);
+          BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
+          if (x)
+            rp.deliver(std::move(*x), id);
+          else
+            rp.deliver(std::move(x.error()), id);
+        } else {
+          BROKER_INFO("GET" << key << asp << "with id" << id
+                            << "-> no_such_key");
+          rp.deliver(make_error(ec::no_such_key), id);
+        }
+      });
+      return rp;
     },
     [=](atom::get, atom::name) { return store_name; },
     [=](atom::await, atom::idle) -> caf::result<atom::ok> {
       if (idle())
         return atom::ok_v;
       auto rp = self->make_response_promise();
-      idle_callbacks.emplace_back(std::move(rp));
+      idle_callbacks.emplace_back(move(rp));
       return caf::delegated<atom::ok>();
     });
 }

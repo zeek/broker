@@ -26,6 +26,9 @@ public:
 
   using consumer_type = channel_type::consumer<clone_state>;
 
+  /// Callback for set_store;
+  using on_set_store = std::function<void()>;
+
   struct producer_base {
     /// Stores whether writes are currently disabled by the clone. This flag
     /// solves a race between the members `input` and `output_ptr` by disabling
@@ -116,6 +119,26 @@ public:
 
   bool idle() const noexcept;
 
+  // -- helper functions -------------------------------------------------------
+
+  /// Runs @p body immediately if the master is available. Otherwise, schedules
+  /// @p body for later execution and also schedules a timeout according to
+  /// `max_get_delay` before aborting the get operation with an error.
+  template <class F>
+  void get_impl(caf::response_promise rp, F&& body) {
+    if (has_master()) {
+      body();
+    } else if (max_get_delay.count() > 0) {
+      self->run_delayed(max_get_delay, [rp = std::move(rp)]() mutable {
+        if (rp.pending())
+          rp.deliver(caf::make_error(ec::stale_data));
+      });
+      on_set_store_callbacks.emplace_back(std::forward<F>(body));
+    } else {
+      rp.deliver(caf::make_error(ec::stale_data));
+    }
+  }
+
   // -- member variables -------------------------------------------------------
 
   topic master_topic;
@@ -130,9 +153,15 @@ public:
   /// handshake or re-appear after a dropout.
   caf::timespan max_sync_interval;
 
+  /// Stores the maximum configured delay for GET requests while waiting for the
+  /// master.
+  caf::timespan max_get_delay;
+
   /// If set, marks when the clone stops trying to connect or re-connect to a
   /// master.
   std::optional<caf::timestamp> sync_timeout;
+
+  std::vector<on_set_store> on_set_store_callbacks;
 
   static inline constexpr const char* name = "broker.clone";
 };

@@ -298,7 +298,7 @@ TEST(multiple clones can attach to a single master) {
       }
       peered.arrive_and_wait();
       if (index != 0) {
-        if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.25);
+        if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.5);
             SYNC_CHECK(maybe_services)) {
           services = std::move(*maybe_services);
           services.put("foo-" + std::to_string(index), "bar");
@@ -357,7 +357,7 @@ TEST(the master may appear after launching the clones) {
       peered.arrive_and_wait();
       store services;
       if (index != 0) {
-        auto ft = ep.attach_clone_async("zeek/known/services", 0.25);
+        auto ft = ep.attach_clone_async("zeek/known/services", 0.5);
         waiting_for_master.arrive_and_wait();
         if (auto maybe_services = ft.get(); SYNC_CHECK(maybe_services)) {
           services = std::move(*maybe_services);

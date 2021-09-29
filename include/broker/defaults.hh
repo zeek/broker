@@ -27,6 +27,9 @@ namespace broker::defaults::store {
 /// Configures the time interval for advancing the local Lamport time.
 extern const caf::timespan tick_interval;
 
+/// Configures the maximum delay for GET requests while waiting for the master.
+extern const caf::timespan max_get_delay;
+
 /// Configures how many ticks pass between sending heartbeat messages.
 extern const uint16_t heartbeat_interval;
 

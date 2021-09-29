@@ -117,6 +117,8 @@ configuration::configuration(skip_init_t) {
   opt_group{custom_options_, "broker.store"}
     .add<caf::timespan>("tick-interval",
                         "time interval for advancing the local Lamport time")
+    .add<caf::timespan>("max-get-delay",
+                        "maximum delay for GET requests on stores")
     .add<uint16_t>("heartbeat-interval",
                    "number of ticks between heartbeat messages")
     .add<uint16_t>("nack-timeout",

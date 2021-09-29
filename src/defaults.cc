@@ -20,6 +20,9 @@ namespace broker::defaults::store {
 // Run with 20 ticks per second.
 const caf::timespan tick_interval = 50ms;
 
+// Delay GET requests for up to one second.
+const caf::timespan max_get_delay = 1s;
+
 // Send 5 heartbeats per second.
 const uint16_t heartbeat_interval = 4;
 

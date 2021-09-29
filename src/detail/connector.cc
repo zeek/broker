@@ -712,6 +712,17 @@ struct connect_manager {
       auto sock = caf::net::tcp_accept_socket{entry.fd};
       if (auto new_sock = caf::net::accept(sock)) {
         BROKER_ASSERT(pending.count(new_sock->id) == 0);
+        if (auto err = caf::net::nonblocking(*new_sock, true)) {
+          auto err_str = to_string(err);
+          fprintf(stderr, "failed to set pipe to nonblocking: %s\n",
+                  err_str.c_str());
+          ::abort();
+        }
+        if (auto err = caf::net::allow_sigpipe(*new_sock, false)) {
+          auto err_str = to_string(err);
+          fprintf(stderr, "failed to disable sigpipe: %s\n", err_str.c_str());
+          ::abort();
+        }
         auto st = make_connect_state(this);
         st->addr.retry = 0s;
         if (auto addr = caf::net::remote_addr(*new_sock))
