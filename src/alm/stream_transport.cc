@@ -498,11 +498,42 @@ caf::behavior stream_transport::make_behavior() {
         subscribe(filter);
         init_data_outputs();
         data_outputs_
-          .filter([filter = std::move(filter)](const data_message& item) {
+          .filter([filter{std::move(filter)}](const data_message& item) {
             detail::prefix_matcher f;
             return f(filter, item);
           })
           .subscribe(std::move(snk));
+      },
+      [this](std::shared_ptr<filter_type> fptr, detail::data_producer_res snk) {
+        // Here, we accept a shared_ptr to the filter instead of an actual
+        // object. This allows the subscriber to manipulate the filter later via
+        // actions (to make sure there are is unsynchronized read/write on the
+        // filter).
+        subscribe(*fptr);
+        init_data_outputs();
+        data_outputs_
+          .filter([fptr{std::move(fptr)}](const data_message& item) {
+            detail::prefix_matcher f;
+            return f(*fptr, item);
+          })
+          .subscribe(std::move(snk));
+      },
+      [this](std::shared_ptr<filter_type> fptr, topic x, bool add,
+             std::shared_ptr<std::promise<void>> sync) {
+        // Here, we assume that the filter is bound to some output flow.
+        auto e = fptr->end();
+        auto i = std::find(fptr->begin(), e, x);
+        if (add) {
+          if (i == e) {
+            fptr->emplace_back(std::move(x));
+            subscribe(*fptr);
+          }
+        } else {
+          if (i != e)
+            fptr->erase(i);
+        }
+        if (sync)
+          sync->set_value();
       },
       [this](detail::data_consumer_res src) {
         auto sub

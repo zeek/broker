@@ -127,9 +127,10 @@ public:
   void reset();
 
 private:
-  subscriber(detail::opaque_ptr queue, filter_type filter, caf::actor core);
+  subscriber(detail::opaque_ptr queue, std::shared_ptr<filter_type> core_filter,
+             caf::actor core);
 
-  void update_filter(bool block);
+  void update_filter(topic x, bool add, bool block);
 
   std::vector<data_message> do_get(size_t num, timestamp abs_timeout);
 
@@ -142,11 +143,15 @@ private:
 
   bool wait_until(timestamp);
 
+  /// Points to the actual implementation for the producer-consumer queue.
   detail::opaque_ptr queue_;
 
-  filter_type filter_;
-
+  /// Caches a handle to the core actor for asynchronously updating the filter.
   caf::actor core_;
+
+  /// Points to the filter held by the core actor. May only be touched in the
+  /// context of the core.
+  std::shared_ptr<filter_type> core_filter_;
 };
 
 } // namespace broker

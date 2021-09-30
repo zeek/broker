@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <future>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -351,6 +352,8 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((caf::stream<broker::data_message>))
   BROKER_ADD_TYPE_ID((caf::stream<broker::node_message>))
   BROKER_ADD_TYPE_ID((std::optional<broker::endpoint_id>))
+  BROKER_ADD_TYPE_ID((std::shared_ptr<broker::filter_type>))
+  BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>))
   BROKER_ADD_TYPE_ID((std::vector<broker::alm::lamport_timestamp>))
   BROKER_ADD_TYPE_ID((std::vector<broker::command_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::data_message>))
@@ -375,3 +378,5 @@ CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::node_consumer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::node_producer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::retry_state)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::store_state_ptr)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(std::shared_ptr<broker::filter_type>)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(std::shared_ptr<std::promise<void>>)

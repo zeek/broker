@@ -154,12 +154,12 @@ using broker::detail::dptr;
 
 namespace broker {
 
-subscriber::subscriber(detail::opaque_ptr queue, filter_type filter,
-                       caf::actor core)
+subscriber::subscriber(detail::opaque_ptr queue,
+                       std::shared_ptr<filter_type> filter, caf::actor core)
   : queue_(std::move(queue)),
-    filter_(std::move(filter)),
-    core_(std::move(core)) {
-  BROKER_INFO("creating subscriber for topic(s)" << filter_);
+    core_(std::move(core)),
+    core_filter_(std::move(filter)) {
+  // nop
 }
 
 subscriber::~subscriber() {
@@ -167,14 +167,16 @@ subscriber::~subscriber() {
 }
 
 subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
+  BROKER_INFO("creating subscriber for topic(s)" << filter);
   using caf::async::make_bounded_buffer_resource;
+  auto fptr = std::make_shared<filter_type>(std::move(filter));
   auto [con_res, prod_res] = make_bounded_buffer_resource<data_message>();
-  caf::anon_send(ep.core(), filter, std::move(prod_res));
+  caf::anon_send(ep.core(), fptr, std::move(prod_res));
   auto buf = con_res.try_open();
   BROKER_ASSERT(buf != nullptr);
   auto qptr = caf::make_counted<detail::subscriber_queue>(buf);
   buf->set_consumer(qptr);
-  return subscriber{detail::make_opaque(std::move(qptr)), std::move(filter),
+  return subscriber{detail::make_opaque(std::move(qptr)), std::move(fptr),
                     ep.core()};
 }
 
@@ -235,20 +237,12 @@ detail::native_socket subscriber::fd() const noexcept {
 
 void subscriber::add_topic(topic x, bool block) {
   BROKER_INFO("adding topic" << x << "to subscriber");
-  auto e = filter_.end();
-  if (auto i = std::find(filter_.begin(), e, x); i == e) {
-    filter_.emplace_back(std::move(x));
-    update_filter(block);
-  }
+  update_filter(std::move(x), true, block);
 }
 
 void subscriber::remove_topic(topic x, bool block) {
   BROKER_INFO("removing topic" << x << "from subscriber");
-  auto e = filter_.end();
-  if (auto i = std::find(filter_.begin(), e, x); i != e) {
-    filter_.erase(i);
-    update_filter(block);
-  }
+  update_filter(std::move(x), false, block);
 }
 
 void subscriber::reset() {
@@ -259,27 +253,16 @@ void subscriber::reset() {
   }
 }
 
-void subscriber::update_filter(bool block) {
-  printf("%s:%d IMPLEMENT ME\n", __FILE__, __LINE__);
-  abort();
-  // if (!block) {
-  //   auto f = detail::make_flow_controller_callback(
-  //     [qptr{queue_}, fs{filter_}](detail::flow_controller* ctrl) mutable {
-  //       ctrl->update_filter(qptr, fs);
-  //     });
-  //   caf::anon_send(core_, std::move(f));
-  // } else {
-  //   auto token = std::make_shared<std::promise<void>>();
-  //   auto fut = token->get_future();
-  //   auto f = detail::make_flow_controller_callback(
-  //     [qptr{queue_}, fs{filter_},
-  //      tk{std::move(token)}](detail::flow_controller* ctrl) mutable {
-  //       ctrl->update_filter(qptr, fs);
-  //       tk->set_value();
-  //     });
-  //   caf::anon_send(core_, std::move(f));
-  //   fut.get();
-  // }
+void subscriber::update_filter(topic what, bool add, bool block) {
+  if (!block) {
+    caf::anon_send(core_, core_filter_, std::move(what), add,
+                   std::shared_ptr<std::promise<void>>{nullptr});
+  } else {
+    auto sync = std::make_shared<std::promise<void>>();
+    auto vfut = sync->get_future();
+    caf::anon_send(core_, core_filter_, std::move(what), add, std::move(sync));
+    vfut.get();
+  }
 }
 
 void subscriber::wait() {
