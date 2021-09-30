@@ -59,8 +59,8 @@ configuration make_config(const char* test_name, size_t endpoint_nr) {
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", log_path_template(test_name, endpoint_nr));
-  cfg.set("caf.logger.file.verbosity", "trace");
-  cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
+  // cfg.set("caf.logger.file.verbosity", "trace");
+  // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
   // cfg.set("broker.metrics.export.topic", "my/metrics/node-" + std::to_string(endpoint_nr));
   // cfg.set("broker.metrics.export.prefixes", std::vector{"caf"s,"broker"s});
   // if (endpoint_nr == 0) {
