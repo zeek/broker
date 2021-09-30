@@ -32,7 +32,7 @@ set(tests
   cpp/mixin/notifier.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
-  cpp/ssl.cc
+  # cpp/ssl.cc
   cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc
