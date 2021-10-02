@@ -72,7 +72,7 @@ public:
 
     void on_next(caf::span<const node_message> items) {
       BROKER_ASSERT(item.size() == 1);
-      for (auto& item : items) {
+      for (const auto& item : items) {
         if (!proto->write(down, item)) {
           aborted = true;
           down->abort_reason(make_error(ec::invalid_message));
@@ -203,8 +203,8 @@ private:
 
   template <class LowerLayerPtr>
   bool write(LowerLayerPtr down, const node_message& msg) {
-    auto&& [msg_path, msg_content] = msg.data();
-    auto&& [msg_type, msg_topic, payload] = msg_content.data();
+    const auto& [msg_path, msg_content] = msg.data();
+    const auto& [msg_type, msg_topic, payload] = msg_content.data();
     BROKER_DEBUG("write a node message of type" << msg_type << "to socket"
                                                 << down->handle().id);
     down->begin_message();
