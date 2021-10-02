@@ -518,8 +518,8 @@ caf::behavior stream_transport::make_behavior() {
           })
           .subscribe(std::move(snk));
       },
-      [this](std::shared_ptr<filter_type> fptr, topic x, bool add,
-             std::shared_ptr<std::promise<void>> sync) {
+      [this](std::shared_ptr<filter_type>& fptr, topic& x, bool add,
+             std::shared_ptr<std::promise<void>>& sync) {
         // Here, we assume that the filter is bound to some output flow.
         auto e = fptr->end();
         auto i = std::find(fptr->begin(), e, x);
