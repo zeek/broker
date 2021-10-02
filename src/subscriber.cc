@@ -69,21 +69,21 @@ public:
     this->deref();
   }
 
-  auto& buf() {
-    return *buf_;
-  }
-
   auto fd() const noexcept {
     return fx_.fd();
   }
 
   void cancel() {
-    buf_->cancel();
+    if (buf_)
+      buf_->cancel();
   }
 
   void extinguish() {
-    ready_ = false;
-    fx_.extinguish();
+    guard_type guard{mtx_};
+    if (ready_) {
+      ready_ = false;
+      fx_.extinguish();
+    }
   }
 
   void pull(std::vector<data_message>& dst_buf, size_t num) {
@@ -102,10 +102,25 @@ public:
       }
     };
     cb consumer{this, &dst_buf};
-    guard_type guard{mtx_};
-    if (buf_)
-      if (!buf_->pull(caf::async::delay_errors, num, consumer).second)
+    if (buf_) {
+      if (!buf_->pull(caf::async::delay_errors, num, consumer).second) {
         buf_ = nullptr;
+      } else if (buf_->available() == 0) {
+        guard_type guard{mtx_};
+        if (ready_ && buf_->available() == 0) {
+          ready_ = false;
+          fx_.extinguish();
+        }
+      }
+    }
+  }
+
+  size_t capacity() const noexcept {
+    return buf_ ? buf_->capacity() : size_t{0};
+  }
+
+  size_t available() const noexcept {
+    return buf_ ? buf_->available() : size_t{0};
   }
 
   friend void intrusive_ptr_add_ref(const subscriber_queue* ptr) noexcept {
@@ -219,16 +234,19 @@ void subscriber::do_get(std::vector<data_message>& buf, size_t num,
 }
 
 std::vector<data_message> subscriber::poll() {
-  auto q = dptr(queue_);
-  auto max_size = q->buf().capacity();
+  // The Queue may return a capacity of 0 if the producer has closed the flow.
   std::vector<data_message> buf;
-  buf.reserve(max_size);
-  q->pull(buf, max_size);
+  auto q = dptr(queue_);
+  auto max_size = q->capacity();
+  if (max_size > 0) {
+    buf.reserve(max_size);
+    q->pull(buf, max_size);
+  }
   return buf;
 }
 
 size_t subscriber::available() const noexcept {
-  return dptr(queue_)->buf().available();
+  return dptr(queue_)->available();
 }
 
 detail::native_socket subscriber::fd() const noexcept {
