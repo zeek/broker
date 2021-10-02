@@ -93,7 +93,7 @@ flare::flare() {
     BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
     std::terminate();
   }
-  if (auto err = caf::net::nonblocking(first, false)) {
+  if (auto err = caf::net::nonblocking(first, true)) {
     BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
     std::terminate();
   }
