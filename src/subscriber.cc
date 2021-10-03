@@ -52,13 +52,24 @@ public:
 
   void wait() {
     guard_type guard{mtx_};
-    if (!ready_)
+    while (!ready_) {
+      guard.unlock();
       fx_.await_one();
+      guard.lock();
+    }
   }
 
   bool wait_until(timestamp abs_timeout) {
     guard_type guard{mtx_};
-    return ready_ || fx_.await_one(abs_timeout);
+    while (!ready_) {
+      guard.unlock();
+      if (!fx_.await_one(abs_timeout)) {
+        guard.lock();
+        return ready_;
+      }
+      guard.lock();
+    }
+    return true;
   }
 
   void ref_consumer() const noexcept override {
