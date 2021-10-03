@@ -18,6 +18,7 @@
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/logger.hh"
 
 namespace broker::detail {
 
@@ -97,8 +98,10 @@ public:
     }
   }
 
-  void pull(std::vector<data_message>& dst_buf, size_t num) {
+  bool pull(std::vector<data_message>& dst, size_t num) {
+    BROKER_TRACE(BROKER_ARG2("dst.size", dst.size()) << BROKER_ARG(num));
     BROKER_ASSERT(num > 0);
+    BROKER_ASSERT(dst.size() < num);
     struct cb {
       subscriber_queue* qptr;
       std::vector<data_message>* dst;
@@ -112,17 +115,29 @@ public:
         qptr->extinguish();
       }
     };
-    cb consumer{this, &dst_buf};
+    using caf::async::delay_errors;
+    cb consumer{this, &dst};
     if (buf_) {
-      if (!buf_->pull(caf::async::delay_errors, num, consumer).second) {
+      auto [open, n] = buf_->pull(delay_errors, num - dst.size(), consumer);
+      BROKER_DEBUG("got" << n << "messages from bounded buffer");
+      if (!open) {
+        BROKER_DEBUG("nothing left to pull, queue closed");
         buf_ = nullptr;
+        return false;
       } else if (buf_->available() == 0) {
         guard_type guard{mtx_};
         if (ready_ && buf_->available() == 0) {
+          BROKER_DEBUG("drained buffer, extinguish flare");
           ready_ = false;
           fx_.extinguish();
         }
+        return true;
+      } else {
+        return true;
       }
+    } else {
+      BROKER_DEBUG("nothing left to pull, queue closed");
+      return false;
     }
   }
 
@@ -215,6 +230,7 @@ data_message subscriber::get() {
 }
 
 std::vector<data_message> subscriber::get(size_t num) {
+  BROKER_TRACE(BROKER_ARG(num));
   BROKER_ASSERT(num > 0);
   auto q = dptr(queue_);
   std::vector<data_message> buf;
@@ -222,7 +238,8 @@ std::vector<data_message> subscriber::get(size_t num) {
   q->pull(buf, num);
   while (buf.size() < num) {
     wait();
-    q->pull(buf, num - buf.size());
+    if (!q->pull(buf, num - buf.size()))
+      return buf;
   }
   return buf;
 }
@@ -236,6 +253,7 @@ std::vector<data_message> subscriber::do_get(size_t num,
 
 void subscriber::do_get(std::vector<data_message>& buf, size_t num,
                         timestamp abs_timeout) {
+  BROKER_TRACE(BROKER_ARG(num) << BROKER_ARG(abs_timeout));
   auto q = dptr(queue_);
   buf.clear();
   buf.reserve(num);
@@ -245,6 +263,7 @@ void subscriber::do_get(std::vector<data_message>& buf, size_t num,
 }
 
 std::vector<data_message> subscriber::poll() {
+  BROKER_TRACE("");
   // The Queue may return a capacity of 0 if the producer has closed the flow.
   std::vector<data_message> buf;
   auto q = dptr(queue_);
@@ -253,6 +272,7 @@ std::vector<data_message> subscriber::poll() {
     buf.reserve(max_size);
     q->pull(buf, max_size);
   }
+  BROKER_DEBUG("polled" << buf.size() << "messages");
   return buf;
 }
 
@@ -275,6 +295,7 @@ void subscriber::remove_topic(topic x, bool block) {
 }
 
 void subscriber::reset() {
+  BROKER_TRACE("");
   if (queue_) {
     dptr(queue_)->cancel();
     queue_ = nullptr;
@@ -283,6 +304,7 @@ void subscriber::reset() {
 }
 
 void subscriber::update_filter(topic what, bool add, bool block) {
+  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(add) << BROKER_ARG(block));
   if (!block) {
     caf::anon_send(core_, core_filter_, std::move(what), add,
                    std::shared_ptr<std::promise<void>>{nullptr});
@@ -295,14 +317,17 @@ void subscriber::update_filter(topic what, bool add, bool block) {
 }
 
 void subscriber::wait() {
+  BROKER_TRACE("");
   dptr(queue_)->wait();
 }
 
 bool subscriber::wait_for(timespan rel_timeout) {
+  BROKER_TRACE(BROKER_ARG(rel_timeout));
   return wait_until(now() + rel_timeout);
 }
 
 bool subscriber::wait_until(timestamp abs_timeout) {
+  BROKER_TRACE(BROKER_ARG(abs_timeout));
   return dptr(queue_)->wait_until(abs_timeout);
 }
 
