@@ -628,18 +628,23 @@ struct connect_manager {
       if (retry_interval.count() != 0) {
         BROKER_DEBUG("failed to connect to" << authority << "-> retry in"
                                             << retry_interval);
+        listener->on_peer_unavailable(state->addr);
         retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                std::move(state));
       } else if (valid(event_id)) {
         BROKER_DEBUG("failed to connect to" << authority
                                             << "-> fail (retry disabled)");
         listener->on_error(event_id, make_error(ec::peer_unavailable));
+      } else {
+        listener->on_peer_unavailable(state->addr);
       }
     } else {
       BROKER_DEBUG("failed to connect to"
                    << authority << "-> fail (reached max connection attempts)");
       if (valid(event_id))
         listener->on_error(event_id, make_error(ec::peer_unavailable));
+      else
+        listener->on_peer_unavailable(state->addr);
     }
   }
 

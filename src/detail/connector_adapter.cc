@@ -55,6 +55,11 @@ public:
     caf::anon_send(hdl_, event_id, caf::make_message(std::move(reason)));
   }
 
+  void on_peer_unavailable(const network_info& addr) override {
+    BROKER_TRACE(BROKER_ARG(addr));
+    caf::anon_send(hdl_, invalid_connector_event_id, caf::make_message(addr));
+  }
+
   void on_shutdown() override {
     BROKER_TRACE("");
     caf::anon_send(hdl_, invalid_connector_event_id,
@@ -83,6 +88,10 @@ auto error_event(const caf::message& msg) {
   return caf::make_const_typed_message_view<caf::error>(msg);
 }
 
+auto peer_unavailable_event(const caf::message& msg) {
+  return caf::make_const_typed_message_view<network_info>(msg);
+}
+
 auto shutdown_event(const caf::message& msg) {
   return caf::make_const_typed_message_view<atom::shutdown>(msg);
 }
@@ -91,9 +100,12 @@ auto shutdown_event(const caf::message& msg) {
 
 connector_adapter::connector_adapter(caf::event_based_actor* self,
                                      connector_ptr conn, peering_callback cb,
+                                     peer_unavailable_callback on_unavailable,
                                      shared_filter_ptr filter,
                                      shared_peer_status_map_ptr peer_statuses)
-  : conn_(std::move(conn)), on_peering_(std::move(cb)) {
+  : conn_(std::move(conn)),
+    on_peering_(std::move(cb)),
+    on_peer_unavailable_(std::move(on_unavailable)) {
   conn_->init(std::make_unique<listener_impl>(caf::actor{self}),
               std::move(filter), std::move(peer_statuses));
 }
@@ -113,12 +125,14 @@ caf::message_handler connector_adapter::message_handlers() {
       if (event_id == invalid_connector_event_id) {
         if (auto xs1 = shutdown_event(msg)) {
           BROKER_DEBUG("lost the connector");
-          // TODO: implement me
+          // TODO: implement me? Anything we could do here?
         } else if (auto xs2 = connection_event(msg)) {
           on_peering_(get<0>(xs2), get<1>(xs2), get<2>(xs2), get<3>(xs2),
                       caf::net::stream_socket{get<4>(xs2)});
         } else if (auto xs3 = redundant_connection_event(msg)) {
           // drop
+        } else if (auto xs4 = peer_unavailable_event(msg)) {
+          on_peer_unavailable_(get<0>(xs4));
         } else {
           BROKER_ERROR("connector_adapter received unexpected message:" << msg);
         }

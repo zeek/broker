@@ -38,13 +38,18 @@ stream_transport::stream_transport(caf::event_based_actor* self,
                                    detail::connector_ptr conn)
   : super(self), reserved_(std::string{topic::reserved}) {
   if (conn) {
-    auto f = [this](endpoint_id remote_id, const network_info& addr,
-                    alm::lamport_timestamp ts, const filter_type& filter,
-                    caf::net::stream_socket fd) {
+    auto on_peering = [this](endpoint_id remote_id, const network_info& addr,
+                             alm::lamport_timestamp ts,
+                             const filter_type& filter,
+                             caf::net::stream_socket fd) {
       std::ignore = init_new_peer(remote_id, addr, ts, filter, fd);
     };
+    auto on_peer_unavailable = [this](const network_info& addr) {
+      peer_unavailable(addr);
+    };
     connector_adapter_.reset(new detail::connector_adapter(
-      self, std::move(conn), f, filter_, peer_statuses_));
+      self, std::move(conn), on_peering, on_peer_unavailable, filter_,
+      peer_statuses_));
   }
 }
 
@@ -739,9 +744,10 @@ void stream_transport::try_connect(const network_info& addr,
         });
       }
     },
-    [this, rp](const caf::error& what) mutable {
+    [this, rp, addr](const caf::error& what) mutable {
       BROKER_TRACE(BROKER_ARG(what));
       rp.deliver(std::move(what));
+      peer_unavailable(addr);
     });
 }
 

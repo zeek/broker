@@ -54,6 +54,8 @@ public:
 
     virtual void on_error(connector_event_id event_id, error reason) = 0;
 
+    virtual void on_peer_unavailable(const network_info&) = 0;
+
     virtual void on_shutdown() = 0;
   };
 

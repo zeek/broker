@@ -18,9 +18,16 @@ public:
   template <class... Ts>
   using callback = std::function<void(Ts...)>;
 
+  /// Callback for incoming peering connections.
   using peering_callback
     = callback<endpoint_id, const network_info&, alm::lamport_timestamp,
                const filter_type&, caf::net::stream_socket>;
+
+  /// Callback for non-critical errors during peering. The connector emits those
+  /// errors whenever a connection attempt has failed but retries afterwards
+  /// after the configured delay. That the core may report to clients as
+  /// `peer_unavailable` messages.
+  using peer_unavailable_callback = callback<const network_info&>;
 
   using redundant_peering_callback = callback<endpoint_id, const network_info&>;
 
@@ -28,6 +35,7 @@ public:
 
   connector_adapter(caf::event_based_actor* self, connector_ptr conn,
                     peering_callback on_peering,
+                    peer_unavailable_callback on_peer_unavailable,
                     shared_filter_ptr filter,
                     shared_peer_status_map_ptr peer_statuses);
 
@@ -54,6 +62,8 @@ private:
   connector_event_id next_id_ = static_cast<connector_event_id>(1);
 
   peering_callback on_peering_;
+
+  peer_unavailable_callback on_peer_unavailable_;
 
   std::unordered_map<connector_event_id, msg_callback> pending_;
 };
