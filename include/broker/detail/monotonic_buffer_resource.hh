@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <new>
+#include <utility>
 
 namespace broker::detail {
 
