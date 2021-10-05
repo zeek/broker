@@ -742,18 +742,28 @@ endpoint::attach_clone_async(std::string name, double resync_interval,
   using res_t = expected<store>;
   auto prom = std::make_shared<std::promise<res_t>>();
   auto res = prom->get_future();
-  auto on_val = [id{id_}, prom, name](caf::actor& clone) mutable {
-    prom->set_value(res_t{store{id, std::move(clone), std::move(name)}});
-  };
+
+  using actor_t = caf::event_based_actor;
+  auto [self, launch] = system_.spawn_inactive<actor_t>();
   auto on_err = [prom](caf::error& err) {
     prom->set_value(res_t{std::move(err)});
   };
-  using actor_t = async_helper_actor<decltype(on_val), decltype(on_err)>;
-  auto msg = caf::make_message(atom::store_v, atom::clone_v, atom::attach_v,
-                               name, resync_interval, stale_interval,
-                               mutation_buffer_interval);
-  system_.spawn<actor_t>(core_, std::move(msg), std::move(on_val),
-                         std::move(on_err));
+  self
+    ->request(core_, caf::infinite, atom::store_v, atom::clone_v,
+              atom::attach_v, name, resync_interval, stale_interval,
+              mutation_buffer_interval)
+    .then(
+      [self = self, prom, name, id = id_, on_err](caf::actor hdl) mutable {
+        self->request(hdl, caf::infinite, atom::await_v, atom::idle_v)
+          .then(
+            [prom, hdl, name, id](atom::ok) mutable {
+              prom->set_value(
+                res_t{store{id, std::move(hdl), std::move(name)}});
+            },
+            on_err);
+      },
+      on_err);
+  launch();
   return res;
 }
 

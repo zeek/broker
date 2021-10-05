@@ -106,8 +106,9 @@ public:
 
   /// Attaches a clone for given store to this peer.
   caf::result<caf::actor>
-  attach_clone(const std::string& name, double resync_interval,
-               double stale_interval, double mutation_buffer_interval) {
+  attach_clone(const std::string& name, [[maybe_unused]] double resync_interval,
+               [[maybe_unused]] double stale_interval,
+               [[maybe_unused]] double mutation_buffer_interval) {
     BROKER_TRACE(BROKER_ARG(name)
                  << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
                  << BROKER_ARG(mutation_buffer_interval));
@@ -120,7 +121,8 @@ public:
     BROKER_INFO("spawning new clone:" << name);
     auto self = super::self();
     using std::chrono::duration_cast;
-    auto tout = duration_cast<timespan>(fractional_seconds{resync_interval});
+    // TODO: make configurable.
+    auto tout = duration_cast<timespan>(fractional_seconds{10});
     auto& sys = self->system();
     using caf::async::make_bounded_buffer_resource;
     auto [con1, prod1] = make_bounded_buffer_resource<command_message>();

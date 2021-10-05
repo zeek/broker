@@ -368,6 +368,8 @@ TEST(the master may appear after launching the clones) {
           auto idle_res = services.await_idle();
           SYNC_CHECK(idle_res);
           written_to_store.arrive_and_wait();
+        } else {
+          FAIL("failed to connect to master: " << maybe_services.error());
         }
       } else {
         waiting_for_master.arrive_and_wait();
