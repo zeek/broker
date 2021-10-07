@@ -17,22 +17,23 @@ const caf::timespan await_peer_timeout = 10s;
 
 namespace broker::defaults::store {
 
-// Run with 20 ticks per second.
-const caf::timespan tick_interval = 50ms;
+// Run with 10 ticks per second.
+const caf::timespan tick_interval = 100ms;
 
-// Delay GET requests for up to one second.
-const caf::timespan max_get_delay = 1s;
+// Delay GET requests for up to five seconds.
+const caf::timespan max_get_delay = 5s;
 
-// Send 5 heartbeats per second.
-const uint16_t heartbeat_interval = 4;
+// Send 2 heartbeats per second.
+const uint16_t heartbeat_interval = 5;
 
-// Wait up to 100ms before sending NACK messages.
+// Wait up to 200ms before sending NACK messages.
 const uint16_t nack_timeout = 2;
 
-// Disconnect channels when not hearing anything from the remote side for 1s.
-const uint16_t connection_timeout = 5;
+// Disconnect channels when not hearing anything from the remote side for 10s.
+const uint16_t connection_timeout = 100;
 
-const caf::timespan await_idle_timeout = 5s;
+// Block up to 15s on a store object when calling await_idle.
+const caf::timespan await_idle_timeout = 15s;
 
 } // namespace broker::defaults::store
 

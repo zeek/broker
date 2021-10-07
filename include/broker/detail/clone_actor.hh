@@ -124,18 +124,23 @@ public:
   /// Runs @p body immediately if the master is available. Otherwise, schedules
   /// @p body for later execution and also schedules a timeout according to
   /// `max_get_delay` before aborting the get operation with an error.
-  template <class F>
-  void get_impl(caf::response_promise rp, F&& body) {
+  template <class F, class... Ts>
+  void get_impl(caf::response_promise rp, F&& body, Ts&&... error_context) {
     if (has_master()) {
       body();
-    } else if (max_get_delay.count() > 0) {
-      self->run_delayed(max_get_delay, [rp = std::move(rp)]() mutable {
-        if (rp.pending())
-          rp.deliver(caf::make_error(ec::stale_data));
-      });
+      return;
+    }
+    auto err = caf::make_error(ec::stale_data,
+                               std::forward<Ts>(error_context)...);
+    if (max_get_delay.count() > 0) {
+      self->run_delayed(max_get_delay,
+                        [rp{std::move(rp)}, err{std::move(err)}]() mutable {
+                          if (rp.pending())
+                            rp.deliver(std::move(err));
+                        });
       on_set_store_callbacks.emplace_back(std::forward<F>(body));
     } else {
-      rp.deliver(caf::make_error(ec::stale_data));
+      rp.deliver(std::move(err));
     }
   }
 

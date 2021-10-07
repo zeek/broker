@@ -367,12 +367,6 @@ public:
                                double stale_interval = 300.0,
                                double mutation_buffer_interval = 120.0);
 
-  /// Like `attach_clone`, but returns immediately.
-  std::future<expected<store>>
-  attach_clone_async(std::string name, double resync_interval = 10.0,
-                     double stale_interval = 300.0,
-                     double mutation_buffer_interval = 120.0);
-
   // --- messaging -------------------------------------------------------------
 
   void send_later(caf::actor who, timespan after, caf::message msg) {

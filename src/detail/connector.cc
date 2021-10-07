@@ -565,12 +565,12 @@ struct connect_manager {
     auto pred = [ptr](const auto& kvp) { return kvp.second.get() == ptr; };
     auto e = pending.end();
     if (auto i = std::find_if(pending.begin(), e, pred); i != e) {
+      BROKER_DEBUG("register for"
+                   << (event == read_mask ? "reading" : "writing")
+                   << BROKER_ARG2("fd", i->first));
       if (auto fds_ptr = find_pollfd(i->first)) {
         fds_ptr->events |= event;
       } else {
-        BROKER_DEBUG("register for"
-                     << (event == read_mask ? "reading" : "writing")
-                     << BROKER_ARG2("fd", i->first));
         pending_fdset.emplace_back(pollfd{i->first, event, 0});
       }
     } else {
@@ -837,7 +837,8 @@ struct connect_manager {
     if (new_end != fdset.end()) {
 #if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
       std::for_each(new_end, fdset.end(), [](auto& x) {
-        BROKER_DEBUG("drop completed socket" << BROKER_ARG2("fd", x.fd));
+        BROKER_DEBUG("drop completed socket from pollset"
+                     << BROKER_ARG2("fd", x.fd));
       });
 #endif
       fdset.erase(new_end, fdset.end());
@@ -965,7 +966,7 @@ bool connect_state::await_hello(alm_message_type msg) {
             BROKER_DEBUG("detected redundant connection for connected peer");
             send_drop_conn();
             redundant = true;
-            transition(&connect_state::err);
+            transition(&connect_state::fin);
             return false;
           case peer_status::disconnected:
             if (psm.update(remote_id, status, peer_status::reconnecting)) {
@@ -1234,6 +1235,8 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
         return i != fdset.end();
       };
       do {
+        BROKER_DEBUG(BROKER_ARG2("fd", i->fd)
+                     << BROKER_ARG2("event-mask", i->revents));
         if (i->fd == pipe_rd_.id) {
           if (i->revents & read_mask) {
             prd.read(mgr);

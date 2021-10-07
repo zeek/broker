@@ -732,41 +732,6 @@ expected<store> endpoint::attach_clone(std::string name,
   return res;
 }
 
-std::future<expected<store>>
-endpoint::attach_clone_async(std::string name, double resync_interval,
-                       double stale_interval, double mutation_buffer_interval) {
-  BROKER_TRACE(BROKER_ARG(name)
-               << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
-               << BROKER_ARG(mutation_buffer_interval));
-  BROKER_INFO("attaching clone store" << name);
-  using res_t = expected<store>;
-  auto prom = std::make_shared<std::promise<res_t>>();
-  auto res = prom->get_future();
-
-  using actor_t = caf::event_based_actor;
-  auto [self, launch] = system_.spawn_inactive<actor_t>();
-  auto on_err = [prom](caf::error& err) {
-    prom->set_value(res_t{std::move(err)});
-  };
-  self
-    ->request(core_, caf::infinite, atom::store_v, atom::clone_v,
-              atom::attach_v, name, resync_interval, stale_interval,
-              mutation_buffer_interval)
-    .then(
-      [self = self, prom, name, id = id_, on_err](caf::actor hdl) mutable {
-        self->request(hdl, caf::infinite, atom::await_v, atom::idle_v)
-          .then(
-            [prom, hdl, name, id](atom::ok) mutable {
-              prom->set_value(
-                res_t{store{id, std::move(hdl), std::move(name)}});
-            },
-            on_err);
-      },
-      on_err);
-  launch();
-  return res;
-}
-
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   bool result = false;

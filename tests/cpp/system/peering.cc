@@ -357,16 +357,16 @@ TEST(the master may appear after launching the clones) {
       peered.arrive_and_wait();
       store services;
       if (index != 0) {
-        auto ft = ep.attach_clone_async("zeek/known/services", 0.5);
+        auto maybe_services = ep.attach_clone("zeek/known/services");
         waiting_for_master.arrive_and_wait();
-        if (auto maybe_services = ft.get(); SYNC_CHECK(maybe_services)) {
+        if (SYNC_CHECK(maybe_services)) {
           services = std::move(*maybe_services);
           services.put("foo-" + std::to_string(index), "bar");
+          auto idle_res = services.await_idle();
+          SYNC_CHECK(idle_res);
           if (auto val = services.get("foo-0"s);
               SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
             SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
-          auto idle_res = services.await_idle();
-          SYNC_CHECK(idle_res);
           written_to_store.arrive_and_wait();
         } else {
           FAIL("failed to connect to master: " << maybe_services.error());

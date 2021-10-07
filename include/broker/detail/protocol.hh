@@ -134,6 +134,12 @@ public:
   ptrdiff_t consume(LowerLayerPtr down, caf::byte_span buf) {
     caf::binary_deserializer src{nullptr, buf};
     auto tag = alm_message_type{0};
+    if (!out_) {
+      BROKER_WARNING("consume called after output buffer has been closed");
+      down->abort_reason(
+        make_error(ec::shutting_down, "output buffer has been closed"));
+      return -1;
+    }
     if (!src.apply(tag)) {
       BROKER_ERROR("failed to serialize tag");
       down->abort_reason(

@@ -342,6 +342,7 @@ clone_state::producer_type& clone_state::output() {
 }
 
 void clone_state::set_store(std::unordered_map<data, data> x) {
+  BROKER_TRACE("");
   BROKER_INFO("SET" << x);
   // We consider the master the source of all updates.
   entity_id publisher = input.producer();
@@ -351,9 +352,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
       clear_command cmd{move(publisher)};
       consume(cmd);
     }
-    return;
-  }
-  if (store.empty()) {
+  } else if (store.empty()) {
     // Emit insert events.
     for (auto& [key, value] : x)
       emit_insert_event(key, value, nil, publisher);
@@ -454,34 +453,47 @@ caf::behavior clone_state::make_behavior() {
       }
     },
     [=](atom::get, atom::keys) -> caf::result<data> {
-      if (!has_master())
-        return {ec::stale_data};
-      auto x = keys();
-      BROKER_INFO("KEYS ->" << x);
-      return {x};
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp]() mutable {
+        auto x = keys();
+        BROKER_INFO("KEYS ->" << x);
+        rp.deliver(std::move(x));
+      });
+      return rp;
     },
     [=](atom::get, atom::keys, request_id id) {
-      if (!has_master())
-        return caf::make_message(make_error(ec::stale_data), id);
-      auto x = keys();
-      BROKER_INFO("KEYS"
-                  << "with id" << id << "->" << x);
-      return caf::make_message(move(x), id);
+      auto rp = self->make_response_promise();
+      get_impl(
+        rp,
+        [this, rp, id]() mutable {
+          auto x = keys();
+          BROKER_INFO("KEYS"
+                      << "with id" << id << "->" << x);
+          rp.deliver(move(x), id);
+        },
+        id);
+      return rp;
     },
-    [=](atom::exists, const data& key) -> caf::result<data> {
-      if (!has_master())
-        return {ec::stale_data};
-      auto result = (store.find(key) != store.end());
-      BROKER_INFO("EXISTS" << key << "->" << result);
-      return data{result};
+    [=](atom::exists, data& key) -> caf::result<data> {
+      auto rp = self->make_response_promise();
+      get_impl(rp, [this, rp, key{std::move(key)}]() mutable {
+        auto result = (store.find(key) != store.end());
+        BROKER_INFO("EXISTS" << key << "->" << result);
+        rp.deliver(data{result});
+      });
+      return rp;
     },
-    [=](atom::exists, const data& key, request_id id) {
-      if (!has_master())
-        return caf::make_message(make_error(ec::stale_data), id);
-      auto r = (store.find(key) != store.end());
-      auto result = caf::make_message(data{r}, id);
-      BROKER_INFO("EXISTS" << key << "with id" << id << "->" << r);
-      return result;
+    [=](atom::exists, data& key, request_id id) {
+      auto rp = self->make_response_promise();
+      get_impl(
+        rp,
+        [this, rp, key{std::move(key)}, id]() mutable {
+          auto result = (store.find(key) != store.end());
+          BROKER_INFO("EXISTS" << key << "with id" << id << "->" << result);
+          rp.deliver(data{result}, id);
+        },
+        id);
+      return rp;
     },
     [=](atom::get, data& key) -> caf::result<data> {
       auto rp = self->make_response_promise();
@@ -513,33 +525,39 @@ caf::behavior clone_state::make_behavior() {
     },
     [=](atom::get, data& key, request_id id) {
       auto rp = self->make_response_promise();
-      get_impl(rp, [this, rp, key{move(key)}, id]() mutable {
-        if (auto i = store.find(key); i != store.end()) {
-          BROKER_INFO("GET" << key << "with id" << id << "->" << i->second);
-          rp.deliver(i->second, id);
-        } else {
-          BROKER_INFO("GET" << key << "with id" << id << "-> no_such_key");
-          rp.deliver(make_error(ec::no_such_key), id);
-        }
-      });
+      get_impl(
+        rp,
+        [this, rp, key{move(key)}, id]() mutable {
+          if (auto i = store.find(key); i != store.end()) {
+            BROKER_INFO("GET" << key << "with id" << id << "->" << i->second);
+            rp.deliver(i->second, id);
+          } else {
+            BROKER_INFO("GET" << key << "with id" << id << "-> no_such_key");
+            rp.deliver(make_error(ec::no_such_key), id);
+          }
+        },
+        id);
       return rp;
     },
     [=](atom::get, data& key, data& aspect, request_id id) {
       auto rp = self->make_response_promise();
-      get_impl(rp, [this, rp, key{move(key)}, asp{move(aspect)}, id]() mutable {
-        if (auto i = store.find(key); i != store.end()) {
-          auto x = caf::visit(retriever{asp}, i->second);
-          BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
-          if (x)
-            rp.deliver(std::move(*x), id);
-          else
-            rp.deliver(std::move(x.error()), id);
-        } else {
-          BROKER_INFO("GET" << key << asp << "with id" << id
-                            << "-> no_such_key");
-          rp.deliver(make_error(ec::no_such_key), id);
-        }
-      });
+      get_impl(
+        rp,
+        [this, rp, key{move(key)}, asp{move(aspect)}, id]() mutable {
+          if (auto i = store.find(key); i != store.end()) {
+            auto x = caf::visit(retriever{asp}, i->second);
+            BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
+            if (x)
+              rp.deliver(std::move(*x), id);
+            else
+              rp.deliver(std::move(x.error()), id);
+          } else {
+            BROKER_INFO("GET" << key << asp << "with id" << id
+                              << "-> no_such_key");
+            rp.deliver(make_error(ec::no_such_key), id);
+          }
+        },
+        id);
       return rp;
     },
     [=](atom::get, atom::name) { return store_name; },
