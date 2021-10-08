@@ -967,7 +967,7 @@ bool connect_state::await_hello(alm_message_type msg) {
             send_drop_conn();
             redundant = true;
             transition(&connect_state::fin);
-            return false;
+            return true;
           case peer_status::disconnected:
             if (psm.update(remote_id, status, peer_status::reconnecting)) {
               BROKER_DEBUG(remote_id << ":: disconnected -> reconnecting");
