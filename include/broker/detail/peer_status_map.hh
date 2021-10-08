@@ -19,6 +19,10 @@ public:
 
   bool remove(endpoint_id peer, peer_status& expected);
 
+  void remove(endpoint_id peer);
+
+  peer_status get(endpoint_id peer);
+
 private:
   mutable std::mutex mtx_;
   std::unordered_map<endpoint_id, peer_status> peers_;

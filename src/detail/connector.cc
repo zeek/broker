@@ -247,7 +247,12 @@ public:
   network_info addr;
   connector_event_id event_id = invalid_connector_event_id;
   size_t connection_attempts = 0;
+  // Stores whether we detected a redundant connection. Either locally or by
+  // receiving a drop_con messages from the remote.
   bool redundant = false;
+  // Stores whether we called `psm.insert(remote_id, ...)`. If true, we must
+  // erase that state again when aborting.
+  bool added_peer_status = false;
   // Stores pointers to connect states that tried to start a handshake process
   // while this state had already started it. We store these pointers to delay
   // the drop_conn message. Otherwise, the drop_conn message might arrive before
@@ -258,27 +263,69 @@ public:
 
   fn_t fn = nullptr;
 
+  peer_status_map& peer_statuses();
+
   void transition(fn_t f) {
     fn = f;
-    if (f == &connect_state::fin && !redundant_connections.empty()) {
-      for (auto& conn : redundant_connections) {
-        conn->send_drop_conn();
-        conn->transition(&connect_state::fin);
+    if (f == &connect_state::fin) {
+      if (!redundant_connections.empty()) {
+        for (auto& conn : redundant_connections) {
+          conn->send_drop_conn();
+          conn->transition(&connect_state::fin);
+        }
+        redundant_connections.clear();
       }
-      redundant_connections.clear();
+    } else if (f == &connect_state::err) {
+      if (added_peer_status) {
+        auto& psm = peer_statuses();
+        BROKER_DEBUG(remote_id << "::" << psm.get(remote_id) << "-> ()");
+        psm.remove(remote_id);
+        added_peer_status = false;
+      }
     }
   }
 
   connect_state(connect_manager* mgr) : mgr(mgr), fn(&connect_state::err) {
     wr_buf.reserve(128);
     rd_buf.reserve(128);
-    rd_buf.resize(4); // Must provide space for the payload size.
+    reset();
+    BROKER_DEBUG("created new connect_state object");
   }
 
   connect_state(connect_manager* mgr, connector_event_id eid, network_info addr)
-    : connect_state(mgr) {
+    : mgr(mgr), fn(&connect_state::err) {
+    wr_buf.reserve(128);
+    rd_buf.reserve(128);
+    reset();
     event_id = eid;
+    BROKER_DEBUG("created new connect_state object" << BROKER_ARG(event_id)
+                                                    << BROKER_ARG(addr));
     this->addr = std::move(addr);
+  }
+
+  /// Resets the state after a connection attempt has failed before trying to
+  /// reconnect.
+  void reset() {
+    BROKER_DEBUG("resetting connect_state object" << BROKER_ARG(event_id)
+                                                  << BROKER_ARG(addr));
+    redundant = false;
+    if (added_peer_status) {
+      auto& psm = peer_statuses();
+      BROKER_DEBUG(remote_id << "::" << psm.get(remote_id) << "-> ()");
+      psm.remove(remote_id);
+      added_peer_status = false;
+    }
+    wr_buf.clear();
+    // The read buffer must provide space for the payload size. This is the
+    // first thing we're going to read from the socket.
+    rd_buf.resize(4);
+    read_pos = 0;
+    payload_size = 0;
+  }
+
+  ~connect_state() {
+    BROKER_DEBUG("destroy connect_state object" << BROKER_ARG(event_id)
+                                                << BROKER_ARG(addr));
   }
 
   shared_filter_type& local_filter();
@@ -356,13 +403,23 @@ public:
     BROKER_TRACE(BROKER_ARG(fd.id));
     for (;;) {
       auto read_size = payload_size + 4;
+      BROKER_DEBUG("try reading more bytes"
+                   << BROKER_ARG2("fd", fd.id)
+                   << BROKER_ARG2("rd_buf.size", rd_buf.size())
+                   << BROKER_ARG(read_pos) << BROKER_ARG(read_size));
       auto res = caf::net::read(fd, caf::make_span(rd_buf.data() + read_pos,
                                                    read_size - read_pos));
       BROKER_DEBUG(BROKER_ARG(res));
       if (res < 0) {
-        return caf::net::last_socket_error_is_temporary()
-                 ? rw_state::indeterminate
-                 : rw_state::failed;
+        if (caf::net::last_socket_error_is_temporary()) {
+          return rw_state::indeterminate;
+        } else {
+          BROKER_DEBUG("reading from fd ="
+                       << fd.id
+                       << "failed:" << caf::net::last_socket_error_as_string());
+          transition(&connect_state::err);
+          return rw_state::failed;
+        }
       } else if (res == 0) {
         // Socket closed (treat as error).
         return rw_state::failed;
@@ -619,6 +676,13 @@ struct connect_manager {
                 err_str.c_str());
         ::abort();
       }
+      if (auto i = pending.find(sock->id); i != pending.end()) {
+        BROKER_WARNING("socket" << sock->id
+                                << "already associated to state object -> "
+                                   "assume stale state and drop it!");
+        pending.erase(i);
+      }
+      state->reset();
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, read_mask, 0});
       state->transition(&connect_state::await_hello_or_orig_syn);
@@ -753,6 +817,7 @@ struct connect_manager {
         case rw_state::done:
           entry.events &= ~write_mask;
           if (i->second->done()) {
+            BROKER_DEBUG("peer state reports done fd =" << entry.fd);
             finalize(entry, *i->second);
             pending.erase(i);
           }
@@ -800,6 +865,7 @@ struct connect_manager {
       acceptors.erase(j);
     }
     BROKER_DEBUG("close socket" << entry.fd);
+    pending.erase(entry.fd);
     close(caf::net::socket{entry.fd});
     entry.events = 0;
   }
@@ -825,8 +891,9 @@ struct connect_manager {
     auto now = caf::make_timestamp();
     while (!retry_schedule.empty() && retry_schedule.begin()->first <= now) {
       auto i = retry_schedule.begin();
-      connect(std::move(i->second));
+      auto state = std::move(i->second);
       retry_schedule.erase(i);
+      connect(std::move(state));
     }
   }
 
@@ -849,6 +916,10 @@ struct connect_manager {
     }
   }
 };
+
+peer_status_map& connect_state::peer_statuses() {
+  return *mgr->peer_statuses_;
+}
 
 void connect_state::send_msg(caf::const_byte_span bytes, bool add_filter) {
   BROKER_ASSERT(bytes.size() >= handshake_prefix_size);
@@ -896,9 +967,25 @@ void connect_state::send_drop_conn() {
 
 bool connect_state::handle_drop_conn() {
   BROKER_TRACE("");
-  redundant = true;
-  transition(&connect_state::fin);
-  return true;
+  // The remote peer sends this message if we already have a connection
+  // established. However, re-connects after an unpeering or other events may
+  // produce conflicting views where the remote did not realize yet that this
+  // connection no longer exists. Hence, we need to double-check whether we have
+  // a connection or peering relation and otherwise we raise an error to trigger
+  // retries.
+  auto stat = peer_statuses().get(remote_id);
+  BROKER_DEBUG("received drop_from from" << remote_id << "with peer status"
+                                         << stat);
+  switch (stat) {
+    case peer_status::connected:
+    case peer_status::peered:
+      redundant = true;
+      transition(&connect_state::fin);
+      return true;
+    default:
+      transition(&connect_state::err);
+      return false;
+  }
 }
 
 bool connect_state::await_hello_or_orig_syn(alm_message_type msg) {
@@ -929,9 +1016,10 @@ bool connect_state::await_hello(alm_message_type msg) {
       send_orig_syn();
       transition(&connect_state::await_resp_syn_ack);
     };
-    auto& psm = *mgr->peer_statuses_;
+    auto& psm = peer_statuses();
     auto status = peer_status::connecting;
     if (psm.insert(remote_id, status)) {
+      added_peer_status = true;
       BROKER_ASSERT(status == peer_status::connecting);
       BROKER_DEBUG(remote_id << ":: () -> connecting");
       proceed();
@@ -1001,9 +1089,10 @@ bool connect_state::await_orig_syn(alm_message_type msg) {
     send_resp_syn_ack();
     transition(&connect_state::await_orig_ack);
   };
-  auto& psm = *mgr->peer_statuses_;
+  auto& psm = peer_statuses();
   auto status = peer_status::connecting;
   if (psm.insert(remote_id, status)) {
+    added_peer_status = true;
     BROKER_ASSERT(status == peer_status::connecting);
     proceed();
     return true;
@@ -1048,7 +1137,7 @@ bool connect_state::await_resp_syn_ack(alm_message_type msg) {
     transition(&connect_state::err);
     return false;
   }
-  auto& psm = *mgr->peer_statuses_;
+  auto& psm = peer_statuses();
   auto status = peer_status::connecting;
   if (psm.update(remote_id, status, peer_status::connected)) {
     BROKER_DEBUG(remote_id << ":: connecting -> connected");
@@ -1070,7 +1159,7 @@ bool connect_state::await_orig_ack(alm_message_type msg) {
     transition(&connect_state::err);
     return false;
   }
-  auto& psm = *mgr->peer_statuses_;
+  auto& psm = peer_statuses();
   auto status = peer_status::connecting;
   if (psm.update(remote_id, status, peer_status::connected)) {
     BROKER_DEBUG(remote_id << ":: connecting -> connected");

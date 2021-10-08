@@ -51,4 +51,18 @@ bool peer_status_map::remove(endpoint_id peer, peer_status& expected) {
   }
 }
 
+void peer_status_map::remove(endpoint_id peer) {
+  std::unique_lock guard{mtx_};
+  peers_.erase(peer);
+}
+
+peer_status peer_status_map::get(endpoint_id peer) {
+  std::unique_lock guard{mtx_};
+  if (auto i = peers_.find(peer); i != peers_.end()) {
+    return i->second;
+  } else {
+    return peer_status::unknown;
+  }
+}
+
 } // namespace broker::detail
