@@ -168,7 +168,7 @@ TEST(clone operations - remote endpoint) {
     FAIL(ds.error());
   auto await_idle = [&] {
     using namespace std::literals;
-    if (!ds->await_idle(1s)) {
+    if (!ds->await_idle()) {
       tear_down.set_true();
       throw std::runtime_error("await_idle timeout");
     }
