@@ -977,6 +977,7 @@ bool connect_state::handle_drop_conn() {
   BROKER_DEBUG("received drop_from from" << remote_id << "with peer status"
                                          << stat);
   switch (stat) {
+    case peer_status::connecting:
     case peer_status::connected:
     case peer_status::peered:
       redundant = true;
