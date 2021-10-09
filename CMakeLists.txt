@@ -510,7 +510,9 @@ install(
 
 # -- Build Summary ------------------------------------------------------------
 
-string(TOUPPER CMAKE_BUILD_TYPE BuildType)
+if (CMAKE_BUILD_TYPE)
+    string(TOUPPER ${CMAKE_BUILD_TYPE} BuildType)
+endif ()
 
 macro(display test desc summary)
   if ( ${test} )

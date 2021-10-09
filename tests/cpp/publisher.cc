@@ -94,3 +94,37 @@ CAF_TEST(blocking_publishers) {
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
+
+TEST(regression GH196) {
+  endpoint ep1;
+  endpoint ep2;
+  auto port = ep1.listen("127.0.0.1", 0);
+  auto sub1 = ep1.make_subscriber({topic{"/test"}});
+  auto sub2 = ep1.make_subscriber({topic{"/test"}});
+  ep2.peer("127.0.0.1", port);
+  auto pub = ep2.make_publisher({topic{"/test"}});
+  auto cap = pub.capacity();
+  std::vector<data> batch1;
+  for (size_t i = 0; i < cap; ++i)
+    batch1.emplace_back(i);
+  auto batch2 = batch1;
+  pub.publish(std::move(batch1));
+  pub.publish(std::move(batch2));
+  for (size_t n = 0; n < 2; ++n) {
+    for (size_t i = 0; i < cap; ++i) {
+      auto msg = sub1.get();
+      CHECK_EQUAL(get_topic(msg).string(), "/test");
+      CHECK_EQUAL(get_data(msg), data(i));
+    }
+  }
+  CHECK(sub1.poll().empty());
+  auto res = sub2.get(cap * 2);
+  for (size_t n = 0; n < 2; ++n) {
+    for (size_t i = 0; i < cap; ++i) {
+      auto& msg = res[(n * cap) + i];
+      CHECK_EQUAL(get_topic(msg).string(), "/test");
+      CHECK_EQUAL(get_data(msg), data(i));
+    }
+  }
+  CHECK(sub2.poll().empty());
+}

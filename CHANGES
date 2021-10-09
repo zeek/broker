@@ -1,3 +1,13 @@
+2.2.0-dev.8 | 2021-08-03 11:55:22 -0700
+
+  * Fix publisher deadlock when passing large batches (Dominik Charousset, Corelight)
+
+2.2.0-dev.6 | 2021-07-28 19:08:17 -0700
+
+  * Fix output of build-type CFLAGS during configure (Tim Wojtulewicz, Corelight)
+
+  * Update HMAC key for benchmarking service (Tim Wojtulewicz, Corelight)
+
 2.2.0-dev.3 | 2021-07-16 19:02:24 -0700
 
   * Raise CAF dependency to 0.18.5 and update embedded version (Tim Wojtulewicz, Corelight)
