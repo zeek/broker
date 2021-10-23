@@ -106,7 +106,7 @@ public:
 
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            alm::lamport_timestamp ts, const filter_type& filter,
-                           caf::net::stream_socket sock);
+                           detail::native_socket fd);
 
   // -- flows ------------------------------------------------------------------
 

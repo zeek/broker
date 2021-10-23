@@ -25,7 +25,7 @@ public:
 
   void on_connection(connector_event_id event_id, endpoint_id peer,
                      network_info addr, alm::lamport_timestamp ts,
-                     filter_type filter, caf::net::socket_id fd) override {
+                     filter_type filter, detail::native_socket fd) override {
     BROKER_TRACE(BROKER_ARG(event_id)
                  << BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(ts)
                  << BROKER_ARG(filter) << BROKER_ARG(fd));
@@ -73,7 +73,7 @@ private:
 auto connection_event(const caf::message& msg) {
   return caf::make_const_typed_message_view<endpoint_id, network_info,
                                             alm::lamport_timestamp, filter_type,
-                                            caf::net::socket_id>(msg);
+                                            detail::native_socket>(msg);
 }
 
 auto redundant_connection_event(const caf::message& msg) {
@@ -128,7 +128,7 @@ caf::message_handler connector_adapter::message_handlers() {
           // TODO: implement me? Anything we could do here?
         } else if (auto xs2 = connection_event(msg)) {
           on_peering_(get<0>(xs2), get<1>(xs2), get<2>(xs2), get<3>(xs2),
-                      caf::net::stream_socket{get<4>(xs2)});
+                      get<4>(xs2));
         } else if (auto xs3 = redundant_connection_event(msg)) {
           // drop
         } else if (auto xs4 = peer_unavailable_event(msg)) {
@@ -153,8 +153,7 @@ void connector_adapter::async_connect(const network_info& addr,
   using std::move;
   auto cb = [f{move(f)}, g{move(g)}, h{move(h)}](const caf::message& msg) {
     if (auto xs1= connection_event(msg)) {
-      f(get<0>(xs1), get<1>(xs1), get<2>(xs1), get<3>(xs1),
-        caf::net::stream_socket{get<4>(xs1)});
+      f(get<0>(xs1), get<1>(xs1), get<2>(xs1), get<3>(xs1), get<4>(xs1));
     } else if (auto xs2 = redundant_connection_event(msg)) {
       g(get<0>(xs2), get<1>(xs2));
     } else if (auto xs3 = error_event(msg)) {

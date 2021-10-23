@@ -41,7 +41,7 @@ stream_transport::stream_transport(caf::event_based_actor* self,
     auto on_peering = [this](endpoint_id remote_id, const network_info& addr,
                              alm::lamport_timestamp ts,
                              const filter_type& filter,
-                             caf::net::stream_socket fd) {
+                             detail::native_socket fd) {
       std::ignore = init_new_peer(remote_id, addr, ts, filter, fd);
     };
     auto on_peer_unavailable = [this](const network_info& addr) {
@@ -624,12 +624,13 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
                                            const network_info& addr,
                                            alm::lamport_timestamp ts,
                                            const filter_type& filter,
-                                           caf::net::stream_socket sock) {
+                                           detail::native_socket fd) {
   namespace cn = caf::net;
   BROKER_TRACE(BROKER_ARG(peer)
-               << BROKER_ARG(ts) << BROKER_ARG(filter) << BROKER_ARG(sock));
-  using cn::make_socket_manager;
+               << BROKER_ARG(ts) << BROKER_ARG(filter) << BROKER_ARG(fd));
   using caf::async::make_bounded_buffer_resource;
+  using cn::make_socket_manager;
+  auto sock = cn::stream_socket{fd};
   if (peers_.count(peer) != 0) {
     BROKER_DEBUG("already connected to" << peer);
     cn::close(sock);
@@ -707,7 +708,7 @@ void stream_transport::try_connect(const network_info& addr,
     addr,
     [this, rp](endpoint_id peer, const network_info& addr,
                alm::lamport_timestamp ts, const filter_type& filter,
-               caf::net::stream_socket fd) mutable {
+               detail::native_socket fd) mutable {
       BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(ts)
                                     << BROKER_ARG(filter) << BROKER_ARG(fd));
       if (auto err = init_new_peer(peer, addr, ts, filter, fd);

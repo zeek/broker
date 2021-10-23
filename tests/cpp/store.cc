@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "caf/async/bounded_buffer.hpp"
-#include "caf/net/stream_socket.hpp"
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"

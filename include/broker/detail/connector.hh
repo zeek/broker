@@ -4,10 +4,9 @@
 #include <mutex>
 
 #include <caf/actor.hpp>
-#include <caf/net/pipe_socket.hpp>
-#include <caf/net/stream_socket.hpp>
 #include <caf/uuid.hpp>
 
+#include "broker/detail/native_socket.hh"
 #include "broker/detail/peer_status_map.hh"
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
@@ -39,7 +38,7 @@ public:
     /// Signals that a remote node has connected to this peer.
     virtual void on_connection(connector_event_id event_id, endpoint_id peer,
                                network_info addr, alm::lamport_timestamp ts,
-                               filter_type filter, caf::net::socket_id fd)
+                               filter_type filter, detail::native_socket fd)
       = 0;
 
     virtual void on_redundant_connection(connector_event_id event_id,
@@ -87,8 +86,8 @@ private:
   std::mutex mtx_;
   std::condition_variable sub_cv_;
   bool shutting_down_ = false;
-  caf::net::pipe_socket pipe_wr_;
-  caf::net::pipe_socket pipe_rd_;
+  detail::native_socket pipe_wr_;
+  detail::native_socket pipe_rd_;
   caf::uuid this_peer_;
   caf::actor worker_;
   std::unique_ptr<listener> sub_;

@@ -4,9 +4,7 @@
 #include <optional>
 #include <unordered_map>
 
-#include <caf/fwd.hpp>
-#include <caf/net/fwd.hpp>
-
+#include "broker/detail/native_socket.hh"
 #include "broker/fwd.hh"
 
 namespace broker::detail {
@@ -21,7 +19,7 @@ public:
   /// Callback for incoming peering connections.
   using peering_callback
     = callback<endpoint_id, const network_info&, alm::lamport_timestamp,
-               const filter_type&, caf::net::stream_socket>;
+               const filter_type&, detail::native_socket>;
 
   /// Callback for non-critical errors during peering. The connector emits those
   /// errors whenever a connection attempt has failed but retries afterwards

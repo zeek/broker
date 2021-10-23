@@ -34,6 +34,7 @@
 #include <caf/config.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/expected.hpp>
+#include <caf/net/pipe_socket.hpp>
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
@@ -1192,17 +1193,20 @@ connector::connector(endpoint_id this_peer) : this_peer_(this_peer) {
     fprintf(stderr, "failed to create pipe: %s\n", err_str.c_str());
     abort();
   }
-  std::tie(pipe_rd_, pipe_wr_) = *fds;
-  if (auto err = caf::net::nonblocking(pipe_rd_, true)) {
+  auto [rd, wr] = *fds;
+  if (auto err = caf::net::nonblocking(rd, true)) {
     auto err_str = to_string(err);
     fprintf(stderr, "failed to set pipe to nonblocking: %s\n", err_str.c_str());
     ::abort();
   }
+  pipe_rd_ = rd.id;
+  pipe_wr_ = wr.id;
 }
 
 connector::~connector() {
-  caf::net::close(pipe_rd_);
-  caf::net::close(pipe_wr_);
+  namespace cn = caf::net;
+  cn::close(cn::pipe_socket{pipe_rd_});
+  cn::close(cn::pipe_socket{pipe_wr_});
 }
 
 void connector::async_connect(connector_event_id event_id,
@@ -1241,7 +1245,7 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes,
     BROKER_ERROR(errmsg);
     throw std::runtime_error(errmsg);
   }
-  auto res = caf::net::write(pipe_wr_, bytes);
+  auto res = caf::net::write(caf::net::pipe_socket{pipe_wr_}, bytes);
   if (res != static_cast<ptrdiff_t>(bytes.size())) {
     const char* errmsg = "wrong number of bytes written to the pipe";
     BROKER_ERROR(errmsg);
@@ -1293,9 +1297,9 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   // it's portable.
   connect_manager mgr{this_peer_, sub, filter, peer_statuses_.get()};
   auto& fdset = mgr.fdset;
-  fdset.push_back({pipe_rd_.id, read_mask, 0});
+  fdset.push_back({pipe_rd_, read_mask, 0});
   bool done = false;
-  pipe_reader prd{pipe_rd_, &done};
+  pipe_reader prd{caf::net::pipe_socket{pipe_rd_}, &done};
   // Loop until we receive a shutdown via the pipe.
   while (!done) {
     int presult =
@@ -1327,7 +1331,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
       do {
         BROKER_DEBUG(BROKER_ARG2("fd", i->fd)
                      << BROKER_ARG2("event-mask", i->revents));
-        if (i->fd == pipe_rd_.id) {
+        if (i->fd == pipe_rd_) {
           if (i->revents & read_mask) {
             prd.read(mgr);
           } else if (i->revents & error_mask) {
