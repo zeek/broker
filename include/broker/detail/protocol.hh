@@ -71,7 +71,7 @@ public:
     }
 
     void on_next(caf::span<const node_message> items) {
-      BROKER_ASSERT(item.size() == 1);
+      BROKER_ASSERT(items.size() == 1);
       for (const auto& item : items) {
         if (!proto->write(down, item)) {
           aborted = true;
