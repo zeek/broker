@@ -74,7 +74,10 @@ public:
   template <class Rep, class Period>
   std::vector<data_message>
   get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
-    return do_get(num, now() + rel_timeout);
+    if (!caf::is_infinite(rel_timeout))
+      return do_get(num, now() + rel_timeout);
+    else
+      return get(num);
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
@@ -93,7 +96,10 @@ public:
   /// at least one value becomes available or a timeout occurred.
   template <class Rep, class Period>
   optional_data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
-    return get(now() + rel_timeout);
+    if (!caf::is_infinite(rel_timeout))
+      return get(now() + rel_timeout);
+    else
+      return get();
   }
 
   // --- accessors -------------------------------------------------------------
