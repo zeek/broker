@@ -195,7 +195,7 @@ public:
   const std::string* message() const noexcept;
 
   /// Retrieves additional contextual information, if available.
-  optional<endpoint_info> context() const;
+  std::optional<endpoint_info> context() const;
 
   /// Creates a view for given data.
   /// @returns A ::valid view on success, an invalid view otherwise.

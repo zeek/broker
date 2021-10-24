@@ -22,7 +22,6 @@
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
-#include "broker/optional.hh"
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"

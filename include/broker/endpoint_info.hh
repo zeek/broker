@@ -1,21 +1,19 @@
 #pragma once
 
-#include <caf/node_id.hpp>
-
+#include <optional>
 #include <vector>
 
 #include "broker/convert.hh"
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
-#include "broker/optional.hh"
 
 namespace broker {
 
 /// Information about an endpoint.
 /// @relates endpoint
 struct endpoint_info {
-  endpoint_id node;               ///< A unique context ID per machine/process.
-  optional<network_info> network; ///< Optional network-level information.
+  endpoint_id node; ///< A unique context ID per machine/process.
+  std::optional<network_info> network; ///< Optional network-level information.
 };
 
 /// @relates endpoint_info

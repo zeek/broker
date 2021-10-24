@@ -97,7 +97,6 @@ using request_id = uint64_t;
 namespace broker {
 
 using caf::error;
-using caf::optional;
 using endpoint_id = caf::uuid;
 using endpoint_id_list = std::vector<endpoint_id>;
 
@@ -328,8 +327,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::network_info))
   BROKER_ADD_TYPE_ID((broker::node_message))
   BROKER_ADD_TYPE_ID((broker::none))
-  BROKER_ADD_TYPE_ID((broker::optional<broker::timespan>))
-  BROKER_ADD_TYPE_ID((broker::optional<broker::timestamp>))
   BROKER_ADD_TYPE_ID((broker::peer_info))
   BROKER_ADD_TYPE_ID((broker::port))
   BROKER_ADD_TYPE_ID((broker::put_command))
@@ -353,6 +350,8 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((caf::stream<broker::data_message>))
   BROKER_ADD_TYPE_ID((caf::stream<broker::node_message>))
   BROKER_ADD_TYPE_ID((std::optional<broker::endpoint_id>))
+  BROKER_ADD_TYPE_ID((std::optional<broker::timespan>))
+  BROKER_ADD_TYPE_ID((std::optional<broker::timestamp>))
   BROKER_ADD_TYPE_ID((std::shared_ptr<broker::filter_type>))
   BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>))
   BROKER_ADD_TYPE_ID((std::vector<broker::alm::lamport_timestamp>))

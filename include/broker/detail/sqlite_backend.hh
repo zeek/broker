@@ -22,13 +22,13 @@ public:
   bool init_failed() const;
 
   expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override;
+                     std::optional<timestamp> expiry) override;
 
   expected<void> add(const data& key, const data& value, data::type init_type,
-                     optional<timestamp> expiry) override;
+                     std::optional<timestamp> expiry) override;
 
   expected<void> subtract(const data& key, const data& value,
-                          optional<timestamp> expiry) override;
+                          std::optional<timestamp> expiry) override;
 
   expected<void> erase(const data& key) override;
 

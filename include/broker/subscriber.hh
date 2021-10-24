@@ -26,7 +26,7 @@ public:
 
   // -- member types -----------------------------------------------------------
 
-  using optional_data_message = caf::optional<data_message>;
+  using optional_data_message = std::optional<data_message>;
 
   // --- constructors and destructors ------------------------------------------
 

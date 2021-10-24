@@ -114,7 +114,7 @@ caf::error data_generator::generate(internal_command::type tag,
       data val;
       GENERATE(key);
       GENERATE(val);
-      x.content = put_command{std::move(key), std::move(val), nil};
+      x.content = put_command{std::move(key), std::move(val), std::nullopt};
       break;
     }
     case tag_type::put_unique_command: {
@@ -122,8 +122,8 @@ caf::error data_generator::generate(internal_command::type tag,
       data val;
       GENERATE(key);
       GENERATE(val);
-      x.content = put_unique_command{std::move(key), std::move(val), nil,
-                                     entity_id::nil(), 0};
+      x.content = put_unique_command{std::move(key), std::move(val),
+                                     std::nullopt, entity_id::nil(), 0};
       break;
     }
     case tag_type::erase_command: {
@@ -145,7 +145,8 @@ caf::error data_generator::generate(internal_command::type tag,
       GENERATE(key);
       GENERATE(val);
       BROKER_TRY(read_value(source_, init_type));
-      x.content = add_command{std::move(key), std::move(val), init_type, nil};
+      x.content = add_command{std::move(key), std::move(val), init_type,
+                              std::nullopt};
       break;
     }
     case tag_type::subtract_command: {

@@ -96,10 +96,10 @@ public:
   }
 
   /// Returns the handle associated to `x`, if any.
-  caf::optional<caf::actor> find(const network_info& x);
+  std::optional<caf::actor> find(const network_info& x);
 
   /// Returns all known network addresses for `x`.
-  caf::optional<network_info> find(const caf::actor& x);
+  std::optional<network_info> find(const caf::actor& x);
 
   /// Maps `x` to `y` and vice versa.
   void add(const caf::actor& x, const network_info& y);

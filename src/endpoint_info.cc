@@ -46,7 +46,7 @@ bool convert(const data& src, endpoint_info& dst) {
   }
   // Parse the network (fields 2 - 4).
   if (is<none>(xs[1]) && is<none>(xs[2]) && is<none>(xs[3])) {
-    dst.network = nil;
+    dst.network = std::nullopt;
   } else if (is<std::string>(xs[1]) && is<port>(xs[2]) && is<count>(xs[3])) {
     dst.network = network_info{};
     auto& net = *dst.network;

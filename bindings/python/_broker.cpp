@@ -96,12 +96,17 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("port", &broker::network_info::port)
     .def("__repr__", [](const broker::network_info& n) { return to_string(n); });
 
-  py::class_<broker::optional<broker::network_info>>(m, "OptionalNetworkInfo")
+  py::class_<std::optional<broker::network_info>>(m, "OptionalNetworkInfo")
     .def("is_set",
-         [](broker::optional<broker::network_info>& i) { return static_cast<bool>(i);})
+         [](std::optional<broker::network_info>& i) { return static_cast<bool>(i);})
     .def("get",
-         [](broker::optional<broker::network_info>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<broker::network_info>& i) { return to_string(i); });
+         [](std::optional<broker::network_info>& i) { return *i; })
+    .def("__repr__", [](const std::optional<broker::network_info>& i) -> std::string {
+         if (i)
+           return broker::to_string(*i);
+         else
+           return "nil";
+    });
 
   py::class_<broker::peer_info>(m, "PeerInfo")
     .def_readwrite("peer", &broker::peer_info::peer)
@@ -148,12 +153,12 @@ PYBIND11_MODULE(_broker, m) {
 
   py::bind_vector<std::vector<topic_data_pair>>(m, "VectorPairTopicData");
 
-  py::class_<broker::optional<topic_data_pair>>(m, "OptionalSubscriberBaseValueType")
+  py::class_<std::optional<topic_data_pair>>(m, "OptionalSubscriberBaseValueType")
     .def("is_set",
-         [](broker::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
+         [](std::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
     .def("get",
-         [](broker::optional<topic_data_pair>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
+         [](std::optional<topic_data_pair>& i) { return *i; })
+    .def("__repr__", [](const std::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
 
   py::class_<broker::subscriber>(m, "Subscriber")
     .def("get",
@@ -163,12 +168,12 @@ PYBIND11_MODULE(_broker, m) {
       })
 
     .def("get",
-         [](broker::subscriber& ep, double secs) -> broker::optional<topic_data_pair> {
+         [](broker::subscriber& ep, double secs) -> std::optional<topic_data_pair> {
 	    auto res = ep.get(broker::to_duration(secs));
-        caf::optional<topic_data_pair> rval;
+        std::optional<topic_data_pair> rval;
         if (res) {
           auto p = std::make_pair(broker::get_topic(*res), broker::get_data(*res));
-          rval = caf::optional<topic_data_pair>(std::move(p));
+          rval = std::optional<topic_data_pair>(std::move(p));
         }
         return rval;
 	  })
@@ -226,7 +231,7 @@ PYBIND11_MODULE(_broker, m) {
   status_subscriber
     .def("get", (broker::status_subscriber::value_type (broker::status_subscriber::*)()) &broker::status_subscriber::get)
     .def("get",
-         [](broker::status_subscriber& ep, double secs) -> broker::optional<broker::status_subscriber::value_type> {
+         [](broker::status_subscriber& ep, double secs) -> std::optional<broker::status_subscriber::value_type> {
 	   return ep.get(broker::to_duration(secs)); })
     .def("get",
          [](broker::status_subscriber& ep, size_t num) -> std::vector<broker::status_subscriber::value_type> {
@@ -243,13 +248,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return is<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return std::holds_alternative<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return is<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return std::holds_alternative<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return std::get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return std::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 

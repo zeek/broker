@@ -24,6 +24,7 @@
 #include "broker/detail/clone_actor.hh"
 
 #include <chrono>
+#include <memory>
 
 using std::move;
 
@@ -86,11 +87,11 @@ void clone_state::dispatch(const command_message& msg) {
                                      inner.heartbeat_interval)) {
             BROKER_DEBUG("received ack_clone from" << cmd.sender);
             set_store(move(inner.state));
-            if (output_ptr) {
-              output_ptr->stalled = false;
-              output_ptr->trigger_handshakes();
-              for (auto& msg : output_ptr->buf())
-                broadcast(output_ptr.get(), msg);
+            if (output_opt) {
+              output_opt->stalled = false;
+              output_opt->trigger_handshakes();
+              for (auto& msg : output_opt->buf())
+                broadcast(std::addressof(*output_opt), msg);
             }
           } else {
             BROKER_DEBUG("ignored repeated ack_clone from" << cmd.sender);
@@ -125,7 +126,7 @@ void clone_state::dispatch(const command_message& msg) {
     }
     default: {
       BROKER_ASSERT(tag == command_tag::consumer_control);
-      if (!output_ptr) {
+      if (!output_opt) {
         BROKER_DEBUG("received control message for a non-existing channel");
         break;
       }
@@ -136,17 +137,17 @@ void clone_state::dispatch(const command_message& msg) {
           // We create the path with entity_id::nil(), but the channel still
           // cares about the handle. Hence, we need to set the actual handle
           // once once the master responds with an ACK.
-          if (auto i = output_ptr->find_path(entity_id::nil());
-              i != output_ptr->paths().end()) {
+          if (auto i = output_opt->find_path(entity_id::nil());
+              i != output_opt->paths().end()) {
             i->hdl = cmd.sender;
             BROKER_DEBUG("received ACK from the master for the writer");
           }
-          output_ptr->handle_ack(cmd.sender, inner.seq);
+          output_opt->handle_ack(cmd.sender, inner.seq);
           break;
         }
         case internal_command::type::nack_command: {
           auto& inner = get<nack_command>(cmd.content);
-          output_ptr->handle_nack(cmd.sender, inner.seqs);
+          output_opt->handle_nack(cmd.sender, inner.seqs);
           break;
         }
         default: {
@@ -160,8 +161,8 @@ void clone_state::dispatch(const command_message& msg) {
 void clone_state::tick() {
   BROKER_TRACE("");
   input.tick();
-  if (output_ptr && !output_ptr->stalled)
-    output_ptr->tick();
+  if (output_opt && !output_opt->stalled)
+    output_opt->tick();
 }
 
 // -- callbacks for the consumer -----------------------------------------------
@@ -324,21 +325,18 @@ data clone_state::keys() const {
 }
 
 clone_state::producer_type& clone_state::output() {
-  // TODO: we only use a pointer here, because caf::optional lacks the `emplace`
-  //       member function. Either add that member function upstream or use
-  //       std::optional instead if all supported platforms support it.
-  if (!output_ptr) {
+  if (!output_opt) {
     BROKER_DEBUG("add output channel to clone " << store_name);
-    output_ptr.reset(new producer_type(this));
-    super::init(*output_ptr);
+    output_opt.emplace(this);
+    super::init(*output_opt);
     // Remove `stalled` flag immediately if the input is ready.
     if (input.initialized())
-      output_ptr->stalled = false;
+      output_opt->stalled = false;
     // We reach the master by publishing to its topic. Hence, we actually don't
     // need a handle to it at all for the writer.
-    output_ptr->add(entity_id::nil());
+    output_opt->add(entity_id::nil());
   }
-  return *output_ptr;
+  return *output_opt;
 }
 
 void clone_state::set_store(std::unordered_map<data, data> x) {
@@ -355,7 +353,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
   } else if (store.empty()) {
     // Emit insert events.
     for (auto& [key, value] : x)
-      emit_insert_event(key, value, nil, publisher);
+      emit_insert_event(key, value, std::nullopt, publisher);
   } else {
     // Emit erase and put events.
     std::vector<const data*> keys;
@@ -368,7 +366,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
       emit_erase_event(**i, entity_id{});
     for (auto i = p; i != keys.end(); ++i) {
       const auto& value = x[**i];
-      emit_update_event(**i, store[**i], value, nil, publisher);
+      emit_update_event(**i, store[**i], value, std::nullopt, publisher);
     }
     // Emit insert events.
     auto is_new = [&keys](const data& key) {
@@ -379,7 +377,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
     };
     for (const auto& [key, value] : x)
       if (is_new(key))
-        emit_insert_event(key, value, nil, publisher);
+        emit_insert_event(key, value, std::nullopt, publisher);
   }
   // Override local state.
   store = move(x);
@@ -394,7 +392,7 @@ bool clone_state::has_master() const noexcept {
 }
 
 bool clone_state::idle() const noexcept {
-  return input.idle() && (!output_ptr || output_ptr->idle());
+  return input.idle() && (!output_opt || output_opt->idle());
 }
 
 // -- clone actor --------------------------------------------------------------

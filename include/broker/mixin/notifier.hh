@@ -192,7 +192,8 @@ private:
     } else if constexpr (std::is_same<value_type, sc>::value) {
       emit(status::make<EnumConstant::value>(peer_id, msg));
     } else {
-      emit(make_error(EnumConstant::value, endpoint_info{peer_id, nil}, msg));
+      emit(make_error(EnumConstant::value, endpoint_info{peer_id, std::nullopt},
+                      msg));
     }
   }
 

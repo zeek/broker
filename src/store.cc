@@ -1,5 +1,6 @@
 #include "broker/store.hh"
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -139,7 +140,8 @@ request_id store::proxy::get(data key) {
   return id_;
 }
 
-request_id store::proxy::put_unique(data key, data val, optional<timespan> expiry) {
+request_id store::proxy::put_unique(data key, data val,
+                                    std::optional<timespan> expiry) {
   BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
                <<BROKER_ARG(this_peer_));
   if (!frontend_)
@@ -256,7 +258,7 @@ expected<data> store::get(data key) const {
 }
 
 expected<data> store::put_unique(data key, data val,
-                                 optional<timespan> expiry) {
+                                 std::optional<timespan> expiry) {
   BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
                <<BROKER_ARG(this_peer_));
   return with_state(state_, [&](detail::store_state& state) {
@@ -281,7 +283,7 @@ bool store::initialized() const noexcept {
   return !state_.expired();
 }
 
-void store::put(data key, data value, optional<timespan> expiry) {
+void store::put(data key, data value, std::optional<timespan> expiry) {
   if (auto ptr = state_.lock())
     ptr->anon_send(atom::local_v,
                    make_internal_command<put_command>(
@@ -295,14 +297,14 @@ void store::erase(data key) {
 }
 
 void store::add(data key, data value, data::type init_type,
-                optional<timespan> expiry) {
+                std::optional<timespan> expiry) {
   if (auto ptr = state_.lock())
     ptr->anon_send(atom::local_v, make_internal_command<add_command>(
                                     std::move(key), std::move(value), init_type,
                                     expiry, frontend_id()));
 }
 
-void store::subtract(data key, data value, optional<timespan> expiry) {
+void store::subtract(data key, data value, std::optional<timespan> expiry) {
   if (auto ptr = state_.lock())
     ptr->anon_send(atom::local_v,
                    make_internal_command<subtract_command>(

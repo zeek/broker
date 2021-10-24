@@ -15,7 +15,7 @@ using namespace pybind11::literals;
 
 void init_store(py::module& m) {
 
-  py::class_<broker::optional<broker::timespan>>(m, "OptionalTimespan")
+  py::class_<std::optional<broker::timespan>>(m, "OptionalTimespan")
     .def(py::init<>())
     .def(py::init<broker::timespan>()
     );
@@ -48,8 +48,8 @@ void init_store(py::module& m) {
     .def("increment", &broker::store::increment)
     .def("decrement", &broker::store::decrement)
     .def("append", &broker::store::append)
-    .def("insert_into", (void (broker::store::*)(broker::data, broker::data, broker::optional<broker::timespan>)) &broker::store::insert_into)
-    .def("insert_into", (void (broker::store::*)(broker::data, broker::data, broker::data, broker::optional<broker::timespan>)) &broker::store::insert_into)
+    .def("insert_into", (void (broker::store::*)(broker::data, broker::data, std::optional<broker::timespan>)) &broker::store::insert_into)
+    .def("insert_into", (void (broker::store::*)(broker::data, broker::data, broker::data, std::optional<broker::timespan>)) &broker::store::insert_into)
     .def("remove_from", &broker::store::remove_from)
     .def("push", &broker::store::push)
     .def("pop", &broker::store::pop)

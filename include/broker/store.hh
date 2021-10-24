@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,7 +20,6 @@
 #include "broker/fwd.hh"
 #include "broker/mailbox.hh"
 #include "broker/message.hh"
-#include "broker/optional.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
 
@@ -72,7 +72,7 @@ public:
     /// @returns A unique identifier for this request to correlate it with a
     /// response.
     request_id put_unique(data key, data value,
-                          optional<timespan> expiry = {});
+                          std::optional<timespan> expiry = {});
 
     /// For containers values, retrieves a specific index from the value. This
     /// is supported for sets, tables, and vectors.
@@ -146,7 +146,7 @@ public:
   /// @param expiry An optional expiration time for *key*.
   /// @returns A true data value if inserted or false if key already existed.
   expected<data> put_unique(data key, data value,
-                            optional<timespan> expiry = {});
+                            std::optional<timespan> expiry = {});
 
   /// For containers values, retrieves a specific index from the value. This
   /// is supported for sets, tables, and vectors.
@@ -192,7 +192,7 @@ public:
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional expiration time for *key*.
-  void put(data key, data value, optional<timespan> expiry = {});
+  void put(data key, data value, std::optional<timespan> expiry = {});
 
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
@@ -206,7 +206,7 @@ public:
   /// @param key The key of the value to increment.
   /// @param value The amount to increment the value.
   /// @param expiry An optional new expiration time for *key*.
-  void increment(data key, data amount, optional<timespan> expiry = {}) {
+  void increment(data key, data amount, std::optional<timespan> expiry = {}) {
     auto init_type = data::type::none;
 
     switch ( amount.get_type() ) {
@@ -234,7 +234,7 @@ public:
   /// @param key The key of the value to increment.
   /// @param value The amount to decrement the value.
   /// @param expiry An optional new expiration time for *key*.
-  void decrement(data key, data amount, optional<timespan> expiry = {}) {
+  void decrement(data key, data amount, std::optional<timespan> expiry = {}) {
     subtract(std::move(key), std::move(amount), std::move(expiry));
   }
 
@@ -242,7 +242,7 @@ public:
   /// @param key The key of the string to which to append.
   /// @param str The string to append.
   /// @param expiry An optional new expiration time for *key*.
-  void append(data key, data str, optional<timespan> expiry = {}) {
+  void append(data key, data str, std::optional<timespan> expiry = {}) {
     add(std::move(key), std::move(str), data::type::string, std::move(expiry));
   }
 
@@ -250,7 +250,7 @@ public:
   /// @param key The key of the set into which to insert the value.
   /// @param index The index to insert.
   /// @param expiry An optional new expiration time for *key*.
-  void insert_into(data key, data index, optional<timespan> expiry = {}) {
+  void insert_into(data key, data index, std::optional<timespan> expiry = {}) {
     add(std::move(key), std::move(index), data::type::set, std::move(expiry));
   }
 
@@ -260,7 +260,7 @@ public:
   /// @param value The value to associated with the inserted index. For sets, this is ignored.
   /// @param expiry An optional new expiration time for *key*.
   void insert_into(data key, data index, data value,
-                   optional<timespan> expiry = {}) {
+                   std::optional<timespan> expiry = {}) {
     add(std::move(key), vector({std::move(index), std::move(value)}),
         data::type::table, std::move(expiry));
   }
@@ -269,7 +269,7 @@ public:
   /// @param key The key of the set/table from which to remove the value.
   /// @param index The index to remove.
   /// @param expiry An optional new expiration time for *key*.
-  void remove_from(data key, data index, optional<timespan> expiry = {}) {
+  void remove_from(data key, data index, std::optional<timespan> expiry = {}) {
     subtract(std::move(key), std::move(index), std::move(expiry));
   }
 
@@ -277,7 +277,7 @@ public:
   /// @param key The key of the vector to which to append the value.
   /// @param value The value to append.
   /// @param expiry An optional new expiration time for *key*.
-  void push(data key, data value, optional<timespan> expiry = {}) {
+  void push(data key, data value, std::optional<timespan> expiry = {}) {
     add(std::move(key), std::move(value), data::type::vector,
         std::move(expiry));
   }
@@ -285,7 +285,7 @@ public:
   /// Removes the last value of a vector.
   /// @param key The key of the vector from which to remove the last value.
   /// @param expiry An optional new expiration time for *key*.
-  void pop(data key, optional<timespan> expiry = {}) {
+  void pop(data key, std::optional<timespan> expiry = {}) {
     subtract(key, key, std::move(expiry));
   }
 
@@ -336,14 +336,14 @@ private:
   /// @param init_type The type of data to initialize when the key does not exist.
   /// @param expiry An optional new expiration time for *key*.
   void add(data key, data value, data::type init_type,
-           optional<timespan> expiry = {});
+           std::optional<timespan> expiry = {});
 
   /// Subtracts a value from another one, with a type-specific meaning of
   /// "substract". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void subtract(data key, data value, optional<timespan> expiry = {});
+  void subtract(data key, data value, std::optional<timespan> expiry = {});
 
   // -- member variables -------------------------------------------------------
 

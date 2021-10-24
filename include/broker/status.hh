@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -10,7 +11,6 @@
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
-#include "broker/optional.hh"
 
 namespace broker {
 
@@ -99,7 +99,7 @@ public:
   template <sc S>
   static status make(endpoint_id node, std::string msg) {
     static_assert(sc_has_endpoint_info_v<S>);
-    return {S, endpoint_info{std::move(node), nil}, std::move(msg)};
+    return {S, endpoint_info{std::move(node), std::nullopt}, std::move(msg)};
   }
 
   /// Default-constructs an unspecified status.
@@ -217,7 +217,7 @@ public:
   const std::string* message() const noexcept;
 
   /// Retrieves additional contextual information, if available.
-  optional<endpoint_info> context() const;
+  std::optional<endpoint_info> context() const;
 
   /// Creates a view for given data.
   /// @returns A ::valid view on success, an invalid view otherwise.

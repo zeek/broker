@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <variant>
 
 #include <caf/actor.hpp>
@@ -12,6 +13,7 @@
 #include "broker/alm/lamport_timestamp.hh"
 #include "broker/error.hh"
 #include "broker/logger.hh"
+#include "broker/none.hh"
 
 namespace broker::detail {
 
@@ -436,7 +438,7 @@ public:
 
     struct optional_event {
       sequence_number_type seq;
-      optional<Payload> content;
+      std::optional<Payload> content;
 
       explicit optional_event(sequence_number_type seq) : seq(seq) {
         // nop

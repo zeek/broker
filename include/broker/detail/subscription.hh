@@ -2,16 +2,15 @@
 
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
 #include <caf/actor.hpp>
 #include <caf/actor_addr.hpp>
 
-#include "broker/topic.hh"
-#include "broker/optional.hh"
-
 #include "broker/detail/radix_tree.hh"
+#include "broker/topic.hh"
 
 namespace broker {
 namespace detail {
@@ -45,7 +44,7 @@ public:
   /// Remove a subscriber from the container and return it if it exists.
   /// @param a the actor address associated with the subscriber.
   /// @return the associated subscriber if it was in the container.
-  optional<subscriber> erase(const caf::actor_addr& a);
+  std::optional<subscriber> erase(const caf::actor_addr& a);
 
   /// Register a subscription topic to a subscriber.
   /// @param t the topic of the subscription to register.

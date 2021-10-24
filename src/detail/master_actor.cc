@@ -25,9 +25,9 @@
 
 namespace broker::detail {
 
-static optional<timestamp> to_opt_timestamp(timestamp ts,
-                                            optional<timespan> span) {
-  return span ? ts + *span : optional<timestamp>();
+static std::optional<timestamp> to_opt_timestamp(timestamp ts,
+                                                 std::optional<timespan> span) {
+  return span ? ts + *span : std::optional<timestamp>();
 }
 
 // -- initialization -----------------------------------------------------------
@@ -252,7 +252,7 @@ void master_state::consume(add_command& x) {
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), nil,
+    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
                     std::move(x.publisher)};
     if (old_value)
       emit_update_event(cmd, *old_value);
@@ -286,7 +286,7 @@ void master_state::consume(subtract_command& x) {
       remind(*x.expiry, x.key);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), nil,
+    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
                     std::move(x.publisher)};
     emit_update_event(cmd, *old_value);
     broadcast(std::move(cmd));

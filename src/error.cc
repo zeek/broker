@@ -183,13 +183,13 @@ const std::string* error_view::message() const noexcept {
                          : &get<std::string>(ctx[1]);
 }
 
-optional<endpoint_info> error_view::context() const {
+std::optional<endpoint_info> error_view::context() const {
   if (is<none>((*xs_)[2]))
-    return nil;
-  auto& ctx = get<vector>((*xs_)[2]);
-  if (ctx.size() == 2)
+    return std::nullopt;
+  else if (auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2)
     return get_as<endpoint_info>(ctx[0]);
-  return nil;
+  else
+    return std::nullopt;
 }
 
 error_view error_view::make(const data& src) {

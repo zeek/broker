@@ -15,7 +15,6 @@
 #include "broker/filter_type.hh"
 #include "broker/logger.hh"
 #include "broker/message.hh"
-#include "broker/optional.hh"
 #include "broker/topic.hh"
 
 namespace broker::detail::telemetry {

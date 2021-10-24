@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <set>
 #include <tuple>
 #include <unordered_map>
@@ -18,7 +19,6 @@
 #include "broker/detail/iterator_range.hh"
 #include "broker/detail/map_index_iterator.hh"
 #include "broker/fwd.hh"
-#include "broker/optional.hh"
 
 namespace broker::alm {
 
@@ -122,12 +122,12 @@ inline bool is_direct_connection(const routing_table& tbl,
 
 /// Returns the hop count on the shortest path or `nil` if no route to the peer
 /// exists.
-inline optional<size_t> distance_to(const routing_table& tbl,
-                                    const endpoint_id& peer) {
+inline std::optional<size_t> distance_to(const routing_table& tbl,
+                                         const endpoint_id& peer) {
   if (auto ptr = shortest_path(tbl, peer))
     return ptr->size();
   else
-    return nil;
+    return std::nullopt;
 }
 
 /// Erases all state for `whom` and also removes all paths that include `whom`.

@@ -22,7 +22,7 @@ void append(vector& xs, const T& x) {
 }
 
 template <class T>
-void append(vector& xs, const optional<T>& x) {
+void append(vector& xs, const std::optional<T>& x) {
   if (x)
     xs.emplace_back(*x);
   else
@@ -86,7 +86,7 @@ void store_actor_state::init(caf::event_based_actor* selfptr,
 // -- event signaling ----------------------------------------------------------
 
 void store_actor_state::emit_insert_event(const data& key, const data& value,
-                                          const optional<timespan>& expiry,
+                                          const std::optional<timespan>& expiry,
                                           const entity_id& publisher) {
   vector xs;
   fill_vector(xs, "insert"s, store_name, key, value, expiry, publisher);
@@ -97,7 +97,7 @@ void store_actor_state::emit_insert_event(const data& key, const data& value,
 void store_actor_state::emit_update_event(const data& key,
                                           const data& old_value,
                                           const data& new_value,
-                                          const optional<timespan>& expiry,
+                                          const std::optional<timespan>& expiry,
                                           const entity_id& publisher) {
   vector xs;
   fill_vector(xs, "update"s, store_name, key, old_value, new_value, expiry,

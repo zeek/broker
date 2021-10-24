@@ -39,14 +39,14 @@ caf::result<caf::actor> network_cache::fetch(const network_info& x) {
   return rp;
 }
 
-caf::optional<caf::actor> network_cache::find(const network_info& x) {
+std::optional<caf::actor> network_cache::find(const network_info& x) {
   auto i = hdls_.find(x);
   if (i != hdls_.end())
     return i->second;
   return caf::none;
 }
 
-caf::optional<network_info> network_cache::find(const caf::actor& x) {
+std::optional<network_info> network_cache::find(const caf::actor& x) {
   auto i = addrs_.find(x);
   if (i != addrs_.end())
     return i->second;

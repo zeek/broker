@@ -72,8 +72,8 @@ TEST(ec is convertible to and from string) {
   CHECK_EQUAL(from_string<ec>("invalid_topic_key"), ec::invalid_topic_key);
   CHECK_EQUAL(from_string<ec>("end_of_file"), ec::end_of_file);
   CHECK_EQUAL(from_string<ec>("invalid_tag"), ec::invalid_tag);
-  CHECK_EQUAL(from_string<ec>("none"), nil);
-  CHECK_EQUAL(from_string<ec>("foo"), nil);
+  CHECK_EQUAL(from_string<ec>("none"), std::nullopt);
+  CHECK_EQUAL(from_string<ec>("foo"), std::nullopt);
 }
 
 TEST(default constructed errors have a fixed representation) {
@@ -131,10 +131,10 @@ TEST(error view operate directly on raw data) {
   CHECK_EQUAL(view.code(), ec::peer_invalid);
   CHECK_EQUAL(*view.message(), "invalid host"s);
   auto maybe_cxt = view.context();
-  REQUIRE(maybe_cxt != nil);
+  REQUIRE(maybe_cxt != std::nullopt);
   auto cxt = std::move(*maybe_cxt);
   CHECK_EQUAL(cxt.node, nid);
-  REQUIRE(cxt.network != nil);
+  REQUIRE(cxt.network != std::nullopt);
   auto net = *cxt.network;
   CHECK_EQUAL(net, network_info("foo", 8080, timeout::seconds{42}));
 }

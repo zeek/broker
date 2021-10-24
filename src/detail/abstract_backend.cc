@@ -6,7 +6,7 @@ namespace detail {
 
 expected<void> abstract_backend::add(const data& key, const data& value,
                                      data::type init_type,
-                                     optional<timestamp> expiry) {
+                                     std::optional<timestamp> expiry) {
   auto v = get(key);
   if (!v) {
     if (v.error() != ec::no_such_key)
@@ -21,7 +21,7 @@ expected<void> abstract_backend::add(const data& key, const data& value,
 }
 
 expected<void> abstract_backend::subtract(const data& key, const data& value,
-                                          optional<timestamp> expiry) {
+                                          std::optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();

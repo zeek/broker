@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -18,7 +19,6 @@
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
-#include "broker/optional.hh"
 #include "broker/topic.hh"
 
 namespace broker::detail {
@@ -115,7 +115,7 @@ public:
 
   /// Emits an `insert` event to topics::store_events subscribers.
   void emit_insert_event(const data& key, const data& value,
-                         const optional<timespan>& expiry,
+                         const std::optional<timespan>& expiry,
                          const entity_id& publisher);
 
   /// Convenience function for calling
@@ -128,7 +128,7 @@ public:
   /// Emits a `update` event to topics::store_events subscribers.
   void emit_update_event(const data& key, const data& old_value,
                          const data& new_value,
-                         const optional<timespan>& expiry,
+                         const std::optional<timespan>& expiry,
                          const entity_id& publisher);
 
   /// Convenience function for calling

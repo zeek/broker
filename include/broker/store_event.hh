@@ -66,10 +66,11 @@ public:
       return (*xs_)[3];
     }
 
-    caf::optional<timespan> expiry() const noexcept {
+    std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
-      return nil;
+      else
+        return std::nullopt;
     }
 
     entity_id publisher() const noexcept {
@@ -134,10 +135,11 @@ public:
       return (*xs_)[4];
     }
 
-    caf::optional<timespan> expiry() const noexcept {
+    std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[5]))
         return *value;
-      return nil;
+      else
+        return std::nullopt;
     }
 
     entity_id publisher() const noexcept {

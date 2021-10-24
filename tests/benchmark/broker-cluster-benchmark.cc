@@ -226,7 +226,7 @@ struct node {
 
   /// Stores how many messages we produce using the gernerator file. If `none`,
   /// we produce the number of messages in the generator file.
-  caf::optional<size_t> num_outputs;
+  std::optional<size_t> num_outputs;
 
   /// Stores parent nodes in the pub/sub topology.
   std::vector<node*> left;
@@ -270,7 +270,7 @@ struct strip_optional {
 };
 
 template <class T>
-struct strip_optional<caf::optional<T>> {
+struct strip_optional<std::optional<T>> {
   using type = T;
 };
 

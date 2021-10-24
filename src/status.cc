@@ -185,12 +185,13 @@ const std::string* status_view::message() const noexcept {
   return &get<std::string>((*xs_)[3]);
 }
 
-optional<endpoint_info> status_view::context() const {
+std::optional<endpoint_info> status_view::context() const {
   BROKER_ASSERT(xs_ != nullptr);
   endpoint_info ei;
   if (!convert((*xs_)[2], ei))
-    return nil;
-  return {std::move(ei)};
+    return std::nullopt;
+  else
+    return {std::move(ei)};
 }
 
 status_view status_view::make(const data& src) {

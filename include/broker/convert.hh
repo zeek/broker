@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <type_traits>
@@ -9,7 +10,6 @@
 
 #include "broker/detail/type_traits.hh"
 #include "broker/fwd.hh"
-#include "broker/optional.hh"
 
 namespace broker::detail {
 
@@ -85,7 +85,7 @@ bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
 /// @returns a value of type `To` on success, otherwise `nil`.
 template <class To, class From>
 auto to(const From& from)
--> std::enable_if_t<detail::has_convert<From, To>::value, optional<To>> {
+-> std::enable_if_t<detail::has_convert<From, To>::value, std::optional<To>> {
   To to;
   if (convert(from, to))
     return {std::move(to)};

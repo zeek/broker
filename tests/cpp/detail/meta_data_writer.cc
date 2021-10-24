@@ -186,7 +186,8 @@ CAF_TEST(vector data) {
 }
 
 CAF_TEST(put_command) {
-  internal_command cmd{0, {}, put_command{data{"hello"}, data{"broker"}, nil}};
+  auto cmd = internal_command{0, {}, put_command{data{"hello"},
+                              data{"broker"}, std::nullopt}};
   push(cmd);
   CHECK_EQUAL(buf.size(), 11u);
   CHECK_EQUAL(pull<internal_command::type>(),
@@ -199,10 +200,11 @@ CAF_TEST(put_command) {
 }
 
 CAF_TEST(put_unique_command) {
-  internal_command cmd{0,
+  auto cmd
+    = internal_command{0,
                        {},
-                       put_unique_command{data{"hello"}, data{"broker"}, nil,
-                                          entity_id::nil(), 0}};
+                       put_unique_command{data{"hello"}, data{"broker"},
+                                          std::nullopt, entity_id::nil(), 0}};
   push(cmd);
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::put_unique_command);
@@ -215,7 +217,7 @@ CAF_TEST(put_unique_command) {
 }
 
 CAF_TEST(erase_command) {
-  internal_command cmd{0, {}, erase_command{data{"foobar"}}};
+  auto cmd = internal_command{0, {}, erase_command{data{"foobar"}}};
   push(cmd);
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::erase_command);
@@ -225,10 +227,10 @@ CAF_TEST(erase_command) {
 }
 
 CAF_TEST(add_command) {
-  internal_command cmd{0,
-                       {},
-                       add_command{data{"key"}, data{"value"},
-                                   data::type::table, nil, entity_id::nil()}};
+  auto cmd = internal_command{0, {},
+                              add_command{data{"key"}, data{"value"},
+                                          data::type::table, std::nullopt,
+                                          entity_id::nil()}};
   push(cmd);
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::add_command);
@@ -240,8 +242,8 @@ CAF_TEST(add_command) {
 }
 
 CAF_TEST(subtract_command) {
-  internal_command cmd{
-    0, {}, subtract_command{data{"key"}, data{"value"}, nil}};
+  auto cmd = internal_command{0, {}, subtract_command{data{"key"},
+                              data{"value"}, std::nullopt}};
   push(cmd);
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::subtract_command);
@@ -253,7 +255,7 @@ CAF_TEST(subtract_command) {
 }
 
 CAF_TEST(clear_command) {
-  internal_command cmd{0, {}, clear_command{}};
+  auto cmd = internal_command{0, {}, clear_command{}};
   push(cmd);
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::clear_command);

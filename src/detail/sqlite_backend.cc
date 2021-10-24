@@ -1,10 +1,11 @@
 #include "broker/logger.hh"
 
-#include <cstdio> // std::snprintf
-#include <utility>
 #include <cstdint>
+#include <cstdio> // std::snprintf
+#include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <caf/binary_deserializer.hpp>
@@ -15,7 +16,6 @@
 #include "broker/version.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
-#include "broker/optional.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/filesystem.hh"
@@ -161,7 +161,7 @@ struct sqlite_backend::impl {
   }
 
   bool modify(const data& key, const data& value,
-              optional<timestamp> expiry) {
+              std::optional<timestamp> expiry) {
     auto [key_ok, key_blob] = to_blob(key);
     if (!key_ok) {
       BROKER_DEBUG("impl::modify: to_blob(key) failed");
@@ -232,7 +232,7 @@ bool sqlite_backend::init_failed() const {
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
-                                   optional<timestamp> expiry) {
+                                   std::optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -271,7 +271,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
                                    data::type init_type,
-                                   optional<timestamp> expiry) {
+                                   std::optional<timestamp> expiry) {
   auto v = get(key);
   data vv;
   if (!v) {
@@ -288,7 +288,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
 }
 
 expected<void> sqlite_backend::subtract(const data& key, const data& value,
-                                        optional<timestamp> expiry) {
+                                        std::optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();

@@ -152,7 +152,7 @@ public:
 
   consumer_type input;
 
-  std::unique_ptr<producer_type> output_ptr;
+  std::optional<producer_type> output_opt;
 
   /// Stores the maximum amount of time that a master may take to perform the
   /// handshake or re-appear after a dropout.

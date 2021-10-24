@@ -104,7 +104,7 @@ struct fixture : test_coordinator_fixture<> {
     struct impl {
       fixture* thisptr;
       caf::actor src_hdl;
-      optional<size_t> to(const endpoint_state& dst) {
+      std::optional<size_t> to(const endpoint_state& dst) {
         return alm::distance_to(thisptr->tbl(src_hdl), dst.id);
       }
     };
@@ -112,8 +112,8 @@ struct fixture : test_coordinator_fixture<> {
   }
 };
 
-optional<size_t> operator""_os(unsigned long long x) {
-  return optional<size_t>{static_cast<size_t>(x)};
+std::optional<size_t> operator""_os(unsigned long long x) {
+  return std::optional<size_t>{static_cast<size_t>(x)};
 }
 
 } // namespace <anonymous>
@@ -177,7 +177,7 @@ TEST(peers propagate broken paths) {
   CHECK_EQUAL(distance_from(ep3).to(ep2), 1_os);
   CHECK_EQUAL(distance_from(ep3).to(ep1), 2_os);
   MESSAGE("disconnect ep3");
-  auto nil = optional<size_t>();
+  auto nil = std::optional<size_t>();
   anon_send_exit(br, caf::exit_reason::user_shutdown);
   run();
   CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);

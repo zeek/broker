@@ -64,6 +64,17 @@ const char* to_string(store_event::type code) noexcept {
   return type_strings[static_cast<uint8_t>(code)];
 }
 
+namespace {
+
+std::string expiry_to_string(const std::optional<timespan>& x) {
+  if (x)
+    return "*" + caf::deep_to_string(*x);
+  else
+    return "null";
+}
+
+} // namespace
+
 std::string to_string(const store_event::insert& x) {
   std::string result = "insert(";
   result += x.store_id();
@@ -72,7 +83,7 @@ std::string to_string(const store_event::insert& x) {
   result += ", ";
   result += to_string(x.value());
   result += ", ";
-  result += caf::deep_to_string(x.expiry());
+  result += expiry_to_string(x.expiry());
   result += ", ";
   result += caf::deep_to_string(x.publisher());
   result += ')';
@@ -89,7 +100,7 @@ std::string to_string(const store_event::update& x) {
   result += ", ";
   result += to_string(x.new_value());
   result += ", ";
-  result += caf::deep_to_string(x.expiry());
+  result += expiry_to_string(x.expiry());
   result += ", ";
   result += caf::deep_to_string(x.publisher());
   result += ')';

@@ -71,7 +71,7 @@ bool inspect_impl(Inspector& f, T& obj, caf::string_view pretty_name,
 struct put_command  {
   data key;
   data value;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   BROKER_ACTION_COMMAND(put, ("key", "value", "expiry"), key, value, expiry)
 };
 
@@ -79,7 +79,7 @@ struct put_command  {
 struct put_unique_command {
   data key;
   data value;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   entity_id who;
   request_id req_id;
   BROKER_ACTION_COMMAND(put_unique, ("key", "value", "expiry", "who", "req_id"),
@@ -115,7 +115,7 @@ struct add_command {
   data key;
   data value;
   data::type init_type;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   BROKER_ACTION_COMMAND(add, ("key", "value", "init_type", "expiry"), key,
                         value, init_type, expiry)
 };
@@ -124,7 +124,7 @@ struct add_command {
 struct subtract_command {
   data key;
   data value;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   BROKER_ACTION_COMMAND(subtract, ("key", "value", "expiry"), key, value,
                         expiry)
 };

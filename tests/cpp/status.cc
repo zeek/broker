@@ -52,18 +52,18 @@ TEST(sc is convertible to and from string) {
   CHECK_EQUAL(from_string<sc>("peer_lost"), sc::peer_lost);
   CHECK_EQUAL(from_string<sc>("endpoint_discovered"), sc::endpoint_discovered);
   CHECK_EQUAL(from_string<sc>("endpoint_unreachable"), sc::endpoint_unreachable);
-  CHECK_EQUAL(from_string<sc>("foo"), nil);
+  CHECK_EQUAL(from_string<sc>("foo"), std::nullopt);
 }
 
 TEST(status is convertible to and from data) {
   CHECK_EQUAL(get_as<data>(status{}),
               vector({"status"s, enum_value{"unspecified"}, nil, nil}));
-  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({id, nil}, "text")),
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>(id, "text")),
               make_data_status(sc::peer_added, {id_str, nil, nil, nil},
                                "text"));
   CHECK_EQUAL(get_as<status>(make_data_status(sc::peer_added,
                                               {id_str, nil, nil, nil}, "text")),
-              status::make<sc::peer_added>({id, nil}, "text"));
+              status::make<sc::peer_added>(id, "text"));
   CHECK_EQUAL(get_as<data>(status::make<sc::endpoint_discovered>(id, "text")),
               make_data_status(sc::endpoint_discovered, {id_str, nil, nil, nil},
                                "text"));

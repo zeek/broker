@@ -12,7 +12,6 @@
 #include <utility>
 
 #include "broker/convert.hh"
-#include "broker/optional.hh"
 
 using namespace broker;
 
