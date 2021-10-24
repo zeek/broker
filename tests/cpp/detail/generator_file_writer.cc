@@ -9,8 +9,6 @@
 
 using namespace broker;
 
-using caf::holds_alternative;
-
 namespace {
 
 struct fixture {
@@ -39,20 +37,20 @@ CAF_TEST(data_message roundtrip with generator_file_reader) {
   // Read back from file.
   auto reader = detail::make_generator_file_reader(file_name);
   REQUIRE_NOT_EQUAL(reader, nullptr);
-  caf::variant<data_message, command_message> y_msg;
+  std::variant<data_message, command_message> y_msg;
   CHECK_EQUAL(reader->read(y_msg), caf::none);
   CHECK_EQUAL(reader->at_end(), true);
   CHECK_EQUAL(get_topic(y_msg), topic{"foo/bar"});
   REQUIRE(is_data_message(y_msg));
   data y_data = get_data(get<data_message>(y_msg));
-  REQUIRE(holds_alternative<vector>(y_data));
+  REQUIRE(is<vector>(y_data));
   auto& y = get<vector>(y_data);
   REQUIRE_EQUAL(x.size(), y.size());
-  CHECK(holds_alternative<integer>(y[0]));
-  CHECK(holds_alternative<integer>(y[1]));
-  REQUIRE(holds_alternative<std::string>(y[2]));
+  CHECK(is<integer>(y[0]));
+  CHECK(is<integer>(y[1]));
+  REQUIRE(is<std::string>(y[2]));
   CHECK_EQUAL(get<std::string>(x[2]).size(), get<std::string>(y[2]).size());
-  REQUIRE(holds_alternative<std::string>(y[3]));
+  REQUIRE(is<std::string>(y[3]));
   CHECK_EQUAL(get<std::string>(x[3]).size(), get<std::string>(y[3]).size());
   CHECK_EQUAL(reader->read(y_msg), ec::end_of_file);
 }
@@ -67,20 +65,20 @@ CAF_TEST(command_message roundtrip with generator_file_reader) {
   // Read back from file.
   auto reader = detail::make_generator_file_reader(file_name);
   REQUIRE_NOT_EQUAL(reader, nullptr);
-  caf::variant<data_message, command_message> y_msg;
+  std::variant<data_message, command_message> y_msg;
   CHECK_EQUAL(reader->read(y_msg), caf::none);
   CHECK_EQUAL(reader->at_end(), true);
   CHECK_EQUAL(get_topic(y_msg), topic{"foo/bar"});
   REQUIRE(is_data_message(y_msg));
   data y_data = get_data(get<data_message>(y_msg));
-  REQUIRE(holds_alternative<vector>(y_data));
+  REQUIRE(is<vector>(y_data));
   auto& y = get<vector>(y_data);
   REQUIRE_EQUAL(x.size(), y.size());
-  CHECK(holds_alternative<integer>(y[0]));
-  CHECK(holds_alternative<integer>(y[1]));
-  REQUIRE(holds_alternative<std::string>(y[2]));
+  CHECK(is<integer>(y[0]));
+  CHECK(is<integer>(y[1]));
+  REQUIRE(is<std::string>(y[2]));
   CHECK_EQUAL(get<std::string>(x[2]).size(), get<std::string>(y[2]).size());
-  REQUIRE(holds_alternative<std::string>(y[3]));
+  REQUIRE(is<std::string>(y[3]));
   CHECK_EQUAL(get<std::string>(x[3]).size(), get<std::string>(y[3]).size());
   CHECK_EQUAL(reader->read(y_msg), ec::end_of_file);
 }

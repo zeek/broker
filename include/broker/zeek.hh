@@ -24,7 +24,7 @@ public:
     if ( as_vector().size() < 2 )
       return Type::Invalid;
 
-    auto cp = caf::get_if<count>(&as_vector()[1]);
+    auto cp = get_if<count>(&as_vector()[1]);
 
     if ( ! cp )
       return Type::Invalid;
@@ -48,11 +48,11 @@ public:
   }
 
   const vector& as_vector() const {
-    return caf::get<vector>(data_);
+    return get<vector>(data_);
   }
 
   vector& as_vector() {
-    return caf::get<vector>(data_);
+    return get<vector>(data_);
    }
 
   operator data() const {
@@ -60,7 +60,7 @@ public:
   }
 
   static Type type(const data& msg) {
-    auto vp = caf::get_if<vector>(&msg);
+    auto vp = get_if<vector>(&msg);
 
     if ( ! vp )
       return Type::Invalid;
@@ -70,7 +70,7 @@ public:
     if ( v.size() < 2 )
       return Type::Invalid;
 
-    auto cp = caf::get_if<count>(&v[1]);
+    auto cp = get_if<count>(&v[1]);
 
     if ( ! cp )
       return Type::Invalid;
@@ -101,26 +101,26 @@ class Event : public Message {
   Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return get<std::string>(get<vector>(as_vector()[2])[0]);
   }
 
   std::string& name() {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return get<std::string>(get<vector>(as_vector()[2])[0]);
   }
 
   const vector& args() const {
-    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
+    return get<vector>(get<vector>(as_vector()[2])[1]);
   }
 
   vector& args() {
-    return caf::get<vector>(caf::get<vector>(as_vector()[2])[1]);
+    return get<vector>(get<vector>(as_vector()[2])[1]);
   }
 
   bool valid() const {
     if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
+    auto vp = get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -130,12 +130,12 @@ class Event : public Message {
     if ( v.size() < 2 )
       return false;
 
-    auto name_ptr = caf::get_if<std::string>(&v[0]);
+    auto name_ptr = get_if<std::string>(&v[0]);
 
     if ( ! name_ptr )
       return false;
 
-    auto args_ptr = caf::get_if<vector>(&v[1]);
+    auto args_ptr = get_if<vector>(&v[1]);
 
     if ( ! args_ptr )
       return false;
@@ -153,18 +153,18 @@ class Batch : public Message {
   Batch(data msg) : Message(std::move(msg)) {}
 
   const vector& batch() const {
-    return caf::get<vector>(as_vector()[2]);
+    return get<vector>(as_vector()[2]);
   }
 
   vector& batch() {
-    return caf::get<vector>(as_vector()[2]);
+    return get<vector>(as_vector()[2]);
   }
 
   bool valid() const {
     if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
+    auto vp = get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -188,42 +188,42 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return get<enum_value>(get<vector>(as_vector()[2])[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return get<enum_value>(get<vector>(as_vector()[2])[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return get<enum_value>(get<vector>(as_vector()[2])[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return get<enum_value>(get<vector>(as_vector()[2])[1]);
   }
 
   const data& writer_info() const {
-    return caf::get<vector>(as_vector()[2])[2];
+    return get<vector>(as_vector()[2])[2];
   }
 
   data& writer_info() {
-    return caf::get<vector>(as_vector()[2])[2];
+    return get<vector>(as_vector()[2])[2];
   }
 
   const data& fields_data() const {
-    return caf::get<vector>(as_vector()[2])[3];
+    return get<vector>(as_vector()[2])[3];
   }
 
   data& fields_data() {
-    return caf::get<vector>(as_vector()[2])[3];
+    return get<vector>(as_vector()[2])[3];
   }
 
   bool valid() const {
     if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
+    auto vp = get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -233,10 +233,10 @@ public:
     if ( v.size() < 4 )
       return false;
 
-    if ( ! caf::get_if<enum_value>(&v[0]) )
+    if ( ! get_if<enum_value>(&v[0]) )
       return false;
 
-    if ( ! caf::get_if<enum_value>(&v[1]) )
+    if ( ! get_if<enum_value>(&v[1]) )
       return false;
 
     return true;
@@ -258,42 +258,42 @@ public:
   }
 
   const enum_value& stream_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return get<enum_value>(get<vector>(as_vector()[2])[0]);
   }
 
   enum_value& stream_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[0]);
+    return get<enum_value>(get<vector>(as_vector()[2])[0]);
   }
 
   const enum_value& writer_id() const {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return get<enum_value>(get<vector>(as_vector()[2])[1]);
   }
 
   enum_value& writer_id() {
-    return caf::get<enum_value>(caf::get<vector>(as_vector()[2])[1]);
+    return get<enum_value>(get<vector>(as_vector()[2])[1]);
   }
 
   const data& path() const {
-    return caf::get<vector>(as_vector()[2])[2];
+    return get<vector>(as_vector()[2])[2];
   }
 
   data& path() {
-    return caf::get<vector>(as_vector()[2])[2];
+    return get<vector>(as_vector()[2])[2];
   };
 
   const data& serial_data() const {
-    return caf::get<vector>(as_vector()[2])[3];
+    return get<vector>(as_vector()[2])[3];
   }
 
   data& serial_data() {
-    return caf::get<vector>(as_vector()[2])[3];
+    return get<vector>(as_vector()[2])[3];
   }
 
   bool valid() const {
     if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
+    auto vp = get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -303,10 +303,10 @@ public:
     if ( v.size() < 4 )
       return false;
 
-    if ( ! caf::get_if<enum_value>(&v[0]) )
+    if ( ! get_if<enum_value>(&v[0]) )
       return false;
 
-    if ( ! caf::get_if<enum_value>(&v[1]) )
+    if ( ! get_if<enum_value>(&v[1]) )
       return false;
 
     return true;
@@ -324,26 +324,26 @@ public:
   }
 
   const std::string& id_name() const {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return get<std::string>(get<vector>(as_vector()[2])[0]);
   }
 
   std::string& id_name() {
-    return caf::get<std::string>(caf::get<vector>(as_vector()[2])[0]);
+    return get<std::string>(get<vector>(as_vector()[2])[0]);
   }
 
   const data& id_value() const {
-    return caf::get<vector>(as_vector()[2])[1];
+    return get<vector>(as_vector()[2])[1];
   }
 
   data& id_value() {
-    return caf::get<vector>(as_vector()[2])[1];
+    return get<vector>(as_vector()[2])[1];
   }
 
   bool valid() const {
     if ( as_vector().size() < 3 )
       return false;
 
-    auto vp = caf::get_if<vector>(&(as_vector()[2]));
+    auto vp = get_if<vector>(&(as_vector()[2]));
 
     if ( ! vp )
       return false;
@@ -353,7 +353,7 @@ public:
     if ( v.size() < 2 )
       return false;
 
-    if ( ! caf::get_if<std::string>(&v[0]) )
+    if ( ! get_if<std::string>(&v[0]) )
       return false;
 
     return true;

@@ -2,11 +2,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 #include <vector>
 
 #include <caf/cow_tuple.hpp>
 #include <caf/default_enum_inspect.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/alm/multipath.hh"
 #include "broker/data.hh"
@@ -265,7 +265,7 @@ using topic_cache_type = indexed_cache<topic>;
 using path_cache_type = indexed_cache<alm::multipath>;
 
 using content_buf_type = std::vector<
-  std::tuple<uint32_t, uint32_t, caf::variant<data, internal_command>>>;
+  std::tuple<uint32_t, uint32_t, std::variant<data, internal_command>>>;
 
 topic_cache_type& thread_local_topic_cache();
 

@@ -25,7 +25,7 @@ void init_zeek(py::module& m) {
        return broker::zeek::Event(std::move(data));
        }))
     .def(py::init([](std::string name, broker::data args) {
-       return broker::zeek::Event(std::move(name), std::move(caf::get<broker::vector>(args)));
+       return broker::zeek::Event(std::move(name), std::move(get<broker::vector>(args)));
        }))
     .def("valid", [](const broker::zeek::Event& ev) -> bool {
          auto t = broker::zeek::Message::type(ev.as_data());

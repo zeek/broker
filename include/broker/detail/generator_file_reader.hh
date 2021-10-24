@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <variant>
 
 #include <caf/binary_deserializer.hpp>
 
@@ -16,7 +17,7 @@ namespace broker::detail {
 
 class generator_file_reader {
 public:
-  using value_type = caf::variant<data_message, command_message>;
+  using value_type = std::variant<data_message, command_message>;
 
 #ifdef BROKER_WINDOWS
   using file_handle = void*;

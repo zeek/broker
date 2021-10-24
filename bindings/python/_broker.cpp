@@ -1,13 +1,13 @@
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <chrono>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <caf/deep_to_string.hpp>
-#include <caf/variant.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -243,13 +243,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return is<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return is<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return caf::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return caf::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 

@@ -27,9 +27,6 @@
 
 using caf::actor_system_config;
 using caf::expected;
-using caf::get;
-using caf::get_if;
-using caf::holds_alternative;
 using std::chrono::duration_cast;
 using std::string;
 

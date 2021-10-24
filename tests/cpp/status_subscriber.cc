@@ -72,15 +72,15 @@ CAF_TEST(base_tests) {
   push(e1);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 1u);
-  CAF_REQUIRE_EQUAL(sub1.get(), e1);
+  CAF_REQUIRE_EQUAL(sub1.get(), status_variant{e1});
   CAF_REQUIRE_EQUAL(sub2.available(), 1u);
-  CAF_REQUIRE_EQUAL(sub2.get(), e1);
+  CAF_REQUIRE_EQUAL(sub2.get(), status_variant{e1});
   CAF_MESSAGE("test status event");
   auto s1 = status::make<sc::endpoint_discovered>(node, "foobar");
   push(s1);
   run();
   CAF_REQUIRE_EQUAL(sub1.available(), 1u);
-  CAF_REQUIRE_EQUAL(sub1.get(), s1);
+  CAF_REQUIRE_EQUAL(sub1.get(), status_variant{s1});
   CAF_REQUIRE_EQUAL(sub2.available(), 0u);
   CAF_MESSAGE("shutdown");
   anon_send_exit(ep.core(), caf::exit_reason::user_shutdown);

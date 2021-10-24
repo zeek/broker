@@ -322,7 +322,7 @@ void data_generator::shuffle(timestamp& x) {
 
 void data_generator::shuffle(data& x) {
   mixer f{*this};
-  caf::visit(f, x);
+  visit(f, x);
 }
 
 void data_generator::shuffle(set& xs) {

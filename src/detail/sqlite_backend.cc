@@ -57,7 +57,7 @@ struct sqlite_backend::impl {
       BROKER_ERROR("SQLite backend options are missing required 'path' string");
       return;
     }
-    if (auto path = caf::get_if<std::string>(&i->second)) {
+    if (auto path = get_if<std::string>(&i->second)) {
       if (!open(*path))
         BROKER_ERROR("unable to open SQLite Database " << *path);
     } else {
@@ -281,7 +281,7 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
   } else {
     vv = std::move(*v);
   }
-  auto result = caf::visit(adder{value}, vv);
+  auto result = visit(adder{value}, vv);
   if (!result)
     return result;
   return put(key, std::move(vv), expiry);
@@ -292,7 +292,7 @@ expected<void> sqlite_backend::subtract(const data& key, const data& value,
   auto v = get(key);
   if (!v)
     return v.error();
-  auto result = caf::visit(remover{value}, *v);
+  auto result = visit(remover{value}, *v);
   if (!result)
     return result;
   if (!impl_->modify(key, *v, expiry))

@@ -155,17 +155,17 @@ void send_batch(endpoint& ep, publisher& p) {
 void receivedStats(endpoint& ep, data x) {
   // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
   // We are only interested in the '[1ns, 1ns, 0]' part.
-  auto xvec = caf::get<vector>(x);
-  auto yvec = caf::get<vector>(xvec[2]);
-  auto rec = caf::get<vector>(yvec[1]);
+  auto xvec = get<vector>(x);
+  auto yvec = get<vector>(xvec[2]);
+  auto rec = get<vector>(yvec[1]);
 
   double t;
-  convert(caf::get<timestamp>(rec[0]), t);
+  convert(get<timestamp>(rec[0]), t);
 
   double dt_recv;
-  convert(caf::get<timespan>(rec[1]), dt_recv);
+  convert(get<timespan>(rec[1]), dt_recv);
 
-  auto ev1 = caf::get<count>(rec[2]);
+  auto ev1 = get<count>(rec[2]);
   auto all_recv = ev1;
   total_recv += ev1;
 

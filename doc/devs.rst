@@ -722,7 +722,7 @@ The essential interface for ``internal_command`` is defined as follows:
   public:
     // ...
     using variant_type
-      = caf::variant<put_command, put_unique_command, put_unique_result_command,
+      = std::variant<put_command, put_unique_command, put_unique_result_command,
                      erase_command, expire_command, add_command, subtract_command,
                      clear_command, attach_clone_command, attach_writer_command,
                      keepalive_command, cumulative_ack_command, nack_command,

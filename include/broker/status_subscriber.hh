@@ -1,9 +1,9 @@
 #pragma once
 
+#include <variant>
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/bad_variant_access.hh"
 #include "broker/defaults.hh"
@@ -14,7 +14,7 @@
 
 namespace broker {
 
-using status_variant = caf::variant<none, error, status>;
+using status_variant = std::variant<none, error, status>;
 
 /// Provides blocking access to a stream of endpoint events.
 class status_subscriber {
@@ -51,7 +51,7 @@ public:
     do {
       if (auto maybe_msg = impl_.get(relative_timeout))
         result = convert(*maybe_msg);
-    } while (caf::holds_alternative<none>(result)
+    } while (std::holds_alternative<none>(result)
              && caf::is_infinite(relative_timeout));
     return result;
   }
@@ -124,30 +124,40 @@ private:
 // --- compatibility/wrapper functionality (may be removed later) --------------
 
 template <class T>
-inline bool is(const status_variant& v) {
-  return caf::holds_alternative<T>(v);
+bool is(const status_variant& v) {
+  return std::holds_alternative<T>(v);
 }
 
 template <class T>
-inline T* get_if(status_variant& d) {
-  return caf::get_if<T>(&d);
+T* get_if(status_variant& d) {
+  return std::get_if<T>(&d);
 }
 
 template <class T>
-inline const T* get_if(const status_variant& d) {
-  return caf::get_if<T>(&d);
+const T* get_if(const status_variant& d) {
+  return std::get_if<T>(&d);
 }
 
 template <class T>
-inline T& get(status_variant& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+T* get_if(status_variant* d) {
+  return std::get_if<T>(d);
+}
+
+template <class T>
+const T* get_if(const status_variant* d) {
+  return std::get_if<T>(d);
+}
+
+template <class T>
+T& get(status_variant& d) {
+  if ( auto rval = std::get_if<T>(&d) )
     return *rval;
   throw bad_variant_access{};
 }
 
 template <class T>
-inline const T& get(const status_variant& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+const T& get(const status_variant& d) {
+  if ( auto rval = std::get_if<T>(&d) )
     return *rval;
   throw bad_variant_access{};
 }

@@ -8,8 +8,6 @@ namespace broker::detail {
 
 namespace {
 
-using caf::visit;
-
 class helper {
 public:
   explicit helper(caf::binary_serializer& f) : f_(f) {

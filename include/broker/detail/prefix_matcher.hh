@@ -5,7 +5,6 @@
 
 #include <caf/cow_tuple.hpp>
 #include <caf/message.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/topic.hh"
 

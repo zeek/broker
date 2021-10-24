@@ -73,7 +73,8 @@ caf::error generator_file_writer::write(const data_message& x) {
              write_value(sink_, tid), writer(get_data(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
-  return caf::none;
+  else
+    return caf::none;
 }
 
 caf::error generator_file_writer::write(const command_message& x) {
@@ -84,13 +85,15 @@ caf::error generator_file_writer::write(const command_message& x) {
              write_value(sink_, tid), writer(get_command(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
-  return caf::none;
+  else
+    return caf::none;
 }
 
 caf::error generator_file_writer::write(const data_or_command_message& x) {
-  if (caf::holds_alternative<data_message>(x))
+  if (is<data_message>(x))
     return write(caf::get<data_message>(x));
-  return write(caf::get<command_message>(x));
+  else
+    return write(caf::get<command_message>(x));
 }
 
 caf::error generator_file_writer::topic_id(const topic& x, uint16_t& id) {

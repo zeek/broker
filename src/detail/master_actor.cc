@@ -165,7 +165,7 @@ void master_state::expire(data& key) {
 
 void master_state::consume(consumer_type*, command_message& msg) {
   auto f = [this](auto& cmd) { consume(cmd); };
-  caf::visit(f, get<1>(msg.unshared()).content);
+  std::visit(f, get<1>(msg.unshared()).content);
 }
 
 void master_state::consume(put_command& x) {
@@ -457,7 +457,7 @@ caf::behavior master_state::make_behavior() {
           }
         }
         auto f = [this](auto& cmd) { consume(cmd); };
-        caf::visit(f, cmd.content);
+        std::visit(f, cmd.content);
       } else {
         BROKER_ERROR("received unexpected command locally: " << cmd);
       }

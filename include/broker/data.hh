@@ -2,17 +2,18 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <caf/config.hpp>
 #include <caf/default_sum_type_access.hpp>
 #include <caf/fwd.hpp>
 #include <caf/sum_type_access.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/address.hh"
 #include "broker/bad_variant_access.hh"
@@ -48,7 +49,7 @@ using table = std::map<data, data>;
 /// @relates table
 bool convert(const table& t, std::string& str);
 
-using data_variant = caf::variant<
+using data_variant = std::variant<
   none,
   boolean,
   count,
@@ -70,8 +71,6 @@ using data_variant = caf::variant<
 /// different primitive or compound types.
 class data {
 public:
-  using types = typename data_variant::types;
-
   // Warning: *must* have the same order as `data_variant`, because the integer
   // value for this tag must be equal to `get_data().index()`.
   enum class type : uint8_t {
@@ -277,41 +276,55 @@ inline bool operator!=(const data& x, const data& y) {
   return x.get_data() != y.get_data();
 }
 
-// --- compatibility/wrapper functionality (may be removed later) --------------
+// -- free function interface for broker::data ---------------------------------
 
 template <class T>
-inline bool is(const data& v) {
-  return caf::holds_alternative<T>(v);
+bool is(const data& x) {
+  return std::holds_alternative<T>(x.get_data());
 }
 
 template <class T>
-inline T* get_if(data& d) {
-  return caf::get_if<T>(&d);
+T* get_if(data& x) {
+  return std::get_if<T>(&x.get_data());
 }
 
 template <class T>
-inline const T* get_if(const data& d) {
-  return caf::get_if<T>(&d);
+const T* get_if(const data& x) {
+  return std::get_if<T>(&x.get_data());
 }
 
 template <class T>
-inline T& get(data& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+T* get_if(data* x) {
+  return std::get_if<T>(std::addressof(x->get_data()));
+}
+
+template <class T>
+const T* get_if(const data* x) {
+  return std::get_if<T>(std::addressof(x->get_data()));
+}
+
+template <class T>
+T& get(data& x) {
+  if (auto rval = std::get_if<T>(&x.get_data()))
     return *rval;
   throw bad_variant_access{};
 }
 
 template <class T>
-inline const T& get(const data& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+const T& get(const data& x) {
+  if (auto rval = std::get_if<T>(&x.get_data()))
     return *rval;
   throw bad_variant_access{};
 }
 
 template <class Visitor>
-typename detail::remove_reference_t<Visitor>::result_type
-inline visit(Visitor&& visitor, data d) {
-  return caf::visit(std::forward<Visitor>(visitor), std::move(d));
+auto visit(Visitor&& visitor, data& x) {
+  return std::visit(std::forward<Visitor>(visitor), x.get_data());
+}
+
+template <class Visitor>
+auto visit(Visitor&& visitor, const data& x) {
+  return std::visit(std::forward<Visitor>(visitor), x.get_data());
 }
 
 // --- convenience functions ---------------------------------------------------
@@ -366,15 +379,6 @@ size_t fnv_hash(const broker::table::value_type& x);
 size_t fnv_hash(const broker::table& x);
 
 } // namespace broker::detail
-
-// --- treat data as sum type (equivalent to variant) --------------------------
-
-namespace caf {
-
-template <>
-struct sum_type_access<broker::data> : default_sum_type_access<broker::data> {};
-
-} // namespace caf
 
 // --- implementations of std::hash --------------------------------------------
 

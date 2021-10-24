@@ -6,12 +6,12 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include <caf/binary_serializer.hpp>
 #include <caf/byte.hpp>
 #include <caf/fwd.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/fwd.hh"
 
@@ -36,7 +36,7 @@ public:
     static std::array<caf::byte, header_size> header();
   };
 
-  using data_or_command_message = caf::variant<data_message, command_message>;
+  using data_or_command_message = std::variant<data_message, command_message>;
 
   generator_file_writer();
 

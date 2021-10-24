@@ -15,31 +15,27 @@ constexpr const char* data_type_names[] = {
   "timespan", "enum_value", "set",    "table",   "vector",
 };
 
-constexpr int ival_of(broker::data::type x) {
-  return static_cast<int>(x);
-}
-
-template <class T>
-constexpr int pos_of() {
-  return caf::detail::tl_index_of<data::types, T>::value;
-}
+template <broker::data::type Type>
+using data_variant_at_t
+  = std::variant_alternative_t<static_cast<size_t>(Type), data_variant>;
 
 // Make sure the static_cast in data::get_type is safe.
-static_assert(ival_of(data::type::none) == pos_of<none>());
-static_assert(ival_of(data::type::boolean) == pos_of<boolean>());
-static_assert(ival_of(data::type::count) == pos_of<count>());
-static_assert(ival_of(data::type::integer) == pos_of<integer>());
-static_assert(ival_of(data::type::real) == pos_of<real>());
-static_assert(ival_of(data::type::string) == pos_of<std::string>());
-static_assert(ival_of(data::type::address) == pos_of<address>());
-static_assert(ival_of(data::type::subnet) == pos_of<subnet>());
-static_assert(ival_of(data::type::port) == pos_of<port>());
-static_assert(ival_of(data::type::timestamp) == pos_of<timestamp>());
-static_assert(ival_of(data::type::timespan) == pos_of<timespan>());
-static_assert(ival_of(data::type::enum_value) == pos_of<enum_value>());
-static_assert(ival_of(data::type::set) == pos_of<set>());
-static_assert(ival_of(data::type::table) == pos_of<table>());
-static_assert(ival_of(data::type::vector) == pos_of<vector>());
+using std::is_same_v;
+static_assert(is_same_v<none, data_variant_at_t<data::type::none>>);
+static_assert(is_same_v<boolean, data_variant_at_t<data::type::boolean>>);
+static_assert(is_same_v<count, data_variant_at_t<data::type::count>>);
+static_assert(is_same_v<integer, data_variant_at_t<data::type::integer>>);
+static_assert(is_same_v<real, data_variant_at_t<data::type::real>>);
+static_assert(is_same_v<std::string, data_variant_at_t<data::type::string>>);
+static_assert(is_same_v<address, data_variant_at_t<data::type::address>>);
+static_assert(is_same_v<subnet, data_variant_at_t<data::type::subnet>>);
+static_assert(is_same_v<port, data_variant_at_t<data::type::port>>);
+static_assert(is_same_v<timestamp, data_variant_at_t<data::type::timestamp>>);
+static_assert(is_same_v<timespan, data_variant_at_t<data::type::timespan>>);
+static_assert(is_same_v<enum_value, data_variant_at_t<data::type::enum_value>>);
+static_assert(is_same_v<set, data_variant_at_t<data::type::set>>);
+static_assert(is_same_v<table, data_variant_at_t<data::type::table>>);
+static_assert(is_same_v<vector, data_variant_at_t<data::type::vector>>);
 
 } // namespace
 
@@ -164,7 +160,7 @@ bool convert(const table& t, std::string& str) {
 }
 
 bool convert(const data& d, std::string& str) {
-  caf::visit(data_converter{str}, d);
+  visit(data_converter{str}, d);
   return true;
 }
 

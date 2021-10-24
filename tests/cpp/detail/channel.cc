@@ -234,7 +234,7 @@ caf::behavior producer_actor(caf::event_based_actor* self,
   return {
     [state](std::string& src, channel_type::consumer_message& msg) {
       producer_visitor f{state, src};
-      caf::visit(f, msg);
+      std::visit(f, msg);
     },
   };
 }
@@ -277,7 +277,7 @@ caf::behavior consumer_actor(caf::stateful_actor<consumer_state>* self,
     [self](channel_type::producer_message& msg) {
       auto& st = self->state;
       consumer_visitor f{&st.consumer};
-      caf::visit(f, msg);
+      std::visit(f, msg);
       if (st.backend.closed)
         self->quit();
     },

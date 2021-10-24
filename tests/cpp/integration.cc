@@ -16,6 +16,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <caf/actor_system.hpp>
@@ -32,7 +33,6 @@
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/core_actor.hh"
@@ -422,19 +422,18 @@ struct code {
   }
 
   code(const event_value& x) {
-    if (caf::holds_alternative<error>(x))
+    if (is<error>(x))
       value = static_cast<ec>(caf::get<error>(x).code());
     else
       value = caf::get<status>(x).code();
   }
 
-  caf::variant<sc, ec> value;
+  std::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return caf::holds_alternative<sc>(x.value)
-         ? to_string(caf::get<sc>(x.value))
-         : to_string(caf::get<ec>(x.value));
+  return is<sc>(x.value) ? to_string(caf::get<sc>(x.value))
+                         : to_string(caf::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {
@@ -459,7 +458,7 @@ std::vector<code> event_log(const std::vector<event_value>& xs,
   std::vector<code> ys;
   ys.reserve(xs.size());
   for (auto& x : xs)
-    if (caf::visit(predicate, x))
+    if (std::visit(predicate, x))
       ys.emplace_back(x);
   if (make_unique)
     ys.erase(std::unique(ys.begin(), ys.end()), ys.end());

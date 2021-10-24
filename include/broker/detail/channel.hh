@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <deque>
+#include <variant>
 
 #include <caf/actor.hpp>
 #include <caf/send.hpp>
@@ -120,7 +121,7 @@ public:
 
   /// Messages sent by the producer.
   using producer_message
-    = caf::variant<handshake, event, retransmit_failed, heartbeat>;
+    = std::variant<handshake, event, retransmit_failed, heartbeat>;
 
   struct default_producer_base {};
 
@@ -411,7 +412,7 @@ public:
   // -- implementation of the consumer -----------------------------------------
 
   /// Messages sent by the consumer.
-  using consumer_message = caf::variant<cumulative_ack, nack>;
+  using consumer_message = std::variant<cumulative_ack, nack>;
 
   /// Handles events (messages) from a single producer.
   /// @tparam Backend Hides the underlying (unreliable) communication layer. The

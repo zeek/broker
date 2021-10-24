@@ -1,7 +1,6 @@
 #include "broker/detail/meta_command_writer.hh"
 
 #include <caf/binary_serializer.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/error.hh"
 #include "broker/internal_command.hh"
@@ -15,7 +14,7 @@ meta_command_writer::meta_command_writer(caf::binary_serializer& sink)
 }
 
 caf::error meta_command_writer::operator()(const internal_command& x) {
-  return caf::visit(*this, x.content);
+  return std::visit(*this, x.content);
 }
 
 caf::error meta_command_writer::operator()(const none& x) {

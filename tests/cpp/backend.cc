@@ -44,7 +44,7 @@ class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(backend::memory, opts));
-    auto& path = caf::get<std::string>(opts["path"]);
+    auto& path = broker::get<std::string>(opts["path"]);
     // Make sure both backends have their own filesystem storage to work with.
     path += ".sqlite";
     paths_.push_back(path);

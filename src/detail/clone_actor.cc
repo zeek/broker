@@ -168,7 +168,7 @@ void clone_state::tick() {
 
 void clone_state::consume(consumer_type*, command_message& msg) {
   auto f = [this](auto& cmd) { consume(cmd); };
-  caf::visit(f, get<1>(msg.unshared()).content);
+  std::visit(f, get<1>(msg.unshared()).content);
 }
 
 void clone_state::consume(put_command& x) {
@@ -515,7 +515,7 @@ caf::behavior clone_state::make_behavior() {
       get_impl(rp, [this, rp, key{move(key)}, aspect{move(aspect)}]() mutable {
         if (auto i = store.find(key); i != store.end()) {
           BROKER_INFO("GET" << key << aspect << "->" << i->second);
-          rp.deliver(caf::visit(retriever{aspect}, i->second));
+          rp.deliver(visit(retriever{aspect}, i->second));
         } else {
           BROKER_INFO("GET" << key << "-> no_such_key");
           rp.deliver(caf::make_error(ec::no_such_key));
@@ -545,7 +545,7 @@ caf::behavior clone_state::make_behavior() {
         rp,
         [this, rp, key{move(key)}, asp{move(aspect)}, id]() mutable {
           if (auto i = store.find(key); i != store.end()) {
-            auto x = caf::visit(retriever{asp}, i->second);
+            auto x = visit(retriever{asp}, i->second);
             BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
             if (x)
               rp.deliver(std::move(*x), id);

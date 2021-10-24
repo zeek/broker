@@ -226,8 +226,7 @@ bool is_ping_msg(const broker::data& x) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
-      return str && *str == "ping" && caf::holds_alternative<count>(xs[1])
-             && caf::holds_alternative<string>(xs[2]);
+      return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
     }
   }
   return false;
@@ -238,7 +237,7 @@ bool is_pong_msg(const broker::data& x) {
     if (vec->size() == 2) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
-      return str && *str == "pong" && caf::holds_alternative<count>(xs[1]);
+      return str && *str == "pong" && is<count>(xs[1]);
     }
   }
   return false;

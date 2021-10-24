@@ -8,7 +8,6 @@
 #include <caf/error.hpp>
 #include <caf/fwd.hpp>
 #include <caf/none.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/data.hh"
 #include "broker/entity_id.hh"
