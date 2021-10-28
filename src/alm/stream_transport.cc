@@ -416,10 +416,24 @@ caf::behavior stream_transport::make_behavior() {
   central_merge_->add(command_inputs_ //
                         ->as_observable()
                         .transform(pack_and_dispatch_step<command_message>{this}));
-  // Consume routing updates for this peer from the central merge node.
+  // Consume routing updates for this peer from the central merge node and add
+  // instrumentation.
+  auto fam = self()->system().metrics().counter_family(
+    "broker", "processed-elements", {"type"},
+    "Number of processed stream elements.");
+  using counter_ptr = caf::telemetry::int_counter*;
+  // Indexes in this array are values of packed_message_type that start at 1.
+  std::array<counter_ptr, 5> counters{{
+    nullptr,
+    fam->get_or_add({{"type", "data"}}),
+    fam->get_or_add({{"type", "command"}}),
+    fam->get_or_add({{"type", "routing-update"}}),
+    fam->get_or_add({{"type", "path-revocation"}}),
+  }};
   central_merge_ //
     ->as_observable()
-    .for_each([this](const node_message& msg) {
+    .for_each([this, counters](const node_message& msg) {
+      counters[static_cast<size_t>(get_type(msg))]->inc();
       if (get_path(msg).head().id() != id()
           || !get_path(msg).head().is_receiver())
         return;
