@@ -10,18 +10,29 @@
 #include <utility>
 #include <vector>
 
+#include <caf/async/bounded_buffer.hpp>
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 
+#include "broker/alm/lamport_timestamp.hh"
+#include "broker/config.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
+#include "broker/detail/connector.hh"
 #include "broker/endpoint.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/topic.hh"
 #include "broker/zeek.hh"
+
+#ifndef BROKER_WINDOWS
+#  include <sys/types.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#  include <fcntl.h>
+#endif // BROKER_WINDOWS
 
 using namespace broker;
 
@@ -216,6 +227,8 @@ struct source_state {
   static inline const char* name = "broker.benchmark.source";
 };
 
+void client_loop(endpoint& ep, status_subscriber& ss, bool verbose_output);
+
 void client_mode(endpoint& ep, const std::string& host, int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
@@ -245,6 +258,10 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
   if (verbose)
     std::cout << "*** endpoint is now peering to remote" << std::endl;
+  client_loop(ep, ss, verbose);
+}
+
+void client_loop(endpoint& ep, status_subscriber& ss, bool verbose_output) {
   if (batch_rate == 0) {
     auto pub = ep.make_publisher("benchmark/events");
     auto producer = std::thread{[pub{std::move(pub)}]() mutable {
@@ -256,7 +273,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     for (;;) {
       // Print status events.
       auto ev = ss.get();
-      if (verbose)
+      if (verbose_output)
         std::cout << caf::deep_to_string(ev) << std::endl;
     }
   }
@@ -290,11 +307,14 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     }
     // Print status events.
     auto status_events = ss.poll();
-    if (verbose)
+    if (verbose_output)
       for (auto& ev : status_events)
         std::cout << caf::deep_to_string(ev) << std::endl;
   }
 }
+
+void server_loop(endpoint& ep, status_subscriber& ss,
+                 std::atomic<bool>& terminate, bool verbose_output);
 
 // This mode mimics what benchmark.bro does.
 void server_mode(endpoint& ep, const std::string& iface, int port) {
@@ -348,6 +368,11 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
   } else if (verbose) {
     std::cout << "*** listening on " << actual_port << '\n';
   }
+  server_loop(ep, ss, terminate, verbose);
+}
+
+void server_loop(endpoint& ep, status_subscriber& ss,
+                 std::atomic<bool>& terminate, bool verbose_output) {
   // Collects stats once per second until receiving stop message.
   using std::chrono::duration_cast;
   timestamp timeout = std::chrono::system_clock::now();
@@ -359,19 +384,222 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     // Generate and publish zeek event.
     timestamp now = std::chrono::system_clock::now();
     auto stats = vector{now, now - last_time, count{reset_num_events()}};
-    if (verbose)
+    if (verbose_output)
       std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
     zeek::Event ev("stats_update", vector{std::move(stats)});
     ep.publish("benchmark/stats", std::move(ev));
     // Advance time and print status events.
     last_time = now;
     auto status_events = ss.poll();
-    if (verbose)
+    if (verbose_output)
       for (auto& ev : status_events)
         std::cout << caf::deep_to_string(ev) << std::endl;
   }
   std::cout << "received stop message on benchmark/terminate" << std::endl;
 }
+
+struct peer_setup {
+  endpoint_id peer;
+  network_info addr;
+  filter_type filter;
+};
+
+// Server running with the client in the same process, communicating directly
+// over bounded buffers rather than communicating over a network.
+void bridged_server_mode(endpoint& ep, detail::node_consumer_res con,
+                         detail::node_producer_res prod,
+                         std::promise<peer_setup>& prom,
+                         std::future<peer_setup>& fut) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // Subscribe to benchmark/events.
+  ep.subscribe(
+    // Filter.
+    {"benchmark/events"},
+    // Init.
+    [](caf::unit_t&) {
+      // nop
+    },
+    // OnNext.
+    [](caf::unit_t&, data_message x) {
+      auto msg = move_data(x);
+      // Count number of events (counts each element in a batch as one event).
+      if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
+        ++num_events;
+      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
+        zeek::Batch batch(std::move(msg));
+        num_events += batch.batch().size();
+      } else {
+        std::cerr << "unexpected message type" << std::endl;
+        exit(1);
+      }
+    },
+    // Cleanup.
+    [](caf::unit_t&, const caf::error&) {
+      // nop
+    });
+  // "Handshake" with the client.
+  prom.set_value(
+    peer_setup{ep.node_id(), network_info{"flow:client", 1234}, ep.filter()});
+  auto cl = fut.get();
+  caf::anon_send(ep.core(), atom::peer_v, std::move(cl.peer),
+                 std::move(cl.addr), alm::lamport_timestamp{},
+                 std::move(cl.filter), std::move(con), std::move(prod));
+  // Run loop.
+  std::atomic<bool> terminate{false};
+  server_loop(ep, ss, terminate, true);
+}
+
+// Client running with the server in the same process, communicating directly
+// over bounded buffers rather than communicating over a network.
+void bridged_client_mode(endpoint& ep, detail::node_consumer_res con,
+                         detail::node_producer_res prod,
+                         std::promise<peer_setup>& prom,
+                         std::future<peer_setup>& fut) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // "Handshake" with the server.
+  prom.set_value(
+    peer_setup{ep.node_id(), network_info{"flow:server", 4321}, ep.filter()});
+  auto sv = fut.get();
+  caf::anon_send(ep.core(), atom::peer_v, std::move(sv.peer),
+                 std::move(sv.addr), alm::lamport_timestamp{},
+                 std::move(sv.filter), std::move(con), std::move(prod));
+  // Run loop.
+  client_loop(ep, ss, false);
+}
+
+// Runs server and client in this process (but on separate threads) and connects
+// them directly with bounded buffer queues.
+void single_process_mode(configuration& cfg) {
+  using caf::async::make_bounded_buffer_resource;
+  auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
+  auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+  std::promise<peer_setup> prom1;
+  auto fut1 = prom1.get_future();
+  std::promise<peer_setup> prom2;
+  auto fut2 = prom2.get_future();
+  auto server_fn = [&cfg, &prom1, &fut2, con1{con1}, prod2{prod2}]() mutable {
+    endpoint ep{std::move(cfg)};
+    bridged_server_mode(ep, std::move(con1), std::move(prod2), prom1, fut2);
+  };
+  auto server = std::thread{server_fn};
+  auto client_fn = [&prom2, &fut1, con2{con2}, prod1{prod1}]() mutable {
+    endpoint ep;
+    bridged_client_mode(ep, std::move(con2), std::move(prod1), prom2, fut1);
+  };
+  auto client = std::thread{client_fn};
+  server.join();
+  client.join();
+}
+
+#ifndef BROKER_WINDOWS
+
+// Server running with the client in the same process, communicating over a
+// connected socket pair (UNIX stream sockets).
+void socketpair_server_mode(endpoint& ep, detail::native_socket fd,
+                            std::promise<peer_setup>& prom,
+                            std::future<peer_setup>& fut) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // Subscribe to benchmark/events.
+  ep.subscribe(
+    // Filter.
+    {"benchmark/events"},
+    // Init.
+    [](caf::unit_t&) {
+      // nop
+    },
+    // OnNext.
+    [](caf::unit_t&, data_message x) {
+      auto msg = move_data(x);
+      // Count number of events (counts each element in a batch as one event).
+      if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
+        ++num_events;
+      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
+        zeek::Batch batch(std::move(msg));
+        num_events += batch.batch().size();
+      } else {
+        std::cerr << "unexpected message type" << std::endl;
+        exit(1);
+      }
+    },
+    // Cleanup.
+    [](caf::unit_t&, const caf::error&) {
+      // nop
+    });
+  // "Handshake" with the client.
+  prom.set_value(
+    peer_setup{ep.node_id(), network_info{"flow:client", 1234}, ep.filter()});
+  auto cl = fut.get();
+  caf::anon_send(ep.core(), detail::invalid_connector_event_id,
+                 caf::make_message(std::move(cl.peer), std::move(cl.addr),
+                                   alm::lamport_timestamp{},
+                                   std::move(cl.filter), fd));
+  // Run loop.
+  std::atomic<bool> terminate{false};
+  server_loop(ep, ss, terminate, true);
+}
+
+// Client running with the server in the same process, communicating over a
+// connected socket pair (UNIX stream sockets).
+void socketpair_client_mode(endpoint& ep, detail::native_socket fd,
+                            std::promise<peer_setup>& prom,
+                            std::future<peer_setup>& fut) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // "Handshake" with the server.
+  prom.set_value(
+    peer_setup{ep.node_id(), network_info{"flow:server", 4321}, ep.filter()});
+  auto sv = fut.get();
+  caf::anon_send(ep.core(), detail::invalid_connector_event_id,
+                 caf::make_message(std::move(sv.peer), std::move(sv.addr),
+                                   alm::lamport_timestamp{},
+                                   std::move(sv.filter), fd));
+  // Run loop.
+  client_loop(ep, ss, false);
+}
+
+//
+void single_process_with_sockets_mode(configuration& cfg) {
+  int sockets[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
+    std::cerr << "socketpair syscall failed\n";
+    abort();
+  }
+  auto make_nonblocking = [](detail::native_socket fd) {
+    auto rf = fcntl(fd, F_GETFL, 0);
+    if (rf == -1) {
+      std::cerr << "fcntl failed\n";
+      abort();
+    }
+    auto wf = rf | O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, wf) == -1) {
+      std::cerr << "fcntl failed\n";
+      abort();
+    }
+  };
+  make_nonblocking(sockets[0]);
+  make_nonblocking(sockets[1]);
+  std::promise<peer_setup> prom1;
+  auto fut1 = prom1.get_future();
+  std::promise<peer_setup> prom2;
+  auto fut2 = prom2.get_future();
+  auto server_fn = [&cfg, &prom1, &fut2, fd{sockets[0]}]() mutable {
+    endpoint ep{std::move(cfg)};
+    socketpair_server_mode(ep, fd, prom1, fut2);
+  };
+  auto server = std::thread{server_fn};
+  auto client_fn = [&prom2, &fut1, fd{sockets[1]}]() mutable {
+    endpoint ep;
+    socketpair_client_mode(ep, fd, prom2, fut1);
+  };
+  auto client = std::thread{client_fn};
+  server.join();
+  client.join();
+}
+
+#endif // BROKER_WINDOWS
 
 struct config : configuration {
   using super = configuration;
@@ -421,12 +649,22 @@ int main(int argc, char** argv) {
   if (cfg.cli_helptext_printed)
     return EXIT_SUCCESS;
   if (cfg.remainder.size() != 1) {
-    std::cerr << "*** too many arguments\n\n";
+    std::cerr << "*** expected exactly one argument\n\n";
     usage(cfg, argv[0]);
     return EXIT_FAILURE;
   }
   // Local variables configurable via CLI.
   auto arg = cfg.remainder[0];
+  if (arg == "single-process") {
+    single_process_mode(cfg);
+    return EXIT_SUCCESS;
+  }
+#ifndef BROKER_WINDOWS
+  if (arg == "single-process-socketpair") {
+    single_process_with_sockets_mode(cfg);
+    return EXIT_SUCCESS;
+  }
+#endif // BROKER_WINDOWS
   auto separator = arg.find(':');
   if (separator == std::string::npos) {
     std::cerr << "*** invalid argument\n\n";

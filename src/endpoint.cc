@@ -719,7 +719,7 @@ expected<store> endpoint::attach_clone(std::string name,
                << BROKER_ARG(mutation_buffer_interval));
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{core()->home_system()};
+  caf::scoped_actor self{system_};
   self
     ->request(core(), caf::infinite, atom::store_v, atom::clone_v,
               atom::attach_v, name, resync_interval, stale_interval,
@@ -735,7 +735,7 @@ expected<store> endpoint::attach_clone(std::string name,
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   bool result = false;
-  caf::scoped_actor self{core()->home_system()};
+  caf::scoped_actor self{system_};
   self->request(core(), timeout, atom::await_v, whom)
     .receive(
       [&]([[maybe_unused]] endpoint_id& discovered) {
@@ -766,6 +766,21 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
         [&](caf::error& e) { cb(false); });
   };
   core()->home_system().spawn(f, core(), timeout);
+}
+
+filter_type endpoint::filter() const {
+  filter_type result;
+  caf::scoped_actor self{system_};
+  self->request(core(), caf::infinite, atom::get_filter_v)
+    .receive(
+      [&](filter_type& res) {
+        using std::swap;
+        swap(res, result);
+      },
+      [](caf::error&) {
+        // nop
+      });
+  return result;
 }
 
 } // namespace broker

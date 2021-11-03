@@ -361,10 +361,10 @@ caf::behavior peer::make_behavior() {
     lift<atom::subscribe>(*this, &peer::subscribe),
     lift<atom::subscribe>(*this, &peer::handle_filter_update),
     lift<atom::revoke>(*this, &peer::handle_path_revocation),
-    [=](atom::get, atom::id) { //
+    [this](atom::get, atom::id) { //
       return id_;
     },
-    [=](atom::get, atom::peer, atom::subscriptions) {
+    [this](atom::get, atom::peer, atom::subscriptions) {
       // For backwards-compatibility, we only report the filter of our
       // direct peers. Returning all filter would make more sense in an
       // ALM setting, but that would change the semantics of
@@ -377,21 +377,24 @@ caf::behavior peer::make_behavior() {
           filter_extend(result, filter);
       return result;
     },
-    [=](atom::shutdown, shutdown_options opts) { //
+    [this](atom::shutdown, shutdown_options opts) { //
       shutdown(opts);
     },
-    [=](atom::publish, atom::local, command_message& msg) { //
+    [this](atom::publish, atom::local, command_message& msg) { //
       dispatch(msg);
     },
-    [=](atom::publish, atom::local, data_message& msg) { //
+    [this](atom::publish, atom::local, data_message& msg) { //
       dispatch(msg);
     },
-    [=](atom::await, endpoint_id who) {
+    [this](atom::await, endpoint_id who) {
       auto rp = self_->make_response_promise();
       if (auto i = peer_filters_.find(who); i != peer_filters_.end())
         rp.deliver(who);
       else
         awaited_peers_.emplace(who, std::move(rp));
+    },
+    [this](atom::get_filter) { //
+      return filter_->read();
     },
   };
 }

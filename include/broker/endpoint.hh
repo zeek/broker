@@ -446,6 +446,9 @@ public:
     return config_;
   }
 
+  /// Retrieves the current filter.
+  filter_type filter() const;
+
 protected:
   caf::actor subscriber_;
 
