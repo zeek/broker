@@ -165,16 +165,16 @@ ubuntu18_task:
 
 # Apple doesn't publish official long-term support timelines.
 # We aim to support both the current and previous macOS release.
-macos_big_sur_task:
+macos_monterey_task:
   macos_instance:
-    image: big-sur-base
+    image: monterey-base
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
 
-macos_catalina_task:
+macos_big_sur_task:
   macos_instance:
-    image: catalina-base
+    image: big-sur-base
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
