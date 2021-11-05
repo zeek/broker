@@ -1,0 +1,9 @@
+version: 2
+
+formats:
+  - htmlzip
+
+python:
+  version: 3
+  install:
+    - requirements: doc/requirements.txt
