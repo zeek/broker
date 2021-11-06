@@ -44,14 +44,8 @@ master_state::master_state(
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);
   if (auto es = backend->expiries()) {
-    for (auto& e : *es) {
-      auto& key = e.first;
-      auto& expire_time = e.second;
-      auto n = clock->now();
-      auto dur = expire_time - n;
-      auto msg = caf::make_message(atom::expire_v, std::move(key));
-      clock->send_later(self, dur, std::move(msg));
-    }
+    for (auto& [key, expire_time] : *es)
+      expirations.emplace(key, expire_time);
   } else {
     die("failed to get master expiries while initializing");
   }
@@ -141,24 +135,34 @@ void master_state::tick() {
   output.tick();
   for (auto& kvp : inputs)
     kvp.second.tick();
-}
-
-void master_state::remind(timespan expiry, const data& key) {
-  auto msg = caf::make_message(atom::expire_v, key);
-  clock->send_later(self, expiry, std::move(msg));
-}
-
-void master_state::expire(data& key) {
-  BROKER_INFO("EXPIRE" << key);
-  if (auto result = backend->expire(key, clock->now()); !result) {
-    BROKER_ERROR("EXPIRE" << key << "(FAILED)" << to_string(result.error()));
-  } else if (!*result) {
-    BROKER_INFO("EXPIRE" << key << "(IGNORE/STALE)");
-  } else {
-    expire_command cmd{std::move(key), id};
-    emit_expire_event(cmd);
-    broadcast(std::move(cmd));
+  auto t = clock->now();
+  for (auto i = expirations.begin(); i != expirations.end();) {
+    if (t > i->second) {
+      auto& key = i->first;
+      BROKER_INFO("EXPIRE" << key);
+      if (auto result = backend->expire(key, t); !result) {
+        BROKER_ERROR("EXPIRE" << key << "(FAILED)"
+                              << to_string(result.error()));
+      } else if (!*result) {
+        BROKER_INFO("EXPIRE" << key << "(IGNORE/STALE)");
+      } else {
+        expire_command cmd{std::move(key), id};
+        emit_expire_event(cmd);
+        broadcast(std::move(cmd));
+      }
+      i = expirations.erase(i);
+    } else {
+      ++i;
+    }
   }
+}
+
+void master_state::set_expire_time(const data& key,
+                                   const std::optional<timespan>& expiry) {
+  if (expiry)
+    expirations.insert_or_assign(key, clock->now() + *expiry);
+  else
+    expirations.erase(key);
 }
 
 // -- callbacks for the consumer -----------------------------------------------
@@ -179,8 +183,7 @@ void master_state::consume(put_command& x) {
     BROKER_WARNING("failed to put" << x.key << "->" << x.value);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  if (x.expiry)
-    remind(*x.expiry, x.key);
+  set_expire_time(x.key, x.expiry);
   if (old_value)
     emit_update_event(x, *old_value);
   else
@@ -212,8 +215,7 @@ void master_state::consume(put_unique_command& x) {
     broadcast_result(false);
     return;
   }
-  if (x.expiry)
-    remind(*x.expiry, x.key);
+  set_expire_time(x.key, x.expiry);
   emit_insert_event(x);
   // Broadcast a regular "put" command (clones don't have to do their own
   // existence check) followed by the (positive) result message.
@@ -248,8 +250,7 @@ void master_state::consume(add_command& x) {
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    if (x.expiry)
-      remind(*x.expiry, x.key);
+    set_expire_time(x.key, x.expiry);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
@@ -282,8 +283,7 @@ void master_state::consume(subtract_command& x) {
                  << "after subtract() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
-    if (x.expiry)
-      remind(*x.expiry, x.key);
+    set_expire_time(x.key, x.expiry);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
@@ -475,7 +475,6 @@ caf::behavior master_state::make_behavior() {
     [this](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
     },
-    [this](atom::expire, data& key) { expire(key); },
     [this](atom::get, atom::keys) -> caf::result<data> {
       auto x = backend->keys();
       BROKER_INFO("KEYS ->" << x);

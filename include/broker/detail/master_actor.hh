@@ -61,9 +61,7 @@ public:
 
   void tick();
 
-  void remind(timespan expiry, const data& key);
-
-  void expire(data& key);
+  void set_expire_time(const data& key, const std::optional<timespan>& expiry);
 
   // -- callbacks for the consumer ---------------------------------------------
 
@@ -132,6 +130,9 @@ public:
 
   /// Maps senders to manager objects for incoming commands.
   std::unordered_map<entity_id, command_message> open_handshakes;
+
+  /// Maps senders to manager objects for incoming commands.
+  std::unordered_map<data, timestamp> expirations;
 
   /// Gives this actor a recognizable name in log files.
   static inline constexpr const char* name = "broker.master";
