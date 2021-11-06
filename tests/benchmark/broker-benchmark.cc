@@ -35,6 +35,7 @@
 #endif // BROKER_WINDOWS
 
 using namespace broker;
+using namespace std::literals;
 
 namespace {
 
@@ -47,6 +48,7 @@ uint64_t max_received = 0;
 uint64_t max_in_flight = 0;
 bool server = false;
 bool verbose = false;
+bool store_mode = false;
 
 // Global state
 size_t total_recv;
@@ -207,7 +209,7 @@ void receivedStats(endpoint& ep, data x) {
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
     ep.publish("benchmark/terminate", ev);
-    std::this_thread::sleep_for(std::chrono::seconds(2)); // Give clients a bit.
+    std::this_thread::sleep_for(2s); // Give clients a bit.
     exit(0);
   }
 
@@ -284,7 +286,7 @@ void client_loop(endpoint& ep, status_subscriber& ss, bool verbose_output) {
   fractional_second fractional_inc_interval{rate_increase_interval};
   auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
   timestamp timeout = std::chrono::system_clock::now();
-  auto interval = duration_cast<timespan>(std::chrono::seconds(1));
+  auto interval = duration_cast<timespan>(1s);
   interval /= batch_rate;
   auto interval_timeout = timeout + interval;
   for (;;) {
@@ -379,7 +381,7 @@ void server_loop(endpoint& ep, status_subscriber& ss,
   auto last_time = timeout;
   while (!terminate) {
     // Sleep until next timeout.
-    timeout += std::chrono::seconds(1);
+    timeout += 1s;
     std::this_thread::sleep_until(timeout);
     // Generate and publish zeek event.
     timestamp now = std::chrono::system_clock::now();
@@ -601,6 +603,101 @@ void single_process_with_sockets_mode(configuration& cfg) {
 
 #endif // BROKER_WINDOWS
 
+void store_master_mode(endpoint& ep, const std::string& iface, int port) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // Spin up the data store.
+  auto store = ep.attach_master("benchmark-store", backend::memory);
+  // Listen on benchmark/terminate for stop message.
+  std::atomic<bool> terminate{false};
+  ep.subscribe(
+    {"benchmark/terminate"},
+    [](caf::unit_t&) {
+      // nop
+    },
+    [&](caf::unit_t&, data_message) {
+      // Any message on this topic triggers termination.
+      terminate = true;
+    },
+    [](caf::unit_t&, const caf::error&) {
+      // nop
+    });
+  // Start listening for peers.
+  auto actual_port = ep.listen(iface, port);
+  if (actual_port == 0) {
+    std::cerr << "*** failed to listen on port " << port << '\n';
+    return;
+  } else if (verbose) {
+    std::cout << "*** listening on " << actual_port << '\n';
+  }
+  // Collects stats once per second until receiving stop message.
+  while (!terminate) {
+    std::this_thread::sleep_for(1s);
+  }
+  std::cout << "received stop message on benchmark/terminate" << std::endl;
+}
+
+void store_clone_mode(endpoint& ep, const std::string& host, int port) {
+  // Make sure to receive status updates.
+  auto ss = ep.make_status_subscriber(true);
+  // Connect to remote peer.
+  if (verbose)
+    std::cout << "*** init peering: host = " << host << ", port = " << port
+              << std::endl;
+  auto res = ep.peer(host, port, timeout::seconds(1));
+  if (!res) {
+    std::cerr << "*** unable to peer to " << host << " on port " << port
+              << std::endl;
+    return;
+  }
+  if (verbose)
+    std::cout << "*** endpoint is now peering to remote" << std::endl;
+  auto maybe_store = ep.attach_clone("benchmark-store");
+  if (!maybe_store) {
+    std::cerr << "** unable to attach clone: " << to_string(maybe_store.error())
+              << '\n';
+    return;
+  }
+  auto& store = *maybe_store;
+  std::atomic<int64_t> writes{0};
+  auto stats_printer = std::thread{[&writes] {
+    int64_t old_value = 0;
+    auto t = std::chrono::system_clock::now();
+    std::cout << std::setprecision(4);
+    for (;;) {
+      t += 1s;
+      std::this_thread::sleep_until(t);
+      auto value = writes.load();
+      if (value == 1)
+        return;
+      auto n = value - old_value;
+      std::cout << "*** " << std::setw(5) << n << " writes/s\n";
+      old_value = value;
+    }
+  }};
+  std::vector<broker::data> keys;
+  auto key_suffix = to_string(ep.node_id());
+  for (size_t index = 0; index < 100; ++index) {
+    auto key = std::to_string(index + 1);
+    key.insert(0, "k-");
+    key += '-';
+    key += key_suffix;
+    keys.emplace_back(std::move(key));
+  }
+  auto val = broker::count{1};
+  for (;;) {
+    // Update all our keys.
+    for (auto& key : keys) {
+      store.put(key, data{val}, timespan{48h});
+      ++writes;
+    }
+    // Wait (poll) until we get back our last write.
+    while (store.get(keys[0]) != val)
+      std::this_thread::sleep_for(1ms);
+    ++val;
+  }
+}
+
 struct config : configuration {
   using super = configuration;
 
@@ -617,6 +714,7 @@ struct config : configuration {
            "additional batch size per interval")
       .add(max_received, "max-received,m", "stop benchmark after given count")
       .add(max_in_flight, "max-in-flight,f", "report when exceeding this count")
+      .add(store_mode, "stores", "run the stores benchmark instead")
       .add(server, "server", "run in server mode")
       .add(verbose, "verbose", "enable status output");
   }
@@ -688,9 +786,16 @@ int main(int argc, char** argv) {
   }
   // Run benchmark.
   endpoint ep(std::move(cfg));
-  if (server)
-    server_mode(ep, host, port);
-  else
-    client_mode(ep, host, port);
+  if (store_mode) {
+    if (server)
+      store_master_mode(ep, host, port);
+    else
+      store_clone_mode(ep, host, port);
+  } else {
+    if (server)
+      server_mode(ep, host, port);
+    else
+      client_mode(ep, host, port);
+  }
   return EXIT_SUCCESS;
 }
