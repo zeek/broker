@@ -208,13 +208,8 @@ store::response store::proxy::receive() {
       resp = {std::move(err), id};
       fa->extinguish_one();
     },
-#if CAF_VERSION >= 1800
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
       BROKER_ERROR("proxy received an unexpected message:" << x);
-#else
-    caf::others >> [&](caf::message_view& x) -> caf::result<caf::message> {
-      BROKER_ERROR("proxy received an unexpected message:" << x.content());
-#endif
       // We *must* make sure to consume any and all messages, because the flare
       // actor messes with the mailbox signaling. The flare fires on each
       // enqueued message and the flare actor reports data available as long as

@@ -114,13 +114,8 @@ bool convert(const error& src, data& dst) {
     dst = std::move(result);
     return true;
   }
-#if CAF_VERSION < 1800
-  if (src.category() != caf::atom("broker"))
-    return false;
-#else
   if (src.category() != caf::type_id_v<broker::ec>)
     return false;
-#endif
   vector result;
   result.resize(3);
   result[0] = "error"s;
