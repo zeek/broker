@@ -125,8 +125,11 @@ public:
         buf_ = nullptr;
         return false;
       } else if (buf_->available() == 0) {
-        guard_type guard{mtx_};
-        if (ready_ && buf_->available() == 0) {
+        // Note: We always *must* acquire the lock on the buffer before
+        // acquiring the lock on the subscriber to prevent deadlocks.
+        guard_type buf_guard{buf_->mtx()};
+        guard_type sub_guard{mtx_};
+        if (ready_ && buf_->available_unsafe() == 0) {
           BROKER_DEBUG("drained buffer, extinguish flare");
           ready_ = false;
           fx_.extinguish();
