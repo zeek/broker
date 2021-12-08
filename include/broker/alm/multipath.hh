@@ -353,6 +353,20 @@ public:
     return true;
   }
 
+  bool is_next_hop(const endpoint_id& id) const noexcept {
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
+      if (i->id() == id)
+        return true;
+    return false;
+  }
+
+  multipath select(const endpoint_id& id) const noexcept {
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
+      if (i->id() == id)
+        return multipath{tree_, i.get()};
+    return multipath{};
+  }
+
   template <class Inspector>
   friend bool inspect(Inspector& f, multipath& x) {
     if constexpr (Inspector::is_loading)

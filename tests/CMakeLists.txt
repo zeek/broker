@@ -26,6 +26,7 @@ set(tests
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
+  cpp/flooding.cc
   cpp/gateway.cc
   cpp/master.cc
   cpp/mixin/data_store_manager.cc

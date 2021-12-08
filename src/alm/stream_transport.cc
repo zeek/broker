@@ -29,14 +29,36 @@ packed_message stream_transport::pack(const T& msg) {
 
 // -- constructors, destructors, and assignment operators ----------------------
 
+namespace {
+
+auto random_seed() {
+  std::random_device dev;
+  return dev();
+}
+
+// Minimum delay before flooding a path discovery.
+constexpr int min_path_discovery_delay_ms = 7;
+
+// Maximum delay before flooding a path discovery.
+constexpr int max_path_discovery_delay_ms = 17;
+
+// Extra delay for triggering filter requests. Ideally, path discovery always
+// triggers first in order to avoid 'dead' messages.
+constexpr int filter_request_extray_delay_ms = 10;
+
+} // namespace
+
 stream_transport::stream_transport(caf::event_based_actor* self)
-  : super(self), reserved_(std::string{topic::reserved}) {
+  : super(self),
+    reserved_(std::string{topic::reserved}),
+    rng_(random_seed()),
+    dis_(min_path_discovery_delay_ms, max_path_discovery_delay_ms) {
   // nop
 }
 
 stream_transport::stream_transport(caf::event_based_actor* self,
                                    detail::connector_ptr conn)
-  : super(self), reserved_(std::string{topic::reserved}) {
+  : stream_transport(self) {
   if (conn) {
     auto on_peering = [this](endpoint_id remote_id, const network_info& addr,
                              alm::lamport_timestamp ts,
@@ -66,7 +88,7 @@ const network_info* stream_transport::addr_of(endpoint_id id) const noexcept {
 namespace {
 
 template <class BufferedObservable, class Msg>
-void push_impl(caf::scheduled_actor* self, BufferedObservable& impl,
+void push_impl(caf::scheduled_actor*, BufferedObservable& impl,
                const Msg& what) {
   impl.append_to_buf(what);
   impl.try_push();
@@ -74,45 +96,182 @@ void push_impl(caf::scheduled_actor* self, BufferedObservable& impl,
 
 } // namespace
 
-void stream_transport::publish(endpoint_id dst, atom::subscribe,
-                               const endpoint_id_list& path,
-                               const vector_timestamp& ts,
-                               const filter_type& new_filter) {
-  BROKER_TRACE(BROKER_ARG(dst)
-               << BROKER_ARG(path) << BROKER_ARG(ts) << BROKER_ARG(new_filter));
+void stream_transport::publish_filter_update_impl(multipath* routes,
+                                                  size_t num_routes,
+                                                  lamport_timestamp ts,
+                                                  const filter_type& ft) {
+  BROKER_TRACE(BROKER_ARG(ts) << BROKER_ARG(ft));
   buf_.clear();
   caf::binary_serializer sink{nullptr, buf_};
-  [[maybe_unused]] bool ok = sink.apply(path)         //
-                             && sink.apply(ts)        //
-                             && sink.apply(new_filter);
+  [[maybe_unused]] bool ok = sink.apply(id_)   //
+                             && sink.apply(ts) //
+                             && sink.apply(ft);
   BROKER_ASSERT(ok);
   auto data = reinterpret_cast<const std::byte*>(buf_.data());
-  auto pm = packed_message{packed_message_type::routing_update, reserved_,
+  auto pm = packed_message{packed_message_type::filter_update, reserved_,
                            std::vector<std::byte>{data, data + buf_.size()}};
-  push_impl(self(), *central_merge_,
-            node_message{alm::multipath{dst, true}, std::move(pm)});
+  for (size_t index = 0; index < num_routes; ++index)
+    push_impl(self(), *central_merge_,
+              node_message{std::move(routes[index]), pm});
 }
 
-void stream_transport::publish(endpoint_id dst, atom::revoke,
-                               const endpoint_id_list& path,
-                               const vector_timestamp& ts,
-                               const endpoint_id& lost_peer,
-                               const filter_type& new_filter) {
-  BROKER_TRACE(BROKER_ARG(dst)
-               << BROKER_ARG(path) << BROKER_ARG(ts) << BROKER_ARG(lost_peer)
-               << BROKER_ARG(new_filter));
+void stream_transport::publish_filter_update(lamport_timestamp ts,
+                                             const filter_type& new_filter) {
+  if (tbl_.empty())
+    return;
+  std::vector<endpoint_id> all;
+  all.reserve(tbl_.size());
+  for (auto& kvp : tbl_)
+    all.emplace_back(kvp.first);
+  std::vector<multipath> routes;
+  std::vector<endpoint_id> unreachables;
+  multipath::generate(all, tbl_, routes, unreachables);
+  if (!routes.empty()) {
+    publish_filter_update_impl(routes.data(), routes.size(), ts, new_filter);
+  } else {
+    BROKER_ERROR("failed to generate any routes!");
+  }
+  if (!unreachables.empty())
+    BROKER_ERROR("found unreachable entries in the routing table!");
+}
+
+void stream_transport::publish_filter_update(endpoint_id dst,
+                                             lamport_timestamp ts,
+                                             const filter_type& new_filter) {
+  BROKER_TRACE(BROKER_ARG(dst) << BROKER_ARG(ts) << BROKER_ARG(new_filter));
+  if (auto sp = shortest_path(tbl_, dst)) {
+    auto route = alm::multipath{sp->begin(), sp->end()};
+    publish_filter_update_impl(&route, 1, ts, new_filter);
+  }
+}
+
+void stream_transport::trigger_path_discovery_cb() {
+  BROKER_TRACE("");
+  // TODO: we don't actually need to construct these. It would suffice to
+  // serialize id_ and timestamp_ to appear as lists of one element.
+  endpoint_id_list path{id_};
+  vector_timestamp ts{timestamp_};
   buf_.clear();
   caf::binary_serializer sink{nullptr, buf_};
-  [[maybe_unused]] bool ok = sink.apply(path)         //
-                             && sink.apply(ts)        //
-                             && sink.apply(lost_peer) //
-                             && sink.apply(new_filter);
+  [[maybe_unused]] bool ok = sink.apply(path) && sink.apply(ts);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::path_discovery, reserved_,
+                           std::vector<std::byte>{data, data + buf_.size()}};
+  for_each_direct(tbl_, [&](auto receiver) {
+    if (receiver)
+      push_impl(self(), *central_merge_,
+                node_message{multipath{receiver, true}, pm});
+    else
+      BROKER_ERROR("BROKEN ROUTING TABLE: NIL ENTRY FOUND");
+  });
+  scheduled_path_discovery_ = caf::disposable{};
+}
+
+void stream_transport::trigger_path_discovery() {
+  BROKER_TRACE("");
+  // Instead of firing the path discovery immediately, we delay it by some
+  // random amount of time. This minimizes the number of path discovery messages
+  // on the wire by sending fewer messages overall while also spreading them out
+  // in time in order to avoid 'path discovery storms'.
+  if (scheduled_path_discovery_) {
+    // We have already scheduled a path discovery, do nothing.
+    return;
+  }
+  auto f = [this] { trigger_path_discovery_cb(); };
+  auto delay = std::chrono::milliseconds{dis_(rng_)};
+  scheduled_path_discovery_ = self()->run_delayed(delay, f);
+}
+
+void stream_transport::forward_path_discovery(endpoint_id next_hop,
+                                              const endpoint_id_list& path,
+                                              const vector_timestamp& ts) {
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(path) && sink.apply(ts);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::path_discovery, reserved_,
+                           std::vector<std::byte>{data, data + buf_.size()}};
+  push_impl(self(), *central_merge_,
+            node_message{multipath{next_hop, true}, std::move(pm)});
+}
+
+void stream_transport::trigger_path_revocation(const endpoint_id& lost_peer) {
+  BROKER_TRACE(BROKER_ARG(lost_peer));
+  // TODO: we don't actually need to construct these. It would suffice to
+  // serialize id_ and timestamp_ to appear as lists of one element.
+  endpoint_id_list path{id_};
+  vector_timestamp ts{timestamp_};
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(path)  //
+                             && sink.apply(ts) //
+                             && sink.apply(lost_peer);
   BROKER_ASSERT(ok);
   auto data = reinterpret_cast<const std::byte*>(buf_.data());
   auto pm = packed_message{packed_message_type::path_revocation, reserved_,
                            std::vector<std::byte>{data, data + buf_.size()}};
+  for_each_direct(tbl_, [&](auto receiver) {
+    push_impl(self(), *central_merge_,
+              node_message{multipath{receiver, true}, pm});
+  });
+}
+
+void stream_transport::forward_path_revocation(endpoint_id next_hop,
+                                               const endpoint_id_list& path,
+                                               const vector_timestamp& ts,
+                                               const endpoint_id& lost_peer) {
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(path) && sink.apply(ts);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::path_discovery, reserved_,
+                           std::vector<std::byte>{data, data + buf_.size()}};
   push_impl(self(), *central_merge_,
-            node_message{alm::multipath{dst, true}, std::move(pm)});
+            node_message{multipath{next_hop, true}, std::move(pm)});
+}
+
+void stream_transport::trigger_filter_requests_cb() {
+  BROKER_TRACE(BROKER_ARG(hidden_peers_));
+  if (hidden_peers_.empty()) {
+    // Nothing left to do.
+    scheduled_filter_requests_ = caf::disposable{};
+    return;
+  }
+  buf_.clear();
+  caf::binary_serializer sink{nullptr, buf_};
+  [[maybe_unused]] bool ok = sink.apply(id_);
+  BROKER_ASSERT(ok);
+  auto data = reinterpret_cast<const std::byte*>(buf_.data());
+  auto pm = packed_message{packed_message_type::filter_request, reserved_,
+                           std::vector<std::byte>{data, data + buf_.size()}};
+  std::vector<multipath> routes;
+  std::vector<endpoint_id> unreachables;
+  multipath::generate(hidden_peers_, tbl_, routes, unreachables);
+  for (auto& route : routes)
+    push_impl(self(), *central_merge_, node_message{std::move(route), pm});
+  for (auto& unreachable : unreachables) {
+    auto& v = hidden_peers_;
+    v.erase(std::remove(v.begin(), v.end(), unreachable), v.end());
+  }
+  scheduled_filter_requests_ = caf::disposable{};
+  trigger_filter_requests();
+}
+
+void stream_transport::trigger_filter_requests() {
+  BROKER_TRACE(BROKER_ARG(hidden_peers_));
+  // Same approach we use in trigger_path_discovery() to minimize load on the
+  // network.
+  if (scheduled_filter_requests_ || hidden_peers_.empty()) {
+    // We have already scheduled filter requests or there is nothing to do.
+    return;
+  }
+  auto f = [this] { trigger_filter_requests_cb(); };
+  using std::chrono::milliseconds;
+  auto delay = milliseconds{dis_(rng_) + filter_request_extray_delay_ms};
+  scheduled_path_discovery_ = self()->run_delayed(delay, f);
 }
 
 #ifdef NDEBUG
@@ -183,9 +342,9 @@ void stream_transport::init_data_outputs() {
     data_outputs_
       = central_merge_->as_observable()
           .filter([this_node{id_}](const node_message& msg) {
-            const auto& next_hop = get_path(msg).head();
-            return next_hop.id() == this_node //
-                   && next_hop.is_receiver()  //
+            const auto& hop = get_path(msg).head();
+            return hop.id() == this_node //
+                   && hop.is_receiver()  //
                    && get_type(msg) == packed_message_type::data;
           })
           .map([](const node_message& msg) {
@@ -206,9 +365,9 @@ void stream_transport::init_command_outputs() {
     command_outputs_ //
       = central_merge_->as_observable()
           .filter([this_node{id_}](const node_message& msg) {
-            const auto& next_hop = get_path(msg).head();
-            return next_hop.id() == this_node //
-                   && next_hop.is_receiver()  //
+            const auto& hop = get_path(msg).head();
+            return hop.id() == this_node //
+                   && hop.is_receiver()  //
                    && get_type(msg) == packed_message_type::command;
           })
           .map([](const node_message& msg) {
@@ -253,6 +412,7 @@ stream_transport::select_local_commands(const filter_type& filter) {
 
 // -- initialization -----------------------------------------------------------
 
+// Feeds input messages from a peer into the central merge.
 class dispatch_step {
 public:
   using input_type = node_message;
@@ -266,20 +426,14 @@ public:
 
   template <class Next, class... Steps>
   bool on_next(const input_type& msg, Next& next, Steps&... steps) {
-    auto& path = get_path(msg);
-    auto& content = caf::get<1>(msg);
+    auto& [path, content] = msg.data();
     if (path.head().id() != state_->id()) {
-      BROKER_ERROR("received a message for another node: drop");
+      BROKER_ERROR(state_->id() <<
+                   "received a" << get_type(content) << "message to"
+                   << path.head().id() << "from" << src_ << "-> drop");
       return true;
     }
-    if (path.head().is_receiver()) {
-      if (!next.on_next(msg, steps...))
-        return false;
-    }
-    return path.for_each_node_while([&](multipath node) {
-      auto sub = make_node_message(std::move(node), content);
-      return next.on_next(sub, steps...);
-    });
+    return next.on_next(msg, steps...);
   }
 
   template <class Next, class... Steps>
@@ -334,6 +488,8 @@ private:
   std::vector<endpoint_id> unreachables_cache_;
 };
 
+// Converts a data or command message to a node message to feed locally produced
+// messages into the central merge point.
 template <class T>
 class pack_and_dispatch_step {
 public:
@@ -357,7 +513,7 @@ public:
     const auto& dst = get_topic(msg);
     detail::prefix_matcher matches;
     for (const auto& [peer, filter] : state_->peer_filters())
-      if (matches(filter, dst))
+      if (matches(filter.entry, dst))
         receivers_cache_.emplace_back(peer);
     BROKER_DEBUG("got" << receivers_cache_.size() << "receiver for" << msg);
     if (!receivers_cache_.empty()) {
@@ -423,50 +579,75 @@ caf::behavior stream_transport::make_behavior() {
     "Number of processed stream elements.");
   using counter_ptr = caf::telemetry::int_counter*;
   // Indexes in this array are values of packed_message_type that start at 1.
-  std::array<counter_ptr, 5> counters{{
+  std::array<counter_ptr, 7> counters{{
     nullptr,
     fam->get_or_add({{"type", "data"}}),
     fam->get_or_add({{"type", "command"}}),
-    fam->get_or_add({{"type", "routing-update"}}),
+    fam->get_or_add({{"type", "filter-request"}}),
+    fam->get_or_add({{"type", "filter-update"}}),
+    fam->get_or_add({{"type", "path-discovery"}}),
     fam->get_or_add({{"type", "path-revocation"}}),
   }};
   central_merge_ //
     ->as_observable()
     .for_each([this, counters](const node_message& msg) {
-      counters[static_cast<size_t>(get_type(msg))]->inc();
-      if (get_path(msg).head().id() != id()
-          || !get_path(msg).head().is_receiver())
+      auto msg_type = get_type(msg);
+      counters[static_cast<size_t>(msg_type)]->inc();
+      const auto& hop = get_path(msg).head();
+      if (hop.id() != id() || !hop.is_receiver())
         return;
-      auto pmt = get_type(msg);
-      if (pmt == packed_message_type::routing_update) {
-        endpoint_id_list path;
-        vector_timestamp ts;
-        filter_type new_filter;
-        caf::binary_deserializer src{nullptr, get_payload(msg)};
-        bool ok = src.apply(path)  //
-                  && src.apply(ts) //
-                  && src.apply(new_filter);
-        if (ok) {
-          handle_filter_update(path, ts, new_filter);
-        } else {
-          BROKER_ERROR("received malformed routing update:" << src.get_error());
+      switch (msg_type) {
+        case packed_message_type::filter_request: {
+          endpoint_id node;
+          caf::binary_deserializer src{nullptr, get_payload(msg)};
+          if (src.apply(node)) {
+            handle_filter_request(node);
+          } else {
+            BROKER_ERROR(
+              "received malformed filter request:" << src.get_error());
+          }
+          break;
         }
-      } else if (pmt == packed_message_type::path_revocation) {
-        endpoint_id_list path;
-        vector_timestamp ts;
-        endpoint_id lost_peer;
-        filter_type new_filter;
-        caf::binary_deserializer src{nullptr, get_payload(msg)};
-        bool ok = src.apply(path)         //
-                  && src.apply(ts)        //
-                  && src.apply(lost_peer) //
-                  && src.apply(new_filter);
-        if (ok) {
-          handle_path_revocation(path, ts, lost_peer, new_filter);
-        } else {
-          BROKER_ERROR(
-            "received malformed path revocation:" << src.get_error());
+        case packed_message_type::filter_update: {
+          endpoint_id node;
+          lamport_timestamp ts;
+          filter_type new_filter;
+          caf::binary_deserializer src{nullptr, get_payload(msg)};
+          if (src.apply(node) && src.apply(ts) && src.apply(new_filter)) {
+            handle_filter_update(node, ts, new_filter);
+          } else {
+            BROKER_ERROR(
+              "received malformed filter update:" << src.get_error());
+          }
+          break;
         }
+        case packed_message_type::path_discovery: {
+          endpoint_id_list path;
+          vector_timestamp ts;
+          caf::binary_deserializer src{nullptr, get_payload(msg)};
+          if (src.apply(path) && src.apply(ts)) {
+            handle_path_discovery(path, ts);
+          } else {
+            BROKER_ERROR(
+              "received malformed path discovery:" << src.get_error());
+          }
+          break;
+        }
+        case packed_message_type::path_revocation: {
+          endpoint_id_list path;
+          vector_timestamp ts;
+          endpoint_id lost_peer;
+          caf::binary_deserializer src{nullptr, get_payload(msg)};
+          if (src.apply(path) && src.apply(ts) && src.apply(lost_peer)) {
+            handle_path_revocation(path, ts, lost_peer);
+          } else {
+            BROKER_ERROR(
+              "received malformed path revocation:" << src.get_error());
+          }
+          break;
+        }
+        default:
+          break;
       }
     });
   // Create behavior for the actor.
@@ -611,7 +792,16 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
   auto& sys = self_->system();
   auto out = central_merge_->as_observable()
                .filter([peer](const node_message& msg) {
-                 return get_path(msg).head().id() == peer;
+                 auto& msg_path = get_path(msg);
+                 return msg_path.head().id() == peer
+                        || msg_path.is_next_hop(peer);
+               })
+               .map([peer](const node_message& msg) {
+                 auto& [msg_path, pm] = msg.data();
+                 if (msg_path.head().id() == peer)
+                   return msg;
+                 else
+                   return node_message{msg_path.select(peer), pm};
                })
                .subscribe(out_res);
   auto in = self_->make_observable().from_resource(in_res);
@@ -625,12 +815,10 @@ caf::error stream_transport::init_new_peer(endpoint_id peer,
     i->second.out = std::move(out);
     i->second.invalidated = false;
   }
-  auto update_res = handle_update(path, vector_timestamp{ts}, filter);
-  if (auto& new_peers = update_res.first; !new_peers.empty())
-    for (auto& id : new_peers)
-      peer_discovered(id);
+  add_or_update_path(tbl_, peer, path, vector_timestamp{ts});
+  handle_filter_update(peer, ts, filter);
   peer_connected(peer);
-  flood_subscriptions();
+  trigger_path_discovery();
   return caf::none;
 }
 

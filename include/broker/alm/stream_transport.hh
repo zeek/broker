@@ -1,5 +1,6 @@
 #pragma once
 
+#include <random>
 #include <unordered_map>
 #include <vector>
 
@@ -67,15 +68,40 @@ public:
   /// Returns the @ref network_info associated to given `id` if available.
   const network_info* addr_of(endpoint_id id) const noexcept;
 
-  // -- overrides for peer::publish --------------------------------------------
+  auto& peers() const noexcept {
+    return peers_;
+  }
 
-  void publish(endpoint_id dst, atom::subscribe, const endpoint_id_list& path,
-               const vector_timestamp& ts,
-               const filter_type& new_filter) override;
+  // -- overrides for publish functions ----------------------------------------
 
-  void publish(endpoint_id dst, atom::revoke, const endpoint_id_list& path,
-               const vector_timestamp& ts, const endpoint_id& lost_peer,
-               const filter_type& new_filter) override;
+  void publish_filter_update_impl(multipath* routes, size_t num_routes,
+                                  lamport_timestamp ts,
+                                  const filter_type& new_filter);
+
+  void publish_filter_update(lamport_timestamp ts,
+                             const filter_type& new_filter) override;
+
+  void publish_filter_update(endpoint_id dst, lamport_timestamp ts,
+                             const filter_type& new_filter) override;
+
+  void trigger_path_discovery_cb();
+
+  void trigger_path_discovery() override;
+
+  void forward_path_discovery(endpoint_id next_hop,
+                              const endpoint_id_list& path,
+                              const vector_timestamp& ts) override;
+
+  void trigger_path_revocation(const endpoint_id& lost_peer) override;
+
+  void forward_path_revocation(endpoint_id next_hop,
+                               const endpoint_id_list& path,
+                               const vector_timestamp& ts,
+                               const endpoint_id& lost_peer) override;
+
+  void trigger_filter_requests_cb();
+
+  void trigger_filter_requests() override;
 
   using super::publish_locally;
 
@@ -194,6 +220,14 @@ protected:
 
   /// Stores the subscriptions for all our input sources.
   std::vector<caf::disposable> subscriptions_;
+
+  std::minstd_rand rng_;
+
+  std::uniform_int_distribution<> dis_;
+
+  caf::disposable scheduled_path_discovery_;
+
+  caf::disposable scheduled_filter_requests_;
 };
 
 } // namespace broker::alm

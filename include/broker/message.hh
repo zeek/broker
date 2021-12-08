@@ -19,8 +19,10 @@ namespace broker {
 enum class alm_message_type : uint8_t {
   data = 0x01,              ///< Payload contains a @ref data_message.
   command = 0x02,           ///< Payload contains a @ref command_message.
-  routing_update = 0x03,    ///< Payload contains a flooded update.
-  path_revocation = 0x04,   ///< Payload contains a revoked path.
+  filter_request = 0x03,    ///< Payload contains a subscription update.
+  filter_update = 0x04,     ///< Payload contains a subscription update.
+  path_discovery = 0x05,    ///< Payload contains a forwarding path (flooded).
+  path_revocation = 0x06,   ///< Payload contains a revoked path (flooded).
   hello = 0x10,             ///< Starts the handshake process.
   originator_syn = 0x20,    ///< Ship filter and local time from orig to resp.
   responder_syn_ack = 0x30, ///< Ship filter and local time from resp to orig.
@@ -48,8 +50,10 @@ bool inspect(Inspector& f, alm_message_type& x) {
 enum class packed_message_type : uint8_t {
   data = 0x01,
   command = 0x02,
-  routing_update = 0x03,
-  path_revocation = 0x04,
+  filter_request = 0x03,
+  filter_update = 0x04,
+  path_discovery = 0x05,
+  path_revocation = 0x06,
 };
 
 /// @relates packed_message_type

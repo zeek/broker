@@ -224,6 +224,9 @@ public:
     return dynamic_cast<T&>(*ptr);
   }
 
+  /// Spawns a new core actor with given ID and initializes the endpoint state.
+  endpoint_state make_ep_state(char id, broker::filter_type filter);
+
   static endpoint_state ep_state(caf::actor core);
 
   static broker::configuration make_config();

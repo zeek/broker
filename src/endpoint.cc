@@ -402,8 +402,16 @@ endpoint::endpoint(configuration config, endpoint_id this_peer)
   auto opts = config_.options();
   clock_ = new clock(&system_, opts.use_real_time);
   BROKER_INFO("creating endpoint");
-  core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
-                                         std::move(conn_ptr));
+  if (auto sp = caf::get_as<std::string>(system().config(),
+                                         "caf.scheduler.policy");
+      sp && *sp == "testing") {
+    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
+                                           std::move(conn_ptr));
+  } else {
+    core_ = system_.spawn<core_actor_type, caf::detached>(id_, filter_type{},
+                                                          clock_, nullptr,
+                                                          std::move(conn_ptr));
+  }
   // Spin up a Prometheus actor if configured or an exporter.
   namespace dt = detail::telemetry;
   if (auto port = caf::get_as<uint16_t>(config_, "broker.metrics.port")) {

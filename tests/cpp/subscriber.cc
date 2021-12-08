@@ -44,7 +44,7 @@ struct fixture : base_fixture {
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a", "b", "c"});
+    core2 = sys.spawn<core_actor_type>(ids['B'], filter_type{"a", "b", "c"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     test_data = data_msgs({{"a", 0},
@@ -97,7 +97,7 @@ TEST(nonblocking_subscriber) {
   using buf = std::vector<data_message>;
   buf result;
   ep.subscribe(
-    {"b"},
+    filter_type{"b"},
     [](unit_t&) {
       // nop
     },
@@ -108,6 +108,7 @@ TEST(nonblocking_subscriber) {
       // nop
     }
   );
+  run();
   MESSAGE("establish peering relation between the cores");
   bridge(core1, core2);
   run();

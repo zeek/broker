@@ -145,13 +145,13 @@ configuration::configuration(skip_init_t) {
   string_list ids{"broker.v" + std::to_string(version::protocol)};
   // Override CAF defaults.
   set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
-  set("caf.logger.file.verbosity", "quiet");
+  set("caf.logger.file.verbosity", "trace");
   set("caf.logger.console.format", "[%c/%p] %d %m");
   set("caf.logger.console.verbosity", "error");
   // Turn off all CAF output by default.
   // string_list excluded_components{"caf", "caf_io", "caf_net", "caf_flow",
   //                                 "caf_stream"};
-  // set("caf.logger.file.excluded-components", excluded_components);
+  set("caf.logger.file.excluded-components", string_list{});
   // set("caf.logger.console.excluded-components", std::move(excluded_components));
 }
 

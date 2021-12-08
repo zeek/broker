@@ -38,7 +38,7 @@ struct fixture : base_fixture {
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a"});
+    core2 = sys.spawn<core_actor_type>(ids['B'], filter_type{"a"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();

@@ -10,8 +10,12 @@ std::string to_string(alm_message_type x) {
       return "data";
     case alm_message_type::command:
       return "command";
-    case alm_message_type::routing_update:
-      return "routing_update";
+    case alm_message_type::filter_request:
+      return "filter_request";
+    case alm_message_type::filter_update:
+      return "filter_update";
+    case alm_message_type::path_discovery:
+      return "path_discovery";
     case alm_message_type::path_revocation:
       return "path_revocation";
     case alm_message_type::hello:
@@ -36,8 +40,14 @@ bool from_string(caf::string_view str, alm_message_type& x) {
   } else if (str == "command") {
     x = alm_message_type::command;
     return true;
-  } else if (str == "routing_update") {
-    x = alm_message_type::routing_update;
+  } else if (str == "filter_request") {
+    x = alm_message_type::filter_request;
+    return true;
+  } else if (str == "filter_update") {
+    x = alm_message_type::filter_update;
+    return true;
+  } else if (str == "path_discovery") {
+    x = alm_message_type::path_discovery;
     return true;
   } else if (str == "path_revocation") {
     x = alm_message_type::path_revocation;
@@ -71,9 +81,15 @@ bool from_integer(uint8_t val, alm_message_type& x) {
       x = alm_message_type::command;
       return true;
     case 0x03:
-      x = alm_message_type::routing_update;
+      x = alm_message_type::filter_request;
       return true;
     case 0x04:
+      x = alm_message_type::filter_update;
+      return true;
+    case 0x05:
+      x = alm_message_type::path_discovery;
+      return true;
+    case 0x06:
       x = alm_message_type::path_revocation;
       return true;
     case 0x10:
@@ -103,7 +119,7 @@ std::string to_string(packed_message_type x) {
 
 bool from_string(caf::string_view str, packed_message_type& x) {
   auto tmp = alm_message_type{0};
-  if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 0x04) {
+  if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 0x06) {
     x = static_cast<packed_message_type>(tmp);
     return true;
   }
@@ -111,7 +127,7 @@ bool from_string(caf::string_view str, packed_message_type& x) {
 }
 
 bool from_integer(uint8_t val, packed_message_type& x){
-  if (val <= 0x04) {
+  if (val <= 0x06) {
     auto tmp = alm_message_type{0};
     if (from_integer(val, tmp)) {
       x = static_cast<packed_message_type>(tmp);

@@ -138,7 +138,7 @@ public:
   auto peer_filter(const endpoint_id& x) const {
     auto i = peer_filters_.find(x);
     if (i != peer_filters_.end())
-      return i->second;
+      return i->second.entry;
     return filter_type{};
   }
 
@@ -191,14 +191,6 @@ public:
 
   // -- flooding ---------------------------------------------------------------
 
-  /// Floods the subscriptions on this peer to all other peers.
-  /// @note The functions *does not* bump the Lamport timestamp before sending.
-  void flood_subscriptions();
-
-  /// Floods a path revocation to all other peers.
-  /// @note The functions does *not* bump the Lamport timestamp before sending.
-  void flood_path_revocation(const endpoint_id& lost_peer);
-
   /// Checks whether a path and its associated vector timestamp are non-empty,
   /// loop-free and not revoked.
   bool valid(endpoint_id_list& path, vector_timestamp path_ts);
@@ -210,51 +202,72 @@ public:
   /// messages can grow the revocations in the first place.
   void age_revocations();
 
-  /// Adds the reverse `path` to the routing table and stores the subscription
-  /// if it is new.
-  /// @returns A pair containing a list of new peers learned through the update
-  ///          and a boolean that is set to `true` if this update increased the
-  ///          local time.
+  /// Request form @p src for receiving our current filter.
+  /// @param src The sender of the message.
+  void handle_filter_request(const endpoint_id& src);
+
+  /// Updates the filter for @p src.
+  /// @param src The sender of the message.
+  /// @param ts The time stamp of the sender, i.e., @p src.
+  /// @param filter The new filter.
   /// @note increases the local time if the routing table changes.
-  std::pair<endpoint_id_list, bool> handle_update(endpoint_id_list& path,
-                                                  vector_timestamp path_ts,
-                                                  const filter_type& filter);
+  void handle_filter_update(const endpoint_id& src, lamport_timestamp ts,
+                            const filter_type& new_filter);
 
-  virtual void handle_filter_update(endpoint_id_list& path,
-                                    vector_timestamp& path_ts,
-                                    const filter_type& filter);
+  /// Adds the reverse `path` to the routing table. This peer triggers a path
+  /// discovery on its own when discovering new peers in the network.
+  /// @param path The path this message traveled on to reach this peer.
+  /// @param ts The time stamp of all peers at the time of sending / forwarding.
+  /// @note increases the local time if the routing table changes.
+  void handle_path_discovery(endpoint_id_list& path, vector_timestamp& ts);
 
-  virtual void handle_path_revocation(endpoint_id_list& path,
-                                      vector_timestamp& path_ts,
-                                      const endpoint_id& revoked_hop,
-                                      const filter_type& filter);
+  /// Removes any path from the routing table for the removed link.
+  /// @param hop The peer that revokes a connection link.
+  /// @param ts The time stamp of the sender, i.e., @p hop.
+  /// @param revoked_hop The peer that lost its connection to @p hop.
+  /// @note increases the local time if the routing table changes.
+  void handle_path_revocation(endpoint_id_list& path, vector_timestamp& path_ts,
+                              const endpoint_id& revoked_hop);
 
   // -- interface to the transport ---------------------------------------------
 
-  /// Publishes (floods) a subscription update to @p dst.
-  /// @param dst Destination (receiver) for the published data.
-  /// @param path Lists Broker peers that forwarded the subscription on the
-  ///             overlay in chronological order.
-  /// @param ts Stores the logical time of each peer at the time of forwarding.
+  /// Publishes a new filter to *all* known peers.
+  /// @param ts The logical time for the filter-update-event.
   /// @param new_filter The new filter to apply to the origin of the update.
-  virtual void publish(endpoint_id dst, atom::subscribe,
-                       const endpoint_id_list& path, const vector_timestamp& ts,
-                       const filter_type& new_filter)
+  virtual void
+  publish_filter_update(lamport_timestamp ts, const filter_type& new_filter)
     = 0;
 
-  /// Publishes (floods) a path revocation update to @p dst.
-  /// @param dst Destination (receiver) for the published data.
-  /// @param path Lists Broker peers that forwarded the subscription on the
-  ///             overlay in chronological order.
-  /// @param ts Stores the logical time of each peer at the time of forwarding.
-  /// @param lost_peer ID of the affected peer, i.e., the origin of the update
-  ///                  lost its communication path to @p lost_peer.
+  /// Publishes the filter to the peer @p dst.
+  /// @param dst Destinationfor the filter update.
+  /// @param ts The logical time for the filter-update-event.
   /// @param new_filter The new filter to apply to the origin of the update.
-  virtual void publish(endpoint_id dst, atom::revoke,
-                       const endpoint_id_list& path, const vector_timestamp& ts,
-                       const endpoint_id& lost_peer,
-                       const filter_type& new_filter)
+  virtual void publish_filter_update(endpoint_id dst, lamport_timestamp ts,
+                                     const filter_type& new_filter)
     = 0;
+
+  /// Triggers a path discovery (flooding).
+  virtual void trigger_path_discovery() = 0;
+
+  /// Triggers a path discovery (flooding).
+  virtual void forward_path_discovery(endpoint_id next_hop,
+                                      const endpoint_id_list& path,
+                                      const vector_timestamp& ts)
+    = 0;
+
+  /// Triggers a path revocation (flooding).
+  /// @param lost_peer ID of the peer that we lost connection to.
+  virtual void trigger_path_revocation(const endpoint_id& lost_peer) = 0;
+
+  /// Triggers a path discovery (flooding).
+  virtual void forward_path_revocation(endpoint_id next_hop,
+                                       const endpoint_id_list& path,
+                                       const vector_timestamp& ts,
+                                       const endpoint_id& lost_peer)
+    = 0;
+
+  /// Triggers filter requests (source-routed messages).
+  virtual void trigger_filter_requests() = 0;
 
   /// Publishes @p msg to all local subscribers.
   /// @param msg The published data.
@@ -327,6 +340,15 @@ protected:
 
   void cleanup(const endpoint_id& peer_id);
 
+  std::vector<endpoint_id> extract_new_peers(const endpoint_id_list& path) {
+    std::vector<endpoint_id> result;
+    auto is_new = [this](const auto& id) { return !reachable(tbl_, id); };
+    for (const auto& id : path)
+      if (is_new(id))
+        result.emplace_back(id);
+    return result;
+  }
+
   // -- member variables -------------------------------------------------------
 
   /// Points to the actor owning this object.
@@ -343,15 +365,29 @@ protected:
   /// A logical timestamp.
   lamport_timestamp timestamp_;
 
-  /// Keeps track of the logical timestamps last seen from other peers.
-  std::unordered_map<endpoint_id, lamport_timestamp, detail::fnv>
-    peer_timestamps_;
-
   /// Stores prefixes with subscribers on this peer.
   shared_filter_ptr filter_;
 
+  /// Convenience type for annotating a filter with a Lamport time.
+  struct versioned_filter {
+    /// Time stamp of the peer for the last filter update message. We keep track
+    /// of this time stamp  separately, because the time stamp in the routing
+    /// table may be more up-to-date than this one. However, we must still apply
+    /// filter updates if they are newer than the last write even if we received
+    /// a flooded message with a newer time stamp before the filter update.
+    lamport_timestamp ts;
+
+    /// The actual content of the filter.
+    filter_type entry;
+  };
+
+  /// Stores peers that were discovered but did not provide a filter yet. These
+  /// are currently hidden to the user because we cannot reasonably interacting
+  /// with this peer yet.
+  std::vector<endpoint_id> hidden_peers_;
+
   /// Stores all filters from other peers.
-  std::unordered_map<endpoint_id, filter_type, detail::fnv> peer_filters_;
+  std::unordered_map<endpoint_id, versioned_filter, detail::fnv> peer_filters_;
 
   /// Stores revoked paths.
   revocations_type revocations_;

@@ -148,6 +148,35 @@ TEST(multipaths are serializable) {
   CHECK_EQUAL(path, copy);
 }
 
+TEST(select extracts a single child node) {
+  make_tree('A');
+  auto ac = emplace('C').first;
+  CHECK_EQUAL(ac->head().id(), ids['C']);
+  emplace(ac, 'D');
+  emplace(ac, 'E');
+  auto ab = emplace('B').first;
+  CHECK_EQUAL(ab->head().id(), ids['B']);
+  emplace(ab, 'F');
+  emplace(ab, 'G');
+  std::string buf;
+  auto path = multipath{tptr};
+  CHECK_EQUAL(stringify(path), "(A, [(B, [(F), (G)]), (C, [(D), (E)])])");
+  CHECK_EQUAL(path.is_next_hop(ids['A']), false);
+  CHECK_EQUAL(path.is_next_hop(ids['B']), true);
+  CHECK_EQUAL(path.is_next_hop(ids['C']), true);
+  CHECK_EQUAL(path.is_next_hop(ids['D']), false);
+  CHECK_EQUAL(path.is_next_hop(ids['E']), false);
+  CHECK_EQUAL(path.is_next_hop(ids['F']), false);
+  CHECK_EQUAL(path.is_next_hop(ids['G']), false);
+  auto b_subpath = path.select(ids['B']);
+  CHECK_EQUAL(stringify(b_subpath), "(B, [(F), (G)])");
+  CHECK_EQUAL(b_subpath.is_next_hop(ids['B']), false);
+  CHECK_EQUAL(b_subpath.is_next_hop(ids['F']), true);
+  CHECK_EQUAL(b_subpath.is_next_hop(ids['G']), true);
+  CHECK_EQUAL(stringify(b_subpath.select(ids['F'])), "(F)");
+  CHECK_EQUAL(stringify(b_subpath.select(ids['G'])), "(G)");
+}
+
 TEST(source routing extracts multipaths from routing tables) {
   // We use the subset of the topology that we use in the peer unit test:
   //

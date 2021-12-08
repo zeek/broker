@@ -149,7 +149,8 @@ public:
     switch (tag) {
       case alm_message_type::data:
       case alm_message_type::command:
-      case alm_message_type::routing_update:
+      case alm_message_type::filter_update:
+      case alm_message_type::path_discovery:
       case alm_message_type::path_revocation:
         if (!handle_msg(down, src, static_cast<packed_message_type>(tag)))
           return -1;

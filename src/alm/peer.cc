@@ -56,7 +56,7 @@ bool peer::dispatch_to(command_message msg, endpoint_id receiver) {
 bool peer::has_remote_subscriber(const topic& x) const noexcept {
   detail::prefix_matcher matches;
   for (const auto& [peer, filter] : peer_filters_)
-    if (matches(filter, x))
+    if (matches(filter.entry, x))
       return true;
   return false;
 }
@@ -64,29 +64,6 @@ bool peer::has_remote_subscriber(const topic& x) const noexcept {
 bool peer::contains(const endpoint_id_list& ids, const endpoint_id& id) {
   auto predicate = [&](const endpoint_id& pid) { return pid == id; };
   return std::any_of(ids.begin(), ids.end(), predicate);
-}
-
-// -- flooding -----------------------------------------------------------------
-
-void peer::flood_subscriptions() {
-  endpoint_id_list path{id_};
-  vector_timestamp ts{timestamp_};
-  filter_type current_filter = filter_->read();
-  for_each_direct(tbl_, [&](auto receiver) {
-    publish(receiver, atom::subscribe_v, path, ts, current_filter);
-  });
-}
-
-void peer::flood_path_revocation(const endpoint_id& lost_peer) {
-  // We bundle path revocation and subscription flooding, because other peers
-  // in the network could drop in-flight subscription updates after seeing a
-  // newer timestamp with the path revocation.
-  endpoint_id_list path{id_};
-  vector_timestamp ts{timestamp_};
-  filter_type current_filter = filter_->read();
-  for_each_direct(tbl_, [&, this](auto receiver) {
-    publish(receiver, atom::revoke_v, path, ts, lost_peer, current_filter);
-  });
 }
 
 // -- publish and subscribe functions ------------------------------------------
@@ -105,7 +82,7 @@ void peer::subscribe(const filter_type& what) {
   // Note: this is the only writer, so we need not worry about the filter
   // changing again concurrently.
   if (changed) {
-    flood_subscriptions();
+    publish_filter_update(timestamp_, filter_->read());
   } else {
     BROKER_DEBUG("already subscribed to topics:" << what);
   }
@@ -128,7 +105,7 @@ bool peer::valid(endpoint_id_list& path, vector_timestamp path_ts) {
     return false;
   }
   if (!is_direct_connection(*forwarder)) {
-    BROKER_WARNING("received a message from peer"
+    BROKER_WARNING("received a flooded message from peer"
                    << path.back()
                    << "but we don't have a direct connection to it");
     return false;
@@ -161,16 +138,61 @@ void peer::age_revocations() {
   revocations_.next_aging_cycle = now + revocations_.aging_interval;
 }
 
-std::pair<endpoint_id_list, bool>
-peer::handle_update(endpoint_id_list& path, vector_timestamp path_ts,
-                    const filter_type& filter) {
-  BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts) << BROKER_ARG(filter));
-  std::vector<endpoint_id> new_peers;
-  // Extract new peers from the path.
-  auto is_new = [this](const auto& id) { return !reachable(tbl_, id); };
-  for (const auto& id : path)
-    if (is_new(id))
-      new_peers.emplace_back(id);
+void peer::handle_filter_request(const endpoint_id& src) {
+  BROKER_TRACE(BROKER_ARG(src));
+  publish_filter_update(src, timestamp_, filter_->read());
+}
+
+void peer::handle_filter_update(const endpoint_id& src, lamport_timestamp ts,
+                                const filter_type& filter) {
+  BROKER_TRACE(BROKER_ARG(src) << BROKER_ARG(ts) << BROKER_ARG(filter));
+  if (auto i = peer_filters_.find(src); i != peer_filters_.end()) {
+    auto& [key, val] = *i;
+    // Case 1: override a previous filter with a new version.
+    if (val.ts < ts) {
+      BROKER_INFO(src << "changes its filter to" << filter);
+      val.ts = ts;
+      val.entry = std::move(filter);
+      ++timestamp_;
+      age_revocations();
+    } else {
+      BROKER_DEBUG("drop outdated filter update for" << src);
+    }
+  } else if (reachable(tbl_, src)) {
+    // Case 2: set the initial filter for the peer. We trigger the
+    // peer_discovered event here as opposed to triggering it in
+    // `handle_path_discovery` in order to make sure the application is not
+    // already sending messages to a peer that did not yet specify its filter.
+    BROKER_INFO(src << "sets its filter to" << filter);
+    peer_filters_.emplace(src, versioned_filter{ts, filter});
+    BROKER_DEBUG(BROKER_ARG(peer_filters_));
+    ++timestamp_;
+    age_revocations();
+    peer_discovered(src);
+    // Trigger await callbacks if necessary.
+    if (auto [first, last] = awaited_peers_.equal_range(src); first != last) {
+      std::for_each(first, last,
+                    [&src](auto& kvp) { kvp.second.deliver(src); });
+      awaited_peers_.erase(first, last);
+    }
+  } else {
+    // Case 3: stale or obsolete update.
+    BROKER_DEBUG("received filter update from unknown peer" << src);
+  }
+  // We remove a matching entry from hidden_peers_ in all three cases.
+  auto& v = hidden_peers_;
+  v.erase(std::remove(v.begin(), v.end(), src), v.end());
+  // Note: we don't need to forward the message here, because the next hops
+  //       picks up the message automatically.
+}
+
+void peer::handle_path_discovery(endpoint_id_list& path,
+                                 vector_timestamp& path_ts) {
+  BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts));
+  // Drop nonsense messages.
+  if (!valid(path, path_ts))
+    return;
+  auto new_peers = extract_new_peers(path);
   // Update the routing table.
   auto added_tbl_entry = add_or_update_path(
     tbl_, path[0], endpoint_id_list{path.rbegin(), path.rend()},
@@ -181,76 +203,56 @@ peer::handle_update(endpoint_id_list& path, vector_timestamp path_ts,
   if (added_tbl_entry) {
     BROKER_DEBUG("increase local time");
     ++timestamp_;
+    age_revocations();
   }
-  // Store the subscription if it's new.
-  const auto& subscriber = path[0];
-  if (auto ts = peer_timestamps_.find(subscriber);
-      ts == peer_timestamps_.end() || path_ts[0] > ts->second) {
-    peer_timestamps_[subscriber] = path_ts[0];
-    peer_filters_[subscriber] = filter;
-  }
-  // Trigger await callbacks if necessary.
-  if (auto [first, last] = awaited_peers_.equal_range(subscriber);
-      first != last) {
-    std::for_each(first, last,
-                  [&subscriber](auto& kvp) { kvp.second.deliver(subscriber); });
-    awaited_peers_.erase(first, last);
-  }
-  return {std::move(new_peers), added_tbl_entry};
-}
-
-void peer::handle_filter_update(endpoint_id_list& path,
-                                vector_timestamp& path_ts,
-                                const filter_type& filter) {
-  BROKER_TRACE(BROKER_ARG(path) << BROKER_ARG(path_ts) << BROKER_ARG(filter));
-  // Handle message content (drop nonsense messages and revoked paths).
-  if (!valid(path, path_ts))
-    return;
-  auto new_peers = std::move(handle_update(path, path_ts, filter).first);
-  // Forward message to all other neighbors.
+  // Forward message to neighbors.
   if (!disable_forwarding_) {
     path.emplace_back(id_);
     path_ts.emplace_back(timestamp_);
     for_each_direct(tbl_, [&](auto& dst) {
       if (!contains(path, dst))
-        publish(dst, atom::subscribe_v, path, path_ts, filter);
+        forward_path_discovery(dst, path, path_ts);
     });
   }
-  // If we have learned new peers, we flood our own subscriptions as well.
+  // If we have learned new peers, trigger a path discovery on our own. Note
+  // that we do not trigger peer_discovered here but wait for the filter update
+  // message first. By triggering a path discovery to ourselves, we cause the
+  // new peer to send us its filter.
   if (!new_peers.empty()) {
     BROKER_DEBUG("learned new peers: " << new_peers);
-    for (auto& id : new_peers)
-      peer_discovered(id);
-    // TODO: This primarly makes sure that eventually all peers know each
-    //       other. There may be more efficient ways to ensure connectivity,
-    //       though.
-    flood_subscriptions();
+    // TODO: This primarily makes sure that eventually all peers know each
+    //       other. There may be more efficient ways to ensure connectivity.
+    //       A rather simple way to avoid "flooding-chains" would be waiting for
+    //       some random time (e.g. 50ms-100ms) before triggering the flooding
+    //       message. This way, we can skip some of the flooding messages if
+    //       more announcements arrive while we were waiting.
+    trigger_path_discovery();
+    auto& v = hidden_peers_;
+    v.insert(v.end(), new_peers.begin(), new_peers.end());
+    std::sort(v.begin(), v.end());
+    v.erase(std::unique(v.begin(), v.end()), v.end());
+    trigger_filter_requests();
   }
-  // Clean up some state if possible.
-  age_revocations();
 }
 
 void peer::handle_path_revocation(endpoint_id_list& path,
                                   vector_timestamp& path_ts,
-                                  const endpoint_id& revoked_hop,
-                                  const filter_type& filter) {
+                                  const endpoint_id& revoked_hop) {
   BROKER_TRACE(BROKER_ARG(path)
-               << BROKER_ARG(path_ts) << BROKER_ARG(revoked_hop)
-               << BROKER_ARG(filter));
+               << BROKER_ARG(path_ts) << BROKER_ARG(revoked_hop));
   // Drop nonsense messages.
   if (!valid(path, path_ts))
     return;
-  // Handle the subscription part of the message.
-  auto&& [new_peers, increased_time] = handle_update(path, path_ts, filter);
   // Handle the recovation part of the message.
-  auto [i, added]
-    = emplace(revocations_.entries, self_, path[0], path_ts[0], revoked_hop);
+  auto [i, added] = emplace(revocations_.entries, self_, path[0], path_ts[0],
+                            revoked_hop);
   if (added) {
-    if (!increased_time)
-      ++timestamp_;
+    ++timestamp_;
     auto on_drop = [this](const endpoint_id& whom) {
-      BROKER_INFO("lost peer " << whom << " as a result of path revocation");
-      peer_unreachable(whom);
+      if (peer_filters_.erase(whom) != 0) {
+        BROKER_INFO("lost peer " << whom << " as a result of path revocation");
+        peer_unreachable(whom);
+      }
     };
     revoke(tbl_, *i, on_drop);
   }
@@ -260,18 +262,9 @@ void peer::handle_path_revocation(endpoint_id_list& path,
     path_ts.emplace_back(timestamp_);
     for_each_direct(tbl_, [&](auto& dst) {
       if (!contains(path, dst))
-        publish(dst, atom::revoke_v, path, path_ts, revoked_hop, filter);
+        forward_path_revocation(dst, path, path_ts, revoked_hop);
     });
   }
-  // If we have learned new peers, we flood our own subscriptions as well.
-  if (!new_peers.empty()) {
-    BROKER_DEBUG("learned new peers: " << new_peers);
-    for (auto& id : new_peers)
-      peer_discovered(id);
-    flood_subscriptions();
-  }
-  // Clean up some state if possible.
-  age_revocations();
 }
 
 // -- callbacks ----------------------------------------------------------------
@@ -325,7 +318,7 @@ void peer::shutdown([[maybe_unused]] shutdown_options options) {
     ++timestamp_;
     auto ids = peer_ids();
     for (auto& x : ids)
-      flood_path_revocation(x);
+      trigger_path_revocation(x);
   }
   self_->unbecome();
   self_->set_default_handler(
@@ -374,7 +367,7 @@ caf::behavior peer::make_behavior() {
       filter_type result;
       for (const auto& [peer, filter] : peer_filters_)
         if (is_direct_peer(peer))
-          filter_extend(result, filter);
+          filter_extend(result, filter.entry);
       return result;
     },
     [this](atom::shutdown, shutdown_options opts) { //
@@ -406,7 +399,7 @@ void peer::cleanup(const endpoint_id& peer_id) {
   auto on_drop = [this](const endpoint_id& whom) { peer_unreachable(whom); };
   if (erase_direct(tbl_, peer_id, on_drop)) {
     ++timestamp_;
-    flood_path_revocation(peer_id);
+    trigger_path_revocation(peer_id);
   }
 }
 

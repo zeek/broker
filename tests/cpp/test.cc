@@ -120,7 +120,7 @@ std::string_view uuid_strings[] = {
 } // namespace
 
 base_fixture::base_fixture()
-  : ep(make_config()),
+  : ep(make_config(), *caf::make_uuid(uuid_strings[0])),
     sys(ep.system()),
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
@@ -154,6 +154,13 @@ void base_fixture::deinit_socket_api() {
 #ifdef BROKER_WINDOWS
   WSACleanup();
 #endif
+}
+
+base_fixture::endpoint_state base_fixture::make_ep_state(char id,
+                                                         filter_type filter) {
+  if (id < 'A' || id > 'Z')
+    FAIL("illegal ID (expect A-Z): " << id);
+  return ep_state(sys.spawn<core_actor_type>(ids[id], std::move(filter)));
 }
 
 char base_fixture::id_by_value(const broker::endpoint_id& value) {
