@@ -22,6 +22,7 @@
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/telemetry/exporter.hh"
 #include "broker/detail/telemetry/prometheus.hh"
+#include "broker/domain_options.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/logger.hh"
@@ -412,14 +413,15 @@ endpoint::endpoint(configuration config, endpoint_id this_peer)
   //       background tasks. However, we must make sure to never detach the core
   //       when running the unit tests because we otherwise mess up the
   //       deterministic setup.
+  domain_options adaptation{config_.options().disable_forwarding};
   if (auto sp = caf::get_as<std::string>(system().config(),
                                          "caf.scheduler.policy");
       sp && *sp == "testing") {
-    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_, nullptr,
-                                           std::move(conn_ptr));
+    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_,
+                                           &adaptation, std::move(conn_ptr));
   } else {
     core_ = system_.spawn<core_actor_type, caf::detached>(id_, filter_type{},
-                                                          clock_, nullptr,
+                                                          clock_, &adaptation,
                                                           std::move(conn_ptr));
   }
   // Spin up a Prometheus actor if configured or an exporter.

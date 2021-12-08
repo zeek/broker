@@ -30,8 +30,12 @@ core_state::core_state(caf::event_based_actor* self, endpoint_id this_peer,
                        detail::connector_ptr conn)
   : super(self, clock, std::move(conn)) {
   id(this_peer);
-  if (adaptation && adaptation->disable_forwarding)
+  if (adaptation && adaptation->disable_forwarding) {
+    BROKER_INFO("disable forwarding on this peer");
     disable_forwarding(true);
+  } else {
+    BROKER_INFO("enable forwarding on this peer (default)");
+  }
   if (!initial_filter.empty())
     subscribe(initial_filter);
 }
