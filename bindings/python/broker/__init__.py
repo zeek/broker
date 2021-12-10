@@ -7,6 +7,7 @@ except ImportError:
 import sys
 import datetime
 import time
+import types
 import ipaddress
 import collections
 
@@ -159,6 +160,36 @@ class Subscriber:
 
     def remove_topic(self, topic, block=False):
         return self._subscriber.remove_topic(_make_topic(topic), block)
+
+class SafeSubscriber(Subscriber):
+    """Subscriber subclass that makes returnes messages safe to process.
+
+    "Safe" here means safe to Python's type system, particularly regarding
+    hashable types. Broker's data model permits nested complex types, such as
+    sets of tables, but those don't directly work in Python (for example,
+    constructing a set of dicts will complain that dicts aren't hashable). To
+    work around this SafeSubscriber relies on ImmutableData rather than Data
+    (used by regular Subscribers)."""
+
+    def get(self, *args, **kwargs):
+        msg = self._subscriber.get(*args, **kwargs)
+
+        if msg is None:
+            return None
+
+        if isinstance(msg, _broker.OptionalSubscriberBaseValueType):
+            if not msg.is_set():
+                return None
+
+            msg = msg.get()
+
+        if isinstance(msg, tuple):
+            return (msg[0].string(), ImmutableData.to_py(msg[1]))
+
+        if isinstance(msg, _broker.VectorPairTopicData):
+            return [(d[0].string(), ImmutableData.to_py(d[1])) for d in msg]
+
+        assert False
 
 class StatusSubscriber():
     def __init__(self, internal_subscriber):
@@ -365,10 +396,17 @@ class Store:
         return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
 
 class Endpoint(_broker.Endpoint):
-    def make_subscriber(self, topics, qsize = 20):
+    def make_subscriber(self, topics, qsize = 20, subscriber_class=Subscriber):
         topics = _make_topics(topics)
         s = _broker.Endpoint.make_subscriber(self, topics, qsize)
-        return Subscriber(s)
+        return subscriber_class(s)
+
+    def make_safe_subscriber(self, topics, qsize = 20):
+        """A variant of make_subscriber that returns a SafeSubscriber instance. In
+        contrast to the Subscriber class, messages retrieved from
+        SafeSubscribers use immutable, hashable values to ensure Python can
+        represent them. When in doubt, use make_safe_subscriber()."""
+        return self.make_subscriber(topics=topics, qsize=qsize, subscriber_class=SafeSubscriber)
 
     def make_status_subscriber(self, receive_statuses=False):
         s = _broker.Endpoint.make_status_subscriber(self, receive_statuses)
@@ -473,11 +511,11 @@ class Data(_broker.Data):
             v = _broker.Vector([Data(i) for i in x])
             _broker.Data.__init__(self, v)
 
-        elif isinstance(x, set):
+        elif isinstance(x, set) or isinstance(x, frozenset):
             s = _broker.Set(([Data(i) for i in x]))
             _broker.Data.__init__(self, s)
 
-        elif isinstance(x, dict):
+        elif isinstance(x, dict) or isinstance(x, types.MappingProxyType):
             t = _broker.Table()
             for (k, v) in x.items():
                 t[Data(k)] = Data(v)
@@ -538,12 +576,46 @@ class Data(_broker.Data):
             Data.Type.Timespan: lambda: datetime.timedelta(seconds=d.as_timespan()),
             Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(d.as_timestamp(), utc),
             Data.Type.Vector: lambda: to_vector(d.as_vector())
-            }
+        }
 
         try:
             return converters[d.get_type()]()
         except KeyError:
             raise TypeError("unsupported data type: " + str(d.get_type()))
+
+class ImmutableData(Data):
+    """A Data specialization that uses immutable complex types for returned Python
+    objects. For sets, the return type is frozenset, for tables it's a
+    MappingProxyType of a dict with a straightforward hashing implementation,
+    and for vectors it's Python tuples."""
+
+    class HashableDict(dict):
+        def __hash__(self):
+            return hash(frozenset(self.items()))
+
+    @staticmethod
+    def to_py(d):
+        def to_set(s):
+            return frozenset([ImmutableData.to_py(i) for i in s])
+
+        def to_table(t):
+            tmp = {ImmutableData.to_py(k): ImmutableData.to_py(v) for (k, v) in t.items()}
+            return types.MappingProxyType(ImmutableData.HashableDict(tmp.items()))
+
+        def to_vector(v):
+            return tuple(ImmutableData.to_py(i) for i in v)
+
+        converters = {
+            Data.Type.Set: lambda: to_set(d.as_set()),
+            Data.Type.Table: lambda: to_table(d.as_table()),
+            Data.Type.Vector: lambda: to_vector(d.as_vector())
+        }
+
+        try:
+            return converters[d.get_type()]()
+        except KeyError:
+            # Fall back on the Data class for types we handle identically.
+            return Data.to_py(d)
 
 ####### TODO: Updated to new Broker API until here.
 
