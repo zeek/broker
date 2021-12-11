@@ -68,6 +68,38 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(msgs[1], msg1)
             self.assertEqual(msgs[2], msg2)
 
+            # These results are not (all) immutable: try modifying the third
+            # value (the dict) of the last message above.
+            dict_data = msgs[2][1][2]
+            self.assertEqual(len(dict_data), 2)
+            dict_data["c"] = "not immutable"
+            self.assertEqual(len(dict_data), 3)
+
+    def test_immutable_messages(self):
+        with broker.Endpoint() as ep1, \
+             broker.Endpoint() as ep2, \
+             ep1.make_safe_subscriber("/test") as s1:
+
+            port = ep1.listen("127.0.0.1", 0)
+            ep2.peer("127.0.0.1", port, 1.0)
+
+            msg = ("/test/1", ({"a": "A"}, set([1,2,3]), ('a', 'b', 'c')))
+            ep2.publish(*msg)
+
+            topic, (dict_data, set_data, tuple_data) = s1.get()
+
+            # The return values are immutable, so each of the following triggers
+            # a type-specific exception.
+            with self.assertRaises(TypeError):
+                # 'mappingproxy' object does not support item assignment
+                dict_data["b"] = "B"
+            with self.assertRaises(AttributeError):
+                # 'frozenset' object has no attribute 'add'
+                set_data.add(4)
+            with self.assertRaises(TypeError):
+                # 'tuple' object does not support item assignment
+                tuple_data[3] = 'd'
+
     def test_publisher(self):
         with broker.Endpoint() as ep1, \
              broker.Endpoint() as ep2, \
