@@ -37,7 +37,7 @@ except:
                 if other.dst(None) is None:
                     return True
 
-                return self.dst(None) == other.dst(None);
+                return self.dst(None) == other.dst(None)
 
             except:
                 return False
@@ -134,7 +134,7 @@ class Subscriber:
             if not msg.is_set():
                 return None
 
-            msg = msg.get();
+            msg = msg.get()
 
         if isinstance(msg, tuple):
             return (msg[0].string(), Data.to_py(msg[1]))
@@ -551,48 +551,48 @@ class Data(_broker.Data):
 # class Store:
 #   def __init__(self, handle):
 #     self.store = handle
-# 
+#
 #   def name(self):
 #     return self.store.name()
-# 
+#
 # class Mailbox:
 #   def __init__(self, handle):
 #     self.mailbox = handle
-# 
+#
 #   def descriptor(self):
 #     return self.mailbox.descriptor()
-# 
+#
 #   def empty(self):
 #     return self.mailbox.empty()
-# 
+#
 #   def count(self, n = -1):
 #     return self.mailbox.count(n)
-# 
-# 
+#
+#
 # class Message:
 #   def __init__(self, handle):
 #     self.message = handle
-# 
+#
 #   def topic(self):
 #     return self.message.topic().string()
-# 
+#
 #   def data(self):
 #     return self.message.data() # TODO: unwrap properly
-# 
+#
 #   def __str__(self):
 #     return "%s -> %s" % (self.topic(), str(self.data()))
-# 
-# 
+#
+#
 # class BlockingEndpoint(Endpoint):
 #   def __init__(self, handle):
 #     super(BlockingEndpoint, self).__init__(handle)
-# 
+#
 #   def subscribe(self, topic):
 #     self.endpoint.subscribe(topic)
-# 
+#
 #   def unsubscribe(self, topic):
 #     self.endpoint.unsubscribe(topic)
-# 
+#
 #   def receive(self, x):
 #     if x == Status:
 #       return self.endpoint.receive()
@@ -600,7 +600,7 @@ class Data(_broker.Data):
 #       return Message(self.endpoint.receive())
 #     else:
 #       raise BrokerError("invalid receive type")
-# 
+#
 #   #def receive(self):
 #   #  if fun1 is None:
 #   #    return Message(self.endpoint.receive())
@@ -611,29 +611,29 @@ class Data(_broker.Data):
 #   #      return self.endpoint.receive_msg(fun1)
 #   #    raise BrokerError("invalid receive callback arity; must be 1 or 2")
 #   #  return self.endpoint.receive_msg_or_status(fun1, fun2)
-# 
+#
 #   def mailbox(self):
 #     return Mailbox(self.endpoint.mailbox())
-# 
-# 
+#
+#
 # class NonblockingEndpoint(Endpoint):
 #   def __init__(self, handle):
 #     super(NonblockingEndpoint, self).__init__(handle)
-# 
+#
 #   def subscribe(self, topic, fun):
 #     self.endpoint.subscribe_msg(topic, fun)
-# 
+#
 #   def on_status(fun):
 #     self.endpoint.subscribe_status(fun)
-# 
+#
 #   def unsubscribe(self, topic):
 #     self.endpoint.unsubscribe(topic)
-# 
-# 
+#
+#
 # class Context:
 #   def __init__(self):
 #     self.context = _broker.Context()
-# 
+#
 #   def spawn(self, api):
 #     if api == Blocking:
 #       return BlockingEndpoint(self.context.spawn_blocking())
@@ -641,4 +641,4 @@ class Data(_broker.Data):
 #       return NonblockingEndpoint(self.context.spawn_nonblocking())
 #     else:
 #       raise BrokerError("invalid API flag: " + str(api))
-# 
+#
