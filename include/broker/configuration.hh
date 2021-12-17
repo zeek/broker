@@ -3,6 +3,7 @@
 #include "broker/defaults.hh"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 

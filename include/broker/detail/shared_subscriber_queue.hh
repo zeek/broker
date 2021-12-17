@@ -77,7 +77,7 @@ public:
   // Inserts the range `[i, e)` into the queue.
   template <class Iter>
   void produce([[maybe_unused]] size_t num, Iter i, Iter e) {
-    BROKER_ASSERT(num == std::distance(i, e));
+    BROKER_ASSERT(static_cast<ptrdiff_t>(num) == std::distance(i, e));
     guard_type guard{this->mtx_};
     if (this->xs_.empty())
       this->fx_.fire();

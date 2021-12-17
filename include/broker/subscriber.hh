@@ -40,7 +40,7 @@ public:
 
   size_t rate() const;
 
-  const worker& worker() const {
+  const broker::worker& worker() const {
     return worker_;
   }
 
