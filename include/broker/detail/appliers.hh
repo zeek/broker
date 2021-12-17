@@ -8,8 +8,7 @@
 
 #include "broker/detail/type_traits.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 template <class T>
 constexpr bool is_additive_group() {
@@ -29,23 +28,25 @@ struct adder {
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = caf::get_if<T>(&value);
-    if (!x)
+    if (auto x = get_if<T>(&value)) {
+      c += *x;
+      return {};
+    } else {
       return ec::type_clash;
-    c += *x;
-    return {};
+    }
   }
 
   result_type operator()(timestamp& tp) {
-    auto s = caf::get_if<timespan>(&value);
-    if (!s)
+    if (auto s = get_if<timespan>(&value)) {
+      tp += *s;
+      return {};
+    } else {
       return ec::type_clash;
-    tp += *s;
-    return {};
+    }
   }
 
   result_type operator()(std::string& str) {
-    auto x = caf::get_if<std::string>(&value);
+    auto x = get_if<std::string>(&value);
     if (!x)
       return ec::type_clash;
     str += *x;
@@ -65,7 +66,7 @@ struct adder {
   result_type operator()(table& t) {
     // Data must come as key-value pair to be valid, which we model as
     // vector of length 2.
-    auto v = caf::get_if<vector>(&value);
+    auto v = get_if<vector>(&value);
     if (!v)
       return ec::type_clash;
     if (v->size() != 2)
@@ -87,7 +88,7 @@ struct remover {
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = caf::get_if<T>(&value);
+    auto x = get_if<T>(&value);
     if (!x)
       return ec::type_clash;
     c -= *x;
@@ -95,7 +96,7 @@ struct remover {
   }
 
   result_type operator()(timestamp& ts) {
-    auto s = caf::get_if<timespan>(&value);
+    auto s = get_if<timespan>(&value);
     if (!s)
       return ec::type_clash;
     ts -= *s;
@@ -131,11 +132,10 @@ struct retriever {
 
   result_type operator()(const vector& v) const {
     count i;
-    auto x = caf::get_if<count>(&aspect);
-    if (x)
+    if (auto x = get_if<count>(&aspect))
       i = *x;
     else {
-      auto y = caf::get_if<integer>(&aspect);
+      auto y = get_if<integer>(&aspect);
       if (!y || *y < 0)
         return ec::type_clash;
       i = static_cast<count>(*y);
@@ -159,5 +159,4 @@ struct retriever {
   const data& aspect;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

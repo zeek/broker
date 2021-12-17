@@ -1,6 +1,7 @@
 // ping.cc
 
-#include <assert.h>
+#include <cassert>
+#include <iostream>
 
 #include "broker/broker.hh"
 #include "broker/zeek.hh"
@@ -16,7 +17,7 @@ int main() {
 
     // Wait until connection is established.
     auto ss_res = ss.get();
-    auto st = caf::get_if<status>(&ss_res);
+    auto st = get_if<status>(&ss_res);
     if ( ! (st && st->code() == sc::peer_added) ) {
         std::cerr << "could not connect" << std::endl;
         return 1;

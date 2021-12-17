@@ -1,11 +1,10 @@
 #pragma once
 
 #include "broker/backend_options.hh"
-
 #include "broker/detail/abstract_backend.hh"
+#include "broker/expected.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// A SQLite storage backend.
 class sqlite_backend : public abstract_backend {
@@ -22,13 +21,13 @@ public:
   bool init_failed() const;
 
   expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override;
+                     std::optional<timestamp> expiry) override;
 
   expected<void> add(const data& key, const data& value, data::type init_type,
-                     optional<timestamp> expiry) override;
+                     std::optional<timestamp> expiry) override;
 
   expected<void> subtract(const data& key, const data& value,
-                          optional<timestamp> expiry) override;
+                          std::optional<timestamp> expiry) override;
 
   expected<void> erase(const data& key) override;
 
@@ -53,5 +52,4 @@ private:
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

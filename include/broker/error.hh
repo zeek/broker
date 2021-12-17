@@ -1,22 +1,15 @@
 #pragma once
 
+#include "broker/convert.hh"
+#include "broker/detail/comparable.hh"
+#include "broker/detail/pp.hh"
+#include "broker/fwd.hh"
+
 #include <cstdint>
 #include <type_traits>
 #include <utility>
 
-#include <caf/config.hpp>
-#include <caf/detail/pp.hpp>
-#include <caf/error.hpp>
-#include <caf/make_message.hpp>
-
-#include "broker/convert.hh"
-#include "broker/fwd.hh"
-
 namespace broker {
-
-using caf::error;
-
-using caf::make_error;
 
 /// Broker's error codes.
 // --ec-enum-start
@@ -67,6 +60,101 @@ enum class ec : uint8_t {
 };
 // --ec-enum-end
 
+/// Returns the 16-bit type ID that an @ref error stores if the 8-bit code
+/// belongs to an @ref ec.
+[[nodiscard]] uint16_t ec_category() noexcept;
+
+/// Stores an error code along with a additional user-defined context.
+class error : detail::comparable<error>, detail::comparable<error, ec> {
+public:
+  /// Opaque implementation type.
+  struct impl;
+
+  error();
+
+  error(ec code);
+
+  error(ec code, std::string description);
+
+  error(ec code, endpoint_info info, std::string description);
+
+  explicit error(const impl* other);
+
+  error(const error& other);
+
+  error(error&& other) noexcept;
+
+  error& operator=(const error& other);
+
+  error& operator=(error&& other) noexcept;
+
+  /// Returns `valid()`.
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+  /// Returns `!valid()`.
+  bool operator!() const noexcept {
+    return !valid();
+  }
+
+  /// Checks whether this instance stores an actual error or represents the
+  /// `NULL` state.
+  [[nodiscard]] bool valid() const noexcept;
+
+  /// Returns the category-specific error code, whereas `0` means "no error".
+  /// @pre `valid()`
+  [[nodiscard]] uint8_t code() const noexcept;
+
+  /// Returns the category for this error encoded as 16-bit "type ID".
+  /// @pre `valid()`
+  [[nodiscard]] uint16_t category() const noexcept;
+
+  /// Returns the user-defined error message if present, `nullptr` otherwise.
+  /// @pre `valid()`
+  const std::string* message() const noexcept;
+
+  /// Returns additional contextual network information if available.
+  const endpoint_info* context() const noexcept;
+
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] impl* native_ptr() noexcept;
+
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] const impl* native_ptr() const noexcept;
+
+  /// Compares `this` to `other`.
+  /// @returns a negative value if `*this < other`, zero if `*this == other`,
+  /// and a positive value if `*this > other`.
+  [[nodiscard]] int compare(const error& other) const noexcept;
+
+  [[nodiscard]] int compare(uint8_t code, uint16_t category) const noexcept;
+
+  [[nodiscard]] int compare(ec code) const noexcept {
+    return compare(static_cast<uint8_t>(code), ec_category());
+  }
+
+private:
+  std::byte obj_[sizeof(impl*)];
+};
+
+/// @relates error
+std::string to_string(const error& x);
+
+/// Creates a new @ref error from given @ref ec code.
+inline error make_error(ec code) {
+  return error{code};
+}
+
+/// Creates a new @ref error from given @ref ec @p code and @p description.
+inline error make_error(ec code, std::string description) {
+  return error{code, std::move(description)};
+}
+
+/// Creates a new @ref error from given @ref ec @p code, @p info
+/// and @p description.
+error make_error(ec code, endpoint_info info, std::string description);
+
 /// Evaluates to `true` if an ::error with code `E` can contain a `network_info`
 /// in its context.
 /// @relates ec
@@ -80,7 +168,7 @@ template <ec Value>
 using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
-std::string to_string(ec code) noexcept;
+std::string to_string(ec code);
 
 /// @relates ec
 bool convert(const std::string& str, ec& code) noexcept;
@@ -162,7 +250,7 @@ public:
   const std::string* message() const noexcept;
 
   /// Retrieves additional contextual information, if available.
-  optional<endpoint_info> context() const;
+  std::optional<endpoint_info> context() const;
 
   /// Creates a view for given data.
   /// @returns A ::valid view on success, an invalid view otherwise.
@@ -182,8 +270,6 @@ inline error_view make_error_view(const data& src) {
 }
 
 } // namespace broker
-
-CAF_ERROR_CODE_ENUM(broker::ec, "broker")
 
 #define BROKER_TRY_IMPL(statement)                                             \
   if (auto err = statement)                                                    \
@@ -226,11 +312,12 @@ CAF_ERROR_CODE_ENUM(broker::ec, "broker")
 #ifdef _MSC_VER
 
 #define BROKER_TRY(...)                                                        \
-  CAF_PP_CAT(CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),           \
-             CAF_PP_EMPTY())
+  BROKER_PP_CAT(BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),     \
+                BROKER_PP_EMPTY())
 
 #else // _MSVC_VER
 
-#define BROKER_TRY(...) CAF_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
+#define BROKER_TRY(...)                                                        \
+  BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
 
 #endif // _MSVC_VER

@@ -2,6 +2,8 @@
 
 #include <caf/deep_to_string.hpp>
 
+#include "broker/internal/type_id.hh"
+
 namespace broker {
 
 std::string to_string(const data_message& msg) {

@@ -10,7 +10,9 @@
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
-#include "broker/core_actor.hh"
+#include "broker/internal/configuration_access.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/endpoint_access.hh"
 
 #ifdef BROKER_WINDOWS
 #include "Winsock2.h"
@@ -21,7 +23,7 @@ using namespace broker;
 
 base_fixture::base_fixture()
   : ep(make_config()),
-    sys(ep.system()),
+    sys(internal::endpoint_access{&ep}.sys()),
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
@@ -55,8 +57,9 @@ configuration base_fixture::make_config() {
   broker_options options;
   options.disable_ssl = true;
   configuration cfg{options};
-  test_coordinator_fixture<configuration>::init_config(cfg);
-  cfg.load<io::middleman, io::network::test_multiplexer>();
+  auto& nat_cfg = internal::configuration_access{&cfg}.cfg();
+  test_coordinator_fixture<caf::actor_system_config>::init_config(nat_cfg);
+  nat_cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
 }
 

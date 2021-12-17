@@ -1,6 +1,6 @@
 #define SUITE core
 
-#include "broker/core_actor.hh"
+#include "broker/internal/core_actor.hh"
 
 #include "test.hh"
 
@@ -10,17 +10,20 @@
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
+
+using broker::internal::core_actor_type;
+using broker::internal::facade;
+using broker::internal::native;
 
 using namespace broker;
-using namespace broker::detail;
 
-using element_type = endpoint::stream_type::value_type;
+namespace atom = broker::internal::atom;
 
 namespace {
 
 struct driver_state {
-  using buf_type = std::vector<element_type>;
+  using buf_type = std::vector<data_message>;
   bool restartable = false;
   buf_type xs;
   static inline const char* name = "driver";
@@ -46,7 +49,7 @@ caf::behavior driver(caf::stateful_actor<driver_state>* self,
           // nop
         },
         // Get next element.
-        [=](caf::unit_t&, caf::downstream<element_type>& out, size_t num) {
+        [=](caf::unit_t&, caf::downstream<data_message>& out, size_t num) {
           auto& xs = self->state.xs;
           auto n = std::min(num, xs.size());
           if (n == 0)
@@ -71,7 +74,7 @@ caf::behavior driver(caf::stateful_actor<driver_state>* self,
 }
 
 struct consumer_state {
-  std::vector<element_type> xs;
+  std::vector<data_message> xs;
   static const char* name;
 };
 
@@ -81,7 +84,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        filter_type ts, const caf::actor& src) {
   self->send(self * src, atom::join_v, std::move(ts));
   return {
-    [=](const endpoint::stream_type& in) {
+    [=](caf::stream<data_message> in) {
       attach_stream_sink(
         self,
         // Input stream.
@@ -91,7 +94,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
           // nop
         },
         // Process single element.
-        [=](caf::unit_t&, element_type x) {
+        [=](caf::unit_t&, data_message x) {
           self->state.xs.emplace_back(std::move(x));
         },
         // Cleanup.
@@ -103,14 +106,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   };
 }
 
-struct config : caf::actor_system_config {
-public:
-  config() {
-    configuration::add_message_types(*this);
-  }
-};
-
-struct fixture : test_coordinator_fixture<config> {
+struct fixture : test_coordinator_fixture<> {
   fixture() {
     // We don't do networking, but our flares use the socket API.
     base_fixture::init_socket_api();
@@ -157,7 +153,7 @@ CAF_TEST(local_peers) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("run handshake between peers");
   run();
   // Check if core1 & core2 both report each other as peered.
@@ -169,7 +165,7 @@ CAF_TEST(local_peers) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core2");
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get_v, atom::peer_v)
@@ -178,13 +174,13 @@ CAF_TEST(local_peers) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("spin up driver on core1");
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("driver: " << to_string(d1));
   run();
   CAF_MESSAGE("check log of the consumer after the driver is done");
-  using buf = std::vector<element_type>;
+  using buf = std::vector<data_message>;
   self->send(leaf, atom::get_v);
   sched.prioritize(leaf);
   consume_message();
@@ -196,7 +192,8 @@ CAF_TEST(local_peers) {
     }
   );
   CAF_MESSAGE("send message 'directly' from core1 to core2 (bypass streaming)");
-  anon_send(core1, atom::publish_v, endpoint_info{core2.node(), caf::none},
+  anon_send(core1, atom::publish_v,
+            endpoint_info{facade(core2.node()), std::nullopt},
             make_data_message(topic("b"), data{true}));
   expect((atom::publish, endpoint_info, data_message),
          from(_).to(core1).with(_, _, _));
@@ -225,14 +222,14 @@ CAF_TEST(local_peers) {
       [&](const std::vector<peer_info>& xs) {
         CAF_REQUIRE_EQUAL(xs.size(), 0u);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get_v, atom::peer_v)
     .receive(
       [&](const std::vector<peer_info>& xs) {
         CAF_REQUIRE_EQUAL(xs.size(), 0u);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("shutdown core actors");
   anon_send_exit(core1, caf::exit_reason::user_shutdown);
   anon_send_exit(core2, caf::exit_reason::user_shutdown);
@@ -273,7 +270,7 @@ CAF_TEST(triangle_peering) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   // Step #1: core1  --->    ('peer', filter_type)    ---> core2
   expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
@@ -291,7 +288,7 @@ CAF_TEST(triangle_peering) {
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
         CAF_REQUIRE_EQUAL(xs.back().status, peer_status::connecting);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   // Perform further handshake steps.
   run();
   // Check if all cores properly report peering setup.
@@ -303,7 +300,7 @@ CAF_TEST(triangle_peering) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core2");
   sched.inline_next_enqueue();
   self->request(core2, infinite, atom::get_v, atom::peer_v)
@@ -313,7 +310,7 @@ CAF_TEST(triangle_peering) {
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
         CAF_REQUIRE_EQUAL(xs.back().status, peer_status::peered);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   CAF_MESSAGE("query peer information from core3");
   sched.inline_next_enqueue();
   self->request(core3, infinite, atom::get_v, atom::peer_v)
@@ -322,13 +319,13 @@ CAF_TEST(triangle_peering) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::peered);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   // Spin up driver on core1.
   auto d1 = sys.spawn(driver, core1, false);
   CAF_MESSAGE("d1: " << to_string(d1));
   run();
   // Check log of the consumers.
-  using buf = std::vector<element_type>;
+  using buf = std::vector<data_message>;
   auto expected = data_msgs({{"b", true}, {"b", false},
                              {"b", true}, {"b", false}});
   for (auto& leaf : {leaf2, leaf3}) {
@@ -391,7 +388,7 @@ CAF_TEST(sequenced_peering) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core2).with(_, filter_type{"a", "b", "c"}, core1));
   run();
@@ -400,7 +397,7 @@ CAF_TEST(sequenced_peering) {
   CAF_MESSAGE(BROKER_ARG(d1));
   run();
   // Check log of the consumer on core2.
-  using buf = std::vector<element_type>;
+  using buf = std::vector<data_message>;
   auto expected = data_msgs({{"b", true}, {"b", false},
                              {"b", true}, {"b", false}});
   self->send(leaf1, atom::get_v);
@@ -421,7 +418,7 @@ CAF_TEST(sequenced_peering) {
       [&](const std::vector<peer_info>& xs) {
         CAF_REQUIRE_EQUAL(xs.size(), 0u);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   // Initiate handshake between core1 and core3.
   self->send(core1, atom::peer_v, core3);
   expect((atom::peer, caf::actor), from(self).to(core1).with(_, core3));
@@ -434,7 +431,7 @@ CAF_TEST(sequenced_peering) {
         CAF_REQUIRE_EQUAL(xs.size(), 1u);
         CAF_REQUIRE_EQUAL(xs.front().status, peer_status::connecting);
       },
-      [&](const error& err) { CAF_FAIL(err); });
+      [&](const caf::error& err) { CAF_FAIL(err); });
   // Step #1: core1  --->    ('peer', filter_type)    ---> core3
   expect((atom::peer, filter_type, caf::actor),
          from(core1).to(core3).with(_, filter_type{"a", "b", "c"}, core1));
@@ -446,7 +443,7 @@ CAF_TEST(sequenced_peering) {
   sched.inline_next_enqueue();
   self->request(leaf2, infinite, atom::get_v)
     .receive([&](const buf& xs) { CAF_CHECK_EQUAL(xs, expected); },
-             [&](const error& err) { CAF_FAIL(err); });
+             [&](const caf::error& err) { CAF_FAIL(err); });
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
   anon_send_exit(core1, caf::exit_reason::user_shutdown);
@@ -464,11 +461,11 @@ struct error_signaling_fixture : base_fixture {
 
   error_signaling_fixture() : es(ep.make_status_subscriber(true)) {
     es.set_rate_calculation(false);
-    core1 = ep.core();
+    core1 = native(ep.core());
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-    core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
-                                       ep.config().options());
+    core2
+      = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, ep.options());
     CAF_MESSAGE(BROKER_ARG(core2));
     run();
     CAF_MESSAGE("init done");
@@ -476,7 +473,7 @@ struct error_signaling_fixture : base_fixture {
 };
 
 struct event_visitor {
-  using result_type = caf::variant<caf::none_t, sc, ec>;
+  using result_type = std::variant<caf::none_t, sc, ec>;
   using vector_type = std::vector<result_type>;
 
   result_type operator()(const broker::error& x) {
@@ -616,12 +613,12 @@ CAF_TEST_FIXTURE_SCOPE(distributed_peers, point_to_point_fixture<base_fixture>)
 // Setup: driver -> earth.core -> mars.core -> leaf
 CAF_TEST(remote_peers_setup1) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ep.core();
-  auto core2 = mars.ep.core();
-  anon_send(core1, atom::no_events_v);
-  anon_send(core2, atom::no_events_v);
-  anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  auto core1 = native(earth.ep.core());
+  auto core2 = native(mars.ep.core());
+  caf::anon_send(core1, atom::no_events_v);
+  caf::anon_send(core2, atom::no_events_v);
+  caf::anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
+  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
   exec_all();
   // --- phase 2: connect earth and mars at CAF level --------------------------
   // Prepare publish and remote_actor calls.
@@ -656,7 +653,7 @@ CAF_TEST(remote_peers_setup1) {
   CAF_MESSAGE("d1: " << to_string(d1));
   exec_all();
   // Check log of the consumer.
-  using buf = std::vector<element_type>;
+  using buf = std::vector<data_message>;
   earth.self->send(leaf, atom::get_v);
   exec_all();
   earth.self->receive(
@@ -675,12 +672,12 @@ CAF_TEST(remote_peers_setup1) {
 // Setup: driver -> mars.core -> earth.core -> leaf
 CAF_TEST(remote_peers_setup2) {
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ep.core();
-  auto core2 = mars.ep.core();
-  anon_send(core1, atom::no_events_v);
-  anon_send(core2, atom::no_events_v);
-  anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  auto core1 = native(earth.ep.core());
+  auto core2 = native(mars.ep.core());
+  caf::anon_send(core1, atom::no_events_v);
+  caf::anon_send(core2, atom::no_events_v);
+  caf::anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
+  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
   exec_all();
   // --- phase 2: connect earth and mars at CAF level --------------------------
   // Prepare publish and remote_actor calls.
@@ -716,7 +713,7 @@ CAF_TEST(remote_peers_setup2) {
   CAF_MESSAGE("d1: " << to_string(d1));
   exec_all();
   // Check log of the consumer.
-  using buf = std::vector<element_type>;
+  using buf = std::vector<data_message>;
   mars.self->send(leaf, atom::get_v);
   mars.sched.prioritize(leaf);
   mars.consume_message();

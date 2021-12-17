@@ -77,7 +77,7 @@ auto ss = ep.make_status_subscriber();
 
 if ( ss.available() ) {
     auto ss_res = ss.get();
-    auto err = caf::get<error>(ss_res); // Won't block now.
+    auto err = get<error>(ss_res); // Won't block now.
     std::cerr << "Broker error:" << err.code() << ", " << to_string(err) << std::endl;
 }
 // --status-subscriber-err-end
@@ -93,10 +93,10 @@ auto ss = ep.make_status_subscriber(true); // Get status updates and errors.
 if ( ss.available() ) {
     auto s = ss.get();
 
-    if ( auto err = caf::get_if<error>(&s) )
+    if ( auto err = get_if<error>(&s) )
         std::cerr << "Broker error:" << err->code() << ", " << to_string(*err) << std::endl;
 
-    if ( auto st = caf::get_if<status>(&s) ) {
+    if ( auto st = get_if<status>(&s) ) {
 	if ( auto ctx = st->context<endpoint_info>() ) // Get the peer this is about if available.
            std::cerr << "Broker status update regarding "
 	             << ctx->network->address

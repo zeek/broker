@@ -1,5 +1,7 @@
 #pragma once
 
+#include <new>
+
 #cmakedefine BROKER_APPLE
 #cmakedefine BROKER_FREEBSD
 #cmakedefine BROKER_LINUX
@@ -32,4 +34,12 @@
     #define BROKER_LSAN_ENABLE()
     #define BROKER_LSAN_DISABLE()
     #define BROKER_LSAN_IGNORE(x)
+#endif
+
+#ifdef __cpp_lib_hardware_interference_size
+#define BROKER_CONSTRUCTIVE_INTERFERENCE_SIZE                                  \
+  std::hardware_constructive_interference_size
+#else
+// 64 bytes on x86-64 & other common platforms
+#define BROKER_CONSTRUCTIVE_INTERFERENCE_SIZE 64
 #endif

@@ -1,17 +1,23 @@
-#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/publisher.hh"
-
-#include <numeric>
-
-#include <caf/attach_stream_source.hpp>
-#include <caf/send.hpp>
 
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
-using namespace caf;
+#include <caf/attach_stream_source.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/send.hpp>
+
+#include <numeric>
+
+using broker::internal::facade;
+using broker::internal::native;
+
+namespace atom = broker::internal::atom;
 
 namespace broker {
 
@@ -51,16 +57,16 @@ struct publisher_worker_state {
 
 const char* publisher_worker_state::name = "publisher_worker";
 
-behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
-                          endpoint* ep,
-                          detail::shared_publisher_queue_ptr<> qptr) {
+caf::behavior
+publisher_worker(caf::stateful_actor<publisher_worker_state>* self,
+                 endpoint* ep, detail::shared_publisher_queue_ptr<> qptr) {
   auto handler
-    = attach_stream_source(
-        self, ep->core(),
-        [](unit_t&) {
+    = caf::attach_stream_source(
+        self, internal::native(ep->core()),
+        [](caf::unit_t&) {
           // nop
         },
-        [=](unit_t&, downstream<data_message>& out, size_t num) {
+        [=](caf::unit_t&, caf::downstream<data_message>& out, size_t num) {
           auto& st = self->state;
           auto consumed = qptr->consume(
             num, [&](data_message&& x) { out.push(std::move(x)); });
@@ -68,7 +74,7 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
             st.counter += consumed;
           }
         },
-        [=](const unit_t&) {
+        [=](const caf::unit_t&) {
           return self->state.shutting_down && qptr->buffer_size() == 0;
         })
         .ptr();
@@ -99,9 +105,9 @@ behavior publisher_worker(stateful_actor<publisher_worker_state>* self,
 publisher::publisher(endpoint& ep, topic t)
   : drop_on_destruction_(false),
     queue_(detail::make_shared_publisher_queue(queue_size)),
-    worker_(ep.system().spawn(publisher_worker, &ep, queue_)),
     topic_(std::move(t)) {
-  // nop
+  auto& sys = internal::endpoint_access{&ep}.sys();
+  worker_ = facade(sys.spawn(publisher_worker, &ep, queue_));
 }
 
 publisher::~publisher() {
@@ -138,7 +144,7 @@ void publisher::drop_all_on_destruction() {
 void publisher::publish(data x) {
   BROKER_INFO("publishing" << std::make_pair(topic_, x));
   if (queue_->produce(topic_, std::move(x)))
-    anon_send(worker_, atom::resume_v);
+    caf::anon_send(native(worker_), atom::resume_v);
 }
 
 void publisher::publish(std::vector<data> xs) {
@@ -154,7 +160,7 @@ void publisher::publish(std::vector<data> xs) {
     }
 #endif
     if (queue_->produce(topic_, i, j))
-      anon_send(worker_, atom::resume_v);
+      caf::anon_send(native(worker_), atom::resume_v);
     i = j;
   }
 }
@@ -163,9 +169,9 @@ void publisher::reset() {
   if (!worker_)
     return;
   if (!drop_on_destruction_)
-    anon_send(worker_, atom::shutdown_v);
+    caf::anon_send(native(worker_), atom::shutdown_v);
   else
-    anon_send_exit(worker_, exit_reason::user_shutdown);
+    caf::anon_send_exit(native(worker_), caf::exit_reason::user_shutdown);
   worker_ = nullptr;
 }
 

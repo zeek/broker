@@ -15,6 +15,7 @@
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/native.hh"
 
 #include <cassert>
 
@@ -187,14 +188,25 @@ public:
   }
 };
 
-inline broker::data value_of(caf::expected<broker::data> x) {
+// -- utility ------------------------------------------------------------------
+
+template <class T>
+T unbox(broker::expected<T> x) {
+  if (!x)
+    FAIL(to_string(x.error()));
+  else
+    return std::move(*x);
+}
+
+
+inline broker::data value_of(broker::expected<broker::data> x) {
   if (!x) {
     FAIL("cannot unbox expected<data>: " << to_string(x.error()));
   }
   return std::move(*x);
 }
 
-inline caf::error error_of(caf::expected<broker::data> x) {
+inline broker::error error_of(broker::expected<broker::data> x) {
   if (x) {
     FAIL("cannot get error of expected<data>, contains value: "
          << to_string(*x));

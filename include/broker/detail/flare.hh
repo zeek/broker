@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <chrono>
 
+#include "broker/config.hh"
+#include "broker/detail/native_socket.hh"
 #include "broker/time.hh"
-
-#include <caf/io/network/native_socket.hpp>
 
 namespace broker::detail {
 
@@ -17,8 +17,6 @@ namespace broker::detail {
 class flare {
 public:
   using timeout_type = clock::time_point;
-
-  using native_socket = caf::io::network::native_socket;
 
   /// Constructs a flare by opening a UNIX pipe.
   flare();

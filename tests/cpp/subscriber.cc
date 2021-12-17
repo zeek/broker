@@ -14,29 +14,32 @@
 #include <caf/exit_reason.hpp>
 #include <caf/send.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
-#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
+using broker::internal::native;
 using std::cout;
 using std::endl;
 using std::string;
 
-using namespace caf;
+namespace atom = broker::internal::atom;
+
 using namespace broker;
 using namespace broker::detail;
 
 namespace {
 
-void driver(event_based_actor* self, const actor& sink) {
+void driver(caf::event_based_actor* self, const caf::actor& sink) {
   using buf_type = std::vector<data_message>;
-  attach_stream_source(
+  caf::attach_stream_source(
     self,
     // Destination.
     sink,
@@ -47,7 +50,7 @@ void driver(event_based_actor* self, const actor& sink) {
                       {"a", 4},     {"a", 5}});
     },
     // Get next element.
-    [](buf_type& xs, downstream<data_message>& out, size_t num) {
+    [](buf_type& xs, caf::downstream<data_message>& out, size_t num) {
       auto n = std::min(num, xs.size());
       for (size_t i = 0u; i < n; ++i)
         out.push(xs[i]);
@@ -65,18 +68,18 @@ CAF_TEST(blocking_subscriber) {
   // Spawn/get/configure core actors.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
-                                          options, nullptr);
-  auto core2 = ep.core();
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  anon_send(core1, atom::no_events_v);
-  anon_send(core2, atom::no_events_v);
+  auto core1 = sys.spawn<internal::core_actor_type>(filter_type{"a", "b", "c"},
+                                                    options, nullptr);
+  auto core2 = native(ep.core());
+  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  caf::anon_send(core1, atom::no_events_v);
+  caf::anon_send(core2, atom::no_events_v);
   run();
   // Connect a consumer (leaf) to core2.
   // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
   auto sub = ep.make_subscriber(filter_type{"b"});
   sub.set_rate_calculation(false);
-  auto leaf = sub.worker();
+  auto leaf = native(sub.worker());
   CAF_MESSAGE("core1: " << to_string(core1));
   CAF_MESSAGE("core2: " << to_string(core2));
   CAF_MESSAGE("leaf: " << to_string(leaf));
@@ -94,22 +97,22 @@ CAF_TEST(blocking_subscriber) {
   CAF_CHECK_EQUAL(sub.poll(), expected);
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
-  anon_send_exit(leaf, exit_reason::user_shutdown);
-  anon_send_exit(d1, exit_reason::user_shutdown);
+  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
+  caf::anon_send_exit(leaf, caf::exit_reason::user_shutdown);
+  caf::anon_send_exit(d1, caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST(nonblocking_subscriber) {
   // Spawn/get/configure core actors.
   broker_options options;
   options.disable_ssl = true;
-  auto core1 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
-                                          options, nullptr);
-  auto core2 = ep.core();
-  anon_send(core1, atom::no_events_v);
-  anon_send(core2, atom::no_events_v);
-  anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
+  auto core1 = sys.spawn<internal::core_actor_type>(filter_type{"a", "b", "c"},
+                                                    options, nullptr);
+  auto core2 = native(ep.core());
+  caf::anon_send(core1, atom::no_events_v);
+  caf::anon_send(core2, atom::no_events_v);
+  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
   self->send(core1, atom::peer_v, core2);
   run();
   // Connect a subscriber (leaf) to core2.
@@ -117,13 +120,13 @@ CAF_TEST(nonblocking_subscriber) {
   buf result;
   ep.subscribe_nosync(
     {"b"},
-    [](unit_t&) {
+    [](caf::unit_t&) {
       // nop
     },
-    [&](unit_t&, data_message x) {
+    [&](caf::unit_t&, data_message x) {
       result.emplace_back(std::move(x));
     },
-    [](unit_t&, const error&) {
+    [](caf::unit_t&, const error&) {
       // nop
     }
   );
@@ -136,8 +139,8 @@ CAF_TEST(nonblocking_subscriber) {
   CAF_REQUIRE_EQUAL(result, expected);
   // Shutdown.
   CAF_MESSAGE("Shutdown core actors.");
-  anon_send_exit(core1, exit_reason::user_shutdown);
-  anon_send_exit(core2, exit_reason::user_shutdown);
+  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
+  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

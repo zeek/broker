@@ -1,10 +1,11 @@
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
 
-#include <cstdio> // std::snprintf
-#include <utility>
 #include <cstdint>
+#include <cstdio> // std::snprintf
+#include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <caf/binary_deserializer.hpp>
@@ -12,14 +13,14 @@
 #include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
-#include "broker/version.hh"
-#include "broker/error.hh"
-#include "broker/expected.hh"
-#include "broker/optional.hh"
-#include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/sqlite_backend.hh"
+#include "broker/error.hh"
+#include "broker/expected.hh"
+#include "broker/internal/type_id.hh"
+#include "broker/version.hh"
 
 #include "sqlite3.h"
 
@@ -57,7 +58,7 @@ struct sqlite_backend::impl {
       BROKER_ERROR("SQLite backend options are missing required 'path' string");
       return;
     }
-    if (auto path = caf::get_if<std::string>(&i->second)) {
+    if (auto path = get_if<std::string>(&i->second)) {
       if (!open(*path))
         BROKER_ERROR("unable to open SQLite Database " << *path);
     } else {
@@ -161,7 +162,7 @@ struct sqlite_backend::impl {
   }
 
   bool modify(const data& key, const data& value,
-              optional<timestamp> expiry) {
+              std::optional<timestamp> expiry) {
     auto [key_ok, key_blob] = to_blob(key);
     if (!key_ok) {
       BROKER_DEBUG("impl::modify: to_blob(key) failed");
@@ -232,7 +233,7 @@ bool sqlite_backend::init_failed() const {
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
-                                   optional<timestamp> expiry) {
+                                   std::optional<timestamp> expiry) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
@@ -271,7 +272,7 @@ expected<void> sqlite_backend::put(const data& key, data value,
 
 expected<void> sqlite_backend::add(const data& key, const data& value,
                                    data::type init_type,
-                                   optional<timestamp> expiry) {
+                                   std::optional<timestamp> expiry) {
   auto v = get(key);
   data vv;
   if (!v) {
@@ -281,18 +282,18 @@ expected<void> sqlite_backend::add(const data& key, const data& value,
   } else {
     vv = std::move(*v);
   }
-  auto result = caf::visit(adder{value}, vv);
+  auto result = visit(adder{value}, vv);
   if (!result)
     return result;
   return put(key, std::move(vv), expiry);
 }
 
 expected<void> sqlite_backend::subtract(const data& key, const data& value,
-                                        optional<timestamp> expiry) {
+                                        std::optional<timestamp> expiry) {
   auto v = get(key);
   if (!v)
     return v.error();
-  auto result = caf::visit(remover{value}, *v);
+  auto result = visit(remover{value}, *v);
   if (!result)
     return result;
   if (!impl_->modify(key, *v, expiry))

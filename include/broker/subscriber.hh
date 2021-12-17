@@ -1,17 +1,15 @@
 #pragma once
 
-#include <vector>
-#include <functional>
-
-#include <caf/actor.hpp>
-
 #include "broker/data.hh"
+#include "broker/detail/shared_subscriber_queue.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 #include "broker/subscriber_base.hh"
 #include "broker/topic.hh"
+#include "broker/worker.hh"
 
-#include "broker/detail/shared_subscriber_queue.hh"
+#include <vector>
+#include <functional>
 
 namespace broker {
 
@@ -42,7 +40,7 @@ public:
 
   size_t rate() const;
 
-  const caf::actor& worker() const {
+  const worker& worker() const {
     return worker_;
   }
 
@@ -73,9 +71,9 @@ private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
   subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize);
 
-  caf::actor worker_;
+  broker::worker worker_;
   std::vector<topic> filter_;
-  std::reference_wrapper<endpoint> ep_;
+  endpoint* ep_;
 };
 
 } // namespace broker

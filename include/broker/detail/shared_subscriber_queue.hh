@@ -1,14 +1,13 @@
 #pragma once
 
+#include <memory>
 #include <vector>
-#include <caf/intrusive_ptr.hpp>
-#include <caf/make_counted.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/detail/shared_queue.hh"
 #include "broker/message.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// Synchronizes a publisher with a background worker. Uses the `pending` flag
 /// and the `flare` to signalize demand to the user. Users can write as long as
@@ -77,9 +76,8 @@ public:
 
   // Inserts the range `[i, e)` into the queue.
   template <class Iter>
-  void produce(size_t num, Iter i, Iter e) {
-    CAF_IGNORE_UNUSED(num);
-    CAF_ASSERT(num == std::distance(i, e));
+  void produce([[maybe_unused]] size_t num, Iter i, Iter e) {
+    BROKER_ASSERT(num == std::distance(i, e));
     guard_type guard{this->mtx_};
     if (this->xs_.empty())
       this->fx_.fire();
@@ -97,12 +95,11 @@ public:
 
 template <class ValueType = data_message>
 using shared_subscriber_queue_ptr
-  = caf::intrusive_ptr<shared_subscriber_queue<ValueType>>;
+  = std::shared_ptr<shared_subscriber_queue<ValueType>>;
 
 template <class ValueType = data_message>
-shared_subscriber_queue_ptr<ValueType> make_shared_subscriber_queue() {
-  return caf::make_counted<shared_subscriber_queue<ValueType>>();
+auto make_shared_subscriber_queue() {
+  return std::make_shared<shared_subscriber_queue<ValueType>>();
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

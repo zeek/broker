@@ -17,12 +17,14 @@ timespan operator""_ns(unsigned long long value) {
 
 struct fixture {
   fixture() {
-    if (auto err = caf::parse(node_str, node))
+    caf::node_id tmp;
+    if (auto err = caf::parse(node_str, tmp))
       FAIL("unable to parse node ID: " << err);
+    node = internal::facade(tmp);
   }
 
   std::string node_str = "BBF10F9E6CD6304859D19F494A0C5688E5DAD801#11334";
-  caf::node_id node;
+  endpoint_id node;
   uint64_t obj = 42;
 };
 
@@ -65,7 +67,7 @@ TEST(insert events consist of key value and expiry) {
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
-    CHECK_EQUAL(view.expiry(), nil);
+    CHECK_EQUAL(view.expiry(), std::nullopt);
     CHECK_EQUAL(view.publisher(), publisher_id{});
   }
   MESSAGE("elements six and seven denote the publisher");
@@ -76,7 +78,7 @@ TEST(insert events consist of key value and expiry) {
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
-    CHECK_EQUAL(view.expiry(), nil);
+    CHECK_EQUAL(view.expiry(), std::nullopt);
     CHECK_EQUAL(view.publisher(), (publisher_id{node, 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
@@ -109,7 +111,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
-    CHECK_EQUAL(view.expiry(), nil);
+    CHECK_EQUAL(view.expiry(), std::nullopt);
     CHECK_EQUAL(view.publisher(), publisher_id{});
   }
   MESSAGE("elements six and seven denote the publisher");
@@ -121,7 +123,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
-    CHECK_EQUAL(view.expiry(), nil);
+    CHECK_EQUAL(view.expiry(), std::nullopt);
     CHECK_EQUAL(view.publisher(), (publisher_id{node, 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");

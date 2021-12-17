@@ -4,6 +4,11 @@
 #include <caf/node_id.hpp>
 
 #include "broker/convert.hh"
+#include "broker/expected.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
+
+using broker::internal::native;
 
 namespace broker {
 
@@ -136,7 +141,7 @@ struct type_getter {
 };
 
 data::type data::get_type() const {
-  return caf::visit(type_getter(), get_data());
+  return visit(type_getter(), get_data());
 }
 
 data data::from_type(data::type t) {
@@ -177,7 +182,7 @@ data data::from_type(data::type t) {
 }
 
 const char* data::get_type_name() const {
-  return caf::visit(type_name_getter(), *this);
+  return visit(type_name_getter(), *this);
 }
 
 namespace {
@@ -220,44 +225,57 @@ struct data_converter {
 
 } // namespace <anonymous>
 
-bool convert(const table::value_type& e, std::string& str) {
-  str += to_string(e.first) + " -> " + to_string(e.second);
+bool convert(const table::value_type& x, std::string& str) {
+  str += to_string(x.first) + " -> " + to_string(x.second);
   return true;
 }
 
-bool convert(const vector& v, std::string& str) {
-  container_convert(v, str, "(", ")");
+bool convert(const vector& x, std::string& str) {
+  container_convert(x, str, "(", ")");
   return true;
 }
 
-bool convert(const set& s, std::string& str) {
-  container_convert(s, str, "{", "}");
+bool convert(const set& x, std::string& str) {
+  container_convert(x, str, "{", "}");
   return true;
 }
 
-bool convert(const table& t, std::string& str) {
-  container_convert(t, str, "{", "}");
+bool convert(const table& x, std::string& str) {
+  container_convert(x, str, "{", "}");
   return true;
 }
 
-bool convert(const data& d, std::string& str) {
-  caf::visit(data_converter{str}, d);
+bool convert(const data& x, std::string& str) {
+  visit(data_converter{str}, x);
   return true;
 }
 
-bool convert(const data& d, caf::node_id& node){
-  if (is<std::string>(d))
-    if (auto err = caf::parse(get<std::string>(d), node); !err)
+bool convert(const data& x, endpoint_id& node){
+  if (is<std::string>(x))
+    if (auto err = caf::parse(get<std::string>(x), native(node)); !err)
       return true;
   return false;
 }
 
-bool convert(const caf::node_id& node, data& d) {
+bool convert(const endpoint_id& node, data& d) {
   if (node)
-    d = to_string(node);
+    d = to_string(native(node));
   else
     d = nil;
   return true;
+}
+
+std::string to_string(const expected<data>& x) {
+  if (x)
+    return to_string(*x);
+  else
+    return "!" + to_string(x.error());
+}
+
+std::string to_string(const vector& x) {
+  std::string str;
+  convert(x, str);
+  return str;
 }
 
 } // namespace broker

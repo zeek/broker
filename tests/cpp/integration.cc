@@ -32,17 +32,20 @@
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/peer_info.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
+
+namespace atom = broker::internal::atom;
 
 using namespace broker;
 
@@ -118,7 +121,7 @@ struct peer_fixture {
     : parent(parent_ptr),
       name(std::move(peer_name)),
       ep(base_fixture::make_config()),
-      sys(ep.system()),
+      sys(broker::internal::endpoint_access{&ep}.sys()),
       sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
       mm(sys.middleman()),
       mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())) {
@@ -129,7 +132,7 @@ struct peer_fixture {
   }
 
   ~peer_fixture() {
-    CAF_SET_LOGGER_SYS(&ep.system());
+    CAF_SET_LOGGER_SYS(&sys);
     MESSAGE("shut down " << name);
     loop_after_all_enqueues();
   }
@@ -163,7 +166,7 @@ struct peer_fixture {
       [=](unit_t&, data_message x) {
         this->data.emplace_back(std::move(x));
       },
-      [](unit_t&, const caf::error&) {
+      [](unit_t&, const error&) {
         // nop
       }
     );
@@ -180,11 +183,11 @@ struct peer_fixture {
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, caf::downstream<data_message>& out, size_t num) {
+      [=](unit_t&, std::deque<data_message>& out, size_t num) {
         auto n = std::min(num, buf->size());
         CAF_MESSAGE("push" << n << "values downstream");
         for (size_t i = 0u; i < n; ++i)
-          out.push(buf->at(i));
+          out.emplace_back(buf->at(i));
         buf->erase(buf->begin(), buf->begin() + static_cast<ptrdiff_t>(n));
       },
       [=](const unit_t&) {
@@ -414,8 +417,6 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
 
 // -- unpeering of nodes and emitted status/error messages ---------------------
 
-using event_value = status_subscriber::value_type;
-
 struct code {
   code(ec x) : value(x) {
     // nop
@@ -425,20 +426,19 @@ struct code {
     // nop
   }
 
-  code(const event_value& x) {
-    if (caf::holds_alternative<error>(x))
-      value = static_cast<ec>(caf::get<error>(x).code());
+  code(const status_variant& x) {
+    if (holds_alternative<error>(x))
+      value = static_cast<ec>(get<error>(x).code());
     else
-      value = caf::get<status>(x).code();
+      value = get<status>(x).code();
   }
 
-  caf::variant<sc, ec> value;
+  std::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return caf::holds_alternative<sc>(x.value)
-         ? to_string(caf::get<sc>(x.value))
-         : to_string(caf::get<ec>(x.value));
+  return std::holds_alternative<sc>(x.value) ? to_string(std::get<sc>(x.value))
+                                             : to_string(std::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {
@@ -449,7 +449,7 @@ std::vector<code> event_log(std::initializer_list<code> xs) {
   return {xs};
 }
 
-std::vector<code> event_log(const std::vector<event_value>& xs) {
+std::vector<code> event_log(const std::vector<status_variant>& xs) {
   std::vector<code> ys;
   ys.reserve(xs.size());
   for (auto& x : xs)
@@ -526,7 +526,7 @@ CAF_TEST(connection_retry) {
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
   mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
-    self->delayed_send(self, std::chrono::seconds(2), broker::atom::ok_v);
+    self->delayed_send(self, std::chrono::seconds(2), atom::ok_v);
     return {
       [&](caf::ok_atom) {
         MESSAGE("start listening on mercury:4040");

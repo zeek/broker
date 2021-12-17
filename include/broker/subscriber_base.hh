@@ -1,17 +1,12 @@
 #pragma once
 
-#include <vector>
-
-#include <caf/actor.hpp>
-#include <caf/optional.hpp>
-#include <caf/none.hpp>
-
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/shared_subscriber_queue.hh"
 #include "broker/fwd.hh"
-#include "broker/logger.hh"
 #include "broker/topic.hh"
+
+#include <vector>
 
 namespace broker {
 
@@ -55,7 +50,7 @@ public:
     auto tmp = get(1);
     BROKER_ASSERT(tmp.size() == 1);
     auto x = std::move(tmp.front());
-    BROKER_DEBUG("received" << x);
+    // BROKER_DEBUG("received" << x);
     return x;
   }
 
@@ -63,14 +58,14 @@ public:
   /// at least one value becomes available or a timeout occurred.
   template <class Timeout,
             class = std::enable_if_t<!std::is_integral<Timeout>::value>>
-  caf::optional<value_type> get(Timeout timeout) {
+  std::optional<value_type> get(Timeout timeout) {
     auto tmp = get(1, timeout);
     if (tmp.size() == 1) {
       auto x = std::move(tmp.front());
-      BROKER_DEBUG("received" << x);
-      return caf::optional<value_type>(std::move(x));
+      // BROKER_DEBUG("received" << x);
+      return std::optional<value_type>(std::move(x));
     }
-    return caf::none;
+    return std::nullopt;
   }
 
   /// Pulls `num` values out of the stream. Blocks the current thread until
@@ -92,7 +87,7 @@ public:
       size_t prev_size = 0;
       auto remaining = num - result.size();
       auto got = queue_->consume(remaining, &prev_size, [&](value_type&& x) {
-        BROKER_DEBUG("received" << x);
+        // BROKER_DEBUG("received" << x);
         result.emplace_back(std::move(x));
       });
       if (prev_size >= static_cast<size_t>(max_qsize_)
@@ -109,8 +104,8 @@ public:
   /// `num` elements.
   template <class Duration>
   std::vector<value_type> get(size_t num, Duration relative_timeout) {
-    if (!caf::is_infinite(relative_timeout)) {
-      auto timeout = caf::make_timestamp();
+    if (relative_timeout != infinite) {
+      auto timeout = now();
       timeout += relative_timeout;
       return get(num, timeout);
     }
@@ -123,7 +118,7 @@ public:
       size_t prev_size = 0;
       auto remaining = num - result.size();
       auto got = queue_->consume(remaining, &prev_size, [&](value_type&& x) {
-        BROKER_DEBUG("received" << x);
+        // BROKER_DEBUG("received" << x);
         result.emplace_back(std::move(x));
       });
       if (prev_size >= static_cast<size_t>(max_qsize_)
@@ -135,7 +130,7 @@ public:
   }
 
   std::vector<value_type> get(size_t num) {
-    return get(num, caf::infinite);
+    return get(num, infinite);
   }
 
   /// Returns all currently available values without blocking.

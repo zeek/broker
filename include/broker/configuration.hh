@@ -1,10 +1,22 @@
 #pragma once
 
-#include <caf/actor_system_config.hpp>
-
 #include "broker/defaults.hh"
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+
+namespace broker::internal {
+
+struct configuration_access;
+
+} // namespace broker::internal
+
 namespace broker {
+
+struct skip_init_t {};
+
+constexpr skip_init_t skip_init = skip_init_t{};
 
 struct broker_options {
   /// If true, peer connections won't use SSL.
@@ -59,17 +71,25 @@ struct broker_options {
 ///
 /// Writing to a file instead of printing to the command line can help grepping
 /// through large logs or correlating logs from multiple Broker peers.
-class configuration : public caf::actor_system_config {
+class configuration {
 public:
-  using super = caf::actor_system_config;
+  // --- friends ---------------------------------------------------------------
 
-  struct skip_init_t {};
+  friend struct internal::configuration_access;
 
-  static constexpr skip_init_t skip_init = skip_init_t{};
+  // --- member types ----------------------------------------------------------
+
+  struct impl;
+
+  // --- construction and destruction ------------------------------------------
+
+  /// Constructs the configuration without calling `init` implicitly. Requires
+  /// the user to call `init` manually.
+  explicit configuration(skip_init_t);
 
   configuration();
 
-  configuration(configuration&&) = default;
+  configuration(configuration&&);
 
   /// Constructs a configuration with non-default Broker options.
   explicit configuration(broker_options opts);
@@ -77,16 +97,64 @@ public:
   /// Constructs a configuration from command line arguments.
   configuration(int argc, char** argv);
 
+  ~configuration();
+
+  // -- properties -------------------------------------------------------------
+
   /// Returns default Broker options and flags.
-  const broker_options& options() const {
-    return options_;
-  }
+  const broker_options& options() const;
 
-  caf::settings dump_content() const override;
+  std::string help_text() const;
 
-  /// Adds all Broker message types to `cfg`.
-  /// @note this function has no effect when compiling against CAF ≥ 0.18
-  static void add_message_types(caf::actor_system_config& cfg);
+  const std::vector<std::string>& remainder() const;
+
+  bool cli_helptext_printed() const;
+
+  std::string openssl_certificate() const;
+
+  void openssl_certificate(std::string);
+
+  std::string openssl_key() const;
+
+  void openssl_key(std::string);
+
+  std::string openssl_passphrase() const;
+
+  void openssl_passphrase(std::string);
+
+  std::string openssl_capath() const;
+
+  void openssl_capath(std::string);
+
+  std::string openssl_cafile() const;
+
+  void openssl_cafile(std::string);
+
+  // -- mutators ---------------------------------------------------------------
+
+  void add_option(int64_t* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(uint64_t* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(double* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(bool* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(std::string* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(std::vector<std::string>* dst, std::string_view name,
+                  std::string_view description);
+
+  void set(std::string key, uint64_t val);
+
+  void set(std::string key, int64_t val);
+
+  void set(std::string key, std::string val);
 
   /// Initializes any global state required by Broker such as the global meta
   /// object table for Broker and CAF (core, I/O and OpenSSL modules). This
@@ -97,16 +165,16 @@ public:
   ///       code prior to creating the configuration object.
   static void init_global_state();
 
-protected:
-  /// Allows subtypes to add custom options before the configuration reads
-  /// `broker.conf` or command line arguments. Requires the subtype to call
-  /// `init` manually.
-  explicit configuration(skip_init_t);
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] impl* native_ptr() noexcept;
+
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] const impl* native_ptr() const noexcept;
 
   void init(int argc, char** argv);
 
 private:
-  broker_options options_;
+  std::unique_ptr<impl> impl_;
 };
 
 } // namespace broker

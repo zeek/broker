@@ -192,58 +192,31 @@ if (NOT OPENSSL_LIBRARIES)
   find_package(OpenSSL REQUIRED)
   include_directories(BEFORE ${OPENSSL_INCLUDE_DIR})
 endif()
-set(LINK_LIBS ${LINK_LIBS} ${OPENSSL_LIBRARIES})
+set(LINK_LIBS ${LINK_LIBS} OpenSSL::SSL OpenSSL::Crypto)
 
-set(CAF_VERSION_MIN_REQUIRED 0.18.5)
 
-if ( TARGET CAF::core )
-  message(STATUS "CAF version ${CAF_VERSION} passed in by parent project")
-elseif ( CAF_ROOT )
+# NOTE: building and linking against an external CAF version is NOT supported!
+#       This variable is FOR DEVELOPMENT ONLY. The only officially supported CAF
+#       version is the bundled version!
+if (CAF_ROOT)
+  message(STATUS "Using system CAF version ${CAF_VERSION}")
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
   if (CMAKE_VERSION VERSION_LESS 3.12)
-    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
+    find_package(CAF REQUIRED
                  COMPONENTS openssl test io core
                  PATHS "${CAF_ROOT}")
   else()
-    find_package(CAF ${CAF_VERSION_MIN_REQUIRED} REQUIRED
+    find_package(CAF REQUIRED
                  COMPONENTS openssl test io core)
   endif()
-  message(STATUS "Using system CAF version ${CAF_VERSION}")
-  # TODO: drop these legacy variables and simply use the targets consistently
-  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
-  set(caf_dirs "")
-  foreach(caf_lib IN LISTS CAF_LIBRARIES ITEMS CAF::test)
-    get_target_property(dirs ${caf_lib} INTERFACE_INCLUDE_DIRECTORIES)
-    if ( dirs )
-      list(APPEND caf_dirs ${dirs})
-    endif ()
-  endforeach()
-  list(REMOVE_DUPLICATES caf_dirs)
-  list(GET caf_dirs 0 caf_dir)
-  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
 else ()
+  message(STATUS "Using bundled CAF")
   set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
   set(CAF_ENABLE_TESTING OFF CACHE INTERNAL "")
   set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
-  if (ENABLE_STATIC_ONLY)
-    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
-  endif ()
-  message(STATUS "Using bundled CAF")
-  add_subdirectory(caf)
-  set(caf_dir "${CMAKE_CURRENT_SOURCE_DIR}/caf")
-  set(CAF_LIBRARIES CAF::core CAF::io CAF::openssl CACHE INTERNAL "")
-  set(caf_dirs "")
-  foreach(comp core io openssl test)
-    list(APPEND caf_dirs
-         "${CMAKE_CURRENT_SOURCE_DIR}/caf/libcaf_${comp}"
-         "${CMAKE_CURRENT_BINARY_DIR}/caf/libcaf_${comp}")
-  endforeach()
-  set(CAF_INCLUDE_DIRS "${caf_dirs}" CACHE INTERNAL "")
-  set(CAF_FOUND TRUE CACHE INTERNAL "")
+  set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+  add_subdirectory(caf EXCLUDE_FROM_ALL)
 endif ()
-
-include_directories(BEFORE ${CAF_INCLUDE_DIRS})
-set(LINK_LIBS ${LINK_LIBS} ${CAF_LIBRARIES})
 
 # -- libroker -----------------------------------------------------------------
 
@@ -262,7 +235,10 @@ if (ENABLE_STATIC_ONLY)
   set(ENABLE_SHARED false)
 endif ()
 
-install(DIRECTORY include/broker DESTINATION include FILES_MATCHING PATTERN "*.hh")
+install(DIRECTORY include/broker
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.hh"
+        EXCLUDE PATTERN "include/broker/internal/*")
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -286,40 +262,42 @@ set(BROKER_SRC
   src/address.cc
   src/configuration.cc
   src/convert.cc
-  src/core_actor.cc
   src/data.cc
-  src/defaults.cc
   src/detail/abstract_backend.cc
-  src/detail/central_dispatcher.cc
-  src/detail/clone_actor.cc
-  src/detail/core_recorder.cc
-  src/detail/data_generator.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
-  src/detail/flare_actor.cc
-  src/detail/generator_file_reader.cc
-  src/detail/generator_file_writer.cc
   src/detail/item_scope.cc
   src/detail/make_backend.cc
-  src/detail/master_actor.cc
-  src/detail/master_resolver.cc
   src/detail/memory_backend.cc
-  src/detail/meta_command_writer.cc
-  src/detail/meta_data_writer.cc
-  src/detail/network_cache.cc
   src/detail/prefix_matcher.cc
+  src/detail/sink_driver.cc
+  src/detail/source_driver.cc
   src/detail/sqlite_backend.cc
-  src/detail/store_actor.cc
-  src/detail/telemetry/collector.cc
-  src/detail/telemetry/exporter.cc
-  src/detail/telemetry/metric_view.cc
-  src/detail/telemetry/prometheus.cc
-  src/detail/telemetry/scraper.cc
-  src/detail/unipath_manager.cc
   src/endpoint.cc
+  src/endpoint_id.cc
   src/endpoint_info.cc
   src/error.cc
   src/filter_type.cc
+  src/internal/central_dispatcher.cc
+  src/internal/clone_actor.cc
+  src/internal/core_actor.cc
+  src/internal/core_recorder.cc
+  src/internal/data_generator.cc
+  src/internal/flare_actor.cc
+  src/internal/generator_file_reader.cc
+  src/internal/generator_file_writer.cc
+  src/internal/master_actor.cc
+  src/internal/master_resolver.cc
+  src/internal/meta_command_writer.cc
+  src/internal/meta_data_writer.cc
+  src/internal/network_cache.cc
+  src/internal/store_actor.cc
+  src/internal/telemetry/collector.cc
+  src/internal/telemetry/exporter.cc
+  src/internal/telemetry/metric_view.cc
+  src/internal/telemetry/prometheus.cc
+  src/internal/telemetry/scraper.cc
+  src/internal/unipath_manager.cc
   src/internal_command.cc
   src/mailbox.cc
   src/message.cc
@@ -337,6 +315,7 @@ set(BROKER_SRC
   src/time.cc
   src/topic.cc
   src/version.cc
+  src/worker.cc
 )
 
 if (ENABLE_SHARED)
@@ -346,7 +325,8 @@ if (ENABLE_SHARED)
                         VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
-  target_link_libraries(broker ${LINK_LIBS})
+  target_link_libraries(broker PUBLIC ${LINK_LIBS})
+  target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::openssl)
   install(TARGETS broker DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
@@ -356,7 +336,8 @@ if (ENABLE_STATIC)
   if (NOT DISABLE_PYTHON_BINDINGS)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
-  target_link_libraries(broker_static ${LINK_LIBS})
+  target_link_libraries(broker_static PUBLIC ${LINK_LIBS})
+  target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::openssl)
   install(TARGETS broker_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
@@ -365,10 +346,10 @@ endif ()
 macro(add_tool name)
   add_executable(${name} src/${name}.cc ${ARGN})
   if (ENABLE_SHARED)
-    target_link_libraries(${name} broker)
+    target_link_libraries(${name} broker CAF::core CAF::io CAF::openssl)
     add_dependencies(${name} broker)
   else()
-    target_link_libraries(${name} broker_static)
+    target_link_libraries(${name} broker_static CAF::core CAF::io CAF::openssl)
     add_dependencies(${name} broker_static)
   endif()
 endmacro()
@@ -456,7 +437,6 @@ endmacro()
 
 display(ENABLE_SHARED yes shared_summary)
 display(ENABLE_STATIC yes static_summary)
-display(CAF_FOUND "${caf_dir} (${CAF_VERSION})" caf_summary)
 display(BROKER_PYTHON_BINDINGS yes python_summary)
 display(ZEEK_FOUND "${ZEEK_FOUND_MSG}" zeek_summary)
 
@@ -476,7 +456,7 @@ set(summary
     "\nCXX:             ${CMAKE_CXX_COMPILER}"
     "\nCXXFLAGS:        ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${BuildType}}"
     "\n"
-    "\nCAF:             ${caf_summary}"
+    "\nCAF:             ${CAF_VERSION}"
     "\nPython bindings: ${python_summary}"
     "\nZeek:            ${zeek_summary}"
     "\n=================================================================")

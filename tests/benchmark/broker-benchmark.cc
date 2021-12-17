@@ -10,9 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include <caf/deep_to_string.hpp>
-#include <caf/downstream.hpp>
-
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
@@ -27,9 +24,11 @@ using namespace broker;
 
 namespace {
 
-int event_type = 1;
+struct no_state {};
+
+int64_t event_type = 1;
 double batch_rate = 1;
-int batch_size = 1;
+int64_t batch_size = 1;
 double rate_increase_interval = 0;
 double rate_increase_amount = 0;
 uint64_t max_received = 0;
@@ -154,7 +153,7 @@ void send_batch(endpoint& ep, publisher& p) {
 
 const vector* inner_vector(const vector& vec) {
   for (auto& x : vec)
-    if (auto ptr = caf::get_if<vector>(&x))
+    if (auto ptr = get_if<vector>(&x))
       return inner_vector(*ptr);
   return &vec;
 }
@@ -162,12 +161,12 @@ const vector* inner_vector(const vector& vec) {
 void receivedStats(endpoint& ep, const data& x) {
   // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
   // We are only interested in the '[1ns, 1ns, 0]' part (the inner vector).
-  if (!caf::holds_alternative<vector>(x)) {
+  if (!is<vector>(x)) {
     std::cerr << "received invalid stats (not a vector): " << to_string(x)
               << '\n';
     return;
   }
-  auto inner = inner_vector(caf::get<vector>(x));
+  auto inner = inner_vector(get<vector>(x));
   if (inner->size() != 3) {
     std::cerr << "received invalid stats (most inner vector has size "
               << inner->size() << ", expected 3): " << to_string(x) << '\n';
@@ -176,12 +175,12 @@ void receivedStats(endpoint& ep, const data& x) {
   auto& rec = *inner;
 
   double t;
-  convert(caf::get<timestamp>(rec[0]), t);
+  convert(get<timestamp>(rec[0]), t);
 
   double dt_recv;
-  convert(caf::get<timespan>(rec[1]), dt_recv);
+  convert(get<timespan>(rec[1]), dt_recv);
 
-  auto ev1 = caf::get<count>(rec[2]);
+  auto ev1 = get<count>(rec[2]);
   auto all_recv = ev1;
   total_recv += ev1;
 
@@ -234,14 +233,14 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   // Subscribe to /benchmark/stats to print server updates.
   ep.subscribe_nosync(
     {"/benchmark/stats"},
-    [](caf::unit_t&) {
+    [](no_state&) {
       // nop
     },
-    [&](caf::unit_t&, data_message x) {
+    [&](no_state&, data_message x) {
       // Print everything we receive.
       receivedStats(ep, get_data(x));
     },
-    [](caf::unit_t&, const caf::error&) {
+    [](no_state&, const error&) {
       // nop
     });
   // Publish events to /benchmark/events.
@@ -259,21 +258,20 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     std::cout << "*** endpoint is now peering to remote" << std::endl;
   if (batch_rate == 0) {
     ep.publish_all(
-      [](caf::unit_t&) {},
-      [](caf::unit_t&, caf::downstream<data_message>& out, size_t hint) {
-      for (size_t i = 0; i < hint; ++i) {
-      auto name = "event_" + std::to_string(event_type);
-      out.push(data_message{"/benchmark/events",
-               zeek::Event(std::move(name), createEventArgs())});
-      }
+      [](no_state&) {},
+      [](no_state&, std::deque<data_message>& out, size_t hint) {
+        for (size_t i = 0; i < hint; ++i) {
+          auto name = "event_" + std::to_string(event_type);
+          out.emplace_back("/benchmark/events",
+                           zeek::Event(std::move(name), createEventArgs()));
+        }
       },
-      [](const caf::unit_t&) { return false; }
-      );
+      [](const no_state&) { return false; });
     for (;;) {
       // Print status events.
       auto ev = ss.get();
       if (verbose)
-        std::cout << caf::deep_to_string(ev) << std::endl;
+        std::visit([](auto& x) { std::cout << to_string(x) << std::endl; }, ev);
     }
   }
   // Publish one message per interval.
@@ -308,7 +306,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     auto status_events = ss.poll();
     if (verbose)
       for (auto& ev : status_events)
-        std::cout << caf::deep_to_string(ev) << std::endl;
+        std::visit([](auto& x) { std::cout << to_string(x) << std::endl; }, ev);
   }
 }
 
@@ -319,10 +317,10 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
   // Subscribe to /benchmark/events.
   ep.subscribe_nosync(
     {"/benchmark/events"},
-    [](caf::unit_t&) {
+    [](no_state&) {
       // nop
     },
-    [&](caf::unit_t&, data_message x) {
+    [&](no_state&, data_message x) {
       auto msg = move_data(x);
       // Count number of events (counts each element in a batch as one event).
       if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
@@ -335,21 +333,21 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
         exit(1);
       }
     },
-    [](caf::unit_t&, const caf::error&) {
+    [](no_state&, const error&) {
       // nop
     });
   // Listen on /benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
   ep.subscribe_nosync(
     {"/benchmark/terminate"},
-    [](caf::unit_t&) {
+    [](no_state&) {
       // nop
     },
-    [&](caf::unit_t&, data_message) {
+    [&](no_state&, data_message) {
       // Any message on this topic triggers termination.
       terminate = true;
     },
-    [](caf::unit_t&, const caf::error&) {
+    [](no_state&, const error&) {
       // nop
     });
   // Start listening for peers.
@@ -366,7 +364,7 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     timestamp now = std::chrono::system_clock::now();
     auto stats = vector{now, now - last_time, count{reset_num_events()}};
     if (verbose)
-      std::cout << "stats: " << caf::deep_to_string(stats) << std::endl;
+      std::cout << "stats: " << to_string(stats) << std::endl;
     zeek::Event ev("stats_update", std::move(stats));
     ep.publish("/benchmark/stats", std::move(ev));
     // Advance time and print status events.
@@ -374,39 +372,30 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
     auto status_events = ss.poll();
     if (verbose)
       for (auto& ev : status_events)
-        std::cout << caf::deep_to_string(ev) << std::endl;
+        std::visit([](auto& x) { std::cout << to_string(x) << std::endl; }, ev);
   }
   std::cout << "received stop message on /benchmark/terminate" << std::endl;
 }
 
-struct config : configuration {
-  using super = configuration;
+void add_options(configuration& cfg) {
+  cfg.add_option(&event_type, "event-type,t",
+                 "1 (vector, default) | 2 (conn log entry) | 3 (table)");
+  cfg.add_option(&batch_rate, "batch-rate,r",
+                 "batches/sec (default: 1, set to 0 for infinite)");
+  cfg.add_option(&batch_size, "batch-size,s", "events per batch (default: 1)");
+  cfg.add_option(&rate_increase_interval, "batch-size-increase-interval,i",
+                 "interval for increasing the batch size (in seconds)");
+  cfg.add_option(&rate_increase_amount, "batch-size-increase-amount,a",
+                 "additional batch size per interval");
+  cfg.add_option(&max_received, "max-received,m",
+                 "stop benchmark after given count");
+  cfg.add_option(&max_in_flight, "max-in-flight,f",
+                 "report when exceeding this count");
+  cfg.add_option(&server, "server", "run in server mode");
+  cfg.add_option(&verbose, "verbose", "enable status output");
+}
 
-  config() : configuration(skip_init) {
-    opt_group{custom_options_, "global"}
-      .add(event_type, "event-type,t",
-           "1 (vector, default) | 2 (conn log entry) | 3 (table)")
-      .add(batch_rate, "batch-rate,r",
-           "batches/sec (default: 1, set to 0 for infinite)")
-      .add(batch_size, "batch-size,s", "events per batch (default: 1)")
-      .add(rate_increase_interval, "batch-size-increase-interval,i",
-           "interval for increasing the batch size (in seconds)")
-      .add(rate_increase_amount, "batch-size-increase-amount,a",
-           "additional batch size per interval")
-      .add(max_received, "max-received,m", "stop benchmark after given count")
-      .add(max_in_flight, "max-in-flight,f", "report when exceeding this count")
-      .add(server, "server", "run in server mode")
-      .add(verbose, "verbose", "enable status output");
-  }
-
-  using super::init;
-
-  std::string help_text() const {
-    return custom_options_.help_text();
-  }
-};
-
-void usage(const config& cfg, const char* cmd_name) {
+void usage(const configuration& cfg, const char* cmd_name) {
   std::cerr << "Usage: " << cmd_name
             << " [<options>] <zeek-host>[:<port>] | [--disable-ssl] --server "
                "<interface>:port\n\n"
@@ -416,7 +405,8 @@ void usage(const config& cfg, const char* cmd_name) {
 } // namespace
 
 int main(int argc, char** argv) {
-  config cfg;
+  configuration cfg{skip_init};
+  add_options(cfg);
   try {
     cfg.init(argc, argv);
   } catch (std::exception& ex) {
@@ -424,15 +414,15 @@ int main(int argc, char** argv) {
     usage(cfg, argv[0]);
     return EXIT_FAILURE;
   }
-  if (cfg.cli_helptext_printed)
+  if (cfg.cli_helptext_printed())
     return EXIT_SUCCESS;
-  if (cfg.remainder.size() != 1) {
+  if (cfg.remainder().size() != 1) {
     std::cerr << "*** too many arguments\n\n";
     usage(cfg, argv[0]);
     return EXIT_FAILURE;
   }
   // Local variables configurable via CLI.
-  auto arg = cfg.remainder[0];
+  auto arg = cfg.remainder().at(0);
   auto separator = arg.find(':');
   if (separator == std::string::npos) {
     std::cerr << "*** invalid argument\n\n";

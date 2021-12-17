@@ -4,6 +4,8 @@
 
 #include "test.hh"
 
+#include "broker/internal/native.hh"
+
 #include <string>
 
 using namespace broker;
@@ -20,7 +22,7 @@ data make_data_error(ec code, vector context = {}) {
 
 struct fixture {
   // A node ID in CAF's default format (host hash + process ID).
-  caf::node_id nid;
+  endpoint_id nid;
 
   // Output of to_string(nid).
   std::string nid_str;
@@ -29,7 +31,7 @@ struct fixture {
     auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
     if (!id)
       FAIL("caf::make_node_id failed");
-    nid = std::move(*id);
+    nid = internal::facade(*id);
     nid_str = to_string(nid);
   }
 };
@@ -75,8 +77,8 @@ TEST(ec is convertible to and from string) {
   CHECK_EQUAL(from_string<ec>("invalid_topic_key"), ec::invalid_topic_key);
   CHECK_EQUAL(from_string<ec>("end_of_file"), ec::end_of_file);
   CHECK_EQUAL(from_string<ec>("invalid_tag"), ec::invalid_tag);
-  CHECK_EQUAL(from_string<ec>("none"), nil);
-  CHECK_EQUAL(from_string<ec>("foo"), nil);
+  CHECK_EQUAL(from_string<ec>("none"), std::nullopt);
+  CHECK_EQUAL(from_string<ec>("foo"), std::nullopt);
 }
 
 TEST(default constructed errors have a fixed representation) {
@@ -119,7 +121,7 @@ TEST(errors with category broker are convertible to and from data) {
       {vector{nil, "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "no such peer"s})),
     make_error(ec::peer_invalid,
-               endpoint_info{caf::node_id{},
+               endpoint_info{endpoint_id{},
                              network_info{"foo", 8080, timeout::seconds{42}}},
                "invalid host"s));
 }
@@ -134,10 +136,10 @@ TEST(error view operate directly on raw data) {
   CHECK_EQUAL(view.code(), ec::peer_invalid);
   CHECK_EQUAL(*view.message(), "invalid host"s);
   auto maybe_cxt = view.context();
-  REQUIRE(maybe_cxt != nil);
+  REQUIRE(maybe_cxt);
   auto cxt = std::move(*maybe_cxt);
   CHECK_EQUAL(cxt.node, nid);
-  REQUIRE(cxt.network != nil);
+  REQUIRE(cxt.network);
   auto net = *cxt.network;
   CHECK_EQUAL(net, network_info("foo", 8080, timeout::seconds{42}));
 }

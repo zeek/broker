@@ -3,10 +3,7 @@
 #include <utility>
 #include <vector>
 
-#include <caf/cow_tuple.hpp>
-#include <caf/message.hpp>
-#include <caf/variant.hpp>
-
+#include "broker/cow_tuple.hh"
 #include "broker/topic.hh"
 
 namespace broker::detail {

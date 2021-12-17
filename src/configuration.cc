@@ -1,6 +1,7 @@
 #include "broker/configuration.hh"
 
 #include <ciso646>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
@@ -9,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include <caf/actor_system_config.hpp>
 #include <caf/config.hpp>
 #include <caf/init_global_meta_objects.hpp>
 #include <caf/io/middleman.hpp>
@@ -16,9 +18,12 @@
 
 #include "broker/address.hh"
 #include "broker/config.hh"
-#include "broker/core_actor.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/configuration_access.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
 #include "broker/port.hh"
 #include "broker/snapshot.hh"
@@ -56,10 +61,6 @@ auto concat(Ts... xs) {
   throw std::invalid_argument(what);
 }
 
-constexpr caf::string_view file_verbosity_key = "caf.logger.file.verbosity";
-
-constexpr caf::string_view console_verbosity_key = "caf.logger.console.verbosity";
-
 bool valid_log_level(caf::string_view x) {
   return x == "trace" || x == "debug" || x == "info" || x == "warning"
          || x == "error" || x == "quiet";
@@ -90,84 +91,121 @@ std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
 
 } // namespace
 
+struct configuration::impl : public caf::actor_system_config {
+  using super = caf::actor_system_config;
+
+  impl() {
+    using std::string;
+    using string_list = std::vector<string>;
+    // Add custom options to the CAF parser.
+    opt_group{custom_options_, "?broker"}
+      .add(options.disable_ssl, "disable_ssl",
+           "forces Broker to use unencrypted communication")
+      .add(options.ttl, "ttl", "drop messages after traversing TTL hops")
+      .add<string>("recording-directory",
+                   "path for storing recorded meta information")
+      .add<size_t>(
+        "output-generator-file-cap",
+        "maximum number of entries when recording published messages")
+      .add<size_t>("max-pending-inputs-per-source",
+                   "maximum number of items we buffer per peer or publisher");
+    opt_group{custom_options_, "broker.metrics"}
+      .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
+      .add<string>("address", "bind address for the HTTP server socket")
+      .add<string>(
+        "endpoint-name",
+        "name for this endpoint in metrics (when exporting: suffix of "
+        "the topic by default)");
+    opt_group{custom_options_, "broker.metrics.export"}
+      .add<string>("topic",
+                   "if set, causes Broker to publish its metrics "
+                   "periodically on the given topic")
+      .add<caf::timespan>("interval",
+                          "time between publishing metrics on the topic")
+      .add<string_list>("prefixes",
+                        "selects metric prefixes to publish on the topic");
+    opt_group{custom_options_, "broker.metrics.import"} //
+      .add<string_list>("topics", "topics for collecting remote metrics from");
+    // Ensure that we're only talking to compatible Broker instances.
+    string_list ids{"broker.v" + std::to_string(version::protocol)};
+    // Override CAF defaults.
+    set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
+    set("caf.logger.file.verbosity", "quiet");
+    set("caf.logger.console.format", "[%c/%p] %d %m");
+    set("caf.logger.console.verbosity", "error");
+    // Broker didn't load the MM module yet. Use `put` to suppress the 'failed
+    // to set config parameter' warning on the command line.
+    put(content, "caf.middleman.app-identifiers", std::move(ids));
+    put(content, "caf.middleman.workers", 0);
+    // Turn off all CAF output by default.
+    string_list excluded_components{"caf", "caf_io", "caf_net", "caf_flow",
+                                    "caf_stream"};
+    set("caf.logger.file.excluded-components", excluded_components);
+    set("caf.logger.console.excluded-components",
+        std::move(excluded_components));
+  }
+
+  caf::settings dump_content() const override {
+    auto result = super::dump_content();
+    auto& grp = result["broker"].as_dictionary();
+    put_missing(grp, "disable_ssl", options.disable_ssl);
+    put_missing(grp, "ttl", options.ttl);
+    put_missing(grp, "forward", options.forward);
+    if (auto path = get_as<std::string>(content, "broker.recording-directory"))
+      put_missing(grp, "recording-directory", std::move(*path));
+    if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
+      put_missing(grp, "output-generator-file-cap", *cap);
+    return result;
+  }
+
+  void init(int argc, char** argv);
+
+  broker_options options;
+};
+
 configuration::configuration(skip_init_t) {
   using std::string;
   using string_list = std::vector<string>;
-  // Add runtime type information for Broker types.
   init_global_state();
-  add_message_types(*this);
-  // Add custom options to the CAF parser.
-  opt_group{custom_options_, "?broker"}
-    .add(options_.disable_ssl, "disable_ssl",
-         "forces Broker to use unencrypted communication")
-    .add(options_.ttl, "ttl", "drop messages after traversing TTL hops")
-    .add<string>("recording-directory",
-                 "path for storing recorded meta information")
-    .add<size_t>("output-generator-file-cap",
-                 "maximum number of entries when recording published messages")
-    .add<size_t>("max-pending-inputs-per-source",
-                 "maximum number of items we buffer per peer or publisher");
-  opt_group{custom_options_, "broker.metrics"}
-    .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
-    .add<string>("address", "bind address for the HTTP server socket")
-    .add<string>("endpoint-name",
-                 "name for this endpoint in metrics (when exporting: suffix of "
-                 "the topic by default)");
-  opt_group{custom_options_, "broker.metrics.export"}
-    .add<string>("topic",
-                 "if set, causes Broker to publish its metrics "
-                 "periodically on the given topic")
-    .add<caf::timespan>("interval",
-                        "time between publishing metrics on the topic")
-    .add<string_list>("prefixes",
-                      "selects metric prefixes to publish on the topic");
-  opt_group{custom_options_, "broker.metrics.import"} //
-    .add<string_list>("topics", "topics for collecting remote metrics from");
-  // Ensure that we're only talking to compatible Broker instances.
-  string_list ids{"broker.v" + std::to_string(version::protocol)};
-  // Override CAF defaults.
-  set("caf.logger.file.path", "broker_[PID]_[TIMESTAMP].log");
-  set("caf.logger.file.verbosity", "quiet");
-  set("caf.logger.console.format", "[%c/%p] %d %m");
-  set("caf.logger.console.verbosity", "error");
-  // Broker didn't load the MM module yet. Use `put` to suppress the 'failed to
-  // set config parameter' warning on the command line.
-  put(content, "caf.middleman.app-identifiers", std::move(ids));
-  put(content, "caf.middleman.workers", 0);
-  // Turn off all CAF output by default.
-  string_list excluded_components{"caf", "caf_io", "caf_net", "caf_flow",
-                                  "caf_stream"};
-  set("caf.logger.file.excluded-components", excluded_components);
-  set("caf.logger.console.excluded-components", std::move(excluded_components));
+  impl_.reset(new impl);
 }
 
 configuration::configuration(broker_options opts) : configuration(skip_init) {
-  options_ = opts;
-  set("broker.ttl", opts.ttl);
-  put(content, "broker.forward", opts.forward);
+  impl_->options = opts;
+  impl_->set("broker.ttl", opts.ttl);
+  caf::put(impl_->content, "broker.forward", opts.forward);
   init(0, nullptr);
-  config_file_path = "broker.conf";
+  impl_->config_file_path = "broker.conf";
 }
 
 configuration::configuration() : configuration(skip_init) {
   init(0, nullptr);
 }
 
+configuration::configuration(configuration&& other)
+  : impl_(std::move(other.impl_)) {
+  // cannot '= default' this because impl is incomplete in the header.
+}
+
 configuration::configuration(int argc, char** argv) : configuration(skip_init) {
   init(argc, argv);
 }
 
-void configuration::init(int argc, char** argv) {
+configuration::~configuration() {
+  // nop, but must stay out-of-line because impl is incomplete in the header.
+}
+
+void configuration::impl::init(int argc, char** argv) {
   std::vector<std::string> args;
   if (argc > 1 && argv != nullptr)
     args.assign(argv + 1, argv + argc);
   // Load CAF modules.
   load<caf::io::middleman>();
-  if (not options_.disable_ssl)
+  if (not options.disable_ssl)
     load<caf::openssl::manager>();
   // Phase 1: parse broker.conf or configuration file specified by the user on
   //          the command line (overrides hard-coded defaults).
-  if (!options_.ignore_broker_conf) {
+  if (!options.ignore_broker_conf) {
     std::vector<std::string> args_subset;
     auto predicate = [](const std::string& str) {
       return str.compare(0, 14, "--config-file=") != 0;
@@ -185,15 +223,15 @@ void configuration::init(int argc, char** argv) {
     }
   }
   put(content, "caf.metrics-filters.actors.includes",
-      std::vector<std::string>{core_state::name});
+      std::vector<std::string>{internal::core_state::name});
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
     auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
-    set(console_verbosity_key, level);
+    set("caf.logger.console.verbosity", level);
   }
   if (auto file_verbosity = getenv("BROKER_FILE_VERBOSITY")) {
     auto level = to_log_level("BROKER_FILE_VERBOSITY", file_verbosity);
-    set(file_verbosity_key, level);
+    set("caf.logger.file.verbosity", level);
   }
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
@@ -253,21 +291,126 @@ void configuration::init(int argc, char** argv) {
   }
 }
 
-caf::settings configuration::dump_content() const {
-  auto result = super::dump_content();
-  auto& grp = result["broker"].as_dictionary();
-  put_missing(grp, "disable_ssl", options_.disable_ssl);
-  put_missing(grp, "ttl", options_.ttl);
-  put_missing(grp, "forward", options_.forward);
-  if (auto path = get_as<std::string>(content, "broker.recording-directory"))
-    put_missing(grp, "recording-directory", std::move(*path));
-  if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
-    put_missing(grp, "output-generator-file-cap", *cap);
-  return result;
+void configuration::init(int argc, char** argv) {
+  impl_->init(argc, argv);
 }
 
-void configuration::add_message_types(caf::actor_system_config&) {
-  // nop
+const broker_options& configuration::options() const {
+  return impl_->options;
+}
+
+std::string configuration::help_text() const {
+  return impl_->custom_options().help_text();
+}
+
+const std::vector<std::string>& configuration::remainder() const {
+  return impl_->remainder;
+}
+
+bool configuration::cli_helptext_printed() const {
+  return impl_->cli_helptext_printed;
+}
+
+std::string configuration::openssl_certificate() const {
+  return impl_->openssl_certificate;
+}
+
+void configuration::openssl_certificate(std::string x) {
+  impl_->openssl_certificate = std::move(x);
+}
+
+std::string configuration::openssl_key() const {
+  return impl_->openssl_key;
+}
+
+void configuration::openssl_key(std::string x) {
+  impl_->openssl_key = std::move(x);
+}
+
+std::string configuration::openssl_passphrase() const {
+  return impl_->openssl_passphrase;
+}
+
+void configuration::openssl_passphrase(std::string x) {
+  impl_->openssl_passphrase = std::move(x);
+}
+
+std::string configuration::openssl_capath() const {
+  return impl_->openssl_capath;
+}
+
+void configuration::openssl_capath(std::string x) {
+  impl_->openssl_capath = std::move(x);
+}
+
+std::string configuration::openssl_cafile() const {
+  return impl_->openssl_cafile;
+}
+
+void configuration::openssl_cafile(std::string x) {
+  impl_->openssl_cafile = std::move(x);
+}
+
+void configuration::add_option(int64_t* dst, std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<int64_t>("global", name, description);
+}
+
+void configuration::add_option(uint64_t* dst, std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<uint64_t>("global", name, description);
+}
+
+void configuration::add_option(double* dst, std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<double>("global", name, description);
+}
+
+void configuration::add_option(bool* dst, std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<bool>("global", name, description);
+}
+
+void configuration::add_option(std::string* dst, std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<std::string>("global", name, description);
+}
+
+void configuration::add_option(std::vector<std::string>* dst,
+                               std::string_view name,
+                               std::string_view description) {
+  if (dst)
+    impl_->custom_options().add(*dst, "global", name, description);
+  else
+    impl_->custom_options().add<std::vector<std::string>>("global", name,
+                                                          description);
+}
+
+void configuration::set(std::string key, uint64_t val) {
+  impl_->set(std::move(key), val);
+}
+
+void configuration::set(std::string key, int64_t val) {
+  impl_->set(std::move(key), val);
+}
+
+void configuration::set(std::string key, std::string val) {
+  impl_->set(std::move(key), std::move(val));
 }
 
 namespace {
@@ -286,3 +429,11 @@ void configuration::init_global_state() {
 }
 
 } // namespace broker
+
+namespace broker::internal {
+
+caf::actor_system_config& configuration_access::cfg() {
+  return *ptr->impl_;
+}
+
+} // namespace broker::internal

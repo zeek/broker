@@ -3,6 +3,8 @@
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/error.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 
 using namespace std::string_literals;
 
@@ -59,24 +61,26 @@ sc status::code() const {
   return code_;
 }
 
-caf::error status::verify() const {
+error status::verify() const {
   switch (code_) {
     default:
       return make_error(ec::invalid_status, "invalid enum value");
     case sc::unspecified:
       if (!context_.node && !context_.network)
-        return nil;
-      return make_error(ec::invalid_status,
-                        "the unspecified status may not have any context");
+        return {};
+      else
+        return make_error(ec::invalid_status,
+                          "an unspecified status may not have a context");
     case sc::peer_added:
     case sc::peer_removed:
     case sc::peer_lost:
     case sc::endpoint_discovered:
     case sc::endpoint_unreachable:
       if (context_.node)
-        return nil;
-      return make_error(ec::invalid_status,
-                        "a non-default status must provide a node ID");
+        return {};
+      else
+        return make_error(ec::invalid_status,
+                          "a non-default status must provide a node ID");
   }
 }
 
@@ -172,12 +176,13 @@ const std::string* status_view::message() const noexcept {
   return &get<std::string>((*xs_)[3]);
 }
 
-optional<endpoint_info> status_view::context() const {
+std::optional<endpoint_info> status_view::context() const {
   BROKER_ASSERT(xs_ != nullptr);
   endpoint_info ei;
-  if (!convert((*xs_)[2], ei))
-    return nil;
-  return {std::move(ei)};
+  if (convert((*xs_)[2], ei))
+    return {std::move(ei)};
+  else
+    return {};
 }
 
 std::string to_string(status_view s) {

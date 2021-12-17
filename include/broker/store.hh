@@ -1,26 +1,15 @@
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include <caf/actor.hpp>
-#include <caf/cow_tuple.hpp>
-#include <caf/error.hpp>
-#include <caf/make_message.hpp>
-#include <caf/scoped_actor.hpp>
-#include <caf/stream.hpp>
-
-#include "broker/api_flags.hh"
-#include "broker/atoms.hh"
 #include "broker/data.hh"
+#include "broker/expected.hh"
 #include "broker/fwd.hh"
 #include "broker/mailbox.hh"
-#include "broker/message.hh"
-#include "broker/optional.hh"
-#include "broker/error.hh"
-#include "broker/expected.hh"
-#include "broker/status.hh"
 #include "broker/timeout.hh"
+#include "broker/worker.hh"
+
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace broker {
 
@@ -31,8 +20,6 @@ class endpoint;
 class store {
 public:
   friend class endpoint;
-
-  using stream_type = caf::stream<command_message>;
 
   /// A response to a lookup request issued by a ::proxy.
   struct response {
@@ -67,7 +54,7 @@ public:
     /// @returns A unique identifier for this request to correlate it with a
     /// response.
     request_id put_unique(data key, data value,
-                          optional<timespan> expiry = {});
+                          std::optional<timespan> expiry = {});
 
     /// For containers values, retrieves a specific index from the value. This
     /// is supported for sets, tables, and vectors.
@@ -94,14 +81,12 @@ public:
     std::vector<response> receive(size_t n);
 
     /// Returns a globally unique identifier for the frontend actor.
-    publisher_id frontend_id() const noexcept {
-      return {frontend_.node(), frontend_.id()};
-    }
+    publisher_id frontend_id() const noexcept;
 
   private:
     request_id id_ = 0;
-    caf::actor frontend_;
-    caf::actor proxy_;
+    worker frontend_;
+    worker proxy_;
   };
 
   /// Default-constructs an uninitialized store.
@@ -128,7 +113,7 @@ public:
   /// @param expiry An optional expiration time for *key*.
   /// @returns A true data value if inserted or false if key already existed.
   expected<data> put_unique(data key, data value,
-                            optional<timespan> expiry = {}) const;
+                            std::optional<timespan> expiry = {}) const;
 
   /// For containers values, retrieves a specific index from the value. This
   /// is supported for sets, tables, and vectors.
@@ -143,14 +128,12 @@ public:
   expected<data> keys() const;
 
   /// Retrieves the frontend.
-  inline const caf::actor& frontend() const {
+  inline const worker& frontend() const {
     return frontend_;
   }
 
   /// Returns a globally unique identifier for the frontend actor.
-  publisher_id frontend_id() const noexcept {
-    return {frontend_.node(), frontend_.id()};
-  }
+  publisher_id frontend_id() const noexcept;
 
   // --- modifiers -----------------------------------------------------------
 
@@ -158,7 +141,7 @@ public:
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional expiration time for *key*.
-  void put(data key, data value, optional<timespan> expiry = {}) const;
+  void put(data key, data value, std::optional<timespan> expiry = {}) const;
 
   /// Removes the value associated with a given key.
   /// @param key The key to remove from the store.
@@ -172,7 +155,8 @@ public:
   /// @param key The key of the value to increment.
   /// @param value The amount to increment the value.
   /// @param expiry An optional new expiration time for *key*.
-  void increment(data key, data amount, optional<timespan> expiry = {}) const {
+  void increment(data key, data amount,
+                 std::optional<timespan> expiry = {}) const {
     auto init_type = data::type::none;
 
     switch ( amount.get_type() ) {
@@ -200,7 +184,8 @@ public:
   /// @param key The key of the value to increment.
   /// @param value The amount to decrement the value.
   /// @param expiry An optional new expiration time for *key*.
-  void decrement(data key, data amount, optional<timespan> expiry = {}) const {
+  void decrement(data key, data amount,
+                 std::optional<timespan> expiry = {}) const {
     subtract(std::move(key), std::move(amount), std::move(expiry));
   }
 
@@ -208,7 +193,7 @@ public:
   /// @param key The key of the string to which to append.
   /// @param str The string to append.
   /// @param expiry An optional new expiration time for *key*.
-  void append(data key, data str, optional<timespan> expiry = {}) const {
+  void append(data key, data str, std::optional<timespan> expiry = {}) const {
     add(std::move(key), std::move(str), data::type::string, std::move(expiry));
   }
 
@@ -216,8 +201,9 @@ public:
   /// @param key The key of the set into which to insert the value.
   /// @param index The index to insert.
   /// @param expiry An optional new expiration time for *key*.
-  void insert_into(data key, data index, optional<timespan> expiry = {}) const {
-      add(std::move(key), std::move(index), data::type::set, std::move(expiry));
+  void insert_into(data key, data index,
+                   std::optional<timespan> expiry = {}) const {
+    add(std::move(key), std::move(index), data::type::set, std::move(expiry));
   }
 
   /// Inserts an index into a table.
@@ -225,15 +211,18 @@ public:
   /// @param index The index to insert.
   /// @param value The value to associated with the inserted index. For sets, this is ignored.
   /// @param expiry An optional new expiration time for *key*.
-  void insert_into(data key, data index, data value, optional<timespan> expiry = {}) const {
-      add(std::move(key), vector({std::move(index), std::move(value)}), data::type::table, std::move(expiry));
+  void insert_into(data key, data index, data value,
+                   std::optional<timespan> expiry = {}) const {
+    add(std::move(key), vector({std::move(index), std::move(value)}),
+        data::type::table, std::move(expiry));
   }
 
   /// Removes am index from a set or table.
   /// @param key The key of the set/table from which to remove the value.
   /// @param index The index to remove.
   /// @param expiry An optional new expiration time for *key*.
-  void remove_from(data key, data index, optional<timespan> expiry = {}) const {
+  void remove_from(data key, data index,
+                   std::optional<timespan> expiry = {}) const {
     subtract(std::move(key), std::move(index), std::move(expiry));
   }
 
@@ -241,14 +230,14 @@ public:
   /// @param key The key of the vector to which to append the value.
   /// @param value The value to append.
   /// @param expiry An optional new expiration time for *key*.
-  void push(data key, data value, optional<timespan> expiry = {}) const {
+  void push(data key, data value, std::optional<timespan> expiry = {}) const {
     add(std::move(key), std::move(value), data::type::vector, std::move(expiry));
   }
 
   /// Removes the last value of a vector.
   /// @param key The key of the vector from which to remove the last value.
   /// @param expiry An optional new expiration time for *key*.
-  void pop(data key, optional<timespan> expiry = {}) const {
+  void pop(data key, std::optional<timespan> expiry = {}) const {
     subtract(key, key, std::move(expiry));
   }
 
@@ -265,7 +254,7 @@ public:
   void reset();
 
 private:
-  store(caf::actor actor, std::string name);
+  store(worker actor, std::string name);
 
   /// Adds a value to another one, with a type-specific meaning of
   /// "add". This is the backend for a number of the modifiers methods.
@@ -273,34 +262,21 @@ private:
   /// @param value The value of the key-value pair.
   /// @param init_type The type of data to initialize when the key does not exist.
   /// @param expiry An optional new expiration time for *key*.
-  void add(data key, data value, data::type init_type, optional<timespan> expiry = {}) const;
+  void add(data key, data value, data::type init_type,
+           std::optional<timespan> expiry = {}) const;
 
   /// Subtracts a value from another one, with a type-specific meaning of
   /// "substract". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
   /// @param expiry An optional new expiration time for *key*.
-  void subtract(data key, data value, optional<timespan> expiry = {}) const;
+  void subtract(data key, data value,
+                std::optional<timespan> expiry = {}) const;
 
   template <class T, class... Ts>
-  expected<T> request(Ts&&... xs) const {
-    if (!frontend_)
-      return make_error(ec::unspecified, "store not initialized");
-    expected<T> res{ec::unspecified};
-    caf::scoped_actor self{frontend_->home_system()};
-    auto msg = caf::make_message(std::forward<Ts>(xs)...);
-    self->request(frontend_, timeout::frontend, std::move(msg)).receive(
-      [&](T& x) {
-        res = std::move(x);
-      },
-      [&](caf::error& e) {
-        res = std::move(e);
-      }
-    );
-    return res;
-  }
+  expected<T> request(Ts&&... xs) const;
 
-  caf::actor frontend_;
+  worker frontend_;
   std::string name_;
 };
 

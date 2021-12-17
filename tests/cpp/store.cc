@@ -13,6 +13,7 @@
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
+#include "broker/internal/type_id.hh"
 
 using namespace broker;
 
@@ -35,7 +36,7 @@ TEST(master operations) {
   MESSAGE("put");
   ds->put("foo", 42);
   REQUIRE_EQUAL(value_of(ds->get("foo")), data{42});
-  REQUIRE_EQUAL(error_of(ds->get("bar")), error{ec::no_such_key});
+  REQUIRE_EQUAL(error_of(ds->get("bar")), ec::no_such_key);
   REQUIRE_EQUAL(ds->exists("foo"), true);
   REQUIRE_EQUAL(ds->exists("bar"), false);
   MESSAGE("erase");

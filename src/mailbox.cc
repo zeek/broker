@@ -1,17 +1,18 @@
 #include "broker/mailbox.hh"
 
-#include "broker/detail/flare_actor.hh"
+#include "broker/internal/flare_actor.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::internal {
 
-mailbox make_mailbox(detail::flare_actor* actor) {
+mailbox make_mailbox(internal::flare_actor* actor) {
   return mailbox{actor};
 }
 
-} // namespace detail
+} // namespace broker::internal
 
-caf::io::network::native_socket mailbox::descriptor() {
+namespace broker {
+
+detail::native_socket mailbox::descriptor() {
   return actor_->descriptor();
 }
 
@@ -31,7 +32,7 @@ size_t mailbox::count(size_t) {
   return size();
 }
 
-mailbox::mailbox(detail::flare_actor* actor) : actor_{actor} {
+mailbox::mailbox(internal::flare_actor* actor) : actor_{actor} {
 }
 
 } // namespace broker

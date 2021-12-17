@@ -1,14 +1,12 @@
 #pragma once
 
-#include <caf/intrusive_ptr.hpp>
-#include <caf/make_counted.hpp>
+#include <memory>
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/shared_queue.hh"
 #include "broker/message.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// Synchronizes a publisher with a background worker. Uses the `pending` flag
 /// and the `flare` to signalize demand to the user. Users can write as long as
@@ -126,13 +124,11 @@ private:
 
 template <class ValueType = data_message>
 using shared_publisher_queue_ptr
-  = caf::intrusive_ptr<shared_publisher_queue<ValueType>>;
+  = std::shared_ptr<shared_publisher_queue<ValueType>>;
 
 template <class ValueType = data_message>
-shared_publisher_queue_ptr<ValueType>
-make_shared_publisher_queue(size_t buffer_size) {
-  return caf::make_counted<shared_publisher_queue<ValueType>>(buffer_size);
+auto make_shared_publisher_queue(size_t buffer_size) {
+  return std::make_shared<shared_publisher_queue<ValueType>>(buffer_size);
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail
