@@ -21,12 +21,12 @@ using namespace broker;
 namespace {
 
 configuration make_config(std::string cert_id) {
-  configuration res{skip_init};
-  auto& cfg = internal::configuration_access{&res}.cfg();
-  if (auto err = cfg.parse(caf::test::engine::argc(),
-                           caf::test::engine::argv()))
-    CAF_FAIL("parsing the config failed: " << to_string(err));
-  cfg.set("caf.logger.inline-output", true);
+  configuration cfg{skip_init};
+  try {
+    cfg.init(caf::test::engine::argc(), caf::test::engine::argv());
+  } catch (std::exception& ex) {
+    CAF_FAIL("parsing the config failed: " << ex.what());
+  }
   if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");
     CAF_REQUIRE(test_dir);
@@ -34,10 +34,10 @@ configuration make_config(std::string cert_id) {
     cfg.set("caf.openssl.cafile", cd + "ca.pem");
     cfg.set("caf.openssl.certificate", cd + "cert." + cert_id + ".pem");
     cfg.set("caf.openssl.key", cd + "key." + cert_id + ".pem");
-    MESSAGE("using certififcate " << cfg.openssl_certificate << ", key "
-                                  << cfg.openssl_key);
+    MESSAGE("using certififcate " << cfg.openssl_certificate() << ", key "
+                                  << cfg.openssl_key());
   }
-  return res;
+  return cfg;
 }
 
 // Holds state for individual peers. We use one fixture per simulated peer.
