@@ -89,6 +89,10 @@ error& error::operator=(error&& other) noexcept {
   return *this;
 }
 
+error::~error() {
+  native(*this).~native_t();
+}
+
 bool error::valid() const noexcept {
   return static_cast<bool>(native(*this));
 }

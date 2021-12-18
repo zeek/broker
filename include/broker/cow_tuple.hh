@@ -9,11 +9,12 @@
 
 #pragma once
 
-#include <atomic>
-#include <tuple>
-
 #include "broker/config.hh"
 #include "broker/detail/comparable.hh"
+
+#include <atomic>
+#include <cstddef>
+#include <tuple>
 
 namespace broker {
 

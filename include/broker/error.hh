@@ -88,6 +88,8 @@ public:
 
   error& operator=(error&& other) noexcept;
 
+  ~error();
+
   /// Returns `valid()`.
   explicit operator bool() const noexcept {
     return valid();

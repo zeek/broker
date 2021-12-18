@@ -1,7 +1,5 @@
 #pragma once
 
-#include <new>
-
 #cmakedefine BROKER_APPLE
 #cmakedefine BROKER_FREEBSD
 #cmakedefine BROKER_LINUX
@@ -36,10 +34,10 @@
     #define BROKER_LSAN_IGNORE(x)
 #endif
 
-#ifdef __cpp_lib_hardware_interference_size
-#define BROKER_CONSTRUCTIVE_INTERFERENCE_SIZE                                  \
-  std::hardware_constructive_interference_size
-#else
-// 64 bytes on x86-64 & other common platforms
+// TODO: the "proper" way of implementing the macro would be using
+//       std::hardware_constructive_interference_size whenever available, but it
+//       seems like the __cpp_lib_hardware_interference_size check macro is
+//       buggy on the Clang versions shipped by FreeBSD. Hence, we hard-code 64
+//       for now. This is the cache line size of X86/64 and on other common
+//       hardware platforms.
 #define BROKER_CONSTRUCTIVE_INTERFERENCE_SIZE 64
-#endif

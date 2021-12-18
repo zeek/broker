@@ -196,9 +196,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.stale_time = now(clock) + stale_interval;
           auto si = std::chrono::duration<double>(stale_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick_v,
-                                       atom::stale_check_v);
-          clock->send_later(facade(caf::actor{self}), ts, &msg);
+          auto tick = caf::make_message(atom::tick_v, atom::stale_check_v);
+          clock->send_later(facade(caf::actor{self}), ts, &tick);
           }
 
         if ( mutation_buffer_interval > 0 )
@@ -206,9 +205,8 @@ caf::behavior clone_actor(caf::stateful_actor<clone_state>* self,
           self->state.unmutable_time = now(clock) + mutation_buffer_interval;
           auto si = std::chrono::duration<double>(mutation_buffer_interval);
           auto ts = std::chrono::duration_cast<timespan>(si);
-          auto msg = caf::make_message(atom::tick_v,
-                                       atom::mutable_check_v);
-          clock->send_later(facade(caf::actor{self}), ts, &msg);
+          auto tick = caf::make_message(atom::tick_v, atom::mutable_check_v);
+          clock->send_later(facade(caf::actor{self}), ts, &tick);
           }
       }
     }
