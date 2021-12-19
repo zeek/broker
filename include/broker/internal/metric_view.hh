@@ -7,7 +7,7 @@
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 /// Provides a view into a `broker::data` that represents a Broker metric.
 class metric_view {
@@ -115,4 +115,4 @@ private:
   caf::telemetry::metric_type type_;
 };
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

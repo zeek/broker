@@ -1,4 +1,4 @@
-#include "broker/internal/telemetry/prometheus.hh"
+#include "broker/internal/prometheus.hh"
 
 #include <string_view>
 
@@ -7,10 +7,10 @@
 #include <caf/string_algorithms.hpp>
 
 #include "broker/internal/logger.hh"
-#include "broker/internal/telemetry/exporter.hh"
+#include "broker/internal/metric_exporter.hh"
 #include "broker/message.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 namespace {
 
@@ -148,9 +148,9 @@ caf::behavior prometheus_actor::make_behavior() {
         });
     },
   };
-  auto params = exporter_params::from(config());
+  auto params = metric_exporter_params::from(config());
   exporter_.reset(new exporter_state_type(this, core_, std::move(params)));
   return bhvr.or_else(exporter_->make_behavior());
 }
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

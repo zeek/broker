@@ -1,4 +1,4 @@
-#include "broker/internal/telemetry/scraper.hh"
+#include "broker/internal/metric_scraper.hh"
 
 #include <caf/actor_system_config.hpp>
 #include <caf/behavior.hpp>
@@ -15,7 +15,7 @@
 
 namespace ct = caf::telemetry;
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 namespace {
 
@@ -53,16 +53,17 @@ vector pack_histogram(const Histogram* ptr) {
 
 } // namespace
 
-scraper::scraper(std::string id) : id_(std::move(id)) {
+metric_scraper::metric_scraper(std::string id) : id_(std::move(id)) {
   // nop
 }
 
-scraper::scraper(std::vector<std::string> selected_prefixes, std::string id)
+metric_scraper::metric_scraper(std::vector<std::string> selected_prefixes,
+                               std::string id)
   : selected_prefixes_(std::move(selected_prefixes)), id_(std::move(id)) {
   // nop
 }
 
-bool scraper::selected(const ct::metric_family* family) {
+bool metric_scraper::selected(const ct::metric_family* family) {
   auto matches = [family](const auto& prefix) {
     // For now, we only match prefixes on an equality-basis, no globbing.
     return family->prefix() == prefix;
@@ -72,7 +73,7 @@ bool scraper::selected(const ct::metric_family* family) {
                         matches);
 }
 
-void scraper::scrape(caf::telemetry::metric_registry& registry) {
+void metric_scraper::scrape(caf::telemetry::metric_registry& registry) {
   last_scrape_ = now();
   if (!rows_.empty()) {
     rows_.resize(1);
@@ -92,58 +93,58 @@ void scraper::scrape(caf::telemetry::metric_registry& registry) {
   registry.collect(*this);
 }
 
-void scraper::id(std::string new_id) {
+void metric_scraper::id(std::string new_id) {
   id_ = std::move(new_id);
   rows_.clear(); // Force re-creation of the meta information on next scrape.
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::dbl_counter* counter) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::dbl_counter* counter) {
   if (selected(family))
     add_row(family, "counter", to_table(instance->labels()), counter->value());
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::int_counter* counter) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::int_counter* counter) {
   if (selected(family))
     add_row(family, "counter", to_table(instance->labels()), counter->value());
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::dbl_gauge* gauge) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::dbl_gauge* gauge) {
   if (selected(family))
     add_row(family, "gauge", to_table(instance->labels()), gauge->value());
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::int_gauge* gauge) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::int_gauge* gauge) {
   if (selected(family))
     add_row(family, "gauge", to_table(instance->labels()), gauge->value());
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::dbl_histogram* histogram) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::dbl_histogram* histogram) {
   if (selected(family))
     add_row(family, "histogram", to_table(instance->labels()),
             pack_histogram(histogram));
 }
 
-void scraper::operator()(const ct::metric_family* family,
-                         const ct::metric* instance,
-                         const ct::int_histogram* histogram) {
+void metric_scraper::operator()(const ct::metric_family* family,
+                                const ct::metric* instance,
+                                const ct::int_histogram* histogram) {
   if (selected(family))
     add_row(family, "histogram", to_table(instance->labels()),
             pack_histogram(histogram));
 }
 
 template <class T>
-void scraper::add_row(const caf::telemetry::metric_family* family,
-                      std::string type, table labels, T value) {
+void metric_scraper::add_row(const caf::telemetry::metric_family* family,
+                             std::string type, table labels, T value) {
   vector row;
   row.reserve(8);
   row.emplace_back(family->prefix());
@@ -157,4 +158,4 @@ void scraper::add_row(const caf::telemetry::metric_family* family,
   rows_.emplace_back(std::move(row));
 }
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

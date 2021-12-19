@@ -1,10 +1,10 @@
-#define SUITE telemetry.exporter
+#define SUITE metric_exporter
 
-#include "broker/internal/telemetry/exporter.hh"
+#include "broker/internal/metric_exporter.hh"
 
 #include "test.hh"
 
-#include "broker/internal/telemetry/metric_view.hh"
+#include "broker/internal/metric_view.hh"
 
 namespace atom = broker::internal::atom;
 
@@ -48,7 +48,7 @@ bool inspect(Inspector& f, metric_row& row) {
 }
 
 bool operator==(const metric_row& lhs, const vector& rhs) {
-  if (auto mv = internal::telemetry::metric_view{rhs})
+  if (auto mv = internal::metric_view{rhs})
     return lhs.prefix == mv.prefix() && lhs.name == mv.name()
            && lhs.type == mv.type_str() && lhs.unit == mv.unit()
            && lhs.helptext == mv.helptext() && lhs.is_sum == mv.is_sum()
@@ -89,7 +89,7 @@ struct fixture : base_fixture {
     bar_foo = reg.gauge_singleton("bar", "foo", "BarFoo!");
     std::vector<std::string> selection{"foo"};
     core = sys.spawn<dummy_core_actor>();
-    aut = sys.spawn<internal::telemetry::exporter_actor>(
+    aut = sys.spawn<internal::metric_exporter_actor>(
       core, std::move(selection), caf::timespan{2s}, "all/them/metrics",
       "exporter-1");
     sched.run();
@@ -100,7 +100,7 @@ struct fixture : base_fixture {
   }
 
   auto& state() {
-    return deref<internal::telemetry::exporter_actor>(aut).state;
+    return deref<internal::metric_exporter_actor>(aut).state;
   }
 
   auto& core_state() {

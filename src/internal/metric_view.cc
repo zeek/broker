@@ -1,6 +1,6 @@
-#include "broker/internal/telemetry/metric_view.hh"
+#include "broker/internal/metric_view.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 metric_view::metric_view(const vector* row)
   : type_(static_cast<caf::telemetry::metric_type>(0)) {
@@ -98,4 +98,4 @@ bool metric_view::get_type(const vector& row,
   }
 }
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

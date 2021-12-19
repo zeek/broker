@@ -1,4 +1,4 @@
-#include "broker/internal/telemetry/exporter.hh"
+#include "broker/internal/metric_exporter.hh"
 
 #include <string_view>
 
@@ -7,12 +7,13 @@
 
 #include "broker/defaults.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
-exporter_params exporter_params::from(const caf::actor_system_config& cfg) {
+metric_exporter_params
+metric_exporter_params::from(const caf::actor_system_config& cfg) {
   using std::string;
   using dict_type = caf::config_value::dictionary;
-  exporter_params result;
+  metric_exporter_params result;
   if (auto idp = caf::get_if<string>(&cfg, "broker.metrics.endpoint-name");
       idp && !idp->empty()) {
     result.id = *idp;
@@ -31,8 +32,8 @@ exporter_params exporter_params::from(const caf::actor_system_config& cfg) {
   return result;
 }
 
-[[nodiscard]] bool exporter_params::valid() const noexcept {
+[[nodiscard]] bool metric_exporter_params::valid() const noexcept {
   return !target.empty();
 }
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

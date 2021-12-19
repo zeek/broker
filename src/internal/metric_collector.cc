@@ -1,17 +1,17 @@
-#include "broker/internal/telemetry/collector.hh"
+#include "broker/internal/metric_collector.hh"
 
 #include "broker/internal/logger.hh"
 
 namespace ct = caf::telemetry;
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 namespace {
 
 template <class T>
-class remote_counter : public collector::remote_metric {
+class remote_counter : public metric_collector::remote_metric {
 public:
-  using super = collector::remote_metric;
+  using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
                                    ? ct::metric_type::int_counter
@@ -36,9 +36,9 @@ private:
 };
 
 template <class T>
-class remote_gauge : public collector::remote_metric {
+class remote_gauge : public metric_collector::remote_metric {
 public:
-  using super = collector::remote_metric;
+  using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
                                    ? ct::metric_type::int_gauge
@@ -63,9 +63,9 @@ private:
 };
 
 template <class T>
-class remote_histogram : public collector::remote_metric {
+class remote_histogram : public metric_collector::remote_metric {
 public:
-  using super = collector::remote_metric;
+  using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
                                    ? ct::metric_type::int_histogram
@@ -115,37 +115,37 @@ private:
 
 // -- member types -------------------------------------------------------------
 
-collector::remote_metric::remote_metric(
+metric_collector::remote_metric::remote_metric(
   std::vector<caf::telemetry::label> labels,
   const caf::telemetry::metric_family* parent)
   : super(std::move(labels)), parent_(parent) {
   // nop
 }
 
-collector::remote_metric::~remote_metric() {
+metric_collector::remote_metric::~remote_metric() {
   // nop
 }
 
 // --- constructors and destructors --------------------------------------------
 
-collector::collector() {
+metric_collector::metric_collector() {
   // nop
 }
 
-collector::~collector() {
+metric_collector::~metric_collector() {
   // nop
 }
 
 // -- data management ----------------------------------------------------------
 
-size_t collector::insert_or_update(const data& content) {
+size_t metric_collector::insert_or_update(const data& content) {
   if (auto vec = get_if<vector>(content))
     return insert_or_update(*vec);
   else
     return 0;
 }
 
-size_t collector::insert_or_update(const vector& vec) {
+size_t metric_collector::insert_or_update(const vector& vec) {
   auto has_meta_data = [](const data& x) {
     if (auto meta = get_if<vector>(x); meta && meta->size() == 2)
       return is<std::string>((*meta)[0]) && is<timestamp>((*meta)[1]);
@@ -163,8 +163,9 @@ size_t collector::insert_or_update(const vector& vec) {
   }
 }
 
-size_t collector::insert_or_update(const std::string& endpoint_name,
-                                   timestamp ts, caf::span<const data> rows) {
+size_t metric_collector::insert_or_update(const std::string& endpoint_name,
+                                          timestamp ts,
+                                          caf::span<const data> rows) {
   using caf::telemetry::metric_type;
   auto res = size_t{0};
   if (advance_time(endpoint_name, ts))
@@ -177,7 +178,7 @@ size_t collector::insert_or_update(const std::string& endpoint_name,
   return res;
 }
 
-std::string_view collector::prometheus_text() {
+std::string_view metric_collector::prometheus_text() {
   if (generator_.begin_scrape()) {
     for (auto& [prefix, names] : prefixes_)
       for (auto& [name, scope] : names)
@@ -189,7 +190,7 @@ std::string_view collector::prometheus_text() {
   return {res.data(), res.size()};
 }
 
-void collector::clear() {
+void metric_collector::clear() {
   labels_.clear();
   label_names_.clear();
   prefixes_.clear();
@@ -199,8 +200,8 @@ void collector::clear() {
 
 // -- time management ----------------------------------------------------------
 
-bool collector::advance_time(const std::string& endpoint_name,
-                             timestamp current_time) {
+bool metric_collector::advance_time(const std::string& endpoint_name,
+                                    timestamp current_time) {
   auto [i, added] = last_seen_.emplace(endpoint_name, current_time);
   if (added) {
     return true;
@@ -214,8 +215,9 @@ bool collector::advance_time(const std::string& endpoint_name,
 
 // -- lookups ----------------------------------------------------------------
 
-collector::label_span collector::labels_for(const std::string& endpoint_name,
-                                            metric_view row) {
+metric_collector::label_span
+metric_collector::labels_for(const std::string& endpoint_name,
+                             metric_view row) {
   using namespace std::literals;
   auto name_less = [](const auto& lhs, const auto& rhs) {
     return lhs.name() < rhs.name();
@@ -229,7 +231,8 @@ collector::label_span collector::labels_for(const std::string& endpoint_name,
   return labels_;
 }
 
-collector::string_span collector::label_names_for(metric_view row) {
+metric_collector::string_span
+metric_collector::label_names_for(metric_view row) {
   label_names_.clear();
   label_names_.emplace_back("endpoint");
   for (const auto& kvp : row.labels())
@@ -244,7 +247,7 @@ auto owned(std::string_view x) {
   return std::string{x};
 }
 
-auto owned(collector::string_span xs) {
+auto owned(metric_collector::string_span xs) {
   std::vector<std::string> result;
   if (!xs.empty()) {
     result.reserve(xs.size());
@@ -254,7 +257,7 @@ auto owned(collector::string_span xs) {
   return result;
 }
 
-auto owned(collector::label_span xs) {
+auto owned(metric_collector::label_span xs) {
   std::vector<caf::telemetry::label> result;
   if (!xs.empty()) {
     result.reserve(xs.size());
@@ -266,8 +269,8 @@ auto owned(collector::label_span xs) {
 
 } // namespace
 
-collector::remote_metric* collector::instance(const std::string& endpoint_name,
-                                              metric_view mv) {
+metric_collector::remote_metric*
+metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
   auto& names = prefixes_[mv.prefix()];
   auto& scope = names[mv.name()];
   if (scope.family == nullptr) {
@@ -317,4 +320,4 @@ collector::remote_metric* collector::instance(const std::string& endpoint_name,
   }
 }
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

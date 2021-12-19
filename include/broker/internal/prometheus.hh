@@ -9,11 +9,11 @@
 #include <caf/io/connection_handle.hpp>
 
 #include "broker/filter_type.hh"
-#include "broker/internal/telemetry/collector.hh"
-#include "broker/internal/telemetry/exporter.hh"
-#include "broker/internal/telemetry/scraper.hh"
+#include "broker/internal/metric_collector.hh"
+#include "broker/internal/metric_exporter.hh"
+#include "broker/internal/metric_scraper.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 /// Makes local and remote metrics available to Prometheus via HTTP. The
 /// Prometheus actor collects and exports local metrics as well as imports
@@ -26,7 +26,7 @@ public:
 
   using super = caf::io::broker;
 
-  using exporter_state_type = exporter_state<super>;
+  using exporter_state_type = metric_exporter_state<super>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -46,7 +46,7 @@ private:
   std::unordered_map<caf::io::connection_handle, caf::byte_buffer> requests_;
 
   /// Combines various metrics into a single Prometheus output.
-  collector collector_;
+  metric_collector collector_;
 
   /// Handle to the Broker endpoint actor.
   caf::actor core_;
@@ -59,4 +59,4 @@ private:
   std::unique_ptr<exporter_state_type> exporter_;
 };
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

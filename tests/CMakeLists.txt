@@ -18,8 +18,8 @@ set(tests
   cpp/internal/generator_file_writer.cc
   cpp/internal/meta_command_writer.cc
   cpp/internal/meta_data_writer.cc
-  cpp/internal/telemetry/collector.cc
-  cpp/internal/telemetry/exporter.cc
+  cpp/internal/metric_collector.cc
+  cpp/internal/metric_exporter.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/publisher_id.cc

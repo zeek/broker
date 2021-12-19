@@ -8,8 +8,8 @@
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/logger.hh"
-#include "broker/internal/telemetry/exporter.hh"
-#include "broker/internal/telemetry/prometheus.hh"
+#include "broker/internal/metric_exporter.hh"
+#include "broker/internal/prometheus.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
@@ -223,7 +223,7 @@ public:
       return facade(maybe_dptr.error());
     }
     auto actual_port = dptr->port();
-    using impl = internal::telemetry::prometheus_actor;
+    using impl = internal::prometheus_actor;
     mpx_supervisor_ = mpx_.make_supervisor();
     caf::actor_config cfg{&mpx_};
     worker_ = mpx_.system().spawn_impl<impl, caf::hidden>(cfg, std::move(dptr),
@@ -423,9 +423,9 @@ endpoint::endpoint(configuration config) {
       BROKER_ERROR("failed to expose metrics:" << actual_port.error());
     }
   } else {
-    namespace it = internal::telemetry;
-    auto params = it::exporter_params::from(cfg);
-    auto hdl = sys.spawn<it::exporter_actor>(native(core_), std::move(params));
+    using exporter_t = internal::metric_exporter_actor;
+    auto params = internal::metric_exporter_params::from(cfg);
+    auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
     telemetry_exporter_ = facade(hdl);
   }
 }

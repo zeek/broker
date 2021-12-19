@@ -14,34 +14,34 @@
 #include "broker/detail/next_tick.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/logger.hh"
-#include "broker/internal/telemetry/scraper.hh"
+#include "broker/internal/metric_scraper.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 /// Wraps user-defined parameters for the exporter to enable sanity checking
 /// before actually spawning an exporter.
-struct exporter_params {
+struct metric_exporter_params {
   std::vector<std::string> selected_prefixes;
   caf::timespan interval;
   topic target;
   std::string id;
-  static exporter_params from(const caf::actor_system_config& cfg);
+  static metric_exporter_params from(const caf::actor_system_config& cfg);
   [[nodiscard]] bool valid() const noexcept;
 };
 
 /// State for an actor that periodically exports local metrics by publishing
 /// `data`-encoded metrics to a user-defined Broker topic.
 template <class Self>
-class exporter_state {
+class metric_exporter_state {
 public:
   // -- initialization ---------------------------------------------------------
 
-  exporter_state(Self* self, caf::actor core,
-                 std::vector<std::string> selected_prefixes,
-                 caf::timespan interval, topic target, std::string id)
+  metric_exporter_state(Self* self, caf::actor core,
+                        std::vector<std::string> selected_prefixes,
+                        caf::timespan interval, topic target, std::string id)
     : self(self),
       core(std::move(core)),
       interval(interval),
@@ -51,10 +51,11 @@ public:
     // nop
   }
 
-  exporter_state(Self* self, caf::actor core, exporter_params&& params)
-    : exporter_state(self, std::move(core), std::move(params.selected_prefixes),
-                     params.interval, std::move(params.target),
-                     std::move(params.id)) {
+  metric_exporter_state(Self* self, caf::actor core,
+                        metric_exporter_params&& params)
+    : metric_exporter_state(
+      self, std::move(core), std::move(params.selected_prefixes),
+      params.interval, std::move(params.target), std::move(params.id)) {
     //nop
   }
 
@@ -177,12 +178,12 @@ public:
   caf::telemetry::importer::process proc_importer;
 
   /// The actual exporter for collecting the metrics.
-  scraper impl;
+  metric_scraper impl;
 
   bool running_ = false;
 };
 
-using exporter_actor
-  = caf::stateful_actor<exporter_state<caf::event_based_actor>>;
+using metric_exporter_actor
+  = caf::stateful_actor<metric_exporter_state<caf::event_based_actor>>;
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

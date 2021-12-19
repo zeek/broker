@@ -13,15 +13,15 @@
 
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
-#include "broker/internal/telemetry/metric_view.hh"
+#include "broker/internal/metric_view.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 /// Subscribes to a topic for receiving remote metrics and makes them accessible
 /// in the Prometheus text format.
-class collector {
+class metric_collector {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -51,9 +51,9 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  collector();
+  metric_collector();
 
-  ~collector();
+  ~metric_collector();
 
   // -- data management --------------------------------------------------------
 
@@ -117,4 +117,4 @@ private:
   caf::telemetry::collector::prometheus generator_;
 };
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal

@@ -290,13 +290,13 @@ set(BROKER_SRC
   src/internal/master_resolver.cc
   src/internal/meta_command_writer.cc
   src/internal/meta_data_writer.cc
+  src/internal/metric_collector.cc
+  src/internal/metric_exporter.cc
+  src/internal/metric_scraper.cc
+  src/internal/metric_view.cc
   src/internal/network_cache.cc
+  src/internal/prometheus.cc
   src/internal/store_actor.cc
-  src/internal/telemetry/collector.cc
-  src/internal/telemetry/exporter.cc
-  src/internal/telemetry/metric_view.cc
-  src/internal/telemetry/prometheus.cc
-  src/internal/telemetry/scraper.cc
   src/internal/unipath_manager.cc
   src/internal_command.cc
   src/mailbox.cc

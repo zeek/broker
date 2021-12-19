@@ -1,10 +1,10 @@
-#define SUITE telemetry.collector
+#define SUITE metric_collector
 
-#include "broker/internal/telemetry/collector.hh"
+#include "broker/internal/metric_collector.hh"
 
 #include "test.hh"
 
-#include "broker/internal/telemetry/exporter.hh"
+#include "broker/internal/metric_exporter.hh"
 
 namespace atom = broker::internal::atom;
 
@@ -17,7 +17,7 @@ namespace {
 // Works around a weird bug in CAF that prevents us from passing the pointer
 // directly.
 struct collector_ptr {
-  internal::telemetry::collector* value;
+  internal::metric_collector* value;
 };
 
 caf::behavior dummy_core(collector_ptr ptr) {
@@ -30,7 +30,7 @@ caf::behavior dummy_core(collector_ptr ptr) {
 }
 
 struct fixture : base_fixture {
-  internal::telemetry::collector collector;
+  internal::metric_collector collector;
 
   caf::actor core;
   caf::actor exporter;
@@ -59,7 +59,7 @@ struct fixture : base_fixture {
     foo_h2 = h2_fam->get_or_add({{"sys", "broker"}});
     // Spin up actors.
     core = sys.spawn(dummy_core, collector_ptr{&collector});
-    exporter = sys.spawn<internal::telemetry::exporter_actor>(
+    exporter = sys.spawn<internal::metric_exporter_actor>(
       core, std::vector<std::string>{}, caf::timespan{2s}, "/all/them/metrics",
       "exporter-1");
     sched.run();

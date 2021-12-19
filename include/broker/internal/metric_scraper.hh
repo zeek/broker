@@ -5,18 +5,18 @@
 
 #include <caf/telemetry/metric_registry.hpp>
 
-namespace broker::internal::telemetry {
+namespace broker::internal {
 
 /// Scrapes local CAF metrics and encodes them into `data` objects (for
 /// decoding, see `metric_view`). The `data`-encoded metrics then may get
 /// published to a Broker topic by an exporter or Prometheus actor.
-class scraper {
+class metric_scraper {
 public:
   // -- constructors, destructors, and assignment operators --------------------
 
-  scraper(std::string id);
+  metric_scraper(std::string id);
 
-  scraper(std::vector<std::string> selected_prefixes, std::string id);
+  metric_scraper(std::vector<std::string> selected_prefixes, std::string id);
 
   // -- properties -------------------------------------------------------------
 
@@ -110,4 +110,4 @@ private:
   vector rows_;
 };
 
-} // namespace broker::internal::telemetry
+} // namespace broker::internal
