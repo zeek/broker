@@ -401,16 +401,68 @@ void configuration::add_option(std::vector<std::string>* dst,
                                                           description);
 }
 
-void configuration::set(std::string key, uint64_t val) {
+void configuration::set(std::string key, bool val) {
   impl_->set(std::move(key), val);
 }
 
-void configuration::set(std::string key, int64_t val) {
+void configuration::set(std::string key, timespan val) {
   impl_->set(std::move(key), val);
 }
 
 void configuration::set(std::string key, std::string val) {
   impl_->set(std::move(key), std::move(val));
+}
+
+void configuration::set(std::string key, std::vector<std::string> val) {
+  impl_->set(std::move(key), std::move(val));
+}
+
+void configuration::set_i64(std::string key, int64_t val) {
+  impl_->set(std::move(key), val);
+}
+
+void configuration::set_u64(std::string key, uint64_t val) {
+  impl_->set(std::move(key), val);
+}
+
+std::optional<int64_t> configuration::read_i64(std::string_view key,
+                                               int64_t min_val,
+                                               int64_t max_val) const {
+  if (auto res = caf::get_as<int64_t>(*impl_, key);
+      res && *res >= min_val && *res <= max_val)
+    return {*res};
+  else
+    return {};
+}
+
+std::optional<uint64_t> configuration::read_u64(std::string_view key,
+                                                uint64_t max_val) const {
+  if (auto res = caf::get_as<uint64_t>(*impl_, key); res && *res <= max_val)
+    return {*res};
+  else
+    return {};
+}
+
+std::optional<timespan> configuration::read_ts(std::string_view key) const {
+  if (auto res = caf::get_as<caf::timespan>(*impl_, key))
+    return {*res};
+  else
+    return {};
+}
+
+std::optional<std::string> configuration::read_str(std::string_view key) const {
+  if (auto res = caf::get_as<std::string>(*impl_, key))
+    return {std::move(*res)};
+  else
+    return {};
+}
+
+std::optional<std::vector<std::string>>
+configuration::read_str_vec(std::string_view key) const {
+  if (auto res = caf::get_as<std::vector<std::string>>(*impl_, key))
+    return {std::move(*res)};
+  else
+    return {};
 }
 
 namespace {

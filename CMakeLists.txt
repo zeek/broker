@@ -312,6 +312,12 @@ set(BROKER_SRC
   src/store_event.cc
   src/subnet.cc
   src/subscriber.cc
+  src/telemetry/counter.cc
+  src/telemetry/gauge.cc
+  src/telemetry/histogram.cc
+  src/telemetry/metric_family.cc
+  src/telemetry/metric_registry.cc
+  src/telemetry/metric_registry_impl.cc
   src/time.cc
   src/topic.cc
   src/version.cc

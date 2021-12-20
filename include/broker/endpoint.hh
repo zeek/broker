@@ -31,6 +31,7 @@
 namespace broker::internal {
 
 struct endpoint_access;
+struct endpoint_context;
 
 } // namespace broker::internal
 
@@ -47,15 +48,13 @@ public:
 
   // --- member types ----------------------------------------------------------
 
-  struct context;
-
   /// Custom clock for either running in realtime mode or advancing time
   /// manually.
   class clock {
   public:
     // --- construction and destruction ----------------------------------------
 
-    explicit clock(context* ctx);
+    explicit clock(internal::endpoint_context* ctx);
 
     virtual ~clock();
 
@@ -73,7 +72,7 @@ public:
 
   protected:
     /// Points to the host system.
-    context* ctx_;
+    internal::endpoint_context* ctx_;
   };
 
   /// Utility class for configuring the metrics exporter.
@@ -391,7 +390,7 @@ private:
   template <class F>
   worker make_worker(F fn);
 
-  std::unique_ptr<context> ctx_;
+  std::shared_ptr<internal::endpoint_context> ctx_;
   worker core_;
   worker telemetry_exporter_;
   bool await_stores_on_shutdown_ = false;

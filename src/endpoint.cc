@@ -54,16 +54,7 @@ caf::actor_system_config& nat_cfg(configuration& cfg) {
 
 // --- nested classes ----------------------------------------------------------
 
-struct endpoint::context {
-  configuration cfg;
-  caf::actor_system sys;
-
-  context(configuration&& src) : cfg(std::move(src)), sys(nat_cfg(cfg)) {
-    // nop
-  }
-};
-
-endpoint::clock::clock(endpoint::context* ctx) : ctx_(ctx) {
+endpoint::clock::clock(internal::endpoint_context* ctx) : ctx_(ctx) {
   // nop
 }
 
@@ -75,7 +66,7 @@ class real_time_clock : public endpoint::clock {
 public:
   using super = endpoint::clock;
 
-  explicit real_time_clock(endpoint::context* ctx) : super(ctx) {
+  explicit real_time_clock(internal::endpoint_context* ctx) : super(ctx) {
     // nop
   }
 
@@ -114,7 +105,7 @@ public:
 
   using pending_msgs_map_type = std::multimap<timestamp, pending_msg_type>;
 
-  sim_clock(endpoint::context* ctx)
+  sim_clock(internal::endpoint_context* ctx)
     : super(ctx), time_since_epoch_(timespan{0}), pending_count_(0) {
     // nop
   }
@@ -372,7 +363,7 @@ endpoint::endpoint() : endpoint(configuration{}) {
 }
 
 endpoint::endpoint(configuration config) {
-  ctx_.reset(new context(std::move(config)));
+  ctx_ = std::make_shared<internal::endpoint_context>(std::move(config));
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
@@ -763,12 +754,21 @@ void endpoint::wait_for(worker who) {
 
 namespace broker::internal {
 
+endpoint_context::endpoint_context(configuration&& src)
+  : cfg(std::move(src)), sys(nat_cfg(cfg)) {
+  // nop
+}
+
 caf::actor_system& endpoint_access::sys() {
   return ep->ctx_->sys;
 }
 
 const caf::actor_system_config& endpoint_access::cfg() {
   return nat_cfg(ep->ctx_->cfg);
+}
+
+std::shared_ptr<endpoint_context> endpoint_access::ctx() {
+  return ep->ctx_;
 }
 
 } // namespace broker::internal

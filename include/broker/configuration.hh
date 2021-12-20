@@ -4,8 +4,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <vector>
 
 namespace broker::internal {
 
@@ -151,11 +154,34 @@ public:
   void add_option(std::vector<std::string>* dst, std::string_view name,
                   std::string_view description);
 
-  void set(std::string key, uint64_t val);
+  void set(std::string key, bool val);
 
-  void set(std::string key, int64_t val);
+  template <class T>
+  std::enable_if_t<std::is_integral_v<T>> set(std::string key, T val) {
+    if constexpr (std::is_signed_v<T>)
+      set_i64(std::move(key), val);
+    else
+      set_u64(std::move(key), val);
+  }
+
+  void set(std::string key, timespan val);
 
   void set(std::string key, std::string val);
+
+  void set(std::string key, std::vector<std::string> val);
+
+  std::optional<int64_t> read_i64(std::string_view key, int64_t min_val,
+                                  int64_t max_val) const;
+
+  std::optional<uint64_t> read_u64(std::string_view key,
+                                   uint64_t max_val) const;
+
+  std::optional<timespan> read_ts(std::string_view key) const;
+
+  std::optional<std::string> read_str(std::string_view key) const;
+
+  std::optional<std::vector<std::string>>
+  read_str_vec(std::string_view key) const;
 
   /// Initializes any global state required by Broker such as the global meta
   /// object table for Broker and CAF (core, I/O and OpenSSL modules). This
@@ -175,7 +201,34 @@ public:
   void init(int argc, char** argv);
 
 private:
+  void set_i64(std::string key, int64_t val);
+
+  void set_u64(std::string key, uint64_t val);
+
   std::unique_ptr<impl> impl_;
 };
+
+template <class T>
+auto get_as(const configuration& cfg, std::string_view key) {
+  if constexpr (std::is_integral_v<T>){
+    std::optional<T> res;
+    using lim = std::numeric_limits<T>;
+    if constexpr (std::is_signed_v<T>) {
+      if (auto val = cfg.read_i64(key, lim::min(), lim::max()))
+        res = static_cast<T>(*val);
+    } else {
+      if (auto val = cfg.read_u64(key, lim::max()))
+        res = static_cast<T>(*val);
+    }
+    return res;
+  } else if constexpr (std::is_same_v<T, timespan>) {
+    return cfg.read_ts(key);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return cfg.read_str(key);
+  } else {
+    static_assert(std::is_same_v<T, std::vector<std::string>>);
+    return cfg.read_str_vec(key);
+  }
+}
 
 } // namespace broker
