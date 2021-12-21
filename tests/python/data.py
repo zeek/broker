@@ -9,6 +9,7 @@ import time
 import math
 import ipaddress
 import sys
+import types
 import unittest
 
 import broker
@@ -82,9 +83,14 @@ class TestDataConstruction(unittest.TestCase):
         else:
             self.assertEqual(b2p, p)
 
-    def check_to_broker_and_back(self, p, s, t):
+    def check_to_broker_and_back(self, p, s, t, p_final=None):
+        """Given a Python value p, convert to Broker and check that the latter renders
+        to string s and matches Broker type t. Then convert back to Python and
+        verify that type and value match p_final. If p_final is None, use the
+        original input p.
+        """
         b = self.check_to_broker(p, s, t)
-        self.check_to_py(b, p)
+        self.check_to_py(b, p if p_final is None else p_final)
         return b
 
     def test_bool(self):
@@ -229,20 +235,25 @@ class TestDataConstruction(unittest.TestCase):
         self.check_to_broker_and_back(broker.Port(8, broker.Port.ICMP), "8/icmp", broker.Data.Type.Port)
         self.check_to_broker_and_back(broker.Port(0, broker.Port.Unknown), "0/?", broker.Data.Type.Port)
 
-    def test_set(self):
+    def _test_set_impl(self, set_itype, set_otype=None):
+        # Common set testing functionality for an input type into Broker and a
+        # corresponding output type (set_itype/set_otype). When the output type
+        # isn't provided, use the input type:
+        set_otype = set_itype if set_otype is None else set_otype
+
         # Test an empty set
-        self.check_to_broker_and_back(set(), '{}', broker.Data.Type.Set)
+        self.check_to_broker_and_back(set_itype(), '{}', broker.Data.Type.Set, set_otype())
 
         # Test a simple set
-        p = set([1, 2, 3])
-        d = self.check_to_broker_and_back(p, '{1, 2, 3}', broker.Data.Type.Set)
+        pi, po = set_itype([1, 2, 3]), set_otype([1, 2, 3])
+        d = self.check_to_broker_and_back(pi, '{1, 2, 3}', broker.Data.Type.Set, po)
 
         for (i, x) in enumerate(d.as_set()):
             self.check_to_broker(x, str(i + 1), broker.Data.Type.Integer)
             self.check_to_py(x, i + 1)
 
         # Test a set that contains various data types
-        d = broker.Data(set(['foo', ipaddress.IPv6Address('::1'), None]))
+        d = broker.Data(set_itype(['foo', ipaddress.IPv6Address('::1'), None]))
         for (i, x) in enumerate(d.as_set()):
             if i == 1:
                 self.check_to_broker(x, 'foo', broker.Data.Type.String)
@@ -252,20 +263,34 @@ class TestDataConstruction(unittest.TestCase):
                 self.check_to_py(x, ipaddress.IPv6Address('::1'))
 
         # Test some of our own methods on wrapped sets.
-        d = broker.Data(set([1, 2, 3])).as_set()
+        d = broker.Data(set_itype([1, 2, 3])).as_set()
         self.assertEqual(str(d), "Set{1, 2, 3}")
         d.remove(broker.Data(2))
         self.assertEqual(str(d), "Set{1, 3}")
         d.clear()
         self.assertEqual(str(d), "Set{}")
 
-    def test_table(self):
+    def test_set(self):
+        self._test_set_impl(set)
+
+    def test_frozenset(self):
+        # Python frozensets convert to Broker sets, so by default their mapping
+        # back to Python results in regular sets.
+        self._test_set_impl(frozenset, set)
+
+    def _test_table_impl(self, table_itype, table_otype=None):
+        # Common table testing functionality for an input type into Broker and a
+        # corresponding output type (table_itype/table_otype). When the output
+        # type isn't provided, use the input type:
+        table_otype = table_itype if table_otype is None else table_otype
+
         # Test an empty table
-        self.check_to_broker_and_back({}, '{}', broker.Data.Type.Table)
+        self.check_to_broker_and_back(table_itype({}), '{}', broker.Data.Type.Table, table_otype())
 
         # Test a simple table
-        p = {"a": 1, "b": 2, "c": 3}
-        d = self.check_to_broker_and_back(p, '{a -> 1, b -> 2, c -> 3}', broker.Data.Type.Table)
+        d = {"a": 1, "b": 2, "c": 3}
+        pi, po = table_itype(d), table_otype(d)
+        d = self.check_to_broker_and_back(pi, '{a -> 1, b -> 2, c -> 3}', broker.Data.Type.Table, po)
 
         for (i, (k, v)) in enumerate(d.as_table().items()):
             self.check_to_broker(k, ["a", "b", "c"][i], broker.Data.Type.String)
@@ -274,14 +299,15 @@ class TestDataConstruction(unittest.TestCase):
             self.check_to_py(v, i + 1)
 
         # Test a table that contains different data types
-        p = { True: 42,
-              broker.Port(22, broker.Port.TCP): False,
-              (1,2,3): [4,5,6],
-              broker.Count(13): "test",
-            }
-        d = self.check_to_broker(p,
-                '{T -> 42, 13 -> test, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}',
-                broker.Data.Type.Table)
+        p = table_itype({
+            True: 42,
+            broker.Port(22, broker.Port.TCP): False,
+            (1,2,3): [4,5,6],
+            broker.Count(13): "test",
+        })
+        d = self.check_to_broker(
+            p, '{T -> 42, 13 -> test, 22/tcp -> F, (1, 2, 3) -> (4, 5, 6)}',
+            broker.Data.Type.Table)
 
         t = d.as_table()
 
@@ -296,6 +322,14 @@ class TestDataConstruction(unittest.TestCase):
 
         self.check_to_broker(t[broker.Data(broker.Count(13))], "test", broker.Data.Type.String)
         self.check_to_py(t[broker.Data(broker.Count(13))], "test")
+
+    def test_dict(self):
+        self._test_table_impl(dict)
+
+    def test_mapping_proxy_type(self):
+        # Python MappingProxyType instances will convert to Broker tables, which
+        # by default convert back to regular dicts.
+        self._test_table_impl(types.MappingProxyType, dict)
 
     def test_vector(self):
         # Test an empty vector
