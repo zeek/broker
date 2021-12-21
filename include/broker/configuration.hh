@@ -154,10 +154,10 @@ public:
   void add_option(std::vector<std::string>* dst, std::string_view name,
                   std::string_view description);
 
-  void set(std::string key, bool val);
-
   template <class T>
   std::enable_if_t<std::is_integral_v<T>> set(std::string key, T val) {
+    if constexpr (std::is_same_v<T, bool>)
+      set_bool(std::move(key), val);
     if constexpr (std::is_signed_v<T>)
       set_i64(std::move(key), val);
     else
@@ -204,6 +204,8 @@ private:
   void set_i64(std::string key, int64_t val);
 
   void set_u64(std::string key, uint64_t val);
+
+  void set_bool(std::string key, bool val);
 
   std::unique_ptr<impl> impl_;
 };

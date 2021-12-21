@@ -401,10 +401,6 @@ void configuration::add_option(std::vector<std::string>* dst,
                                                           description);
 }
 
-void configuration::set(std::string key, bool val) {
-  impl_->set(std::move(key), val);
-}
-
 void configuration::set(std::string key, timespan val) {
   impl_->set(std::move(key), val);
 }
@@ -422,6 +418,10 @@ void configuration::set_i64(std::string key, int64_t val) {
 }
 
 void configuration::set_u64(std::string key, uint64_t val) {
+  impl_->set(std::move(key), val);
+}
+
+void configuration::set_bool(std::string key, bool val) {
   impl_->set(std::move(key), val);
 }
 
