@@ -1,3 +1,31 @@
+2.2.0 | 2021-12-20 19:32:33 -0800
+
+  * Merge branch 'topic/christian/fix-python-unhashables' (Christian Kreibich, Corelight)
+
+    * topic/christian/fix-python-unhashables:
+      Add testcases for new Python SafeSubscriber class
+      Provide a SafeSubscriber class in Python to accommodate non-hashable types
+      Add immutable values to Python data type testsuite
+      Python cleanup: remove unneeded semicolons and trailing whitespace
+
+  * Add testcases for new Python SafeSubscriber class (Christian Kreibich, Corelight)
+
+  * Provide a SafeSubscriber class in Python to accommodate non-hashable types (Christian Kreibich, Corelight)
+
+    Broker's data model supports nested complex types, such as a set with table
+    members. When rendering such structures into Python, this could trigger
+    TypeError exceptions due to unhashable types.
+
+    The SafeSubscriber class and the corresponding Endpoint.make_safe_subscriber()
+    method ensure that immutable (hashable) Python types get used and that the
+    returned values are read-only. For sets the frozenset type achieves this, for
+    mapping types it's types.MappingProxyType. The API now also supports the latter
+    two types as inputs.
+
+  * Add immutable values to Python data type testsuite (Christian Kreibich, Corelight)
+
+  * Python cleanup: remove unneeded semicolons and trailing whitespace (Christian Kreibich, Corelight)
+
 2.2.0-dev.17 | 2021-11-05 13:38:17 -0700
 
   * Request at least Sphinx 2.0 to avoid a dependency problem in RTD (Christian Kreibich, Corelight)
