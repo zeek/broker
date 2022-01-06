@@ -78,19 +78,6 @@ centosstream8_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-centos8_task:
-  container:
-    # CentOS 8 EOL: May 31, 2029
-    dockerfile: ci/centos-8/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  env:
-    BROKER_CI_CREATE_ARTIFACT: 1
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-  upload_binary_artifacts:
-    path: build.tgz
-  benchmark_script: ./ci/benchmark.sh
-
 centos7_task:
   container:
     # CentOS 7 EOL: June 30, 2024
