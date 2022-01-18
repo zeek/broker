@@ -126,6 +126,14 @@ opensuse_leap_15_3_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+ubuntu21_task:
+  container:
+    # Ubuntu 21.10 EOL: July 2022
+    dockerfile: ci/ubuntu-21.10/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 ubuntu20_task:
   container:
     # Ubuntu 20.04 EOL: April 2025
