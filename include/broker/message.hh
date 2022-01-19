@@ -8,19 +8,17 @@
 #include <caf/cow_tuple.hpp>
 #include <caf/default_enum_inspect.hpp>
 
-#include "broker/alm/multipath.hh"
 #include "broker/data.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
 namespace broker {
 
-/// Tags a packed message with the type of the serialized data.
-enum class alm_message_type : uint8_t {
+/// Tags a peer-to-peer message with the type of the serialized payload.
+enum class p2p_message_type : uint8_t {
   data = 0x01,              ///< Payload contains a @ref data_message.
   command = 0x02,           ///< Payload contains a @ref command_message.
   routing_update = 0x03,    ///< Payload contains a flooded update.
-  path_revocation = 0x04,   ///< Payload contains a revoked path.
   hello = 0x10,             ///< Starts the handshake process.
   originator_syn = 0x20,    ///< Ship filter and local time from orig to resp.
   responder_syn_ack = 0x30, ///< Ship filter and local time from resp to orig.
@@ -28,28 +26,27 @@ enum class alm_message_type : uint8_t {
   drop_conn = 0x50,         ///< Drops a redundant connection.
 };
 
-/// @relates alm_message_type
-std::string to_string(alm_message_type);
+/// @relates p2p_message_type
+std::string to_string(p2p_message_type);
 
-/// @relates alm_message_type
-bool from_string(caf::string_view, alm_message_type&);
+/// @relates p2p_message_type
+bool from_string(caf::string_view, p2p_message_type&);
 
-/// @relates alm_message_type
-bool from_integer(uint8_t, alm_message_type&);
+/// @relates p2p_message_type
+bool from_integer(uint8_t, p2p_message_type&);
 
-/// @relates alm_message_type
+/// @relates p2p_message_type
 template <class Inspector>
-bool inspect(Inspector& f, alm_message_type& x) {
+bool inspect(Inspector& f, p2p_message_type& x) {
   return caf::default_enum_inspect(f, x);
 }
 
 /// Tags a packed message with the type of the serialized data. This enumeration
-/// is a subset of @ref alm_message_type.
+/// is a subset of @ref p2p_message_type.
 enum class packed_message_type : uint8_t {
   data = 0x01,
   command = 0x02,
   routing_update = 0x03,
-  path_revocation = 0x04,
 };
 
 /// @relates packed_message_type
@@ -68,38 +65,73 @@ bool inspect(Inspector& f, packed_message_type& x) {
 }
 
 /// A Broker-internal message with a payload received from the ALM layer.
-using packed_message = caf::cow_tuple<packed_message_type, topic,
+using packed_message = caf::cow_tuple<packed_message_type, uint16_t, topic,
                                       std::vector<std::byte>>;
 
-inline auto get_type(const packed_message& msg) {
+inline packed_message make_packed_message(packed_message_type type,
+                                          uint16_t ttl, topic dst,
+                                          std::vector<std::byte> bytes) {
+  return packed_message{type, ttl, dst, std::move(bytes)};
+}
+
+template <class T>
+inline packed_message make_packed_message(packed_message_type type,
+                                          uint16_t ttl, topic dst,
+                                          const std::vector<T>& buf) {
+  static_assert(sizeof(T) == 1);
+  auto first = reinterpret_cast<const std::byte*>(buf.data());
+  auto last = first + buf.size();
+  return packed_message{type, ttl, std::move(dst),
+                        std::vector<std::byte>{first, last}};
+}
+
+inline packed_message_type get_type(const packed_message& msg) {
   return get<0>(msg);
 }
 
-inline const topic& get_topic(const packed_message& msg) {
+inline uint16_t get_ttl(const packed_message& msg) {
   return get<1>(msg);
 }
 
-inline const std::vector<std::byte>& get_payload(const packed_message& msg) {
+inline const topic& get_topic(const packed_message& msg) {
   return get<2>(msg);
 }
 
-/// A Broker-internal message with path and content (packed message).
-using node_message = caf::cow_tuple<alm::multipath, packed_message>;
+inline const std::vector<std::byte>& get_payload(const packed_message& msg) {
+  return get<3>(msg);
+}
 
-inline const alm::multipath& get_path(const node_message& msg) {
+/// A Broker-internal message with path and content (packed message).
+using node_message = caf::cow_tuple<endpoint_id,     // Sender.
+                                    endpoint_id,     // Receiver or NIL.
+                                    packed_message>; // Content.
+
+inline auto get_sender(const node_message& msg) {
   return get<0>(msg);
 }
 
+inline auto get_receiver(const node_message& msg) {
+  return get<1>(msg);
+}
+
+inline const packed_message& get_packed_message(const node_message& msg) {
+  return get<2>(msg);
+}
+
+inline auto get_ttl(const node_message& msg) {
+  return get_ttl(get_packed_message(msg));
+}
+
 inline auto get_type(const node_message& msg) {
-  return get_type(get<1>(msg));
+  return get_type(get_packed_message(msg));
 }
 
 inline const topic& get_topic(const node_message& msg) {
-  return get_topic(get<1>(msg));
+  return get_topic(get_packed_message(msg));
 }
 
 inline const std::vector<std::byte>& get_payload(const node_message& msg) {
-  return get_payload(get<1>(msg));
+  return get_payload(get_packed_message(msg));
 }
 
 /// A user-defined message with topic and data.
@@ -139,9 +171,16 @@ command_message make_command_message(Topic&& t, Command&& d) {
   return command_message(std::forward<Topic>(t), std::forward<Command>(d));
 }
 
-/// Generates a ::node_message.
-inline node_message make_node_message(alm::multipath path, packed_message pm) {
-  return node_message{std::move(path), std::move(pm)};
+/// Generates a @ref node_message with NIL receiver, causing all receivers to
+/// dispatch on topic only.
+inline node_message make_node_message(endpoint_id sender, packed_message pm) {
+  return node_message{sender, endpoint_id::nil(), std::move(pm)};
+}
+
+/// Generates a @ref node_message.
+inline node_message make_node_message(endpoint_id sender, endpoint_id receiver,
+                                      packed_message pm) {
+  return node_message{sender, receiver, std::move(pm)};
 }
 
 /// Retrieves the topic from a ::data_message.
@@ -208,69 +247,3 @@ std::string to_string(const data_message& msg);
 std::string to_string(const command_message& msg);
 
 } // namespace broker
-
-// CAF ships node messages in batches. However, simply packing node messages
-// into a list can result in a lot of redundant data on the wire. Chances are
-// the node messages share some topics or source routing information.
-//
-// In order to pack data more efficiently on the wire, we specialize
-// caf::inspector_access for the batch type and then pull out topics and
-// multipaths. The actual payload (either broker::data or internal_command) then
-// references topic and path by index and we re-assemble everything back to node
-// messages during deserialization.
-//
-// All intermediary buffers are thread-local variables in order to reduce the
-// number of heap allocations. These buffers grow to the size of the largest
-// batch during runtime and then reach a state where they no longer need to
-// allocate any new memory.
-
-namespace broker::detail {
-
-template <class T>
-class indexed_cache {
-public:
-  using value_type = T;
-
-  uint32_t operator[](const T& val) {
-    for (size_t index = 0; index < buf_.size(); ++index)
-      if (buf_[index] == val)
-        return static_cast<uint32_t>(index);
-    auto res = static_cast<uint32_t>(buf_.size());
-    buf_.emplace_back(val);
-    return res;
-  }
-
-  const T* find(uint32_t index) {
-    if (index < buf_.size())
-      return std::addressof(buf_[index]);
-    else
-      return nullptr;
-  }
-
-  void clear() {
-    return buf_.clear();
-  }
-
-  template <class Inspector>
-  friend bool inspect(Inspector& f, indexed_cache& x) {
-    return f.apply(x.buf_);
-  }
-
-private:
-  std::vector<T> buf_;
-};
-
-using topic_cache_type = indexed_cache<topic>;
-
-using path_cache_type = indexed_cache<alm::multipath>;
-
-using content_buf_type = std::vector<
-  std::tuple<uint32_t, uint32_t, std::variant<data, internal_command>>>;
-
-topic_cache_type& thread_local_topic_cache();
-
-path_cache_type& thread_local_path_cache();
-
-content_buf_type& thread_local_content_buf();
-
-} // namespace broker::detail

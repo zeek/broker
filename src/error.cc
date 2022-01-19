@@ -191,4 +191,8 @@ error_view error_view::make(const data& src) {
   return error_view{convertible_to_error(src) ? &get<vector>(src) : nullptr};
 }
 
+error error_factory::make_impl(ec code, endpoint_info node, std::string msg) {
+  return make_error(code, std::move(node), std::move(msg));
+}
+
 } // namespace broker

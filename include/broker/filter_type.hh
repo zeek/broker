@@ -4,7 +4,7 @@
 #include <mutex>
 #include <vector>
 
-#include "broker/alm/lamport_timestamp.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/topic.hh"
 
 namespace broker {
@@ -49,7 +49,7 @@ public:
   }
 
   /// Override the current value.
-  void set(alm::lamport_timestamp version, filter_type filter) {
+  void set(lamport_timestamp version, filter_type filter) {
     using std::swap;
     std::unique_lock guard{mtx_};
     version_ = version;
@@ -58,7 +58,7 @@ public:
 
 private:
   mutable std::mutex mtx_;
-  alm::lamport_timestamp version_;
+  lamport_timestamp version_;
   filter_type filter_;
 };
 

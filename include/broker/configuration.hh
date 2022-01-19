@@ -22,6 +22,9 @@ struct broker_options {
   /// Whether to ignore the `broker.conf` file.
   bool ignore_broker_conf = false;
 
+  /// How many hops we forward at the most before dropping a message.
+  uint16_t ttl = 16;
+
   broker_options() = default;
 
   broker_options(const broker_options&) = default;

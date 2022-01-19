@@ -417,12 +417,12 @@ endpoint::endpoint(configuration config, endpoint_id this_peer)
   if (auto sp = caf::get_as<std::string>(system().config(),
                                          "caf.scheduler.policy");
       sp && *sp == "testing") {
-    core_ = system_.spawn<core_actor_type>(id_, filter_type{}, clock_,
-                                           &adaptation, std::move(conn_ptr));
+    core_ = system_.spawn<core_actor>(id_, filter_type{}, clock_, &adaptation,
+                                      std::move(conn_ptr));
   } else {
-    core_ = system_.spawn<core_actor_type, caf::detached>(id_, filter_type{},
-                                                          clock_, &adaptation,
-                                                          std::move(conn_ptr));
+    core_ = system_.spawn<core_actor, caf::detached>(id_, filter_type{}, clock_,
+                                                     &adaptation,
+                                                     std::move(conn_ptr));
   }
   // Spin up a Prometheus actor if configured or an exporter.
   namespace dt = detail::telemetry;
@@ -637,8 +637,7 @@ std::vector<topic> endpoint::peer_subscriptions() const {
   return result;
 }
 
-void endpoint::forward(std::vector<topic> ts)
-{
+void endpoint::forward(std::vector<topic> ts) {
   BROKER_INFO("forwarding topics" << ts);
   caf::anon_send(core(), atom::subscribe_v, std::move(ts));
 }
@@ -651,8 +650,8 @@ void endpoint::publish(topic t, data d) {
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
-  caf::anon_send(core(), atom::publish_v, dst,
-                 make_data_message(std::move(t), std::move(d)));
+  caf::anon_send(core(), atom::publish_v,
+                 make_data_message(std::move(t), std::move(d)), dst);
 }
 
 void endpoint::publish(data_message x){
@@ -693,9 +692,9 @@ using worker_actor = caf::stateful_actor<worker_state>;
 activity endpoint::do_subscribe(filter_type filter,
                                 detail::sink_driver_ptr sink) {
   BROKER_ASSERT(sink != nullptr);
-  using caf::async::make_bounded_buffer_resource;
+  using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
-  auto [con_res, prod_res] = make_bounded_buffer_resource<data_message>();
+  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
   // Subscribe a new worker to the consumer end.
   using observer_t = caf::flow::observer<data_message>;
   auto [obs, launch_obs] = system().spawn_inactive<worker_actor>();

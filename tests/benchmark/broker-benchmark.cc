@@ -11,11 +11,11 @@
 #include <utility>
 #include <vector>
 
-#include <caf/async/bounded_buffer.hpp>
+#include <caf/async/spsc_buffer.hpp>
 #include <caf/deep_to_string.hpp>
 #include <caf/downstream.hpp>
 
-#include "broker/alm/lamport_timestamp.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/config.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
@@ -487,7 +487,7 @@ void bridged_server_mode(endpoint& ep, detail::node_consumer_res con,
     peer_setup{ep.node_id(), network_info{"flow:client", 1234}, ep.filter()});
   auto cl = fut.get();
   caf::anon_send(ep.core(), atom::peer_v, std::move(cl.peer),
-                 std::move(cl.addr), alm::lamport_timestamp{},
+                 std::move(cl.addr), lamport_timestamp{},
                  std::move(cl.filter), std::move(con), std::move(prod));
   // Run loop.
   std::atomic<bool> terminate{false};
@@ -507,7 +507,7 @@ void bridged_client_mode(endpoint& ep, detail::node_consumer_res con,
     peer_setup{ep.node_id(), network_info{"flow:server", 4321}, ep.filter()});
   auto sv = fut.get();
   caf::anon_send(ep.core(), atom::peer_v, std::move(sv.peer),
-                 std::move(sv.addr), alm::lamport_timestamp{},
+                 std::move(sv.addr), lamport_timestamp{},
                  std::move(sv.filter), std::move(con), std::move(prod));
   // Run loop.
   client_loop(ep, false, ss);
@@ -516,9 +516,9 @@ void bridged_client_mode(endpoint& ep, detail::node_consumer_res con,
 // Runs server and client in this process (but on separate threads) and connects
 // them directly with bounded buffer queues.
 void single_process_mode(configuration& cfg) {
-  using caf::async::make_bounded_buffer_resource;
-  auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
-  auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+  using caf::async::make_spsc_buffer_resource;
+  auto [con1, prod1] = make_spsc_buffer_resource<node_message>();
+  auto [con2, prod2] = make_spsc_buffer_resource<node_message>();
   std::promise<peer_setup> prom1;
   auto fut1 = prom1.get_future();
   std::promise<peer_setup> prom2;
@@ -578,7 +578,7 @@ void socketpair_server_mode(endpoint& ep, detail::native_socket fd,
   auto cl = fut.get();
   caf::anon_send(ep.core(), detail::invalid_connector_event_id,
                  caf::make_message(std::move(cl.peer), std::move(cl.addr),
-                                   alm::lamport_timestamp{},
+                                   lamport_timestamp{},
                                    std::move(cl.filter), fd));
   // Run loop.
   std::atomic<bool> terminate{false};
@@ -598,7 +598,7 @@ void socketpair_client_mode(endpoint& ep, detail::native_socket fd,
   auto sv = fut.get();
   caf::anon_send(ep.core(), detail::invalid_connector_event_id,
                  caf::make_message(std::move(sv.peer), std::move(sv.addr),
-                                   alm::lamport_timestamp{},
+                                   lamport_timestamp{},
                                    std::move(sv.filter), fd));
   // Run loop.
   client_loop(ep, false, ss);

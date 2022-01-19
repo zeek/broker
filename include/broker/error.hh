@@ -10,6 +10,7 @@
 #include <caf/make_message.hpp>
 
 #include "broker/convert.hh"
+#include "broker/endpoint_info.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -207,6 +208,23 @@ private:
   }
 
   const vector* xs_;
+};
+
+class error_factory {
+  public:
+  template <ec Code>
+  static error make(ec_constant<Code>, endpoint_info ei, std::string msg) {
+    return make_impl(Code, std::move(ei), std::move(msg));
+  }
+
+  template <ec Code>
+  static error make(ec_constant<Code>, endpoint_id node, std::string msg) {
+    return make_impl(Code, endpoint_info{std::move(node), std::nullopt},
+                     std::move(msg));
+  }
+
+private:
+  static error make_impl(ec code, endpoint_info node, std::string msg);
 };
 
 /// @relates error_view

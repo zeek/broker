@@ -15,13 +15,13 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/abstract_backend.hh"
+#include "broker/detail/assert.hh"
+#include "broker/detail/die.hh"
+#include "broker/detail/master_actor.hh"
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
-
-#include "broker/detail/abstract_backend.hh"
-#include "broker/detail/die.hh"
-#include "broker/detail/master_actor.hh"
 
 namespace broker::detail {
 

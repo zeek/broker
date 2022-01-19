@@ -9,7 +9,7 @@
 #include <random>
 
 using broker::endpoint_id;
-using broker::alm::vector_timestamp;
+using broker::vector_timestamp;
 
 namespace {
 
@@ -243,7 +243,7 @@ public:
   std::vector<std::vector<endpoint_id>> receivers_10p;
 
   static auto make_vt(size_t n) {
-    broker::alm::vector_timestamp result;
+    broker::vector_timestamp result;
     result.resize(n);
     return result;
   }

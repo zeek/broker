@@ -10,8 +10,8 @@
 #include <caf/actor.hpp>
 #include <caf/send.hpp>
 
-#include "broker/alm/lamport_timestamp.hh"
 #include "broker/error.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/logger.hh"
 #include "broker/none.hh"
 
@@ -157,7 +157,7 @@ public:
       sequence_number_type acked;
 
       /// The last time we have received a message on this path.
-      alm::lamport_timestamp last_seen;
+      lamport_timestamp last_seen;
     };
 
     using buf_type = std::deque<event>;
@@ -390,10 +390,10 @@ public:
     sequence_number_type seq_ = 1;
 
     /// Monotonically increasing counter to keep track of time.
-    alm::lamport_timestamp tick_;
+    lamport_timestamp tick_;
 
     /// Stores the last time we've broadcasted something.
-    alm::lamport_timestamp last_broadcast_;
+    lamport_timestamp last_broadcast_;
 
     /// Stores outgoing events with their sequence number.
     buf_type buf_;
@@ -693,7 +693,7 @@ public:
       next_seq_ = 0;
       last_seq_ = 0;
       buf_.clear();
-      tick_ = alm::lamport_timestamp{};
+      tick_ = lamport_timestamp{};
       last_tick_seq_ = 0;
       idle_ticks_ = 0;
       heartbeat_interval_ = 0;
@@ -751,7 +751,7 @@ public:
     buf_type buf_;
 
     /// Monotonically increasing counter to keep track of time.
-    alm::lamport_timestamp tick_;
+    lamport_timestamp tick_;
 
     /// Stores the value of `next_seq_` at our last tick.
     sequence_number_type last_tick_seq_ = 0;

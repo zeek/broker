@@ -11,7 +11,6 @@
 #include <caf/make_message.hpp>
 #include <caf/stream.hpp>
 
-#include "broker/api_flags.hh"
 #include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"

@@ -174,7 +174,7 @@ TEST(source routing extracts multipaths from routing tables) {
       for (auto c : path)
         xs.emplace_back(ids[c]);
       alm::add_or_update_path(tbl, ids[id], std::move(xs),
-                              alm::vector_timestamp(path.size()));
+                              vector_timestamp(path.size()));
     }
   };
   add('B', {{'B'}, {'J', 'I', 'D', 'B'}, {'J', 'I', 'E', 'B'}});

@@ -20,10 +20,10 @@ struct gateway::impl {
     : cfg(std::move(source_config)), sys(cfg) {
     // Spin up two cores.
     alm_id = endpoint_id::random();
-    internal = sys.spawn<core_actor_type>(alm_id, filter_type{}, nullptr,
-                                          adapt_internal);
-    external = sys.spawn<core_actor_type>(alm_id, filter_type{}, nullptr,
-                                          adapt_external);
+    internal = sys.spawn<core_actor>(alm_id, filter_type{}, nullptr,
+                                     adapt_internal);
+    external = sys.spawn<core_actor>(alm_id, filter_type{}, nullptr,
+                                     adapt_external);
     gateway::setup(internal, external);
   }
 

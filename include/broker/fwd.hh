@@ -34,6 +34,7 @@ struct enum_value;
 struct erase_command;
 struct expire_command;
 struct keepalive_command;
+struct lamport_timestamp;
 struct nack_command;
 struct network_info;
 struct none;
@@ -114,7 +115,6 @@ class routing_table_row;
 class stream_transport;
 
 struct endpoint_id_hasher;
-struct lamport_timestamp;
 
 using routing_table
   = std::unordered_map<endpoint_id, routing_table_row, endpoint_id_hasher>;
@@ -127,11 +127,11 @@ namespace broker {
 
 enum class packed_message_type : uint8_t;
 
-using packed_message = caf::cow_tuple<packed_message_type, topic,
+using packed_message = caf::cow_tuple<packed_message_type, uint16_t, topic,
                                       std::vector<std::byte>>;
 using command_message = caf::cow_tuple<topic, internal_command>;
 using data_message = caf::cow_tuple<topic, data>;
-using node_message = caf::cow_tuple<alm::multipath, packed_message>;
+using node_message = caf::cow_tuple<endpoint_id, endpoint_id, packed_message>;
 
 } // namespace broker
 
@@ -295,7 +295,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::ack_clone_command))
   BROKER_ADD_TYPE_ID((broker::add_command))
   BROKER_ADD_TYPE_ID((broker::address))
-  BROKER_ADD_TYPE_ID((broker::alm::lamport_timestamp))
   BROKER_ADD_TYPE_ID((broker::alm::multipath))
   BROKER_ADD_TYPE_ID((broker::attach_clone_command))
   BROKER_ADD_TYPE_ID((broker::attach_writer_command))
@@ -324,6 +323,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::filter_type))
   BROKER_ADD_TYPE_ID((broker::internal_command))
   BROKER_ADD_TYPE_ID((broker::keepalive_command))
+  BROKER_ADD_TYPE_ID((broker::lamport_timestamp))
   BROKER_ADD_TYPE_ID((broker::nack_command))
   BROKER_ADD_TYPE_ID((broker::network_info))
   BROKER_ADD_TYPE_ID((broker::node_message))
@@ -355,10 +355,10 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((std::optional<broker::timestamp>))
   BROKER_ADD_TYPE_ID((std::shared_ptr<broker::filter_type>))
   BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>))
-  BROKER_ADD_TYPE_ID((std::vector<broker::alm::lamport_timestamp>))
   BROKER_ADD_TYPE_ID((std::vector<broker::command_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::data_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::endpoint_id>))
+  BROKER_ADD_TYPE_ID((std::vector<broker::lamport_timestamp>))
   BROKER_ADD_TYPE_ID((std::vector<broker::node_message>))
   BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>))
 

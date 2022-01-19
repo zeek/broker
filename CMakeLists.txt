@@ -297,9 +297,7 @@ set(BROKER_SRC
   src/activity.cc
   src/address.cc
   src/alm/multipath.cc
-  src/alm/peer.cc
   src/alm/routing_table.cc
-  src/alm/stream_transport.cc
   src/configuration.cc
   src/convert.cc
   src/core_actor.cc
@@ -313,7 +311,6 @@ set(BROKER_SRC
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/flare_actor.cc
-  src/detail/item_scope.cc
   src/detail/make_backend.cc
   src/detail/master_actor.cc
   src/detail/master_resolver.cc

@@ -184,7 +184,6 @@ class base_fixture : public time_aware_fixture<base_fixture> {
 public:
   struct endpoint_state {
     broker::endpoint_id id;
-    broker::alm::lamport_timestamp ts;
     broker::filter_type filter;
     caf::actor hdl;
   };

@@ -7,6 +7,7 @@
 #include <caf/test/unit_test_impl.hpp>
 
 #include <caf/defaults.hpp>
+#include <caf/scheduled_actor/flow.hpp>
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
@@ -183,8 +184,8 @@ using bridge_actor = caf::stateful_actor<bridge_state>;
 } // namespace
 
 base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
-  auto& st = deref<core_actor_type>(core).state;
-  return endpoint_state{st.id(), st.timestamp(), st.filter()->read(), core};
+  auto& st = deref<core_actor>(core).state;
+  return endpoint_state{st.id, st.filter->read(), core};
 }
 
 std::pair<endpoint_id, endpoint_id> base_fixture::make_id_pair() {
@@ -193,21 +194,21 @@ std::pair<endpoint_id, endpoint_id> base_fixture::make_id_pair() {
 
 caf::actor base_fixture::bridge(const endpoint_state& left,
                                 const endpoint_state& right) {
-  using caf::async::make_bounded_buffer_resource;
+  using caf::async::make_spsc_buffer_resource;
   auto& sys = left.hdl.home_system();
   auto [self, launch] = sys.spawn_inactive<bridge_actor>();
   {
     CAF_PUSH_AID_FROM_PTR(self);
-    auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
-    auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+    auto [con1, prod1] = make_spsc_buffer_resource<node_message>();
+    auto [con2, prod2] = make_spsc_buffer_resource<node_message>();
     caf::anon_send(left.hdl, atom::peer_v, right.id,
-                   network_info{to_string(right.id), 42}, right.ts,
-                   right.filter, con1, prod2);
-    auto [con3, prod3] = make_bounded_buffer_resource<node_message>();
-    auto [con4, prod4] = make_bounded_buffer_resource<node_message>();
+                   network_info{to_string(right.id), 42}, right.filter, con1,
+                   prod2);
+    auto [con3, prod3] = make_spsc_buffer_resource<node_message>();
+    auto [con4, prod4] = make_spsc_buffer_resource<node_message>();
     caf::anon_send(right.hdl, atom::peer_v, left.id,
-                   network_info{to_string(left.id), 42}, left.ts, left.filter,
-                   con3, prod4);
+                   network_info{to_string(left.id), 42}, left.filter, con3,
+                   prod4);
     self->make_observable().from_resource(con2).subscribe(prod3);
     self->make_observable().from_resource(con4).subscribe(prod1);
   }
@@ -252,7 +253,7 @@ std::shared_ptr<std::vector<data_message>>
 base_fixture::collect_data(caf::actor core, filter_type filter) {
   using actor_t = data_collector_actor;
   auto& sys = core.home_system();
-  auto [con, prod] = caf::async::make_bounded_buffer_resource<data_message>();
+  auto [con, prod] = caf::async::make_spsc_buffer_resource<data_message>();
   auto buf = std::make_shared<std::vector<data_message>>();
   sys.spawn(data_collector_impl, buf, std::move(con));
   anon_send(core, std::move(filter), std::move(prod));

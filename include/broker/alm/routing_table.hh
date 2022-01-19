@@ -13,12 +13,10 @@
 #include <caf/actor_clock.hpp>
 #include <caf/hash/fnv.hpp>
 
-#include "broker/alm/lamport_timestamp.hh"
 #include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
-#include "broker/detail/iterator_range.hh"
-#include "broker/detail/map_index_iterator.hh"
 #include "broker/fwd.hh"
+#include "broker/lamport_timestamp.hh"
 
 namespace broker::alm {
 

@@ -30,50 +30,28 @@ enum class command_tag {
 
 std::string to_string(command_tag);
 
-// -- utility for BROKER_ACTION_COMMAND ----------------------------------------
-
-#define BROKER_PP_EXPAND(...) __VA_ARGS__
-
-namespace detail {
-
-template <class Inspector, class T, size_t N, class Tuple, size_t... Is>
-bool inspect_impl(Inspector& f, T& obj, caf::string_view pretty_name,
-                  caf::string_view (&names)[N], Tuple refs,
-                  std::index_sequence<Is...>) {
-  static_assert(N == sizeof...(Is));
-  return f.object(obj)
-    .pretty_name(pretty_name)
-    .fields(f.field(names[Is], std::get<Is>(refs))...);
-}
-
-} // namespace detail
-
 // -- broadcast: operations on the key-value store such as put and erase -------
-
-/// Adds a `publisher` field, tags the class as `action` command, and implements
-/// an inspect overload.
-#define BROKER_ACTION_COMMAND(name, field_names_pack, ...)                     \
-  entity_id publisher;                                                         \
-  static constexpr auto tag = command_tag::action;                             \
-  template <class Inspector>                                                   \
-  friend bool inspect(Inspector& f, name##_command& x) {                       \
-    auto& [__VA_ARGS__, publisher] = x;                                        \
-    caf::string_view field_names[] = {                                         \
-      BROKER_PP_EXPAND field_names_pack,                                       \
-      "publisher",                                                             \
-    };                                                                         \
-    auto refs = std::forward_as_tuple(__VA_ARGS__, publisher);                 \
-    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;     \
-    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);         \
-  }
 
 /// Sets a value in the key-value store.
 struct put_command  {
   data key;
   data value;
   std::optional<timespan> expiry;
-  BROKER_ACTION_COMMAND(put, ("key", "value", "expiry"), key, value, expiry)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates put_command
+template <class Inspector>
+bool inspect(Inspector& f, put_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("put")
+    .fields(f.field("key", x.key),       //
+            f.field("value", x.value),   //
+            f.field("expiry", x.expiry), //
+            f.field("publisher", x.publisher));
+}
 
 /// Sets a value in the key-value store if its key does not already exist.
 struct put_unique_command {
@@ -82,24 +60,61 @@ struct put_unique_command {
   std::optional<timespan> expiry;
   entity_id who;
   request_id req_id;
-  BROKER_ACTION_COMMAND(put_unique, ("key", "value", "expiry", "who", "req_id"),
-                        key, value, expiry, who, req_id)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates put_unique_command
+template <class Inspector>
+bool inspect(Inspector& f, put_unique_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("put_unique")
+    .fields(f.field("key", x.key),       //
+            f.field("value", x.value),   //
+            f.field("expiry", x.expiry), //
+            f.field("who", x.who),       //
+            f.field("req_id", x.req_id), //
+            f.field("publisher", x.publisher));
+}
 
 /// Sets a value in the key-value store if its key does not already exist.
 struct put_unique_result_command {
   bool inserted;
   entity_id who;
   request_id req_id;
-  BROKER_ACTION_COMMAND(put_unique_result, ("inserted", "who", "req_id"),
-                        inserted, who, req_id)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates put_unique_result_command
+template <class Inspector>
+bool inspect(Inspector& f, put_unique_result_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("put_unique_result")
+    .fields(f.field("inserted", x.inserted), //
+            f.field("who", x.who),           //
+            f.field("req_id", x.req_id),     //
+            f.field("publisher", x.publisher));
+}
 
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
-  BROKER_ACTION_COMMAND(erase, ("key"), key)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates erase_command
+template <class Inspector>
+bool inspect(Inspector& f, erase_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("erase")
+    .fields(f.field("key", x.key), //
+            f.field("publisher", x.publisher));
+}
 
 /// Removes a value in the key-value store as a result of an expiration. The
 /// master sends this message type to the clones in order to allow them to
@@ -107,8 +122,19 @@ struct erase_command {
 /// removing it after expiration.
 struct expire_command {
   data key;
-  BROKER_ACTION_COMMAND(expire, ("key"), key)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates expire_command
+template <class Inspector>
+bool inspect(Inspector& f, expire_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("expire")
+    .fields(f.field("key", x.key), //
+            f.field("publisher", x.publisher));
+}
 
 /// Adds a value to the existing value.
 struct add_command {
@@ -116,32 +142,57 @@ struct add_command {
   data value;
   data::type init_type;
   std::optional<timespan> expiry;
-  BROKER_ACTION_COMMAND(add, ("key", "value", "init_type", "expiry"), key,
-                        value, init_type, expiry)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates add_command
+template <class Inspector>
+bool inspect(Inspector& f, add_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("add")
+    .fields(f.field("key", x.key),             //
+            f.field("value", x.value),         //
+            f.field("init_type", x.init_type), //
+            f.field("expiry", x.expiry),       //
+            f.field("publisher", x.publisher));
+}
 
 /// Subtracts a value to the existing value.
 struct subtract_command {
   data key;
   data value;
   std::optional<timespan> expiry;
-  BROKER_ACTION_COMMAND(subtract, ("key", "value", "expiry"), key, value,
-                        expiry)
+  entity_id publisher;
+  static constexpr auto tag = command_tag::action;                             \
 };
+
+/// @relates subtract_command
+template <class Inspector>
+bool inspect(Inspector& f, subtract_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("subtract")
+    .fields(f.field("key", x.key),             //
+            f.field("value", x.value),         //
+            f.field("expiry", x.expiry),       //
+            f.field("publisher", x.publisher));
+}
 
 /// Drops all values.
 struct clear_command {
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;
-  template <class Inspector>
-  friend bool inspect(Inspector& f, clear_command& x) {
-    return f.object(x)
-      .pretty_name("clear") //
-      .fields(f.field("publisher", x.publisher));
-  }
+  static constexpr auto tag = command_tag::action;                             \
 };
 
-#undef BROKER_ACTION_COMMAND
+/// @relates clear_command
+template <class Inspector>
+bool inspect(Inspector& f, clear_command& x) {
+  return f.object(x)
+    .pretty_name("clear") //
+    .fields(f.field("publisher", x.publisher));
+}
 
 // -- unicast communication between clone and master ---------------------------
 
@@ -160,59 +211,111 @@ struct clear_command {
 /// Causes the master to add `remote_clone` to its list of clones.
 struct attach_clone_command {
   static constexpr auto tag = command_tag::consumer_control;
-
-  template <class Inspector>
-  friend bool inspect(Inspector& f, attach_clone_command& x) {
-    return f.object(x).pretty_name("attach_clone").fields();
-  }
 };
+
+/// @relates attach_clone_command
+template <class Inspector>
+bool inspect(Inspector& f, attach_clone_command& x) {
+  return f.object(x).pretty_name("attach_clone").fields();
+}
 
 /// Causes the master to add a store writer to its list of inputs. Also acts as
 /// handshake for the channel.
 struct attach_writer_command {
   detail::sequence_number_type offset;
   detail::tick_interval_type heartbeat_interval;
-  BROKER_CONTROL_COMMAND(producer, attach_writer,
-                         ("offset", "heartbeat_interval"), offset,
-                         heartbeat_interval)
+  static constexpr auto tag = command_tag::producer_control;                   \
 };
+
+/// @relates attach_writer_command
+template <class Inspector>
+bool inspect(Inspector& f, attach_writer_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("attach_writer")
+    .fields(f.field("offset", x.offset), //
+            f.field("heartbeat_interval", x.heartbeat_interval));
+}
 
 /// Confirms a clone and transfers the initial snapshot to a clone.
 struct ack_clone_command {
   detail::sequence_number_type offset;
   detail::tick_interval_type heartbeat_interval;
   snapshot state;
-  BROKER_CONTROL_COMMAND(producer, ack_clone,
-                         ("offset", "heartbeat_interval", "state"), offset,
-                         heartbeat_interval, state)
+  static constexpr auto tag = command_tag::producer_control;
 };
+
+/// @relates ack_clone_command
+template <class Inspector>
+bool inspect(Inspector& f, ack_clone_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("ack_clone")
+    .fields(f.field("offset", x.offset),                         //
+            f.field("heartbeat_interval", x.heartbeat_interval), //
+            f.field("state", x.state));
+}
 
 /// Informs the receiver that the sender successfully handled all messages up to
 /// a certain sequence number.
 struct cumulative_ack_command {
   detail::sequence_number_type seq;
-  BROKER_CONTROL_COMMAND(consumer, cumulative_ack, ("seq"), seq)
+  static constexpr auto tag = command_tag::consumer_control;
 };
+
+/// @relates cumulative_ack_command
+template <class Inspector>
+bool inspect(Inspector& f, cumulative_ack_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("cumulative_ack")
+    .fields(f.field("seq", x.seq));
+}
 
 /// Informs the receiver that one or more commands failed to reach the sender.
 struct nack_command {
   std::vector<detail::sequence_number_type> seqs;
-  BROKER_CONTROL_COMMAND(consumer, nack, ("seqs"), seqs)
+  static constexpr auto tag = command_tag::consumer_control;
 };
+
+/// @relates nack_command
+template <class Inspector>
+bool inspect(Inspector& f, nack_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("nack")
+    .fields(f.field("seqs", x.seqs));
+}
 
 /// Informs all receivers that the sender is still alive.
 struct keepalive_command {
   detail::sequence_number_type seq;
-  BROKER_CONTROL_COMMAND(producer, keepalive, ("seq"), seq)
+  static constexpr auto tag = command_tag::producer_control;
 };
+
+/// @relates keepalive_command
+template <class Inspector>
+bool inspect(Inspector& f, keepalive_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("keepalive")
+    .fields(f.field("seq", x.seq));
+}
 
 /// Notifies the receiver that the sender can no longer retransmit a command.
 struct retransmit_failed_command {
   detail::sequence_number_type seq;
-  BROKER_CONTROL_COMMAND(producer, retransmit_failed, ("seq"), seq)
+  static constexpr auto tag = command_tag::producer_control;
 };
 
-#undef BROKER_CONTROL_COMMAND
+/// @relates retransmit_failed_command
+template <class Inspector>
+bool inspect(Inspector& f, retransmit_failed_command& x) {
+  return f //
+    .object(x)
+    .pretty_name("retransmit_failed")
+    .fields(f.field("seq", x.seq));
+}
 
 // -- variant setup ------------------------------------------------------------
 

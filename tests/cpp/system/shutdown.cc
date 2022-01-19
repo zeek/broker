@@ -110,8 +110,8 @@ TEST(status listeners receive peering events) {
   t1.join();
   t2.join();
   MESSAGE("both endpoints were shut down");
-  // Now, ep2 actively closed the peering and should report `peer_removed`,
-  // whereas ep1 should `peer_lost` instead.
+  // Now, ep2 actively closed the peering (by shutting down first) and should
+  // report `peer_removed`, whereas ep1 should report `peer_lost` instead.
   CHECK_EQUAL(normalize_status_log(*ep1_log), string_list({
                                                 "endpoint_discovered",
                                                 "peer_added",

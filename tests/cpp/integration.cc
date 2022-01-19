@@ -117,7 +117,7 @@ struct peer_fixture {
   // Returns the core manager for given core actor.
   auto& state(caf::actor hdl) {
     auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
-    return dynamic_cast<core_actor_type&>(*ptr).state;
+    return dynamic_cast<core_actor&>(*ptr).state;
   }
 
   // Initializes this peer and registers it at parent.

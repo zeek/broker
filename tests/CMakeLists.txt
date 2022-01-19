@@ -7,10 +7,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
-  # cpp/alm/peer/async_transport.cc
-  # cpp/alm/peer/stream_transport.cc
-  # cpp/detail/generator_file_writer.cc
-  # cpp/integration.cc
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
@@ -18,7 +14,6 @@ set(tests
   cpp/data.cc
   cpp/detail/channel.cc
   cpp/detail/data_generator.cc
-  cpp/detail/iterator_range.cc
   cpp/detail/meta_data_writer.cc
   cpp/detail/peer_status_map.cc
   cpp/detail/telemetry/collector.cc
@@ -26,10 +21,7 @@ set(tests
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
-  cpp/gateway.cc
   cpp/master.cc
-  cpp/mixin/data_store_manager.cc
-  cpp/mixin/notifier.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
   # cpp/ssl.cc

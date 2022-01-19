@@ -14,7 +14,14 @@ using namespace broker;
 
 namespace {
 
-struct fixture : test_coordinator_fixture<> {
+struct config : public caf::actor_system_config {
+  config() {
+    set("caf.logger.file.verbosity", "trace");
+    //set("caf.logger.console.verbosity", "trace");
+  }
+};
+
+struct fixture : test_coordinator_fixture<config> {
   using endpoint_state = base_fixture::endpoint_state;
 
   endpoint_state ep1;
@@ -50,7 +57,7 @@ struct fixture : test_coordinator_fixture<> {
 
   template <class... Ts>
   void spin_up(endpoint_state& ep, Ts&... xs) {
-    ep.hdl = sys.spawn<core_actor_type>(ep.id, ep.filter);
+    ep.hdl = sys.spawn<core_actor>(ep.id, ep.filter);
     MESSAGE(ep.id << " is running at " << ep.hdl);
     if constexpr (sizeof...(Ts) == 0)
       run();
@@ -85,35 +92,26 @@ struct fixture : test_coordinator_fixture<> {
   }
 
   auto& state(caf::actor hdl) {
-    return deref<core_actor_type>(hdl).state;
+    return deref<core_actor>(hdl).state;
   }
 
   auto& state(const endpoint_state& ep) {
-    return deref<core_actor_type>(ep.hdl).state;
+    return deref<core_actor>(ep.hdl).state;
   }
-
-  auto& tbl(caf::actor hdl) {
-    return state(hdl).tbl();
-  }
-
-  auto& tbl(const endpoint_state& ep) {
-    return state(ep).tbl();
-  }
-
-  auto distance_from(const endpoint_state& src) {
-    struct impl {
-      fixture* thisptr;
-      caf::actor src_hdl;
-      std::optional<size_t> to(const endpoint_state& dst) {
-        return alm::distance_to(thisptr->tbl(src_hdl), dst.id);
-      }
-    };
-    return impl{this, src.hdl};
+  auto peer_ids(const endpoint_state& ep) {
+    auto result = state(ep).peer_ids();
+    std::sort(result.begin(), result.end());
+    return result;
   }
 };
 
 std::optional<size_t> operator""_os(unsigned long long x) {
   return std::optional<size_t>{static_cast<size_t>(x)};
+}
+
+template <class... Ts>
+auto ids(Ts... xs) {
+  return std::vector<endpoint_id>{xs...};
 }
 
 } // namespace <anonymous>
@@ -128,8 +126,8 @@ TEST(peers forward local data to direct peers) {
   spin_up(ep1, ep2);
   bridge(ep1, ep2);
   run();
-  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
+  CHECK_EQUAL(state(ep1).peer_ids(), ids(ep2.id));
+  CHECK_EQUAL(state(ep2).peer_ids(), ids(ep1.id));
   MESSAGE("subscribe to data messages on ep2");
   auto buf = collect_data(ep2, abc);
   MESSAGE("publish data on ep1");
@@ -139,53 +137,24 @@ TEST(peers forward local data to direct peers) {
 }
 
 TEST(peers forward local data to any peer with forwarding paths) {
-  MESSAGE("spin up: ep1, ep2 and ep3 and only ep3 subscribes to abc topics");
+  MESSAGE("spin up ep1, ep2 and ep3");
   auto abc = filter_type{"a", "b", "c"};
   ep1.filter = abc;
+  ep2.filter = abc;
   ep3.filter = abc;
   spin_up(ep1, ep2, ep3);
   bridge(ep1, ep2);
   bridge(ep2, ep3);
   run();
-  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep1).to(ep3), 2_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep3), 1_os);
-  CHECK_EQUAL(distance_from(ep3).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep3).to(ep1), 2_os);
+  CHECK_EQUAL(peer_ids(ep1), ids(ep2.id));
+  CHECK_EQUAL(peer_ids(ep2), ids(ep1.id, ep3.id));
+  CHECK_EQUAL(peer_ids(ep3), ids(ep2.id));
   MESSAGE("subscribe to data messages on ep3");
   auto buf = collect_data(ep3, abc);
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   run();
   CHECK_EQUAL(*buf, test_data);
-}
-
-TEST(peers propagate broken paths) {
-  MESSAGE("spin up: ep1, ep2 and ep3 and only ep3 subscribes to abc topics");
-  auto abc = filter_type{"a", "b", "c"};
-  ep1.filter = abc;
-  ep3.filter = abc;
-  spin_up(ep1, ep2, ep3);
-  bridge(ep1, ep2);
-  auto br = bridge(ep2, ep3);
-  run();
-  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep1).to(ep3), 2_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep3), 1_os);
-  CHECK_EQUAL(distance_from(ep3).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep3).to(ep1), 2_os);
-  MESSAGE("disconnect ep3");
-  auto nil = std::optional<size_t>();
-  anon_send_exit(br, caf::exit_reason::user_shutdown);
-  run();
-  CHECK_EQUAL(distance_from(ep1).to(ep2), 1_os);
-  CHECK_EQUAL(distance_from(ep1).to(ep3), nil);
-  CHECK_EQUAL(distance_from(ep2).to(ep1), 1_os);
-  CHECK_EQUAL(distance_from(ep2).to(ep3), nil);
-  CHECK_EQUAL(distance_from(ep3).to(ep2), nil);
-  CHECK_EQUAL(distance_from(ep3).to(ep1), nil);
 }
 
 FIXTURE_SCOPE_END()

@@ -15,7 +15,6 @@
 #include <caf/net/middleman.hpp>
 
 #include "broker/address.hh"
-#include "broker/alm/lamport_timestamp.hh"
 #include "broker/alm/multipath.hh"
 #include "broker/config.hh"
 #include "broker/core_actor.hh"
@@ -23,6 +22,7 @@
 #include "broker/detail/retry_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal_command.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/port.hh"
 #include "broker/snapshot.hh"
 #include "broker/status.hh"
@@ -196,7 +196,7 @@ void configuration::init(int argc, char** argv) {
     }
   }
   put(content, "caf.metrics-filters.actors.includes",
-      std::vector<std::string>{core_state::name});
+      std::vector<std::string>{core_actor_state::name});
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
     auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);

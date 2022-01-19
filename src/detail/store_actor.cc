@@ -1,5 +1,7 @@
 #include "broker/detail/store_actor.hh"
 
+#include "broker/detail/assert.hh"
+
 #include <caf/scheduled_actor/flow.hpp>
 
 using namespace std::string_literals;

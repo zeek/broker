@@ -7,8 +7,8 @@
 #include <numeric>
 #include <utility>
 
-#include <caf/async/bounded_buffer.hpp>
 #include <caf/async/consumer.hpp>
+#include <caf/async/spsc_buffer.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
@@ -24,9 +24,9 @@ namespace broker::detail {
 
 struct subscriber_queue : public caf::ref_counted, public caf::async::consumer {
 public:
-  using buffer_type = caf::async::bounded_buffer<data_message>;
+  using buffer_type = caf::async::spsc_buffer<data_message>;
 
-  using buffer_ptr = caf::async::bounded_buffer_ptr<data_message>;
+  using buffer_ptr = caf::async::spsc_buffer_ptr<data_message>;
 
   using guard_type = std::unique_lock<std::mutex>;
 
@@ -212,9 +212,9 @@ subscriber::~subscriber() {
 
 subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
   BROKER_INFO("creating subscriber for topic(s)" << filter);
-  using caf::async::make_bounded_buffer_resource;
+  using caf::async::make_spsc_buffer_resource;
   auto fptr = std::make_shared<filter_type>(std::move(filter));
-  auto [con_res, prod_res] = make_bounded_buffer_resource<data_message>();
+  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
   caf::anon_send(ep.core(), fptr, std::move(prod_res));
   auto buf = con_res.try_open();
   BROKER_ASSERT(buf != nullptr);

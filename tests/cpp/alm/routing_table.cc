@@ -53,7 +53,7 @@ struct fixture : base_fixture {
                    std::vector<std::vector<endpoint_id>> paths) {
       auto& entry = tbl.emplace(id, alm::routing_table_row{}).first->second;
       for (auto& path : paths)
-        add_or_update_path(tbl, id, path, alm::vector_timestamp(path.size()));
+        add_or_update_path(tbl, id, path, vector_timestamp(path.size()));
     };
     add(B, {{B}, {J, I, D, B}, {J, I, E, B}});
     add(D, {{B, D}, {J, I, D}});
@@ -114,7 +114,7 @@ TEST(erase_direct drops the direct path but peers can remain reachable) {
 TEST(peers may revoke paths) {
   using alm::revoked;
   auto path = ls(A, B, C, D);
-  auto ts = alm::vector_timestamp{{2_lt, 2_lt, 2_lt, 2_lt}};
+  auto ts = vector_timestamp{{2_lt, 2_lt, 2_lt, 2_lt}};
   MESSAGE("revocations entries for X -> Y with timestamp 3 (newer) hit");
   {
     CHECK(revoked(path, ts, A, 3_lt, B));
@@ -154,7 +154,7 @@ TEST(revocationsing removes revokes paths) {
   MESSAGE("after revoking B -> D, we reach D in three hops");
   {
     auto callback = [](const auto&) { FAIL("OnRemovePeer callback called"); };
-    revoke(tbl, B, alm::lamport_timestamp{2}, D, callback);
+    revoke(tbl, B, lamport_timestamp{2}, D, callback);
     auto path = shortest_path(tbl, D);
     REQUIRE(path != nullptr);
     CHECK_EQUAL(*path, ls(J, I, D));
@@ -163,7 +163,7 @@ TEST(revocationsing removes revokes paths) {
   {
     std::vector<endpoint_id> unreachables;
     auto callback = [&](const auto& x) { unreachables.emplace_back(x); };
-    revoke(tbl, J, alm::lamport_timestamp{2}, I, callback);
+    revoke(tbl, J, lamport_timestamp{2}, I, callback);
     CHECK_EQUAL(unreachables, ls(D));
     CHECK_EQUAL(shortest_path(tbl, D), nullptr);
   }
@@ -200,7 +200,7 @@ TEST(inseting into revocationss creates a sorted list) {
       return dummy_clock{};
     }
   };
-  auto emplace = [&](endpoint_id revoker, alm::lamport_timestamp rtime,
+  auto emplace = [&](endpoint_id revoker, lamport_timestamp rtime,
                      endpoint_id hop) {
     dummy_self self;
     return alm::emplace(lst, &self, revoker, rtime, hop);

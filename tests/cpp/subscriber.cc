@@ -37,14 +37,14 @@ namespace {
 struct fixture : base_fixture {
   // Returns the core manager for given actor.
   auto& state(caf::actor hdl) {
-    return deref<core_actor_type>(hdl).state;
+    return deref<core_actor>(hdl).state;
   }
 
   std::vector<data_message> test_data;
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a", "b", "c"});
+    core2 = sys.spawn<core_actor>(ids['A'], filter_type{"a", "b", "c"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     test_data = data_msgs({{"a", 0},
@@ -93,6 +93,9 @@ TEST(blocking_subscriber) {
 }
 
 TEST(nonblocking_subscriber) {
+  MESSAGE("establish peering relation between the cores");
+  bridge(core1, core2);
+  run();
   MESSAGE("subscribe to data on core1");
   using buf = std::vector<data_message>;
   buf result;
@@ -108,8 +111,6 @@ TEST(nonblocking_subscriber) {
       // nop
     }
   );
-  MESSAGE("establish peering relation between the cores");
-  bridge(core1, core2);
   run();
   MESSAGE("publish data on core2");
   push_data(core2, test_data);

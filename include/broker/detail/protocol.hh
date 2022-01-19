@@ -133,7 +133,7 @@ public:
   template <class LowerLayerPtr>
   ptrdiff_t consume(LowerLayerPtr down, caf::byte_span buf) {
     caf::binary_deserializer src{nullptr, buf};
-    auto tag = alm_message_type{0};
+    auto tag = p2p_message_type{0};
     if (!out_) {
       BROKER_WARNING("consume called after output buffer has been closed");
       down->abort_reason(
@@ -147,10 +147,9 @@ public:
       return -1;
     }
     switch (tag) {
-      case alm_message_type::data:
-      case alm_message_type::command:
-      case alm_message_type::routing_update:
-      case alm_message_type::path_revocation:
+      case p2p_message_type::data:
+      case p2p_message_type::command:
+      case p2p_message_type::routing_update:
         if (!handle_msg(down, src, static_cast<packed_message_type>(tag)))
           return -1;
         break;

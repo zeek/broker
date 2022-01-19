@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace broker::alm {
+namespace broker {
 
 /// A logical clock using a 64-bit counter.
 struct lamport_timestamp {
@@ -69,12 +69,12 @@ typename Inspector::result_type inspect(Inspector& f, lamport_timestamp& x) {
 /// @relates lamport_timestamp
 using vector_timestamp = std::vector<lamport_timestamp>;
 
-} // namespace broker::alm
+} // namespace broker
 
 namespace broker::literals {
 
 constexpr auto operator""_lt(unsigned long long value) noexcept {
-  return alm::lamport_timestamp{static_cast<uint64_t>(value)};
+  return lamport_timestamp{static_cast<uint64_t>(value)};
 }
 
 } // namespace broker::literals

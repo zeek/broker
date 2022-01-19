@@ -8,7 +8,7 @@
 #include <thread>
 #include <utility>
 
-#include "caf/async/bounded_buffer.hpp"
+#include "caf/async/spsc_buffer.hpp"
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
@@ -139,9 +139,9 @@ TEST(proxy) {
 }
 
 TEST(clone operations - remote endpoint) {
-  using caf::async::make_bounded_buffer_resource;
-  auto [con1, prod1] = make_bounded_buffer_resource<node_message>();
-  auto [con2, prod2] = make_bounded_buffer_resource<node_message>();
+  using caf::async::make_spsc_buffer_resource;
+  auto [con1, prod1] = make_spsc_buffer_resource<node_message>();
+  auto [con2, prod2] = make_spsc_buffer_resource<node_message>();
   auto name = std::string{"kono"};
   auto ids = base_fixture::make_id_pair();
   beacon setup;
@@ -153,7 +153,7 @@ TEST(clone operations - remote endpoint) {
     auto ds = ep.attach_master(name, backend::memory);
     auto clone_filter = filter_type{name / topic::clone_suffix()};
     anon_send(ep.core(), atom::peer_v, ids.second, network_info{"clone", 42},
-              alm::lamport_timestamp{}, clone_filter, con1, prod2);
+              clone_filter, con1, prod2);
     setup.set_true();
     tear_down.wait();
   }};
@@ -161,7 +161,7 @@ TEST(clone operations - remote endpoint) {
   auto ep = endpoint{configuration{}, ids.second};
   auto master_filter = filter_type{name / topic::master_suffix()};
   anon_send(ep.core(), atom::peer_v, ids.first, network_info{"master", 42},
-            alm::lamport_timestamp{}, master_filter, con2, prod1);
+            master_filter, con2, prod1);
   auto ds = ep.attach_clone(name);
   if (!ds)
     FAIL(ds.error());

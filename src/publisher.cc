@@ -10,6 +10,7 @@
 #include <caf/send.hpp>
 
 #include "broker/data.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/message.hh"
@@ -21,9 +22,9 @@ struct publisher_queue : public caf::ref_counted, public caf::async::producer {
 public:
   using value_type = data_message;
 
-  using buffer_type = caf::async::bounded_buffer<value_type>;
+  using buffer_type = caf::async::spsc_buffer<value_type>;
 
-  using buffer_ptr = caf::async::bounded_buffer_ptr<value_type>;
+  using buffer_ptr = caf::async::spsc_buffer_ptr<value_type>;
 
   using guard_type = std::unique_lock<std::mutex>;
 
@@ -171,8 +172,8 @@ publisher::~publisher() {
 }
 
 publisher publisher::make(endpoint& ep, topic t) {
-  using caf::async::make_bounded_buffer_resource;
-  auto [cons_res, prod_res] = make_bounded_buffer_resource<value_type>();
+  using caf::async::make_spsc_buffer_resource;
+  auto [cons_res, prod_res] = make_spsc_buffer_resource<value_type>();
   caf::anon_send(ep.core(), std::move(cons_res));
   auto buf = prod_res.try_open();
   BROKER_ASSERT(buf != nullptr);

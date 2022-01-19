@@ -33,12 +33,12 @@ using buf_type = std::vector<data_message>;
 struct fixture : base_fixture {
   // Returns the core manager for given actor.
   auto& state(caf::actor hdl) {
-    return deref<core_actor_type>(hdl).state;
+    return deref<core_actor>(hdl).state;
   }
 
   fixture() {
     core1 = ep.core();
-    core2 = sys.spawn<core_actor_type>(ids['A'], filter_type{"a"});
+    core2 = sys.spawn<core_actor>(ids['A'], filter_type{"a"});
     anon_send(core1, atom::no_events_v);
     anon_send(core2, atom::no_events_v);
     run();

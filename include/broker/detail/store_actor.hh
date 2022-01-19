@@ -7,7 +7,7 @@
 #include <vector>
 
 #include <caf/actor.hpp>
-#include <caf/async/bounded_buffer.hpp>
+#include <caf/async/spsc_buffer.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/hash/fnv.hpp>

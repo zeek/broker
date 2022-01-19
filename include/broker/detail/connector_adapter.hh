@@ -17,9 +17,8 @@ public:
   using callback = std::function<void(Ts...)>;
 
   /// Callback for incoming peering connections.
-  using peering_callback
-    = callback<endpoint_id, const network_info&, alm::lamport_timestamp,
-               const filter_type&, detail::native_socket>;
+  using peering_callback = callback<endpoint_id, const network_info&,
+                                    const filter_type&, detail::native_socket>;
 
   /// Callback for non-critical errors during peering. The connector emits those
   /// errors whenever a connection attempt has failed but retries afterwards

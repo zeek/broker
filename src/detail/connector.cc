@@ -38,9 +38,10 @@
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
-#include "broker/alm/lamport_timestamp.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/overload.hh"
 #include "broker/filter_type.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/message.hh"
 
 namespace {
@@ -243,7 +244,7 @@ public:
   caf::byte_buffer rd_buf;
   size_t read_pos = 0;
   endpoint_id remote_id;
-  alm::lamport_timestamp remote_ts;
+  lamport_timestamp remote_ts;
   filter_type remote_filter;
   network_info addr;
   connector_event_id event_id = invalid_connector_event_id;
@@ -260,7 +261,7 @@ public:
   // handshake messages and the remote side may get confused.
   std::vector<std::shared_ptr<connect_state>> redundant_connections;
 
-  using fn_t = bool (connect_state::*)(alm_message_type);
+  using fn_t = bool (connect_state::*)(p2p_message_type);
 
   fn_t fn = nullptr;
 
@@ -368,7 +369,7 @@ public:
     BROKER_ASSERT(rd_buf.size() == payload_size + 4);
     caf::binary_deserializer src{nullptr, rd_buf};
     src.skip(4); // No need to read the payload size again.
-    auto msg_type = alm_message_type{0};
+    auto msg_type = p2p_message_type{0};
     auto ok = src.apply(msg_type);
     if (ok) {
       switch (msg_type) {
@@ -376,15 +377,15 @@ public:
           src.emplace_error(caf::sec::invalid_argument, "invalid message type");
           ok = false;
           break;
-        case alm_message_type::hello:
-        case alm_message_type::originator_ack:
-        case alm_message_type::drop_conn:
+        case p2p_message_type::hello:
+        case p2p_message_type::originator_ack:
+        case p2p_message_type::drop_conn:
           ok = src.apply(remote_id);
           if (ok)
             BROKER_DEBUG(BROKER_ARG(msg_type) << BROKER_ARG(remote_id));
           break;
-        case alm_message_type::originator_syn:
-        case alm_message_type::responder_syn_ack:
+        case p2p_message_type::originator_syn:
+        case p2p_message_type::responder_syn_ack:
           ok = src.apply(remote_id)    //
                && src.apply(remote_ts) //
                && src.apply(remote_filter);
@@ -472,15 +473,15 @@ public:
 
   bool handle_drop_conn();
 
-  bool await_hello_or_orig_syn(alm_message_type msg);
+  bool await_hello_or_orig_syn(p2p_message_type msg);
 
-  bool await_hello(alm_message_type msg);
+  bool await_hello(p2p_message_type msg);
 
-  bool await_orig_syn(alm_message_type msg);
+  bool await_orig_syn(p2p_message_type msg);
 
-  bool await_resp_syn_ack(alm_message_type msg);
+  bool await_resp_syn_ack(p2p_message_type msg);
 
-  bool await_orig_ack(alm_message_type msg);
+  bool await_orig_ack(p2p_message_type msg);
 
   bool performing_handshake() const noexcept {
     fn_t handshake_states[] = {&connect_state::await_orig_syn,
@@ -492,17 +493,17 @@ public:
 
   // Connections enter this state when detecting a redundant connection. From
   // here, they transition to FIN after sending drop_conn eventually.
-  bool paused(alm_message_type) {
+  bool paused(p2p_message_type) {
     BROKER_ERROR("tried processing a message after reaching state FIN");
     return false;
   }
 
-  bool fin(alm_message_type) {
+  bool fin(p2p_message_type) {
     BROKER_ERROR("tried processing a message after reaching state FIN");
     return false;
   }
 
-  bool err(alm_message_type) {
+  bool err(p2p_message_type) {
     BROKER_ERROR("tried processing a message after reaching state ERR");
     return false;
   }
@@ -566,18 +567,18 @@ struct connect_manager {
       peer_statuses_(peer_statuses),
       this_peer(this_peer) {
     BROKER_TRACE(BROKER_ARG(this_peer));
-    auto init_buf = [this](uint8_t* buf, alm_message_type type) {
+    auto init_buf = [this](uint8_t* buf, p2p_message_type type) {
       auto as_u8 = [](auto x) { return static_cast<uint8_t>(x); };
       memset(buf, 0, handshake_prefix_size);
       buf[3] = static_cast<uint8_t>(handshake_prefix_size);
       buf[4] = as_u8(type);
       memcpy(buf + 5, this->this_peer.bytes().data(), 16);
     };
-    init_buf(hello_buf, alm_message_type::hello);
-    init_buf(orig_syn_buf, alm_message_type::originator_syn);
-    init_buf(orig_ack_buf, alm_message_type::originator_ack);
-    init_buf(resp_syn_ack_buf, alm_message_type::responder_syn_ack);
-    init_buf(drop_conn_buf, alm_message_type::drop_conn);
+    init_buf(hello_buf, p2p_message_type::hello);
+    init_buf(orig_syn_buf, p2p_message_type::originator_syn);
+    init_buf(orig_ack_buf, p2p_message_type::originator_ack);
+    init_buf(resp_syn_ack_buf, p2p_message_type::responder_syn_ack);
+    init_buf(drop_conn_buf, p2p_message_type::drop_conn);
   }
 
   connect_manager(const connect_manager&) = delete;
@@ -990,26 +991,26 @@ bool connect_state::handle_drop_conn() {
   }
 }
 
-bool connect_state::await_hello_or_orig_syn(alm_message_type msg) {
+bool connect_state::await_hello_or_orig_syn(p2p_message_type msg) {
   BROKER_TRACE(msg);
   switch (msg) {
     default:
       transition(&connect_state::err);
       return false;
-    case alm_message_type::hello:
+    case p2p_message_type::hello:
       return await_hello(msg);
-    case alm_message_type::originator_syn:
+    case p2p_message_type::originator_syn:
       return await_orig_syn(msg);
-    case alm_message_type::drop_conn:
+    case p2p_message_type::drop_conn:
       return handle_drop_conn();
   }
 }
 
-bool connect_state::await_hello(alm_message_type msg) {
+bool connect_state::await_hello(p2p_message_type msg) {
   BROKER_TRACE(msg);
-  if (msg == alm_message_type::drop_conn) {
+  if (msg == p2p_message_type::drop_conn) {
     return handle_drop_conn();
-  } else if (msg != alm_message_type::hello) {
+  } else if (msg != p2p_message_type::hello) {
     transition(&connect_state::err);
     return false;
   }
@@ -1079,11 +1080,11 @@ bool connect_state::await_hello(alm_message_type msg) {
   return true;
 }
 
-bool connect_state::await_orig_syn(alm_message_type msg) {
+bool connect_state::await_orig_syn(p2p_message_type msg) {
   BROKER_TRACE(msg);
-  if (msg == alm_message_type::drop_conn) {
+  if (msg == p2p_message_type::drop_conn) {
     return handle_drop_conn();
-  } else if (msg != alm_message_type::originator_syn) {
+  } else if (msg != p2p_message_type::originator_syn) {
     transition(&connect_state::err);
     return false;
   }
@@ -1133,9 +1134,9 @@ bool connect_state::await_orig_syn(alm_message_type msg) {
   }
 }
 
-bool connect_state::await_resp_syn_ack(alm_message_type msg) {
+bool connect_state::await_resp_syn_ack(p2p_message_type msg) {
   BROKER_TRACE(msg);
-  if (msg != alm_message_type::responder_syn_ack) {
+  if (msg != p2p_message_type::responder_syn_ack) {
     transition(&connect_state::err);
     return false;
   }
@@ -1155,9 +1156,9 @@ bool connect_state::await_resp_syn_ack(alm_message_type msg) {
   return true;
 }
 
-bool connect_state::await_orig_ack(alm_message_type msg) {
+bool connect_state::await_orig_ack(p2p_message_type msg) {
   BROKER_TRACE(msg);
-  if (msg != alm_message_type::originator_ack) {
+  if (msg != p2p_message_type::originator_ack) {
     transition(&connect_state::err);
     return false;
   }
