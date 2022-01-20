@@ -55,22 +55,24 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/bar', 'Bar!'))
         cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
-    def test_two_unsubscribed_hops(self):
-        # Two hops that are not subscribed, but still forward due to the source
-        # routing.
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(create_s2=False, create_s3=False)
-
-        ep1.await_peer(ep4.node_id())
-        ep4.await_peer(ep1.node_id())
-
-        ep1.publish("/test/foo", "Foo!")
-        ep4.publish("/test/bar", "Bar!")
-
-        x = s4.get()
-        self.assertEqual(x, ('/test/foo', 'Foo!'))
-        x = s1.get()
-        self.assertEqual(x, ('/test/bar', 'Bar!'))
-        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
+#### Note: disabled until we switch back to source-routing.
+#
+#    def test_two_unsubscribed_hops(self):
+#        # Two hops that are not subscribed, but still forward due to the source
+#        # routing.
+#        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(create_s2=False, create_s3=False)
+#
+#        ep1.await_peer(ep4.node_id())
+#        ep4.await_peer(ep1.node_id())
+#
+#        ep1.publish("/test/foo", "Foo!")
+#        ep4.publish("/test/bar", "Bar!")
+#
+#        x = s4.get()
+#        self.assertEqual(x, ('/test/foo', 'Foo!'))
+#        x = s1.get()
+#        self.assertEqual(x, ('/test/bar', 'Bar!'))
+#        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
 if __name__ == '__main__':
     #TestCommunication().test_two_hops()

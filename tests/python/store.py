@@ -53,11 +53,9 @@ def run_tri_setup(self, f):
 
         # wait until the nodes are fully connected
         self.assertTrue(ep0.await_peer(ep1.node_id()))
-        self.assertTrue(ep1.await_peer(ep0.node_id()))
         self.assertTrue(ep0.await_peer(ep2.node_id()))
+        self.assertTrue(ep1.await_peer(ep0.node_id()))
         self.assertTrue(ep2.await_peer(ep0.node_id()))
-        self.assertTrue(ep1.await_peer(ep2.node_id()))
-        self.assertTrue(ep2.await_peer(ep1.node_id()))
 
         # wait until the clones have connected to the master
         self.assertTrue(c1.await_idle())

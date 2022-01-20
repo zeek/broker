@@ -308,6 +308,15 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::no_events) { //
       disable_notifications = true;
     },
+    [this](atom::await, endpoint_id peer_id) {
+      auto rp = self->make_response_promise();
+      if (auto i = peers.find(peer_id);
+          i != peers.end() && !i->second.invalidated)
+        rp.deliver(peer_id);
+      else
+        awaited_peers.emplace(peer_id, rp);
+      return rp;
+    },
   };
   if (connector_adapter) {
     return connector_adapter->message_handlers().or_else(result);
@@ -752,6 +761,12 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Emit status updates.
   peer_discovered(peer_id);
   peer_connected(peer_id);
+  // Notify clients that wait for this peering.
+  if (auto [first, last] = awaited_peers.equal_range(peer_id); first != last) {
+    for (auto i = first; i != last; ++i)
+      i->second.deliver(peer_id);
+    awaited_peers.erase(first, last);
+  }
   return caf::none;
 }
 
