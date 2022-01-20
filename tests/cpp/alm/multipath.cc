@@ -43,7 +43,7 @@ struct fixture : base_fixture {
   template <class... Ts>
   auto ls(Ts... xs) {
     return std::vector<endpoint_id>{ids[xs]...};
-  };
+  }
 
   std::string stringify(const multipath& path) {
     std::string result;
