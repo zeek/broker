@@ -1,4 +1,4 @@
-// ping.cc
+// pong.cc
 
 #include <assert.h>
 
@@ -12,7 +12,7 @@ int main() {
     endpoint ep;
     auto sub = ep.make_subscriber({"/topic/test"});
     auto ss = ep.make_status_subscriber(true);
-    ep.peer("127.0.0.1", 9999);
+    ep.listen("", 9999);
 
     // Wait until connection is established.
     for ( bool has_peer = false; !has_peer; ) {
@@ -23,13 +23,13 @@ int main() {
 
     // Do five ping / pong.
     for ( int n = 0; n < 5; n++ ) {
-        // Send event "ping(n)".
-        zeek::Event ping("ping", {n});
-        ep.publish("/topic/test", ping);
-
-        // Wait for "pong" reply event.
+        // Wait for a "ping" event.
         auto msg = sub.get();
-        zeek::Event pong(move_data(msg));
-        std::cout << "received " << pong.name() << pong.args() << std::endl;
+        zeek::Event ping(move_data(msg));
+        std::cout << "received " << ping.name() << ping.args() << std::endl;
+
+        // Send event "pong" response.
+        zeek::Event pong("pong", {n});
+        ep.publish("/topic/test", pong);
     }
 }
