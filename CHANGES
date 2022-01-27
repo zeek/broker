@@ -1,3 +1,11 @@
+2.2.0-4 | 2022-01-27 14:49:00 -0700
+
+  * Have `make dist` cleanup a few more wayward files before tarring (Tim Wojtulewicz, Corelight)
+
+  * Remove CentOS 8 from CI. (Tim Wojtulewicz, Corelight)
+
+    EOL was 2021-12-31
+
 2.2.0 | 2021-12-20 19:32:33 -0800
 
   * Merge branch 'topic/christian/fix-python-unhashables' (Christian Kreibich, Corelight)
