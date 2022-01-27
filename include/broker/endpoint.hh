@@ -330,12 +330,16 @@ public:
 
   // --- messaging -------------------------------------------------------------
 
+  /// @private
   void send_later(worker who, timespan after, void* msg) {
     clock_->send_later(std::move(who), after, msg);
   }
 
   /// Blocks the current thread until `who` terminates.
   void wait_for(worker who);
+
+  /// Stops a background worker.
+  void stop(worker who);
 
   // --- properties ------------------------------------------------------------
 

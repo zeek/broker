@@ -9,7 +9,7 @@
 #include <string>
 
 using namespace broker;
-using namespace std::string_literals;
+using namespace std::literals;
 
 namespace {
 
@@ -20,25 +20,9 @@ data make_data_error(ec code, vector context = {}) {
   return data{std::move(result)};
 }
 
-struct fixture {
-  // A node ID in CAF's default format (host hash + process ID).
-  endpoint_id nid;
-
-  // Output of to_string(nid).
-  std::string nid_str;
-
-  fixture() {
-    auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
-    if (!id)
-      FAIL("caf::make_node_id failed");
-    nid = internal::facade(*id);
-    nid_str = to_string(nid);
-  }
-};
-
 } // namespace
 
-FIXTURE_SCOPE(status_tests, fixture)
+FIXTURE_SCOPE(status_tests, base_fixture)
 
 TEST(ec is convertible to and from string) {
   CHECK_EQUAL(to_string(ec::unspecified), "unspecified"s);
@@ -100,20 +84,20 @@ TEST(errors with category broker are convertible to and from data) {
   CHECK_EQUAL(
     get_as<data>(make_error(
       ec::peer_invalid,
-      endpoint_info{nid, network_info{"foo", 8080, timeout::seconds{42}}},
+      endpoint_info{ids['B'], network_info{"foo", 8080, timeout::seconds{42}}},
       "invalid host"s)),
     make_data_error(
       ec::peer_invalid,
-      {vector{nid_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
+      {vector{str_ids['B'], "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "invalid host"s}));
   CHECK_EQUAL(
     get_as<error>(make_data_error(
       ec::peer_invalid,
-      {vector{nid_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
+      {vector{str_ids['B'], "foo"s, port{8080, port::protocol::tcp}, count{42}},
        "invalid host"s})),
     make_error(
       ec::peer_invalid,
-      endpoint_info{nid, network_info{"foo", 8080, timeout::seconds{42}}},
+      endpoint_info{ids['B'], network_info{"foo", 8080, timeout::seconds{42}}},
       "invalid host"s));
   CHECK_EQUAL(
     get_as<error>(make_data_error(
@@ -127,10 +111,10 @@ TEST(errors with category broker are convertible to and from data) {
 }
 
 TEST(error view operate directly on raw data) {
-  data raw{vector{
-    "error"s, enum_value{"peer_invalid"},
-    vector{vector{nid_str, "foo"s, port{8080, port::protocol::tcp}, count{42}},
-           "invalid host"s}}};
+  data raw{vector{"error"s, enum_value{"peer_invalid"},
+                  vector{vector{str_ids['B'], "foo"s,
+                                port{8080, port::protocol::tcp}, count{42}},
+                         "invalid host"s}}};
   auto view = make_error_view(raw);
   REQUIRE(view.valid());
   CHECK_EQUAL(view.code(), ec::peer_invalid);
@@ -138,7 +122,7 @@ TEST(error view operate directly on raw data) {
   auto maybe_cxt = view.context();
   REQUIRE(maybe_cxt);
   auto cxt = std::move(*maybe_cxt);
-  CHECK_EQUAL(cxt.node, nid);
+  CHECK_EQUAL(cxt.node, ids['B']);
   REQUIRE(cxt.network);
   auto net = *cxt.network;
   CHECK_EQUAL(net, network_info("foo", 8080, timeout::seconds{42}));

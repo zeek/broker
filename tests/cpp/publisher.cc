@@ -42,155 +42,57 @@ using stream_type = caf::stream<data_message>;
 
 namespace {
 
-struct consumer_state {
-  std::vector<data_message> xs;
-};
-
-caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
-                       filter_type ts, const caf::actor& src) {
-  self->send(self * src, atom::join_v, std::move(ts));
-  return {
-    [=](stream_type in) {
-      caf::attach_stream_sink(
-        self,
-        // Input stream.
-        in,
-        // Initialize state.
-        [](caf::unit_t&) {
-          // nop
-        },
-        // Process single element.
-        [=](caf::unit_t&, data_message x) {
-          self->state.xs.emplace_back(std::move(x));
-        },
-        // Cleanup.
-        [](caf::unit_t&, const caf::error&) {
-          // nop
-        }
-      );
-    },
-    [=](atom::get) { return self->state.xs; },
-  };
-}
+struct no_state {};
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(publisher_tests, base_fixture)
+FIXTURE_SCOPE(publisher_tests, net_fixture<base_fixture>)
 
-CAF_TEST(blocking_publishers) {
-  // Spawn/get/configure core actors.
-  broker_options options;
-  options.disable_ssl = true;
-  auto core1 = native(ep.core());
-  auto core2 = sys.spawn<internal::core_actor_type>(filter_type{"a"}, options, nullptr);
-  caf::anon_send(core1, atom::subscribe_v, filter_type{"a"});
-  caf::anon_send(core1, atom::no_events_v);
-  caf::anon_send(core2, atom::no_events_v);
-  self->send(core1, atom::peer_v, core2);
-  // Connect a consumer (leaf) to core2, which receives only a subset of 'a'.
-  auto leaf = sys.spawn(consumer, filter_type{"a/b"}, core2);
+TEST(publishers make data available to remote subscribers) {
+  MESSAGE("subscribe to 'foo' on mars and earth");
+  auto earth_buf = std::make_shared<std::vector<data_message>>();
+  auto earth_sub = earth.ep.subscribe_nosync(
+    {"foo"},                                   // Topics.
+    [](no_state&) {},                          // Init.
+    [earth_buf](no_state&, data_message msg) { // OnNext.
+      earth_buf->emplace_back(msg);
+    },
+    [](no_state&, const error&) {}); // Cleanup.
+  auto mars_buf = std::make_shared<std::vector<data_message>>();
+  auto mars_sub = mars.ep.subscribe_nosync(
+    {"foo"},                                  // Topics.
+    [](no_state&) {},                         // Init.
+    [mars_buf](no_state&, data_message msg) { // OnNext.
+      mars_buf->emplace_back(msg);
+    },
+    [](no_state&, const error&) {}); // Cleanup.
   run();
-  { // Lifetime scope of our publishers.
-    // Spin up two publishers: one for "a" and one for "a/b".
-    auto pub1 = ep.make_publisher("a");
-    auto pub2 = ep.make_publisher("a/b");
-    pub1.drop_all_on_destruction();
-    pub2.drop_all_on_destruction();
-    auto d1 = pub1.worker();
-    auto d2 = pub2.worker();
-    run();
-    // Data flows from our publishers to core1 to core2 and finally to leaf.
-    using buf = std::vector<data_message>;
-    // First, set of published messages gets filtered out at core2.
-    pub1.publish(0);
-    run();
-    // Second, set of published messages gets delivered to leaf.
-    pub2.publish(true);
-    run();
-    // Third, set of published messages gets again filtered out at core2.
-    pub1.publish({1, 2, 3});
-    run();
-    // Fourth, set of published messages gets delivered to leaf again.
-    pub2.publish({false, true});
-    run();
-    // Check log of the consumer.
-    self->send(leaf, atom::get_v);
-    sched.prioritize(leaf);
-    consume_message();
-    self->receive(
-      [](const buf& xs) {
-        auto expected = data_msgs({{"a/b", true}, {"a/b", false},
-                                   {"a/b", true}});
-        CAF_REQUIRE_EQUAL(xs, expected);
-      }
-    );
-  }
-  // Shutdown.
-  CAF_MESSAGE("Shutdown core actors.");
-  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(leaf, caf::exit_reason::user_shutdown);
+  MESSAGE("establish a peering between earth and mars");
+  bridge(earth, mars);
+  MESSAGE("publish 10 events on mars");
+  auto pub = mars.ep.make_publisher("foo");
+  run();
+  auto initial_demand = pub.demand();
+  CHECK_GREATER_EQUAL(initial_demand, 10u);
+  CHECK_EQUAL(pub.buffered(), 0u);
+  for (count i = 0; i < 10; ++i)
+    pub.publish(data{i});
+  CHECK_EQUAL(pub.buffered(), 10u);
+  run();
+  CHECK_EQUAL(pub.demand(), initial_demand);
+  CHECK_EQUAL(pub.buffered(), 0u);
+  MESSAGE("expect to see the events on earth but not on mars (origin)");
+  CHECK_EQUAL(mars_buf->size(), 0u);
+  CHECK_EQUAL(earth_buf->size(), 10u);
+  MESSAGE("stop background workers");
+  earth.ep.stop(earth_sub);
+  mars.ep.stop(mars_sub);
 }
 
-CAF_TEST(nonblocking_publishers) {
-  // Spawn/get/configure core actors.
-  broker_options options;
-  options.disable_ssl = true;
-  auto core1 = native(ep.core());
-  auto core2 = sys.spawn<internal::core_actor_type>(filter_type{"a", "b", "c"},
-                                                    options, nullptr);
-  caf::anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-  caf::anon_send(core1, atom::no_events_v);
-  caf::anon_send(core2, atom::no_events_v);
-  self->send(core1, atom::peer_v, core2);
-  // Connect a consumer (leaf) to core2.
-  auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  run();
-  // publish_all uses thread communication which would deadlock when using our
-  // test_scheduler. We avoid this by pushing the call to publish_all to its
-  // own thread.
-  using buf_type = std::vector<data_message>;
-  ep.publish_all_nosync(
-    // Initialize send buffer with 10 elements.
-    [](buf_type& xs) {
-      xs = data_msgs({{"a", 0}, {"b", true}, {"a", 1}, {"a", 2},
-                      {"b", false}, {"b", true}, {"a", 3},
-                      {"b", false}, {"a", 4}, {"a", 5}});
-    },
-    // Get next element.
-    [](buf_type& xs, std::deque<data_message>& out, size_t num) {
-      auto n = std::min(num, xs.size());
-      for (size_t i = 0u; i < n; ++i)
-        out.emplace_back(xs[i]);
-      xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-    },
-    // Did we reach the end?.
-    [](const buf_type& xs) {
-      return xs.empty();
-    }
-  );
-  // Communication is identical to the driver-driven test in test/cpp/core.cc
-  run();
-  // Check log of the consumer.
-  self->send(leaf, atom::get_v);
-  sched.prioritize(leaf);
-  consume_message();
-  self->receive(
-    [](const buf_type& xs) {
-      auto expected = data_msgs({{"b", true}, {"b", false},
-                                 {"b", true}, {"b", false}});
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
-  // Shutdown.
-  CAF_MESSAGE("Shutdown core actors.");
-  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(leaf, caf::exit_reason::user_shutdown);
-}
+FIXTURE_SCOPE_END()
 
-CAF_TEST_FIXTURE_SCOPE_END()
-
+// This regression test requires a non-deterministic setup since it checks that
+// a publisher eventually becomes unblocked via background activities.
 TEST(regression GH196) {
   endpoint ep1;
   endpoint ep2;

@@ -283,6 +283,7 @@ set(BROKER_SRC
   src/internal/core_actor.cc
   src/internal/core_recorder.cc
   src/internal/data_generator.cc
+  src/internal/endpoint_id.cc
   src/internal/flare_actor.cc
   src/internal/generator_file_reader.cc
   src/internal/generator_file_writer.cc

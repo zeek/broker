@@ -750,6 +750,14 @@ void endpoint::wait_for(worker who) {
   tmp->wait_for(native(who));
 }
 
+void endpoint::stop(worker who) {
+  caf::anon_send_exit(native(who), caf::exit_reason::user_shutdown);
+  if (auto i = std::find(children_.begin(), children_.end(), who);
+      i != children_.end()) {
+    children_.erase(i);
+  }
+}
+
 } // namespace broker
 
 namespace broker::internal {

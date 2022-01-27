@@ -37,110 +37,45 @@ using namespace broker::detail;
 
 namespace {
 
-void driver(caf::event_based_actor* self, const caf::actor& sink) {
-  using buf_type = std::vector<data_message>;
-  caf::attach_stream_source(
-    self,
-    // Destination.
-    sink,
-    // Initialize send buffer with 10 elements.
-    [](buf_type& xs) {
-      xs = data_msgs({{"a", 0},     {"b", true}, {"a", 1}, {"a", 2},
-                      {"b", false}, {"b", true}, {"a", 3}, {"b", false},
-                      {"a", 4},     {"a", 5}});
-    },
-    // Get next element.
-    [](buf_type& xs, caf::downstream<data_message>& out, size_t num) {
-      auto n = std::min(num, xs.size());
-      for (size_t i = 0u; i < n; ++i)
-        out.push(xs[i]);
-      xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-    },
-    // Did we reach the end?.
-    [](const buf_type& xs) { return xs.empty(); });
-}
+struct fixture : net_fixture<base_fixture> {
+  std::vector<data_message> out_buf;
+
+  fixture()
+    : out_buf{make_data_message("foo", 0),     make_data_message("foo", true),
+              make_data_message("foo", 1),     make_data_message("foo", 2),
+              make_data_message("foo", false), make_data_message("foo", true),
+              make_data_message("foo", 3),     make_data_message("foo", false),
+              make_data_message("foo", 4),     make_data_message("foo", 5)} {
+    // nop
+  }
+};
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(subscriber_tests, base_fixture)
+FIXTURE_SCOPE(subscriber_tests, fixture)
 
-CAF_TEST(blocking_subscriber) {
-  // Spawn/get/configure core actors.
-  broker_options options;
-  options.disable_ssl = true;
-  auto core1 = sys.spawn<internal::core_actor_type>(filter_type{"a", "b", "c"},
-                                                    options, nullptr);
-  auto core2 = native(ep.core());
-  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  caf::anon_send(core1, atom::no_events_v);
-  caf::anon_send(core2, atom::no_events_v);
+TEST(subscribers receive data from remote publications) {
+  MESSAGE("subscribe to 'foo' on mars and earth");
+  auto mars_sub = mars.ep.make_subscriber({"foo"});
+  auto earth_sub = earth.ep.make_subscriber({"foo"});
+  // Disable rate calculations because they otherwise launch an 'infinite' loop
+  // when calling 'run()' due to the periodic actor messages in the background.
+  mars_sub.set_rate_calculation(false);
+  earth_sub.set_rate_calculation(false);
   run();
-  // Connect a consumer (leaf) to core2.
-  // auto leaf = sys.spawn(consumer, filter_type{"b"}, core2);
-  auto sub = ep.make_subscriber(filter_type{"b"});
-  sub.set_rate_calculation(false);
-  auto leaf = native(sub.worker());
-  CAF_MESSAGE("core1: " << to_string(core1));
-  CAF_MESSAGE("core2: " << to_string(core2));
-  CAF_MESSAGE("leaf: " << to_string(leaf));
-  // Initiate handshake between core1 and core2.
-  self->send(core1, atom::peer_v, core2);
+  MESSAGE("establish a peering between earth and mars");
+  bridge(earth, mars);
+  MESSAGE("publish events on mars");
+  for (auto& msg : out_buf)
+    mars.ep.publish(msg);
   run();
-  // Spin up driver on core1.
-  auto d1 = sys.spawn(driver, core1);
-  CAF_MESSAGE("driver: " << to_string(d1));
-  run();
-  CAF_MESSAGE("check content of the subscriber's buffer");
-  using buf = std::vector<data_message>;
-  auto expected = data_msgs({{"b", true}, {"b", false},
-                             {"b", true}, {"b", false}});
-  CAF_CHECK_EQUAL(sub.poll(), expected);
-  // Shutdown.
-  CAF_MESSAGE("Shutdown core actors.");
-  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(leaf, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(d1, caf::exit_reason::user_shutdown);
+  MESSAGE("expect to see the events on earth but not on mars (origin)");
+  CHECK_EQUAL(mars_sub.available(), 0u);
+  CHECK_EQUAL(earth_sub.available(), 10u);
+  auto inputs = earth_sub.poll();
+  CHECK_EQUAL(earth_sub.available(), 0u);
+  CHECK_EQUAL(inputs.size(), 10u);
+  CHECK_EQUAL(inputs, out_buf);
 }
 
-CAF_TEST(nonblocking_subscriber) {
-  // Spawn/get/configure core actors.
-  broker_options options;
-  options.disable_ssl = true;
-  auto core1 = sys.spawn<internal::core_actor_type>(filter_type{"a", "b", "c"},
-                                                    options, nullptr);
-  auto core2 = native(ep.core());
-  caf::anon_send(core1, atom::no_events_v);
-  caf::anon_send(core2, atom::no_events_v);
-  caf::anon_send(core2, atom::subscribe_v, filter_type{"a", "b", "c"});
-  self->send(core1, atom::peer_v, core2);
-  run();
-  // Connect a subscriber (leaf) to core2.
-  using buf = std::vector<data_message>;
-  buf result;
-  ep.subscribe_nosync(
-    {"b"},
-    [](caf::unit_t&) {
-      // nop
-    },
-    [&](caf::unit_t&, data_message x) {
-      result.emplace_back(std::move(x));
-    },
-    [](caf::unit_t&, const error&) {
-      // nop
-    }
-  );
-  // Spin up driver on core1.
-  auto d1 = sys.spawn(driver, core1);
-  // Communication is identical to the consumer-centric test in test/cpp/core.cc
-  run();
-  auto expected = data_msgs({{"b", true}, {"b", false},
-                             {"b", true}, {"b", false}});
-  CAF_REQUIRE_EQUAL(result, expected);
-  // Shutdown.
-  CAF_MESSAGE("Shutdown core actors.");
-  caf::anon_send_exit(core1, caf::exit_reason::user_shutdown);
-  caf::anon_send_exit(core2, caf::exit_reason::user_shutdown);
-}
-
-CAF_TEST_FIXTURE_SCOPE_END()
+FIXTURE_SCOPE_END()

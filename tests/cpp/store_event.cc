@@ -15,16 +15,7 @@ timespan operator""_ns(unsigned long long value) {
   return timespan{static_cast<int64_t>(value)};
 }
 
-struct fixture {
-  fixture() {
-    caf::node_id tmp;
-    if (auto err = caf::parse(node_str, tmp))
-      FAIL("unable to parse node ID: " << err);
-    node = internal::facade(tmp);
-  }
-
-  std::string node_str = "BBF10F9E6CD6304859D19F494A0C5688E5DAD801#11334";
-  endpoint_id node;
+struct fixture : base_fixture {
   uint64_t obj = 42;
 };
 
@@ -72,14 +63,14 @@ TEST(insert events consist of key value and expiry) {
   }
   MESSAGE("elements six and seven denote the publisher");
   {
-    data x{vector{"insert"s, "x"s, "foo"s, "bar"s, nil, node_str, obj}};
+    data x{vector{"insert"s, "x"s, "foo"s, "bar"s, nil, str_ids['B'], obj}};
     auto view = store_event::insert::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), (publisher_id{node, 42}));
+    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {
@@ -116,7 +107,7 @@ TEST(update events consist of key value and expiry) {
   }
   MESSAGE("elements six and seven denote the publisher");
   {
-    data x{vector{"update"s, "x"s, "foo"s, "bar"s, "baz"s, nil, node_str, obj}};
+    data x{vector{"update"s, "x"s, "foo"s, "bar"s, "baz"s, nil, str_ids['B'], obj}};
     auto view = store_event::update::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);
@@ -124,7 +115,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), (publisher_id{node, 42}));
+    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {
@@ -146,12 +137,12 @@ TEST(erase events contain the key and optionally a publisher ID) {
   }
   MESSAGE("elements three and four denote the publisher");
   {
-    data x{vector{"erase"s, "x"s, "foo"s, node_str, obj}};
+    data x{vector{"erase"s, "x"s, "foo"s, str_ids['B'], obj}};
     auto view = store_event::erase::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
-    CHECK_EQUAL(view.publisher(), (publisher_id{node, 42}));
+    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {
