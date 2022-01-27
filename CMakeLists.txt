@@ -235,10 +235,16 @@ if (ENABLE_STATIC_ONLY)
   set(ENABLE_SHARED false)
 endif ()
 
+# Make sure there are no old header versions on disk.
+install(
+  CODE "MESSAGE(STATUS \"Removing: ${CMAKE_INSTALL_PREFIX}/include/broker\")"
+  CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/include/broker\")")
+
+# Install all headers except the files from broker/internal.
 install(DIRECTORY include/broker
         DESTINATION include
         FILES_MATCHING PATTERN "*.hh"
-        EXCLUDE PATTERN "include/broker/internal/*")
+                       PATTERN "include/broker/internal" EXCLUDE)
 
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
