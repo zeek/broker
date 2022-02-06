@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include <caf/actor_system_config.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
@@ -26,12 +28,14 @@
 #include <caf/type_id.hpp>
 #include <caf/uri.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/detail/generator_file_reader.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/configuration_access.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/generator_file_reader.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
@@ -41,7 +45,10 @@ using std::string;
 
 using broker::count;
 using broker::data;
+using broker::internal::native;
 using broker::topic;
+
+namespace atom = broker::internal::atom;
 
 // -- additional message and atom types ----------------------------------------
 
@@ -64,6 +71,30 @@ namespace {
 string node_name;
 
 } // namespace
+
+// -- URI support for Broker ---------------------------------------------------
+
+namespace broker {
+
+bool convert(const caf::uri& from, network_info& to) {
+  if (from.empty())
+    return false;
+  if (from.scheme() != "tcp")
+    return false;
+  const auto& auth = from.authority();
+  if (auth.empty())
+    return false;
+  auto set_host = [&](const auto& host) {
+    if constexpr (std::is_same<decltype(host), const std::string&>::value)
+      to.address = host;
+    else
+      to.address = to_string(host);
+  };
+  to.port = auth.port;
+  return true;
+}
+
+} // namespace broker
 
 // -- I/O utility --------------------------------------------------------------
 
@@ -171,58 +202,54 @@ constexpr size_t max_cap = std::numeric_limits<size_t>::max();
 
 // -- program options ----------------------------------------------------------
 
-class config : public broker::configuration {
-public:
-  using super = broker::configuration;
-
-  config() : super(skip_init) {
-    opt_group{custom_options_, "global"}
-      .add<bool>("verbose,v", "print status and debug output")
-      .add<bool>("rate,r", "print receive rate ('relay' mode only)")
-      .add<string>("name,N", "set node name in verbose output")
-      .add<string_list>("topics,t", "topics for sending/receiving messages")
-      .add<std::string>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
-      .add<string>("generator-file,g",
-                   "path to a generator file ('generate' mode only)")
-      .add<size_t>("payload-size,s",
-                   "additional number of bytes for the ping message")
-      .add<timespan>("rendezvous-retry",
-                     "timeout before repeating the first rendezvous ping "
-                     "message (default: 50ms)")
-      .add<size_t>("num-messages,n",
-                   "number of pings (default: 100, 'ping' mode only)")
-      .add<uri_list>("peers,p",
-                     "list of peers we connect to on startup in "
-                     "<tcp://$host:$port> notation")
-      .add<uint16_t>("local-port,l",
-                     "local port for publishing this endpoint at");
-  }
-
-  using super::init;
-};
+void extend_config(broker::configuration& broker_cfg) {
+  auto& cfg = broker::internal::configuration_access(&broker_cfg).cfg();
+  caf::config_option_adder{cfg.custom_options(), "global"}
+    .add<bool>("verbose,v", "print status and debug output")
+    .add<bool>("rate,r", "print receive rate ('relay' mode only)")
+    .add<string>("name,N", "set node name in verbose output")
+    .add<string_list>("topics,t", "topics for sending/receiving messages")
+    .add<std::string>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
+    .add<string>("generator-file,g",
+                 "path to a generator file ('generate' mode only)")
+    .add<size_t>("payload-size,s",
+                 "additional number of bytes for the ping message")
+    .add<timespan>("rendezvous-retry",
+                   "timeout before repeating the first rendezvous ping "
+                   "message (default: 50ms)")
+    .add<size_t>("num-messages,n",
+                 "number of pings (default: 100, 'ping' mode only)")
+    .add<uri_list>("peers,p",
+                   "list of peers we connect to on startup in "
+                   "<tcp://$host:$port> notation")
+    .add<uint16_t>("local-port,l",
+                   "local port for publishing this endpoint at");
+}
 
 // -- convenience get_or and get_if overloads for enpoint ----------------------
 
 template <class T>
 auto get_or(broker::endpoint& d, string_view key, const T& default_value) {
-  return caf::get_or(d.system().config(), key, default_value);
+  auto& cfg = broker::internal::endpoint_access(&d).cfg();
+  return caf::get_or(cfg, key, default_value);
 }
 
 template <class T>
 auto get_as(broker::endpoint& d, string_view key) {
-  return caf::get_as<T>(d.system().config(), key);
+  auto& cfg = broker::internal::endpoint_access(&d).cfg();
+  return caf::get_as<T>(cfg, key);
 }
 
 // -- message creation and introspection ---------------------------------------
 
 /// @pre `is_ping_msg(x) || is_pong_msg(x)`
 count msg_id(const broker::data& x) {
-  auto& vec = caf::get<broker::vector>(x);
-  return caf::get<count>(vec[1]);
+  auto& vec = get<broker::vector>(x);
+  return get<count>(vec[1]);
 }
 
 bool is_ping_msg(const broker::data& x) {
-  if (auto vec = caf::get_if<broker::vector>(&x)) {
+  if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
@@ -233,7 +260,7 @@ bool is_ping_msg(const broker::data& x) {
 }
 
 bool is_pong_msg(const broker::data& x) {
-  if (auto vec = caf::get_if<broker::vector>(&x)) {
+  if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 2) {
       auto& xs = *vec;
       auto str = caf::get_if<string>(&xs[0]);
@@ -248,7 +275,7 @@ bool is_pong_msg(const broker::data& x, count id) {
 }
 
 bool is_stop_msg(const broker::data& x) {
-  auto str = caf::get_if<string>(&x);
+  auto str = get_if<string>(&x);
   return str && *str == "stop";
 }
 
@@ -281,7 +308,7 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     return true;
   };
   auto in = ep.make_subscriber(topics);
-  auto& cfg = ep.system().config();
+  auto& cfg = broker::internal::endpoint_access{&ep}.cfg();
   if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
     auto timeout = std::chrono::system_clock::now();
     timeout += std::chrono::seconds(1);
@@ -309,15 +336,15 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
 
 void generator(caf::event_based_actor* self, caf::actor core,
                std::shared_ptr<size_t> count, const std::string& file_name,
-               broker::detail::generator_file_reader_ptr ptr) {
-  using generator_ptr = broker::detail::generator_file_reader_ptr;
+               broker::internal::generator_file_reader_ptr ptr) {
+  using generator_ptr = broker::internal::generator_file_reader_ptr;
   using value_type = broker::node_message_content;
   if (auto limit = get_as<size_t>(self->config(), "num-messages")) {
     struct state {
       generator_ptr gptr;
       size_t remaining;
     };
-    attach_stream_source(
+    caf::attach_stream_source(
       self, core,
       [&](state& st) {
         // Take ownership of `ptr`.
@@ -382,13 +409,13 @@ void generate_mode(broker::endpoint& ep, topic_list) {
   if (file_name.empty())
     return err::println("got no path to a generator file");
   verbose::println("generate messages from: ", file_name);
-  auto generator_ptr = broker::detail::make_generator_file_reader(file_name);
+  auto generator_ptr = broker::internal::make_generator_file_reader(file_name);
   if (generator_ptr == nullptr)
     return err::println("unable to open generator file: ", file_name);
   auto count = std::make_shared<size_t>(0u);
-  caf::scoped_actor self{ep.system()};
+  caf::scoped_actor self{broker::internal::endpoint_access{&ep}.sys()};
   auto t0 = std::chrono::system_clock::now();
-  auto g = self->spawn(generator, ep.core(), count, file_name,
+  auto g = self->spawn(generator, native(ep.core()), count, file_name,
                        std::move(generator_ptr));
   self->wait_for(g);
   auto t1 = std::chrono::system_clock::now();
@@ -467,14 +494,15 @@ int main(int argc, char** argv) {
   caf::init_global_meta_objects<caf::id_block::broker_node>();
   broker::configuration::init_global_state();
   // Parse CLI parameters using our config.
-  config cfg;
+  broker::configuration cfg{broker::skip_init};
+  extend_config(cfg);
   try {
     cfg.init(argc, argv);
   } catch (std::exception& ex) {
     err::println(ex.what());
     return EXIT_FAILURE;
   }
-  if (cfg.cli_helptext_printed)
+  if (cfg.cli_helptext_printed())
     return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
   // Get mode (mandatory).
@@ -506,14 +534,15 @@ int main(int argc, char** argv) {
   if (get_or(ep, "verbose", false)) {
     verbose::enabled = true;
     // Launch background worker when running in verbose mode.
-    auto& sys = ep.system();
+    auto& sys = broker::internal::endpoint_access{&ep}.sys();
     auto& groups = sys.groups();
     auto g1 = groups.get_local("broker/errors");
     auto g2 = groups.get_local("broker/statuses");
     verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) {
       return behavior{
-        [=](broker::atom::local, broker::error& x) { verbose::println(x); },
-        [=](broker::atom::local, broker::status& x) { verbose::println(x); }};
+        [=](atom::local, caf::error& x) { verbose::println(x); },
+        [=](atom::local, broker::status& x) { verbose::println(x); },
+      };
     });
   }
   // Publish endpoint at demanded port.

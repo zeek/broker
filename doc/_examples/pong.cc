@@ -1,6 +1,7 @@
 // pong.cc
 
 #include <assert.h>
+#include <iostream>
 
 #include "broker/broker.hh"
 #include "broker/zeek.hh"

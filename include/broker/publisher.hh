@@ -1,18 +1,14 @@
 #pragma once
 
-#include <chrono>
-#include <cstddef>
-#include <vector>
-
-#include <caf/actor.hpp>
-#include <caf/intrusive_ptr.hpp>
-
-#include "broker/atoms.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
+
+#include <chrono>
+#include <cstddef>
+#include <vector>
 
 namespace broker {
 
@@ -28,10 +24,6 @@ public:
   using value_type = data_message;
 
   using guard_type = std::unique_lock<std::mutex>;
-
-  using queue_type = detail::opaque_type;
-
-  using queue_ptr = caf::intrusive_ptr<detail::opaque_type>;
 
   // --- constructors and destructors ------------------------------------------
 
@@ -49,9 +41,11 @@ public:
 
   static publisher make(endpoint& ep, topic t);
 
-  static publisher make(caf::actor sink, topic t);
-
   // --- accessors -------------------------------------------------------------
+
+  /// Returns the current demand on this publisher. The demand is the amount of
+  /// messages that were requested by the Broker core.
+  size_t demand() const;
 
   /// Returns the current size of the output queue.
   size_t buffered() const;
@@ -97,9 +91,9 @@ public:
 
 private:
   // -- force users to use `endpoint::make_publsiher` -------------------------
-  publisher(queue_ptr q, topic t);
+  publisher(detail::opaque_ptr q, topic t);
 
-  queue_ptr queue_;
+  detail::opaque_ptr queue_;
   topic topic_;
   bool drop_on_destruction_ = false;
 };

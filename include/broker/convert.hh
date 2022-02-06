@@ -6,8 +6,6 @@
 #include <string>
 #include <type_traits>
 
-#include <caf/fwd.hpp>
-
 #include "broker/detail/type_traits.hh"
 #include "broker/fwd.hh"
 

@@ -1,12 +1,10 @@
 #pragma once
 
-#include <type_traits>
-
-#include <caf/flow/observer.hpp>
-
 #include "broker/detail/type_traits.hh"
 #include "broker/error.hh"
 #include "broker/message.hh"
+
+#include <memory>
 
 namespace broker::detail {
 
@@ -77,24 +75,18 @@ struct sink_driver_cleanup_trait<void(State&)> {
   }
 };
 
-class sink_driver : public caf::ref_counted,
-                    public caf::flow::observer<data_message>::impl {
+class sink_driver {
 public:
-  ~sink_driver() override;
+  virtual ~sink_driver() ;
+
   virtual void init() = 0;
-  void ref_disposable() const noexcept final;
-  void deref_disposable() const noexcept final;
 
-  friend void intrusive_ptr_add_ref(const sink_driver* ptr) noexcept {
-    ptr->ref();
-  }
+  virtual void on_next(const data_message& msg) = 0;
 
-  friend void intrusive_ptr_release(const sink_driver* ptr) noexcept {
-    ptr->deref();
-  }
+  virtual void on_cleanup(const error& what) = 0;
 };
 
-using sink_driver_ptr = caf::intrusive_ptr<sink_driver>;
+using sink_driver_ptr = std::shared_ptr<sink_driver>;
 
 template <class Init, class OnNext, class Cleanup>
 class sink_driver_impl : public sink_driver {
@@ -130,52 +122,16 @@ public:
     }
   }
 
-  void on_next(caf::span<const input_type> items) override {
-    if (!completed_) {
-      for (const auto& item : items)
-        on_next_(state_, item);
-      sub_.request(items.size());
-    }
+  void on_next(const data_message& msg) override {
+    if (!completed_)
+      on_next_(state_, msg);
   }
 
-  void on_error(const caf::error& what) override {
-    if (!completed_) {
+  void on_cleanup(const error& what) override {
+   if (!completed_) {
       cleanup_trait::apply(cleanup_, state_, what);
-      sub_ = nullptr;
       completed_ = true;
     }
-  }
-
-  void on_complete() override {
-    if (!completed_) {
-      cleanup_trait::apply(cleanup_, state_);
-      sub_ = nullptr;
-      completed_ = true;
-    }
-  }
-
-  void on_subscribe(caf::flow::subscription sub) override {
-    if (!completed_ && !sub_) {
-      sub_ = std::move(sub);
-      sub_.request(caf::defaults::flow::buffer_size);
-    } else {
-      sub.cancel();
-    }
-  }
-
-  void dispose() override {
-    if (!completed_) {
-      cleanup_trait::apply(cleanup_, state_);
-      if (sub_) {
-        sub_.cancel();
-        sub_ = nullptr;
-      }
-      completed_ = true;
-    }
-  }
-
-  bool disposed() const noexcept override {
-    return completed_;
   }
 
 private:
@@ -189,17 +145,16 @@ private:
   };
   OnNext on_next_;
   Cleanup cleanup_;
-  caf::flow::subscription sub_;
 
   bool initialized_ = false;
   bool completed_ = false;
 };
 
 template <class Init, class OnNext, class Cleanup>
-sink_driver_ptr make_sink_driver(Init init, OnNext on_next, Cleanup cleanup) {
+auto make_sink_driver(Init init, OnNext on_next, Cleanup cleanup) {
   using impl_type = sink_driver_impl<Init, OnNext, Cleanup>;
-  return caf::make_counted<impl_type>(std::move(init), std::move(on_next),
-                                      std::move(cleanup));
+  return std::make_shared<impl_type>(std::move(init), std::move(on_next),
+                                     std::move(cleanup));
 }
 
 } // namespace broker::detail

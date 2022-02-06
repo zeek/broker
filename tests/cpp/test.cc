@@ -11,12 +11,22 @@
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
-#include "broker/core_actor.hh"
+#include "broker/endpoint_id.hh"
+#include "broker/filter_type.hh"
+#include "broker/internal/configuration_access.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 
 #ifdef BROKER_WINDOWS
 #undef ERROR // The Windows headers fail if this macro is predefined.
 #include "Winsock2.h"
 #endif
+
+namespace atom = broker::internal::atom;
+
+using broker::internal::native;
 
 std::vector<std::string>
 normalize_status_log(const std::vector<broker::data_message>& xs,
@@ -89,7 +99,7 @@ using namespace broker;
 
 namespace {
 
-std::string_view uuid_strings[] = {
+std::string_view id_strings[] = {
   "685a1674-e15c-11eb-ba80-0242ac130004",
   "685a1a2a-e15c-11eb-ba80-0242ac130004",
   "685a1b2e-e15c-11eb-ba80-0242ac130004",
@@ -122,14 +132,14 @@ std::string_view uuid_strings[] = {
 
 base_fixture::base_fixture()
   : ep(make_config()),
-    sys(ep.system()),
+    sys(internal::endpoint_access{&ep}.sys()),
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
   init_socket_api();
-  char id = 'A';
-  while (id <= 'Z') {
-    ids[id] = *caf::make_uuid(uuid_strings[id - 'A']);
-    ++id;
+  for (char id = 'A'; id <= 'Z'; ++id) {
+    auto index = id - 'A';
+    str_ids[id] = id_strings[index];
+    convert(std::string{id_strings[index]}, ids[id]);
   }
 }
 
@@ -168,8 +178,9 @@ configuration base_fixture::make_config() {
   broker_options options;
   options.disable_ssl = true;
   configuration cfg{options};
-  test_coordinator_fixture<configuration>::init_config(cfg);
-  cfg.set("broker.disable-connector", true);
+  auto& nat_cfg = internal::configuration_access{&cfg}.cfg();
+  caf::put(nat_cfg.content, "broker.disable-connector", true);
+  test_coordinator_fixture<caf::actor_system_config>::init_config(nat_cfg);
   return cfg;
 }
 
@@ -184,12 +195,8 @@ using bridge_actor = caf::stateful_actor<bridge_state>;
 } // namespace
 
 base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
-  auto& st = deref<core_actor>(core).state;
+  auto& st = deref<internal::core_actor>(core).state;
   return endpoint_state{st.id, st.filter->read(), core};
-}
-
-std::pair<endpoint_id, endpoint_id> base_fixture::make_id_pair() {
-  return {*caf::make_uuid(uuid_strings[0]), *caf::make_uuid(uuid_strings[1])};
 }
 
 caf::actor base_fixture::bridge(const endpoint_state& left,
@@ -218,7 +225,7 @@ caf::actor base_fixture::bridge(const endpoint_state& left,
 }
 
 caf::actor base_fixture::bridge(const endpoint& left, const endpoint& right) {
-  return bridge(ep_state(left.core()), ep_state(right.core()));
+  return bridge(ep_state(native(left.core())), ep_state(native(right.core())));
 }
 
 caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {

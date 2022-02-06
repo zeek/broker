@@ -1,16 +1,16 @@
 #pragma once
 
-#include <optional>
-#include <string>
-#include <type_traits>
-#include <utility>
-
 #include "broker/convert.hh"
 #include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
+
+#include <optional>
+#include <string>
+#include <type_traits>
+#include <utility>
 
 namespace broker {
 
@@ -83,6 +83,10 @@ struct can_convert_predicate<sc> {
     return convertible_to_sc(src);
   }
 };
+class status;
+
+template <class Inspector>
+bool inspect(Inspector& f, status& x);
 
 /// Diagnostic status information.
 class status : detail::equality_comparable<status, status>,
@@ -147,12 +151,7 @@ public:
   friend bool operator==(sc x, const status& y);
 
   template <class Inspector>
-  friend bool inspect(Inspector& f, status& x) {
-    auto verify = [&x] { return x.verify(); };
-    return f.object(x).on_load(verify).fields(f.field("code", x.code_),
-                                              f.field("context", x.context_),
-                                              f.field("message", x.message_));
-  }
+  friend bool inspect(Inspector& f, status& x);
 
   /// Maps `src` to `["status", code, context, message]`, whereas:
   /// - `code` is ::code encoded as an ::enum_value
@@ -165,7 +164,7 @@ public:
   friend bool convert(const data& src, status& dst);
 
 private:
-  caf::error verify() const;
+  error verify() const;
 
   template <class T>
   status(sc code, T&& context, std::string msg)

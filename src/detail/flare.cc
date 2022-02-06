@@ -12,7 +12,7 @@
 
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
 
 #ifdef BROKER_WINDOWS
 
@@ -77,22 +77,18 @@ struct stack_buffer {
 } // namespace
 
 flare::flare() {
-  auto expected_pair = caf::net::make_pipe();
-  if (!expected_pair) {
-    BROKER_ERROR("make_pipe failed: " << expected_pair.error());
-    std::terminate();
+  auto maybe_fds = caf::net::make_pipe();
+  if (!maybe_fds) {
+    BROKER_ERROR("failed to create pipe: " << maybe_fds.error());
+    abort();
   }
-  auto [first, second] = *expected_pair;
+  auto [first, second] = *maybe_fds;
   fds_[0] = first.id;
   fds_[1] = second.id;
-  if (auto err = caf::net::child_process_inherit(first, false)) {
+  if (auto err = caf::net::child_process_inherit(first, false))
     BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << err);
-    std::terminate();
-  }
-  if (auto err = caf::net::child_process_inherit(second, false)) {
+  if (auto err = caf::net::child_process_inherit(second, false))
     BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
-    std::terminate();
-  }
   if (auto err = caf::net::nonblocking(first, true)) {
     BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
     std::terminate();
@@ -103,10 +99,8 @@ flare::flare() {
 }
 
 flare::~flare() {
-  auto close_all = [](auto... xs) {
-    (caf::net::close(caf::net::socket{xs}), ...);
-  };
-  close_all(fds_[0], fds_[1]);
+  caf::net::close(caf::net::pipe_socket{fds_[0]});
+  caf::net::close(caf::net::pipe_socket{fds_[1]});
 }
 
 native_socket flare::fd() const {

@@ -5,11 +5,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "caf/node_id.hpp"
-#include "caf/sec.hpp"
-
 #include "broker/detail/assert.hh"
 #include "broker/detail/monotonic_buffer_resource.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 
 namespace broker::alm {
@@ -207,17 +205,16 @@ private:
   bool save(Inspector& f) {
     // We are lying to the inspector about the type, because multipath_node and
     // multipath_group are internal implementation details.
-    return f.begin_object(caf::type_id_v<multipath>,
-                          caf::type_name_v<multipath>)
-           && f.begin_field("id")          // <id>
-           && f.apply(id_)                 //   <value>
-           && f.end_field()                // </id>
-           && f.begin_field("is_receiver") // <is_receiver>
-           && f.apply(is_receiver_)        //   <value>
-           && f.end_field()                // </is_receiver>
-           && f.begin_field("nodes")       // <nodes>
-           && save_children(f)             //   [...]
-           && f.end_field()                // </nodes>
+    return f.template begin_object_t<multipath>() //
+           && f.begin_field("id")                 // <id>
+           && f.apply(id_)                        //   <value>
+           && f.end_field()                       // </id>
+           && f.begin_field("is_receiver")        // <is_receiver>
+           && f.apply(is_receiver_)               //   <value>
+           && f.end_field()                       // </is_receiver>
+           && f.begin_field("nodes")              // <nodes>
+           && save_children(f)                    //   [...]
+           && f.end_field()                       // </nodes>
            && f.end_object();
   }
 
@@ -233,8 +230,8 @@ private:
         }
         if (!down_.emplace(child)) {
           child->shallow_delete();
-          f.emplace_error(caf::sec::field_invariant_check_failed,
-                          "a multipath may not contain duplicates");
+          f.field_invariant_check_failed(
+            "a multipath may not contain duplicates");
           return false;
         }
       }
@@ -244,17 +241,16 @@ private:
 
   template <class Inspector>
   bool load(detail::monotonic_buffer_resource& mem, Inspector& f) {
-    return f.begin_object(caf::type_id_v<multipath>,
-                          caf::type_name_v<multipath>)
-           && f.begin_field("id")          // <id>
-           && f.apply(id_)                 //   <value>
-           && f.end_field()                // </id>
-           && f.begin_field("is_receiver") // <is_receiver>
-           && f.apply(is_receiver_)        //   <value>
-           && f.end_field()                // </is_receiver>
-           && f.begin_field("nodes")       // <nodes>
-           && load_children(mem, f)        //   [...]
-           && f.end_field()                // </nodes>
+    return f.template begin_object_t<multipath>() //
+           && f.begin_field("id")                 // <id>
+           && f.apply(id_)                        //   <value>
+           && f.end_field()                       // </id>
+           && f.begin_field("is_receiver")        // <is_receiver>
+           && f.apply(is_receiver_)               //   <value>
+           && f.end_field()                       // </is_receiver>
+           && f.begin_field("nodes")              // <nodes>
+           && load_children(mem, f)               //   [...]
+           && f.end_field()                       // </nodes>
            && f.end_object();
   }
 

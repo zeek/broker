@@ -1,11 +1,10 @@
 #pragma once
 
 #include "broker/backend_options.hh"
-
 #include "broker/detail/abstract_backend.hh"
+#include "broker/expected.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// A SQLite storage backend.
 class sqlite_backend : public abstract_backend {
@@ -53,5 +52,4 @@ private:
   std::unique_ptr<impl> impl_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

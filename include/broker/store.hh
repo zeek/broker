@@ -1,19 +1,8 @@
 #pragma once
 
-#include <memory>
-#include <optional>
-#include <string>
-#include <vector>
-
-#include <caf/actor.hpp>
-#include <caf/cow_tuple.hpp>
-#include <caf/error.hpp>
-#include <caf/make_message.hpp>
-#include <caf/stream.hpp>
-
-#include "broker/atoms.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"
+#include "broker/detail/store_state.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/fwd.hh"
@@ -21,22 +10,20 @@
 #include "broker/message.hh"
 #include "broker/status.hh"
 #include "broker/timeout.hh"
+#include "broker/worker.hh"
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace broker {
-
-class endpoint;
 
 /// A key-value store (either a *master* or *clone*) that supports modifying
 /// and querying contents.
 class store {
 public:
-  // -- friends ----------------------------------------------------------------
-
-  friend class endpoint;
-
   // -- member types -----------------------------------------------------------
-
-  using stream_type = caf::stream<command_message>;
 
   /// A response to a lookup request issued by a ::proxy.
   struct response {
@@ -51,7 +38,7 @@ public:
 
     /// Constructs a proxy for a given store.
     /// @param s The store to create a proxy for.
-    proxy(store& s);
+    explicit proxy(store& s);
 
     /// Performs a request to check existence of a value.
     /// @returns A unique identifier for this request to correlate it with a
@@ -98,22 +85,25 @@ public:
     std::vector<response> receive(size_t n);
 
     /// Returns a globally unique identifier for the frontend actor.
-    entity_id frontend_id() const noexcept {
-      return {this_peer_, frontend_.id()};
-    }
+    entity_id frontend_id() const noexcept;
 
   private:
     request_id id_ = 0;
-    caf::actor frontend_;
-    caf::actor proxy_;
+    worker frontend_;
+    worker proxy_;
     endpoint_id this_peer_;
   };
 
+  // -- friends ----------------------------------------------------------------
+
+  friend class endpoint;
+  friend class proxy;
+
   // -- constructors, destructors, and assignment operators --------------------
 
-  store();
+  store() = default;
 
-  store(store&&);
+  store(store&&) = default;
 
   store(const store&);
 
@@ -167,23 +157,12 @@ public:
     return initialized();
   }
 
-  /// Returns the ID for the local ALM peer.
-  endpoint_id this_peer() const noexcept {
-    return this_peer_;
-  }
-
   /// Retrieves the frontend.
   /// @pre `initialized()`
-  caf::actor frontend() const;
+  worker frontend() const;
 
   /// Returns a globally unique identifier for the frontend actor.
   entity_id frontend_id() const;
-
-  /// Returns the topic for sending messages to the master.
-  caf::actor self_hdl() const;
-
-  /// Returns the topic for sending messages to the master.
-  entity_id self_id() const;
 
   // --- modifiers -----------------------------------------------------------
 
@@ -326,7 +305,7 @@ public:
   void reset();
 
 private:
-  store(endpoint_id this_peer, caf::actor actor, std::string name);
+  store(endpoint_id this_peer, worker actor, std::string name);
 
   /// Adds a value to another one, with a type-specific meaning of
   /// "add". This is the backend for a number of the modifiers methods.
@@ -344,9 +323,22 @@ private:
   /// @param expiry An optional new expiration time for *key*.
   void subtract(data key, data value, std::optional<timespan> expiry = {});
 
-  // -- member variables -------------------------------------------------------
+  template <class F>
+  void with_state(F f) const;
 
-  endpoint_id this_peer_;
+  template <class F, class G>
+  auto with_state_or(F f, G fallback) const -> decltype(fallback());
+
+  template <class F>
+  void with_state_ptr(F f) const;
+
+  template <class... Ts>
+  expected<data> fetch(Ts&&... xs) const;
+
+  template <class T, class... Ts>
+  expected<T> request(Ts&&... xs);
+
+  // -- member variables -------------------------------------------------------
 
   // If we would only consider the native C++ API, we could store a regular
   // shared pointer here and rely on scoping to make sure that store objects get

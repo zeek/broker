@@ -24,7 +24,7 @@ int main()
     m->put("bar", vector{true, 7u, now()});
 
     if ( auto d = m->get(4.2) ) // Look up in store.
-        std::cout << "value of 4.2 is " << d << std::endl;
+        std::cout << "value of 4.2 is " << to_string(d) << std::endl;
     else
         std::cout << "no such key: 4.2" << std::endl;
 }

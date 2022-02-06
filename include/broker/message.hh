@@ -2,13 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <variant>
-#include <vector>
+#include <string>
+#include <string_view>
 
-#include <caf/cow_tuple.hpp>
-#include <caf/default_enum_inspect.hpp>
-
+#include "broker/cow_tuple.hh"
 #include "broker/data.hh"
+#include "broker/detail/inspect_enum.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
@@ -30,7 +29,7 @@ enum class p2p_message_type : uint8_t {
 std::string to_string(p2p_message_type);
 
 /// @relates p2p_message_type
-bool from_string(caf::string_view, p2p_message_type&);
+bool from_string(std::string_view, p2p_message_type&);
 
 /// @relates p2p_message_type
 bool from_integer(uint8_t, p2p_message_type&);
@@ -38,7 +37,7 @@ bool from_integer(uint8_t, p2p_message_type&);
 /// @relates p2p_message_type
 template <class Inspector>
 bool inspect(Inspector& f, p2p_message_type& x) {
-  return caf::default_enum_inspect(f, x);
+  return detail::inspect_enum(f, x);
 }
 
 /// Tags a packed message with the type of the serialized data. This enumeration
@@ -53,7 +52,7 @@ enum class packed_message_type : uint8_t {
 std::string to_string(packed_message_type);
 
 /// @relates packed_message_type
-bool from_string(caf::string_view, packed_message_type&);
+bool from_string(std::string_view, packed_message_type&);
 
 /// @relates packed_message_type
 bool from_integer(uint8_t, packed_message_type&);
@@ -61,12 +60,12 @@ bool from_integer(uint8_t, packed_message_type&);
 /// @relates packed_message_type
 template <class Inspector>
 bool inspect(Inspector& f, packed_message_type& x) {
-  return caf::default_enum_inspect(f, x);
+  return detail::inspect_enum(f, x);
 }
 
 /// A Broker-internal message with a payload received from the ALM layer.
-using packed_message = caf::cow_tuple<packed_message_type, uint16_t, topic,
-                                      std::vector<std::byte>>;
+using packed_message
+  = cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 
 inline packed_message make_packed_message(packed_message_type type,
                                           uint16_t ttl, topic dst,
@@ -102,9 +101,9 @@ inline const std::vector<std::byte>& get_payload(const packed_message& msg) {
 }
 
 /// A Broker-internal message with path and content (packed message).
-using node_message = caf::cow_tuple<endpoint_id,     // Sender.
-                                    endpoint_id,     // Receiver or NIL.
-                                    packed_message>; // Content.
+using node_message = cow_tuple<endpoint_id,     // Sender.
+                               endpoint_id,     // Receiver or NIL.
+                               packed_message>; // Content.
 
 inline auto get_sender(const node_message& msg) {
   return get<0>(msg);
@@ -135,10 +134,10 @@ inline const std::vector<std::byte>& get_payload(const node_message& msg) {
 }
 
 /// A user-defined message with topic and data.
-using data_message = caf::cow_tuple<topic, data>;
+using data_message = cow_tuple<topic, data>;
 
 /// A Broker-internal message with topic and command.
-using command_message = caf::cow_tuple<topic, internal_command>;
+using command_message = cow_tuple<topic, internal_command>;
 
 template <class T>
 struct packed_message_type_oracle;
@@ -155,9 +154,6 @@ struct packed_message_type_oracle<command_message> {
 
 template <class T>
 constexpr auto packed_message_type_v = packed_message_type_oracle<T>::value;
-
-/// Ordered, reliable communication channel between data stores.
-using command_channel = detail::channel<entity_id, command_message>;
 
 /// Generates a ::data_message.
 template <class Topic, class Data>

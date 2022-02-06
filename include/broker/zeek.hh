@@ -2,8 +2,7 @@
 
 #include "broker/data.hh"
 
-namespace broker {
-namespace zeek {
+namespace broker::zeek {
 
 const count ProtocolVersion = 1;
 
@@ -360,5 +359,4 @@ public:
   }
 };
 
-} // namespace broker
-} // namespace zeek
+} // namespace broker::zeek

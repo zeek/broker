@@ -1,4 +1,3 @@
-#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/subscriber.hh"
 
 #include <chrono>
@@ -9,16 +8,22 @@
 
 #include <caf/async/consumer.hpp>
 #include <caf/async/spsc_buffer.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/scheduled_actor.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
+#include <caf/stateful_actor.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
-#include "broker/logger.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
+
+using broker::internal::native;
 
 namespace broker::detail {
 
@@ -187,7 +192,7 @@ auto* dptr(const detail::opaque_ptr& ptr) {
 
 detail::opaque_ptr make_opaque(caf::intrusive_ptr<subscriber_queue> ptr) {
   caf::ref_counted* raw = ptr.release();
-  return {reinterpret_cast<detail::opaque_type*>(raw), false};
+  return detail::opaque_ptr{reinterpret_cast<detail::opaque_type*>(raw), false};
 }
 
 } // namespace
@@ -199,7 +204,7 @@ using broker::detail::dptr;
 namespace broker {
 
 subscriber::subscriber(detail::opaque_ptr queue,
-                       std::shared_ptr<filter_type> filter, caf::actor core)
+                       std::shared_ptr<filter_type> filter, worker core)
   : queue_(std::move(queue)),
     core_(std::move(core)),
     core_filter_(std::move(filter)) {
@@ -215,7 +220,7 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
   using caf::async::make_spsc_buffer_resource;
   auto fptr = std::make_shared<filter_type>(std::move(filter));
   auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
-  caf::anon_send(ep.core(), fptr, std::move(prod_res));
+  caf::anon_send(native(ep.core()), fptr, std::move(prod_res));
   auto buf = con_res.try_open();
   BROKER_ASSERT(buf != nullptr);
   auto qptr = caf::make_counted<detail::subscriber_queue>(buf);
@@ -241,7 +246,7 @@ std::vector<data_message> subscriber::get(size_t num) {
   q->pull(buf, num);
   while (buf.size() < num) {
     wait();
-    if (!q->pull(buf, num - buf.size()))
+    if (!q->pull(buf, num))
       return buf;
   }
   return buf;
@@ -262,7 +267,7 @@ void subscriber::do_get(std::vector<data_message>& buf, size_t num,
   buf.reserve(num);
   q->pull(buf, num);
   while (buf.size() < num && wait_until(abs_timeout))
-    q->pull(buf, num - buf.size());
+    q->pull(buf, num);
 }
 
 std::vector<data_message> subscriber::poll() {
@@ -308,13 +313,15 @@ void subscriber::reset() {
 
 void subscriber::update_filter(topic what, bool add, bool block) {
   BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(add) << BROKER_ARG(block));
+  using internal::native;
   if (!block) {
-    caf::anon_send(core_, core_filter_, std::move(what), add,
+    caf::anon_send(native(core_), core_filter_, std::move(what), add,
                    std::shared_ptr<std::promise<void>>{nullptr});
   } else {
     auto sync = std::make_shared<std::promise<void>>();
     auto vfut = sync->get_future();
-    caf::anon_send(core_, core_filter_, std::move(what), add, std::move(sync));
+    caf::anon_send(native(core_), core_filter_, std::move(what), add,
+                   std::move(sync));
     vfut.get();
   }
 }

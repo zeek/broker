@@ -1,4 +1,4 @@
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
 
 #include <cstdint>
 #include <cstdio> // std::snprintf
@@ -13,13 +13,14 @@
 #include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
-#include "broker/version.hh"
-#include "broker/error.hh"
-#include "broker/expected.hh"
-#include "broker/detail/assert.hh"
 #include "broker/detail/appliers.hh"
+#include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
 #include "broker/detail/sqlite_backend.hh"
+#include "broker/error.hh"
+#include "broker/expected.hh"
+#include "broker/internal/type_id.hh"
+#include "broker/version.hh"
 
 #include "sqlite3.h"
 

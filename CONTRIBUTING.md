@@ -114,7 +114,7 @@ Header
 
   #include <3rd/party.hpp>
 
-  #include "broker/logger.h"
+  #include "broker/endpoint.hh"
   ```
 
   Within each section the order should be alphabetical. Broker includes should

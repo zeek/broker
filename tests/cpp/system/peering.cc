@@ -55,11 +55,12 @@ std::string log_path_template(const char* test_name, size_t endpoint_nr) {
 }
 
 configuration make_config(const char* test_name, size_t endpoint_nr) {
-  configuration cfg;
+  broker_options opts;
+  opts.disable_forwarding = true;
+  configuration cfg{opts};
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
   cfg.set("caf.logger.file.path", log_path_template(test_name, endpoint_nr));
-  cfg.set("broker.disable-forwarding", true);
   // cfg.set("caf.logger.file.verbosity", "trace");
   // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
   // cfg.set("broker.metrics.export.topic", "my/metrics/node-" + std::to_string(endpoint_nr));
@@ -247,7 +248,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
     = std::vector<alternative>{"endpoint_discovered"_a, "peer_added"_a,
                                alternative{"peer_lost", "peer_removed"},
                                "endpoint_unreachable"_a};
-  // Check all endpoints. We "unroll the loop" for better error localization.
+  // Check all endpoints.
   for (size_t index = 0; index != num_endpoints; ++index) {
     for (size_t i = 0; i != num_endpoints; ++i)
       if (i != index)

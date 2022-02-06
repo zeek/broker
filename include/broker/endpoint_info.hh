@@ -1,11 +1,12 @@
 #pragma once
 
-#include <optional>
-#include <vector>
-
 #include "broker/convert.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/network_info.hh"
+
+#include <optional>
+#include <vector>
 
 namespace broker {
 

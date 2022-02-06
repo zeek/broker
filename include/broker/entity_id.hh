@@ -1,12 +1,11 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <tuple>
-
-#include <caf/node_id.hpp>
-
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
+
+#include <cstdint>
+#include <functional>
+#include <string>
 
 namespace broker {
 

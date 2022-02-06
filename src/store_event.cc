@@ -20,6 +20,14 @@ bool is_entity_id(const vector& xs, size_t endpoint_index,
              && is<uint64_t>(xs[object_index]));
 }
 
+template <class T>
+std::string opt_to_string(const std::optional<T>& x) {
+  if (x)
+    return caf::deep_to_string(*x);
+  else
+    return "null";
+}
+
 } // namespace
 
 store_event::insert store_event::insert::make(const vector& xs) noexcept {

@@ -7,22 +7,26 @@
 #include <chrono>
 #include <regex>
 
-#include "broker/atoms.hh"
 #include "broker/backend.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/clone_actor.hh"
-#include "broker/detail/master_actor.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
+#include "broker/internal/clone_actor.hh"
+#include "broker/internal/master_actor.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
 #include "broker/store_event.hh"
 #include "broker/topic.hh"
 
+using broker::internal::native;
 using std::cout;
 using std::endl;
 using std::string;
+
+namespace atom = broker::internal::atom;
 
 using namespace broker;
 using namespace broker::detail;
@@ -84,7 +88,7 @@ bool operator==(const string_list& xs, const pattern_list& ys) {
 
 struct fixture : base_fixture {
   string_list log;
-  activity logger;
+  worker logger;
 
   caf::timespan tick_interval = defaults::store::tick_interval;
 
@@ -111,7 +115,7 @@ struct fixture : base_fixture {
   }
 
   ~fixture() {
-    logger.cancel();
+    anon_send_exit(internal::native(logger), caf::exit_reason::user_shutdown);
   }
 };
 
@@ -120,14 +124,13 @@ struct fixture : base_fixture {
 FIXTURE_SCOPE(local_store_master, fixture)
 
 TEST(local_master) {
-  auto core = ep.core();
+  auto core = native(ep.core());
   run(tick_interval);
   sched.inline_next_enqueue(); // ep.attach talks to the core (blocking)
   // ep.attach sends a message to the core that will then spawn a new master
   auto expected_ds = ep.attach_master("foo", backend::memory);
   REQUIRE(expected_ds.engaged());
   auto& ds = *expected_ds;
-  CHECK_EQUAL(ds.this_peer(), ep.node_id());
   MESSAGE(ds.frontend_id());
   auto ms = ds.frontend();
   // the core adds the master immediately to the topic and sends a stream
@@ -153,7 +156,7 @@ TEST(local_master) {
   ds.clear();
   run(tick_interval);
   sched.inline_next_enqueue();
-  CHECK_EQUAL(error_of(ds.get("hello")), caf::error{ec::no_such_key});
+  CHECK_EQUAL(error_of(ds.get("hello")), ec::no_such_key);
   // test put_unique
   sched.inline_next_enqueue(); // ds.put_unique also talks to the master_actor
   CHECK_EQUAL(unbox(ds.put_unique("bar", "baz")), data{true});
@@ -168,7 +171,7 @@ TEST(local_master) {
                      "insert\\(foo, bar, baz, .+\\)",
                    }));
   // done
-  anon_send_exit(core, caf::exit_reason::user_shutdown);
+  caf::anon_send_exit(core, caf::exit_reason::user_shutdown);
 }
 
 FIXTURE_SCOPE_END()
@@ -179,8 +182,8 @@ FIXTURE_SCOPE(store_master, net_fixture<fixture>)
 TEST(master_with_clone) {
   caf::timespan tick_interval = defaults::store::tick_interval;
   // --- phase 1: get state from fixtures and initialize cores -----------------
-  auto core1 = earth.ep.core();
-  auto core2 = mars.ep.core();
+  auto core1 = native(earth.ep.core());
+  auto core2 = native(mars.ep.core());
   // --- phase 2: connect earth and mars at CAF level --------------------------
   // Prepare publish and remote_actor calls.
   MESSAGE("prepare connections on earth and mars");
@@ -206,7 +209,7 @@ TEST(master_with_clone) {
     FAIL(
       "could not attach master: " << to_string(expected_ds_earth.error()));
   auto& ds_earth = *expected_ds_earth;
-  auto ms_earth = ds_earth.frontend();
+  auto ms_earth = native(ds_earth.frontend());
   // the core adds the master immediately to the topic and sends a stream
   // handshake
   run(tick_interval);
@@ -234,7 +237,7 @@ TEST(master_with_clone) {
   MESSAGE("put 'user' -> 'neverlord'");
   ds_mars.put("user", "neverlord");
   expect_on(mars, (atom::local, internal_command),
-            from(_).to(ds_mars.frontend()));
+            from(_).to(native(ds_mars.frontend())));
   auto run_until_idle = [&] {
     auto idle = [&] {
       return earth.deref<detail::master_actor_type>(ms_earth).state.idle()
@@ -263,8 +266,8 @@ TEST(master_with_clone) {
   mars.sched.after_next_enqueue(run_until_idle);
   CHECK_EQUAL(value_of(ds_mars.put_unique("bar", "unicorn")), data{false});
   // done
-  anon_send_exit(earth.ep.core(), caf::exit_reason::user_shutdown);
-  anon_send_exit(mars.ep.core(), caf::exit_reason::user_shutdown);
+  anon_send_exit(native(earth.ep.core()), caf::exit_reason::user_shutdown);
+  anon_send_exit(native(mars.ep.core()), caf::exit_reason::user_shutdown);
   exec_all();
   // check log
   CHECK_EQUAL(mars.log, earth.log);

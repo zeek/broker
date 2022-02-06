@@ -11,9 +11,11 @@
 #include <caf/scoped_actor.hpp>
 
 #include "broker/configuration.hh"
-#include "broker/detail/channel.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/channel.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 
 #include <cassert>
 #include <ciso646>
@@ -53,7 +55,7 @@
 
 // -- custom message types for channel.cc --------------------------------------
 
-using string_channel = broker::detail::channel<std::string, std::string>;
+using string_channel = broker::internal::channel<std::string, std::string>;
 
 struct producer_msg {
   std::string source;
@@ -200,7 +202,12 @@ public:
   caf::actor_system& sys;
   caf::scoped_actor self;
   scheduler_type& sched;
+
+  // A couple of predefined endpoint IDs for testing purposes. Filled from A-Z.
   std::map<char, broker::endpoint_id> ids;
+
+  // String representation of all `ids`.
+  std::map<char, std::string> str_ids;
 
   using super::run;
 
@@ -227,8 +234,6 @@ public:
 
   static broker::configuration make_config();
 
-  static std::pair<broker::endpoint_id, broker::endpoint_id> make_id_pair();
-
   /// Establishes a peering relation between `left` and `right`.
   static caf::actor bridge(const endpoint_state& left,
                            const endpoint_state& right);
@@ -247,14 +252,98 @@ public:
   static void push_data(caf::actor core, std::vector<broker::data_message> xs);
 };
 
-inline broker::data value_of(caf::expected<broker::data> x) {
+template <class Fixture>
+class net_fixture {
+public:
+  using planet_type = Fixture;
+
+  planet_type earth;
+  planet_type mars;
+
+  auto bridge(planet_type& left, planet_type& right) {
+    return planet_type::bridge(left.ep, right.ep);
+  }
+
+  void run() {
+    while (earth.sched.has_job() || earth.sched.has_pending_timeout()
+           || mars.sched.has_job() || mars.sched.has_pending_timeout()) {
+      earth.sched.run();
+      earth.sched.trigger_timeouts();
+      mars.sched.run();
+      mars.sched.trigger_timeouts();
+    }
+  }
+
+  void run(caf::timespan t) {
+    auto& n1 = this->earth;
+    auto& n2 = this->mars;
+    assert(n1.sched.clock().now() == n2.sched.clock().now());
+    auto advance = [](auto& n) {
+      return n.sched.try_run_once() || n.mpx.try_exec_runnable()
+             || n.mpx.read_data();
+    };
+    auto exhaust = [&] {
+      while (advance(n1) || advance(n2))
+        ; // repeat
+    };
+    auto get_next_timeout = [](auto& result, auto& node) {
+      if (node.sched.has_pending_timeout()) {
+        auto t = node.sched.clock().schedule().begin()->first;
+        if (result)
+          result = std::min(*result, t);
+        else
+          result = t;
+      }
+    };
+    for (;;) {
+      exhaust();
+      caf::optional<caf::actor_clock::time_point> next_timeout;
+      get_next_timeout(next_timeout, n1);
+      get_next_timeout(next_timeout, n2);
+      if (!next_timeout) {
+        n1.sched.advance_time(t);
+        n2.sched.advance_time(t);
+        exhaust();
+        return;
+      }
+      auto delta = *next_timeout - n1.sched.clock().now();
+      if (delta >= t) {
+        n1.sched.advance_time(t);
+        n2.sched.advance_time(t);
+        exhaust();
+        return;
+      }
+      n1.sched.advance_time(delta);
+      n2.sched.advance_time(delta);
+      t -= delta;
+    }
+  }
+
+  template <class Rep, class Period>
+  void run(std::chrono::duration<Rep, Period> t) {
+    run(std::chrono::duration_cast<caf::timespan>(t));
+  }
+};
+
+// -- utility ------------------------------------------------------------------
+
+template <class T>
+T unbox(broker::expected<T> x) {
+  if (!x)
+    FAIL(to_string(x.error()));
+  else
+    return std::move(*x);
+}
+
+
+inline broker::data value_of(broker::expected<broker::data> x) {
   if (!x) {
     FAIL("cannot unbox expected<data>: " << to_string(x.error()));
   }
   return std::move(*x);
 }
 
-inline caf::error error_of(caf::expected<broker::data> x) {
+inline broker::error error_of(broker::expected<broker::data> x) {
   if (x) {
     FAIL("cannot get error of expected<data>, contains value: "
          << to_string(*x));

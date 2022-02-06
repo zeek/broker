@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "broker/config.hh"
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
 
 #ifdef BROKER_HAS_STD_FILESYSTEM
 
