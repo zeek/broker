@@ -233,7 +233,7 @@ public:
   /// is guaranteed to be called before the function returns.
   template <class Init, class Pull, class AtEnd>
   worker publish_all(Init init, Pull f, AtEnd pred) {
-    using driver_t = detail::source_driver_impl<Init, Pull, AtEnd>;
+    using driver_t = detail::source_driver_impl_t<Init, Pull, AtEnd>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(pred));
     return do_publish_all(std::move(driver), true);
@@ -243,7 +243,7 @@ public:
   /// before the function returns.
   template <class Init, class Pull, class AtEnd>
   worker publish_all_nosync(Init init, Pull f, AtEnd pred) {
-    using driver_t = detail::source_driver_impl<Init, Pull, AtEnd>;
+    using driver_t = detail::source_driver_impl_t<Init, Pull, AtEnd>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(pred));
     return do_publish_all(std::move(driver), false);
@@ -268,10 +268,10 @@ public:
   /// Starts a background worker from the given set of function that consumes
   /// incoming messages. The worker will run in the background, but `init` is
   /// guaranteed to be called before the function returns.
-  template <class Init, class HandleMessage, class Cleanup>
-  worker subscribe(std::vector<topic> topics, Init init, HandleMessage f,
+  template <class Init, class OnNext, class Cleanup>
+  worker subscribe(std::vector<topic> topics, Init init, OnNext f,
                    Cleanup cleanup) {
-    using driver_t = detail::sink_driver_impl<Init, HandleMessage, Cleanup>;
+    using driver_t = detail::sink_driver_impl_t<Init, OnNext, Cleanup>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(cleanup));
     return do_subscribe(std::move(topics), std::move(driver), true);
@@ -279,10 +279,10 @@ public:
 
   /// Identical to ::subscribe, but does not guarantee that `init` is called
   /// before the function returns.
-  template <class Init, class HandleMessage, class Cleanup>
-  worker subscribe_nosync(std::vector<topic> topics, Init init, HandleMessage f,
+  template <class Init, class OnNext, class Cleanup>
+  worker subscribe_nosync(std::vector<topic> topics, Init init, OnNext f,
                           Cleanup cleanup) {
-    using driver_t = detail::sink_driver_impl<Init, HandleMessage, Cleanup>;
+    using driver_t = detail::sink_driver_impl_t<Init, OnNext, Cleanup>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(cleanup));
     return do_subscribe(std::move(topics), std::move(driver), false);

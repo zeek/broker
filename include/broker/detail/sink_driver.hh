@@ -6,9 +6,17 @@
 
 namespace broker::detail {
 
+// -- trait classes to inspect user-defined callbacks --------------------------
+
 template <class F>
 struct sink_driver_init_trait {
-  static_assert(always_false_v<F>, "Init must have signature 'void (State&)'");
+  static_assert(always_false_v<F>,
+                "Init must have signature 'void ()' or 'void (State&)'");
+};
+
+template <>
+struct sink_driver_init_trait<void()> {
+  using state_type = void;
 };
 
 template <class State>
@@ -20,7 +28,18 @@ struct sink_driver_init_trait<void(State&)> {
 template <class F>
 struct sink_driver_on_next_trait {
   static_assert(always_false_v<F>,
-                "OnNext must have signature 'void (State&, data_message)'");
+                "OnNext must have signature 'void (data_message)' "
+                "or 'void (State&, data_message)'");
+};
+
+template <>
+struct sink_driver_on_next_trait<void(data_message)> {
+  using state_type = void;
+};
+
+template <>
+struct sink_driver_on_next_trait<void(const data_message&)> {
+  using state_type = void;
 };
 
 template <class State>
@@ -38,40 +57,21 @@ struct sink_driver_on_next_trait<void(State&, const data_message&)> {
 template <class F>
 struct sink_driver_cleanup_trait {
   static_assert(always_false_v<F>,
-                "Cleanup must have signature "
-                "'void (State&, const error&)' or 'void (State&)'");
+                "Cleanup must have signature 'void (const error&)' "
+                "or 'void (State&, const error&)'");
+};
+
+template <>
+struct sink_driver_cleanup_trait<void(const error&)> {
+  using state_type = void;
 };
 
 template <class State>
 struct sink_driver_cleanup_trait<void(State&, const error&)> {
   using state_type = std::remove_const_t<State>;
-
-  template <class F>
-  static void apply(F& fn, state_type& st) {
-    error dummy;
-    fn(st, dummy);
-  }
-
-  template <class F>
-  static void apply(F& fn, state_type& st, const error& err) {
-    fn(st, err);
-  }
 };
 
-template <class State>
-struct sink_driver_cleanup_trait<void(State&)> {
-  using state_type = std::remove_const_t<State>;
-
-  template <class F>
-  static void apply(F& fn, state_type& st) {
-    fn(st);
-  }
-
-  template <class F>
-  static void apply(F& fn, state_type& st, const error&) {
-    fn(st);
-  }
-};
+// -- generic driver interface -------------------------------------------------
 
 class sink_driver {
 public:
@@ -84,7 +84,9 @@ public:
   virtual void on_cleanup(const error& what) = 0;
 };
 
-template <class Init, class OnNext, class Cleanup>
+// -- default implementation ---------------------------------------------------
+
+template <class State, class Init, class OnNext, class Cleanup>
 class sink_driver_impl : public sink_driver {
 public:
   using init_trait = sink_driver_init_trait<signature_of_t<Init>>;
@@ -92,11 +94,6 @@ public:
   using on_next_trait = sink_driver_on_next_trait<signature_of_t<OnNext>>;
 
   using cleanup_trait = sink_driver_cleanup_trait<signature_of_t<Cleanup>>;
-
-  using state_type = typename init_trait::state_type;
-
-  static_assert(are_same_v<state_type, typename on_next_trait::state_type,
-                           typename cleanup_trait::state_type>);
 
   sink_driver_impl(Init init_fn, OnNext on_next_fn, Cleanup cleanup_fn)
     : state_(),
@@ -125,8 +122,8 @@ public:
 
   void on_cleanup(const error& what) override {
    if (!completed_) {
-      cleanup_trait::apply(cleanup_, state_, what);
-      completed_ = true;
+     cleanup_(state_, what);
+     completed_ = true;
     }
   }
 
@@ -135,7 +132,7 @@ private:
     init_.~Init();
   }
 
-  state_type state_;
+  State state_;
   union {
     Init init_;
   };
@@ -145,5 +142,85 @@ private:
   bool initialized_ = false;
   bool completed_ = false;
 };
+
+template <class Init, class OnNext, class Cleanup>
+class sink_driver_impl<void, Init, OnNext, Cleanup> : public sink_driver {
+public:
+  using init_trait = sink_driver_init_trait<signature_of_t<Init>>;
+
+  using on_next_trait = sink_driver_on_next_trait<signature_of_t<OnNext>>;
+
+  using cleanup_trait = sink_driver_cleanup_trait<signature_of_t<Cleanup>>;
+
+  sink_driver_impl(Init init_fn, OnNext on_next_fn, Cleanup cleanup_fn)
+    : on_next_(std::move(on_next_fn)), cleanup_(std::move(cleanup_fn)) {
+    new (&init_) Init(std::move(init_fn));
+  }
+
+  ~sink_driver_impl() {
+    if (!initialized_)
+      after_init();
+  }
+
+  void init() override {
+    if (!initialized_) {
+      init_();
+      initialized_ = true;
+      after_init();
+    }
+  }
+
+  void on_next(const data_message& msg) override {
+    if (!completed_)
+      on_next_(msg);
+  }
+
+  void on_cleanup(const error& what) override {
+   if (!completed_) {
+     cleanup_(what);
+     completed_ = true;
+    }
+  }
+
+private:
+  void after_init() {
+    init_.~Init();
+  }
+
+  union {
+    Init init_;
+  };
+  OnNext on_next_;
+  Cleanup cleanup_;
+
+  bool initialized_ = false;
+  bool completed_ = false;
+};
+
+// -- oracle for checking assertions and selecting the proper implementation ---
+
+template <class Init, class OnNext, class Cleanup>
+struct sink_driver_impl_oracle {
+  using init_trait = sink_driver_init_trait<signature_of_t<Init>>;
+
+  using on_next_trait = sink_driver_on_next_trait<signature_of_t<OnNext>>;
+
+  using cleanup_trait = sink_driver_cleanup_trait<signature_of_t<Cleanup>>;
+
+  using init_state = typename init_trait::state_type;
+
+  using on_next_state = typename on_next_trait::state_type;
+
+  using cleanup_state = typename cleanup_trait::state_type;
+
+  static_assert(are_same_v<init_state, on_next_state, cleanup_state>,
+                "Init, OnNext, and Cleanup have different state types.");
+
+  using type = sink_driver_impl<init_state, Init, OnNext, Cleanup>;
+};
+
+template <class Init, class OnNext, class Cleanup>
+using sink_driver_impl_t =
+  typename sink_driver_impl_oracle<Init, OnNext, Cleanup>::type;
 
 } // namespace broker::detail

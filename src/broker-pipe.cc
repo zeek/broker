@@ -42,8 +42,6 @@ using broker::topic;
 
 namespace {
 
-struct no_state {};
-
 std::mutex cout_mtx;
 
 using guard_type = std::unique_lock<std::mutex>;
@@ -256,15 +254,21 @@ int main(int argc, char** argv) {
   }
   broker::endpoint ep{std::move(cfg)};
   ep.subscribe(
-    {topic::errors(), topic::statuses()}, [](no_state&) {},
-    [=](no_state&, data_message x) {
-      std::string what;
+    {topic::errors(), topic::statuses()},
+    [] {
+      // Init: nop.
+    },
+    [=](const data_message& x) {
+      // OnNext: print the message.
+      std::string what = to_string(x);
       what.insert(0, "*** ");
       what.push_back('\n');
       guard_type guard{cout_mtx};
       std::cerr << what;
     },
-    [=](no_state&, const broker::error&) {});
+    [=](const broker::error&) {
+      // Cleanup: nop.
+    });
   // Publish endpoint at demanded port.
   if (params.local_port != 0)
     ep.listen({}, params.local_port);
