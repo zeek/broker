@@ -1,12 +1,9 @@
-
 #include <cstddef>
 #include <cstdint>
 #include <chrono>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <caf/variant.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -39,6 +36,29 @@
 #include "broker/version.hh"
 
 #include <memory>
+
+namespace {
+
+using topic_data_pair = std::pair<broker::topic, broker::data>;
+
+auto custom_to_string(const topic_data_pair& x) {
+  std::string str = "(";
+  str += x.first.string();
+  str += ", ";
+  broker::convert(x.second, str);
+  str += ")";
+  return str;
+}
+
+auto custom_to_string(const std::optional<topic_data_pair>& x) {
+  using namespace std::literals;
+  if (x)
+    return "*" + custom_to_string(*x);
+  else
+    return "null"s;
+}
+
+} // namespace
 
 namespace py = pybind11;
 
@@ -85,12 +105,12 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("port", &broker::network_info::port)
     .def("__repr__", [](const broker::network_info& n) { return to_string(n); });
 
-  py::class_<broker::optional<broker::network_info>>(m, "OptionalNetworkInfo")
+  py::class_<std::optional<broker::network_info>>(m, "OptionalNetworkInfo")
     .def("is_set",
-         [](broker::optional<broker::network_info>& i) { return static_cast<bool>(i);})
+         [](std::optional<broker::network_info>& i) { return static_cast<bool>(i);})
     .def("get",
-         [](broker::optional<broker::network_info>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<broker::network_info>& i) { return to_string(i); });
+         [](std::optional<broker::network_info>& i) { return *i; })
+    .def("__repr__", [](const std::optional<broker::network_info>& i) { return broker::to_string(i); });
 
   py::class_<broker::peer_info>(m, "PeerInfo")
     .def_readwrite("peer", &broker::peer_info::peer)
@@ -141,12 +161,12 @@ PYBIND11_MODULE(_broker, m) {
 
   py::bind_vector<std::vector<topic_data_pair>>(m, "VectorPairTopicData");
 
-  py::class_<broker::optional<topic_data_pair>>(m, "OptionalSubscriberBaseValueType")
+  py::class_<std::optional<topic_data_pair>>(m, "OptionalSubscriberBaseValueType")
     .def("is_set",
-         [](broker::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
+         [](std::optional<topic_data_pair>& i) { return static_cast<bool>(i);})
     .def("get",
-         [](broker::optional<topic_data_pair>& i) { return *i; })
-    .def("__repr__", [](const broker::optional<topic_data_pair>& i) { return caf::deep_to_string(i); });
+         [](std::optional<topic_data_pair>& i) { return *i; })
+    .def("__repr__", [](const std::optional<topic_data_pair>& i) { return custom_to_string(i); });
 
   py::class_<subscriber_base>(m, "SubscriberBase")
     .def("get",
@@ -156,13 +176,11 @@ PYBIND11_MODULE(_broker, m) {
       })
 
     .def("get",
-         [](subscriber_base& ep, double secs) -> broker::optional<topic_data_pair> {
+         [](subscriber_base& ep, double secs) -> std::optional<topic_data_pair> {
 	    auto res = ep.get(broker::to_duration(secs));
-        caf::optional<topic_data_pair> rval;
-        if (res) {
-          auto p = std::make_pair(broker::get_topic(*res), broker::get_data(*res));
-          rval = caf::optional<topic_data_pair>(std::move(p));
-        }
+        std::optional<topic_data_pair> rval;
+        if (res)
+          rval = std::make_pair(broker::get_topic(*res), broker::get_data(*res));
         return rval;
 	  })
 
@@ -221,7 +239,7 @@ PYBIND11_MODULE(_broker, m) {
   status_subscriber
     .def("get", (broker::status_subscriber::value_type (broker::status_subscriber::*)()) &broker::status_subscriber::get)
     .def("get",
-         [](broker::status_subscriber& ep, double secs) -> broker::optional<broker::status_subscriber::value_type> {
+         [](broker::status_subscriber& ep, double secs) -> std::optional<broker::status_subscriber::value_type> {
 	   return ep.get(broker::to_duration(secs)); })
     .def("get",
          [](broker::status_subscriber& ep, size_t num) -> std::vector<broker::status_subscriber::value_type> {
@@ -238,13 +256,13 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::status_subscriber::value_type>(status_subscriber, "ValueType")
     .def("is_error",
-         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return std::holds_alternative<broker::error>(x);})
     .def("is_status",
-         [](broker::status_subscriber::value_type& x) -> bool { return caf::holds_alternative<broker::status>(x);})
+         [](broker::status_subscriber::value_type& x) -> bool { return std::holds_alternative<broker::status>(x);})
     .def("get_error",
-         [](broker::status_subscriber::value_type& x) -> broker::error { return caf::get<broker::error>(x);})
+         [](broker::status_subscriber::value_type& x) -> broker::error { return std::get<broker::error>(x);})
     .def("get_status",
-         [](broker::status_subscriber::value_type& x) -> broker::status { return caf::get<broker::status>(x);});
+         [](broker::status_subscriber::value_type& x) -> broker::status { return std::get<broker::status>(x);});
 
   py::bind_map<broker::backend_options>(m, "MapBackendOptions");
 
@@ -286,13 +304,13 @@ PYBIND11_MODULE(_broker, m) {
     .def(py::init<>())
     .def(py::init([](Configuration cfg) {
         broker::configuration bcfg(cfg.options);
-        bcfg.openssl_capath = cfg.openssl_capath;
-        bcfg.openssl_passphrase = cfg.openssl_passphrase;
-        bcfg.openssl_cafile = cfg.openssl_cafile;
-        bcfg.openssl_certificate = cfg.openssl_certificate;
-        bcfg.openssl_key = cfg.openssl_key;
+        bcfg.openssl_capath(cfg.openssl_capath);
+        bcfg.openssl_passphrase (cfg.openssl_passphrase);
+        bcfg.openssl_cafile(cfg.openssl_cafile);
+        bcfg.openssl_certificate(cfg.openssl_certificate);
+        bcfg.openssl_key(cfg.openssl_key);
         if ( cfg.max_threads > 0 )
-          bcfg.set("caf.scheduler.max-threads", cfg.max_threads);
+          bcfg.set("caf.scheduler.max-threads", static_cast<uint64_t>(cfg.max_threads));
         return std::unique_ptr<broker::endpoint>(new broker::endpoint(std::move(bcfg)));
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })

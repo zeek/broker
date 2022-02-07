@@ -24,13 +24,13 @@ data make_data_status(sc code, vector context, std::string text) {
 
 struct fixture {
   // A node ID in CAF's default format (host hash + process ID).
-  caf::node_id def_id;
+  endpoint_id def_id;
 
   // Output of to_string(def_id).
   std::string def_id_str;
 
   // A node ID in CAF's URI format (e.g., ip://foo:123).
-  caf::node_id uri_id;
+  endpoint_id uri_id;
 
   // Output of to_string(uri_id).
   std::string uri_id_str;
@@ -39,12 +39,12 @@ struct fixture {
     auto id = caf::make_node_id(10, "402FA79E64ACFA54522FFC7AC886630670517900");
     if (!id)
       FAIL("caf::make_node_id failed");
-    def_id = std::move(*id);
+    def_id = internal::facade(*id);
     def_id_str = to_string(def_id);
     auto tmp = caf::make_uri("ip://foo:8080");
     if (!tmp)
       FAIL("caf::make_uri failed");
-    uri_id = caf::make_node_id(std::move(*tmp));
+    uri_id = internal::facade(caf::make_node_id(std::move(*tmp)));
     uri_id_str = to_string(uri_id);
   }
 };
@@ -66,24 +66,24 @@ TEST(sc is convertible to and from string) {
   CHECK_EQUAL(from_string<sc>("peer_lost"), sc::peer_lost);
   CHECK_EQUAL(from_string<sc>("endpoint_discovered"), sc::endpoint_discovered);
   CHECK_EQUAL(from_string<sc>("endpoint_unreachable"), sc::endpoint_unreachable);
-  CHECK_EQUAL(from_string<sc>("foo"), nil);
+  CHECK_EQUAL(from_string<sc>("foo"), std::nullopt);
 }
 
 TEST(status is convertible to and from data) {
   CHECK_EQUAL(get_as<data>(status{}),
               vector({"status"s, enum_value{"unspecified"}, nil, nil}));
-  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({uri_id, nil}, "text")),
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({uri_id, std::nullopt}, "text")),
               make_data_status(sc::peer_added, {uri_id_str, nil, nil, nil},
                                "text"));
   CHECK_EQUAL(get_as<status>(make_data_status(
                 sc::peer_added, {uri_id_str, nil, nil, nil}, "text")),
-              status::make<sc::peer_added>({uri_id, nil}, "text"));
-  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({def_id, nil}, "text")),
+              status::make<sc::peer_added>({uri_id, std::nullopt}, "text"));
+  CHECK_EQUAL(get_as<data>(status::make<sc::peer_added>({def_id, std::nullopt}, "text")),
               make_data_status(sc::peer_added, {def_id_str, nil, nil, nil},
                                "text"));
   CHECK_EQUAL(get_as<status>(make_data_status(
                 sc::peer_added, {def_id_str, nil, nil, nil}, "text")),
-              status::make<sc::peer_added>({def_id, nil}, "text"));
+              status::make<sc::peer_added>({def_id, std::nullopt}, "text"));
   CHECK_EQUAL(get_as<data>(
                 status::make<sc::endpoint_discovered>(def_id, "text")),
               make_data_status(sc::endpoint_discovered,

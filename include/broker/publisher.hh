@@ -4,13 +4,10 @@
 #include <cstddef>
 #include <vector>
 
-#include <caf/actor.hpp>
-
-#include "broker/atoms.hh"
+#include "broker/detail/shared_publisher_queue.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
-
-#include "broker/detail/shared_publisher_queue.hh"
+#include "broker/worker.hh"
 
 namespace broker {
 
@@ -61,7 +58,7 @@ public:
   size_t send_rate() const;
 
   /// Returns a reference to the background worker.
-  const caf::actor& worker() const {
+  const broker::worker& worker() const {
     return worker_;
   }
 
@@ -105,7 +102,7 @@ private:
 
   bool drop_on_destruction_;
   detail::shared_publisher_queue_ptr<> queue_;
-  caf::actor worker_;
+  broker::worker worker_;
   topic topic_;
 };
 

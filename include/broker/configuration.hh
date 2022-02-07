@@ -1,10 +1,26 @@
 #pragma once
 
-#include <caf/actor_system_config.hpp>
-
 #include "broker/defaults.hh"
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
+
+namespace broker::internal {
+
+struct configuration_access;
+
+} // namespace broker::internal
+
 namespace broker {
+
+struct skip_init_t {};
+
+constexpr skip_init_t skip_init = skip_init_t{};
 
 struct broker_options {
   /// If true, peer connections won't use SSL.
@@ -59,17 +75,25 @@ struct broker_options {
 ///
 /// Writing to a file instead of printing to the command line can help grepping
 /// through large logs or correlating logs from multiple Broker peers.
-class configuration : public caf::actor_system_config {
+class configuration {
 public:
-  using super = caf::actor_system_config;
+  // --- friends ---------------------------------------------------------------
 
-  struct skip_init_t {};
+  friend struct internal::configuration_access;
 
-  static constexpr skip_init_t skip_init = skip_init_t{};
+  // --- member types ----------------------------------------------------------
+
+  struct impl;
+
+  // --- construction and destruction ------------------------------------------
+
+  /// Constructs the configuration without calling `init` implicitly. Requires
+  /// the user to call `init` manually.
+  explicit configuration(skip_init_t);
 
   configuration();
 
-  configuration(configuration&&) = default;
+  configuration(configuration&&);
 
   /// Constructs a configuration with non-default Broker options.
   explicit configuration(broker_options opts);
@@ -77,16 +101,87 @@ public:
   /// Constructs a configuration from command line arguments.
   configuration(int argc, char** argv);
 
+  ~configuration();
+
+  // -- properties -------------------------------------------------------------
+
   /// Returns default Broker options and flags.
-  const broker_options& options() const {
-    return options_;
+  const broker_options& options() const;
+
+  std::string help_text() const;
+
+  const std::vector<std::string>& remainder() const;
+
+  bool cli_helptext_printed() const;
+
+  std::string openssl_certificate() const;
+
+  void openssl_certificate(std::string);
+
+  std::string openssl_key() const;
+
+  void openssl_key(std::string);
+
+  std::string openssl_passphrase() const;
+
+  void openssl_passphrase(std::string);
+
+  std::string openssl_capath() const;
+
+  void openssl_capath(std::string);
+
+  std::string openssl_cafile() const;
+
+  void openssl_cafile(std::string);
+
+  // -- mutators ---------------------------------------------------------------
+
+  void add_option(int64_t* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(uint64_t* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(double* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(bool* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(std::string* dst, std::string_view name,
+                  std::string_view description);
+
+  void add_option(std::vector<std::string>* dst, std::string_view name,
+                  std::string_view description);
+
+  template <class T>
+  std::enable_if_t<std::is_integral_v<T>> set(std::string key, T val) {
+    if constexpr (std::is_same_v<T, bool>)
+      set_bool(std::move(key), val);
+    if constexpr (std::is_signed_v<T>)
+      set_i64(std::move(key), val);
+    else
+      set_u64(std::move(key), val);
   }
 
-  caf::settings dump_content() const override;
+  void set(std::string key, timespan val);
 
-  /// Adds all Broker message types to `cfg`.
-  /// @note this function has no effect when compiling against CAF ≥ 0.18
-  static void add_message_types(caf::actor_system_config& cfg);
+  void set(std::string key, std::string val);
+
+  void set(std::string key, std::vector<std::string> val);
+
+  std::optional<int64_t> read_i64(std::string_view key, int64_t min_val,
+                                  int64_t max_val) const;
+
+  std::optional<uint64_t> read_u64(std::string_view key,
+                                   uint64_t max_val) const;
+
+  std::optional<timespan> read_ts(std::string_view key) const;
+
+  std::optional<std::string> read_str(std::string_view key) const;
+
+  std::optional<std::vector<std::string>>
+  read_str_vec(std::string_view key) const;
 
   /// Initializes any global state required by Broker such as the global meta
   /// object table for Broker and CAF (core, I/O and OpenSSL modules). This
@@ -97,16 +192,45 @@ public:
   ///       code prior to creating the configuration object.
   static void init_global_state();
 
-protected:
-  /// Allows subtypes to add custom options before the configuration reads
-  /// `broker.conf` or command line arguments. Requires the subtype to call
-  /// `init` manually.
-  explicit configuration(skip_init_t);
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] impl* native_ptr() noexcept;
+
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] const impl* native_ptr() const noexcept;
 
   void init(int argc, char** argv);
 
 private:
-  broker_options options_;
+  void set_i64(std::string key, int64_t val);
+
+  void set_u64(std::string key, uint64_t val);
+
+  void set_bool(std::string key, bool val);
+
+  std::unique_ptr<impl> impl_;
 };
+
+template <class T>
+auto get_as(const configuration& cfg, std::string_view key) {
+  if constexpr (std::is_integral_v<T>){
+    std::optional<T> res;
+    using lim = std::numeric_limits<T>;
+    if constexpr (std::is_signed_v<T>) {
+      if (auto val = cfg.read_i64(key, lim::min(), lim::max()))
+        res = static_cast<T>(*val);
+    } else {
+      if (auto val = cfg.read_u64(key, lim::max()))
+        res = static_cast<T>(*val);
+    }
+    return res;
+  } else if constexpr (std::is_same_v<T, timespan>) {
+    return cfg.read_ts(key);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return cfg.read_str(key);
+  } else {
+    static_assert(std::is_same_v<T, std::vector<std::string>>);
+    return cfg.read_str_vec(key);
+  }
+}
 
 } // namespace broker

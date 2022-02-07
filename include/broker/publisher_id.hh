@@ -4,14 +4,14 @@
 #include <string>
 #include <tuple>
 
-#include <caf/node_id.hpp>
+#include "broker/endpoint_id.hh"
 
 namespace broker {
 
 /// Uniquely identifies a *publisher* in the distributed system.
 struct publisher_id {
   /// Identifies the @ref endpoint instance that hosts the *publisher*.
-  caf::node_id endpoint;
+  endpoint_id endpoint;
 
   /// Identifies the local object that published a message, data store change,
   /// or event. Usually, this ID belongs to a @ref publisher or @ref store

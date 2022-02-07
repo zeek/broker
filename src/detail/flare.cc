@@ -7,7 +7,9 @@
 
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
-#include "broker/logger.hh"
+#include "broker/internal/logger.hh"
+
+#include <caf/io/network/native_socket.hpp>
 
 #ifdef BROKER_WINDOWS
 
@@ -59,6 +61,8 @@ namespace broker::detail {
 
 namespace {
 
+namespace net = caf::io::network;
+
 constexpr size_t stack_buffer_size = 256;
 
 struct stack_buffer {
@@ -72,15 +76,14 @@ struct stack_buffer {
 } // namespace
 
 flare::flare() {
-  using namespace caf::io::network;
-  auto [first, second] = create_pipe();
+  auto [first, second] = net::create_pipe();
   fds_[0] = first;
   fds_[1] = second;
-  if (auto res = child_process_inherit(first, false); !res)
+  if (auto res = net::child_process_inherit(first, false); !res)
     BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << res.error());
-  if (auto res = child_process_inherit(second, false); !res)
+  if (auto res = net::child_process_inherit(second, false); !res)
     BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << res.error());
-  if (auto res = nonblocking(first, true); !res) {
+  if (auto res = net::nonblocking(first, true); !res) {
     BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << res.error());
     std::terminate();
   }
@@ -90,12 +93,11 @@ flare::flare() {
 }
 
 flare::~flare() {
-  using caf::io::network::close_socket;
-  close_socket(fds_[0]);
-  close_socket(fds_[1]);
+  net::close_socket(fds_[0]);
+  net::close_socket(fds_[1]);
 }
 
-flare::native_socket flare::fd() const {
+native_socket flare::fd() const {
   return fds_[0];
 }
 

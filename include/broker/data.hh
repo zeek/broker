@@ -6,12 +6,8 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
-
-#include <caf/default_sum_type_access.hpp>
-#include <caf/fwd.hpp>
-#include <caf/sum_type_access.hpp>
-#include <caf/variant.hpp>
 
 #include "broker/address.hh"
 #include "broker/bad_variant_access.hh"
@@ -20,7 +16,6 @@
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
-#include "broker/optional.hh"
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
@@ -47,7 +42,7 @@ using table = std::map<data, data>;
 /// @relates table
 bool convert(const table& t, std::string& str);
 
-using data_variant = caf::variant<
+using data_variant = std::variant<
   none,
   boolean,
   count,
@@ -69,8 +64,6 @@ using data_variant = caf::variant<
 /// different primitive or compound types.
 class data {
 public:
-  using types = typename data_variant::types;
-
   enum class type : uint8_t {
     address,
     boolean,
@@ -152,13 +145,13 @@ public:
 
   static data from_type(type);
 
-  // Needed by caf::default_variant_access.
-  data_variant& get_data() {
+  /// Needed by `get` function overloads.
+  [[nodiscard]] data_variant& get_data() noexcept {
     return data_;
   }
 
-  // Needed by caf::default_variant_access.
-  const data_variant& get_data() const {
+  /// Needed by `get` function overloads.
+  [[nodiscard]] const data_variant& get_data() const noexcept {
     return data_;
   }
 
@@ -229,20 +222,26 @@ bool inspect(Inspector& f, data& x) {
 }
 
 /// @relates data
-bool convert(const data& d, std::string& str);
+bool convert(const data& x, std::string& str);
 
 /// @relates data
-bool convert(const data& d, caf::node_id& node);
+bool convert(const data& x, endpoint_id& node);
 
 /// @relates data
-bool convert(const caf::node_id& node, data& d);
+bool convert(const endpoint_id& node, data& x);
 
 /// @relates data
-inline std::string to_string(const broker::data& d) {
-  std::string s;
-  convert(d, s);
-  return s;
+inline std::string to_string(const data& x) {
+  std::string str;
+  convert(x, str);
+  return str;
 }
+
+/// @relates data
+std::string to_string(const expected<data>& x);
+
+/// @relates data
+std::string to_string(const vector& x);
 
 inline bool operator<(const data& x, const data& y) {
   return x.get_data() < y.get_data();
@@ -271,38 +270,63 @@ inline bool operator!=(const data& x, const data& y) {
 // --- compatibility/wrapper functionality (may be removed later) --------------
 
 template <class T>
-inline bool is(const data& v) {
-  return caf::holds_alternative<T>(v);
+bool is(const data& x) {
+  return std::holds_alternative<T>(x.get_data());
 }
 
 template <class T>
-inline T* get_if(data& d) {
-  return caf::get_if<T>(&d);
+bool holds_alternative(const data& x) {
+  return std::holds_alternative<T>(x.get_data());
 }
 
 template <class T>
-inline const T* get_if(const data& d) {
-  return caf::get_if<T>(&d);
+T* get_if(data* x) {
+  return std::get_if<T>(std::addressof(x->get_data()));
 }
 
 template <class T>
-inline T& get(data& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
-    return *rval;
-  throw bad_variant_access{};
+T* get_if(data& x) {
+  return std::get_if<T>(std::addressof(x.get_data()));
 }
 
 template <class T>
-inline const T& get(const data& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
-    return *rval;
-  throw bad_variant_access{};
+const T* get_if(const data* x) {
+  return std::get_if<T>(std::addressof(x->get_data()));
+}
+template <class T>
+const T* get_if(const data& x) {
+  return std::get_if<T>(std::addressof(x.get_data()));
+}
+
+template <class T>
+T& get(data& x) {
+  if (auto ptr = get_if<T>(&x))
+    return *ptr;
+  else
+    throw bad_variant_access{};
+}
+
+template <class T>
+const T& get(const data& x) {
+  if (auto ptr = get_if<T>(&x))
+    return *ptr;
+  else
+    throw bad_variant_access{};
 }
 
 template <class Visitor>
-typename detail::remove_reference_t<Visitor>::result_type
-inline visit(Visitor&& visitor, data d) {
-  return caf::visit(std::forward<Visitor>(visitor), std::move(d));
+decltype(auto) visit(Visitor&& visitor, data& x) {
+  return std::visit(std::forward<Visitor>(visitor), x.get_data());
+}
+
+template <class Visitor>
+decltype(auto) visit(Visitor&& visitor, const data& x) {
+  return std::visit(std::forward<Visitor>(visitor), x.get_data());
+}
+
+template <class Visitor>
+decltype(auto) visit(Visitor&& visitor, data&& x) {
+  return std::visit(std::forward<Visitor>(visitor), std::move(x.get_data()));
 }
 
 // --- convenience functions ---------------------------------------------------
@@ -337,10 +361,11 @@ bool contains(const vector& xs) {
 }
 
 template <class...Ts>
-bool contains(const data& d) {
-  if (auto xs = get_if<vector>(d))
+bool contains(const data& x) {
+  if (auto xs = get_if<vector>(x))
     return contains<Ts...>(*xs);
-  return false;
+  else
+    return false;
 }
 } // namespace broker
 
@@ -357,15 +382,6 @@ size_t fnv_hash(const broker::table::value_type& x);
 size_t fnv_hash(const broker::table& x);
 
 } // namespace broker::detail
-
-// --- treat data as sum type (equivalent to variant) --------------------------
-
-namespace caf {
-
-template <>
-struct sum_type_access<broker::data> : default_sum_type_access<broker::data> {};
-
-} // namespace caf
 
 // --- implementations of std::hash --------------------------------------------
 

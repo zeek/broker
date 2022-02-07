@@ -1,11 +1,8 @@
 #pragma once
 
-#include <chrono>
+#include "broker/time.hh"
 
-#include <caf/timespan.hpp>
-
-namespace broker {
-namespace timeout {
+namespace broker::timeout {
 
 using std::chrono::milliseconds;
 using std::chrono::seconds;
@@ -19,8 +16,4 @@ constexpr auto subscribe = seconds(5);
 /// Timeout for interacting with a data store frontend
 constexpr auto frontend = seconds(10);
 
-/// Infinite timeout.
-constexpr auto infinite = caf::infinite;
-
-} // namespace timeout
-} // namespace broker
+} // namespace broker::timeout

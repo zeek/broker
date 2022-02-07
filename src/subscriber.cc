@@ -1,4 +1,3 @@
-#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/subscriber.hh"
 
 #include <cstddef>
@@ -6,17 +5,23 @@
 #include <chrono>
 #include <numeric>
 
+#include <caf/event_based_actor.hpp>
 #include <caf/scheduled_actor.hpp>
+#include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
-
-#include "broker/atoms.hh"
-#include "broker/endpoint.hh"
-#include "broker/filter_type.hh"
-#include "broker/logger.hh"
+#include <caf/stateful_actor.hpp>
 
 #include "broker/detail/assert.hh"
+#include "broker/endpoint.hh"
+#include "broker/filter_type.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/type_id.hh"
 
-using namespace caf;
+using broker::internal::facade;
+using broker::internal::native;
+
+namespace atom = broker::internal::atom;
 
 namespace broker {
 
@@ -52,13 +57,13 @@ struct subscriber_worker_state {
 
 const char* subscriber_worker_state::name = "subscriber_worker";
 
-class subscriber_sink : public stream_sink<data_message> {
+class subscriber_sink : public caf::stream_sink<data_message> {
 public:
-  using super = stream_sink<data_message>;
+  using super = caf::stream_sink<data_message>;
 
   using queue_ptr = detail::shared_subscriber_queue_ptr<>;
 
-  subscriber_sink(scheduled_actor* self, subscriber_worker_state* state,
+  subscriber_sink(caf::scheduled_actor* self, subscriber_worker_state* state,
                   queue_ptr qptr, size_t max_qsize)
     : stream_manager(self),
       super(self),
@@ -70,12 +75,12 @@ public:
 
   using super::congested;
 
-  bool congested(const inbound_path&) const noexcept override {
+  bool congested(const caf::inbound_path&) const noexcept override {
     return queue_->buffer_size() >= max_qsize_;
   }
 
 protected:
-   void handle(inbound_path*, downstream_msg::batch& x) override {
+   void handle(caf::inbound_path*, caf::downstream_msg::batch& x) override {
     BROKER_TRACE(BROKER_ARG(x));
     using vec_type = std::vector<data_message>;
     if (x.xs.match_elements<vec_type>()) {
@@ -95,26 +100,26 @@ private:
   size_t max_qsize_;
 };
 
-behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
-                           endpoint* ep,
-                           detail::shared_subscriber_queue_ptr<> qptr,
-                           std::vector<topic> ts, size_t max_qsize) {
-  self->send(self * ep->core(), atom::join_v, std::move(ts));
-  self->set_default_handler(skip);
+caf::behavior
+subscriber_worker(caf::stateful_actor<subscriber_worker_state>* self,
+                  endpoint* ep, detail::shared_subscriber_queue_ptr<> qptr,
+                  std::vector<topic> ts, size_t max_qsize) {
+  self->send(self * native(ep->core()), atom::join_v, std::move(ts));
+  self->set_default_handler(caf::skip);
   return {
-    [=](const endpoint::stream_type& in) {
+    [=](caf::stream<data_message> in) {
       BROKER_ASSERT(qptr != nullptr);
-      auto mgr = make_counted<subscriber_sink>(self, &self->state, qptr,
-                                               max_qsize);
+      auto mgr = caf::make_counted<subscriber_sink>(self, &self->state, qptr,
+                                                    max_qsize);
       auto slot = mgr->add_unchecked_inbound_path(in);
-      if (slot == invalid_stream_slot) {
+      if (slot == caf::invalid_stream_slot) {
         BROKER_WARNING("failed to init stream to subscriber_worker");
         return;
       }
       auto path = mgr->get_inbound_path(slot);
       BROKER_ASSERT(path != nullptr);
       auto slot_at_sender = path->slots.sender;
-      self->set_default_handler(print_and_drop);
+      self->set_default_handler(caf::print_and_drop);
       self->delayed_send(self, std::chrono::seconds(1), atom::tick_v);
       self->become(
         [=](atom::resume) {
@@ -124,10 +129,10 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
           // manager.
         },
         [=](atom::join a0, atom::update a1, filter_type& f) {
-          self->send(ep->core(), a0, a1, slot_at_sender, std::move(f));
+          self->send(native(ep->core()), a0, a1, slot_at_sender, std::move(f));
         },
         [=](atom::join a0, atom::update a1, filter_type& f, caf::actor& who) {
-          self->send(ep->core(), a0, a1, slot_at_sender, std::move(f),
+          self->send(native(ep->core()), a0, a1, slot_at_sender, std::move(f),
                      std::move(who));
         },
         [=](atom::tick) {
@@ -146,24 +151,23 @@ behavior subscriber_worker(stateful_actor<subscriber_worker_state>* self,
           if (x)
             self->delayed_send(self, std::chrono::seconds(1),
                                atom::tick_v);
-        }
-      );
-    }
-  };
+        });
+    }};
 }
 
 } // namespace <anonymous>
 
-subscriber::subscriber(endpoint& e, std::vector<topic> ts, size_t max_qsize)
-  : super(max_qsize), filter_(std::move(ts)), ep_(e) {
+subscriber::subscriber(endpoint& ep, std::vector<topic> ts, size_t max_qsize)
+  : super(max_qsize), filter_(std::move(ts)), ep_(&ep) {
   BROKER_INFO("creating subscriber for topic(s)" << filter_);
-  worker_ = ep_.get().system().spawn(subscriber_worker, &ep_.get(), queue_,
-                                     filter_, max_qsize);
+  auto& sys = internal::endpoint_access{ep_}.sys();
+  auto hdl = sys.spawn(subscriber_worker, ep_, queue_, filter_, max_qsize);
+  worker_ = facade(hdl);
 }
 
 subscriber::~subscriber() {
-  if ( worker_ )
-    anon_send_exit(worker_, exit_reason::user_shutdown);
+  if (worker_)
+    caf::anon_send_exit(native(worker_), caf::exit_reason::user_shutdown);
 }
 
 size_t subscriber::rate() const {
@@ -177,11 +181,11 @@ void subscriber::add_topic(topic x, bool block) {
   if (i == e) {
     filter_.emplace_back(std::move(x));
     if (block) {
-      caf::scoped_actor self{ep_.get().system()};
-      self->send(worker_, atom::join_v, atom::update_v, filter_, self);
+      caf::scoped_actor self{internal::endpoint_access{ep_}.sys()};
+      self->send(native(worker_), atom::join_v, atom::update_v, filter_, self);
       self->receive([&](bool){});
     } else {
-      anon_send(worker_, atom::join_v, atom::update_v, filter_);
+      anon_send(native(worker_), atom::join_v, atom::update_v, filter_);
     }
   }
 }
@@ -193,27 +197,27 @@ void subscriber::remove_topic(topic x, bool block) {
   if (i != filter_.end()) {
     filter_.erase(i);
     if (block) {
-      caf::scoped_actor self{ep_.get().system()};
-      self->send(worker_, atom::join_v, atom::update_v, filter_, self);
+      caf::scoped_actor self{internal::endpoint_access{ep_}.sys()};
+      self->send(native(worker_), atom::join_v, atom::update_v, filter_, self);
       self->receive([&](bool){});
     } else {
-      anon_send(worker_, atom::join_v, atom::update_v, filter_);
+      anon_send(native(worker_), atom::join_v, atom::update_v, filter_);
     }
   }
 }
 
 void subscriber::set_rate_calculation(bool x) {
-  anon_send(worker_, atom::tick_v, x);
+  caf::anon_send(native(worker_), atom::tick_v, x);
 }
 
 void subscriber::became_not_full() {
-  anon_send(worker_, atom::resume_v);
+  caf::anon_send(native(worker_), atom::resume_v);
 }
 
 void subscriber::reset() {
   if (!worker_)
     return;
-  anon_send_exit(worker_, exit_reason::user_shutdown);
+  caf::anon_send_exit(native(worker_), caf::exit_reason::user_shutdown);
   worker_ = nullptr;
 }
 

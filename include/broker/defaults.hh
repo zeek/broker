@@ -1,15 +1,17 @@
 #pragma once
 
-#include "caf/string_view.hpp"
-#include "caf/timespan.hpp"
+#include "broker/time.hh"
+
+#include <limits>
+#include <string_view>
 
 // This header contains hard-coded default values for various Broker options.
 
 namespace broker::defaults {
 
-extern const caf::string_view recording_directory;
+constexpr std::string_view recording_directory = "";
 
-extern const size_t output_generator_file_cap;
+constexpr size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
 constexpr uint16_t ttl = 20;
 
@@ -19,12 +21,12 @@ constexpr size_t max_pending_inputs_per_source = 512;
 
 namespace broker::defaults::store {
 
-extern const caf::timespan tick_interval;
+constexpr timespan tick_interval = std::chrono::milliseconds(50);
 
 } // namespace broker::defaults::store
 
 namespace broker::defaults::metrics {
 
-constexpr caf::timespan export_interval = std::chrono::seconds(1);
+constexpr timespan export_interval = std::chrono::seconds(1);
 
 } // namespace broker::defaults::metrics::export

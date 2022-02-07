@@ -1,10 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <variant>
 
-#include <caf/cow_tuple.hpp>
-#include <caf/variant.hpp>
-
+#include "broker/cow_tuple.hh"
 #include "broker/data.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
@@ -12,13 +11,13 @@
 namespace broker {
 
 /// A user-defined message with topic and data.
-using data_message = caf::cow_tuple<topic, data>;
+using data_message = cow_tuple<topic, data>;
 
 /// A broker-internal message with topic and command.
-using command_message = caf::cow_tuple<topic, internal_command>;
+using command_message = cow_tuple<topic, internal_command>;
 
 /// Value type of `node_message`.
-using node_message_content = caf::variant<data_message, command_message>;
+using node_message_content = std::variant<data_message, command_message>;
 
 /// A message for node-to-node communication with either a user-defined data
 /// message or a broker-internal command messages.
@@ -34,7 +33,7 @@ struct node_message {
 
 /// Returns whether `x` contains a ::node_message.
 inline bool is_data_message(const node_message_content& x) {
-  return caf::holds_alternative<data_message>(x);
+  return std::holds_alternative<data_message>(x);
 }
 
 /// Returns whether `x` contains a ::node_message.
@@ -44,7 +43,7 @@ inline bool is_data_message(const node_message& x) {
 
 /// Returns whether `x` contains a ::command_message.
 inline bool is_command_message(const node_message_content& x) {
-  return caf::holds_alternative<command_message>(x);
+  return std::holds_alternative<command_message>(x);
 }
 
 /// Returns whether `x` contains a ::command_message.
@@ -90,9 +89,9 @@ inline const topic& get_topic(const command_message& x) {
 /// Retrieves the topic from a ::generic_message.
 inline const topic& get_topic(const node_message_content& x) {
   if (is_data_message(x))
-    return get_topic(caf::get<data_message>(x));
+    return get_topic(std::get<data_message>(x));
   else
-    return get_topic(caf::get<command_message>(x));
+    return get_topic(std::get<command_message>(x));
 }
 
 /// Retrieves the topic from a ::generic_message.
@@ -116,9 +115,9 @@ inline topic&& move_topic(command_message& x) {
 /// its content if other ::node_message objects hold references to it.
 inline topic&& move_topic(node_message_content& x) {
   if (is_data_message(x))
-    return move_topic(caf::get<data_message>(x));
+    return move_topic(std::get<data_message>(x));
   else
-    return move_topic(caf::get<command_message>(x));
+    return move_topic(std::get<command_message>(x));
 }
 
 /// Moves the topic out of a ::node_message. Causes `x` to make a lazy copy of
@@ -184,7 +183,7 @@ inline void force_unshared(command_message& x) {
 
 /// @copydoc force_unshared
 inline void force_unshared(node_message_content& x) {
-  if (caf::holds_alternative<data_message>(x))
+  if (std::holds_alternative<data_message>(x))
     force_unshared(get<data_message>(x));
   else
     force_unshared(get<command_message>(x));

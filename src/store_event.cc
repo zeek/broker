@@ -16,8 +16,16 @@ constexpr const char* type_strings[] = {
 bool is_publisher_id(const vector& xs, size_t endpoint_index,
                      size_t object_index) {
   return (is<none>(xs[endpoint_index]) && is<none>(xs[object_index]))
-         || (can_convert_to<caf::node_id>(xs[endpoint_index])
+         || (can_convert_to<endpoint_id>(xs[endpoint_index])
              && is<uint64_t>(xs[object_index]));
+}
+
+template <class T>
+std::string opt_to_string(const std::optional<T>& x) {
+  if (x)
+    return caf::deep_to_string(*x);
+  else
+    return "null";
 }
 
 } // namespace
@@ -72,7 +80,7 @@ std::string to_string(const store_event::insert& x) {
   result += ", ";
   result += to_string(x.value());
   result += ", ";
-  result += caf::deep_to_string(x.expiry());
+  result += opt_to_string(x.expiry());
   result += ", ";
   result += caf::deep_to_string(x.publisher());
   result += ')';
@@ -89,7 +97,7 @@ std::string to_string(const store_event::update& x) {
   result += ", ";
   result += to_string(x.new_value());
   result += ", ";
-  result += caf::deep_to_string(x.expiry());
+  result += opt_to_string(x.expiry());
   result += ", ";
   result += caf::deep_to_string(x.publisher());
   result += ')';

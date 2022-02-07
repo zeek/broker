@@ -15,6 +15,7 @@
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/native.hh"
 
 #include <cassert>
 
@@ -109,6 +110,12 @@ public:
   caf::scoped_actor self;
   scheduler_type& sched;
 
+  // A couple of predefined endpoint IDs for testing purposes. Filled from A-Z.
+  std::map<char, broker::endpoint_id> ids;
+
+  // String representation of all `ids`.
+  std::map<char, std::string> str_ids;
+
   using super::run;
 
   void run();
@@ -134,7 +141,27 @@ public:
 template <class Fixture>
 class net_fixture : public point_to_point_fixture<Fixture> {
 public:
+  using super = point_to_point_fixture<Fixture>;
+
+  using planet_type = typename super::planet_type;
+
   static_assert(std::is_base_of<base_fixture, Fixture>::value);
+
+  void bridge(planet_type& left, planet_type& right) {
+    auto server_handle = make_accept_handle();
+    left.mpx.prepare_connection(server_handle, make_connection_handle(),
+                                right.mpx, "zeek", 4040,
+                                make_connection_handle());
+    left.sched.after_next_enqueue([&, this] {
+      // peer `right` to 'zeek:4040'
+      run();
+      super::loop_after_next_enqueue(right);
+      right.ep.peer("zeek", 4040);
+    });
+    left.ep.listen("", 4040);
+  }
+
+  using super::run;
 
   void run(caf::timespan t) {
     auto& n1 = this->earth;
@@ -185,16 +212,39 @@ public:
   void run(std::chrono::duration<Rep, Period> t) {
     run(std::chrono::duration_cast<caf::timespan>(t));
   }
+
+  // Returns the next unused accept handle.
+  caf::io::accept_handle make_accept_handle() {
+    return caf::io::accept_handle::from_int(next_handle_id++);
+  }
+
+  // Returns the next unused connection handle.
+  caf::io::connection_handle make_connection_handle() {
+    return caf::io::connection_handle::from_int(next_handle_id++);
+  }
+
+  uint64_t next_handle_id = 1;
 };
 
-inline broker::data value_of(caf::expected<broker::data> x) {
+// -- utility ------------------------------------------------------------------
+
+template <class T>
+T unbox(broker::expected<T> x) {
+  if (!x)
+    FAIL(to_string(x.error()));
+  else
+    return std::move(*x);
+}
+
+
+inline broker::data value_of(broker::expected<broker::data> x) {
   if (!x) {
     FAIL("cannot unbox expected<data>: " << to_string(x.error()));
   }
   return std::move(*x);
 }
 
-inline caf::error error_of(caf::expected<broker::data> x) {
+inline broker::error error_of(broker::expected<broker::data> x) {
   if (x) {
     FAIL("cannot get error of expected<data>, contains value: "
          << to_string(*x));

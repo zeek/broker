@@ -1,5 +1,5 @@
 #pragma once
 
-#include <caf/config.hpp>
+#include <cassert>
 
-#define BROKER_ASSERT CAF_ASSERT
+#define BROKER_ASSERT assert

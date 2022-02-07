@@ -1,16 +1,15 @@
 #pragma once
 
-#include <utility>
+#include <optional>
 #include <unordered_map>
-
-#include <caf/actor.hpp>
-#include <caf/variant.hpp>
-#include <caf/optional.hpp>
+#include <utility>
+#include <variant>
 
 #include "broker/data.hh"
 #include "broker/fwd.hh"
 #include "broker/publisher_id.hh"
 #include "broker/time.hh"
+#include "broker/worker.hh"
 
 namespace broker {
 
@@ -18,7 +17,7 @@ namespace broker {
 struct put_command {
   data key;
   data value;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   publisher_id publisher;
 };
 
@@ -33,8 +32,8 @@ bool inspect(Inspector& f, put_command& x) {
 struct put_unique_command {
   data key;
   data value;
-  caf::optional<timespan> expiry;
-  caf::actor who;
+  std::optional<timespan> expiry;
+  worker who;
   request_id req_id;
   publisher_id publisher;
 };
@@ -79,7 +78,7 @@ struct add_command {
   data key;
   data value;
   data::type init_type;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   publisher_id publisher;
 };
 
@@ -95,7 +94,7 @@ bool inspect(Inspector& f, add_command& x) {
 struct subtract_command {
   data key;
   data value;
-  caf::optional<timespan> expiry;
+  std::optional<timespan> expiry;
   publisher_id publisher;
 };
 
@@ -108,8 +107,8 @@ bool inspect(Inspector& f, subtract_command& x) {
 
 /// Causes the master to reply with a snapshot of its state.
 struct snapshot_command {
-  caf::actor remote_core;
-  caf::actor remote_clone;
+  worker remote_core;
+  worker remote_clone;
 };
 
 template <class Inspector>
@@ -122,7 +121,7 @@ bool inspect(Inspector& f, snapshot_command& x) {
 /// clones to coordinate the reception of snapshots with the stream of
 /// updates that the master may have independently made to it.
 struct snapshot_sync_command {
-  caf::actor remote_clone;
+  worker remote_clone;
 };
 
 template <class Inspector>
@@ -167,7 +166,7 @@ public:
   };
 
   using variant_type
-    = caf::variant<none, put_command, put_unique_command, erase_command,
+    = std::variant<none, put_command, put_unique_command, erase_command,
                    expire_command, add_command, subtract_command,
                    snapshot_command, snapshot_sync_command, set_command,
                    clear_command>;
@@ -224,14 +223,14 @@ INTERNAL_COMMAND_TAG_ORACLE(clear_command);
 } // namespace detail
 
 /// Returns the `internal_command::type` tag for `T`.
-/// @relates internal_internal_command
+/// @relates internal_command
 template <class T>
 constexpr internal_command::type internal_command_tag() {
   return detail::internal_command_tag_oracle<T>::value;
 }
 
 /// Returns the `internal_command::type` tag for `T` as `uint8_t`.
-/// @relates internal_internal_command
+/// @relates internal_command
 template <class T>
 constexpr uint8_t internal_command_uint_tag() {
   return static_cast<uint8_t>(detail::internal_command_tag_oracle<T>::value);

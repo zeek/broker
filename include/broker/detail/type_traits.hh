@@ -4,8 +4,6 @@
 
 #include <type_traits>
 
-#include <caf/detail/type_traits.hpp>
-
 namespace broker {
 
 class data;
@@ -13,6 +11,12 @@ class status;
 class topic;
 
 namespace detail {
+
+template <class>
+struct always_false : std::false_type {};
+
+template <class T>
+inline constexpr bool always_false_v = always_false<T>::value;
 
 // std::enable_if_t shortcut from C++14.
 template <bool B, class T = void>
@@ -89,6 +93,9 @@ struct are_same<T0, T1, Ts...> :
     std::false_type
   > {};
 
+template <class... Ts>
+inline constexpr bool are_same_v = are_same<Ts...>::value;
+
 // Trait that checks for an overload of convert(const From&, T&).
 template <class From, class To>
 struct has_convert {
@@ -106,64 +113,6 @@ struct has_convert {
   static constexpr bool value = type::value;
 };
 
-// Traits to verify callback types.
-
-template <
-  class F,
-  class T = caf::detail::get_callable_trait<F>,
-  class A = typename T::arg_types
->
-struct is_message_callback
-  : conjunction<
-      std::is_same<void, typename T::result_type>,
-      std::integral_constant<bool, caf::detail::tl_size<A>::value == 2>,
-      std::is_same<decay_t<typename caf::detail::tl_head<A>::type>, topic>,
-      std::is_same<decay_t<typename caf::detail::tl_back<A>::type>, data>
-    > {};
-
-template <
-  class F,
-  class T = caf::detail::get_callable_trait<F>,
-  class A = typename T::arg_types
->
-struct is_status_callback
-  : conjunction<
-      std::is_same<void, typename T::result_type>,
-      std::integral_constant<bool, caf::detail::tl_size<A>::value == 1>,
-      std::is_same<decay_t<typename caf::detail::tl_head<A>::type>, status>
-    > {};
-
-// As above, but produces a much friendler compiler error message.
-
-template <class Callback>
-void verify_message_callback() {
-  using callback_type = caf::detail::get_callable_trait<Callback>;
-  using args = typename callback_type::arg_types;
-  using first = typename caf::detail::tl_head<args>::type;
-  using second = typename caf::detail::tl_back<args>::type;
-  static_assert(std::is_same<void, typename callback_type::result_type>{},
-                "data callback must not have a return value");
-  static_assert(caf::detail::tl_size<args>::value == 2,
-                "data callback must have two arguments");
-  static_assert(std::is_same<detail::decay_t<first>, topic>::value,
-                "first argument must be of type broker::topic");
-  static_assert(std::is_same<detail::decay_t<second>, data>::value,
-                "second argument must be of type broker::data");
-}
-
-template <class Callback>
-void verify_status_callback() {
-  using callback_type = caf::detail::get_callable_trait<Callback>;
-  using args = typename callback_type::arg_types;
-  using first = typename caf::detail::tl_head<args>::type;
-  static_assert(std::is_same<void, typename callback_type::result_type>{},
-                "status callback must not have a return value");
-  static_assert(caf::detail::tl_size<args>::value == 1,
-                "status callback can have only one argument");
-  static_assert(std::is_same<detail::decay_t<first>, status>::value,
-                "status callback must have broker::status as argument type");
-}
-
 template <class T, size_t = sizeof(T)>
 std::true_type is_complete_test(T*);
 
@@ -177,6 +126,77 @@ constexpr bool is_complete
 
 template <class... Ts>
 struct type_list {};
+
+template <class U>
+auto has_apply_operator_test(U*) -> decltype(&U::operator(), std::true_type());
+
+auto has_apply_operator_test(...) -> std::false_type;
+
+template <class T>
+inline constexpr bool has_apply_operator
+  = decltype(has_apply_operator_test(std::declval<T*>()))::value;
+
+template <class F>
+struct normalized_signature;
+
+template <class R, class... Ts>
+struct normalized_signature<R(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R (*)(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class R, class... Ts>
+struct normalized_signature<R (*)(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...)> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) const> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) noexcept> {
+  using type = R(Ts...);
+};
+
+template <class C, typename R, class... Ts>
+struct normalized_signature<R (C::*)(Ts...) const noexcept> {
+  using type = R(Ts...);
+};
+
+template <class F>
+using normalized_signature_t = typename normalized_signature<F>::type;
+
+template <class F, bool HasApplyOperator = has_apply_operator<F>>
+struct signature_of_oracle;
+
+template <class F>
+struct signature_of_oracle<F, false> {
+  using type = normalized_signature_t<F>;
+};
+
+template <class F>
+struct signature_of_oracle<F, true> {
+  using type = normalized_signature_t<decltype(&F::operator())>;
+};
+
+template <class F>
+using signature_of_t = typename signature_of_oracle<F>::type;
 
 } // namespace detail
 } // namespace broker

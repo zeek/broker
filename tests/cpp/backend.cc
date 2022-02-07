@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -26,7 +27,6 @@
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
-#include "broker/optional.hh"
 #include "broker/snapshot.hh"
 #include "broker/time.hh"
 
@@ -44,7 +44,7 @@ class meta_backend : public detail::abstract_backend {
 public:
   meta_backend(backend_options opts) {
     backends_.push_back(detail::make_backend(backend::memory, opts));
-    auto& path = caf::get<std::string>(opts["path"]);
+    auto& path = broker::get<std::string>(opts["path"]);
     // Make sure both backends have their own filesystem storage to work with.
     path += ".sqlite";
     paths_.push_back(path);
@@ -57,7 +57,7 @@ public:
   }
 
   expected<void> put(const data& key, data value,
-                     optional<timestamp> expiry) override {
+                     std::optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.put(key, value, expiry);
@@ -66,7 +66,7 @@ public:
   }
 
   expected<void> add(const data& key, const data& value, data::type init_type,
-                     optional<timestamp> expiry) override {
+                     std::optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.add(key, value, init_type, expiry);
@@ -75,7 +75,7 @@ public:
   }
 
   expected<void> subtract(const data& key, const data& value,
-                        optional<timestamp> expiry) override {
+                        std::optional<timestamp> expiry) override {
     return perform<void>(
       [&](detail::abstract_backend& backend) {
         return backend.subtract(key, value, expiry);

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/publisher_id.hh"
+
+#include <cstdint>
+#include <string>
 
 namespace broker {
 
@@ -29,7 +29,7 @@ public:
   ///   key: data,
   ///   value: data,
   ///   expiry: optional<timespan>,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -66,14 +66,15 @@ public:
       return (*xs_)[3];
     }
 
-    caf::optional<timespan> expiry() const noexcept {
+    std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
-      return nil;
+      else
+        return {};
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[5])) {
+      if (auto value = to<endpoint_id>((*xs_)[5])) {
         return {std::move(*value), get<uint64_t>((*xs_)[6])};
       }
       return {};
@@ -96,7 +97,7 @@ public:
   ///   key: data,
   ///   value: data,
   ///   expiry: optional<timespan>
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]`.
   /// ```
@@ -134,17 +135,18 @@ public:
       return (*xs_)[4];
     }
 
-    caf::optional<timespan> expiry() const noexcept {
+    std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[5]))
         return *value;
-      return nil;
+      else
+        return {};
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[6])) {
+      if (auto value = to<endpoint_id>((*xs_)[6]))
         return {*value, get<uint64_t>((*xs_)[7])};
-      }
-      return {};
+      else
+        return {};
     }
 
   private:
@@ -162,7 +164,7 @@ public:
   ///   "erase",
   ///   store_id: string,
   ///   key: data,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -193,7 +195,7 @@ public:
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[3])) {
+      if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
       }
       return {};
@@ -214,7 +216,7 @@ public:
   ///   "expire",
   ///   store_id: string,
   ///   key: data,
-  ///   publisher_endpoint: caf::node_id,
+  ///   publisher_endpoint: endpoint_id,
   ///   publisher_object: uint64_t
   /// ]
   /// ```
@@ -245,10 +247,10 @@ public:
     }
 
     publisher_id publisher() const noexcept {
-      if (auto value = to<caf::node_id>((*xs_)[3])) {
+      if (auto value = to<endpoint_id>((*xs_)[3]))
         return {*value, get<uint64_t>((*xs_)[4])};
-      }
-      return {};
+      else
+        return {};
     }
 
   private:

@@ -3,13 +3,10 @@
 #include <functional>
 #include <string>
 
-#include <caf/none.hpp>
-
 namespace broker {
 
 /// An empty class with a single instance only.
-struct none : caf::none_t {
-};
+struct none {};
 
 /// @relates none
 inline constexpr bool operator==(none, none) noexcept {
@@ -46,7 +43,7 @@ inline bool convert(none, std::string& str) {
   return true;
 }
 
-/// The only instance of ::none.
+/// The only instance of @ref none.
 /// @relates none
 constexpr auto nil = none{};
 

@@ -6,24 +6,25 @@
 #include <thread>
 #include <condition_variable>
 
-#include <caf/ref_counted.hpp>
-
 #include "broker/data.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
 #include "broker/detail/flare.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// Base class for `shared_publisher_queue` and `shared_subscriber_queue`.
 template <class ValueType = data_message>
-class shared_queue : public caf::ref_counted {
+class shared_queue {
 public:
   using value_type = ValueType;
 
   using guard_type = std::unique_lock<std::mutex>;
+
+  virtual ~shared_queue() {
+    // nop
+  }
 
   // --- accessors -------------------------------------------------------------
 
@@ -60,7 +61,7 @@ public:
 
   template<class Duration>
   bool wait_on_flare(Duration timeout) {
-    if (caf::is_infinite(timeout)) {
+    if (timeout == infinite) {
       fx_.await_one();
       return true;
     }
@@ -96,5 +97,4 @@ protected:
   std::atomic<size_t> rate_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

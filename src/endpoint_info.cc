@@ -7,6 +7,7 @@
 #include <caf/uri.hpp>
 
 #include "broker/data.hh"
+#include "broker/internal/native.hh"
 
 namespace broker {
 
@@ -22,8 +23,9 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   // - Field 2 - 4 are either *all* none or all defined.
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src))
-    return can_convert_to<caf::node_id>(src[0]);
-  return false;
+    return can_convert_to<endpoint_id>(src[0]);
+  else
+    return false;
 }
 
 bool convert(const data& src, endpoint_info& dst) {
@@ -36,17 +38,17 @@ bool convert(const data& src, endpoint_info& dst) {
     return false;
   // Parse the node (field 1).
   if (auto str = get_if<std::string>(xs[0])) {
-    if (auto err = caf::parse(*str, dst.node))
+    if (auto err = caf::parse(*str, internal::native(dst.node)))
       return false;
   } else if (is<none>(xs[0])) {
-    dst.node = caf::node_id{};
+    internal::native(dst.node) = caf::node_id{};
   } else {
     // Type mismatch.
     return false;
   }
   // Parse the network (fields 2 - 4).
   if (is<none>(xs[1]) && is<none>(xs[2]) && is<none>(xs[3])) {
-    dst.network = nil;
+    dst.network = std::nullopt;
   } else if (is<std::string>(xs[1]) && is<port>(xs[2]) && is<count>(xs[3])) {
     dst.network = network_info{};
     auto& net = *dst.network;
@@ -64,7 +66,7 @@ bool convert(const endpoint_info& src, data& dst) {
   vector result;
   result.resize(4);
   if (src.node)
-    result[0] = to_string(src.node);
+    result[0] = to_string(internal::native(src.node));
   if (src.network) {
     result[1] = src.network->address;
     result[2] = port{src.network->port, port::protocol::tcp};
@@ -76,7 +78,7 @@ bool convert(const endpoint_info& src, data& dst) {
 
 std::string to_string(const endpoint_info& x) {
   std::string result = "endpoint_info(";
-  result += to_string(x.node);
+  result += to_string(internal::native(x.node));
   result += ", ";
   result += caf::deep_to_string(x.network);
   result += ')';

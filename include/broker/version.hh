@@ -2,8 +2,7 @@
 
 #include <string>
 
-namespace broker {
-namespace version {
+namespace broker::version {
 
 /// The type used for version numbers.
 using type = unsigned;
@@ -11,7 +10,7 @@ using type = unsigned;
 constexpr type major = 2;
 constexpr type minor = 2;
 constexpr type patch = 0;
-constexpr auto suffix = "-4";
+constexpr auto suffix = "-16";
 
 constexpr type protocol = 2;
 
@@ -26,5 +25,4 @@ inline bool compatible(type v) {
 /// @returns A string representing the Broker version.
 std::string string();
 
-} // namespace version
-} // namespace broker
+} // namespace broker::version

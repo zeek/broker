@@ -5,8 +5,8 @@
 #include <caf/send.hpp>
 #include <caf/event_based_actor.hpp>
 
-#include "broker/atoms.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/logger.hh"
 
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
   auto& t = get_topic(msg);                                                    \

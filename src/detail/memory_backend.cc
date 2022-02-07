@@ -14,15 +14,15 @@ memory_backend::memory_backend(backend_options opts)
   // nop
 }
 
-expected<void>
-memory_backend::put(const data& key, data value, optional<timestamp> expiry) {
+expected<void> memory_backend::put(const data& key, data value,
+                                   std::optional<timestamp> expiry) {
   store_[key] = {std::move(value), std::move(expiry)};
   return {};
 }
 
 expected<void> memory_backend::add(const data& key, const data& value,
-								   data::type init_type,
-                                   optional<timestamp> expiry) {
+                                   data::type init_type,
+                                   std::optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end()) {
     if (init_type == data::type::none)
@@ -30,18 +30,18 @@ expected<void> memory_backend::add(const data& key, const data& value,
     auto newv = std::make_pair(data::from_type(init_type), expiry);
     i = store_.emplace(std::move(key), std::move(newv)).first;
   }
-  auto result = caf::visit(adder{value}, i->second.first);
+  auto result = visit(adder{value}, i->second.first);
   if (result)
     i->second.second = std::move(expiry);
   return result;
 }
 
 expected<void> memory_backend::subtract(const data& key, const data& value,
-                                        optional<timestamp> expiry) {
+                                        std::optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end())
     return ec::no_such_key;
-  auto result = caf::visit(remover{value}, i->second.first);
+  auto result = visit(remover{value}, i->second.first);
   if (result)
     i->second.second = std::move(expiry);
   return result;
@@ -88,7 +88,7 @@ expected<data> memory_backend::get(const data& key, const data& value) const {
   // We do not use the default implementation because operating directly on the
   // stored data element is more efficient in case the visitation returns an
   // error.
-  return caf::visit(retriever{value}, i->second.first);
+  return visit(retriever{value}, i->second.first);
 }
 
 expected<bool> memory_backend::exists(const data& key) const {

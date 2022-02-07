@@ -10,16 +10,16 @@ set(tests
   cpp/backend.cc
   cpp/core.cc
   cpp/data.cc
-  cpp/detail/central_dispatcher.cc
-  cpp/detail/data_generator.cc
-  cpp/detail/generator_file_writer.cc
-  cpp/detail/meta_command_writer.cc
-  cpp/detail/meta_data_writer.cc
-  cpp/detail/telemetry/collector.cc
-  cpp/detail/telemetry/exporter.cc
   cpp/error.cc
   cpp/filter_type.cc
   cpp/integration.cc
+  cpp/internal/central_dispatcher.cc
+  cpp/internal/data_generator.cc
+  cpp/internal/generator_file_writer.cc
+  cpp/internal/meta_command_writer.cc
+  cpp/internal/meta_data_writer.cc
+  cpp/internal/metric_collector.cc
+  cpp/internal/metric_exporter.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/publisher_id.cc
@@ -42,7 +42,7 @@ else ()
   set(libbroker broker_static)
 endif ()
 add_executable(broker-test ${tests})
-target_link_libraries(broker-test ${libbroker} CAF::test)
+target_link_libraries(broker-test PRIVATE ${libbroker} CAF::test CAF::core CAF::openssl CAF::io)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -77,11 +77,11 @@ endforeach ()
 ## -- Benchmark ---------------------------------------------------------------
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
-target_link_libraries(broker-benchmark ${libbroker})
+target_link_libraries(broker-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
 install(TARGETS broker-benchmark DESTINATION bin)
 
 add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
-target_link_libraries(broker-cluster-benchmark ${libbroker})
+target_link_libraries(broker-cluster-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
 install(TARGETS broker-cluster-benchmark DESTINATION bin)
 
 # -- Python -------------------------------------------------------------------

@@ -2,13 +2,12 @@
 
 #include "broker/data.hh"
 #include "broker/expected.hh"
-#include "broker/optional.hh"
 #include "broker/snapshot.hh"
 
 #include <deque>
+#include <optional>
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 using expirable = std::pair<broker::data, timestamp>;
 using expirables = std::deque<expirable>;
@@ -28,7 +27,7 @@ public:
   /// @param expiry An optional expiration time for the entry.
   /// @returns `nil` on success.
   virtual expected<void> put(const data& key, data value,
-                             optional<timestamp> expiry = {}) = 0;
+                             std::optional<timestamp> expiry = {}) = 0;
 
   /// Adds one value to another value.
   /// @param key The key associated with the existing value to add to.
@@ -38,7 +37,7 @@ public:
   /// @returns `nil` on success.
   virtual expected<void> add(const data& key, const data& value,
                              data::type init_type,
-                             optional<timestamp> expiry = {});
+                             std::optional<timestamp> expiry = {});
 
   /// Removes one value from another value.
   /// @param key The key associated with the existing value to subtract from.
@@ -46,7 +45,7 @@ public:
   /// @param t The point in time this modification took place.
   /// @returns `nil` on success.
   virtual expected<void> subtract(const data& key, const data& value,
-                                  optional<timestamp> expiry = {});
+                                  std::optional<timestamp> expiry = {});
 
   /// Removes a key and its associated value from the store, if it exists.
   /// @param key The key to use.
@@ -104,5 +103,4 @@ public:
   virtual expected<expirables> expiries() const = 0;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

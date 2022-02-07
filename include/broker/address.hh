@@ -1,19 +1,21 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
-#include <caf/detail/comparable.hpp>
-#include <caf/error.hpp>
-#include <caf/ip_address.hpp>
-#include <caf/string_view.hpp>
+#include "broker/detail/comparable.hh"
 
 namespace broker {
 
 /// Stores an IPv4 or IPv6 address.
-class address : caf::detail::comparable<address> {
+class address : detail::comparable<address> {
 public:
+  static constexpr size_t num_bytes = 16;
+
+  struct impl;
+
   /// Distinguishes between address types.
   enum class family : uint8_t {
     ipv4,
@@ -26,8 +28,11 @@ public:
     network,
   };
 
-  /// Default construct an invalid address.
-  address() = default;
+  address() noexcept;
+
+  address(const address&) noexcept;
+
+  explicit address(const impl*) noexcept;
 
   /// Construct an address from raw bytes.
   /// @param bytes A pointer to the raw representation.  This must point
@@ -35,6 +40,10 @@ public:
   /// @param fam The type of address.
   /// @param order The byte order in which *bytes* is stored.
   address(const uint32_t* bytes, family fam, byte_order order);
+
+  address& operator=(const address&) noexcept;
+
+  ~address();
 
   /// Mask out lower bits of the address.
   /// @param top_bits_to_keep The number of bits to *not* mask out, counting
@@ -46,9 +55,7 @@ public:
   bool mask(uint8_t top_bits_to_keep);
 
   /// @returns true if the address is IPv4.
-  bool is_v4() const noexcept {
-    return addr_.embeds_v4();
-  }
+  bool is_v4() const noexcept;
 
   /// @returns true if the address is IPv6.
   bool is_v6() const noexcept {
@@ -57,49 +64,45 @@ public:
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  std::array<uint8_t, 16>& bytes() {
-    return addr_.bytes();
-  }
+  std::array<uint8_t, 16>& bytes();
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  const std::array<uint8_t, 16>& bytes() const {
-    return addr_.bytes();
-  }
+  const std::array<uint8_t, 16>& bytes() const;
 
-  auto compare(const address& other) const noexcept {
-    return addr_.compare(other.addr_);
-  }
+  [[nodiscard]] int compare(const address& other) const noexcept;
 
-  size_t hash() const;
+  [[nodiscard]] size_t hash() const;
 
-  template <class Inspector>
-  friend bool inspect(Inspector& f, address& x) {
-    // We transparently expose the member variable. Hence, broker::address and
-    // caf::ip_address are one and the same to CAF inspectors.
-    return inspect(f, x.addr_);
-  }
+  [[nodiscard]] bool convert_to(std::string& str) const;
 
-  friend bool convert(const address& a, std::string& str) {
-    str = to_string(a.addr_);
-    return true;
-  }
+  [[nodiscard]] bool convert_from(const std::string& str);
 
-  friend bool convert(const std::string& str, address& a) {
-    if (auto err = parse(str, a.addr_))
-      return false;
-    return true;
-  }
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] impl* native_ptr() noexcept;
+
+  /// Returns a pointer to the native representation.
+  [[nodiscard]] const impl* native_ptr() const noexcept;
 
 private:
-  caf::ip_address addr_;
+  std::byte obj_[num_bytes];
 };
 
 /// @relates address
-bool convert(const std::string& str, address& a);
+inline bool convert(const std::string& str, address& a) {
+  return a.convert_from(str);
+}
 
 /// @relates address
-bool convert(const address& a, std::string& str);
+inline bool convert(const address& a, std::string& str) {
+  return a.convert_to(str);
+}
+
+/// @relates address
+template <class Inspector>
+bool inspect(Inspector& f, address& x) {
+  return f.object(x).fields(f.field("bytes", x.bytes()));
+}
 
 } // namespace broker
 

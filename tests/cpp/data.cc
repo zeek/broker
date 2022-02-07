@@ -7,12 +7,12 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
 
 #include "broker/convert.hh"
-#include "broker/optional.hh"
 
 using namespace broker;
 
@@ -93,20 +93,20 @@ TEST(subnet) {
 TEST(data - construction) {
   MESSAGE("default construction");
   data d;
-  CHECK(caf::get_if<none>(&d));
+  CHECK(get_if<none>(&d));
 }
 
 TEST(data - assignment) {
   data d;
   d = 42;
-  auto i = caf::get_if<integer>(&d);
+  auto i = get_if<integer>(&d);
   REQUIRE(i);
   CHECK_EQUAL(*i, 42);
   d = data{7};
-  i = caf::get_if<integer>(&d);
+  i = get_if<integer>(&d);
   CHECK_EQUAL(*i, 7);
   d = "foo";
-  auto s = caf::get_if<std::string>(&d);
+  auto s = get_if<std::string>(&d);
   REQUIRE(s);
   CHECK_EQUAL(*s, "foo");
 }

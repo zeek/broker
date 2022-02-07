@@ -2,20 +2,18 @@
 
 #include <vector>
 
-#include <caf/actor.hpp>
-#include <caf/variant.hpp>
-
 #include "broker/bad_variant_access.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
+#include "broker/worker.hh"
 
 #include "broker/detail/shared_subscriber_queue.hh"
 
 namespace broker {
 
-using status_variant = caf::variant<none, error, status>;
+using status_variant = std::variant<none, error, status>;
 
 /// Provides blocking access to a stream of endpoint events.
 class status_subscriber {
@@ -37,7 +35,7 @@ public:
   // --- access to values ------------------------------------------------------
 
   /// @copydoc subscriber::get
-  value_type get(caf::timestamp timeout);
+  value_type get(timestamp timeout);
 
   /// @copydoc subscriber::get
   template <class Duration>
@@ -46,18 +44,18 @@ public:
     do {
       if (auto maybe_msg = impl_.get(relative_timeout))
         result = convert(*maybe_msg);
-    } while (caf::holds_alternative<none>(result)
-             && caf::is_infinite(relative_timeout));
+    } while (std::holds_alternative<none>(result)
+             && relative_timeout == infinite);
     return result;
   }
 
   /// @copydoc subscriber::get
   value_type get() {
-    return get(caf::infinite);
+    return get(infinite);
   }
 
   /// @copydoc subscriber::get
-  std::vector<value_type> get(size_t num, caf::timestamp timeout);
+  std::vector<value_type> get(size_t num, timestamp timeout);
 
   /// @copydoc subscriber::get
   template <class Duration>
@@ -67,13 +65,13 @@ public:
       auto msgs = impl_.get(num, relative_timeout);
       for (auto& msg : msgs)
         append_converted(result, msg);
-    } while (result.empty() && caf::is_infinite(relative_timeout));
+    } while (result.empty() && relative_timeout == infinite);
     return result;
   }
 
   /// @copydoc subscriber::get
   std::vector<value_type> get(size_t num) {
-    return get(num, caf::infinite);
+    return get(num, infinite);
   }
 
   /// @copydoc subscriber::poll
@@ -90,7 +88,7 @@ public:
     return impl_.rate();
   }
 
-  const caf::actor& worker() const {
+  const broker::worker& worker() const {
     return impl_.worker();
   }
 
@@ -132,31 +130,33 @@ private:
 
 template <class T>
 inline bool is(const status_variant& v) {
-  return caf::holds_alternative<T>(v);
+  return holds_alternative<T>(v);
 }
 
 template <class T>
 inline T* get_if(status_variant& d) {
-  return caf::get_if<T>(&d);
+  return get_if<T>(&d);
 }
 
 template <class T>
 inline const T* get_if(const status_variant& d) {
-  return caf::get_if<T>(&d);
+  return get_if<T>(&d);
 }
 
 template <class T>
 inline T& get(status_variant& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+  if ( auto rval = get_if<T>(&d) )
     return *rval;
-  throw bad_variant_access{};
+  else
+    throw bad_variant_access{};
 }
 
 template <class T>
 inline const T& get(const status_variant& d) {
-  if ( auto rval = caf::get_if<T>(&d) )
+  if ( auto rval = get_if<T>(&d) )
     return *rval;
-  throw bad_variant_access{};
+  else
+    throw bad_variant_access{};
 }
 
 } // namespace broker
