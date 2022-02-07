@@ -42,8 +42,8 @@
 
 namespace broker {
 
-/// The main publish/subscribe abstraction. Endpoints can *peer* which each
-/// other to exchange messages. When publishing a message though an endpoint,
+/// The main publish/subscribe abstraction. Endpoints can *peer* with each
+/// other to exchange messages. When publishing a message through an endpoint,
 /// all peers with matching subscriptions receive the message.
 class endpoint {
 public:
@@ -179,7 +179,7 @@ public:
   /// @param address The interface to listen at. If empty, listen on all
   ///                local interfaces.
   /// @param port The port to listen locally. If 0, the endpoint selects the
-  ///             next available free port from the OS
+  ///             next available free port from the OS.
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen(const std::string& address = {}, uint16_t port = 0);
 
@@ -197,7 +197,7 @@ public:
   /// Initiates a peering with a remote endpoint.
   /// @param info Bundles IP address, port, and retry interval for connecting to
   ///             the remote endpoint.
-  /// @returns True if connection was successfulluy set up.
+  /// @returns True if connection was successfully set up.
   /// @note The endpoint will also receive a status message indicating
   ///       success or failure.
   bool peer(const network_info& info) {

@@ -54,11 +54,6 @@ The master can choose to keep its data in various backends:
    SQLite3 format on disk. While offering persistence, it does not scale
    well to large volumes.
 
-3. `RocksDB <http://rocksdb.org>`_. This backend relies on an
-   industrial-strength, high-performance database with a variety of tuning
-   knobs. If your application requires persistence and also needs to scale,
-   this backend is your best choice.
-
 Operations
 ----------
 

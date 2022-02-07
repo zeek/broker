@@ -104,8 +104,7 @@ figure below illustrates how one can deploy a master with several clones.
 
 Each data store has a name that identifies the master. This name must be unique
 among the endpoint's peers. The master can choose to keep its data in various
-backends, which are currently: in-memory, `SQLite <https://www.sqlite.org>`_, and `RocksDB
-<http://rocksdb.org>`_.
+backends, which are currently: in-memory, and `SQLite <https://www.sqlite.org>`_.
 
 :ref:`data-stores` illustrates how to use data stores in different settings.
 
