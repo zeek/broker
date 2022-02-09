@@ -1,3 +1,13 @@
+2.2.0-22 | 2022-02-09 12:56:35 -0800
+
+  * CI support refresh (Christian Kreibich, Corelight)
+
+    - add FreeBSD 14
+    - add Ubuntu 21.10
+    - remove OpenSUSE Leap 15.2 (EOL)
+    - add CentOS Stream 9
+    - remove Fedora 33 (EOL)
+
 2.2.0-16 | 2022-02-07 16:21:18 +0100
 
   * Avoid exposing CAF internals. (Dominik Charousset, Corelight)
