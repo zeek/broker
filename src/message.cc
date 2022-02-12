@@ -2,54 +2,58 @@
 
 #include <caf/deep_to_string.hpp>
 
+#include "broker/internal/type_id.hh"
+
+using namespace std::literals;
+
 namespace broker {
 
 std::string to_string(p2p_message_type x) {
   switch (x) {
     case p2p_message_type::data:
-      return "data";
+      return "data"s;
     case p2p_message_type::command:
-      return "command";
+      return "command"s;
     case p2p_message_type::routing_update:
-      return "routing_update";
+      return "routing_update"s;
     case p2p_message_type::hello:
-      return "hello";
+      return "hello"s;
     case p2p_message_type::originator_syn:
-      return "originator_syn";
+      return "originator_syn"s;
     case p2p_message_type::responder_syn_ack:
-      return "responder_syn_ack";
+      return "responder_syn_ack"s;
     case p2p_message_type::originator_ack:
-      return "originator_ack";
+      return "originator_ack"s;
     case p2p_message_type::drop_conn:
-      return "drop_conn";
+      return "drop_conn"s;
     default:
-      return "invalid";
+      return "invalid"s;
   }
 }
 
-bool from_string(caf::string_view str, p2p_message_type& x) {
-  if (str == "data") {
+bool from_string(std::string_view str, p2p_message_type& x) {
+  if (str == "data"sv) {
     x = p2p_message_type::data;
     return true;
-  } else if (str == "command") {
+  } else if (str == "command"sv) {
     x = p2p_message_type::command;
     return true;
-  } else if (str == "routing_update") {
+  } else if (str == "routing_update"sv) {
     x = p2p_message_type::routing_update;
     return true;
-  } else if (str == "hello") {
+  } else if (str == "hello"sv) {
     x = p2p_message_type::hello;
     return true;
-  } else if (str == "originator_syn") {
+  } else if (str == "originator_syn"sv) {
     x = p2p_message_type::originator_syn;
     return true;
-  } else if (str == "responder_syn_ack") {
+  } else if (str == "responder_syn_ack"sv) {
     x = p2p_message_type::responder_syn_ack;
     return true;
-  } else if (str == "originator_ack") {
+  } else if (str == "originator_ack"sv) {
     x = p2p_message_type::originator_ack;
     return true;
-  } else if (str == "drop_conn") {
+  } else if (str == "drop_conn"sv) {
     x = p2p_message_type::drop_conn;
     return true;
   } else {
@@ -93,7 +97,7 @@ std::string to_string(packed_message_type x) {
   return to_string(static_cast<p2p_message_type>(x));
 }
 
-bool from_string(caf::string_view str, packed_message_type& x) {
+bool from_string(std::string_view str, packed_message_type& x) {
   auto tmp = p2p_message_type{0};
   if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 0x04) {
     x = static_cast<packed_message_type>(tmp);

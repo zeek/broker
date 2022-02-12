@@ -1,8 +1,9 @@
 #pragma once
 
-#include <functional>
+// Note: Broker no longer uses this header, but Zeek still depends on
+// broker::detail::hash_combine.
 
-#include <caf/hash/fnv.hpp>
+#include <functional>
 
 namespace broker::detail {
 
@@ -11,12 +12,5 @@ template <class T>
 void hash_combine(size_t& seed, const T& v) {
   seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
-
-struct fnv {
-  template <class... Ts>
-  size_t operator()(const Ts&... xs) const noexcept {
-    return caf::hash::fnv<size_t>::compute(xs...);
-  }
-};
 
 } // namespace broker::detail

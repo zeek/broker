@@ -7,6 +7,7 @@
 #include <caf/uri.hpp>
 
 #include "broker/data.hh"
+#include "broker/internal/native.hh"
 
 namespace broker {
 
@@ -23,7 +24,8 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src))
     return can_convert_to<endpoint_id>(src[0]);
-  return false;
+  else
+    return false;
 }
 
 bool convert(const data& src, endpoint_info& dst) {
@@ -36,7 +38,7 @@ bool convert(const data& src, endpoint_info& dst) {
     return false;
   // Parse the node (field 1).
   if (auto str = get_if<std::string>(xs[0])) {
-    if (auto err = caf::parse(*str, dst.node))
+    if (!convert(*str, dst.node))
       return false;
   } else if (is<none>(xs[0])) {
     dst.node = endpoint_id{};

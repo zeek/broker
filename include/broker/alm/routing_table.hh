@@ -9,14 +9,12 @@
 #include <unordered_map>
 #include <utility>
 
-#include <caf/actor.hpp>
-#include <caf/actor_clock.hpp>
-#include <caf/hash/fnv.hpp>
-
 #include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/time.hh"
 
 namespace broker::alm {
 
@@ -85,16 +83,9 @@ bool inspect(Inspector& f, routing_table_row& x) {
   return f.apply(x.versioned_paths);
 }
 
-struct endpoint_id_hasher {
-  inline size_t operator()(endpoint_id x) const noexcept {
-    return caf::hash::fnv<size_t>::compute(x);
-  }
-};
-
 /// Stores direct connections to peers as well as distances to all other peers
 /// that we can reach indirectly.
-using routing_table
-  = std::unordered_map<endpoint_id, routing_table_row, endpoint_id_hasher>;
+using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 /// Returns all hops to the destination (including `dst` itself) or
 /// `nullptr` if the destination is unreachable.
@@ -230,7 +221,7 @@ struct revocation {
   PeerId hop;
 
   /// Time when this revocations entry got created.
-  caf::actor_clock::time_point first_seen;
+  std::chrono::time_point<std::chrono::steady_clock, timespan> first_seen;
 };
 
 /// @relates revocation

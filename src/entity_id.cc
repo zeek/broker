@@ -2,6 +2,9 @@
 
 #include <caf/hash/fnv.hpp>
 
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
+
 namespace broker {
 
 size_t entity_id ::hash() const noexcept {

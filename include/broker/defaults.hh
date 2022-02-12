@@ -1,18 +1,21 @@
 #pragma once
 
-#include "caf/string_view.hpp"
-#include "caf/timespan.hpp"
+#include "broker/time.hh"
+
+#include <chrono>
+#include <limits>
+#include <string_view>
 
 // This header contains hard-coded default values for various Broker options.
 
 namespace broker::defaults {
 
-extern const caf::string_view recording_directory;
+constexpr std::string_view recording_directory = "";
 
-extern const size_t output_generator_file_cap;
+constexpr size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 
 /// Configures the default timeout of @ref endpoint::await_peer.
-extern const caf::timespan await_peer_timeout;
+constexpr timespan await_peer_timeout = std::chrono::seconds{10};
 
 } // namespace broker::defaults
 
@@ -24,38 +27,37 @@ static constexpr size_t queue_size = 64;
 
 namespace broker::defaults::store {
 
-/// Configures the time interval for advancing the local Lamport time.
-extern const caf::timespan tick_interval;
+constexpr timespan tick_interval = std::chrono::milliseconds{100};
 
 /// Configures the maximum delay for GET requests while waiting for the master.
-extern const caf::timespan max_get_delay;
+constexpr timespan max_get_delay = std::chrono::seconds{5};
 
 /// Configures how many ticks pass between sending heartbeat messages.
-extern const uint16_t heartbeat_interval;
+constexpr uint16_t heartbeat_interval = 5; // 2 per second
 
 /// Configures how many ticks without any progress we wait before sending NACK
 /// messages, i.e., requesting retransmits.
-extern const uint16_t nack_timeout;
+constexpr uint16_t nack_timeout = 2; // 200ms
 
 /// Configures how many missed heartbeats we wait before assuming the remote
 /// store actore dead.
-extern const uint16_t connection_timeout;
+constexpr uint16_t connection_timeout = 100; // 10s
 
 /// Configures the default timeout of @ref peer::await_idle.
-extern const caf::timespan await_idle_timeout;
+constexpr timespan await_idle_timeout = std::chrono::seconds{15};
 
 } // namespace broker::defaults::store
 
 namespace broker::defaults::path_revocations {
 
-extern const caf::timespan aging_interval;
+constexpr timespan aging_interval = std::chrono::seconds{1};
 
-extern const caf::timespan max_age;
+constexpr timespan max_age = std::chrono::seconds{5};
 
 } // namespace broker::defaults::path_revocations
 
 namespace broker::defaults::metrics {
 
-constexpr caf::timespan export_interval = std::chrono::seconds(1);
+constexpr timespan export_interval = std::chrono::seconds{1};
 
 } // namespace broker::defaults::metrics

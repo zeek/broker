@@ -1,9 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
-
-#include <caf/fwd.hpp>
 
 #include "broker/detail/operators.hh"
 #include "broker/timeout.hh"
@@ -25,9 +24,6 @@ struct network_info : detail::totally_ordered<network_info> {
 };
 
 /// @relates network_info
-bool convert(const caf::uri& from, network_info& to);
-
-/// @relates network_info
 bool operator==(const network_info& x, const network_info& y);
 
 /// @relates network_info
@@ -41,7 +37,10 @@ bool inspect(Inspector& f, network_info& x) {
 }
 
 /// @relates network_info
-std::string to_string(const network_info& info);
+std::string to_string(const network_info& x);
+
+/// @relates network_info
+std::string to_string(const std::optional<network_info>& x);
 
 } // namespace broker
 

@@ -3,14 +3,13 @@
 #include <variant>
 #include <vector>
 
-#include <caf/actor.hpp>
-
 #include "broker/bad_variant_access.hh"
 #include "broker/defaults.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
+#include "broker/worker.hh"
 
 namespace broker {
 
@@ -42,7 +41,7 @@ public:
   // --- access to values ------------------------------------------------------
 
   /// @copydoc subscriber::get
-  value_type get(caf::timestamp timeout);
+  value_type get(timestamp timeout);
 
   /// @copydoc subscriber::get
   template <class Duration>
@@ -52,17 +51,17 @@ public:
       if (auto maybe_msg = impl_.get(relative_timeout))
         result = convert(*maybe_msg);
     } while (std::holds_alternative<none>(result)
-             && caf::is_infinite(relative_timeout));
+             && relative_timeout == infinite);
     return result;
   }
 
   /// @copydoc subscriber::get
   value_type get() {
-    return get(caf::infinite);
+    return get(infinite);
   }
 
   /// @copydoc subscriber::get
-  std::vector<value_type> get(size_t num, caf::timestamp timeout);
+  std::vector<value_type> get(size_t num, timestamp timeout);
 
   /// @copydoc subscriber::get
   template <class Duration>
@@ -72,13 +71,13 @@ public:
       auto msgs = impl_.get(num, relative_timeout);
       for (auto& msg : msgs)
         append_converted(result, msg);
-    } while (result.empty() && caf::is_infinite(relative_timeout));
+    } while (result.empty() && relative_timeout == infinite);
     return result;
   }
 
   /// @copydoc subscriber::get
   std::vector<value_type> get(size_t num) {
-    return get(num, caf::infinite);
+    return get(num, infinite);
   }
 
   /// @copydoc subscriber::poll
@@ -124,42 +123,34 @@ private:
 // --- compatibility/wrapper functionality (may be removed later) --------------
 
 template <class T>
-bool is(const status_variant& v) {
-  return std::holds_alternative<T>(v);
+inline bool is(const status_variant& v) {
+  return holds_alternative<T>(v);
 }
 
 template <class T>
-T* get_if(status_variant& d) {
-  return std::get_if<T>(&d);
+inline T* get_if(status_variant& d) {
+  return get_if<T>(&d);
 }
 
 template <class T>
-const T* get_if(const status_variant& d) {
-  return std::get_if<T>(&d);
+inline const T* get_if(const status_variant& d) {
+  return get_if<T>(&d);
 }
 
 template <class T>
-T* get_if(status_variant* d) {
-  return std::get_if<T>(d);
-}
-
-template <class T>
-const T* get_if(const status_variant* d) {
-  return std::get_if<T>(d);
-}
-
-template <class T>
-T& get(status_variant& d) {
-  if ( auto rval = std::get_if<T>(&d) )
+inline T& get(status_variant& d) {
+  if ( auto rval = get_if<T>(&d) )
     return *rval;
-  throw bad_variant_access{};
+  else
+    throw bad_variant_access{};
 }
 
 template <class T>
-const T& get(const status_variant& d) {
-  if ( auto rval = std::get_if<T>(&d) )
+inline const T& get(const status_variant& d) {
+  if ( auto rval = get_if<T>(&d) )
     return *rval;
-  throw bad_variant_access{};
+  else
+    throw bad_variant_access{};
 }
 
 } // namespace broker

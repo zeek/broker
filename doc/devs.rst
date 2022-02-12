@@ -214,7 +214,7 @@ messages if a path disappears.
 
 In places where Broker requires ordered and reliable communication, e.g.,
 communication between clone and master actors, the class
-``broker::detail::channel`` provides a building block to add ordering and
+``broker::internal::channel`` provides a building block to add ordering and
 reliability.
 
 A channel is unaware of the underlying transport and leaves the rendezvous
@@ -371,7 +371,7 @@ The essential interface for ``internal_command`` is defined as follows:
                      keepalive_command, cumulative_ack_command, nack_command,
                      ack_clone_command, retransmit_failed_command>;
 
-    detail::sequence_number_type seq;
+    sequence_number_type seq;
 
     entity_id sender;
 

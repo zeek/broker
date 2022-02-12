@@ -1,3 +1,22 @@
+2.2.0-dev.17 | 2021-11-05 13:38:17 -0700
+
+  * Request at least Sphinx 2.0 to avoid a dependency problem in RTD (Christian Kreibich, Corelight)
+
+  * Introduce .readthedocs.yaml to avoid docs directory (Christian Kreibich, Corelight)
+
+2.2.0-dev.14 | 2021-11-05 12:47:15 -0700
+
+  * Add macOS Monterey and drop Catalina in CI (Christian Kreibich, Corelight)
+
+  * Add Fedora 35 in CI (Christian Kreibich, Corelight)
+
+2.2.0-dev.10 | 2021-08-26 14:30:39 -0700
+
+  * CI support refresh (Christian Kreibich, Corelight)
+
+    - Add Debian 11 (Bullseye)
+    - Drop Ubuntu 16.04
+
 2.2.0-dev.8 | 2021-08-03 11:55:22 -0700
 
   * Fix publisher deadlock when passing large batches (Dominik Charousset, Corelight)

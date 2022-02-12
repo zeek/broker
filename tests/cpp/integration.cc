@@ -25,19 +25,16 @@
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/io/accept_handle.hpp>
-#include <caf/io/connection_handle.hpp>
-#include <caf/io/middleman.hpp>
-#include <caf/io/network/test_multiplexer.hpp>
 #include <caf/logger.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
-#include <caf/test/io_dsl.hpp>
 #include <caf/timestamp.hpp>
 
 #include "broker/configuration.hh"
-#include "broker/core_actor.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/peer_info.hh"
 #include "broker/peer_status.hh"
 #include "broker/status.hh"
@@ -45,12 +42,11 @@
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
 
+namespace atom = broker::internal::atom;
+
 using namespace broker;
 
 using caf::unit_t;
-
-using caf::io::accept_handle;
-using caf::io::connection_handle;
 
 namespace {
 
@@ -96,18 +92,6 @@ struct peer_fixture {
   // Convenient access to `sys.scheduler()` with proper type.
   caf::scheduler::test_coordinator& sched;
 
-  // Convenienct access to `sys.middleman()`.
-  caf::io::middleman& mm;
-
-  // Convenient access to `mm.backend()` with proper type.
-  caf::io::network::test_multiplexer& mpx;
-
-  // Lists all open connections on this peer.
-  std::vector<connection_handle> connections;
-
-  // Lists all open "ports" on this peer.
-  std::vector<accept_handle> acceptors;
-
   // Stores all received items for subscribed topics.
   std::vector<data_message> data;
 
@@ -117,7 +101,7 @@ struct peer_fixture {
   // Returns the core manager for given core actor.
   auto& state(caf::actor hdl) {
     auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
-    return dynamic_cast<core_actor&>(*ptr).state;
+    return dynamic_cast<internal::core_actor&>(*ptr).state;
   }
 
   // Initializes this peer and registers it at parent.
@@ -125,10 +109,8 @@ struct peer_fixture {
     : parent(parent_ptr),
       name(std::move(peer_name)),
       ep(base_fixture::make_config()),
-      sys(ep.system()),
-      sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())),
-      mm(sys.middleman()),
-      mpx(dynamic_cast<caf::io::network::test_multiplexer&>(mm.backend())) {
+      sys(broker::internal::endpoint_access{&ep}.sys()),
+      sched(dynamic_cast<caf::scheduler::test_coordinator&>(sys.scheduler())) {
     // Register at parent.
     parent->peers.emplace(name, this);
     // Run initialization code
@@ -138,23 +120,9 @@ struct peer_fixture {
   }
 
   ~peer_fixture() {
-    CAF_SET_LOGGER_SYS(&ep.system());
+    CAF_SET_LOGGER_SYS(&sys);
     MESSAGE("shut down " << name);
     loop_after_all_enqueues();
-  }
-
-  // Returns the next unused connection handle.
-  connection_handle make_connection_handle() {
-    auto result = connection_handle::from_int(parent->next_handle_id++);
-    connections.emplace_back(result);
-    return result;
-  }
-
-  // Returns the next unused accept handle.
-  accept_handle make_accept_handle() {
-    auto result = accept_handle::from_int(parent->next_handle_id++);
-    acceptors.emplace_back(result);
-    return result;
   }
 
   std::vector<peer_info> peers() {
@@ -172,7 +140,7 @@ struct peer_fixture {
       [=](unit_t&, data_message x) {
         this->data.emplace_back(std::move(x));
       },
-      [](unit_t&, const caf::error&) {
+      [](unit_t&, const error&) {
         // nop
       }
     );
@@ -410,8 +378,6 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
 
 // -- unpeering of nodes and emitted status/error messages ---------------------
 
-using event_value = status_subscriber::value_type;
-
 struct code {
   code(ec x) : value(x) {
     // nop
@@ -425,15 +391,15 @@ struct code {
     if (is<error>(x))
       value = static_cast<ec>(caf::get<error>(x).code());
     else
-      value = caf::get<status>(x).code();
+      value = get<status>(x).code();
   }
 
   std::variant<sc, ec> value;
 };
 
 std::string to_string(const code& x) {
-  return is<sc>(x.value) ? to_string(caf::get<sc>(x.value))
-                         : to_string(caf::get<ec>(x.value));
+  return is<sc>(x.value) ? to_string(std::get<sc>(x.value))
+                         : to_string(std::get<ec>(x.value));
 }
 
 bool operator==(const code& x, const code& y) {
@@ -529,7 +495,7 @@ CAF_TEST(connection_retry) {
   venus.ep.peer_nosync("mercury", 4040, std::chrono::seconds(1));
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
   mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
-    self->delayed_send(self, std::chrono::seconds(2), caf::ok_atom_v);
+    self->delayed_send(self, std::chrono::seconds(2), atom::ok_v);
     return {
       [&](caf::ok_atom) {
         MESSAGE("start listening on mercury:4040");

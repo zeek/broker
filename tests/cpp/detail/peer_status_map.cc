@@ -8,12 +8,12 @@ using namespace broker;
 
 namespace {
 
-struct fixture {
+struct fixture : base_fixture {
   detail::peer_status_map uut;
   endpoint_id pid;
 
   fixture() {
-    pid = base_fixture::make_id_pair().first;
+    pid = ids['B'];
   }
 };
 

@@ -8,8 +8,7 @@
 
 #include "broker/detail/type_traits.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 template <class T>
 constexpr bool is_additive_group() {
@@ -29,19 +28,21 @@ struct adder {
 
   template <class T>
   auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = get_if<T>(&value);
-    if (!x)
+    if (auto x = get_if<T>(&value)) {
+      c += *x;
+      return {};
+    } else {
       return ec::type_clash;
-    c += *x;
-    return {};
+    }
   }
 
   result_type operator()(timestamp& tp) {
-    auto s = get_if<timespan>(&value);
-    if (!s)
+    if (auto s = get_if<timespan>(&value)) {
+      tp += *s;
+      return {};
+    } else {
       return ec::type_clash;
-    tp += *s;
-    return {};
+    }
   }
 
   result_type operator()(std::string& str) {
@@ -131,8 +132,7 @@ struct retriever {
 
   result_type operator()(const vector& v) const {
     count i;
-    auto x = get_if<count>(&aspect);
-    if (x)
+    if (auto x = get_if<count>(&aspect))
       i = *x;
     else {
       auto y = get_if<integer>(&aspect);
@@ -159,5 +159,4 @@ struct retriever {
   const data& aspect;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

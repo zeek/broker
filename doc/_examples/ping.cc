@@ -1,6 +1,7 @@
 // ping.cc
 
-#include <assert.h>
+#include <cassert>
+#include <iostream>
 
 #include "broker/broker.hh"
 #include "broker/zeek.hh"

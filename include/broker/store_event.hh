@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/entity_id.hh"
+
+#include <cstdint>
+#include <string>
 
 namespace broker {
 
@@ -70,7 +70,7 @@ public:
       if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
       else
-        return std::nullopt;
+        return {};
     }
 
     entity_id publisher() const noexcept {
@@ -139,14 +139,14 @@ public:
       if (auto value = get_if<timespan>((*xs_)[5]))
         return *value;
       else
-        return std::nullopt;
+        return {};
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<endpoint_id>((*xs_)[6])) {
+      if (auto value = to<endpoint_id>((*xs_)[6]))
         return {*value, get<uint64_t>((*xs_)[7])};
-      }
-      return {};
+      else
+        return {};
     }
 
   private:
@@ -247,10 +247,10 @@ public:
     }
 
     entity_id publisher() const noexcept {
-      if (auto value = to<endpoint_id>((*xs_)[3])) {
+      if (auto value = to<endpoint_id>((*xs_)[3]))
         return {*value, get<uint64_t>((*xs_)[4])};
-      }
-      return {};
+      else
+        return {};
     }
 
   private:

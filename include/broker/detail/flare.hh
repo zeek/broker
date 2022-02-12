@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <chrono>
 
+#include "broker/config.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/time.hh"
 

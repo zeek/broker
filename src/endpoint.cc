@@ -1,10 +1,28 @@
-#include <iostream>
-#include <unordered_set>
-#include <thread>
+#include "broker/endpoint.hh"
+
+#include "broker/configuration.hh"
+#include "broker/defaults.hh"
+#include "broker/detail/die.hh"
+#include "broker/detail/filesystem.hh"
+#include "broker/internal/configuration_access.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/metric_exporter.hh"
+#include "broker/internal/prometheus.hh"
+#include "broker/internal/type_id.hh"
+#include "broker/publisher.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/subscriber.hh"
+#include "broker/timeout.hh"
 
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
+#include <caf/actor_system_config.hpp>
+#include <caf/attach_stream_sink.hpp>
+#include <caf/attach_stream_source.hpp>
 #include <caf/config.hpp>
+#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
@@ -15,21 +33,26 @@
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
-#include "broker/core_actor.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/connector.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/detail/telemetry/exporter.hh"
-#include "broker/detail/telemetry/prometheus.hh"
 #include "broker/domain_options.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
-#include "broker/logger.hh"
+#include "broker/internal/connector.hh"
+#include "broker/internal/core_actor.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/metric_exporter.hh"
+#include "broker/internal/prometheus.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
+
+namespace atom = broker::internal::atom;
+
+using broker::internal::facade;
+using broker::internal::native;
 
 namespace broker {
 
@@ -68,92 +91,147 @@ template <class OnValue, class OnError>
 using async_helper_actor
   = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
 
+caf::actor_system_config& nat_cfg(configuration& cfg) {
+  internal::configuration_access helper{&cfg};
+  return helper.cfg();
+}
+
 } // namespace
 
 // --- nested classes ----------------------------------------------------------
 
-endpoint::clock::clock(caf::actor_system* sys, bool use_real_time)
-  : sys_(sys),
-    real_time_(use_real_time),
-    time_since_epoch_(),
-    mtx_(),
-    pending_(),
-    pending_count_() {
+endpoint::clock::clock(internal::endpoint_context* ctx) : ctx_(ctx) {
   // nop
 }
 
-timestamp endpoint::clock::now() const noexcept {
-  return real_time_ ? broker::now() : timestamp{time_since_epoch_};
+endpoint::clock::~clock() {
+  // nop
 }
 
-void endpoint::clock::advance_time(timestamp t) {
-  if (real_time_)
-    return;
+class real_time_clock : public endpoint::clock {
+public:
+  using super = endpoint::clock;
 
-  if (t <= timestamp{time_since_epoch_})
-    return;
-
-  time_since_epoch_ = t.time_since_epoch();
-
-  if (pending_count_ == 0)
-    return;
-
-  lock_type guard{mtx_};
-
-  auto it = pending_.begin();
-
-  if (it->first > t)
-    return;
-
-  // Note: this function is performance-sensitive in the case of Zeek
-  // reading pcaps and it's important to not construct this set unless
-  // it's actually going to be used.
-  std::unordered_set<caf::actor> sync_with_actors;
-
-  while (it != pending_.end() && it->first <= t) {
-    auto& pm = it->second;
-    caf::anon_send(pm.first, std::move(pm.second));
-    sync_with_actors.emplace(pm.first);
-    it = pending_.erase(it);
-    --pending_count_;
+  explicit real_time_clock(internal::endpoint_context* ctx) : super(ctx) {
+    // nop
   }
 
-  guard.unlock();
-
-  caf::scoped_actor self{*sys_};
-  for (auto& who : sync_with_actors) {
-    self->send(who, atom::sync_point_v, self);
-    self->delayed_send(self, timeout::frontend, atom::tick_v);
-    self->receive(
-      [&](atom::sync_point) {
-        // nop
-      },
-      [&](atom::tick) {
-        BROKER_DEBUG("advance_time actor syncing timed out");
-      },
-      [&](caf::error& e) {
-        BROKER_DEBUG("advance_time actor syncing failed");
-      }
-    );
+  timestamp now() const noexcept override {
+    return broker::now();
   }
-}
 
-void endpoint::clock::send_later(caf::actor dest, timespan after,
-                                 caf::message msg) {
-  if (real_time_) {
-    auto& sc = sys_->clock();
+  bool real_time() const noexcept override {
+    return true;
+  }
+
+  void advance_time(timestamp) override {
+    // nop
+  }
+
+  void send_later(worker dest, timespan after, void* vptr) override {
+    auto& msg = *reinterpret_cast<caf::message*>(vptr);
+    auto& sc = ctx_->sys.clock();
     auto t = sc.now() + after;
     auto me = caf::make_mailbox_element(nullptr, caf::make_message_id(),
                                         caf::no_stages, std::move(msg));
-    sc.schedule_message(t, caf::actor_cast<caf::strong_actor_ptr>(dest),
+    sc.schedule_message(t, caf::actor_cast<caf::strong_actor_ptr>(native(dest)),
                         std::move(me));
-    return;
   }
-  lock_type guard{mtx_};
-  auto t = this->now() + after;
-  pending_.emplace(t, pending_msg_type{std::move(dest), std::move(msg)});
-  ++pending_count_;
-}
+};
+
+class sim_clock : public endpoint::clock {
+public:
+  using super = endpoint::clock;
+
+  using mutex_type = std::mutex;
+
+  using lock_type = std::unique_lock<mutex_type>;
+
+  using pending_msg_type = std::pair<caf::actor, caf::message>;
+
+  using pending_msgs_map_type = std::multimap<timestamp, pending_msg_type>;
+
+  sim_clock(internal::endpoint_context* ctx)
+    : super(ctx), time_since_epoch_(timespan{0}), pending_count_(0) {
+    // nop
+  }
+
+  timestamp now() const noexcept override {
+    return timestamp{time_since_epoch_.load()};
+  }
+
+  bool real_time() const noexcept override {
+    return false;
+  }
+
+  void advance_time(timestamp t) override {
+    // Advance time.
+    if (t <= timestamp{time_since_epoch_})
+      return;
+    time_since_epoch_ = t.time_since_epoch();
+    // Critical section: deliver messages.
+    if (pending_count_ == 0)
+      return;
+    std::unordered_set<caf::actor> sync_with_actors;
+    {
+      lock_type guard{mtx_};
+      auto it = pending_.begin();
+      if (it->first > t)
+        return;
+      // Note: this function is performance-sensitive in the case of Zeek
+      // reading pcaps and it's important to not construct fill the set unless
+      // it's actually going to be used.
+      while (it != pending_.end() && it->first <= t) {
+        auto& pm = it->second;
+        caf::anon_send(pm.first, std::move(pm.second));
+        sync_with_actors.emplace(pm.first);
+        it = pending_.erase(it);
+        --pending_count_;
+      }
+    }
+    // Wait for response messages.
+    caf::scoped_actor self{ctx_->sys};
+    for (auto& who : sync_with_actors) {
+      self->send(who, atom::sync_point_v, self);
+      self->delayed_send(self, timeout::frontend, atom::tick_v);
+      self->receive(
+        [&](atom::sync_point) {
+          // nop
+        },
+        [&](atom::tick) {
+          BROKER_DEBUG("advance_time actor syncing timed out");
+        },
+        [&](caf::error& e) {
+          BROKER_DEBUG("advance_time actor syncing failed");
+        });
+    }
+  }
+
+  void send_later(worker dest, timespan after, void* vptr) override {
+    auto& msg = *reinterpret_cast<caf::message*>(vptr);
+    lock_type guard{mtx_};
+    auto t = this->now() + after;
+    pending_.emplace(t,
+                     pending_msg_type{std::move(native(dest)), std::move(msg)});
+    ++pending_count_;
+  }
+
+private:
+  /// Nanoseconds since start of the epoch.
+  std::atomic<timespan> time_since_epoch_;
+
+  /// Guards pending_.
+  mutex_type mtx_;
+
+  /// Stores pending messages until they time out.
+  pending_msgs_map_type pending_;
+
+  /// Stores number of items in pending_.  We track it separately as
+  /// a micro-optimization -- checking pending_.size() would require
+  /// obtaining a lock for mtx_, but instead checking this atomic avoids
+  /// that locking expense in the common case.
+  std::atomic<size_t> pending_count_;
+};
 
 endpoint::background_task::~background_task() {
   // nop
@@ -179,10 +257,10 @@ public:
     if (auto maybe_dptr = mpx_.new_tcp_doorman(port, in, reuse)) {
       dptr = std::move(*maybe_dptr);
     } else {
-      return maybe_dptr.error();
+      return facade(maybe_dptr.error());
     }
     auto actual_port = dptr->port();
-    using impl = detail::telemetry::prometheus_actor;
+    using impl = internal::prometheus_actor;
     mpx_supervisor_ = mpx_.make_supervisor();
     caf::actor_config cfg{&mpx_};
     worker_ = mpx_.system().spawn_impl<impl, caf::hidden>(cfg, std::move(dptr),
@@ -246,18 +324,19 @@ private:
 
 void endpoint::metrics_exporter_t::set_interval(caf::timespan new_interval) {
   if (new_interval.count() > 0)
-    caf::anon_send(parent_->telemetry_exporter_, atom::put_v, new_interval);
+    caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
+                   new_interval);
 }
 
 void endpoint::metrics_exporter_t::set_target(topic new_target) {
   if (!new_target.empty())
-    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+    caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                    std::move(new_target));
 }
 
 void endpoint::metrics_exporter_t::set_id(std::string new_id) {
   if (!new_id.empty())
-    caf::anon_send(parent_->telemetry_exporter_, atom::put_v,
+    caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                    std::move(new_id));
 }
 
@@ -269,7 +348,8 @@ void endpoint::metrics_exporter_t::set_prefixes(
   filter_type boxed;
   for (auto& prefix : new_prefixes)
     boxed.emplace_back(std::move(prefix));
-  caf::anon_send(parent_->telemetry_exporter_, atom::put_v, std::move(boxed));
+  caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
+                 std::move(boxed));
 }
 
 // --- endpoint class ----------------------------------------------------------
@@ -292,8 +372,8 @@ public:
     }
   }
 
-  detail::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer) {
-    connector_ = std::make_shared<detail::connector>(this_peer);
+  internal::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer) {
+    connector_ = std::make_shared<internal::connector>(this_peer);
     thread_ = std::thread{[ptr{connector_}, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
       ptr->run();
@@ -302,7 +382,7 @@ public:
   }
 
 private:
-  std::shared_ptr<detail::connector> connector_;
+  std::shared_ptr<internal::connector> connector_;
   std::thread thread_;
 };
 
@@ -365,19 +445,22 @@ endpoint::endpoint(configuration config)
   // nop
 }
 
-endpoint::endpoint(configuration config, endpoint_id this_peer)
-  : config_(std::move(config)), id_(this_peer), destroyed_(false) {
+endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
+  // Spin up the actor system.
+  ctx_ = std::make_shared<internal::endpoint_context>(std::move(config));
+  auto& sys = ctx_->sys;
+  auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
-  if (config_.cli_helptext_printed)
+  if (cfg.cli_helptext_printed)
     exit(0);
   // Create a directory for storing the meta data if requested.
-  auto meta_dir = get_or(config_, "broker.recording-directory",
-                         defaults::recording_directory);
+  auto meta_dir = get_or(cfg, "broker.recording-directory",
+                         caf::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
     if (detail::is_directory(meta_dir))
       detail::remove_all(meta_dir);
     if (detail::mkdirs(meta_dir)) {
-      auto dump = config_.dump_content();
+      auto dump = cfg.dump_content();
       std::ofstream conf_file{meta_dir + "/broker.conf"};
       if (!conf_file)
         BROKER_WARNING("failed to write to config file");
@@ -388,20 +471,21 @@ endpoint::endpoint(configuration config, endpoint_id this_peer)
                 << "\" for recording meta data\n";
     }
   }
-  // Spin up the actor system.
-  new (&system_) caf::actor_system(config_);
   // Spin up the connector unless disabled via config.
-  detail::connector_ptr conn_ptr;
-  if (!caf::get_or(config_, "broker.disable-connector", false)) {
+  internal::connector_ptr conn_ptr;
+  if (!caf::get_or(cfg, "broker.disable-connector", false)) {
     auto conn_task = std::make_unique<connector_task>();
-    conn_ptr = conn_task->start(system_, id_);
+    conn_ptr = conn_task->start(sys, id_);
     background_tasks_.emplace_back(std::move(conn_task));
   } else {
     BROKER_DEBUG("run without a connector (assuming test mode)");
   }
   // Initialize remaining state.
-  auto opts = config_.options();
-  clock_ = new clock(&system_, opts.use_real_time);
+  auto opts = ctx_->cfg.options();
+  if (opts.use_real_time)
+    clock_.reset(new real_time_clock(ctx_.get()));
+  else
+    clock_.reset(new sim_clock(ctx_.get()));
   BROKER_INFO("creating endpoint");
   // TODO: the core actor may end up running basically nonstop in case it has a
   //       lot of incoming traffic to manage. CAF *should* suspend actors based
@@ -413,35 +497,35 @@ endpoint::endpoint(configuration config, endpoint_id this_peer)
   //       background tasks. However, we must make sure to never detach the core
   //       when running the unit tests because we otherwise mess up the
   //       deterministic setup.
-  domain_options adaptation{config_.options().disable_forwarding};
-  if (auto sp = caf::get_as<std::string>(system().config(),
-                                         "caf.scheduler.policy");
+  caf::actor core;
+  using core_t = internal::core_actor;
+  domain_options adaptation{opts.disable_forwarding};
+  if (auto sp = caf::get_as<std::string>(cfg, "caf.scheduler.policy");
       sp && *sp == "testing") {
-    core_ = system_.spawn<core_actor>(id_, filter_type{}, clock_, &adaptation,
-                                      std::move(conn_ptr));
+    core = sys.spawn<core_t>(id_, filter_type{}, clock_.get(), &adaptation,
+                             std::move(conn_ptr));
   } else {
-    core_ = system_.spawn<core_actor, caf::detached>(id_, filter_type{}, clock_,
-                                                     &adaptation,
-                                                     std::move(conn_ptr));
+    core = sys.spawn<core_t, caf::detached>(id_, filter_type{}, clock_.get(),
+                                            &adaptation, std::move(conn_ptr));
   }
+  core_ = facade(core);
   // Spin up a Prometheus actor if configured or an exporter.
-  namespace dt = detail::telemetry;
-  if (auto port = caf::get_as<uint16_t>(config_, "broker.metrics.port")) {
-    auto ptask = std::make_unique<prometheus_http_task>(system_);
-    auto addr = caf::get_or(config_, "broker.metrics.address", std::string{});
-    if (auto actual_port = ptask->start(*port, core_,
-                                        addr.empty() ? nullptr : addr.c_str(),
-                                        false)) {
+  if (auto port = caf::get_as<uint16_t>(cfg, "broker.metrics.port")) {
+    auto ptask = std::make_unique<prometheus_http_task>(sys);
+    auto addr = caf::get_or(cfg, "broker.metrics.address", std::string{});
+    if (auto actual_port = ptask->start(
+          *port, native(core_), addr.empty() ? nullptr : addr.c_str(), false)) {
       BROKER_INFO("expose metrics on port" << *actual_port);
-      telemetry_exporter_ = ptask->telemetry_exporter();
+      telemetry_exporter_ = facade(ptask->telemetry_exporter());
       background_tasks_.emplace_back(std::move(ptask));
     } else {
       BROKER_ERROR("failed to expose metrics:" << actual_port.error());
     }
   } else {
-    auto params = dt::exporter_params::from(config_);
-    telemetry_exporter_
-      = system_.spawn<dt::exporter_actor>(core_, std::move(params));
+    using exporter_t = internal::metric_exporter_actor;
+    auto params = internal::metric_exporter_params::from(cfg);
+    auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
+    telemetry_exporter_ = facade(hdl);
   }
 }
 
@@ -450,64 +534,70 @@ endpoint::~endpoint() {
 }
 
 void endpoint::shutdown() {
-  if (destroyed_)
+  if (!ctx_)
     return;
-  // Lifetime scope of the BROKER_TRACE object: must go out of scope before
-  // calling the destructor of caf::actor_system.
+  BROKER_INFO("shutting down endpoint");
+  if (!await_stores_on_shutdown_) {
+    BROKER_DEBUG("tell core actor to terminate stores");
+    caf::anon_send(native(core_), atom::shutdown_v, atom::store_v);
+  }
+  // Lifetime scope of the scoped actor: must go out of scope before destroying
+  // the actor system.
   {
-    BROKER_TRACE("");
-    BROKER_INFO("shutting down endpoint");
-    caf::scoped_actor self{system_};
-    BROKER_DEBUG("send shutdown message to core actor");
-    self->monitor(core_);
-    self->send(core_, atom::shutdown_v, shutdown_options_);
+    // TODO: there's got to be a better solution than calling the test
+    //       coordinator manually here.
+    using caf::scheduler::test_coordinator;
+    auto& sys = ctx_->sys;
+    auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
+    caf::scoped_actor self{sys};
+    BROKER_DEBUG("tell the core actor to stop");
+    self->monitor(native(core_));
+    self->send(native(core_), atom::shutdown_v, shutdown_options_);
+    if (sched)
+      sched->run();
     self->receive( // Give the core 5s time to shut down gracefully.
       [](const caf::down_msg&) {},
       caf::after(std::chrono::seconds(5)) >>
         [&] {
-          BROKER_WARNING("endpoint failed to shut down gracefully, kill");
-          self->send_exit(core_, caf::exit_reason::kill);
-          self->wait_for(core_);
+          BROKER_WARNING("core actor failed to shut down gracefully, kill");
+          self->send_exit(native(core_), caf::exit_reason::kill);
+          self->wait_for(native(core_));
         });
-    if (!activities_.empty()) {
-      BROKER_DEBUG("cancel background activities");
-      for (auto& hdl : activities_)
-        hdl.cancel();
-      BROKER_DEBUG("wait until all background activities have completed");
-      for (auto& hdl : activities_)
-        hdl.wait();
-      activities_.clear();
+    core_ = nullptr;
+    BROKER_DEBUG("stop all background workers");
+    if (!workers_.empty()) {
+      for (auto& hdl : workers_)
+        caf::anon_send_exit(native(hdl), caf::exit_reason::user_shutdown);
+      BROKER_DEBUG("wait until all background workers terminated");
+      if (sched)
+        sched->run();
+      for (auto& hdl : workers_)
+        self->wait_for(native(hdl));
+      workers_.clear();
     }
-    BROKER_DEBUG("stop" << background_tasks_.size() << "background tasks");
-    background_tasks_.clear();
-    BROKER_DEBUG("destroy actor system (final shutdown step)");
+    BROKER_DEBUG("stop the telemetry exporter");
+    self->send_exit(native(telemetry_exporter_),
+                    caf::exit_reason::user_shutdown);
+    if (sched)
+      sched->run();
+    self->wait_for(native(telemetry_exporter_));
+    telemetry_exporter_ = nullptr;
   }
   BROKER_DEBUG("stop background tasks");
-  telemetry_exporter_ = nullptr;
   background_tasks_.clear();
-  BROKER_DEBUG("send shutdown message to core actor");
-  anon_send(core_, atom::shutdown_v);
-  destroyed_ = true;
-  core_ = nullptr;
-  // TODO: there's got to be a better solution than calling the test coordinator
-  //       manually, or at least push this to the destructor of actor_system.
-  using caf::scheduler::test_coordinator;
-  if (auto sched = dynamic_cast<test_coordinator*>(&system_.scheduler()))
-    sched->run();
-  system_.~actor_system();
-  delete clock_;
-  clock_ = nullptr;
+  clock_.reset();
+  ctx_.reset();
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("try listening on"
               << (address + ":" + std::to_string(port))
-              << (config_.options().disable_ssl ? "(no SSL)" : "(SSL)"));
+              << (ctx_->cfg.options().disable_ssl ? "(no SSL)" : "(SSL)"));
   char const* addr = address.empty() ? nullptr : address.c_str();
   uint16_t result = 0;
-  caf::scoped_actor self{system_};
-  self->request(core_, caf::infinite, atom::listen_v, address, port)
+  caf::scoped_actor self{ctx_->sys};
+  self->request(native(core_), caf::infinite, atom::listen_v, address, port)
     .receive(
       [&](atom::listen, atom::ok, uint16_t res) {
         BROKER_DEBUG("listening on port" << res);
@@ -528,35 +618,29 @@ bool endpoint::peer(const std::string& address, uint16_t port,
                                       << "retry:" << to_string(retry)
                                       << "[synchronous]");
   bool result = false;
-  caf::scoped_actor self{system_};
+  caf::scoped_actor self{ctx_->sys};
   self
-    ->request(core_, caf::infinite, atom::peer_v,
+    ->request(native(core_), caf::infinite, atom::peer_v,
               network_info{address, port, retry})
-    .receive([&](atom::peer, atom::ok, endpoint_id) { result = true; },
-             [&](caf::error& err) {
-               BROKER_DEBUG("cannot peer to" << address << "on port" << port
-                                             << ":" << err);
-             });
+    .receive(
+      [&](atom::peer, atom::ok, endpoint_id) { //
+        result = true;
+      },
+      [&](caf::error& err) {
+        BROKER_DEBUG("cannot peer to" << address << "on port" << port << ":"
+                                      << err);
+      });
   return result;
 }
 
-bool endpoint::peer(const caf::uri& locator, timeout::seconds retry) {
-  BROKER_TRACE(BROKER_ARG(locator) << BROKER_ARG(retry));
-  if (auto info = to<network_info>(locator)) {
-    return peer(info->address, info->port, retry);
-  } else {
-    BROKER_INFO("invalid URI:" << locator);
-    return false;
-  }
-}
-
 void endpoint::peer_nosync(const std::string& address, uint16_t port,
-			   timeout::seconds retry) {
+                           timeout::seconds retry) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("starting to peer with" << (address + ":" + std::to_string(port))
                                       << "retry:" << to_string(retry)
                                       << "[asynchronous]");
-  caf::anon_send(core(), atom::peer_v, network_info{address, port, retry});
+  caf::anon_send(native(core_), atom::peer_v,
+                 network_info{address, port, retry});
 }
 
 std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
@@ -564,17 +648,16 @@ std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
   BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
   auto prom = std::make_shared<std::promise<bool>>();
   auto res = prom->get_future();
-  auto on_val = [prom](atom::peer, atom::ok, endpoint_id) mutable {
+  auto on_val = [prom](atom::peer, atom::ok,
+                       endpoint_id) mutable { //
     prom->set_value(true);
   };
-  auto on_err = [prom](const caf::error&) {
-    prom->set_value(false);
-  };
+  auto on_err = [prom](const caf::error&) { prom->set_value(false); };
   using actor_t = async_helper_actor<decltype(on_val), decltype(on_err)>;
   auto msg = caf::make_message(atom::peer_v,
                                network_info{std::move(host), port, retry});
-  system_.spawn<actor_t>(core_, std::move(msg), std::move(on_val),
-                         std::move(on_err));
+  ctx_->sys.spawn<actor_t>(native(core_), std::move(msg), std::move(on_val),
+                           std::move(on_err));
   return res;
 }
 
@@ -583,18 +666,15 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
   BROKER_INFO("stopping to peer with" << address << ":" << port
                                       << "[synchronous]");
   bool result = false;
-  caf::scoped_actor self{system_};
-  self->request(core_, caf::infinite, atom::unpeer_v,
-                network_info{address, port})
-  .receive(
-    [&](void) {
-      result = true;
-    },
-    [&](caf::error& err) {
-      BROKER_DEBUG("Cannot unpeer from" << address << "on port"
-                    << port << ":" << err);
-    }
-  );
+  caf::scoped_actor self{ctx_->sys};
+  self
+    ->request(native(core_), caf::infinite, atom::unpeer_v,
+              network_info{address, port})
+    .receive([&](void) { result = true; },
+             [&](caf::error& err) {
+               BROKER_DEBUG("Cannot unpeer from" << address << "on port" << port
+                                                 << ":" << err);
+             });
 
   return result;
 }
@@ -603,62 +683,54 @@ void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("stopping to peer with " << address << ":" << port
                                        << "[asynchronous]");
-  caf::anon_send(core(), atom::unpeer_v, network_info{address, port});
+  caf::anon_send(native(core_), atom::unpeer_v, network_info{address, port});
 }
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
-  caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::get_v, atom::peer_v)
-  .receive(
-    [&](std::vector<peer_info>& peers) {
-      result = std::move(peers);
-    },
-    [](const caf::error& e) {
-      detail::die("failed to get peers:", to_string(e));
-    }
-  );
+  caf::scoped_actor self{ctx_->sys};
+  self->request(native(core_), caf::infinite, atom::get_v, atom::peer_v)
+    .receive([&](std::vector<peer_info>& peers) { result = std::move(peers); },
+             [](const caf::error& e) {
+               detail::die("failed to get peers:", to_string(e));
+             });
   return result;
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
   std::vector<topic> result;
-  caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::get_v,
-                atom::peer_v, atom::subscriptions_v)
-  .receive(
-    [&](std::vector<topic>& ts) {
-      result = std::move(ts);
-    },
-    [](const caf::error& e) {
-      detail::die("failed to get peer subscriptions:", to_string(e));
-    }
-  );
+  caf::scoped_actor self{ctx_->sys};
+  self
+    ->request(native(core_), caf::infinite, atom::get_v, atom::peer_v,
+              atom::subscriptions_v)
+    .receive([&](std::vector<topic>& ts) { result = std::move(ts); },
+             [](const caf::error& e) {
+               detail::die("failed to get peer subscriptions:", to_string(e));
+             });
   return result;
 }
 
 void endpoint::forward(std::vector<topic> ts) {
   BROKER_INFO("forwarding topics" << ts);
-  caf::anon_send(core(), atom::subscribe_v, std::move(ts));
+  caf::anon_send(native(core_), atom::subscribe_v, std::move(ts));
 }
 
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
-  caf::anon_send(core(), atom::publish_v,
+  caf::anon_send(native(core_), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)));
 }
 
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
-  caf::anon_send(core(), atom::publish_v,
+  caf::anon_send(native(core_), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)), dst);
 }
 
-void endpoint::publish(data_message x){
+void endpoint::publish(data_message x) {
   BROKER_INFO("publishing" << x);
-  caf::anon_send(core(), atom::publish_v, std::move(x));
+  caf::anon_send(native(core_), atom::publish_v, std::move(x));
 }
-
 
 void endpoint::publish(std::vector<data_message> xs) {
   BROKER_INFO("publishing" << xs.size() << "messages");
@@ -689,27 +761,103 @@ using worker_actor = caf::stateful_actor<worker_state>;
 
 } // namespace
 
-activity endpoint::do_subscribe(filter_type filter,
-                                detail::sink_driver_ptr sink) {
+worker endpoint::do_subscribe(filter_type&& filter,
+                              detail::sink_driver_ptr sink) {
   BROKER_ASSERT(sink != nullptr);
   using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
   auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
   // Subscribe a new worker to the consumer end.
-  using observer_t = caf::flow::observer<data_message>;
-  auto [obs, launch_obs] = system().spawn_inactive<worker_actor>();
+  auto [obs, launch_obs] = ctx_->sys.spawn_inactive<worker_actor>();
   sink->init();
   obs //
     ->make_observable()
     .from_resource(con_res)
-    .subscribe(observer_t{std::move(sink)});
+    .subscribe(caf::flow::make_observer(
+      [sink](const data_message& msg) { sink->on_next(msg); },
+      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); },
+      [sink] {
+        error no_error;
+        sink->on_cleanup(no_error);
+      }));
   auto worker = caf::actor{obs};
   launch_obs();
   // Hand the producer end to the core.
-  caf::anon_send(core(), std::move(filter), std::move(prod_res));
-  // Store background worker as activity and return.
-  activities_.emplace_back(activity{std::move(worker)});
-  return activities_.back();
+  caf::anon_send(native(core()), std::move(filter), std::move(prod_res));
+  // Store background worker and return.
+  workers_.emplace_back(facade(worker));
+  return workers_.back();
+}
+
+namespace {
+
+// Implements the Pullable concept from CAF.
+class data_message_source {
+public:
+  using driver_ptr = detail::source_driver_ptr;
+
+  using output_type = data_message;
+
+  explicit data_message_source(driver_ptr driver) : driver_(std::move(driver)) {
+    // nop
+  }
+
+  data_message_source(data_message_source&&) = default;
+  data_message_source(const data_message_source&) = default;
+  data_message_source& operator=(data_message_source&&) = default;
+  data_message_source& operator=(const data_message_source&) = default;
+
+  template <class Step, class... Steps>
+  void pull(size_t n, Step& step, Steps&... steps) {
+    // Stop when already at the end.
+    if (driver_->at_end()) {
+      step.on_complete(steps...);
+      return;
+    }
+    // Pull from the driver and propagate values down the pipeline.
+    buf_.clear();
+    driver_->pull(buf_, n);
+    for (auto& msg : buf_)
+      if (!step.on_next(msg, steps...))
+        return;
+    // Check for end condition again.
+    if (driver_->at_end()) {
+      step.on_complete(steps...);
+      return;
+    }
+  }
+
+private:
+  driver_ptr driver_;
+  std::deque<data_message> buf_;
+};
+
+} // namespace
+
+worker endpoint::do_publish_all(std::shared_ptr<detail::source_driver> driver) {
+  BROKER_ASSERT(driver != nullptr);
+  using caf::async::make_spsc_buffer_resource;
+  // Get a pair of connected resources.
+  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
+  // Push to the producer end with a new worker.
+  auto [src, launch_src] = ctx_->sys.spawn_inactive<worker_actor>();
+  driver->init();
+  src //
+    ->make_observable()
+    .lift(data_message_source{driver})
+    .subscribe(prod_res);
+  auto worker = caf::actor{src};
+  launch_src();
+  // Hand the consumer end to the core.
+  caf::anon_send(native(core_),
+                 internal::data_consumer_res{std::move(con_res)});
+  // Store background worker and return.
+  workers_.emplace_back(facade(std::move(worker)));
+  return workers_.back();
+}
+
+broker_options endpoint::options() const {
+  return ctx_->cfg.options();
 }
 
 expected<store> endpoint::attach_master(std::string name, backend type,
@@ -717,20 +865,19 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   BROKER_TRACE(BROKER_ARG(name) << BROKER_ARG(type) << BROKER_ARG(opts));
   BROKER_INFO("attaching master store" << name << "of type" << type);
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{system_};
+  caf::scoped_actor self{ctx_->sys};
   self
-    ->request(core(), caf::infinite, atom::store_v, atom::master_v,
+    ->request(native(core_), caf::infinite, atom::store_v, atom::master_v,
               atom::attach_v, name, type, std::move(opts))
     .receive(
       [&](caf::actor& master) {
-        res = store{id_, std::move(master), std::move(name)};
+        res = store{id_, facade(master), std::move(name)};
       },
-      [&](caf::error& e) { res = std::move(e); });
+      [&](caf::error& e) { res = facade(e); });
   return res;
 }
 
-expected<store> endpoint::attach_clone(std::string name,
-                                       double resync_interval,
+expected<store> endpoint::attach_clone(std::string name, double resync_interval,
                                        double stale_interval,
                                        double mutation_buffer_interval) {
   BROKER_TRACE(BROKER_ARG(name)
@@ -738,24 +885,24 @@ expected<store> endpoint::attach_clone(std::string name,
                << BROKER_ARG(mutation_buffer_interval));
   BROKER_INFO("attaching clone store" << name);
   expected<store> res{ec::unspecified};
-  caf::scoped_actor self{system_};
+  caf::scoped_actor self{ctx_->sys};
   self
-    ->request(core(), caf::infinite, atom::store_v, atom::clone_v,
+    ->request(native(core_), caf::infinite, atom::store_v, atom::clone_v,
               atom::attach_v, name, resync_interval, stale_interval,
               mutation_buffer_interval)
     .receive(
       [&](caf::actor& clone) {
-        res = store{id_, std::move(clone), std::move(name)};
+        res = store{id_, facade(clone), std::move(name)};
       },
-      [&](caf::error& e) { res = std::move(e); });
+      [&](caf::error& e) { res = facade(e); });
   return res;
 }
 
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   bool result = false;
-  caf::scoped_actor self{system_};
-  self->request(core(), timeout, atom::await_v, whom)
+  caf::scoped_actor self{ctx_->sys};
+  self->request(native(core()), timeout, atom::await_v, whom)
     .receive(
       [&]([[maybe_unused]] endpoint_id& discovered) {
         BROKER_ASSERT(whom == discovered);
@@ -784,13 +931,13 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
         },
         [&](caf::error& e) { cb(false); });
   };
-  core()->home_system().spawn(f, core(), timeout);
+  ctx_->sys.spawn(f, native(core_), timeout);
 }
 
 filter_type endpoint::filter() const {
   filter_type result;
-  caf::scoped_actor self{system_};
-  self->request(core(), caf::infinite, atom::get_filter_v)
+  caf::scoped_actor self{ctx_->sys};
+  self->request(native(core()), caf::infinite, atom::get_filter_v)
     .receive(
       [&](filter_type& res) {
         using std::swap;
@@ -802,4 +949,44 @@ filter_type endpoint::filter() const {
   return result;
 }
 
+// -- worker management --------------------------------------------------------
+
+void endpoint::wait_for(worker who) {
+  caf::scoped_actor tmp{ctx_->sys};
+  tmp->wait_for(native(who));
+  if (auto i = std::find(workers_.begin(), workers_.end(), who);
+      i != workers_.end()) {
+    workers_.erase(i);
+  }
+}
+
+void endpoint::stop(worker who) {
+  caf::anon_send_exit(native(who), caf::exit_reason::user_shutdown);
+  if (auto i = std::find(workers_.begin(), workers_.end(), who);
+      i != workers_.end()) {
+    workers_.erase(i);
+  }
+}
+
 } // namespace broker
+
+namespace broker::internal {
+
+endpoint_context::endpoint_context(configuration&& src)
+  : cfg(std::move(src)), sys(nat_cfg(cfg)) {
+  // nop
+}
+
+caf::actor_system& endpoint_access::sys() {
+  return ep->ctx_->sys;
+}
+
+const caf::actor_system_config& endpoint_access::cfg() {
+  return nat_cfg(ep->ctx_->cfg);
+}
+
+std::shared_ptr<endpoint_context> endpoint_access::ctx() {
+  return ep->ctx_;
+}
+
+} // namespace broker::internal

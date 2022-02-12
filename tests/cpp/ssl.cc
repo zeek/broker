@@ -12,6 +12,7 @@
 #include "broker/configuration.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/configuration_access.hh"
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
 
@@ -20,20 +21,21 @@ using namespace broker;
 namespace {
 
 configuration make_config(std::string cert_id) {
-  configuration cfg;
-  if (auto err = cfg.parse(caf::test::engine::argc(),
-                           caf::test::engine::argv()))
-    CAF_FAIL("parsing the config failed: " << to_string(err));
-  cfg.set("caf.logger.inline-output", true);
+  configuration cfg{skip_init};
+  try {
+    cfg.init(caf::test::engine::argc(), caf::test::engine::argv());
+  } catch (std::exception& ex) {
+    FAIL("parsing the config failed: " << ex.what());
+  }
   if (cert_id.size()) {
     auto test_dir = getenv("BROKER_TEST_DIR");
-    CAF_REQUIRE(test_dir);
+    REQUIRE(test_dir);
     auto cd = std::string(test_dir) + "/cpp/certs/";
     cfg.set("caf.openssl.cafile", cd + "ca.pem");
     cfg.set("caf.openssl.certificate", cd + "cert." + cert_id + ".pem");
     cfg.set("caf.openssl.key", cd + "key." + cert_id + ".pem");
-    MESSAGE("using certififcate " << cfg.openssl_certificate << ", key "
-                                  << cfg.openssl_key);
+    MESSAGE("using certififcate " << cfg.openssl_certificate() << ", key "
+                                  << cfg.openssl_key());
   }
   return cfg;
 }
@@ -69,22 +71,18 @@ struct ssl_auth_fixture {
 
 } // namespace <anonymous>
 
-CAF_TEST_FIXTURE_SCOPE(ssl_auth_use_cases, ssl_auth_fixture)
+FIXTURE_SCOPE(ssl_auth_use_cases, ssl_auth_fixture)
 
-CAF_TEST(authenticated_session) {
+TEST(authenticated_session) {
   MESSAGE("prepare authenticated connection");
-  MESSAGE("mercury: " << mercury_auth.ep.node_id());
-  MESSAGE("venus: " << venus_auth.ep.node_id());
   auto mercury_auth_es = mercury_auth.ep.make_subscriber({"/broker/test"});
   auto venus_auth_es = venus_auth.ep.make_subscriber({"/broker/test"});
 
   MESSAGE("mercury_auth listen");
   auto p = mercury_auth.ep.listen("127.0.0.1", 0);
   MESSAGE("venus_auth peer with mecury_auth on port " << p);
-  auto venus_peered = venus_auth.ep.peer("127.0.0.1", p);
-  CAF_REQUIRE(venus_peered);
-  auto mercury_peered = mercury_auth.ep.await_peer(venus_auth.ep.node_id());
-  CAF_REQUIRE(mercury_peered);
+  auto b = venus_auth.ep.peer("127.0.0.1", p);
+  REQUIRE(b);
 
   data_message ping{"/broker/test", "ping"};
   data_message pong{"/broker/test", "pong"};
@@ -92,39 +90,39 @@ CAF_TEST(authenticated_session) {
   MESSAGE("mercury_auth sending ping");
   mercury_auth.ep.publish(ping);
   MESSAGE("venus_auth waiting for ping");
-  CAF_CHECK_EQUAL(venus_auth_es.get(), ping);
-  CAF_CHECK(mercury_auth_es.poll().empty());
-  CAF_CHECK(venus_auth_es.poll().empty());
+  CHECK_EQUAL(venus_auth_es.get(), ping);
+  CHECK(mercury_auth_es.poll().empty());
+  CHECK(venus_auth_es.poll().empty());
 
   MESSAGE("venus_auth sending pong");
   venus_auth.ep.publish(pong);
   MESSAGE("mercury_auth waiting for pong");
-  CAF_CHECK_EQUAL(mercury_auth_es.get(), pong);
-  CAF_CHECK(mercury_auth_es.poll().empty());
-  CAF_CHECK(venus_auth_es.poll().empty());
+  CHECK_EQUAL(mercury_auth_es.get(), pong);
+  CHECK(mercury_auth_es.poll().empty());
+  CHECK(venus_auth_es.poll().empty());
 
   MESSAGE("disconnect venus_auth from mercury_auth");
   venus_auth.ep.unpeer("mercury", 4040);
 }
 
-CAF_TEST(authenticated_failure_no_ssl_peer) {
+TEST(authenticated_failure_no_ssl_peer) {
   MESSAGE("prepare authenticated connection expected to fail");
   MESSAGE("earth_no_auth listen");
   auto p = earth_no_auth.ep.listen("127.0.0.1", 0);
 
   MESSAGE("venus_auth peer with earth_no_auth on port " << p);
   auto b = venus_auth.ep.peer("127.0.0.1", p, timeout::seconds(0));
-  CAF_REQUIRE(not b);
+  REQUIRE(not b);
 }
 
-CAF_TEST(authenticated_failure_wrong_ssl_peer) {
+TEST(authenticated_failure_wrong_ssl_peer) {
   MESSAGE("prepare authenticated connection expected to fail");
   MESSAGE("earth_wrong_auth listen");
   auto p = earth_wrong_auth.ep.listen("127.0.0.1", 0);
 
   MESSAGE("venus_auth peer with earth_wrong_auth on port " << p);
   auto b = venus_auth.ep.peer("127.0.0.1", p, timeout::seconds(0));
-  CAF_REQUIRE(not b);
+  REQUIRE(not b);
 }
 
-CAF_TEST_FIXTURE_SCOPE_END()
+FIXTURE_SCOPE_END()

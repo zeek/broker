@@ -4,6 +4,11 @@
 #include <caf/node_id.hpp>
 
 #include "broker/convert.hh"
+#include "broker/expected.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
+
+using broker::internal::native;
 
 namespace {
 
@@ -139,36 +144,33 @@ struct data_converter {
 
 } // namespace <anonymous>
 
-bool convert(const table::value_type& e, std::string& str) {
-  str += to_string(e.first) + " -> " + to_string(e.second);
+bool convert(const table::value_type& x, std::string& str) {
+  str += to_string(x.first) + " -> " + to_string(x.second);
   return true;
 }
 
-bool convert(const vector& v, std::string& str) {
-  container_convert(v, str, "(", ")");
+bool convert(const vector& x, std::string& str) {
+  container_convert(x, str, "(", ")");
   return true;
 }
 
-bool convert(const set& s, std::string& str) {
-  container_convert(s, str, "{", "}");
+bool convert(const set& x, std::string& str) {
+  container_convert(x, str, "{", "}");
   return true;
 }
 
-bool convert(const table& t, std::string& str) {
-  container_convert(t, str, "{", "}");
+bool convert(const table& x, std::string& str) {
+  container_convert(x, str, "{", "}");
   return true;
 }
 
-bool convert(const data& d, std::string& str) {
-  visit(data_converter{str}, d);
+bool convert(const data& x, std::string& str) {
+  visit(data_converter{str}, x);
   return true;
 }
 
-bool convert(const data& d, endpoint_id& node){
-  if (is<std::string>(d))
-    if (auto err = caf::parse(get<std::string>(d), node); !err)
-      return true;
-  return false;
+bool convert(const data& x, endpoint_id& node){
+  return is<std::string>(x) && convert(get<std::string>(x), node);
 }
 
 bool convert(const endpoint_id& node, data& d) {
@@ -177,6 +179,19 @@ bool convert(const endpoint_id& node, data& d) {
   else
     d = nil;
   return true;
+}
+
+std::string to_string(const expected<data>& x) {
+  if (x)
+    return to_string(*x);
+  else
+    return "!" + to_string(x.error());
+}
+
+std::string to_string(const vector& x) {
+  std::string str;
+  convert(x, str);
+  return str;
 }
 
 } // namespace broker

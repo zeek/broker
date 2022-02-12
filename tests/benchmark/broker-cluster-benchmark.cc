@@ -6,31 +6,40 @@
 #include <string>
 #include <thread>
 
-#include "caf/actor_system.hpp"
-#include "caf/actor_system_config.hpp"
-#include "caf/after.hpp"
-#include "caf/attach_stream_sink.hpp"
-#include "caf/attach_stream_source.hpp"
-#include "caf/event_based_actor.hpp"
-#include "caf/scoped_actor.hpp"
-#include "caf/settings.hpp"
-#include "caf/stateful_actor.hpp"
-#include "caf/string_algorithms.hpp"
-#include "caf/term.hpp"
+#include <caf/actor_system.hpp>
+#include <caf/actor_system_config.hpp>
+#include <caf/after.hpp>
+#include <caf/attach_stream_sink.hpp>
+#include <caf/attach_stream_source.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scoped_actor.hpp>
+#include <caf/settings.hpp>
+#include <caf/stateful_actor.hpp>
+#include <caf/string_algorithms.hpp>
+#include <caf/term.hpp>
 
+#include "broker/configuration.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/detail/generator_file_reader.hh"
-#include "broker/detail/generator_file_writer.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/generator_file_reader.hh"
+#include "broker/internal/generator_file_writer.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/subscriber.hh"
 
+using broker::internal::native;
 using caf::actor_system_config;
 using caf::expected;
-using std::chrono::duration_cast;
+using caf::get;
+using caf::get_if;
+using caf::holds_alternative;
 using std::string;
+using std::chrono::duration_cast;
 
 using string_list = std::vector<string>;
+
+namespace atom = broker::internal::atom;
 
 // -- global constants and type aliases ----------------------------------------
 
@@ -322,7 +331,7 @@ struct node_manager_state {
   union {
     broker::endpoint ep;
   };
-  broker::detail::generator_file_reader_ptr generator;
+  broker::internal::generator_file_reader_ptr generator;
   std::vector<caf::actor> children;
 
   node_manager_state() {
@@ -342,7 +351,7 @@ struct node_manager_state {
     opts.disable_ssl = true;
     opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
-    cfg.set("caf.middleman.workers", 0);
+    cfg.set("caf.middleman.workers", uint64_t{0u});
     cfg.set("caf.logger.file.path", this_node->name + ".log");
     cfg.set("caf.logger.file.verbosity", this_node->log_verbosity);
     new (&ep) broker::endpoint(std::move(cfg));
@@ -356,9 +365,10 @@ struct generator_state {
 };
 
 void generator(caf::stateful_actor<generator_state>* self, node* this_node,
-               caf::actor core, broker::detail::generator_file_reader_ptr ptr) {
-  using generator_ptr = broker::detail::generator_file_reader_ptr;
-  using value_type = broker::node_message_content;
+               caf::actor core,
+               broker::internal::generator_file_reader_ptr ptr) {
+  using generator_ptr = broker::internal::generator_file_reader_ptr;
+  using value_type = broker::node_message::value_type;
   if (this_node->num_outputs != caf::none) {
     struct state {
       generator_ptr gptr;
@@ -440,12 +450,12 @@ void run_send_mode(node_manager_actor* self, caf::actor observer) {
   auto this_node = self->state.this_node;
   verbose::println(this_node->name, " starts publishing");
   auto t0 = std::chrono::steady_clock::now();
-  auto g = self->spawn(generator, this_node, self->state.ep.core(),
+  auto g = self->spawn(generator, this_node, native(self->state.ep.core()),
                        std::move(self->state.generator));
   g->attach_functor([this_node, t0, observer]() mutable {
     auto t1 = std::chrono::steady_clock::now();
-    anon_send(observer, broker::atom::ok_v, broker::atom::write_v,
-              this_node->name, duration_cast<caf::timespan>(t1 - t0));
+    anon_send(observer, atom::ok_v, atom::write_v, this_node->name,
+              duration_cast<caf::timespan>(t1 - t0));
   });
 }
 
@@ -468,8 +478,8 @@ struct consumer_state {
     auto limit = this_node->num_inputs;
     if (received < limit && received + n >= limit) {
       auto stop = std::chrono::steady_clock::now();
-      anon_send(observer, broker::atom::ok_v, broker::atom::read_v,
-                this_node->name, duration_cast<caf::timespan>(stop - start));
+      anon_send(observer, atom::ok_v, atom::read_v, this_node->name,
+                duration_cast<caf::timespan>(stop - start));
       verbose::println(this_node->name, " reached its limit");
     }
     received += n;
@@ -478,7 +488,7 @@ struct consumer_state {
   template <class T>
   void attach_sink(caf::stream<T> in, caf::actor observer) {
     if (++connected_streams == 2) {
-      self->send(observer, broker::atom::ack_v);
+      self->send(observer, atom::ack_v);
       verbose::println(this_node->name, " waits for messages");
     }
     attach_stream_sink(
@@ -507,9 +517,8 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
   self->state.this_node = this_node;
   self->state.observer = observer;
-  self->send(self * core, broker::atom::join_v, topics(*this_node));
-  self->send(self * core, broker::atom::join_v, broker::atom::store_v,
-             topics(*this_node));
+  self->send(self * core, atom::join_v, topics(*this_node));
+  self->send(self * core, atom::join_v, atom::store_v, topics(*this_node));
   if (!verbose::enabled())
     return {
       [=](caf::stream<broker::data_message> in) {
@@ -541,7 +550,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
 
 void run_receive_mode(node_manager_actor* self, caf::actor observer) {
   auto this_node = self->state.this_node;
-  auto core = self->state.ep.core();
+  auto core = native(self->state.ep.core());
   auto c = self->spawn(consumer, this_node, core, observer);
   self->state.children.emplace_back(c);
 }
@@ -570,15 +579,15 @@ caf::error try_connect(broker::endpoint& ep, broker::status_subscriber& ss,
     if (holds_alternative<none>(ss_res))
       continue;
     if (auto err = get_if<error>(&ss_res))
-      return std::move(*err);
+      return internal::native(*err);
     BROKER_ASSERT(holds_alternative<status>(ss_res));
     auto& ss_stat = get<status>(ss_res);
     auto code = ss_stat.code();
     if (code == sc::unspecified)
       continue;
     if (code == sc::peer_removed || code == sc::peer_lost)
-      return make_error(caf::sec::runtime_error, this_node->name,
-                        "lost connection to a peer");
+      return caf::make_error(caf::sec::runtime_error, this_node->name,
+                             "lost connection to a peer");
     BROKER_ASSERT(code == sc::peer_added);
     if (auto ctx = ss_stat.context<endpoint_info>()) {
       auto& net = ctx->network;
@@ -597,7 +606,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   if (is_receiver(*this_node))
     self->state.ep.forward(topics(*this_node));
   return {
-    [=](broker::atom::init) -> caf::result<broker::atom::ok> {
+    [=](atom::init) -> caf::result<atom::ok> {
       // Open up the ports and start peering.
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
@@ -642,28 +651,28 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
         }
       }
       if (is_sender(*this_node)) {
-        using broker::detail::make_generator_file_reader;
+        using broker::internal::make_generator_file_reader;
         st.generator = make_generator_file_reader(this_node->generator_file);
         if (st.generator == nullptr)
           return make_error(caf::sec::cannot_open_file,
                             this_node->generator_file);
       }
       verbose::println(this_node->name, " up and running");
-      return broker::atom::ok_v;
+      return atom::ok_v;
     },
-    [=](broker::atom::read, caf::actor observer) {
+    [=](atom::read, caf::actor observer) {
       run_receive_mode(self, observer);
     },
-    [=](broker::atom::write, caf::actor observer) {
+    [=](atom::write, caf::actor observer) {
       run_send_mode(self, observer);
     },
-    [=](broker::atom::shutdown) -> caf::result<broker::atom::ok> {
+    [=](atom::shutdown) -> caf::result<atom::ok> {
       for (auto& child : self->state.children)
         self->send_exit(child, caf::exit_reason::user_shutdown);
       // Tell broker to shutdown. This is a blocking function call.
       self->state.ep.shutdown();
       verbose::println(this_node->name, " down");
-      return broker::atom::ok_v;
+      return atom::ok_v;
     },
   };
 }
@@ -869,13 +878,13 @@ int generate_config(string_list directories) {
   using output_map = std::map<std::string, size_t>;
   std::map<std::string, output_map> outputs;
   for (const auto& node : nodes) {
-    auto gptr = broker::detail::make_generator_file_reader(node.generator_file);
+    auto gptr = broker::internal::make_generator_file_reader(node.generator_file);
     if (gptr == nullptr) {
       err::println("unable to open generator file: ", node.generator_file);
       return EXIT_FAILURE;
     }
     auto& out = outputs[node.name];
-    broker::detail::generator_file_reader::value_type value;
+    broker::internal::generator_file_reader::value_type value;
     while (!gptr->at_end()) {
       if (auto err = gptr->read(value)) {
         err::println("error while reading generator file ", node.generator_file,
@@ -993,7 +1002,7 @@ int shrink_generator_file(const string& in_file, const string& out_file,
     err::println("output file ", out_file, " already exists");
     return EXIT_FAILURE;
   }
-  auto gptr = broker::detail::make_generator_file_reader(in_file);
+  auto gptr = broker::internal::make_generator_file_reader(in_file);
   if (gptr == nullptr) {
     err::println("unable to open ", in_file, " as generator file");
     return EXIT_FAILURE;
@@ -1003,7 +1012,7 @@ int shrink_generator_file(const string& in_file, const string& out_file,
     err::println("unable to open ", out_file, " for writing");
     return EXIT_FAILURE;
   }
-  using format = broker::detail::generator_file_writer::format;
+  using format = broker::internal::generator_file_writer::format;
   auto out_guard = caf::detail::make_scope_guard([out] { fclose(out); });
   auto header = format::header();
   if (fwrite(header.data(), 1, header.size(), out) != header.size()) {
@@ -1011,7 +1020,7 @@ int shrink_generator_file(const string& in_file, const string& out_file,
     return EXIT_FAILURE;
   }
   int return_code = EXIT_SUCCESS;
-  using value_type = broker::detail::generator_file_reader::value_type;
+  using value_type = broker::internal::generator_file_reader::value_type;
   using bytes = caf::span<const caf::byte>;
   auto f = [&, i{size_t{0}}](value_type* val, bytes chunk) mutable {
     if (fwrite(chunk.data(), 1, chunk.size(), out) != chunk.size()) {
@@ -1186,7 +1195,7 @@ int main(int argc, char** argv) {
       return EXIT_FAILURE;
     }
     for (const auto& file_name : file_names) {
-      auto gptr = broker::detail::make_generator_file_reader(file_name);
+      auto gptr = broker::internal::make_generator_file_reader(file_name);
       if (gptr == nullptr) {
         err::println("unable to open generator file: ", file_name);
         continue;
@@ -1299,7 +1308,7 @@ int main(int argc, char** argv) {
   auto wait_for_ack_messages = [&](size_t num) {
     size_t i = 0;
     self->receive_for(i, num)(
-      [](broker::atom::ack) {
+      [](atom::ack) {
         // All is well.
       },
       [&](caf::error& err) {
@@ -1309,34 +1318,32 @@ int main(int argc, char** argv) {
   auto wait_for_ok_messages = [&](size_t num) {
     size_t i = 0;
     self->receive_for(i, num)(
-      [](broker::atom::ok) {
+      [](atom::ok) {
         // All is well.
       },
-      [](broker::atom::ok, broker::atom::write, const std::string& node_name,
+      [](atom::ok, atom::write, const std::string& node_name,
          caf::timespan runtime) {
         out::println(node_name, " (sending): ",
                      duration_cast<fractional_seconds>(runtime));
       },
-      [](broker::atom::ok, broker::atom::read, const std::string& node_name,
+      [](atom::ok, atom::read, const std::string& node_name,
          caf::timespan runtime) {
         out::println(node_name, " (receiving): ",
                      duration_cast<fractional_seconds>(runtime));
       },
-      [&](caf::error& err) {
-        throw std::move(err);
-      });
+      [&](caf::error& err) { throw std::move(err); });
   };
   try {
     // Initialize all nodes.
     for (auto& x : nodes)
-      self->send(x.mgr, broker::atom::init_v);
+      self->send(x.mgr, atom::init_v);
     wait_for_ok_messages(nodes.size());
     verbose::println("all nodes are up and running, run benchmark");
     // First, we spin up all readers to make sure they receive published data.
     size_t receiver_acks = 0;
     for (auto& x : nodes)
       if (is_receiver(x)) {
-        self->send(x.mgr, broker::atom::read_v, self);
+        self->send(x.mgr, atom::read_v, self);
         ++receiver_acks;
       }
     wait_for_ack_messages(receiver_acks);
@@ -1344,7 +1351,7 @@ int main(int argc, char** argv) {
     auto t0 = std::chrono::steady_clock::now();
     for (auto& x : nodes)
       if (is_sender(x))
-        self->send(x.mgr, broker::atom::write_v, self);
+        self->send(x.mgr, atom::write_v, self);
     auto ok_count = [](size_t interim, const node& x) {
       return interim + (is_sender_and_receiver(x) ? 2 : 1);
     };
@@ -1355,7 +1362,7 @@ int main(int argc, char** argv) {
     // Shutdown all endpoints.
     verbose::println("shut down all nodes");
     for (auto& x : nodes)
-      self->send(x.mgr, broker::atom::shutdown_v);
+      self->send(x.mgr, atom::shutdown_v);
     wait_for_ok_messages(nodes.size());
     for (auto& x : nodes)
       self->send_exit(x.mgr, caf::exit_reason::user_shutdown);

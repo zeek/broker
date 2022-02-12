@@ -1,4 +1,3 @@
-#include "broker/logger.hh" // Must come before any CAF include.
 #include "broker/publisher.hh"
 
 #include <future>
@@ -13,10 +12,18 @@
 #include "broker/detail/assert.hh"
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
+#include "broker/internal/endpoint_access.hh"
+#include "broker/internal/logger.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
 namespace broker::detail {
+
+using broker::internal::facade;
+using broker::internal::native;
+
+namespace atom = broker::internal::atom;
 
 struct publisher_queue : public caf::ref_counted, public caf::async::producer {
 public:
@@ -71,6 +78,11 @@ public:
 
   void deref_producer() const noexcept override {
     deref();
+  }
+
+  size_t demand() const noexcept{
+    guard_type guard{mtx_};
+    return demand_;
   }
 
   auto fd() const {
@@ -145,13 +157,13 @@ const auto* dptr(const opaque_type* ptr) {
   return reinterpret_cast<const publisher_queue*>(ptr);
 }
 
-auto* dptr(const caf::intrusive_ptr<opaque_type>& ptr) {
+auto* dptr(const detail::opaque_ptr& ptr) {
   return dptr(ptr.get());
 }
 
 detail::opaque_ptr make_opaque(caf::intrusive_ptr<publisher_queue> ptr) {
   caf::ref_counted* raw = ptr.release();
-  return {reinterpret_cast<detail::opaque_type*>(raw), false};
+  return detail::opaque_ptr{reinterpret_cast<detail::opaque_type*>(raw), false};
 }
 
 } // namespace
@@ -162,7 +174,7 @@ using broker::detail::dptr;
 
 namespace broker {
 
-publisher::publisher(queue_ptr q, topic t)
+publisher::publisher(detail::opaque_ptr q, topic t)
   : queue_(std::move(q)), topic_(std::move(t)) {
   // nop
 }
@@ -174,12 +186,16 @@ publisher::~publisher() {
 publisher publisher::make(endpoint& ep, topic t) {
   using caf::async::make_spsc_buffer_resource;
   auto [cons_res, prod_res] = make_spsc_buffer_resource<value_type>();
-  caf::anon_send(ep.core(), std::move(cons_res));
+  caf::anon_send(native(ep.core()), std::move(cons_res));
   auto buf = prod_res.try_open();
   BROKER_ASSERT(buf != nullptr);
   auto qptr = caf::make_counted<detail::publisher_queue>(buf);
   buf->set_producer(qptr);
   return publisher{detail::make_opaque(std::move(qptr)), std::move(t)};
+}
+
+size_t publisher::demand() const {
+  return dptr(queue_)->demand();
 }
 
 size_t publisher::buffered() const {

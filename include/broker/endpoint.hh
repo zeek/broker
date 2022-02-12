@@ -5,27 +5,18 @@
 #include <functional>
 #include <future>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include <caf/actor.hpp>
-#include <caf/actor_clock.hpp>
-#include <caf/disposable.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/fwd.hpp>
-#include <caf/message.hpp>
-#include <caf/stream.hpp>
-#include <caf/timespan.hpp>
-#include <caf/timestamp.hpp>
-
-#include "broker/activity.hh"
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
 #include "broker/configuration.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/native_socket.hh"
 #include "broker/detail/sink_driver.hh"
+#include "broker/detail/source_driver.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
@@ -39,6 +30,14 @@
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
+#include "broker/worker.hh"
+
+namespace broker::internal {
+
+struct endpoint_access;
+struct endpoint_context;
+
+} // namespace broker::internal
 
 namespace broker {
 
@@ -47,65 +46,37 @@ namespace broker {
 /// all peers with matching subscriptions receive the message.
 class endpoint {
 public:
+  // --- friends ---------------------------------------------------------------
+
+  friend struct internal::endpoint_access;
+
   // --- member types ----------------------------------------------------------
-
-  using stream_type = caf::stream<data_message>;
-
-  using actor_init_fun = std::function<void (caf::event_based_actor*)>;
 
   /// Custom clock for either running in realtime mode or advancing time
   /// manually.
   class clock {
   public:
-    // -- member types ---------------------------------------------------------
-
-    using mutex_type = std::mutex;
-
-    using lock_type = std::unique_lock<mutex_type>;
-
-    using pending_msg_type = std::pair<caf::actor, caf::message>;
-
-    using pending_msgs_map_type = std::multimap<timestamp, pending_msg_type>;
-
     // --- construction and destruction ----------------------------------------
 
-    clock(caf::actor_system* sys, bool use_real_time);
+    explicit clock(internal::endpoint_context* ctx);
+
+    virtual ~clock();
 
     // -- accessors ------------------------------------------------------------
 
-    timestamp now() const noexcept;
+    virtual timestamp now() const noexcept = 0;
 
-    bool real_time() const noexcept {
-      return real_time_;
-    }
+    virtual bool real_time() const noexcept = 0;
 
     // -- mutators -------------------------------------------------------------
 
-    void advance_time(timestamp t);
+    virtual void advance_time(timestamp t) = 0;
 
-    void send_later(caf::actor dest, timespan after, caf::message msg);
+    virtual void send_later(worker dest, timespan after, void* msg) = 0;
 
-  private:
+  protected:
     /// Points to the host system.
-    caf::actor_system* sys_;
-
-    /// May be read from multiple threads.
-    const bool real_time_;
-
-    /// Nanoseconds since start of the epoch.
-    std::atomic<timespan> time_since_epoch_;
-
-    /// Guards pending_.
-    mutex_type mtx_;
-
-    /// Stores pending messages until they time out.
-    pending_msgs_map_type pending_;
-
-    /// Stores number of items in pending_.  We track it separately as
-    /// a micro-optimization -- checking pending_.size() would require
-    /// obtaining a lock for mtx_, but instead checking this atomic avoids
-    /// that locking expense in the common case.
-    std::atomic<size_t> pending_count_;
+    internal::endpoint_context* ctx_;
   };
 
   /// Utility class for configuring the metrics exporter.
@@ -120,7 +91,7 @@ public:
 
     /// Changes the frequency for publishing scraped metrics to the topic.
     /// Passing a zero-length interval has no effect.
-    void set_interval(caf::timespan new_interval);
+    void set_interval(timespan new_interval);
 
     /// Sets a new target topic for the metrics. Passing an empty topic has no
     /// effect.
@@ -147,6 +118,7 @@ public:
   // --- construction and destruction ------------------------------------------
 
   endpoint();
+
   explicit endpoint(configuration config);
 
   /// @private
@@ -160,7 +132,7 @@ public:
   /// Calls `shutdown`.
   ~endpoint();
 
-  /// Shuts down all background activity and blocks until all local subscribers
+  /// Shuts down all background workers and blocks until all local subscribers
   /// and publishers have terminated. *Must* be the very last function call on
   /// this object before destroying it.
   /// @warning *Destroys* the underlying actor system. Calling *any* member
@@ -203,16 +175,6 @@ public:
   bool peer(const network_info& info) {
     return peer(info.address, info.port, info.retry);
   }
-
-  /// Initiates a peering with a remote endpoint.
-  /// @param locator Denotes the remote endpoint in <ip://$host:$port> notation.
-  /// @param retry If non-zero, seconds after which to retry if connection
-  ///        cannot be established, or breaks.
-  /// @returns True if connection was successfulluy set up.
-  /// @note The endpoint will also receive a status message indicating
-  ///       success or failure.
-  bool peer(const caf::uri& locator,
-            timeout::seconds retry = timeout::seconds(10));
 
   /// Initiates a peering with a remote endpoint, without waiting
   /// for the operation to complete.
@@ -285,6 +247,25 @@ public:
 
   publisher make_publisher(topic ts);
 
+  /// Starts a background worker from the given set of functions that publishes
+  /// a series of messages. The worker will run in the background, but `init`
+  /// is guaranteed to be called before the function returns.
+  template <class Init, class Pull, class AtEnd>
+  worker publish_all(Init init, Pull f, AtEnd pred) {
+    using driver_t = detail::source_driver_impl<Init, Pull, AtEnd>;
+    auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
+                                             std::move(pred));
+    return do_publish_all(std::move(driver));
+  }
+
+  /// Identical to ::publish_all, but does not guarantee that `init` is called
+  /// before the function returns.
+  template <class Init, class Pull, class AtEnd>
+  [[deprecated("use publish_all() instead")]] worker
+  publish_all_nosync(Init init, Pull f, AtEnd pred) {
+    return publish_all(std::move(init), std::move(f), std::move(pred));
+  }
+
   // --- subscribing events ----------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for receiving error and
@@ -309,7 +290,7 @@ public:
   /// incoming messages. The worker will run in the background, but `init` is
   /// guaranteed to be called before the function returns.
   template <class Init, class OnNext, class Cleanup>
-  activity subscribe(filter_type filter, Init init, OnNext on_next,
+  worker subscribe(filter_type filter, Init init, OnNext on_next,
                      Cleanup cleanup) {
     return do_subscribe(std::move(filter),
                         detail::make_sink_driver(std::move(init),
@@ -318,7 +299,7 @@ public:
   }
 
   template <class Init, class OnNext, class Cleanup>
-  [[deprecated("use subscribe() instead")]] activity
+  [[deprecated("use subscribe() instead")]] worker
   subscribe_nosync(filter_type filter, Init init, OnNext on_next,
                    Cleanup cleanup) {
     return subscribe(std::move(filter), std::move(init), std::move(on_next),
@@ -369,8 +350,9 @@ public:
 
   // --- messaging -------------------------------------------------------------
 
-  void send_later(caf::actor who, timespan after, caf::message msg) {
-    clock_->send_later(std::move(who), after, std::move(msg));
+  /// @private
+  void send_later(worker who, timespan after, void* msg) {
+    clock_->send_later(std::move(who), after, msg);
   }
 
   // --- setup and testing -----------------------------------------------------
@@ -396,6 +378,14 @@ public:
                   timespan timeout = defaults::await_peer_timeout);
   // --await-peer-end
 
+  // -- worker management ------------------------------------------------------
+
+  /// Blocks the current thread until `who` terminates.
+  void wait_for(worker who);
+
+  /// Stops a background worker.
+  void stop(worker who);
+
   // --- properties ------------------------------------------------------------
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
@@ -419,7 +409,7 @@ public:
   }
 
   bool is_shutdown() const {
-    return destroyed_;
+    return ctx_ == nullptr;
   }
 
   bool use_real_time() const {
@@ -434,39 +424,34 @@ public:
     clock_->advance_time(t);
   }
 
-  caf::actor_system& system() {
-    return system_;
-  }
-
-  const caf::actor& core() const {
+  const worker& core() const {
     return core_;
   }
 
-  const configuration& config() const {
-    return config_;
-  }
+  broker_options options() const;
 
   /// Retrieves the current filter.
   filter_type filter() const;
 
 protected:
-  caf::actor subscriber_;
+  worker subscriber_;
 
 private:
-  activity do_subscribe(filter_type filter, detail::sink_driver_ptr sink);
+  worker do_subscribe(filter_type&& topics, detail::sink_driver_ptr driver);
 
-  configuration config_;
-  union {
-    mutable caf::actor_system system_;
-  };
+  worker do_publish_all(detail::source_driver_ptr driver);
+
+  template <class F>
+  worker make_worker(F fn);
+
+  std::shared_ptr<internal::endpoint_context> ctx_;
   endpoint_id id_;
-  caf::actor core_;
+  worker core_;
   shutdown_options shutdown_options_;
-  std::vector<activity> activities_;
-  caf::actor telemetry_exporter_;
-  bool await_stores_on_shutdown_;
-  bool destroyed_;
-  clock* clock_;
+  worker telemetry_exporter_;
+  bool await_stores_on_shutdown_ = false;
+  std::vector<worker> workers_;
+  std::unique_ptr<clock> clock_;
   std::vector<std::unique_ptr<background_task>> background_tasks_;
 };
 

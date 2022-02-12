@@ -7,8 +7,7 @@
 #include <deque>
 #include <optional>
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 using expirable = std::pair<broker::data, timestamp>;
 using expirables = std::deque<expirable>;
@@ -104,5 +103,4 @@ public:
   virtual expected<expirables> expiries() const = 0;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

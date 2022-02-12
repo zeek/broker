@@ -1,18 +1,16 @@
 #pragma once
 
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <variant>
 
-#include <caf/actor.hpp>
-#include <caf/optional.hpp>
-
 #include "broker/data.hh"
-#include "broker/detail/channel.hh"
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/snapshot.hh"
 #include "broker/time.hh"
+#include "broker/worker.hh"
 
 namespace broker {
 
@@ -194,20 +192,6 @@ bool inspect(Inspector& f, clear_command& x) {
     .fields(f.field("publisher", x.publisher));
 }
 
-// -- unicast communication between clone and master ---------------------------
-
-/// Tags the class as `control` command, and implements an inspect overload.
-#define BROKER_CONTROL_COMMAND(origin, name, field_names_pack, ...)            \
-  static constexpr auto tag = command_tag::origin##_control;                   \
-  template <class Inspector>                                                   \
-  friend bool inspect(Inspector& f, name##_command& x) {                       \
-    auto& [__VA_ARGS__] = x;                                                   \
-    caf::string_view field_names[] = {BROKER_PP_EXPAND field_names_pack};      \
-    auto refs = std::forward_as_tuple(__VA_ARGS__);                            \
-    std::make_index_sequence<std::tuple_size<decltype(refs)>::value> iseq;     \
-    return detail::inspect_impl(f, x, #name, field_names, refs, iseq);         \
-  }
-
 /// Causes the master to add `remote_clone` to its list of clones.
 struct attach_clone_command {
   static constexpr auto tag = command_tag::consumer_control;
@@ -222,8 +206,8 @@ bool inspect(Inspector& f, attach_clone_command& x) {
 /// Causes the master to add a store writer to its list of inputs. Also acts as
 /// handshake for the channel.
 struct attach_writer_command {
-  detail::sequence_number_type offset;
-  detail::tick_interval_type heartbeat_interval;
+  sequence_number_type offset;
+  tick_interval_type heartbeat_interval;
   static constexpr auto tag = command_tag::producer_control;                   \
 };
 
@@ -239,8 +223,8 @@ bool inspect(Inspector& f, attach_writer_command& x) {
 
 /// Confirms a clone and transfers the initial snapshot to a clone.
 struct ack_clone_command {
-  detail::sequence_number_type offset;
-  detail::tick_interval_type heartbeat_interval;
+  sequence_number_type offset;
+  tick_interval_type heartbeat_interval;
   snapshot state;
   static constexpr auto tag = command_tag::producer_control;
 };
@@ -259,7 +243,7 @@ bool inspect(Inspector& f, ack_clone_command& x) {
 /// Informs the receiver that the sender successfully handled all messages up to
 /// a certain sequence number.
 struct cumulative_ack_command {
-  detail::sequence_number_type seq;
+  sequence_number_type seq;
   static constexpr auto tag = command_tag::consumer_control;
 };
 
@@ -274,7 +258,7 @@ bool inspect(Inspector& f, cumulative_ack_command& x) {
 
 /// Informs the receiver that one or more commands failed to reach the sender.
 struct nack_command {
-  std::vector<detail::sequence_number_type> seqs;
+  std::vector<sequence_number_type> seqs;
   static constexpr auto tag = command_tag::consumer_control;
 };
 
@@ -289,7 +273,7 @@ bool inspect(Inspector& f, nack_command& x) {
 
 /// Informs all receivers that the sender is still alive.
 struct keepalive_command {
-  detail::sequence_number_type seq;
+  sequence_number_type seq;
   static constexpr auto tag = command_tag::producer_control;
 };
 
@@ -304,7 +288,7 @@ bool inspect(Inspector& f, keepalive_command& x) {
 
 /// Notifies the receiver that the sender can no longer retransmit a command.
 struct retransmit_failed_command {
-  detail::sequence_number_type seq;
+  sequence_number_type seq;
   static constexpr auto tag = command_tag::producer_control;
 };
 
@@ -346,7 +330,7 @@ public:
                    keepalive_command, cumulative_ack_command, nack_command,
                    ack_clone_command, retransmit_failed_command>;
 
-  detail::sequence_number_type seq;
+  sequence_number_type seq;
 
   entity_id sender;
 

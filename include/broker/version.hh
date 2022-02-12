@@ -2,8 +2,7 @@
 
 #include <string>
 
-namespace broker {
-namespace version {
+namespace broker::version {
 
 /// The type used for version numbers.
 using type = unsigned;
@@ -26,5 +25,4 @@ inline bool compatible(type v) {
 /// @returns A string representing the Broker version.
 std::string string();
 
-} // namespace version
-} // namespace broker
+} // namespace broker::version

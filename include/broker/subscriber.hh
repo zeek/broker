@@ -1,17 +1,15 @@
 #pragma once
 
-#include <vector>
-
-#include <caf/none.hpp>
-#include <caf/optional.hpp>
-
 #include "broker/data.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
-#include "broker/filter_type.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
+#include "broker/worker.hh"
+
+#include <vector>
+#include <functional>
 
 namespace broker {
 
@@ -74,7 +72,7 @@ public:
   template <class Rep, class Period>
   std::vector<data_message>
   get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
-    if (!caf::is_infinite(rel_timeout))
+    if (rel_timeout != infinite)
       return do_get(num, now() + rel_timeout);
     else
       return get(num);
@@ -96,10 +94,11 @@ public:
   /// at least one value becomes available or a timeout occurred.
   template <class Rep, class Period>
   optional_data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
-    if (!caf::is_infinite(rel_timeout))
-      return get(now() + rel_timeout);
-    else
-      return get();
+    optional_data_message result;
+    auto tmp = get(1, rel_timeout);
+    if (tmp.size() == 1)
+      result.emplace(std::move(tmp.front()));
+    return result;
   }
 
   // --- accessors -------------------------------------------------------------
@@ -134,7 +133,7 @@ public:
 
 private:
   subscriber(detail::opaque_ptr queue, std::shared_ptr<filter_type> core_filter,
-             caf::actor core);
+             worker core);
 
   void update_filter(topic x, bool add, bool block);
 
@@ -152,8 +151,8 @@ private:
   /// Points to the actual implementation for the producer-consumer queue.
   detail::opaque_ptr queue_;
 
-  /// Caches a handle to the core actor for asynchronously updating the filter.
-  caf::actor core_;
+  /// Holds onto a reference to the core actor for filter updates.
+  worker core_;
 
   /// Points to the filter held by the core actor. May only be touched in the
   /// context of the core.
