@@ -252,7 +252,7 @@ public:
   /// is guaranteed to be called before the function returns.
   template <class Init, class Pull, class AtEnd>
   worker publish_all(Init init, Pull f, AtEnd pred) {
-    using driver_t = detail::source_driver_impl<Init, Pull, AtEnd>;
+    using driver_t = detail::source_driver_impl_t<Init, Pull, AtEnd>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(pred));
     return do_publish_all(std::move(driver));

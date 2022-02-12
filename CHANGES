@@ -1,3 +1,71 @@
+2.2.0-22 | 2022-02-09 12:56:35 -0800
+
+  * CI support refresh (Christian Kreibich, Corelight)
+
+    - add FreeBSD 14
+    - add Ubuntu 21.10
+    - remove OpenSUSE Leap 15.2 (EOL)
+    - add CentOS Stream 9
+    - remove Fedora 33 (EOL)
+
+2.2.0-16 | 2022-02-07 16:21:18 +0100
+
+  * Avoid exposing CAF internals. (Dominik Charousset, Corelight)
+
+    Remove all CAF dependencies from public headers and build the
+    bundled CAF version as static, private utility. Consumers of
+    Broker no longer need to locate CAF headers and we do not install
+    any CAF content alongside Broker, i.e., Broker becomes fully
+    standalone.
+
+    Where possible, Broker uses recent C++ additions like `std::variant` to
+    replace CAF types. For types that have no equivalent, Broker deploys
+    fully opaque handle types. For example, `broker::worker` internally
+    wraps a `caf::actor` handle.
+
+    All components in Broker that require access to CAF were grouped into
+    the new namespace `broker::internal`. We omit all internal headers from
+    an installation, since they would be worthless without the matching CAF
+    headers anyways. This also gives us a clean separation between API
+    artifacts users may interact with and API parts that are reserved for
+    internal use.
+
+2.2.0-4 | 2022-01-27 14:49:00 -0700
+
+  * Have `make dist` cleanup a few more wayward files before tarring (Tim Wojtulewicz, Corelight)
+
+  * Remove CentOS 8 from CI. (Tim Wojtulewicz, Corelight)
+
+    EOL was 2021-12-31
+
+2.2.0 | 2021-12-20 19:32:33 -0800
+
+  * Merge branch 'topic/christian/fix-python-unhashables' (Christian Kreibich, Corelight)
+
+    * topic/christian/fix-python-unhashables:
+      Add testcases for new Python SafeSubscriber class
+      Provide a SafeSubscriber class in Python to accommodate non-hashable types
+      Add immutable values to Python data type testsuite
+      Python cleanup: remove unneeded semicolons and trailing whitespace
+
+  * Add testcases for new Python SafeSubscriber class (Christian Kreibich, Corelight)
+
+  * Provide a SafeSubscriber class in Python to accommodate non-hashable types (Christian Kreibich, Corelight)
+
+    Broker's data model supports nested complex types, such as a set with table
+    members. When rendering such structures into Python, this could trigger
+    TypeError exceptions due to unhashable types.
+
+    The SafeSubscriber class and the corresponding Endpoint.make_safe_subscriber()
+    method ensure that immutable (hashable) Python types get used and that the
+    returned values are read-only. For sets the frozenset type achieves this, for
+    mapping types it's types.MappingProxyType. The API now also supports the latter
+    two types as inputs.
+
+  * Add immutable values to Python data type testsuite (Christian Kreibich, Corelight)
+
+  * Python cleanup: remove unneeded semicolons and trailing whitespace (Christian Kreibich, Corelight)
+
 2.2.0-dev.17 | 2021-11-05 13:38:17 -0700
 
   * Request at least Sphinx 2.0 to avoid a dependency problem in RTD (Christian Kreibich, Corelight)

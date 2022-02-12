@@ -1,3 +1,20 @@
+Broker 2.2.0
+============
+
+- The Python bindings now provide a SafeSubscriber variant of Subscriber as well
+  as a new Endpoint.make_safe_subscriber() method. Both avoid potential problems
+  when deserializing values that accommodate the Broker data model but not
+  Python's. Specifically, Broker allows complex types inside others (e.g., a set
+  of tables), but Python does not support unhashable types for indexing, which'd
+  be required in this scenario. SafeSubscriber employs immutable (hashable)
+  types when translating to Python objects and returns objects that are
+  read-only.
+
+  If you haven't encountered problems with the Subscriber class, you don't need
+  to change existing code. Broker 3.0 will make this new behavior the default
+  and deprecate the new APIs. In the meantime you can replace make_subscriber()
+  with make_safe_subscriber() to be on the safe side.
+
 Broker 2.1.0
 ============
 

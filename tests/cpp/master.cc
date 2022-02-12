@@ -97,9 +97,9 @@ struct fixture : base_fixture {
       // Topics.
       {topic::store_events()},
       // Init.
-      [](caf::unit_t&) {},
+      [] {},
       // Consume.
-      [this](caf::unit_t&, data_message msg) {
+      [this](data_message msg) {
         auto content = get_data(msg);
         if (auto insert = store_event::insert::make(content))
           log.emplace_back(to_string(insert));
@@ -111,7 +111,7 @@ struct fixture : base_fixture {
           FAIL("unknown event: " << to_string(content));
       },
       // Cleanup.
-      [](caf::unit_t&) {});
+      [](const error&) {});
   }
 
   ~fixture() {

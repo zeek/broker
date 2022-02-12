@@ -55,17 +55,17 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
       ++flare_count_;
       return true;
     }
-    case caf::detail::enqueue_result::queue_closed:
-      if (mid.is_request()) {
-        caf::detail::sync_request_bouncer bouncer{caf::exit_reason{}};
-        bouncer(sender, mid);
-      }
-      return false;
     case caf::detail::enqueue_result::success: {
       flare_.fire();
       ++flare_count_;
       return true;
     }
+    default: // caf::detail::enqueue_result::queue_closed
+      if (mid.is_request()) {
+        caf::detail::sync_request_bouncer bouncer{caf::exit_reason{}};
+        bouncer(sender, mid);
+      }
+      return false;
   }
 }
 

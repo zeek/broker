@@ -37,8 +37,6 @@ using namespace std::literals;
 
 namespace {
 
-struct no_state {};
-
 int64_t event_type = 1;
 double batch_rate = 1;
 int64_t batch_size = 1;
@@ -252,15 +250,15 @@ void client_mode(endpoint& ep, bool verbose, const std::string& host,
   // Subscribe to /benchmark/stats to print server updates.
   ep.subscribe(
     {"/benchmark/stats"},
-    [](no_state&) {
-      // nop
+    [] {
+      // Init: nop.
     },
-    [&](no_state&, data_message x) {
+    [&](data_message x) {
       // Print everything we receive.
       receivedStats(ep, move_data(x));
     },
-    [](no_state&, const error&) {
-      // nop
+    [](const error&) {
+      // Cleanup: nop.
     });
   // Publish events to benchmark/events.
   // Connect to remote peer.
@@ -278,15 +276,21 @@ void client_mode(endpoint& ep, bool verbose, const std::string& host,
 void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
   if (batch_rate == 0) {
     ep.publish_all(
-      [](no_state&) {},
-      [](no_state&, std::deque<data_message>& out, size_t hint) {
+      [] {
+        // Init: nop.
+      },
+      [](std::deque<data_message>& out, size_t hint) {
+        // Pull: generate random events.
         for (size_t i = 0; i < hint; ++i) {
           auto name = "event_" + std::to_string(event_type);
           out.emplace_back("/benchmark/events",
                            zeek::Event(std::move(name), createEventArgs()));
         }
       },
-      [](const no_state&) { return false; });
+      [] {
+        // AtEnd: always false since we can produce random data forever.
+        return false;
+      });
     for (;;) {
       // Print status events.
       auto ev = ss.get();
@@ -341,10 +345,11 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
   // Subscribe to /benchmark/events.
   ep.subscribe(
     {"/benchmark/events"},
-    [](no_state&) {
-      // nop
+    [] {
+      // Init: nop.
     },
-    [&](no_state&, data_message x) {
+    [](data_message x) {
+      // OnNext: increase the global num_events counter.
       auto msg = move_data(x);
       // Count number of events (counts each element in a batch as one event).
       if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
@@ -357,22 +362,22 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
         exit(1);
       }
     },
-    [](no_state&, const error&) {
-      // nop
+    [](const error&) {
+      // Cleanup: nop.
     });
   // Listen on benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
   ep.subscribe(
     {"/benchmark/terminate"},
-    [](no_state&) {
-      // nop
+    [] {
+      // Init: nop.
     },
-    [&](no_state&, data_message) {
-      // Any message on this topic triggers termination.
+    [&](data_message) {
+      // OnNext: any message on this topic triggers termination.
       terminate = true;
     },
-    [](no_state&, const error&) {
-      // nop
+    [](const error&) {
+      // Cleanup: nop.
     });
   // Start listening for peers.
   auto actual_port = ep.listen(iface, port);
