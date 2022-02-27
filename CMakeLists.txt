@@ -209,6 +209,7 @@ if (CAF_ROOT)
   else()
     find_package(CAF REQUIRED COMPONENTS openssl test io core)
   endif()
+  list(APPEND LINK_LIBS CAF::core CAF::io)
 else ()
   message(STATUS "Using bundled CAF")
   set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
@@ -216,6 +217,8 @@ else ()
   set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
   set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   add_subdirectory(caf EXCLUDE_FROM_ALL)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
 endif ()
 
 # NOTE: building and linking against a different version of the CAF incubator is
@@ -226,7 +229,7 @@ if (CAFIncubator_ROOT)
   else()
     find_package(CAFIncubator REQUIRED COMPONENTS net)
   endif()
-  list(APPEND OPTIONAL_SRC CAF::net)
+  list(APPEND LINK_LIBS CAF::net)
 else()
   message(STATUS "Using bundled CAF incubator")
   set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
@@ -287,7 +290,6 @@ set(BROKER_SRC
   # src/detail/generator_file_writer.cc
   # src/gateway.cc
   ${OPTIONAL_SRC}
-  $<TARGET_OBJECTS:libcaf_net_obj>
   src/address.cc
   src/alm/multipath.cc
   src/alm/routing_table.cc
