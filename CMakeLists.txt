@@ -289,6 +289,11 @@ set(BROKER_SRC
   # src/detail/generator_file_reader.cc
   # src/detail/generator_file_writer.cc
   # src/gateway.cc
+  # src/internal/data_generator.cc
+  # src/internal/generator_file_reader.cc
+  # src/internal/generator_file_writer.cc
+  # src/internal/meta_command_writer.cc
+  # src/internal/meta_data_writer.cc
   ${OPTIONAL_SRC}
   src/address.cc
   src/alm/multipath.cc
@@ -320,20 +325,17 @@ set(BROKER_SRC
   src/internal/connector.cc
   src/internal/connector_adapter.cc
   src/internal/core_actor.cc
-  #src/internal/data_generator.cc
   src/internal/flare_actor.cc
-  #src/internal/generator_file_reader.cc
-  #src/internal/generator_file_writer.cc
   src/internal/master_actor.cc
   src/internal/master_resolver.cc
-  #src/internal/meta_command_writer.cc
-  #src/internal/meta_data_writer.cc
   src/internal/metric_collector.cc
   src/internal/metric_exporter.cc
   src/internal/metric_scraper.cc
   src/internal/metric_view.cc
+  src/internal/pending_connection.cc
   src/internal/prometheus.cc
   src/internal/store_actor.cc
+  src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc
   src/message.cc

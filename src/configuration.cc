@@ -48,6 +48,11 @@
 
 namespace broker {
 
+bool openssl_options::authentication_enabled() const noexcept {
+  return !certificate.empty() || !key.empty() || !passphrase.empty()
+         || !capath.empty() || !cafile.empty();
+}
+
 namespace {
 
 template <class... Ts>
@@ -350,6 +355,20 @@ std::string configuration::openssl_cafile() const {
 
 void configuration::openssl_cafile(std::string x) {
   impl_->openssl_cafile = std::move(x);
+}
+
+openssl_options_ptr configuration::openssl_options() const {
+  if (!options().disable_ssl) {
+    auto res = std::make_shared<broker::openssl_options>();
+    res->certificate = openssl_certificate();
+    res->key = openssl_key();
+    res->passphrase = openssl_passphrase();
+    res->capath = openssl_capath();
+    res->cafile = openssl_cafile();
+    return res;
+  } else {
+    return nullptr;
+  }
 }
 
 void configuration::add_option(int64_t* dst, std::string_view name,

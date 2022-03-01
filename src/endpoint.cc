@@ -372,8 +372,10 @@ public:
     }
   }
 
-  internal::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer) {
-    connector_ = std::make_shared<internal::connector>(this_peer);
+  internal::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer,
+                                openssl_options_ptr ssl_cfg) {
+    connector_ = std::make_shared<internal::connector>(this_peer,
+                                                       std::move(ssl_cfg));
     thread_ = std::thread{[ptr{connector_}, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
       ptr->run();
@@ -447,12 +449,24 @@ endpoint::endpoint(configuration config)
 
 endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   // Spin up the actor system.
+  auto ssl_cfg = config.openssl_options();
   ctx_ = std::make_shared<internal::endpoint_context>(std::move(config));
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
   if (cfg.cli_helptext_printed)
     exit(0);
+  // Make sure the OpenSSL config is consistent.
+  if (ssl_cfg && ssl_cfg->authentication_enabled()) {
+    if (ssl_cfg->certificate.empty()) {
+      std::cerr << "FATAL: No certificate configured for SSL endpoint.\n";
+      ::abort();
+    }
+    if (ssl_cfg->key.empty()) {
+      std::cerr << "FATAL: No private key configured for SSL endpoint.\n";
+      ::abort();
+    }
+  }
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(cfg, "broker.recording-directory",
                          caf::string_view{defaults::recording_directory});
@@ -475,7 +489,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   internal::connector_ptr conn_ptr;
   if (!caf::get_or(cfg, "broker.disable-connector", false)) {
     auto conn_task = std::make_unique<connector_task>();
-    conn_ptr = conn_task->start(sys, id_);
+    conn_ptr = conn_task->start(sys, id_, std::move(ssl_cfg));
     background_tasks_.emplace_back(std::move(conn_task));
   } else {
     BROKER_DEBUG("run without a connector (assuming test mode)");

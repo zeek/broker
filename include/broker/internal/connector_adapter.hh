@@ -1,6 +1,5 @@
 #pragma once
 
-#include "broker/detail/native_socket.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 
@@ -21,7 +20,7 @@ public:
 
   /// Callback for incoming peering connections.
   using peering_callback = callback<endpoint_id, const network_info&,
-                                    const filter_type&, detail::native_socket>;
+                                    const filter_type&, pending_connection_ptr>;
 
   /// Callback for non-critical errors during peering. The connector emits those
   /// errors whenever a connection attempt has failed but retries afterwards

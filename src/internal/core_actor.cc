@@ -11,10 +11,6 @@
 #include <caf/exit_reason.hpp>
 #include <caf/group.hpp>
 #include <caf/make_counted.hpp>
-#include <caf/net/length_prefix_framing.hpp>
-#include <caf/net/middleman.hpp>
-#include <caf/net/stream_socket.hpp>
-#include <caf/net/stream_transport.hpp>
 #include <caf/none.hpp>
 #include <caf/response_promise.hpp>
 #include <caf/result.hpp>
@@ -60,8 +56,8 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
   if (conn) {
     auto on_peering = [this](endpoint_id remote_id, const network_info& addr,
                              const filter_type& filter,
-                             detail::native_socket fd) {
-      std::ignore = init_new_peer(remote_id, addr, filter, fd);
+                             pending_connection_ptr conn) {
+      std::ignore = init_new_peer(remote_id, addr, filter, std::move(conn));
     };
     auto on_peer_unavailable = [this](const network_info& addr) {
       peer_unavailable(addr);
@@ -540,10 +536,9 @@ void core_actor_state::try_connect(const network_info& addr,
   adapter->async_connect(
     addr,
     [this, rp](endpoint_id peer, const network_info& addr,
-               const filter_type& filter, detail::native_socket fd) mutable {
-      BROKER_TRACE(BROKER_ARG(peer)
-                   << BROKER_ARG(addr) << BROKER_ARG(filter) << BROKER_ARG(fd));
-      if (auto err = init_new_peer(peer, addr, filter, fd);
+               const filter_type& filter, pending_connection_ptr conn) mutable {
+      BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
+      if (auto err = init_new_peer(peer, addr, filter, std::move(conn));
           err && err != ec::repeated_peering_handshake_request)
         rp.deliver(std::move(err));
       else
@@ -770,77 +765,10 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   return caf::none;
 }
 
-namespace {
-
-// Trait for caf::net::length_prefix_framing::run that translates between
-// native types and binary network representation.
-struct packing_trait {
-  bool convert(const node_message& msg, caf::byte_buffer& buf) {
-    caf::binary_serializer sink{nullptr, buf};
-    auto write_bytes = [&sink](caf::const_byte_span bytes) {
-      sink.buf().insert(sink.buf().end(), bytes.begin(), bytes.end());
-      return true;
-    };
-    auto write_topic = [&](const auto& x) {
-      const auto& str = x.string();
-      if (str.size() > 0xFFFF) {
-        BROKER_ERROR("topic exceeds maximum size of 65535 characters");
-        return false;
-      }
-      return sink.apply(static_cast<uint16_t>(str.size()))
-             && write_bytes(caf::as_bytes(caf::make_span(str)));
-    };
-    const auto& [sender, receiver, content] = msg.data();
-    const auto& [msg_type, ttl, msg_topic, payload] = content.data();
-    return sink.apply(sender)                                      //
-           && sink.apply(receiver)                                 //
-           && sink.apply(msg_type)                                 //
-           && sink.apply(ttl)                                      //
-           && write_topic(msg_topic)                               //
-           && write_bytes(caf::as_bytes(caf::make_span(payload))); //
-  }
-
-  bool convert(caf::const_byte_span bytes, node_message& msg) {
-    caf::binary_deserializer source{nullptr, bytes};
-    auto& [sender, receiver, content] = msg.unshared();
-    auto& [msg_type, ttl, msg_topic, payload] = content.unshared();
-    // Extract sender, receiver, type and TTL.
-    if (!source.apply(sender))
-      return false;
-    if (!source.apply(receiver))
-      return false;
-    if (!source.apply(msg_type))
-      return false;
-    if (!source.apply(ttl))
-      return false;
-    // Extract topic.
-    uint16_t topic_len = 0;
-    if (!source.apply(topic_len))
-      return false;
-    if (auto remainder = source.remainder();
-        topic_len == 0 || remainder.size() <= topic_len) {
-      return false;
-    } else {
-      auto str = std::string{reinterpret_cast<const char*>(remainder.data()),
-                             topic_len};
-      msg_topic = topic{std::move(str)};
-      source.skip(topic_len);
-    }
-    // Extract payload, which simply is the remaining bytes of the message.
-    auto remainder = source.remainder();
-    auto first = reinterpret_cast<const std::byte*>(remainder.data());
-    auto last = first + remainder.size();
-    payload.assign(first, last);
-    return true;
-  }
-};
-
-} // namespace
-
 caf::error core_actor_state::init_new_peer(endpoint_id peer,
                                            const network_info& addr,
                                            const filter_type& filter,
-                                           detail::native_socket fd) {
+                                           pending_connection_ptr ptr) {
   // Spin up a background worker that takes care of socket I/O. We communicate
   // to this worker via producer/consumer buffer resources. The [rd_1, wr_1]
   // pair is the direction core actor -> network. The other pair is for the
@@ -849,15 +777,14 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   // message size. So on the wire, every byte block that our trait produces gets
   // prefixed with 32 bit with the size.
   namespace cn = caf::net;
-  using cn::run_with_length_prefix_framing;
   auto [rd_1, wr_1] = caf::async::make_spsc_buffer_resource<node_message>();
   auto [rd_2, wr_2] = caf::async::make_spsc_buffer_resource<node_message>();
-  if (auto err = run_with_length_prefix_framing(
-        self->system().network_manager().mpx(), cn::stream_socket{fd},
-        caf::settings{}, std::move(rd_1), std::move(wr_2), packing_trait{}))
+  if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
     return err;
-  // With the connected buffers, dispatch to the other overload.
-  return init_new_peer(peer, addr, filter, std::move(rd_2), std::move(wr_1));
+  } else {
+    // With the connected buffers, dispatch to the other overload.
+    return init_new_peer(peer, addr, filter, std::move(rd_2), std::move(wr_1));
+  }
 }
 
 // -- topic management ---------------------------------------------------------

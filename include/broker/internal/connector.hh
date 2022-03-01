@@ -6,9 +6,11 @@
 #include <caf/actor.hpp>
 #include <caf/error.hpp>
 
+#include "broker/configuration.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/peer_status_map.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/pending_connection.hh"
 #include "broker/network_info.hh"
 
 namespace broker::internal {
@@ -38,7 +40,7 @@ public:
     /// Signals that a remote node has connected to this peer.
     virtual void on_connection(connector_event_id event_id, endpoint_id peer,
                                network_info addr, lamport_timestamp ts,
-                               filter_type filter, detail::native_socket fd)
+                               filter_type filter, pending_connection_ptr ptr)
       = 0;
 
     virtual void on_redundant_connection(connector_event_id event_id,
@@ -58,7 +60,7 @@ public:
     virtual void on_shutdown() = 0;
   };
 
-  explicit connector(endpoint_id this_peer);
+  connector(endpoint_id this_peer, openssl_options_ptr ssl_cfg);
 
   ~connector();
 
@@ -93,6 +95,7 @@ private:
   std::unique_ptr<listener> sub_;
   shared_filter_ptr filter_;
   detail::shared_peer_status_map_ptr peer_statuses_;
+  openssl_options_ptr ssl_cfg_;
 };
 
 using connector_ptr = std::shared_ptr<connector>;

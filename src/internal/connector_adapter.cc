@@ -4,8 +4,6 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/message.hpp>
 #include <caf/message_handler.hpp>
-#include <caf/net/socket_id.hpp>
-#include <caf/net/stream_socket.hpp>
 #include <caf/send.hpp>
 
 #include "broker/detail/peer_status_map.hh"
@@ -26,12 +24,12 @@ public:
 
   void on_connection(connector_event_id event_id, endpoint_id peer,
                      network_info addr, [[maybe_unused]] lamport_timestamp ts,
-                     filter_type filter, detail::native_socket fd) override {
-    BROKER_TRACE(BROKER_ARG(event_id)
-                 << BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(ts)
-                 << BROKER_ARG(filter) << BROKER_ARG(fd));
+                     filter_type filter, pending_connection_ptr ptr) override {
+    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer) << BROKER_ARG(addr)
+                                      << BROKER_ARG(ts) << BROKER_ARG(filter));
     caf::anon_send(hdl_, event_id,
-                   caf::make_message(peer, addr, std::move(filter), fd));
+                   caf::make_message(peer, addr, std::move(filter),
+                                     std::move(ptr)));
   }
 
   void on_redundant_connection(connector_event_id event_id, endpoint_id peer,
@@ -72,9 +70,8 @@ private:
 };
 
 auto connection_event(const caf::message& msg) {
-  return caf::make_const_typed_message_view<endpoint_id, network_info,
-                                            filter_type, detail::native_socket>(
-    msg);
+  return caf::make_const_typed_message_view<
+    endpoint_id, network_info, filter_type, pending_connection_ptr>(msg);
 }
 
 auto redundant_connection_event(const caf::message& msg) {

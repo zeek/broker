@@ -149,13 +149,13 @@ public:
     auto& sched = dref().sched;
     for (;;) {
       sched.run();
-      if (!sched.has_pending_timeout()) {
+      auto& clk = sched.clock();
+      if (!clk.has_pending_timeout()) {
         sched.advance_time(t);
         sched.run();
         return;
       } else {
-        auto& clk = sched.clock();
-        auto next_timeout = clk.schedule.begin()->first;
+        auto next_timeout = clk.next_timeout();
         auto delta = next_timeout - clk.now();
         if (delta >= t) {
           sched.advance_time(t);

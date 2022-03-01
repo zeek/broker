@@ -22,6 +22,7 @@ struct skip_init_t {};
 
 constexpr skip_init_t skip_init = skip_init_t{};
 
+/// Wraps low-level Broker system parameters.
 struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
@@ -47,6 +48,20 @@ struct broker_options {
 
   broker_options& operator=(const broker_options&) = default;
 };
+
+/// Wraps OpenSSL-releated configuration parameters.
+struct openssl_options {
+  std::string certificate;
+  std::string key;
+  std::string passphrase;
+  std::string capath;
+  std::string cafile;
+
+  bool authentication_enabled() const noexcept;
+};
+
+/// @relates openssl_options
+using openssl_options_ptr = std::shared_ptr<openssl_options>;
 
 /// Configures an ::endpoint.
 ///
@@ -132,6 +147,10 @@ public:
   std::string openssl_cafile() const;
 
   void openssl_cafile(std::string);
+
+  /// Returns all OpenSSL-related parameters or `nullptra` if OpenSSL has been
+  /// disabled.
+  openssl_options_ptr openssl_options() const;
 
   // -- mutators ---------------------------------------------------------------
 

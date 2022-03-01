@@ -57,6 +57,7 @@ std::string log_path_template(const char* test_name, size_t endpoint_nr) {
 configuration make_config(const char* test_name, size_t endpoint_nr) {
   broker_options opts;
   opts.disable_forwarding = true;
+  opts.disable_ssl = true;
   configuration cfg{opts};
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
