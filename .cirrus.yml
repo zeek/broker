@@ -230,10 +230,6 @@ memcheck_task:
     BROKER_CI_MEMCHECK: true
 
 windows_task:
-  # The Windows task is currently disabled on Cirrus since it times out for
-  # unknown reason (seems to hang during downloading/running the Docker image),
-  # so Travis is used instead.
-  only_if: false
   # 2 hour timeout just for potential of building Docker image taking a while
   timeout_in: 120m
   windows_container:
