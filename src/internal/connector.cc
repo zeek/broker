@@ -80,6 +80,11 @@ constexpr short rw_mask = read_mask | write_mask;
 
 } // namespace
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+struct CRYPTO_dynlock_value {
+  std::mutex mtx;
+};
+#endif
 
 namespace broker::internal {
 
@@ -256,6 +261,7 @@ public:
       return caf::make_error(caf::sec::socket_invalid);
     }
   }
+
 private:
   caf::net::stream_socket fd_;
   caf::net::openssl::policy policy_;
@@ -596,11 +602,12 @@ public:
   pending_connection_ptr make_pending_connection(stream_socket fd) {
     using namespace caf::net;
     auto f = detail::make_overload(
-      [fd](default_stream_transport_policy) -> pending_connection_ptr {
+      [fd](default_stream_transport_policy&) -> pending_connection_ptr {
         return std::make_shared<plain_pending_connection>(fd);
       },
-      [fd](openssl::policy ssl_policy) -> pending_connection_ptr {
-        return std::make_shared<encrypted_pending_connection>(fd, ssl_policy);
+      [fd](openssl::policy& ssl_policy) -> pending_connection_ptr {
+        return std::make_shared<encrypted_pending_connection>(
+          fd, std::move(ssl_policy));
       });
     return std::visit(f, sck_policy);
   }
@@ -1027,8 +1034,7 @@ struct connect_manager {
       }
       if (auto err = caf::net::allow_sigpipe(*sock, false)) {
         auto err_str = to_string(err);
-        fprintf(stderr, "failed to disable sigpipe: %s\n",
-                err_str.c_str());
+        fprintf(stderr, "failed to disable sigpipe: %s\n", err_str.c_str());
         ::abort();
       }
       if (auto i = pending.find(sock->id); i != pending.end()) {
@@ -1801,6 +1807,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   // performance-critical system component. It only establishes connections and
   // reads handshake messages, so poll() is 'good enough' and we chose it since
   // it's portable.
+  //
   connect_manager mgr{this_peer_, sub, filter, peer_statuses_.get(),
                       ssl_context_from_cfg(ssl_cfg_)};
   auto& fdset = mgr.fdset;
