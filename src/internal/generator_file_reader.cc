@@ -107,7 +107,7 @@ void* make_file_view(void* addr, size_t) {
 
 namespace broker::internal {
 
-generator_file_reader::generator_file_reader(detail::native_socket fd,
+generator_file_reader::generator_file_reader(file_handle_type fd,
                                              mapper_handle mapper,
                                              mapped_pointer addr,
                                              size_t file_size)
