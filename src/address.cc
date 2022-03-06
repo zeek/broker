@@ -129,9 +129,9 @@ bool address::convert_to(std::string& str) const {
 bool address::convert_from(const std::string& str) {
   native_t tmp;
   if (auto err = caf::parse(str, tmp)) {
-    bytes_ = tmp.bytes();
     return false;
   } else {
+    bytes_ = tmp.bytes();
     return true;
   }
 }
