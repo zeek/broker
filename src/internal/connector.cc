@@ -123,22 +123,22 @@ CRYPTO_dynlock_value* ssl_dynlock_create(const char*, int) {
   return new CRYPTO_dynlock_value;
 }
 
-void ssl_dynlock_lock(int mode, CRYPTO_dynlock_value* dynlock, const char*,
-                      int) {
+void ssl_dynlock_lock(int mode, CRYPTO_dynlock_value* ptr, const char*, int) {
   if (mode & CRYPTO_LOCK)
-    dynlock->mtx.lock();
+    ptr->mtx.lock();
   else
-    dynlock->mtx.unlock();
+    ptr->mtx.unlock();
 }
 
-void ssl_dynlock_destroy(CRYPTO_dynlock_value* dynlock, const char*, int) {
-  delete dynlock;
+void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
+  delete ptr;
 }
 
 #endif // OPENSSL_VERSION_NUMBER < 0x10100000L
 
 /// Creates an SSL context for the connector.
-caf::net::openssl::ctx_ptr ssl_context_from_cfg(openssl_options_ptr cfg) {
+caf::net::openssl::ctx_ptr
+ssl_context_from_cfg(const openssl_options_ptr& cfg) {
   if (cfg == nullptr)
     return nullptr;
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
@@ -1752,13 +1752,18 @@ void connector::run() {
 
 namespace {
 
+std::mutex ssl_init_mtx_;
+bool ssl_initialized_;
+
 /// Initializes and uninitializes the library when needed.
 struct ssl_lib_guard {
 public:
   void init() {
-    if (enabled_)
+    // We need the locking for enabling two Broker endpoints in one process.
+    std::unique_lock guard{ssl_init_mtx_};
+    if (ssl_initialized_)
       return;
-    enabled_ = true;
+    ssl_initialized_ = true;
     ERR_load_crypto_strings();
     OPENSSL_add_all_algorithms_conf();
     SSL_library_init();
@@ -1773,8 +1778,10 @@ public:
 #endif
   }
 
+
+
   ~ssl_lib_guard() {
-    if (!enabled_)
+    if (!ssl_initialized_)
       return;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     CRYPTO_set_locking_callback(nullptr);
@@ -1784,9 +1791,6 @@ public:
     ssl_mtx_tbl.reset();
 #endif
   }
-
-private:
-  bool enabled_;
 };
 
 // Note: just placing this into the run_impl body is not sufficient, because we
