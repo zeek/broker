@@ -182,6 +182,7 @@ caf::behavior core_actor_state::make_behavior() {
       }
       return result;
     },
+    [this](atom::get_filter) { return filter->read(); },
     // -- publishing of messages without going through a publisher -------------
     [this](atom::publish, const data_message& msg) {
       dispatch(endpoint_id::nil(), pack(msg));

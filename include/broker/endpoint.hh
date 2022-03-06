@@ -378,6 +378,15 @@ public:
                   timespan timeout = defaults::await_peer_timeout);
   // --await-peer-end
 
+  /// Blocks execution of the current thread until the filter contains `what`.
+  /// @param what Expected filter entry.
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block.
+  /// @returns `true` if `what` was added before the timeout, `false` otherwise.
+  [[nodiscard]] bool
+  await_filter_entry(topic what,
+                     timespan timeout = defaults::await_peer_timeout);
+
   // -- worker management ------------------------------------------------------
 
   /// Blocks the current thread until `who` terminates.

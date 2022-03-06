@@ -94,21 +94,27 @@ FIXTURE_SCOPE_END()
 // This regression test requires a non-deterministic setup since it checks that
 // a publisher eventually becomes unblocked via background activities.
 TEST(regression GH196) {
+  MESSAGE("connect two endpoints over localhost");
   endpoint ep1;
   endpoint ep2;
-  auto port = ep1.listen("127.0.0.1", 0);
   auto sub1 = ep1.make_subscriber({topic{"/test"}});
   auto sub2 = ep1.make_subscriber({topic{"/test"}});
+  REQUIRE(ep1.await_filter_entry(topic{"/test"}));
+  auto port = ep1.listen("127.0.0.1", 0);
   ep2.peer("127.0.0.1", port);
   auto pub = ep2.make_publisher({topic{"/test"}});
+  MESSAGE("wait until the peers have finished the handshake");
+  REQUIRE(ep1.await_peer(ep2.node_id()));
+  REQUIRE(ep2.await_peer(ep1.node_id()));
   auto cap = pub.capacity();
-  MESSAGE("cap: " << cap);
+  MESSAGE("publish data, cap: " << cap);
   std::vector<data> batch1;
   for (size_t i = 0; i < cap; ++i)
     batch1.emplace_back(i);
   auto batch2 = batch1;
   pub.publish(std::move(batch1));
   pub.publish(std::move(batch2));
+  MESSAGE("receive data on sub1");
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {
       auto msg = sub1.get();
@@ -117,6 +123,7 @@ TEST(regression GH196) {
     }
   }
   CHECK(sub1.poll().empty());
+  MESSAGE("receive data on sub2");
   auto res = sub2.get(cap * 2);
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {

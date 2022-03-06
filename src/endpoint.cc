@@ -49,6 +49,9 @@
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
 
+#include <chrono>
+#include <thread>
+
 namespace atom = broker::internal::atom;
 
 using broker::internal::facade;
@@ -548,6 +551,7 @@ endpoint::~endpoint() {
 }
 
 void endpoint::shutdown() {
+  // Destroying a destroyed endpoint is a no-op.
   if (!ctx_)
     return;
   BROKER_INFO("shutting down endpoint");
@@ -597,10 +601,10 @@ void endpoint::shutdown() {
     self->wait_for(native(telemetry_exporter_));
     telemetry_exporter_ = nullptr;
   }
-  BROKER_DEBUG("stop background tasks");
+  BROKER_DEBUG("stop" << background_tasks_.size() << "background tasks");
   background_tasks_.clear();
-  clock_.reset();
   ctx_.reset();
+  clock_.reset();
 }
 
 uint16_t endpoint::listen(const std::string& address, uint16_t port) {
@@ -946,6 +950,22 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
         [&](caf::error& e) { cb(false); });
   };
   ctx_->sys.spawn(f, native(core_), timeout);
+}
+
+bool endpoint::await_filter_entry(topic what, timespan timeout) {
+  using namespace std::literals;
+  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(timeout));
+  auto abs_timeout = broker::now() + timeout;
+  for (;;) {
+    auto xs = filter();
+    if (std::find(xs.begin(), xs.end(), what) != xs.end()) {
+      return true;
+    } else if (broker::now() < abs_timeout) {
+      std::this_thread::sleep_for(10ms);
+    } else {
+      return false;
+    }
+  }
 }
 
 filter_type endpoint::filter() const {
