@@ -461,7 +461,7 @@ caf::behavior master_state::make_behavior() {
           if (auto rp = self->make_response_promise(); rp.pending()) {
             store_actor_state::local_request_key key{ptr->who, ptr->req_id};
             if (!local_requests.emplace(key, rp).second) {
-              rp.deliver(make_error(ec::repeated_request_id), ptr->req_id);
+              rp.deliver(caf::make_error(ec::repeated_request_id), ptr->req_id);
               return;
             }
           }
@@ -533,7 +533,8 @@ caf::behavior master_state::make_behavior() {
                         << x);
       if (x)
         return caf::make_message(std::move(*x), id);
-      return caf::make_message(std::move(x.error()), id);
+      else
+        return caf::make_message(std::move(native(x.error())), id);
     },
     [this](atom::get, atom::name) { return store_name; },
     [this](atom::await, atom::idle) -> caf::result<atom::ok> {

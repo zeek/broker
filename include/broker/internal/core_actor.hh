@@ -114,19 +114,20 @@ public:
 
   /// Called whenever this peer established a new connection.
   /// @param peer_id ID of the newly connected peer.
+  /// @param addr Network address for the peer.
   /// @note The new peer gets stored in the routing table *before* calling this
   ///       member function.
-  void peer_connected(endpoint_id peer_id);
+  void peer_connected(endpoint_id peer_id, const network_info& net);
 
   /// Called whenever this peer lost a connection to a remote peer.
   /// @param peer_id ID of the disconnected peer.
-  /// @param reason None if we closed the connection gracefully, otherwise
-  ///               contains the transport-specific error code.
-  void peer_disconnected(endpoint_id peer_id);
+  /// @param addr Network address for the peer.
+  void peer_disconnected(endpoint_id peer_id, const network_info& addr);
 
   /// Called whenever this peer removed a direct connection to a remote peer.
   /// @param peer_id ID of the removed peer.
-  void peer_removed(endpoint_id peer_id);
+  /// @param addr Network address for the peer.
+  void peer_removed(endpoint_id peer_id, const network_info& addr);
 
   /// Called after removing the last path to `peer_id` from the routing table.
   /// @param peer_id ID of the (now unreachable) peer.

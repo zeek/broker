@@ -142,7 +142,7 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::listen, const std::string& addr, uint16_t port) {
       auto rp = self->make_response_promise();
       if (!adapter) {
-        rp.deliver(make_error(ec::no_connector_available));
+        rp.deliver(caf::make_error(ec::no_connector_available));
       } else {
         adapter->async_listen(
           addr, port,
@@ -339,7 +339,7 @@ void core_actor_state::shutdown(shutdown_options options) {
       BROKER_DEBUG(peer_id << "::" << psm.get(peer_id) << "-> ()");
       psm.remove(peer_id);
       // Emit events.
-      peer_removed(peer_id);
+      peer_removed(peer_id, st.addr);
       peer_unreachable(peer_id);
     }
   }
@@ -357,7 +357,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   BROKER_DEBUG("cancel" << awaited_peers.size()
                         << "pending await_peer requests");
   for (auto& kvp : awaited_peers)
-    kvp.second.deliver(make_error(ec::shutting_down));
+    kvp.second.deliver(caf::make_error(ec::shutting_down));
   awaited_peers.clear();
   // Ignore future messages. Calling unbecome() removes our 'behavior' (set of
   // message handlers). An actor without behavior runs as long as still has
@@ -479,22 +479,25 @@ void core_actor_state::peer_discovered(endpoint_id peer_id) {
        "found a new peer in the network");
 }
 
-void core_actor_state::peer_connected(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, addr_of(peer_id)}, sc_constant<sc::peer_added>(),
+void core_actor_state::peer_connected(endpoint_id peer_id,
+                                      const network_info& addr) {
+  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(addr));
+  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_added>(),
        "handshake successful");
 }
 
-void core_actor_state::peer_disconnected(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt}, sc_constant<sc::peer_lost>(),
+void core_actor_state::peer_disconnected(endpoint_id peer_id,
+                                         const network_info& addr) {
+  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(addr));
+  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_lost>(),
        "lost connection to remote peer");
   peer_filters.erase(peer_id);
 }
 
-void core_actor_state::peer_removed(endpoint_id peer_id) {
+void core_actor_state::peer_removed(endpoint_id peer_id,
+                                    const network_info& addr) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt}, sc_constant<sc::peer_removed>(),
+  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_removed>(),
        "removed connection to remote peer");
   peer_filters.erase(peer_id);
 }
@@ -508,7 +511,8 @@ void core_actor_state::peer_unreachable(endpoint_id peer_id) {
 
 void core_actor_state::cannot_remove_peer(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt}, ec_constant<ec::peer_invalid>(), "cannot unpeer from unknown peer");
+  emit(endpoint_info{peer_id, std::nullopt}, ec_constant<ec::peer_invalid>(),
+       "cannot unpeer from unknown peer");
   BROKER_DEBUG("cannot unpeer from unknown peer" << peer_id);
 }
 
@@ -531,7 +535,7 @@ void core_actor_state::try_connect(const network_info& addr,
                                    caf::response_promise rp) {
   BROKER_TRACE(BROKER_ARG(addr));
   if (!adapter) {
-    rp.deliver(make_error(ec::no_connector_available));
+    rp.deliver(caf::make_error(ec::no_connector_available));
     return;
   }
   adapter->async_connect(
@@ -602,7 +606,7 @@ void core_actor_state::handle_peer_close_event(endpoint_id peer_id,
     i->second.in.dispose();
     i->second.out.dispose();
     // Trigger events.
-    peer_disconnected(peer_id);
+    peer_disconnected(peer_id, i->second.addr);
     peer_unreachable(peer_id);
     // If there is a retry time, it means that we have established the peering.
     // Try reconnecting.
@@ -747,8 +751,10 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Store some state to allow us to unpeer() from the node later.
   subscriptions.emplace_back(in.as_disposable());
   if (i == peers.end()) {
-    peers.emplace(peer_id, peer_state{std::move(in).as_disposable(),
-                                      std::move(out), addr});
+    i = peers
+          .emplace(peer_id, peer_state{std::move(in).as_disposable(),
+                                       std::move(out), addr})
+          .first;
   } else {
     i->second.in = std::move(in).as_disposable();
     i->second.out = std::move(out);
@@ -756,7 +762,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // Emit status updates.
   peer_discovered(peer_id);
-  peer_connected(peer_id);
+  peer_connected(peer_id, i->second.addr);
   // Notify clients that wait for this peering.
   if (auto [first, last] = awaited_peers.equal_range(peer_id); first != last) {
     for (auto i = first; i != last; ++i)
@@ -964,13 +970,14 @@ void core_actor_state::unpeer(peer_state_map::iterator i) {
     // Drop local state for this peer.
     st.in.dispose();
     st.out.dispose();
+    auto addr = std::move(st.addr);
     peers.erase(i);
     // Drop shared state for this peer.
     auto& psm = *peer_statuses;
     BROKER_DEBUG(peer_id << "::" << psm.get(peer_id) << "-> ()");
     psm.remove(peer_id);
     // Emit events.
-    peer_removed(peer_id);
+    peer_removed(peer_id, addr);
     peer_unreachable(peer_id);
   }
 }

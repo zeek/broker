@@ -439,11 +439,11 @@ caf::behavior clone_state::make_behavior() {
           sync_timeout.reset();
         } else if (caf::make_timestamp() >= *sync_timeout) {
           BROKER_ERROR("unable to find a master for" << store_name);
-          auto err = make_error(ec::no_such_master, store_name);
+          auto err = caf::make_error(ec::no_such_master, store_name);
           for (auto& rp : idle_callbacks)
             rp.deliver(err);
           idle_callbacks.clear();
-          self->quit(native(err));
+          self->quit(err);
           return;
         }
       }
@@ -539,7 +539,7 @@ caf::behavior clone_state::make_behavior() {
             rp.deliver(i->second, id);
           } else {
             BROKER_INFO("GET" << key << "with id" << id << "-> no_such_key");
-            rp.deliver(make_error(ec::no_such_key), id);
+            rp.deliver(caf::make_error(ec::no_such_key), id);
           }
         },
         id);
@@ -556,11 +556,11 @@ caf::behavior clone_state::make_behavior() {
             if (x)
               rp.deliver(std::move(*x), id);
             else
-              rp.deliver(std::move(x.error()), id);
+              rp.deliver(std::move(native(x.error())), id);
           } else {
             BROKER_INFO("GET" << key << asp << "with id" << id
                               << "-> no_such_key");
-            rp.deliver(make_error(ec::no_such_key), id);
+            rp.deliver(caf::make_error(ec::no_such_key), id);
           }
         },
         id);
