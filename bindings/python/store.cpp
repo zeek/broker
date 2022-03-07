@@ -2,10 +2,14 @@
 #include <utility>
 #include <string>
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#endif
 #include <pybind11/pybind11.h>
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 #include "broker/data.hh"
 #include "broker/store.hh"

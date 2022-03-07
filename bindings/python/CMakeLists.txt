@@ -31,7 +31,10 @@ target_include_directories(_broker PUBLIC
                            ${PYTHON_INCLUDE_DIRS})
 
 # Set libraries to link against.
-target_compile_options(_broker PRIVATE "-fvisibility=hidden")
+if (NOT WIN32)
+  target_compile_options(_broker PRIVATE "-fvisibility=hidden")
+endif ()
+
 if (ENABLE_SHARED)
   set(libbroker broker)
 else ()

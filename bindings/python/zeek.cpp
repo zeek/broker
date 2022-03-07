@@ -3,10 +3,14 @@
 #include <string>
 #include <stdexcept>
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#endif
 #include <pybind11/pybind11.h>
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 #include "broker/zeek.hh"
 #include "broker/data.hh"
