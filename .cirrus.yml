@@ -43,6 +43,9 @@ unix_env: &UNIX_ENV
     BROKER_BENCHMARK_HOST: ENCRYPTED[91d00f9b8e7423899232f7fc66769d6fb95fdb381b0e1546d5922483b060c853394f4146533fa4946809e8b2b97fb6d6]
     BROKER_BENCHMARK_PORT: ENCRYPTED[a22877e5c27b0957d7c7e78e2b1e1ea73ac02544544f453aee5af3bed2e90437a5b85cd2893bf6a741dfe22976c7ebb6]
 
+    # Give verbose error output on a test failure.
+    CTEST_OUTPUT_ON_FAILURE: 1
+
 # Linux EOL timelines: https://linuxlifecycle.com/
 # Fedora (~13 months): https://fedoraproject.org/wiki/Fedora_Release_Life_Cycle
 
@@ -228,6 +231,8 @@ memcheck_task:
     BROKER_CI_CPUS: *CPUS
     BROKER_CI_CONFIGURE_FLAGS: *MEMCHECK_CONFIG
     BROKER_CI_MEMCHECK: true
+    # Give verbose error output on a test failure.
+    CTEST_OUTPUT_ON_FAILURE: 1
 
 windows_task:
   # 2 hour timeout just for potential of building Docker image taking a while
@@ -246,3 +251,6 @@ windows_task:
   test_script: ci/windows/test.cmd
   env:
     BROKER_CI_CPUS: 8
+    # Give verbose error output on a test failure.
+    CTEST_OUTPUT_ON_FAILURE: 1
+
