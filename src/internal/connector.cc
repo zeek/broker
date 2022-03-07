@@ -711,6 +711,12 @@ public:
           src.emplace_error(caf::sec::invalid_argument, "invalid message type");
           ok = false;
           break;
+        case p2p_message_type::ping:
+          // A ping requires no processing. The responder sends a ping
+          // immediately after accepting a connection to probe connectivity.
+          // This is mainly to provoke errors early when running with OpenSSL.
+          BROKER_DEBUG(BROKER_ARG(msg_type));
+          return src.apply(remote_id);
         case p2p_message_type::hello:
         case p2p_message_type::originator_ack:
         case p2p_message_type::drop_conn:
@@ -831,6 +837,8 @@ public:
 
   void send_drop_conn();
 
+  void send_ping();
+
   bool handle_drop_conn();
 
   bool await_hello_or_orig_syn(p2p_message_type msg);
@@ -914,6 +922,9 @@ struct connect_manager {
   /// Caches the drop-redundant-connection message.
   uint8_t drop_conn_buf[handshake_prefix_size + 4];
 
+  /// Caches the ping message.
+  uint8_t ping_buf[handshake_prefix_size + 4];
+
   /// Stores a pointer to the OpenSSL context when running with SSL enabled.
   caf::net::openssl::ctx_ptr ssl_ctx;
 
@@ -939,6 +950,7 @@ struct connect_manager {
     init_buf(orig_ack_buf, p2p_message_type::originator_ack);
     init_buf(resp_syn_ack_buf, p2p_message_type::responder_syn_ack);
     init_buf(drop_conn_buf, p2p_message_type::drop_conn);
+    init_buf(ping_buf, p2p_message_type::ping);
   }
 
   connect_manager(const connect_manager&) = delete;
@@ -1195,6 +1207,7 @@ struct connect_manager {
         pending_fdset.push_back({new_sock->id, mask, 0});
         pending.emplace(new_sock->id, st);
         st->transition(&connect_state::await_hello);
+        st->send_ping();
       }
     } else {
       entry.events &= ~read_mask;
@@ -1383,7 +1396,8 @@ void connect_state::send_msg(caf::const_byte_span bytes, bool add_filter) {
           if (!sink.apply(ts) || !sink.apply(xs))
             return false;
           sink.seek(old_size);
-          return sink.apply(static_cast<uint32_t>(wr_buf.size() - 4));
+          auto len = wr_buf.size() - old_size;
+          return sink.apply(static_cast<uint32_t>(len - 4));
         });
     BROKER_ASSERT(ok);
   }
@@ -1414,6 +1428,11 @@ void connect_state::send_orig_ack() {
 void connect_state::send_drop_conn() {
   BROKER_TRACE("");
   send_msg(caf::as_bytes(caf::make_span(mgr->drop_conn_buf)), false);
+}
+
+void connect_state::send_ping() {
+  BROKER_TRACE("");
+  send_msg(caf::as_bytes(caf::make_span(mgr->ping_buf)), false);
 }
 
 bool connect_state::handle_drop_conn() {

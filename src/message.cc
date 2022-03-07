@@ -26,6 +26,8 @@ std::string to_string(p2p_message_type x) {
       return "originator_ack"s;
     case p2p_message_type::drop_conn:
       return "drop_conn"s;
+    case p2p_message_type::ping:
+      return "ping"s;
     default:
       return "invalid"s;
   }
@@ -55,6 +57,9 @@ bool from_string(std::string_view str, p2p_message_type& x) {
     return true;
   } else if (str == "drop_conn"sv) {
     x = p2p_message_type::drop_conn;
+    return true;
+  } else if (str == "ping"sv) {
+    x = p2p_message_type::ping;
     return true;
   } else {
     return false;
@@ -86,6 +91,9 @@ bool from_integer(uint8_t val, p2p_message_type& x) {
       return true;
     case 0x50:
       x = p2p_message_type::drop_conn;
+      return true;
+    case 0x60:
+      x = p2p_message_type::ping;
       return true;
     default:
       return false;

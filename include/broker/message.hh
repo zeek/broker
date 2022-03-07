@@ -23,6 +23,7 @@ enum class p2p_message_type : uint8_t {
   responder_syn_ack = 0x30, ///< Ship filter and local time from resp to orig.
   originator_ack = 0x40,    ///< Finalizes the peering process.
   drop_conn = 0x50,         ///< Drops a redundant connection.
+  ping = 0x60,              ///< Probing of connectivity without other effects.
 };
 
 /// @relates p2p_message_type

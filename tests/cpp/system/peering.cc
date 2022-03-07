@@ -54,10 +54,15 @@ std::string log_path_template(const char* test_name, size_t endpoint_nr) {
   return result;
 }
 
-configuration make_config(const char* test_name, size_t endpoint_nr) {
+static constexpr bool disable_ssl = true;
+
+static constexpr bool enable_ssl = false;
+
+configuration make_config(const char* test_name, size_t endpoint_nr,
+                          bool disable_ssl) {
   broker_options opts;
   opts.disable_forwarding = true;
-  opts.disable_ssl = true;
+  opts.disable_ssl = disable_ssl;
   configuration cfg{opts};
   cfg.set("caf.scheduler.max-threads", 2);
   cfg.set("caf.logger.console.verbosity", "quiet");
@@ -193,7 +198,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
   for (size_t index = 0; index != num_endpoints; ++index) {
     threads[index] = std::thread{[&, index] {
       auto log_ptr = ep_logs[index];
-      endpoint ep{make_config("peering-events", index)};
+      endpoint ep{make_config("peering-events", index, disable_ssl)};
       *ep_ids[index] = ep.node_id();
       barrier got_hellos{2};
       ep.subscribe(
@@ -267,7 +272,7 @@ TEST(multiple clones can attach to a single master) {
   MESSAGE("spin up threads");
   for (size_t index = 0; index != num_endpoints; ++index) {
     threads[index] = std::thread{[&, index] {
-      endpoint ep{make_config("peering-events", index)};
+      endpoint ep{make_config("peering-events", index, disable_ssl)};
       *ep_ids[index] = ep.node_id();
       store services;
       if (index == 0) {
@@ -336,7 +341,7 @@ TEST(the master may appear after launching the clones) {
   MESSAGE("spin up threads");
   for (size_t index = 0; index != num_endpoints; ++index) {
     threads[index] = std::thread{[&, index] {
-      endpoint ep{make_config("peering-events", index)};
+      endpoint ep{make_config("peering-events", index, disable_ssl)};
       *ep_ids[index] = ep.node_id();
       auto port = ep.listen();
       if (port == 0)
@@ -395,6 +400,73 @@ TEST(the master may appear after launching the clones) {
   }
   for (auto& hdl : threads)
     hdl.join();
+}
+
+SCENARIO("handshake fails if only one side enables encryption") {
+  GIVEN("a server with SSL enabled and a client with SSL disabled") {
+    WHEN("calling endpoint::peer on the client") {
+      THEN("the handshake fails") {
+        auto port_promise = std::promise<uint16_t>{};
+        auto port_future = port_promise.get_future();
+        barrier checkpoint{2};
+        auto t1 = std::thread{[&]() mutable {
+          endpoint ep{make_config("ssl-mismatch-1", 0, enable_ssl)};
+          auto port = ep.listen("127.0.0.1", 0);
+          if (port == 0)
+            hard_error("endpoint::listen failed");
+          MESSAGE("first endpoint listening on port " << port);
+          port_promise.set_value(port);
+          checkpoint.arrive_and_wait();
+        }};
+        auto t2 = std::thread{[&, port{port_future.get()}] {
+          endpoint ep{make_config("ssl-mismatch-1", 1, disable_ssl)};
+          auto sub = ep.make_status_subscriber();
+          auto res = ep.peer("127.0.0.1", port, 0s);
+          CHECK(!res);
+          auto msg = sub.get(1s);
+          if (CHECK(std::holds_alternative<error>(msg))) {
+            auto& err = std::get<error>(msg);
+            CHECK_EQ(err, ec::peer_unavailable);
+          }
+          checkpoint.arrive_and_wait();
+        }};
+        t1.join();
+        t2.join();
+      }
+    }
+  }
+  GIVEN("a server with SSL disabled and a client with SSL enabled") {
+    WHEN("calling endpoint::peer on the client") {
+      THEN("the handshake fails") {
+        auto port_promise = std::promise<uint16_t>{};
+        auto port_future = port_promise.get_future();
+        barrier checkpoint{2};
+        auto t1 = std::thread{[&]() mutable {
+          endpoint ep{make_config("ssl-mismatch-2", 0, disable_ssl)};
+          auto port = ep.listen("127.0.0.1", 0);
+          if (port == 0)
+            hard_error("endpoint::listen failed");
+          MESSAGE("first endpoint listening on port " << port);
+          port_promise.set_value(port);
+          checkpoint.arrive_and_wait();
+        }};
+        auto t2 = std::thread{[&, port{port_future.get()}] {
+          endpoint ep{make_config("ssl-mismatch-2", 1, enable_ssl)};
+          auto sub = ep.make_status_subscriber();
+          auto res = ep.peer("127.0.0.1", port, 0s);
+          CHECK(!res);
+          auto msg = sub.get(1s);
+          if (CHECK(std::holds_alternative<error>(msg))) {
+            auto& err = std::get<error>(msg);
+            CHECK_EQ(err, ec::peer_unavailable);
+          }
+          checkpoint.arrive_and_wait();
+        }};
+        t1.join();
+        t2.join();
+      }
+    }
+  }
 }
 
 FIXTURE_SCOPE_END()
