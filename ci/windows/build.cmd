@@ -7,7 +7,8 @@ cd build
 C:\WINDOWS\system32\cmd.exe /c %SYSTEMROOT%\System32\chcp.com 65001 >NUL && ^
 cmake.exe -G "Ninja" -DCMAKE_BUILD_TYPE:STRING="Debug" ^
 -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe -DCMAKE_MAKE_PROGRAM=ninja.exe ^
--DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% ..
+-DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% ^
+-DDISABLE_PYTHON_BINDINGS="true" ..
 
 cmake.exe --build . --target install --config release || exit \b 1
 cd ..
