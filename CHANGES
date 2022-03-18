@@ -1,3 +1,25 @@
+2.2.0-35 | 2022-03-18 13:39:43 -0700
+
+  * Disable LeakSanitizer on Windows (Tim Wojtulewicz, Corelight)
+
+  * Disable python bindings in Windows CI builds (Tim Wojtulewicz)
+
+  * Fix _MSC_VER macro usage that was breaking macro expansion (Tim Wojtulewicz)
+
+  * Output more information when CTest fails (Tim Wojtulewicz)
+
+  * Wrap GCC pragmas to avoid warnings on Windows (Tim Wojtulewicz)
+
+  * Normalize paths when installing python bindings (Tim Wojtulewicz)
+
+  * Set proper environment in test.cmd (Tim Wojtulewicz)
+
+  * Fix address::convert_from (Dominik Charousset, Corelight)
+
+  * Fix build on MSVC (Dominik Charousset)
+
+  * Rework CI scripts for Windows (Tim Wojtulewicz, Corelight)
+
 2.2.0-22 | 2022-02-09 12:56:35 -0800
 
   * CI support refresh (Christian Kreibich, Corelight)

@@ -30,24 +30,26 @@ RUN powershell -NoLogo -NoProfile -Command `
     Remove-Item C:\ProgramData\chocolatey\logs -Force -Recurse ; `
     Remove-Item C:\Users\ContainerAdministrator\AppData\Local\Temp -Force -Recurse
 
-RUN choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake openssl
+# OpenSSL has to be installed separately from the above here or
+# the call to install the MSVC bits fails for some reason. Python
+# is separate so we can specify a version.
+RUN choco install -y --no-progress openssl
+RUN choco install -y --no-progress --version=3.10.0 python
 
 # Download the Build Tools bootstrapper.
-ADD https://aka.ms/vs/16/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
+ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
 
 # Install Build Tools and additional workloads, excluding workloads and
 # components with known issues.  Based on example from:
 # https://docs.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2019
 RUN C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache `
-    --installPath C:\BuildTools `
     --add Microsoft.VisualStudio.Workload.VCTools `
     --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-    --add Microsoft.VisualStudio.Component.Windows10SDK.18362 `
+    --add Microsoft.VisualStudio.Component.VC.CMake.Project `
+    --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
+    --add Microsoft.VisualStudio.Component.TestTools.BuildTools `
     --remove Microsoft.VisualStudio.Component.Windows10SDK.10240 `
     --remove Microsoft.VisualStudio.Component.Windows10SDK.10586 `
     --remove Microsoft.VisualStudio.Component.Windows10SDK.14393 `
     --remove Microsoft.VisualStudio.Component.Windows81SDK `
  || IF "%ERRORLEVEL%"=="3010" EXIT 0
-
-# This entry point starts the developer command prompt and launches PowerShell.
-ENTRYPOINT ["C:\\BuildTools\\Common7\\Tools\\VsDevCmd.bat", "-arch=amd64", "&&", "powershell.exe", "-NoLogo", "-ExecutionPolicy", "Bypass"]

@@ -9,7 +9,6 @@
 #include <string>
 
 #include "broker/config.hh"
-#include "broker/internal/native.hh"
 
 #include <caf/detail/network_order.hpp>
 #include <caf/hash/fnv.hpp>
@@ -17,11 +16,8 @@
 
 namespace broker {
 
-static_assert(sizeof(caf::ip_address) == address::num_bytes);
-
 namespace {
 
-using internal::native;
 using native_t = caf::ip_address;
 
 static constexpr bool is_little_endian =
@@ -36,9 +32,9 @@ constexpr std::array<uint8_t, 12> v4_mapped_prefix
 
 auto to_array(const uint32_t* bytes, address::family fam,
               address::byte_order order) {
-  static constexpr size_t bytes_size = native_t::num_bytes / sizeof(uint32_t);
+  static constexpr size_t bytes_size = address::num_bytes / sizeof(uint32_t);
   using std::make_reverse_iterator;
-  native_t::array_type result;
+  address::array_type result;
   if (fam == address::family::ipv4) {
     auto dst = std::copy(v4_mapped_prefix.begin(), v4_mapped_prefix.end(),
                          result.begin());
@@ -66,7 +62,7 @@ auto to_array(const uint32_t* bytes, address::family fam,
       }
     }
     auto first = reinterpret_cast<const uint8_t*>(bytes);
-    auto last = first + native_t::num_bytes;
+    auto last = first + address::num_bytes;
     std::copy(first, last, result.begin());
   }
   return result;
@@ -75,27 +71,20 @@ auto to_array(const uint32_t* bytes, address::family fam,
 } // namespace
 
 address::address() noexcept {
-  new (obj_) native_t();
+  memset(bytes_.data(), 0, num_bytes);
 }
 
-address::address(const address& other) noexcept {
-  new (obj_) native_t(native(other));
-}
-address::address(const impl* other) noexcept {
-  new (obj_) native_t(native(other));
+address::address(const address& other) noexcept : bytes_(other.bytes_) {
+  // nop
 }
 
 address::address(const uint32_t* bytes, family fam, byte_order order) {
-  new (obj_) native_t(to_array(bytes, fam, order));
+  bytes_ = to_array(bytes, fam, order);
 }
 
 address& address::operator=(const address& other) noexcept {
-  native(*this) = native(other);
+  bytes_ = other.bytes_;
   return *this;
-}
-
-address::~address() {
-  native(*this).~native_t();
 }
 
 static uint32_t bit_mask32(int bottom_bits) {
@@ -121,43 +110,30 @@ bool address::mask(uint8_t top_bits_to_keep) {
 }
 
 bool address::is_v4() const noexcept {
-  return native(*this).embeds_v4();
-}
-
-std::array<uint8_t, 16>& address::bytes() {
-  return native(*this).bytes();
-}
-
-const std::array<uint8_t, 16>& address::bytes() const {
-  return native(*this).bytes();
+  return native_t{bytes_}.embeds_v4();
 }
 
 int address::compare(const address& other) const noexcept {
-  return native(*this).compare(native(other));
+  return memcmp(bytes_.data(), other.bytes_.data(), num_bytes);
 }
 
 size_t address::hash() const {
-  return caf::hash::fnv<size_t>::compute(native(*this));
+  return caf::hash::fnv<size_t>::compute(bytes_);
 }
 
 bool address::convert_to(std::string& str) const {
-  str = to_string(native(*this));
+  str = to_string(native_t{bytes_});
   return true;
 }
 
 bool address::convert_from(const std::string& str) {
-  if (auto err = caf::parse(str, native(*this)))
+  native_t tmp;
+  if (auto err = caf::parse(str, tmp)) {
     return false;
-  else
+  } else {
+    bytes_ = tmp.bytes();
     return true;
-}
-
-address::impl* address::native_ptr() noexcept {
-  return reinterpret_cast<impl*>(obj_);
-}
-
-const address::impl* address::native_ptr() const noexcept {
-  return reinterpret_cast<const impl*>(obj_);
+  }
 }
 
 } // namespace broker

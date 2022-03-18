@@ -15,7 +15,7 @@ using native_t = caf::actor;
 
 } // namespace
 
-static_assert(sizeof(worker::impl*) == sizeof(caf::actor));
+static_assert(worker::obj_size >= sizeof(caf::actor));
 
 worker::worker() noexcept {
   new (obj_) native_t();

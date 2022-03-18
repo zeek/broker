@@ -1,6 +1,5 @@
 #pragma once
 
-#include "broker/address.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/error.hh"
 #include "broker/status.hh"
@@ -8,7 +7,6 @@
 
 #include <caf/actor.hpp>
 #include <caf/error.hpp>
-#include <caf/ip_address.hpp>
 #include <caf/node_id.hpp>
 
 // Generates the necessary boilerplate code for `native` to work.
@@ -30,7 +28,6 @@ template <class Facade>
 struct conversion_oracle;
 
 BROKER_MAP_CAF_TYPE(caf::error, error)
-BROKER_MAP_CAF_TYPE(caf::ip_address, address)
 BROKER_MAP_CAF_TYPE(caf::node_id, endpoint_id)
 BROKER_MAP_CAF_TYPE(caf::actor, worker)
 

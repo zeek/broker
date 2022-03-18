@@ -20,8 +20,8 @@
     #endif
 #endif
 
-// FreeBSD doesn't support LeakSanitizer
-#if defined(BROKER_ASAN) && !defined(__FreeBSD__)
+// FreeBSD and Windows don't support LeakSanitizer
+#if defined(BROKER_ASAN) && !defined(__FreeBSD__) && !defined(_WIN32)
     #include <sanitizer/lsan_interface.h>
     #define BROKER_LSAN_CHECK(x) __lsan_do_leak_check(x)
     #define BROKER_LSAN_ENABLE() __lsan_enable()
