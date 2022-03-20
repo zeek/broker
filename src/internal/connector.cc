@@ -139,14 +139,17 @@ void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
 /// Creates an SSL context for the connector.
 caf::net::openssl::ctx_ptr
 ssl_context_from_cfg(const openssl_options_ptr& cfg) {
-  if (cfg == nullptr)
+  if (cfg == nullptr) {
+    BROKER_DEBUG("run without SSL (no SSL config)");
     return nullptr;
+  }
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
   auto method = TLS_method();
 #else
   auto method = TLSv1_2_method();
 #endif
   auto ctx = caf::net::openssl::make_ctx(method);
+  BROKER_DEBUG(BROKER_ARG2("authentication", cfg->authentication_enabled()));
   if (cfg->authentication_enabled()) {
     // Require valid certificates on both sides.
     if (!cfg->certificate.empty()
@@ -217,6 +220,8 @@ public:
   caf::error run(caf::actor_system& sys,
                  caf::async::consumer_resource<node_message> pull,
                  caf::async::producer_resource<node_message> push) override {
+    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
+                                          << "(no SSL)");
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
@@ -249,6 +254,8 @@ public:
   caf::error run(caf::actor_system& sys,
                  caf::async::consumer_resource<node_message> pull,
                  caf::async::producer_resource<node_message> push) override {
+    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
+                                          << "(SSL)");
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
@@ -429,6 +436,20 @@ constexpr size_t max_connection_attempts = 10;
 // 4-Bytes to encode the payload size.
 static constexpr size_t handshake_prefix_size = 17;
 
+// The protocol version we announce in the handshake.
+static constexpr uint8_t protocol_version = 1;
+
+// Our magic number for hello and ping messages (the first messages Broker
+// exchanges). These are the ASCII codes for 'ZEEK' in hexadecimal.
+static constexpr uint32_t magic_number = 0x5A45454B;
+
+// The full size of HELLO and PING messages:
+// - 4 Bytes message length.
+// - 17 Bytes for the handshake prefix.
+// - 1 Byte for the protocol version.
+// - 4 Bytes for the magic number.
+static constexpr size_t handshake_first_msg_size = handshake_prefix_size + 9;
+
 struct connect_manager;
 
 class connect_state : public std::enable_shared_from_this<connect_state> {
@@ -586,11 +607,10 @@ public:
       added_peer_status = false;
     }
     wr_buf.clear();
-    // The read buffer must provide space for the payload size. This is the
-    // first thing we're going to read from the socket.
-    rd_buf.resize(4);
+    // The first message is always a HELLO or PING message.
+    rd_buf.resize(handshake_first_msg_size);
     read_pos = 0;
-    payload_size = 0;
+    payload_size = handshake_first_msg_size - 4;
     sck_state = st;
     sck_policy = std::move(new_policy);
   }
@@ -642,6 +662,8 @@ public:
         return read_result::stop;
     }
   }
+
+  bool must_read_more();
 
   template <bool IsServer>
   write_result do_transport_handshake_wr(stream_socket fd);
@@ -711,13 +733,33 @@ public:
           src.emplace_error(caf::sec::invalid_argument, "invalid message type");
           ok = false;
           break;
-        case p2p_message_type::ping:
+        case p2p_message_type::ping:{
           // A ping requires no processing. The responder sends a ping
           // immediately after accepting a connection to probe connectivity.
           // This is mainly to provoke errors early when running with OpenSSL.
           BROKER_DEBUG(BROKER_ARG(msg_type));
-          return src.apply(remote_id);
-        case p2p_message_type::hello:
+          uint8_t version = 0;
+          uint32_t magic = 0;
+          ok = src.apply(remote_id) && src.apply(version) && src.apply(magic);
+          ok = ok                             // Parsing OK.
+               && src.remaining() == 0        // Consumed all Bytes.
+               && version == protocol_version // Version supported.
+               && magic == magic_number;      // Magic Number OK.
+          if (!ok)
+            BROKER_DEBUG("received malformed ping message");
+          return ok;
+        }
+        case p2p_message_type::hello: {
+          BROKER_DEBUG(BROKER_ARG(msg_type));
+          uint8_t version = 0;
+          uint32_t magic = 0;
+          ok = src.apply(remote_id) && src.apply(version) && src.apply(magic);
+          if (!ok || version != protocol_version || magic != magic_number) {
+            BROKER_DEBUG("received malformed hello message");
+            return false;
+          }
+          break;
+        }
         case p2p_message_type::originator_ack:
         case p2p_message_type::drop_conn:
           ok = src.apply(remote_id);
@@ -775,6 +817,7 @@ public:
           [[maybe_unused]] auto ok = src.apply(payload_size);
           BROKER_ASSERT(ok);
           if (payload_size == 0) {
+            BROKER_DEBUG("received message with payload size 0, drop");
             transition(&connect_state::err);
             return read_result::stop;
           }
@@ -782,7 +825,22 @@ public:
           rd_buf.resize(payload_size + 4);
           return continue_reading(fd);
         } else if (read_pos == read_size) {
+          // Double check the payload size. This is only necessary for PING and
+          // HELLO messages, so we might use some flag in the future to check
+          // whether we actually need to verify the payload size.
+          uint32_t pl_size = 0;
+          caf::binary_deserializer src{nullptr, rd_buf};
+          [[maybe_unused]] auto ok = src.apply(pl_size);
+          BROKER_ASSERT(ok);
+          if (pl_size != payload_size) {
+            BROKER_DEBUG("expected payload size" << payload_size << "but got"
+                                                 << pl_size);
+            transition(&connect_state::err);
+            return read_result::stop;
+          }
+          // Delegate processing of the message.
           if (!parse_handshake()) {
+            BROKER_DEBUG("reject connection: handshake failed");
             transition(&connect_state::err);
             return read_result::stop;
           }
@@ -907,8 +965,9 @@ struct connect_manager {
   /// Stores the ID of the local peer.
   endpoint_id this_peer;
 
-  /// Caches the hello message.
-  uint8_t hello_buf[handshake_prefix_size + 4];
+  /// Caches the hello message, including protocol version (1 Byte) and  magic
+  /// number (4 Bytes).
+  uint8_t hello_buf[handshake_first_msg_size];
 
   /// Caches the prefix of originator_hello handshakes.
   uint8_t orig_syn_buf[handshake_prefix_size + 4];
@@ -922,8 +981,9 @@ struct connect_manager {
   /// Caches the drop-redundant-connection message.
   uint8_t drop_conn_buf[handshake_prefix_size + 4];
 
-  /// Caches the ping message.
-  uint8_t ping_buf[handshake_prefix_size + 4];
+  /// Caches the ping message, including protocol version (1 Byte) and  magic
+  /// number (4 Bytes).
+  uint8_t ping_buf[handshake_first_msg_size];
 
   /// Stores a pointer to the OpenSSL context when running with SSL enabled.
   caf::net::openssl::ctx_ptr ssl_ctx;
@@ -938,19 +998,34 @@ struct connect_manager {
       this_peer(this_peer),
       ssl_ctx(std::move(ctx)) {
     BROKER_TRACE(BROKER_ARG(this_peer));
-    auto init_buf = [this](uint8_t* buf, p2p_message_type type) {
+    // Convenience function for writing the fixed part of a message.
+    auto init_buf = [this](uint8_t* buf, p2p_message_type mt) {
       auto as_u8 = [](auto x) { return static_cast<uint8_t>(x); };
+      // Byte 0-3: message size (big endian).
       memset(buf, 0, handshake_prefix_size);
       buf[3] = static_cast<uint8_t>(handshake_prefix_size);
-      buf[4] = as_u8(type);
+      // Byte 4: message type.
+      buf[4] = as_u8(mt);
+      // Byte 5-20: UUID for this peer.
       memcpy(buf + 5, this->this_peer.bytes().data(), 16);
     };
-    init_buf(hello_buf, p2p_message_type::hello);
+    // Convenience function for writing a message with magic number and version.
+    auto init_buf_magic = [this, &init_buf](uint8_t* buf, p2p_message_type mt) {
+      // Initialize as usual and fix the message size.
+      init_buf(buf, mt);
+      buf[3] = handshake_first_msg_size - 4;
+      // Byte 21: the protocol version.
+      buf[21] = protocol_version;
+      // Byte 22-25: our magic number in big endian.
+      char magic_nr_str[] = "ZEEK";
+      memcpy(buf + 22, magic_nr_str, 4);
+    };
+    init_buf_magic(hello_buf, p2p_message_type::hello);
     init_buf(orig_syn_buf, p2p_message_type::originator_syn);
     init_buf(orig_ack_buf, p2p_message_type::originator_ack);
     init_buf(resp_syn_ack_buf, p2p_message_type::responder_syn_ack);
     init_buf(drop_conn_buf, p2p_message_type::drop_conn);
-    init_buf(ping_buf, p2p_message_type::ping);
+    init_buf_magic(ping_buf, p2p_message_type::ping);
   }
 
   connect_manager(const connect_manager&) = delete;
@@ -1144,6 +1219,13 @@ struct connect_manager {
     }
   }
 
+  bool must_read_more(pollfd& entry) {
+    if (auto i = pending.find(entry.fd); i != pending.end())
+      return i->second->must_read_more();
+    else
+      return false;
+  }
+
   void continue_reading(pollfd& entry) {
     BROKER_TRACE(BROKER_ARG2("fd", entry.fd));
     if (auto i = pending.find(entry.fd); i != pending.end()) {
@@ -1332,6 +1414,13 @@ struct connect_manager {
 
 detail::peer_status_map& connect_state::peer_statuses() {
   return *mgr->peer_statuses_;
+}
+
+bool connect_state::must_read_more() {
+  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy))
+    return pol->buffered() > 0;
+  else
+    return false;
 }
 
 template <bool IsServer>
@@ -1534,6 +1623,10 @@ bool connect_state::await_hello(p2p_message_type msg) {
               return true;
             }
             break;
+          case peer_status::unknown:
+            // The map returns this state only if the map has been closed.
+            transition(&connect_state::err);
+            return false;
           default:
             BROKER_ERROR("invalid peer status while handling 'hello'");
             transition(&connect_state::err);
@@ -1591,6 +1684,10 @@ bool connect_state::await_orig_syn(p2p_message_type msg) {
           BROKER_DEBUG("detected redundant connection to"
                        << remote_id << "at the responder"
                        << BROKER_ARG(status));
+          transition(&connect_state::err);
+          return false;
+        case peer_status::unknown:
+          // The map returns this state only if the map has been closed.
           transition(&connect_state::err);
           return false;
         default:
@@ -1721,9 +1818,14 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes,
   BROKER_TRACE(bytes.size() << "bytes");
   std::unique_lock guard{mtx_};
   if (shutting_down_) {
-    const char* errmsg = "failed to write to the pipe: shutting down";
-    BROKER_ERROR(errmsg);
-    throw std::runtime_error(errmsg);
+    if (!shutdown_after_write) {
+      const char* errmsg = "failed to write to the pipe: shutting down";
+      BROKER_ERROR(errmsg);
+      throw std::runtime_error(errmsg);
+    } else {
+      // Calling async_shutdown multiple times is OK.
+      return;
+    }
   }
   auto res = caf::net::write(caf::net::pipe_socket{pipe_wr_}, bytes);
   if (res != static_cast<ptrdiff_t>(bytes.size())) {
@@ -1828,9 +1930,8 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
     global_ssl_guard.init();
   // Poll isn't terribly efficient nor fast, but the connector is not a
   // performance-critical system component. It only establishes connections and
-  // reads handshake messages, so poll() is 'good enough' and we chose it since
+  // reads handshake messages, so poll() is 'good enough' and we use it since
   // it's portable.
-  //
   connect_manager mgr{this_peer_, sub, filter, peer_statuses_.get(),
                       ssl_context_from_cfg(ssl_cfg_)};
   auto& fdset = mgr.fdset;
@@ -1882,12 +1983,15 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
           } else {
             mgr.abort(*i);
           }
+          while ((i->revents & read_mask) && mgr.must_read_more(*i))
+            mgr.continue_reading(*i);
         }
       } while (--presult > 0 && advance());
     }
     mgr.handle_timeouts();
     mgr.prepare_next_cycle();
   }
+  BROKER_DEBUG("connector done");
   for (auto& entry : fdset) {
     BROKER_DEBUG("close socket" << entry.fd);
     caf::net::close(caf::net::socket{entry.fd});

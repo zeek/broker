@@ -9,6 +9,8 @@
 
 namespace broker::detail {
 
+/// Shared state between the core actor and the connector for managing the state
+/// of all connected peers.
 class peer_status_map {
 public:
   bool insert(endpoint_id peer);
@@ -21,10 +23,13 @@ public:
 
   void remove(endpoint_id peer);
 
+  void close();
+
   peer_status get(endpoint_id peer);
 
 private:
   mutable std::mutex mtx_;
+  bool closed_ = false;
   std::unordered_map<endpoint_id, peer_status> peers_;
 };
 

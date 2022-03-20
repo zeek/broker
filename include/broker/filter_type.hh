@@ -12,7 +12,8 @@ namespace broker {
 /// A set of topics that represents a subscription or peer filter.
 using filter_type = std::vector<topic>;
 
-/// A set of topics with synchronized access.
+/// A set of topics with synchronized access. Enables the core actor to share
+/// its current filter with the connector.
 class shared_filter_type {
 public:
   shared_filter_type() = default;

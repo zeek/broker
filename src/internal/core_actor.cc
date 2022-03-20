@@ -325,6 +325,11 @@ caf::behavior core_actor_state::make_behavior() {
 
 void core_actor_state::shutdown(shutdown_options options) {
   BROKER_TRACE(BROKER_ARG(options));
+  // Tell the connector to shut down. No new connection allowed.
+  if (adapter)
+    adapter->async_shutdown();
+  // Close the shared state for the peers.
+  peer_statuses->close();
   // Shut down data stores.
   shutdown_stores();
   // Drop all peers. Don't cancel their flows, though. Incoming flows were
@@ -334,11 +339,6 @@ void core_actor_state::shutdown(shutdown_options options) {
     auto& [peer_id, st] = kvp;
     if (!st.invalidated) {
       BROKER_DEBUG("drop state for" << peer_id);
-      // Drop shared state for this peer.
-      auto& psm = *peer_statuses;
-      BROKER_DEBUG(peer_id << "::" << psm.get(peer_id) << "-> ()");
-      psm.remove(peer_id);
-      // Emit events.
       peer_removed(peer_id, st.addr);
       peer_unreachable(peer_id);
     }
@@ -682,6 +682,10 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                            node_consumer_res in_res,
                                            node_producer_res out_res) {
   BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(filter));
+  if (shutting_down()) {
+    BROKER_DEBUG("drop new peer: shutting down");
+    return caf::make_error(ec::shutting_down);
+  }
   // Sanity checking: make sure this isn't a repeated handshake.
   auto i = peers.find(peer_id);
   if (i != peers.end() && !i->second.invalidated)
@@ -980,6 +984,12 @@ void core_actor_state::unpeer(peer_state_map::iterator i) {
     peer_removed(peer_id, addr);
     peer_unreachable(peer_id);
   }
+}
+
+bool core_actor_state::shutting_down() {
+  // We call unbecome() in shutdown, which remove the behavior of the actor.
+  // Hence, a core actor without behavior indicates shutdown has been called.
+  return !self->has_behavior();
 }
 
 } // namespace broker::internal

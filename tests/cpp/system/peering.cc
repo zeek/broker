@@ -421,8 +421,7 @@ SCENARIO("handshake fails if only one side enables encryption") {
         auto t2 = std::thread{[&, port{port_future.get()}] {
           endpoint ep{make_config("ssl-mismatch-1", 1, disable_ssl)};
           auto sub = ep.make_status_subscriber();
-          auto res = ep.peer("127.0.0.1", port, 0s);
-          CHECK(!res);
+          ep.peer_nosync("127.0.0.1", port, 0s);
           auto msg = sub.get(1s);
           if (CHECK(std::holds_alternative<error>(msg))) {
             auto& err = std::get<error>(msg);
@@ -453,8 +452,7 @@ SCENARIO("handshake fails if only one side enables encryption") {
         auto t2 = std::thread{[&, port{port_future.get()}] {
           endpoint ep{make_config("ssl-mismatch-2", 1, enable_ssl)};
           auto sub = ep.make_status_subscriber();
-          auto res = ep.peer("127.0.0.1", port, 0s);
-          CHECK(!res);
+          ep.peer_nosync("127.0.0.1", port, 0s);
           auto msg = sub.get(1s);
           if (CHECK(std::holds_alternative<error>(msg))) {
             auto& err = std::get<error>(msg);

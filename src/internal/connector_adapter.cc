@@ -186,4 +186,8 @@ void connector_adapter::async_listen(const std::string& host, uint16_t port,
   conn_->async_listen(eid, host, port);
 }
 
+void connector_adapter::async_shutdown() {
+  conn_->async_shutdown();
+}
+
 } // namespace broker::internal

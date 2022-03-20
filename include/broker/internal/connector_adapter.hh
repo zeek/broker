@@ -51,6 +51,8 @@ public:
   void async_listen(const std::string& host, uint16_t port,
                     callback<uint16_t> on_success, error_callback on_error);
 
+  void async_shutdown();
+
 private:
   using msg_callback = callback<const caf::message&>;
 

@@ -302,6 +302,9 @@ public:
 
   /// Time-to-live when sending messages.
   uint16_t ttl;
+
+  /// Returns whether `shutdown` was called.
+  bool shutting_down();
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;
