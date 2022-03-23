@@ -1216,6 +1216,7 @@ struct connect_manager {
     } else {
       listener->on_redundant_connection(state.event_id, state.remote_id,
                                         state.addr);
+      close(caf::net::socket{entry.fd});
     }
   }
 
