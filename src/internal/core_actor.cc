@@ -712,7 +712,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                ->as_observable()
                // Select by subscription and sender/receiver fields.
                .filter([this, pid = peer_id](const node_message& msg) {
-                 if (get_sender(msg) == pid )
+                 if (get_sender(msg) == pid)
                    return false;
                  if (disable_forwarding && get_sender(msg) != id)
                    return false;
@@ -734,6 +734,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                    return cpy;
                  }
                })
+               .do_finally([this, peer_id] {
+                 BROKER_DEBUG("close output flow to" << peer_id); //
+               })
                // Emit values to the producer resource.
                .subscribe(out_res);
   // Increase the logical time for this connection. This timestamp is crucial
@@ -746,6 +749,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
               .from_resource(in_res)
               // If the peer closes this buffer, we assume a disconnect.
               .do_finally([this, peer_id, ts] { //
+                BROKER_DEBUG("close input flow from" << peer_id);
                 caf::error reason;
                 handle_peer_close_event(peer_id, ts, reason);
               })
@@ -791,6 +795,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   auto [rd_1, wr_1] = caf::async::make_spsc_buffer_resource<node_message>();
   auto [rd_2, wr_2] = caf::async::make_spsc_buffer_resource<node_message>();
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
+    BROKER_DEBUG("failed to run pending connection:" << err);
     return err;
   } else {
     // With the connected buffers, dispatch to the other overload.

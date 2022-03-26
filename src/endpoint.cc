@@ -666,8 +666,7 @@ std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
   BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
   auto prom = std::make_shared<std::promise<bool>>();
   auto res = prom->get_future();
-  auto on_val = [prom](atom::peer, atom::ok,
-                       endpoint_id) mutable { //
+  auto on_val = [prom](atom::peer, atom::ok, endpoint_id) mutable {
     prom->set_value(true);
   };
   auto on_err = [prom](const caf::error&) { prom->set_value(false); };
