@@ -219,7 +219,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       for (size_t i = 0; i != num_endpoints; ++i) {
         if (i != index) {
           auto p = ports[i].load();
-          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 1s));
         }
       }
       for (auto& [other_id, res] : peer_results) {
@@ -295,7 +295,7 @@ TEST(multiple clones can attach to a single master) {
       for (size_t i = 0; i != num_endpoints; ++i) {
         if (i != index) {
           auto p = ports[i].load();
-          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 1s));
         }
       }
       for (auto& [other_id, res] : peer_results) {
@@ -353,7 +353,7 @@ TEST(the master may appear after launching the clones) {
       for (size_t i = 0; i != num_endpoints; ++i) {
         if (i != index) {
           auto p = ports[i].load();
-          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 0s));
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 1s));
         }
       }
       for (auto& [other_id, res] : peer_results) {
