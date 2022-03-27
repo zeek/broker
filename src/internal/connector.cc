@@ -1888,15 +1888,17 @@ public:
     ssl_initialized_ = true;
     ERR_load_crypto_strings();
     OPENSSL_add_all_algorithms_conf();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     SSL_library_init();
     SSL_load_error_strings();
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
     ssl_mtx_tbl.reset(new std::mutex[CRYPTO_num_locks()]);
     CRYPTO_set_locking_callback(ssl_lock_fn);
     CRYPTO_set_dynlock_create_callback(ssl_dynlock_create);
     CRYPTO_set_dynlock_lock_callback(ssl_dynlock_lock);
     CRYPTO_set_dynlock_destroy_callback(ssl_dynlock_destroy);
     // OpenSSL's default thread ID callback should work, so don't set our own.
+#else
+    OPENSSL_init_ssl(0, NULL);
 #endif
   }
 
