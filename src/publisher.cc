@@ -104,9 +104,9 @@ public:
     while (demand_ == 0) {
       guard.unlock();
       fx_.await_one();
+      guard.lock();
       if (cancelled_)
         return;
-      guard.lock();
     }
     if (items.size() < demand_) {
       demand_ -= items.size();
