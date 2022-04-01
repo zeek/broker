@@ -352,14 +352,11 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
       // OnNext: increase the global num_events counter.
       auto msg = move_data(x);
       // Count number of events (counts each element in a batch as one event).
-      if (zeek::Message::type(msg) == zeek::Message::Type::Event) {
-        ++num_events;
-      } else if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
+      if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
         zeek::Batch batch(std::move(msg));
         num_events += batch.batch().size();
       } else {
-        std::cerr << "unexpected message type" << '\n';
-        exit(1);
+        ++num_events;
       }
     },
     [](const error&) {

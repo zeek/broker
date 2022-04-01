@@ -22,11 +22,18 @@
 #include <caf/attach_stream_sink.hpp>
 #include <caf/attach_stream_source.hpp>
 #include <caf/config.hpp>
+#include <caf/cow_string.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
+#include <caf/flow/observable.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
+#include <caf/json_reader.hpp>
+#include <caf/json_writer.hpp>
 #include <caf/message.hpp>
+#include <caf/net/middleman.hpp>
+#include <caf/net/tcp_stream_socket.hpp>
+#include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
@@ -63,7 +70,7 @@ using broker::internal::native;
 
 namespace broker {
 
-// --- async helper ------------------------------------------------------------
+// --- helper actors -----------------------------------------------------------
 
 namespace {
 
@@ -98,10 +105,121 @@ template <class OnValue, class OnError>
 using async_helper_actor
   = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
 
+struct data_message_decorator {
+  topic& t;
+  data& d;
+};
+
+template <class Inspector>
+bool inspect(Inspector& f, data_message_decorator& x) {
+  return f.object(x).fields(f.field("topic", x.t), f.field("data", x.d));
+}
+
+struct json_bridge_state {
+  static inline const char* name = "broker.json_bridge";
+
+  using in_t = caf::async::consumer_resource<caf::cow_string>;
+
+  using out_t = caf::async::producer_resource<caf::cow_string>;
+
+  json_bridge_state(caf::event_based_actor* selfptr, caf::actor core, in_t in,
+                    out_t out)
+    : self(selfptr) {
+    using caf::cow_string;
+    using caf::flow::observable;
+    using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
+    self //
+      ->make_observable()
+      .from_resource(in) // Read all input text messages.
+      .head_and_tail()   // The first message contains the filter.
+      .for_each([this, out, core](const head_and_tail_t& head_and_tail) {
+        auto& [head, tail] = head_and_tail.data();
+        filter_type filter;
+        reader.load(head.str());
+        if (!reader.apply(filter)) {
+          // Received malformed input: drop remaining input and quit.
+          auto err = caf::make_error(caf::sec::invalid_argument,
+                                     "first message must contain a filter");
+          using impl_t = caf::flow::observable_error_impl<cow_string>;
+          auto obs = caf::make_counted<impl_t>(self, std::move(err));
+          obs->as_observable().subscribe(out);
+        } else {
+          // Ok, set up the actual pipeline and connect to the core.
+          run(core, std::move(filter), tail, out);
+        }
+      });
+  }
+
+  void run(caf::actor core, filter_type filter,
+           caf::flow::observable<caf::cow_string> in, out_t out) {
+    using caf::async::make_spsc_buffer_resource;
+    // Parse all JSON coming in and forward them to the core.
+    auto [core_pull1, core_push1] = make_spsc_buffer_resource<data_message>();
+    in //
+      .map([this](const caf::cow_string& str) {
+        std::optional<data_message> result;
+        reader.reset();
+        if (reader.load(str)) {
+          using std::get;
+          data_message msg;
+          auto& tup = msg.unshared();
+          data_message_decorator decorator{get<0>(tup), get<1>(tup)};
+          if (reader.apply(decorator))
+            result = std::move(msg);
+        }
+        return result;
+      })
+      .filter([](const std::optional<data_message>& item) {
+        return item.has_value();
+      })
+      .map([](const std::optional<data_message>& item) { return *item; })
+      .subscribe(core_push1);
+    caf::anon_send(core, core_pull1);
+    // Pull data from the core and forward as JSON.
+    if (!filter.empty()) {
+      auto [core_pull2, core_push2] = make_spsc_buffer_resource<data_message>();
+      caf::anon_send(core, std::move(filter), core_push2);
+      self->make_observable()
+        .from_resource(core_pull2)
+        .map([this](const data_message& msg) {
+          std::optional<caf::cow_string> result;
+          auto& [t, d] = msg.data();
+          writer.reset();
+          auto ok = writer.begin_object_t<data_message>() // begin object
+                    && writer.begin_field("topic")        // begin topic
+                    && writer.apply(t)                    // topic 'payload'
+                    && writer.end_field()                 // end topic
+                    && writer.begin_field("data")         // begin data
+                    && writer.apply(d)                    // data 'payload'
+                    && writer.end_field()                 // end data
+                    && writer.end_object();               // end object
+          if (ok) {
+            auto json = writer.str();
+            auto str = std::string{json.begin(), json.end()};
+            result = caf::cow_string{std::move(str)};
+          }
+          return result;
+        })
+        .filter([](const std::optional<caf::cow_string>& item) {
+          return item.has_value();
+        })
+        .map([](const std::optional<caf::cow_string>& item) { return *item; })
+        .subscribe(out);
+    }
+  }
+
+  caf::event_based_actor* self;
+  caf::json_reader reader;
+  caf::json_writer writer;
+};
+
+using json_bridge_actor = caf::stateful_actor<json_bridge_state>;
+
 caf::actor_system_config& nat_cfg(configuration& cfg) {
   internal::configuration_access helper{&cfg};
   return helper.cfg();
 }
+
 
 } // namespace
 
@@ -547,6 +665,53 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     auto params = internal::metric_exporter_params::from(cfg);
     auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
     telemetry_exporter_ = facade(hdl);
+  }
+  // Spin up a WebSocket server when requested.
+  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port")) {
+    using namespace std::literals;
+    caf::uri::authority_type auth;
+    auth.host = "0.0.0.0"s;
+    auth.port = *port;
+    if (auto sock = caf::net::make_tcp_accept_socket(auth)) {
+      struct trait {
+        using value_type = caf::cow_string;
+        caf::error init(const caf::settings&) {
+          return caf::none;
+        }
+        bool converts_to_binary(const caf::cow_string&) {
+          return false; // We use text messages exclusively.
+        }
+        bool convert(const caf::cow_string& , caf::byte_buffer&) {
+          return false; // Never serialize to binary.
+        }
+        bool convert(caf::const_byte_span, caf::cow_string&) {
+          return false; // Reject binary messages.
+        }
+        bool convert(const caf::cow_string& str, std::vector<char>& buf) {
+          buf.insert(buf.end(), str.begin(), str.end());
+          return true;
+        }
+        bool convert(caf::string_view input, caf::cow_string& str) {
+          auto& x = str.unshared();
+          x.insert(x.end(), input.begin(), input.end());
+          return true;
+        }
+      };
+      using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
+      using producer_res_t = caf::async::producer_resource<caf::cow_string>;
+      using res_t = std::tuple<consumer_res_t, producer_res_t, trait>;
+      auto on_request = [sysptr = &sys, core](const caf::settings&) {
+        using res_t
+          = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait>>;
+        using caf::async::make_spsc_buffer_resource;
+        auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
+        auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
+        sysptr->spawn<json_bridge_actor>(core, pull2, push1);
+        return res_t{std::make_tuple(pull1, push2, trait{})};
+      };
+      caf::net::web_socket::accept(sys.network_manager().mpx(), *sock,
+                                   on_request);
+    }
   }
 }
 

@@ -117,6 +117,8 @@ struct configuration::impl : public caf::actor_system_config {
         "maximum number of entries when recording published messages")
       .add<size_t>("max-pending-inputs-per-source",
                    "maximum number of items we buffer per peer or publisher");
+    opt_group{custom_options_, "broker.web-socket"} //
+      .add<uint16_t>("port", "port for incoming WebSocket connections");
     opt_group{custom_options_, "broker.metrics"}
       .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
       .add<string>("address", "bind address for the HTTP server socket")
@@ -241,6 +243,15 @@ void configuration::impl::init(int argc, char** argv) {
   }
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
+  }
+  if (auto env = getenv("BROKER_WEBSOCKET_PORT")) {
+    caf::config_value val{env};
+    if (auto port = caf::get_as<uint16_t>(val)) {
+      set("broker.web-socket.port", *port);
+    } else {
+      auto what = concat("invalid value for BROKER_WEBSOCKET_PORT: ", env,
+                         " (expected a non-zero port number)");
+    }
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
     caf::config_value val{env};
