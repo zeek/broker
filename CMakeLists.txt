@@ -6,6 +6,8 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 include(cmake/CommonCMakeConfig.cmake)
 
+set(CAF_LOG_LEVEL "TRACE" CACHE INTERNAL "" FORCE)
+
 get_directory_property(parent_dir PARENT_DIRECTORY)
 if(parent_dir)
   set(broker_is_subproject ON)

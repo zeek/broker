@@ -51,6 +51,7 @@
 
 #include <chrono>
 #include <thread>
+#include <unistd.h>
 
 namespace atom = broker::internal::atom;
 
@@ -551,6 +552,9 @@ endpoint::~endpoint() {
 }
 
 void endpoint::shutdown() {
+  auto p = getpid();
+  auto cmd = "gcore " + std::to_string(p);
+  ::system(cmd.c_str());
   // Destroying a destroyed endpoint is a no-op.
   if (!ctx_)
     return;
