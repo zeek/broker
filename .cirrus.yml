@@ -9,14 +9,7 @@ resources_template: &RESOURCES_TEMPLATE
   cpu: *CPUS
   memory: *MEMORY
 
-branch_whitelist: &BRANCH_WHITELIST
-  only_if: >
-    $CIRRUS_PR != '' ||
-    $CIRRUS_BRANCH == 'master' ||
-    $CIRRUS_BRANCH =~ 'release/.*'
-
 ci_template: &CI_TEMPLATE
-  << : *BRANCH_WHITELIST
   sync_submodules_script: git submodule update --recursive --init
   build_script: ./ci/build.sh
   test_script: ./ci/test.sh
