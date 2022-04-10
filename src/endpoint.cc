@@ -7,6 +7,7 @@
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
+#include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
@@ -125,6 +126,8 @@ struct json_bridge_state {
   json_bridge_state(caf::event_based_actor* selfptr, caf::actor core, in_t in,
                     out_t out)
     : self(selfptr) {
+    reader.mapper(&mapper);
+    writer.mapper(&mapper);
     using caf::cow_string;
     using caf::flow::observable;
     using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
@@ -209,6 +212,7 @@ struct json_bridge_state {
   }
 
   caf::event_based_actor* self;
+  internal::json_type_mapper mapper;
   caf::json_reader reader;
   caf::json_writer writer;
 };

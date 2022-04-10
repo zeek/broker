@@ -326,6 +326,7 @@ set(BROKER_SRC
   src/internal/connector_adapter.cc
   src/internal/core_actor.cc
   src/internal/flare_actor.cc
+  src/internal/json_type_mapper.cc
   src/internal/master_actor.cc
   src/internal/master_resolver.cc
   src/internal/metric_collector.cc

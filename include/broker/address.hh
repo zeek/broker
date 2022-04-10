@@ -99,7 +99,17 @@ inline bool convert(const address& a, std::string& str) {
 /// @relates address
 template <class Inspector>
 bool inspect(Inspector& f, address& x) {
-  return f.object(x).fields(f.field("bytes", x.bytes()));
+  if (f.has_human_readable_format()) {
+    auto get = [&] {
+      std::string str;
+      convert(x, str);
+      return str;
+    };
+    auto set = [&](const std::string& str) { return convert(str, x); };
+    return f.apply(get, set);
+  } else {
+    return f.object(x).fields(f.field("bytes", x.bytes()));
+  }
 }
 
 } // namespace broker
