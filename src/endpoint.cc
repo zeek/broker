@@ -296,6 +296,7 @@ public:
   }
 
   ~prometheus_http_task() {
+    BROKER_TRACE("");
     if (mpx_supervisor_) {
       mpx_.dispatch([=] {
         auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
@@ -370,6 +371,7 @@ public:
   connector_task& operator=(const connector_task&) = delete;
 
   ~connector_task() {
+    BROKER_TRACE("");
     if (connector_) {
       connector_->async_shutdown();
       thread_.join();
@@ -552,9 +554,6 @@ endpoint::~endpoint() {
 }
 
 void endpoint::shutdown() {
-  auto p = getpid();
-  auto cmd = "gcore " + std::to_string(p);
-  ::system(cmd.c_str());
   // Destroying a destroyed endpoint is a no-op.
   if (!ctx_)
     return;

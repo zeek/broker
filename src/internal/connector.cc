@@ -1102,14 +1102,15 @@ struct connect_manager {
   }
 
   void connect(connect_state_ptr state) {
+    using namespace std::literals;
     BROKER_TRACE("");
     BROKER_ASSERT(!state->addr.address.empty());
     caf::uri::authority_type authority;
     authority.host = state->addr.address;
     authority.port = state->addr.port;
-    BROKER_DEBUG("try connecting to" << authority);
+    BROKER_DEBUG("try connecting to" << authority << "with a timeout of 1s");
     auto event_id = state->event_id;
-    if (auto sock = caf::net::make_connected_tcp_stream_socket(authority)) {
+    if (auto sock = caf::net::make_connected_tcp_stream_socket(authority, 1s)) {
       BROKER_DEBUG("established connection to" << authority
                                                << "(initiate handshake)"
                                                << BROKER_ARG2("fd", sock->id));
