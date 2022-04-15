@@ -268,4 +268,22 @@ std::string to_string(const data_message& msg);
 /// @relates command_message
 std::string to_string(const command_message& msg);
 
+/// Gives data messages a nicer representation in JSON input and output.
+struct data_message_decorator {
+  topic& t;
+  data& d;
+};
+
+/// @relates data_message_decorator
+template <class Inspector>
+bool inspect(Inspector& f, data_message_decorator& x) {
+  return f.object(x).fields(f.field("topic", x.t), f.field("data", x.d));
+}
+
+/// @relates data_message
+inline data_message_decorator decorated(data_message& msg) {
+  auto& [t, d] = msg.unshared();
+  return data_message_decorator{t, d};
+}
+
 } // namespace broker

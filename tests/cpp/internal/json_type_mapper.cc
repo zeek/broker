@@ -86,26 +86,35 @@ constexpr caf::string_view json = R"_({
             "data": 3
           }
         ]
+      },
+      {
+        "@data-type": "table",
+        "data": [
+          {
+            "key": {
+              "@data-type": "string",
+              "data": "first-name"
+            },
+            "value": {
+              "@data-type": "string",
+              "data": "John"
+            }
+          },
+          {
+            "key": {
+              "@data-type": "string",
+              "data": "last-name"
+            },
+            "value": {
+              "@data-type": "string",
+              "data": "Doe"
+            }
+          }
+        ]
       }
     ]
   }
 })_";
-
-// Gives data messages a nicer representation in JSON input and output.
-struct data_message_decorator {
-  topic& t;
-  data& d;
-};
-
-template <class Inspector>
-bool inspect(Inspector& f, data_message_decorator& x) {
-  return f.object(x).fields(f.field("topic", x.t), f.field("data", x.d));
-}
-
-data_message_decorator decorated(data_message& msg) {
-  auto& tup = msg.unshared();
-  return data_message_decorator{get<0>(tup), get<1>(tup)};
-}
 
 timestamp timestamp_from_string(std::string ts) {
   auto opt = caf::timestamp_from_string(ts);
@@ -133,10 +142,9 @@ data_message native() {
   xs.emplace_back(enum_value{"foo"s});
   xs.emplace_back(set{data{1}, data{2}, data{3}});
   table john_doe;
-  // FIXME: JSON output for tables is utterly broken
-  // john_doe["first-name"s] = "John"s;
-  // john_doe["last-name"s] = "Doe"s;
-  // xs.emplace_back(std::move(john_doe));
+  john_doe["first-name"s] = "John"s;
+  john_doe["last-name"s] = "Doe"s;
+  xs.emplace_back(std::move(john_doe));
   return data_message{topic{"/test/cpp/internal/json-type-mapper"},
                       data{std::move(xs)}};
 }
@@ -166,9 +174,9 @@ TEST(the JSON mapper enables custom type names in JSON output) {
   writer.indentation(2);
   writer.mapper(&mapper);
   auto msg = native();
-  auto decorated_msg = decorated(msg);
-  if (CHECK(writer.apply(decorated_msg)))
+  auto decorator = decorated(msg);
+  if (CHECK(writer.apply(decorator)))
     CHECK_EQ(writer.str(), json);
   else
-    MESSAGE("writer reported error: " << writer.get_error());
+    auto str = to_string(writer.str());
 }

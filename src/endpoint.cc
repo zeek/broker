@@ -106,16 +106,6 @@ template <class OnValue, class OnError>
 using async_helper_actor
   = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
 
-struct data_message_decorator {
-  topic& t;
-  data& d;
-};
-
-template <class Inspector>
-bool inspect(Inspector& f, data_message_decorator& x) {
-  return f.object(x).fields(f.field("topic", x.t), f.field("data", x.d));
-}
-
 struct json_bridge_state {
   static inline const char* name = "broker.json_bridge";
 
@@ -165,8 +155,7 @@ struct json_bridge_state {
         if (reader.load(str)) {
           using std::get;
           data_message msg;
-          auto& tup = msg.unshared();
-          data_message_decorator decorator{get<0>(tup), get<1>(tup)};
+          auto decorator = decorated(msg);
           if (reader.apply(decorator))
             result = std::move(msg);
         }

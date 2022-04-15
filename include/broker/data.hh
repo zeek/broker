@@ -230,6 +230,57 @@ bool inspect(Inspector& f, data& x) {
   return f.object(x).fields(f.field("data", x.get_data()));
 }
 
+namespace detail {
+
+struct kvp_view {
+  broker::data* key;
+  broker::data* value;
+};
+
+template <class Inspector>
+bool inspect(Inspector& f, kvp_view& x) {
+  return f.object(x).fields(f.field("key", *x.key), f.field("value", *x.value));
+}
+
+} // namespace detail
+
+/// Custom inspection for Broker tables. The default inspect does not work when
+/// serializing to JSON, because JSON only supports string keys. We get around
+/// this problem by presenting a table as a list of key-value pairs to the
+/// inspector.
+/// @relates data
+template <class Inspector>
+bool inspect(Inspector& f, broker::table& tbl) {
+  if constexpr (Inspector::is_loading) {
+    size_t n = 0;
+    auto load_values = [&] {
+      tbl.clear();
+      for (size_t i = 0; i < n; ++i) {
+        broker::data key;
+        broker::data value;
+        broker::detail::kvp_view view{&key, &value};
+        if (!f.apply(view))
+          return false;
+        if (!tbl.emplace(std::move(key), std::move(value)).second)
+          return false;
+      }
+      return true;
+    };
+    return f.begin_sequence(n) && load_values() && f.end_sequence();
+  } else {
+    auto save_values = [&] {
+      for (auto& kvp : tbl) {
+        detail::kvp_view view{&const_cast<broker::data&>(kvp.first),
+                              &kvp.second};
+        if (!f.apply(view))
+          return false;
+      }
+      return true;
+    };
+    return f.begin_sequence(tbl.size()) && save_values() && f.end_sequence();
+  }
+}
+
 /// @relates data
 bool convert(const data& x, std::string& str);
 
