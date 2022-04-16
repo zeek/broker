@@ -6,13 +6,17 @@
 #include <variant>
 #include <vector>
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#endif
 #include <pybind11/functional.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl_bind.h>
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"

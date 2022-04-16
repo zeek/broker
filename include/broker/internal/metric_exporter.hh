@@ -60,7 +60,7 @@ public:
   }
 
   caf::behavior make_behavior() {
-    BROKER_ASSERT(core != nullptr);
+    BROKER_ASSERT(core);
     self->monitor(core);
     self->set_down_handler([this](const caf::down_msg& down) {
       if (down.source == core) {

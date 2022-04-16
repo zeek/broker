@@ -1,5 +1,7 @@
 #include "broker/internal/metric_view.hh"
 
+#include <algorithm>
+
 namespace broker::internal {
 
 metric_view::metric_view(const vector* row)

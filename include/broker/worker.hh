@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/detail/comparable.hh"
+#include "broker/config.hh"
 
 #include <cstddef>
 #include <functional>
@@ -15,6 +16,16 @@ public:
   // -- member types -----------------------------------------------------------
 
   struct impl;
+
+  // -- constants --------------------------------------------------------------
+
+#ifdef BROKER_WINDOWS
+  static constexpr size_t obj_size = sizeof(impl*) * 2;
+#else
+  static constexpr size_t obj_size = sizeof(impl*);
+#endif
+
+  // --- construction and destruction ------------------------------------------
 
   worker() noexcept;
 
@@ -64,7 +75,7 @@ public:
   [[nodiscard]] const impl* native_ptr() const noexcept;
 
 private:
-  std::byte obj_[sizeof(impl*)];
+  std::byte obj_[obj_size];
 };
 
 inline bool operator==(const worker& hdl, std::nullptr_t) {

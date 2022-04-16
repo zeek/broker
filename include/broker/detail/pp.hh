@@ -8,7 +8,7 @@
 
 #define BROKER_PP_PASTE(x, y) BROKER_PP_CAT(x, y)
 
-#ifdef _MSVC_VER
+#ifdef _MSC_VER
 
 #define BROKER_PP_SIZE(...)                                                    \
   BROKER_PP_PASTE(                                                             \
@@ -19,7 +19,7 @@
                      11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, ),                     \
     BROKER_PP_EMPTY())
 
-#else // _MSVC_VER
+#else // _MSC_VER
 
 #define BROKER_PP_SIZE(...)                                                    \
   BROKER_PP_SIZE_I(__VA_ARGS__, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55, 54,    \

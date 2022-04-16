@@ -1,6 +1,5 @@
 #pragma once
 
-#include "broker/address.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/error.hh"
 #include "broker/status.hh"
@@ -29,7 +28,6 @@ template <class Facade>
 struct conversion_oracle;
 
 BROKER_MAP_CAF_TYPE(caf::error, error)
-BROKER_MAP_CAF_TYPE(caf::ip_address, address)
 BROKER_MAP_CAF_TYPE(caf::actor, worker)
 
 /// STL-style alias to safe us some typing.

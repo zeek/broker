@@ -14,7 +14,7 @@ class address : detail::comparable<address> {
 public:
   static constexpr size_t num_bytes = 16;
 
-  struct impl;
+  using array_type = std::array<uint8_t, num_bytes>;
 
   /// Distinguishes between address types.
   enum class family : uint8_t {
@@ -32,8 +32,6 @@ public:
 
   address(const address&) noexcept;
 
-  explicit address(const impl*) noexcept;
-
   /// Construct an address from raw bytes.
   /// @param bytes A pointer to the raw representation.  This must point
   /// to 4 bytes if *fam* is `family::ipv4` and 16 bytes for `family::ipv6`.
@@ -42,8 +40,6 @@ public:
   address(const uint32_t* bytes, family fam, byte_order order);
 
   address& operator=(const address&) noexcept;
-
-  ~address();
 
   /// Mask out lower bits of the address.
   /// @param top_bits_to_keep The number of bits to *not* mask out, counting
@@ -64,11 +60,15 @@ public:
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  std::array<uint8_t, 16>& bytes();
+  array_type& bytes() noexcept {
+    return bytes_;
+  }
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  const std::array<uint8_t, 16>& bytes() const;
+  const std::array<uint8_t, 16>& bytes() const noexcept {
+    return bytes_;
+  }
 
   [[nodiscard]] int compare(const address& other) const noexcept;
 
@@ -80,14 +80,8 @@ public:
 
   [[nodiscard]] bool convert_from(const std::string& str);
 
-  /// Returns a pointer to the native representation.
-  [[nodiscard]] impl* native_ptr() noexcept;
-
-  /// Returns a pointer to the native representation.
-  [[nodiscard]] const impl* native_ptr() const noexcept;
-
 private:
-  std::byte obj_[num_bytes];
+  array_type bytes_;
 };
 
 // -- free functions -----------------------------------------------------------
