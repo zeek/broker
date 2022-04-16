@@ -106,20 +106,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   };
 }
 
-struct fixture : test_coordinator_fixture<> {
-  fixture() {
-    // We don't do networking, but our flares use the socket API.
-    base_fixture::init_socket_api();
-  }
-
-  ~fixture() {
-    base_fixture::deinit_socket_api();
-  }
-};
-
 } // namespace <anonymous>
-
-CAF_TEST_FIXTURE_SCOPE(local_tests, fixture)
 
 // Simulates a simple setup with two cores, where data flows from core1 to
 // core2.
@@ -730,5 +717,3 @@ CAF_TEST(remote_peers_setup2) {
   anon_send_exit(leaf, caf::exit_reason::user_shutdown);
   exec_all();
 }
-
-CAF_TEST_FIXTURE_SCOPE_END()

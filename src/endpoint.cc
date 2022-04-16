@@ -52,6 +52,10 @@
 #include <chrono>
 #include <thread>
 
+#ifdef BROKER_WINDOWS
+#include "Winsock2.h"
+#endif
+
 namespace atom = broker::internal::atom;
 
 using broker::internal::facade;
@@ -913,6 +917,22 @@ expected<store> endpoint::attach_clone(std::string name, double resync_interval,
       },
       [&](caf::error& e) { res = facade(e); });
   return res;
+}
+
+void endpoint::init_socket_api() {
+#ifdef BROKER_WINDOWS
+  WSADATA WinsockData;
+  if (WSAStartup(MAKEWORD(2, 2), &WinsockData) != 0) {
+    fprintf(stderr, "WSAStartup failed\n");
+    abort();
+  }
+#endif
+}
+
+void endpoint::deinit_socket_api() {
+#ifdef BROKER_WINDOWS
+  WSACleanup();
+#endif
 }
 
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {

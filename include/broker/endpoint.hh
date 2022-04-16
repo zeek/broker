@@ -357,6 +357,14 @@ public:
 
   // --- setup and testing -----------------------------------------------------
 
+  /// Initializes the OS socket layer if necessary. On Windows, this function
+  /// calls `WSAStartup`. Does nothing on POSIX systems.
+  static void init_socket_api();
+
+  /// Releases resources for the OS socket layer if necessary. On Windows, this
+  /// function calls `WSACleanup`. Does nothing on POSIX systems.
+  static void deinit_socket_api();
+
   // --await-peer-start
   /// Blocks execution of the current thread until either `whom` was added to
   /// the routing table and its subscription flooding reached this endpoint or a

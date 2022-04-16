@@ -211,10 +211,6 @@ public:
 
   void consume_message();
 
-  static void init_socket_api();
-
-  static void deinit_socket_api();
-
   char id_by_value(const broker::endpoint_id& value);
 
   /// Dereferences `hdl` and downcasts it to `T`.

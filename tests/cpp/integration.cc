@@ -219,11 +219,6 @@ struct triangle_fixture : global_fixture {
     : mercury(this, "mercury"),
       venus(this, "venus"),
       earth(this, "earth") {
-    base_fixture::init_socket_api();
-  }
-
-  ~triangle_fixture() {
-    base_fixture::deinit_socket_api();
   }
 
   // Connect mercury to venus and earth.

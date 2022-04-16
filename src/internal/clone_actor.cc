@@ -480,7 +480,7 @@ caf::behavior clone_state::make_behavior() {
     [=](atom::exists, data& key) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{std::move(key)}]() mutable {
-        auto result = (store.find(key) != store.end());
+        auto result = this->store.count(key) != 0;
         BROKER_INFO("EXISTS" << key << "->" << result);
         rp.deliver(data{result});
       });
@@ -491,7 +491,7 @@ caf::behavior clone_state::make_behavior() {
       get_impl(
         rp,
         [this, rp, key{std::move(key)}, id]() mutable {
-          auto result = (store.find(key) != store.end());
+          auto result = this->store.count(key) != 0;
           BROKER_INFO("EXISTS" << key << "with id" << id << "->" << result);
           rp.deliver(data{result}, id);
         },
@@ -502,7 +502,7 @@ caf::behavior clone_state::make_behavior() {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{move(key)}]() mutable {
         if (rp.pending()) {
-          if (auto i = store.find(key); i != store.end()) {
+          if (auto i = this->store.find(key); i != this->store.end()) {
             BROKER_INFO("GET" << key << "->" << i->second);
             rp.deliver(i->second);
           } else {
@@ -516,7 +516,7 @@ caf::behavior clone_state::make_behavior() {
     [=](atom::get, data& key, data& aspect) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{move(key)}, aspect{move(aspect)}]() mutable {
-        if (auto i = store.find(key); i != store.end()) {
+        if (auto i = this->store.find(key); i != this->store.end()) {
           BROKER_INFO("GET" << key << aspect << "->" << i->second);
           if (auto res = visit(detail::retriever{aspect}, i->second))
             rp.deliver(std::move(*res));
@@ -534,7 +534,7 @@ caf::behavior clone_state::make_behavior() {
       get_impl(
         rp,
         [this, rp, key{move(key)}, id]() mutable {
-          if (auto i = store.find(key); i != store.end()) {
+          if (auto i = this->store.find(key); i != this->store.end()) {
             BROKER_INFO("GET" << key << "with id" << id << "->" << i->second);
             rp.deliver(i->second, id);
           } else {
@@ -550,7 +550,7 @@ caf::behavior clone_state::make_behavior() {
       get_impl(
         rp,
         [this, rp, key{move(key)}, asp{move(aspect)}, id]() mutable {
-          if (auto i = store.find(key); i != store.end()) {
+          if (auto i = this->store.find(key); i != this->store.end()) {
             auto x = visit(detail::retriever{asp}, i->second);
             BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
             if (x)

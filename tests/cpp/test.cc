@@ -19,11 +19,6 @@
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 
-#ifdef BROKER_WINDOWS
-#undef ERROR // The Windows headers fail if this macro is predefined.
-#include "Winsock2.h"
-#endif
-
 namespace atom = broker::internal::atom;
 
 using broker::internal::native;
@@ -135,7 +130,6 @@ base_fixture::base_fixture()
     sys(internal::endpoint_access{&ep}.sys()),
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
-  init_socket_api();
   for (char id = 'A'; id <= 'Z'; ++id) {
     auto index = id - 'A';
     str_ids[id] = id_strings[index];
@@ -148,23 +142,6 @@ base_fixture::~base_fixture() {
   // Our core might do some messaging in its dtor, hence we need to make sure
   // messages are handled when enqueued to avoid blocking.
   sched.inline_all_enqueues();
-  deinit_socket_api();
-}
-
-void base_fixture::init_socket_api() {
-#ifdef BROKER_WINDOWS
-  WSADATA WinsockData;
-  if (WSAStartup(MAKEWORD(2, 2), &WinsockData) != 0) {
-    fprintf(stderr, "WSAStartup failed\n");
-    abort();
-  }
-#endif
-}
-
-void base_fixture::deinit_socket_api() {
-#ifdef BROKER_WINDOWS
-  WSACleanup();
-#endif
 }
 
 char base_fixture::id_by_value(const broker::endpoint_id& value) {
@@ -280,9 +257,12 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
+  broker::endpoint::init_socket_api();
   caf::init_global_meta_objects<caf::id_block::broker_test>();
   broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
-  return caf::test::main(argc, argv);
+  auto result = caf::test::main(argc, argv);
+  broker::endpoint::deinit_socket_api();
+  return result;
 }

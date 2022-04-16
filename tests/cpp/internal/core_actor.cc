@@ -49,7 +49,6 @@ struct fixture : test_coordinator_fixture<config> {
 
   fixture() {
     // We don't do networking, but our flares use the socket API.
-    base_fixture::init_socket_api();
     ep1.id = endpoint_id::random(1);
     ep2.id = endpoint_id::random(2);
     ep3.id = endpoint_id::random(3);
@@ -71,7 +70,6 @@ struct fixture : test_coordinator_fixture<config> {
     caf::anon_send_exit(ep1.hdl, caf::exit_reason::user_shutdown);
     caf::anon_send_exit(ep2.hdl, caf::exit_reason::user_shutdown);
     caf::anon_send_exit(ep3.hdl, caf::exit_reason::user_shutdown);
-    base_fixture::deinit_socket_api();
   }
 
   caf::actor bridge(const endpoint_state& left, const endpoint_state& right) {
