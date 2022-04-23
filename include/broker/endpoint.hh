@@ -298,6 +298,15 @@ public:
                                                  std::move(cleanup)));
   }
 
+  /// Starts a background worker from the given set of function that consumes
+  /// incoming messages. The worker will run in the background.
+  template <class OnNext>
+  worker subscribe(filter_type filter, OnNext on_next) {
+    return do_subscribe(std::move(filter),
+                        detail::make_sink_driver([] {}, std::move(on_next),
+                                                 [](const error&) {}));
+  }
+
   template <class Init, class OnNext, class Cleanup>
   [[deprecated("use subscribe() instead")]] worker
   subscribe_nosync(filter_type filter, Init init, OnNext on_next,

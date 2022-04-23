@@ -412,7 +412,7 @@ endmacro()
 if (NOT BROKER_DISABLE_TOOLS)
   # TODO: fix these tools
   # add_tool(broker-gateway)
-  # add_tool(broker-node)
+  add_tool(broker-node)
   add_tool(broker-pipe)
 endif ()
 
