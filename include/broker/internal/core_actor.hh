@@ -145,6 +145,12 @@ public:
   /// @param xs Either a peer ID or a network info.
   void peer_unavailable(const network_info& x);
 
+  /// Called whenever a new client connected.
+  void client_added(const network_info& addr);
+
+  /// Called whenever a client disconnected.
+  void client_removed(const network_info& addr);
+
   // -- connection management --------------------------------------------------
 
   /// Tries to asynchronously connect to addr via the connector.
@@ -184,6 +190,12 @@ public:
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            const filter_type& filter,
                            pending_connection_ptr conn);
+
+  /// Connects the input and output buffers for a new client to our central
+  /// merge point.
+  caf::error init_new_client(const network_info& addr, filter_type filter,
+                             data_consumer_res in_res,
+                             data_producer_res out_res);
 
   // -- topic management -------------------------------------------------------
 

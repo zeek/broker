@@ -113,9 +113,12 @@ struct json_bridge_state {
 
   using out_t = caf::async::producer_resource<caf::cow_string>;
 
-  json_bridge_state(caf::event_based_actor* selfptr, caf::actor core, in_t in,
-                    out_t out)
+  json_bridge_state(caf::event_based_actor* selfptr, caf::actor core,
+                    network_info addr, in_t in, out_t out,
+                    std::string user_agent)
     : self(selfptr) {
+    BROKER_INFO("new JSON client with address" << addr << "and user agent"
+                                               << user_agent);
     reader.mapper(&mapper);
     writer.mapper(&mapper);
     using caf::cow_string;
@@ -125,7 +128,7 @@ struct json_bridge_state {
       ->make_observable()
       .from_resource(in) // Read all input text messages.
       .head_and_tail()   // The first message contains the filter.
-      .for_each([this, out, core](const head_and_tail_t& head_and_tail) {
+      .for_each([this, out, core, addr](const head_and_tail_t& head_and_tail) {
         auto& [head, tail] = head_and_tail.data();
         filter_type filter;
         reader.load(head.str());
@@ -138,18 +141,17 @@ struct json_bridge_state {
           obs->as_observable().subscribe(out);
         } else {
           // Ok, set up the actual pipeline and connect to the core.
-          run(core, std::move(filter), tail, out);
+          run(core, std::move(filter), addr, tail, out);
         }
       });
   }
 
-  void run(caf::actor core, filter_type filter,
+  void run(caf::actor core, filter_type filter, network_info addr,
            caf::flow::observable<caf::cow_string> in, out_t out) {
     using caf::async::make_spsc_buffer_resource;
     // Parse all JSON coming in and forward them to the core.
     auto [core_pull1, core_push1] = make_spsc_buffer_resource<data_message>();
-    in //
-      .map([this](const caf::cow_string& str) {
+    in.flat_map_optional([this](const caf::cow_string& str) {
         std::optional<data_message> result;
         reader.reset();
         if (reader.load(str)) {
@@ -161,19 +163,13 @@ struct json_bridge_state {
         }
         return result;
       })
-      .filter([](const std::optional<data_message>& item) {
-        return item.has_value();
-      })
-      .map([](const std::optional<data_message>& item) { return *item; })
       .subscribe(core_push1);
-    caf::anon_send(core, core_pull1);
     // Pull data from the core and forward as JSON.
     if (!filter.empty()) {
       auto [core_pull2, core_push2] = make_spsc_buffer_resource<data_message>();
-      caf::anon_send(core, std::move(filter), core_push2);
       self->make_observable()
         .from_resource(core_pull2)
-        .map([this](const data_message& msg) {
+        .flat_map_optional([this](const data_message& msg) {
           std::optional<caf::cow_string> result;
           auto& [t, d] = msg.data();
           writer.reset();
@@ -192,11 +188,12 @@ struct json_bridge_state {
           }
           return result;
         })
-        .filter([](const std::optional<caf::cow_string>& item) {
-          return item.has_value();
-        })
-        .map([](const std::optional<caf::cow_string>& item) { return *item; })
         .subscribe(out);
+      caf::anon_send(core, atom::attach_client_v, addr, filter, core_pull1,
+                     core_push2);
+    } else {
+      caf::anon_send(core, atom::attach_client_v, addr, filter_type{},
+                     core_pull1, caf::async::producer_resource<data_message>{});
     }
   }
 
@@ -693,17 +690,32 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
       using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
       using producer_res_t = caf::async::producer_resource<caf::cow_string>;
       using res_t = std::tuple<consumer_res_t, producer_res_t, trait>;
-      auto on_request = [sysptr = &sys, core](const caf::settings&) {
+      auto on_request = [sysptr = &sys, core](const caf::settings& hdr) {
+        printf("HDR: %s\n", to_string(hdr).c_str());
+        auto path = caf::get_or(hdr, "web-socket.path", "");
         using res_t
           = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait>>;
-        using caf::async::make_spsc_buffer_resource;
-        auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
-        auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
-        sysptr->spawn<json_bridge_actor>(core, pull2, push1);
-        return res_t{std::make_tuple(pull1, push2, trait{})};
+        if (path == "/v1/events/json") {
+          auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent",
+                                        "null");
+          auto addr = network_info{
+            caf::get_or(hdr, "web-socket.remote-address", "unknown"),
+            caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
+          using caf::async::make_spsc_buffer_resource;
+          auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
+          auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
+          sysptr->spawn<json_bridge_actor>(core, addr, pull2, push1,
+                                           std::move(user_agent));
+          return res_t{std::make_tuple(pull1, push2, trait{})};
+        } else {
+          return res_t{caf::make_error(caf::sec::invalid_argument,
+                                       "invalid path; try /v1/events/json")};
+        }
       };
       caf::net::web_socket::accept(sys.network_manager().mpx(), *sock,
                                    on_request);
+    } else {
+      BROKER_INFO("failed to open WebSocket port " << port);
     }
   }
 }

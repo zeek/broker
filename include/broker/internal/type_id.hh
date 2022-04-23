@@ -74,6 +74,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(status)
   BROKER_ADD_ATOM(unpeer)
   BROKER_ADD_ATOM(write)
+  BROKER_ADD_ATOM(attach_client)
 
   // -- atoms for communication with workers -----------------------------------
 

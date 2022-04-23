@@ -30,6 +30,10 @@ enum class sc : uint8_t {
   endpoint_discovered,
   /// Lost all paths to a Broker endpoint.
   endpoint_unreachable,
+  /// Added a client (e.g. via WebSocket) to this endpoint.
+  client_added,
+  /// Removed a client from this endpoint.
+  client_removed,
 };
 // --sc-enum-end
 

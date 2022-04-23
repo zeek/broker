@@ -172,6 +172,16 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::unpeer, endpoint_id peer_id) { //
       unpeer(peer_id);
     },
+    // -- non-native clients, e.g., via WebSocket API --------------------------
+    [this](atom::attach_client, const network_info& addr, filter_type& filter,
+           data_consumer_res& in_res,
+           data_producer_res& out_res) -> caf::result<void> {
+      if (auto err = init_new_client(addr, std::move(filter),
+                                     std::move(in_res), std::move(out_res)))
+        return err;
+      else
+        return caf::unit;
+    },
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
       std::vector<peer_info> result;
@@ -207,6 +217,12 @@ caf::behavior core_actor_state::make_behavior() {
       dispatch(dst, pack(msg));
     },
     // -- interface for subscribers --------------------------------------------
+    [this](atom::subscribe, filter_type filter) {
+      // Subscribe to topics without actually caring about the events. This
+      // makes sure that this node receives events on the topics, which in means
+      // we can forward them.
+      subscribe(filter);
+    },
     [this](filter_type& filter, data_producer_res snk) {
       subscribe(filter);
       get_or_init_data_outputs()
@@ -529,6 +545,18 @@ void core_actor_state::peer_unavailable(const network_info& addr) {
        ec_constant<ec::peer_unavailable>(), "unable to connect to remote peer");
 }
 
+void core_actor_state::client_added(const network_info& addr) {
+  BROKER_TRACE(BROKER_ARG(addr));
+  emit(endpoint_info{endpoint_id::nil(), addr},
+       sc_constant<sc::client_added>(), "added new client");
+}
+
+void core_actor_state::client_removed(const network_info& addr) {
+  BROKER_TRACE(BROKER_ARG(addr));
+  emit(endpoint_info{endpoint_id::nil(), addr},
+       sc_constant<sc::client_removed>(), "client disconnected");
+}
+
 // -- connection management ----------------------------------------------------
 
 void core_actor_state::try_connect(const network_info& addr,
@@ -707,7 +735,6 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Store the filter for is_subscribed_to.
   peer_filters[peer_id] = filter;
   // Hook into the central merge point for forwarding the data to the peer.
-  auto& sys = self->system();
   auto out = central_merge
                ->as_observable()
                // Select by subscription and sender/receiver fields.
@@ -801,6 +828,64 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
     // With the connected buffers, dispatch to the other overload.
     return init_new_peer(peer, addr, filter, std::move(rd_2), std::move(wr_1));
   }
+}
+
+caf::error core_actor_state::init_new_client(const network_info& addr,
+                                             filter_type filter,
+                                             data_consumer_res in_res,
+                                             data_producer_res out_res) {
+  BROKER_TRACE(BROKER_ARG(addr) << BROKER_ARG(filter));
+  // Fail early when shutting down.
+  if (shutting_down()) {
+    BROKER_DEBUG("drop new client: shutting down");
+    return caf::make_error(ec::shutting_down);
+  }
+  // Sanity checking.
+  if (!in_res) {
+    return caf::make_error(caf::sec::invalid_argument,
+                           "cannot add client without valid input buffer");
+  }
+  // We cannot simply treat a client like we treat a local publisher or
+  // subscriber, because events from the client must be visible locally. Hence,
+  // we assign a UUID to each client and treat it almost like a peer.
+  auto client_id = endpoint_id::random();
+  // Emit status updates.
+  client_added(addr);
+  // Hook into the central merge point for forwarding the data to the client.
+  if (out_res) {
+    central_merge
+      ->as_observable()
+      // Select by subscription.
+      .filter([this, filter, client_id](const node_message& msg) {
+              if (get_sender(msg) == client_id)
+              return false;
+              detail::prefix_matcher f;
+              return f(filter, get_topic(msg));
+              })
+    // Deserialize payload and wrap it into an data message.
+    .flat_map_optional([this](const node_message& msg) {
+                       // TODO: repeats deserialization in the core! Ideally, this
+                       //       would only happen exactly once per message.
+                       return unpack<data_message>(get_packed_message(msg));
+                       })
+    // Emit values to the producer resource.
+    .subscribe(out_res);
+  }
+  // Push messages received from the client into the central merge point.
+  auto in = self->make_observable()
+              .from_resource(in_res)
+              // If the client closes this buffer, we assume a disconnect.
+              .do_finally([this, addr] {
+                BROKER_DEBUG("client" << addr << "disconnected");
+                client_removed(addr);
+              })
+              .map([this, client_id](const data_message& msg) {
+                return make_node_message(client_id, endpoint_id::nil(),
+                                         pack(msg));
+              })
+              .as_observable();
+  central_merge->add(std::move(in));
+  return caf::none;
 }
 
 // -- topic management ---------------------------------------------------------

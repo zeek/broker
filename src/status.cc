@@ -27,6 +27,10 @@ const char* to_string(sc code) noexcept {
       return "endpoint_discovered";
     case sc::endpoint_unreachable:
       return "endpoint_unreachable";
+    case sc::client_added:
+      return "client_added";
+    case sc::client_removed:
+      return "client_removed";
   }
 }
 
@@ -43,6 +47,8 @@ bool convert(const std::string& str, sc& code) noexcept {
   BROKER_SC_FROM_STRING(peer_lost)
   BROKER_SC_FROM_STRING(endpoint_discovered)
   BROKER_SC_FROM_STRING(endpoint_unreachable)
+  BROKER_SC_FROM_STRING(client_added)
+  BROKER_SC_FROM_STRING(client_removed)
   return false;
 }
 
