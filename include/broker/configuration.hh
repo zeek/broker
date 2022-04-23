@@ -27,6 +27,10 @@ struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
 
+  /// If true, Broker skips initializing OpenSSL / libcrypto. Zeek sets this to
+  /// true since Zeek already initializes OpenSSL appropriately.
+  bool skip_ssl_init = false;
+
   /// If true, endpoints no longer forward incoming subscriptions and other
   /// routing-related messages to peers. Setting this flag to `true` turns the
   /// endpoint into a leaf node that never offers forwarding paths to others.
@@ -56,6 +60,7 @@ struct openssl_options {
   std::string passphrase;
   std::string capath;
   std::string cafile;
+  bool skip_init = false; // Initialized from the matching broker option.
 
   bool authentication_enabled() const noexcept;
 };

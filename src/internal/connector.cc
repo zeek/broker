@@ -1930,7 +1930,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   caf::net::multiplexer::block_sigpipe();
   using std::find_if;
   // When running with OpenSSL enabled, initialize the library.
-  if (ssl_cfg_ != nullptr)
+  if (ssl_cfg_ != nullptr && !ssl_cfg_->skip_init)
     global_ssl_guard.init();
   // Poll isn't terribly efficient nor fast, but the connector is not a
   // performance-critical system component. It only establishes connections and

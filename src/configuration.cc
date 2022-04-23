@@ -365,6 +365,7 @@ openssl_options_ptr configuration::openssl_options() const {
     res->passphrase = openssl_passphrase();
     res->capath = openssl_capath();
     res->cafile = openssl_cafile();
+    res->skip_init = options_.skip_ssl_init;
     return res;
   } else {
     return nullptr;
