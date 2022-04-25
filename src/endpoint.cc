@@ -695,7 +695,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
         auto path = caf::get_or(hdr, "web-socket.path", "");
         using res_t
           = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait>>;
-        if (path == "/v1/events/json") {
+        if (path == "v1/events/json") {
           auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent",
                                         "null");
           auto addr = network_info{
