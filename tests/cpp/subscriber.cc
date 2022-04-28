@@ -58,10 +58,6 @@ TEST(subscribers receive data from remote publications) {
   MESSAGE("subscribe to 'foo' on mars and earth");
   auto mars_sub = mars.ep.make_subscriber({"foo"});
   auto earth_sub = earth.ep.make_subscriber({"foo"});
-  // Disable rate calculations because they otherwise launch an 'infinite' loop
-  // when calling 'run()' due to the periodic actor messages in the background.
-  mars_sub.set_rate_calculation(false);
-  earth_sub.set_rate_calculation(false);
   run();
   MESSAGE("establish a peering between earth and mars");
   bridge(earth, mars);

@@ -25,6 +25,8 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
                              ERROR, WARNING, INFO, DEBUG, TRACE
     --sanitizers=LIST      comma-separated list of sanitizer names to enable
+    --disable-sanitizer-optimizations
+                           build without any optimizations when using sanitizers
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -36,7 +38,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --python-prefix=PATH   explicit install directory for Python bindings
                            [PATH/lib/python<Python Version>/site-packages]
 
-  Optional Features:
+  Optional Features (on by default):
     --disable-python       don't try to build python bindings
     --disable-docs         don't try to build local documentation
     --disable-tests        don't try to build unit tests
@@ -44,6 +46,10 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-python-config=PATH
                            path to python-config executable
     --with-zeek=PATH       path to Zeek executable for interoperability tests
+
+  Optional Features (off by default):
+    --enable-micro-benchmarks
+                           build micro benchmarks (requires Google Benchmark)
 
   Required Packages in Non-Standard Locations:
     --with-caf=PATH        path to C++ Actor Framework installation
@@ -120,7 +126,7 @@ while [ $# -ne 0 ]; do
             append_cache_entry CMAKE_BUILD_TYPE     STRING $optarg
             ;;
         --enable-debug)
-            append_cache_entry ENABLE_DEBUG         BOOL   true
+            append_cache_entry BROKER_ENABLE_DEBUG  BOOL   true
             ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true
@@ -128,6 +134,9 @@ while [ $# -ne 0 ]; do
         --sanitizers=*)
             append_cache_entry BROKER_SANITIZERS    STRING    $optarg
             ;;
+        --disable-sanitizer-optimizations)
+            append_cache_entry BROKER_SANITIZER_OPTIMIZATIONS BOOL OFF
+          ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
@@ -157,6 +166,9 @@ while [ $# -ne 0 ]; do
             ;;
         --with-zeek=*)
             append_cache_entry ZEEK_EXECUTABLE      PATH    $optarg
+            ;;
+        --enable-micro-benchmarks)
+            append_cache_entry BROKER_ENABLE_MICRO_BENCHMARKS BOOL true
             ;;
         *)
             echo "Invalid option '$1'.  Try $0 --help to see available options."

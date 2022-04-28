@@ -48,7 +48,7 @@ TEST(insert events consist of key value and expiry) {
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
     CHECK_EQUAL(view.expiry(), 500_ns);
-    CHECK_EQUAL(view.publisher(), publisher_id{});
+    CHECK_EQUAL(view.publisher(), entity_id{});
   }
   MESSAGE("nil as fifth element is interpreted as no expiry");
   {
@@ -59,7 +59,7 @@ TEST(insert events consist of key value and expiry) {
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), publisher_id{});
+    CHECK_EQUAL(view.publisher(), entity_id{});
   }
   MESSAGE("elements six and seven denote the publisher");
   {
@@ -70,7 +70,7 @@ TEST(insert events consist of key value and expiry) {
     CHECK_EQUAL(view.key(), "foo"s);
     CHECK_EQUAL(view.value(), "bar"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
+    CHECK_EQUAL(view.publisher(), (entity_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {
@@ -91,7 +91,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), 500_ns);
-    CHECK_EQUAL(view.publisher(), publisher_id{});
+    CHECK_EQUAL(view.publisher(), entity_id{});
   }
   MESSAGE("nil as sixth element is interpreted as no expiry");
   {
@@ -103,7 +103,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), publisher_id{});
+    CHECK_EQUAL(view.publisher(), entity_id{});
   }
   MESSAGE("elements six and seven denote the publisher");
   {
@@ -115,7 +115,7 @@ TEST(update events consist of key value and expiry) {
     CHECK_EQUAL(view.old_value(), "bar"s);
     CHECK_EQUAL(view.new_value(), "baz"s);
     CHECK_EQUAL(view.expiry(), std::nullopt);
-    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
+    CHECK_EQUAL(view.publisher(), (entity_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {
@@ -133,7 +133,7 @@ TEST(erase events contain the key and optionally a publisher ID) {
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
-    CHECK_EQUAL(view.publisher(), publisher_id{});
+    CHECK_EQUAL(view.publisher(), entity_id{});
   }
   MESSAGE("elements three and four denote the publisher");
   {
@@ -142,7 +142,7 @@ TEST(erase events contain the key and optionally a publisher ID) {
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);
     CHECK_EQUAL(view.key(), "foo"s);
-    CHECK_EQUAL(view.publisher(), (publisher_id{ids['B'], 42}));
+    CHECK_EQUAL(view.publisher(), (entity_id{ids['B'], 42}));
   }
   MESSAGE("make returns an invalid view for malformed data");
   {

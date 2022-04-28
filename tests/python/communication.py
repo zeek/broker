@@ -14,9 +14,11 @@ class TestCommunication(unittest.TestCase):
              broker.Endpoint() as ep2, \
              ep1.make_subscriber("/test") as s1, \
              ep2.make_subscriber("/test") as s2:
-
             port = ep1.listen("127.0.0.1", 0)
-            ep2.peer("127.0.0.1", port, 1.0)
+            self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
+
+            ep1.await_peer(ep2.node_id())
+            ep2.await_peer(ep1.node_id())
 
             # --peer-end
 
@@ -50,7 +52,10 @@ class TestCommunication(unittest.TestCase):
              ep1.make_subscriber("/test") as s1:
 
             port = ep1.listen("127.0.0.1", 0)
-            ep2.peer("127.0.0.1", port, 1.0)
+            self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
+
+            ep1.await_peer(ep2.node_id())
+            ep2.await_peer(ep1.node_id())
 
             msg0 = ("/test/1", ())
             ep2.publish(*msg0)
@@ -107,7 +112,10 @@ class TestCommunication(unittest.TestCase):
              ep2.make_publisher("/test") as p2:
 
             port = ep1.listen("127.0.0.1", 0)
-            ep2.peer("127.0.0.1", port, 1.0)
+            self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
+
+            ep1.await_peer(ep2.node_id())
+            ep2.await_peer(ep1.node_id())
 
             p2.publish([1, 2, 3])
             p2.publish_batch(["a", "b", "c"], [True, False])
@@ -127,22 +135,29 @@ class TestCommunication(unittest.TestCase):
              ep2.make_status_subscriber(True) as es2:
 
             port = ep1.listen("127.0.0.1", 0)
-            ep2.peer("127.0.0.1", port, 1.0)
-            st1 = es1.get()
-            st2 = es2.get()
-            # st1.code() == broker.SC.PeerAdded, st2.code() == broker.SC.PeerAdded
+            self.assertEqual(ep2.peer("127.0.0.1", port, 1.0), True)
+
+            ep1.await_peer(ep2.node_id())
+            ep2.await_peer(ep1.node_id())
+
+            st1 = es1.get(2)
+            st2 = es2.get(2)
+            # st1.code() == [broker.SC.EndpointDiscovered, broker.SC.PeerAdded]
+            # st2.code() == [broker.SC.EndpointDiscovered, broker.SC.PeerAdded]
             # --status-end
 
-            self.assertEqual(st1.code(), broker.SC.PeerAdded)
-            self.assertEqual(st1.context().network.get().address, "127.0.0.1")
-            self.assertEqual(st2.code(), broker.SC.PeerAdded)
-            self.assertEqual(st2.context().network.get().address, "127.0.0.1")
+            self.assertEqual(len(st1), 2)
+            self.assertEqual(st1[0].code(), broker.SC.EndpointDiscovered)
+            self.assertEqual(st1[1].code(), broker.SC.PeerAdded)
+            self.assertEqual(len(st2), 2)
+            self.assertEqual(st2[0].code(), broker.SC.EndpointDiscovered)
+            self.assertEqual(st2[1].code(), broker.SC.PeerAdded)
+            self.assertEqual(st2[1].context().network.get().address, "127.0.0.1")
 
     def test_status_subscriber_error(self):
         # --error-start
         with broker.Endpoint() as ep1, \
              ep1.make_status_subscriber() as es1:
-
             r = ep1.peer("127.0.0.1", 1947, 0.0) # Try unavailable port, no retry
             self.assertEqual(r, False) # Not shown in docs.
             st1 = es1.get()

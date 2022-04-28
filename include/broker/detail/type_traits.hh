@@ -121,7 +121,7 @@ std::false_type is_complete_test(...);
 /// Checks whether `T` is complete type. Passing a forward declaration or
 /// undefined template specialization evaluates to `false`.
 template <class T>
-constexpr bool is_complete
+inline constexpr bool is_complete
   = decltype(is_complete_test(std::declval<T*>()))::value;
 
 template <class... Ts>

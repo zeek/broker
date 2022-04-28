@@ -7,8 +7,6 @@
 #include <chrono>
 #include <regex>
 
-#include <caf/test/io_dsl.hpp>
-
 #include "broker/backend.hh"
 #include "broker/data.hh"
 #include "broker/defaults.hh"
@@ -95,7 +93,7 @@ struct fixture : base_fixture {
   caf::timespan tick_interval = defaults::store::tick_interval;
 
   fixture() {
-    logger = ep.subscribe_nosync(
+    logger = ep.subscribe(
       // Topics.
       {topic::store_events()},
       // Init.
@@ -178,6 +176,7 @@ TEST(local_master) {
 
 FIXTURE_SCOPE_END()
 
+/*
 FIXTURE_SCOPE(store_master, net_fixture<fixture>)
 
 TEST(master_with_clone) {
@@ -222,8 +221,8 @@ TEST(master_with_clone) {
   CHECK_EQUAL(value_of(ds_earth.get("test")), data{123});
   // --- phase 5: peer from earth to mars --------------------------------------
   auto foo_master = "foo" / topic::master_suffix();
-// Initiate handshake between core1 and core2.
-  earth.self->send(core1, atom::peer_v, core2_proxy);
+  // Initiate handshake between core1 and core2.
+  earth.self->send(core1, atom::peer_v, core2_proxy.node(), core2_proxy);
   run(tick_interval);
   // --- phase 6: attach a clone on mars ---------------------------------------
   mars.sched.inline_next_enqueue();
@@ -240,8 +239,16 @@ TEST(master_with_clone) {
   expect_on(mars, (atom::local, internal_command),
             from(_).to(native(ds_mars.frontend())));
   auto run_until_idle = [&] {
-    // Calls idle() on masters and clones after switching to the ALM backend.
-    run(tick_interval);
+    auto idle = [&] {
+      return earth.deref<detail::master_actor_type>(ms_earth).state.idle()
+             && mars.deref<detail::clone_actor_type>(cl_mars).state.idle();
+    };
+    size_t iteration = 0;
+    do {
+      if (++iteration == 100)
+        FAIL("system reached no idle state within 100 ticks");
+      run(tick_interval);
+    } while (!idle());
   };
   run_until_idle();
   MESSAGE("once clone and master are idle, they are in sync");
@@ -272,3 +279,4 @@ TEST(master_with_clone) {
 }
 
 FIXTURE_SCOPE_END()
+*/

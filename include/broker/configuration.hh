@@ -22,18 +22,19 @@ struct skip_init_t {};
 
 constexpr skip_init_t skip_init = skip_init_t{};
 
+/// Wraps low-level Broker system parameters.
 struct broker_options {
   /// If true, peer connections won't use SSL.
   bool disable_ssl = false;
 
-  /// If true, endpoints will forward incoming messages to peers.
-  bool forward = true;
+  /// If true, Broker skips initializing OpenSSL / libcrypto. Zeek sets this to
+  /// true since Zeek already initializes OpenSSL appropriately.
+  bool skip_ssl_init = false;
 
-  /// TTL to insert into forwarded messages. Messages will be droppped once
-  /// they have traversed more than this many hops. Note that the 1st
-  /// receiver inserts the TTL (not the sender!). The 1st receiver does
-  /// already count against the TTL.
-  unsigned int ttl = defaults::ttl;
+  /// If true, endpoints no longer forward incoming subscriptions and other
+  /// routing-related messages to peers. Setting this flag to `true` turns the
+  /// endpoint into a leaf node that never offers forwarding paths to others.
+  bool disable_forwarding = false;
 
   /// Whether to use real/wall clock time for data store time-keeping
   /// tasks or whether the application will simulate time on its own.
@@ -42,12 +43,30 @@ struct broker_options {
   /// Whether to ignore the `broker.conf` file.
   bool ignore_broker_conf = false;
 
+  /// How many hops we forward at the most before dropping a message.
+  uint16_t ttl = 16;
+
   broker_options() = default;
 
   broker_options(const broker_options&) = default;
 
   broker_options& operator=(const broker_options&) = default;
 };
+
+/// Wraps OpenSSL-releated configuration parameters.
+struct openssl_options {
+  std::string certificate;
+  std::string key;
+  std::string passphrase;
+  std::string capath;
+  std::string cafile;
+  bool skip_init = false; // Initialized from the matching broker option.
+
+  bool authentication_enabled() const noexcept;
+};
+
+/// @relates openssl_options
+using openssl_options_ptr = std::shared_ptr<openssl_options>;
 
 /// Configures an ::endpoint.
 ///
@@ -134,6 +153,10 @@ public:
 
   void openssl_cafile(std::string);
 
+  /// Returns all OpenSSL-related parameters or `nullptra` if OpenSSL has been
+  /// disabled.
+  openssl_options_ptr openssl_options() const;
+
   // -- mutators ---------------------------------------------------------------
 
   void add_option(int64_t* dst, std::string_view name,
@@ -201,6 +224,11 @@ public:
   void init(int argc, char** argv);
 
 private:
+  /// Makes sure the config content is in-sync with the `options_`.
+  void sync_options();
+
+  broker_options options_;
+
   void set_i64(std::string key, int64_t val);
 
   void set_u64(std::string key, uint64_t val);

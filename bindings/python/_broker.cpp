@@ -1,8 +1,9 @@
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <chrono>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #ifdef __GNUC__
@@ -22,7 +23,6 @@
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/detail/shared_queue.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/network_info.hh"
@@ -34,7 +34,6 @@
 #include "broker/status_subscriber.hh"
 #include "broker/store.hh"
 #include "broker/subscriber.hh"
-#include "broker/subscriber_base.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
 #include "broker/version.hh"
@@ -75,6 +74,18 @@ PYBIND11_MAKE_OPAQUE(broker::set)
 PYBIND11_MAKE_OPAQUE(broker::table)
 PYBIND11_MAKE_OPAQUE(broker::vector)
 
+namespace {
+
+broker::endpoint_id node_from_str(const std::string& node_str) {
+  broker::endpoint_id node;
+  if(!broker::convert(node_str,node))
+    throw std::invalid_argument(
+      "endpoint::await_peer called with invalid endpoint ID");
+  return node;
+}
+
+} // namespace
+
 PYBIND11_MODULE(_broker, m) {
   m.doc() = "Broker python bindings";
   py::module mb = m.def_submodule("zeek", "Zeek-specific bindings");
@@ -114,7 +125,12 @@ PYBIND11_MODULE(_broker, m) {
          [](std::optional<broker::network_info>& i) { return static_cast<bool>(i);})
     .def("get",
          [](std::optional<broker::network_info>& i) { return *i; })
-    .def("__repr__", [](const std::optional<broker::network_info>& i) { return broker::to_string(i); });
+    .def("__repr__", [](const std::optional<broker::network_info>& i) -> std::string {
+         if (i)
+           return broker::to_string(*i);
+         else
+           return "nil";
+    });
 
   py::class_<broker::peer_info>(m, "PeerInfo")
     .def_readwrite("peer", &broker::peer_info::peer)
@@ -148,11 +164,8 @@ PYBIND11_MODULE(_broker, m) {
   m.def("Infinite", [] { return broker::infinite; });
 
   py::class_<broker::publisher>(m, "Publisher")
-    .def("demand", &broker::publisher::demand)
     .def("buffered", &broker::publisher::buffered)
     .def("capacity", &broker::publisher::capacity)
-    .def("free_capacity", &broker::publisher::free_capacity)
-    .def("send_rate", &broker::publisher::send_rate)
     .def("fd", &broker::publisher::fd)
     .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
     .def("publish", (void (broker::publisher::*)(broker::data d)) &broker::publisher::publish)
@@ -160,7 +173,6 @@ PYBIND11_MODULE(_broker, m) {
        [](broker::publisher& p, std::vector<broker::data> xs) { p.publish(xs); })
     .def("reset", &broker::publisher::reset);
 
-  using subscriber_base = broker::subscriber_base<broker::subscriber::value_type>;
   using topic_data_pair = std::pair<broker::topic, broker::data>;
 
   py::bind_vector<std::vector<topic_data_pair>>(m, "VectorPairTopicData");
@@ -172,24 +184,26 @@ PYBIND11_MODULE(_broker, m) {
          [](std::optional<topic_data_pair>& i) { return *i; })
     .def("__repr__", [](const std::optional<topic_data_pair>& i) { return custom_to_string(i); });
 
-  py::class_<subscriber_base>(m, "SubscriberBase")
+  py::class_<broker::subscriber>(m, "Subscriber")
     .def("get",
-         [](subscriber_base& ep) -> topic_data_pair {
+         [](broker::subscriber& ep) -> topic_data_pair {
        auto res = ep.get();
        return std::make_pair(broker::get_topic(res), broker::get_data(res));
       })
 
     .def("get",
-         [](subscriber_base& ep, double secs) -> std::optional<topic_data_pair> {
+         [](broker::subscriber& ep, double secs) -> std::optional<topic_data_pair> {
 	    auto res = ep.get(broker::to_duration(secs));
         std::optional<topic_data_pair> rval;
-        if (res)
-          rval = std::make_pair(broker::get_topic(*res), broker::get_data(*res));
+        if (res) {
+          auto p = std::make_pair(broker::get_topic(*res), broker::get_data(*res));
+          rval = std::optional<topic_data_pair>(std::move(p));
+        }
         return rval;
 	  })
 
     .def("get",
-         [](subscriber_base& ep, size_t num) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep, size_t num) -> std::vector<topic_data_pair> {
 	   auto res = ep.get(num);
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -199,7 +213,7 @@ PYBIND11_MODULE(_broker, m) {
       })
 
     .def("get",
-         [](subscriber_base& ep, size_t num, double secs) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep, size_t num, double secs) -> std::vector<topic_data_pair> {
 	   auto res = ep.get(num, broker::to_duration(secs));
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -209,7 +223,7 @@ PYBIND11_MODULE(_broker, m) {
 	  })
 
     .def("poll",
-         [](subscriber_base& ep) -> std::vector<topic_data_pair> {
+         [](broker::subscriber& ep) -> std::vector<topic_data_pair> {
        auto res = ep.poll();
        std::vector<topic_data_pair> rval;
        rval.reserve(res.size());
@@ -217,10 +231,8 @@ PYBIND11_MODULE(_broker, m) {
          rval.emplace_back(std::make_pair(broker::get_topic(e), broker::get_data(e)));
        return rval;
       })
-    .def("available", &subscriber_base::available)
-    .def("fd", &subscriber_base::fd);
-
-  py::class_<broker::subscriber, subscriber_base>(m, "Subscriber")
+    .def("available", &broker::subscriber::available)
+    .def("fd", &broker::subscriber::fd)
     .def("add_topic", &broker::subscriber::add_topic)
     .def("remove_topic", &broker::subscriber::remove_topic)
     .def("reset", &broker::subscriber::reset);
@@ -273,8 +285,7 @@ PYBIND11_MODULE(_broker, m) {
   py::class_<broker::broker_options>(m, "BrokerOptions")
     .def(py::init<>())
     .def_readwrite("disable_ssl", &broker::broker_options::disable_ssl)
-    .def_readwrite("ttl", &broker::broker_options::ttl)
-    .def_readwrite("forward", &broker::broker_options::forward)
+    .def_readwrite("disable_forwarding", &broker::broker_options::disable_forwarding)
     .def_readwrite("ignore_broker_conf", &broker::broker_options::ignore_broker_conf)
     .def_readwrite("use_real_time", &broker::broker_options::use_real_time);
 
@@ -347,7 +358,11 @@ PYBIND11_MODULE(_broker, m) {
        })
     .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber, py::arg("topics"), py::arg("max_qsize") = 20)
-    .def("make_status_subscriber", &broker::endpoint::make_status_subscriber, py::arg("receive_statuses") = false)
+    .def("make_status_subscriber",
+         [](broker::endpoint& ep, bool receive_statuses) {
+           return ep.make_status_subscriber(receive_statuses);
+         },
+         py::arg("receive_statuses") = false)
     .def("shutdown", &broker::endpoint::shutdown)
     .def("attach_master",
          [](broker::endpoint& ep, const std::string& name, broker::backend type,
@@ -358,6 +373,14 @@ PYBIND11_MODULE(_broker, m) {
          [](broker::endpoint& ep, const std::string& name) -> broker::expected<broker::store> {
 	        return ep.attach_clone(name);
 	    })
+    .def("await_peer",
+         [](broker::endpoint& ep, const std::string& node_str) {
+           return ep.await_peer(node_from_str(node_str));
+         })
+    .def("await_peer",
+         [](broker::endpoint& ep, const std::string& node_str, broker::timespan timeout) {
+           return ep.await_peer(node_from_str(node_str), timeout);
+         })
    ;
 }
 

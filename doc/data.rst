@@ -157,7 +157,7 @@ It is a type alias for ``std::set<data>``.
 Table
 ~~~~~
 
-A ``table`` is an associative array with keys and values of type ``data``. That
+A ``set`` is an associative array with keys and values of type ``data``. That
 is, it maps ``data`` to ``data``.
 
 It is a type alias for ``std::map<data, data>``.

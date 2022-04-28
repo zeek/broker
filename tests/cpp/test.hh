@@ -4,20 +4,22 @@
 #define CAF_SUITE SUITE
 #endif
 
-#include <caf/test/dsl.hpp>
-#include <caf/test/io_dsl.hpp>
+#include <caf/test/bdd_dsl.hpp>
 
 #include <caf/actor_system.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 
-#include <caf/io/network/test_multiplexer.hpp>
-
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
+#include "broker/internal/channel.hh"
 #include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 
 #include <cassert>
+#include <ciso646>
+#include <functional>
 
 // -- test setup macros --------------------------------------------------------
 
@@ -30,18 +32,15 @@
 #define ERROR CAF_TEST_PRINT_ERROR
 #define INFO CAF_TEST_PRINT_INFO
 #define VERBOSE CAF_TEST_PRINT_VERBOSE
-#define MESSAGE CAF_MESSAGE
 
 // -- macros for checking results ---------------------------------------------
 
-#define REQUIRE CAF_REQUIRE
 #define REQUIRE_EQUAL CAF_REQUIRE_EQUAL
 #define REQUIRE_NOT_EQUAL CAF_REQUIRE_NOT_EQUAL
 #define REQUIRE_LESS CAF_REQUIRE_LESS
 #define REQUIRE_LESS_EQUAL CAF_REQUIRE_LESS_EQUAL
 #define REQUIRE_GREATER CAF_REQUIRE_GREATER
 #define REQUIRE_GREATER_EQUAL CAF_REQUIRE_GREATER_EQUAL
-#define CHECK CAF_CHECK
 #define CHECK_EQUAL CAF_CHECK_EQUAL
 #define CHECK_NOT_EQUAL CAF_CHECK_NOT_EQUAL
 #define CHECK_LESS CAF_CHECK_LESS
@@ -49,7 +48,91 @@
 #define CHECK_GREATER CAF_CHECK_GREATER
 #define CHECK_GREATER_EQUAL CAF_CHECK_GREATER_OR_EQUAL
 #define CHECK_FAIL CAF_CHECK_FAIL
-#define FAIL CAF_FAIL
+
+// -- custom message types for channel.cc --------------------------------------
+
+using string_channel = broker::internal::channel<std::string, std::string>;
+
+struct producer_msg {
+  std::string source;
+  string_channel::producer_message content;
+};
+
+struct consumer_msg {
+  std::string source;
+  string_channel::consumer_message content;
+};
+
+// -- ID block for all message types in test suites ----------------------------
+
+CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
+
+  CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (producer_msg))
+  CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::consumer_message))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::cumulative_ack))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::event))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::handshake))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::heartbeat))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::nack))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::producer_message))
+  CAF_ADD_TYPE_ID(broker_test, (string_channel::retransmit_failed))
+
+CAF_END_TYPE_ID_BLOCK(broker_test)
+
+// -- inspection support -------------------------------------------------------
+
+template <class Inspector>
+bool inspect(Inspector& f, producer_msg& x) {
+  return f.object(x).fields(f.field("source", x.source),
+                            f.field("content", x.content));
+}
+
+template <class Inspector>
+bool inspect(Inspector& f, consumer_msg& x) {
+  return f.object(x).fields(f.field("source", x.source),
+                            f.field("content", x.content));
+}
+
+
+// -- synchronization ----------------------------------------------------------
+
+// Drop-in replacement for std::barrier (based on the TS API as of 2020).
+class barrier {
+public:
+  explicit barrier(ptrdiff_t num_threads);
+
+  void arrive_and_wait();
+
+private:
+  size_t num_threads_;
+  std::mutex mx_;
+  std::atomic<size_t> count_;
+  std::condition_variable cv_;
+};
+
+// Allows threads to wait on a boolean condition. Unlike promise<bool>, allows
+// calling `set_true` multiple times without side effects.
+class beacon {
+public:
+  beacon();
+
+  void set_true();
+
+  void wait();
+
+private:
+  std::mutex mx_;
+  std::atomic<bool> value_;
+  std::condition_variable cv_;
+};
+
+// -- data processing ----------------------------------------------------------
+
+std::vector<std::string>
+normalize_status_log(const std::vector<broker::data_message>& xs,
+                     bool include_endpoint_id = false);
 
 // -- fixtures -----------------------------------------------------------------
 
@@ -62,13 +145,13 @@ public:
     auto& sched = dref().sched;
     for (;;) {
       sched.run();
-      if (!sched.has_pending_timeout()) {
+      auto& clk = sched.clock();
+      if (!clk.has_pending_timeout()) {
         sched.advance_time(t);
         sched.run();
         return;
       } else {
-        auto& clk = sched.clock();
-        auto next_timeout = clk.schedule().begin()->first;
+        auto next_timeout = clk.next_timeout();
         auto delta = next_timeout - clk.now();
         if (delta >= t) {
           sched.advance_time(t);
@@ -93,10 +176,16 @@ private:
   }
 };
 
-/// A fixture that offes a `context` configured with `test_coordinator` as
+/// A fixture that hosts an endpoint configured with `test_coordinator` as
 /// scheduler as well as a `scoped_actor`.
 class base_fixture : public time_aware_fixture<base_fixture> {
 public:
+  struct endpoint_state {
+    broker::endpoint_id id;
+    broker::filter_type filter;
+    caf::actor hdl;
+  };
+
   using super = time_aware_fixture<base_fixture>;
 
   using scheduler_type = caf::scheduler::test_coordinator;
@@ -122,46 +211,60 @@ public:
 
   void consume_message();
 
-  static void init_socket_api();
-
-  static void deinit_socket_api();
+  char id_by_value(const broker::endpoint_id& value);
 
   /// Dereferences `hdl` and downcasts it to `T`.
   template <class T = caf::scheduled_actor, class Handle = caf::actor>
-  T& deref(const Handle& hdl) {
+  static T& deref(const Handle& hdl) {
     auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
     if (ptr == nullptr)
       CAF_FAIL("unable to cast handle to abstract_actor*");
     return dynamic_cast<T&>(*ptr);
   }
 
+  static endpoint_state ep_state(caf::actor core);
+
   static broker::configuration make_config();
+
+  /// Establishes a peering relation between `left` and `right`.
+  static caf::actor bridge(const endpoint_state& left,
+                           const endpoint_state& right);
+
+  /// Establishes a peering relation between `left` and `right`.
+  static caf::actor bridge(const broker::endpoint& left,
+                           const broker::endpoint& right);
+
+  static caf::actor bridge(caf::actor left_core, caf::actor right_core);
+
+  /// Collect data directly at a Broker core without using a
+  /// `broker::subscriber` or other public API.
+  static std::shared_ptr<std::vector<broker::data_message>>
+  collect_data(caf::actor core, broker::filter_type filter);
+
+  static void push_data(caf::actor core, std::vector<broker::data_message> xs);
 };
 
 template <class Fixture>
-class net_fixture : public point_to_point_fixture<Fixture> {
+class net_fixture {
 public:
-  using super = point_to_point_fixture<Fixture>;
+  using planet_type = Fixture;
 
-  using planet_type = typename super::planet_type;
+  planet_type earth;
+  planet_type mars;
 
-  static_assert(std::is_base_of<base_fixture, Fixture>::value);
-
-  void bridge(planet_type& left, planet_type& right) {
-    auto server_handle = make_accept_handle();
-    left.mpx.prepare_connection(server_handle, make_connection_handle(),
-                                right.mpx, "zeek", 4040,
-                                make_connection_handle());
-    left.sched.after_next_enqueue([&, this] {
-      // peer `right` to 'zeek:4040'
-      run();
-      super::loop_after_next_enqueue(right);
-      right.ep.peer("zeek", 4040);
-    });
-    left.ep.listen("", 4040);
+  auto bridge(planet_type& left, planet_type& right) {
+    return planet_type::bridge(left.ep, right.ep);
   }
 
-  using super::run;
+  void run() {
+    while (earth.sched.has_job() || earth.sched.has_pending_timeout()
+           || mars.sched.has_job() || mars.sched.has_pending_timeout()) {
+      earth.sched.run();
+      earth.sched.trigger_timeouts();
+      mars.sched.run();
+      mars.sched.trigger_timeouts();
+    }
+  }
 
   void run(caf::timespan t) {
     auto& n1 = this->earth;
@@ -212,18 +315,6 @@ public:
   void run(std::chrono::duration<Rep, Period> t) {
     run(std::chrono::duration_cast<caf::timespan>(t));
   }
-
-  // Returns the next unused accept handle.
-  caf::io::accept_handle make_accept_handle() {
-    return caf::io::accept_handle::from_int(next_handle_id++);
-  }
-
-  // Returns the next unused connection handle.
-  caf::io::connection_handle make_connection_handle() {
-    return caf::io::connection_handle::from_int(next_handle_id++);
-  }
-
-  uint64_t next_handle_id = 1;
 };
 
 // -- utility ------------------------------------------------------------------

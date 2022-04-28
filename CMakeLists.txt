@@ -2,8 +2,9 @@
 
 cmake_minimum_required(VERSION 3.5...3.18 FATAL_ERROR)
 project(broker C CXX)
-include(cmake/CommonCMakeConfig.cmake)
+include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
+include(cmake/CommonCMakeConfig.cmake)
 
 get_directory_property(parent_dir PARENT_DIRECTORY)
 if(parent_dir)
@@ -206,9 +207,9 @@ if (CAF_ROOT)
                  COMPONENTS openssl test io core
                  PATHS "${CAF_ROOT}")
   else()
-    find_package(CAF REQUIRED
-                 COMPONENTS openssl test io core)
+    find_package(CAF REQUIRED COMPONENTS openssl test io core)
   endif()
+  list(APPEND LINK_LIBS CAF::core CAF::io)
 else ()
   message(STATUS "Using bundled CAF")
   set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
@@ -216,7 +217,27 @@ else ()
   set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
   set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
   add_subdirectory(caf EXCLUDE_FROM_ALL)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
 endif ()
+
+# NOTE: building and linking against a different version of the CAF incubator is
+#       also FOR DEVELOPMENT ONLY.
+if (CAFIncubator_ROOT)
+  if (CMAKE_VERSION VERSION_LESS 3.12)
+    find_package(CAFIncubator REQUIRED COMPONENTS net PATHS "${CAF_ROOT}")
+  else()
+    find_package(CAFIncubator REQUIRED COMPONENTS net)
+  endif()
+  list(APPEND LINK_LIBS CAF::net)
+else()
+  message(STATUS "Using bundled CAF incubator")
+  set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
+  set(CAF_INC_ENABLE_BB_MODULE OFF CACHE INTERNAL "")
+  set(CAF_INC_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
+  add_subdirectory(caf-incubator EXCLUDE_FROM_ALL)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_net_obj>)
+endif()
 
 # -- libroker -----------------------------------------------------------------
 
@@ -264,47 +285,57 @@ else()
 endif()
 
 set(BROKER_SRC
+  # src/detail/core_recorder.cc
+  # src/detail/generator_file_reader.cc
+  # src/detail/generator_file_writer.cc
+  # src/gateway.cc
+  # src/internal/data_generator.cc
+  # src/internal/generator_file_reader.cc
+  # src/internal/generator_file_writer.cc
+  # src/internal/meta_command_writer.cc
+  # src/internal/meta_data_writer.cc
   ${OPTIONAL_SRC}
   src/address.cc
+  src/alm/multipath.cc
+  src/alm/routing_table.cc
   src/configuration.cc
   src/convert.cc
   src/data.cc
   src/detail/abstract_backend.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
-  src/detail/item_scope.cc
   src/detail/make_backend.cc
   src/detail/memory_backend.cc
+  src/detail/monotonic_buffer_resource.cc
+  src/detail/opaque_type.cc
+  src/detail/peer_status_map.cc
   src/detail/prefix_matcher.cc
   src/detail/sink_driver.cc
   src/detail/source_driver.cc
   src/detail/sqlite_backend.cc
+  src/detail/store_state.cc
+  src/domain_options.cc
   src/endpoint.cc
   src/endpoint_id.cc
   src/endpoint_info.cc
+  src/entity_id.cc
   src/error.cc
   src/filter_type.cc
-  src/internal/central_dispatcher.cc
   src/internal/clone_actor.cc
+  src/internal/connector.cc
+  src/internal/connector_adapter.cc
   src/internal/core_actor.cc
-  src/internal/core_recorder.cc
-  src/internal/data_generator.cc
-  src/internal/endpoint_id.cc
   src/internal/flare_actor.cc
-  src/internal/generator_file_reader.cc
-  src/internal/generator_file_writer.cc
   src/internal/master_actor.cc
   src/internal/master_resolver.cc
-  src/internal/meta_command_writer.cc
-  src/internal/meta_data_writer.cc
   src/internal/metric_collector.cc
   src/internal/metric_exporter.cc
   src/internal/metric_scraper.cc
   src/internal/metric_view.cc
-  src/internal/network_cache.cc
+  src/internal/pending_connection.cc
   src/internal/prometheus.cc
   src/internal/store_actor.cc
-  src/internal/unipath_manager.cc
+  src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc
   src/message.cc
@@ -312,7 +343,7 @@ set(BROKER_SRC
   src/peer_status.cc
   src/port.cc
   src/publisher.cc
-  src/publisher_id.cc
+  src/shutdown_options.cc
   src/status.cc
   src/status_subscriber.cc
   src/store.cc
@@ -339,8 +370,10 @@ if (ENABLE_SHARED)
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
   target_link_libraries(broker PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::openssl)
-  install(TARGETS broker DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::net)
+  install(TARGETS broker
+          EXPORT BrokerTargets
+          DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
 
 if (ENABLE_STATIC)
@@ -350,26 +383,36 @@ if (ENABLE_STATIC)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
   target_link_libraries(broker_static PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::openssl)
-  install(TARGETS broker_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::net)
+  install(TARGETS broker_static
+          EXPORT BrokerTargets
+          DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif ()
+
+if (ENABLE_SHARED)
+  set(BROKER_LIBRARY broker)
+else()
+  set(BROKER_LIBRARY broker_static)
+endif()
 
 # -- Tools --------------------------------------------------------------------
 
 macro(add_tool name)
   add_executable(${name} src/${name}.cc ${ARGN})
   if (ENABLE_SHARED)
-    target_link_libraries(${name} broker CAF::core CAF::io CAF::openssl)
+    target_link_libraries(${name} broker CAF::core CAF::io CAF::net)
     add_dependencies(${name} broker)
   else()
-    target_link_libraries(${name} broker_static CAF::core CAF::io CAF::openssl)
+    target_link_libraries(${name} broker_static CAF::core CAF::io CAF::net)
     add_dependencies(${name} broker_static)
   endif()
 endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)
+  # TODO: fix these tools
+  # add_tool(broker-gateway)
+  # add_tool(broker-node)
   add_tool(broker-pipe)
-  add_tool(broker-node)
 endif ()
 
 # -- Bindings -----------------------------------------------------------------
@@ -433,6 +476,31 @@ endif ()
 if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
   add_subdirectory(doc)
 endif ()
+
+# -- CMake package install ----------------------------------------------------
+
+export(EXPORT BrokerTargets FILE BrokerTargets.cmake)
+
+install(
+  EXPORT BrokerTargets
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
+  VERSION ${BROKER_VERSION}
+  COMPATIBILITY ExactVersion)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/BrokerConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
+
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
+  DESTINATION
+    "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
 
 # -- Build Summary ------------------------------------------------------------
 

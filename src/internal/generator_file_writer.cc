@@ -3,6 +3,8 @@
 #include <caf/error.hpp>
 #include <caf/sec.hpp>
 
+#include "broker/detail/meta_data_writer.hh"
+#include "broker/detail/write_value.hh"
 #include "broker/error.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/meta_command_writer.hh"
@@ -74,24 +76,27 @@ caf::error generator_file_writer::write(const data_message& x) {
              write_value(sink_, tid), writer(get_data(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
-  return caf::none;
+  else
+    return caf::none;
 }
 
 caf::error generator_file_writer::write(const command_message& x) {
-  meta_command_writer writer{sink_};
+  meta_data_writer writer{sink_};
   uint16_t tid;
   auto entry = format::entry_type::command_message;
   BROKER_TRY(topic_id(get_topic(x), tid), write_value(sink_, entry),
              write_value(sink_, tid), writer(get_command(x)));
   if (buf_.size() >= flush_threshold())
     return flush();
-  return caf::none;
+  else
+    return caf::none;
 }
 
 caf::error generator_file_writer::write(const data_or_command_message& x) {
-  if (std::holds_alternative<data_message>(x))
-    return write(std::get<data_message>(x));
-  return write(std::get<command_message>(x));
+  if (is<data_message>(x))
+    return write(caf::get<data_message>(x));
+  else
+    return write(caf::get<command_message>(x));
 }
 
 caf::error generator_file_writer::topic_id(const topic& x, uint16_t& id) {

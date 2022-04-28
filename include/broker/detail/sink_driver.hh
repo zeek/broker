@@ -4,6 +4,8 @@
 #include "broker/error.hh"
 #include "broker/message.hh"
 
+#include <memory>
+
 namespace broker::detail {
 
 // -- trait classes to inspect user-defined callbacks --------------------------
@@ -85,6 +87,8 @@ public:
 };
 
 // -- default implementation ---------------------------------------------------
+
+using sink_driver_ptr = std::shared_ptr<sink_driver>;
 
 template <class State, class Init, class OnNext, class Cleanup>
 class sink_driver_impl : public sink_driver {
@@ -222,5 +226,12 @@ struct sink_driver_impl_oracle {
 template <class Init, class OnNext, class Cleanup>
 using sink_driver_impl_t =
   typename sink_driver_impl_oracle<Init, OnNext, Cleanup>::type;
+
+template <class Init, class OnNext, class Cleanup>
+auto make_sink_driver(Init init, OnNext on_next, Cleanup cleanup) {
+  using impl_type = sink_driver_impl_t<Init, OnNext, Cleanup>;
+  return std::make_shared<impl_type>(std::move(init), std::move(on_next),
+                                     std::move(cleanup));
+}
 
 } // namespace broker::detail

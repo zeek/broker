@@ -101,7 +101,19 @@ public:
   }
 
   template <sc S>
+  static status make(sc_constant<S>, endpoint_info ei, std::string msg) {
+    static_assert(sc_has_endpoint_info_v<S>);
+    return {S, std::move(ei), std::move(msg)};
+  }
+
+  template <sc S>
   static status make(endpoint_id node, std::string msg) {
+    static_assert(sc_has_endpoint_info_v<S>);
+    return {S, endpoint_info{std::move(node), std::nullopt}, std::move(msg)};
+  }
+
+  template <sc S>
+  static status make(sc_constant<S>, endpoint_id node, std::string msg) {
     static_assert(sc_has_endpoint_info_v<S>);
     return {S, endpoint_info{std::move(node), std::nullopt}, std::move(msg)};
   }
@@ -138,8 +150,6 @@ public:
 
   friend bool operator==(sc x, const status& y);
 
-  friend std::string to_string(const status& s);
-
   template <class Inspector>
   friend bool inspect(Inspector& f, status& x);
 
@@ -168,6 +178,9 @@ private:
   endpoint_info context_;
   std::string message_;
 };
+
+/// @relates status
+std::string to_string(const status& x);
 
 /// @relates status
 template <sc S, class... Ts>
@@ -230,7 +243,7 @@ private:
 };
 
 /// @relates status_view
-std::string to_string(status_view s);
+std::string to_string(status_view sv);
 
 /// @relates status_view
 inline status_view make_status_view(const data& src) {

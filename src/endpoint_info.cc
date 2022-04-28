@@ -38,10 +38,10 @@ bool convert(const data& src, endpoint_info& dst) {
     return false;
   // Parse the node (field 1).
   if (auto str = get_if<std::string>(xs[0])) {
-    if (auto err = caf::parse(*str, internal::native(dst.node)))
+    if (!convert(*str, dst.node))
       return false;
   } else if (is<none>(xs[0])) {
-    internal::native(dst.node) = caf::node_id{};
+    dst.node = endpoint_id{};
   } else {
     // Type mismatch.
     return false;
@@ -66,7 +66,7 @@ bool convert(const endpoint_info& src, data& dst) {
   vector result;
   result.resize(4);
   if (src.node)
-    result[0] = to_string(internal::native(src.node));
+    result[0] = to_string(src.node);
   if (src.network) {
     result[1] = src.network->address;
     result[2] = port{src.network->port, port::protocol::tcp};
@@ -78,9 +78,14 @@ bool convert(const endpoint_info& src, data& dst) {
 
 std::string to_string(const endpoint_info& x) {
   std::string result = "endpoint_info(";
-  result += to_string(internal::native(x.node));
+  result += to_string(x.node);
   result += ", ";
-  result += caf::deep_to_string(x.network);
+  if (auto& net = x.network) {
+    result += '*';
+    result += to_string(*net);
+  } else {
+    result += "none";
+  }
   result += ')';
   return result;
 }

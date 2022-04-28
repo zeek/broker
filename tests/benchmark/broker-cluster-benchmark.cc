@@ -230,12 +230,12 @@ struct node {
   /// Stores how many messages we expect on this node during measurement.
   size_t num_inputs = 0;
 
-  /// Stores whether this node regularly forwards Broker events.
-  bool forward = true;
+  /// Stores whether this node disables forwarding of subscriptions.
+  bool disable_forwarding = true;
 
   /// Stores how many messages we produce using the gernerator file. If `none`,
   /// we produce the number of messages in the generator file.
-  caf::optional<size_t> num_outputs;
+  std::optional<size_t> num_outputs;
 
   /// Stores parent nodes in the pub/sub topology.
   std::vector<node*> left;
@@ -273,47 +273,13 @@ std::vector<broker::topic> topics(const node& x) {
   return result;
 }
 
-#define HAS_ROUTING_LOOP_FUN(direction)                                        \
-  bool has_##direction##_loop(const node& x, std::vector<std::string> path) {  \
-    if (!x.forward)                                                            \
-      return false;                                                            \
-    auto in_path = [&path](const node& n) {                                    \
-      return std::find(path.begin(), path.end(), n.name) != path.end();        \
-    };                                                                         \
-    size_t res = path.size();                                                  \
-    for (const auto y : x.direction) {                                         \
-      if (in_path(*y))                                                         \
-        return true;                                                           \
-      auto cpy = path;                                                         \
-      cpy.emplace_back(y->name);                                               \
-      if (has_##direction##_loop(*y, std::move(cpy)))                          \
-        return true;                                                           \
-    }                                                                          \
-    return false;                                                              \
-  }                                                                            \
-                                                                               \
-  bool has_##direction##_loop(const node& x) {                                 \
-    for (const auto y : x.direction)                                           \
-      if (has_##direction##_loop(*y, {x.name, y->name}))                       \
-        return true;                                                           \
-    return false;                                                              \
-  }
-
-HAS_ROUTING_LOOP_FUN(left)
-
-HAS_ROUTING_LOOP_FUN(right)
-
-bool has_routing_loop(const node& x) {
-  return has_left_loop(x) || has_right_loop(x);
-}
-
 template <class T>
 struct strip_optional {
   using type = T;
 };
 
 template <class T>
-struct strip_optional<caf::optional<T>> {
+struct strip_optional<std::optional<T>> {
   using type = T;
 };
 
@@ -340,7 +306,7 @@ expected<node> make_node(const string& name, const caf::settings& parameters) {
   SET_FIELD(topics, mandatory);
   SET_FIELD(generator_file, optional);
   SET_FIELD(num_inputs, optional);
-  SET_FIELD(forward, optional);
+  SET_FIELD(disable_forwarding, optional);
   SET_FIELD(num_outputs, optional);
   SET_FIELD(inputs_by_node, optional);
   SET_FIELD(log_verbosity, optional);
@@ -381,7 +347,7 @@ struct node_manager_state {
     BROKER_ASSERT(this_node_ptr != nullptr);
     this_node = this_node_ptr;
     broker::broker_options opts;
-    opts.forward = this_node_ptr->forward;
+    opts.disable_forwarding = this_node_ptr->disable_forwarding;
     opts.disable_ssl = true;
     opts.ignore_broker_conf = true; // Make sure no one messes with our setup.
     broker::configuration cfg{opts};
@@ -395,10 +361,8 @@ struct node_manager_state {
 using node_manager_actor = caf::stateful_actor<node_manager_state>;
 
 struct generator_state {
-  static const char* name;
+  static inline const char* name = "broker.benchmark.generator";
 };
-
-const char* generator_state::name = "generator";
 
 void generator(caf::stateful_actor<generator_state>* self, node* this_node,
                caf::actor core,
@@ -543,12 +507,11 @@ struct consumer_state {
   node* this_node;
   caf::event_based_actor* self;
   size_t connected_streams = 0;
-  static const char* name;
   std::chrono::steady_clock::time_point start;
   caf::actor observer;
-};
 
-const char* consumer_state::name = "consumer";
+  static inline const char* name = "broker.benchmark.consumer";
+};
 
 caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
                        node* this_node, caf::actor core, caf::actor observer) {
@@ -640,7 +603,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   // Otherwise, we get a race on the topics and can "loose" initial messages.
   // Despite its name, endpoint::forward does not force any forwarding. It only
   // makes sure that the topic is in our local filter.
-  if (is_receiver(*this_node) || this_node->forward)
+  if (is_receiver(*this_node))
     self->state.ep.forward(topics(*this_node));
   return {
     [=](atom::init) -> caf::result<atom::ok> {
@@ -748,13 +711,6 @@ bool build_node_tree(std::vector<node>& nodes) {
   for (auto& x : nodes) {
     if (x.left.empty() && x.right.empty()) {
       err::println(x.name, " has no peering relation to any other node");
-      return false;
-    }
-  }
-  // Sanity check: there must be no loop.
-  for (auto& x : nodes) {
-    if (has_routing_loop(x) && is_sender(x)) {
-      err::println("starting at node '", x.name, "' results in a routing loop");
       return false;
     }
   }
@@ -882,7 +838,12 @@ int generate_config(string_list directories) {
     verbose::println("fetch config parameters for this node from broker.conf");
     auto conf_file = directory + "/broker.conf";
     if (auto conf = actor_system_config::parse_config_file(conf_file.c_str())) {
-      node.forward = caf::get_or(*conf, "broker.forward", true);
+      // Older versions of Broker use 'broker.forward' as config parameter.
+      if (auto val = caf::get_if<bool>(std::addressof(*conf), "broker.forward"))
+        node.disable_forwarding = !*val;
+      else
+        node.disable_forwarding
+          = caf::get_or(*conf, "broker.disable-forwarding", false);
     } else {
       err::println("unable to parse ", quoted{conf_file}, ": ",
                    to_string(conf.error()));
@@ -963,7 +924,7 @@ int generate_config(string_list directories) {
   traverse = [&](node& src, node& dst, const output_map& out, const filter& f,
                  walk_fun walk) {
     step(src, dst, out, f);
-    if (!dst.forward)
+    if (dst.disable_forwarding)
       return;
     // TODO: take TTL counter into consideration
     for (auto peer : walk(dst)) {
@@ -1020,7 +981,7 @@ int generate_config(string_list directories) {
         out::println("      ", kvp.first, " = ", kvp.second);
       out::println("    }");
     }
-    out::println("    forward = ", node.forward);
+    out::println("    disable_forwarding = ", node.disable_forwarding);
     print_field("topics", node.topics);
     print_field("peers", node.peers);
     if (!node.generator_file.empty() && !outputs[node.name].empty())
@@ -1243,7 +1204,7 @@ int main(int argc, char** argv) {
       size_t data_entries = 0;
       size_t command_entries = 0;
       std::map<broker::topic, size_t> entries_by_topic;
-      broker::node_message::value_type x;
+      broker::node_message_content x;
       while (!gptr->at_end()) {
         if (auto err = gptr->read(x)) {
           err::println("error while parsing ", file_name, ": ", to_string(err));

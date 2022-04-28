@@ -16,12 +16,10 @@
 
 using namespace broker;
 
-TEST(basic) {
-  CHECK(std::is_same<boolean, bool>::value);
-  CHECK(std::is_same<integer, int64_t>::value);
-  CHECK(std::is_same<count, uint64_t>::value);
-  CHECK(std::is_same<real, double>::value);
-}
+static_assert(std::is_same_v<boolean, bool>);
+static_assert(std::is_same_v<integer, int64_t>);
+static_assert(std::is_same_v<count, uint64_t>);
+static_assert(std::is_same_v<real, double>);
 
 TEST(timespan) {
   auto s = timespan{42};

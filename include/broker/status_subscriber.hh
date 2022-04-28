@@ -1,15 +1,15 @@
 #pragma once
 
+#include <variant>
 #include <vector>
 
 #include "broker/bad_variant_access.hh"
+#include "broker/defaults.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
 #include "broker/worker.hh"
-
-#include "broker/detail/shared_subscriber_queue.hh"
 
 namespace broker {
 
@@ -31,6 +31,12 @@ public:
   status_subscriber(status_subscriber&&) = default;
 
   status_subscriber& operator=(status_subscriber&&) = default;
+
+  // --- factories -------------------------------------------------------------
+
+  static status_subscriber
+  make(endpoint& ep, bool receive_statuses,
+       size_t queue_size = defaults::subscriber::queue_size);
 
   // --- access to values ------------------------------------------------------
 
@@ -79,19 +85,6 @@ public:
 
   // --- properties ------------------------------------------------------------
 
-  /// @copydoc subscriber::set_rate_calculation
-  void set_rate_calculation(bool x) {
-    impl_.set_rate_calculation(x);
-  }
-
-  size_t rate() const {
-    return impl_.rate();
-  }
-
-  const broker::worker& worker() const {
-    return impl_.worker();
-  }
-
   size_t available() const {
     return impl_.available();
   }
@@ -116,7 +109,8 @@ public:
 
 private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
-  status_subscriber(endpoint& ep, bool receive_statuses = false);
+//  status_subscriber(endpoint& ep, bool receive_statuses = false);
+  explicit status_subscriber(subscriber impl);
 
   value_type convert(const data_message& msg);
 

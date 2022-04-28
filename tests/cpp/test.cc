@@ -2,55 +2,125 @@
 
 #include "test.hh"
 
+#include <random>
+
 #include <caf/test/unit_test_impl.hpp>
 
 #include <caf/defaults.hpp>
-#include <caf/io/middleman.hpp>
-#include <caf/io/network/test_multiplexer.hpp>
+#include <caf/scheduled_actor/flow.hpp>
 #include <caf/test/dsl.hpp>
 
 #include "broker/config.hh"
+#include "broker/endpoint_id.hh"
+#include "broker/filter_type.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/endpoint_id.hh"
+#include "broker/internal/native.hh"
+#include "broker/internal/type_id.hh"
 
-#ifdef BROKER_WINDOWS
-#include "Winsock2.h"
-#endif
+namespace atom = broker::internal::atom;
 
-using namespace caf;
+using broker::internal::native;
+
+std::vector<std::string>
+normalize_status_log(const std::vector<broker::data_message>& xs,
+                     bool include_endpoint_id) {
+  using namespace broker;
+  auto stringify = [](const data_message& msg) {
+    std::string result = get_topic(msg).string();
+    result += ": ";
+    result += to_string(get_data(msg));
+    return result;
+  };
+  auto code_of = [](const error& err) {
+    if (err.category() != caf::type_id_v<broker::ec>)
+      return ec::unspecified;
+    return static_cast<ec>(err.code());
+  };
+  std::vector<std::string>
+    lines;
+  lines.reserve(xs.size());
+  for (auto& x : xs) {
+    if (auto err = to<error>(get_data(x))) {
+      lines.emplace_back(to_string(code_of(*err)));
+    } else if (auto stat = to<status>(get_data(x))) {
+      lines.emplace_back(to_string(stat->code()));
+      if (include_endpoint_id) {
+        auto& line = lines.back();
+        line += ": ";
+        if (auto ctx = stat->context()) {
+          line += to_string(ctx->node);
+        } else {
+          line += to_string(endpoint_id::nil());
+        }
+      }
+    } else {
+      lines.emplace_back(stringify(x));
+    }
+  }
+  return lines;
+}
+
+barrier::barrier(ptrdiff_t num_threads) : num_threads_(num_threads), count_(0) {
+  // nop
+}
+
+void barrier::arrive_and_wait() {
+  std::unique_lock<std::mutex> guard{mx_};
+  if (++count_ == num_threads_) {
+    cv_.notify_all();
+    return;
+  }
+  cv_.wait(guard, [this] { return count_.load() == num_threads_; });
+}
+
+beacon::beacon() : value_(false) {
+  // nop
+}
+
+void beacon::set_true() {
+  std::unique_lock<std::mutex> guard{mx_};
+  value_ = true;
+  cv_.notify_all();
+}
+
+void beacon::wait() {
+  std::unique_lock<std::mutex> guard{mx_};
+  cv_.wait(guard, [this] { return value_.load(); });
+}
+
 using namespace broker;
 
 namespace {
 
 std::string_view id_strings[] = {
-  "585ED2E2AFAFD9CABE2B3E785C6BD13FFC7DAA4A#72",
-  "36CE117717441F2D33A7D577859DD8D62A3B5C33#80",
-  "A19A1322788D83FB023A1A0C622100F72CE993CC#7",
-  "1AF111469B4410776C93F4F4C3470E3E12DC4270#13",
-  "8520FD7D03848D7007E3FFEBB670787F02EEFB45#39",
-  "2E851102B9DC65F590536754C54302C056840F46#44",
-  "D77D95067726851EFB12A921BC326D89FB8B6C13#27",
-  "F3B4667DFB3D20D4A57EB9122D7340BC58EFFA06#76",
-  "5486B594548D434FA960D944670BDC231DBA5D2A#79",
-  "B49D88EAF2037CF8CF1BFB5346DCF675B3C79FBD#98",
-  "AA8E46AFC177702E81087F1401CBBFF9E43E6DC0#85",
-  "B38B7D480A59253E181C97F0F3C9FFE65F1377AD#77",
-  "998673238266C7BF8DC46195548F3DF03A94537F#3",
-  "376498E443FF78A8E9505E272CD94734629B988D#83",
-  "12B26ABFF91DC1384FAA2F813CE1FFFDED9486B1#56",
-  "5BAF51CFEA36E049B5411A81A4C574929197DCA8#8",
-  "E528954FF843E2812DAD92B438B8354507DCC729#37",
-  "55C047C8B73F4A2AB626D9770C1C2D5CECF5A73A#44",
-  "397E2A5BA2AB590253F5D9C420B32F7C1432797E#68",
-  "EC9596FEAF0B241F6E9885165C8AC21BB5066098#48",
-  "891BE1CA09BC40905E6905247DA48D6A313A9A91#66",
-  "66A5751A79731556A72CD4BE5B1CBEF8CF7BE4A7#1",
-  "EE2026EF36D9FF991B2D9322C3F9C3B169891FF0#18",
-  "4564568D77936944F263884C4539C44E4EFC8DD8#8",
-  "5A3244BDA8FB805AC07E8477CE51000D31BE461A#6",
-  "A4DF42092AFF6AF904607357A2B73FF873F1A877#40",
+  "685a1674-e15c-11eb-ba80-0242ac130004",
+  "685a1a2a-e15c-11eb-ba80-0242ac130004",
+  "685a1b2e-e15c-11eb-ba80-0242ac130004",
+  "685a1bec-e15c-11eb-ba80-0242ac130004",
+  "685a1caa-e15c-11eb-ba80-0242ac130004",
+  "685a1d5e-e15c-11eb-ba80-0242ac130004",
+  "685a1e1c-e15c-11eb-ba80-0242ac130004",
+  "685a1ed0-e15c-11eb-ba80-0242ac130004",
+  "685a20d8-e15c-11eb-ba80-0242ac130004",
+  "685a21a0-e15c-11eb-ba80-0242ac130004",
+  "685a2254-e15c-11eb-ba80-0242ac130004",
+  "685a2308-e15c-11eb-ba80-0242ac130004",
+  "685a23bc-e15c-11eb-ba80-0242ac130004",
+  "685a2470-e15c-11eb-ba80-0242ac130004",
+  "685a2524-e15c-11eb-ba80-0242ac130004",
+  "685a27ae-e15c-11eb-ba80-0242ac130004",
+  "685a286c-e15c-11eb-ba80-0242ac130004",
+  "685a2920-e15c-11eb-ba80-0242ac130004",
+  "685a29d4-e15c-11eb-ba80-0242ac130004",
+  "685a2a88-e15c-11eb-ba80-0242ac130004",
+  "685a2b3c-e15c-11eb-ba80-0242ac130004",
+  "685a2bf0-e15c-11eb-ba80-0242ac130004",
+  "685a2e2a-e15c-11eb-ba80-0242ac130004",
+  "685a2ef2-e15c-11eb-ba80-0242ac130004",
+  "685a2fa6-e15c-11eb-ba80-0242ac130004",
+  "685a305a-e15c-11eb-ba80-0242ac130004",
 };
 
 } // namespace
@@ -60,11 +130,10 @@ base_fixture::base_fixture()
     sys(internal::endpoint_access{&ep}.sys()),
     self(sys),
     sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
-  init_socket_api();
   for (char id = 'A'; id <= 'Z'; ++id) {
     auto index = id - 'A';
     str_ids[id] = id_strings[index];
-    ids[id] = internal::endpoint_id_from_string(id_strings[index]);
+    convert(std::string{id_strings[index]}, ids[id]);
   }
 }
 
@@ -73,23 +142,13 @@ base_fixture::~base_fixture() {
   // Our core might do some messaging in its dtor, hence we need to make sure
   // messages are handled when enqueued to avoid blocking.
   sched.inline_all_enqueues();
-  deinit_socket_api();
 }
 
-void base_fixture::init_socket_api() {
-#ifdef BROKER_WINDOWS
-  WSADATA WinsockData;
-  if (WSAStartup(MAKEWORD(2, 2), &WinsockData) != 0) {
-    fprintf(stderr, "WSAStartup failed\n");
-    abort();
-  }
-#endif
-}
-
-void base_fixture::deinit_socket_api() {
-#ifdef BROKER_WINDOWS
-  WSACleanup();
-#endif
+char base_fixture::id_by_value(const broker::endpoint_id& value) {
+  for (const auto& [key, val] : ids)
+    if (val == value)
+      return key;
+  FAIL("value not found: " << value);
 }
 
 configuration base_fixture::make_config() {
@@ -97,9 +156,92 @@ configuration base_fixture::make_config() {
   options.disable_ssl = true;
   configuration cfg{options};
   auto& nat_cfg = internal::configuration_access{&cfg}.cfg();
+  caf::put(nat_cfg.content, "broker.disable-connector", true);
   test_coordinator_fixture<caf::actor_system_config>::init_config(nat_cfg);
-  nat_cfg.load<io::middleman, io::network::test_multiplexer>();
   return cfg;
+}
+
+namespace {
+
+struct bridge_state {
+  static inline const char* name = "broker.test.bridge";
+};
+
+using bridge_actor = caf::stateful_actor<bridge_state>;
+
+} // namespace
+
+base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
+  auto& st = deref<internal::core_actor>(core).state;
+  return endpoint_state{st.id, st.filter->read(), core};
+}
+
+caf::actor base_fixture::bridge(const endpoint_state& left,
+                                const endpoint_state& right) {
+  using caf::async::make_spsc_buffer_resource;
+  auto& sys = left.hdl.home_system();
+  auto [self, launch] = sys.spawn_inactive<bridge_actor>();
+  {
+    CAF_PUSH_AID_FROM_PTR(self);
+    auto [con1, prod1] = make_spsc_buffer_resource<node_message>();
+    auto [con2, prod2] = make_spsc_buffer_resource<node_message>();
+    caf::anon_send(left.hdl, atom::peer_v, right.id,
+                   network_info{to_string(right.id), 42}, right.filter, con1,
+                   prod2);
+    auto [con3, prod3] = make_spsc_buffer_resource<node_message>();
+    auto [con4, prod4] = make_spsc_buffer_resource<node_message>();
+    caf::anon_send(right.hdl, atom::peer_v, left.id,
+                   network_info{to_string(left.id), 42}, left.filter, con3,
+                   prod4);
+    self->make_observable().from_resource(con2).subscribe(prod3);
+    self->make_observable().from_resource(con4).subscribe(prod1);
+  }
+  auto hdl = caf::actor{self};
+  launch();
+  return hdl;
+}
+
+caf::actor base_fixture::bridge(const endpoint& left, const endpoint& right) {
+  return bridge(ep_state(native(left.core())), ep_state(native(right.core())));
+}
+
+caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {
+  return bridge(ep_state(left_core), ep_state(right_core));
+}
+
+void base_fixture::push_data(caf::actor core,
+                             std::vector<broker::data_message> xs) {
+  for (auto& x : xs)
+    caf::anon_send(core, atom::publish_v, std::move(x));
+}
+
+namespace {
+
+struct data_collector_state {
+  static inline const char* name = "broker.test.data-collector";
+};
+
+using data_collector_actor = caf::stateful_actor<data_collector_state>;
+
+void data_collector_impl(data_collector_actor* self,
+                         std::shared_ptr<std::vector<data_message>> buf,
+                         caf::async::consumer_resource<data_message> res) {
+  self->make_observable()
+    .from_resource(std::move(res))
+    .for_each([buf](const data_message& msg) { buf->emplace_back(msg); });
+}
+
+} // namespace
+
+std::shared_ptr<std::vector<data_message>>
+base_fixture::collect_data(caf::actor core, filter_type filter) {
+  using actor_t = data_collector_actor;
+  auto& sys = core.home_system();
+  auto [con, prod] = caf::async::make_spsc_buffer_resource<data_message>();
+  auto buf = std::make_shared<std::vector<data_message>>();
+  sys.spawn(data_collector_impl, buf, std::move(con));
+  anon_send(core, std::move(filter), std::move(prod));
+  return buf;
 }
 
 void base_fixture::run() {
@@ -115,8 +257,12 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
+  broker::endpoint::init_socket_api();
+  caf::init_global_meta_objects<caf::id_block::broker_test>();
   broker::configuration::init_global_state();
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
-  return test::main(argc, argv);
+  auto result = caf::test::main(argc, argv);
+  broker::endpoint::deinit_socket_api();
+  return result;
 }

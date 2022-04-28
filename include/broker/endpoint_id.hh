@@ -2,34 +2,43 @@
 
 #include "broker/detail/comparable.hh"
 
+#include <array>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <utility>
 
 namespace broker {
 
+/// A 16-byte universally unique identifier according to
+/// [RFC 4122](https://tools.ietf.org/html/rfc4122).
 class endpoint_id : detail::comparable<endpoint_id> {
 public:
+  // -- constants --------------------------------------------------------------
+
+  static constexpr size_t num_bytes = 16;
+
   // -- member types -----------------------------------------------------------
 
-  struct impl;
+  using array_type = std::array<std::byte, num_bytes>;
 
   endpoint_id() noexcept;
 
-  endpoint_id(endpoint_id&&) noexcept;
+  explicit endpoint_id(const array_type& bytes) noexcept : bytes_(bytes) {
+    // nop
+  }
 
-  endpoint_id(const endpoint_id&) noexcept;
+  endpoint_id(const endpoint_id&) noexcept = default;
 
-  explicit endpoint_id(const impl*) noexcept;
-
-  endpoint_id& operator=(endpoint_id&&) noexcept;
-
-  endpoint_id& operator=(const endpoint_id&) noexcept;
-
-  ~endpoint_id();
+  endpoint_id& operator=(const endpoint_id&) noexcept = default;
 
   // -- properties -------------------------------------------------------------
+
+  /// Returns the individual bytes for the ID.
+  const array_type& bytes() const noexcept {
+    return bytes_;
+  }
 
   /// Queries whether this node is *not* default-constructed.
   bool valid() const noexcept;
@@ -44,27 +53,51 @@ public:
     return !valid();
   }
 
-  /// Exchanges the value of this object with `other`.
-  void swap(endpoint_id& other) noexcept;
-
   /// Compares this instance to `other`.
   /// @returns -1 if `*this < other`, 0 if `*this == other`, and 1 otherwise.
-  int compare(const endpoint_id& other) const noexcept;
+  int compare(const endpoint_id& other) const noexcept {
+    return memcmp(bytes_.data(), other.bytes_.data(), num_bytes);
+  }
 
   /// Returns a has value for the ID.
   size_t hash() const noexcept;
 
-  /// Returns a pointer to the native representation.
-  [[nodiscard]] impl* native_ptr() noexcept;
+  /// Creates a random endpoint_id.
+  static endpoint_id random() noexcept;
 
-  /// Returns a pointer to the native representation.
-  [[nodiscard]] const impl* native_ptr() const noexcept;
+  /// Creates a random endpoint_id with a predefined seed.
+  static endpoint_id random(unsigned seed) noexcept;
+
+  /// Convenience function for creating an endpoint_id with all 128 bits set to
+  /// zero.
+  static endpoint_id nil() noexcept {
+    return endpoint_id{};
+  }
+
+  /// Queries whether `str` is convertible to an `endpoint_id`.
+  static bool can_parse(const std::string& str);
+
+  // -- inspection -------------------------------------------------------------
+
+  template <class Inspector>
+  friend bool inspect(Inspector& f, endpoint_id& x) {
+    return f.apply(x.bytes_);
+  }
 
 private:
-  std::byte obj_[sizeof(impl*)];
+  array_type bytes_;
 };
 
-std::string to_string(const endpoint_id& x);
+// -- free functions -----------------------------------------------------------
+
+/// @relates endpoint_id
+std::string to_string(endpoint_id x);
+
+/// @relates endpoint_id
+bool convert(endpoint_id x, std::string& str);
+
+/// @relates endpoint_id
+bool convert(const std::string& str, endpoint_id& x);
 
 } // namespace broker
 

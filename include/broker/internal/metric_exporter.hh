@@ -181,6 +181,8 @@ public:
   metric_scraper impl;
 
   bool running_ = false;
+
+  static inline const char* name = "broker.exporter";
 };
 
 using metric_exporter_actor

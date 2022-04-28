@@ -2,6 +2,7 @@
 
 #include "broker/configuration.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/fwd.hh"
 
 #include <caf/actor_system.hpp>
 #include <caf/fwd.hpp>

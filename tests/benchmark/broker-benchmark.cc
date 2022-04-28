@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -20,7 +21,19 @@
 #include "broker/topic.hh"
 #include "broker/zeek.hh"
 
+#ifndef BROKER_WINDOWS
+#  include <sys/types.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#  include <fcntl.h>
+#endif // BROKER_WINDOWS
+
 using namespace broker;
+using namespace std::literals;
+
+#define VERBOSE_OUT                                                            \
+  if (verbose)                                                                 \
+  std::cout
 
 namespace {
 
@@ -133,7 +146,7 @@ vector createEventArgs() {
      }
 
      default:
-       std::cerr << "invalid event type" << std::endl;
+       std::cerr << "invalid event type\n";
        abort();
     }
 }
@@ -201,15 +214,15 @@ void receivedStats(endpoint& ep, const data& x) {
             << "total_recv=" << total_recv << " "
             << "total_sent=" << total_sent << " "
             << "[sending at " << send_rate << " ev/s, receiving at "
-            << recv_rate << " ev/s " << std::endl;
+            << recv_rate << " ev/s\n";
 
   last_t = now;
   last_sent = total_sent;
 
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("/benchmark/terminate", ev);
-    std::this_thread::sleep_for(std::chrono::seconds(2)); // Give clients a bit.
+    ep.publish("benchmark/terminate", ev);
+    std::this_thread::sleep_for(2s); // Give clients a bit.
     exit(0);
   }
 
@@ -217,43 +230,50 @@ void receivedStats(endpoint& ep, const data& x) {
   if (max_in_flight && in_flight > max_in_flight) {
 
     if (++max_exceeded_counter >= 5) {
-      std::cerr << "max-in-flight exceeded for 5 subsequent batches"
-                << std::endl;
+      std::cerr << "max-in-flight exceeded for 5 subsequent batches\n";
       exit(1);
     }
   } else
     max_exceeded_counter = 0;
 }
 
-void client_mode(endpoint& ep, const std::string& host, int port) {
+struct source_state {
+  static inline const char* name = "broker.benchmark.source";
+};
+
+void client_loop(endpoint& ep, bool verbose, status_subscriber& ss);
+
+void client_mode(endpoint& ep, bool verbose, const std::string& host,
+                 int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/stats to print server updates.
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"/benchmark/stats"},
     [] {
       // Init: nop.
     },
     [&](data_message x) {
-      // OnNext: print everything we receive.
-      receivedStats(ep, get_data(x));
+      // Print everything we receive.
+      receivedStats(ep, move_data(x));
     },
     [](const error&) {
       // Cleanup: nop.
     });
-  // Publish events to /benchmark/events.
+  // Publish events to benchmark/events.
   // Connect to remote peer.
-  if (verbose)
-    std::cout << "*** init peering: host = " << host << ", port = " << port
-              << std::endl;
+  VERBOSE_OUT << "*** init peering: host = " << host << ", port = " << port
+              << '\n';
   auto res = ep.peer(host, port, timeout::seconds(1));
   if (!res) {
-    std::cerr << "unable to peer to " << host << " on port " << port
-              << std::endl;
+    std::cerr << "unable to peer to " << host << " on port " << port << '\n';
     return;
   }
-  if (verbose)
-    std::cout << "*** endpoint is now peering to remote" << std::endl;
+  VERBOSE_OUT << "*** endpoint is now peering to remote\n";
+  client_loop(ep, verbose, ss);
+}
+
+void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
   if (batch_rate == 0) {
     ep.publish_all(
       [] {
@@ -281,11 +301,11 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   // Publish one message per interval.
   using std::chrono::duration_cast;
   using fractional_second = std::chrono::duration<double>;
-  auto p = ep.make_publisher("/benchmark/events");
+  auto p = ep.make_publisher("benchmark/events");
   fractional_second fractional_inc_interval{rate_increase_interval};
   auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
   timestamp timeout = std::chrono::system_clock::now();
-  auto interval = duration_cast<timespan>(std::chrono::seconds(1));
+  auto interval = duration_cast<timespan>(1s);
   interval /= batch_rate;
   auto interval_timeout = timeout + interval;
   for (;;) {
@@ -296,7 +316,7 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
     if (p.free_capacity() > 1) {
       send_batch(ep, p);
     } else {
-      std::cout << "*** skip batch: publisher queue full" << std::endl;
+      std::cout << "*** skip batch: publisher queue full" << '\n';
     }
     // Increase batch size when reaching interval_timeout.
     if (rate_increase_interval > 0 && rate_increase_amount > 0) {
@@ -314,12 +334,16 @@ void client_mode(endpoint& ep, const std::string& host, int port) {
   }
 }
 
+void server_loop(endpoint& ep, bool verbose, status_subscriber& ss,
+                 std::atomic<bool>& terminate);
+
 // This mode mimics what benchmark.bro does.
-void server_mode(endpoint& ep, const std::string& iface, int port) {
+void server_mode(endpoint& ep, bool verbose, const std::string& iface,
+                 int port) {
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/events.
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"/benchmark/events"},
     [] {
       // Init: nop.
@@ -334,16 +358,16 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
         zeek::Batch batch(std::move(msg));
         num_events += batch.batch().size();
       } else {
-        std::cerr << "unexpected message type" << std::endl;
+        std::cerr << "unexpected message type" << '\n';
         exit(1);
       }
     },
     [](const error&) {
       // Cleanup: nop.
     });
-  // Listen on /benchmark/terminate for stop message.
+  // Listen on benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
-  ep.subscribe_nosync(
+  ep.subscribe(
     {"/benchmark/terminate"},
     [] {
       // Init: nop.
@@ -356,14 +380,25 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
       // Cleanup: nop.
     });
   // Start listening for peers.
-  ep.listen(iface, port);
+  auto actual_port = ep.listen(iface, port);
+  if (actual_port == 0) {
+    std::cerr << "*** failed to listen on port " << port << '\n';
+    return;
+  } else if (verbose) {
+    std::cout << "*** listening on " << actual_port << '\n';
+  }
+  server_loop(ep, verbose, ss, terminate);
+}
+
+void server_loop(endpoint& ep, bool verbose, status_subscriber& ss,
+                 std::atomic<bool>& terminate) {
   // Collects stats once per second until receiving stop message.
   using std::chrono::duration_cast;
   timestamp timeout = std::chrono::system_clock::now();
   auto last_time = timeout;
   while (!terminate) {
     // Sleep until next timeout.
-    timeout += std::chrono::seconds(1);
+    timeout += 1s;
     std::this_thread::sleep_until(timeout);
     // Generate and publish zeek event.
     timestamp now = std::chrono::system_clock::now();
@@ -379,7 +414,6 @@ void server_mode(endpoint& ep, const std::string& iface, int port) {
       for (auto& ev : status_events)
         std::visit([](auto& x) { std::cout << to_string(x) << std::endl; }, ev);
   }
-  std::cout << "received stop message on /benchmark/terminate" << std::endl;
 }
 
 void add_options(configuration& cfg) {
@@ -451,9 +485,12 @@ int main(int argc, char** argv) {
   }
   // Run benchmark.
   endpoint ep(std::move(cfg));
-  if (server)
-    server_mode(ep, host, port);
-  else
-    client_mode(ep, host, port);
+  if (server) {
+    VERBOSE_OUT << "*** run in server mode\n";
+    server_mode(ep, verbose, host, port);
+  } else {
+    VERBOSE_OUT << "*** run in client mode\n";
+    client_mode(ep, verbose, host, port);
+  }
   return EXIT_SUCCESS;
 }

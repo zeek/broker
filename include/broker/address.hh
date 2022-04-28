@@ -74,6 +74,8 @@ public:
 
   [[nodiscard]] size_t hash() const;
 
+  // -- conversion support -----------------------------------------------------
+
   [[nodiscard]] bool convert_to(std::string& str) const;
 
   [[nodiscard]] bool convert_from(const std::string& str);
@@ -81,6 +83,8 @@ public:
 private:
   array_type bytes_;
 };
+
+// -- free functions -----------------------------------------------------------
 
 /// @relates address
 inline bool convert(const std::string& str, address& a) {

@@ -18,6 +18,16 @@ struct endpoint_info {
 };
 
 /// @relates endpoint_info
+inline bool operator==(const endpoint_info& x, const endpoint_info& y) {
+  return x.node == y.node && x.network == y.network;
+}
+
+/// @relates endpoint_info
+inline bool operator!=(const endpoint_info& x, const endpoint_info& y) {
+  return !(x == y);
+}
+
+/// @relates endpoint_info
 template <class Inspector>
 bool inspect(Inspector& f, endpoint_info& x) {
   return f.object(x)
@@ -36,6 +46,9 @@ bool convert(const data& src, endpoint_info& dst);
 
 /// @relates endpoint_info
 bool convert(const endpoint_info& src, data& dst);
+
+/// @relates endpoint_info
+std::string to_string(const endpoint_info& x);
 
 // Enable `can_convert` for `endpoint_info`.
 template <>

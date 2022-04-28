@@ -23,4 +23,4 @@ make_example(synopsis)
 make_example(comm)
 make_example(stores)
 make_example(ping)
-
+make_example(pong)

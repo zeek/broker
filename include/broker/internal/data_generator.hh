@@ -81,11 +81,15 @@ public:
 
   void shuffle(data& x);
 
-  void shuffle(vector& xs);
-
   void shuffle(set&);
 
   void shuffle(table& xs);
+
+  template <class T>
+  void shuffle(std::vector<T>& xs) {
+    for (auto& x : xs)
+      shuffle(x);
+  }
 
 private:
   char next_char();

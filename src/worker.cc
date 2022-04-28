@@ -3,6 +3,7 @@
 #include <new>
 
 #include <caf/actor.hpp>
+#include <caf/send.hpp>
 
 #include "broker/internal/native.hh"
 

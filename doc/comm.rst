@@ -25,6 +25,8 @@ that have no further semantics attached. It's up to senders and
 receivers to agree on a specific layout of messages (e.g., a set of
 doubles for a measurement series).
 
+.. _endpoint:
+
 Endpoints
 ~~~~~~~~~
 
@@ -221,26 +223,6 @@ is dependent on the status code enum ``sc``. For example, all
 ``sc::peer_*`` status codes include an ``endpoint_info`` context as
 well as a message.
 
-Forwarding
-----------
-
-In topologies where multiple endpoints are connected, an endpoint
-forwards incoming messages to peers by default for topics that it is
-itself subscribed to. One can configure additional topics to forward,
-independent of the local subscription status, through the method
-``endpoint::forward(std::vector<topics>)``. One can also disable
-forwarding of remote messages altogether through the Broker
-configuration option ``forward`` when creating an endpoint.
-
-When forwarding messages Broker assumes all connected endpoints
-form a tree topology without any loops. Still, to avoid messages
-circling indefinitely if a loop happens accidentally, Broker's message
-forwarding adds a TTL value to messages, and drops any that have
-traversed that many hops. The default TTL is 20; it can be changed by
-setting the Broker configuration option ``ttl``. Note that it is the
-first hop's TTL configuration that determines a message's lifetime
-(not the original sender's).
-
 .. _zeek_events_cpp:
 
 Exchanging Zeek Events
@@ -278,3 +260,129 @@ Zeek:
     received pong[2]
     received pong[3]
     received pong[4]
+
+Gateways
+--------
+
+Broker was designed with peer-to-peer communication in mind. All endpoints in
+the network form a single publish/subscribe layer. This implies that each
+endpoint is aware of every other endpoint in the network as well as what topics
+they have subscribed to.
+
+This level of transparency enables source routing, but it comes at a cost.
+Endpoints flood subscriptions and topology changes to the entire network. The
+volume of flooded messages remains small, as long as primarily endpoints with
+high availability and a stable set of subscriptions join the network. However,
+short-lived or unstable endpoints may increase the amount of messages in the
+network quickly. Furthermore, the more endpoints join the network, the more
+state and bookkeeping overhead accumulates.
+
+The overhead becomes especially prominent on endpoints that join the network
+only to publish data but were placed on the edges of the network. Such endpoints
+usually end up sending all---or nearly all---of their messages to another,
+well-connected endpoint that distributes the messages. Nevertheless, these
+producing endpoints still have to flood their subscriptions to the entire
+network and get stored in all routing tables. In the Zeek ecosystem, the
+`Zeek Agent <https://zeek.org/2020/03/23/announcing-the-zeek-agent/>`_ fits this
+exact role. Agents run at the edge of the network and ideally should not consume
+more network bandwidth and CPU cycles than necessary.
+
+Gateways provide a way to separate the well-connected "inner" endpoints from
+endpoints at the edges that generally cannot contribute to the overall
+connectivity of the network but still incur messaging and bookkeeping overhead.
+
+Topology
+~~~~~~~~
+
+Gateways separate the overlay into two domains: *external* and *internal*. The
+external domain consists of stable, well-connected endpoints that build the core
+of the publish/subscribe layer. The internal domain consists of endpoints that
+need no knowledge of the entire overlay, because all ways would pass through the
+gateway anyway. This means, the gateway is the only way in or out for endpoints
+in the internal domain, as illustrated in the figure below.
+
+.. figure:: _images/gateway.png
+  :align: center
+
+Aside from forwarding messages between the two domains, gateways render all
+endpoints of the internal domain *completely opaque* to endpoints in the
+external domain and vice versa.
+
+To endpoints in the external domain, a gateway appears as the regular endpoint
+``E``. It subscribes to all topics that were subscribed by any endpoint in the
+internal domain and all messages published in the internal domain appear as if
+``E`` was the publisher.
+
+The endpoint in the internal domain, ``I`` is the mirror image of ``E``: it
+hides all endpoints from the external domain.
+
+The two endpoints ``E`` and ``I`` actually exist, i.e., the gateway starts both
+endpoints in the same process and creates a "shortcut" between the two. Every
+subscription or published events on one gets forwarded to the other. However,
+``E`` and ``I`` are not aware of each other and the forwarded events and
+subscriptions appear as if they had a local ``subscriber`` or ``publisher``.
+
+.. warning::
+
+  The endpoints ``E`` and ``I`` use the *same ID*. When setting up a gateway,
+  make sure that no other endpoint provides connectivity between the internal
+  and the external domain. Otherwise, ``E`` could receive messages from ``I``
+  and vice versa. Since they share one ID, endpoints in the network would
+  receive contradictory messages from what appears to be the same endpoint.
+
+Setup
+~~~~~
+
+Broker includes the standalone tool ``broker-gateway``. When started, it creates
+the two endpoints ``E`` and ``I`` in the same process. Each of the two endpoints
+listens to its own port for incoming peerings. A minimal setup would only set
+the two ports, as shown below.
+
+.. code-block:: none
+
+  broker-gateway --internal.port=8080 --external.port=9090
+
+Users can also configure the gateway to connect to a list of predefined peers on
+startup. For example:
+
+.. code-block:: none
+
+  broker-gateway --internal.port=8080 \
+                 --internal.peers=[tcp://mars:1234, tcp://venus:2345] \
+                 --external.port=9090 \
+                 --external.peers=[tcp://proxima-centauri:3456]
+
+The invocation above would listen on port 8080 for incoming peerings in the
+internal domain and tries to connect to ``mars`` on port ``1234`` as well as to
+``venus`` on port 2345. In the external domain, the gateway would listen on port
+9090 and try to connect to ``proxima-centauri`` on port 3456.
+
+Instead of using the command line, users could also provide a ``broker.conf``
+file with the following content:
+
+.. code-block:: none
+
+  internal {
+    port = 8080
+    peers = [
+      <tcp://mars:1234>,
+      <tcp://venus:2345>,
+    ]
+  }
+  external {
+    port = 9090
+    peers = [
+      <tcp://proxima-centauri:3456>,
+    ]
+  }
+
+There is also a third parameter for the domains: ``disable-forwarding``. In
+particular, setting ``internal.disable-forwarding`` to ``true`` causes the
+gateway to not only isolate endpoints in the internal domain from endpoints in
+the external domains, but also endpoints *within* the internal domain from each
+other.
+
+In setups where all endpoints of the internal domain connect only to the gateway
+and do not need to interact with each other, setting this flag reduces any
+messaging to the bare minimum by leading each endpoint in the internal domain to
+believe that there is exactly one other endpoint in the network---the gateway.

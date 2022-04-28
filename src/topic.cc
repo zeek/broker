@@ -119,6 +119,6 @@ topic topic::store_events() {
 
 } // namespace broker
 
-broker::topic operator "" _t(const char* str, size_t) {
-  return str;
+broker::topic operator "" _t(const char* str, size_t len) {
+  return broker::topic{std::string{str, len}};
 }

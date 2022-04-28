@@ -7,42 +7,48 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
+  cpp/alm/multipath.cc
+  cpp/alm/routing_table.cc
   cpp/backend.cc
-  cpp/core.cc
   cpp/data.cc
+  cpp/detail/peer_status_map.cc
+  cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
-  cpp/integration.cc
-  cpp/internal/central_dispatcher.cc
-  cpp/internal/data_generator.cc
-  cpp/internal/generator_file_writer.cc
-  cpp/internal/meta_command_writer.cc
-  cpp/internal/meta_data_writer.cc
+  # cpp/integration.cc
+  cpp/internal/channel.cc
+  cpp/internal/core_actor.cc
+  # cpp/internal/data_generator.cc
+  # cpp/internal/generator_file_writer.cc
+  # cpp/internal/meta_command_writer.cc
+  # cpp/internal/meta_data_writer.cc
   cpp/internal/metric_collector.cc
   cpp/internal/metric_exporter.cc
   cpp/master.cc
   cpp/publisher.cc
-  cpp/publisher_id.cc
   cpp/radix_tree.cc
-  cpp/ssl.cc
+  # cpp/ssl.cc
   cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc
   cpp/store_event.cc
   cpp/subscriber.cc
+  cpp/system/peering.cc
+  cpp/system/shutdown.cc
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
 )
 
-# Setup correct broker library (static/shared).
-if (ENABLE_SHARED)
-  set(libbroker broker)
-else ()
-  set(libbroker broker_static)
-endif ()
+# Our sytem testing suites require `socketpair`, but Windows lacks this API.
+if (NOT MSVC)
+  list(APPEND tests
+    cpp/system/shutdown.cc
+  )
+endif()
+
 add_executable(broker-test ${tests})
-target_link_libraries(broker-test PRIVATE ${libbroker} CAF::test CAF::core CAF::openssl CAF::io)
+target_link_libraries(broker-test PRIVATE ${BROKER_LIBRARY} CAF::test CAF::core CAF::net)
 
 set(BROKER_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -52,7 +58,7 @@ macro(make_cpp_test suite)
   if (${test_name} STREQUAL radix_tree)
     set(test_verbosity 3)  # otherwise it just produces way too much output
   endif ()
-  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "${suite}" ${ARGN})
+  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "^${suite}$" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
   set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
                        "BROKER_TEST_DIR=${BROKER_TEST_DIR}")
@@ -77,12 +83,12 @@ endforeach ()
 ## -- Benchmark ---------------------------------------------------------------
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
-target_link_libraries(broker-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
+target_link_libraries(broker-benchmark ${BROKER_LIBRARY})
 install(TARGETS broker-benchmark DESTINATION bin)
 
-add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
-target_link_libraries(broker-cluster-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
-install(TARGETS broker-cluster-benchmark DESTINATION bin)
+# add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
+# target_link_libraries(broker-cluster-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
+# install(TARGETS broker-cluster-benchmark DESTINATION bin)
 
 # -- Python -------------------------------------------------------------------
 
@@ -108,12 +114,19 @@ if (BROKER_PYTHON_BINDINGS)
   make_python_test(communication)
   make_python_test(data)
   make_python_test(forwarding)
-  make_python_test(ssl-tests)
+  # make_python_test(ssl-tests): re-enable after implementing SSL support
   make_python_test(store)
   make_python_test(topic)
-  make_python_test(broker-cluster-benchmark
-                   $<TARGET_FILE:broker-cluster-benchmark>)
+  # TODO: re-enable after updating generator files or adding backwards compatiblity
+  # make_python_test(broker-cluster-benchmark
+  #                  $<TARGET_FILE:broker-cluster-benchmark>)
+  #
+  # # allow some extra time for the benchmark integration test
+  # set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
+endif ()
 
-  # allow some extra time for the benchmark integration test
-  set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
+# -- Python -------------------------------------------------------------------
+
+if (BROKER_ENABLE_MICRO_BENCHMARKS)
+  add_subdirectory(micro-benchmark)
 endif ()

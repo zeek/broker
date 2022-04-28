@@ -59,8 +59,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker::end)
 
   BROKER_NODE_ADD_ATOM(blocking, "blocking")
   BROKER_NODE_ADD_ATOM(generate, "generate")
-  BROKER_NODE_ADD_ATOM(ping, "ping")
-  BROKER_NODE_ADD_ATOM(pong, "pong")
   BROKER_NODE_ADD_ATOM(relay, "relay")
   BROKER_NODE_ADD_ATOM(stream, "stream")
 
@@ -254,9 +252,8 @@ bool is_ping_msg(const broker::data& x) {
   if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 3) {
       auto& xs = *vec;
-      auto str = get_if<string>(&xs[0]);
-      return str && *str == "ping" && holds_alternative<count>(xs[1])
-             && holds_alternative<string>(xs[2]);
+      auto str = caf::get_if<string>(&xs[0]);
+      return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
     }
   }
   return false;
@@ -266,8 +263,8 @@ bool is_pong_msg(const broker::data& x) {
   if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 2) {
       auto& xs = *vec;
-      auto str = get_if<string>(&xs[0]);
-      return str && *str == "pong" && holds_alternative<count>(xs[1]);
+      auto str = caf::get_if<string>(&xs[0]);
+      return str && *str == "pong" && is<count>(xs[1]);
     }
   }
   return false;
@@ -494,9 +491,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) {
-#if CAF_VERSION >= 1800
   caf::init_global_meta_objects<caf::id_block::broker_node>();
-#endif
   broker::configuration::init_global_state();
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};

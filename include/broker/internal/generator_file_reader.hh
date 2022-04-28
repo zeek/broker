@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <variant>
 
 #include <caf/binary_deserializer.hpp>
 

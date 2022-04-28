@@ -19,7 +19,7 @@ public:
 
   void record_subscription(const filter_type& what);
 
-  void record_peer(const caf::node_id& peer_id);
+  void record_peer(const endpoint_id& peer_id);
 
   explicit operator bool() const noexcept {
     return writer_ != nullptr;

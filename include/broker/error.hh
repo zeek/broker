@@ -3,6 +3,7 @@
 #include "broker/convert.hh"
 #include "broker/detail/comparable.hh"
 #include "broker/detail/pp.hh"
+#include "broker/endpoint_info.hh"
 #include "broker/fwd.hh"
 
 #include <cstdint>
@@ -55,8 +56,41 @@ enum class ec : uint8_t {
   end_of_file,
   /// Received an unknown type tag value.
   invalid_tag,
+  /// Received an invalid message.
+  invalid_message,
   /// Deserialized an invalid status.
   invalid_status,
+  /// Converting between two data types or formats failed.
+  conversion_failed,
+  /// Adding a consumer to a producer failed because the producer already added
+  /// the consumer.
+  consumer_exists,
+  /// A producer or consumer did not receive any message from a consumer within
+  /// the configured timeout.
+  connection_timeout,
+  /// Called a member function without satisfying its preconditions.
+  bad_member_function_call,
+  /// Attempted to use the same request_id twice.
+  repeated_request_id,
+  /// A clone ran out of sync with the master.
+  broken_clone,
+  /// Canceled an operation because the system is shutting down.
+  shutting_down,
+  /// Canceled a peering request due to invalid or inconsistent data.
+  invalid_peering_request,
+  /// Broker attempted to trigger a second handshake to a peer while the first
+  /// handshake did not complete.
+  repeated_peering_handshake_request,
+  /// Received an unexpected or duplicate message during endpoint handshake.
+  unexpected_handshake_message,
+  /// Handshake failed due to invalid state transitions.
+  invalid_handshake_state,
+  /// Dispatching a message failed because no path to the receiver exists.
+  no_path_to_peer,
+  /// Unable to accept or establish peerings since no connector is available.
+  no_connector_available,
+  /// Opening a resource failed.
+  cannot_open_resource,
 };
 // --ec-enum-end
 
@@ -264,6 +298,23 @@ private:
   }
 
   const vector* xs_;
+};
+
+class error_factory {
+  public:
+  template <ec Code>
+  static error make(ec_constant<Code>, endpoint_info ei, std::string msg) {
+    return make_impl(Code, std::move(ei), std::move(msg));
+  }
+
+  template <ec Code>
+  static error make(ec_constant<Code>, endpoint_id node, std::string msg) {
+    return make_impl(Code, endpoint_info{std::move(node), std::nullopt},
+                     std::move(msg));
+  }
+
+private:
+  static error make_impl(ec code, endpoint_info node, std::string msg);
 };
 
 /// @relates error_view

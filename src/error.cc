@@ -41,8 +41,28 @@ const char* ec_names[] = {
   "invalid_topic_key",
   "end_of_file",
   "invalid_tag",
+  "invalid_message",
   "invalid_status",
+  "conversion_failed",
+  "consumer_exists",
+  "connection_timeout",
+  "bad_member_function_call",
+  "repeated_request_id",
+  "broken_clone",
+  "shutting_down",
+  "invalid_peering_request",
+  "repeated_peering_handshake_request",
+  "unexpected_handshake_message",
+  "invalid_handshake_state",
+  "no_path_to_peer",
+  "no_connector_available",
+  "cannot_open_resource",
 };
+
+template <class T, size_t N>
+constexpr size_t array_size(const T (&)[N]) {
+  return N;
+}
 
 } // namespace
 
@@ -149,7 +169,7 @@ error make_error(ec code, endpoint_info info, std::string description) {
 
 std::string to_string(ec code) {
   auto index = static_cast<uint8_t>(code);
-  BROKER_ASSERT(index < sizeof(ec_names));
+  BROKER_ASSERT(index < array_size(ec_names));
   return ec_names[index];
 }
 
@@ -205,13 +225,8 @@ bool convert(const error& src, data& dst) {
     dst = std::move(result);
     return true;
   }
-#if CAF_VERSION < 1800
-  if (src.category() != caf::atom("broker"))
-    return false;
-#else
   if (src.category() != caf::type_id_v<broker::ec>)
     return false;
-#endif
   vector result;
   result.resize(3);
   result[0] = "error"s;
@@ -277,8 +292,7 @@ const std::string* error_view::message() const noexcept {
 std::optional<endpoint_info> error_view::context() const {
   if (is<none>((*xs_)[2]))
     return std::nullopt;
-  auto& ctx = get<vector>((*xs_)[2]);
-  if (ctx.size() == 2)
+  else if (auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2)
     return get_as<endpoint_info>(ctx[0]);
   else
     return std::nullopt;
@@ -286,6 +300,10 @@ std::optional<endpoint_info> error_view::context() const {
 
 error_view error_view::make(const data& src) {
   return error_view{convertible_to_error(src) ? &get<vector>(src) : nullptr};
+}
+
+error error_factory::make_impl(ec code, endpoint_info node, std::string msg) {
+  return make_error(code, std::move(node), std::move(msg));
 }
 
 } // namespace broker

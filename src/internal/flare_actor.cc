@@ -5,6 +5,7 @@
 #include <caf/execution_unit.hpp>
 #include <caf/mailbox_element.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/internal/logger.hh"
 
 namespace broker::internal {
@@ -43,7 +44,7 @@ bool flare_actor::await_data(timeout_type timeout) {
   return res;
 }
 
-void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
+bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
@@ -52,19 +53,19 @@ void flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
       BROKER_DEBUG("firing flare");
       flare_.fire();
       ++flare_count_;
-      break;
+      return true;
     }
-    case caf::detail::enqueue_result::queue_closed:
+    case caf::detail::enqueue_result::success: {
+      flare_.fire();
+      ++flare_count_;
+      return true;
+    }
+    default: // caf::detail::enqueue_result::queue_closed
       if (mid.is_request()) {
         caf::detail::sync_request_bouncer bouncer{caf::exit_reason{}};
         bouncer(sender, mid);
       }
-      break;
-    case caf::detail::enqueue_result::success: {
-      flare_.fire();
-      ++flare_count_;
-      break;
-    }
+      return false;
   }
 }
 
@@ -72,8 +73,11 @@ caf::mailbox_element_ptr flare_actor::dequeue() {
   std::unique_lock<std::mutex> lock{flare_mtx_};
   auto rval = blocking_actor::dequeue();
 
-  if (rval)
-    this->extinguish_one();
+  if (rval) {
+    [[maybe_unused]] auto extinguished = flare_.extinguish_one();
+    BROKER_ASSERT(extinguished);
+    --flare_count_;
+  }
 
   return rval;
 }
@@ -84,8 +88,8 @@ const char* flare_actor::name() const {
 
 void flare_actor::extinguish_one() {
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  auto extinguished = flare_.extinguish_one();
-  CAF_ASSERT(extinguished);
+  [[maybe_unused]] auto extinguished = flare_.extinguish_one();
+  BROKER_ASSERT(extinguished);
   --flare_count_;
 }
 

@@ -5,7 +5,9 @@
 #include <tuple>
 #include <utility>
 
-#include "caf/uri.hpp"
+#include <caf/uri.hpp>
+
+#include "broker/network_info.hh"
 
 namespace broker {
 

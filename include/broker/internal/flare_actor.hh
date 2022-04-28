@@ -37,7 +37,7 @@ public:
 
   bool await_data(timeout_type timeout) override;
 
-  void enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) override;
+  bool enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) override;
 
   caf::mailbox_element_ptr dequeue() override;
 

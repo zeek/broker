@@ -1,5 +1,7 @@
 #include "broker/time.hh"
 
+#include "caf/timestamp.hpp"
+
 namespace broker {
 
 bool convert(timespan s, std::string& str) {
@@ -20,7 +22,8 @@ bool convert(timespan s, double& secs) {
 }
 
 bool convert(timestamp t, std::string& str) {
-  return convert(t.time_since_epoch(), str);
+  caf::append_timestamp_to_string(str, t);
+  return true;
 }
 
 bool convert(timestamp t, double& secs) {

@@ -58,8 +58,6 @@ FIXTURE_SCOPE(status_subscriber_tests, fixture)
 TEST(base_tests) {
   auto sub1 = ep.make_status_subscriber(true);
   auto sub2 = ep.make_status_subscriber(false);
-  for (auto sub : {&sub1, &sub2})
-    sub->set_rate_calculation(false);
   run();
   REQUIRE_EQUAL(sub1.available(), 0u);
   REQUIRE_EQUAL(sub2.available(), 0u);

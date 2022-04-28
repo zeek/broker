@@ -76,6 +76,8 @@ public:
   virtual bool at_end() = 0;
 };
 
+using source_driver_ptr = std::shared_ptr<source_driver>;
+
 // -- default implementation ---------------------------------------------------
 
 template <class State, class Init, class Pull, class AtEnd>
@@ -205,5 +207,12 @@ struct source_driver_impl_oracle {
 template <class Init, class Pull, class AtEnd>
 using source_driver_impl_t =
   typename source_driver_impl_oracle<Init, Pull, AtEnd>::type;
+
+template <class Init, class Pull, class AtEnd>
+auto make_source_driver(Init init, Pull pull, AtEnd at_end) {
+  using impl_type = source_driver_impl_t<Init, Pull, AtEnd>;
+  return std::make_shared<impl_type>(std::move(init), std::move(pull),
+                                     std::move(at_end));
+}
 
 } // namespace broker::detail

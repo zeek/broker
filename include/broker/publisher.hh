@@ -1,13 +1,14 @@
 #pragma once
 
+#include "broker/detail/native_socket.hh"
+#include "broker/detail/opaque_type.hh"
+#include "broker/entity_id.hh"
+#include "broker/fwd.hh"
+#include "broker/message.hh"
+
 #include <chrono>
 #include <cstddef>
 #include <vector>
-
-#include "broker/detail/shared_publisher_queue.hh"
-#include "broker/fwd.hh"
-#include "broker/message.hh"
-#include "broker/worker.hh"
 
 namespace broker {
 
@@ -36,11 +37,14 @@ public:
 
   ~publisher();
 
+  // --- factories -------------------------------------------------------------
+
+  static publisher make(endpoint& ep, topic t);
+
   // --- accessors -------------------------------------------------------------
 
   /// Returns the current demand on this publisher. The demand is the amount of
-  /// messages that can send to the core immediately plus a small desired
-  /// buffer size to minimize latency (usually 5 extra items).
+  /// messages that were requested by the Broker core.
   size_t demand() const;
 
   /// Returns the current size of the output queue.
@@ -50,23 +54,12 @@ public:
   size_t capacity() const;
 
   /// Returns the free capacity of the output queue, i.e., how many items can
-  /// be enqueued before it starts blocking. The free capacity is calculated as
-  /// `capacity - buffered`.
+  /// be enqueued before it starts blocking.
   size_t free_capacity() const;
-
-  /// Returns a rough estimate of the throughput per second of this publisher.
-  size_t send_rate() const;
-
-  /// Returns a reference to the background worker.
-  const broker::worker& worker() const {
-    return worker_;
-  }
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  auto fd() const {
-    return queue_->fd();
-  }
+  detail::native_socket fd() const;
 
   // --- mutators --------------------------------------------------------------
 
@@ -98,12 +91,11 @@ public:
 
 private:
   // -- force users to use `endpoint::make_publsiher` -------------------------
-  publisher(endpoint& ep, topic t);
+  publisher(detail::opaque_ptr q, topic t);
 
-  bool drop_on_destruction_;
-  detail::shared_publisher_queue_ptr<> queue_;
-  broker::worker worker_;
+  detail::opaque_ptr queue_;
   topic topic_;
+  bool drop_on_destruction_ = false;
 };
 
 } // namespace broker

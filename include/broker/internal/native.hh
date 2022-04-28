@@ -7,7 +7,7 @@
 
 #include <caf/actor.hpp>
 #include <caf/error.hpp>
-#include <caf/node_id.hpp>
+#include <caf/ip_address.hpp>
 
 // Generates the necessary boilerplate code for `native` to work.
 #define BROKER_MAP_CAF_TYPE(Native, Facade)                                    \
@@ -28,7 +28,6 @@ template <class Facade>
 struct conversion_oracle;
 
 BROKER_MAP_CAF_TYPE(caf::error, error)
-BROKER_MAP_CAF_TYPE(caf::node_id, endpoint_id)
 BROKER_MAP_CAF_TYPE(caf::actor, worker)
 
 /// STL-style alias to safe us some typing.
@@ -74,15 +73,15 @@ auto facade(const Native& x) {
 
 namespace broker {
 
-/// @relates endpoint_id
-template <class Inspector>
-bool inspect(Inspector& f, endpoint_id& x) {
-  return inspect(f, internal::native(x));
-}
-
 /// @relates worker
 template <class Inspector>
 bool inspect(Inspector& f, worker& x) {
+  return inspect(f, internal::native(x));
+}
+
+/// @relates error
+template <class Inspector>
+bool inspect(Inspector& f, error& x) {
   return inspect(f, internal::native(x));
 }
 

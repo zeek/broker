@@ -15,8 +15,6 @@
 
 using namespace broker;
 
-using caf::holds_alternative;
-
 namespace {
 
 struct fixture {
@@ -50,7 +48,7 @@ struct fixture {
 template <class T>
 struct holds {
   bool operator()(const data& x) const noexcept {
-    return holds_alternative<T>(x);
+    return is<T>(x);
   }
 };
 
@@ -66,35 +64,35 @@ TEST(no data) {
 TEST(boolean data) {
   add_meta(data::type::boolean);
   auto x = generate();
-  CHECK(holds_alternative<boolean>(x));
+  CHECK(is<boolean>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(count data) {
   add_meta(data::type::count);
   auto x = generate();
-  CHECK(holds_alternative<count>(x));
+  CHECK(is<count>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(integer data) {
   add_meta(data::type::integer);
   auto x = generate();
-  CHECK(holds_alternative<integer>(x));
+  CHECK(is<integer>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(real data) {
   add_meta(data::type::real);
   auto x = generate();
-  CHECK(holds_alternative<real>(x));
+  CHECK(is<real>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(string data) {
   add_meta(data::type::string, 42);
   auto x_data = generate();
-  if (!holds_alternative<std::string>(x_data)) {
+  if (!is<std::string>(x_data)) {
     CAF_ERROR("generator did not produce a string");
     return;
   }
@@ -107,42 +105,42 @@ TEST(string data) {
 TEST(address data) {
   add_meta(data::type::address);
   auto x = generate();
-  CHECK(holds_alternative<address>(x));
+  CHECK(is<address>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(subnet data) {
   add_meta(data::type::subnet);
   auto x = generate();
-  CHECK(holds_alternative<subnet>(x));
+  CHECK(is<subnet>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(port data) {
   add_meta(data::type::port);
   auto x = generate();
-  CHECK(holds_alternative<port>(x));
+  CHECK(is<port>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(timestamp data) {
   add_meta(data::type::timestamp);
   auto x = generate();
-  CHECK(holds_alternative<timestamp>(x));
+  CHECK(is<timestamp>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(timespan data) {
   add_meta(data::type::timespan);
   auto x = generate();
-  CHECK(holds_alternative<timespan>(x));
+  CHECK(is<timespan>(x));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(enum_value data) {
   add_meta(data::type::enum_value, 42);
   auto x_data = generate();
-  if (!holds_alternative<enum_value>(x_data)) {
+  if (!is<enum_value>(x_data)) {
     CAF_ERROR("generator did not produce a string");
     return;
   }
@@ -158,7 +156,7 @@ TEST(set data) {
   add_meta(data::type::string, 8);
   add_meta(data::type::integer);
   auto x_data = generate();
-  if (!holds_alternative<set>(x_data)) {
+  if (!is<set>(x_data)) {
     CAF_ERROR("generator did not produce a set");
     return;
   }
@@ -178,7 +176,7 @@ TEST(table data) {
   add_meta(data::type::address);
   add_meta(data::type::real);
   auto x_data = generate();
-  if (!holds_alternative<table>(x_data)) {
+  if (!is<table>(x_data)) {
     CAF_ERROR("generator did not produce a table");
     return;
   }
@@ -205,7 +203,7 @@ TEST(vector data) {
   add_meta(data::type::string, 8);
   add_meta(data::type::integer);
   auto x_data = generate();
-  if (!holds_alternative<vector>(x_data)) {
+  if (!is<vector>(x_data)) {
     CAF_ERROR("generator did not produce a vector");
     return;
   }
@@ -214,28 +212,29 @@ TEST(vector data) {
     CAF_ERROR("generator did not produce a vector with 3 elements");
     return;
   }
-  CHECK(holds_alternative<real>(x[0]));
-  CHECK(holds_alternative<std::string>(x[1]));
-  CHECK(holds_alternative<integer>(x[2]));
+  CHECK(is<real>(x[0]));
+  CHECK(is<std::string>(x[1]));
+  CHECK(is<integer>(x[2]));
   CHECK_EQUAL(generate(), x);
 }
 
 TEST(roundtrip with meta_data_writer) {
   internal::meta_data_writer writer{sink};
   auto x = vector{1, 2, "a", "bc"};
-  CHECK_EQUAL(writer(x), caf::none);
+  CHECK_EQUAL(writer(data{x}), caf::none);
+  MESSAGE("writer produced " << buf.size() << " Bytes");
   auto y_data = generate();
-  if (!holds_alternative<vector>(y_data)) {
+  if (!is<vector>(y_data)) {
     CAF_ERROR("generator did not produce a vector");
     return;
   }
   auto& y = get<vector>(y_data);
   REQUIRE_EQUAL(x.size(), y.size());
-  CHECK(holds_alternative<integer>(y[0]));
-  CHECK(holds_alternative<integer>(y[1]));
-  REQUIRE(holds_alternative<std::string>(y[2]));
+  CHECK(is<integer>(y[0]));
+  CHECK(is<integer>(y[1]));
+  REQUIRE(is<std::string>(y[2]));
   CHECK_EQUAL(get<std::string>(x[2]).size(), get<std::string>(y[2]).size());
-  REQUIRE(holds_alternative<std::string>(y[3]));
+  REQUIRE(is<std::string>(y[3]));
   CHECK_EQUAL(get<std::string>(x[3]).size(), get<std::string>(y[3]).size());
 }
 

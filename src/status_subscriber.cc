@@ -53,10 +53,14 @@ using value_type = status_subscriber::value_type;
 
 } // namespace
 
-status_subscriber::status_subscriber(endpoint& ep, bool receive_statuses)
-  : impl_(ep, make_status_topics(receive_statuses),
-          std::numeric_limits<long>::max()) {
+status_subscriber::status_subscriber(subscriber impl) : impl_(std::move(impl)) {
   // nop
+}
+
+status_subscriber status_subscriber::make(endpoint& ep, bool receive_statuses,
+                                          size_t queue_size) {
+  return status_subscriber{
+    subscriber::make(ep, make_status_topics(receive_statuses), queue_size)};
 }
 
 value_type status_subscriber::get(caf::timestamp timeout) {

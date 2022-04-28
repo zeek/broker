@@ -33,6 +33,7 @@ size_t mailbox::count(size_t) {
 }
 
 mailbox::mailbox(internal::flare_actor* actor) : actor_{actor} {
+  // nop
 }
 
 } // namespace broker

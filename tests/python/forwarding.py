@@ -39,26 +39,12 @@ def setup_peers(opts1=None, opts2=None, opts3=None, opts4=None, create_s1=True, 
     return ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
 class TestCommunication(unittest.TestCase):
-    def test_two_hops(self):
-        # Two hops that are subscribed, so they'll forward.
+    def test_two_subscribed_hops(self):
+        # Two hops that are subscribed.
         ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers()
 
-        ep1.publish("/test/foo", "Foo!")
-        ep4.publish("/test/bar", "Bar!")
-
-        x = s4.get()
-        self.assertEqual(x, ('/test/foo', 'Foo!'))
-        x = s1.get()
-        self.assertEqual(x, ('/test/bar', 'Bar!'))
-        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
-
-    def test_two_hops_with_forward(self):
-        # Two hops that are not subscribed, but configured to forward.
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(create_s2=False, create_s3=False)
-
-        ep2.forward("/test/");
-        ep3.forward("/test/");
-        time.sleep(1) # give time to take effect.
+        ep1.await_peer(ep4.node_id())
+        ep4.await_peer(ep1.node_id())
 
         ep1.publish("/test/foo", "Foo!")
         ep4.publish("/test/bar", "Bar!")
@@ -69,41 +55,24 @@ class TestCommunication(unittest.TestCase):
         self.assertEqual(x, ('/test/bar', 'Bar!'))
         cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
-    def test_two_hops_forwarding_disabled(self):
-        # Two hops that are subscribed, so they would forward but we disable.
-        no_forward = broker.BrokerOptions()
-        no_forward.forward = False
-
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(opts2=no_forward)
-
-        ep1.publish("/test/foo", "Foo!") # Shouldn't arrive
-        x = s4.get(1.0)
-        self.assertEqual(x, None)
-        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
-
-    def test_two_hops_without_forward(self):
-        # Two hops that are not subscribed, and hence don't forward.
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(create_s2=False, create_s3=False)
-
-        ep1.publish("/test/foo", "Foo!")
-        x = s4.get(1.0)
-        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
-        self.assertEqual(x, None)
-
-    def test_two_hops_ttl(self):
-        ttl1 = broker.BrokerOptions()
-        ttl1.ttl = 2
-        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(opts1=ttl1)
-
-        ep1.publish("/test/foo", "Foo!")
-
-        x = s2.get(1.0)
-        self.assertEqual(x, ('/test/foo', 'Foo!'))
-        x = s3.get(1.0)
-        self.assertEqual(x, ('/test/foo', 'Foo!'))
-        x = s4.get(1.0)
-        self.assertEqual(x, None) # Doesn't get here anymore.
-        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
+#### Note: disabled until we switch back to source-routing.
+#
+#    def test_two_unsubscribed_hops(self):
+#        # Two hops that are not subscribed, but still forward due to the source
+#        # routing.
+#        ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4)) = setup_peers(create_s2=False, create_s3=False)
+#
+#        ep1.await_peer(ep4.node_id())
+#        ep4.await_peer(ep1.node_id())
+#
+#        ep1.publish("/test/foo", "Foo!")
+#        ep4.publish("/test/bar", "Bar!")
+#
+#        x = s4.get()
+#        self.assertEqual(x, ('/test/foo', 'Foo!'))
+#        x = s1.get()
+#        self.assertEqual(x, ('/test/bar', 'Bar!'))
+#        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
 if __name__ == '__main__':
     #TestCommunication().test_two_hops()

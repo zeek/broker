@@ -14,17 +14,20 @@
 #include <caf/config.hpp>
 #include <caf/init_global_meta_objects.hpp>
 #include <caf/io/middleman.hpp>
-#include <caf/openssl/manager.hpp>
+#include <caf/net/middleman.hpp>
 
 #include "broker/address.hh"
+#include "broker/alm/multipath.hh"
 #include "broker/config.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/native.hh"
+#include "broker/internal/retry_state.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
+#include "broker/lamport_timestamp.hh"
 #include "broker/port.hh"
 #include "broker/snapshot.hh"
 #include "broker/status.hh"
@@ -44,6 +47,11 @@
 #endif
 
 namespace broker {
+
+bool openssl_options::authentication_enabled() const noexcept {
+  return !certificate.empty() || !key.empty() || !passphrase.empty()
+         || !capath.empty() || !cafile.empty();
+}
 
 namespace {
 
@@ -150,7 +158,7 @@ struct configuration::impl : public caf::actor_system_config {
     auto& grp = result["broker"].as_dictionary();
     put_missing(grp, "disable_ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
-    put_missing(grp, "forward", options.forward);
+    put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
       put_missing(grp, "recording-directory", std::move(*path));
     if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
@@ -173,7 +181,7 @@ configuration::configuration(skip_init_t) {
 configuration::configuration(broker_options opts) : configuration(skip_init) {
   impl_->options = opts;
   impl_->set("broker.ttl", opts.ttl);
-  caf::put(impl_->content, "broker.forward", opts.forward);
+  caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
   impl_->config_file_path = "broker.conf";
 }
@@ -200,9 +208,7 @@ void configuration::impl::init(int argc, char** argv) {
   if (argc > 1 && argv != nullptr)
     args.assign(argv + 1, argv + argc);
   // Load CAF modules.
-  load<caf::io::middleman>();
-  if (not options.disable_ssl)
-    load<caf::openssl::manager>();
+  load<caf::net::middleman>();
   // Phase 1: parse broker.conf or configuration file specified by the user on
   //          the command line (overrides hard-coded defaults).
   if (!options.ignore_broker_conf) {
@@ -223,7 +229,7 @@ void configuration::impl::init(int argc, char** argv) {
     }
   }
   put(content, "caf.metrics-filters.actors.includes",
-      std::vector<std::string>{internal::core_state::name});
+      std::vector<std::string>{internal::core_actor_state::name});
   // Phase 2: parse environment variables (override config file settings).
   if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
     auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
@@ -351,6 +357,21 @@ void configuration::openssl_cafile(std::string x) {
   impl_->openssl_cafile = std::move(x);
 }
 
+openssl_options_ptr configuration::openssl_options() const {
+  if (!options().disable_ssl) {
+    auto res = std::make_shared<broker::openssl_options>();
+    res->certificate = openssl_certificate();
+    res->key = openssl_key();
+    res->passphrase = openssl_passphrase();
+    res->capath = openssl_capath();
+    res->cafile = openssl_cafile();
+    res->skip_init = options_.skip_ssl_init;
+    return res;
+  } else {
+    return nullptr;
+  }
+}
+
 void configuration::add_option(int64_t* dst, std::string_view name,
                                std::string_view description) {
   if (dst)
@@ -474,10 +495,14 @@ std::once_flag init_global_state_flag;
 void configuration::init_global_state() {
   std::call_once(init_global_state_flag, [] {
     caf::init_global_meta_objects<caf::id_block::broker>();
-    caf::openssl::manager::init_global_meta_objects();
     caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });
+}
+
+void configuration::sync_options() {
+  set("broker.disable-ssl", options_.disable_ssl);
+  set("broker.disable-forwarding", options_.disable_forwarding);
 }
 
 } // namespace broker

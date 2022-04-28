@@ -299,6 +299,14 @@ class Store:
         self._parent = None
         self._store = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._store.reset()
+        self._parent = None
+        self._store = None
+
     def name(self):
         return self._store.name()
 
@@ -395,6 +403,16 @@ class Store:
     def _to_expiry(self, e):
         return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
 
+    def await_idle(self, timeout=None):
+        if timeout:
+            return self._store.await_idle(_broker.Timespan(float(timeout)))
+        else:
+            return self._store.await_idle()
+
+    # Points to the "owning" Endpoint to make sure Python cleans this object up
+    # before destroying the endpoint.
+    _parent = None
+
 class Endpoint(_broker.Endpoint):
     def make_subscriber(self, topics, qsize = 20, subscriber_class=Subscriber):
         topics = _make_topics(topics)
@@ -434,7 +452,6 @@ class Endpoint(_broker.Endpoint):
         bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
         for (k, v) in opts.items():
             bopts[k] = Data.from_py(v)
-
         s = _broker.Endpoint.attach_master(self, name, type, bopts)
         if not s.is_valid():
             return None
@@ -453,6 +470,12 @@ class Endpoint(_broker.Endpoint):
         # Same as above: make sure Python cleans up the store first.
         result._parent = self
         return result
+
+    def await_peer(self, node, timeout=None):
+        if timeout:
+            return  _broker.Endpoint.await_peer(self, node, _broker.Timespan(float(timeout)))
+        else:
+            return  _broker.Endpoint.await_peer(self, node)
 
     def __enter__(self):
         return self

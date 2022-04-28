@@ -96,21 +96,34 @@ bool operator==(sc x, const status& y) {
   return y == x;
 }
 
-std::string to_string(const status& s) {
-  std::string result = to_string(s.code());
+namespace {
+
+template <class StatusOrView>
+std::string status_to_string_impl(const StatusOrView& x) {
+  std::string result = to_string(x.code());
   result += '(';
-  if (s.context_.node) {
-    result += to_string(s.context_.node);
-    if (s.context_.network) {
+  if (auto ctx = x.context()) {
+    result += to_string(ctx->node);
+    if (ctx->network) {
       result += ", ";
-      result += to_string(*s.context_.network);
+      result += to_string(*ctx->network);
     }
     result += ", ";
   }
   result += '"';
-  result += to_string(s.message_);
+  result += *x.message();
   result += "\")";
   return result;
+}
+
+} // namespace
+
+std::string to_string(const status& x) {
+  return status_to_string_impl(x);
+}
+
+std::string to_string(status_view x) {
+  return status_to_string_impl(x);
 }
 
 bool convertible_to_status(const vector& xs) noexcept {
@@ -179,28 +192,10 @@ const std::string* status_view::message() const noexcept {
 std::optional<endpoint_info> status_view::context() const {
   BROKER_ASSERT(xs_ != nullptr);
   endpoint_info ei;
-  if (convert((*xs_)[2], ei))
-    return {std::move(ei)};
+  if (!convert((*xs_)[2], ei))
+    return std::nullopt;
   else
-    return {};
-}
-
-std::string to_string(status_view s) {
-  std::string result = to_string(s.code());
-  result += '(';
-  if (auto ctx = s.context()) {
-    result += to_string(ctx->node);
-    if (ctx->network) {
-      result += ", ";
-      result += to_string(*ctx->network);
-    }
-    result += ", ";
-  }
-  result += '"';
-  if (auto msg = s.message())
-	result += *msg;
-  result += "\")";
-  return result;
+    return {std::move(ei)};
 }
 
 status_view status_view::make(const data& src) {

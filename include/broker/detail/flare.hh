@@ -28,16 +28,16 @@ public:
   flare& operator=(const flare&) = delete;
 
   /// Retrieves a file descriptor that will become ready if the flare has been
-  /// "fired" and not yet "extinguishedd."
+  /// "fired" and not yet "extinguished."
   native_socket fd() const;
 
   /// Puts the object in the "ready" state by writing `n` bytes into the
   /// underlying pipe.
   void fire(size_t num = 1);
 
-  // Takes the object out of the "ready" state by consuming all bytes from the
-  // underlying pipe.
-  // @returns the number of consumed bytes
+  /// Takes the object out of the "ready" state by consuming all bytes from the
+  /// underlying pipe.
+  /// @returns the number of consumed bytes
   size_t extinguish();
 
   /// Attempts to consume only one byte from the pipe, potentially leaving the

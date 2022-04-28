@@ -1,21 +1,34 @@
-#include <utility>
-#include <string>
+#include "broker/store.hh"
 
-#include "broker/internal/logger.hh"
+#include <optional>
+#include <string>
+#include <utility>
 
 #include <caf/actor.hpp>
 #include <caf/actor_cast.hpp>
 #include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
+#include <caf/others.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
 #include "broker/expected.hh"
 #include "broker/internal/flare_actor.hh"
+#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
-#include "broker/store.hh"
+
+/// Checks whether the store has been initialized and logs an error message
+/// otherwise before "returning" void.
+#define CHECK_INITIALIZED_VOID()                                               \
+  do {                                                                         \
+    if (!initialized()) {                                                      \
+      BROKER_ERROR(__func__ << "called on an uninitialized store");            \
+      return;                                                                  \
+    }                                                                          \
+  } while (false)
 
 namespace atom = broker::internal::atom;
 
@@ -26,55 +39,263 @@ namespace broker {
 
 namespace {
 
-template <class... Ts>
-void send_as(worker& src, worker& dst, Ts&&... xs) {
-  caf::send_as(native(src), native(dst), std::forward<Ts>(xs)...);
+class state_impl : public detail::store_state {
+public:
+  endpoint_id this_peer;
+  std::string name;
+  caf::actor frontend;
+  caf::scoped_actor self;
+  request_id req_id = 1;
+
+  state_impl(endpoint_id this_peer, std::string name, caf::actor frontend_hdl)
+    : this_peer(this_peer),
+      name(std::move(name)),
+      frontend(std::move(frontend_hdl)),
+      self(frontend->home_system()) {
+    BROKER_DEBUG("created state for store" << name);
+  }
+
+  ~state_impl() {
+    BROKER_DEBUG("destroyed state for store" << name);
+  }
+
+  template <class T, class... Ts>
+  expected<T> request(Ts&&... xs) {
+    expected<T> res{T{}};
+    self->request(frontend, timeout::frontend, std::forward<Ts>(xs)...)
+      .receive([&](T& x) { res = std::move(x); },
+               [&](caf::error& e) { res = facade(e); });
+    return res;
+  }
+
+  template <class T, class... Ts>
+  expected<T> request_tagged(request_id tag, Ts&&... xs) {
+    expected<T> res{T{}};
+    self->request(frontend, timeout::frontend, std::forward<Ts>(xs)...)
+      .receive(
+        [&, tag](T& x, request_id res_tag) {
+          if (res_tag == tag) {
+            res = std::move(x);
+          } else {
+            BROKER_ERROR("frontend responded with unexpected tag");
+            res = make_error(ec::invalid_tag,
+                             "frontend responded with unexpected tag");
+          }
+        },
+        [&](caf::error& e) { res = facade(e); });
+    return res;
+  }
+
+  template <class... Ts>
+  void anon_send(Ts&&... xs) {
+    caf::anon_send(frontend, std::forward<Ts>(xs)...);
+  }
+
+  entity_id self_id() const {
+    return entity_id{this_peer, self->id()};
+  }
+
+  entity_id frontend_id() const {
+    return entity_id{this_peer, frontend.id()};
+  }
+};
+
+auto& dref(detail::store_state& state) {
+  return static_cast<state_impl&>(state);
+}
+
+auto& dref(detail::shared_store_state_ptr& state) {
+  return dref(*state);
+}
+
+template <class T, class... Ts>
+auto make_internal_command(Ts&&... xs) {
+  using namespace broker;
+  return internal_command{0, entity_id::nil(), T{std::forward<Ts>(xs)...}};
 }
 
 } // namespace
 
-store::proxy::proxy(store& s) : frontend_{s.frontend_} {
-  auto hdl = native(frontend_).home_system().spawn<internal::flare_actor>();
-  proxy_ = facade(hdl);
+} // namespace broker
+
+namespace broker {
+
+// -- private template member functions ----------------------------------------
+
+template <class F>
+void store::with_state(F f) const {
+  using namespace broker;
+  if (auto ptr = state_.lock())
+    f(dref(ptr));
+}
+
+template <class F>
+void store::with_state_ptr(F f) const {
+  using namespace broker;
+  if (auto ptr = state_.lock())
+    f(ptr);
+}
+
+template <class F, class G>
+auto store::with_state_or(F f, G fallback) const -> decltype(fallback()) {
+  using namespace broker;
+  if (auto ptr = state_.lock())
+    return f(dref(ptr));
+  else
+    return fallback();
+}
+
+template <class... Ts>
+expected<data> store::fetch(Ts&&... xs) const {
+  using namespace broker;
+  return with_state_or(
+    [&](state_impl& st) { //
+      return st.request<data>(std::forward<Ts>(xs)...);
+    },
+    []() -> expected<data> {
+      return make_error(ec::bad_member_function_call,
+                        "store state not initialized");
+    });
+}
+
+template <class T, class... Ts>
+expected<T> store::request(Ts&&... xs) {
+  with_state_or(
+    [&, this](state_impl& st) {
+      expected<T> res{ec::unspecified};
+      st.self->request(st.frontend, timeout::frontend, std::forward<Ts>(xs)...)
+        .receive([&](T& x) { res = std::move(x); },
+                 [&](caf::error& e) { res = facade(e); });
+      return res;
+    },
+    []() -> expected<data> {
+      return make_error(ec::unspecified, "store not initialized");
+    });
+}
+
+// -- constructors, destructors, and assignment operators ----------------------
+
+store::store(const store& other) : state_(other.state_) {
+  with_state_ptr([this](detail::shared_store_state_ptr& st) {
+    auto frontend = dref(st).frontend;
+    caf::anon_send(frontend, atom::increment_v, std::move(st));
+  });
+}
+
+store::store(endpoint_id this_peer, worker frontend, std::string name) {
+  BROKER_TRACE(BROKER_ARG(this_peer)
+               << BROKER_ARG(frontend) << BROKER_ARG(name));
+  if (!frontend) {
+    BROKER_ERROR("store::store called with frontend == nullptr");
+    return;
+  }
+  if (name.empty()) {
+    BROKER_ERROR("store::store called with empty name");
+    return;
+  }
+  auto hdl = native(frontend);
+  detail::shared_store_state_ptr ptr
+    = std::make_shared<state_impl>(this_peer, std::move(name), hdl);
+  state_ = ptr;
+  caf::anon_send(hdl, atom::increment_v, std::move(ptr));
+}
+
+store& store::operator=(store&& other) {
+  with_state_ptr([this](detail::shared_store_state_ptr& st) {
+    auto frontend = dref(st).frontend;
+    caf::anon_send(frontend, atom::decrement_v, std::move(st));
+  });
+  state_ = std::move(other.state_);
+  return *this;
+}
+
+store& store::operator=(const store& other) {
+  with_state_ptr([this](detail::shared_store_state_ptr& st) {
+    auto frontend = dref(st).frontend;
+    caf::anon_send(frontend, atom::decrement_v, std::move(st));
+  });
+  state_ = other.state_;
+  with_state_ptr([this](detail::shared_store_state_ptr& st) {
+    auto frontend = dref(st).frontend;
+    caf::anon_send(frontend, atom::increment_v, std::move(st));
+  });
+  return *this;
+}
+
+store::~store() {
+  with_state_ptr([this](detail::shared_store_state_ptr& st) {
+    auto frontend = dref(st).frontend;
+    caf::anon_send(frontend, atom::decrement_v, std::move(st));
+  });
+}
+
+store::proxy::proxy(store& s) {
+  s.with_state([this](state_impl& st) {
+    frontend_ = facade(st.frontend);
+    proxy_ = facade(st.self->spawn<internal::flare_actor>());
+    this_peer_ = st.this_peer;
+  });
 }
 
 request_id store::proxy::exists(data key) {
-  if (!frontend_)
+  if (frontend_) {
+    send_as(native(proxy_), native(frontend_), atom::exists_v, std::move(key),
+            ++id_);
+    return id_;
+  } else {
     return 0;
-  send_as(proxy_, frontend_, atom::exists_v, std::move(key), ++id_);
-  return id_;
+  }
 }
 
 request_id store::proxy::get(data key) {
-  if (!frontend_)
+  if (frontend_) {
+    send_as(native(proxy_), native(frontend_), atom::get_v, std::move(key),
+            ++id_);
+    return id_;
+  } else {
     return 0;
-  send_as(proxy_, frontend_, atom::get_v, std::move(key), ++id_);
-  return id_;
+  }
 }
 
 request_id store::proxy::put_unique(data key, data val,
                                     std::optional<timespan> expiry) {
-  if (!frontend_)
+  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
+                               << BROKER_ARG(this_peer_));
+  if (frontend_) {
+    send_as(native(proxy_), native(frontend_), atom::local_v,
+            make_internal_command<put_unique_command>(
+              std::move(key), std::move(val), expiry,
+              entity_id{this_peer_, native(proxy_).id()}, ++id_,
+              frontend_id()));
+    return id_;
+  } else {
     return 0;
-  send_as(
-    proxy_, frontend_, atom::local_v,
-    make_internal_command<put_unique_command>(
-      std::move(key), std::move(val), expiry, proxy_, ++id_, frontend_id()));
-  return id_;
+  }
 }
 
 request_id store::proxy::get_index_from_value(data key, data index) {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::get_v, std::move(key), std::move(index), ++id_);
+  send_as(native(proxy_), native(frontend_), atom::get_v, std::move(key),
+          std::move(index), ++id_);
   return id_;
 }
 
 request_id store::proxy::keys() {
   if (!frontend_)
     return 0;
-  send_as(proxy_, frontend_, atom::get_v, atom::keys_v, ++id_);
+  send_as(native(proxy_), native(frontend_), atom::get_v, atom::keys_v, ++id_);
   return id_;
+}
+
+worker store::frontend() const {
+  return with_state_or([](state_impl& st) { return facade(st.frontend); },
+                       []() { return worker{}; });
+}
+
+entity_id store::frontend_id() const {
+  return with_state_or([](state_impl& st) { return st.frontend_id(); },
+                       []() { return entity_id::nil(); });
 }
 
 mailbox store::proxy::mailbox() {
@@ -82,155 +303,174 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
+  BROKER_TRACE("");
   auto resp = response{error{}, 0};
   auto fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
   fa->receive(
-    [&](data& x, request_id id) {
+    [&resp, fa](data& x, request_id id) {
       resp = {std::move(x), id};
       fa->extinguish_one();
     },
-    [&](const caf::error& e, request_id id) {
-      BROKER_ERROR("proxy failed to receive response from store"
-                   << id << "->" << to_string(e));
-      resp = {facade(e), id};
+    [&resp, fa](caf::error& err, request_id id) {
+      resp = {facade(err), id};
       fa->extinguish_one();
+    },
+    caf::others >> [&](caf::message& x) -> caf::skippable_result {
+      BROKER_ERROR("proxy received an unexpected message:" << x);
+      // We *must* make sure to consume any and all messages, because the flare
+      // actor messes with the mailbox signaling. The flare fires on each
+      // enqueued message and the flare actor reports data available as long as
+      // the flare count is > 0. However, the blocking actor is unaware of this
+      // flare and hence does not extinguish automatically when dequeueing a
+      // message from the mailbox. Without this default handler to actively
+      // discard unexpected messages, CAF would spin on the mailbox forever when
+      // attempting to skip unhandled inputs because flare_actor::await_data
+      // would always return `true`.
+      fa->extinguish_one();
+      auto err = caf::make_error(caf::sec::unexpected_message);
+      resp.answer = facade(err);
+      return err;
     });
+  BROKER_DEBUG("received response from frontend:" << resp);
   return resp;
 }
 
-publisher_id store::proxy::frontend_id() const noexcept {
+entity_id store::proxy::frontend_id() const noexcept {
   auto& hdl = native(frontend_);
-  return {facade(hdl.node()), hdl.id()};
+  return {this_peer_, hdl.id()};
 }
 
 std::vector<store::response> store::proxy::receive(size_t n) {
+  BROKER_TRACE(BROKER_ARG(n));
   std::vector<store::response> rval;
   rval.reserve(n);
-  size_t i = 0;
-  auto fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
-
-  fa->receive_for(i, n) (
-    [&](data& x, request_id id) {
-      rval.emplace_back(store::response{std::move(x), id});
-      fa->extinguish_one();
-    },
-    [&](const caf::error& e, request_id id) {
-      BROKER_ERROR("proxy failed to receive response from store" << id);
-      rval.emplace_back(store::response{facade(e), id});
-      fa->extinguish_one();
-    }
-  );
-
+  for (size_t i = 0; i < n; ++i)
+    rval.emplace_back(receive());
   return rval;
 }
 
-const std::string& store::name() const {
-  return name_;
-}
-
-template <class T, class... Ts>
-expected<T> store::request(Ts&&... xs) const {
-  if (!frontend_)
-    return make_error(ec::unspecified, "store not initialized");
-  expected<T> res{ec::unspecified};
-  auto& hdl = native(frontend_);
-  caf::scoped_actor self{hdl->home_system()};
-  auto msg = caf::make_message(std::forward<Ts>(xs)...);
-  self->request(hdl, timeout::frontend, std::move(msg))
-    .receive([&](T& x) { res = std::move(x); },
-             [&](caf::error& e) { res = facade(e); });
-  return res;
+std::string store::name() const {
+  if (auto ptr = state_.lock())
+    return dref(ptr).name;
+  else
+    return {};
 }
 
 expected<data> store::exists(data key) const {
-  return request<data>(atom::exists_v, std::move(key));
+  BROKER_TRACE(BROKER_ARG(key));
+  return fetch(atom::exists_v, std::move(key));
 }
 
 expected<data> store::get(data key) const {
-  return request<data>(atom::get_v, std::move(key));
+  BROKER_TRACE(BROKER_ARG(key));
+  return fetch(atom::get_v, std::move(key));
 }
 
 expected<data> store::put_unique(data key, data val,
-                                 std::optional<timespan> expiry) const {
-  if (!frontend_)
-    return make_error(ec::unspecified, "store not initialized");
-
-  expected<data> res{ec::unspecified};
-  auto& hdl = native(frontend_);
-  caf::scoped_actor self{hdl->home_system()};
-  auto cmd = make_internal_command<put_unique_command>(
-    std::move(key), std::move(val), expiry, facade(caf::actor{self}),
-    request_id(-1), frontend_id());
-  auto msg = caf::make_message(atom::local_v, std::move(cmd));
-
-  self->send(hdl, std::move(msg));
-  self->delayed_send(self, timeout::frontend, atom::tick_v);
-  self->receive(
-    [&](data& x, request_id) {
-      res = std::move(x);
+                                 std::optional<timespan> expiry) {
+  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry));
+  return with_state_or(
+    [&, this](state_impl& st) {
+      auto tag = st.req_id++;
+      return st.request_tagged<data>(
+        tag, atom::local_v,
+        make_internal_command<put_unique_command>(
+          std::move(key), std::move(val), expiry,
+          entity_id{st.this_peer, st.self->id()}, tag,
+          entity_id{st.this_peer, st.frontend.id()}));
     },
-    [&](atom::tick) {
-    },
-    [&](caf::error& e) {
-      res = facade(e);
-    }
-  );
-
-  return res;
+    []() -> expected<data> {
+      return make_error(ec::unspecified, "store not initialized");
+    });
 }
 
 expected<data> store::get_index_from_value(data key, data index) const {
-  return request<data>(atom::get_v, std::move(key), std::move(index));
+  return fetch(atom::get_v, std::move(key), std::move(index));
 }
 
 expected<data> store::keys() const {
-  return request<data>(atom::get_v, atom::keys_v);
+  return fetch(atom::get_v, atom::keys_v);
 }
 
-publisher_id store::frontend_id() const noexcept {
-  auto& hdl = native(frontend_);
-  return {facade(hdl.node()), hdl.id()};
+bool store::initialized() const noexcept {
+  return !state_.expired();
 }
 
-void store::put(data key, data value, std::optional<timespan> expiry) const {
-  anon_send(native(frontend_), atom::local_v,
-            make_internal_command<put_command>(std::move(key), std::move(value),
-                                               expiry, frontend_id()));
+void store::put(data key, data value, std::optional<timespan> expiry) {
+  with_state([&](state_impl& st) {
+    st.anon_send(atom::local_v,
+                 make_internal_command<put_command>(
+                   std::move(key), std::move(value), expiry, st.frontend_id()));
+  });
 }
 
-void store::erase(data key) const {
-  anon_send(
-    native(frontend_), atom::local_v,
-    make_internal_command<erase_command>(std::move(key), frontend_id()));
+void store::erase(data key) {
+  with_state([&](state_impl& st) {
+    st.anon_send(atom::local_v, make_internal_command<erase_command>(
+                                  std::move(key), st.frontend_id()));
+  });
 }
 
 void store::add(data key, data value, data::type init_type,
-                std::optional<timespan> expiry) const {
-  anon_send(native(frontend_), atom::local_v,
-            make_internal_command<add_command>(std::move(key), std::move(value),
-                                               init_type, expiry,
-                                               frontend_id()));
+                std::optional<timespan> expiry) {
+  with_state([&](state_impl& st) {
+    st.anon_send(atom::local_v,
+                 make_internal_command<add_command>(std::move(key),
+                                                    std::move(value), init_type,
+                                                    expiry, st.frontend_id()));
+  });
 }
 
-void store::subtract(data key, data value,
-                     std::optional<timespan> expiry) const {
-  anon_send(native(frontend_), atom::local_v,
-            make_internal_command<subtract_command>(
-              std::move(key), std::move(value), expiry, frontend_id()));
+void store::subtract(data key, data value, std::optional<timespan> expiry) {
+  with_state([&](state_impl& st) {
+    st.anon_send(atom::local_v,
+                 make_internal_command<subtract_command>(
+                   std::move(key), std::move(value), expiry, st.frontend_id()));
+  });
 }
 
-void store::clear() const {
-  anon_send(native(frontend_), atom::local_v,
-            make_internal_command<clear_command>(frontend_id()));
+void store::clear() {
+  with_state([&](state_impl& st) {
+    st.anon_send(atom::local_v,
+                 make_internal_command<clear_command>(st.frontend_id()));
+  });
 }
 
-store::store(worker hdl, std::string name)
-  : frontend_{std::move(hdl)}, name_{std::move(name)} {
-  // nop
+bool store::await_idle(timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(timeout));
+  bool result = false;
+  with_state([&](state_impl& st) {
+    st.self->request(st.frontend, timeout, atom::await_v, atom::idle_v)
+      .receive([&result](atom::ok) { result = true; },
+               []([[maybe_unused]] const caf::error& err) {
+                 BROKER_ERROR("await_idle failed: " << err);
+               });
+  });
+  return result;
+}
+
+void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
+  BROKER_TRACE(BROKER_ARG(timeout));
+  if (!callback) {
+    BROKER_ERROR("invalid callback received for await_idle");
+    return;
+  }
+  with_state_or(
+    [&](state_impl& st) {
+      auto await_actor = [cb{std::move(callback)}](caf::event_based_actor* self,
+                                                   caf::actor frontend,
+                                                   timespan t) {
+        self->request(frontend, t, atom::await_v, atom::idle_v)
+          .then([cb](atom::ok) { cb(true); },
+                [cb](const caf::error&) { cb(false); });
+      };
+      st.self->spawn(std::move(await_actor), st.frontend, timeout);
+    },
+    [&]() { callback(false); });
 }
 
 void store::reset() {
-  // nop
+  state_.reset();
 }
 
 } // namespace broker

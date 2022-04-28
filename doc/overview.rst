@@ -104,7 +104,7 @@ figure below illustrates how one can deploy a master with several clones.
 
 Each data store has a name that identifies the master. This name must be unique
 among the endpoint's peers. The master can choose to keep its data in various
-backends, which are currently: in-memory and `SQLite <https://www.sqlite.org>`_.
+backends, which are currently: in-memory, and `SQLite <https://www.sqlite.org>`_.
 
 :ref:`data-stores` illustrates how to use data stores in different settings.
 
@@ -122,7 +122,7 @@ Broker).
 In order to get a high-level view of what Broker is doing internally, we
 recommend setting:
 
-.. code-block:: none
+::
 
     BROKER_CONSOLE_VERBOSITY=info
 
@@ -135,7 +135,7 @@ Troubleshooting a Broker application (or Zeek_ scripts that communicate over
 Broker) sometimes requires tapping into the exchanged messages directly. Setting
 the verbosity to debug instead will provide such details:
 
-.. code-block:: none
+::
 
     BROKER_CONSOLE_VERBOSITY=debug
 
@@ -158,7 +158,7 @@ configuring Broker.
 A minimal configuration file that sets console and file verbosity looks like
 this:
 
-.. code-block:: none
+::
 
     logger {
       ; note the single quotes!

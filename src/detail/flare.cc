@@ -5,11 +5,14 @@
 #include <algorithm>
 #include <exception>
 
+#include <caf/error.hpp>
+#include <caf/expected.hpp>
+#include <caf/net/pipe_socket.hpp>
+#include <caf/net/socket.hpp>
+
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
 #include "broker/internal/logger.hh"
-
-#include <caf/io/network/native_socket.hpp>
 
 #ifdef BROKER_WINDOWS
 
@@ -61,8 +64,6 @@ namespace broker::detail {
 
 namespace {
 
-namespace net = caf::io::network;
-
 constexpr size_t stack_buffer_size = 256;
 
 struct stack_buffer {
@@ -76,15 +77,20 @@ struct stack_buffer {
 } // namespace
 
 flare::flare() {
-  auto [first, second] = net::create_pipe();
-  fds_[0] = first;
-  fds_[1] = second;
-  if (auto res = net::child_process_inherit(first, false); !res)
-    BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << res.error());
-  if (auto res = net::child_process_inherit(second, false); !res)
-    BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << res.error());
-  if (auto res = net::nonblocking(first, true); !res) {
-    BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << res.error());
+  auto maybe_fds = caf::net::make_pipe();
+  if (!maybe_fds) {
+    BROKER_ERROR("failed to create pipe: " << maybe_fds.error());
+    abort();
+  }
+  auto [first, second] = *maybe_fds;
+  fds_[0] = first.id;
+  fds_[1] = second.id;
+  if (auto err = caf::net::child_process_inherit(first, false))
+    BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << err);
+  if (auto err = caf::net::child_process_inherit(second, false))
+    BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
+  if (auto err = caf::net::nonblocking(first, true)) {
+    BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
     std::terminate();
   }
   // Do not set the write handle to nonblock, because we want the producer to
@@ -93,8 +99,8 @@ flare::flare() {
 }
 
 flare::~flare() {
-  net::close_socket(fds_[0]);
-  net::close_socket(fds_[1]);
+  caf::net::close(caf::net::pipe_socket{fds_[0]});
+  caf::net::close(caf::net::pipe_socket{fds_[1]});
 }
 
 native_socket flare::fd() const {
@@ -147,7 +153,7 @@ void flare::await_one() {
     if (n < 0 && !try_again_later())
       std::terminate();
     if (n == 1) {
-      CAF_ASSERT(p.revents & POLLIN);
+      BROKER_ASSERT(p.revents & POLLIN);
       return;
     }
   }
@@ -160,7 +166,7 @@ bool flare::await_one_impl(int ms_timeout) {
   if (n < 0 && !try_again_later())
     std::terminate();
   if (n == 1) {
-    CAF_ASSERT(p.revents & POLLIN);
+    BROKER_ASSERT(p.revents & POLLIN);
     return true;
   }
   return false;

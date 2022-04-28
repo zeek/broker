@@ -53,7 +53,7 @@ void core_recorder::record_subscription(const filter_type& what) {
   }
 }
 
-void core_recorder::record_peer(const caf::node_id& peer_id) {
+void core_recorder::record_peer(const endpoint_id& peer_id) {
   if (peers_file_)
     peers_file_ << to_string(peer_id) << std::endl;
 }

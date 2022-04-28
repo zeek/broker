@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <future>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -129,28 +130,6 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
 
 #endif // BROKER_WINDOWS
 
-void publish_mode_stream(broker::endpoint& ep, const std::string& topic_str,
-                         size_t cap) {
-  auto worker = ep.publish_all(
-    [](size_t& msgs) { msgs = 0; },
-    [=](size_t& msgs, std::deque<data_message>& out, size_t hint) {
-      auto num = std::min(cap - msgs, hint);
-      std::string line;
-      for (size_t i = 0; i < num; ++i)
-        if (!std::getline(std::cin, line)) {
-          // Reached end of STDIO.
-          msgs = cap;
-          return;
-        } else {
-          out.emplace_back(make_data_message(topic_str, std::move(line)));
-        }
-      msgs += num;
-      msg_count += num;
-    },
-    [=](const size_t& msgs) { return msgs == cap; });
-  ep.wait_for(worker);
-}
-
 void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
   auto in = ep.make_subscriber({topic_str});
@@ -200,11 +179,12 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
 void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
                     size_t cap) {
   auto worker = ep.subscribe(
+    // Filter.
     {topic_str},
-    [](size_t& msgs) {
-      msgs = 0;
-    },
-    [=](size_t& msgs, data_message x) {
+    // Init.
+    [](size_t& msgs) { msgs = 0; },
+    // OnNext.
+    [cap](size_t& msgs, data_message x) {
       ++msg_count;
       if (!rate)
         print_line(std::cout, to_string(x));
@@ -213,8 +193,7 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     },
     [=](size_t&, const broker::error&) {
       // nop
-    }
-  );
+    });
   ep.wait_for(worker);
 }
 void split(std::vector<std::string>& result, std::string_view str,
@@ -312,7 +291,6 @@ int main(int argc, char** argv) {
   mode_fun fs[] = {
     publish_mode_blocking,
     publish_mode_select,
-    publish_mode_stream,
     subscribe_mode_blocking,
     subscribe_mode_select,
     subscribe_mode_stream,
@@ -321,7 +299,6 @@ int main(int argc, char** argv) {
   std::pair<std::string, std::string> as[] = {
     {"publish", "blocking"},
     {"publish", "select"},
-    {"publish", "stream"},
     {"subscribe", "blocking"},
     {"subscribe", "select"},
     {"subscribe", "stream"},

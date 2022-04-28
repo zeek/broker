@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -11,6 +12,8 @@
 
 #include "broker/backend.hh"
 #include "broker/backend_options.hh"
+#include "broker/configuration.hh"
+#include "broker/defaults.hh"
 #include "broker/detail/sink_driver.hh"
 #include "broker/detail/source_driver.hh"
 #include "broker/endpoint_id.hh"
@@ -21,6 +24,7 @@
 #include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
+#include "broker/shutdown_options.hh"
 #include "broker/status.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/store.hh"
@@ -37,8 +41,8 @@ struct endpoint_context;
 
 namespace broker {
 
-/// The main publish/subscribe abstraction. Endpoints can *peer* which each
-/// other to exchange messages. When publishing a message though an endpoint,
+/// The main publish/subscribe abstraction. Endpoints can *peer* with each
+/// other to exchange messages. When publishing a message through an endpoint,
 /// all peers with matching subscriptions receive the message.
 class endpoint {
 public:
@@ -117,6 +121,9 @@ public:
 
   explicit endpoint(configuration config);
 
+  /// @private
+  endpoint(configuration config, endpoint_id this_peer);
+
   endpoint(endpoint&&) = delete;
   endpoint(const endpoint&) = delete;
   endpoint& operator=(endpoint&&) = delete;
@@ -125,7 +132,7 @@ public:
   /// Calls `shutdown`.
   ~endpoint();
 
-  /// Shuts down all background activity and blocks until all local subscribers
+  /// Shuts down all background workers and blocks until all local subscribers
   /// and publishers have terminated. *Must* be the very last function call on
   /// this object before destroying it.
   /// @warning *Destroys* the underlying actor system. Calling *any* member
@@ -134,7 +141,9 @@ public:
   void shutdown();
 
   /// @returns a unique node id for this endpoint.
-  endpoint_id node_id() const;
+  endpoint_id node_id() const noexcept {
+    return id_;
+  }
 
   // --- peer management -------------------------------------------------------
 
@@ -142,7 +151,7 @@ public:
   /// @param address The interface to listen at. If empty, listen on all
   ///                local interfaces.
   /// @param port The port to listen locally. If 0, the endpoint selects the
-  ///             next available free port from the OS
+  ///             next available free port from the OS.
   /// @returns The port the endpoint bound to or 0 on failure.
   uint16_t listen(const std::string& address = {}, uint16_t port = 0);
 
@@ -160,7 +169,7 @@ public:
   /// Initiates a peering with a remote endpoint.
   /// @param info Bundles IP address, port, and retry interval for connecting to
   ///             the remote endpoint.
-  /// @returns True if connection was successfulluy set up.
+  /// @returns True if connection was successfully set up.
   /// @note The endpoint will also receive a status message indicating
   ///       success or failure.
   bool peer(const network_info& info) {
@@ -177,6 +186,16 @@ public:
   ///       message indicating the result of the peering operation.
   void peer_nosync(const std::string& address, uint16_t port,
             timeout::seconds retry = timeout::seconds(10));
+
+  /// Initiates a peering with a remote endpoint, without waiting
+  /// for the operation to complete.
+  /// @param address The IP address of the remote endpoint.
+  /// @param port The TCP port of the remote endpoint.
+  /// @param retry If non-zero, seconds after which to retry if connection
+  ///        cannot be established, or breaks.
+  /// @return A `future` for catching the result at a later time.
+  std::future<bool> peer_async(std::string address, uint16_t port,
+                               timeout::seconds retry = timeout::seconds(10));
 
   /// Shuts down a peering with a remote endpoint.
   /// @param address The IP address of the remote endpoint.
@@ -236,24 +255,24 @@ public:
     using driver_t = detail::source_driver_impl_t<Init, Pull, AtEnd>;
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(pred));
-    return do_publish_all(std::move(driver), true);
+    return do_publish_all(std::move(driver));
   }
 
   /// Identical to ::publish_all, but does not guarantee that `init` is called
   /// before the function returns.
   template <class Init, class Pull, class AtEnd>
-  worker publish_all_nosync(Init init, Pull f, AtEnd pred) {
-    using driver_t = detail::source_driver_impl_t<Init, Pull, AtEnd>;
-    auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
-                                             std::move(pred));
-    return do_publish_all(std::move(driver), false);
+  [[deprecated("use publish_all() instead")]] worker
+  publish_all_nosync(Init init, Pull f, AtEnd pred) {
+    return publish_all(std::move(init), std::move(f), std::move(pred));
   }
 
   // --- subscribing events ----------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for receiving error and
   /// (optionally) status events.
-  status_subscriber make_status_subscriber(bool receive_statuses = false);
+  status_subscriber
+  make_status_subscriber(bool receive_statuses = false,
+                         size_t queue_size = defaults::subscriber::queue_size);
 
   // --- forwarding events -----------------------------------------------------
 
@@ -263,29 +282,28 @@ public:
   // --- subscribing data ------------------------------------------------------
 
   /// Returns a subscriber connected to this endpoint for the topics `ts`.
-  subscriber make_subscriber(std::vector<topic> ts, size_t max_qsize = 20u);
+  subscriber
+  make_subscriber(filter_type filter,
+                  size_t queue_size = defaults::subscriber::queue_size);
 
   /// Starts a background worker from the given set of function that consumes
   /// incoming messages. The worker will run in the background, but `init` is
   /// guaranteed to be called before the function returns.
   template <class Init, class OnNext, class Cleanup>
-  worker subscribe(std::vector<topic> topics, Init init, OnNext f,
-                   Cleanup cleanup) {
-    using driver_t = detail::sink_driver_impl_t<Init, OnNext, Cleanup>;
-    auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
-                                             std::move(cleanup));
-    return do_subscribe(std::move(topics), std::move(driver), true);
+  worker subscribe(filter_type filter, Init init, OnNext on_next,
+                     Cleanup cleanup) {
+    return do_subscribe(std::move(filter),
+                        detail::make_sink_driver(std::move(init),
+                                                 std::move(on_next),
+                                                 std::move(cleanup)));
   }
 
-  /// Identical to ::subscribe, but does not guarantee that `init` is called
-  /// before the function returns.
   template <class Init, class OnNext, class Cleanup>
-  worker subscribe_nosync(std::vector<topic> topics, Init init, OnNext f,
-                          Cleanup cleanup) {
-    using driver_t = detail::sink_driver_impl_t<Init, OnNext, Cleanup>;
-    auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
-                                             std::move(cleanup));
-    return do_subscribe(std::move(topics), std::move(driver), false);
+  [[deprecated("use subscribe() instead")]] worker
+  subscribe_nosync(filter_type filter, Init init, OnNext on_next,
+                   Cleanup cleanup) {
+    return subscribe(std::move(filter), std::move(init), std::move(on_next),
+                     std::move(cleanup));
   }
 
   // --- data stores -----------------------------------------------------------
@@ -297,10 +315,12 @@ public:
   /// @returns A handle to the frontend representing the master or an error if
   ///          a master with *name* exists already.
   expected<store> attach_master(std::string name, backend type,
-                                backend_options opts=backend_options());
+                                backend_options opts = backend_options());
 
-
-  /// Attaches and/or creates a *clone* data store to an existing master.
+  /// Attaches and/or creates a *clone* data store. Once attached, the clone
+  /// tries to locate the master in the network. Note that this function does
+  /// *not* wait until the master has been located. Hence, the clone may still
+  /// raise a `no_such_master` error after some time.
   /// @param name The name of the clone.
   /// @param resync_interval The frequency at which the clone will attempt to
   ///                        reconnect/resynchronize with its master in the
@@ -324,9 +344,9 @@ public:
   ///                                 never buffer commands.
   /// @returns A handle to the frontend representing the clone, or an error if
   ///          a master *name* could not be found.
-  expected<store> attach_clone(std::string name, double resync_interval=10.0,
-                               double stale_interval=300.0,
-                               double mutation_buffer_interval=120.0);
+  expected<store> attach_clone(std::string name, double resync_interval = 10.0,
+                               double stale_interval = 300.0,
+                               double mutation_buffer_interval = 120.0);
 
   // --- messaging -------------------------------------------------------------
 
@@ -334,6 +354,48 @@ public:
   void send_later(worker who, timespan after, void* msg) {
     clock_->send_later(std::move(who), after, msg);
   }
+
+  // --- setup and testing -----------------------------------------------------
+
+  /// Initializes the OS socket layer if necessary. On Windows, this function
+  /// calls `WSAStartup`. Does nothing on POSIX systems.
+  static void init_socket_api();
+
+  /// Releases resources for the OS socket layer if necessary. On Windows, this
+  /// function calls `WSACleanup`. Does nothing on POSIX systems.
+  static void deinit_socket_api();
+
+  // --await-peer-start
+  /// Blocks execution of the current thread until either `whom` was added to
+  /// the routing table and its subscription flooding reached this endpoint or a
+  /// timeout occurs.
+  /// @param whom ID of another endpoint.
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block.
+  /// @returns `true` if `whom` was added before the timeout, `false` otherwise.
+  [[nodiscard]] bool
+  await_peer(endpoint_id whom, timespan timeout = defaults::await_peer_timeout);
+
+  /// Asynchronously runs `callback()` when `whom` was added to the routing
+  /// table and its subscription flooding reached this endpoint.
+  /// @param whom ID of another endpoint.
+  /// @param callback A function object wrapping code for asynchronous
+  ///                 execution. The argument for the callback is `true` if
+  ///                 `whom` was added before the timeout, `false` otherwise.
+  void await_peer(endpoint_id whom, std::function<void(bool)> callback,
+                  timespan timeout = defaults::await_peer_timeout);
+  // --await-peer-end
+
+  /// Blocks execution of the current thread until the filter contains `what`.
+  /// @param what Expected filter entry.
+  /// @param timeout An optional timeout for the configuring the maximum time
+  ///                this function may block.
+  /// @returns `true` if `what` was added before the timeout, `false` otherwise.
+  [[nodiscard]] bool
+  await_filter_entry(topic what,
+                     timespan timeout = defaults::await_peer_timeout);
+
+  // -- worker management ------------------------------------------------------
 
   /// Blocks the current thread until `who` terminates.
   void wait_for(worker who);
@@ -345,12 +407,17 @@ public:
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
   bool await_stores_on_shutdown() const {
-    return await_stores_on_shutdown_;
+    constexpr auto flag = shutdown_options::await_stores_on_shutdown;
+    return shutdown_options_.contains(flag);
   }
 
   /// Sets whether the endpoint waits for masters and slaves on shutdown.
   void await_stores_on_shutdown(bool x) {
-    await_stores_on_shutdown_ = x;
+    constexpr auto flag = shutdown_options::await_stores_on_shutdown;
+    if (x)
+      shutdown_options_.set(flag);
+    else
+      shutdown_options_.unset(flag);
   }
 
   /// Returns a configuration object for the metrics exporter.
@@ -359,7 +426,7 @@ public:
   }
 
   bool is_shutdown() const {
-    return destroyed_;
+    return ctx_ == nullptr;
   }
 
   bool use_real_time() const {
@@ -380,26 +447,27 @@ public:
 
   broker_options options() const;
 
+  /// Retrieves the current filter.
+  filter_type filter() const;
+
 protected:
   worker subscriber_;
 
 private:
-  worker do_subscribe(std::vector<topic>&& topics,
-                      std::shared_ptr<detail::sink_driver> driver,
-                      bool block_until_initialized);
+  worker do_subscribe(filter_type&& topics, detail::sink_driver_ptr driver);
 
-  worker do_publish_all(std::shared_ptr<detail::source_driver> driver,
-                            bool block_until_initialized);
+  worker do_publish_all(detail::source_driver_ptr driver);
 
   template <class F>
   worker make_worker(F fn);
 
   std::shared_ptr<internal::endpoint_context> ctx_;
+  endpoint_id id_;
   worker core_;
+  shutdown_options shutdown_options_;
   worker telemetry_exporter_;
   bool await_stores_on_shutdown_ = false;
-  std::vector<worker> children_;
-  bool destroyed_ = false;
+  std::vector<worker> workers_;
   std::unique_ptr<clock> clock_;
   std::vector<std::unique_ptr<background_task>> background_tasks_;
 };

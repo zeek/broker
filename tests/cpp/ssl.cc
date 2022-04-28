@@ -126,4 +126,3 @@ TEST(authenticated_failure_wrong_ssl_peer) {
 }
 
 FIXTURE_SCOPE_END()
-
