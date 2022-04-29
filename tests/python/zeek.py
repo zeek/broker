@@ -1,23 +1,10 @@
 from __future__ import print_function
 import unittest
 import multiprocessing
-import os
-import tempfile
-import subprocess
-import sys
-import time
 
 import broker
-import broker.zeek
 
-def run_zeek_path():
-    base = os.path.realpath(__file__)
-    for d in (os.path.join(os.path.dirname(base), "../../build"), os.getcwd()):
-        run_zeek = os.path.abspath(os.path.join(d, "tests/python/run-zeek"))
-        if os.path.exists(run_zeek):
-            return run_zeek
-
-    return "zeek" # Hope for the best ...
+from zeek_common import run_zeek_path, run_zeek
 
 ZeekPing = """
 redef Broker::default_connect_retry=1secs;
@@ -62,18 +49,6 @@ event pong(s: string, n: int)
     }
 """
 
-def RunZeek(script, port):
-    try:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".zeek", delete=False)
-        print(script.replace("__PORT__", str(port)), file=tmp)
-        tmp.close()
-        subprocess.check_call([run_zeek_path(), "-b", "-B", "broker", tmp.name])
-        return True
-    except subprocess.CalledProcessError:
-        return False
-    finally:
-        os.unlink(tmp.name)
-
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
         with broker.Endpoint() as ep, \
@@ -81,7 +56,7 @@ class TestCommunication(unittest.TestCase):
 
             port = ep.listen("127.0.0.1", 0)
 
-            p = multiprocessing.Process(target=RunZeek, args=(ZeekPing, port))
+            p = multiprocessing.Process(target=run_zeek, args=(ZeekPing, port))
             p.daemon = True
             p.start()
 

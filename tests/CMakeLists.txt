@@ -109,6 +109,7 @@ if (BROKER_PYTHON_BINDINGS)
 
   if (ZEEK_FOUND)
     make_python_test(zeek)
+    make_python_test(zeek-unsafe-types)
   endif ()
 
   make_python_test(communication)
