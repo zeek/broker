@@ -393,6 +393,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) {
+  setvbuf(stdout, NULL, _IOLBF, 0);
   caf::init_global_meta_objects<caf::id_block::broker_node>();
   broker::configuration::init_global_state();
   // Parse CLI parameters using our config.

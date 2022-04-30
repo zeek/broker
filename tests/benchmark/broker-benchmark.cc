@@ -221,7 +221,7 @@ void receivedStats(endpoint& ep, const data& x) {
 
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("benchmark/terminate", ev);
+    ep.publish("/benchmark/terminate", ev);
     std::this_thread::sleep_for(2s); // Give clients a bit.
     exit(0);
   }
@@ -260,7 +260,7 @@ void client_mode(endpoint& ep, bool verbose, const std::string& host,
     [](const error&) {
       // Cleanup: nop.
     });
-  // Publish events to benchmark/events.
+  // Publish events to /benchmark/events.
   // Connect to remote peer.
   VERBOSE_OUT << "*** init peering: host = " << host << ", port = " << port
               << '\n';
@@ -301,7 +301,7 @@ void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
   // Publish one message per interval.
   using std::chrono::duration_cast;
   using fractional_second = std::chrono::duration<double>;
-  auto p = ep.make_publisher("benchmark/events");
+  auto p = ep.make_publisher("/benchmark/events");
   fractional_second fractional_inc_interval{rate_increase_interval};
   auto inc_interval = duration_cast<timespan>(fractional_inc_interval);
   timestamp timeout = std::chrono::system_clock::now();
@@ -362,7 +362,7 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
     [](const error&) {
       // Cleanup: nop.
     });
-  // Listen on benchmark/terminate for stop message.
+  // Listen on /benchmark/terminate for stop message.
   std::atomic<bool> terminate{false};
   ep.subscribe(
     {"/benchmark/terminate"},

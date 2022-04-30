@@ -146,10 +146,12 @@ public:
   void peer_unavailable(const network_info& x);
 
   /// Called whenever a new client connected.
-  void client_added(const network_info& addr);
+  void client_added(endpoint_id client_id, const network_info& addr,
+                    const std::string& type);
 
   /// Called whenever a client disconnected.
-  void client_removed(const network_info& addr);
+  void client_removed(endpoint_id client_id, const network_info& addr,
+                      const std::string& type);
 
   // -- connection management --------------------------------------------------
 
@@ -193,8 +195,8 @@ public:
 
   /// Connects the input and output buffers for a new client to our central
   /// merge point.
-  caf::error init_new_client(const network_info& addr, filter_type filter,
-                             data_consumer_res in_res,
+  caf::error init_new_client(const network_info& addr, const std::string& type,
+                             filter_type filter, data_consumer_res in_res,
                              data_producer_res out_res);
 
   // -- topic management -------------------------------------------------------

@@ -7,6 +7,8 @@
 #include "broker/fwd.hh"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -91,6 +93,10 @@ enum class ec : uint8_t {
   no_connector_available,
   /// Opening a resource failed.
   cannot_open_resource,
+  /// Failed to serialize an object to text or binary output.
+  serialization_failed,
+  /// Failed to deserialize an object from text or binary input.
+  deserialization_failed,
 };
 // --ec-enum-end
 
@@ -205,6 +211,9 @@ using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
 std::string to_string(ec code);
+
+/// @relates ec
+std::string_view enum_str(ec code);
 
 /// @relates ec
 bool convert(const std::string& str, ec& code) noexcept;

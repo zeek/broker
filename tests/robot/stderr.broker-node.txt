@@ -1,0 +1,9 @@
+"2022-04-30T17:14:49.636" relay: relay messages
+"2022-04-30T17:14:49.766" relay: [<$>/local/data/statuses, (status, endpoint_discovered, (ecf827fe-ebd4-5efe-861a-5a1a533bb8b6, nil, nil, nil), found a new client in the network)]
+"2022-04-30T17:14:49.766" relay: [<$>/local/data/statuses, (status, peer_added, (ecf827fe-ebd4-5efe-861a-5a1a533bb8b6, ::1, 57117/tcp, 0), handshake successful)]
+"2022-04-30T17:14:49.766" relay: [<$>/local/data/statuses, (status, endpoint_discovered, (efcfe755-81e2-5461-a971-e86b38423963, nil, nil, nil), found a new client in the network)]
+"2022-04-30T17:14:49.766" relay: [<$>/local/data/statuses, (status, peer_added, (efcfe755-81e2-5461-a971-e86b38423963, ::1, 57118/tcp, 0), handshake successful)]
+"2022-04-30T17:14:49.784" relay: [<$>/local/data/statuses, (status, peer_lost, (ecf827fe-ebd4-5efe-861a-5a1a533bb8b6, ::1, 57117/tcp, 0), lost connection to client)]
+"2022-04-30T17:14:49.784" relay: [<$>/local/data/statuses, (status, endpoint_unreachable, (ecf827fe-ebd4-5efe-861a-5a1a533bb8b6, nil, nil, nil), lost the last path)]
+"2022-04-30T17:14:49.785" relay: [<$>/local/data/statuses, (status, peer_lost, (efcfe755-81e2-5461-a971-e86b38423963, ::1, 57118/tcp, 0), lost connection to client)]
+"2022-04-30T17:14:49.785" relay: [<$>/local/data/statuses, (status, endpoint_unreachable, (efcfe755-81e2-5461-a971-e86b38423963, nil, nil, nil), lost the last path)]

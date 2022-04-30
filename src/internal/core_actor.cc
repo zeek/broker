@@ -173,10 +173,11 @@ caf::behavior core_actor_state::make_behavior() {
       unpeer(peer_id);
     },
     // -- non-native clients, e.g., via WebSocket API --------------------------
-    [this](atom::attach_client, const network_info& addr, filter_type& filter,
+    [this](atom::attach_client, const network_info& addr,
+           const std::string& type, filter_type& filter,
            data_consumer_res& in_res,
            data_producer_res& out_res) -> caf::result<void> {
-      if (auto err = init_new_client(addr, std::move(filter),
+      if (auto err = init_new_client(addr, type, std::move(filter),
                                      std::move(in_res), std::move(out_res)))
         return err;
       else
@@ -490,8 +491,7 @@ std::vector<endpoint_id> core_actor_state::peer_ids() const {
 
 void core_actor_state::peer_discovered(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt},
-       sc_constant<sc::endpoint_discovered>(),
+  emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_discovered>(),
        "found a new peer in the network");
 }
 
@@ -520,14 +520,14 @@ void core_actor_state::peer_removed(endpoint_id peer_id,
 
 void core_actor_state::peer_unreachable(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt},
-       sc_constant<sc::endpoint_unreachable>(), "lost the last path");
+  emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_unreachable>(),
+       "lost the last path");
   peer_filters.erase(peer_id);
 }
 
 void core_actor_state::cannot_remove_peer(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, std::nullopt}, ec_constant<ec::peer_invalid>(),
+  emit(endpoint_info{peer_id}, ec_constant<ec::peer_invalid>(),
        "cannot unpeer from unknown peer");
   BROKER_DEBUG("cannot unpeer from unknown peer" << peer_id);
 }
@@ -545,16 +545,25 @@ void core_actor_state::peer_unavailable(const network_info& addr) {
        ec_constant<ec::peer_unavailable>(), "unable to connect to remote peer");
 }
 
-void core_actor_state::client_added(const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(addr));
-  emit(endpoint_info{endpoint_id::nil(), addr},
-       sc_constant<sc::client_added>(), "added new client");
+void core_actor_state::client_added(endpoint_id client_id,
+                                    const network_info& addr,
+                                    const std::string& type) {
+  BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
+  emit(endpoint_info{client_id, std::nullopt, type},
+       sc_constant<sc::endpoint_discovered>(),
+       "found a new client in the network");
+  emit(endpoint_info{client_id, addr, std::move(type)},
+       sc_constant<sc::peer_added>(), "handshake successful");
 }
 
-void core_actor_state::client_removed(const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(addr));
-  emit(endpoint_info{endpoint_id::nil(), addr},
-       sc_constant<sc::client_removed>(), "client disconnected");
+void core_actor_state::client_removed(endpoint_id client_id,
+                                      const network_info& addr,
+                                      const std::string& type) {
+  BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
+  emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_lost>(),
+       "lost connection to client");
+  emit(endpoint_info{client_id, std::nullopt, std::move(type)},
+       sc_constant<sc::endpoint_unreachable>(), "lost the last path");
 }
 
 // -- connection management ----------------------------------------------------
@@ -831,6 +840,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
 }
 
 caf::error core_actor_state::init_new_client(const network_info& addr,
+                                             const std::string& type,
                                              filter_type filter,
                                              data_consumer_res in_res,
                                              data_producer_res out_res) {
@@ -850,41 +860,43 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // we assign a UUID to each client and treat it almost like a peer.
   auto client_id = endpoint_id::random();
   // Emit status updates.
-  client_added(addr);
+  client_added(client_id, addr, type);
   // Hook into the central merge point for forwarding the data to the client.
   if (out_res) {
-    central_merge
-      ->as_observable()
-      // Select by subscription.
-      .filter([this, filter, client_id](const node_message& msg) {
-              if (get_sender(msg) == client_id)
-              return false;
-              detail::prefix_matcher f;
-              return f(filter, get_topic(msg));
-              })
-    // Deserialize payload and wrap it into an data message.
-    .flat_map_optional([this](const node_message& msg) {
-                       // TODO: repeats deserialization in the core! Ideally, this
-                       //       would only happen exactly once per message.
-                       return unpack<data_message>(get_packed_message(msg));
-                       })
-    // Emit values to the producer resource.
-    .subscribe(out_res);
+    auto sub = central_merge
+                 ->as_observable()
+                 // Select by subscription.
+                 .filter([this, filter, client_id](const node_message& msg) {
+                   if (get_sender(msg) == client_id)
+                     return false;
+                   detail::prefix_matcher f;
+                   return f(filter, get_topic(msg));
+                 })
+                 // Deserialize payload and wrap it into an data message.
+                 .flat_map_optional([this](const node_message& msg) {
+                   // TODO: repeats deserialization in the core! Ideally, this
+                   //       would only happen exactly once per message.
+                   return unpack<data_message>(get_packed_message(msg));
+                 })
+                 // Emit values to the producer resource.
+                 .subscribe(out_res);
+    subscriptions.emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
   auto in = self->make_observable()
               .from_resource(in_res)
               // If the client closes this buffer, we assume a disconnect.
-              .do_finally([this, addr] {
+              .do_finally([this, client_id, addr, type] {
                 BROKER_DEBUG("client" << addr << "disconnected");
-                client_removed(addr);
+                client_removed(client_id, addr, type);
               })
               .map([this, client_id](const data_message& msg) {
                 return make_node_message(client_id, endpoint_id::nil(),
                                          pack(msg));
               })
               .as_observable();
-  central_merge->add(std::move(in));
+  auto sub = central_merge->add(std::move(in));
+  subscriptions.emplace_back(sub);
   return caf::none;
 }
 

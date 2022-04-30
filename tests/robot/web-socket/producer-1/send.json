@@ -1,0 +1,119 @@
+{
+  "@type": "data-message",
+  "topic": "web-socket-test",
+  "data": {
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "string",
+            "data": "event_1"
+          },
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "integer",
+                "data": 1
+              },
+              {
+                "@data-type": "string",
+                "data": "test"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+NEXT_MESSAGE
+{
+  "@type": "data-message",
+  "topic": "web-socket-test",
+  "data": {
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "string",
+            "data": "event_1"
+          },
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "integer",
+                "data": 2
+              },
+              {
+                "@data-type": "string",
+                "data": "test"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+NEXT_MESSAGE
+{
+  "@type": "data-message",
+  "topic": "web-socket-test",
+  "data": {
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "string",
+            "data": "event_1"
+          },
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "integer",
+                "data": 3
+              },
+              {
+                "@data-type": "string",
+                "data": "test"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

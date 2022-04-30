@@ -7,6 +7,7 @@
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
+#include "broker/internal/json_client.hh"
 #include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
@@ -29,8 +30,6 @@
 #include <caf/exit_reason.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
-#include <caf/json_reader.hpp>
-#include <caf/json_writer.hpp>
 #include <caf/message.hpp>
 #include <caf/net/middleman.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
@@ -105,105 +104,6 @@ struct async_helper_state {
 template <class OnValue, class OnError>
 using async_helper_actor
   = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
-
-struct json_bridge_state {
-  static inline const char* name = "broker.json_bridge";
-
-  using in_t = caf::async::consumer_resource<caf::cow_string>;
-
-  using out_t = caf::async::producer_resource<caf::cow_string>;
-
-  json_bridge_state(caf::event_based_actor* selfptr, caf::actor core,
-                    network_info addr, in_t in, out_t out,
-                    std::string user_agent)
-    : self(selfptr) {
-    BROKER_INFO("new JSON client with address" << addr << "and user agent"
-                                               << user_agent);
-    reader.mapper(&mapper);
-    writer.mapper(&mapper);
-    using caf::cow_string;
-    using caf::flow::observable;
-    using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
-    self //
-      ->make_observable()
-      .from_resource(in) // Read all input text messages.
-      .head_and_tail()   // The first message contains the filter.
-      .for_each([this, out, core, addr](const head_and_tail_t& head_and_tail) {
-        auto& [head, tail] = head_and_tail.data();
-        filter_type filter;
-        reader.load(head.str());
-        if (!reader.apply(filter)) {
-          // Received malformed input: drop remaining input and quit.
-          auto err = caf::make_error(caf::sec::invalid_argument,
-                                     "first message must contain a filter");
-          using impl_t = caf::flow::observable_error_impl<cow_string>;
-          auto obs = caf::make_counted<impl_t>(self, std::move(err));
-          obs->as_observable().subscribe(out);
-        } else {
-          // Ok, set up the actual pipeline and connect to the core.
-          run(core, std::move(filter), addr, tail, out);
-        }
-      });
-  }
-
-  void run(caf::actor core, filter_type filter, network_info addr,
-           caf::flow::observable<caf::cow_string> in, out_t out) {
-    using caf::async::make_spsc_buffer_resource;
-    // Parse all JSON coming in and forward them to the core.
-    auto [core_pull1, core_push1] = make_spsc_buffer_resource<data_message>();
-    in.flat_map_optional([this](const caf::cow_string& str) {
-        std::optional<data_message> result;
-        reader.reset();
-        if (reader.load(str)) {
-          using std::get;
-          data_message msg;
-          auto decorator = decorated(msg);
-          if (reader.apply(decorator))
-            result = std::move(msg);
-        }
-        return result;
-      })
-      .subscribe(core_push1);
-    // Pull data from the core and forward as JSON.
-    if (!filter.empty()) {
-      auto [core_pull2, core_push2] = make_spsc_buffer_resource<data_message>();
-      self->make_observable()
-        .from_resource(core_pull2)
-        .flat_map_optional([this](const data_message& msg) {
-          std::optional<caf::cow_string> result;
-          auto& [t, d] = msg.data();
-          writer.reset();
-          auto ok = writer.begin_object_t<data_message>() // begin object
-                    && writer.begin_field("topic")        // begin topic
-                    && writer.apply(t)                    // topic 'payload'
-                    && writer.end_field()                 // end topic
-                    && writer.begin_field("data")         // begin data
-                    && writer.apply(d)                    // data 'payload'
-                    && writer.end_field()                 // end data
-                    && writer.end_object();               // end object
-          if (ok) {
-            auto json = writer.str();
-            auto str = std::string{json.begin(), json.end()};
-            result = caf::cow_string{std::move(str)};
-          }
-          return result;
-        })
-        .subscribe(out);
-      caf::anon_send(core, atom::attach_client_v, addr, filter, core_pull1,
-                     core_push2);
-    } else {
-      caf::anon_send(core, atom::attach_client_v, addr, filter_type{},
-                     core_pull1, caf::async::producer_resource<data_message>{});
-    }
-  }
-
-  caf::event_based_actor* self;
-  internal::json_type_mapper mapper;
-  caf::json_reader reader;
-  caf::json_writer writer;
-};
-
-using json_bridge_actor = caf::stateful_actor<json_bridge_state>;
 
 caf::actor_system_config& nat_cfg(configuration& cfg) {
   internal::configuration_access helper{&cfg};
@@ -690,24 +590,26 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
       using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
       using producer_res_t = caf::async::producer_resource<caf::cow_string>;
       using res_t = std::tuple<consumer_res_t, producer_res_t, trait>;
-      auto on_request = [sysptr = &sys, core](const caf::settings& hdr) {
-        printf("HDR: %s\n", to_string(hdr).c_str());
+      auto on_request = [sp = &sys, id = id_, core](const caf::settings& hdr) {
         auto path = caf::get_or(hdr, "web-socket.path", "");
         using res_t
           = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait>>;
-        if (path == "v1/events/json") {
+        if (path == "/v1/events/json") {
           auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent",
                                         "null");
           auto addr = network_info{
             caf::get_or(hdr, "web-socket.remote-address", "unknown"),
             caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
+          BROKER_INFO("new JSON client with address" << addr << "and user agent"
+                                                     << user_agent);
           using caf::async::make_spsc_buffer_resource;
           auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
           auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
-          sysptr->spawn<json_bridge_actor>(core, addr, pull2, push1,
-                                           std::move(user_agent));
+          using impl_t = internal::json_client_actor;
+          sp->spawn<impl_t>(id, core, addr, pull2, push1);
           return res_t{std::make_tuple(pull1, push2, trait{})};
         } else {
+          BROKER_INFO("rejected JSON client on invalid path" << path);
           return res_t{caf::make_error(caf::sec::invalid_argument,
                                        "invalid path; try /v1/events/json")};
         }

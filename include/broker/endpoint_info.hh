@@ -13,8 +13,46 @@ namespace broker {
 /// Information about an endpoint.
 /// @relates endpoint
 struct endpoint_info {
-  endpoint_id node; ///< A unique context ID per machine/process.
-  std::optional<network_info> network; ///< Optional network-level information.
+  endpoint_info(endpoint_info&&) = default;
+  endpoint_info(const endpoint_info&) = default;
+  endpoint_info& operator=(endpoint_info&&) = default;
+  endpoint_info& operator=(const endpoint_info&) = default;
+
+  endpoint_info() : type("invalid") {
+    // nop
+  }
+
+  explicit endpoint_info(endpoint_id id) : node(id), type("native") {
+    // nop
+  }
+
+  endpoint_info(endpoint_id id, std::nullopt_t) : endpoint_info(id) {
+    // nop
+  }
+
+  endpoint_info(endpoint_id id, network_info net)
+    : node(id), network(std::move(net)), type("native") {
+    // nop
+  }
+
+  endpoint_info(endpoint_id id, std::nullopt_t, std::string ep_type)
+    : node(id), type(std::move(ep_type)) {
+    // nop
+  }
+
+  endpoint_info(endpoint_id id, network_info net, std::string ep_type)
+    : node(id), network(std::move(net)), type(std::move(ep_type)) {
+    // nop
+  }
+
+  /// Uniquely identifies an endpoint in the network.
+  endpoint_id node;
+
+  /// Network-level information if available.
+  std::optional<network_info> network;
+
+  /// Denotes the type of an endpoint, e.g., "native" or "web-socket".
+  std::string type;
 };
 
 /// @relates endpoint_info

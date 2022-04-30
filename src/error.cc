@@ -20,7 +20,7 @@ namespace {
 using internal::native;
 using native_t = caf::error;
 
-const char* ec_names[] = {
+constexpr std::string_view ec_names[] = {
   "none",
   "unspecified",
   "peer_incompatible",
@@ -57,6 +57,8 @@ const char* ec_names[] = {
   "no_path_to_peer",
   "no_connector_available",
   "cannot_open_resource",
+  "serialization_failed",
+  "deserialization_failed",
 };
 
 template <class T, size_t N>
@@ -170,11 +172,17 @@ error make_error(ec code, endpoint_info info, std::string description) {
 std::string to_string(ec code) {
   auto index = static_cast<uint8_t>(code);
   BROKER_ASSERT(index < array_size(ec_names));
+  return std::string{ec_names[index]};
+}
+
+std::string_view enum_str(ec code) {
+  auto index = static_cast<uint8_t>(code);
+  BROKER_ASSERT(index < array_size(ec_names));
   return ec_names[index];
 }
 
 bool convert(const std::string& str, ec& code) noexcept {
-  auto predicate = [&](const char* cstr) { return cstr == str; };
+  auto predicate = [&](std::string_view x) { return x == str; };
   auto begin = std::begin(ec_names);
   auto end = std::end(ec_names);
   auto i = std::find_if(begin, end, predicate);
