@@ -6,6 +6,7 @@
 #include "broker/fwd.hh"
 #include "broker/internal/fwd.hh"
 #include "broker/internal/native.hh"
+#include "broker/sockopt.hh"
 #include "broker/time.hh"
 
 #include <caf/config.hpp>
@@ -156,6 +157,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::set))
   BROKER_ADD_TYPE_ID((broker::shutdown_options))
   BROKER_ADD_TYPE_ID((broker::snapshot))
+  BROKER_ADD_TYPE_ID((broker::sockopt))
   BROKER_ADD_TYPE_ID((broker::status))
   BROKER_ADD_TYPE_ID((broker::subnet))
   BROKER_ADD_TYPE_ID((broker::subtract_command))

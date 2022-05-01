@@ -330,7 +330,10 @@ PYBIND11_MODULE(_broker, m) {
         }))
     .def("__repr__", [](const broker::endpoint& e) { return to_string(e.node_id()); })
     .def("node_id", [](const broker::endpoint& e) { return to_string(e.node_id()); })
-    .def("listen", &broker::endpoint::listen, py::arg("address"), py::arg("port") = 0)
+    .def("listen",
+         [](broker::endpoint&ep,std::string& addr, uint16_t port) {
+           return ep.listen(addr, port);
+         })
     .def("peer",
          [](broker::endpoint& ep, std::string& addr, uint16_t port, double retry) -> bool {
 	 return ep.peer(addr, port, std::chrono::seconds((int)retry));},

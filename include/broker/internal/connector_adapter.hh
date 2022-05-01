@@ -48,7 +48,7 @@ public:
                   callback<std::optional<endpoint_id>> on_success,
                   error_callback on_error);
 
-  void async_listen(const std::string& host, uint16_t port,
+  void async_listen(const std::string& host, uint16_t port, sockopt opts,
                     callback<uint16_t> on_success, error_callback on_error);
 
   void async_shutdown();

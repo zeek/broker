@@ -166,9 +166,10 @@ void connector_adapter::async_connect(const network_info& addr,
 }
 
 void connector_adapter::async_listen(const std::string& host, uint16_t port,
+                                     sockopt opts,
                                      callback<uint16_t> on_success,
                                      error_callback on_error) {
-  BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port));
+  BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port) << BROKER_ARG(opts));
   using caf::get;
   using std::move;
   auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
@@ -183,7 +184,7 @@ void connector_adapter::async_listen(const std::string& host, uint16_t port,
   };
   auto eid = next_id();
   pending_.emplace(eid, std::move(h));
-  conn_->async_listen(eid, host, port);
+  conn_->async_listen(eid, host, port, opts);
 }
 
 void connector_adapter::async_shutdown() {

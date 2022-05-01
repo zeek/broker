@@ -402,9 +402,10 @@ private:
         }
         case connector_msg::listen: {
           BROKER_DEBUG("received listen event");
-          auto&& [eid, host, port]
-            = from_source<connector_event_id, std::string, uint16_t>(src);
-          mgr.listen(eid, host, port);
+          auto&& [eid, host, port, opts]
+            = from_source<connector_event_id, std::string, uint16_t, sockopt>(
+              src);
+          mgr.listen(eid, host, port, opts);
           break;
         }
         default:
@@ -1176,7 +1177,58 @@ struct connect_manager {
     connect(make_connect_state(this, event_id, addr));
   }
 
-  void listen(connector_event_id event_id, std::string& addr, uint16_t port) {
+  static caf::error add_reuse_addr(caf::net::tcp_accept_socket fd) {
+    int on = 1;
+    auto res = setsockopt(fd.id, SOL_SOCKET, SO_REUSEADDR,
+                          reinterpret_cast<char*>(&on),
+                          static_cast<unsigned>(sizeof(on)));
+    if (res != 0)
+      return caf::make_error(caf::sec::network_syscall_failed, "setsockopt",
+                             caf::net::last_socket_error_as_string());
+    else
+      return caf::none;
+  }
+
+  static caf::error add_reuse_port(caf::net::tcp_accept_socket fd) {
+#ifdef SO_REUSEPORT
+    int on = 1;
+    auto res = setsockopt(fd.id, SOL_SOCKET, SO_REUSEPORT,
+                          reinterpret_cast<char*>(&on),
+                          static_cast<unsigned>(sizeof(on)));
+    if (res != 0)
+      return caf::make_error(caf::sec::network_syscall_failed, "setsockopt",
+                             caf::net::last_socket_error_as_string());
+    else
+      return caf::none;
+#else
+    return caf::none;
+#endif
+  }
+
+  static caf::error add_reuse_both(caf::net::tcp_accept_socket fd) {
+    if (auto err = add_reuse_addr(fd))
+      return err;
+    else
+      return add_reuse_port(fd);
+  }
+
+  static caf::net::tcp_accept_socket_operator fn_for(sockopt opts) {
+    auto mask = sockopt::reuse_addr & sockopt::reuse_port;
+    if ((opts & mask) == mask) {
+      return add_reuse_both;
+    } else if ((opts & sockopt::reuse_addr) == sockopt::reuse_addr) {
+      return add_reuse_addr;
+    } else if ((opts & sockopt::reuse_port) == sockopt::reuse_port) {
+      return add_reuse_port;
+    } else {
+      return +[](caf::net::tcp_accept_socket) -> caf::error { //
+        return caf::none;
+      };
+    }
+  }
+
+  void listen(connector_event_id event_id, std::string& addr, uint16_t port,
+              sockopt opts) {
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
     if (addr.empty())
@@ -1184,7 +1236,7 @@ struct connect_manager {
     else
       authority.host = addr;
     authority.port = port;
-    if (auto sock = caf::net::make_tcp_accept_socket(authority, true)) {
+    if (auto sock = caf::net::make_tcp_accept_socket(authority, fn_for(opts))) {
       if (auto actual_port = caf::net::local_port(*sock)) {
         BROKER_DEBUG("started listening on port" << *actual_port << "socket"
                                                  << sock->id);
@@ -1803,9 +1855,11 @@ void connector::async_drop(const connector_event_id event_id,
 }
 
 void connector::async_listen(connector_event_id event_id,
-                             const std::string& address, uint16_t port) {
-  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(address) << BROKER_ARG(port));
-  auto buf = to_buf(connector_msg::listen, event_id, address, port);
+                             const std::string& address, uint16_t port,
+                             sockopt opts) {
+  BROKER_TRACE(BROKER_ARG(event_id)
+               << BROKER_ARG(address) << BROKER_ARG(port) << BROKER_ARG(opts));
+  auto buf = to_buf(connector_msg::listen, event_id, address, port, opts);
   write_to_pipe(buf);
 }
 

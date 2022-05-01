@@ -25,6 +25,7 @@
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/shutdown_options.hh"
+#include "broker/sockopt.hh"
 #include "broker/status.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/store.hh"
@@ -152,8 +153,10 @@ public:
   ///                local interfaces.
   /// @param port The port to listen locally. If 0, the endpoint selects the
   ///             next available free port from the OS.
+  /// @param err If non-null, stores the error when the functions returns 0.
   /// @returns The port the endpoint bound to or 0 on failure.
-  uint16_t listen(const std::string& address = {}, uint16_t port = 0);
+  uint16_t listen(const std::string& address = {}, uint16_t port = 0,
+                  error* err = nullptr, sockopt = sockopt::none);
 
   /// Initiates a peering with a remote endpoint.
   /// @param address The IP address of the remote endpoint.

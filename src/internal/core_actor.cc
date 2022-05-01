@@ -139,13 +139,13 @@ caf::behavior core_actor_state::make_behavior() {
   // Create the behavior (set of message handlers / callbacks) for the actor.
   caf::behavior result{
     // -- peering --------------------------------------------------------------
-    [this](atom::listen, const std::string& addr, uint16_t port) {
+    [this](atom::listen, const std::string& addr, uint16_t port, sockopt opts) {
       auto rp = self->make_response_promise();
       if (!adapter) {
         rp.deliver(caf::make_error(ec::no_connector_available));
       } else {
         adapter->async_listen(
-          addr, port,
+          addr, port, opts,
           [rp](uint16_t actual_port) mutable {
             rp.deliver(atom::listen_v, atom::ok_v, actual_port);
           },

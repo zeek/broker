@@ -12,6 +12,7 @@
 #include "broker/fwd.hh"
 #include "broker/internal/pending_connection.hh"
 #include "broker/network_info.hh"
+#include "broker/sockopt.hh"
 
 namespace broker::internal {
 
@@ -69,7 +70,7 @@ public:
   void async_drop(connector_event_id event_id, const network_info& addr);
 
   void async_listen(connector_event_id event_id, const std::string& host,
-                    uint16_t port);
+                    uint16_t port, sockopt opts);
 
   void async_shutdown();
 
