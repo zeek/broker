@@ -607,13 +607,25 @@ class Data(_broker.Data):
 
 class ImmutableData(Data):
     """A Data specialization that uses immutable complex types for returned Python
-    objects. For sets, the return type is frozenset, for tables it's a
-    MappingProxyType of a dict with a straightforward hashing implementation,
-    and for vectors it's Python tuples."""
-
-    class HashableDict(dict):
+    objects. For sets, the return type is frozenset, for tables it's a hashable,
+    read-only derivative of dict, and for vectors it's Python tuples.
+    """
+    class HashableReadOnlyDict(dict):
         def __hash__(self):
             return hash(frozenset(self.items()))
+
+        def __readonly__(self, *args, **kwargs):
+            raise TypeError('cannot modify this dict')
+
+        # https://stackoverflow.com/a/31049908
+        __setitem__ = __readonly__
+        __delitem__ = __readonly__
+        pop = __readonly__
+        popitem = __readonly__
+        clear = __readonly__
+        update = __readonly__
+        setdefault = __readonly__
+        del __readonly__
 
     @staticmethod
     def to_py(d):
@@ -622,7 +634,10 @@ class ImmutableData(Data):
 
         def to_table(t):
             tmp = {ImmutableData.to_py(k): ImmutableData.to_py(v) for (k, v) in t.items()}
-            return types.MappingProxyType(ImmutableData.HashableDict(tmp.items()))
+            # It's tempting here to use types.MappingProxyType here, but it is
+            # not hashable, so doesn't solve our main problem, and cannot be
+            # derived from.
+            return ImmutableData.HashableReadOnlyDict(tmp.items())
 
         def to_vector(v):
             return tuple(ImmutableData.to_py(i) for i in v)

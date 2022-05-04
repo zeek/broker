@@ -1,3 +1,11 @@
+2.2.0-272 | 2022-05-04 11:14:41 -0700
+
+  * Expand tests to verify handling of Python-unsafe types sent by Zeek (Christian Kreibich, Corelight)
+
+  * Add broker.zeek.SafeEvent to work around data rendering problems (Christian Kreibich, Corelight)
+
+  * Expand HashableDict in favor of types.MappingProxyType (Christian Kreibich, Corelight)
+
 2.2.0-268 | 2022-05-04 10:42:37 -0700
 
   * Remove missed usage of previously-removed bro.py (Tim Wojtulewicz, Corelight)
