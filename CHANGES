@@ -1,3 +1,7 @@
+2.2.0-268 | 2022-05-04 10:42:37 -0700
+
+  * Remove missed usage of previously-removed bro.py (Tim Wojtulewicz, Corelight)
+
 2.2.0-267 | 2022-05-04 09:44:46 -0700
 
   * Remove long-deprecated bro.py (Tim Wojtulewicz)
