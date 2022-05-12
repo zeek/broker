@@ -60,7 +60,6 @@ struct openssl_options {
   std::string passphrase;
   std::string capath;
   std::string cafile;
-  bool skip_init = false; // Initialized from the matching broker option.
 
   bool authentication_enabled() const noexcept;
 };

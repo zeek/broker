@@ -13,6 +13,7 @@
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/internal/web_socket.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
@@ -62,6 +63,8 @@
 #ifdef BROKER_WINDOWS
 #include "Winsock2.h"
 #endif
+
+using namespace std::literals;
 
 namespace atom = broker::internal::atom;
 
@@ -388,8 +391,9 @@ public:
   }
 
   internal::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer,
+                                const broker_options& broker_cfg,
                                 openssl_options_ptr ssl_cfg) {
-    connector_ = std::make_shared<internal::connector>(this_peer,
+    connector_ = std::make_shared<internal::connector>(this_peer, broker_cfg,
                                                        std::move(ssl_cfg));
     thread_ = std::thread{[ptr{connector_}, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
@@ -504,7 +508,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   internal::connector_ptr conn_ptr;
   if (!caf::get_or(cfg, "broker.disable-connector", false)) {
     auto conn_task = std::make_unique<connector_task>();
-    conn_ptr = conn_task->start(sys, id_, std::move(ssl_cfg));
+    conn_ptr = conn_task->start(sys, id_, config.options(), ssl_cfg);
     background_tasks_.emplace_back(std::move(conn_task));
   } else {
     BROKER_DEBUG("run without a connector (assuming test mode)");
@@ -558,43 +562,10 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   // Spin up a WebSocket server when requested.
   if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port")) {
-    using namespace std::literals;
-    caf::uri::authority_type auth;
-    auth.host = "0.0.0.0"s;
-    auth.port = *port;
-    if (auto sock = caf::net::make_tcp_accept_socket(auth)) {
-      struct trait {
-        using value_type = caf::cow_string;
-        caf::error init(const caf::settings&) {
-          return caf::none;
-        }
-        bool converts_to_binary(const caf::cow_string&) {
-          return false; // We use text messages exclusively.
-        }
-        bool convert(const caf::cow_string& , caf::byte_buffer&) {
-          return false; // Never serialize to binary.
-        }
-        bool convert(caf::const_byte_span, caf::cow_string&) {
-          return false; // Reject binary messages.
-        }
-        bool convert(const caf::cow_string& str, std::vector<char>& buf) {
-          buf.insert(buf.end(), str.begin(), str.end());
-          return true;
-        }
-        bool convert(caf::string_view input, caf::cow_string& str) {
-          auto& x = str.unshared();
-          x.insert(x.end(), input.begin(), input.end());
-          return true;
-        }
-      };
-      using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
-      using producer_res_t = caf::async::producer_resource<caf::cow_string>;
-      using res_t = std::tuple<consumer_res_t, producer_res_t, trait>;
-      auto on_request = [sp = &sys, id = id_, core](const caf::settings& hdr) {
-        auto path = caf::get_or(hdr, "web-socket.path", "");
-        using res_t
-          = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait>>;
-        if (path == "/v1/events/json") {
+    auto on_connect
+      = [sp = &sys, id = id_, core](const caf::settings& hdr,
+                                    internal::web_socket::connect_event_t& ev) {
+          auto& [pull, push] = ev;
           auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent",
                                         "null");
           auto addr = network_info{
@@ -602,23 +573,11 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
             caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
           BROKER_INFO("new JSON client with address" << addr << "and user agent"
                                                      << user_agent);
-          using caf::async::make_spsc_buffer_resource;
-          auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
-          auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
           using impl_t = internal::json_client_actor;
-          sp->spawn<impl_t>(id, core, addr, pull2, push1);
-          return res_t{std::make_tuple(pull1, push2, trait{})};
-        } else {
-          BROKER_INFO("rejected JSON client on invalid path" << path);
-          return res_t{caf::make_error(caf::sec::invalid_argument,
-                                       "invalid path; try /v1/events/json")};
-        }
-      };
-      caf::net::web_socket::accept(sys.network_manager().mpx(), *sock,
-                                   on_request);
-    } else {
-      BROKER_INFO("failed to open WebSocket port " << port);
-    }
+          sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
+        };
+    internal::web_socket::launch(sys, ssl_cfg, *port, "/v1/events/json",
+                                 std::move(on_connect));
   }
 }
 

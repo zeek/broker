@@ -102,7 +102,7 @@ std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
 struct configuration::impl : public caf::actor_system_config {
   using super = caf::actor_system_config;
 
-  impl() {
+  impl() : ssl_options(std::make_shared<broker::openssl_options>()) {
     using std::string;
     using string_list = std::vector<string>;
     // Add custom options to the CAF parser.
@@ -127,15 +127,25 @@ struct configuration::impl : public caf::actor_system_config {
         "name for this endpoint in metrics (when exporting: suffix of "
         "the topic by default)");
     opt_group{custom_options_, "broker.metrics.export"}
-      .add<string>("topic",
-                   "if set, causes Broker to publish its metrics "
-                   "periodically on the given topic")
+      .add<string>("topic", "if set, causes Broker to publish its metrics "
+                            "periodically on the given topic")
       .add<caf::timespan>("interval",
                           "time between publishing metrics on the topic")
       .add<string_list>("prefixes",
                         "selects metric prefixes to publish on the topic");
     opt_group{custom_options_, "broker.metrics.import"} //
       .add<string_list>("topics", "topics for collecting remote metrics from");
+    opt_group{custom_options_, "broker.ssl"} //
+      .add(ssl_options->certificate, "certificate",
+           "path to the PEM-formatted certificate file")
+      .add(ssl_options->key, "key",
+           "path to the private key file for this node")
+      .add(ssl_options->passphrase, "passphrase",
+           "passphrase to decrypt the private key")
+      .add(ssl_options->capath, "capath",
+           "path to an OpenSSL-style directory of trusted certificates")
+      .add(ssl_options->cafile, "cafile",
+           "path to a file of concatenated PEM-formatted certificates");
     // Ensure that we're only talking to compatible Broker instances.
     string_list ids{"broker.v" + std::to_string(version::protocol)};
     // Override CAF defaults.
@@ -171,6 +181,8 @@ struct configuration::impl : public caf::actor_system_config {
   void init(int argc, char** argv);
 
   broker_options options;
+
+  openssl_options_ptr ssl_options;
 };
 
 configuration::configuration(skip_init_t) {
@@ -329,55 +341,48 @@ bool configuration::cli_helptext_printed() const {
 }
 
 std::string configuration::openssl_certificate() const {
-  return impl_->openssl_certificate;
+  return impl_->ssl_options->certificate;
 }
 
 void configuration::openssl_certificate(std::string x) {
-  impl_->openssl_certificate = std::move(x);
+  impl_->ssl_options->certificate = std::move(x);
 }
 
 std::string configuration::openssl_key() const {
-  return impl_->openssl_key;
+  return impl_->ssl_options->key;
 }
 
 void configuration::openssl_key(std::string x) {
-  impl_->openssl_key = std::move(x);
+  impl_->ssl_options->key = std::move(x);
 }
 
 std::string configuration::openssl_passphrase() const {
-  return impl_->openssl_passphrase;
+  return impl_->ssl_options->passphrase;
 }
 
 void configuration::openssl_passphrase(std::string x) {
-  impl_->openssl_passphrase = std::move(x);
+  impl_->ssl_options->passphrase = std::move(x);
 }
 
 std::string configuration::openssl_capath() const {
-  return impl_->openssl_capath;
+  return impl_->ssl_options->capath;
 }
 
 void configuration::openssl_capath(std::string x) {
-  impl_->openssl_capath = std::move(x);
+  impl_->ssl_options->capath = std::move(x);
 }
 
 std::string configuration::openssl_cafile() const {
-  return impl_->openssl_cafile;
+  return impl_->ssl_options->cafile;
 }
 
 void configuration::openssl_cafile(std::string x) {
-  impl_->openssl_cafile = std::move(x);
+  impl_->ssl_options->cafile = std::move(x);
 }
 
 openssl_options_ptr configuration::openssl_options() const {
   if (!options().disable_ssl) {
-    auto res = std::make_shared<broker::openssl_options>();
-    res->certificate = openssl_certificate();
-    res->key = openssl_key();
-    res->passphrase = openssl_passphrase();
-    res->capath = openssl_capath();
-    res->cafile = openssl_cafile();
-    res->skip_init = options_.skip_ssl_init;
-    return res;
+    return impl_->ssl_options;
   } else {
     return nullptr;
   }

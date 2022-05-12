@@ -337,6 +337,7 @@ set(BROKER_SRC
   src/internal/pending_connection.cc
   src/internal/prometheus.cc
   src/internal/store_actor.cc
+  src/internal/web_socket.cc
   src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc

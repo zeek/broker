@@ -136,6 +136,8 @@ void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
 
 #endif // OPENSSL_VERSION_NUMBER < 0x10100000L
 
+} // namespace
+
 /// Creates an SSL context for the connector.
 caf::net::openssl::ctx_ptr
 ssl_context_from_cfg(const openssl_options_ptr& cfg) {
@@ -204,6 +206,8 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
   }
   return ctx;
 }
+
+namespace {
 
 // -- implementations for pending connections ----------------------------------
 
@@ -1754,8 +1758,11 @@ connector::listener::~listener() {
   // nop
 }
 
-connector::connector(endpoint_id this_peer, openssl_options_ptr ssl_cfg)
-  : this_peer_(this_peer), ssl_cfg_(std::move(ssl_cfg)) {
+connector::connector(endpoint_id this_peer, broker_options broker_cfg,
+                     openssl_options_ptr ssl_cfg)
+  : this_peer_(this_peer),
+    broker_cfg_(broker_cfg),
+    ssl_cfg_(std::move(ssl_cfg)) {
   // Open the pipe and configure the file descriptors.
   auto fds = caf::net::make_pipe();
   if (!fds) {
@@ -1930,7 +1937,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   caf::net::multiplexer::block_sigpipe();
   using std::find_if;
   // When running with OpenSSL enabled, initialize the library.
-  if (ssl_cfg_ != nullptr && !ssl_cfg_->skip_init)
+  if (ssl_cfg_ != nullptr && !broker_cfg_.skip_ssl_init)
     global_ssl_guard.init();
   // Poll isn't terribly efficient nor fast, but the connector is not a
   // performance-critical system component. It only establishes connections and
