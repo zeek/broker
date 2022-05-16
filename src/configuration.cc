@@ -107,8 +107,10 @@ struct configuration::impl : public caf::actor_system_config {
     using string_list = std::vector<string>;
     // Add custom options to the CAF parser.
     opt_group{custom_options_, "?broker"}
-      .add(options.disable_ssl, "disable_ssl",
+      .add(options.disable_ssl, "disable-ssl",
            "forces Broker to use unencrypted communication")
+      .add(options.disable_forwarding, "disable-forwarding",
+           "disables forwarding of incoming data to peers")
       .add(options.ttl, "ttl", "drop messages after traversing TTL hops")
       .add<string>("recording-directory",
                    "path for storing recorded meta information")
@@ -168,7 +170,7 @@ struct configuration::impl : public caf::actor_system_config {
   caf::settings dump_content() const override {
     auto result = super::dump_content();
     auto& grp = result["broker"].as_dictionary();
-    put_missing(grp, "disable_ssl", options.disable_ssl);
+    put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
