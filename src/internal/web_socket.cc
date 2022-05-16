@@ -120,7 +120,6 @@ void launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg, uint16_t port,
                                                     << fd.error());
     return;
   }
-  BROKER_INFO("opened port" << caf::net::local_port(*fd) << "for WebSocket");
   // Callback for connecting the flows.
   using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
   using producer_res_t = caf::async::producer_resource<caf::cow_string>;
@@ -145,9 +144,13 @@ void launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg, uint16_t port,
   // Launch the WebSocket and dispatch to on_connect.
   namespace ws = caf::net::web_socket;
   if (auto ctx = ssl_context_from_cfg(ssl_cfg)) {
+    BROKER_INFO("listening on port" << caf::net::local_port(*fd)
+                                    << "for WebSocket clients (SSL)");
     ssl_accept(sys.network_manager().mpx(), *fd, std::move(ctx),
                std::move(on_request));
   } else {
+    BROKER_INFO("listening on port" << caf::net::local_port(*fd)
+                                    << "for WebSocket clients (no SSL)");
     ws::accept(sys.network_manager().mpx(), *fd, on_request);
   }
 }
