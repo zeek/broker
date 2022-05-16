@@ -277,7 +277,8 @@ struct data_message_decorator {
 /// @relates data_message_decorator
 template <class Inspector>
 bool inspect(Inspector& f, data_message_decorator& x) {
-  return f.object(x).fields(f.field("topic", x.t), f.field("data", x.d));
+  return f.object(x).fields(f.field("topic", x.t),
+                            f.field("data", x.d.get_data()));
 }
 
 /// @relates data_message

@@ -35,6 +35,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   : self(selfptr), id(this_node) {
   reader.mapper(&mapper);
   writer.mapper(&mapper);
+  writer.skip_object_type_annotation(true);
   using caf::cow_string;
   using caf::flow::observable;
   using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
@@ -81,6 +82,33 @@ std::string json_client_state::render_ack() {
   obj["endpoint"s] = to_string(id);
   obj["version"s] = version::string();
   return render(obj);
+}
+
+struct event_decorator {
+  const topic& t;
+  const data& d;
+};
+
+event_decorator as_event(const data_message& msg) {
+  auto& [t, d] = msg.data();
+  return event_decorator{t, d};
+}
+
+template <class Inspector>
+bool inspect(Inspector& f, event_decorator& x) {
+  static_assert(!Inspector::is_loading);
+  auto do_inspect = [&f, &x](const auto& val) -> bool {
+    json_type_mapper tm;
+    using val_t = std::decay_t<decltype(val)>;
+    auto type = "event"s;
+    auto dtype = to_string(tm(caf::type_id_v<val_t>));
+    // Note: const_cast is safe since we assert that the inspector is saving.
+    return f.object(x).fields(f.field("type", type),
+                              f.field("topic", const_cast<topic&>(x.t)),
+                              f.field("@data-type", dtype),
+                              f.field("data", const_cast<val_t&>(val)));
+  };
+  return visit(do_inspect, x.d);
 }
 
 void json_client_state::run(caf::actor core, filter_type filter,
@@ -139,26 +167,15 @@ void json_client_state::run(caf::actor core, filter_type filter,
         .from_resource(core_pull2)
         .map(
           [this](const data_message& msg) -> caf::cow_string {
-            auto& [t, d] = msg.data();
             writer.reset();
-            auto type = "event"s;
-            auto ok = writer.begin_object_t<data_message>() // <object>
-                      && writer.begin_field("type")         //   <type>
-                      && writer.apply(type)                 //     "event"
-                      && writer.end_field()                 //   </type>
-                      && writer.begin_field("topic")        //   <topic>
-                      && writer.apply(t)                    //     string
-                      && writer.end_field()                 //   </topic>
-                      && writer.begin_field("data")         //   <data>
-                      && writer.apply(d)                    //     payload
-                      && writer.end_field()                 //   </data>
-                      && writer.end_object();               // </object>
-            if (ok) {
+            auto ev = as_event(msg);
+            if (writer.apply(ev)) {
               // Serialization OK, forward message to client.
               auto json = writer.str();
               auto str = std::string{json.begin(), json.end()};
               return caf::cow_string{std::move(str)};
             } else {
+              // Report internal error to client.
               auto ctx = to_string(writer.get_error().context());
               auto str = render_error(enum_str(ec::serialization_failed), ctx);
               return caf::cow_string{std::move(str)};

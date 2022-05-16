@@ -2,8 +2,15 @@
 
 #include "broker/address.hh"
 #include "broker/detail/operators.hh"
+#include "broker/fwd.hh"
 
 namespace broker {
+
+/// @relates subnet
+bool convert(const subnet& sn, std::string& str);
+
+/// @relates subnet
+bool convert(const std::string& str, subnet& sn);
 
 /// An IPv4 or IPv6 subnet (an address prefix).
 class subnet : detail::totally_ordered<subnet> {
@@ -30,7 +37,17 @@ public:
 
   template <class Inspector>
   friend bool inspect(Inspector& f, subnet& x) {
-    return f.object(x).fields(f.field("net", x.net_), f.field("len", x.len_));
+    if (f.has_human_readable_format()) {
+      auto get = [&x] {
+        std::string result;
+        convert(x, result);
+        return result;
+      };
+      auto set = [&x](const std::string& str) { return convert(str, x); };
+      return f.apply(get, set);
+    } else {
+      return f.object(x).fields(f.field("net", x.net_), f.field("len", x.len_));
+    }
   }
 
 private:
@@ -45,9 +62,6 @@ bool operator==(const subnet& lhs, const subnet& rhs);
 
 /// @relates subnet
 bool operator<(const subnet& lhs, const subnet& rhs);
-
-/// @relates subnet
-bool convert(const subnet& sn, std::string& str);
 
 } // namespace broker
 

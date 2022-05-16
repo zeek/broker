@@ -16,104 +16,99 @@ namespace {
 // A data message that has one of everything.
 constexpr caf::string_view json = R"_({
   "topic": "/test/cpp/internal/json-type-mapper",
-  "data": {
-    "@data-type": "vector",
-    "data": [
-      {
-        "@data-type": "none",
-        "data": {}
-      },
-      {
-        "@data-type": "boolean",
-        "data": true
-      },
-      {
-        "@data-type": "count",
-        "data": 42
-      },
-      {
-        "@data-type": "integer",
-        "data": 23
-      },
-      {
-        "@data-type": "real",
-        "data": 12.48
-      },
-      {
-        "@data-type": "string",
-        "data": "this is a string"
-      },
-      {
-        "@data-type": "address",
-        "data": "2001:db8::"
-      },
-      {
-        "@data-type": "subnet",
-        "data": {
-          "net": "2001:db8::",
-          "len": 32
+  "@data-type": "vector",
+  "data": [
+    {
+      "@data-type": "none",
+      "data": {}
+    },
+    {
+      "@data-type": "boolean",
+      "data": true
+    },
+    {
+      "@data-type": "count",
+      "data": 42
+    },
+    {
+      "@data-type": "integer",
+      "data": 23
+    },
+    {
+      "@data-type": "real",
+      "data": 12.48
+    },
+    {
+      "@data-type": "string",
+      "data": "this is a string"
+    },
+    {
+      "@data-type": "address",
+      "data": "2001:db8::"
+    },
+    {
+      "@data-type": "subnet",
+      "data": "255.255.255.0/24"
+    },
+    {
+      "@data-type": "port",
+      "data": "8080/tcp"
+    },
+    {
+      "@data-type": "timestamp",
+      "data": "2022-04-10T16:07:00.000"
+    },
+    {
+      "@data-type": "timespan",
+      "data": "23s"
+    },
+    {
+      "@data-type": "enum-value",
+      "data": "foo"
+    },
+    {
+      "@data-type": "set",
+      "data": [
+        {
+          "@data-type": "integer",
+          "data": 1
+        },
+        {
+          "@data-type": "integer",
+          "data": 2
+        },
+        {
+          "@data-type": "integer",
+          "data": 3
         }
-      },
-      {
-        "@data-type": "port",
-        "data": "8080/tcp"
-      },
-      {
-        "@data-type": "timestamp",
-        "data": "2022-04-10T16:07:00.000"
-      },
-      {
-        "@data-type": "timespan",
-        "data": "23s"
-      },
-      {
-        "@data-type": "enum-value",
-        "data": "foo"
-      },
-      {
-        "@data-type": "set",
-        "data": [
-          {
-            "@data-type": "integer",
-            "data": 1
+      ]
+    },
+    {
+      "@data-type": "table",
+      "data": [
+        {
+          "key": {
+            "@data-type": "string",
+            "data": "first-name"
           },
-          {
-            "@data-type": "integer",
-            "data": 2
-          },
-          {
-            "@data-type": "integer",
-            "data": 3
+          "value": {
+            "@data-type": "string",
+            "data": "John"
           }
-        ]
-      },
-      {
-        "@data-type": "table",
-        "data": [
-          {
-            "key": {
-              "@data-type": "string",
-              "data": "first-name"
-            },
-            "value": {
-              "@data-type": "string",
-              "data": "John"
-            }
+        },
+        {
+          "key": {
+            "@data-type": "string",
+            "data": "last-name"
           },
-          {
-            "key": {
-              "@data-type": "string",
-              "data": "last-name"
-            },
-            "value": {
-              "@data-type": "string",
-              "data": "Doe"
-            }
+          "value": {
+            "@data-type": "string",
+            "data": "Doe"
           }
-        ]
-      }
-    ]
-  }
+        }
+      ]
+    }
+  ]
 })_";
 
 timestamp timestamp_from_string(std::string ts) {
@@ -125,8 +120,10 @@ timestamp timestamp_from_string(std::string ts) {
 
 // The same data message as above, but as native broker::data_message.
 data_message native() {
-  address dummy_addr;
-  convert("2001:db8::"s, dummy_addr);
+  address dummy_addr_v6;
+  convert("2001:db8::"s, dummy_addr_v6);
+  address dummy_addr_v4;
+  convert("255.255.255.0"s, dummy_addr_v4);
   vector xs;
   xs.emplace_back(nil);
   xs.emplace_back(true);
@@ -134,8 +131,8 @@ data_message native() {
   xs.emplace_back(integer{23});
   xs.emplace_back(12.48);
   xs.emplace_back("this is a string"s);
-  xs.emplace_back(dummy_addr);
-  xs.emplace_back(subnet{dummy_addr, 32});
+  xs.emplace_back(dummy_addr_v6);
+  xs.emplace_back(subnet{dummy_addr_v4, 24});
   xs.emplace_back(port{8080, port::protocol::tcp});
   xs.emplace_back(timestamp_from_string("2022-04-10T16:07:00.000"));
   xs.emplace_back(timespan{23s});
