@@ -57,6 +57,7 @@ async def do_run():
           with open('done', 'w') as f:
               f.write('done')
           await ws.close()
+          sys.exit()
         except:
             if not connected:
                 print(f'failed to connect to {ws_uri}, try again', file=sys.stderr)
