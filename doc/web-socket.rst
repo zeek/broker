@@ -8,7 +8,7 @@ make its :ref:`data <data-model>` accessible to third parties.
 
 WebSocket clients are treated as lightweight peers. Each Broker endpoint can be
 configured to act as a WebSocket server by either setting the environment
-variable ``BROKER_WEBSOCKET_PORT`` or by setting ``broker.web-socket.port`` on
+variable ``BROKER_WEB_SOCKET_PORT`` or by setting ``broker.web-socket.port`` on
 the command line or in the configuration file. When running Zeek, scripts may
 also redefine ``Broker::web_socket_port`` to a valid TCP port.
 

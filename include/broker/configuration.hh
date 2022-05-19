@@ -223,11 +223,6 @@ public:
   void init(int argc, char** argv);
 
 private:
-  /// Makes sure the config content is in-sync with the `options_`.
-  void sync_options();
-
-  broker_options options_;
-
   void set_i64(std::string key, int64_t val);
 
   void set_u64(std::string key, uint64_t val);

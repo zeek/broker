@@ -258,13 +258,17 @@ void configuration::impl::init(int argc, char** argv) {
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
   }
-  if (auto env = getenv("BROKER_WEBSOCKET_PORT")) {
+  if (auto env = getenv("BROKER_WEB_SOCKET_PORT")) {
+    // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
     caf::config_value val{env};
-    if (auto port = caf::get_as<uint16_t>(val)) {
-      set("broker.web-socket.port", *port);
+    if (auto port_num = caf::get_as<uint16_t>(val)) {
+      set("broker.web-socket.port", *port_num);
+    } else if (auto port_obj = caf::get_as<port>(val)) {
+      set("broker.web-socket.port", port_obj->number());
     } else {
-      auto what = concat("invalid value for BROKER_WEBSOCKET_PORT: ", env,
+      auto what = concat("invalid value for BROKER_WEB_SOCKET_PORT: ", env,
                          " (expected a non-zero port number)");
+      throw std::invalid_argument(what);
     }
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
@@ -516,11 +520,6 @@ void configuration::init_global_state() {
     caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });
-}
-
-void configuration::sync_options() {
-  set("broker.disable-ssl", options_.disable_ssl);
-  set("broker.disable-forwarding", options_.disable_forwarding);
 }
 
 } // namespace broker
