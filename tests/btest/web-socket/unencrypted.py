@@ -36,28 +36,28 @@ async def do_run():
     connected  = False
     for i in range(30):
         try:
-          ws = await websockets.connect(ws_url)
-          connected  = True
-          # send filter and wait for ack
-          await ws.send('["/test"]')
-          ack_json = await ws.recv()
-          ack = json.loads(ack_json)
-          if not 'type' in ack or ack['type'] != 'ack':
-              print('*** unexpected ACK from server:')
-              print(ack_json)
-              sys.exit()
-          # tell btest to start the sender now
-          with open('ready', 'w') as f:
-              f.write('ready')
-          # dump messages to stdout (redirected to recv.out)
-          for i in range(10):
-              msg = await ws.recv()
-              print(f'{msg}')
-          # tell btest we're done
-          with open('done', 'w') as f:
-              f.write('done')
-          await ws.close()
-          sys.exit()
+            ws = await websockets.connect(ws_url)
+            connected  = True
+            # send filter and wait for ack
+            await ws.send('["/test"]')
+            ack_json = await ws.recv()
+            ack = json.loads(ack_json)
+            if not 'type' in ack or ack['type'] != 'ack':
+                print('*** unexpected ACK from server:')
+                print(ack_json)
+                sys.exit()
+            # tell btest to start the sender now
+            with open('ready', 'w') as f:
+                f.write('ready')
+            # dump messages to stdout (redirected to recv.out)
+            for i in range(10):
+                msg = await ws.recv()
+                print(f'{msg}')
+            # tell btest we're done
+            with open('done', 'w') as f:
+                f.write('done')
+            await ws.close()
+            sys.exit()
         except:
             if not connected:
                 print(f'failed to connect to {ws_uri}, try again', file=sys.stderr)
