@@ -1,7 +1,9 @@
 #include "broker/internal/web_socket.hh"
 
+#include "broker/expected.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/logger.hh"
+#include "broker/internal/native.hh"
 
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/config_value.hpp>
@@ -107,18 +109,26 @@ void ssl_accept(caf::net::multiplexer& mpx, Socket fd,
   mpx.init(ptr);
 }
 
-void launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg, uint16_t port,
-            const std::string& allowed_path, on_connect_t on_connect) {
+expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
+                          std::string addr, uint16_t port,
+                          const std::string& allowed_path,
+                          on_connect_t on_connect) {
   using namespace std::literals;
   // Open up the port.
   caf::uri::authority_type auth;
-  auth.host = "0.0.0.0"s;
+  auth.host = std::move(addr);
   auth.port = port;
   auto fd = caf::net::make_tcp_accept_socket(auth, true);
   if (!fd) {
     BROKER_ERROR("failed to open WebSocket on port" << port << "->"
                                                     << fd.error());
-    return;
+    return {facade(fd.error())};
+  }
+  auto actual_port = caf::net::local_port(*fd);
+  if (!actual_port) {
+    BROKER_ERROR("failed to retrieve actual port from socket ->"
+                 << actual_port.error());
+    return {facade(actual_port.error())};
   }
   // Callback for connecting the flows.
   using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
@@ -153,6 +163,7 @@ void launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg, uint16_t port,
                                     << "for WebSocket clients (no SSL)");
     ws::accept(sys.network_manager().mpx(), *fd, on_request);
   }
+  return *actual_port;
 }
 
 } // namespace broker::internal::web_socket

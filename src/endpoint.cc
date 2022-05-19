@@ -561,24 +561,8 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     telemetry_exporter_ = facade(hdl);
   }
   // Spin up a WebSocket server when requested.
-  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port")) {
-    auto on_connect
-      = [sp = &sys, id = id_, core](const caf::settings& hdr,
-                                    internal::web_socket::connect_event_t& ev) {
-          auto& [pull, push] = ev;
-          auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent",
-                                        "null");
-          auto addr = network_info{
-            caf::get_or(hdr, "web-socket.remote-address", "unknown"),
-            caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
-          BROKER_INFO("new JSON client with address" << addr << "and user agent"
-                                                     << user_agent);
-          using impl_t = internal::json_client_actor;
-          sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
-        };
-    internal::web_socket::launch(sys, ssl_cfg, *port, "/v1/events/json",
-                                 std::move(on_connect));
-  }
+  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port"))
+    web_socket_listen("0.0.0.0"s, *port);
 }
 
 endpoint::~endpoint() {
@@ -747,6 +731,32 @@ std::vector<peer_info> endpoint::peers() const {
                detail::die("failed to get peers:", to_string(e));
              });
   return result;
+}
+
+uint16_t endpoint::web_socket_listen(const std::string& address,
+                                     uint16_t port) {
+  auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
+                      const caf::settings& hdr,
+                      internal::web_socket::connect_event_t& ev) {
+    auto& [pull, push] = ev;
+    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
+    auto addr
+      = network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
+                     caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}),
+                     0s};
+    BROKER_INFO("new JSON client with address" << addr << "and user agent"
+                                               << user_agent);
+    using impl_t = internal::json_client_actor;
+    sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
+  };
+  auto ssl_cfg = ctx_->cfg.openssl_options();
+  auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
+                                          "/v1/events/json",
+                                          std::move(on_connect));
+  if (res)
+    return *res;
+  else
+    return 0;
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {

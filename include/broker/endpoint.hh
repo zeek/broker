@@ -221,6 +221,16 @@ public:
   /// Retrieves a list of topics that peers have subscribed to on this endpoint.
   std::vector<topic> peer_subscriptions() const;
 
+  // --- alternative client protocols ------------------------------------------
+
+  /// Listens at @p port for incoming WebSocket connections.
+  /// @param address The interface to listen at. If empty, listen on all
+  ///                local interfaces.
+  /// @param port The port to listen locally. If 0, the endpoint selects the
+  ///             next available free port from the OS.
+  /// @returns The port the endpoint bound to or 0 on failure.
+  uint16_t web_socket_listen(const std::string& address = {}, uint16_t port = 0);
+
   // --- publishing ------------------------------------------------------------
 
   /// Publishes a message.
