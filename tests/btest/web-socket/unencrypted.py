@@ -29,7 +29,7 @@ import asyncio, websockets, os, time, json, sys
 
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
-ws_url = f'ws://localhost:{ws_port}/v1/events/json'
+ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
 
 async def do_run():
     # Try up to 30 times.
@@ -75,9 +75,10 @@ import asyncio, websockets, os, json, sys
 
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
-ws_url = f'ws://localhost:{ws_port}/v1/events/json'
+ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
 
 msg = {
+    'type': 'data-message',
     'topic': '/test',
     '@data-type': "count",
     "data": 0

@@ -40,7 +40,7 @@ import asyncio, websockets, os, time, json, sys, ssl
 
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
-ws_url = f'wss://localhost:{ws_port}/v1/events/json'
+ws_url = f'wss://localhost:{ws_port}/v1/messages/json'
 
 ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
 ssl_ctx.load_verify_locations("../ca.pem")
@@ -90,13 +90,14 @@ import asyncio, websockets, os, json, sys, ssl
 
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
-ws_url = f'wss://localhost:{ws_port}/v1/events/json'
+ws_url = f'wss://localhost:{ws_port}/v1/messages/json'
 
 ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
 ssl_ctx.load_verify_locations("../ca.pem")
 ssl_ctx.load_cert_chain(certfile="../cert.2.pem", keyfile="../key.2.pem")
 
 msg = {
+    'type': 'data-message',
     'topic': '/test',
     '@data-type': "count",
     "data": 0

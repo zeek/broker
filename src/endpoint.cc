@@ -752,7 +752,7 @@ uint16_t endpoint::web_socket_listen(const std::string& address,
   };
   auto ssl_cfg = ctx_->cfg.openssl_options();
   auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
-                                          "/v1/events/json",
+                                          "/v1/messages/json",
                                           std::move(on_connect));
   if (res)
     return *res;

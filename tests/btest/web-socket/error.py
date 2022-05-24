@@ -26,7 +26,7 @@ import asyncio, websockets, os, json, sys, traceback
 
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
-ws_url = f'ws://localhost:{ws_port}/v1/events/json'
+ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
 
 msg = {
     'topic': '/test',
@@ -47,7 +47,6 @@ async def do_run():
             # wait for error message and drop details from the error string that
             # are likely to change in the future
             err_json = await ws.recv()
-            print(f'{err_json}')
             err = json.loads(err_json)
             want = 'input #1 contained invalid data'
             got = err['context']

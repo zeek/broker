@@ -84,23 +84,23 @@ std::string json_client_state::render_ack() {
   return render(obj);
 }
 
-struct event_decorator {
+struct const_data_message_decorator {
   const topic& t;
   const data& d;
 };
 
-event_decorator as_event(const data_message& msg) {
+const_data_message_decorator decorated(const data_message& msg) {
   auto& [t, d] = msg.data();
-  return event_decorator{t, d};
+  return const_data_message_decorator{t, d};
 }
 
 template <class Inspector>
-bool inspect(Inspector& f, event_decorator& x) {
+bool inspect(Inspector& f, const_data_message_decorator& x) {
   static_assert(!Inspector::is_loading);
   auto do_inspect = [&f, &x](const auto& val) -> bool {
     json_type_mapper tm;
     using val_t = std::decay_t<decltype(val)>;
-    auto type = "event"s;
+    auto type = "data-message"s;
     auto dtype = to_string(tm(caf::type_id_v<val_t>));
     // Note: const_cast is safe since we assert that the inspector is saving.
     return f.object(x).fields(f.field("type", type),
@@ -168,8 +168,8 @@ void json_client_state::run(caf::actor core, filter_type filter,
         .map(
           [this](const data_message& msg) -> caf::cow_string {
             writer.reset();
-            auto ev = as_event(msg);
-            if (writer.apply(ev)) {
+            auto decorator = decorated(msg);
+            if (writer.apply(decorator)) {
               // Serialization OK, forward message to client.
               auto json = writer.str();
               auto str = std::string{json.begin(), json.end()};

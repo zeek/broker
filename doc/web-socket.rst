@@ -10,7 +10,7 @@ WebSocket clients are treated as lightweight peers. Each Broker endpoint can be
 configured to act as a WebSocket server by either setting the environment
 variable ``BROKER_WEB_SOCKET_PORT`` or by setting ``broker.web-socket.port`` on
 the command line or in the configuration file. When running Zeek, scripts may
-also redefine ``Broker::web_socket_port`` to a valid TCP port.
+also redefine ``Broker::default_port_websocket`` to a valid TCP port.
 
 .. note::
 
@@ -20,8 +20,8 @@ JSON API v1
 -----------
 
 To access the JSON API, clients may connect to
-``wss://<host>:<port>/v1/events/json`` (SSL enabled, default) or
-``ws://<host>:<port>/v1/events/json`` (SSL disabled). On this WebSocket
+``wss://<host>:<port>/v1/messages/json`` (SSL enabled, default) or
+``ws://<host>:<port>/v1/messages/json`` (SSL disabled). On this WebSocket
 endpoint, Broker allows JSON-formatted text messages only.
 
 Handshake
@@ -61,7 +61,7 @@ After the handshake, the WebSocket client may only send `Data Messages`_. The
 Broker endpoint converts every message to its native representation and
 publishes it.
 
-The WebSocket server may send `Event Messages`_ (whenever a data message matches
+The WebSocket server may send `Data Messages`_ (whenever a data message matches
 the subscriptions of the client) and `Error Messages_` to the client.
 
 Data Representation
@@ -346,29 +346,30 @@ For example:
 Data Messages
 ~~~~~~~~~~~~~
 
-Broker operates on *data messages* that consist of a *topic* and *data*. In the
-JSON representation, this maps to a JSON object with ``topic`` and ``data`` keys
-as well as the ``@data-type`` key to encode how to parse the data (see
-`Data Representation`_). For example:
+Represents a user-defined message with topic and data.
+
+A data message consists of these keys:
+
+``type``
+  Always ``data-message``.
+
+``topic``
+  The Broker topic for the message. A client will only receive topics that match
+  its subscriptions.
+
+``@data-type``
+  Meta field that encodes how to parse the ``data`` field (see
+  `Data Representation`_).
+
+``data``
+  Contains the actual payload of the message.
+
+Example:
 
 .. code-block:: json
 
   {
-    "topic": "/foo/bar",
-    "@data-type": "count",
-    "data": 1
-  }
-
-Event Messages
-~~~~~~~~~~~~~~
-
-An event message is a data message with an additional ``type`` key. The value to
-this key is always ``event``. For example:
-
-.. code-block:: json
-
-  {
-    "type": "event",
+    "type": "data-message",
     "topic": "/foo/bar",
     "@data-type": "count",
     "data": 1
@@ -381,7 +382,7 @@ The error messages on the WebSocket connection give feedback to the client if
 the server discarded malformed input from the client or if there has been an
 error while processing the JSON text.
 
-An error message consists of these three keys:
+An error message consists of these keys:
 
 ``type``
   Always ``error``.
