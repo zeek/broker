@@ -2,6 +2,7 @@ FROM fedora:35
 
 RUN dnf install -y \
     cmake \
+    diffutils \
     gcc \
     gcc-c++ \
     git \

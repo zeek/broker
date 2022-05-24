@@ -2,6 +2,7 @@ FROM quay.io/centos/centos:stream8
 
 RUN dnf install -y \
     cmake \
+    diffutils \
     gcc \
     gcc-c++ \
     git \

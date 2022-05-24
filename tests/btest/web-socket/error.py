@@ -68,6 +68,7 @@ async def do_run():
                 traceback.print_exc()
                 sys.exit()
 
-asyncio.run(do_run())
+loop = asyncio.get_event_loop()
+loop.run_until_complete(do_run())
 
 @TEST-END-FILE

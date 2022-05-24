@@ -8,6 +8,7 @@ RUN yum install -y centos-release-scl \
 RUN yum install -y \
     cmake3 \
     devtoolset-7 \
+    diffutils \
     git \
     make \
     openssl-devel \

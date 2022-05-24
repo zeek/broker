@@ -3,6 +3,7 @@ FROM ubuntu:18.04
 RUN apt update -y \
     && apt install -y \
        cmake \
+       diffutils \
        g++-8 \
        gcc-8 \
        git \
