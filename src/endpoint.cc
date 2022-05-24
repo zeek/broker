@@ -468,6 +468,7 @@ endpoint::endpoint(configuration config)
 
 endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   // Spin up the actor system.
+  auto broker_cfg = config.options();
   auto ssl_cfg = config.openssl_options();
   ctx_ = std::make_shared<internal::endpoint_context>(std::move(config));
   auto& sys = ctx_->sys;
@@ -508,7 +509,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   internal::connector_ptr conn_ptr;
   if (!caf::get_or(cfg, "broker.disable-connector", false)) {
     auto conn_task = std::make_unique<connector_task>();
-    conn_ptr = conn_task->start(sys, id_, config.options(), ssl_cfg);
+    conn_ptr = conn_task->start(sys, id_, broker_cfg, ssl_cfg);
     background_tasks_.emplace_back(std::move(conn_task));
   } else {
     BROKER_DEBUG("run without a connector (assuming test mode)");
