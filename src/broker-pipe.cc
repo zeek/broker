@@ -216,6 +216,7 @@ void split(std::vector<std::string>& result, std::string_view str,
 } // namespace <anonymous>
 
 int main(int argc, char** argv) {
+  broker::endpoint::system_guard sys_guard;
   // Parse CLI parameters using our config.
   parameters params;
   broker::configuration cfg{broker::skip_init};

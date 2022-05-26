@@ -2,6 +2,7 @@
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/overload.hh"
+#include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/logger.hh"
@@ -86,8 +87,6 @@ struct CRYPTO_dynlock_value {
 };
 #endif
 
-namespace broker::internal {
-
 namespace {
 
 // -- OpenSSL setup ------------------------------------------------------------
@@ -136,7 +135,61 @@ void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
 
 #endif // OPENSSL_VERSION_NUMBER < 0x10100000L
 
+bool init_ssl_api_called;
+
 } // namespace
+
+namespace broker {
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+
+void endpoint::init_ssl_api() {
+  BROKER_ASSERT(!init_ssl_api_called);
+  init_ssl_api_called = true;
+  ERR_load_crypto_strings();
+  OPENSSL_add_all_algorithms_conf();
+  SSL_library_init();
+  SSL_load_error_strings();
+  ssl_mtx_tbl.reset(new std::mutex[CRYPTO_num_locks()]);
+  CRYPTO_set_locking_callback(ssl_lock_fn);
+  CRYPTO_set_dynlock_create_callback(ssl_dynlock_create);
+  CRYPTO_set_dynlock_lock_callback(ssl_dynlock_lock);
+  CRYPTO_set_dynlock_destroy_callback(ssl_dynlock_destroy);
+  // OpenSSL's default thread ID callback should work, so don't set our own.
+}
+
+void endpoint::deinit_ssl_api() {
+  BROKER_ASSERT(init_ssl_api_called);
+  ERR_free_strings();
+  EVP_cleanup();
+  CRYPTO_cleanup_all_ex_data();
+  CRYPTO_set_locking_callback(nullptr);
+  CRYPTO_set_dynlock_create_callback(nullptr);
+  CRYPTO_set_dynlock_lock_callback(nullptr);
+  CRYPTO_set_dynlock_destroy_callback(nullptr);
+  ssl_mtx_tbl.reset();
+}
+
+#else
+
+void endpoint::init_ssl_api() {
+  BROKER_ASSERT(!init_ssl_api_called);
+  init_ssl_api_called = true;
+  OPENSSL_init_ssl(0, nullptr);
+}
+
+void endpoint::deinit_ssl_api() {
+  BROKER_ASSERT(init_ssl_api_called);
+  ERR_free_strings();
+  EVP_cleanup();
+  CRYPTO_cleanup_all_ex_data();
+}
+
+#endif
+
+} // namespace broker
+
+namespace broker::internal{
 
 /// Creates an SSL context for the connector.
 caf::net::openssl::ctx_ptr
@@ -1891,37 +1944,16 @@ public:
   void init() {
     // We need the locking for enabling two Broker endpoints in one process.
     std::unique_lock guard{ssl_init_mtx_};
-    if (ssl_initialized_)
-      return;
-    ssl_initialized_ = true;
-    ERR_load_crypto_strings();
-    OPENSSL_add_all_algorithms_conf();
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    SSL_library_init();
-    SSL_load_error_strings();
-    ssl_mtx_tbl.reset(new std::mutex[CRYPTO_num_locks()]);
-    CRYPTO_set_locking_callback(ssl_lock_fn);
-    CRYPTO_set_dynlock_create_callback(ssl_dynlock_create);
-    CRYPTO_set_dynlock_lock_callback(ssl_dynlock_lock);
-    CRYPTO_set_dynlock_destroy_callback(ssl_dynlock_destroy);
-    // OpenSSL's default thread ID callback should work, so don't set our own.
-#else
-    OPENSSL_init_ssl(0, NULL);
-#endif
+    if (!init_ssl_api_called && !ssl_initialized_) {
+      ssl_initialized_ = true;
+      endpoint::init_ssl_api();
+    }
   }
 
 
-
   ~ssl_lib_guard() {
-    if (!ssl_initialized_)
-      return;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    CRYPTO_set_locking_callback(nullptr);
-    CRYPTO_set_dynlock_create_callback(nullptr);
-    CRYPTO_set_dynlock_lock_callback(nullptr);
-    CRYPTO_set_dynlock_destroy_callback(nullptr);
-    ssl_mtx_tbl.reset();
-#endif
+    if (ssl_initialized_)
+      endpoint::deinit_ssl_api();
   }
 };
 

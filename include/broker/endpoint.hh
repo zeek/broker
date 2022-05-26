@@ -384,6 +384,33 @@ public:
   /// function calls `WSACleanup`. Does nothing on POSIX systems.
   static void deinit_socket_api();
 
+  /// Initializes OpenSSL if necessary.
+  static void init_ssl_api(); // note: implemented in internal/connector.cc
+
+  /// Releases resources from OpenSSL.
+  static void deinit_ssl_api(); // note: implemented in internal/connector.cc
+
+  /// Initializes the host system by preparing all sub-systems and any global
+  /// state required by broker. Calls @ref init_socket_api, @ref init_ssl_api
+  /// and @ref configuration::init_global_state.
+  static void init_system();
+
+  /// Releases global state and resources.
+  static void deinit_system();
+
+  /// Automates system initialization when put at the top of `main` by calling
+  /// @ref init_system in its constructor and @ref deinit_system in its
+  /// destructor.
+  struct system_guard {
+    system_guard() {
+      endpoint::init_system();
+    }
+
+    ~system_guard() {
+      endpoint::deinit_system();
+    }
+  };
+
   // --await-peer-start
   /// Blocks execution of the current thread until either `whom` was added to
   /// the routing table and its subscription flooding reached this endpoint or a

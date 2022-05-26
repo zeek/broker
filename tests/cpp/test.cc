@@ -257,12 +257,9 @@ void base_fixture::consume_message() {
 }
 
 int main(int argc, char** argv) {
-  broker::endpoint::init_socket_api();
   caf::init_global_meta_objects<caf::id_block::broker_test>();
-  broker::configuration::init_global_state();
+  endpoint::system_guard sys_guard; // Initialize global state.
   //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
   //  return 1;
-  auto result = caf::test::main(argc, argv);
-  broker::endpoint::deinit_socket_api();
-  return result;
+  return caf::test::main(argc, argv);
 }

@@ -977,6 +977,17 @@ void endpoint::deinit_socket_api() {
 #endif
 }
 
+void endpoint::init_system() {
+  configuration::init_global_state();
+  init_socket_api();
+  init_ssl_api();
+}
+
+void endpoint::deinit_system() {
+  deinit_ssl_api();
+  deinit_socket_api();
+}
+
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   bool result = false;

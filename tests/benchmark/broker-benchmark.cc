@@ -441,6 +441,7 @@ void usage(const configuration& cfg, const char* cmd_name) {
 } // namespace
 
 int main(int argc, char** argv) {
+  endpoint::system_guard sys_guard;
   configuration cfg{skip_init};
   add_options(cfg);
   try {
