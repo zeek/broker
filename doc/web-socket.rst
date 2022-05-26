@@ -404,3 +404,66 @@ message would cause it to send this error back to the client:
     "code": "deserialization_failed",
     "context": "input #1 contained malformed JSON -> caf::pec::unexpected_character(1, 1)"
   }
+
+Encoding of Zeek Events
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Broker encodes Zeek events as nested vectors using the following structure:
+``[<format-nr>, <type>, [<name>, <args>]]``:
+
+``format-nr``
+  A ``count`` denoting the format version. Currently, this is always ``1``.
+
+``type``
+  A ``count`` denoting the encoded Zeek message type. For events, this is always
+  ``1``. Other message types in Zeek are currently not safe for 3rd-party use.
+
+``name``
+  Identifies the Zeek event.
+
+``args``
+  Contains the arguments for the event. Usually, this is another ``vector``.
+
+For example, an event called ``event_1`` that has been published to topic
+``/foo/bar`` with an integer argument ``42`` and a string argument ``test``
+would render as:
+
+.. code-block:: json
+
+  {
+    "type": "data-message",
+    "topic": "/foo/bar",
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "string",
+            "data": "event_1"
+          },
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "integer",
+                "data": 42
+              },
+              {
+                "@data-type": "string",
+                "data": "test"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
