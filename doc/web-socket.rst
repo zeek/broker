@@ -422,7 +422,7 @@ Broker encodes Zeek events as nested vectors using the following structure:
   Identifies the Zeek event.
 
 ``args``
-  Contains the arguments for the event. Usually, this is another ``vector``.
+  Contains the arguments for the event in the form of another ``vector``.
 
 For example, an event called ``event_1`` that has been published to topic
 ``/foo/bar`` with an integer argument ``42`` and a string argument ``test``
