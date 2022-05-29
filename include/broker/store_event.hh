@@ -54,7 +54,7 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const noexcept {
+    const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 

@@ -127,9 +127,9 @@ std::string to_string(status_view x) {
 }
 
 bool convertible_to_status(const vector& xs) noexcept {
-  if (xs.size() != 4 || !is<std::string>(xs[0]))
+  if (xs.size() != 4)
     return false;
-  if (get<std::string>(xs[0]) != "status")
+  if (auto str = get_if<std::string>(xs[0]); !str || *str != "status")
     return false;
   if (auto code = to<sc>(xs[1]))
     return *code != sc::unspecified
@@ -186,7 +186,8 @@ const std::string* status_view::message() const noexcept {
   BROKER_ASSERT(xs_ != nullptr);
   if (is<none>((*xs_)[3]))
     return nullptr;
-  return &get<std::string>((*xs_)[3]);
+  else
+    return get_if<std::string>((*xs_)[3]);
 }
 
 std::optional<endpoint_info> status_view::context() const {

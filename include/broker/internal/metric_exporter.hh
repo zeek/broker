@@ -25,7 +25,7 @@ namespace broker::internal {
 /// before actually spawning an exporter.
 struct metric_exporter_params {
   std::vector<std::string> selected_prefixes;
-  caf::timespan interval;
+  caf::timespan interval = caf::timespan{0};
   topic target;
   std::string id;
   static metric_exporter_params from(const caf::actor_system_config& cfg);

@@ -66,6 +66,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
                                         on_peer_unavailable, filter,
                                         peer_statuses));
   }
+  ttl = caf::get_or(self->config(),"broker.ttl", defaults::ttl);
 }
 
 core_actor_state::~core_actor_state() {
