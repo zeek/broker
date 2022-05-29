@@ -2,101 +2,54 @@
 
 #include <caf/deep_to_string.hpp>
 
+#include "broker/detail/assert.hh"
 #include "broker/internal/type_id.hh"
 
 using namespace std::literals;
 
 namespace broker {
 
+constexpr std::string_view p2p_message_type_names[] = {
+  "invalid",
+  "data",
+  "command",
+  "routing_update",
+  "ping",
+  "pong",
+  "hello",
+  "probe",
+  "version_select",
+  "drop_conn",
+  "originator_syn",
+  "responder_syn_ack",
+  "originator_ack",
+};
+
 std::string to_string(p2p_message_type x) {
-  switch (x) {
-    case p2p_message_type::data:
-      return "data"s;
-    case p2p_message_type::command:
-      return "command"s;
-    case p2p_message_type::routing_update:
-      return "routing_update"s;
-    case p2p_message_type::hello:
-      return "hello"s;
-    case p2p_message_type::originator_syn:
-      return "originator_syn"s;
-    case p2p_message_type::responder_syn_ack:
-      return "responder_syn_ack"s;
-    case p2p_message_type::originator_ack:
-      return "originator_ack"s;
-    case p2p_message_type::drop_conn:
-      return "drop_conn"s;
-    case p2p_message_type::ping:
-      return "ping"s;
-    default:
-      return "invalid"s;
-  }
+  auto index = static_cast<uint8_t>(x);
+  BROKER_ASSERT(index < std::size(p2p_message_type_names));
+  return std::string{p2p_message_type_names[index]};
 }
 
 bool from_string(std::string_view str, p2p_message_type& x) {
-  if (str == "data"sv) {
-    x = p2p_message_type::data;
-    return true;
-  } else if (str == "command"sv) {
-    x = p2p_message_type::command;
-    return true;
-  } else if (str == "routing_update"sv) {
-    x = p2p_message_type::routing_update;
-    return true;
-  } else if (str == "hello"sv) {
-    x = p2p_message_type::hello;
-    return true;
-  } else if (str == "originator_syn"sv) {
-    x = p2p_message_type::originator_syn;
-    return true;
-  } else if (str == "responder_syn_ack"sv) {
-    x = p2p_message_type::responder_syn_ack;
-    return true;
-  } else if (str == "originator_ack"sv) {
-    x = p2p_message_type::originator_ack;
-    return true;
-  } else if (str == "drop_conn"sv) {
-    x = p2p_message_type::drop_conn;
-    return true;
-  } else if (str == "ping"sv) {
-    x = p2p_message_type::ping;
-    return true;
-  } else {
+  auto predicate = [&](std::string_view x) { return x == str; };
+  auto begin = std::begin(p2p_message_type_names);
+  auto end = std::end(p2p_message_type_names);
+  auto i = std::find_if(begin, end, predicate);
+  if (i == begin || i == end) {
     return false;
+  } else {
+    x = static_cast<p2p_message_type>(std::distance(begin, i));
+    return true;
   }
 }
 
 bool from_integer(uint8_t val, p2p_message_type& x) {
-  switch (val) {
-    case 0x01:
-      x = p2p_message_type::data;
-      return true;
-    case 0x02:
-      x = p2p_message_type::command;
-      return true;
-    case 0x03:
-      x = p2p_message_type::routing_update;
-      return true;
-    case 0x10:
-      x = p2p_message_type::hello;
-      return true;
-    case 0x20:
-      x = p2p_message_type::originator_syn;
-      return true;
-    case 0x30:
-      x = p2p_message_type::responder_syn_ack;
-      return true;
-    case 0x40:
-      x = p2p_message_type::originator_ack;
-      return true;
-    case 0x50:
-      x = p2p_message_type::drop_conn;
-      return true;
-    case 0x60:
-      x = p2p_message_type::ping;
-      return true;
-    default:
-      return false;
+  if (val > 0 && val < std::size(p2p_message_type_names)) {
+    x = static_cast<p2p_message_type>(val);
+    return true;
+  } else {
+    return false;
   }
 }
 
@@ -107,11 +60,12 @@ std::string to_string(packed_message_type x) {
 
 bool from_string(std::string_view str, packed_message_type& x) {
   auto tmp = p2p_message_type{0};
-  if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 0x04) {
+  if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 5) {
     x = static_cast<packed_message_type>(tmp);
     return true;
+  } else {
+    return false;
   }
-  return false;
 }
 
 bool from_integer(uint8_t val, packed_message_type& x){

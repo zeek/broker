@@ -20,7 +20,7 @@ enum class ec : uint8_t {
   /// Not-an-error.
   none,
   /// The unspecified default error code.
-  unspecified,
+  unspecified = 1,
   /// Version incompatibility.
   peer_incompatible,
   /// Referenced peer does not exist.
@@ -38,7 +38,7 @@ enum class ec : uint8_t {
   /// The given data store key does not exist.
   no_such_key,
   /// The store operation timed out.
-  request_timeout,
+  request_timeout = 10,
   /// The operation expected a different type than provided
   type_clash,
   /// The data value cannot be used to carry out the desired operation.
@@ -59,7 +59,7 @@ enum class ec : uint8_t {
   /// Received an unknown type tag value.
   invalid_tag,
   /// Received an invalid message.
-  invalid_message,
+  invalid_message = 20,
   /// Deserialized an invalid status.
   invalid_status,
   /// Converting between two data types or formats failed.
@@ -82,7 +82,7 @@ enum class ec : uint8_t {
   invalid_peering_request,
   /// Broker attempted to trigger a second handshake to a peer while the first
   /// handshake did not complete.
-  repeated_peering_handshake_request,
+  repeated_peering_handshake_request = 30,
   /// Received an unexpected or duplicate message during endpoint handshake.
   unexpected_handshake_message,
   /// Handshake failed due to invalid state transitions.
@@ -97,6 +97,12 @@ enum class ec : uint8_t {
   serialization_failed,
   /// Failed to deserialize an object from text or binary input.
   deserialization_failed,
+  /// Broker refused binary input due to a magic number mismatch.
+  wrong_magic_number,
+  /// Broker closes a connection because a prior connection exists.
+  redundant_connection,
+  /// Broker encountered a
+  logic_error = 40,
 };
 // --ec-enum-end
 
@@ -223,6 +229,9 @@ bool convert(const data& str, ec& code) noexcept;
 
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
+
+/// @relates ec
+bool convertible_to_ec(uint8_t src) noexcept;
 
 /// @relates ec
 template <class Inspector>

@@ -15,15 +15,18 @@ namespace broker {
 
 /// Tags a peer-to-peer message with the type of the serialized payload.
 enum class p2p_message_type : uint8_t {
-  data = 0x01,              ///< Payload contains a @ref data_message.
-  command = 0x02,           ///< Payload contains a @ref command_message.
-  routing_update = 0x03,    ///< Payload contains a flooded update.
-  hello = 0x10,             ///< Starts the handshake process.
-  originator_syn = 0x20,    ///< Ship filter and local time from orig to resp.
-  responder_syn_ack = 0x30, ///< Ship filter and local time from resp to orig.
-  originator_ack = 0x40,    ///< Finalizes the peering process.
-  drop_conn = 0x50,         ///< Drops a redundant connection.
-  ping = 0x60,              ///< Probing of connectivity without other effects.
+  data = 1,          ///< Payload contains a @ref data_message.
+  command,           ///< Payload contains a @ref command_message.
+  routing_update,    ///< Payload contains a flooded update.
+  ping,              ///< Connectivity checking after the handshake.
+  pong,              ///< The response to a `ping` message.
+  hello,             ///< Starts the handshake process.
+  probe,             ///< Probing of connectivity without other effects.
+  version_select,    ///< Selects the version for all future messages.
+  drop_conn,         ///< Aborts the handshake with an error.
+  originator_syn,    ///< Ship filter and local time from orig to resp.
+  responder_syn_ack, ///< Ship filter and local time from resp to orig.
+  originator_ack,    ///< Finalizes the peering process.
 };
 
 /// @relates p2p_message_type
@@ -44,9 +47,11 @@ bool inspect(Inspector& f, p2p_message_type& x) {
 /// Tags a packed message with the type of the serialized data. This enumeration
 /// is a subset of @ref p2p_message_type.
 enum class packed_message_type : uint8_t {
-  data = 0x01,
-  command = 0x02,
-  routing_update = 0x03,
+  data = 1,
+  command,
+  routing_update,
+  ping,
+  pong,
 };
 
 /// @relates packed_message_type
@@ -152,6 +157,12 @@ using data_message = cow_tuple<topic, data>;
 
 /// A Broker-internal message with topic and command.
 using command_message = cow_tuple<topic, internal_command>;
+
+/// A Broker-internal message for testing connectivity.
+using ping_message = cow_tuple<std::vector<std::byte>>;
+
+/// A Broker-internal message for testing connectivity.
+using pong_message = cow_tuple<std::vector<std::byte>>;
 
 /// Helper class for implementing @ref packed_message_type_v.
 template <class T>

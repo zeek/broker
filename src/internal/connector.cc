@@ -279,12 +279,13 @@ public:
                  caf::async::producer_resource<node_message> push) override {
     BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
                                           << "(no SSL)");
+    using trait_t = wire_format::v1::trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
       auto res = run_with_length_prefix_framing(mpx, fd_, caf::settings{},
                                                 std::move(pull),
-                                                std::move(push), wire_format{});
+                                                std::move(push), trait_t{});
       fd_.id = caf::net::invalid_socket_id;
       return res;
     } else {
@@ -313,12 +314,13 @@ public:
                  caf::async::producer_resource<node_message> push) override {
     BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
                                           << "(SSL)");
+    using trait_t = wire_format::v1::trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
       auto res = run_with_length_prefix_framing<caf::net::openssl_transport>(
-        mpx, fd_, caf::settings{}, std::move(pull), std::move(push),
-        wire_format{}, std::move(policy_));
+        mpx, fd_, caf::settings{}, std::move(pull), std::move(push), trait_t{},
+        std::move(policy_));
       fd_.id = caf::net::invalid_socket_id;
       return res;
     } else {
@@ -493,13 +495,6 @@ constexpr size_t max_connection_attempts = 10;
 // 4-Bytes to encode the payload size.
 static constexpr size_t handshake_prefix_size = 17;
 
-// The protocol version we announce in the handshake.
-static constexpr uint8_t protocol_version = 1;
-
-// Our magic number for hello and ping messages (the first messages Broker
-// exchanges). These are the ASCII codes for 'ZEEK' in hexadecimal.
-static constexpr uint32_t magic_number = 0x5A45454B;
-
 // The full size of HELLO and PING messages:
 // - 4 Bytes message length.
 // - 17 Bytes for the handshake prefix.
@@ -514,7 +509,7 @@ public:
   // -- member types -----------------------------------------------------------
 
   /// A member function pointer for storing the currently active handler.
-  using fn_t = bool (connect_state::*)(p2p_message_type);
+  using fn_t = bool (connect_state::*)(wire_format::var_msg&);
 
   /// The policy object for dispatching to native read and write functions.
   using socket_policy = std::variant<caf::net::default_stream_transport_policy,
@@ -579,11 +574,9 @@ public:
   /// Current position in the read buffer.
   size_t read_pos = 0;
 
-  /// The ID of the node we have connected to. Known after the 'hello' messages.
+  /// The ID of the node we have connected to. Known after 'hello' or
+  /// 'version_select'.
   endpoint_id remote_id;
-
-  /// The local time announced by the remote node.
-  lamport_timestamp remote_ts;
 
   /// The filter announced by the remote node.
   filter_type remote_filter;
@@ -621,7 +614,10 @@ public:
   detail::peer_status_map& peer_statuses();
 
   /// Returns the filter from the local endpoint.
-  shared_filter_type& local_filter();
+  filter_type local_filter();
+
+  /// Returns the ID of this peer.
+  endpoint_id this_peer();
 
   /// Checks whether the state reached the terminal success state.
   bool reached_fin_state() const noexcept {
@@ -641,7 +637,10 @@ public:
 
   /// Queries whether the state is currently waiting for handshake messages.
   bool performing_handshake() const noexcept {
-    fn_t handshake_states[] = {&connect_state::await_orig_syn,
+    fn_t handshake_states[] = {&connect_state::await_hello_or_version_select,
+                               &connect_state::await_version_select,
+                               &connect_state::await_hello,
+                               &connect_state::await_orig_syn,
                                &connect_state::await_resp_syn_ack,
                                &connect_state::await_orig_ack};
     return std::any_of(std::begin(handshake_states), std::end(handshake_states),
@@ -667,9 +666,10 @@ public:
     // The first message is always a HELLO or PING message.
     rd_buf.resize(handshake_first_msg_size);
     read_pos = 0;
-    payload_size = handshake_first_msg_size - 4;
+    payload_size = 0;
     sck_state = st;
     sck_policy = std::move(new_policy);
+    remote_id = endpoint_id::nil();
   }
 
   // -- socket operations ------------------------------------------------------
@@ -777,69 +777,6 @@ public:
     return continue_writing(stream_socket{fd});
   }
 
-  bool parse_handshake() {
-    BROKER_TRACE("");
-    BROKER_ASSERT(rd_buf.size() == payload_size + 4);
-    caf::binary_deserializer src{nullptr, rd_buf};
-    src.skip(4); // No need to read the payload size again.
-    auto msg_type = p2p_message_type{0};
-    auto ok = src.apply(msg_type);
-    if (ok) {
-      switch (msg_type) {
-        default:
-          src.emplace_error(caf::sec::invalid_argument, "invalid message type");
-          ok = false;
-          break;
-        case p2p_message_type::ping:{
-          // A ping requires no processing. The responder sends a ping
-          // immediately after accepting a connection to probe connectivity.
-          // This is mainly to provoke errors early when running with OpenSSL.
-          BROKER_DEBUG(BROKER_ARG(msg_type));
-          uint8_t version = 0;
-          uint32_t magic = 0;
-          ok = src.apply(remote_id) && src.apply(version) && src.apply(magic);
-          ok = ok                             // Parsing OK.
-               && src.remaining() == 0        // Consumed all Bytes.
-               && version == protocol_version // Version supported.
-               && magic == magic_number;      // Magic Number OK.
-          if (!ok)
-            BROKER_DEBUG("received malformed ping message");
-          return ok;
-        }
-        case p2p_message_type::hello: {
-          BROKER_DEBUG(BROKER_ARG(msg_type));
-          uint8_t version = 0;
-          uint32_t magic = 0;
-          ok = src.apply(remote_id) && src.apply(version) && src.apply(magic);
-          if (!ok || version != protocol_version || magic != magic_number) {
-            BROKER_DEBUG("received malformed hello message");
-            return false;
-          }
-          break;
-        }
-        case p2p_message_type::originator_ack:
-        case p2p_message_type::drop_conn:
-          ok = src.apply(remote_id);
-          if (ok)
-            BROKER_DEBUG(BROKER_ARG(msg_type) << BROKER_ARG(remote_id));
-          break;
-        case p2p_message_type::originator_syn:
-        case p2p_message_type::responder_syn_ack:
-          ok = src.apply(remote_id)    //
-               && src.apply(remote_ts) //
-               && src.apply(remote_filter);
-          if (ok)
-            BROKER_DEBUG(BROKER_ARG(msg_type)
-                         << BROKER_ARG(remote_id) << BROKER_ARG(remote_ts)
-                         << BROKER_ARG(remote_filter));
-          break;
-      }
-    }
-    if (!ok)
-      BROKER_ERROR("failed to deserialize handshake:" << src.get_error());
-    return ok && src.remaining() == 0 && (*this.*fn)(msg_type);
-  }
-
   read_result continue_reading(stream_socket fd) {
     BROKER_TRACE(BROKER_ARG(fd.id));
     switch (sck_state) {
@@ -882,9 +819,7 @@ public:
           rd_buf.resize(payload_size + 4);
           return continue_reading(fd);
         } else if (read_pos == read_size) {
-          // Double check the payload size. This is only necessary for PING and
-          // HELLO messages, so we might use some flag in the future to check
-          // whether we actually need to verify the payload size.
+          // Double check the payload size.
           uint32_t pl_size = 0;
           caf::binary_deserializer src{nullptr, rd_buf};
           [[maybe_unused]] auto ok = src.apply(pl_size);
@@ -895,13 +830,20 @@ public:
             transition(&connect_state::err);
             return read_result::stop;
           }
-          // Delegate processing of the message.
-          if (!parse_handshake()) {
-            BROKER_DEBUG("reject connection: handshake failed");
+          // Read next message.
+          BROKER_ASSERT(rd_buf.size() == payload_size + 4);
+          auto bytes = caf::make_span(rd_buf).subspan(4); // Skip the size.
+          auto msg = wire_format::decode(bytes);
+          if (std::holds_alternative<wire_format::var_msg_error>(msg)) {
+            auto& [ec, descr] = std::get<wire_format::var_msg_error>(msg);
+            BROKER_DEBUG("reject connection:" << ec << "->" << descr);
+            send(wire_format::make_drop_conn_msg(this_peer(), ec,
+                                                 std::move(descr)));
             transition(&connect_state::err);
             return read_result::stop;
           }
-          // Read next message.
+          if (!(*this.*fn)(msg))
+            return read_result::stop;
           payload_size = 0;
           read_pos = 0;
           read_size = 4;
@@ -924,8 +866,11 @@ public:
     fn = f;
     if (f == &connect_state::fin) {
       if (!redundant_connections.empty()) {
+        auto msg = wire_format::make_drop_conn_msg(this_peer(),
+                                                   ec::redundant_connection,
+                                                   "redundant connection");
         for (auto& conn : redundant_connections) {
-          conn->send_drop_conn();
+          conn->send(msg);
           conn->transition(&connect_state::fin);
         }
         redundant_connections.clear();
@@ -940,47 +885,44 @@ public:
     }
   }
 
-  void send_msg(caf::const_byte_span bytes, bool add_filter);
+  /// Tries to update the status for a peer to connecting.
+  /// @returns `true` if the state has been updated and the caller may proceed
+  ///          with the handshake process, `false` otherwise and this function
+  ///          transitioned to one of `fin`, `paused` or `err`.
+  bool proceed_with_handshake(endpoint_id id, bool is_originator);
 
-  void send_hello();
+  template <class T>
+  void send(const T& what);
 
-  void send_orig_syn();
+  bool handle(wire_format::drop_conn_msg& msg);
 
-  void send_resp_syn_ack();
+  bool await_hello_or_version_select(wire_format::var_msg& msg);
 
-  void send_orig_ack();
+  bool await_hello(wire_format::var_msg& msg);
 
-  void send_drop_conn();
+  bool await_version_select(wire_format::var_msg& msg);
 
-  void send_ping();
+  bool await_orig_syn(wire_format::var_msg& msg);
 
-  bool handle_drop_conn();
+  bool await_resp_syn_ack(wire_format::var_msg& msg);
 
-  bool await_hello_or_orig_syn(p2p_message_type msg);
-
-  bool await_hello(p2p_message_type msg);
-
-  bool await_orig_syn(p2p_message_type msg);
-
-  bool await_resp_syn_ack(p2p_message_type msg);
-
-  bool await_orig_ack(p2p_message_type msg);
+  bool await_orig_ack(wire_format::var_msg& msg);
 
   /// Connections enter this state when detecting a redundant connection. From
   /// here, they transition to FIN after sending drop_conn eventually.
-  bool paused(p2p_message_type) {
-    BROKER_ERROR("tried processing a message after reaching state FIN");
+  bool paused(wire_format::var_msg&) {
+    BROKER_ERROR("tried processing a message after reaching state PAUSE");
     return false;
   }
 
   /// The terminal state for success.
-  bool fin(p2p_message_type) {
+  bool fin(wire_format::var_msg&) {
     BROKER_ERROR("tried processing a message after reaching state FIN");
     return false;
   }
 
   /// The terminal state for errors.
-  bool err(p2p_message_type) {
+  bool err(wire_format::var_msg&) {
     BROKER_ERROR("tried processing a message after reaching state ERR");
     return false;
   }
@@ -1022,26 +964,6 @@ struct connect_manager {
   /// Stores the ID of the local peer.
   endpoint_id this_peer;
 
-  /// Caches the hello message, including protocol version (1 Byte) and  magic
-  /// number (4 Bytes).
-  uint8_t hello_buf[handshake_first_msg_size];
-
-  /// Caches the prefix of originator_hello handshakes.
-  uint8_t orig_syn_buf[handshake_prefix_size + 4];
-
-  /// Caches the prefix of originator_hello handshakes.
-  uint8_t orig_ack_buf[handshake_prefix_size + 4];
-
-  /// Caches the prefix of responder_hello handshakes.
-  uint8_t resp_syn_ack_buf[handshake_prefix_size + 4];
-
-  /// Caches the drop-redundant-connection message.
-  uint8_t drop_conn_buf[handshake_prefix_size + 4];
-
-  /// Caches the ping message, including protocol version (1 Byte) and  magic
-  /// number (4 Bytes).
-  uint8_t ping_buf[handshake_first_msg_size];
-
   /// Stores a pointer to the OpenSSL context when running with SSL enabled.
   caf::net::openssl::ctx_ptr ssl_ctx;
 
@@ -1055,34 +977,6 @@ struct connect_manager {
       this_peer(this_peer),
       ssl_ctx(std::move(ctx)) {
     BROKER_TRACE(BROKER_ARG(this_peer));
-    // Convenience function for writing the fixed part of a message.
-    auto init_buf = [this](uint8_t* buf, p2p_message_type mt) {
-      auto as_u8 = [](auto x) { return static_cast<uint8_t>(x); };
-      // Byte 0-3: message size (big endian).
-      memset(buf, 0, handshake_prefix_size);
-      buf[3] = static_cast<uint8_t>(handshake_prefix_size);
-      // Byte 4: message type.
-      buf[4] = as_u8(mt);
-      // Byte 5-20: UUID for this peer.
-      memcpy(buf + 5, this->this_peer.bytes().data(), 16);
-    };
-    // Convenience function for writing a message with magic number and version.
-    auto init_buf_magic = [this, &init_buf](uint8_t* buf, p2p_message_type mt) {
-      // Initialize as usual and fix the message size.
-      init_buf(buf, mt);
-      buf[3] = handshake_first_msg_size - 4;
-      // Byte 21: the protocol version.
-      buf[21] = protocol_version;
-      // Byte 22-25: our magic number in big endian.
-      char magic_nr_str[] = "ZEEK";
-      memcpy(buf + 22, magic_nr_str, 4);
-    };
-    init_buf_magic(hello_buf, p2p_message_type::hello);
-    init_buf(orig_syn_buf, p2p_message_type::originator_syn);
-    init_buf(orig_ack_buf, p2p_message_type::originator_ack);
-    init_buf(resp_syn_ack_buf, p2p_message_type::responder_syn_ack);
-    init_buf(drop_conn_buf, p2p_message_type::drop_conn);
-    init_buf_magic(ping_buf, p2p_message_type::ping);
   }
 
   connect_manager(const connect_manager&) = delete;
@@ -1200,8 +1094,8 @@ struct connect_manager {
       }
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, mask, 0});
-      state->transition(&connect_state::await_hello_or_orig_syn);
-      state->send_hello();
+      state->transition(&connect_state::await_hello_or_version_select);
+      state->send(wire_format::make_hello_msg(this_peer));
     } else if (++state->connection_attempts < max_connection_attempts) {
       auto retry_interval = state->addr.retry;
       if (retry_interval.count() != 0) {
@@ -1270,8 +1164,7 @@ struct connect_manager {
     if (!state.redundant) {
       auto conn = state.make_pending_connection(stream_socket{entry.fd});
       listener->on_connection(state.event_id, state.remote_id, state.addr,
-                              state.remote_ts, state.remote_filter,
-                              std::move(conn));
+                              state.remote_filter, std::move(conn));
     } else {
       listener->on_redundant_connection(state.event_id, state.remote_id,
                                         state.addr);
@@ -1295,7 +1188,13 @@ struct connect_manager {
           break;
         case read_result::stop:
           if (i->second->reached_err_state()) {
-            abort(entry);
+            if ((entry.events & write_mask) == 0) {
+              abort(entry);
+            } else {
+              // Leave cleanup to continue_writing.
+              entry.events &= ~read_mask;
+              return;
+            }
           } else {
             entry.events &= ~read_mask;
             if (i->second->done()) {
@@ -1349,7 +1248,7 @@ struct connect_manager {
         pending_fdset.push_back({new_sock->id, mask, 0});
         pending.emplace(new_sock->id, st);
         st->transition(&connect_state::await_hello);
-        st->send_ping();
+        st->send(wire_format::make_probe_msg());
       }
     } else {
       entry.events &= ~read_mask;
@@ -1534,224 +1433,157 @@ read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
   }
 }
 
-void connect_state::send_msg(caf::const_byte_span bytes, bool add_filter) {
-  BROKER_ASSERT(bytes.size() >= handshake_prefix_size);
+template <class T>
+void connect_state::send(const T& what) {
+  caf::binary_serializer sink{nullptr, wr_buf};
+  // Store the current writing position for later and add dummy size.
   auto old_size = wr_buf.size();
-  wr_buf.insert(wr_buf.end(), bytes.begin(), bytes.end());
-  if (add_filter) {
-    [[maybe_unused]] auto ok
-      = local_filter().read([this, old_size](auto ts, auto& xs) {
-          caf::binary_serializer sink{nullptr, wr_buf};
-          if (!sink.apply(ts) || !sink.apply(xs))
-            return false;
-          sink.seek(old_size);
-          auto len = wr_buf.size() - old_size;
-          return sink.apply(static_cast<uint32_t>(len - 4));
-        });
-    BROKER_ASSERT(ok);
-  }
-  BROKER_DEBUG("start writing a message of size" << wr_buf.size() - old_size);
+  uint32_t dummy = 0;
+  std::ignore = sink.apply(dummy);
+  // Encode the actual message and override the dummy with the actual size.
+  std::ignore = wire_format::encode(sink, what);
+  auto len = static_cast<uint32_t>(wr_buf.size() - old_size - 4);
+  sink.seek(old_size);
+  std::ignore = sink.apply(len);
+  BROKER_DEBUG("start writing a" << T::tag << "message of size" << len);
   mgr->register_writing(this);
 }
 
-void connect_state::send_hello() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->hello_buf)), false);
-}
-
-void connect_state::send_orig_syn() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->orig_syn_buf)), true);
-}
-
-void connect_state::send_resp_syn_ack() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->resp_syn_ack_buf)), true);
-}
-
-void connect_state::send_orig_ack() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->orig_ack_buf)), false);
-}
-
-void connect_state::send_drop_conn() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->drop_conn_buf)), false);
-}
-
-void connect_state::send_ping() {
-  BROKER_TRACE("");
-  send_msg(caf::as_bytes(caf::make_span(mgr->ping_buf)), false);
-}
-
-bool connect_state::handle_drop_conn() {
-  BROKER_TRACE("");
-  // The remote peer sends this message if we already have a connection
-  // established. However, re-connects after an unpeering or other events may
-  // produce conflicting views where the remote did not realize yet that this
-  // connection no longer exists. Hence, we need to double-check whether we have
-  // a connection or peering relation and otherwise we raise an error to trigger
-  // retries.
-  auto stat = peer_statuses().get(remote_id);
-  BROKER_DEBUG("received drop_from from" << remote_id << "with peer status"
-                                         << stat);
-  switch (stat) {
-    case peer_status::connecting:
-    case peer_status::connected:
-    case peer_status::peered:
-      redundant = true;
-      transition(&connect_state::fin);
-      return true;
-    default:
-      transition(&connect_state::err);
-      return false;
-  }
-}
-
-bool connect_state::await_hello_or_orig_syn(p2p_message_type msg) {
-  BROKER_TRACE(msg);
-  switch (msg) {
-    default:
-      transition(&connect_state::err);
-      return false;
-    case p2p_message_type::hello:
-      return await_hello(msg);
-    case p2p_message_type::originator_syn:
-      return await_orig_syn(msg);
-    case p2p_message_type::drop_conn:
-      return handle_drop_conn();
-  }
-}
-
-bool connect_state::await_hello(p2p_message_type msg) {
-  BROKER_TRACE(msg);
-  if (msg == p2p_message_type::drop_conn) {
-    return handle_drop_conn();
-  } else if (msg != p2p_message_type::hello) {
-    transition(&connect_state::err);
-    return false;
-  }
-  if (mgr->this_peer < remote_id) {
-    auto proceed = [this] {
-      send_orig_syn();
-      transition(&connect_state::await_resp_syn_ack);
-    };
-    auto& psm = peer_statuses();
-    auto status = peer_status::connecting;
-    if (psm.insert(remote_id, status)) {
-      added_peer_status = true;
-      BROKER_ASSERT(status == peer_status::connecting);
-      BROKER_DEBUG(remote_id << ":: () -> connecting");
-      proceed();
-    } else {
-      for (;;) { // Repeat until we succeed or fail.
-        switch (status) {
-          case peer_status::initialized:
-            if (psm.update(remote_id, status, peer_status::connecting)) {
-              BROKER_DEBUG(remote_id << ":: initialized -> connecting");
-              proceed();
-              return true;
-            }
-            break;
-          case peer_status::connecting:
-          case peer_status::reconnecting:
-            if (auto other = mgr->find_pending_handshake(remote_id)) {
-              BROKER_DEBUG("detected redundant connection, enter paused state");
-              BROKER_ASSERT(other != this);
-              redundant = true;
-              other->redundant_connections.emplace_back(shared_from_this());
-              transition(&connect_state::paused);
-              return true;
-            } else {
-              BROKER_DEBUG("detected redundant connection but "
-                           "find_pending_handshake failed");
-              transition(&connect_state::err);
-              return false;
-            }
-            break;
-          case peer_status::connected:
-          case peer_status::peered:
-            BROKER_DEBUG("detected redundant connection for connected peer");
-            send_drop_conn();
-            redundant = true;
-            transition(&connect_state::fin);
-            return true;
-          case peer_status::disconnected:
-            if (psm.update(remote_id, status, peer_status::reconnecting)) {
-              BROKER_DEBUG(remote_id << ":: disconnected -> reconnecting");
-              proceed();
-              return true;
-            }
-            break;
-          case peer_status::unknown:
-            // The map returns this state only if the map has been closed.
-            transition(&connect_state::err);
-            return false;
-          default:
-            BROKER_ERROR("invalid peer status while handling 'hello'");
-            transition(&connect_state::err);
-            return false;
-        }
-      }
+bool connect_state::handle(wire_format::drop_conn_msg& msg) {
+  BROKER_TRACE(BROKER_ARG(msg));
+  // The remote peer sends this message with error code ec::redundant_connection
+  // if we already have a connection established. However, re-connects after an
+  // unpeering or other events may produce conflicting views where the remote
+  // did not realize yet that this connection no longer exists. Hence, we need
+  // to double-check whether we have a connection or peering relation and
+  // otherwise we raise an error to trigger retries.
+  if (msg.code == static_cast<uint8_t>(ec::redundant_connection)) {
+    auto stat = peer_statuses().get(msg.sender_id);
+    BROKER_DEBUG("received drop_conn from" << msg.sender_id
+                                           << "with peer status" << stat);
+    switch (stat) {
+      case peer_status::connecting:
+      case peer_status::connected:
+      case peer_status::peered:
+        remote_id = msg.sender_id;
+        redundant = true;
+        transition(&connect_state::fin);
+        return true;
+      default:
+        transition(&connect_state::err);
+        return false;
     }
   } else {
-    send_hello();
-    transition(&connect_state::await_orig_syn);
-  }
-  return true;
-}
-
-bool connect_state::await_orig_syn(p2p_message_type msg) {
-  BROKER_TRACE(msg);
-  if (msg == p2p_message_type::drop_conn) {
-    return handle_drop_conn();
-  } else if (msg != p2p_message_type::originator_syn) {
     transition(&connect_state::err);
     return false;
   }
-  auto proceed = [this] {
-    send_resp_syn_ack();
-    transition(&connect_state::await_orig_ack);
+}
+
+bool connect_state::await_hello_or_version_select(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  switch (msg.index()) {
+    default:
+      transition(&connect_state::err);
+      return false;
+    case wire_format::hello_index:
+      return await_hello(msg);
+    case wire_format::version_select_index:
+      return await_version_select(msg);
+    case wire_format::drop_conn_index:
+      return handle(get<wire_format::drop_conn_msg>(msg));
+    case wire_format::probe_index:
+      // No further processing required.
+      return true;
+  }
+}
+
+bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
+  auto proceed = [this, id] {
+    added_peer_status = true;
+    remote_id = id;
+    return true;
   };
   auto& psm = peer_statuses();
   auto status = peer_status::connecting;
-  if (psm.insert(remote_id, status)) {
-    added_peer_status = true;
+  if (psm.insert(id, status)) {
     BROKER_ASSERT(status == peer_status::connecting);
-    proceed();
-    return true;
+    BROKER_DEBUG(id << ":: () -> connecting");
+    return proceed();
   } else {
     for (;;) { // Repeat until we succeed or fail.
       switch (status) {
         case peer_status::initialized:
-          if (psm.update(remote_id, status, peer_status::connecting)) {
-            BROKER_DEBUG(remote_id << ":: initialized -> connecting");
-            proceed();
-            return true;
-          }
-          break;
-        case peer_status::disconnected:
-          if (psm.update(remote_id, status, peer_status::reconnecting)) {
-            BROKER_DEBUG(remote_id << ":: disconnected -> reconnecting");
-            proceed();
-            return true;
+          if (psm.update(id, status, peer_status::connecting)) {
+            BROKER_DEBUG(id << ":: initialized -> connecting");
+            return proceed();
           }
           break;
         case peer_status::connecting:
         case peer_status::reconnecting:
+          if (is_originator) {
+            if (auto other = mgr->find_pending_handshake(id)) {
+              BROKER_DEBUG("detected redundant connection, enter paused state");
+              BROKER_ASSERT(other != this);
+              redundant = true;
+              remote_id = id;
+              other->redundant_connections.emplace_back(shared_from_this());
+              transition(&connect_state::paused);
+              return false;
+            } else {
+              BROKER_DEBUG("detected redundant connection but "
+                           "find_pending_handshake failed");
+              send(wire_format::make_drop_conn_msg(
+                  this_peer(), ec::logic_error,
+                  "detected redundant connection but "
+                  "find_pending_handshake failed"));
+              transition(&connect_state::err);
+              return false;
+            }
+          } else {
+            BROKER_WARNING("detected redundant connection to"
+                           << id << "at the responder" << BROKER_ARG(status));
+            send(wire_format::make_drop_conn_msg(
+              this_peer(), ec::logic_error,
+              "detected redundant connection at the responder"));
+            transition(&connect_state::err);
+            return false;
+          }
+          break;
         case peer_status::connected:
         case peer_status::peered:
-          BROKER_DEBUG("detected redundant connection to"
-                       << remote_id << "at the responder"
-                       << BROKER_ARG(status));
-          transition(&connect_state::err);
-          return false;
+          if (is_originator) {
+            BROKER_DEBUG("detected redundant connection for connected peer");
+            send(wire_format::make_drop_conn_msg(
+              this_peer(), ec::redundant_connection, "redundant connection"));
+            redundant = true;
+            remote_id = id;
+            transition(&connect_state::fin);
+            return false;
+          } else {
+            BROKER_WARNING("detected redundant connection to"
+                           << id << "at the responder" << BROKER_ARG(status));
+            send(wire_format::make_drop_conn_msg(
+              this_peer(), ec::logic_error,
+              "detected redundant connection at the responder"));
+            transition(&connect_state::err);
+            return false;
+          }
+        case peer_status::disconnected:
+          if (psm.update(id, status, peer_status::reconnecting)) {
+            BROKER_DEBUG(id << ":: disconnected -> reconnecting");
+            return proceed();
+          }
+          break;
         case peer_status::unknown:
           // The map returns this state only if the map has been closed.
+          send(wire_format::make_drop_conn_msg(this_peer(), ec::shutting_down,
+                                               "shutting down"));
           transition(&connect_state::err);
           return false;
         default:
-          BROKER_ERROR("invalid peer status while handling 'orig_syn'");
+          BROKER_ERROR("invalid peer status");
+          send(wire_format::make_drop_conn_msg(this_peer(), ec::logic_error,
+                                               "invalid peer status"));
           transition(&connect_state::err);
           return false;
       }
@@ -1759,9 +1591,111 @@ bool connect_state::await_orig_syn(p2p_message_type msg) {
   }
 }
 
-bool connect_state::await_resp_syn_ack(p2p_message_type msg) {
-  BROKER_TRACE(msg);
-  if (msg != p2p_message_type::responder_syn_ack) {
+bool connect_state::await_hello(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  switch (msg.index()) {
+    default:
+      transition(&connect_state::err);
+      return false;
+    case wire_format::drop_conn_index:
+      return handle(get<wire_format::drop_conn_msg>(msg));
+    case wire_format::probe_index:
+      // No further processing required.
+      return true;
+    case wire_format::hello_index:
+      break;
+  }
+  auto& hello = std::get<wire_format::hello_msg>(msg);
+  if (hello.min_version > wire_format::protocol_version) {
+    BROKER_DEBUG("reject peering: version range not supported");
+    send(wire_format::make_drop_conn_msg(this_peer(), ec::peer_incompatible,
+                                         "version range not supported"));
+    transition(&connect_state::err);
+    return false;
+  } else if (mgr->this_peer < hello.sender_id) {
+    if (proceed_with_handshake(hello.sender_id, true)) {
+      send(wire_format::make_version_select_msg(this_peer()));
+      send(wire_format::v1::make_originator_syn_msg(local_filter()));
+      transition(&connect_state::await_resp_syn_ack);
+      return true;
+    } else {
+      return fn != &connect_state::err;
+    }
+  } else {
+    send(wire_format::make_hello_msg(this_peer()));
+    transition(&connect_state::await_version_select);
+    return true;
+  }
+}
+
+bool connect_state::await_version_select(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  switch (msg.index()) {
+    default:
+      transition(&connect_state::err);
+      return false;
+    case wire_format::drop_conn_index:
+      return handle(get<wire_format::drop_conn_msg>(msg));
+    case wire_format::probe_index:
+      // No further processing required.
+      return true;
+    case wire_format::version_select_index:
+      break;
+  }
+  auto& vselect = std::get<wire_format::version_select_msg>(msg);
+  if (vselect.selected_version != wire_format::protocol_version) {
+    send(wire_format::make_drop_conn_msg(this_peer(), ec::peer_incompatible,
+                                         "selected version not supported"));
+    transition(&connect_state::err);
+    return false;
+  } else if (proceed_with_handshake(vselect.sender_id, false)) {
+    transition(&connect_state::await_orig_syn);
+    return true;
+  } else {
+    return fn != &connect_state::err;
+  }
+}
+
+bool connect_state::await_orig_syn(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  if (!std::holds_alternative<wire_format::v1::originator_syn_msg>(msg)) {
+    transition(&connect_state::err);
+    return false;
+  }
+  auto& syn = std::get<wire_format::v1::originator_syn_msg>(msg);
+  remote_filter = std::move(syn.filter);
+  send(wire_format::v1::make_responder_syn_ack_msg(local_filter()));
+  transition(&connect_state::await_orig_ack);
+  return true;
+}
+
+bool connect_state::await_resp_syn_ack(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  if (!std::holds_alternative<wire_format::v1::responder_syn_ack_msg>(msg)) {
+    transition(&connect_state::err);
+    return false;
+  }
+  auto& syn_ack = std::get<wire_format::v1::responder_syn_ack_msg>(msg);
+  remote_filter = std::move(syn_ack.filter);
+  auto& psm = peer_statuses();
+  auto status = peer_status::connecting;
+  if (psm.update(remote_id, status, peer_status::connected)) {
+    BROKER_DEBUG(remote_id << ":: connecting -> connected");
+  } else if (status == peer_status::reconnecting
+             && psm.update(remote_id, status, peer_status::connected)) {
+    BROKER_DEBUG(remote_id << ":: reconnecting -> connected");
+  } else {
+    BROKER_ERROR("got a resp_syn_ack message but peer status does not match");
+    return false;
+  }
+  send(wire_format::v1::make_originator_ack_msg());
+  transition(&connect_state::fin);
+  return true;
+}
+
+bool connect_state::await_orig_ack(wire_format::var_msg& msg) {
+  BROKER_TRACE(stringify(msg));
+  if (!std::holds_alternative<wire_format::v1::originator_ack_msg>(msg)) {
     transition(&connect_state::err);
     return false;
   }
@@ -1776,34 +1710,16 @@ bool connect_state::await_resp_syn_ack(p2p_message_type msg) {
     BROKER_ERROR("got a resp_syn_ack message but peer status does not match");
     return false;
   }
-  send_orig_ack();
   transition(&connect_state::fin);
   return true;
 }
 
-bool connect_state::await_orig_ack(p2p_message_type msg) {
-  BROKER_TRACE(msg);
-  if (msg != p2p_message_type::originator_ack) {
-    transition(&connect_state::err);
-    return false;
-  }
-  auto& psm = peer_statuses();
-  auto status = peer_status::connecting;
-  if (psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: connecting -> connected");
-  } else if (status == peer_status::reconnecting
-             && psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: reconnecting -> connected");
-  } else {
-    BROKER_ERROR("got a resp_syn_ack message but peer status does not match");
-    return false;
-  }
-  transition(&connect_state::fin);
-  return true;
+filter_type connect_state::local_filter() {
+  return mgr->filter->read();
 }
 
-shared_filter_type& connect_state::local_filter() {
-  return *mgr->filter;
+endpoint_id connect_state::this_peer() {
+  return mgr->this_peer;
 }
 
 } // namespace

@@ -23,10 +23,10 @@ public:
   }
 
   void on_connection(connector_event_id event_id, endpoint_id peer,
-                     network_info addr, [[maybe_unused]] lamport_timestamp ts,
-                     filter_type filter, pending_connection_ptr ptr) override {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer) << BROKER_ARG(addr)
-                                      << BROKER_ARG(ts) << BROKER_ARG(filter));
+                     network_info addr, filter_type filter,
+                     pending_connection_ptr ptr) override {
+    BROKER_TRACE(BROKER_ARG(event_id)
+                 << BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
     caf::anon_send(hdl_, event_id,
                    caf::make_message(peer, addr, std::move(filter),
                                      std::move(ptr)));

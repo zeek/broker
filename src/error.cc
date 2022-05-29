@@ -59,6 +59,9 @@ constexpr std::string_view ec_names[] = {
   "cannot_open_resource",
   "serialization_failed",
   "deserialization_failed",
+  "wrong_magic_number",
+  "redundant_connection",
+  "logic_error",
 };
 
 template <class T, size_t N>
@@ -201,6 +204,10 @@ bool convert(const data& src, ec& code) noexcept {
 bool convertible_to_ec(const data& src) noexcept {
   ec dummy;
   return convert(src, dummy);
+}
+
+bool convertible_to_ec(uint8_t src) noexcept {
+  return src < std::size(ec_names);
 }
 
 bool convertible_to_error(const vector& xs) noexcept {
