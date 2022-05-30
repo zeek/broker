@@ -152,8 +152,12 @@ public:
   ///                local interfaces.
   /// @param port The port to listen locally. If 0, the endpoint selects the
   ///             next available free port from the OS.
+  /// @param err If non-null, stores the error when the functions returns 0.
+  /// @param reuse_addr Causes Broker to set `SO_REUSEPORT` on UNIX systems if
+  ///                   `true` (default). Has no effect on Windows.
   /// @returns The port the endpoint bound to or 0 on failure.
-  uint16_t listen(const std::string& address = {}, uint16_t port = 0);
+  uint16_t listen(const std::string& address = {}, uint16_t port = 0,
+                  error* err = nullptr, bool reuse_addr = true);
 
   /// Initiates a peering with a remote endpoint.
   /// @param address The IP address of the remote endpoint.
@@ -228,8 +232,13 @@ public:
   ///                local interfaces.
   /// @param port The port to listen locally. If 0, the endpoint selects the
   ///             next available free port from the OS.
+  ///
+  /// @param err If non-null, stores the error when the functions returns 0.
+  /// @param reuse_addr Causes Broker to set `SO_REUSEPORT` on UNIX systems if
+  ///                   `true` (default). Has no effect on Windows.
   /// @returns The port the endpoint bound to or 0 on failure.
-  uint16_t web_socket_listen(const std::string& address = {}, uint16_t port = 0);
+  uint16_t web_socket_listen(const std::string& address = {}, uint16_t port = 0,
+                             error* err = nullptr, bool reuse_addr = true);
 
   // --- publishing ------------------------------------------------------------
 

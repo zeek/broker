@@ -459,9 +459,9 @@ private:
         }
         case connector_msg::listen: {
           BROKER_DEBUG("received listen event");
-          auto&& [eid, host, port]
-            = from_source<connector_event_id, std::string, uint16_t>(src);
-          mgr.listen(eid, host, port);
+          auto&& [eid, host, port, reuse_addr]
+            = from_source<connector_event_id, std::string, uint16_t, bool>(src);
+          mgr.listen(eid, host, port, reuse_addr);
           break;
         }
         default:
@@ -1233,7 +1233,8 @@ struct connect_manager {
     connect(make_connect_state(this, event_id, addr));
   }
 
-  void listen(connector_event_id event_id, std::string& addr, uint16_t port) {
+  void listen(connector_event_id event_id, std::string& addr, uint16_t port,
+              bool reuse_addr) {
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
     if (addr.empty())
@@ -1241,7 +1242,7 @@ struct connect_manager {
     else
       authority.host = addr;
     authority.port = port;
-    if (auto sock = caf::net::make_tcp_accept_socket(authority, true)) {
+    if (auto sock = caf::net::make_tcp_accept_socket(authority, reuse_addr)) {
       if (auto actual_port = caf::net::local_port(*sock)) {
         BROKER_DEBUG("started listening on port" << *actual_port << "socket"
                                                  << sock->id);
@@ -1863,9 +1864,11 @@ void connector::async_drop(const connector_event_id event_id,
 }
 
 void connector::async_listen(connector_event_id event_id,
-                             const std::string& address, uint16_t port) {
-  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(address) << BROKER_ARG(port));
-  auto buf = to_buf(connector_msg::listen, event_id, address, port);
+                             const std::string& address, uint16_t port,
+                             bool reuse_addr) {
+  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(address) << BROKER_ARG(port)
+                                    << BROKER_ARG(reuse_addr));
+  auto buf = to_buf(connector_msg::listen, event_id, address, port, reuse_addr);
   write_to_pipe(buf);
 }
 

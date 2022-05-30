@@ -110,7 +110,7 @@ void ssl_accept(caf::net::multiplexer& mpx, Socket fd,
 }
 
 expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
-                          std::string addr, uint16_t port,
+                          std::string addr, uint16_t port, bool reuse_addr,
                           const std::string& allowed_path,
                           on_connect_t on_connect) {
   using namespace std::literals;
@@ -118,7 +118,7 @@ expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
   caf::uri::authority_type auth;
   auth.host = std::move(addr);
   auth.port = port;
-  auto fd = caf::net::make_tcp_accept_socket(auth, true);
+  auto fd = caf::net::make_tcp_accept_socket(auth, reuse_addr);
   if (!fd) {
     BROKER_ERROR("failed to open WebSocket on port" << port << "->"
                                                     << fd.error());

@@ -1,3 +1,7 @@
+2.2.0-307 | 2022-05-30 11:06:19 +0200
+
+  * Set SO_REUSEADDR by default. (Dominik Charousset, Corelight)
+
 2.2.0-305 | 2022-05-30 11:00:52 +0200
 
   * Fix minor Coverity findings. (Dominik Charousset, Corelight)

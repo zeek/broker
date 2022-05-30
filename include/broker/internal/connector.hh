@@ -74,7 +74,7 @@ public:
   void async_drop(connector_event_id event_id, const network_info& addr);
 
   void async_listen(connector_event_id event_id, const std::string& host,
-                    uint16_t port);
+                    uint16_t port, bool reuse_addr);
 
   void async_shutdown();
 

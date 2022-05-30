@@ -627,7 +627,8 @@ void endpoint::shutdown() {
   clock_.reset();
 }
 
-uint16_t endpoint::listen(const std::string& address, uint16_t port) {
+uint16_t endpoint::listen(const std::string& address, uint16_t port,
+                          error* err_ptr, bool reuse_addr) {
   BROKER_TRACE(BROKER_ARG(address) << BROKER_ARG(port));
   BROKER_INFO("try listening on"
               << (address + ":" + std::to_string(port))
@@ -635,7 +636,9 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
   char const* addr = address.empty() ? nullptr : address.c_str();
   uint16_t result = 0;
   caf::scoped_actor self{ctx_->sys};
-  self->request(native(core_), caf::infinite, atom::listen_v, address, port)
+  self
+    ->request(native(core_), caf::infinite, atom::listen_v, address, port,
+              reuse_addr)
     .receive(
       [&](atom::listen, atom::ok, uint16_t res) {
         BROKER_DEBUG("listening on port" << res);
@@ -645,6 +648,8 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port) {
       [&](caf::error& err) {
         BROKER_DEBUG("cannot listen to" << address << "on port" << port << ":"
                                         << err);
+        if (err_ptr)
+          *err_ptr = facade(std::move(err));
       });
   return result;
 }
@@ -734,8 +739,8 @@ std::vector<peer_info> endpoint::peers() const {
   return result;
 }
 
-uint16_t endpoint::web_socket_listen(const std::string& address,
-                                     uint16_t port) {
+uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
+                                     error* err, bool reuse_addr) {
   auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
                       const caf::settings& hdr,
                       internal::web_socket::connect_event_t& ev) {
@@ -752,12 +757,15 @@ uint16_t endpoint::web_socket_listen(const std::string& address,
   };
   auto ssl_cfg = ctx_->cfg.openssl_options();
   auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
-                                          "/v1/messages/json",
+                                          reuse_addr, "/v1/messages/json",
                                           std::move(on_connect));
-  if (res)
+  if (res) {
     return *res;
-  else
+  } else {
+    if (err)
+      *err = std::move(res.error());
     return 0;
+  }
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
