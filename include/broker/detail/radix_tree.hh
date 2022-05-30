@@ -75,10 +75,13 @@ public:
   using value_type = std::pair<const key_type, mapped_type>;
   using size_type = size_t;
 
-  class iterator : public std::iterator<std::forward_iterator_tag, value_type> {
+  class iterator {
     friend class radix_tree;
 
   public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = radix_tree<T, N>::value_type;
+    using difference_type = std::ptrdiff_t;
     using reference = value_type&;
     using pointer = value_type*;
 

@@ -1,3 +1,7 @@
+2.2.0-309 | 2022-05-30 11:07:09 +0200
+
+  * Remove deprecated std::iterator usage (Tim Wojtulewicz, Corelight)
+
 2.2.0-307 | 2022-05-30 11:06:19 +0200
 
   * Set SO_REUSEADDR by default. (Dominik Charousset, Corelight)
