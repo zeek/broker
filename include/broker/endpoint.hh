@@ -221,6 +221,16 @@ public:
   /// Retrieves a list of topics that peers have subscribed to on this endpoint.
   std::vector<topic> peer_subscriptions() const;
 
+  // --- alternative client protocols ------------------------------------------
+
+  /// Listens at @p port for incoming WebSocket connections.
+  /// @param address The interface to listen at. If empty, listen on all
+  ///                local interfaces.
+  /// @param port The port to listen locally. If 0, the endpoint selects the
+  ///             next available free port from the OS.
+  /// @returns The port the endpoint bound to or 0 on failure.
+  uint16_t web_socket_listen(const std::string& address = {}, uint16_t port = 0);
+
   // --- publishing ------------------------------------------------------------
 
   /// Publishes a message.
@@ -298,6 +308,15 @@ public:
                                                  std::move(cleanup)));
   }
 
+  /// Starts a background worker from the given set of function that consumes
+  /// incoming messages. The worker will run in the background.
+  template <class OnNext>
+  worker subscribe(filter_type filter, OnNext on_next) {
+    return do_subscribe(std::move(filter),
+                        detail::make_sink_driver([] {}, std::move(on_next),
+                                                 [](const error&) {}));
+  }
+
   template <class Init, class OnNext, class Cleanup>
   [[deprecated("use subscribe() instead")]] worker
   subscribe_nosync(filter_type filter, Init init, OnNext on_next,
@@ -364,6 +383,33 @@ public:
   /// Releases resources for the OS socket layer if necessary. On Windows, this
   /// function calls `WSACleanup`. Does nothing on POSIX systems.
   static void deinit_socket_api();
+
+  /// Initializes OpenSSL if necessary.
+  static void init_ssl_api(); // note: implemented in internal/connector.cc
+
+  /// Releases resources from OpenSSL.
+  static void deinit_ssl_api(); // note: implemented in internal/connector.cc
+
+  /// Initializes the host system by preparing all sub-systems and any global
+  /// state required by broker. Calls @ref init_socket_api, @ref init_ssl_api
+  /// and @ref configuration::init_global_state.
+  static void init_system();
+
+  /// Releases global state and resources.
+  static void deinit_system();
+
+  /// Automates system initialization when put at the top of `main` by calling
+  /// @ref init_system in its constructor and @ref deinit_system in its
+  /// destructor.
+  struct system_guard {
+    system_guard() {
+      endpoint::init_system();
+    }
+
+    ~system_guard() {
+      endpoint::deinit_system();
+    }
+  };
 
   // --await-peer-start
   /// Blocks execution of the current thread until either `whom` was added to

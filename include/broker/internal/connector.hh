@@ -1,11 +1,5 @@
 #pragma once
 
-#include <condition_variable>
-#include <mutex>
-
-#include <caf/actor.hpp>
-#include <caf/error.hpp>
-
 #include "broker/configuration.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/peer_status_map.hh"
@@ -13,7 +7,17 @@
 #include "broker/internal/pending_connection.hh"
 #include "broker/network_info.hh"
 
+#include <caf/actor.hpp>
+#include <caf/error.hpp>
+#include <caf/net/openssl_transport.hpp>
+
+#include <condition_variable>
+#include <mutex>
+
 namespace broker::internal {
+
+// TODO: exposed for internal/web_socket.cc, drop when switching to CAF 0.19.
+caf::net::openssl::ctx_ptr ssl_context_from_cfg(const openssl_options_ptr& cfg);
 
 // "Strong typedef" akin to std::byte;
 enum class connector_event_id : uint64_t {};
@@ -60,7 +64,8 @@ public:
     virtual void on_shutdown() = 0;
   };
 
-  connector(endpoint_id this_peer, openssl_options_ptr ssl_cfg);
+  connector(endpoint_id this_peer, broker_options broker_cfg,
+            openssl_options_ptr ssl_cfg);
 
   ~connector();
 
@@ -95,6 +100,7 @@ private:
   std::unique_ptr<listener> sub_;
   shared_filter_ptr filter_;
   detail::shared_peer_status_map_ptr peer_statuses_;
+  broker_options broker_cfg_;
   openssl_options_ptr ssl_cfg_;
 };
 

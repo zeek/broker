@@ -34,7 +34,6 @@
 #include "broker/endpoint.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/generator_file_reader.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -58,7 +57,6 @@ namespace atom = broker::internal::atom;
 CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker::end)
 
   BROKER_NODE_ADD_ATOM(blocking, "blocking")
-  BROKER_NODE_ADD_ATOM(generate, "generate")
   BROKER_NODE_ADD_ATOM(relay, "relay")
   BROKER_NODE_ADD_ATOM(stream, "stream")
 
@@ -206,12 +204,10 @@ void extend_config(broker::configuration& broker_cfg) {
   auto& cfg = broker::internal::configuration_access(&broker_cfg).cfg();
   caf::config_option_adder{cfg.custom_options(), "global"}
     .add<bool>("verbose,v", "print status and debug output")
-    .add<bool>("rate,r", "print receive rate ('relay' mode only)")
+    .add<bool>("rate,r", "print rate once per second ('relay' mode only)")
     .add<string>("name,N", "set node name in verbose output")
     .add<string_list>("topics,t", "topics for sending/receiving messages")
-    .add<std::string>("mode,m", "'relay', 'generate', 'ping', or 'pong'")
-    .add<string>("generator-file,g",
-                 "path to a generator file ('generate' mode only)")
+    .add<std::string>("mode,m", "'relay' (default), 'ping', or 'pong'")
     .add<size_t>("payload-size,s",
                  "additional number of bytes for the ping message")
     .add<timespan>("rendezvous-retry",
@@ -219,11 +215,9 @@ void extend_config(broker::configuration& broker_cfg) {
                    "message (default: 50ms)")
     .add<size_t>("num-messages,n",
                  "number of pings (default: 100, 'ping' mode only)")
-    .add<uri_list>("peers,p",
-                   "list of peers we connect to on startup in "
-                   "<tcp://$host:$port> notation")
-    .add<uint16_t>("local-port,l",
-                   "local port for publishing this endpoint at");
+    .add<uri_list>("peers", "list of peers we connect to on startup in "
+                            "<tcp://$host:$port> notation")
+    .add<uint16_t>("port,p", "port to listen for incoming Broker peerings");
 }
 
 // -- convenience get_or and get_if overloads for enpoint ----------------------
@@ -252,7 +246,7 @@ bool is_ping_msg(const broker::data& x) {
   if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 3) {
       auto& xs = *vec;
-      auto str = caf::get_if<string>(&xs[0]);
+      auto str = broker::get_if<string>(&xs[0]);
       return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
     }
   }
@@ -263,7 +257,7 @@ bool is_pong_msg(const broker::data& x) {
   if (auto vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 2) {
       auto& xs = *vec;
-      auto str = caf::get_if<string>(&xs[0]);
+      auto str = broker::get_if<string>(&xs[0]);
       return str && *str == "pong" && is<count>(xs[1]);
     }
   }
@@ -334,98 +328,6 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
   }
 }
 
-void generator(caf::event_based_actor* self, caf::actor core,
-               std::shared_ptr<size_t> count, const std::string& file_name,
-               broker::internal::generator_file_reader_ptr ptr) {
-  using generator_ptr = broker::internal::generator_file_reader_ptr;
-  using value_type = broker::node_message_content;
-  if (auto limit = get_as<size_t>(self->config(), "num-messages")) {
-    struct state {
-      generator_ptr gptr;
-      size_t remaining;
-    };
-    caf::attach_stream_source(
-      self, core,
-      [&](state& st) {
-        // Take ownership of `ptr`.
-        st.gptr = std::move(ptr);
-        st.remaining = *limit;
-      },
-      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
-        if (st.gptr == nullptr)
-          return;
-        auto n = std::min(hint, st.remaining);
-        for (size_t i = 0; i < n; ++i) {
-          if (st.gptr->at_end())
-            st.gptr->rewind();
-          value_type x;
-          if (auto err = st.gptr->read(x)) {
-            err::println("error while parsing ", file_name, ": ",
-                         to_string(err));
-            st.gptr = nullptr;
-            st.remaining = 0;
-            *count += i;
-            return;
-          }
-          out.push(std::move(x));
-        }
-        st.remaining -= n;
-        *count += n;
-      },
-      [](const state& st) { return st.remaining == 0; });
-  } else {
-    attach_stream_source(
-      self, core,
-      [&](generator_ptr& g) {
-        // Take ownership of `ptr`.
-        g = std::move(ptr);
-      },
-      [=](generator_ptr& g, caf::downstream<value_type>& out, size_t hint) {
-        if (g == nullptr || g->at_end())
-          return;
-        for (size_t i = 0; i < hint; ++i) {
-          if (g->at_end()) {
-            *count += i;
-            return;
-          }
-          value_type x;
-          if (auto err = g->read(x)) {
-            err::println("error while parsing ", file_name, ": ",
-                         to_string(err));
-            g = nullptr;
-            *count += i;
-            return;
-          }
-          out.push(std::move(x));
-        }
-        *count += hint;
-      },
-      [](const generator_ptr& g) { return g == nullptr || g->at_end(); });
-  }
-}
-
-void generate_mode(broker::endpoint& ep, topic_list) {
-  auto file_name = get_or(ep, "generator-file", "");
-  if (file_name.empty())
-    return err::println("got no path to a generator file");
-  verbose::println("generate messages from: ", file_name);
-  auto generator_ptr = broker::internal::make_generator_file_reader(file_name);
-  if (generator_ptr == nullptr)
-    return err::println("unable to open generator file: ", file_name);
-  auto count = std::make_shared<size_t>(0u);
-  caf::scoped_actor self{broker::internal::endpoint_access{&ep}.sys()};
-  auto t0 = std::chrono::system_clock::now();
-  auto g = self->spawn(generator, native(ep.core()), count, file_name,
-                       std::move(generator_ptr));
-  self->wait_for(g);
-  auto t1 = std::chrono::system_clock::now();
-  auto delta = t1 - t0;
-  using fractional_seconds = std::chrono::duration<double>;
-  auto delta_s = std::chrono::duration_cast<fractional_seconds>(delta);
-  verbose::println("shipped ", *count, " messages in ", delta_s.count(), "s");
-  verbose::println("AVG: ", *count / delta_s.count());
-}
-
 void ping_mode(broker::endpoint& ep, topic_list topics) {
   assert(topics.size() > 0);
   auto topic = topics[0];
@@ -491,8 +393,8 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) {
-  caf::init_global_meta_objects<caf::id_block::broker_node>();
-  broker::configuration::init_global_state();
+  broker::endpoint::system_guard sys_guard; // Initialize global state.
+  setvbuf(stdout, NULL, _IOLBF, 0); // Always line-buffer stdout.
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};
   extend_config(cfg);
@@ -505,18 +407,10 @@ int main(int argc, char** argv) {
   if (cfg.cli_helptext_printed())
     return EXIT_SUCCESS;
   broker::endpoint ep{std::move(cfg)};
-  // Get mode (mandatory).
-  auto mode = get_as<std::string>(ep, "mode");
-  if (!mode) {
-    node_name = "unnamed-node";
-    err::println("no mode specified");
-    return EXIT_FAILURE;
-  }
+  // Get mode.
+  auto mode = get_or(ep, "mode", "relay");
   // Get process name, using the mode name as fallback.
-  if (auto cfg_name = get_as<string>(ep, "name"))
-    node_name = *cfg_name;
-  else
-    node_name = *mode;
+  node_name = get_or(ep, "name", mode);
   // Get topics (mandatory) and make sure this endpoint at least forwards them.
   topic_list topics;
   { // Lifetime scope of temporary variables.
@@ -533,33 +427,26 @@ int main(int argc, char** argv) {
   actor verbose_logger;
   if (get_or(ep, "verbose", false)) {
     verbose::enabled = true;
-    // Launch background worker when running in verbose mode.
-    auto& sys = broker::internal::endpoint_access{&ep}.sys();
-    auto& groups = sys.groups();
-    auto g1 = groups.get_local("broker/errors");
-    auto g2 = groups.get_local("broker/statuses");
-    verbose_logger = sys.spawn_in_groups({g1, g2}, [](event_based_actor* self) {
-      return behavior{
-        [=](atom::local, caf::error& x) { verbose::println(x); },
-        [=](atom::local, broker::status& x) { verbose::println(x); },
-      };
-    });
+    // Launch background worker that prints status and error events when running
+    // in verbose mode.
+    ep.subscribe({topic::errors(), topic::statuses()},
+                 [](const broker::data_message& msg) {
+                   verbose::println(msg);
+                 });
   }
   // Publish endpoint at demanded port.
-  if (auto local_port = get_as<uint16_t>(ep, "local-port")) {
-    verbose::println("listen for peers on port ", *local_port);
-    ep.listen({}, *local_port);
+  if (auto port = get_as<uint16_t>(ep, "port")) {
+    verbose::println("listen for peers on port ", *port);
+    ep.listen({}, *port);
   }
   // Select function f based on the mode.
   mode_fun f = nullptr;
-  if (*mode == "replay") {
+  if (mode == "relay") {
     f = relay_mode;
-  } else if (*mode == "ping") {
+  } else if (mode == "ping") {
     f = ping_mode;
-  } else if (*mode == "pong") {
+  } else if (mode == "pong") {
     f = pong_mode;
-  } else if (*mode == "generate") {
-    f = generate_mode;
   } else {
     err::println("invalid mode: ", mode);
     return EXIT_FAILURE;

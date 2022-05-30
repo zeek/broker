@@ -326,6 +326,8 @@ set(BROKER_SRC
   src/internal/connector_adapter.cc
   src/internal/core_actor.cc
   src/internal/flare_actor.cc
+  src/internal/json_client.cc
+  src/internal/json_type_mapper.cc
   src/internal/master_actor.cc
   src/internal/master_resolver.cc
   src/internal/metric_collector.cc
@@ -335,6 +337,7 @@ set(BROKER_SRC
   src/internal/pending_connection.cc
   src/internal/prometheus.cc
   src/internal/store_actor.cc
+  src/internal/web_socket.cc
   src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc
@@ -411,7 +414,7 @@ endmacro()
 if (NOT BROKER_DISABLE_TOOLS)
   # TODO: fix these tools
   # add_tool(broker-gateway)
-  # add_tool(broker-node)
+  add_tool(broker-node)
   add_tool(broker-pipe)
 endif ()
 

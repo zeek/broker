@@ -12,10 +12,26 @@ fi
 
 set -e
 
+result=0
+
+export PATH="$PATH:$PWD/build/bin"
+
+BaseDir="$PWD"
+
 cd build
 
 if [[ -z "${BROKER_CI_MEMCHECK}" ]]; then
+    # C++ test suites (via CTest).
     $CTestCommand --output-on-failure
+    # BTest suites.
+    if command -v pip3 >/dev/null 2>&1 ; then
+        BinDir="$(python3 -m site --user-base)/bin"
+        export PATH="$PATH:$BinDir"
+        pip3 install --user btest websockets
+        cd $BaseDir/tests/btest
+        btest || result=1
+        [[ -d .tmp ]] && tar -czf tmp.tar.gz .tmp
+    fi
 else
     # Python tests under ASan are problematic for various reasons, so skip
     # e.g. need LD_PRELOAD, some specific compiler packagings are
@@ -24,3 +40,5 @@ else
     # finally most tests end up timing out when run under ASan anyway.
     $CTestCommand --output-on-failure -E python
 fi
+
+exit ${result}

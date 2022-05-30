@@ -58,7 +58,7 @@ void print_line(std::ostream& out, const std::string& line) {
 
 struct parameters {
   std::string mode;
-  std::string impl;
+  std::string impl = "blocking";
   std::string topic;
   std::vector<std::string> peers;
   uint64_t local_port = 0;
@@ -92,6 +92,7 @@ void publish_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
     out.publish(std::move(line));
     ++msg_count;
   }
+  std::cout << "*** published " << msg_count << " messages, byte\n";
 }
 
 #ifdef BROKER_WINDOWS
@@ -215,6 +216,7 @@ void split(std::vector<std::string>& result, std::string_view str,
 } // namespace <anonymous>
 
 int main(int argc, char** argv) {
+  broker::endpoint::system_guard sys_guard;
   // Parse CLI parameters using our config.
   parameters params;
   broker::configuration cfg{broker::skip_init};

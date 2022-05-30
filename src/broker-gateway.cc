@@ -162,7 +162,7 @@ int run(gateway& gw) {
 }
 
 int main(int argc, char** argv) {
-  configuration::init_global_state();
+  endpoint::system_guard sys_guard;
   // Parse CLI parameters using our config.
   config cfg;
   try {

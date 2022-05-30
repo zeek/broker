@@ -4,8 +4,15 @@
 #include <string>
 
 #include "broker/detail/operators.hh"
+#include "broker/fwd.hh"
 
 namespace broker {
+
+/// @relates port
+bool convert(const port& p, std::string& str);
+
+/// @relates port
+bool convert(const std::string& str, port& p);
 
 /// A transport-layer port.
 class port : detail::totally_ordered<port> {
@@ -38,8 +45,18 @@ public:
 
   template <class Inspector>
   friend bool inspect(Inspector& f, port& x) {
-    return f.object(x).fields(f.field("num", x.num_),
-                              f.field("proto", x.proto_));
+    if (f.has_human_readable_format()) {
+      auto get = [&] {
+        std::string str;
+        convert(x, str);
+        return str;
+      };
+      auto set = [&](const std::string& str) { return convert(str, x); };
+      return f.apply(get, set);
+    } else {
+      return f.object(x).fields(f.field("num", x.num_),
+                                f.field("proto", x.proto_));
+    }
   }
 
 private:
@@ -66,12 +83,6 @@ bool operator==(const port& lhs, const port& rhs);
 
 /// @relates port
 bool operator<(const port& lhs, const port& rhs);
-
-/// @relates port
-bool convert(const port& p, std::string& str);
-
-/// @relates port
-bool convert(const std::string& str, port& p);
 
 } // namespace broker
 

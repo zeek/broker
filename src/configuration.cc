@@ -102,13 +102,15 @@ std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
 struct configuration::impl : public caf::actor_system_config {
   using super = caf::actor_system_config;
 
-  impl() {
+  impl() : ssl_options(std::make_shared<broker::openssl_options>()) {
     using std::string;
     using string_list = std::vector<string>;
     // Add custom options to the CAF parser.
     opt_group{custom_options_, "?broker"}
-      .add(options.disable_ssl, "disable_ssl",
+      .add(options.disable_ssl, "disable-ssl",
            "forces Broker to use unencrypted communication")
+      .add(options.disable_forwarding, "disable-forwarding",
+           "disables forwarding of incoming data to peers")
       .add(options.ttl, "ttl", "drop messages after traversing TTL hops")
       .add<string>("recording-directory",
                    "path for storing recorded meta information")
@@ -117,6 +119,8 @@ struct configuration::impl : public caf::actor_system_config {
         "maximum number of entries when recording published messages")
       .add<size_t>("max-pending-inputs-per-source",
                    "maximum number of items we buffer per peer or publisher");
+    opt_group{custom_options_, "broker.web-socket"} //
+      .add<uint16_t>("port", "port for incoming WebSocket connections");
     opt_group{custom_options_, "broker.metrics"}
       .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
       .add<string>("address", "bind address for the HTTP server socket")
@@ -125,15 +129,25 @@ struct configuration::impl : public caf::actor_system_config {
         "name for this endpoint in metrics (when exporting: suffix of "
         "the topic by default)");
     opt_group{custom_options_, "broker.metrics.export"}
-      .add<string>("topic",
-                   "if set, causes Broker to publish its metrics "
-                   "periodically on the given topic")
+      .add<string>("topic", "if set, causes Broker to publish its metrics "
+                            "periodically on the given topic")
       .add<caf::timespan>("interval",
                           "time between publishing metrics on the topic")
       .add<string_list>("prefixes",
                         "selects metric prefixes to publish on the topic");
     opt_group{custom_options_, "broker.metrics.import"} //
       .add<string_list>("topics", "topics for collecting remote metrics from");
+    opt_group{custom_options_, "broker.ssl"} //
+      .add(ssl_options->certificate, "certificate",
+           "path to the PEM-formatted certificate file")
+      .add(ssl_options->key, "key",
+           "path to the private key file for this node")
+      .add(ssl_options->passphrase, "passphrase",
+           "passphrase to decrypt the private key")
+      .add(ssl_options->capath, "capath",
+           "path to an OpenSSL-style directory of trusted certificates")
+      .add(ssl_options->cafile, "cafile",
+           "path to a file of concatenated PEM-formatted certificates");
     // Ensure that we're only talking to compatible Broker instances.
     string_list ids{"broker.v" + std::to_string(version::protocol)};
     // Override CAF defaults.
@@ -156,7 +170,7 @@ struct configuration::impl : public caf::actor_system_config {
   caf::settings dump_content() const override {
     auto result = super::dump_content();
     auto& grp = result["broker"].as_dictionary();
-    put_missing(grp, "disable_ssl", options.disable_ssl);
+    put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
@@ -169,6 +183,8 @@ struct configuration::impl : public caf::actor_system_config {
   void init(int argc, char** argv);
 
   broker_options options;
+
+  openssl_options_ptr ssl_options;
 };
 
 configuration::configuration(skip_init_t) {
@@ -241,6 +257,19 @@ void configuration::impl::init(int argc, char** argv) {
   }
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
+  }
+  if (auto env = getenv("BROKER_WEB_SOCKET_PORT")) {
+    // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
+    caf::config_value val{env};
+    if (auto port_num = caf::get_as<uint16_t>(val)) {
+      set("broker.web-socket.port", *port_num);
+    } else if (auto port_obj = caf::get_as<port>(val)) {
+      set("broker.web-socket.port", port_obj->number());
+    } else {
+      auto what = concat("invalid value for BROKER_WEB_SOCKET_PORT: ", env,
+                         " (expected a non-zero port number)");
+      throw std::invalid_argument(what);
+    }
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
     caf::config_value val{env};
@@ -318,55 +347,48 @@ bool configuration::cli_helptext_printed() const {
 }
 
 std::string configuration::openssl_certificate() const {
-  return impl_->openssl_certificate;
+  return impl_->ssl_options->certificate;
 }
 
 void configuration::openssl_certificate(std::string x) {
-  impl_->openssl_certificate = std::move(x);
+  impl_->ssl_options->certificate = std::move(x);
 }
 
 std::string configuration::openssl_key() const {
-  return impl_->openssl_key;
+  return impl_->ssl_options->key;
 }
 
 void configuration::openssl_key(std::string x) {
-  impl_->openssl_key = std::move(x);
+  impl_->ssl_options->key = std::move(x);
 }
 
 std::string configuration::openssl_passphrase() const {
-  return impl_->openssl_passphrase;
+  return impl_->ssl_options->passphrase;
 }
 
 void configuration::openssl_passphrase(std::string x) {
-  impl_->openssl_passphrase = std::move(x);
+  impl_->ssl_options->passphrase = std::move(x);
 }
 
 std::string configuration::openssl_capath() const {
-  return impl_->openssl_capath;
+  return impl_->ssl_options->capath;
 }
 
 void configuration::openssl_capath(std::string x) {
-  impl_->openssl_capath = std::move(x);
+  impl_->ssl_options->capath = std::move(x);
 }
 
 std::string configuration::openssl_cafile() const {
-  return impl_->openssl_cafile;
+  return impl_->ssl_options->cafile;
 }
 
 void configuration::openssl_cafile(std::string x) {
-  impl_->openssl_cafile = std::move(x);
+  impl_->ssl_options->cafile = std::move(x);
 }
 
 openssl_options_ptr configuration::openssl_options() const {
   if (!options().disable_ssl) {
-    auto res = std::make_shared<broker::openssl_options>();
-    res->certificate = openssl_certificate();
-    res->key = openssl_key();
-    res->passphrase = openssl_passphrase();
-    res->capath = openssl_capath();
-    res->cafile = openssl_cafile();
-    res->skip_init = options_.skip_ssl_init;
-    return res;
+    return impl_->ssl_options;
   } else {
     return nullptr;
   }
@@ -498,11 +520,6 @@ void configuration::init_global_state() {
     caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });
-}
-
-void configuration::sync_options() {
-  set("broker.disable-ssl", options_.disable_ssl);
-  set("broker.disable-forwarding", options_.disable_forwarding);
 }
 
 } // namespace broker

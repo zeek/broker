@@ -7,10 +7,13 @@
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
+#include "broker/internal/json_client.hh"
+#include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/internal/web_socket.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
@@ -22,11 +25,16 @@
 #include <caf/attach_stream_sink.hpp>
 #include <caf/attach_stream_source.hpp>
 #include <caf/config.hpp>
+#include <caf/cow_string.hpp>
 #include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
+#include <caf/flow/observable.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
 #include <caf/message.hpp>
+#include <caf/net/middleman.hpp>
+#include <caf/net/tcp_stream_socket.hpp>
+#include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
@@ -56,6 +64,8 @@
 #include "Winsock2.h"
 #endif
 
+using namespace std::literals;
+
 namespace atom = broker::internal::atom;
 
 using broker::internal::facade;
@@ -63,7 +73,7 @@ using broker::internal::native;
 
 namespace broker {
 
-// --- async helper ------------------------------------------------------------
+// --- helper actors -----------------------------------------------------------
 
 namespace {
 
@@ -102,6 +112,7 @@ caf::actor_system_config& nat_cfg(configuration& cfg) {
   internal::configuration_access helper{&cfg};
   return helper.cfg();
 }
+
 
 } // namespace
 
@@ -380,8 +391,9 @@ public:
   }
 
   internal::connector_ptr start(caf::actor_system& sys, endpoint_id this_peer,
+                                const broker_options& broker_cfg,
                                 openssl_options_ptr ssl_cfg) {
-    connector_ = std::make_shared<internal::connector>(this_peer,
+    connector_ = std::make_shared<internal::connector>(this_peer, broker_cfg,
                                                        std::move(ssl_cfg));
     thread_ = std::thread{[ptr{connector_}, sys_ptr{&sys}] {
       CAF_SET_LOGGER_SYS(sys_ptr);
@@ -456,6 +468,7 @@ endpoint::endpoint(configuration config)
 
 endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   // Spin up the actor system.
+  auto broker_cfg = config.options();
   auto ssl_cfg = config.openssl_options();
   ctx_ = std::make_shared<internal::endpoint_context>(std::move(config));
   auto& sys = ctx_->sys;
@@ -496,7 +509,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   internal::connector_ptr conn_ptr;
   if (!caf::get_or(cfg, "broker.disable-connector", false)) {
     auto conn_task = std::make_unique<connector_task>();
-    conn_ptr = conn_task->start(sys, id_, std::move(ssl_cfg));
+    conn_ptr = conn_task->start(sys, id_, broker_cfg, ssl_cfg);
     background_tasks_.emplace_back(std::move(conn_task));
   } else {
     BROKER_DEBUG("run without a connector (assuming test mode)");
@@ -548,6 +561,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
     telemetry_exporter_ = facade(hdl);
   }
+  // Spin up a WebSocket server when requested.
+  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port"))
+    web_socket_listen("0.0.0.0"s, *port);
 }
 
 endpoint::~endpoint() {
@@ -716,6 +732,32 @@ std::vector<peer_info> endpoint::peers() const {
                detail::die("failed to get peers:", to_string(e));
              });
   return result;
+}
+
+uint16_t endpoint::web_socket_listen(const std::string& address,
+                                     uint16_t port) {
+  auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
+                      const caf::settings& hdr,
+                      internal::web_socket::connect_event_t& ev) {
+    auto& [pull, push] = ev;
+    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
+    auto addr
+      = network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
+                     caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}),
+                     0s};
+    BROKER_INFO("new JSON client with address" << addr << "and user agent"
+                                               << user_agent);
+    using impl_t = internal::json_client_actor;
+    sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
+  };
+  auto ssl_cfg = ctx_->cfg.openssl_options();
+  auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
+                                          "/v1/messages/json",
+                                          std::move(on_connect));
+  if (res)
+    return *res;
+  else
+    return 0;
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
@@ -933,6 +975,17 @@ void endpoint::deinit_socket_api() {
 #ifdef BROKER_WINDOWS
   WSACleanup();
 #endif
+}
+
+void endpoint::init_system() {
+  configuration::init_global_state();
+  init_socket_api();
+  init_ssl_api();
+}
+
+void endpoint::deinit_system() {
+  deinit_ssl_api();
+  deinit_socket_api();
 }
 
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {

@@ -28,6 +28,10 @@ ci_template: &CI_TEMPLATE
   build_script: ./ci/build.sh
   test_script: ./ci/test.sh
 
+  on_failure:
+    upload_btest_tmp_dir_artifacts:
+      path: "tests/btest/tmp.tar.gz"
+
 unix_env: &UNIX_ENV
   env:
     CIRRUS_WORKING_DIR: /broker

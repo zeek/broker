@@ -1,3 +1,17 @@
+2.2.0-303 | 2022-05-30 10:31:23 +0200
+
+  * Add WebSocket support. (Dominik Charousset, Corelight)
+
+    Broker now offers access to the publish/subscribe layer via
+    WebSocket in order to make its data model accessible to third
+    parties. WebSocket clients are treated as lightweight peers. Each
+    Broker endpoint can be configured to act as a WebSocket server by
+    either setting the environment variable
+    ``BROKER_WEB_SOCKET_PORT``; by setting ``broker.web-socket.port``
+    on the command line or in the configuration file; or
+    programmatically by calling ``endpoint::web_socket_listen``. See
+    ``docs/web-socket.rst`` for more information.
+
 2.2.0-277 | 2022-05-23 10:26:53 -0700
 
   * Fix warning when building on macOS (Dominik Charousset, Corelight)
