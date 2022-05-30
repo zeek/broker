@@ -1,3 +1,7 @@
+2.2.0-305 | 2022-05-30 11:00:52 +0200
+
+  * Fix minor Coverity findings. (Dominik Charousset, Corelight)
+
 2.2.0-303 | 2022-05-30 10:31:23 +0200
 
   * Add WebSocket support. (Dominik Charousset, Corelight)

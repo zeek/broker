@@ -286,15 +286,22 @@ bool convert(const data& src, error& dst) {
 }
 
 ec error_view::code() const noexcept {
-  return get_as<ec>((*xs_)[1]);
+  auto result = ec::unspecified;
+  std::ignore = convert((*xs_)[1], result);
+  return result;
 }
 
 const std::string* error_view::message() const noexcept {
   if (is<none>((*xs_)[2]))
     return nullptr;
-  auto& ctx = get<vector>((*xs_)[2]);
-  return ctx.size() == 1 ? &get<std::string>(ctx[0])
-                         : &get<std::string>(ctx[1]);
+  auto try_get_str = [](const vector& vec, size_t index) {
+    return vec.size() > index ? get_if<std::string>(vec[index]) : nullptr;
+  };
+  if (auto ctx = get_if<vector>((*xs_)[2]); !ctx) {
+    return nullptr;
+  } else {
+    return try_get_str(*ctx, ctx->size() == 1 ? 0 : 1);
+  }
 }
 
 std::optional<endpoint_info> error_view::context() const {

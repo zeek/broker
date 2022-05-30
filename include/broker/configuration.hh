@@ -44,7 +44,7 @@ struct broker_options {
   bool ignore_broker_conf = false;
 
   /// How many hops we forward at the most before dropping a message.
-  uint16_t ttl = 16;
+  uint16_t ttl = defaults::ttl;
 
   broker_options() = default;
 
@@ -180,7 +180,7 @@ public:
   std::enable_if_t<std::is_integral_v<T>> set(std::string key, T val) {
     if constexpr (std::is_same_v<T, bool>)
       set_bool(std::move(key), val);
-    if constexpr (std::is_signed_v<T>)
+    else if constexpr (std::is_signed_v<T>)
       set_i64(std::move(key), val);
     else
       set_u64(std::move(key), val);

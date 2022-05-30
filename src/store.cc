@@ -52,7 +52,7 @@ public:
       name(std::move(name)),
       frontend(std::move(frontend_hdl)),
       self(frontend->home_system()) {
-    BROKER_DEBUG("created state for store" << name);
+    BROKER_DEBUG("created state for store" << this->name);
   }
 
   ~state_impl() {

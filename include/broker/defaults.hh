@@ -10,6 +10,8 @@
 
 namespace broker::defaults {
 
+constexpr uint16_t ttl = 16;
+
 constexpr std::string_view recording_directory = "";
 
 constexpr size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
