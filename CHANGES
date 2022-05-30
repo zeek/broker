@@ -1,3 +1,7 @@
+2.2.0-311 | 2022-05-30 11:08:11 +0200
+
+  * Implement new fan-out benchmark (Dominik Charousset, Corelight)
+
 2.2.0-309 | 2022-05-30 11:07:09 +0200
 
   * Remove deprecated std::iterator usage (Tim Wojtulewicz, Corelight)
