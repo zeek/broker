@@ -1067,13 +1067,16 @@ struct connect_manager {
                                                << BROKER_ARG2("fd", sock->id));
       if (auto err = caf::net::nonblocking(*sock, true)) {
         auto err_str = to_string(err);
-        fprintf(stderr, "failed to set socket to nonblocking: %s\n",
-                err_str.c_str());
+        fprintf(stderr,
+                "failed to set socket %d to nonblocking (line %d): %s\n",
+                (int) sock->id, __LINE__, err_str.c_str());
         ::abort();
       }
       if (auto err = caf::net::allow_sigpipe(*sock, false)) {
         auto err_str = to_string(err);
-        fprintf(stderr, "failed to disable sigpipe: %s\n", err_str.c_str());
+        fprintf(stderr,
+                "failed to disable sigpipe on socket %d (line %d): %s\n",
+                (int) sock->id, __LINE__, err_str.c_str());
         ::abort();
       }
       if (auto i = pending.find(sock->id); i != pending.end()) {
@@ -1136,6 +1139,12 @@ struct connect_manager {
     else
       authority.host = addr;
     authority.port = port;
+#ifdef BROKER_WINDOWS
+    // SO_REUSEADDR behaves quite differently on Windows. CAF currently does not
+    // differentiate between UNIX and Windows in this regard, so we'll force
+    // this option to false on Windows in the meantime.
+    reuse_addr = false;
+#endif
     if (auto sock = caf::net::make_tcp_accept_socket(authority, reuse_addr)) {
       if (auto actual_port = caf::net::local_port(*sock)) {
         BROKER_DEBUG("started listening on port" << *actual_port << "socket"
@@ -1169,6 +1178,7 @@ struct connect_manager {
       listener->on_redundant_connection(state.event_id, state.remote_id,
                                         state.addr);
       close(caf::net::socket{entry.fd});
+      entry.events = 0;
     }
   }
 
@@ -1212,41 +1222,44 @@ struct connect_manager {
       }
     } else if (acceptors.count(entry.fd) != 0) {
       using namespace std::literals;
-      auto sock = caf::net::tcp_accept_socket{entry.fd};
-      if (auto new_sock = caf::net::accept(sock)) {
-        BROKER_ASSERT(pending.count(new_sock->id) == 0);
-        if (auto err = caf::net::nonblocking(*new_sock, true)) {
+      auto accept_sock = caf::net::tcp_accept_socket{entry.fd};
+      if (auto sock = caf::net::accept(accept_sock)) {
+        BROKER_ASSERT(pending.count(sock->id) == 0);
+        if (auto err = caf::net::nonblocking(*sock, true)) {
           auto err_str = to_string(err);
-          fprintf(stderr, "failed to set pipe to nonblocking: %s\n",
-                  err_str.c_str());
+          fprintf(stderr,
+                  "failed to set socket %d to nonblocking (line %d): %s\n",
+                  (int) sock->id, __LINE__, err_str.c_str());
           ::abort();
         }
-        if (auto err = caf::net::allow_sigpipe(*new_sock, false)) {
+        if (auto err = caf::net::allow_sigpipe(*sock, false)) {
           auto err_str = to_string(err);
-          fprintf(stderr, "failed to disable sigpipe: %s\n", err_str.c_str());
+          fprintf(stderr,
+                  "failed to disable sigpipe on socket %d (line %d): %s\n",
+                  (int) sock->id, __LINE__, err_str.c_str());
           ::abort();
         }
         auto st = make_connect_state(this);
         st->addr.retry = 0s;
-        if (auto addr = caf::net::remote_addr(*new_sock))
+        if (auto addr = caf::net::remote_addr(*sock))
           st->addr.address = std::move(*addr);
-        if (auto port = caf::net::remote_port(*new_sock))
+        if (auto port = caf::net::remote_port(*sock))
           st->addr.port = *port;
         BROKER_DEBUG("accepted new connection from socket"
                      << entry.fd << "-> register for reading"
-                     << BROKER_ARG2("fd", new_sock->id));
+                     << BROKER_ARG2("fd", sock->id));
         short mask = 0;
         if (ssl_ctx) {
           mask = write_mask; // SSL wants to write first.
           st->sck_state = connect_state::socket_state::accepting;
-          st->sck_policy = caf::net::openssl::policy::make(ssl_ctx, *new_sock);
+          st->sck_policy = caf::net::openssl::policy::make(ssl_ctx, *sock);
         } else {
           mask = read_mask;
           st->sck_state = connect_state::socket_state::running;
           st->sck_policy = caf::net::default_stream_transport_policy{};
         }
-        pending_fdset.push_back({new_sock->id, mask, 0});
-        pending.emplace(new_sock->id, st);
+        pending_fdset.push_back({sock->id, mask, 0});
+        pending.emplace(sock->id, st);
         st->transition(&connect_state::await_hello);
         st->send(wire_format::make_probe_msg());
       }
@@ -1319,7 +1332,6 @@ struct connect_manager {
       acceptors.erase(j);
     }
     BROKER_DEBUG("close socket" << entry.fd);
-    pending.erase(entry.fd);
     close(caf::net::socket{entry.fd});
     entry.events = 0;
   }
@@ -1358,8 +1370,9 @@ struct connect_manager {
     if (new_end != fdset.end()) {
 #if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
       std::for_each(new_end, fdset.end(), [](auto& x) {
-        BROKER_DEBUG("drop completed socket from pollset"
-                     << BROKER_ARG2("fd", x.fd));
+        if (x.fd != detail::invalid_native_socket)
+          BROKER_DEBUG("drop completed socket from pollset"
+                       << BROKER_ARG2("fd", x.fd));
       });
 #endif
       fdset.erase(new_end, fdset.end());
@@ -1743,7 +1756,10 @@ connector::connector(endpoint_id this_peer, broker_options broker_cfg,
   auto [rd, wr] = *fds;
   if (auto err = caf::net::nonblocking(rd, true)) {
     auto err_str = to_string(err);
-    fprintf(stderr, "failed to set pipe to nonblocking: %s\n", err_str.c_str());
+    fprintf(stderr,
+            "failed to set pipe handle %d to nonblocking (line %d): %s\n",
+            __LINE__, (int) rd.id, err_str.c_str());
+
     ::abort();
   }
   pipe_rd_ = rd.id;
@@ -1954,10 +1970,6 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
     mgr.prepare_next_cycle();
   }
   BROKER_DEBUG("connector done");
-  for (auto& entry : fdset) {
-    BROKER_DEBUG("close socket" << entry.fd);
-    caf::net::close(caf::net::socket{entry.fd});
-  }
 }
 
 } // namespace broker::internal
