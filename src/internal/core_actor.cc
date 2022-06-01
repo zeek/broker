@@ -82,11 +82,13 @@ caf::behavior core_actor_state::make_behavior() {
     "broker", "processed-elements", {"type"},
     "Number of processed stream elements.");
   using counter_ptr = caf::telemetry::int_counter*;
-  std::array<counter_ptr, 5> counters{{
+  std::array<counter_ptr, 6> counters{{
     nullptr,
     proc_fam->get_or_add({{"type", "data"}}),
     proc_fam->get_or_add({{"type", "command"}}),
     proc_fam->get_or_add({{"type", "routing-update"}}),
+    proc_fam->get_or_add({{"type", "ping"}}),
+    proc_fam->get_or_add({{"type", "pong"}}),
   }};
   // Create the mergers.
   auto init_merger = [this](auto& ptr) {
@@ -128,6 +130,19 @@ caf::behavior core_actor_state::make_behavior() {
       } else {
         // Ignore. Probably a stale message after unpeering.
       }
+    });
+  // Respond to PING messages.
+  central_merge //
+    ->as_observable()
+    .for_each([this, counters](const node_message& msg) {
+      auto sender = get_sender(msg);
+      if (sender == id || get_type(msg) != packed_message_type::ping)
+        return;
+      auto& payload = get_payload(msg);
+      BROKER_DEBUG("received a PING message with a payload of" << payload.size()
+                                                               << "bytes");
+      dispatch(sender, make_packed_message(packed_message_type::pong, 1,
+                                           get_topic(msg), payload));
     });
   // Override the default exit handler to add logging.
   self->set_exit_handler([this](caf::exit_msg& msg) {

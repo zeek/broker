@@ -1,3 +1,13 @@
+2.2.0-316 | 2022-06-01 12:24:56 +0200
+
+  * Add version negotiation to the handshake process. (Dominik
+    Charousset, Corelight)
+
+  * Fix double-close on sockets. (Dominik Charousset, Corelight)
+
+  * Enable new handshake tests in `btest.cfg`. (Dominik Charousset,
+    Corelight)
+
 2.2.0-311 | 2022-05-30 11:08:11 +0200
 
   * Implement new fan-out benchmark (Dominik Charousset, Corelight)

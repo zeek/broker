@@ -406,6 +406,21 @@ int main(int argc, char** argv) {
   }
   if (cfg.cli_helptext_printed())
     return EXIT_SUCCESS;
+  // Pick up BROKER_PORT environment variable.
+  if (auto env = getenv("BROKER_PORT")) {
+    // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
+    caf::config_value val{env};
+    if (auto port_num = caf::get_as<uint16_t>(val)) {
+      cfg.set("global.port", *port_num);
+    } else if (auto port_obj = caf::get_as<broker::port>(val)) {
+      cfg.set("global.port", port_obj->number());
+    } else {
+      err::println("invalid value for BROKER_PORT: ", env,
+                   " (expected a non-zero port number)");
+      return EXIT_FAILURE;
+    }
+  }
+  // Construct the endpoint.
   broker::endpoint ep{std::move(cfg)};
   // Get mode.
   auto mode = get_or(ep, "mode", "relay");
