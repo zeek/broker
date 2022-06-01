@@ -327,8 +327,12 @@ int main(int argc, char** argv) {
   sync.arrive_and_wait();
   verbose::println("started ", params.peer_count, " subscriber endpoints");
   // Wait for all peers to complete their handshake.
-  for (auto& x : ls)
-    ep.await_peer(x.id);
+  for (auto& x : ls) {
+    if (!ep.await_peer(x.id)) {
+      std::cerr << "*** peers failed to connect\n";
+      return EXIT_FAILURE;
+    }
+  }
   verbose::println("received all ", params.peer_count, " handshakes -> run!");
   // Light, camera, action!
   run_publisher(ep, params);
