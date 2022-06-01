@@ -3,6 +3,7 @@
 #include "broker/endpoint_id.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/json_type_mapper.hh"
+#include "broker/message.hh"
 #include "broker/network_info.hh"
 
 #include <caf/actor.hpp>
@@ -29,6 +30,8 @@ public:
   json_client_state(caf::event_based_actor* selfptr, endpoint_id this_node,
                     caf::actor core, network_info addr, in_t in, out_t out);
 
+  ~json_client_state();
+
   template <class T>
   std::string render(const T& x) {
     writer.reset();
@@ -47,16 +50,18 @@ public:
 
   caf::event_based_actor* self;
   endpoint_id id;
+  caf::actor core;
+  network_info addr;
   json_type_mapper mapper;
   caf::json_reader reader;
   caf::json_writer writer;
   std::vector<caf::disposable> subscriptions;
+  caf::flow::buffered_observable_impl_ptr<caf::cow_string> ctrl_msgs;
 
-private:
   static std::string_view default_serialization_failed_error();
 
-  void run(caf::actor core, filter_type filter, network_info addr,
-           caf::flow::observable<caf::cow_string> in, out_t out);
+  void init(filter_type filter, out_t out,
+            caf::async::consumer_resource<data_message> core_pull);
 };
 
 using json_client_actor = caf::stateful_actor<json_client_state>;

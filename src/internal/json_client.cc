@@ -27,12 +27,73 @@ constexpr std::string_view default_serialization_failed_error_str = R"_({
   "context": "internal JSON writer error"
 })_";
 
+/// Catches errors by converting them into complete events instead.
+struct handshake_step {
+  using input_type = caf::cow_string;
+
+  using output_type = caf::cow_string;
+
+  json_client_state* state;
+
+  json_client_state::out_t push_to_ws; // Our push handle to the WebSocket.
+
+  using pull_from_core_t = caf::async::consumer_resource<data_message>;
+
+  pull_from_core_t pull_from_core; // Allows the core to read our data.
+
+  bool initialized = false;
+
+  handshake_step(json_client_state* state_ptr,
+                 json_client_state::out_t push_to_ws,
+                 pull_from_core_t pull_from_core)
+    : state(state_ptr),
+      push_to_ws(std::move(push_to_ws)),
+      pull_from_core(std::move(pull_from_core)) {
+    // nop
+  }
+
+  template <class Next, class... Steps>
+  bool on_next(const input_type& item, Next& next, Steps&... steps) {
+    if (initialized) {
+      return next.on_next(item, steps...);
+    } else {
+      filter_type filter;
+      state->reader.load(item.str());
+      if (!state->reader.apply(filter)) {
+        // Received malformed input: drop remaining input and quit.
+        auto err = caf::make_error(caf::sec::invalid_argument,
+                                   "first message must contain a filter");
+        next.on_error(err, steps...);
+        push_to_ws = nullptr;
+        pull_from_core = nullptr;
+        return false;
+      } else {
+        initialized = true;
+        // Ok, set up the actual pipeline and connect to the core.
+        state->init(std::move(filter), std::move(push_to_ws),
+                    std::move(pull_from_core));
+        return true;
+      }
+    }
+  }
+
+  template <class Next, class... Steps>
+  void on_complete(Next& next, Steps&... steps) {
+    next.on_complete(steps...);
+  }
+
+  template <class Next, class... Steps>
+  void on_error(const caf::error& what, Next& next, Steps&... steps) {
+    next.on_error(what, steps...);
+  }
+};
+
 } // namespace
 
 json_client_state::json_client_state(caf::event_based_actor* selfptr,
-                                     endpoint_id this_node, caf::actor core,
-                                     network_info addr, in_t in, out_t out)
-  : self(selfptr), id(this_node) {
+                                     endpoint_id this_node, caf::actor core_hdl,
+                                     network_info ws_addr, in_t in, out_t out)
+  : self(selfptr), id(this_node), core(core_hdl), addr(ws_addr) {
   reader.mapper(&mapper);
   writer.mapper(&mapper);
   writer.skip_object_type_annotation(true);
@@ -43,26 +104,57 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   self->set_down_handler([this](const caf::down_msg& msg) { //
     on_down_msg(msg);
   });
+  // Allows us to push control messages to the client.
+  ctrl_msgs.emplace(self);
+  // Connects us to the core.
+  using caf::async::make_spsc_buffer_resource;
+  auto [core_pull, core_push] = make_spsc_buffer_resource<data_message>();
+  // Read from the WebSocket, push to core (core_push).
   self //
     ->make_observable()
     .from_resource(in) // Read all input text messages.
-    .head_and_tail()   // The first message contains the filter.
-    .for_each([this, out, core, addr](const head_and_tail_t& head_and_tail) {
-      auto& [head, tail] = head_and_tail.data();
-      filter_type filter;
-      reader.load(head.str());
-      if (!reader.apply(filter)) {
-        // Received malformed input: drop remaining input and quit.
-        auto err = caf::make_error(caf::sec::invalid_argument,
-                                   "first message must contain a filter");
-        using impl_t = caf::flow::observable_error_impl<cow_string>;
-        auto obs = caf::make_counted<impl_t>(self, std::move(err));
-        obs->as_observable().subscribe(out);
+    .transform(handshake_step{this, out, core_pull}) // Calls init().
+    .do_finally([this] { ctrl_msgs->dispose(); })
+    // Parse all JSON coming in and forward them to the core.
+    .flat_map_optional([this, n = 0](const caf::cow_string& str) mutable {
+      ++n;
+      std::optional<data_message> result;
+      reader.reset();
+      if (reader.load(str)) {
+        using std::get;
+        data_message msg;
+        auto decorator = decorated(msg);
+        if (reader.apply(decorator)) {
+          // Success: set the result to push it to the core actor.
+          result = std::move(msg);
+        } else {
+          // Failed to apply the JSON reader. Send error to client.
+          auto ctx = std::to_string(n);
+          ctx.insert(0, "input #");
+          ctx += " contained invalid data -> ";
+          ctx += to_string(reader.get_error());
+          auto json = render_error(enum_str(ec::deserialization_failed), ctx);
+          ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
+          ctrl_msgs->try_push();
+        }
       } else {
-        // Ok, set up the actual pipeline and connect to the core.
-        run(core, std::move(filter), addr, tail, out);
+        // Failed to parse JSON.
+        auto ctx = std::to_string(n);
+        ctx.insert(0, "input #");
+        ctx += " contained malformed JSON -> ";
+        ctx += to_string(reader.get_error());
+        auto json = render_error(enum_str(ec::deserialization_failed), ctx);
+        ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
+        ctrl_msgs->try_push();
       }
-    });
+      return result;
+    })
+    .subscribe(core_push);
+}
+
+json_client_state::~json_client_state() {
+  for (auto& sub : subscriptions)
+    sub.dispose();
 }
 
 std::string json_client_state::render_error(std::string_view code,
@@ -111,54 +203,10 @@ bool inspect(Inspector& f, const_data_message_decorator& x) {
   return visit(do_inspect, x.d);
 }
 
-void json_client_state::run(caf::actor core, filter_type filter,
-                            network_info addr,
-                            caf::flow::observable<caf::cow_string> in,
-                            out_t out) {
+void json_client_state::init(
+  filter_type filter, out_t out,
+  caf::async::consumer_resource<data_message> core_pull1) {
   using caf::async::make_spsc_buffer_resource;
-  // Allows us to push control messages to the client.
-  caf::flow::buffered_observable_impl_ptr<caf::cow_string> ctrl_msgs;
-  ctrl_msgs.emplace(self);
-  // Parse all JSON coming in and forward them to the core.
-  auto [core_pull1, core_push1] = make_spsc_buffer_resource<data_message>();
-  auto in_sub
-    = in.flat_map_optional([this, ctrl_msgs,
-                            n = 0](const caf::cow_string& str) mutable {
-          ++n;
-          std::optional<data_message> result;
-          reader.reset();
-          if (reader.load(str)) {
-            using std::get;
-            data_message msg;
-            auto decorator = decorated(msg);
-            if (reader.apply(decorator)) {
-              // Success: set the result to push it to the core actor.
-              result = std::move(msg);
-            } else {
-              // Failed to apply the JSON reader. Send error to client.
-              auto ctx = std::to_string(n);
-              ctx.insert(0, "input #");
-              ctx += " contained invalid data -> ";
-              ctx += to_string(reader.get_error());
-              auto json = render_error(enum_str(ec::deserialization_failed),
-                                       ctx);
-              ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
-              ctrl_msgs->try_push();
-            }
-          } else {
-            // Failed to parse JSON.
-            auto ctx = std::to_string(n);
-            ctx.insert(0, "input #");
-            ctx += " contained malformed JSON -> ";
-            ctx += to_string(reader.get_error());
-            auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-            ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
-            ctrl_msgs->try_push();
-          }
-          return result;
-        })
-        .subscribe(core_push1);
-  subscriptions.push_back(in_sub);
   // Pull data from the core and forward as JSON.
   if (!filter.empty()) {
     auto [core_pull2, core_push2] = make_spsc_buffer_resource<data_message>();

@@ -1,3 +1,11 @@
+2.2.0-320 | 2022-06-01 21:09:40 +0200
+
+  * Fix leak in WebSockets. (Dominik Charousset, Corelight)
+
+  * Fix warning on GCC. (Dominik Charousset, Corelight)
+
+  * Run btests with ASAN/LeakSanitizer on CI. (Dominik Charousset, Corelight)
+
 2.2.0-316 | 2022-06-01 12:24:56 +0200
 
   * Add version negotiation to the handshake process. (Dominik

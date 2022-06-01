@@ -4,7 +4,7 @@ Broker 2.3.0 (in progress)
   * Internally, much of Broker's transport layer has been
     rearchitected for better maintainability and future functionality
     extensions. While this remains mostly invisible to users, the
-    changes had to break backwards-compability with older Broker
+    changes had to break backwards compability with older Broker
     versions.
 
   * Broker now offers access to its publish/subscribe layer via
