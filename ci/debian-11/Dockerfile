@@ -10,5 +10,6 @@ RUN apt update -y \
        make \
        python3 \
        python3-dev \
+       python3-pip \
     && apt autoclean \
     && rm -rf /var/lib/apt/lists/*
