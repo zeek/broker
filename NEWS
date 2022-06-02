@@ -1,55 +1,50 @@
 Broker 2.3.0 (in progress)
 ==========================
 
-  * Broker now requires at least CMake version 3.15.0.
+- Broker now requires at least CMake version 3.15.0.
 
-  * Internally, much of Broker's transport layer has been
-    rearchitected for better maintainability and future functionality
-    extensions. While this remains mostly invisible to users, the
-    changes had to break backwards compability with older Broker
-    versions.
+- Internally, much of Broker's transport layer has been rearchitected for better
+  maintainability and future functionality extensions. While this remains mostly
+  invisible to users, the changes had to break backwards compability with older
+  Broker versions.
 
-  * Broker now offers access to its publish/subscribe layer via
-    WebSocket in order to make its data model accessible to third
-    parties without requiring access to Broker itself.
+- Broker now offers access to its publish/subscribe layer via WebSocket in order
+  to make its data model accessible to third parties without requiring access to
+  Broker itself.
 
-    A Broker endpoint can be configured to act as a WebSocket server
-    by either setting the environment variable
-    ``BROKER_WEB_SOCKET_PORT``; by setting ``broker.web-socket.port``
-    on the command line or in the configuration file; or
-    programmatically by calling ``endpoint::web_socket_listen()``. See
-    ``docs/web-socket.rst`` for more information.
+  A Broker endpoint can be configured to act as a WebSocket server by either
+  setting the environment variable ``BROKER_WEB_SOCKET_PORT``; by setting
+  ``broker.web-socket.port`` on the command line or in the configuration file;
+  or programmatically by calling ``endpoint::web_socket_listen()``. See
+  ``docs/web-socket.rst`` for more information.
 
-    While still experimental for now, the WebSocket support (incl. the
-    data model) aims to remain stable over time and will become the
-    recommended way for external applications to talk to Broker
-    applications (and hence Zeek).
+  While still experimental for now, the WebSocket support (incl. the data model)
+  aims to remain stable over time and will become the recommended way for
+  external applications to talk to Broker applications (and hence Zeek).
 
-  * The Python bindings now provide additional support for immutable
-    (hashable) types. The ``SafeSubscriber`` class and the
-    corresponding ``Endpoint.make_safe_subscriber()`` method ensure
-    that immutable Python types get used, and that the returned values
-    remain read-only. For sets the ``frozenset`` type achieves this;
-    for mapping types it's ``types.MappingProxyType``. The API now
-    also supports the latter two types as inputs.
+- The Python bindings now provide additional support for immutable (hashable)
+  types. The ``SafeSubscriber`` class and the corresponding
+  ``Endpoint.make_safe_subscriber()`` method ensure that immutable Python types
+  get used, and that the returned values remain read-only. For sets the
+  ``frozenset`` type achieves this; for mapping types it's
+  ``types.MappingProxyType``. The API now also supports the latter two types as
+  inputs.
 
-  * All CAF dependencies have been removed from public headers, and we
-    now build the bundled CAF version as a static, private utility.
-    Consumers of Broker no longer need to locate CAF headers and we do
-    not install any CAF content alongside Broker anymore, i.e., Broker
-    becomes fully standalone.
+- All CAF dependencies have been removed from public headers, and we now build
+  the bundled CAF version as a static, private utility. Consumers of Broker no
+  longer need to locate CAF headers and we do not install any CAF content
+  alongside Broker anymore, i.e., Broker becomes fully standalone.
 
-    Where possible, Broker uses recent C++ additions like
-    ``std::variant`` to replace CAF types. For types that have no
-    equivalent, Broker deploys fully opaque handle types. For example,
-    ``broker::worker`` internally wraps a ``caf::actor`` handle.
+  Where possible, Broker uses recent C++ additions like ``std::variant`` to
+  replace CAF types. For types that have no equivalent, Broker deploys fully
+  opaque handle types. For example, ``broker::worker`` internally wraps a
+  ``caf::actor`` handle.
 
-    All components in Broker that require access to CAF were grouped
-    into the new namespace ``broker::internal``. We omit all internal
-    headers from an installation, since they would be worthless
-    without the matching CAF headers anyways. This also gives us a
-    clean separation between API artifacts users may interact with and
-    API parts that are reserved for internal use.
+  All components in Broker that require access to CAF were grouped into the new
+  namespace ``broker::internal``. We omit all internal headers from an
+  installation, since they would be worthless without the matching CAF headers
+  anyways. This also gives us a clean separation between API artifacts users may
+  interact with and API parts that are reserved for internal use.
 
 Broker 2.2.0
 ============
