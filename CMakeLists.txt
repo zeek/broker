@@ -1,6 +1,6 @@
 # -- Project Setup ------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.5...3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(broker C CXX)
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
