@@ -1,3 +1,7 @@
+2.2.0-323 | 2022-06-02 11:40:39 -0700
+
+  * Require newer cmake, and bump cmake installed in CI images (Tim Wojtulewicz, Corelight)
+
 2.2.0-320 | 2022-06-01 21:09:40 +0200
 
   * Fix leak in WebSockets. (Dominik Charousset, Corelight)
