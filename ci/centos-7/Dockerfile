@@ -1,5 +1,9 @@
 FROM centos:7
 
+# A version field to invalide Cirrus's build cache when needed, as suggested in
+# https://github.com/cirruslabs/cirrus-ci-docs/issues/544#issuecomment-566066822
+ENV DOCKERFILE_VERSION 20220519
+
 # Disabled lookup of fastest mirror since the list seems to be outdated and no valid mirror can be detected.
 RUN sed -i 's/enabled=1/enabled=0/' /etc/yum/pluginconf.d/fastestmirror.conf
 
@@ -23,15 +27,15 @@ RUN yum -y install \
     devtoolset-8 \
   && yum clean all && rm -rf /var/cache/yum
 
-RUN yum install -y \
+RUN yum -y install \
     cmake3 \
     diffutils \
     make \
+    openssl \
     openssl-devel \
     python3 \
     python3-devel \
-    && yum clean all \
-    && rm -rf /var/cache/yum
+  && yum clean all && rm -rf /var/cache/yum
 
 RUN echo 'unset BASH_ENV PROMPT_COMMAND ENV' > /usr/bin/zeek-ci-env && \
     echo 'source /opt/rh/devtoolset-8/enable' >> /usr/bin/zeek-ci-env && \

@@ -1,3 +1,7 @@
+2.4.0-dev.2 | 2022-06-14 09:19:25 -0700
+
+  * Dockerfile updates for consistency with recent Zeek changes (Tim Wojtulewicz, Corelight)
+
 2.3.0 | 2022-06-03 11:39:10 -0700
 
   * Release 2.3.0

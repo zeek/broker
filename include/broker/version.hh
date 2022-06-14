@@ -8,9 +8,9 @@ namespace broker::version {
 using type = unsigned;
 
 constexpr type major = 2;
-constexpr type minor = 3;
+constexpr type minor = 4;
 constexpr type patch = 0;
-constexpr auto suffix = "";
+constexpr auto suffix = "-dev";
 
 constexpr type protocol = 2;
 
