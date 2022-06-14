@@ -43,6 +43,7 @@ static constexpr size_t num_endpoints = 4;
 
 using data_message_list = std::vector<data_message>;
 using string_list = std::vector<std::string>;
+using data_list = std::vector<data>;
 
 std::string log_path_template(const char* test_name, size_t endpoint_nr) {
   std::string result;
@@ -97,11 +98,14 @@ struct fixture {
   fixture() {
     for (auto& ptr : ep_logs)
       ptr = std::make_shared<data_message_list>();
+    for (auto& ptr : ep_values)
+      ptr = std::make_shared<data_list>();
     for (auto& ptr : ep_ids)
       ptr = std::make_shared<endpoint_id>();
   }
 
   std::array<std::shared_ptr<data_message_list>, num_endpoints> ep_logs;
+  std::array<std::shared_ptr<data_list>, num_endpoints> ep_values;
   std::array<std::atomic<uint16_t>, num_endpoints> ports;
   std::array<std::thread, num_endpoints> threads;
   std::array<std::shared_ptr<endpoint_id>, num_endpoints> ep_ids;
@@ -400,6 +404,91 @@ TEST(the master may appear after launching the clones) {
   }
   for (auto& hdl : threads)
     hdl.join();
+}
+
+TEST(only one put_unique may pass) {
+  static constexpr size_t num_endpoints = 4;
+  MESSAGE("initialize state");
+  barrier listening{num_endpoints};
+  barrier peered{num_endpoints};
+  barrier written_to_store{num_endpoints};
+  MESSAGE("spin up threads");
+  for (size_t index = 0; index != num_endpoints; ++index) {
+    threads[index] = std::thread{[&, index] {
+      endpoint ep{make_config("peering-events", index, disable_ssl)};
+      *ep_ids[index] = ep.node_id();
+      store services;
+      if (index == 0) {
+        if (auto maybe_services = ep.attach_master("zeek/known/services",
+                                                   backend::memory)) {
+          services = std::move(*maybe_services);
+        } else {
+          SYNC_CHECK_FAILED("attach_master failed: ",
+                            to_string(maybe_services.error()));
+        }
+      }
+      auto port = ep.listen();
+      if (port == 0)
+        hard_error("endpoint ", to_string(ep.node_id()),
+                   " failed to open a port");
+      ports[index] = port;
+      std::map<endpoint_id, std::future<bool>> peer_results;
+      listening.arrive_and_wait();
+      for (size_t i = 0; i != num_endpoints; ++i) {
+        if (i != index) {
+          auto p = ports[i].load();
+          peer_results.emplace(*ep_ids[i], ep.peer_async("localhost", p, 1s));
+        }
+      }
+      for (auto& [other_id, res] : peer_results) {
+        if (!res.get()) {
+          SYNC_CHECK_FAILED("endpoint ", to_string(ep.node_id()),
+                            " failed to connect to ", to_string(other_id));
+        }
+      }
+      peered.arrive_and_wait();
+      if (index != 0) {
+        if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.5);
+            SYNC_CHECK(maybe_services)) {
+          services = std::move(*maybe_services);
+          store::proxy px{services};
+          auto req_id = px.put_unique("foo", "bar");
+          auto resp = px.receive();
+          if (SYNC_CHECK(resp.id == req_id)) {
+            if (SYNC_CHECK(resp.answer)) {
+              auto vals_ptr = ep_values[index];
+              vals_ptr->emplace_back(*resp.answer);
+            }
+            if (auto val = services.get("foo"s);
+                SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
+              SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
+          }
+          auto idle_res = services.await_idle();
+          SYNC_CHECK(idle_res);
+          SYNC_CHECK(px.mailbox().empty());
+          written_to_store.arrive_and_wait();
+        }
+      } else {
+        written_to_store.arrive_and_wait();
+        auto keys_data = services.keys();
+        REQUIRE(keys_data);
+        REQUIRE(is<set>(*keys_data));
+        auto keys = std::move(get<set>(*keys_data));
+        CHECK_EQUAL(keys, set({"foo"}));
+      }
+    }};
+  }
+  for (auto& hdl : threads)
+    hdl.join();
+  std::vector<data> results;
+  for (size_t index = 0; index != num_endpoints; ++index) {
+    auto vals = ep_values[index];
+    results.insert(results.end(), vals->begin(), vals->end());
+  }
+  CHECK_EQ(results.size(), num_endpoints - 1);
+  CHECK_EQ(std::count(results.begin(), results.end(), data{true}), 1);
+  CHECK_EQ(std::count(results.begin(), results.end(), data{false}),
+           num_endpoints - 2);
 }
 
 SCENARIO("handshake fails if only one side enables encryption") {
