@@ -262,10 +262,13 @@ request_id store::proxy::put_unique(data key, data val,
   BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
                                << BROKER_ARG(this_peer_));
   if (frontend_) {
+    auto req_id = ++id_;
+    BROKER_INFO("proxy" << native(proxy_).id()
+                        << "sends a put_unique with request ID" << req_id);
     send_as(native(proxy_), native(frontend_), atom::local_v,
             make_internal_command<put_unique_command>(
               std::move(key), std::move(val), expiry,
-              entity_id{this_peer_, native(proxy_).id()}, ++id_,
+              entity_id{this_peer_, native(proxy_).id()}, req_id,
               frontend_id()));
     return id_;
   } else {

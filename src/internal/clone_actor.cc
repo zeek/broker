@@ -192,6 +192,7 @@ void clone_state::consume(put_command& x) {
 
 void clone_state::consume(put_unique_result_command& cmd) {
   local_request_key key{cmd.who, cmd.req_id};
+  BROKER_INFO("PUT_UNIQUE_RESULT" << key << cmd.req_id << "->" << cmd.inserted);
   if (auto i = local_requests.find(key); i != local_requests.end()) {
     i->second.deliver(data{cmd.inserted}, cmd.req_id);
     local_requests.erase(i);
@@ -418,10 +419,18 @@ caf::behavior clone_state::make_behavior() {
   return super::make_behavior(
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command& cmd) {
-      if (auto inner = get_if<put_unique_command>(&cmd.content);
-          inner && inner->who) {
-        local_request_key key{inner->who, inner->req_id};
-        local_requests.emplace(key, self->make_response_promise());
+      if (auto inner = get_if<put_unique_command>(&cmd.content)) {
+        if (inner->who) {
+          local_request_key key{inner->who, inner->req_id};
+          local_requests.emplace(key, self->make_response_promise());
+        } else {
+          BROKER_ERROR("received put_unique with invalid sender: DROP!");
+          auto rp = self->make_response_promise();
+          rp.deliver(caf::make_error(caf::sec::invalid_argument,
+                                     "put_unique: invalid sender information"),
+                     inner->req_id);
+          return;
+        }
       }
       auto& out = output();
       cmd.seq = out.next_seq();

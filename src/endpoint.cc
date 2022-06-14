@@ -299,7 +299,7 @@ public:
       }
     } beacon;
     auto run_mpx = [this, &beacon] {
-      CAF_LOG_TRACE("");
+      BROKER_TRACE("");
       mpx_.thread_id(std::this_thread::get_id());
       beacon.ignite();
       mpx_.run();
@@ -520,7 +520,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     clock_.reset(new real_time_clock(ctx_.get()));
   else
     clock_.reset(new sim_clock(ctx_.get()));
-  BROKER_INFO("creating endpoint");
+  BROKER_INFO("creating endpoint" << id_);
   // TODO: the core actor may end up running basically nonstop in case it has a
   //       lot of incoming traffic to manage. CAF *should* suspend actors based
   //       on the 'caf.scheduler.max-throughput' setting. However, this is
