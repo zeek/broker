@@ -78,7 +78,7 @@ void master_state::dispatch(const command_message& msg) {
       if (auto i = inputs.find(cmd.sender); i != inputs.end())
         i->second.handle_event(seq, std::move(msg));
       else
-        BROKER_DEBUG("received action from unknown sender:" << cmd.sender);
+        BROKER_WARNING("received action from unknown sender:" << cmd.sender);
       break;
     }
     case command_tag::producer_control: {
@@ -115,7 +115,7 @@ void master_state::dispatch(const command_message& msg) {
           inputs.erase(i);
         }
       } else {
-        BROKER_DEBUG("received command from unknown sender:" << cmd);
+        BROKER_WARNING("received command from unknown sender:" << cmd);
       }
       break;
     }
@@ -205,7 +205,8 @@ void master_state::consume(put_command& x) {
 void master_state::consume(put_unique_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry"
-                           << (x.expiry ? to_string(*x.expiry) : "none"));
+                           << (x.expiry ? to_string(*x.expiry) : "none")
+                           << "from" << x.who);
   auto broadcast_result = [this, &x](bool inserted) {
     broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
     if (x.who) {

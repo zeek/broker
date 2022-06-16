@@ -28,7 +28,7 @@ enum class command_tag {
 
 std::string to_string(command_tag);
 
-// -- broadcast: operations on the key-value store such as put and erase -------
+// -- broadcast: actions on the key-value store such as put and erase ----------
 
 /// Sets a value in the key-value store.
 struct put_command  {
@@ -192,16 +192,7 @@ bool inspect(Inspector& f, clear_command& x) {
     .fields(f.field("publisher", x.publisher));
 }
 
-/// Causes the master to add `remote_clone` to its list of clones.
-struct attach_clone_command {
-  static constexpr auto tag = command_tag::consumer_control;
-};
-
-/// @relates attach_clone_command
-template <class Inspector>
-bool inspect(Inspector& f, attach_clone_command& x) {
-  return f.object(x).pretty_name("attach_clone").fields();
-}
+// -- unicast: one-to-one communication between clones and the master ----------
 
 /// Causes the master to add a store writer to its list of inputs. Also acts as
 /// handshake for the channel.
@@ -314,7 +305,6 @@ public:
     add_command,
     subtract_command,
     clear_command,
-    attach_clone_command,
     attach_writer_command,
     keepalive_command,
     cumulative_ack_command,
@@ -326,9 +316,9 @@ public:
   using variant_type
     = std::variant<put_command, put_unique_command, put_unique_result_command,
                    erase_command, expire_command, add_command, subtract_command,
-                   clear_command, attach_clone_command, attach_writer_command,
-                   keepalive_command, cumulative_ack_command, nack_command,
-                   ack_clone_command, retransmit_failed_command>;
+                   clear_command, attach_writer_command, keepalive_command,
+                   cumulative_ack_command, nack_command, ack_clone_command,
+                   retransmit_failed_command>;
 
   sequence_number_type seq;
 
@@ -356,7 +346,6 @@ constexpr command_tag command_tag_by_type[] = {
   add_command::tag,
   subtract_command::tag,
   clear_command::tag,
-  attach_clone_command::tag,
   attach_writer_command::tag,
   keepalive_command::tag,
   cumulative_ack_command::tag,

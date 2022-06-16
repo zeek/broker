@@ -36,7 +36,6 @@ struct expire_command;
 struct add_command;
 struct subtract_command;
 struct clear_command;
-struct attach_clone_command;
 struct attach_writer_command;
 struct ack_clone_command;
 struct cumulative_ack_command;
