@@ -294,6 +294,13 @@ bool inspect(Inspector& f, retransmit_failed_command& x) {
 
 // -- variant setup ------------------------------------------------------------
 
+using internal_command_variant
+  = std::variant<put_command, put_unique_command, put_unique_result_command,
+                 erase_command, expire_command, add_command, subtract_command,
+                 clear_command, attach_writer_command, keepalive_command,
+                 cumulative_ack_command, nack_command, ack_clone_command,
+                 retransmit_failed_command>;
+
 class internal_command {
 public:
   enum class type : uint8_t {
@@ -313,23 +320,25 @@ public:
     retransmit_failed_command,
   };
 
-  using variant_type
-    = std::variant<put_command, put_unique_command, put_unique_result_command,
-                   erase_command, expire_command, add_command, subtract_command,
-                   clear_command, attach_writer_command, keepalive_command,
-                   cumulative_ack_command, nack_command, ack_clone_command,
-                   retransmit_failed_command>;
-
+  /// A sender-specific sequence ID for establishing ordering on the messages.
   sequence_number_type seq;
 
+  /// Encodes the sender of this command.
   entity_id sender;
 
-  variant_type content;
+  /// Encodes the designated receiver or `entity_id::nil` for broadcasted
+  /// messages. Note: messages to the master are always "broadcasted", since
+  /// there is only one master.
+  entity_id receiver;
+
+  /// Stores the content of the message.
+  internal_command_variant content;
 };
 
 template <class Inspector>
 bool inspect(Inspector& f, internal_command& x) {
   return f.object(x).fields(f.field("seq", x.seq), f.field("sender", x.sender),
+                            f.field("receiver", x.receiver),
                             f.field("content", x.content));
 }
 
@@ -353,6 +362,10 @@ constexpr command_tag command_tag_by_type[] = {
   ack_clone_command::tag,
   retransmit_failed_command::tag,
 };
+
+inline command_tag tag_of(const internal_command_variant& x) {
+  return command_tag_by_type[x.index()];
+}
 
 inline command_tag tag_of(const internal_command& cmd) {
   return command_tag_by_type[cmd.content.index()];

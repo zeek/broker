@@ -89,7 +89,7 @@ public:
 
   // -- callbacks for the producer ---------------------------------------------
 
-  void send(producer_type*, const entity_id&, const channel_type::event&);
+  void send(producer_type*, const entity_id&, channel_type::event&);
 
   void send(producer_type*, const entity_id&, channel_type::handshake);
 
@@ -167,6 +167,8 @@ public:
   std::optional<caf::timestamp> sync_timeout;
 
   std::vector<on_set_store> on_set_store_callbacks;
+
+  entity_id master_id;
 
   static inline constexpr const char* name = "broker.clone";
 };

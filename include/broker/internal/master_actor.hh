@@ -38,8 +38,9 @@ public:
     if (output.paths().empty())
       return;
     auto seq = output.next_seq();
-    auto msg = make_command_message(
-      clones_topic, internal_command{seq, id, std::forward<T>(cmd)});
+    auto msg = make_command_message(clones_topic,
+                                    internal_command{seq, id, entity_id::nil(),
+                                                     std::forward<T>(cmd)});
     output.produce(std::move(msg));
   }
 

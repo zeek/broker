@@ -22,8 +22,18 @@ struct entity_id {
 
   /// Returns whether this ID is valid, i.e., whether the `endpoint` member is
   /// valid.
-  explicit operator bool() const noexcept {
+  bool valid() const noexcept {
     return static_cast<bool>(endpoint);
+  }
+
+  /// @copydoc valid
+  explicit operator bool() const noexcept {
+    return valid();
+  }
+
+  /// Returns `!valid()`.
+  bool operator!() const noexcept {
+    return !valid();
   }
 
   /// Returns an invalid ID.

@@ -363,7 +363,7 @@ public:
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
 
-    auto find_event(sequence_number_type seq) const noexcept {
+    auto find_event(sequence_number_type seq) noexcept {
       auto has_seq = [seq](const event& x) { return x.seq == seq; };
       return std::find_if(buf_.begin(), buf_.end(), has_seq);
     }
