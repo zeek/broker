@@ -268,7 +268,6 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
 }
 
 TEST(multiple clones can attach to a single master) {
-  static constexpr size_t num_endpoints = 4;
   MESSAGE("initialize state");
   barrier listening{num_endpoints};
   barrier peered{num_endpoints};
@@ -336,7 +335,6 @@ TEST(multiple clones can attach to a single master) {
 }
 
 TEST(the master may appear after launching the clones) {
-  static constexpr size_t num_endpoints = 4;
   MESSAGE("initialize state");
   barrier listening{num_endpoints};
   barrier peered{num_endpoints};
@@ -407,7 +405,6 @@ TEST(the master may appear after launching the clones) {
 }
 
 TEST(only one put_unique may pass) {
-  static constexpr size_t num_endpoints = 4;
   MESSAGE("initialize state");
   barrier listening{num_endpoints};
   barrier peered{num_endpoints};
@@ -418,15 +415,6 @@ TEST(only one put_unique may pass) {
       endpoint ep{make_config("peering-events", index, disable_ssl)};
       *ep_ids[index] = ep.node_id();
       store services;
-      if (index == 0) {
-        if (auto maybe_services = ep.attach_master("zeek/known/services",
-                                                   backend::memory)) {
-          services = std::move(*maybe_services);
-        } else {
-          SYNC_CHECK_FAILED("attach_master failed: ",
-                            to_string(maybe_services.error()));
-        }
-      }
       auto port = ep.listen();
       if (port == 0)
         hard_error("endpoint ", to_string(ep.node_id()),
@@ -451,24 +439,41 @@ TEST(only one put_unique may pass) {
         if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.5);
             SYNC_CHECK(maybe_services)) {
           services = std::move(*maybe_services);
-          store::proxy px{services};
-          auto req_id = px.put_unique("foo", "bar");
-          auto resp = px.receive();
-          if (SYNC_CHECK(resp.id == req_id)) {
-            if (SYNC_CHECK(resp.answer)) {
-              auto vals_ptr = ep_values[index];
-              vals_ptr->emplace_back(*resp.answer);
+          std::vector<store::proxy>proxies;
+          for (int i = 0; i < 3; ++i) {
+            proxies.emplace_back(services);
+            for (int req_id = 1; req_id < 4; ++req_id) {
+              auto actual_id = proxies.back().put_unique("foo", "bar");
+              SYNC_CHECK_EQUAL(req_id, actual_id);
             }
-            if (auto val = services.get("foo"s);
-                SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
-              SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
+          }
+          for (auto& px : proxies) {
+            for (int req_id = 1; req_id < 4; ++req_id) {
+              auto resp = px.receive();
+              if (SYNC_CHECK(resp.id == req_id)) {
+                if (SYNC_CHECK(resp.answer)) {
+                  auto vals_ptr = ep_values[index];
+                  vals_ptr->emplace_back(*resp.answer);
+                }
+                if (auto val = services.get("foo"s);
+                    SYNC_CHECK(val) && SYNC_CHECK(is<std::string>(*val)))
+                  SYNC_CHECK_EQUAL(get<std::string>(*val), "bar");
+              }
+            }
+            SYNC_CHECK(px.mailbox().empty());
           }
           auto idle_res = services.await_idle();
           SYNC_CHECK(idle_res);
-          SYNC_CHECK(px.mailbox().empty());
           written_to_store.arrive_and_wait();
         }
       } else {
+        if (auto maybe_services = ep.attach_master("zeek/known/services",
+                                                   backend::memory)) {
+          services = std::move(*maybe_services);
+        } else {
+          SYNC_CHECK_FAILED("attach_master failed: ",
+                            to_string(maybe_services.error()));
+        }
         written_to_store.arrive_and_wait();
         auto keys_data = services.keys();
         REQUIRE(keys_data);
@@ -485,10 +490,10 @@ TEST(only one put_unique may pass) {
     auto vals = ep_values[index];
     results.insert(results.end(), vals->begin(), vals->end());
   }
-  CHECK_EQ(results.size(), num_endpoints - 1);
+  CHECK_EQ(results.size(), (num_endpoints - 1) * 3 * 3);
   CHECK_EQ(std::count(results.begin(), results.end(), data{true}), 1);
   CHECK_EQ(std::count(results.begin(), results.end(), data{false}),
-           num_endpoints - 2);
+           results.size() - 1);
 }
 
 SCENARIO("handshake fails if only one side enables encryption") {
