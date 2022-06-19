@@ -26,20 +26,10 @@ public:
 
   using consumer_type = channel_type::consumer<clone_state>;
 
+  using producer_type = channel_type::producer<clone_state>;
+
   /// Callback for set_store;
   using on_set_store = std::function<void()>;
-
-  struct producer_base {
-    /// Stores whether writes are currently disabled by the clone. This flag
-    /// solves a race between the members `input` and `output_ptr` by disabling
-    /// any output before the master completed the handshake with `input`.
-    /// Without this stalling, a clone might "miss" its own writes. This becomes
-    /// particularly problematic for `put_unique` operations if the master
-    /// performs these operations before attaching the clone as a consumer.
-    bool stalled = true;
-  };
-
-  using producer_type = channel_type::producer<clone_state, producer_base>;
 
   // -- initialization ---------------------------------------------------------
 
@@ -108,9 +98,6 @@ public:
   /// Returns all keys of the store.
   data keys() const;
 
-  /// Returns the writer instance, lazily creating it if necessary.
-  producer_type& output();
-
   /// Sets the store content of the clone.
   void set_store(std::unordered_map<data, data> x);
 
@@ -144,6 +131,13 @@ public:
     }
   }
 
+  /// Starts the output channel for sending commands to the master.
+  void start_output();
+
+  /// Sends a command to the master or adds it to the `stalled` buffer until
+  /// `start_output` gets called.
+  void send_to_master(internal_command_variant&& content);
+
   // -- member variables -------------------------------------------------------
 
   topic master_topic;
@@ -169,6 +163,14 @@ public:
   std::vector<on_set_store> on_set_store_callbacks;
 
   entity_id master_id;
+
+  /// Stores writes that are currently stalled by the clone. This solves a race
+  /// between the members `input` and `output_ptr` by disabling any output
+  /// before the master completed the handshake with `input`. Without this
+  /// stalling, a clone might "miss" its own writes. This becomes particularly
+  /// problematic for `put_unique` operations if the master performs these
+  /// operations before attaching the clone as a consumer.
+  std::vector<internal_command_variant> stalled;
 
   static inline constexpr const char* name = "broker.clone";
 };

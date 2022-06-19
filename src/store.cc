@@ -257,8 +257,9 @@ request_id store::proxy::put_unique(data key, data val,
                                << BROKER_ARG(this_peer_));
   if (frontend_) {
     auto req_id = ++id_;
-    BROKER_INFO("proxy" << native(proxy_).id()
-                        << "sends a put_unique with request ID" << req_id);
+    BROKER_DEBUG("proxy" << native(proxy_).id()
+                         << "sends a put_unique with request ID" << req_id
+                         << "to" << frontend_id());
     send_as(native(proxy_), native(frontend_), atom::local_v,
             internal_command_variant{
               put_unique_command{std::move(key), std::move(val), expiry,
@@ -313,7 +314,8 @@ store::response store::proxy::receive() {
       fa->extinguish_one();
     },
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
-      BROKER_ERROR("proxy received an unexpected message:" << x);
+      BROKER_ERROR("proxy" << native(proxy_).id()
+                           << "received an unexpected message:" << x);
       // We *must* make sure to consume any and all messages, because the flare
       // actor messes with the mailbox signaling. The flare fires on each
       // enqueued message and the flare actor reports data available as long as
@@ -328,7 +330,9 @@ store::response store::proxy::receive() {
       resp.answer = facade(err);
       return err;
     });
-  BROKER_DEBUG("received response from frontend:" << resp);
+  BROKER_DEBUG("proxy" << native(proxy_).id() << "received a response for ID"
+                       << resp.id << "from" << frontend_id() << "->"
+                       << resp.answer);
   return resp;
 }
 
@@ -467,6 +471,10 @@ void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
 
 void store::reset() {
   state_.reset();
+}
+
+std::string to_string(const store::response& x) {
+  return caf::deep_to_string(std::tie(x.answer, x.id));
 }
 
 } // namespace broker
