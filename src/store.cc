@@ -108,12 +108,6 @@ auto& dref(detail::shared_store_state_ptr& state) {
   return dref(*state);
 }
 
-template <class T, class... Ts>
-auto make_internal_command(Ts&&... xs) {
-  using namespace broker;
-  return internal_command{0, entity_id::nil(), T{std::forward<Ts>(xs)...}};
-}
-
 } // namespace
 
 } // namespace broker
@@ -262,11 +256,15 @@ request_id store::proxy::put_unique(data key, data val,
   BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
                                << BROKER_ARG(this_peer_));
   if (frontend_) {
+    auto req_id = ++id_;
+    BROKER_DEBUG("proxy" << native(proxy_).id()
+                         << "sends a put_unique with request ID" << req_id
+                         << "to" << frontend_id());
     send_as(native(proxy_), native(frontend_), atom::local_v,
-            make_internal_command<put_unique_command>(
-              std::move(key), std::move(val), expiry,
-              entity_id{this_peer_, native(proxy_).id()}, ++id_,
-              frontend_id()));
+            internal_command_variant{
+              put_unique_command{std::move(key), std::move(val), expiry,
+                                 entity_id{this_peer_, native(proxy_).id()},
+                                 req_id, frontend_id()}});
     return id_;
   } else {
     return 0;
@@ -316,7 +314,8 @@ store::response store::proxy::receive() {
       fa->extinguish_one();
     },
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
-      BROKER_ERROR("proxy received an unexpected message:" << x);
+      BROKER_ERROR("proxy" << native(proxy_).id()
+                           << "received an unexpected message:" << x);
       // We *must* make sure to consume any and all messages, because the flare
       // actor messes with the mailbox signaling. The flare fires on each
       // enqueued message and the flare actor reports data available as long as
@@ -331,7 +330,9 @@ store::response store::proxy::receive() {
       resp.answer = facade(err);
       return err;
     });
-  BROKER_DEBUG("received response from frontend:" << resp);
+  BROKER_DEBUG("proxy" << native(proxy_).id() << "received a response for ID"
+                       << resp.id << "from" << frontend_id() << "->"
+                       << resp.answer);
   return resp;
 }
 
@@ -374,10 +375,10 @@ expected<data> store::put_unique(data key, data val,
       auto tag = st.req_id++;
       return st.request_tagged<data>(
         tag, atom::local_v,
-        make_internal_command<put_unique_command>(
-          std::move(key), std::move(val), expiry,
-          entity_id{st.this_peer, st.self->id()}, tag,
-          entity_id{st.this_peer, st.frontend.id()}));
+        internal_command_variant{
+          put_unique_command{std::move(key), std::move(val), expiry,
+                             entity_id{st.this_peer, st.self->id()}, tag,
+                             entity_id{st.this_peer, st.frontend.id()}}});
     },
     []() -> expected<data> {
       return make_error(ec::unspecified, "store not initialized");
@@ -398,41 +399,40 @@ bool store::initialized() const noexcept {
 
 void store::put(data key, data value, std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v,
-                 make_internal_command<put_command>(
-                   std::move(key), std::move(value), expiry, st.frontend_id()));
+    st.anon_send(atom::local_v, internal_command_variant{
+                                  put_command{std::move(key), std::move(value),
+                                              expiry, st.frontend_id()}});
   });
 }
 
 void store::erase(data key) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v, make_internal_command<erase_command>(
-                                  std::move(key), st.frontend_id()));
+    st.anon_send(atom::local_v, internal_command_variant{erase_command{
+                                  std::move(key), st.frontend_id()}});
   });
 }
 
 void store::add(data key, data value, data::type init_type,
                 std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v,
-                 make_internal_command<add_command>(std::move(key),
-                                                    std::move(value), init_type,
-                                                    expiry, st.frontend_id()));
+    st.anon_send(atom::local_v, internal_command_variant{add_command{
+                                  std::move(key), std::move(value), init_type,
+                                  expiry, st.frontend_id()}});
   });
 }
 
 void store::subtract(data key, data value, std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v,
-                 make_internal_command<subtract_command>(
-                   std::move(key), std::move(value), expiry, st.frontend_id()));
+    st.anon_send(atom::local_v, internal_command_variant{subtract_command{
+                                  std::move(key), std::move(value), expiry,
+                                  st.frontend_id()}});
   });
 }
 
 void store::clear() {
   with_state([&](state_impl& st) {
     st.anon_send(atom::local_v,
-                 make_internal_command<clear_command>(st.frontend_id()));
+                 internal_command_variant{clear_command{st.frontend_id()}});
   });
 }
 
@@ -471,6 +471,10 @@ void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
 
 void store::reset() {
   state_.reset();
+}
+
+std::string to_string(const store::response& x) {
+  return caf::deep_to_string(std::tie(x.answer, x.id));
 }
 
 } // namespace broker

@@ -367,9 +367,9 @@ The essential interface for ``internal_command`` is defined as follows:
     using variant_type
       = std::variant<put_command, put_unique_command, put_unique_result_command,
                      erase_command, expire_command, add_command, subtract_command,
-                     clear_command, attach_clone_command, attach_writer_command,
-                     keepalive_command, cumulative_ack_command, nack_command,
-                     ack_clone_command, retransmit_failed_command>;
+                     clear_command, attach_writer_command, keepalive_command,
+                     cumulative_ack_command, nack_command, ack_clone_command,
+                     retransmit_failed_command>;
 
     sequence_number_type seq;
 
@@ -402,14 +402,7 @@ Control messages directly map to channel messages:
 | ``retransmit_failed_command``     | ``channel::retransmit_failed``    |
 +-----------------------------------+-----------------------------------+
 
-Note that ``attach_clone_command`` does *not* map to any channel message type.
-This message is the discovery message used by clones to find the master. When
-receiving it, the master initiates the handshake on the channel by sending
-``ack_clone_command`` (which contains a snapshot of the state and is thus *not*
-broadcasted).
-
-When a clone adds a writer, it already knows the master and thus skips the
-discovery phase by directly sending the ``attach_writer_command`` handshake.
+When a clone adds a writer, it sends an ``attach_writer_command`` handshake.
 
 All internal commands that contain an *action*,
 such as ``put_comand``, get forwarded to the channel as payload. Either by

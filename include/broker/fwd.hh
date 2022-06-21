@@ -36,7 +36,6 @@ struct expire_command;
 struct add_command;
 struct subtract_command;
 struct clear_command;
-struct attach_clone_command;
 struct attach_writer_command;
 struct ack_clone_command;
 struct cumulative_ack_command;
@@ -94,6 +93,13 @@ using table = std::map<data, data>;
 using timespan = std::chrono::duration<int64_t, std::nano>;
 using timestamp = std::chrono::time_point<clock, timespan>;
 using vector = std::vector<data>;
+
+using internal_command_variant
+  = std::variant<put_command, put_unique_command, put_unique_result_command,
+                 erase_command, expire_command, add_command, subtract_command,
+                 clear_command, attach_writer_command, keepalive_command,
+                 cumulative_ack_command, nack_command, ack_clone_command,
+                 retransmit_failed_command>;
 
 // -- arithmetic type aliases --------------------------------------------------
 

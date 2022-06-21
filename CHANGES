@@ -1,3 +1,15 @@
+2.4.0-dev.10 | 2022-06-21 10:55:43 -0700
+
+  * Add new btest for put_unique (Dominik Charousset, Corelight)
+
+  * Streamline clone actor logic (Dominik Charousset, Corelight)
+
+  * Protect against clones receiving wrong inputs (Dominik Charousset, Corelight)
+
+  * Use multiple proxies per node for put_unique test (Dominik Charousset, Corelight)
+
+  * Remove unused message type (Dominik Charousset, Corelight)
+
 2.4.0-dev.2 | 2022-06-14 09:19:25 -0700
 
   * Dockerfile updates for consistency with recent Zeek changes (Tim Wojtulewicz, Corelight)

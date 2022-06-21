@@ -81,7 +81,11 @@ foreach(suite ${suites})
   make_cpp_test("${suite}")
 endforeach ()
 
-## -- Benchmark ---------------------------------------------------------------
+# -- system tests via btest --------------------------------------------------
+
+add_subdirectory(btest)
+
+# -- Benchmark ----------------------------------------------------------------
 
 add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${BROKER_LIBRARY})

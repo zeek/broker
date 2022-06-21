@@ -60,6 +60,7 @@ master_state::master_state(
   } else {
     detail::die("failed to get master expiries while initializing");
   }
+  BROKER_INFO("attached master" << id << "to" << store_name);
 }
 
 void master_state::dispatch(const command_message& msg) {
@@ -205,7 +206,8 @@ void master_state::consume(put_command& x) {
 void master_state::consume(put_unique_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry"
-                           << (x.expiry ? to_string(*x.expiry) : "none"));
+                           << (x.expiry ? to_string(*x.expiry) : "none")
+                           << "from" << x.who);
   auto broadcast_result = [this, &x](bool inserted) {
     broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
     if (x.who) {
@@ -350,31 +352,36 @@ void master_state::close(consumer_type* src, [[maybe_unused]] error reason) {
 }
 
 void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
-  BROKER_TRACE(BROKER_ARG(ack));
+  auto dst = ptr->producer();
+  BROKER_DEBUG(BROKER_ARG(ack) << BROKER_ARG(dst));
   auto msg = make_command_message(
-    clones_topic, internal_command{0, id, cumulative_ack_command{ack.seq}});
-  self->send(core, atom::publish_v, std::move(msg), ptr->producer().endpoint);
+    clones_topic,
+    internal_command{0, id, dst, cumulative_ack_command{ack.seq}});
+  self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
 }
 
 void master_state::send(consumer_type* ptr, channel_type::nack nack) {
-  BROKER_TRACE(BROKER_ARG(nack));
+  auto dst = ptr->producer();
+  BROKER_DEBUG(BROKER_ARG(nack) << BROKER_ARG(dst));
   auto msg = make_command_message(
-    clones_topic, internal_command{0, id, nack_command{std::move(nack.seqs)}});
-  self->send(core, atom::publish_v, std::move(msg), ptr->producer().endpoint);
+    clones_topic,
+    internal_command{0, id, dst, nack_command{std::move(nack.seqs)}});
+  self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
 }
 
 // -- callbacks for the producer -----------------------------------------------
 
 void master_state::send(producer_type*, const entity_id& whom,
                         const channel_type::event& what) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(what));
+  BROKER_DEBUG("send event with seq"
+               << get_command(what.content).seq << "and type"
+               << get_command(what.content).content.index() << "to" << whom);
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
   self->send(core, atom::publish_v, what.content, whom.endpoint);
 }
 
 void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::handshake msg) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
   auto i = open_handshakes.find(whom);
   if (i == open_handshakes.end()) {
     auto ss = backend->snapshot();
@@ -382,11 +389,13 @@ void master_state::send(producer_type*, const entity_id& whom,
       detail::die("failed to snapshot master");
     auto cmd = make_command_message(
       clones_topic,
-      internal_command{
-        msg.offset, id,
-        ack_clone_command{msg.offset, msg.heartbeat_interval, std::move(*ss)}});
+      internal_command{msg.offset, id, whom,
+                       ack_clone_command{msg.offset, msg.heartbeat_interval,
+                                         std::move(*ss)}});
     i = open_handshakes.emplace(whom, std::move(cmd)).first;
   }
+  BROKER_DEBUG("send producer handshake with offset" << msg.offset << "to"
+                                                     << whom);
   self->send(core, atom::publish_v, i->second, whom.endpoint);
 }
 
@@ -394,32 +403,40 @@ void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::retransmit_failed msg) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
   auto cmd = make_command_message(
-    clones_topic, internal_command{0, id, retransmit_failed_command{msg.seq}});
+    clones_topic,
+    internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
+  BROKER_DEBUG("send retransmit_failed with seq" << msg.seq << "to" << whom);
   self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
 }
 
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
   BROKER_TRACE(BROKER_ARG(msg));
-  auto cmd = make_command_message(
-    clones_topic, internal_command{0, id, keepalive_command{msg.seq}});
+  BROKER_DEBUG("broadcast keepalive_command with seq" << msg.seq);
+  auto cmd = make_command_message(clones_topic,
+                                  internal_command{0, id, entity_id::nil(),
+                                                   keepalive_command{msg.seq}});
   self->send(core, atom::publish_v, std::move(cmd));
 }
 
 void master_state::broadcast(producer_type*, const channel_type::event& what) {
-  BROKER_TRACE(BROKER_ARG(what));
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
+  BROKER_DEBUG("broadcast event with seq"
+               << get_command(what.content).seq << "and type"
+               << get_command(what.content).content.index());
   self->send(core, atom::publish_v, what.content);
 }
 
 void master_state::drop(producer_type*, const entity_id& clone,
                         [[maybe_unused]] ec reason) {
   BROKER_TRACE(BROKER_ARG(clone) << BROKER_ARG(reason));
+  BROKER_INFO("drop" << clone);
   open_handshakes.erase(clone);
   inputs.erase(clone);
 }
 
 void master_state::handshake_completed(producer_type*, const entity_id& clone) {
   BROKER_TRACE(BROKER_ARG(clone));
+  BROKER_INFO("producer handshake completed for" << clone);
   open_handshakes.erase(clone);
 }
 
@@ -450,14 +467,13 @@ caf::behavior master_state::make_behavior() {
   send_later(self, tick_interval, caf::make_message(atom::tick_v));
   return super::make_behavior(
     // --- local communication -------------------------------------------------
-    [this](atom::local, internal_command& cmd) {
-      BROKER_TRACE(BROKER_ARG(cmd));
+    [this](atom::local, internal_command_variant& content) {
+      BROKER_TRACE(BROKER_ARG(content));
       // Locally received message are already ordered and reliable. Hence, we
       // can process them immediately.
-      auto tag = detail::tag_of(cmd);
+      auto tag = detail::tag_of(content);
       if (tag == command_tag::action) {
-        if (auto ptr = get_if<put_unique_command>(&cmd.content);
-            ptr && ptr->who) {
+        if (auto ptr = get_if<put_unique_command>(&content); ptr && ptr->who) {
           if (auto rp = self->make_response_promise(); rp.pending()) {
             store_actor_state::local_request_key key{ptr->who, ptr->req_id};
             if (!local_requests.emplace(key, rp).second) {
@@ -466,10 +482,9 @@ caf::behavior master_state::make_behavior() {
             }
           }
         }
-        auto f = [this](auto& cmd) { consume(cmd); };
-        std::visit(f, cmd.content);
+        std::visit([this](auto& x) { consume(x); }, content);
       } else {
-        BROKER_ERROR("received unexpected command locally: " << cmd);
+        BROKER_ERROR("received unexpected command locally:" << content);
       }
     },
     [this](atom::tick) {

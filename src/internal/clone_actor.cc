@@ -54,6 +54,7 @@ clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
   super::init(input);
   max_get_delay = caf::get_or(ptr->config(), "broker.store.max-get-delay",
                               defaults::store::max_get_delay);
+  BROKER_INFO("attached clone" << id << "to" << store_name);
 }
 
 void clone_state::forward(internal_command&& x) {
@@ -65,41 +66,61 @@ void clone_state::dispatch(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or master.
-  //
-  // Clones can only send control messages (they are always consumers). Writers
-  // can send us either actions or control messages (they are producers).
   auto& cmd = get_command(msg);
   auto seq = cmd.seq;
   auto tag = detail::tag_of(cmd);
   auto type = detail::type_of(cmd);
   if (input.initialized() && cmd.sender != input.producer()) {
-    BROKER_WARNING(
-      "received command message from unrecognized sender: " << cmd.sender);
+    BROKER_WARNING("received message from unrecognized sender:" << cmd.sender);
     return;
   }
+  auto is_receiver = [this, &cmd] {
+    if (cmd.receiver == id) {
+      return true;
+    } else {
+      if (cmd.receiver) {
+        BROKER_DEBUG("received message for" << cmd.receiver);
+      } else {
+        BROKER_DEBUG("received a broadcast command message");
+      }
+      return false;
+    }
+  };
   switch (tag) {
     case command_tag::action: {
-      // Action messages from the master.
+      // Action messages from the master (broadcasted).
       input.handle_event(seq, move(msg));
       break;
     }
     case command_tag::producer_control: {
+      // Control messages must be 'unicast'.
+      if (!is_receiver())
+        return;
       // Control messages from the master.
       switch (type) {
         case internal_command::type::ack_clone_command: {
+          if (master_id) {
+            if (cmd.sender == master_id) {
+              BROKER_DEBUG("drop repeated ack_clone from" << master_id);
+            } else {
+              BROKER_ERROR("received ack_clone from"
+                           << cmd.sender << "but already attached to"
+                           << master_id);
+            }
+            return;
+          } else {
+            master_id = cmd.sender;
+          }
           auto& inner = get<ack_clone_command>(cmd.content);
           if (input.handle_handshake(cmd.sender, inner.offset,
                                      inner.heartbeat_interval)) {
             BROKER_DEBUG("received ack_clone from" << cmd.sender);
+            if (!master_id)
+              master_id = cmd.sender;
             set_store(move(inner.state));
-            if (output_opt) {
-              output_opt->stalled = false;
-              output_opt->trigger_handshakes();
-              for (auto& msg : output_opt->buf())
-                broadcast(std::addressof(*output_opt), msg);
-            }
+            start_output();
           } else {
-            BROKER_DEBUG("ignored repeated ack_clone from" << cmd.sender);
+            BROKER_DEBUG("drop repeated ack_clone from" << cmd.sender);
           }
           break;
         }
@@ -131,7 +152,12 @@ void clone_state::dispatch(const command_message& msg) {
     }
     default: {
       BROKER_ASSERT(tag == command_tag::consumer_control);
-      if (!output_opt) {
+      // Control messages must be 'unicast'.
+      if (!is_receiver()) {
+        BROKER_DEBUG("dropped consumer control message for different receiver"
+                     << cmd.receiver);
+        break;
+      } else if (!output_opt) {
         BROKER_DEBUG("received control message for a non-existing channel");
         break;
       }
@@ -144,8 +170,20 @@ void clone_state::dispatch(const command_message& msg) {
           // once once the master responds with an ACK.
           if (auto i = output_opt->find_path(entity_id::nil());
               i != output_opt->paths().end()) {
+            if (master_id) {
+              if (master_id == cmd.sender) {
+                i->hdl = cmd.sender;
+                BROKER_DEBUG("received write ACK from master" << master_id);
+              } else {
+                BROKER_ERROR("received write ACK from unexpected source"
+                             << cmd.sender);
+                return;
+              }
+            } else {
+              BROKER_DEBUG("received write ACK from master" << master_id);
+              master_id = cmd.sender;
+            }
             i->hdl = cmd.sender;
-            BROKER_DEBUG("received ACK from the master for the writer");
           }
           output_opt->handle_ack(cmd.sender, inner.seq);
           break;
@@ -166,7 +204,7 @@ void clone_state::dispatch(const command_message& msg) {
 void clone_state::tick() {
   BROKER_TRACE("");
   input.tick();
-  if (output_opt && !output_opt->stalled)
+  if (output_opt)
     output_opt->tick();
 }
 
@@ -192,6 +230,7 @@ void clone_state::consume(put_command& x) {
 
 void clone_state::consume(put_unique_result_command& cmd) {
   local_request_key key{cmd.who, cmd.req_id};
+  BROKER_INFO("PUT_UNIQUE_RESULT" << key << cmd.req_id << "->" << cmd.inserted);
   if (auto i = local_requests.find(key); i != local_requests.end()) {
     i->second.deliver(data{cmd.inserted}, cmd.req_id);
     local_requests.erase(i);
@@ -231,59 +270,67 @@ void clone_state::close(consumer_type* src, [[maybe_unused]] error reason) {
 }
 
 void clone_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
-  BROKER_DEBUG(BROKER_ARG(ack));
+  BROKER_DEBUG(BROKER_ARG(ack) << master_id << ptr->producer());
+  BROKER_ASSERT(master_id);
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, cumulative_ack_command{ack.seq}});
+    master_topic,
+    internal_command{0, id, master_id, cumulative_ack_command{ack.seq}});
   self->send(core, atom::publish_v, move(msg), ptr->producer().endpoint);
 }
 
 void clone_state::send(consumer_type* ptr, channel_type::nack nack) {
-  BROKER_DEBUG(BROKER_ARG(nack));
+  BROKER_DEBUG(BROKER_ARG(nack) << master_id << ptr->producer());
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, nack_command{move(nack.seqs)}});
-  if (ptr->initialized())
-    self->send(core, atom::publish_v, move(msg), ptr->producer().endpoint);
-  else
+    master_topic,
+    internal_command{0, id, master_id, nack_command{move(nack.seqs)}});
+  if (ptr->initialized()) {
+    BROKER_ASSERT(master_id == ptr->producer());
+    self->send(core, atom::publish_v, move(msg), master_id.endpoint);
+  } else {
     self->send(core, atom::publish_v, move(msg));
+  }
 }
 
 // -- callbacks for the producer -----------------------------------------------
 
-void clone_state::send(producer_type* ptr, const entity_id&,
-                       const channel_type::event& what) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
-  if (ptr->stalled)
-    return;
+void clone_state::send(producer_type* ptr, const entity_id& dst,
+                       channel_type::event& what) {
+  BROKER_TRACE(BROKER_ARG(what));
+  BROKER_DEBUG("send event with seq"
+               << get_command(what.content).seq << "and type"
+               << get_command(what.content).content.index() << "to" << dst);
+  BROKER_ASSERT(dst == master_id);
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
+  if (get_command(what.content).receiver != dst) {
+    // Technical debt: the event really should be internal_command_variant to
+    // allow us to assemble the command_message here instead of altering it.
+    get<1>(what.content.unshared()).receiver = dst;
+  }
   self->send(core, atom::publish_v, what.content);
 }
 
 void clone_state::send(producer_type* ptr, const entity_id&,
                        channel_type::handshake what) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
-  if (ptr->stalled)
-    return;
+  BROKER_TRACE(BROKER_ARG(what));
+  BROKER_DEBUG("send attach_writer_command with offset" << what.offset);
   auto msg = make_command_message(
-    master_topic,
-    internal_command{
-      0, id, attach_writer_command{what.offset, what.heartbeat_interval}});
+    master_topic, internal_command{0, id, master_id,
+                                   attach_writer_command{
+                                     what.offset, what.heartbeat_interval}});
   self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::send(producer_type* ptr, const entity_id&,
                        channel_type::retransmit_failed what) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
-  if (ptr->stalled)
-    return;
+  BROKER_TRACE(BROKER_ARG(what));
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, retransmit_failed_command{what.seq}});
+    master_topic,
+    internal_command{0, id, master_id, retransmit_failed_command{what.seq}});
   self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
-  if (ptr->stalled)
-    return;
+  BROKER_TRACE(BROKER_ARG(what));
   // Re-send handshakes as well. Usually, the keepalive message also acts as
   // handshake. However, the master did not open the channel in this case. We
   // first need to create it by sending `attach_writer_command`. Everything
@@ -295,29 +342,28 @@ void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
            channel_type::handshake{path.offset, ptr->heartbeat_interval()});
     }
   }
+  BROKER_DEBUG("send heartbeat to master");
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, keepalive_command{what.seq}});
+    master_topic,
+    internal_command{0, id, entity_id::nil(), keepalive_command{what.seq}});
   self->send(core, atom::publish_v, move(msg));
 }
 
 void clone_state::broadcast(producer_type* ptr,
                             const channel_type::event& what) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG2("stalled", ptr->stalled));
-  if (ptr->stalled)
-    return;
+  BROKER_TRACE(BROKER_ARG(what));
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
   self->send(core, atom::publish_v, what.content);
 }
 
 void clone_state::drop(producer_type*, const entity_id&,
                        [[maybe_unused]] ec reason) {
-  BROKER_TRACE(BROKER_ARG(reason));
+  BROKER_DEBUG(BROKER_ARG(reason));
   // TODO: see comment in close()
 }
 
 void clone_state::handshake_completed(producer_type*, const entity_id&) {
-  BROKER_DEBUG("completed handshake between writer and master for store"
-               << store_name);
+  BROKER_DEBUG("completed producer handshake for store" << store_name);
 }
 
 // -- properties ---------------------------------------------------------------
@@ -327,21 +373,6 @@ data clone_state::keys() const {
   for (auto& kvp : store)
     result.emplace(kvp.first);
   return result;
-}
-
-clone_state::producer_type& clone_state::output() {
-  if (!output_opt) {
-    BROKER_DEBUG("add output channel to clone " << store_name);
-    output_opt.emplace(this);
-    super::init(*output_opt);
-    // Remove `stalled` flag immediately if the input is ready.
-    if (input.initialized())
-      output_opt->stalled = false;
-    // We reach the master by publishing to its topic. Hence, we actually don't
-    // need a handle to it at all for the writer.
-    output_opt->add(entity_id::nil());
-  }
-  return *output_opt;
 }
 
 void clone_state::set_store(std::unordered_map<data, data> x) {
@@ -400,6 +431,43 @@ bool clone_state::idle() const noexcept {
   return input.idle() && (!output_opt || output_opt->idle());
 }
 
+// -- helper functions ---------------------------------------------------------
+
+void clone_state::start_output() {
+  if (output_opt) {
+    BROKER_WARNING("clone_state::start_output called multiple times");
+    return;
+  }
+  BROKER_ASSERT(master_id);
+  BROKER_DEBUG("clone" << id << "adds an output channel");
+  output_opt.emplace(this);
+  super::init(*output_opt);
+  output_opt->add(master_id);
+  if (!stalled.empty()) {
+    std::vector<internal_command_variant> buf;
+    buf.swap(stalled);
+    for (auto& content : buf)
+      send_to_master(std::move(content));
+    BROKER_ASSERT(stalled.empty());
+  }
+}
+
+
+void clone_state::send_to_master(internal_command_variant&& content) {
+  if (output_opt) {
+    BROKER_ASSERT(master_id);
+    BROKER_DEBUG("send command of type" << content.index());
+    auto& out = *output_opt;
+    auto msg = make_command_message(master_topic,
+                                    internal_command{out.next_seq(), id,
+                                                     master_id, move(content)});
+    out.produce(move(msg));
+  } else {
+    BROKER_DEBUG("add command of type" << content.index() << "to buffer");
+    stalled.emplace_back(std::move(content));
+  }
+}
+
 // -- clone actor --------------------------------------------------------------
 
 caf::behavior clone_state::make_behavior() {
@@ -417,17 +485,23 @@ caf::behavior clone_state::make_behavior() {
     sync_timeout = caf::make_timestamp() + max_sync_interval;
   return super::make_behavior(
     // --- local communication -------------------------------------------------
-    [=](atom::local, internal_command& cmd) {
-      if (auto inner = get_if<put_unique_command>(&cmd.content);
-          inner && inner->who) {
-        local_request_key key{inner->who, inner->req_id};
-        local_requests.emplace(key, self->make_response_promise());
+    [=](atom::local, internal_command_variant& content) {
+      if (auto inner = get_if<put_unique_command>(&content)) {
+        if (inner->who) {
+          BROKER_DEBUG("received put_unique with who"
+                       << inner->who << "and req_id" << inner->req_id);
+          local_request_key key{inner->who, inner->req_id};
+          local_requests.emplace(key, self->make_response_promise());
+        } else {
+          BROKER_ERROR("received put_unique with invalid sender: DROP!");
+          auto rp = self->make_response_promise();
+          rp.deliver(caf::make_error(caf::sec::invalid_argument,
+                                     "put_unique: invalid sender information"),
+                     inner->req_id);
+          return;
+        }
       }
-      auto& out = output();
-      cmd.seq = out.next_seq();
-      cmd.sender = id;
-      auto msg = make_command_message(master_topic, move(cmd));
-      out.produce(move(msg));
+      send_to_master(move(content));
     },
     [=](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
