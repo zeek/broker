@@ -1,3 +1,9 @@
+2.4.0-dev.13 | 2022-06-24 12:53:18 -0700
+
+  * Point out that --with-caf is for-development-only (Dominik Charousset, Corelight)
+
+  * Keep make dist from deleting all paths containing 'build' [skip ci] (Tim Wojtulewicz, Corelight)
+
 2.4.0-dev.10 | 2022-06-21 10:55:43 -0700
 
   * Add new btest for put_unique (Dominik Charousset, Corelight)
