@@ -41,7 +41,7 @@ std::string mode; // "master" or "clone"
 
 size_t clone_index; // when in "clone" mode: the index of this clone (0-based)
 
-int num_clones;
+size_t num_clones;
 
 } // namespace
 
@@ -85,7 +85,7 @@ void master_mode(endpoint& ep, std::vector<uint16_t> cl_ports) {
   auto sub = ep.make_status_subscriber(true);
   for (auto cl_port : cl_ports)
     ep.peer_nosync("localhost", cl_port, 1s);
-  int connected = 0;
+  unsigned connected = 0;
   store foobar;
   bool running = true;
   while (running) {
@@ -99,14 +99,14 @@ void master_mode(endpoint& ep, std::vector<uint16_t> cl_ports) {
         auto code = ev.code();
         if (code == sc::peer_added) {
           ++connected;
-          printf("connected: %d\n", connected);
+          printf("connected: %u\n", connected);
           if (connected == num_clones) {
             foobar = *ep.attach_master("foobar", backend::memory);
             puts("attached master for 'foobar'");
           }
         } else if (code == sc::peer_removed || code == sc::peer_lost) {
           --connected;
-          printf("connected: %d\n", connected);
+          printf("connected: %u\n", connected);
           if (connected == 0) {
             puts("no clone left: done");
             running = false;
@@ -151,11 +151,10 @@ void clone_mode(endpoint& ep, std::vector<uint16_t> cl_ports) {
     fprintf(stderr, "endpiont::listen failed: %s\n", err_str.c_str());
     ::abort();
   }
-  for (auto index = 0; index < num_clones; ++index)
+  for (size_t index = 0; index < num_clones; ++index)
     if (index != clone_index)
       ep.peer_nosync("localhost", cl_ports[index], 1s);
   ep.peer_nosync("localhost", rd_env_port("MASTER_PORT"), 1s);
-  size_t connected = 0;
   store foobar;
   foobar = *ep.attach_clone("foobar");
   puts("attached clone for 'foobar'");
@@ -178,7 +177,7 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   // Parse environment variables.
   std::vector<uint16_t> cl_ports;
-  for (auto i = 0; i < num_clones; ++i) {
+  for (size_t i = 0; i < num_clones; ++i) {
     std::string env_var = "CL_";
     env_var += std::to_string(i);
     env_var += "_PORT";

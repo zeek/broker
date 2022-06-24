@@ -442,13 +442,13 @@ TEST(only one put_unique may pass) {
           std::vector<store::proxy>proxies;
           for (int i = 0; i < 3; ++i) {
             proxies.emplace_back(services);
-            for (int req_id = 1; req_id < 4; ++req_id) {
+            for (size_t req_id = 1; req_id < 4; ++req_id) {
               auto actual_id = proxies.back().put_unique("foo", "bar");
               SYNC_CHECK_EQUAL(req_id, actual_id);
             }
           }
           for (auto& px : proxies) {
-            for (int req_id = 1; req_id < 4; ++req_id) {
+            for (size_t req_id = 1; req_id < 4; ++req_id) {
               auto resp = px.receive();
               if (SYNC_CHECK(resp.id == req_id)) {
                 if (SYNC_CHECK(resp.answer)) {
@@ -493,7 +493,7 @@ TEST(only one put_unique may pass) {
   CHECK_EQ(results.size(), (num_endpoints - 1) * 3 * 3);
   CHECK_EQ(std::count(results.begin(), results.end(), data{true}), 1);
   CHECK_EQ(std::count(results.begin(), results.end(), data{false}),
-           results.size() - 1);
+           static_cast<int>(results.size() - 1));
 }
 
 SCENARIO("handshake fails if only one side enables encryption") {
