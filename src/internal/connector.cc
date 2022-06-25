@@ -983,17 +983,6 @@ struct connect_manager {
 
   connect_manager& operator=(const connect_manager&) = delete;
 
-  ~connect_manager() {
-    for (auto& entry : fdset) {
-      BROKER_DEBUG("close socket" << entry.fd);
-      caf::net::close(caf::net::socket{entry.fd});
-    }
-    for (auto& entry : pending_fdset) {
-      BROKER_DEBUG("close socket" << entry.fd);
-      caf::net::close(caf::net::socket{entry.fd});
-    }
-  }
-
   /// Returns the relative timeout for the next retry in milliseconds or -1.
   int next_timeout_ms() {
     if (retry_schedule.empty())
