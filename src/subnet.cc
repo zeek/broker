@@ -60,12 +60,10 @@ bool operator<(const subnet& lhs, const subnet& rhs) {
   return std::tie(lhs.net_, lhs.len_) < std::tie(rhs.net_, lhs.len_);
 }
 
-bool convert(const subnet& sn, std::string& str) {
-  if (!convert(sn.network(), str))
-    return false;
+void convert(const subnet& sn, std::string& str) {
+  convert(sn.network(), str);
   str += '/';
   str += std::to_string(sn.length());
-  return true;
 }
 
 bool convert(const std::string& str, subnet& sn) {

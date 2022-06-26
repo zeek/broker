@@ -164,8 +164,8 @@ int error::compare(uint8_t code, uint16_t category) const noexcept {
   return native(*this).compare(code, category);
 }
 
-std::string to_string(const error& x) {
-  return caf::to_string(native(x));
+void convert(const error& in, std::string& out) {
+  out = caf::to_string(native(in));
 }
 
 error make_error(ec code, endpoint_info info, std::string description) {
@@ -184,15 +184,8 @@ std::string_view enum_str(ec code) {
   return ec_names[index];
 }
 
-bool convert(const std::string& str, ec& code) noexcept {
-  auto predicate = [&](std::string_view x) { return x == str; };
-  auto begin = std::begin(ec_names);
-  auto end = std::end(ec_names);
-  auto i = std::find_if(begin, end, predicate);
-  if (i == begin || i == end)
-    return false;
-  code = static_cast<ec>(std::distance(begin, i));
-  return true;
+bool convert(std::string_view str, ec& code) noexcept {
+  return default_enum_convert(ec_names, str, code);
 }
 
 bool convert(const data& src, ec& code) noexcept {

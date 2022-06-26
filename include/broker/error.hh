@@ -187,7 +187,7 @@ private:
 };
 
 /// @relates error
-std::string to_string(const error& x);
+void convert(const error& in, std::string& out);
 
 /// Creates a new @ref error from given @ref ec code.
 inline error make_error(ec code) {
@@ -222,10 +222,17 @@ std::string to_string(ec code);
 std::string_view enum_str(ec code);
 
 /// @relates ec
-bool convert(const std::string& str, ec& code) noexcept;
+[[nodiscard]] bool convert(std::string_view str, ec& code) noexcept;
 
 /// @relates ec
-bool convert(const data& str, ec& code) noexcept;
+[[nodiscard]] bool convert(const data& str, ec& code) noexcept;
+
+/// @relates ec
+[[nodiscard]] inline bool convert(const std::string& str, ec& code) noexcept {
+  // Disambiguation: std::string_view and broker::data are both valid
+  // conversions for std::string.
+  return convert(std::string_view{str}, code);
+}
 
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
@@ -277,10 +284,10 @@ struct can_convert_predicate<error> {
 /// `src.category() == caf::atom("broker")`. The `context` field, depending on
 /// the error code, is either, `nil`,`[<string>]`, or
 /// `[<endpoint_info>, <string>]`.
-bool convert(const error& src, data& dst);
+[[nodiscard]] bool convert(const error& src, data& dst);
 
 /// Converts data in the format `["error", code, context]` back to an error.
-bool convert(const data& src, error& dst);
+[[nodiscard]] bool convert(const data& src, error& dst);
 
 /// Creates a view into a ::data object that is convertible to ::error.
 class error_view {

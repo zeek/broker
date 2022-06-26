@@ -35,110 +35,114 @@ auto can_convert_to(const U& x)
   return can_convert_predicate<T>::check(x);
 }
 
-template <class T>
-auto convert(T x, std::string& str)
--> std::enable_if_t<std::is_arithmetic<T>::value, bool> {
-  str = std::to_string(x);
-  return true;
-}
-
 template <class Rep>
-bool convert_duration(Rep count, const char* unit_name, std::string& str) {
+void convert_duration(Rep count, const char* unit_name, std::string& str) {
   str = std::to_string(count);
   str += unit_name;
-  return true;
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
-  return convert_duration(d.count(), "ns", str);
+void convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
+  convert_duration(d.count(), "ns", str);
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
-  return convert_duration(d.count(), "us", str);
+void convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
+  convert_duration(d.count(), "us", str);
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
-  return convert_duration(d.count(), "ms", str);
+void convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
+  convert_duration(d.count(), "ms", str);
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
-  return convert_duration(d.count(), "s", str);
+void convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
+  convert_duration(d.count(), "s", str);
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
-  return convert_duration(d.count(), "mins", str);
+void convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
+  convert_duration(d.count(), "mins", str);
 }
 
 template <class Rep>
-bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
-  return convert_duration(d.count(), "hrs", str);
+void convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
+  convert_duration(d.count(), "hrs", str);
 }
 
 /// Attempts to convert `From` to `To`.
 /// @returns a value of type `To` on success, otherwise `nil`.
 template <class To, class From>
-auto to(const From& from)
--> std::enable_if_t<detail::has_convert<From, To>::value, std::optional<To>> {
-  To to;
-  if (convert(from, to))
-    return {std::move(to)};
-  return {};
+std::enable_if_t<detail::has_convert_v<From, To>, std::optional<To>>
+to(const From& from) {
+  auto result = To{};
+  using convert_res_type = decltype(convert(from, result));
+  if constexpr (std::is_same_v<convert_res_type, bool>) {
+    if (convert(from, result)) {
+      return {std::move(result)};
+    } else {
+      return {};
+    }
+  } else {
+    static_assert(std::is_same_v<convert_res_type, void>,
+                  "convert overloads must return 'bool' or 'void'");
+    convert(from, result);
+    return {std::move(result)};
+  }
 }
 
 /// Forces a conversion from `From` to `To`.
 /// @returns a value of type `To`.
 /// @throws logic_error if the conversion fails.
 template <class To, class From>
-auto get_as(const From& from)
--> std::enable_if_t<detail::has_convert<From, To>::value, To> {
+std::enable_if_t<detail::has_convert_v<From, To>, To> get_as(const From& from) {
   To result;
   if (!convert(from, result))
     throw std::logic_error("conversion failed");
   return result;
 }
 
-// Injects a `to_string` overload for any type convertible to a `std::string`
-// via a free function `bool convert(const T&, std::string&)` that can be
-// found via ADL.
-/// @relates from_string
-template <class T>
-auto to_string(T&& x)
--> decltype(convert(x, std::declval<std::string&>()), std::string()) {
-  std::string str;
-  convert(x, str);
-  return str;
+/// Converts a value to a string representation.
+template <class From>
+std::enable_if_t<detail::has_convert_v<From, std::string>, std::string>
+to_string(const From& from) {
+  std::string result;
+  convert(from, result);
+  return result;
 }
 
-// The dual to `to_string`: it attempts to parse a type `T` from a
-// `std::string`, given that it provides a free function `bool convert(const
-// T&, std::string&)` that can be found via ADL.
-/// @relates to_string
+/// Convenience alias for `from<T>(str)`.
 template <class T>
-auto from_string(const std::string& str) -> decltype(to<T>(str)) {
+auto from_string(std::string_view str) -> decltype(to<T>(str)) {
   return to<T>(str);
 }
 
 // Injects an overload for `operator<<` for any type convertible to a
 // `std::string` via a free function `bool convert(const T&, std::string&)`
 // that can be found via ADL.
-template <class Char, class Traits, class T>
-auto operator<<(std::basic_ostream<Char, Traits>& os, T&& x)
--> detail::enable_if_t<
-  detail::has_convert<T, std::string>::value
-    && !std::is_same<T, std::string>::value,
-  std::basic_ostream<Char, Traits>&
-> {
+template <class T>
+std::enable_if_t<
+  detail::has_convert_v<T, std::string> // must have a convert function
+  && !std::is_arithmetic_v<T> // avoid ambiguitiy with default overloads
+  && !std::is_convertible_v<T, std::string>, // avoid ambiguity with conversion-to-string
+  std::ostream&>
+operator<<(std::ostream& os, const T& x) {
   std::string str;
-  if (convert(x, str))
-    os << str;
-  else
-    os.setstate(std::ios::failbit);
-  return os;
+  convert(x, str);
+  return os << str;
+}
+
+template <class Enum, size_t N>
+bool default_enum_convert(const std::string_view (&values)[N],
+                          std::string_view in, Enum& out) {
+  for (size_t index = 0; index < N; ++index) {
+    if (values[index] == in) {
+      out = static_cast<Enum>(index);
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace broker

@@ -61,7 +61,7 @@ public:
   void shuffle(boolean& x);
 
   template <class T>
-  typename std::enable_if<std::is_arithmetic<T>::value>::type shuffle(T& x) {
+  typename std::enable_if_t<std::is_arithmetic_v<T> :> shuffle(T& x) {
     x = engine_();
   }
 

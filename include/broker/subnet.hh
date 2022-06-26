@@ -7,7 +7,7 @@
 namespace broker {
 
 /// @relates subnet
-bool convert(const subnet& sn, std::string& str);
+void convert(const subnet& sn, std::string& str);
 
 /// @relates subnet
 bool convert(const std::string& str, subnet& sn);

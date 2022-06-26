@@ -6,50 +6,40 @@
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 
-using namespace std::string_literals;
+using namespace std::literals;
 
 namespace broker {
 
-const char* to_string(sc code) noexcept {
-  switch (code) {
-    default:
-      BROKER_ASSERT(!"missing to_string implementation");
-      return "<unknown>";
-    case sc::unspecified:
-      return "unspecified";
-    case sc::peer_added:
-      return "peer_added";
-    case sc::peer_removed:
-      return "peer_removed";
-    case sc::peer_lost:
-      return "peer_lost";
-    case sc::endpoint_discovered:
-      return "endpoint_discovered";
-    case sc::endpoint_unreachable:
-      return "endpoint_unreachable";
-  }
+namespace {
+
+std::string_view sc_strings[] = {
+  "unspecified"sv,         //
+  "peer_added"sv,          //
+  "peer_removed"sv,        //
+  "peer_lost"sv,           //
+  "endpoint_discovered"sv, //
+  "endpoint_unreachable"sv,
+
+};
+
+} // namespace
+
+std::string to_string(sc code) noexcept {
+  auto index = static_cast<uint8_t>(code);
+  BROKER_ASSERT(index < std::size(sc_strings));
+  return std::string{sc_strings[index]};
 }
 
-#define BROKER_SC_FROM_STRING(value)                                           \
-  if (str == #value) {                                                         \
-    code = sc::value;                                                          \
-    return true;                                                               \
-  }
-
-bool convert(const std::string& str, sc& code) noexcept {
-  BROKER_SC_FROM_STRING(unspecified)
-  BROKER_SC_FROM_STRING(peer_added)
-  BROKER_SC_FROM_STRING(peer_removed)
-  BROKER_SC_FROM_STRING(peer_lost)
-  BROKER_SC_FROM_STRING(endpoint_discovered)
-  BROKER_SC_FROM_STRING(endpoint_unreachable)
-  return false;
+bool convert(std::string_view str, sc& code) noexcept {
+  return default_enum_convert(sc_strings, str, code);
 }
 
 bool convert(const data& src, sc& code) noexcept {
-  if (auto val = get_if<enum_value>(src))
+  if (auto val = get_if<enum_value>(src)) {
     return convert(val->name, code);
-  return false;
+  } else {
+    return false;
+  }
 }
 
 bool convertible_to_sc(const data& src) noexcept {

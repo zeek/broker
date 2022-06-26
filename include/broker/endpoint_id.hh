@@ -1,5 +1,6 @@
 #pragma once
 
+#include "broker/convert.hh"
 #include "broker/detail/comparable.hh"
 
 #include <array>
@@ -91,10 +92,7 @@ private:
 // -- free functions -----------------------------------------------------------
 
 /// @relates endpoint_id
-std::string to_string(endpoint_id x);
-
-/// @relates endpoint_id
-bool convert(endpoint_id x, std::string& str);
+void convert(endpoint_id x, std::string& str);
 
 /// @relates endpoint_id
 bool convert(const std::string& str, endpoint_id& x);

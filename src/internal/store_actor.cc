@@ -15,7 +15,7 @@ namespace {
 
 template <class T>
 constexpr size_t vec_slots() {
-  if constexpr (std::is_same<T, entity_id>::value)
+  if constexpr (std::is_same_v<T, entity_id>)
     return 2;
   else
     return 1;

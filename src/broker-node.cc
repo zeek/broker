@@ -83,7 +83,7 @@ bool convert(const caf::uri& from, network_info& to) {
   if (auth.empty())
     return false;
   auto set_host = [&](const auto& host) {
-    if constexpr (std::is_same<decltype(host), const std::string&>::value)
+    if constexpr (std::is_same_v<decltype(host), const std::string&>)
       to.address = host;
     else
       to.address = to_string(host);

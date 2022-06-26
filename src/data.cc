@@ -109,34 +109,27 @@ void container_convert(Container& c, std::string& str,
 }
 
 struct data_converter {
-  using result_type = bool;
-
   template <class T>
-  result_type operator()(const T& x) {
-    return convert(x, str);
+  void operator()(const T& x) {
+    using std::to_string;
+    str += to_string(x);
   }
 
-  result_type operator()(timespan ts) {
-    if (convert(ts.count(), str)) {
-      str += "ns";
-      return true;
-    } else {
-      return false;
-    }
+  void operator()(timespan ts) {
+    convert(ts.count(), str);
+    str += "ns";
   }
 
-  result_type operator()(timestamp ts) {
-    return (*this)(ts.time_since_epoch());
+  void operator()(timestamp ts) {
+    (*this)(ts.time_since_epoch());
   }
 
-  result_type operator()(bool b) {
+  void operator()(bool b) {
     str = b ? 'T' : 'F';
-    return true;
   }
 
-  result_type operator()(const std::string& x) {
+  void operator()(const std::string& x) {
     str = x;
-    return true;
   }
 
   std::string& str;
@@ -144,29 +137,24 @@ struct data_converter {
 
 } // namespace <anonymous>
 
-bool convert(const table::value_type& x, std::string& str) {
+void convert(const table::value_type& x, std::string& str) {
   str += to_string(x.first) + " -> " + to_string(x.second);
-  return true;
 }
 
-bool convert(const vector& x, std::string& str) {
+void convert(const vector& x, std::string& str) {
   container_convert(x, str, "(", ")");
-  return true;
 }
 
-bool convert(const set& x, std::string& str) {
+void convert(const set& x, std::string& str) {
   container_convert(x, str, "{", "}");
-  return true;
 }
 
-bool convert(const table& x, std::string& str) {
+void convert(const table& x, std::string& str) {
   container_convert(x, str, "{", "}");
-  return true;
 }
 
-bool convert(const data& x, std::string& str) {
+void convert(const data& x, std::string& str) {
   visit(data_converter{str}, x);
-  return true;
 }
 
 bool convert(const data& x, endpoint_id& node){
@@ -186,12 +174,6 @@ std::string to_string(const expected<data>& x) {
     return to_string(*x);
   else
     return "!" + to_string(x.error());
-}
-
-std::string to_string(const vector& x) {
-  std::string str;
-  convert(x, str);
-  return str;
 }
 
 } // namespace broker

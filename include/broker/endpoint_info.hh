@@ -86,7 +86,7 @@ bool convert(const data& src, endpoint_info& dst);
 bool convert(const endpoint_info& src, data& dst);
 
 /// @relates endpoint_info
-std::string to_string(const endpoint_info& x);
+void convert(const endpoint_info& src, std::string& dst);
 
 // Enable `can_convert` for `endpoint_info`.
 template <>
@@ -99,8 +99,5 @@ struct can_convert_predicate<endpoint_info> {
     return convertible_to_endpoint_info(src);
   }
 };
-
-/// @relates endpoint_info
-std::string to_string(const endpoint_info& x);
 
 } // namespace broker

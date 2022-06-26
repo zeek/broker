@@ -149,10 +149,10 @@ public:
                     span<const std::string_view> labels,
                     std::string_view helptext, std::string_view unit = "1",
                     bool is_sum = false) {
-    if constexpr (std::is_same<T, int64_t>::value) {
+    if constexpr (std::is_same_v<T, int64_t>) {
       return impl_->int_gauge_fam(pre, name, labels, helptext, unit, is_sum);
     } else {
-      static_assert(std::is_same<T, double>::value,
+      static_assert(std::is_same_v<T, double>,
                     "metrics only support int64_t and double values");
       return impl_->dbl_gauge_fam(pre, name, labels, helptext, unit, is_sum);
     }
@@ -259,12 +259,12 @@ public:
                         const_span<T> default_upper_bounds,
                         std::string_view helptext, std::string_view unit = "1",
                         bool is_sum = false) {
-    if constexpr (std::is_same<T, int64_t>::value) {
+    if constexpr (std::is_same_v<T, int64_t>) {
       auto hdl = impl_->int_histogram_fam(
         pre, name, labels, default_upper_bounds, helptext, unit, is_sum);
       return int_histogram_family{hdl};
     } else {
-      static_assert(std::is_same<T, double>::value,
+      static_assert(std::is_same_v<T, double>,
                     "metrics only support int64_t and double values");
       auto hdl = impl_->dbl_histogram_fam(
         pre, name, labels, default_upper_bounds, helptext, unit, is_sum);

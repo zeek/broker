@@ -121,9 +121,8 @@ size_t address::hash() const {
   return caf::hash::fnv<size_t>::compute(bytes_);
 }
 
-bool address::convert_to(std::string& str) const {
+void address::convert_to(std::string& str) const {
   str = to_string(native_t{bytes_});
-  return true;
 }
 
 bool address::convert_from(const std::string& str) {

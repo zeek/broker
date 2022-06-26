@@ -45,8 +45,7 @@ caf::error meta_command_writer::operator()(const expire_command& x) {
 }
 
 caf::error meta_command_writer::operator()(const add_command& x) {
-  static_assert(
-    std::is_same<uint8_t, std::underlying_type_t<data::type>>::value);
+  static_assert(std::is_same_v<uint8_t, std::underlying_type_t<data::type>>);
   BROKER_TRY(apply_tag(internal_command_uint_tag<add_command>()),
              writer_(x.key), writer_(x.value),
              apply_tag(static_cast<uint8_t>(x.init_type)));

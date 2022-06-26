@@ -196,7 +196,7 @@ struct fixture : base_fixture {
     auto res = expr();
     if (!res)
       FAIL(expr_str << " failed: " << res.error());
-    if constexpr (std::is_same<decltype(res), expected<void>>::value)
+    if constexpr (std::is_same_v<decltype(res), expected<void>>)
       return caf::unit;
     else
       return std::move(*res);

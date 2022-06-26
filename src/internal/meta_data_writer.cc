@@ -126,14 +126,14 @@ public:
 private:
   template <class T>
   bool apply(T x) {
-    if constexpr (std::is_integral<T>::value) {
+    if constexpr (std::is_integral_v<T>) {
       if (!f_.value(x)) {
         err_ = f_.get_error();
         return false;
       }
       return true;
     } else {
-      static_assert(std::is_enum<T>::value);
+      static_assert(std::is_enum_v<T>);
       return apply(static_cast<std::underlying_type_t<T>>(x));
     }
   }

@@ -11,17 +11,15 @@ size_t entity_id ::hash() const noexcept {
   return caf::hash::fnv<size_t>::compute(*this);
 }
 
-std::string to_string(const entity_id& x) {
+void convert(const entity_id& in, std::string& out) {
   using std::to_string;
-  std::string result;
-  if (x.object != 0 || x.endpoint) {
-    result = to_string(x.object);
-    result += "@";
-    result += to_string(x.endpoint);
+  if (in.object != 0 || in.endpoint) {
+    out = to_string(in.object);
+    out += "@";
+    out += to_string(in.endpoint);
   } else {
-    result = "none";
+    out = "none";
   }
-  return result;
 }
 
 } // namespace broker

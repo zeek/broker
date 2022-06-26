@@ -62,11 +62,11 @@ public:
 	/// Increments the value by 1.
 	/// @return The new value.
   template <class V = T>
-  std::enable_if_t<std::is_same<V, int64_t>::value, V> operator++() noexcept {
+  std::enable_if_t<std::is_same_v<V, int64_t>, V> operator++() noexcept {
     return telemetry::inc(hdl_);
   }
 
-	/// @return The current value.
+  /// @return The current value.
   T value() const noexcept {
     return telemetry::value(hdl_);
   }
