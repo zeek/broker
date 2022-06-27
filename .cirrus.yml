@@ -62,10 +62,10 @@ fedora35_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-fedora34_task:
+fedora36_task:
   container:
-    # Fedora 34 EOL: Around May 2022
-    dockerfile: ci/fedora-34/Dockerfile
+    # Fedora 36 EOL: Around May 2023
+    dockerfile: ci/fedora-36/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -126,10 +126,26 @@ debian9_32bit_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+opensuse_leap_15_4_task:
+  container:
+    # Opensuse Leap 15.4 EOL: TBD
+    dockerfile: ci/opensuse-leap-15.4/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 opensuse_leap_15_3_task:
   container:
-    # Opensuse Leap 15.3 EOL: TBD
+    # Opensuse Leap 15.3 EOL: ~Dec 2022
     dockerfile: ci/opensuse-leap-15.3/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+ubuntu22_task:
+  container:
+    # Ubuntu 22.04 EOL: April 2027
+    dockerfile: ci/ubuntu-22.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
