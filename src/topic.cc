@@ -79,11 +79,6 @@ topic operator/(const topic& lhs, const topic& rhs) {
   return result /= rhs;
 }
 
-bool convert(const topic& t, std::string& str) {
-  str = t.string();
-  return true;
-}
-
 namespace {
 
 constexpr caf::string_view internal_prefix = "<$>/local/";

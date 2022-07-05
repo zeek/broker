@@ -9,6 +9,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -38,13 +39,20 @@ template <sc S>
 using sc_constant = std::integral_constant<sc, S>;
 
 /// @relates sc
-const char* to_string(sc code) noexcept;
+std::string to_string(sc code) noexcept;
 
 /// @relates sc
-bool convert(const std::string& str, sc& code) noexcept;
+bool convert(std::string_view str, sc& code) noexcept;
 
 /// @relates sc
 bool convert(const data& str, sc& code) noexcept;
+
+/// @relates sc
+inline bool convert(const std::string& str, sc& code) noexcept {
+  // Disambiguation: std::string_view and broker::data are both valid
+  // conversions for std::string.
+  return convert(std::string_view{str}, code);
+}
 
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
@@ -134,7 +142,7 @@ public:
   template <class T = endpoint_info>
   const T* context() const {
     // TODO: should not be a template.
-    static_assert(std::is_same<T, endpoint_info>::value);
+    static_assert(std::is_same_v<T, endpoint_info>);
     return code_ != sc::unspecified ? &context_ : nullptr;
   }
 

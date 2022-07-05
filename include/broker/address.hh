@@ -76,7 +76,7 @@ public:
 
   // -- conversion support -----------------------------------------------------
 
-  [[nodiscard]] bool convert_to(std::string& str) const;
+  void convert_to(std::string& str) const;
 
   [[nodiscard]] bool convert_from(const std::string& str);
 
@@ -87,13 +87,13 @@ private:
 // -- free functions -----------------------------------------------------------
 
 /// @relates address
-inline bool convert(const std::string& str, address& a) {
+[[nodiscard]] inline bool convert(const std::string& str, address& a) {
   return a.convert_from(str);
 }
 
 /// @relates address
-inline bool convert(const address& a, std::string& str) {
-  return a.convert_to(str);
+inline void convert(const address& a, std::string& str) {
+  a.convert_to(str);
 }
 
 /// @relates address

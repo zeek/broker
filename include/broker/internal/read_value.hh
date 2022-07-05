@@ -10,7 +10,7 @@ namespace broker::internal {
 // easier since Broker still uses CAF 0.17-style `if (auto err = ...)` a lot.
 template <class Source, class T>
 caf::error read_value(Source& source, T& storage) {
-  if constexpr (std::is_enum<T>::value) {
+  if constexpr (std::is_enum_v<T>) {
     auto tmp = std::underlying_type_t<T>{};
     if (source.value(tmp)) {
       storage = static_cast<T>(tmp);

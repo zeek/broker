@@ -201,7 +201,7 @@ struct inspector_access<broker::cow_tuple<Ts...>> {
   template <class Inspector, class IsPresent, class Get>
   static bool save_field(Inspector& f, string_view field_name,
                          IsPresent& is_present, Get& get) {
-    if constexpr (std::is_lvalue_reference<decltype(get())>::value) {
+    if constexpr (std::is_lvalue_reference_v<decltype(get())>) {
       auto get_data = [&get]() -> decltype(auto) {
         return detail::as_mutable_ref(get().data());
       };

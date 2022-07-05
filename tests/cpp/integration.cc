@@ -409,7 +409,7 @@ std::vector<code> event_log(const std::vector<event_value>& xs,
                             bool make_unique = false) {
   // For the purpose of this test, we only care about the peer_* statuses.
   auto predicate = [](const auto& x) {
-    if constexpr (std::is_same<std::decay_t<decltype(x)>, status>::value) {
+    if constexpr (std::is_same_v<std::decay_t<decltype(x)>, status>) {
       auto c = x.code();
       return c == sc::peer_added || c == sc::peer_removed || c == sc::peer_lost;
     } else {

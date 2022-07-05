@@ -29,19 +29,19 @@ class data;
 using vector = std::vector<data>;
 
 /// @relates vector
-bool convert(const vector& v, std::string& str);
+void convert(const vector& v, std::string& str);
 
 /// An associative, ordered container of unique keys.
 using set = std::set<data>;
 
 /// @relates set
-bool convert(const set& s, std::string& str);
+void convert(const set& s, std::string& str);
 
 /// An associative, ordered container that maps unique keys to values.
 using table = std::map<data, data>;
 
 /// @relates table
-bool convert(const table& t, std::string& str);
+void convert(const table& t, std::string& str);
 
 using data_variant = std::variant<
   none,
@@ -85,60 +85,72 @@ public:
     vector,
   };
 
-	template <class T>
-	using from = detail::conditional_t<
-        std::is_floating_point<T>::value,
-        real,
-        detail::conditional_t<
-          std::is_same<T, bool>::value,
-          boolean,
-          detail::conditional_t<
-            std::is_unsigned<T>::value,
-            count,
-            detail::conditional_t<
-              std::is_signed<T>::value,
-              integer,
-              detail::conditional_t<
-                std::is_convertible<T, std::string>::value,
-                std::string,
-                detail::conditional_t<
-                  std::is_same<T, timestamp>::value
-                    || std::is_same<T, timespan>::value
-                    || std::is_same<T, enum_value>::value
-	                  || std::is_same<T, address>::value
-                    || std::is_same<T, subnet>::value
-                    || std::is_same<T, port>::value
-                    || std::is_same<T, broker::set>::value
-                    || std::is_same<T, table>::value
-                    || std::is_same<T, vector>::value,
-                  T,
-                  std::false_type
-                >
-              >
-            >
-          >
-        >
-      >;
+  template <class T>
+  static constexpr auto tag_of() {
+    if constexpr (std::is_floating_point_v<T>) {
+      return detail::tag<real>{};
+    } else if constexpr (std::is_same_v<T, bool>) {
+      return detail::tag<boolean>{};
+    } else if constexpr (std::is_unsigned_v<T>) {
+      return detail::tag<count>{};
+    } else if constexpr (std::is_signed_v<T>) {
+      return detail::tag<integer>{};
+    } else if constexpr (std::is_convertible_v<T, std::string>) {
+      return detail::tag<std::string>{};
+    } else if constexpr (std::is_same_v<T, timestamp>      //
+                         || std::is_same_v<T, timespan>    //
+                         || std::is_same_v<T, enum_value>  //
+                         || std::is_same_v<T, address>     //
+                         || std::is_same_v<T, subnet>      //
+                         || std::is_same_v<T, port>        //
+                         || std::is_same_v<T, broker::set> //
+                         || std::is_same_v<T, table>       //
+                         || std::is_same_v<T, vector>) {
+      return detail::tag<T>{};
+    } else {
+      // Return 'void'.
+    }
+  }
 
-  /// Default-constructs an empty data value in `none` state.
-  data(none = nil) {
+  /// SFINAE utility.
+  template <class T>
+  using from = typename decltype(tag_of<T>())::type;
+
+  data() = default;
+
+  data(data&&) = default;
+
+  data(const data&) = default;
+
+  /// Constructs an empty data value in `none` state.
+  data(none) {
     // nop
   }
 
   /// Constructs a data value from one of the possible data types.
-	template <
-	  class T,
-	  class = detail::disable_if_t<
-              detail::is_same_or_derived<data, T>::value
-                || std::is_same<
-                     from<detail::decay_t<T>>,
-                     std::false_type
-                   >::value
-            >
-	>
-	data(T&& x) : data_(from<detail::decay_t<T>>(std::forward<T>(x))) {
-	  // nop
-	}
+  template <class T, class Converted = from<T>>
+  data(T x) {
+    if constexpr (std::is_same_v<T, Converted>) {
+      data_ = std::move(x);
+    } else {
+      data_ = Converted{std::move(x)};
+    }
+  }
+
+  data& operator=(data&&) = default;
+
+  data& operator=(const data&) = default;
+
+  /// Constructs a data value from one of the possible data types.
+  template <class T, class Converted = from<T>>
+  data& operator=(T x) {
+    if constexpr (std::is_same_v<T, Converted>) {
+      data_ = std::move(x);
+    } else {
+      data_ = Converted{std::move(x)};
+    }
+    return *this;
+  }
 
   /// Returns a string representation of the stored type.
   const char* get_type_name() const;
@@ -165,17 +177,25 @@ private:
 namespace detail {
 
 template <data::type Value>
-using data_tag_token = std::integral_constant<data::type, Value>;
+struct data_tag_oracle_impl {
+  static constexpr bool specialized = true;
+
+  static constexpr data::type value = Value;
+};
 
 template <class T>
-struct data_tag_oracle;
+struct data_tag_oracle {
+  static constexpr bool specialized = false;
+};
 
 template <>
-struct data_tag_oracle<std::string> : data_tag_token<data::type::string> {};
+struct data_tag_oracle<std::string> : data_tag_oracle_impl<data::type::string> {
+};
 
 #define DATA_TAG_ORACLE(type_name)                                             \
   template <>                                                                  \
-  struct data_tag_oracle<type_name> : data_tag_token<data::type::type_name> {}
+  struct data_tag_oracle<type_name>                                            \
+    : data_tag_oracle_impl<data::type::type_name> {}
 
 DATA_TAG_ORACLE(none);
 DATA_TAG_ORACLE(boolean);
@@ -201,13 +221,6 @@ DATA_TAG_ORACLE(vector);
 template <class T>
 constexpr data::type data_tag() noexcept {
   return detail::data_tag_oracle<T>::value;
-}
-
-/// Checks whether `data_tag` is defined for `T`.
-/// @relates data
-template <class T>
-constexpr bool has_data_tag() {
-  return detail::is_complete<detail::data_tag_oracle<T>>;
 }
 
 template <class Inspector>
@@ -282,7 +295,7 @@ bool inspect(Inspector& f, broker::table& tbl) {
 }
 
 /// @relates data
-bool convert(const data& x, std::string& str);
+void convert(const data& x, std::string& str);
 
 /// @relates data
 bool convert(const data& x, endpoint_id& node);
@@ -291,17 +304,7 @@ bool convert(const data& x, endpoint_id& node);
 bool convert(const endpoint_id& node, data& x);
 
 /// @relates data
-inline std::string to_string(const data& x) {
-  std::string str;
-  convert(x, str);
-  return str;
-}
-
-/// @relates data
 std::string to_string(const expected<data>& x);
-
-/// @relates data
-std::string to_string(const vector& x);
 
 inline bool operator<(const data& x, const data& y) {
   return x.get_data() < y.get_data();
@@ -396,17 +399,17 @@ struct any_type {};
 
 template <class T>
 bool exact_match_or_can_convert_to(const data& x) {
-  if constexpr (detail::is_complete<detail::data_tag_oracle<T>>)
+  if constexpr (detail::data_tag_oracle<T>::specialized) {
     return is<T>(x);
-  else if constexpr (std::is_same<any_type, T>::value)
+  } else if constexpr (std::is_same_v<any_type, T>) {
     return true;
-  else
+  } else {
     return can_convert_to<T>(x);
+  }
 }
 
-template <size_t... Is, class... Ts>
-bool contains_impl(const vector& xs, std::index_sequence<Is...>,
-                   detail::type_list<Ts...>) {
+template <class... Ts, size_t... Is>
+bool contains_impl(const vector& xs, std::index_sequence<Is...>) {
   return xs.size() == sizeof...(Ts)
          && (exact_match_or_can_convert_to<Ts>(xs[Is]) && ...);
 }
@@ -416,8 +419,7 @@ bool contains_impl(const vector& xs, std::index_sequence<Is...>,
 /// variant.
 template <class...Ts>
 bool contains(const vector& xs) {
-  return contains_impl(xs, std::make_index_sequence<sizeof...(Ts)>{},
-                       detail::type_list<Ts...>{});
+  return contains_impl<Ts...>(xs, std::make_index_sequence<sizeof...(Ts)>{});
 }
 
 template <class...Ts>

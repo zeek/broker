@@ -11,26 +11,23 @@
 namespace broker::detail {
 
 template <class T>
-constexpr bool is_additive_group() {
-  return std::is_same<T, count>::value
-    || std::is_same<T, integer>::value
-    || std::is_same<T, real>::value
-    || std::is_same<T, timespan>::value;
-}
+inline constexpr bool is_additive_group_v = std::is_same_v<T, count>      //
+                                            || std::is_same_v<T, integer> //
+                                            || std::is_same_v<T, real>    //
+                                            || std::is_same_v<T, timespan>;
 
 struct adder {
   using result_type = expected<void>;
 
   template <class T>
-  auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return ec::type_clash;
-  }
-
-  template <class T>
-  auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    if (auto x = get_if<T>(&value)) {
-      c += *x;
-      return {};
+  result_type operator()(T& c) {
+    if constexpr (is_additive_group_v<T>) {
+      if (auto x = get_if<T>(&value)) {
+        c += *x;
+        return {};
+      } else {
+        return ec::type_clash;
+      }
     } else {
       return ec::type_clash;
     }
@@ -46,11 +43,12 @@ struct adder {
   }
 
   result_type operator()(std::string& str) {
-    auto x = get_if<std::string>(&value);
-    if (!x)
+    if (auto x = get_if<std::string>(&value)) {
+      str += *x;
+      return {};
+    } else {
       return ec::type_clash;
-    str += *x;
-    return {};
+    }
   }
 
   result_type operator()(vector& v) {
@@ -82,17 +80,17 @@ struct remover {
   using result_type = expected<void>;
 
   template <class T>
-  auto operator()(T&) -> disable_if_t<is_additive_group<T>(), result_type> {
-    return ec::type_clash;
-  }
-
-  template <class T>
-  auto operator()(T& c) -> enable_if_t<is_additive_group<T>(), result_type> {
-    auto x = get_if<T>(&value);
-    if (!x)
+  result_type operator()(T& c) {
+    if constexpr (is_additive_group_v<T>) {
+      if (auto x = get_if<T>(&value)) {
+        c -= *x;
+        return {};
+      } else {
+        return ec::type_clash;
+      }
+    } else {
       return ec::type_clash;
-    c -= *x;
-    return {};
+    }
   }
 
   result_type operator()(timestamp& ts) {
@@ -130,19 +128,24 @@ struct retriever {
     return x;
   }
 
-  result_type operator()(const vector& v) const {
-    count i;
-    if (auto x = get_if<count>(&aspect))
-      i = *x;
-    else {
-      auto y = get_if<integer>(&aspect);
-      if (!y || *y < 0)
-        return ec::type_clash;
-      i = static_cast<count>(*y);
-    }
-    if (i >= v.size())
+  static result_type at_index(const vector& v, count index) {
+    if (index < v.size()) {
+      return v[index];
+    } else {
       return ec::no_such_key;
-    return v[i];
+    }
+  }
+
+  result_type operator()(const vector& v) const {
+    if (auto x = get_if<count>(&aspect)) {
+      return at_index(v, *x);
+    } else {
+      if (auto y = get_if<integer>(&aspect); y && *y >= 0) {
+        return at_index(v, static_cast<count>(*y));
+      } else {
+        return ec::type_clash;
+      }
+    }
   }
 
   result_type operator()(const set& s) const {

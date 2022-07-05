@@ -291,7 +291,7 @@ auto emplace(revocations<PeerId>& lst, Self* self, Revoker&& revoker,
 template <class PeerId, class Revoker>
 auto equal_range(revocations<PeerId>& lst, const Revoker& revoker) {
   auto key_less = [](const auto& x, const auto& y) {
-    if constexpr (std::is_same<std::decay_t<decltype(y)>, Revoker>::value)
+    if constexpr (std::is_same_v<std::decay_t<decltype(y)>, Revoker>)
       return x.revoker < y;
     else
       return x < y.revoker;
@@ -334,7 +334,7 @@ bool revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
 /// Checks whether `path` is revoked by any entry in `entries`.
 template <class PeerId, class Container>
 std::enable_if_t<
-  std::is_same<typename Container::value_type, revocation<PeerId>>::value, bool>
+  std::is_same_v<typename Container::value_type, revocation<PeerId>>, bool>
 revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
         const Container& entries) {
   for (const auto& entry : entries)

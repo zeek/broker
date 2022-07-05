@@ -12,9 +12,11 @@
 namespace broker {
 
 bool convertible_to_endpoint_info(const data& src) {
-  if (auto vec = get_if<vector>(src))
+  if (auto vec = get_if<vector>(src)) {
     return convertible_to_endpoint_info(*vec);
-  return false;
+  } else {
+    return false;
+  }
 }
 
 bool convertible_to_endpoint_info(const std::vector<data>& src) {
@@ -22,10 +24,11 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   // - Fields 1 can be none.
   // - Field 2 - 4 are either *all* none or all defined.
   if (contains<any_type, none, none, none>(src)
-      || contains<any_type, std::string, port, count>(src))
+      || contains<any_type, std::string, port, count>(src)) {
     return can_convert_to<endpoint_id>(src[0]);
-  else
+  } else {
     return false;
+  }
 }
 
 bool convert(const data& src, endpoint_info& dst) {
@@ -76,18 +79,17 @@ bool convert(const endpoint_info& src, data& dst) {
   return true;
 }
 
-std::string to_string(const endpoint_info& x) {
-  std::string result = "endpoint_info(";
-  result += to_string(x.node);
-  result += ", ";
-  if (auto& net = x.network) {
-    result += '*';
-    result += to_string(*net);
+void convert(const endpoint_info& src, std::string& dst) {
+  dst += "endpoint_info(";
+  dst += to_string(src.node);
+  dst += ", ";
+  if (auto& net = src.network) {
+    dst += '*';
+    dst += to_string(*net);
   } else {
-    result += "none";
+    dst += "none";
   }
-  result += ')';
-  return result;
+  dst += ')';
 }
 
 } // namespace broker

@@ -1,7 +1,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -34,26 +33,23 @@ bool operator<(const port& lhs, const port& rhs) {
   return std::tie(lhs.num_, lhs.proto_) < std::tie(rhs.num_, rhs.proto_);
 }
 
-bool convert(const port& p, std::string& str) {
-  std::ostringstream ss;
-  ss << p.number();
-  ss << '/';
+void convert(const port& p, std::string& str) {
+  str = std::to_string(p.number());
+  str += '/';
   switch (p.type()) {
     default:
-      ss << "?";
+      str += '?';
       break;
     case port::protocol::tcp:
-      ss << "tcp";
+      str += "tcp";
       break;
     case port::protocol::udp:
-      ss << "udp";
+      str += "udp";
       break;
     case port::protocol::icmp:
-      ss << "icmp";
+      str += "icmp";
       break;
   }
-  str = ss.str();
-  return true;
 }
 
 bool convert(const std::string& str, port& p) {

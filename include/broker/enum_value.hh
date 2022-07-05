@@ -39,9 +39,8 @@ bool inspect(Inspector& f, enum_value& e) {
 }
 
 /// @relates enum_value
-inline bool convert(const enum_value& e, std::string& str) {
+inline void convert(const enum_value& e, std::string& str) {
   str = e.name;
-  return true;
 }
 
 } // namespace broker

@@ -56,13 +56,8 @@ bool endpoint_id::can_parse(const std::string& str) {
 
 // -- free functions -----------------------------------------------------------
 
-std::string to_string(endpoint_id x) {
-  return caf::to_string(to_uuid(x));
-}
-
-bool convert(endpoint_id x, std::string& str) {
-  str = to_string(x);
-  return true;
+void convert(endpoint_id x, std::string& str) {
+  str = caf::to_string(to_uuid(x));
 }
 
 bool convert(const std::string& str, endpoint_id& x) {

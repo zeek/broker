@@ -27,25 +27,25 @@ using timestamp = std::chrono::time_point<clock, timespan>;
 static constexpr auto infinite = timespan{std::numeric_limits<int64_t>::max()};
 
 /// @relates timespan
-bool convert(timespan i, fractional_seconds& secs);
+void convert(timespan i, fractional_seconds& secs);
 
 /// @relates timespan
-bool convert(timespan i, double& secs);
+void convert(timespan i, double& secs);
 
 /// @relates timespan
-bool convert(timespan i, std::string& str);
+void convert(timespan i, std::string& str);
 
 /// @relates timestamp
-bool convert(timestamp t, std::string& str);
+void convert(timestamp t, std::string& str);
 
 /// @relates timestamp
-bool convert(timestamp i, double& secs);
+void convert(timestamp i, double& secs);
 
 /// @relates timespan
-bool convert(double secs, timespan& i);
+void convert(double secs, timespan& i);
 
 /// @relates timespan
-bool convert(double secs, timestamp& ts);
+void convert(double secs, timestamp& ts);
 
 /// @returns the current point in time (always real/wall clock time).
 timestamp now();

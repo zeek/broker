@@ -560,7 +560,7 @@ void run_receive_mode(node_manager_actor* self, caf::actor observer) {
 std::string host_to_string(const caf::uri::host_type& x) {
   auto f = [](const auto& inner) -> std::string {
     using inner_type = std::decay_t<decltype(inner)>;
-    if constexpr (std::is_same<inner_type, std::string>::value)
+    if constexpr (std::is_same_v<inner_type, std::string>)
       return inner;
     else
       return to_string(inner);
