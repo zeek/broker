@@ -1,3 +1,20 @@
+2.4.0-dev.26 | 2022-07-07 14:17:50 -0700
+
+  * CI updates (Christian Kreibich, Corelight)
+
+    - add FreeBSD 13.1 and fix broken link
+    - add Opensuse Tumbleweed
+    - drop Ubuntu 21.10, EOL 2022-07-14
+    - remove Debian 9, EOL 2022-06-30
+
+  * Make more and better use of C++17 features (Dominik Charousset, Corelight)
+
+    - Use `if constexpr` over `enable_if` in more places
+    - Consequently use `foo_v<...>` over `foo<...>::value`
+    - Drop legacy C++14 and C++17 backports in `type_traits.hh`
+    - Use better type introspection to allow `convert` to return `void`
+    - Make more consistent use of the `convert` API
+
 2.4.0-dev.19 | 2022-06-27 15:48:47 -0700
 
   * Fix double-close on pipe handles (Dominik Charousset, Corelight)

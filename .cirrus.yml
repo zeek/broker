@@ -110,22 +110,6 @@ debian10_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-debian9_task:
-  container:
-    # Debian 9 EOL: June 2022
-    dockerfile: ci/debian-9/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-debian9_32bit_task:
-  container:
-    # Debian 9 EOL: June 2022
-    dockerfile: ci/debian-9-32bit/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
 opensuse_leap_15_4_task:
   container:
     # Opensuse Leap 15.4 EOL: TBD
@@ -142,18 +126,18 @@ opensuse_leap_15_3_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu22_task:
+opensuse_tumbleweed_task:
   container:
-    # Ubuntu 22.04 EOL: April 2027
-    dockerfile: ci/ubuntu-22.04/Dockerfile
+    # Opensuse Tumbleweed has no EOL
+    dockerfile: ci/opensuse-tumbleweed/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu21_task:
+ubuntu22_task:
   container:
-    # Ubuntu 21.10 EOL: July 2022
-    dockerfile: ci/ubuntu-21.10/Dockerfile
+    # Ubuntu 22.04 EOL: April 2027
+    dockerfile: ci/ubuntu-22.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -190,7 +174,7 @@ macos_big_sur_task:
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
 
-# FreeBSD EOL timelines: https://www.freebsd.org/security/security.html#sup
+# FreeBSD EOL timelines: https://www.freebsd.org/security/#sup
 freebsd14_task:
   freebsd_instance:
     # We don't support FreeBSD 14 yet, this is a purely informative task
@@ -202,6 +186,17 @@ freebsd14_task:
     allow_failures: true
     skip_notification: true
 
+  prepare_script: ./ci/freebsd/prepare.sh
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+freebsd13_1_task:
+  freebsd_instance:
+    # FreeBSD 13.1 EOL: TBD (13.2 + 3 months)
+    image_family: freebsd-13-1
+    cpu: 8
+    # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
+    memory: 8GB
   prepare_script: ./ci/freebsd/prepare.sh
   << : *CI_TEMPLATE
   << : *UNIX_ENV
