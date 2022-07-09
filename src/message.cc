@@ -10,18 +10,9 @@ using namespace std::literals;
 namespace broker {
 
 constexpr std::string_view p2p_message_type_names[] = {
-  "invalid",
-  "data",
-  "command",
-  "routing_update",
-  "ping",
-  "pong",
-  "hello",
-  "probe",
-  "version_select",
-  "drop_conn",
-  "originator_syn",
-  "responder_syn_ack",
+  "invalid",        "data",      "command",        "routing_update",
+  "ping",           "pong",      "hello",          "probe",
+  "version_select", "drop_conn", "originator_syn", "responder_syn_ack",
   "originator_ack",
 };
 
@@ -68,7 +59,7 @@ bool from_string(std::string_view str, packed_message_type& x) {
   }
 }
 
-bool from_integer(uint8_t val, packed_message_type& x){
+bool from_integer(uint8_t val, packed_message_type& x) {
   if (val <= 0x04) {
     auto tmp = p2p_message_type{0};
     if (from_integer(val, tmp)) {

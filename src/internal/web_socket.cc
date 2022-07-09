@@ -69,9 +69,9 @@ public:
   caf::net::socket_manager_ptr make(Socket fd, caf::net::multiplexer* mpx) {
     using trait_t = caf::detail::ws_accept_trait<OnRequest>;
     using value_type = typename trait_t::value_type;
-    using app_t
-      = caf::net::message_flow_bridge<value_type, trait_t,
-                                      caf::tag::mixed_message_oriented>;
+    using app_t =
+      caf::net::message_flow_bridge<value_type, trait_t,
+                                    caf::tag::mixed_message_oriented>;
     using caf::net::openssl_transport;
     using stack_t = openssl_transport<caf::net::web_socket::server<app_t>>;
     auto policy = caf::net::openssl::policy::make(ctx_, fd);
@@ -133,24 +133,24 @@ expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
   // Callback for connecting the flows.
   using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
   using producer_res_t = caf::async::producer_resource<caf::cow_string>;
-  using res_t
-    = caf::expected<std::tuple<consumer_res_t, producer_res_t, trait_t>>;
-  auto on_request
-    = [cb = std::move(on_connect), allowed_path](const caf::settings& hdr) {
-        auto path = caf::get_or(hdr, "web-socket.path", "");
-        if (path == allowed_path) {
-          using caf::async::make_spsc_buffer_resource;
-          auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
-          auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
-          connect_event_t ev{std::move(pull2), std::move(push1)};
-          cb(hdr, ev);
-          return res_t{std::make_tuple(pull1, push2, trait_t{})};
-        } else {
-          BROKER_INFO("rejected JSON client on invalid path" << path);
-          return res_t{caf::make_error(caf::sec::invalid_argument,
-                                       "invalid path; try " + allowed_path)};
-        }
-      };
+  using res_t =
+    caf::expected<std::tuple<consumer_res_t, producer_res_t, trait_t>>;
+  auto on_request = [cb = std::move(on_connect),
+                     allowed_path](const caf::settings& hdr) {
+    auto path = caf::get_or(hdr, "web-socket.path", "");
+    if (path == allowed_path) {
+      using caf::async::make_spsc_buffer_resource;
+      auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
+      auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
+      connect_event_t ev{std::move(pull2), std::move(push1)};
+      cb(hdr, ev);
+      return res_t{std::make_tuple(pull1, push2, trait_t{})};
+    } else {
+      BROKER_INFO("rejected JSON client on invalid path" << path);
+      return res_t{caf::make_error(caf::sec::invalid_argument,
+                                   "invalid path; try " + allowed_path)};
+    }
+  };
   // Launch the WebSocket and dispatch to on_connect.
   namespace ws = caf::net::web_socket;
   if (auto ctx = ssl_context_from_cfg(ssl_cfg)) {

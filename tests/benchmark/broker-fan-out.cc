@@ -50,15 +50,15 @@ constexpr uint64_t default_message_count = 10'000'000;
 constexpr uint64_t default_payload_size = 1'000;
 
 std::string_view tty_codes[] = {
-  "\033[0m",   // reset
-  "\033[30m",  // black
-  "\033[31m",  // red
-  "\033[32m",  // green
-  "\033[33m",  // yellow
-  "\033[34m",  // blue
-  "\033[35m",  // magenta
-  "\033[36m",  // cyan
-  "\033[37m",  // white
+  "\033[0m",  // reset
+  "\033[30m", // black
+  "\033[31m", // red
+  "\033[32m", // green
+  "\033[33m", // yellow
+  "\033[34m", // blue
+  "\033[35m", // magenta
+  "\033[36m", // cyan
+  "\033[37m", // white
 };
 
 } // namespace

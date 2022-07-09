@@ -139,7 +139,7 @@ TEST(multipaths are serializable) {
   multipath copy;
   MESSAGE("deserializers a copy from the path from the buffer");
   {
-    caf::binary_deserializer source{sys,buf};
+    caf::binary_deserializer source{sys, buf};
     CHECK(source.apply(copy));
   }
   MESSAGE("after a serialization roundtrip, the path is equal to its copy");
@@ -189,7 +189,7 @@ TEST(source routing extracts multipaths from routing tables) {
     alm::multipath::generate(ls('B', 'D'), tbl, paths, unreachables);
     REQUIRE_EQUAL(paths.size(), 1u);
     REQUIRE_EQUAL(unreachables.size(), 0u);
-    CHECK_EQUAL(stringify(paths[0]),"(B, [(D)])");
+    CHECK_EQUAL(stringify(paths[0]), "(B, [(D)])");
   }
   MESSAGE("Sending to E and I creates two multipaths");
   {
@@ -198,8 +198,8 @@ TEST(source routing extracts multipaths from routing tables) {
     alm::multipath::generate(ls('E', 'I'), tbl, paths, unreachables);
     REQUIRE_EQUAL(paths.size(), 2u);
     REQUIRE_EQUAL(unreachables.size(), 0u);
-    CHECK_EQUAL(stringify(paths[0]),"(B, [(E)])");
-    CHECK_EQUAL(stringify(paths[1]),"(J, [(I)])");
+    CHECK_EQUAL(stringify(paths[0]), "(B, [(E)])");
+    CHECK_EQUAL(stringify(paths[1]), "(J, [(I)])");
   }
   MESSAGE("Sending to D, E and I creates two multipaths");
   {
@@ -208,8 +208,8 @@ TEST(source routing extracts multipaths from routing tables) {
     alm::multipath::generate(ls('D', 'E', 'I'), tbl, paths, unreachables);
     REQUIRE_EQUAL(paths.size(), 2u);
     REQUIRE_EQUAL(unreachables.size(), 0u);
-    CHECK_EQUAL(stringify(paths[0]),"(B, [(D), (E)])");
-    CHECK_EQUAL(stringify(paths[1]),"(J, [(I)])");
+    CHECK_EQUAL(stringify(paths[0]), "(B, [(D), (E)])");
+    CHECK_EQUAL(stringify(paths[1]), "(J, [(I)])");
   }
   MESSAGE("Sending to B and G creates one path and one unreachable");
   {
@@ -218,7 +218,7 @@ TEST(source routing extracts multipaths from routing tables) {
     alm::multipath::generate(ls('B', 'G'), tbl, paths, unreachables);
     REQUIRE_EQUAL(paths.size(), 1u);
     REQUIRE_EQUAL(unreachables.size(), 1u);
-    CHECK_EQUAL(stringify(paths[0]),"(B)");
+    CHECK_EQUAL(stringify(paths[0]), "(B)");
     CHECK_EQUAL(unreachables, ls('G'));
   }
 }

@@ -51,7 +51,7 @@ struct fixture : base_fixture {
   }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(status_subscriber_tests, fixture)
 

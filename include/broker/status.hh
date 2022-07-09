@@ -82,8 +82,8 @@ constexpr bool sc_has_endpoint_info_v = S != sc::unspecified;
 /// in its context.
 /// @relates sc
 template <sc S>
-constexpr bool sc_has_network_info_v
-  = S == sc::peer_added || S == sc::peer_removed || S == sc::peer_lost;
+constexpr bool sc_has_network_info_v =
+  S == sc::peer_added || S == sc::peer_removed || S == sc::peer_lost;
 
 template <>
 struct can_convert_predicate<sc> {
@@ -100,7 +100,6 @@ bool inspect(Inspector& f, status& x);
 class status : detail::equality_comparable<status, status>,
                detail::equality_comparable<status, sc>,
                detail::equality_comparable<sc, status> {
-
 public:
   template <sc S>
   static status make(endpoint_info ei, std::string msg) {
@@ -148,7 +147,7 @@ public:
 
   /// Retrieves an optional details about the status, if available.
   /// @returns A textual description of status details.
-  const std::string* message() const{
+  const std::string* message() const {
     return &message_;
   }
 

@@ -234,7 +234,7 @@ private:
 
 template <class T>
 auto get_as(const configuration& cfg, std::string_view key) {
-  if constexpr (std::is_integral_v<T>){
+  if constexpr (std::is_integral_v<T>) {
     std::optional<T> res;
     using lim = std::numeric_limits<T>;
     if constexpr (std::is_signed_v<T>) {

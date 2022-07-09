@@ -50,7 +50,7 @@ struct fixture : net_fixture<base_fixture> {
   }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(subscriber_tests, fixture)
 

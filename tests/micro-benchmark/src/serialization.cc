@@ -171,14 +171,18 @@ BENCHMARK_REGISTER_F(serialization, load_node_message)->DenseRange(0, 2, 1);
 
 // -- saving and loading legacy node messages ----------------------------------
 
-BENCHMARK_DEFINE_F(serialization, save_legacy_node_message)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(serialization, save_legacy_node_message)
+(benchmark::State& state) {
   run_serialization_bench<legacy_node_message>(state);
 }
 
-BENCHMARK_REGISTER_F(serialization, save_legacy_node_message)->DenseRange(0, 2, 1);
+BENCHMARK_REGISTER_F(serialization, save_legacy_node_message)
+  ->DenseRange(0, 2, 1);
 
-BENCHMARK_DEFINE_F(serialization, load_legacy_node_message)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(serialization, load_legacy_node_message)
+(benchmark::State& state) {
   run_deserialization_bench<legacy_node_message>(state);
 }
 
-BENCHMARK_REGISTER_F(serialization, load_legacy_node_message)->DenseRange(0, 2, 1);
+BENCHMARK_REGISTER_F(serialization, load_legacy_node_message)
+  ->DenseRange(0, 2, 1);

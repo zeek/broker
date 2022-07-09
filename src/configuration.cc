@@ -38,12 +38,12 @@
 #include "broker/version.hh"
 
 #ifdef BROKER_WINDOWS
-#include <io.h>
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-#define isatty _isatty
+#  include <io.h>
+#  define STDOUT_FILENO 1
+#  define STDERR_FILENO 2
+#  define isatty _isatty
 #else
-#include <unistd.h>
+#  include <unistd.h>
 #endif
 
 namespace broker {
@@ -63,9 +63,9 @@ auto concat(Ts... xs) {
 }
 
 [[noreturn]] void throw_illegal_log_level(const char* var, const char* cstr) {
-  auto what
-    = concat("illegal value for environment variable ", var, ": '", cstr,
-             "' (legal values: 'trace', 'debug', 'info', 'warning', 'error')");
+  auto what =
+    concat("illegal value for environment variable ", var, ": '", cstr,
+           "' (legal values: 'trace', 'debug', 'info', 'warning', 'error')");
   throw std::invalid_argument(what);
 }
 
@@ -233,7 +233,7 @@ void configuration::impl::init(int argc, char** argv) {
       return str.compare(0, 14, "--config-file=") != 0;
     };
     auto sep = std::stable_partition(args.begin(), args.end(), predicate);
-    if(sep != args.end()) {
+    if (sep != args.end()) {
       args_subset.assign(std::make_move_iterator(sep),
                          std::make_move_iterator(args.end()));
       args.erase(sep, args.end());
@@ -309,9 +309,8 @@ void configuration::impl::init(int argc, char** argv) {
     char* end = nullptr;
     auto value = strtol(env, &end, 10);
     if (errno == ERANGE || *end != '\0' || value < 0) {
-      auto what
-        = concat("invalid value for BROKER_OUTPUT_GENERATOR_FILE_CAP: ", env,
-                 " (expected a positive integer)");
+      auto what = concat("invalid value for BROKER_OUTPUT_GENERATOR_FILE_CAP: ",
+                         env, " (expected a positive integer)");
       throw std::invalid_argument(what);
     }
     set("broker.output-generator-file-cap", static_cast<size_t>(value));

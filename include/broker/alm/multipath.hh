@@ -19,7 +19,7 @@ struct multipath_tree {
   detail::monotonic_buffer_resource mem;
 };
 
-template<class T>
+template <class T>
 class node_iterator {
 public:
   using iterator_category = std::forward_iterator_tag;
@@ -139,7 +139,6 @@ private:
   size_t size_ = 0;
   multipath_node* first_ = nullptr;
 };
-
 
 class multipath_node {
 public:

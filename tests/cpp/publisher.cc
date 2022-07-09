@@ -44,7 +44,7 @@ namespace {
 
 struct no_state {};
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(publisher_tests, net_fixture<base_fixture>)
 

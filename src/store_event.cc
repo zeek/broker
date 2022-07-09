@@ -31,41 +31,37 @@ std::string opt_to_string(const std::optional<T>& x) {
 } // namespace
 
 store_event::insert store_event::insert::make(const vector& xs) noexcept {
-  return insert{xs.size() == 7
-               && to<store_event::type>(xs[0]) == store_event::type::insert
-               && is<std::string>(xs[1])
-               && (is<none>(xs[4]) || is<timespan>(xs[4]))
-               && is_entity_id(xs, 5, 6)
-             ? &xs
-             : nullptr};
+  return insert{
+    xs.size() == 7 && to<store_event::type>(xs[0]) == store_event::type::insert
+        && is<std::string>(xs[1]) && (is<none>(xs[4]) || is<timespan>(xs[4]))
+        && is_entity_id(xs, 5, 6)
+      ? &xs
+      : nullptr};
 }
 
 store_event::update store_event::update::make(const vector& xs) noexcept {
-  return update{xs.size() == 8
-               && to<store_event::type>(xs[0]) == store_event::type::update
-               && is<std::string>(xs[1])
-               && (is<none>(xs[5]) || is<timespan>(xs[5]))
-               && is_entity_id(xs, 6, 7)
-             ? &xs
-             : nullptr};
+  return update{
+    xs.size() == 8 && to<store_event::type>(xs[0]) == store_event::type::update
+        && is<std::string>(xs[1]) && (is<none>(xs[5]) || is<timespan>(xs[5]))
+        && is_entity_id(xs, 6, 7)
+      ? &xs
+      : nullptr};
 }
 
 store_event::erase store_event::erase::make(const vector& xs) noexcept {
   return erase{xs.size() == 5
-                 && to<store_event::type>(xs[0]) == store_event::type::erase
-                 && is<std::string>(xs[1])
-                 && is_entity_id(xs, 3, 4)
-               ? &xs
-               : nullptr};
+                   && to<store_event::type>(xs[0]) == store_event::type::erase
+                   && is<std::string>(xs[1]) && is_entity_id(xs, 3, 4)
+                 ? &xs
+                 : nullptr};
 }
 
 store_event::expire store_event::expire::make(const vector& xs) noexcept {
   return expire{xs.size() == 5
-                  && to<store_event::type>(xs[0]) == store_event::type::expire
-                  && is<std::string>(xs[1])
-                  && is_entity_id(xs, 3, 4)
-                ? &xs
-                : nullptr};
+                    && to<store_event::type>(xs[0]) == store_event::type::expire
+                    && is<std::string>(xs[1]) && is_entity_id(xs, 3, 4)
+                  ? &xs
+                  : nullptr};
 }
 
 const char* to_string(store_event::type code) noexcept {
@@ -126,7 +122,7 @@ std::string to_string(const store_event::erase& x) {
   return result;
 }
 
-bool convert(const std::string& src, store_event::type& dst) noexcept{
+bool convert(const std::string& src, store_event::type& dst) noexcept {
   auto begin = std::begin(type_strings);
   auto end = std::end(type_strings);
   auto i = std::find(begin, end, src);
@@ -138,7 +134,7 @@ bool convert(const std::string& src, store_event::type& dst) noexcept{
   return false;
 }
 
-bool convert(const data& src, store_event::type& dst) noexcept{
+bool convert(const data& src, store_event::type& dst) noexcept {
   if (auto str = get_if<std::string>(src))
     return convert(*str, dst);
   return false;

@@ -38,8 +38,7 @@ normalize_status_log(const std::vector<broker::data_message>& xs,
       return ec::unspecified;
     return static_cast<ec>(err.code());
   };
-  std::vector<std::string>
-    lines;
+  std::vector<std::string> lines;
   lines.reserve(xs.size());
   for (auto& x : xs) {
     if (auto err = to<error>(get_data(x))) {
@@ -259,7 +258,7 @@ void base_fixture::consume_message() {
 int main(int argc, char** argv) {
   caf::init_global_meta_objects<caf::id_block::broker_test>();
   endpoint::system_guard sys_guard; // Initialize global state.
-  //if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
-  //  return 1;
+  // if (! broker::logger::file(broker::logger::debug, "broker-unit-test.log"))
+  //   return 1;
   return caf::test::main(argc, argv);
 }

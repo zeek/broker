@@ -74,4 +74,4 @@ struct hash<broker::subnet> {
   }
 };
 
-} // namespace std;
+} // namespace std

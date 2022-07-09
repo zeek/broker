@@ -1,8 +1,8 @@
 #pragma once
 
-#include <mutex>
 #include <chrono>
 #include <limits>
+#include <mutex>
 
 #include <caf/blocking_actor.hpp>
 
@@ -18,7 +18,7 @@ namespace caf {
 namespace mixin {
 
 template <>
-struct is_blocking_requester<broker::internal::flare_actor> : std::true_type { };
+struct is_blocking_requester<broker::internal::flare_actor> : std::true_type {};
 
 } // namespace mixin
 } // namespace caf

@@ -31,25 +31,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <utility>
-#include <string>
-#include <iterator>
-#include <array>
-#include <algorithm>
 #include <deque>
-#include <memory>
 #include <initializer_list>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <utility>
 
 #include "broker/config.hh"
 
 #ifdef BROKER_USE_SSE2
-#include <emmintrin.h>
+#  include <emmintrin.h>
 #endif
 
-#include <caf/serializer.hpp>
 #include <caf/deserializer.hpp>
+#include <caf/serializer.hpp>
 
 namespace broker {
 namespace detail {
@@ -113,10 +113,8 @@ public:
     struct node_visit {
       node* n;
       uint16_t idx;
-      node_visit(node* arg_n) : n(arg_n), idx(0) {
-      }
-      node_visit(node* arg_n, uint16_t arg_i) : n(arg_n), idx(arg_i) {
-      }
+      node_visit(node* arg_n) : n(arg_n), idx(0) {}
+      node_visit(node* arg_n, uint16_t arg_i) : n(arg_n), idx(arg_i) {}
     };
 
     node* root;
@@ -128,8 +126,7 @@ public:
   /**
    * Default construct an empty container.
    */
-  explicit radix_tree() : num_entries(0), root(nullptr) {
-  }
+  explicit radix_tree() : num_entries(0), root(nullptr) {}
 
   /**
    * Destructor.
@@ -279,15 +276,13 @@ private:
       node256,
     };
 
-    node(tag t) : type(t) {
-    }
+    node(tag t) : type(t) {}
 
     node(tag t, const node& other)
       : type(t),
         num_children(other.num_children),
         partial_len(other.partial_len),
-        partial(other.partial) {
-    }
+        partial(other.partial) {}
 
     tag type;
     uint8_t num_children = 0;
@@ -296,49 +291,46 @@ private:
   };
 
   /**
-    * A small internal node in the radix tree with only 4 children.
-    */
+   * A small internal node in the radix tree with only 4 children.
+   */
   struct node4 {
     node n = {node::tag::node4};
     std::array<unsigned char, 4> keys = {};
     std::array<node*, 4> children = {};
 
     node4() = default;
-    node4(const node& other) : n(node::tag::node4, other) {
-    }
+    node4(const node& other) : n(node::tag::node4, other) {}
 
     void add_child(node** ref, unsigned char c, node* child);
     void rem_child(node** ref, node** child);
   };
 
   /**
-    * An internal node in the radix tree with 16 children.
-    */
+   * An internal node in the radix tree with 16 children.
+   */
   struct node16 {
     node n = {node::tag::node16};
     std::array<unsigned char, 16> keys = {};
     std::array<node*, 16> children = {};
 
     node16() = default;
-    node16(const node& other) : n(node::tag::node16, other) {
-    }
+    node16(const node& other) : n(node::tag::node16, other) {}
 
     void add_child(node** ref, unsigned char c, node* child);
     void rem_child(node** ref, node** child);
   };
 
   /**
-    * An internal node in the radix tree with 48 children, but
-    * a full 256 byte field.
-    */
+   * An internal node in the radix tree with 48 children, but
+   * a full 256 byte field.
+   */
   struct node48 {
     node n = {node::tag::node48};
     std::array<unsigned char, 256> keys = {};
     std::array<node*, 48> children = {};
 
     node48() = default;
-    node48(const node& other) : n(node::tag::node48, other) {
-    }
+    node48(const node& other) : n(node::tag::node48, other) {}
 
     void add_child(node** ref, unsigned char c, node* child);
     void rem_child(node** ref, unsigned char c);
@@ -352,8 +344,7 @@ private:
     std::array<node*, 256> children = {};
 
     node256() = default;
-    node256(const node& other) : n(node::tag::node256, other) {
-    }
+    node256(const node& other) : n(node::tag::node256, other) {}
 
     void add_child(node** ref, unsigned char c, node* child);
     void rem_child(node** ref, unsigned char c);
@@ -366,8 +357,7 @@ private:
     typename node::tag type;
     value_type kv;
 
-    leaf(value_type arg_kv) : type(node::tag::leaf), kv(std::move(arg_kv)) {
-    }
+    leaf(value_type arg_kv) : type(node::tag::leaf), kv(std::move(arg_kv)) {}
 
     const key_type& key() const {
       return kv.first;
@@ -479,8 +469,8 @@ typename radix_tree<T, N>::iterator radix_tree<T, N>::end() const {
 }
 
 template <typename T, std::size_t N>
-typename radix_tree<T, N>::mapped_type& radix_tree<T, N>::
-operator[](key_type lhs) {
+typename radix_tree<T, N>::mapped_type&
+radix_tree<T, N>::operator[](key_type lhs) {
   iterator it = find(lhs);
 
   if (it != end())
@@ -662,7 +652,7 @@ radix_tree<T, N>::find_child(node* n, unsigned char c) {
 #ifdef BROKER_USE_SSE2
       // Compare the key to all 16 stored keys
       __m128i cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
-                                   _mm_loadu_si128((__m128i*)p->keys.data()));
+                                   _mm_loadu_si128((__m128i*) p->keys.data()));
 
       // Use a mask to ignore children that don't exist
       int mask = (1 << n->num_children) - 1;
@@ -1062,7 +1052,7 @@ void radix_tree<T, N>::node16::add_child(node** ref, unsigned char c,
 #ifdef BROKER_USE_SSE2
     // Compare the key to all 16 stored keys
     __m128i cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
-                                 _mm_loadu_si128((__m128i*)keys.data()));
+                                 _mm_loadu_si128((__m128i*) keys.data()));
 
     // Use a mask to ignore children that don't exist
     unsigned mask = (1 << n.num_children) - 1;
@@ -1167,8 +1157,8 @@ void radix_tree<T, N>::node4::rem_child(node** ref, node** child) {
     }
 
     if (prefix < N) {
-      int sub_prefix
-        = std::min(static_cast<size_t>(last->partial_len), N - prefix);
+      int sub_prefix = std::min(static_cast<size_t>(last->partial_len),
+                                N - prefix);
       std::copy(last->partial.begin(), last->partial.begin() + sub_prefix,
                 n.partial.begin() + prefix);
       prefix += sub_prefix;
@@ -1255,18 +1245,17 @@ void radix_tree<T, N>::node256::rem_child(node** ref, unsigned char c) {
 
 template <typename T, std::size_t N>
 radix_tree<T, N>::iterator::iterator(node* arg_root, node* starting_point)
-  : root(arg_root), node_ptr(starting_point), ready_to_iterate(false) {
-}
+  : root(arg_root), node_ptr(starting_point), ready_to_iterate(false) {}
 
 template <typename T, std::size_t N>
-typename radix_tree<T, N>::iterator::reference radix_tree<T, N>::iterator::
-operator*() const {
+typename radix_tree<T, N>::iterator::reference
+radix_tree<T, N>::iterator::operator*() const {
   return reinterpret_cast<leaf*>(node_ptr)->kv;
 }
 
 template <typename T, std::size_t N>
-typename radix_tree<T, N>::iterator::pointer radix_tree<T, N>::iterator::
-operator->() const {
+typename radix_tree<T, N>::iterator::pointer
+radix_tree<T, N>::iterator::operator->() const {
   return &reinterpret_cast<leaf*>(node_ptr)->kv;
 }
 
@@ -1281,16 +1270,16 @@ bool radix_tree<T, N>::iterator::operator!=(const iterator& other) const {
 }
 
 template <typename T, std::size_t N>
-const typename radix_tree<T, N>::iterator& radix_tree<T, N>::iterator::
-operator++() {
+const typename radix_tree<T, N>::iterator&
+radix_tree<T, N>::iterator::operator++() {
   prepare();
   increment();
   return *this;
 }
 
 template <typename T, std::size_t N>
-typename radix_tree<T, N>::iterator radix_tree<T, N>::iterator::
-operator++(int) {
+typename radix_tree<T, N>::iterator
+radix_tree<T, N>::iterator::operator++(int) {
   prepare();
   auto rval = *this;
   increment();
@@ -1426,8 +1415,8 @@ void swap(typename radix_tree<T, N>::iterator& a,
 }
 
 template <typename T, std::size_t N>
-typename radix_tree<T, N>::iterator& radix_tree<T, N>::iterator::
-operator=(iterator rhs) {
+typename radix_tree<T, N>::iterator&
+radix_tree<T, N>::iterator::operator=(iterator rhs) {
   swap(*this, rhs);
   return *this;
 }

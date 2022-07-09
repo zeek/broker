@@ -54,9 +54,9 @@ double count_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {
 }
 
 double upper_bound_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {
-	auto xs = deref(hdl).buckets();
-	BROKER_ASSERT(index < xs.size());
-	return xs[index].upper_bound;
+  auto xs = deref(hdl).buckets();
+  BROKER_ASSERT(index < xs.size());
+  return xs[index].upper_bound;
 }
 
 dbl_histogram_hdl* dbl_histogram_get_or_add(metric_family_hdl* hdl,
@@ -87,9 +87,9 @@ int64_t count_at(const int_histogram_hdl* hdl, size_t index) noexcept {
 }
 
 int64_t upper_bound_at(const int_histogram_hdl* hdl, size_t index) noexcept {
-	auto xs = deref(hdl).buckets();
-	BROKER_ASSERT(index < xs.size());
-	return xs[index].upper_bound;
+  auto xs = deref(hdl).buckets();
+  BROKER_ASSERT(index < xs.size());
+  return xs[index].upper_bound;
 }
 
 int_histogram_hdl* int_histogram_get_or_add(metric_family_hdl* hdl,

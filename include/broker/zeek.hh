@@ -20,15 +20,15 @@ public:
   };
 
   Type type() const {
-    if ( as_vector().size() < 2 )
+    if (as_vector().size() < 2)
       return Type::Invalid;
 
     auto cp = get_if<count>(&as_vector()[1]);
 
-    if ( ! cp )
+    if (!cp)
       return Type::Invalid;
 
-    if ( *cp > Type::MAX )
+    if (*cp > Type::MAX)
       return Type::Invalid;
 
     return Type(*cp);
@@ -52,7 +52,7 @@ public:
 
   vector& as_vector() {
     return get<vector>(data_);
-   }
+  }
 
   operator data() const {
     return as_data();
@@ -61,20 +61,20 @@ public:
   static Type type(const data& msg) {
     auto vp = get_if<vector>(&msg);
 
-    if ( ! vp )
+    if (!vp)
       return Type::Invalid;
 
     auto& v = *vp;
 
-    if ( v.size() < 2 )
+    if (v.size() < 2)
       return Type::Invalid;
 
     auto cp = get_if<count>(&v[1]);
 
-    if ( ! cp )
+    if (!cp)
       return Type::Invalid;
 
-    if ( *cp > Type::MAX )
+    if (*cp > Type::MAX)
       return Type::Invalid;
 
     return Type(*cp);
@@ -82,18 +82,16 @@ public:
 
 protected:
   Message(Type type, vector content)
-    : data_(vector{ProtocolVersion, count(type), std::move(content)}) {
-  }
+    : data_(vector{ProtocolVersion, count(type), std::move(content)}) {}
 
-  Message(data msg) : data_(std::move(msg)) {
-  }
+  Message(data msg) : data_(std::move(msg)) {}
 
   data data_;
 };
 
 /// A Zeek event.
 class Event : public Message {
-  public:
+public:
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
 
@@ -116,27 +114,27 @@ class Event : public Message {
   }
 
   bool valid() const {
-    if ( as_vector().size() < 3 )
+    if (as_vector().size() < 3)
       return false;
 
     auto vp = get_if<vector>(&(as_vector()[2]));
 
-    if ( ! vp )
+    if (!vp)
       return false;
 
     auto& v = *vp;
 
-    if ( v.size() < 2 )
+    if (v.size() < 2)
       return false;
 
     auto name_ptr = get_if<std::string>(&v[0]);
 
-    if ( ! name_ptr )
+    if (!name_ptr)
       return false;
 
     auto args_ptr = get_if<vector>(&v[1]);
 
-    if ( ! args_ptr )
+    if (!args_ptr)
       return false;
 
     return true;
@@ -145,9 +143,8 @@ class Event : public Message {
 
 /// A batch of other messages.
 class Batch : public Message {
-  public:
-  Batch(vector msgs)
-    : Message(Message::Type::Batch, std::move(msgs)) {}
+public:
+  Batch(vector msgs) : Message(Message::Type::Batch, std::move(msgs)) {}
 
   Batch(data msg) : Message(std::move(msg)) {}
 
@@ -160,12 +157,12 @@ class Batch : public Message {
   }
 
   bool valid() const {
-    if ( as_vector().size() < 3 )
+    if (as_vector().size() < 3)
       return false;
 
     auto vp = get_if<vector>(&(as_vector()[2]));
 
-    if ( ! vp )
+    if (!vp)
       return false;
 
     return true;
@@ -180,11 +177,9 @@ public:
             data fields_data)
     : Message(Message::Type::LogCreate,
               {std::move(stream_id), std::move(writer_id),
-               std::move(writer_info), std::move(fields_data)}) {
-  }
+               std::move(writer_info), std::move(fields_data)}) {}
 
-  LogCreate(data msg) : Message(std::move(msg)) {
-  }
+  LogCreate(data msg) : Message(std::move(msg)) {}
 
   const enum_value& stream_id() const {
     return get<enum_value>(get<vector>(as_vector()[2])[0]);
@@ -219,23 +214,23 @@ public:
   }
 
   bool valid() const {
-    if ( as_vector().size() < 3 )
+    if (as_vector().size() < 3)
       return false;
 
     auto vp = get_if<vector>(&(as_vector()[2]));
 
-    if ( ! vp )
+    if (!vp)
       return false;
 
     auto& v = *vp;
 
-    if ( v.size() < 4 )
+    if (v.size() < 4)
       return false;
 
-    if ( ! get_if<enum_value>(&v[0]) )
+    if (!get_if<enum_value>(&v[0]))
       return false;
 
-    if ( ! get_if<enum_value>(&v[1]) )
+    if (!get_if<enum_value>(&v[1]))
       return false;
 
     return true;
@@ -249,12 +244,10 @@ public:
   LogWrite(enum_value stream_id, enum_value writer_id, data path,
            data serial_data)
     : Message(Message::Type::LogWrite,
-              {std::move(stream_id), std::move(writer_id),
-               std::move(path), std::move(serial_data)}) {
-  }
+              {std::move(stream_id), std::move(writer_id), std::move(path),
+               std::move(serial_data)}) {}
 
-  LogWrite(data msg) : Message(std::move(msg)) {
-  }
+  LogWrite(data msg) : Message(std::move(msg)) {}
 
   const enum_value& stream_id() const {
     return get<enum_value>(get<vector>(as_vector()[2])[0]);
@@ -289,23 +282,23 @@ public:
   }
 
   bool valid() const {
-    if ( as_vector().size() < 3 )
+    if (as_vector().size() < 3)
       return false;
 
     auto vp = get_if<vector>(&(as_vector()[2]));
 
-    if ( ! vp )
+    if (!vp)
       return false;
 
     auto& v = *vp;
 
-    if ( v.size() < 4 )
+    if (v.size() < 4)
       return false;
 
-    if ( ! get_if<enum_value>(&v[0]) )
+    if (!get_if<enum_value>(&v[0]))
       return false;
 
-    if ( ! get_if<enum_value>(&v[1]) )
+    if (!get_if<enum_value>(&v[1]))
       return false;
 
     return true;
@@ -315,12 +308,10 @@ public:
 class IdentifierUpdate : public Message {
 public:
   IdentifierUpdate(std::string id_name, data id_value)
-    : Message(Message::Type::IdentifierUpdate, {std::move(id_name),
-    		                                    std::move(id_value)}) {
-  }
+    : Message(Message::Type::IdentifierUpdate,
+              {std::move(id_name), std::move(id_value)}) {}
 
-  IdentifierUpdate(data msg) : Message(std::move(msg)) {
-  }
+  IdentifierUpdate(data msg) : Message(std::move(msg)) {}
 
   const std::string& id_name() const {
     return get<std::string>(get<vector>(as_vector()[2])[0]);
@@ -339,20 +330,20 @@ public:
   }
 
   bool valid() const {
-    if ( as_vector().size() < 3 )
+    if (as_vector().size() < 3)
       return false;
 
     auto vp = get_if<vector>(&(as_vector()[2]));
 
-    if ( ! vp )
+    if (!vp)
       return false;
 
     auto& v = *vp;
 
-    if ( v.size() < 2 )
+    if (v.size() < 2)
       return false;
 
-    if ( ! get_if<std::string>(&v[0]) )
+    if (!get_if<std::string>(&v[0]))
       return false;
 
     return true;

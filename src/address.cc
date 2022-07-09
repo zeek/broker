@@ -27,8 +27,8 @@ static constexpr bool is_little_endian =
   true;
 #endif
 
-constexpr std::array<uint8_t, 12> v4_mapped_prefix
-  = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};
+constexpr std::array<uint8_t, 12> v4_mapped_prefix = {
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}};
 
 auto to_array(const uint32_t* bytes, address::family fam,
               address::byte_order order) {
@@ -90,7 +90,7 @@ address& address::operator=(const address& other) noexcept {
 static uint32_t bit_mask32(int bottom_bits) {
   if (bottom_bits >= 32)
     return 0xffffffff;
-  return (((uint32_t)1) << bottom_bits) - 1;
+  return (((uint32_t) 1) << bottom_bits) - 1;
 }
 
 bool address::mask(uint8_t top_bits_to_keep) {
@@ -99,8 +99,8 @@ bool address::mask(uint8_t top_bits_to_keep) {
   uint32_t mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
   auto res = std::ldiv(top_bits_to_keep, 32);
   if (res.quot < 4)
-    mask[res.quot] = caf::detail::to_network_order(mask[res.quot]
-                                                   & ~bit_mask32(32 - res.rem));
+    mask[res.quot] =
+      caf::detail::to_network_order(mask[res.quot] & ~bit_mask32(32 - res.rem));
   for (auto i = res.quot + 1; i < 4; ++i)
     mask[i] = 0;
   auto p = reinterpret_cast<uint32_t*>(&bytes());

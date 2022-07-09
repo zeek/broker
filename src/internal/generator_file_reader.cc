@@ -19,15 +19,15 @@
 
 #ifdef BROKER_WINDOWS
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif // WIN32_LEAN_AND_MEAN
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif // WIN32_LEAN_AND_MEAN
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif // NOMINMAX
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif // NOMINMAX
 
-#include <Windows.h>
+#  include <Windows.h>
 
 namespace {
 
@@ -64,10 +64,10 @@ void* make_file_view(void* mapper, size_t file_size) {
 
 #else // BROKER_WINDOWS
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#  include <fcntl.h>
+#  include <sys/mman.h>
+#  include <sys/stat.h>
+#  include <unistd.h>
 
 namespace {
 
@@ -180,8 +180,8 @@ caf::error generator_file_reader::read_raw(read_raw_callback f) {
         BROKER_TRY(generator_(value));
         if (!sealed_)
           ++data_entries_;
-        value_type x
-          = make_data_message(topic_table_[topic_id], std::move(value));
+        value_type x = make_data_message(topic_table_[topic_id],
+                                         std::move(value));
         auto consumed = caf::make_span(pos, source_.remainder().data());
         if (!f(&x, consumed))
           return caf::none;
@@ -196,8 +196,8 @@ caf::error generator_file_reader::read_raw(read_raw_callback f) {
         BROKER_TRY(generator_(cmd));
         if (!sealed_)
           ++command_entries_;
-        value_type x
-          = make_command_message(topic_table_[topic_id], std::move(cmd));
+        value_type x = make_command_message(topic_table_[topic_id],
+                                            std::move(cmd));
         auto consumed = caf::make_span(pos, source_.remainder().data());
         if (!f(&x, consumed))
           return caf::none;

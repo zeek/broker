@@ -47,33 +47,27 @@ public:
 
   // -- constructors, destructors, and assignment operators ------------------
 
-  constexpr span() noexcept : memory_block(nullptr), num_elements(0) {
-  }
+  constexpr span() noexcept : memory_block(nullptr), num_elements(0) {}
 
   constexpr span(pointer ptr, size_t size)
-    : memory_block(ptr), num_elements(size) {
-  }
+    : memory_block(ptr), num_elements(size) {}
 
   constexpr span(pointer first, pointer last)
-    : memory_block(first), num_elements(static_cast<size_t>(last - first)) {
-  }
+    : memory_block(first), num_elements(static_cast<size_t>(last - first)) {}
 
   template <size_t Size>
   constexpr span(element_type (&arr)[Size]) noexcept
-    : memory_block(arr), num_elements(Size) {
-  }
+    : memory_block(arr), num_elements(Size) {}
 
   template <class Container, class Data = typename Container::value_type,
             class = std::enable_if_t<std::is_convertible_v<Data*, T*>>>
   span(Container& xs) noexcept
-    : memory_block(xs.data()), num_elements(xs.size()) {
-  }
+    : memory_block(xs.data()), num_elements(xs.size()) {}
 
   template <class Container, class Data = typename Container::value_type,
             class = std::enable_if_t<std::is_convertible_v<const Data*, T*>>>
   span(const Container& xs) noexcept
-    : memory_block(xs.data()), num_elements(xs.size()) {
-  }
+    : memory_block(xs.data()), num_elements(xs.size()) {}
 
   constexpr span(const span&) noexcept = default;
 

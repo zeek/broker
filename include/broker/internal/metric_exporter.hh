@@ -53,10 +53,11 @@ public:
 
   metric_exporter_state(Self* self, caf::actor core,
                         metric_exporter_params&& params)
-    : metric_exporter_state(
-      self, std::move(core), std::move(params.selected_prefixes),
-      params.interval, std::move(params.target), std::move(params.id)) {
-    //nop
+    : metric_exporter_state(self, std::move(core),
+                            std::move(params.selected_prefixes),
+                            params.interval, std::move(params.target),
+                            std::move(params.id)) {
+    // nop
   }
 
   caf::behavior make_behavior() {
@@ -88,9 +89,7 @@ public:
       [this](atom::put, topic& new_target) {
         set_target(std::move(new_target));
       },
-      [this](atom::put, std::string& new_id) {
-        set_id(std::move(new_id));
-      },
+      [this](atom::put, std::string& new_id) { set_id(std::move(new_id)); },
       [this](atom::put, filter_type& new_prefixes_filter) {
         set_prefixes(std::move(new_prefixes_filter));
       },
@@ -185,7 +184,7 @@ public:
   static inline const char* name = "broker.exporter";
 };
 
-using metric_exporter_actor
-  = caf::stateful_actor<metric_exporter_state<caf::event_based_actor>>;
+using metric_exporter_actor =
+  caf::stateful_actor<metric_exporter_state<caf::event_based_actor>>;
 
 } // namespace broker::internal

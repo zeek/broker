@@ -28,7 +28,8 @@ struct linear_routing_table_row {
   linear_routing_table_row(linear_routing_table_row&&) = default;
   linear_routing_table_row(const linear_routing_table_row&) = default;
   linear_routing_table_row& operator=(linear_routing_table_row&&) = default;
-  linear_routing_table_row& operator=(const linear_routing_table_row&) = default;
+  linear_routing_table_row&
+  operator=(const linear_routing_table_row&) = default;
 
   explicit linear_routing_table_row(endpoint_id id) : id(std::move(id)) {
     versioned_paths.reserve(32);
@@ -207,7 +208,7 @@ public:
 
   routing_table() {
     topologies.resize(10);
-    //v2_topologies.resize(10);
+    // v2_topologies.resize(10);
     ids.resize(10);
     receivers_10p.resize(10);
     id_generator g;
@@ -216,9 +217,9 @@ public:
     };
     for (size_t index = 0; index < 10; ++index)
       fill_tbl(topologies[index], g, {}, 0, index, on_new_node);
-    // for (size_t index = 0; index < 10; ++index)
-    //   fill_tbl(v2_topologies[index], g, {}, 0, index, [](auto&&...) {});
-    // Sanity checking
+      // for (size_t index = 0; index < 10; ++index)
+      //   fill_tbl(v2_topologies[index], g, {}, 0, index, [](auto&&...) {});
+      // Sanity checking
 #ifndef NDEBUG
     for (size_t index = 0; index < 10; ++index)
       assert(ids[index].size() == (1 << (index + 1)));

@@ -44,16 +44,14 @@ public:
     /// Signals that a remote node has connected to this peer.
     virtual void on_connection(connector_event_id event_id, endpoint_id peer,
                                network_info addr, filter_type filter,
-                               pending_connection_ptr ptr)
-      = 0;
+                               pending_connection_ptr ptr) = 0;
 
     virtual void on_redundant_connection(connector_event_id event_id,
-                                         endpoint_id peer, network_info addr)
-      = 0;
+                                         endpoint_id peer,
+                                         network_info addr) = 0;
 
-    virtual void
-    on_drop(connector_event_id event_id, std::optional<endpoint_id> peer)
-      = 0;
+    virtual void on_drop(connector_event_id event_id,
+                         std::optional<endpoint_id> peer) = 0;
 
     virtual void on_listen(connector_event_id event_id, uint16_t port) = 0;
 

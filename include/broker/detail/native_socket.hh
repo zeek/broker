@@ -11,8 +11,8 @@ namespace broker::detail {
 
 using native_socket = size_t;
 
-constexpr native_socket invalid_native_socket
-  = std::numeric_limits<native_socket>::max();
+constexpr native_socket invalid_native_socket =
+  std::numeric_limits<native_socket>::max();
 
 #else // BROKER_WINDOWS
 

@@ -187,7 +187,7 @@ public:
   void increment(data key, data amount, std::optional<timespan> expiry = {}) {
     auto init_type = data::type::none;
 
-    switch ( amount.get_type() ) {
+    switch (amount.get_type()) {
       case data::type::count:
         init_type = data::type::count;
         break;
@@ -235,7 +235,8 @@ public:
   /// Inserts an index into a table.
   /// @param key The key of the table into which to insert the value.
   /// @param index The index to insert.
-  /// @param value The value to associated with the inserted index. For sets, this is ignored.
+  /// @param value The value to associated with the inserted index. For sets,
+  /// this is ignored.
   /// @param expiry An optional new expiration time for *key*.
   void insert_into(data key, data index, data value,
                    std::optional<timespan> expiry = {}) {
@@ -277,8 +278,8 @@ public:
   /// @param timeout The maximum amount of time this function may block.
   /// @returns `true` if the frontend actor responded before the timeout,
   ///          `false` otherwise.
-  [[nodiscard]] bool await_idle(timespan timeout
-                                = defaults::store::await_idle_timeout);
+  [[nodiscard]] bool
+  await_idle(timespan timeout = defaults::store::await_idle_timeout);
 
   /// Asynchronously runs `callback(true)` when the frontend actor reached an
   /// IDLE state or `callback(false)` if the optional timeout triggered first
@@ -311,7 +312,7 @@ private:
   /// "add". This is the backend for a number of the modifiers methods.
   /// @param key The key of the key-value pair.
   /// @param value The value of the key-value pair.
-  /// @param init_type The type of data to initialize when the key does not exist.
+  /// @param init_type The type of data to create when the key does not exist.
   /// @param expiry An optional new expiration time for *key*.
   void add(data key, data value, data::type init_type,
            std::optional<timespan> expiry = {});

@@ -10,11 +10,12 @@ metric_view::metric_view(const vector* row)
   auto at = [row](field x) -> const auto& {
     return (*row)[index(x)];
   };
-  auto row_ok
-    = row != nullptr && row->size() == row_size && is<string>(at(field::prefix))
-      && is<string>(at(field::name)) && is<string>(at(field::type))
-      && is<string>(at(field::unit)) && is<string>(at(field::helptext))
-      && is<bool>(at(field::is_sum)) && has_properly_typed_labels(*row);
+  auto row_ok = row != nullptr && row->size() == row_size
+                && is<string>(at(field::prefix)) && is<string>(at(field::name))
+                && is<string>(at(field::type)) && is<string>(at(field::unit))
+                && is<string>(at(field::helptext))
+                && is<bool>(at(field::is_sum))
+                && has_properly_typed_labels(*row);
   if (row_ok && get_type(*row, type_)) {
     row_ = row;
   } else {

@@ -39,7 +39,7 @@ struct consumer_backend {
     // nop
   }
 
-  void attach(caf::event_based_actor* self, fixture*fix) {
+  void attach(caf::event_based_actor* self, fixture* fix) {
     this->self = self;
     this->fix = fix;
   }
@@ -81,7 +81,6 @@ caf::behavior producer_actor(caf::event_based_actor* self,
                              producer_type* state);
 
 struct fixture : base_fixture {
-
   struct outgoing_message {
     caf::actor sender;
     caf::actor receiver;

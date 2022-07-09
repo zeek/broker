@@ -109,7 +109,7 @@ public:
 
 private:
   // -- force users to use `endpoint::make_status_subscriber` ------------------
-//  status_subscriber(endpoint& ep, bool receive_statuses = false);
+  //  status_subscriber(endpoint& ep, bool receive_statuses = false);
   explicit status_subscriber(subscriber impl);
 
   value_type convert(const data_message& msg);
@@ -139,7 +139,7 @@ inline const T* get_if(const status_variant& d) {
 
 template <class T>
 inline T& get(status_variant& d) {
-  if ( auto rval = get_if<T>(&d) )
+  if (auto rval = get_if<T>(&d))
     return *rval;
   else
     throw bad_variant_access{};
@@ -147,7 +147,7 @@ inline T& get(status_variant& d) {
 
 template <class T>
 inline const T& get(const status_variant& d) {
-  if ( auto rval = get_if<T>(&d) )
+  if (auto rval = get_if<T>(&d))
     return *rval;
   else
     throw bad_variant_access{};

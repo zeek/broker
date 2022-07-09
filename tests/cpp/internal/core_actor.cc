@@ -17,7 +17,7 @@ namespace {
 struct config : public caf::actor_system_config {
   config() {
     set("caf.logger.file.verbosity", "trace");
-    //set("caf.logger.console.verbosity", "trace");
+    // set("caf.logger.console.verbosity", "trace");
   }
 };
 
@@ -112,7 +112,7 @@ auto ids(Ts... xs) {
   return std::vector<endpoint_id>{xs...};
 }
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(local_tests, fixture)
 

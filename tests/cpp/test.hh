@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef SUITE
-#define CAF_SUITE SUITE
+#  define CAF_SUITE SUITE
 #endif
 
 #include <caf/test/bdd_dsl.hpp>
@@ -69,7 +69,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
 
   CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
   CAF_ADD_TYPE_ID(broker_test, (producer_msg))
-  CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>))
+  CAF_ADD_TYPE_ID(broker_test, (std::vector<std::string>) )
   CAF_ADD_TYPE_ID(broker_test, (string_channel::consumer_message))
   CAF_ADD_TYPE_ID(broker_test, (string_channel::cumulative_ack))
   CAF_ADD_TYPE_ID(broker_test, (string_channel::event))
@@ -94,7 +94,6 @@ bool inspect(Inspector& f, consumer_msg& x) {
   return f.object(x).fields(f.field("source", x.source),
                             f.field("content", x.content));
 }
-
 
 // -- synchronization ----------------------------------------------------------
 
@@ -327,7 +326,6 @@ T unbox(broker::expected<T> x) {
     return std::move(*x);
 }
 
-
 inline broker::data value_of(broker::expected<broker::data> x) {
   if (!x) {
     FAIL("cannot unbox expected<data>: " << to_string(x.error()));
@@ -337,8 +335,8 @@ inline broker::data value_of(broker::expected<broker::data> x) {
 
 inline broker::error error_of(broker::expected<broker::data> x) {
   if (x) {
-    FAIL("cannot get error of expected<data>, contains value: "
-         << to_string(*x));
+    FAIL(
+      "cannot get error of expected<data>, contains value: " << to_string(*x));
   }
   return std::move(x.error());
 }

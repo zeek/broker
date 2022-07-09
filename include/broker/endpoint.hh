@@ -189,7 +189,7 @@ public:
   /// @note The function returns immediately. The endpoint receives a status
   ///       message indicating the result of the peering operation.
   void peer_nosync(const std::string& address, uint16_t port,
-            timeout::seconds retry = timeout::seconds(10));
+                   timeout::seconds retry = timeout::seconds(10));
 
   /// Initiates a peering with a remote endpoint, without waiting
   /// for the operation to complete.
@@ -310,7 +310,7 @@ public:
   /// guaranteed to be called before the function returns.
   template <class Init, class OnNext, class Cleanup>
   worker subscribe(filter_type filter, Init init, OnNext on_next,
-                     Cleanup cleanup) {
+                   Cleanup cleanup) {
     return do_subscribe(std::move(filter),
                         detail::make_sink_driver(std::move(init),
                                                  std::move(on_next),

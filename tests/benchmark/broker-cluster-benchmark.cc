@@ -164,7 +164,7 @@ void println(Ts&&... xs) {
 
 namespace {
 
-std::string trim(std::string x){
+std::string trim(std::string x) {
   auto predicate = [](int ch) { return !std::isspace(ch); };
   x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
   x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
@@ -539,9 +539,9 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
     caf::after(std::chrono::seconds(1)) >>
       [=]() mutable {
         if (last_printed_count != self->state.received) {
-          verbose::println(
-            this_node->name,
-            " received nothing for 1s, last count: ", self->state.received);
+          verbose::println(this_node->name,
+                           " received nothing for 1s, last count: ",
+                           self->state.received);
           last_printed_count = self->state.received;
         }
       },
@@ -660,12 +660,8 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       verbose::println(this_node->name, " up and running");
       return atom::ok_v;
     },
-    [=](atom::read, caf::actor observer) {
-      run_receive_mode(self, observer);
-    },
-    [=](atom::write, caf::actor observer) {
-      run_send_mode(self, observer);
-    },
+    [=](atom::read, caf::actor observer) { run_receive_mode(self, observer); },
+    [=](atom::write, caf::actor observer) { run_send_mode(self, observer); },
     [=](atom::shutdown) -> caf::result<atom::ok> {
       for (auto& child : self->state.children)
         self->send_exit(child, caf::exit_reason::user_shutdown);
@@ -759,11 +755,7 @@ bool verify_node_tree(std::vector<node>& nodes) {
 
 int generate_config(string_list directories) {
   constexpr const char* required_files[] = {
-    "/id.txt",
-    "/messages.dat",
-    "/peers.txt",
-    "/topics.txt",
-    "/broker.conf",
+    "/id.txt", "/messages.dat", "/peers.txt", "/topics.txt", "/broker.conf",
   };
   // Make sure we always produce a stable config file that does not depend on
   // argument ordering.
@@ -842,8 +834,8 @@ int generate_config(string_list directories) {
       if (auto val = caf::get_if<bool>(std::addressof(*conf), "broker.forward"))
         node.disable_forwarding = !*val;
       else
-        node.disable_forwarding
-          = caf::get_or(*conf, "broker.disable-forwarding", false);
+        node.disable_forwarding =
+          caf::get_or(*conf, "broker.disable-forwarding", false);
     } else {
       err::println("unable to parse ", quoted{conf_file}, ": ",
                    to_string(conf.error()));
@@ -878,7 +870,8 @@ int generate_config(string_list directories) {
   using output_map = std::map<std::string, size_t>;
   std::map<std::string, output_map> outputs;
   for (const auto& node : nodes) {
-    auto gptr = broker::internal::make_generator_file_reader(node.generator_file);
+    auto gptr =
+      broker::internal::make_generator_file_reader(node.generator_file);
     if (gptr == nullptr) {
       err::println("unable to open generator file: ", node.generator_file);
       return EXIT_FAILURE;
@@ -918,8 +911,8 @@ int generate_config(string_list directories) {
   using walk_fun = std::function<std::vector<node*>(const node&)>;
   walk_fun walk_left = [](const node& n) { return n.left; };
   walk_fun walk_right = [](const node& n) { return n.right; };
-  using traverse_t
-    = void(node&, node&, const output_map&, const filter&, walk_fun);
+  using traverse_t = void(node&, node&, const output_map&, const filter&,
+                          walk_fun);
   std::function<traverse_t> traverse;
   traverse = [&](node& src, node& dst, const output_map& out, const filter& f,
                  walk_fun walk) {
@@ -1048,7 +1041,7 @@ int shrink_generator_file(string_list args) {
   size_t new_size;
   try {
     new_size = std::stoul(args[2]);
-  } catch (std::exception&ex) {
+  } catch (std::exception& ex) {
     err::println("unable to parse NEW_SIZE argument: ", ex.what());
     err::println("expected three positional arguments: INPUT OUTPUT NEW_SIZE");
     return EXIT_FAILURE;
@@ -1214,7 +1207,7 @@ int main(int argc, char** argv) {
         if (is_data_message(x))
           ++data_entries;
         else
-          ++ command_entries;
+          ++command_entries;
         entries_by_topic[get_topic(x)] += 1;
       }
       out::println(file_name);
@@ -1311,9 +1304,7 @@ int main(int argc, char** argv) {
       [](atom::ack) {
         // All is well.
       },
-      [&](caf::error& err) {
-        throw std::move(err);
-      });
+      [&](caf::error& err) { throw std::move(err); });
   };
   auto wait_for_ok_messages = [&](size_t num) {
     size_t i = 0;

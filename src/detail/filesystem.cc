@@ -1,29 +1,29 @@
 #include "broker/detail/filesystem.hh"
 
-#include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 
 #include "broker/config.hh"
 
 #ifndef BROKER_WINDOWS
-#include <unistd.h>
+#  include <unistd.h>
 #endif
 
 #ifndef BROKER_HAS_STD_FILESYSTEM
 
-#include <sys/stat.h>
-#include <ftw.h>
+#  include <ftw.h>
+#  include <sys/stat.h>
 
-#ifdef BROKER_BSD
-#include <sys/syslimits.h>
-#endif
+#  ifdef BROKER_BSD
+#    include <sys/syslimits.h>
+#  endif
 
-#include <cerrno>
-#include <mutex>
+#  include <cerrno>
+#  include <mutex>
 
-#include "broker/detail/die.hh"
+#  include "broker/detail/die.hh"
 
 namespace broker::detail {
 
@@ -48,7 +48,7 @@ std::vector<std::string> tokenize(std::string input, const std::string delim) {
   std::vector<std::string> rval;
   size_t n;
 
-  while ( (n = input.find(delim)) != std::string::npos ) {
+  while ((n = input.find(delim)) != std::string::npos) {
     rval.push_back(input.substr(0, n));
     input.erase(0, n + 1);
   }
@@ -57,26 +57,25 @@ std::vector<std::string> tokenize(std::string input, const std::string delim) {
   return rval;
 }
 
-}  // namespace <anonymous>
+} // namespace
 
 bool mkdirs(const path& p) {
   const mode_t perms = 0777;
 
-  if ( p.empty() )
+  if (p.empty())
     return true;
 
   path dir_to_make = "";
 
-  for ( auto& pc : tokenize(p, "/") ) {
+  for (auto& pc : tokenize(p, "/")) {
     dir_to_make += pc;
     dir_to_make += "/";
 
-    if ( ::mkdir(dir_to_make.c_str(), perms) < 0 ) {
+    if (::mkdir(dir_to_make.c_str(), perms) < 0) {
+      if (errno == EISDIR)
+        continue;
 
-      if ( errno == EISDIR )
-          continue;
-
-      if ( errno == EEXIST && is_directory(dir_to_make) )
+      if (errno == EEXIST && is_directory(dir_to_make))
         continue;
 
       return false;
@@ -89,7 +88,7 @@ bool mkdirs(const path& p) {
 path dirname(const path& p) {
   auto last_slash = p.find_last_of('/');
 
-  if ( last_slash == path::npos )
+  if (last_slash == path::npos)
     return "";
 
   return p.substr(0, last_slash);
@@ -110,11 +109,11 @@ std::once_flag openmax_flag;
 // Portable solution to retrieve the value of OPEN_MAX.
 // Adapted from: http://stackoverflow.com/a/8225250
 long open_max() {
-#ifdef OPEN_MAX
+#  ifdef OPEN_MAX
   static long openmax = OPEN_MAX;
-#else
+#  else
   static long openmax = 0;
-#endif
+#  endif
   std::call_once(openmax_flag, [&] {
     if (openmax == 0) {
       errno = 0;
@@ -129,7 +128,7 @@ long open_max() {
   return openmax;
 }
 
-} // namespace <anonymous>
+} // namespace
 
 bool remove_all(const path& p) {
   struct stat st;
@@ -175,8 +174,7 @@ std::string make_temp_file_name() {
   char fname[] = "/tmp/broker.test.XXXXXX";
   auto fd = mkstemp(fname);
   if (fd == -1) {
-    fprintf(stderr, "Unable to create unique filename: %s.\n",
-            strerror(errno));
+    fprintf(stderr, "Unable to create unique filename: %s.\n", strerror(errno));
     exit(1);
   }
   close(fd);

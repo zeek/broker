@@ -207,9 +207,9 @@ error make_error(ec code, endpoint_info info, std::string description);
 /// in its context.
 /// @relates ec
 template <ec E>
-constexpr bool ec_has_network_info_v
-  = E == ec::peer_invalid || E == ec::peer_unavailable
-    || E == ec::peer_disconnect_during_handshake;
+constexpr bool ec_has_network_info_v =
+  E == ec::peer_invalid || E == ec::peer_unavailable
+  || E == ec::peer_disconnect_during_handshake;
 
 /// @relates ec
 template <ec Value>
@@ -326,7 +326,7 @@ private:
 };
 
 class error_factory {
-  public:
+public:
   template <ec Code>
   static error make(ec_constant<Code>, endpoint_info ei, std::string msg) {
     return make_impl(Code, std::move(ei), std::move(msg));
@@ -389,13 +389,13 @@ inline error_view make_error_view(const data& src) {
 
 #ifdef _MSC_VER
 
-#define BROKER_TRY(...)                                                        \
-  BROKER_PP_CAT(BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),     \
-                BROKER_PP_EMPTY())
+#  define BROKER_TRY(...)                                                      \
+    BROKER_PP_CAT(BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),   \
+                  BROKER_PP_EMPTY())
 
 #else // _MSVC_VER
 
-#define BROKER_TRY(...)                                                        \
-  BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
+#  define BROKER_TRY(...)                                                      \
+    BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
 
 #endif // _MSVC_VER

@@ -15,7 +15,8 @@ using namespace std::literals;
 // -- custom types -------------------------------------------------------------
 
 uuid_multipath_tree::uuid_multipath_tree(uuid id, bool is_receiver) {
-  root = broker::detail::new_instance<uuid_multipath_node>(mem, id, is_receiver);
+  root = broker::detail::new_instance<uuid_multipath_node>(mem, id,
+                                                           is_receiver);
 }
 
 uuid_multipath_tree::~uuid_multipath_tree() {
@@ -26,8 +27,8 @@ uuid_multipath_group::~uuid_multipath_group() {
   delete first_;
 }
 
-bool
-uuid_multipath_group::equals(const uuid_multipath_group& other) const noexcept {
+bool uuid_multipath_group::equals(
+  const uuid_multipath_group& other) const noexcept {
   auto eq = [](const auto& lhs, const auto& rhs) { return lhs.equals(rhs); };
   return std::equal(begin(), end(), other.begin(), other.end(), eq);
 }
@@ -101,8 +102,8 @@ uuid_multipath_node::~uuid_multipath_node() {
   delete right_;
 }
 
-bool
-uuid_multipath_node::equals(const uuid_multipath_node& other) const noexcept {
+bool uuid_multipath_node::equals(
+  const uuid_multipath_node& other) const noexcept {
   return id_ == other.id_ && down_.equals(other.down_);
 }
 
@@ -189,10 +190,9 @@ caf::uuid generator::next_uuid() {
 }
 
 std::string generator::next_string(size_t length) {
-  std::string_view charset
-    = "0123456789"
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-      "abcdefghijklmnopqrstuvwxyz";
+  std::string_view charset = "0123456789"
+                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                             "abcdefghijklmnopqrstuvwxyz";
   std::uniform_int_distribution<size_t> d{0, charset.size() - 1};
   std::string result;
   result.resize(length);

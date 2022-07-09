@@ -61,7 +61,7 @@
 #include <thread>
 
 #ifdef BROKER_WINDOWS
-#include "Winsock2.h"
+#  include "Winsock2.h"
 #endif
 
 using namespace std::literals;
@@ -105,14 +105,13 @@ struct async_helper_state {
 };
 
 template <class OnValue, class OnError>
-using async_helper_actor
-  = caf::stateful_actor<async_helper_state<OnValue, OnError>>;
+using async_helper_actor =
+  caf::stateful_actor<async_helper_state<OnValue, OnError>>;
 
 caf::actor_system_config& nat_cfg(configuration& cfg) {
   internal::configuration_access helper{&cfg};
   return helper.cfg();
 }
-
 
 } // namespace
 
@@ -746,10 +745,9 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                       internal::web_socket::connect_event_t& ev) {
     auto& [pull, push] = ev;
     auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
-    auto addr
-      = network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
-                     caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}),
-                     0s};
+    auto addr =
+      network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
+                   caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
     BROKER_INFO("new JSON client with address" << addr << "and user agent"
                                                << user_agent);
     using impl_t = internal::json_client_actor;

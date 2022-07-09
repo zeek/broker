@@ -29,14 +29,14 @@ public:
   // -- static member variables ------------------------------------------------
 
   /// Stores whether move construct and move assign never throw.
-  static constexpr bool nothrow_move
-    = std::is_nothrow_move_constructible_v<T> //
-      && std::is_nothrow_move_assignable_v<T>;
+  static constexpr bool nothrow_move =
+    std::is_nothrow_move_constructible_v<T> //
+    && std::is_nothrow_move_assignable_v<T>;
 
   /// Stores whether copy construct and copy assign never throw.
-  static constexpr bool nothrow_copy
-    = std::is_nothrow_copy_constructible_v<T> //
-      && std::is_nothrow_copy_assignable_v<T>;
+  static constexpr bool nothrow_copy =
+    std::is_nothrow_copy_constructible_v<T> //
+    && std::is_nothrow_copy_assignable_v<T>;
 
   // -- constructors, destructors, and assignment operators --------------------
 

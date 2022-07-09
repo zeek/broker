@@ -8,8 +8,8 @@
 #include "broker/topic.hh"
 #include "broker/worker.hh"
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 namespace broker {
 

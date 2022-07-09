@@ -31,7 +31,7 @@
 #include "broker/topic.hh"
 
 #ifndef BROKER_WINDOWS
-#include <sys/select.h>
+#  include <sys/select.h>
 #endif // BROKER_WINDOWS
 
 namespace atom = broker::internal::atom;
@@ -132,7 +132,7 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
 #endif // BROKER_WINDOWS
 
 void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
-                    size_t cap) {
+                             size_t cap) {
   auto in = ep.make_subscriber({topic_str});
   std::string line;
   for (size_t i = 0; i < cap; ++i) {
@@ -145,14 +145,14 @@ void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
 
 #ifdef BROKER_WINDOWS
 
-void subscribe_mode_select(broker::endpoint&, const std::string&, size_t ) {
+void subscribe_mode_select(broker::endpoint&, const std::string&, size_t) {
   std::cerr << "*** select mode not available in MSVC version of Broker\n";
 }
 
 #else // BROKER_WINDOWS
 
 void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
-                    size_t cap) {
+                           size_t cap) {
   auto in = ep.make_subscriber({topic_str});
   auto fd = in.fd();
   fd_set readset;
@@ -178,7 +178,7 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
 #endif // BROKER_WINDOWS
 
 void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
-                    size_t cap) {
+                           size_t cap) {
   auto worker = ep.subscribe(
     // Filter.
     {topic_str},
@@ -213,7 +213,7 @@ void split(std::vector<std::string>& result, std::string_view str,
     result.emplace_back(std::string{});
 }
 
-} // namespace <anonymous>
+} // namespace
 
 int main(int argc, char** argv) {
   broker::endpoint::system_guard sys_guard;
@@ -265,7 +265,7 @@ int main(int argc, char** argv) {
     uint16_t port;
     try {
       port = static_cast<uint16_t>(std::stoi(fields.back()));
-    } catch(std::exception&) {
+    } catch (std::exception&) {
       guard_type guard{cout_mtx};
       std::cerr << "*** invalid port: " << fields.back() << std::endl;
       continue;
@@ -278,32 +278,24 @@ int main(int argc, char** argv) {
     std::cerr << "*** invalid mode or implementation setting\n";
   };
   if (rate) {
-    auto rate_printer = std::thread{[]{
-        size_t msg_count_prev = msg_count;
-        while (true) {
-          std::this_thread::sleep_for(std::chrono::seconds(1));
-          size_t current = msg_count;
-          std::cout << current - msg_count_prev << std::endl;
-          msg_count_prev = current;
-        }
+    auto rate_printer = std::thread{[] {
+      size_t msg_count_prev = msg_count;
+      while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        size_t current = msg_count;
+        std::cout << current - msg_count_prev << std::endl;
+        msg_count_prev = current;
+      }
     }};
     rate_printer.detach();
   }
   using mode_fun = void (*)(broker::endpoint&, const std::string&, size_t);
-  mode_fun fs[] = {
-    publish_mode_blocking,
-    publish_mode_select,
-    subscribe_mode_blocking,
-    subscribe_mode_select,
-    subscribe_mode_stream,
-    dummy_mode
-  };
+  mode_fun fs[] = {publish_mode_blocking,   publish_mode_select,
+                   subscribe_mode_blocking, subscribe_mode_select,
+                   subscribe_mode_stream,   dummy_mode};
   std::pair<std::string, std::string> as[] = {
-    {"publish", "blocking"},
-    {"publish", "select"},
-    {"subscribe", "blocking"},
-    {"subscribe", "select"},
-    {"subscribe", "stream"},
+    {"publish", "blocking"}, {"publish", "select"},   {"subscribe", "blocking"},
+    {"subscribe", "select"}, {"subscribe", "stream"},
   };
   auto b = std::begin(as);
   auto i = std::find(b, std::end(as), std::make_pair(params.mode, params.impl));

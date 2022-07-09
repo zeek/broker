@@ -80,7 +80,7 @@ public:
     deref();
   }
 
-  size_t demand() const noexcept{
+  size_t demand() const noexcept {
     guard_type guard{mtx_};
     return demand_;
   }

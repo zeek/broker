@@ -77,7 +77,7 @@ struct sink_driver_cleanup_trait<void(State&, const error&)> {
 
 class sink_driver {
 public:
-  virtual ~sink_driver() ;
+  virtual ~sink_driver();
 
   virtual void init() = 0;
 
@@ -125,9 +125,9 @@ public:
   }
 
   void on_cleanup(const error& what) override {
-   if (!completed_) {
-     cleanup_(state_, what);
-     completed_ = true;
+    if (!completed_) {
+      cleanup_(state_, what);
+      completed_ = true;
     }
   }
 
@@ -180,9 +180,9 @@ public:
   }
 
   void on_cleanup(const error& what) override {
-   if (!completed_) {
-     cleanup_(what);
-     completed_ = true;
+    if (!completed_) {
+      cleanup_(what);
+      completed_ = true;
     }
   }
 

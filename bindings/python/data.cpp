@@ -1,21 +1,21 @@
 
+#include <array>
 #include <cstdint>
 #include <utility>
-#include <array>
 
 #ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <pybind11/pybind11.h>
 #ifdef __GNUC__
-#pragma GCC diagnostic pop
+#  pragma GCC diagnostic pop
 #endif
 
 #include "set_bind.h"
 
-#include "broker/data.hh"
 #include "broker/convert.hh"
+#include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/operators.hh"
 
@@ -26,12 +26,24 @@ using namespace pybind11::literals;
 // unsigned integers.
 struct count_type {
   count_type(broker::count c) : value{c} {}
-  bool operator==(const count_type& other) const { return value == other.value; }
-  bool operator!=(const count_type& other) const { return value != other.value; }
-  bool operator<(const count_type& other) const { return value < other.value; }
-  bool operator<=(const count_type& other) const { return value <= other.value; }
-  bool operator>(const count_type& other) const { return value > other.value; }
-  bool operator>=(const count_type& other) const { return value >= other.value; }
+  bool operator==(const count_type& other) const {
+    return value == other.value;
+  }
+  bool operator!=(const count_type& other) const {
+    return value != other.value;
+  }
+  bool operator<(const count_type& other) const {
+    return value < other.value;
+  }
+  bool operator<=(const count_type& other) const {
+    return value <= other.value;
+  }
+  bool operator>(const count_type& other) const {
+    return value > other.value;
+  }
+  bool operator>=(const count_type& other) const {
+    return value >= other.value;
+  }
   broker::count value;
 };
 
@@ -42,26 +54,27 @@ struct hash<count_type> {
     return std::hash<broker::count>{}(v.value);
   }
 };
-}
+} // namespace std
 
 void init_data(py::module& m) {
-
   py::class_<broker::address> address_type{m, "Address"};
   address_type.def(py::init<>())
     .def(py::init([](const py::bytes& bytes, int family) {
-        BROKER_ASSERT(family == 4 || family == 6);
-        auto str = static_cast<std::string>(bytes);
-        auto ptr = reinterpret_cast<const uint32_t*>(str.data());
-        auto f = family == 4 ? broker::address::family::ipv4 :
-                               broker::address::family::ipv6;
-        return broker::address{ptr, f, broker::address::byte_order::network};
-        }))
+      BROKER_ASSERT(family == 4 || family == 6);
+      auto str = static_cast<std::string>(bytes);
+      auto ptr = reinterpret_cast<const uint32_t*>(str.data());
+      auto f = family == 4 ? broker::address::family::ipv4
+                           : broker::address::family::ipv6;
+      return broker::address{ptr, f, broker::address::byte_order::network};
+    }))
     .def("mask", &broker::address::mask, "top_bits_to_keep"_a)
     .def("is_v4", &broker::address::is_v4)
     .def("is_v6", &broker::address::is_v6)
-    .def("bytes", [](const broker::address& a) {
-        return py::bytes(std::string(std::begin(a.bytes()), std::end(a.bytes())));
-        })
+    .def("bytes",
+         [](const broker::address& a) {
+           return py::bytes(
+             std::string(std::begin(a.bytes()), std::end(a.bytes())));
+         })
     .def("__repr__",
          [](const broker::address& a) { return broker::to_string(a); })
     .def(hash(py::self))
@@ -84,7 +97,10 @@ void init_data(py::module& m) {
     .def(py::init<py::int_>())
     .def_readwrite("value", &count_type::value)
     .def("__str__", [](const count_type& c) { return std::to_string(c.value); })
-    .def("__repr__", [](const count_type& c) { return "Count(" + std::to_string(c.value) + ")"; })
+    .def("__repr__",
+         [](const count_type& c) {
+           return "Count(" + std::to_string(c.value) + ")";
+         })
     .def(hash(py::self))
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -96,7 +112,8 @@ void init_data(py::module& m) {
   py::class_<broker::enum_value>{m, "Enum"}
     .def(py::init<std::string>())
     .def_readwrite("name", &broker::enum_value::name)
-    .def("__repr__", [](const broker::enum_value& e) { return broker::to_string(e); })
+    .def("__repr__",
+         [](const broker::enum_value& e) { return broker::to_string(e); })
     .def(hash(py::self))
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -106,8 +123,7 @@ void init_data(py::module& m) {
     .def(py::self != py::self);
 
   py::class_<broker::port> port_type{m, "Port"};
-  port_type
-    .def(py::init<>())
+  port_type.def(py::init<>())
     .def(py::init<broker::port::number_type, broker::port::protocol>())
     .def("number", &broker::port::number)
     .def("get_type", &broker::port::type)
@@ -134,8 +150,8 @@ void init_data(py::module& m) {
   py::class_<broker::subnet>(m, "Subnet")
     .def(py::init<>())
     .def(py::init([](broker::address addr, uint8_t length) {
-        return broker::subnet(std::move(addr), length);
-        }))
+      return broker::subnet(std::move(addr), length);
+    }))
     .def("contains", &broker::subnet::contains, "addr"_a)
     .def("network", &broker::subnet::network)
     .def("length", &broker::subnet::length)
@@ -151,11 +167,10 @@ void init_data(py::module& m) {
   py::class_<broker::timespan>(m, "Timespan")
     .def(py::init<>())
     .def(py::init<broker::integer>())
-    .def(py::init([](double secs) {
-        return broker::to_timespan(secs);
-        }))
+    .def(py::init([](double secs) { return broker::to_timespan(secs); }))
     .def("count", &broker::timespan::count)
-    .def("__repr__", [](const broker::timespan& s) { return broker::to_string(s); })
+    .def("__repr__",
+         [](const broker::timespan& s) { return broker::to_string(s); })
     .def(hash(py::self))
     .def(py::self + py::self)
     .def(py::self - py::self)
@@ -175,11 +190,10 @@ void init_data(py::module& m) {
   py::class_<broker::timestamp>(m, "Timestamp")
     .def(py::init<>())
     .def(py::init<broker::timespan>())
-    .def(py::init([](double secs) {
-        return broker::to_timestamp(secs);
-        }))
+    .def(py::init([](double secs) { return broker::to_timestamp(secs); }))
     .def("time_since_epoch", &broker::timestamp::time_since_epoch)
-    .def("__repr__", [](const broker::timestamp& ts) { return broker::to_string(ts); })
+    .def("__repr__",
+         [](const broker::timestamp& ts) { return broker::to_string(ts); })
     .def(hash(py::self))
     .def(py::self < py::self)
     .def(py::self <= py::self)
@@ -191,17 +205,12 @@ void init_data(py::module& m) {
   py::bind_vector<broker::vector>(m, "Vector");
 
   py::class_<broker::data> data_type{m, "Data"};
-  data_type
-    .def(py::init<>())
+  data_type.def(py::init<>())
     .def(py::init<broker::data>())
     .def(py::init<broker::address>())
     .def(py::init<broker::boolean>())
-    .def(py::init([](count_type c) {
-         return broker::data{c.value};
-         }))
-    .def(py::init([](broker::enum_value e) {
-         return broker::data{e};
-         }))
+    .def(py::init([](count_type c) { return broker::data{c.value}; }))
+    .def(py::init([](broker::enum_value e) { return broker::data{e}; }))
     .def(py::init<broker::integer>())
     .def(py::init<broker::port>())
     .def(py::init<broker::real>())
@@ -212,29 +221,48 @@ void init_data(py::module& m) {
     .def(py::init<broker::timespan>())
     .def(py::init<broker::timestamp>())
     .def(py::init<broker::vector>())
-    .def("as_address", [](const broker::data& d) { return broker::get<broker::address>(d); })
-    .def("as_boolean", [](const broker::data& d) { return broker::get<broker::boolean>(d); })
-    .def("as_count", [](const broker::data& d) { return broker::get<broker::count>(d); })
-    .def("as_enum_value", [](const broker::data& d) { return broker::get<broker::enum_value>(d); })
-    .def("as_integer", [](const broker::data& d) { return broker::get<broker::integer>(d); })
-    .def("as_none", [](const broker::data& d) { return broker::get<broker::none>(d); })
-    .def("as_port", [](const broker::data& d) { return broker::get<broker::port>(d); })
-    .def("as_real", [](const broker::data& d) { return broker::get<broker::real>(d); })
-    .def("as_set", [](const broker::data& d) { return broker::get<broker::set>(d); })
-    .def("as_string", [](const broker::data& d) { return py::bytes(broker::get<std::string>(d)); })
-    .def("as_subnet", [](const broker::data& d) { return broker::get<broker::subnet>(d); })
-    .def("as_table", [](const broker::data& d) { return broker::get<broker::table>(d); })
-    .def("as_timespan", [](const broker::data& d) {
-        double s;
-        broker::convert(broker::get<broker::timespan>(d), s);
-	return s;
-	})
-    .def("as_timestamp", [](const broker::data& d) {
-        double s;
-        broker::convert(broker::get<broker::timestamp>(d), s);
-	return s;
-	})
-    .def("as_vector", [](const broker::data& d) { return broker::get<broker::vector>(d); })
+    .def("as_address",
+         [](const broker::data& d) { return broker::get<broker::address>(d); })
+    .def("as_boolean",
+         [](const broker::data& d) { return broker::get<broker::boolean>(d); })
+    .def("as_count",
+         [](const broker::data& d) { return broker::get<broker::count>(d); })
+    .def("as_enum_value",
+         [](const broker::data& d) {
+           return broker::get<broker::enum_value>(d);
+         })
+    .def("as_integer",
+         [](const broker::data& d) { return broker::get<broker::integer>(d); })
+    .def("as_none",
+         [](const broker::data& d) { return broker::get<broker::none>(d); })
+    .def("as_port",
+         [](const broker::data& d) { return broker::get<broker::port>(d); })
+    .def("as_real",
+         [](const broker::data& d) { return broker::get<broker::real>(d); })
+    .def("as_set",
+         [](const broker::data& d) { return broker::get<broker::set>(d); })
+    .def("as_string",
+         [](const broker::data& d) {
+           return py::bytes(broker::get<std::string>(d));
+         })
+    .def("as_subnet",
+         [](const broker::data& d) { return broker::get<broker::subnet>(d); })
+    .def("as_table",
+         [](const broker::data& d) { return broker::get<broker::table>(d); })
+    .def("as_timespan",
+         [](const broker::data& d) {
+           double s;
+           broker::convert(broker::get<broker::timespan>(d), s);
+           return s;
+         })
+    .def("as_timestamp",
+         [](const broker::data& d) {
+           double s;
+           broker::convert(broker::get<broker::timestamp>(d), s);
+           return s;
+         })
+    .def("as_vector",
+         [](const broker::data& d) { return broker::get<broker::vector>(d); })
     .def("get_type", &broker::data::get_type)
     .def("__str__", [](const broker::data& d) { return broker::to_string(d); })
     .def(hash(py::self))
@@ -263,4 +291,3 @@ void init_data(py::module& m) {
     .value("Timestamp", broker::data::type::timestamp)
     .value("Vector", broker::data::type::vector);
 }
-

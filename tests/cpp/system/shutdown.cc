@@ -136,7 +136,7 @@ TEST(endpoints send published data before terminating) {
     endpoint ep{make_config(log_path_template("publish", "ep1"))};
     ep.subscribe(
       {"/foo/bar"}, [](caf::unit_t&) {},
-      [ep1_log, beacon_ptr](caf::unit_t&, data_message msg)  {
+      [ep1_log, beacon_ptr](caf::unit_t&, data_message msg) {
         ep1_log->emplace_back(std::move(msg));
         beacon_ptr->set_true();
       },

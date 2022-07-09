@@ -183,8 +183,7 @@ public:
   /// Connects the input and output buffers for a new peer to our central merge
   /// point.
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
-                           const filter_type& filter,
-                           node_consumer_res in_res,
+                           const filter_type& filter, node_consumer_res in_res,
                            node_producer_res out_res);
 
   /// Spin up a new background worker managing the socket and then dispatch to
@@ -217,9 +216,10 @@ public:
                                         backend_options opts);
 
   /// Attaches a clone for given store to this peer.
-  caf::result<caf::actor>
-  attach_clone(const std::string& name, double resync_interval,
-               double stale_interval, double mutation_buffer_interval);
+  caf::result<caf::actor> attach_clone(const std::string& name,
+                                       double resync_interval,
+                                       double stale_interval,
+                                       double mutation_buffer_interval);
 
   /// Terminates all masters and clones by sending exit messages to the
   /// corresponding actors.
@@ -303,8 +303,8 @@ public:
 
   /// Synchronizes information about the current status of a peering with the
   /// connector.
-  detail::shared_peer_status_map_ptr peer_statuses
-    = std::make_shared<detail::peer_status_map>();
+  detail::shared_peer_status_map_ptr peer_statuses =
+    std::make_shared<detail::peer_status_map>();
 
   /// Buffer for serializing messages. Having this as a member allows us to
   /// re-use the same heap-allocated buffer instead of always allocating fresh

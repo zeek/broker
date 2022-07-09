@@ -54,8 +54,9 @@ struct fixture : base_fixture {
                                        "Int Histogram!", "seconds");
     foo_h1 = h1_fam->get_or_add({{"sys", "broker"}});
     std::array<double, 3> dbl_buckets{{8.0, 16.0, 32.0}};
-    auto h2_fam = reg.histogram_family<double>(
-      "foo", "h2", {"sys"}, dbl_buckets, "Dbl Histogram!", "seconds");
+    auto h2_fam = reg.histogram_family<double>("foo", "h2", {"sys"},
+                                               dbl_buckets, "Dbl Histogram!",
+                                               "seconds");
     foo_h2 = h2_fam->get_or_add({{"sys", "broker"}});
     // Spin up actors.
     core = sys.spawn(dummy_core, collector_ptr{&collector});

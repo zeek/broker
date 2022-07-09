@@ -54,4 +54,4 @@ struct hash<broker::enum_value> {
   }
 };
 
-} // namespace std;
+} // namespace std

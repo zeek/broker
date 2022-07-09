@@ -213,22 +213,21 @@ void json_client_state::init(
     auto core_json = //
       self->make_observable()
         .from_resource(core_pull2)
-        .map(
-          [this](const data_message& msg) -> caf::cow_string {
-            writer.reset();
-            auto decorator = decorated(msg);
-            if (writer.apply(decorator)) {
-              // Serialization OK, forward message to client.
-              auto json = writer.str();
-              auto str = std::string{json.begin(), json.end()};
-              return caf::cow_string{std::move(str)};
-            } else {
-              // Report internal error to client.
-              auto ctx = to_string(writer.get_error().context());
-              auto str = render_error(enum_str(ec::serialization_failed), ctx);
-              return caf::cow_string{std::move(str)};
-            }
-          })
+        .map([this](const data_message& msg) -> caf::cow_string {
+          writer.reset();
+          auto decorator = decorated(msg);
+          if (writer.apply(decorator)) {
+            // Serialization OK, forward message to client.
+            auto json = writer.str();
+            auto str = std::string{json.begin(), json.end()};
+            return caf::cow_string{std::move(str)};
+          } else {
+            // Report internal error to client.
+            auto ctx = to_string(writer.get_error().context());
+            auto str = render_error(enum_str(ec::serialization_failed), ctx);
+            return caf::cow_string{std::move(str)};
+          }
+        })
         .as_observable();
     auto sub = caf::flow::merge(ctrl_msgs->as_observable(), core_json) //
                  .subscribe(out);

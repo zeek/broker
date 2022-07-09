@@ -48,8 +48,8 @@ clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                          caf::async::consumer_resource<command_message> in_res,
                          caf::async::producer_resource<command_message> out_res)
   : input(this), max_sync_interval(master_timeout) {
-  super::init(ptr, move(this_endpoint), ep_clock, move(nm),
-              move(parent), move(in_res), move(out_res));
+  super::init(ptr, move(this_endpoint), ep_clock, move(nm), move(parent),
+              move(in_res), move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
   max_get_delay = caf::get_or(ptr->config(), "broker.store.max-get-delay",
@@ -314,9 +314,10 @@ void clone_state::send(producer_type* ptr, const entity_id&,
   BROKER_TRACE(BROKER_ARG(what));
   BROKER_DEBUG("send attach_writer_command with offset" << what.offset);
   auto msg = make_command_message(
-    master_topic, internal_command{0, id, master_id,
-                                   attach_writer_command{
-                                     what.offset, what.heartbeat_interval}});
+    master_topic,
+    internal_command{0, id, master_id,
+                     attach_writer_command{what.offset,
+                                           what.heartbeat_interval}});
   self->send(core, atom::publish_v, move(msg));
 }
 
@@ -452,7 +453,6 @@ void clone_state::start_output() {
   }
 }
 
-
 void clone_state::send_to_master(internal_command_variant&& content) {
   if (output_opt) {
     BROKER_ASSERT(master_id);
@@ -473,9 +473,8 @@ void clone_state::send_to_master(internal_command_variant&& content) {
 caf::behavior clone_state::make_behavior() {
   // Setup.
   self->monitor(core);
-  self->set_down_handler([this](const caf::down_msg& msg) {
-    on_down_msg(msg.source, msg.reason);
-  });
+  self->set_down_handler(
+    [this](const caf::down_msg& msg) { on_down_msg(msg.source, msg.reason); });
   // Ask the master to add this clone.
   send(std::addressof(input), clone_state::channel_type::nack{{0}});
   // Schedule first tick and set a timeout for the attach operation.

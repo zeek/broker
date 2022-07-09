@@ -24,7 +24,7 @@ FIXTURE_SCOPE(filter_tests, fixture)
 TEST(extending a filter with less specific topics truncates) {
   auto f = make("/foo/bar", "/foo/baz", "/zeek");
   filter_extend(f, "/foo");
-  CHECK_EQUAL(f, make("/foo","/zeek"));
+  CHECK_EQUAL(f, make("/foo", "/zeek"));
 }
 
 TEST(extending a filter with unrelated topics appends) {

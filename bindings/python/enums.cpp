@@ -2,12 +2,12 @@
 #include <utility>
 
 #ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <pybind11/pybind11.h>
 #ifdef __GNUC__
-#pragma GCC diagnostic pop
+#  pragma GCC diagnostic pop
 #endif
 
 #include "broker/api_flags.hh"

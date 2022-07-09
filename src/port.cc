@@ -11,11 +11,9 @@
 
 namespace broker {
 
-port::port() : num_{0}, proto_{protocol::unknown} {
-}
+port::port() : num_{0}, proto_{protocol::unknown} {}
 
-port::port(number_type n, protocol p) : num_{n}, proto_{p} {
-}
+port::port(number_type n, protocol p) : num_{n}, proto_{p} {}
 
 port::number_type port::number() const {
   return num_;

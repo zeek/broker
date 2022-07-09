@@ -23,7 +23,8 @@ void convert(timestamp t, std::string& str) {
 }
 
 void convert(timestamp t, double& secs) {
-  secs = std::chrono::duration_cast<fractional_seconds>(t.time_since_epoch()).count();
+  secs = std::chrono::duration_cast<fractional_seconds>(t.time_since_epoch())
+           .count();
 }
 
 void convert(double secs, timespan& s) {

@@ -30,8 +30,8 @@ worker::worker(const worker& other) noexcept {
   new (obj_) native_t(native(other));
 }
 
-worker::worker(const impl* ptr) noexcept  {
-  if(ptr)
+worker::worker(const impl* ptr) noexcept {
+  if (ptr)
     new (obj_) native_t(native(ptr));
   else
     new (obj_) native_t();

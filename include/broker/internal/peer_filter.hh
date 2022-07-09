@@ -5,8 +5,8 @@
 
 #include <caf/actor_addr.hpp>
 
-#include "broker/topic.hh"
 #include "broker/detail/prefix_matcher.hh"
+#include "broker/topic.hh"
 
 namespace broker::internal {
 

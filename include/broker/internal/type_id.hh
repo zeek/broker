@@ -166,12 +166,12 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
 
   // -- STD/CAF type announcements ---------------------------------------------
 
-  BROKER_ADD_TYPE_ID((std::optional<broker::endpoint_id>))
-  BROKER_ADD_TYPE_ID((std::optional<broker::timespan>))
-  BROKER_ADD_TYPE_ID((std::optional<broker::timestamp>))
-  BROKER_ADD_TYPE_ID((std::shared_ptr<broker::filter_type>))
-  BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>))
-  BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>))
+  BROKER_ADD_TYPE_ID((std::optional<broker::endpoint_id>) )
+  BROKER_ADD_TYPE_ID((std::optional<broker::timespan>) )
+  BROKER_ADD_TYPE_ID((std::optional<broker::timestamp>) )
+  BROKER_ADD_TYPE_ID((std::shared_ptr<broker::filter_type>) )
+  BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>) )
+  BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>) )
 
 CAF_END_TYPE_ID_BLOCK(broker)
 

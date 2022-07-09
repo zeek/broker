@@ -16,26 +16,22 @@ class metrics_collector {
 public:
   virtual void operator()(const metric_family_hdl* family,
                           const dbl_counter_hdl* counter,
-                          const_label_list labels)
-    = 0;
+                          const_label_list labels) = 0;
   virtual void operator()(const metric_family_hdl* family,
                           const int_counter_hdl* counter,
-                          const_label_list labels)
-    = 0;
+                          const_label_list labels) = 0;
   virtual void operator()(const metric_family_hdl* family,
-                          const dbl_gauge_hdl* gauge, const_label_list labels)
-    = 0;
+                          const dbl_gauge_hdl* gauge,
+                          const_label_list labels) = 0;
   virtual void operator()(const metric_family_hdl* family,
-                          const int_gauge_hdl* gauge, const_label_list labels)
-    = 0;
+                          const int_gauge_hdl* gauge,
+                          const_label_list labels) = 0;
   virtual void operator()(const metric_family_hdl* family,
                           const dbl_histogram_hdl* histogram,
-                          const_label_list labels)
-    = 0;
+                          const_label_list labels) = 0;
   virtual void operator()(const metric_family_hdl* family,
                           const int_histogram_hdl* histogram,
-                          const_label_list labels)
-    = 0;
+                          const_label_list labels) = 0;
 };
 
 class metric_registry_impl {
@@ -53,40 +49,36 @@ public:
   virtual int_counter_family_hdl*
   int_counter_fam(std::string_view pre, std::string_view name,
                   span<const std::string_view> labels,
-                  std::string_view helptext, std::string_view unit, bool is_sum)
-    = 0;
+                  std::string_view helptext, std::string_view unit,
+                  bool is_sum) = 0;
 
   virtual dbl_counter_family_hdl*
   dbl_counter_fam(std::string_view pre, std::string_view name,
                   span<const std::string_view> labels,
-                  std::string_view helptext, std::string_view unit, bool is_sum)
-    = 0;
+                  std::string_view helptext, std::string_view unit,
+                  bool is_sum) = 0;
 
   virtual int_gauge_family_hdl*
   int_gauge_fam(std::string_view pre, std::string_view name,
                 span<const std::string_view> labels, std::string_view helptext,
-                std::string_view unit, bool is_sum)
-    = 0;
+                std::string_view unit, bool is_sum) = 0;
 
   virtual dbl_gauge_family_hdl*
   dbl_gauge_fam(std::string_view pre, std::string_view name,
                 span<const std::string_view> labels, std::string_view helptext,
-                std::string_view unit, bool is_sum)
-    = 0;
+                std::string_view unit, bool is_sum) = 0;
 
   virtual int_histogram_family_hdl*
   int_histogram_fam(std::string_view pre, std::string_view name,
                     span<const std::string_view> labels,
                     span<const int64_t> ubounds, std::string_view helptext,
-                    std::string_view unit, bool is_sum)
-    = 0;
+                    std::string_view unit, bool is_sum) = 0;
 
   virtual dbl_histogram_family_hdl*
   dbl_histogram_fam(std::string_view pre, std::string_view name,
                     span<const std::string_view> labels,
                     span<const double> ubounds, std::string_view helptext,
-                    std::string_view unit, bool is_sum)
-    = 0;
+                    std::string_view unit, bool is_sum) = 0;
 
   // Collect metrics.
   virtual void collect(metrics_collector& collector) = 0;

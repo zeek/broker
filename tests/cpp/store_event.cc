@@ -107,7 +107,8 @@ TEST(update events consist of key value and expiry) {
   }
   MESSAGE("elements six and seven denote the publisher");
   {
-    data x{vector{"update"s, "x"s, "foo"s, "bar"s, "baz"s, nil, str_ids['B'], obj}};
+    data x{
+      vector{"update"s, "x"s, "foo"s, "bar"s, "baz"s, nil, str_ids['B'], obj}};
     auto view = store_event::update::make(x);
     REQUIRE(view);
     CHECK_EQUAL(view.store_id(), "x"s);

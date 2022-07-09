@@ -31,7 +31,7 @@ struct can_convert_predicate<endpoint_id> {
 
 template <class T, class U>
 auto can_convert_to(const U& x)
--> decltype(can_convert_predicate<T>::check(x)) {
+  -> decltype(can_convert_predicate<T>::check(x)) {
   return can_convert_predicate<T>::check(x);
 }
 
@@ -124,8 +124,9 @@ auto from_string(std::string_view str) -> decltype(to<T>(str)) {
 template <class T>
 std::enable_if_t<
   detail::has_convert_v<T, std::string> // must have a convert function
-  && !std::is_arithmetic_v<T> // avoid ambiguitiy with default overloads
-  && !std::is_convertible_v<T, std::string>, // avoid ambiguity with conversion-to-string
+    && !std::is_arithmetic_v<T> // avoid ambiguitiy with default overloads
+    && !std::is_convertible_v<T, std::string>, // avoid ambiguity with
+                                               // conversion-to-string
   std::ostream&>
 operator<<(std::ostream& os, const T& x) {
   std::string str;

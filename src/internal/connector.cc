@@ -189,7 +189,7 @@ void endpoint::deinit_ssl_api() {
 
 } // namespace broker
 
-namespace broker::internal{
+namespace broker::internal {
 
 /// Creates an SSL context for the connector.
 caf::net::openssl::ctx_ptr
@@ -447,22 +447,22 @@ private:
       switch (msg_type) {
         case connector_msg::connect: {
           BROKER_DEBUG("received connect event");
-          auto&& [eid, addr]
-            = from_source<connector_event_id, network_info>(src);
+          auto&& [eid, addr] =
+            from_source<connector_event_id, network_info>(src);
           mgr.connect(eid, addr);
           break;
         }
         case connector_msg::drop: {
           BROKER_DEBUG("received drop event");
-          auto&& [eid, addr]
-            = from_source<connector_event_id, network_info>(src);
+          auto&& [eid, addr] =
+            from_source<connector_event_id, network_info>(src);
           mgr.drop(eid, addr);
           break;
         }
         case connector_msg::listen: {
           BROKER_DEBUG("received listen event");
-          auto&& [eid, host, port, reuse_addr]
-            = from_source<connector_event_id, std::string, uint16_t, bool>(src);
+          auto&& [eid, host, port, reuse_addr] =
+            from_source<connector_event_id, std::string, uint16_t, bool>(src);
           mgr.listen(eid, host, port, reuse_addr);
           break;
         }
@@ -1535,9 +1535,9 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
               BROKER_DEBUG("detected redundant connection but "
                            "find_pending_handshake failed");
               send(wire_format::make_drop_conn_msg(
-                  this_peer(), ec::logic_error,
-                  "detected redundant connection but "
-                  "find_pending_handshake failed"));
+                this_peer(), ec::logic_error,
+                "detected redundant connection but "
+                "find_pending_handshake failed"));
               transition(&connect_state::err);
               return false;
             }
@@ -1873,7 +1873,6 @@ public:
       endpoint::init_ssl_api();
     }
   }
-
 
   ~ssl_lib_guard() {
     if (ssl_initialized_)

@@ -460,7 +460,7 @@ caf::behavior master_state::make_behavior() {
   BROKER_TRACE(BROKER_ARG(id) << BROKER_ARG(core) << BROKER_ARG(store_name));
   // Setup.
   self->monitor(core);
-  self->set_down_handler([this](const caf::down_msg& msg) {
+  self->set_down_handler([this](const caf::down_msg& msg) { //
     on_down_msg(msg.source, msg.reason);
   });
   // Schedule first tick.
