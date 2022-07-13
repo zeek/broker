@@ -17,8 +17,16 @@ auto& deref(dbl_histogram_hdl* hdl) {
   return *reinterpret_cast<ct::dbl_histogram*>(hdl);
 }
 
+auto& deref(const dbl_histogram_hdl* hdl) {
+  return *reinterpret_cast<const ct::dbl_histogram*>(hdl);
+}
+
 auto& deref(int_histogram_hdl* hdl) {
   return *reinterpret_cast<ct::int_histogram*>(hdl);
+}
+
+auto& deref(const int_histogram_hdl* hdl) {
+  return *reinterpret_cast<const ct::int_histogram*>(hdl);
 }
 
 auto& deref(metric_family_hdl* hdl) {
@@ -31,21 +39,21 @@ void observe(dbl_histogram_hdl* hdl, double value) noexcept {
   deref(hdl).observe(value);
 }
 
-double sum(dbl_histogram_hdl* hdl) noexcept {
+double sum(const dbl_histogram_hdl* hdl) noexcept {
   return deref(hdl).sum();
 }
 
-size_t num_buckets(dbl_histogram_hdl* hdl) noexcept {
+size_t num_buckets(const dbl_histogram_hdl* hdl) noexcept {
   return deref(hdl).buckets().size();
 }
 
-double count_at(dbl_histogram_hdl* hdl, size_t index) noexcept {
+double count_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {
   auto xs = deref(hdl).buckets();
   BROKER_ASSERT(index < xs.size());
   return xs[index].count.value();
 }
 
-double upper_bound_at(dbl_histogram_hdl* hdl, size_t index) noexcept {
+double upper_bound_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {
 	auto xs = deref(hdl).buckets();
 	BROKER_ASSERT(index < xs.size());
 	return xs[index].upper_bound;
@@ -64,21 +72,21 @@ void observe(int_histogram_hdl* hdl, int64_t value) noexcept {
   deref(hdl).observe(value);
 }
 
-int64_t sum(int_histogram_hdl* hdl) noexcept {
+int64_t sum(const int_histogram_hdl* hdl) noexcept {
   return deref(hdl).sum();
 }
 
-size_t num_buckets(int_histogram_hdl* hdl) noexcept {
+size_t num_buckets(const int_histogram_hdl* hdl) noexcept {
   return deref(hdl).buckets().size();
 }
 
-int64_t count_at(int_histogram_hdl* hdl, size_t index) noexcept {
+int64_t count_at(const int_histogram_hdl* hdl, size_t index) noexcept {
   auto xs = deref(hdl).buckets();
   BROKER_ASSERT(index < xs.size());
   return xs[index].count.value();
 }
 
-int64_t upper_bound_at(int_histogram_hdl* hdl, size_t index) noexcept {
+int64_t upper_bound_at(const int_histogram_hdl* hdl, size_t index) noexcept {
 	auto xs = deref(hdl).buckets();
 	BROKER_ASSERT(index < xs.size());
 	return xs[index].upper_bound;

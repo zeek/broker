@@ -16,8 +16,16 @@ auto& deref(dbl_gauge_hdl* hdl) {
   return *reinterpret_cast<ct::dbl_gauge*>(hdl);
 }
 
+auto& deref(const dbl_gauge_hdl* hdl) {
+  return *reinterpret_cast<const ct::dbl_gauge*>(hdl);
+}
+
 auto& deref(int_gauge_hdl* hdl) {
   return *reinterpret_cast<ct::int_gauge*>(hdl);
+}
+
+auto& deref(const int_gauge_hdl* hdl) {
+  return *reinterpret_cast<const ct::int_gauge*>(hdl);
 }
 
 auto& deref(metric_family_hdl* hdl) {
@@ -41,7 +49,7 @@ void dec(dbl_gauge_hdl* hdl, double amount) noexcept {
   deref(hdl).dec(amount);
 }
 
-double value(dbl_gauge_hdl* hdl) noexcept {
+double value(const dbl_gauge_hdl* hdl) noexcept {
   return deref(hdl).value();
 }
 
@@ -70,7 +78,7 @@ void dec(int_gauge_hdl* hdl, int64_t amount) noexcept {
   deref(hdl).dec(amount);
 }
 
-int64_t value(int_gauge_hdl* hdl) noexcept {
+int64_t value(const int_gauge_hdl* hdl) noexcept {
   return deref(hdl).value();
 }
 
