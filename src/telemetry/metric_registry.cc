@@ -120,7 +120,7 @@ label_list extract_labels(const ct::metric* instance,
             std::string_view{val.data(), val.size()}};
   };
   vec.clear();
-  auto labels = instance->labels();
+  const auto& labels = instance->labels();
   std::transform(labels.begin(), labels.end(), std::back_inserter(vec),
                  get_value);
 
