@@ -17,7 +17,7 @@ auto& deref(dbl_histogram_hdl* hdl) {
   return *reinterpret_cast<ct::dbl_histogram*>(hdl);
 }
 
-auto& deref(const dbl_histogram_hdl* hdl) {
+const auto& deref(const dbl_histogram_hdl* hdl) {
   return *reinterpret_cast<const ct::dbl_histogram*>(hdl);
 }
 
@@ -25,7 +25,7 @@ auto& deref(int_histogram_hdl* hdl) {
   return *reinterpret_cast<ct::int_histogram*>(hdl);
 }
 
-auto& deref(const int_histogram_hdl* hdl) {
+const auto& deref(const int_histogram_hdl* hdl) {
   return *reinterpret_cast<const ct::int_histogram*>(hdl);
 }
 

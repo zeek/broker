@@ -9,34 +9,32 @@
 
 namespace broker::telemetry {
 
-// Collector for the broker::telemetry layer. We string through the label
-// values of individual metric instances as there aren't direct accessors
-// for those from a hdl.
+// Collector for the broker::telemetry layer. We string through the labels
+// of individual metric instances as there aren't direct accessors for those
+// from a hdl.
 class metrics_collector {
 public:
   virtual void operator()(const dbl_counter_family_hdl* family,
                           const dbl_counter_hdl* counter,
-                          const std::vector<std::string_view>& label_values)
+                          label_list labels)
     = 0;
   virtual void operator()(const int_counter_family_hdl* family,
                           const int_counter_hdl* counter,
-                          const std::vector<std::string_view>& label_values)
+                          label_list labels)
     = 0;
   virtual void operator()(const dbl_gauge_family_hdl* family,
-                          const dbl_gauge_hdl* gauge,
-                          const std::vector<std::string_view>& label_values)
+                          const dbl_gauge_hdl* gauge, label_list labels)
     = 0;
   virtual void operator()(const int_gauge_family_hdl* family,
-                          const int_gauge_hdl* gauge,
-                          const std::vector<std::string_view>& label_values)
+                          const int_gauge_hdl* gauge, label_list labels)
     = 0;
   virtual void operator()(const dbl_histogram_family_hdl* family,
                           const dbl_histogram_hdl* histogram,
-                          const std::vector<std::string_view>& label_values)
+                          label_list labels)
     = 0;
   virtual void operator()(const int_histogram_family_hdl* family,
                           const int_histogram_hdl* histogram,
-                          const std::vector<std::string_view>& label_values)
+                          label_list labels)
     = 0;
 };
 

@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "broker/telemetry/metric_registry.hh"
 
 #include "broker/internal/endpoint_access.hh"
@@ -107,6 +109,50 @@ metric_registry::~metric_registry() {
 
 namespace {
 
+// -- free functions used by impl_base::collect()
+
+label_list extract_labels(const ct::metric* instance,
+                          std::vector<label_view>& vec) {
+  auto get_value = [](const auto& label) -> label_view {
+    auto name = label.name();
+    auto val = label.value();
+    return {std::string_view{name.data(), name.size()},
+            std::string_view{val.data(), val.size()}};
+  };
+  vec.clear();
+  auto labels = instance->labels();
+  std::transform(labels.begin(), labels.end(), std::back_inserter(vec),
+                 get_value);
+
+  return vec;
+}
+
+#define OPAQUE_FAM(type)                                                       \
+  const auto* opaque(const ct::metric_family_impl<ct::type>* family) {         \
+    return reinterpret_cast<const type##_family_hdl*>(family);                 \
+  }
+
+OPAQUE_FAM(dbl_counter)
+OPAQUE_FAM(int_counter)
+OPAQUE_FAM(dbl_gauge)
+OPAQUE_FAM(int_gauge)
+OPAQUE_FAM(dbl_histogram)
+OPAQUE_FAM(int_histogram)
+
+#define OPAQUE_OBJ(type)                                                       \
+  const auto* opaque(const ct::type* obj) {                                    \
+    return reinterpret_cast<const type##_hdl*>(obj);                           \
+  }
+
+OPAQUE_OBJ(dbl_counter)
+OPAQUE_OBJ(int_counter)
+OPAQUE_OBJ(dbl_gauge)
+OPAQUE_OBJ(int_gauge)
+OPAQUE_OBJ(dbl_histogram)
+OPAQUE_OBJ(int_histogram)
+
+// -- impl_base
+
 class impl_base : public metric_registry_impl {
 public:
   explicit impl_base(ct::metric_registry* reg) : reg_(reg) {
@@ -185,80 +231,17 @@ public:
     });
   }
 
-  // A collector proxying/converting from caf::telemetry handles to
-  // broker::telemetry handles and invoking the callbacks of a
-  // broker::telemetry::metrics_collector instance.
-  //
-  // There's probably a more modern / templaty way to write this
-  //
-  // We only use the labels from the ct::metric instance at this point
-  // rather than using some other handle.
-  class ProxyCollector {
-  public:
-    ProxyCollector(broker::telemetry::metrics_collector& collector)
-      : collector_(collector){};
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::dbl_counter* counter) {
-      auto bt_family = reinterpret_cast<const dbl_counter_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const dbl_counter_hdl*>(counter);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
+  void collect(metrics_collector& collector) override {
+    std::vector<label_view> labels_vec; // Reuse for label extraction
+    auto fn = [&collector, &labels_vec](const auto* family,
+                                        const ct::metric* instance,
+                                        const auto* obj) {
+      labels_vec.clear();
+      auto labels = extract_labels(instance, labels_vec);
+      collector(opaque(family), opaque(obj), labels);
+    };
 
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::int_counter* counter) {
-      auto bt_family = reinterpret_cast<const int_counter_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const int_counter_hdl*>(counter);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
-
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::dbl_gauge* gauge) {
-      auto bt_family = reinterpret_cast<const dbl_gauge_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const dbl_gauge_hdl*>(gauge);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
-
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::int_gauge* gauge) {
-      auto bt_family = reinterpret_cast<const int_gauge_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const int_gauge_hdl*>(gauge);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
-
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::dbl_histogram* val) {
-      auto bt_family
-        = reinterpret_cast<const dbl_histogram_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const dbl_histogram_hdl*>(val);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
-
-    void operator()(const ct::metric_family* family, const ct::metric* instance,
-                    const ct::int_histogram* val) {
-      auto bt_family
-        = reinterpret_cast<const int_histogram_family_hdl*>(family);
-      auto bt_hdl = reinterpret_cast<const int_histogram_hdl*>(val);
-      collector_(bt_family, bt_hdl, _labels(instance));
-    }
-
-  private:
-    std::vector<std::string_view> _labels(const ct::metric* instance) {
-      std::vector<std::string_view> r;
-      for (const auto& l : instance->labels()) {
-        const auto& v = l.value();
-        // Not super sure this is great: The std::string_view points at
-        // the caf memory of the caf::string_view. Fingers-crossed.
-        r.push_back(std::string_view(v.data(), v.size()));
-      }
-      return r;
-    }
-
-    metrics_collector& collector_;
-  };
-
-  void collect(metrics_collector& collector) {
-    auto proxy_collector = ProxyCollector(collector);
-    reg_->collect(proxy_collector);
+    reg_->collect(fn);
   }
 
 protected:

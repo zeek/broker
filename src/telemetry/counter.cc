@@ -16,7 +16,7 @@ auto& deref(dbl_counter_hdl* hdl) {
   return *reinterpret_cast<ct::dbl_counter*>(hdl);
 }
 
-auto& deref(const dbl_counter_hdl* hdl) {
+const auto& deref(const dbl_counter_hdl* hdl) {
   return *reinterpret_cast<const ct::dbl_counter*>(hdl);
 }
 
@@ -24,7 +24,7 @@ auto& deref(int_counter_hdl* hdl) {
   return *reinterpret_cast<ct::int_counter*>(hdl);
 }
 
-auto& deref(const int_counter_hdl* hdl) {
+const auto& deref(const int_counter_hdl* hdl) {
   return *reinterpret_cast<const ct::int_counter*>(hdl);
 }
 
