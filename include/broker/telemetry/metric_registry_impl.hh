@@ -14,27 +14,27 @@ namespace broker::telemetry {
 // from a hdl.
 class metrics_collector {
 public:
-  virtual void operator()(const dbl_counter_family_hdl* family,
+  virtual void operator()(const metric_family_hdl* family,
                           const dbl_counter_hdl* counter,
-                          label_list labels)
+                          const_label_list labels)
     = 0;
-  virtual void operator()(const int_counter_family_hdl* family,
+  virtual void operator()(const metric_family_hdl* family,
                           const int_counter_hdl* counter,
-                          label_list labels)
+                          const_label_list labels)
     = 0;
-  virtual void operator()(const dbl_gauge_family_hdl* family,
-                          const dbl_gauge_hdl* gauge, label_list labels)
+  virtual void operator()(const metric_family_hdl* family,
+                          const dbl_gauge_hdl* gauge, const_label_list labels)
     = 0;
-  virtual void operator()(const int_gauge_family_hdl* family,
-                          const int_gauge_hdl* gauge, label_list labels)
+  virtual void operator()(const metric_family_hdl* family,
+                          const int_gauge_hdl* gauge, const_label_list labels)
     = 0;
-  virtual void operator()(const dbl_histogram_family_hdl* family,
+  virtual void operator()(const metric_family_hdl* family,
                           const dbl_histogram_hdl* histogram,
-                          label_list labels)
+                          const_label_list labels)
     = 0;
-  virtual void operator()(const int_histogram_family_hdl* family,
+  virtual void operator()(const metric_family_hdl* family,
                           const int_histogram_hdl* histogram,
-                          label_list labels)
+                          const_label_list labels)
     = 0;
 };
 

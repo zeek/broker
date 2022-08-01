@@ -32,7 +32,7 @@ class histogram_family;
 
 using label_view = std::pair<std::string_view, std::string_view>;
 
-using label_list = span<label_view>;
+using const_label_list = span<const label_view>;
 
 using dbl_counter = counter<double>;
 

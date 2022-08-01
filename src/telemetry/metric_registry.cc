@@ -111,33 +111,21 @@ namespace {
 
 // -- free functions used by impl_base::collect()
 
-label_list extract_labels(const ct::metric* instance,
-                          std::vector<label_view>& vec) {
+void extract_labels(const ct::metric* instance, std::vector<label_view>& vec) {
   auto get_value = [](const auto& label) -> label_view {
     auto name = label.name();
     auto val = label.value();
     return {std::string_view{name.data(), name.size()},
             std::string_view{val.data(), val.size()}};
   };
-  vec.clear();
   const auto& labels = instance->labels();
   std::transform(labels.begin(), labels.end(), std::back_inserter(vec),
                  get_value);
-
-  return vec;
 }
 
-#define OPAQUE_FAM(type)                                                       \
-  const auto* opaque(const ct::metric_family_impl<ct::type>* family) {         \
-    return reinterpret_cast<const type##_family_hdl*>(family);                 \
-  }
-
-OPAQUE_FAM(dbl_counter)
-OPAQUE_FAM(int_counter)
-OPAQUE_FAM(dbl_gauge)
-OPAQUE_FAM(int_gauge)
-OPAQUE_FAM(dbl_histogram)
-OPAQUE_FAM(int_histogram)
+const auto* opaque(const ct::metric_family* family) {
+  return reinterpret_cast<const metric_family_hdl*>(family);
+}
 
 #define OPAQUE_OBJ(type)                                                       \
   const auto* opaque(const ct::type* obj) {                                    \
@@ -237,8 +225,8 @@ public:
                                         const ct::metric* instance,
                                         const auto* obj) {
       labels_vec.clear();
-      auto labels = extract_labels(instance, labels_vec);
-      collector(opaque(family), opaque(obj), labels);
+      extract_labels(instance, labels_vec);
+      collector(opaque(family), opaque(obj), labels_vec);
     };
 
     reg_->collect(fn);
