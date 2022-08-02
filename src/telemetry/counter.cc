@@ -16,8 +16,16 @@ auto& deref(dbl_counter_hdl* hdl) {
   return *reinterpret_cast<ct::dbl_counter*>(hdl);
 }
 
+const auto& deref(const dbl_counter_hdl* hdl) {
+  return *reinterpret_cast<const ct::dbl_counter*>(hdl);
+}
+
 auto& deref(int_counter_hdl* hdl) {
   return *reinterpret_cast<ct::int_counter*>(hdl);
+}
+
+const auto& deref(const int_counter_hdl* hdl) {
+  return *reinterpret_cast<const ct::int_counter*>(hdl);
 }
 
 auto& deref(metric_family_hdl* hdl) {
@@ -34,7 +42,7 @@ void inc(dbl_counter_hdl* hdl, double amount) noexcept {
   deref(hdl).inc(amount);
 }
 
-double value(dbl_counter_hdl* hdl) noexcept {
+double value(const dbl_counter_hdl* hdl) noexcept {
   return deref(hdl).value();
 }
 
@@ -55,7 +63,7 @@ void inc(int_counter_hdl* hdl, int64_t amount) noexcept {
   deref(hdl).inc(amount);
 }
 
-int64_t value(int_counter_hdl* hdl) noexcept {
+int64_t value(const int_counter_hdl* hdl) noexcept {
   return deref(hdl).value();
 }
 

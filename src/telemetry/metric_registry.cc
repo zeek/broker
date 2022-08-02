@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "broker/telemetry/metric_registry.hh"
 
 #include "broker/internal/endpoint_access.hh"
@@ -107,6 +109,38 @@ metric_registry::~metric_registry() {
 
 namespace {
 
+// -- free functions used by impl_base::collect()
+
+void extract_labels(const ct::metric* instance, std::vector<label_view>& vec) {
+  auto get_value = [](const auto& label) -> label_view {
+    auto name = label.name();
+    auto val = label.value();
+    return {std::string_view{name.data(), name.size()},
+            std::string_view{val.data(), val.size()}};
+  };
+  const auto& labels = instance->labels();
+  std::transform(labels.begin(), labels.end(), std::back_inserter(vec),
+                 get_value);
+}
+
+const auto* opaque(const ct::metric_family* family) {
+  return reinterpret_cast<const metric_family_hdl*>(family);
+}
+
+#define OPAQUE_OBJ(type)                                                       \
+  const auto* opaque(const ct::type* obj) {                                    \
+    return reinterpret_cast<const type##_hdl*>(obj);                           \
+  }
+
+OPAQUE_OBJ(dbl_counter)
+OPAQUE_OBJ(int_counter)
+OPAQUE_OBJ(dbl_gauge)
+OPAQUE_OBJ(int_gauge)
+OPAQUE_OBJ(dbl_histogram)
+OPAQUE_OBJ(int_histogram)
+
+// -- impl_base
+
 class impl_base : public metric_registry_impl {
 public:
   explicit impl_base(ct::metric_registry* reg) : reg_(reg) {
@@ -183,6 +217,19 @@ public:
                                                 unit, is_sum);
       return reinterpret_cast<dbl_histogram_family_hdl*>(ptr);
     });
+  }
+
+  void collect(metrics_collector& collector) override {
+    std::vector<label_view> labels_vec; // Reuse for label extraction
+    auto fn = [&collector, &labels_vec](const ct::metric_family* family,
+                                        const ct::metric* instance,
+                                        const auto* obj) {
+      labels_vec.clear();
+      extract_labels(instance, labels_vec);
+      collector(opaque(family), opaque(obj), labels_vec);
+    };
+
+    reg_->collect(fn);
   }
 
 protected:

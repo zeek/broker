@@ -32,6 +32,8 @@ class histogram_family;
 
 using label_view = std::pair<std::string_view, std::string_view>;
 
+using const_label_list = span<const label_view>;
+
 using dbl_counter = counter<double>;
 
 using dbl_counter_family = counter_family<double>;
@@ -90,7 +92,7 @@ void inc(dbl_counter_hdl*) noexcept;
 
 void inc(dbl_counter_hdl*, double amount) noexcept;
 
-double value(dbl_counter_hdl*) noexcept;
+double value(const dbl_counter_hdl*) noexcept;
 
 dbl_counter_hdl* dbl_counter_get_or_add(metric_family_hdl*,
                                         span<const label_view> labels);
@@ -99,7 +101,7 @@ int64_t inc(int_counter_hdl*) noexcept;
 
 void inc(int_counter_hdl*, int64_t amount) noexcept;
 
-int64_t value(int_counter_hdl*) noexcept;
+int64_t value(const int_counter_hdl*) noexcept;
 
 int_counter_hdl* int_counter_get_or_add(metric_family_hdl*,
                                         span<const label_view> labels);
@@ -114,7 +116,7 @@ void dec(dbl_gauge_hdl* hdl, double amount) noexcept;
 
 void dec(dbl_gauge_hdl* hdl) noexcept;
 
-double value(dbl_gauge_hdl* hdl) noexcept;
+double value(const dbl_gauge_hdl* hdl) noexcept;
 
 dbl_gauge_hdl* dbl_gauge_get_or_add(metric_family_hdl* hdl,
                                     span<const label_view> labels);
@@ -127,7 +129,7 @@ int64_t dec(int_gauge_hdl* hdl) noexcept;
 
 void dec(int_gauge_hdl* hdl, int64_t amount) noexcept;
 
-int64_t value(int_gauge_hdl* hdl) noexcept;
+int64_t value(const int_gauge_hdl* hdl) noexcept;
 
 int_gauge_hdl* int_gauge_get_or_add(metric_family_hdl* hdl,
                                     span<const label_view> labels);
@@ -136,26 +138,26 @@ int_gauge_hdl* int_gauge_get_or_add(metric_family_hdl* hdl,
 
 void observe(dbl_histogram_hdl*, double value) noexcept;
 
-double sum(dbl_histogram_hdl*) noexcept;
+double sum(const dbl_histogram_hdl*) noexcept;
 
-size_t num_buckets(dbl_histogram_hdl*) noexcept;
+size_t num_buckets(const dbl_histogram_hdl*) noexcept;
 
-double count_at(dbl_histogram_hdl*, size_t index) noexcept;
+double count_at(const dbl_histogram_hdl*, size_t index) noexcept;
 
-double upper_bound_at(dbl_histogram_hdl*, size_t index) noexcept;
+double upper_bound_at(const dbl_histogram_hdl*, size_t index) noexcept;
 
 dbl_histogram_hdl* dbl_histogram_get_or_add(metric_family_hdl*,
                                             span<const label_view> labels);
 
 void observe(int_histogram_hdl*, int64_t value) noexcept;
 
-int64_t sum(int_histogram_hdl*) noexcept;
+int64_t sum(const int_histogram_hdl*) noexcept;
 
-size_t num_buckets(int_histogram_hdl*) noexcept;
+size_t num_buckets(const int_histogram_hdl*) noexcept;
 
-int64_t count_at(int_histogram_hdl*, size_t index) noexcept;
+int64_t count_at(const int_histogram_hdl*, size_t index) noexcept;
 
-int64_t upper_bound_at(int_histogram_hdl*, size_t index) noexcept;
+int64_t upper_bound_at(const int_histogram_hdl*, size_t index) noexcept;
 
 int_histogram_hdl* int_histogram_get_or_add(metric_family_hdl*,
                                             span<const label_view> labels);
@@ -163,16 +165,22 @@ int_histogram_hdl* int_histogram_get_or_add(metric_family_hdl*,
 // -- free function interface for metric families ------------------------------
 
 metric_family_hdl* upcast(dbl_counter_family_hdl*);
+const metric_family_hdl* upcast(const dbl_counter_family_hdl*);
 
 metric_family_hdl* upcast(dbl_gauge_family_hdl*);
+const metric_family_hdl* upcast(const dbl_gauge_family_hdl*);
 
 metric_family_hdl* upcast(dbl_histogram_family_hdl*);
+const metric_family_hdl* upcast(const dbl_histogram_family_hdl*);
 
 metric_family_hdl* upcast(int_counter_family_hdl*);
+const metric_family_hdl* upcast(const int_counter_family_hdl*);
 
 metric_family_hdl* upcast(int_gauge_family_hdl*);
+const metric_family_hdl* upcast(const int_gauge_family_hdl*);
 
 metric_family_hdl* upcast(int_histogram_family_hdl*);
+const metric_family_hdl* upcast(const int_histogram_family_hdl*);
 
 dbl_counter_family_hdl* as_dbl_counter_family(metric_family_hdl*);
 
@@ -186,17 +194,17 @@ dbl_histogram_family_hdl* as_dbl_histogram_family(metric_family_hdl*);
 
 int_histogram_family_hdl* as_int_histogram_family(metric_family_hdl*);
 
-std::string_view prefix(metric_family_hdl*) noexcept;
+std::string_view prefix(const metric_family_hdl*) noexcept;
 
-std::string_view name(metric_family_hdl*) noexcept;
+std::string_view name(const metric_family_hdl*) noexcept;
 
-span<const std::string> label_names(metric_family_hdl*) noexcept;
+span<const std::string> label_names(const metric_family_hdl*) noexcept;
 
-std::string_view helptext(metric_family_hdl*) noexcept;
+std::string_view helptext(const metric_family_hdl*) noexcept;
 
-std::string_view unit(metric_family_hdl*) noexcept;
+std::string_view unit(const metric_family_hdl*) noexcept;
 
-bool is_sum(metric_family_hdl*) noexcept;
+bool is_sum(const metric_family_hdl*) noexcept;
 
 // -- free function interface for the Broker metric registry -------------------
 
