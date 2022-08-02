@@ -221,7 +221,7 @@ public:
 
   void collect(metrics_collector& collector) override {
     std::vector<label_view> labels_vec; // Reuse for label extraction
-    auto fn = [&collector, &labels_vec](const auto* family,
+    auto fn = [&collector, &labels_vec](const ct::metric_family* family,
                                         const ct::metric* instance,
                                         const auto* obj) {
       labels_vec.clear();
