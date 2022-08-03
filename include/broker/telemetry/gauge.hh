@@ -58,7 +58,7 @@ public:
 
   gauge& operator=(const gauge&) noexcept = default;
 
-	/// Increments the value by 1.
+  /// Increments the value by 1.
   void inc() noexcept {
     telemetry::inc(hdl_);
   }
@@ -69,8 +69,8 @@ public:
     telemetry::inc(hdl_, amount);
   }
 
-	/// Increments the value by 1.
-	/// @return The new value.
+  /// Increments the value by 1.
+  /// @return The new value.
   template <class V = T>
   std::enable_if_t<std::is_same_v<V, int64_t>, V> operator++() noexcept {
     return telemetry::inc(hdl_);
@@ -94,7 +94,7 @@ public:
     return telemetry::value(hdl_);
   }
 
-	/// @return Whether @c this and @p other refer to the same gauge.
+  /// @return Whether @c this and @p other refer to the same gauge.
   constexpr bool is_same_as(gauge other) const noexcept {
     return hdl_ == other.hdl_;
   }
@@ -104,7 +104,7 @@ private:
 };
 
 /// @relates gauge
-template<class T>
+template <class T>
 constexpr bool operator==(gauge<T> x, gauge<T> y) {
   return x.is_same_as(y);
 }
@@ -134,7 +134,7 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   gauge<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T,double>)
+    if constexpr (std::is_same_v<T, double>)
       return gauge<T>{dbl_gauge_get_or_add(super::hdl_, labels)};
     else
       return gauge<T>{int_gauge_get_or_add(super::hdl_, labels)};
@@ -145,14 +145,14 @@ public:
     return get_or_add(span{labels.begin(), labels.size()});
   }
 
-	/// @return Whether @c this and @p other refer to the same family.
+  /// @return Whether @c this and @p other refer to the same family.
   constexpr bool is_same_as(gauge_family other) const noexcept {
     return hdl_ == other.hdl_;
   }
 };
 
 /// @relates gauge_family
-template<class T>
+template <class T>
 constexpr bool operator==(gauge_family<T> x, gauge_family<T> y) {
   return x.is_same_as(y);
 }

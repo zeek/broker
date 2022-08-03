@@ -43,23 +43,9 @@ using table = std::map<data, data>;
 /// @relates table
 void convert(const table& t, std::string& str);
 
-using data_variant = std::variant<
-  none,
-  boolean,
-  count,
-  integer,
-  real,
-  std::string,
-  address,
-  subnet,
-  port,
-  timestamp,
-  timespan,
-  enum_value,
-  set,
-  table,
-  vector
->;
+using data_variant = std::variant<none, boolean, count, integer, real,
+                                  std::string, address, subnet, port, timestamp,
+                                  timespan, enum_value, set, table, vector>;
 
 /// A variant class that may store the data associated with one of several
 /// different primitive or compound types.
@@ -417,12 +403,12 @@ bool contains_impl(const vector& xs, std::index_sequence<Is...>) {
 /// Checks whether `xs` contains values of types `Ts...`. Performs "fuzzy"
 /// matching by calling `can_convert_to<T>` for any `T` that is not part of the
 /// variant.
-template <class...Ts>
+template <class... Ts>
 bool contains(const vector& xs) {
   return contains_impl<Ts...>(xs, std::make_index_sequence<sizeof...(Ts)>{});
 }
 
-template <class...Ts>
+template <class... Ts>
 bool contains(const data& x) {
   if (auto xs = get_if<vector>(x))
     return contains<Ts...>(*xs);
@@ -458,28 +444,28 @@ struct hash<broker::data> {
 
 template <>
 struct hash<broker::set> {
-  size_t operator()(const broker::set& x) const{
+  size_t operator()(const broker::set& x) const {
     return broker::detail::fnv_hash(x);
   }
 };
 
 template <>
 struct hash<broker::vector> {
-  size_t operator()(const broker::vector& x) const{
+  size_t operator()(const broker::vector& x) const {
     return broker::detail::fnv_hash(x);
   }
 };
 
 template <>
 struct hash<broker::table::value_type> {
-  size_t operator()(const broker::table::value_type& x) const{
+  size_t operator()(const broker::table::value_type& x) const {
     return broker::detail::fnv_hash(x);
   }
 };
 
 template <>
 struct hash<broker::table> {
-  size_t operator()(const broker::table& x) const{
+  size_t operator()(const broker::table& x) const {
     return broker::detail::fnv_hash(x);
   }
 };

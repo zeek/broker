@@ -16,11 +16,11 @@
 
 #ifdef BROKER_WINDOWS
 
-#include <Winsock2.h>
+#  include <Winsock2.h>
 
-#define PIPE_WRITE(fd, buf, num_bytes) ::send(fd, buf, num_bytes, 0)
+#  define PIPE_WRITE(fd, buf, num_bytes) ::send(fd, buf, num_bytes, 0)
 
-#define PIPE_READ(fd, buf, num_bytes) ::recv(fd, buf, num_bytes, 0)
+#  define PIPE_READ(fd, buf, num_bytes) ::recv(fd, buf, num_bytes, 0)
 
 namespace {
 
@@ -38,14 +38,14 @@ bool try_again_later() {
 
 #else // BROKER_WINDOWS
 
-#include <errno.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <unistd.h>
+#  include <errno.h>
+#  include <fcntl.h>
+#  include <poll.h>
+#  include <unistd.h>
 
-#define PIPE_WRITE ::write
+#  define PIPE_WRITE ::write
 
-#define PIPE_READ ::read
+#  define PIPE_READ ::read
 
 namespace {
 

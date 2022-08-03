@@ -15,8 +15,8 @@ using push_t = caf::async::producer_resource<caf::cow_string>;
 
 using connect_event_t = std::pair<pull_t, push_t>;
 
-using on_connect_t
-  = std::function<void(const caf::settings&, connect_event_t&)>;
+using on_connect_t =
+  std::function<void(const caf::settings&, connect_event_t&)>;
 
 expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
                           std::string addr, uint16_t port, bool reuse_addr,

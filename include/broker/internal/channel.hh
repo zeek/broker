@@ -114,8 +114,8 @@ public:
   // -- implementation of the producer -----------------------------------------
 
   /// Messages sent by the producer.
-  using producer_message
-    = std::variant<handshake, event, retransmit_failed, heartbeat>;
+  using producer_message =
+    std::variant<handshake, event, retransmit_failed, heartbeat>;
 
   struct default_producer_base {};
 

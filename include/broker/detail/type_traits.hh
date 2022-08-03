@@ -36,8 +36,8 @@ struct are_same<A, B> {
 
 template <class A, class B, class C, class... Ts>
 struct are_same<A, B, C, Ts...> {
-  static constexpr bool value
-    = std::is_same_v<A, B> && are_same<B, C, Ts...>::value;
+  static constexpr bool value =
+    std::is_same_v<A, B> && are_same<B, C, Ts...>::value;
 };
 
 template <class... Ts>
@@ -65,8 +65,8 @@ auto has_apply_operator_test(U*) -> decltype(&U::operator(), std::true_type());
 auto has_apply_operator_test(...) -> std::false_type;
 
 template <class T>
-inline constexpr bool has_apply_operator
-  = decltype(has_apply_operator_test(std::declval<T*>()))::value;
+inline constexpr bool has_apply_operator =
+  decltype(has_apply_operator_test(std::declval<T*>()))::value;
 
 template <class F>
 struct normalized_signature;

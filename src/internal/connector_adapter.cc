@@ -149,7 +149,7 @@ void connector_adapter::async_connect(const network_info& addr,
   using caf::get;
   using std::move;
   auto cb = [f{move(f)}, g{move(g)}, h{move(h)}](const caf::message& msg) {
-    if (auto xs1= connection_event(msg)) {
+    if (auto xs1 = connection_event(msg)) {
       f(get<0>(xs1), get<1>(xs1), get<2>(xs1), get<3>(xs1));
     } else if (auto xs2 = redundant_connection_event(msg)) {
       g(get<0>(xs2), get<1>(xs2));

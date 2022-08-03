@@ -220,11 +220,11 @@ TEST(inseting into revocationss creates a sorted list) {
   CHECK(not emplace(B, 7_lt, A).second);
   MESSAGE("the final list is sorted on revoker, ts, hop");
   CHECK_EQUAL(lst, revocations({{A, 1_lt, B},
-                              {A, 2_lt, C},
-                              {A, 3_lt, B},
-                              {B, 7_lt, A},
-                              {C, 1_lt, A},
-                              {C, 2_lt, A}}));
+                                {A, 2_lt, C},
+                                {A, 3_lt, B},
+                                {B, 7_lt, A},
+                                {C, 1_lt, A},
+                                {C, 2_lt, A}}));
   MESSAGE("equal_range allows access to subranges by revoker");
   CHECK_EQUAL(to_revocations(equal_range(lst, A)),
               revocations({{A, 1_lt, B}, {A, 2_lt, C}, {A, 3_lt, B}}));

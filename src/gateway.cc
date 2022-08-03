@@ -64,7 +64,7 @@ void gateway::setup(const caf::actor& internal, const caf::actor& external) {
   caf::anon_send(external, atom::join_v, internal, filter_type{""});
 }
 
-void gateway::shutdown(){
+void gateway::shutdown() {
   anon_send(internal_core(), atom::shutdown_v);
   anon_send(external_core(), atom::shutdown_v);
 }

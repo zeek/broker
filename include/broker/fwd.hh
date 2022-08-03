@@ -94,12 +94,12 @@ using timespan = std::chrono::duration<int64_t, std::nano>;
 using timestamp = std::chrono::time_point<clock, timespan>;
 using vector = std::vector<data>;
 
-using internal_command_variant
-  = std::variant<put_command, put_unique_command, put_unique_result_command,
-                 erase_command, expire_command, add_command, subtract_command,
-                 clear_command, attach_writer_command, keepalive_command,
-                 cumulative_ack_command, nack_command, ack_clone_command,
-                 retransmit_failed_command>;
+using internal_command_variant =
+  std::variant<put_command, put_unique_command, put_unique_result_command,
+               erase_command, expire_command, add_command, subtract_command,
+               clear_command, attach_writer_command, keepalive_command,
+               cumulative_ack_command, nack_command, ack_clone_command,
+               retransmit_failed_command>;
 
 // -- arithmetic type aliases --------------------------------------------------
 
@@ -136,8 +136,8 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
-using packed_message
-  = cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
+using packed_message =
+  cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 using command_message = cow_tuple<topic, internal_command>;
 using data_message = cow_tuple<topic, data>;
 using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;

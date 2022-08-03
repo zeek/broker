@@ -29,18 +29,18 @@ public:
   }
 
   /// @return The names for all label dimensions.
-  span<const std::string> label_names() const noexcept{
+  span<const std::string> label_names() const noexcept {
     return telemetry::label_names(hdl_);
   }
 
   /// @return A short explanation of the metric.
-  std::string_view helptext() const noexcept{
+  std::string_view helptext() const noexcept {
     return telemetry::helptext(hdl_);
   }
 
   /// @return The unit of measurement, preferably a base unit such as @c bytes
   ///         or @c seconds. Dimensionless counts return the pseudo-unit @c 1.
-  std::string_view unit() const noexcept{
+  std::string_view unit() const noexcept {
     return telemetry::unit(hdl_);
   }
 

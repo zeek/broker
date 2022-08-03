@@ -188,8 +188,8 @@ store::store(endpoint_id this_peer, worker frontend, std::string name) {
     return;
   }
   auto hdl = native(frontend);
-  detail::shared_store_state_ptr ptr
-    = std::make_shared<state_impl>(this_peer, std::move(name), hdl);
+  detail::shared_store_state_ptr ptr =
+    std::make_shared<state_impl>(this_peer, std::move(name), hdl);
   state_ = ptr;
   caf::anon_send(hdl, atom::increment_v, std::move(ptr));
 }
@@ -407,25 +407,28 @@ void store::put(data key, data value, std::optional<timespan> expiry) {
 
 void store::erase(data key) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v, internal_command_variant{erase_command{
-                                  std::move(key), st.frontend_id()}});
+    st.anon_send(atom::local_v,
+                 internal_command_variant{
+                   erase_command{std::move(key), st.frontend_id()}});
   });
 }
 
 void store::add(data key, data value, data::type init_type,
                 std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v, internal_command_variant{add_command{
-                                  std::move(key), std::move(value), init_type,
-                                  expiry, st.frontend_id()}});
+    st.anon_send(atom::local_v,
+                 internal_command_variant{
+                   add_command{std::move(key), std::move(value), init_type,
+                               expiry, st.frontend_id()}});
   });
 }
 
 void store::subtract(data key, data value, std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v, internal_command_variant{subtract_command{
-                                  std::move(key), std::move(value), expiry,
-                                  st.frontend_id()}});
+    st.anon_send(atom::local_v,
+                 internal_command_variant{
+                   subtract_command{std::move(key), std::move(value), expiry,
+                                    st.frontend_id()}});
   });
 }
 

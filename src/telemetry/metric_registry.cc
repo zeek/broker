@@ -32,9 +32,9 @@ int_counter_fam(metric_registry_impl* impl, std::string_view pre,
 }
 
 dbl_counter_family_hdl*
-dbl_counter_fam(metric_registry_impl*impl, std::string_view pre,
+dbl_counter_fam(metric_registry_impl* impl, std::string_view pre,
                 std::string_view name, span<const std::string_view> labels,
-                std::string_view helptext, std::string_view unit, bool is_sum){
+                std::string_view helptext, std::string_view unit, bool is_sum) {
   return impl->dbl_counter_fam(pre, name, labels, helptext, unit, is_sum);
 }
 
@@ -87,8 +87,7 @@ metric_registry::metric_registry(metric_registry&& other) noexcept
 }
 
 metric_registry::metric_registry(const metric_registry& other) noexcept
-  : metric_registry(other.impl_, true) {
-}
+  : metric_registry(other.impl_, true) {}
 
 metric_registry& metric_registry::operator=(metric_registry&& other) noexcept {
   std::swap(impl_, other.impl_);
@@ -148,11 +147,11 @@ public:
   }
 
   int_counter_family_hdl* int_counter_fam(std::string_view pre,
-                                     std::string_view name,
-                                     span<const std::string_view> labels,
-                                     std::string_view helptext,
-                                     std::string_view unit,
-                                     bool is_sum) override {
+                                          std::string_view name,
+                                          span<const std::string_view> labels,
+                                          std::string_view helptext,
+                                          std::string_view unit,
+                                          bool is_sum) override {
     return internal::with_native_labels(labels, [=](auto xs) {
       auto ptr = reg_->counter_family(pre, name, xs, helptext, unit, is_sum);
       return reinterpret_cast<int_counter_family_hdl*>(ptr);
@@ -166,8 +165,8 @@ public:
                                           std::string_view unit,
                                           bool is_sum) override {
     return internal::with_native_labels(labels, [=](auto xs) {
-      auto ptr = reg_->counter_family<double>(pre, name, xs, helptext,
-                                              unit, is_sum);
+      auto ptr = reg_->counter_family<double>(pre, name, xs, helptext, unit,
+                                              is_sum);
       return reinterpret_cast<dbl_counter_family_hdl*>(ptr);
     });
   }
@@ -187,8 +186,8 @@ public:
                 span<const std::string_view> labels, std::string_view helptext,
                 std::string_view unit, bool is_sum) override {
     return internal::with_native_labels(labels, [=](auto xs) {
-      auto ptr = reg_->gauge_family<double>(pre, name, xs, helptext,
-                                            unit, is_sum);
+      auto ptr = reg_->gauge_family<double>(pre, name, xs, helptext, unit,
+                                            is_sum);
       return reinterpret_cast<dbl_gauge_family_hdl*>(ptr);
     });
   }
@@ -200,8 +199,8 @@ public:
                     std::string_view unit, bool is_sum) override {
     return internal::with_native_labels(labels, [=](auto xs) {
       auto bounds = caf::span<const int64_t>{ubounds.data(), ubounds.size()};
-      auto ptr = reg_->histogram_family(pre, name, xs, bounds, helptext,
-                                        unit, is_sum);
+      auto ptr = reg_->histogram_family(pre, name, xs, bounds, helptext, unit,
+                                        is_sum);
       return reinterpret_cast<int_histogram_family_hdl*>(ptr);
     });
   }

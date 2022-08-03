@@ -22,10 +22,10 @@
 #include "broker/zeek.hh"
 
 #ifndef BROKER_WINDOWS
-#  include <sys/types.h>
-#  include <sys/socket.h>
-#  include <unistd.h>
 #  include <fcntl.h>
+#  include <sys/socket.h>
+#  include <sys/types.h>
+#  include <unistd.h>
 #endif // BROKER_WINDOWS
 
 using namespace broker;
@@ -72,83 +72,77 @@ double current_time() {
 }
 
 static std::string random_string(int n) {
-    static unsigned int i = 0;
-    const char charset[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+  static unsigned int i = 0;
+  const char charset[] = "0123456789"
+                         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                         "abcdefghijklmnopqrstuvwxyz";
 
-     const size_t max_index = (sizeof(charset) - 1);
-     char buffer[11];
-     for ( unsigned int j = 0; j < sizeof(buffer) - 1; j++ )
+  const size_t max_index = (sizeof(charset) - 1);
+  char buffer[11];
+  for (unsigned int j = 0; j < sizeof(buffer) - 1; j++)
     buffer[j] = charset[++i % max_index];
-     buffer[sizeof(buffer) - 1] = '\0';
+  buffer[sizeof(buffer) - 1] = '\0';
 
-     return buffer;
+  return buffer;
 }
 
 static uint64_t random_count() {
-    static uint64_t i = 0;
-    return ++i;
+  static uint64_t i = 0;
+  return ++i;
 }
 
 vector createEventArgs() {
-    switch ( event_type ) {
-     case 1: {
-         return std::vector<data>{42, "test"};
-     }
-
-     case 2: {
-         // This resembles a line in conn.log.
-         address a1;
-         address a2;
-         convert("1.2.3.4", a1);
-         convert("3.4.5.6", a2);
-
-         return vector{
-             now(),
-             random_string(10),
-             vector{
-                 a1,
-                 port(4567, port::protocol::tcp),
-                 a2,
-                 port(80, port::protocol::tcp)
-             },
-             enum_value("tcp"),
-             random_string(10),
-             std::chrono::duration_cast<timespan>(std::chrono::duration<double>(3.14)),
-             random_count(),
-             random_count(),
-             random_string(5),
-             true,
-             false,
-             random_count(),
-             random_string(10),
-             random_count(),
-             random_count(),
-             random_count(),
-             random_count(),
-             set({random_string(10), random_string(10)})
-        };
-     }
-
-     case 3: {
-         table m;
-
-         for ( int i = 0; i < 100; i++ ) {
-             set s;
-             for ( int j = 0; j < 10; j++ )
-                 s.insert(random_string(5));
-             m[random_string(15)] = s;
-         }
-
-         return vector{now(), m};
-     }
-
-     default:
-       std::cerr << "invalid event type\n";
-       abort();
+  switch (event_type) {
+    case 1: {
+      return std::vector<data>{42, "test"};
     }
+
+    case 2: {
+      // This resembles a line in conn.log.
+      address a1;
+      address a2;
+      convert("1.2.3.4", a1);
+      convert("3.4.5.6", a2);
+
+      return vector{now(),
+                    random_string(10),
+                    vector{a1, port(4567, port::protocol::tcp), a2,
+                           port(80, port::protocol::tcp)},
+                    enum_value("tcp"),
+                    random_string(10),
+                    std::chrono::duration_cast<timespan>(
+                      std::chrono::duration<double>(3.14)),
+                    random_count(),
+                    random_count(),
+                    random_string(5),
+                    true,
+                    false,
+                    random_count(),
+                    random_string(10),
+                    random_count(),
+                    random_count(),
+                    random_count(),
+                    random_count(),
+                    set({random_string(10), random_string(10)})};
+    }
+
+    case 3: {
+      table m;
+
+      for (int i = 0; i < 100; i++) {
+        set s;
+        for (int j = 0; j < 10; j++)
+          s.insert(random_string(5));
+        m[random_string(15)] = s;
+      }
+
+      return vector{now(), m};
+    }
+
+    default:
+      std::cerr << "invalid event type\n";
+      abort();
+  }
 }
 
 void send_batch(endpoint& ep, publisher& p) {
@@ -228,7 +222,6 @@ void receivedStats(endpoint& ep, const data& x) {
 
   static int max_exceeded_counter = 0;
   if (max_in_flight && in_flight > max_in_flight) {
-
     if (++max_exceeded_counter >= 5) {
       std::cerr << "max-in-flight exceeded for 5 subsequent batches\n";
       exit(1);

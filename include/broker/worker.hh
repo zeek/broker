@@ -1,7 +1,7 @@
 #pragma once
 
-#include "broker/detail/comparable.hh"
 #include "broker/config.hh"
+#include "broker/detail/comparable.hh"
 
 #include <cstddef>
 #include <functional>

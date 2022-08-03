@@ -31,10 +31,8 @@ routing_table_row* find_row(routing_table& tbl, const endpoint_id& peer) {
     return nullptr;
 }
 
-bool add_or_update_path(routing_table& tbl,
-                        const endpoint_id& peer,
-                        std::vector<endpoint_id> path,
-                        vector_timestamp ts) {
+bool add_or_update_path(routing_table& tbl, const endpoint_id& peer,
+                        std::vector<endpoint_id> path, vector_timestamp ts) {
   auto& row = tbl[peer];
   auto& paths = row.versioned_paths;
   auto i = std::lower_bound(paths.begin(), paths.end(), path, path_less);

@@ -5,15 +5,16 @@ namespace broker::internal {
 scoped_flare_actor::scoped_flare_actor(caf::actor_system& sys)
   : context_{&sys} {
   caf::actor_config cfg{&context_};
-  self_ = caf::make_actor<flare_actor, caf::strong_actor_ptr>(
-    sys.next_actor_id(), sys.node(), &sys, cfg);
+  self_ =
+    caf::make_actor<flare_actor, caf::strong_actor_ptr>(sys.next_actor_id(),
+                                                        sys.node(), &sys, cfg);
   ptr()->is_registered(true);
 }
 
 scoped_flare_actor::~scoped_flare_actor() {
-  if (! self_)
+  if (!self_)
     return;
-  if (! ptr()->is_terminated())
+  if (!ptr()->is_terminated())
     ptr()->cleanup(caf::exit_reason::normal, &context_);
 }
 

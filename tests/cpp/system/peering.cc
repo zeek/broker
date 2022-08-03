@@ -70,9 +70,9 @@ configuration make_config(const char* test_name, size_t endpoint_nr,
   cfg.set("caf.logger.file.path", log_path_template(test_name, endpoint_nr));
   // cfg.set("caf.logger.file.verbosity", "trace");
   // cfg.set("caf.logger.file.excluded-components", std::vector<std::string>{});
-  // cfg.set("broker.metrics.export.topic", "my/metrics/node-" + std::to_string(endpoint_nr));
-  // cfg.set("broker.metrics.export.prefixes", std::vector{"caf"s,"broker"s});
-  // if (endpoint_nr == 0) {
+  // cfg.set("broker.metrics.export.topic", "my/metrics/node-" +
+  // std::to_string(endpoint_nr)); cfg.set("broker.metrics.export.prefixes",
+  // std::vector{"caf"s,"broker"s}); if (endpoint_nr == 0) {
   //   cfg.set("broker.metrics.import.topics", std::vector{"my/metrics"s});
   //   cfg.set("broker.metrics.port", 4040);
   // }
@@ -254,10 +254,10 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
         lines.emplace_back("hello from " + std::to_string(i));
     hellos.emplace_back(lines);
   }
-  auto sequence
-    = std::vector<alternative>{"endpoint_discovered"_a, "peer_added"_a,
-                               alternative{"peer_lost", "peer_removed"},
-                               "endpoint_unreachable"_a};
+  auto sequence =
+    std::vector<alternative>{"endpoint_discovered"_a, "peer_added"_a,
+                             alternative{"peer_lost", "peer_removed"},
+                             "endpoint_unreachable"_a};
   // Check all endpoints.
   for (size_t index = 0; index != num_endpoints; ++index) {
     for (size_t i = 0; i != num_endpoints; ++i)
@@ -439,7 +439,7 @@ TEST(only one put_unique may pass) {
         if (auto maybe_services = ep.attach_clone("zeek/known/services", 0.5);
             SYNC_CHECK(maybe_services)) {
           services = std::move(*maybe_services);
-          std::vector<store::proxy>proxies;
+          std::vector<store::proxy> proxies;
           for (int i = 0; i < 3; ++i) {
             proxies.emplace_back(services);
             for (size_t req_id = 1; req_id < 4; ++req_id) {

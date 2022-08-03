@@ -16,8 +16,8 @@ public:
 
   monotonic_buffer_resource(const monotonic_buffer_resource&) = delete;
 
-  monotonic_buffer_resource& operator=(const monotonic_buffer_resource&)
-    = delete;
+  monotonic_buffer_resource&
+  operator=(const monotonic_buffer_resource&) = delete;
 
   ~monotonic_buffer_resource() noexcept {
     destroy();

@@ -51,7 +51,8 @@ TEST(sc is convertible to and from string) {
   CHECK_EQUAL(from_string<sc>("peer_removed"), sc::peer_removed);
   CHECK_EQUAL(from_string<sc>("peer_lost"), sc::peer_lost);
   CHECK_EQUAL(from_string<sc>("endpoint_discovered"), sc::endpoint_discovered);
-  CHECK_EQUAL(from_string<sc>("endpoint_unreachable"), sc::endpoint_unreachable);
+  CHECK_EQUAL(from_string<sc>("endpoint_unreachable"),
+              sc::endpoint_unreachable);
   CHECK_EQUAL(from_string<sc>("foo"), std::nullopt);
 }
 

@@ -22,20 +22,18 @@ constexpr size_t max_request_size = 512 * 1024;
 constexpr string_view valid_request_start = "GET /metrics HTTP/1.";
 
 // HTTP response for requests that exceed the size limit.
-constexpr string_view request_too_large
-  = "HTTP/1.1 413 Request Entity Too Large\r\n"
-    "Connection: Closed\r\n\r\n";
+constexpr string_view request_too_large =
+  "HTTP/1.1 413 Request Entity Too Large\r\n"
+  "Connection: Closed\r\n\r\n";
 
 // HTTP response for requests that don't start with "GET /metrics HTTP/1".
-constexpr string_view request_not_supported
-  = "HTTP/1.1 501 Not Implemented\r\n"
-    "Connection: Closed\r\n\r\n";
+constexpr string_view request_not_supported = "HTTP/1.1 501 Not Implemented\r\n"
+                                              "Connection: Closed\r\n\r\n";
 
 // HTTP header when sending a payload.
-constexpr string_view request_ok
-  = "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/plain\r\n"
-    "Connection: Closed\r\n\r\n";
+constexpr string_view request_ok = "HTTP/1.1 200 OK\r\n"
+                                   "Content-Type: text/plain\r\n"
+                                   "Connection: Closed\r\n\r\n";
 
 } // namespace
 
@@ -93,8 +91,8 @@ caf::behavior prometheus_actor::make_behavior() {
         return;
       }
       req.insert(req.end(), msg.buf.begin(), msg.buf.end());
-      auto req_str
-        = string_view{reinterpret_cast<char*>(req.data()), req.size()};
+      auto req_str = string_view{reinterpret_cast<char*>(req.data()),
+                                 req.size()};
       // Stop here if the first header line isn't complete yet.
       if (req_str.size() < valid_request_start.size())
         return;

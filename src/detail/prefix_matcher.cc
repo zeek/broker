@@ -12,4 +12,4 @@ bool prefix_matcher::operator()(const filter_type& filter,
 }
 
 } // namespace detail
-} // namespace broker 
+} // namespace broker

@@ -132,7 +132,8 @@ generator_file_writer_ptr make_generator_file_writer(const std::string& fname) {
 generator_file_writer& operator<<(generator_file_writer& out,
                                   const data_message& x) {
   if (auto err = out.write(x)) {
-    BROKER_ERROR("error writing data message to generator file:" << to_string(err));
+    BROKER_ERROR(
+      "error writing data message to generator file:" << to_string(err));
   }
   return out;
 }

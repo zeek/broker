@@ -11,9 +11,7 @@
 namespace broker::internal {
 
 flare_actor::flare_actor(caf::actor_config& sys)
-    : blocking_actor{sys},
-      flare_count_{0} {
-}
+  : blocking_actor{sys}, flare_count_{0} {}
 
 void flare_actor::launch(caf::execution_unit*, bool, bool) {
   // Nothing todo here since we only extract messages via receive() calls.
@@ -22,13 +20,13 @@ void flare_actor::launch(caf::execution_unit*, bool, bool) {
 void flare_actor::act() {
   // Usually called from launch(). But should never happen in our
   // implementation.
-  CAF_ASSERT(! "act() of flare_actor called");
+  CAF_ASSERT(!"act() of flare_actor called");
 }
 
 void flare_actor::await_data() {
   BROKER_DEBUG("awaiting data");
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  if (flare_count_ > 0 )
+  if (flare_count_ > 0)
     return;
   lock.unlock();
   flare_.await_one();

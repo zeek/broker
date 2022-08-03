@@ -70,8 +70,8 @@ bool inspect(Inspector& f, packed_message_type& x) {
 }
 
 /// A Broker-internal message with a payload received from the ALM layer.
-using packed_message
-  = cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
+using packed_message =
+  cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 
 /// @relates packed_message
 inline packed_message make_packed_message(packed_message_type type,

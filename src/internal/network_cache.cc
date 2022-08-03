@@ -28,13 +28,9 @@ void network_cache::set_use_ssl(bool use_ssl) {
 
 caf::result<caf::actor> network_cache::fetch(const network_info& x) {
   auto rp = self->make_response_promise();
-  fetch(x,
-        [=](caf::actor hdl) mutable {
-          rp.deliver(std::move(hdl));
-        },
-        [=](caf::error err) mutable {
-          rp.deliver(std::move(err));
-        });
+  fetch(
+    x, [=](caf::actor hdl) mutable { rp.deliver(std::move(hdl)); },
+    [=](caf::error err) mutable { rp.deliver(std::move(err)); });
   return rp;
 }
 

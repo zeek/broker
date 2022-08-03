@@ -84,7 +84,7 @@ unsigned char key2[303] = {
   219, 191, 198, 134, 5,   208, 212, 72,  44,  208, 250, 180, 14,  1,   0,
   0,   8,   '\0'};
 
-} // namespace <anonymous>
+} // namespace
 
 TEST(very long insert) {
   detail::radix_tree<void*> rt;
@@ -144,7 +144,7 @@ TEST(prefix_of) {
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("one-hundred-thousand"),
                     {make_pair("one", 1), make_pair("one-hundred", 100),
-                    make_pair("one-hundred-thousand", 100000)}));
+                     make_pair("one-hundred-thousand", 100000)}));
   CHECK(check_match(t.prefix_of("one-hundred-two"),
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   t["two"] = 2;
@@ -156,7 +156,7 @@ TEST(prefix_of) {
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("one-hundred-thousand"),
                     {make_pair("one", 1), make_pair("one-hundred", 100),
-                    make_pair("one-hundred-thousand", 100000)}));
+                     make_pair("one-hundred-thousand", 100000)}));
   CHECK(check_match(t.prefix_of("one-hundred-two"),
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   t["two-fifty"] = 250;
@@ -168,7 +168,7 @@ TEST(prefix_of) {
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("one-hundred-thousand"),
                     {make_pair("one", 1), make_pair("one-hundred", 100),
-                    make_pair("one-hundred-thousand", 100000)}));
+                     make_pair("one-hundred-thousand", 100000)}));
   CHECK(check_match(t.prefix_of("one-hundred-two"),
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("two-fifty-five"),
@@ -183,7 +183,7 @@ TEST(prefix_of) {
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("one-hundred-thousand"),
                     {make_pair("one", 1), make_pair("one-hundred", 100),
-                    make_pair("one-hundred-thousand", 100000)}));
+                     make_pair("one-hundred-thousand", 100000)}));
   CHECK(check_match(t.prefix_of("one-hundred-two"),
                     {make_pair("one", 1), make_pair("one-hundred", 100)}));
   CHECK(check_match(t.prefix_of("two-fifty-five"),
@@ -192,8 +192,8 @@ TEST(prefix_of) {
   CHECK(check_match(t.prefix_of(""), {make_pair("", -1)}));
   CHECK(check_match(t.prefix_of("nope"), {make_pair("", -1)}));
   CHECK(check_match(t.prefix_of("on"), {make_pair("", -1)}));
-  CHECK(check_match(t.prefix_of("one"),
-                    {make_pair("", -1), make_pair("one", 1)}));
+  CHECK(
+    check_match(t.prefix_of("one"), {make_pair("", -1), make_pair("one", 1)}));
   CHECK(check_match(t.prefix_of("one-hundred"),
                     {make_pair("", -1), make_pair("one", 1),
                      make_pair("one-hundred", 100)}));
@@ -216,29 +216,34 @@ TEST(prefix match) {
   };
   CHECK(check_match(t.prefixed_by("api"),
                     {make_pair("api", 6), make_pair("api.foe.fum", 3),
-                    make_pair("api.foo", 5), make_pair("api.foo.bar", 1),
-                    make_pair("api.foo.baz", 2)}));
-  CHECK(check_match(t.prefixed_by("a"),
-                    {make_pair("abc.123.456", 4), make_pair("api", 6),
-                    make_pair("api.foe.fum", 3), make_pair("api.foo", 5),
-                    make_pair("api.foo.bar", 1), make_pair("api.foo.baz", 2)
-                    }));
+                     make_pair("api.foo", 5), make_pair("api.foo.bar", 1),
+                     make_pair("api.foo.baz", 2)}));
+  CHECK(
+    check_match(t.prefixed_by("a"),
+                {make_pair("abc.123.456", 4), make_pair("api", 6),
+                 make_pair("api.foe.fum", 3), make_pair("api.foo", 5),
+                 make_pair("api.foo.bar", 1), make_pair("api.foo.baz", 2)}));
   CHECK(t.prefixed_by("b").empty());
-  CHECK(check_match(t.prefixed_by("api."),
-                    {make_pair("api.foe.fum", 3), make_pair("api.foo", 5),
-                     make_pair("api.foo.bar", 1), make_pair("api.foo.baz", 2),
-                     }));
-  CHECK(check_match(t.prefixed_by("api.foo.bar"),
-                    {make_pair("api.foo.bar", 1)}));
+  CHECK(check_match(t.prefixed_by("api."), {
+                                             make_pair("api.foe.fum", 3),
+                                             make_pair("api.foo", 5),
+                                             make_pair("api.foo.bar", 1),
+                                             make_pair("api.foo.baz", 2),
+                                           }));
+  CHECK(
+    check_match(t.prefixed_by("api.foo.bar"), {make_pair("api.foo.bar", 1)}));
   CHECK(t.prefixed_by("api.end").empty());
-  CHECK(check_match(t.prefixed_by(""),
-                    {make_pair("abc.123.456", 4), make_pair("api", 6),
-                     make_pair("api.foe.fum", 3), make_pair("api.foo", 5),
-                     make_pair("api.foo.bar", 1), make_pair("api.foo.baz", 2),
-                     }));
+  CHECK(check_match(t.prefixed_by(""), {
+                                         make_pair("abc.123.456", 4),
+                                         make_pair("api", 6),
+                                         make_pair("api.foe.fum", 3),
+                                         make_pair("api.foo", 5),
+                                         make_pair("api.foo.bar", 1),
+                                         make_pair("api.foo.baz", 2),
+                                       }));
   CHECK(check_match(t.prefix_of("api.foo.bar.baz"),
                     {make_pair("api", 6), make_pair("api.foo", 5),
-                    make_pair("api.foo.bar", 1)}));
+                     make_pair("api.foo.bar", 1)}));
   CHECK(check_match(t.prefix_of("api.foo.fum"),
                     {make_pair("api", 6), make_pair("api.foo", 5)}));
   CHECK(t.prefix_of("").empty());
@@ -263,15 +268,11 @@ TEST(many keys) {
   for (const auto& p : matches)
     CHECK(p->first[0] == '1');
   matches = t.prefix_of("109876");
-  CHECK(check_match(matches,
-                    {make_pair("109", 109),
-                     make_pair("10", 10),
-                     make_pair("1", 1)}));
+  CHECK(check_match(matches, {make_pair("109", 109), make_pair("10", 10),
+                              make_pair("1", 1)}));
   matches = t.prefix_of("54321");
-  CHECK(check_match(matches,
-                    {make_pair("543", 543),
-                    make_pair("54", 54),
-                    make_pair("5", 5)}));
+  CHECK(check_match(matches, {make_pair("543", 543), make_pair("54", 54),
+                              make_pair("5", 5)}));
   for (int i = 0; i < 500; ++i) {
     CHECK(t.erase(keys[i]) == 1);
     CHECK(t.erase(keys[i]) == 0);
@@ -305,10 +306,8 @@ TEST(many keys) {
   for (const auto& p : matches)
     CHECK(p->first[0] == '9');
   matches = t.prefix_of("54321");
-  CHECK(check_match(matches,
-                    {make_pair("543", 543),
-                     make_pair("54", 54),
-                     make_pair("5", 5)}));
+  CHECK(check_match(matches, {make_pair("543", 543), make_pair("54", 54),
+                              make_pair("5", 5)}));
   t.clear();
   CHECK(t.size() == 0);
 }
@@ -403,10 +402,9 @@ TEST(general) {
   matches = tree.prefixed_by("bi");
   CHECK(check_match(matches, {make_pair("binary", 5), make_pair("bind", 6)}));
   matches = tree.prefixed_by("a");
-  CHECK(check_match(matches,
-                    {make_pair("apache", 0), make_pair("afford", 1),
-                     make_pair("available", 2), make_pair("affair", 3),
-                     make_pair("avenger", 4)}));
+  CHECK(check_match(matches, {make_pair("apache", 0), make_pair("afford", 1),
+                              make_pair("available", 2), make_pair("affair", 3),
+                              make_pair("avenger", 4)}));
   matches = tree.prefixed_by("");
   CHECK(tree.size() == 10);
   CHECK(matches.size() == tree.size());
@@ -430,28 +428,25 @@ TEST(general) {
   CHECK(tree.insert(make_pair("bro", 42)).second == true);
   CHECK(tree.size() == 12);
   matches = tree.prefixed_by("b");
-  CHECK(check_match(matches,
-                    {make_pair("bind", 6), make_pair("binary", 5),
-                     make_pair("blind", 9), make_pair("brace", 8),
-                     make_pair("bro", 42), make_pair("brother", 7)}));
+  CHECK(check_match(matches, {make_pair("bind", 6), make_pair("binary", 5),
+                              make_pair("blind", 9), make_pair("brace", 8),
+                              make_pair("bro", 42), make_pair("brother", 7)}));
   CHECK(tree.erase("nope") == 0);
   CHECK(tree.erase("a") == 0);
   CHECK(tree.size() == 12);
   CHECK(tree.erase("bro") == 1);
   CHECK(tree.size() == 11);
   matches = tree.prefixed_by("b");
-  CHECK(check_match(matches,
-                    {make_pair("bind", 6), make_pair("binary", 5),
-                     make_pair("blind", 9), make_pair("brace", 8),
-                     make_pair("brother", 7)}));
+  CHECK(check_match(matches, {make_pair("bind", 6), make_pair("binary", 5),
+                              make_pair("blind", 9), make_pair("brace", 8),
+                              make_pair("brother", 7)}));
   CHECK(tree.insert(make_pair("bro", 42)).second == true);
   CHECK(tree.size() == 12);
   CHECK(tree.erase("brother") == 1);
   matches = tree.prefixed_by("b");
-  CHECK(check_match(matches,
-                    {make_pair("bind", 6), make_pair("binary", 5),
-                     make_pair("blind", 9), make_pair("brace", 8),
-                     make_pair("bro", 42)}));
+  CHECK(check_match(matches, {make_pair("bind", 6), make_pair("binary", 5),
+                              make_pair("blind", 9), make_pair("brace", 8),
+                              make_pair("bro", 42)}));
   CHECK(tree.erase("brace") == 1);
   CHECK(tree.erase("bind") == 1);
   CHECK(tree.erase("blind") == 1);
@@ -463,15 +458,12 @@ TEST(general) {
   CHECK(tree.insert(make_pair("brother", 2)).second == true);
   CHECK(tree.size() == 3);
   matches = tree.prefixed_by("bro");
-  CHECK(check_match(matches,
-                    {make_pair("bro", 42), make_pair("bros", 1),
-                     make_pair("brother", 2)}));
+  CHECK(check_match(matches, {make_pair("bro", 42), make_pair("bros", 1),
+                              make_pair("brother", 2)}));
   matches = tree.prefix_of("bros");
-  CHECK(check_match(matches,
-                    {make_pair("bro", 42), make_pair("bros", 1)}));
+  CHECK(check_match(matches, {make_pair("bro", 42), make_pair("bros", 1)}));
   matches = tree.prefix_of("brothers");
-  CHECK(check_match(matches,
-                    {make_pair("bro", 42), make_pair("brother", 2)}));
+  CHECK(check_match(matches, {make_pair("bro", 42), make_pair("brother", 2)}));
   CHECK(tree.erase("brother") == 1);
   CHECK(tree.erase("bros") == 1);
   CHECK(tree.size() == 1);

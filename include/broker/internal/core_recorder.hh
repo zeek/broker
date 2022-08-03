@@ -30,7 +30,7 @@ public:
   }
 
   size_t remaining_records() const noexcept {
-    return remaining_records_ ;
+    return remaining_records_;
   }
 
   template <class T>

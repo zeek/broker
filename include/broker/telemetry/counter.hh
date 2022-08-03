@@ -48,7 +48,7 @@ public:
 
   counter& operator=(const counter&) noexcept = default;
 
-	/// Increments the value by 1.
+  /// Increments the value by 1.
   void inc() noexcept {
     telemetry::inc(hdl_);
   }
@@ -59,8 +59,8 @@ public:
     telemetry::inc(hdl_, amount);
   }
 
-	/// Increments the value by 1.
-	/// @return The new value.
+  /// Increments the value by 1.
+  /// @return The new value.
   template <class V = T>
   std::enable_if_t<std::is_same_v<V, int64_t>, V> operator++() noexcept {
     return telemetry::inc(hdl_);
@@ -71,7 +71,7 @@ public:
     return telemetry::value(hdl_);
   }
 
-	/// @return Whether @c this and @p other refer to the same counter.
+  /// @return Whether @c this and @p other refer to the same counter.
   constexpr bool is_same_as(counter other) const noexcept {
     return hdl_ == other.hdl_;
   }
@@ -81,7 +81,7 @@ private:
 };
 
 /// @relates counter
-template<class T>
+template <class T>
 constexpr bool operator==(counter<T> x, counter<T> y) {
   return x.is_same_as(y);
 }
@@ -111,7 +111,7 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   counter<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T,double>)
+    if constexpr (std::is_same_v<T, double>)
       return counter<T>{dbl_counter_get_or_add(super::hdl_, labels)};
     else
       return counter<T>{int_counter_get_or_add(super::hdl_, labels)};
@@ -122,14 +122,14 @@ public:
     return get_or_add(span{labels.begin(), labels.size()});
   }
 
-	/// @return Whether @c this and @p other refer to the same family.
+  /// @return Whether @c this and @p other refer to the same family.
   constexpr bool is_same_as(counter_family other) const noexcept {
     return hdl_ == other.hdl_;
   }
 };
 
 /// @relates counter_family
-template<class T>
+template <class T>
 constexpr bool operator==(counter_family<T> x, counter_family<T> y) {
   return x.is_same_as(y);
 }

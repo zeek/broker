@@ -9,4 +9,3 @@ pending_connection::~pending_connection() {
 }
 
 } // namespace broker::internal
-

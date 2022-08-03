@@ -15,8 +15,8 @@ constexpr size_t block_size = 1024;
 } // namespace
 
 void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
-  if (auto res = std::align(alignment, num_bytes,
-                            current_->bytes, remaining_)) {
+  if (auto res = std::align(alignment, num_bytes, current_->bytes,
+                            remaining_)) {
     current_->bytes = static_cast<std::byte*>(res) + num_bytes;
     remaining_ -= num_bytes;
     return res;

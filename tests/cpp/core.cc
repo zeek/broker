@@ -28,8 +28,16 @@ struct driver_state {
   buf_type xs;
   static inline const char* name = "driver";
   void reset() {
-    xs = data_msgs({{"a", 0}, {"b", true}, {"a", 1}, {"a", 2}, {"b", false},
-                    {"b", true}, {"a", 3}, {"b", false}, {"a", 4}, {"a", 5}});
+    xs = data_msgs({{"a", 0},
+                    {"b", true},
+                    {"a", 1},
+                    {"a", 2},
+                    {"b", false},
+                    {"b", true},
+                    {"a", 3},
+                    {"b", false},
+                    {"a", 4},
+                    {"a", 5}});
   }
   driver_state() {
     reset();
@@ -39,37 +47,37 @@ struct driver_state {
 caf::behavior driver(caf::stateful_actor<driver_state>* self,
                      const caf::actor& sink, bool restartable) {
   self->state.restartable = restartable;
-  auto ptr
-    = attach_stream_source(
-        self,
-        // Destination.
-        sink,
-        // Initialize send buffer with 10 elements.
-        [](caf::unit_t&) {
-          // nop
-        },
-        // Get next element.
-        [=](caf::unit_t&, caf::downstream<data_message>& out, size_t num) {
-          auto& xs = self->state.xs;
-          auto n = std::min(num, xs.size());
-          if (n == 0)
-            return;
-          for (size_t i = 0u; i < n; ++i)
-            out.push(xs[i]);
-          xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
-        },
-        // Did we reach the end?.
-        [=](const caf::unit_t&) {
-          auto& st = self->state;
-          return !st.restartable && st.xs.empty();
-        })
-        .ptr();
+  auto ptr =
+    attach_stream_source(
+      self,
+      // Destination.
+      sink,
+      // Initialize send buffer with 10 elements.
+      [](caf::unit_t&) {
+        // nop
+      },
+      // Get next element.
+      [=](caf::unit_t&, caf::downstream<data_message>& out, size_t num) {
+        auto& xs = self->state.xs;
+        auto n = std::min(num, xs.size());
+        if (n == 0)
+          return;
+        for (size_t i = 0u; i < n; ++i)
+          out.push(xs[i]);
+        xs.erase(xs.begin(), xs.begin() + static_cast<ptrdiff_t>(n));
+      },
+      // Did we reach the end?.
+      [=](const caf::unit_t&) {
+        auto& st = self->state;
+        return !st.restartable && st.xs.empty();
+      })
+      .ptr();
   return {
     [=](atom::restart) {
       self->state.reset();
       self->state.restartable = false;
       ptr->push();
-    }
+    },
   };
 }
 
@@ -106,7 +114,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   };
 }
 
-} // namespace <anonymous>
+} // namespace
 
 // Simulates a simple setup with two cores, where data flows from core1 to
 // core2.
@@ -171,13 +179,11 @@ CAF_TEST(local_peers) {
   self->send(leaf, atom::get_v);
   sched.prioritize(leaf);
   consume_message();
-  self->receive(
-    [](const buf& xs) {
-      auto expected = data_msgs({{"b", true}, {"b", false},
-                                 {"b", true}, {"b", false}});
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  self->receive([](const buf& xs) {
+    auto expected =
+      data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
+    CAF_REQUIRE_EQUAL(xs, expected);
+  });
   CAF_MESSAGE("send message 'directly' from core1 to core2 (bypass streaming)");
   anon_send(core1, atom::publish_v,
             endpoint_info{facade(core2.node()), std::nullopt},
@@ -192,13 +198,11 @@ CAF_TEST(local_peers) {
   self->send(leaf, atom::get_v);
   sched.prioritize(leaf);
   consume_message();
-  self->receive(
-    [](const buf& xs) {
-      auto expected = data_msgs({{"b", true}, {"b", false}, {"b", true},
-                                 {"b", false}, {"b", true}});
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  self->receive([](const buf& xs) {
+    auto expected = data_msgs(
+      {{"b", true}, {"b", false}, {"b", true}, {"b", false}, {"b", true}});
+    CAF_REQUIRE_EQUAL(xs, expected);
+  });
   CAF_MESSAGE("unpeer core1 from core2");
   anon_send(core1, atom::unpeer_v, core2);
   run();
@@ -313,17 +317,13 @@ CAF_TEST(triangle_peering) {
   run();
   // Check log of the consumers.
   using buf = std::vector<data_message>;
-  auto expected = data_msgs({{"b", true}, {"b", false},
-                             {"b", true}, {"b", false}});
+  auto expected =
+    data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
   for (auto& leaf : {leaf2, leaf3}) {
     self->send(leaf, atom::get_v);
     sched.prioritize(leaf);
     consume_message();
-    self->receive(
-      [&](const buf& xs) {
-        CAF_REQUIRE_EQUAL(xs, expected);
-      }
-    );
+    self->receive([&](const buf& xs) { CAF_REQUIRE_EQUAL(xs, expected); });
   }
   // Make sure leaf1 never received any data.
   self->send(leaf1, atom::get_v);
@@ -385,16 +385,12 @@ CAF_TEST(sequenced_peering) {
   run();
   // Check log of the consumer on core2.
   using buf = std::vector<data_message>;
-  auto expected = data_msgs({{"b", true}, {"b", false},
-                             {"b", true}, {"b", false}});
+  auto expected =
+    data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
   self->send(leaf1, atom::get_v);
   sched.prioritize(leaf1);
   consume_message();
-  self->receive(
-    [&](const buf& xs) {
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  self->receive([&](const buf& xs) { CAF_REQUIRE_EQUAL(xs, expected); });
   CAF_MESSAGE("kill core2");
   anon_send_exit(core2, caf::exit_reason::user_shutdown);
   run();
@@ -451,8 +447,8 @@ struct error_signaling_fixture : base_fixture {
     core1 = native(ep.core());
     CAF_MESSAGE(BROKER_ARG(core1));
     anon_send(core1, atom::subscribe_v, filter_type{"a", "b", "c"});
-    core2
-      = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"}, ep.options());
+    core2 = sys.spawn<core_actor_type>(filter_type{"a", "b", "c"},
+                                       ep.options());
     CAF_MESSAGE(BROKER_ARG(core2));
     run();
     CAF_MESSAGE("init done");
@@ -494,7 +490,7 @@ struct event_visitor {
   }                                                                            \
   CAF_VOID_STMT
 
-} // namespace <anonymous>
+} // namespace
 
 CAF_TEST_FIXTURE_SCOPE(error_signaling, error_signaling_fixture)
 
@@ -643,13 +639,11 @@ CAF_TEST(remote_peers_setup1) {
   using buf = std::vector<data_message>;
   earth.self->send(leaf, atom::get_v);
   exec_all();
-  earth.self->receive(
-    [](const buf& xs) {
-      auto expected = data_msgs({{"b", true}, {"b", false},
-                                 {"b", true}, {"b", false}});
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  earth.self->receive([](const buf& xs) {
+    auto expected =
+      data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
+    CAF_REQUIRE_EQUAL(xs, expected);
+  });
   anon_send_exit(core1, caf::exit_reason::user_shutdown);
   anon_send_exit(core2, caf::exit_reason::user_shutdown);
   anon_send_exit(leaf, caf::exit_reason::user_shutdown);
@@ -704,13 +698,11 @@ CAF_TEST(remote_peers_setup2) {
   mars.self->send(leaf, atom::get_v);
   mars.sched.prioritize(leaf);
   mars.consume_message();
-  mars.self->receive(
-    [](const buf& xs) {
-      auto expected = data_msgs({{"b", true}, {"b", false},
-                                 {"b", true}, {"b", false}});
-      CAF_REQUIRE_EQUAL(xs, expected);
-    }
-  );
+  mars.self->receive([](const buf& xs) {
+    auto expected =
+      data_msgs({{"b", true}, {"b", false}, {"b", true}, {"b", false}});
+    CAF_REQUIRE_EQUAL(xs, expected);
+  });
   CAF_MESSAGE("shutdown core actors");
   anon_send_exit(core1, caf::exit_reason::user_shutdown);
   anon_send_exit(core2, caf::exit_reason::user_shutdown);

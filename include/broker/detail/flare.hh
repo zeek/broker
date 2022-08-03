@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 
 #include "broker/config.hh"
 #include "broker/detail/native_socket.hh"

@@ -24,8 +24,8 @@ metric_exporter_params::from(const caf::actor_system_config& cfg) {
       if (result.id.empty())
         result.id = result.target.suffix();
     }
-    result.interval
-      = caf::get_or(*dict, "interval", defaults::metrics::export_interval);
+    result.interval = caf::get_or(*dict, "interval",
+                                  defaults::metrics::export_interval);
     if (result.interval.count() == 0)
       result.interval = defaults::metrics::export_interval;
   }

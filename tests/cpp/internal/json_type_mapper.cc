@@ -146,7 +146,7 @@ data_message native() {
                       data{std::move(xs)}};
 }
 
-} // namespace <anonymous>
+} // namespace
 
 TEST(the JSON mapper enables custom type names in JSON input) {
   internal::json_type_mapper mapper;

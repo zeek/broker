@@ -31,12 +31,12 @@ std::string to_string(command_tag);
 // -- broadcast: actions on the key-value store such as put and erase ----------
 
 /// Sets a value in the key-value store.
-struct put_command  {
+struct put_command {
   data key;
   data value;
   std::optional<timespan> expiry;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates put_command
@@ -59,7 +59,7 @@ struct put_unique_command {
   entity_id who;
   request_id req_id;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates put_unique_command
@@ -82,7 +82,7 @@ struct put_unique_result_command {
   entity_id who;
   request_id req_id;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates put_unique_result_command
@@ -101,7 +101,7 @@ bool inspect(Inspector& f, put_unique_result_command& x) {
 struct erase_command {
   data key;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates erase_command
@@ -121,7 +121,7 @@ bool inspect(Inspector& f, erase_command& x) {
 struct expire_command {
   data key;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates expire_command
@@ -141,7 +141,7 @@ struct add_command {
   data::type init_type;
   std::optional<timespan> expiry;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates add_command
@@ -163,7 +163,7 @@ struct subtract_command {
   data value;
   std::optional<timespan> expiry;
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates subtract_command
@@ -172,16 +172,16 @@ bool inspect(Inspector& f, subtract_command& x) {
   return f //
     .object(x)
     .pretty_name("subtract")
-    .fields(f.field("key", x.key),             //
-            f.field("value", x.value),         //
-            f.field("expiry", x.expiry),       //
+    .fields(f.field("key", x.key),       //
+            f.field("value", x.value),   //
+            f.field("expiry", x.expiry), //
             f.field("publisher", x.publisher));
 }
 
 /// Drops all values.
 struct clear_command {
   entity_id publisher;
-  static constexpr auto tag = command_tag::action;                             \
+  static constexpr auto tag = command_tag::action;
 };
 
 /// @relates clear_command
@@ -199,7 +199,7 @@ bool inspect(Inspector& f, clear_command& x) {
 struct attach_writer_command {
   sequence_number_type offset;
   tick_interval_type heartbeat_interval;
-  static constexpr auto tag = command_tag::producer_control;                   \
+  static constexpr auto tag = command_tag::producer_control;
 };
 
 /// @relates attach_writer_command
@@ -294,12 +294,12 @@ bool inspect(Inspector& f, retransmit_failed_command& x) {
 
 // -- variant setup ------------------------------------------------------------
 
-using internal_command_variant
-  = std::variant<put_command, put_unique_command, put_unique_result_command,
-                 erase_command, expire_command, add_command, subtract_command,
-                 clear_command, attach_writer_command, keepalive_command,
-                 cumulative_ack_command, nack_command, ack_clone_command,
-                 retransmit_failed_command>;
+using internal_command_variant =
+  std::variant<put_command, put_unique_command, put_unique_result_command,
+               erase_command, expire_command, add_command, subtract_command,
+               clear_command, attach_writer_command, keepalive_command,
+               cumulative_ack_command, nack_command, ack_clone_command,
+               retransmit_failed_command>;
 
 class internal_command {
 public:

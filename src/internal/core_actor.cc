@@ -66,7 +66,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
                                         on_peer_unavailable, filter,
                                         peer_statuses));
   }
-  ttl = caf::get_or(self->config(),"broker.ttl", defaults::ttl);
+  ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
 }
 
 core_actor_state::~core_actor_state() {
@@ -369,7 +369,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   // Drop all peers. Don't cancel their flows, though. Incoming flows were
   // cancelled already and output flows get closed automatically once the
   // mergers shut down.
-  for (auto& kvp: peers) {
+  for (auto& kvp : peers) {
     auto& [peer_id, st] = kvp;
     if (!st.invalidated) {
       BROKER_DEBUG("drop state for" << peer_id);
@@ -427,8 +427,8 @@ void core_actor_state::emit(endpoint_info ep, EnumConstant code,
     str = topic::statuses_str;
   else
     str = topic::errors_str;
-  using factory
-    = std::conditional_t<std::is_same_v<value_type, sc>, status, error_factory>;
+  using factory =
+    std::conditional_t<std::is_same_v<value_type, sc>, status, error_factory>;
   // Generate a data message from the converted content and address it to this
   // node only. This ensures that the data remains visible locally only.
   auto val = factory::make(code, std::move(ep), msg);
@@ -680,27 +680,27 @@ core_actor_state::get_or_init_data_outputs() {
   if (!data_outputs) {
     BROKER_DEBUG("create data outputs");
     // Hook into the central merge point.
-    data_outputs
-      = central_merge
-          ->as_observable()
-          // Drop everything but data messages and only process messages that
-          // are not meant for another peer.
-          .filter([this](const node_message& msg) {
-            // Note: local subscribers do not receive messages from local
-            // publishers. Except when the message explicitly says otherwise by
-            // setting receiver == id. This is the case for messages that were
-            // published via `(atom::publish, atom::local, ...)` message.
-            auto receiver = get_receiver(msg);
-            return get_type(msg) == packed_message_type::data
-                   && (get_sender(msg) != id || receiver == id)
-                   && (!receiver || receiver == id);
-          })
-          // Deserialize payload and wrap it into an actual data message.
-          .flat_map_optional([this](const node_message& msg) {
-            return unpack<data_message>(get_packed_message(msg));
-          })
-          // Convert this blueprint to an actual observable.
-          .as_observable();
+    data_outputs =
+      central_merge
+        ->as_observable()
+        // Drop everything but data messages and only process messages that
+        // are not meant for another peer.
+        .filter([this](const node_message& msg) {
+          // Note: local subscribers do not receive messages from local
+          // publishers. Except when the message explicitly says otherwise by
+          // setting receiver == id. This is the case for messages that were
+          // published via `(atom::publish, atom::local, ...)` message.
+          auto receiver = get_receiver(msg);
+          return get_type(msg) == packed_message_type::data
+                 && (get_sender(msg) != id || receiver == id)
+                 && (!receiver || receiver == id);
+        })
+        // Deserialize payload and wrap it into an actual data message.
+        .flat_map_optional([this](const node_message& msg) {
+          return unpack<data_message>(get_packed_message(msg));
+        })
+        // Convert this blueprint to an actual observable.
+        .as_observable();
   }
   return data_outputs;
 }
@@ -710,22 +710,22 @@ core_actor_state::get_or_init_command_outputs() {
   if (!command_outputs) {
     BROKER_DEBUG("create command outputs");
     // Hook into the central merge point.
-    command_outputs
-      = central_merge
-          ->as_observable()
-          // Drop everything but command messages and only process messages that
-          // are not meant for another peer.
-          .filter([this](const node_message& msg) {
-            auto receiver = get_receiver(msg);
-            return get_type(msg) == packed_message_type::command
-                   && (!receiver || receiver == id);
-          })
-          // Deserialize payload and wrap it into an actual command message.
-          .flat_map_optional([this](const node_message& msg) {
-            return unpack<command_message>(get_packed_message(msg));
-          })
-          // Convert this blueprint to an actual observable.
-          .as_observable();
+    command_outputs =
+      central_merge
+        ->as_observable()
+        // Drop everything but command messages and only process messages that
+        // are not meant for another peer.
+        .filter([this](const node_message& msg) {
+          auto receiver = get_receiver(msg);
+          return get_type(msg) == packed_message_type::command
+                 && (!receiver || receiver == id);
+        })
+        // Deserialize payload and wrap it into an actual command message.
+        .flat_map_optional([this](const node_message& msg) {
+          return unpack<command_message>(get_packed_message(msg));
+        })
+        // Convert this blueprint to an actual observable.
+        .as_observable();
   }
   return command_outputs;
 }
@@ -969,9 +969,10 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   auto [con1, prod1] = make_spsc_buffer_resource<command_message>();
   auto [con2, prod2] = make_spsc_buffer_resource<command_message>();
   // Spin up the master and connect it to our flows.
-  auto hdl = self->system().spawn<master_actor_type>(
-    id, name, std::move(ptr), caf::actor{self}, clock, std::move(con1),
-    std::move(prod2));
+  auto hdl = self->system().spawn<master_actor_type>(id, name, std::move(ptr),
+                                                     caf::actor{self}, clock,
+                                                     std::move(con1),
+                                                     std::move(prod2));
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
   get_or_init_command_outputs()

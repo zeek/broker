@@ -137,13 +137,10 @@ struct peer_fixture {
       [](unit_t&) {
         // nop
       },
-      [=](unit_t&, data_message x) {
-        this->data.emplace_back(std::move(x));
-      },
+      [=](unit_t&, data_message x) { this->data.emplace_back(std::move(x)); },
       [](unit_t&, const error&) {
         // nop
-      }
-    );
+      });
     parent->exec_loop();
   }
 
@@ -167,7 +164,7 @@ struct peer_fixture {
   }
 
   void loop_after_next_enqueue() {
-    sched.after_next_enqueue([=] { parent->exec_loop();  });
+    sched.after_next_enqueue([=] { parent->exec_loop(); });
   }
 
   void loop_after_all_enqueues_helper() {
@@ -176,7 +173,7 @@ struct peer_fixture {
   }
 
   void loop_after_all_enqueues() {
-    sched.after_next_enqueue([=] { loop_after_all_enqueues_helper();  });
+    sched.after_next_enqueue([=] { loop_after_all_enqueues_helper(); });
   }
 };
 
@@ -216,10 +213,7 @@ struct triangle_fixture : global_fixture {
   peer_fixture earth;
 
   triangle_fixture()
-    : mercury(this, "mercury"),
-      venus(this, "venus"),
-      earth(this, "earth") {
-  }
+    : mercury(this, "mercury"), venus(this, "venus"), earth(this, "earth") {}
 
   // Connect mercury to venus and earth.
   void connect_peers() {
@@ -234,8 +228,8 @@ struct triangle_fixture : global_fixture {
                                    "mercury", 4040,
                                    earth.make_connection_handle());
     MESSAGE("start listening on mercury:4040");
-    // We need to connect venus and earth while mercury is blocked on ep.listen()
-    // in order to avoid a "deadlock" in `ep.listen()`.
+    // We need to connect venus and earth while mercury is blocked on
+    // ep.listen() in order to avoid a "deadlock" in `ep.listen()`.
     mercury.sched.after_next_enqueue([&] {
       exec_loop();
       MESSAGE("peer venus to mercury:4040");
@@ -245,12 +239,12 @@ struct triangle_fixture : global_fixture {
       earth.loop_after_next_enqueue();
       earth.ep.peer("mercury", 4040);
     });
-    //mercury.sched.inline_next_enqueue();
+    // mercury.sched.inline_next_enqueue();
     mercury.ep.listen("", 4040);
   }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 CAF_TEST_FIXTURE_SCOPE(triangle_use_cases, triangle_fixture)
 
@@ -288,8 +282,7 @@ CAF_TEST(topic_prefix_matching_async_subscribe) {
   CAF_CHECK_EQUAL(venus.ep.peer_subscriptions(),
                   filter_type({"zeek/events/errors"}));
   earth.loop_after_next_enqueue();
-  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(),
-                  filter_type({"zeek/events"}));
+  CAF_CHECK_EQUAL(earth.ep.peer_subscriptions(), filter_type({"zeek/events"}));
   MESSAGE("publish to 'zeek/events/(data|errors)' on mercury");
   mercury.publish("zeek/events/errors", "oops", "sorry!");
   mercury.publish("zeek/events/data", 123, 456);
@@ -348,16 +341,14 @@ CAF_TEST(topic_prefix_matching_make_subscriber) {
   mercury.publish("zeek/events/errors", "oops", "sorry!");
   mercury.publish("zeek/events/data", 123, 456);
   MESSAGE("verify published data");
-  CAF_CHECK_EQUAL(venus_s1.poll(),
-                  data_msgs({{"zeek/events/errors", "oops"},
-                             {"zeek/events/errors", "sorry!"},
-                             {"zeek/events/data", 123},
-                             {"zeek/events/data", 456}}));
-  CAF_CHECK_EQUAL(venus_s2.poll(),
-                  data_msgs({{"zeek/events/errors", "oops"},
-                             {"zeek/events/errors", "sorry!"},
-                             {"zeek/events/data", 123},
-                             {"zeek/events/data", 456}}));
+  CAF_CHECK_EQUAL(venus_s1.poll(), data_msgs({{"zeek/events/errors", "oops"},
+                                              {"zeek/events/errors", "sorry!"},
+                                              {"zeek/events/data", 123},
+                                              {"zeek/events/data", 456}}));
+  CAF_CHECK_EQUAL(venus_s2.poll(), data_msgs({{"zeek/events/errors", "oops"},
+                                              {"zeek/events/errors", "sorry!"},
+                                              {"zeek/events/data", 123},
+                                              {"zeek/events/data", 456}}));
   CAF_CHECK_EQUAL(earth_s1.poll(),
                   data_msgs({{"zeek/events/errors", "oops"},
                              {"zeek/events/errors", "sorry!"}}));
@@ -491,23 +482,21 @@ CAF_TEST(connection_retry) {
   MESSAGE("spawn helper that starts listening on mercury:4040 eventually");
   mercury.sys.spawn([&](caf::event_based_actor* self) -> caf::behavior {
     self->delayed_send(self, std::chrono::seconds(2), atom::ok_v);
-    return {
-      [&](caf::ok_atom) {
-        MESSAGE("start listening on mercury:4040");
-        auto server_handle = mercury.make_accept_handle();
-        mercury.mpx.prepare_connection(server_handle,
-                                       mercury.make_connection_handle(),
-                                       venus.mpx, "mercury", 4040,
-                                       venus.make_connection_handle());
-        // We need to connect venus while mercury is blocked on ep.listen() in
-        // order to avoid a "deadlock" in `ep.listen()`.
-        mercury.sched.after_next_enqueue([&] {
-          MESSAGE("peer venus to mercury:4040 by triggering the retry timeout");
-          exec_loop();
-        });
-        mercury.ep.listen("", 4040);
-      }
-    };
+    return {[&](caf::ok_atom) {
+      MESSAGE("start listening on mercury:4040");
+      auto server_handle = mercury.make_accept_handle();
+      mercury.mpx.prepare_connection(server_handle,
+                                     mercury.make_connection_handle(),
+                                     venus.mpx, "mercury", 4040,
+                                     venus.make_connection_handle());
+      // We need to connect venus while mercury is blocked on ep.listen() in
+      // order to avoid a "deadlock" in `ep.listen()`.
+      mercury.sched.after_next_enqueue([&] {
+        MESSAGE("peer venus to mercury:4040 by triggering the retry timeout");
+        exec_loop();
+      });
+      mercury.ep.listen("", 4040);
+    }};
   });
   exec_loop();
   MESSAGE("check event logs");
@@ -522,4 +511,3 @@ CAF_TEST(connection_retry) {
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()
-

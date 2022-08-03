@@ -22,8 +22,8 @@ class uuid_multipath;
 class uuid_multipath_group;
 class uuid_multipath_node;
 
-using node_message_content
-  = broker::variant<broker::data_message, broker::command_message>;
+using node_message_content =
+  broker::variant<broker::data_message, broker::command_message>;
 
 using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
@@ -33,12 +33,12 @@ using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
 CAF_BEGIN_TYPE_ID_BLOCK(micro_benchmarks, caf::id_block::broker::end)
 
-  MICRO_BENCH_ADD_TYPE((caf::stream<legacy_node_message>))
+  MICRO_BENCH_ADD_TYPE((caf::stream<legacy_node_message>) )
   MICRO_BENCH_ADD_TYPE((legacy_node_message))
-  MICRO_BENCH_ADD_TYPE((std::vector<legacy_node_message>))
+  MICRO_BENCH_ADD_TYPE((std::vector<legacy_node_message>) )
 
-  MICRO_BENCH_ADD_TYPE((caf::stream<uuid_node_message>))
-  MICRO_BENCH_ADD_TYPE((std::vector<uuid_node_message>))
+  MICRO_BENCH_ADD_TYPE((caf::stream<uuid_node_message>) )
+  MICRO_BENCH_ADD_TYPE((std::vector<uuid_node_message>) )
   MICRO_BENCH_ADD_TYPE((uuid_multipath))
   MICRO_BENCH_ADD_TYPE((uuid_node_message))
 
@@ -48,7 +48,6 @@ CAF_END_TYPE_ID_BLOCK(micro_benchmarks)
 
 /// A `node_message` as it used to be pre-ALM.
 struct legacy_node_message {
-
   /// Content of the message.
   node_message_content content;
 
@@ -133,7 +132,6 @@ private:
   uuid_multipath_node* first_ = nullptr;
 };
 
-
 class uuid_multipath_node {
 public:
   friend class uuid_multipath;
@@ -209,7 +207,8 @@ private:
     size_t n = 0;
     if (f.begin_sequence(n)) {
       for (size_t i = 0; i < n; ++i) {
-        auto child = broker::detail::new_instance<uuid_multipath_node>(mem, uuid{}, false);
+        auto child =
+          broker::detail::new_instance<uuid_multipath_node>(mem, uuid{}, false);
         if (!child->load(mem, f)) {
           return false;
         } else if (!down_.emplace(child)) {

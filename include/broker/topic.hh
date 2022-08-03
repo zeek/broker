@@ -28,8 +28,8 @@ public:
 
   static constexpr std::string_view statuses_str = "<$>/local/data/statuses";
 
-  static constexpr std::string_view store_events_str
-    = "<$>/local/data/store-events";
+  static constexpr std::string_view store_events_str =
+    "<$>/local/data/store-events";
 
   static topic master_suffix();
 
@@ -133,7 +133,7 @@ bool is_internal(const topic& x);
 /// Converts a string to a topic.
 /// @param str The string to convert.
 /// @returns The topic according to *str*.
-broker::topic operator "" _t(const char* str, size_t);
+broker::topic operator"" _t(const char* str, size_t);
 
 namespace std {
 

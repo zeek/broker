@@ -105,16 +105,14 @@ public:
       .add<size_t>("retry-interval",
                    "time between peering connection attempts in seconds");
     opt_group{custom_options_, "internal"}
-      .add<uri_list>("peers",
-                     "list of peers to connect to on startup in "
-                     "tcp://$host:$port notation")
+      .add<uri_list>("peers", "list of peers to connect to on startup in "
+                              "tcp://$host:$port notation")
       .add<uint16_t>("port", "local port to listen for incoming peerings ")
       .add(internal.disable_forwarding, "disable-forwarding",
            "disable peer-to-peer message forwarding in the internal domain");
     opt_group{custom_options_, "external"}
-      .add<uri_list>("peers",
-                     "list of peers to connect to on startup in "
-                     "tcp://$host:$port notation")
+      .add<uri_list>("peers", "list of peers to connect to on startup in "
+                              "tcp://$host:$port notation")
       .add<uint16_t>("port", "local port to listen for incoming peerings ")
       .add(external.disable_forwarding, "disable-forwarding",
            "disable peer-to-peer message forwarding in the external domain");
@@ -136,8 +134,8 @@ int run(gateway& gw) {
   auto try_listen = [&](caf::string_view key) {
     if (auto local_port = get_as<uint16_t>(cfg, key)) {
       auto p = caf::starts_with(key, "internal.")
-               ? gw.listen_internal({}, *local_port)
-               : gw.listen_external({}, *local_port);
+                 ? gw.listen_internal({}, *local_port)
+                 : gw.listen_external({}, *local_port);
       if (p == 0) {
         err::println("unable to open port ", *local_port);
         return false;
@@ -148,8 +146,8 @@ int run(gateway& gw) {
   };
   if (!try_listen("internal.local-port") || !try_listen("external.local-port"))
     return EXIT_FAILURE;
-  if (auto peering_failures
-      = gw.peer(get_or(cfg, "internal.peers", uri_list{}),
+  if (auto peering_failures =
+        gw.peer(get_or(cfg, "internal.peers", uri_list{}),
                 get_or(cfg, "internal.peers", uri_list{}),
                 timeout::seconds{get_or(cfg, "retry-interval", size_t{10})});
       !peering_failures.empty()) {

@@ -30,8 +30,8 @@ public:
   using file_handle_type = detail::native_socket;
 #endif
 
-  using read_raw_callback
-    = std::function<bool(value_type*, caf::span<const caf::byte>)>;
+  using read_raw_callback =
+    std::function<bool(value_type*, caf::span<const caf::byte>)>;
 
   generator_file_reader(file_handle_type fd, mapper_handle mapper,
                         mapped_pointer addr, size_t file_size);

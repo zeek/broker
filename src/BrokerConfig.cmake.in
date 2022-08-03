@@ -1,22 +1,23 @@
-@PACKAGE_INIT@
+@PACKAGE_INIT @
 
-include(CMakeFindDependencyMacro)
+  include(CMakeFindDependencyMacro)
 
-set(CMAKE_THREAD_PREFER_PTHREAD ON)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_dependency(Threads REQUIRED)
+    set(CMAKE_THREAD_PREFER_PTHREAD ON) set(THREADS_PREFER_PTHREAD_FLAG ON)
+      find_dependency(Threads REQUIRED)
 
-find_dependency(OpenSSL REQUIRED)
+        find_dependency(OpenSSL REQUIRED)
 
-find_dependency(CAF @CAF_VERSION@ REQUIRED COMPONENTS core io)
+          find_dependency(CAF @CAF_VERSION @REQUIRED COMPONENTS core io)
 
-include("${CMAKE_CURRENT_LIST_DIR}/BrokerTargets.cmake")
+            include("${CMAKE_CURRENT_LIST_DIR}/BrokerTargets.cmake")
 
-set(BROKER_LIBRARY "@BROKER_LIBRARY@" CACHE INTERNAL "name of the Broker library target")
+              set(BROKER_LIBRARY "@BROKER_LIBRARY@" CACHE INTERNAL
+                                 "name of the Broker library target")
 
-function(set_include_dir)
-  get_target_property(dirs ${BROKER_LIBRARY} INTERFACE_INCLUDE_DIRECTORIES)
-  set(BROKER_INCLUDE_DIR "${dirs}" CACHE INTERNAL "extra include directories")
-endfunction()
+                function(set_include_dir) get_target_property(dirs ${
+                  BROKER_LIBRARY} INTERFACE_INCLUDE_DIRECTORIES)
+                  set(BROKER_INCLUDE_DIR "${dirs}" CACHE INTERNAL
+                                         "extra include directories")
+                    endfunction()
 
-set_include_dir()
+                      set_include_dir()

@@ -50,8 +50,7 @@ struct peer_fixture {
 
   // Initializes this peer and registers it at parent.
   peer_fixture(std::string peer_name, configuration config)
-    : name(std::move(peer_name)),
-      ep(std::move(config)){}
+    : name(std::move(peer_name)), ep(std::move(config)) {}
 };
 
 // A fixture for testing SSL authentication.
@@ -65,11 +64,10 @@ struct ssl_auth_fixture {
     : mercury_auth("mercury_auth", make_config("1")),
       venus_auth("venus_auth", make_config("2")),
       earth_no_auth("earth_no_auth", make_config("")),
-      earth_wrong_auth("earth_wrong_auth", make_config("self-signed")) {
-  }
+      earth_wrong_auth("earth_wrong_auth", make_config("self-signed")) {}
 };
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(ssl_auth_use_cases, ssl_auth_fixture)
 

@@ -44,8 +44,8 @@ using std::string;
 
 using broker::count;
 using broker::data;
-using broker::internal::native;
 using broker::topic;
+using broker::internal::native;
 
 namespace atom = broker::internal::atom;
 
@@ -394,7 +394,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 
 int main(int argc, char** argv) {
   broker::endpoint::system_guard sys_guard; // Initialize global state.
-  setvbuf(stdout, NULL, _IOLBF, 0); // Always line-buffer stdout.
+  setvbuf(stdout, NULL, _IOLBF, 0);         // Always line-buffer stdout.
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};
   extend_config(cfg);
@@ -469,7 +469,7 @@ int main(int argc, char** argv) {
   // Connect to peers.
   auto peers = get_or(ep, "peers", uri_list{});
   for (auto& peer : peers) {
-    if (auto info = broker::to<broker::network_info>(peer)){
+    if (auto info = broker::to<broker::network_info>(peer)) {
       verbose::println("connect to ", info->address, " on port ", info->port,
                        " ...");
       if (!ep.peer(*info))

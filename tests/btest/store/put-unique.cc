@@ -163,7 +163,7 @@ void clone_mode(endpoint& ep, std::vector<uint16_t> cl_ports) {
 
 int main(int argc, char** argv) {
   broker::endpoint::system_guard sys_guard; // Initialize global state.
-  setvbuf(stdout, NULL, _IOLBF, 0); // Always line-buffer stdout.
+  setvbuf(stdout, NULL, _IOLBF, 0);         // Always line-buffer stdout.
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};
   extend_config(cfg);

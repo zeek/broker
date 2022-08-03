@@ -24,8 +24,8 @@ public:
 
   histogram& operator=(const histogram&) noexcept = default;
 
-	/// Increments all buckets with an upper bound less than or equal to @p value
-	/// by one and adds @p value to the total sum of all observed values.
+  /// Increments all buckets with an upper bound less than or equal to @p value
+  /// by one and adds @p value to the total sum of all observed values.
   void observe(T value) noexcept {
     return telemetry::observe(hdl_, value);
   }
@@ -62,7 +62,7 @@ private:
 };
 
 /// @relates histogram
-template<class T>
+template <class T>
 constexpr bool operator==(histogram<T> x, histogram<T> y) {
   return x.is_same_as(y);
 }
@@ -92,7 +92,7 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   histogram<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T,double>)
+    if constexpr (std::is_same_v<T, double>)
       return histogram<T>{dbl_histogram_get_or_add(super::hdl_, labels)};
     else
       return histogram<T>{int_histogram_get_or_add(super::hdl_, labels)};
@@ -103,14 +103,14 @@ public:
     return get_or_add(span{labels.begin(), labels.size()});
   }
 
-	/// @return Whether @c this and @p other refer to the same family.
+  /// @return Whether @c this and @p other refer to the same family.
   constexpr bool is_same_as(histogram_family other) const noexcept {
     return hdl_ == other.hdl_;
   }
 };
 
 /// @relates histogram_family
-template<class T>
+template <class T>
 constexpr bool operator==(histogram_family<T> x, histogram_family<T> y) {
   return x.is_same_as(y);
 }

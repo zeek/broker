@@ -14,8 +14,8 @@ public:
   using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
-                                   ? ct::metric_type::int_counter
-                                   : ct::metric_type::dbl_counter;
+                                     ? ct::metric_type::int_counter
+                                     : ct::metric_type::dbl_counter;
 
   using super::super;
 
@@ -41,8 +41,8 @@ public:
   using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
-                                   ? ct::metric_type::int_gauge
-                                   : ct::metric_type::dbl_gauge;
+                                     ? ct::metric_type::int_gauge
+                                     : ct::metric_type::dbl_gauge;
 
   using super::super;
 
@@ -68,8 +68,8 @@ public:
   using super = metric_collector::remote_metric;
 
   static constexpr auto type_tag = std::is_same_v<T, integer>
-                                   ? ct::metric_type::int_histogram
-                                   : ct::metric_type::dbl_histogram;
+                                     ? ct::metric_type::int_histogram
+                                     : ct::metric_type::dbl_histogram;
 
   using super::super;
 

@@ -89,9 +89,10 @@ struct fixture : base_fixture {
     bar_foo = reg.gauge_singleton("bar", "foo", "BarFoo!");
     std::vector<std::string> selection{"foo"};
     core = sys.spawn<dummy_core_actor>();
-    aut = sys.spawn<internal::metric_exporter_actor>(
-      core, std::move(selection), caf::timespan{2s}, "all/them/metrics",
-      "exporter-1");
+    aut = sys.spawn<internal::metric_exporter_actor>(core, std::move(selection),
+                                                     caf::timespan{2s},
+                                                     "all/them/metrics",
+                                                     "exporter-1");
     sched.run();
   }
 

@@ -10,7 +10,7 @@ namespace {
 
 auto sep = std::string{topic::sep};
 
-} // namespace <anonymous>
+} // namespace
 
 TEST(concatenation) {
   topic t;
@@ -46,23 +46,23 @@ TEST(prefix) {
   topic t4 = "/zeek/stores/masters/";
   topic t5 = "/";
   // t0 is a prefix of all topics except t5
-  CHECK( t0.prefix_of(t0));
-  CHECK( t0.prefix_of(t1));
-  CHECK( t0.prefix_of(t2));
-  CHECK( t0.prefix_of(t3));
-  CHECK( t0.prefix_of(t4));
+  CHECK(t0.prefix_of(t0));
+  CHECK(t0.prefix_of(t1));
+  CHECK(t0.prefix_of(t2));
+  CHECK(t0.prefix_of(t3));
+  CHECK(t0.prefix_of(t4));
   CHECK(!t0.prefix_of(t5));
   // t1 is a prefix of itself and t2
   CHECK(!t1.prefix_of(t0));
-  CHECK( t1.prefix_of(t1));
-  CHECK( t1.prefix_of(t2));
+  CHECK(t1.prefix_of(t1));
+  CHECK(t1.prefix_of(t2));
   CHECK(!t1.prefix_of(t3));
   CHECK(!t1.prefix_of(t4));
   CHECK(!t1.prefix_of(t5));
   // t2 is only a prefix of itself
   CHECK(!t2.prefix_of(t0));
   CHECK(!t2.prefix_of(t1));
-  CHECK( t2.prefix_of(t2));
+  CHECK(t2.prefix_of(t2));
   CHECK(!t2.prefix_of(t3));
   CHECK(!t2.prefix_of(t4));
   CHECK(!t2.prefix_of(t5));
@@ -70,21 +70,21 @@ TEST(prefix) {
   CHECK(!t3.prefix_of(t0));
   CHECK(!t3.prefix_of(t1));
   CHECK(!t3.prefix_of(t2));
-  CHECK( t3.prefix_of(t3));
-  CHECK( t3.prefix_of(t4));
+  CHECK(t3.prefix_of(t3));
+  CHECK(t3.prefix_of(t4));
   CHECK(!t3.prefix_of(t5));
   // t4 is only a prefix of itself
   CHECK(!t4.prefix_of(t0));
   CHECK(!t4.prefix_of(t1));
   CHECK(!t4.prefix_of(t2));
   CHECK(!t4.prefix_of(t3));
-  CHECK( t4.prefix_of(t4));
+  CHECK(t4.prefix_of(t4));
   CHECK(!t4.prefix_of(t5));
   // t5 is a prefix of all topics
-  CHECK( t5.prefix_of(t0));
-  CHECK( t5.prefix_of(t1));
-  CHECK( t5.prefix_of(t2));
-  CHECK( t5.prefix_of(t3));
-  CHECK( t5.prefix_of(t4));
-  CHECK( t5.prefix_of(t5));
+  CHECK(t5.prefix_of(t0));
+  CHECK(t5.prefix_of(t1));
+  CHECK(t5.prefix_of(t2));
+  CHECK(t5.prefix_of(t3));
+  CHECK(t5.prefix_of(t4));
+  CHECK(t5.prefix_of(t5));
 }

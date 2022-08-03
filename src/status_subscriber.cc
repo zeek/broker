@@ -2,8 +2,8 @@
 
 #include <limits>
 
-#include <caf/send.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/send.hpp>
 
 #include "broker/endpoint.hh"
 #include "broker/internal/logger.hh"
@@ -92,9 +92,8 @@ std::vector<value_type> status_subscriber::poll() {
 }
 
 void status_subscriber::append_converted(std::vector<value_type>& result,
-                                         const data_message& msg) {
-  BROKER_APPEND_CONVERTED_MSG()
-}
+                                         const data_message& msg){
+  BROKER_APPEND_CONVERTED_MSG()}
 
 value_type status_subscriber::convert(const data_message& msg) {
   BROKER_RETURN_CONVERTED_MSG()

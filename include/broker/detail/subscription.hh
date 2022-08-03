@@ -21,13 +21,12 @@ using topic_set = radix_tree<bool>;
 /// An actor with the associated topics in which it claims interest.
 class subscriber {
 public:
-   /// Default constructor.
+  /// Default constructor.
   subscriber() = default;
 
-   /// Construct from given actor and topic set.
+  /// Construct from given actor and topic set.
   subscriber(caf::actor a, topic_set ts)
-    : who(std::move(a)), subscriptions(std::move(ts)) {
-  }
+    : who(std::move(a)), subscriptions(std::move(ts)) {}
 
   caf::actor who = caf::invalid_actor;
   topic_set subscriptions;

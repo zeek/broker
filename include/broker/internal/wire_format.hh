@@ -237,20 +237,20 @@ inline originator_ack_msg make_originator_ack_msg() {
 /// Trait that translates between native @ref node_message and a binary network
 /// representation.
 class trait {
-  public:
-    /// Serializes a @ref node_message to a sequence of bytes.
-    bool convert(const node_message& msg, caf::byte_buffer& buf);
+public:
+  /// Serializes a @ref node_message to a sequence of bytes.
+  bool convert(const node_message& msg, caf::byte_buffer& buf);
 
-    /// Deserializes a @ref node_message from a sequence of bytes.
-    bool convert(caf::const_byte_span bytes, node_message& msg);
+  /// Deserializes a @ref node_message from a sequence of bytes.
+  bool convert(caf::const_byte_span bytes, node_message& msg);
 
-    /// Retrieves the last error from a conversion.
-    const caf::error& last_error() const noexcept {
-      return last_error_;
-    }
+  /// Retrieves the last error from a conversion.
+  const caf::error& last_error() const noexcept {
+    return last_error_;
+  }
 
-  private:
-    caf::error last_error_;
+private:
+  caf::error last_error_;
 };
 
 } // namespace v1
@@ -262,10 +262,10 @@ struct var_msg_error {
 };
 
 /// Convenience type for handling phase 1 and phase 2 messages.
-using var_msg
-  = std::variant<var_msg_error, hello_msg, probe_msg, version_select_msg,
-                 drop_conn_msg, v1::originator_syn_msg,
-                 v1::responder_syn_ack_msg, v1::originator_ack_msg>;
+using var_msg =
+  std::variant<var_msg_error, hello_msg, probe_msg, version_select_msg,
+               drop_conn_msg, v1::originator_syn_msg, v1::responder_syn_ack_msg,
+               v1::originator_ack_msg>;
 
 /// @relates var_msg
 std::string stringify(const var_msg& msg);

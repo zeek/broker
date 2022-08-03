@@ -96,8 +96,8 @@ public:
                    span<const label_view> labels, std::string_view helptext,
                    std::string_view unit = "1", bool is_sum = false) {
     return with_label_names(labels, [&, this](auto labelNames) {
-      auto family
-        = counter_family<T>(pre, name, labelNames, helptext, unit, is_sum);
+      auto family = counter_family<T>(pre, name, labelNames, helptext, unit,
+                                      is_sum);
       return family.getOrAdd(labels);
     });
   }
@@ -185,8 +185,8 @@ public:
                           std::string_view helptext,
                           std::string_view unit = "1", bool is_sum = false) {
     return with_label_names(labels, [&, this](auto labelNames) {
-      auto family
-        = gauge_family<T>(pre, name, labelNames, helptext, unit, is_sum);
+      auto family = gauge_family<T>(pre, name, labelNames, helptext, unit,
+                                    is_sum);
       return family.getOrAdd(labels);
     });
   }
@@ -260,14 +260,16 @@ public:
                         std::string_view helptext, std::string_view unit = "1",
                         bool is_sum = false) {
     if constexpr (std::is_same_v<T, int64_t>) {
-      auto hdl = impl_->int_histogram_fam(
-        pre, name, labels, default_upper_bounds, helptext, unit, is_sum);
+      auto hdl = impl_->int_histogram_fam(pre, name, labels,
+                                          default_upper_bounds, helptext, unit,
+                                          is_sum);
       return int_histogram_family{hdl};
     } else {
       static_assert(std::is_same_v<T, double>,
                     "metrics only support int64_t and double values");
-      auto hdl = impl_->dbl_histogram_fam(
-        pre, name, labels, default_upper_bounds, helptext, unit, is_sum);
+      auto hdl = impl_->dbl_histogram_fam(pre, name, labels,
+                                          default_upper_bounds, helptext, unit,
+                                          is_sum);
       return dbl_histogram_family{hdl};
     }
   }
@@ -304,30 +306,31 @@ public:
    *       @p default_upper_bounds via run-time configuration.
    */
   template <class T = int64_t>
-  histogram<T>
-  histogram_instance(std::string_view pre, std::string_view name,
-                     span<const label_view> labels,
-                     const_span<T> default_upper_bounds,
-                     std::string_view helptext, std::string_view unit = "1",
-                     bool is_sum = false) {
+  histogram<T> histogram_instance(std::string_view pre, std::string_view name,
+                                  span<const label_view> labels,
+                                  const_span<T> default_upper_bounds,
+                                  std::string_view helptext,
+                                  std::string_view unit = "1",
+                                  bool is_sum = false) {
     return with_label_names(labels, [&, this](auto labelNames) {
-      auto family = histogram_family<T>(
-        pre, name, labelNames, default_upper_bounds, helptext, unit, is_sum);
+      auto family = histogram_family<T>(pre, name, labelNames,
+                                        default_upper_bounds, helptext, unit,
+                                        is_sum);
       return family.getOrAdd(labels);
     });
   }
 
   /// @copdoc histogram_instance
   template <class T = int64_t>
-  histogram<T>
-  histogram_instance(std::string_view pre, std::string_view name,
-                     std::initializer_list<label_view> labels,
-                     const_span<T> default_upper_bounds,
-                     std::string_view helptext, std::string_view unit = "1",
-                     bool is_sum = false) {
+  histogram<T> histogram_instance(std::string_view pre, std::string_view name,
+                                  std::initializer_list<label_view> labels,
+                                  const_span<T> default_upper_bounds,
+                                  std::string_view helptext,
+                                  std::string_view unit = "1",
+                                  bool is_sum = false) {
     auto lbls = span{labels.begin(), labels.size()};
-    return histogram_instance(pre, name, lbls, default_upper_bounds,
-                              helptext, unit, is_sum);
+    return histogram_instance(pre, name, lbls, default_upper_bounds, helptext,
+                              unit, is_sum);
   }
 
   /**
@@ -351,11 +354,11 @@ public:
    *       @p default_upper_bounds via run-time configuration.
    */
   template <class T = int64_t>
-  histogram<T>
-  histogram_singleton(std::string_view pre, std::string_view name,
-                      const_span<T> default_upper_bounds,
-                      std::string_view helptext, std::string_view unit = "1",
-                      bool is_sum = false) {
+  histogram<T> histogram_singleton(std::string_view pre, std::string_view name,
+                                   const_span<T> default_upper_bounds,
+                                   std::string_view helptext,
+                                   std::string_view unit = "1",
+                                   bool is_sum = false) {
     auto lbls = span<const std::string_view>{};
     auto fam = histogram_family<T>(pre, name, lbls, default_upper_bounds,
                                    helptext, unit, is_sum);

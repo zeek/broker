@@ -58,109 +58,75 @@ public:
 
   expected<void> put(const data& key, data value,
                      std::optional<timestamp> expiry) override {
-    return perform<void>(
-      [&](detail::abstract_backend& backend) {
-        return backend.put(key, value, expiry);
-      }
-    );
+    return perform<void>([&](detail::abstract_backend& backend) {
+      return backend.put(key, value, expiry);
+    });
   }
 
   expected<void> add(const data& key, const data& value, data::type init_type,
                      std::optional<timestamp> expiry) override {
-    return perform<void>(
-      [&](detail::abstract_backend& backend) {
-        return backend.add(key, value, init_type, expiry);
-      }
-    );
+    return perform<void>([&](detail::abstract_backend& backend) {
+      return backend.add(key, value, init_type, expiry);
+    });
   }
 
   expected<void> subtract(const data& key, const data& value,
-                        std::optional<timestamp> expiry) override {
-    return perform<void>(
-      [&](detail::abstract_backend& backend) {
-        return backend.subtract(key, value, expiry);
-      }
-    );
+                          std::optional<timestamp> expiry) override {
+    return perform<void>([&](detail::abstract_backend& backend) {
+      return backend.subtract(key, value, expiry);
+    });
   }
 
   expected<void> erase(const data& key) override {
     return perform<void>(
-      [&](detail::abstract_backend& backend) {
-        return backend.erase(key);
-      }
-    );
+      [&](detail::abstract_backend& backend) { return backend.erase(key); });
   }
 
   expected<void> clear() override {
     return perform<void>(
-      [&](detail::abstract_backend& backend) {
-        return backend.clear();
-      }
-    );
+      [&](detail::abstract_backend& backend) { return backend.clear(); });
   }
 
   expected<bool> expire(const data& key, timestamp ts) override {
-    return perform<bool>(
-      [&](detail::abstract_backend& backend) {
-        return backend.expire(key, ts);
-      }
-    );
+    return perform<bool>([&](detail::abstract_backend& backend) {
+      return backend.expire(key, ts);
+    });
   }
 
   expected<data> get(const data& key) const override {
     return perform<data>(
-      [&](detail::abstract_backend& backend) {
-        return backend.get(key);
-      }
-    );
+      [&](detail::abstract_backend& backend) { return backend.get(key); });
   }
 
   expected<data> get(const data& key, const data& value) const override {
-    return perform<data>(
-      [&](detail::abstract_backend& backend) {
-        return backend.get(key, value);
-      }
-    );
+    return perform<data>([&](detail::abstract_backend& backend) {
+      return backend.get(key, value);
+    });
   }
 
   expected<data> keys() const override {
     return perform<data>(
-      [&](detail::abstract_backend& backend) {
-        return backend.keys();
-      }
-    );
+      [&](detail::abstract_backend& backend) { return backend.keys(); });
   }
 
   expected<bool> exists(const data& key) const override {
     return perform<bool>(
-      [&](detail::abstract_backend& backend) {
-        return backend.exists(key);
-      }
-    );
+      [&](detail::abstract_backend& backend) { return backend.exists(key); });
   }
 
   expected<uint64_t> size() const override {
     return perform<uint64_t>(
-      [](detail::abstract_backend& backend) {
-        return backend.size();
-      }
-    );
+      [](detail::abstract_backend& backend) { return backend.size(); });
   }
 
   expected<broker::snapshot> snapshot() const override {
     return perform<broker::snapshot>(
-      [](detail::abstract_backend& backend) {
-        return backend.snapshot();
-      }
-    );
+      [](detail::abstract_backend& backend) { return backend.snapshot(); });
   }
 
   expected<broker::detail::expirables> expiries() const override {
     return perform<broker::detail::expirables>(
-      [](detail::abstract_backend& backend) {
-        return backend.expiries();
-      }
-    );
+      [](detail::abstract_backend& backend) { return backend.expiries(); });
   }
 
 private:
@@ -203,13 +169,13 @@ struct fixture : base_fixture {
   }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 FIXTURE_SCOPE(backend_tests, fixture)
 
 #define RUN(statement) run([&] { return statement; }, #statement)
 
-TEST(put/get) {
+TEST(put / get) {
   RUN(backend->put("foo", 7));
   CHECK_EQUAL(RUN(backend->get("foo")), data{7});
   MESSAGE("overwrite");
@@ -222,7 +188,7 @@ TEST(put/get) {
     CHECK_EQUAL(bar.error(), ec::no_such_key);
 }
 
-TEST(add/remove) {
+TEST(add / remove) {
   backend->put("foo", 0);
   auto add = backend->add("foo", 42, data::type::integer);
   REQUIRE(add);
@@ -255,7 +221,7 @@ TEST(add/remove) {
   CHECK_EQUAL(*get, data{34});
 }
 
-TEST(erase/exists) {
+TEST(erase / exists) {
   using namespace std::chrono;
   auto exists = backend->exists("foo");
   REQUIRE(exists);
@@ -278,7 +244,7 @@ TEST(erase/exists) {
   REQUIRE(erase);
 }
 
-TEST(clear/keys) {
+TEST(clear / keys) {
   using namespace std::chrono;
   auto put = backend->put("foo", "1");
   REQUIRE(put);
@@ -325,7 +291,7 @@ TEST(expiration without expiry) {
   REQUIRE(!*expire); // no expiry with key associated
 }
 
-TEST(size/snapshot) {
+TEST(size / snapshot) {
   using namespace std::chrono;
   auto put = backend->put("foo", "bar");
   REQUIRE(put);

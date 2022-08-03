@@ -1,7 +1,7 @@
 #pragma once
 
-#include <caf/message.hpp>
 #include <caf/actor_system.hpp>
+#include <caf/message.hpp>
 #include <caf/scoped_execution_unit.hpp>
 
 namespace broker::internal {

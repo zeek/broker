@@ -90,7 +90,8 @@ CAF_TEST(erase_command) {
 }
 
 CAF_TEST(add_command) {
-  push(add_command{data{"key"}, data{"value"}, data::type::table, std::nullopt});
+  push(
+    add_command{data{"key"}, data{"value"}, data::type::table, std::nullopt});
   CHECK_EQUAL(pull<internal_command::type>(),
               internal_command::type::add_command);
   CHECK_EQUAL(pull<data::type>(), data::type::string);

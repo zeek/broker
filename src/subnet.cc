@@ -1,8 +1,8 @@
-#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include <caf/hash/fnv.hpp>
 
@@ -11,8 +11,7 @@
 
 namespace broker {
 
-subnet::subnet() : len_(0) {
-}
+subnet::subnet() : len_(0) {}
 
 subnet::subnet(address addr, uint8_t length)
   : net_(std::move(addr)), len_(length) {

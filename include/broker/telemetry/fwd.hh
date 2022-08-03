@@ -266,13 +266,13 @@ template <class T>
 struct counter_hdl_oracle;
 
 template <>
-struct counter_hdl_oracle<double>{
+struct counter_hdl_oracle<double> {
   using fam_type = telemetry::dbl_counter_family_hdl;
   using hdl_type = telemetry::dbl_counter_hdl;
 };
 
 template <>
-struct counter_hdl_oracle<int64_t>{
+struct counter_hdl_oracle<int64_t> {
   using fam_type = telemetry::int_counter_family_hdl;
   using hdl_type = telemetry::int_counter_hdl;
 };
@@ -287,13 +287,13 @@ template <class T>
 struct gauge_hdl_oracle;
 
 template <>
-struct gauge_hdl_oracle<double>{
+struct gauge_hdl_oracle<double> {
   using fam_type = telemetry::dbl_gauge_family_hdl;
   using hdl_type = telemetry::dbl_gauge_hdl;
 };
 
 template <>
-struct gauge_hdl_oracle<int64_t>{
+struct gauge_hdl_oracle<int64_t> {
   using fam_type = telemetry::int_gauge_family_hdl;
   using hdl_type = telemetry::int_gauge_hdl;
 };
@@ -308,13 +308,13 @@ template <class T>
 struct histogram_hdl_oracle;
 
 template <>
-struct histogram_hdl_oracle<double>{
+struct histogram_hdl_oracle<double> {
   using fam_type = telemetry::dbl_histogram_family_hdl;
   using hdl_type = telemetry::dbl_histogram_hdl;
 };
 
 template <>
-struct histogram_hdl_oracle<int64_t>{
+struct histogram_hdl_oracle<int64_t> {
   using fam_type = telemetry::int_histogram_family_hdl;
   using hdl_type = telemetry::int_histogram_hdl;
 };

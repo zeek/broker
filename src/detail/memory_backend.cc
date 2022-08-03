@@ -1,5 +1,5 @@
-#include <set>
 #include <cstdint>
+#include <set>
 #include <utility>
 
 #include "broker/detail/appliers.hh"
@@ -7,7 +7,6 @@
 
 namespace broker {
 namespace detail {
-
 
 memory_backend::memory_backend(backend_options opts)
   : options_{std::move(opts)} {
@@ -53,8 +52,8 @@ expected<void> memory_backend::erase(const data& key) {
 }
 
 expected<void> memory_backend::clear() {
-   store_.clear();
-   return {};
+  store_.clear();
+  return {};
 }
 
 expected<bool> memory_backend::expire(const data& key, timestamp ts) {
@@ -76,7 +75,7 @@ expected<data> memory_backend::get(const data& key) const {
 
 expected<data> memory_backend::keys() const {
   set keys;
-  for ( auto i = store_.begin(); i != store_.end(); i++ )
+  for (auto i = store_.begin(); i != store_.end(); i++)
     keys.insert(i->first);
   return expected<data>(std::move(keys));
 }

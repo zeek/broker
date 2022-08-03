@@ -21,8 +21,8 @@ constexpr const char* data_type_names[] = {
 };
 
 template <broker::data::type Type>
-using data_variant_at_t
-  = std::variant_alternative_t<static_cast<size_t>(Type), data_variant>;
+using data_variant_at_t =
+  std::variant_alternative_t<static_cast<size_t>(Type), data_variant>;
 
 // Make sure the static_cast in data::get_type is safe.
 using std::is_same_v;
@@ -94,9 +94,8 @@ const char* data::get_type_name() const {
 namespace {
 
 template <class Container>
-void container_convert(Container& c, std::string& str,
-                       const char* left, const char* right,
-                       const char* delim = ", ") {
+void container_convert(Container& c, std::string& str, const char* left,
+                       const char* right, const char* delim = ", ") {
   auto first = begin(c);
   auto last = end(c);
   str += left;
@@ -135,7 +134,7 @@ struct data_converter {
   std::string& str;
 };
 
-} // namespace <anonymous>
+} // namespace
 
 void convert(const table::value_type& x, std::string& str) {
   str += to_string(x.first) + " -> " + to_string(x.second);
@@ -157,7 +156,7 @@ void convert(const data& x, std::string& str) {
   visit(data_converter{str}, x);
 }
 
-bool convert(const data& x, endpoint_id& node){
+bool convert(const data& x, endpoint_id& node) {
   return is<std::string>(x) && convert(get<std::string>(x), node);
 }
 

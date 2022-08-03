@@ -68,7 +68,6 @@ public:
   /// versioning (stores only the latest version). Sorted by path length.
   std::vector<versioned_path_type> versioned_paths;
 
-
   routing_table_row() {
     versioned_paths.reserve(32);
   }

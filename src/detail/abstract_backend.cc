@@ -1,5 +1,5 @@
-#include "broker/detail/appliers.hh"
 #include "broker/detail/abstract_backend.hh"
+#include "broker/detail/appliers.hh"
 
 namespace broker::detail {
 
@@ -30,7 +30,6 @@ expected<void> abstract_backend::subtract(const data& key, const data& value,
 }
 
 expected<data> abstract_backend::get(const data& key, const data& value) const {
-
   if (auto k = get(key))
     return visit(retriever{value}, *k);
   else

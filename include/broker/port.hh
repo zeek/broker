@@ -95,4 +95,4 @@ struct hash<broker::port> {
   }
 };
 
-} // namespace std;
+} // namespace std

@@ -132,7 +132,8 @@ uint16_t error::category() const noexcept {
 
 const std::string* error::message() const noexcept {
   auto& msg = native(*this).context();
-  if (auto v1 = caf::make_const_typed_message_view<endpoint_info, std::string>(msg))
+  if (auto v1 =
+        caf::make_const_typed_message_view<endpoint_info, std::string>(msg))
     return std::addressof(get<1>(v1));
   else if (auto v2 = caf::make_const_typed_message_view<std::string>(msg))
     return std::addressof(get<0>(v2));
