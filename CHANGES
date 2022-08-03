@@ -1,3 +1,7 @@
+2.4.0-dev.37 | 2022-08-03 19:01:24 +0200
+
+  * Upgrade pybind11 to version 2.10.0 (Dominik Charousset, Corelight)
+
 2.4.0-dev.35 | 2022-08-03 07:52:15 +0200
 
   * Fix warnings on GCC by dropping [[nodiscard]] on convert functions (Dominik Charousset, Corelight)
