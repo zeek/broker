@@ -87,7 +87,7 @@ private:
 // -- free functions -----------------------------------------------------------
 
 /// @relates address
-[[nodiscard]] inline bool convert(const std::string& str, address& a) {
+inline bool convert(const std::string& str, address& a) {
   return a.convert_from(str);
 }
 
