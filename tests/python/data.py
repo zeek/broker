@@ -183,6 +183,7 @@ class TestDataConstruction(unittest.TestCase):
     def test_string(self):
         self.check_to_broker_and_back('', '', broker.Data.Type.String)
         self.check_to_broker_and_back('foo', 'foo', broker.Data.Type.String)
+        self.check_to_broker_and_back('foo\x00null', 'foo\x00null', broker.Data.Type.String)
         self.check_to_broker_and_back('\ttab', '\ttab', broker.Data.Type.String)
         self.check_to_broker_and_back('new\n', 'new\n', broker.Data.Type.String)
 

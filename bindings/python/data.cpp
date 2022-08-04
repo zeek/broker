@@ -236,7 +236,14 @@ void init_data(py::module& m) {
 	})
     .def("as_vector", [](const broker::data& d) { return broker::get<broker::vector>(d); })
     .def("get_type", &broker::data::get_type)
-    .def("__str__", [](const broker::data& d) { return broker::to_string(d); })
+    .def("__str__",
+         [](const broker::data& d) {
+           // Don't to_string a string to avoid hex escaping it.
+           if (broker::holds_alternative<std::string>(d))
+             return broker::get<std::string>(d);
+
+           return broker::to_string(d);
+         })
     .def(hash(py::self))
     .def(py::self < py::self)
     .def(py::self <= py::self)

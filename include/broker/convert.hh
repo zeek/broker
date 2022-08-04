@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <optional>
 #include <ostream>
@@ -109,7 +110,42 @@ std::enable_if_t<detail::has_convert_v<From, std::string>, std::string>
 to_string(const From& from) {
   std::string result;
   convert(from, result);
-  return result;
+
+  // If the resulting string contains non-printable ASCII or whitespace,
+  // characters, \x encode and double encode \, too.
+
+  auto needs_quoting = [](const auto c) {
+    return c < ' ' || c > 126 || c == '\\';
+  };
+  auto non_printables = std::count_if(result.begin(), result.end(),
+                                      needs_quoting);
+
+  // Fast path, nothing to do.
+  if (non_printables == 0) {
+    return result;
+  }
+
+  const char hexdigits[] = "0123456789abcdef";
+
+  // Worst-case reserve() for the encoded string (4 chars per non_printable)
+  std::vector<char> ss;
+  ss.resize(result.size() - non_printables + non_printables * 4 + 1);
+  size_t idx = 0;
+  for (const auto c : result) {
+    if (c == '\\') {
+      ss[idx++] = '\\';
+      ss[idx++] = '\\';
+    } else if (needs_quoting(c)) {
+      ss[idx++] = '\\';
+      ss[idx++] = 'x';
+      ss[idx++] = hexdigits[(c >> 4) & 0x0F];
+      ss[idx++] = hexdigits[c & 0x0F];
+    } else {
+      ss[idx++] = c;
+    }
+  }
+  ss[idx++] = '\0';
+  return ss.data();
 }
 
 /// Convenience alias for `from<T>(str)`.
