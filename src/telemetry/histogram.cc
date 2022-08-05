@@ -33,7 +33,39 @@ auto& deref(metric_family_hdl* hdl) {
   return *reinterpret_cast<ct::metric_family*>(hdl);
 }
 
+const auto& deref(const dbl_histogram_family_hdl* hdl) {
+  using native_type = ct::metric_family_impl<ct::dbl_histogram>;
+  return *reinterpret_cast<const native_type*>(hdl);
+}
+
+const auto& deref(const int_histogram_family_hdl* hdl) {
+  using native_type = ct::metric_family_impl<ct::int_histogram>;
+  return *reinterpret_cast<const native_type*>(hdl);
+}
+
 } // namespace
+
+// -- free function interface for histograms families --------------------------
+
+size_t num_buckets(const dbl_histogram_family_hdl* hdl) noexcept {
+  return deref(hdl).extra_setting().size();
+}
+
+double upper_bound_at(const dbl_histogram_family_hdl* hdl,
+                      size_t index) noexcept {
+  return deref(hdl).extra_setting().at(index);
+}
+
+size_t num_buckets(const int_histogram_family_hdl* hdl) noexcept {
+  return deref(hdl).extra_setting().size();
+}
+
+int64_t upper_bound_at(const int_histogram_family_hdl* hdl,
+                       size_t index) noexcept {
+  return deref(hdl).extra_setting().at(index);
+}
+
+// -- free function interface for histograms instances -------------------------
 
 void observe(dbl_histogram_hdl* hdl, double value) noexcept {
   deref(hdl).observe(value);

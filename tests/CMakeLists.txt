@@ -36,6 +36,7 @@ set(tests
   cpp/subscriber.cc
   cpp/system/peering.cc
   cpp/system/shutdown.cc
+  cpp/telemetry/histogram.cc
   cpp/test.cc
   cpp/topic.cc
   cpp/zeek.cc
