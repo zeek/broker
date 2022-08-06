@@ -9,8 +9,11 @@
 #include <caf/disposable.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
+#include <caf/telemetry/counter.hpp>
+#include <caf/telemetry/gauge.hpp>
 
 #include <optional>
+#include <string_view>
 #include <unordered_map>
 
 namespace broker::internal {
@@ -52,6 +55,39 @@ public:
 
   /// Convenience alias for a map of @ref peer_state objects.
   using peer_state_map = std::unordered_map<endpoint_id, peer_state>;
+
+  /// Bundles message-related metrics that have a label dimension for the type.
+  struct message_metrics_t {
+    /// Counts how many messages were processed since starting the core.
+    caf::telemetry::int_counter* processed = nullptr;
+
+    /// Keeps track of how many messages are currently buffered at the core.
+    caf::telemetry::int_gauge* buffered = nullptr;
+
+    void assign(caf::telemetry::int_counter* processed_instance,
+                caf::telemetry::int_gauge* buffered_instance) noexcept {
+      processed = processed_instance;
+      buffered = buffered_instance;
+    }
+  };
+
+  /// Bundles metrics for the core.
+  struct metrics_t {
+    explicit metrics_t(caf::actor_system& sys);
+
+    /// Keeps track of how many native peers are currently connected.
+    caf::telemetry::int_gauge* native_connections = nullptr;
+
+    /// Keeps track of how many WebSocket clients are currently connected.
+    caf::telemetry::int_gauge* web_socket_connections = nullptr;
+
+    /// Stores the metrics for all message types.
+    std::array<message_metrics_t, 6> message_metric_sets;
+
+    message_metrics_t& metrics_for(packed_message_type msg_type) {
+      return message_metric_sets[static_cast<size_t>(msg_type)];
+    }
+  };
 
   // -- constants --------------------------------------------------------------
 
@@ -274,6 +310,9 @@ public:
   /// Enables manual time management by the user.
   endpoint::clock* clock;
 
+  /// Caches pointers to the Broker metrics.
+  metrics_t metrics;
+
   /// Stores all master actors created by this endpoint.
   std::unordered_map<std::string, caf::actor> masters;
 
@@ -319,6 +358,11 @@ public:
 
   /// Returns whether `shutdown` was called.
   bool shutting_down();
+
+  /// Returns the metrics set for a given message type.
+  message_metrics_t& metrics_for(packed_message_type msg_type) {
+    return metrics.metrics_for(msg_type);
+  }
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

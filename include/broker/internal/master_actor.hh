@@ -6,6 +6,7 @@
 #include <caf/behavior.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
+#include <caf/telemetry/gauge.hpp>
 
 #include "broker/data.hh"
 #include "broker/detail/abstract_backend.hh"
@@ -22,14 +23,25 @@ class master_state : public store_actor_state {
 public:
   // -- member types -----------------------------------------------------------
 
+  /// Base type.
   using super = store_actor_state;
 
+  /// Channel type for producing messages for a clone.
   using producer_type = channel_type::producer<master_state>;
 
+  /// Channel type for consuming messages from a clone.
   using consumer_type = channel_type::consumer<master_state>;
 
-  /// Owning smart pointer to a backend.
+  /// Owning smart pointer type to a backend.
   using backend_pointer = std::unique_ptr<detail::abstract_backend>;
+
+  /// Bundles metrics for the master.
+  struct metrics_t {
+    metrics_t(caf::actor_system& sys, const std::string& name) noexcept;
+
+    /// Keeps track of how many entries the store currently has.
+    caf::telemetry::int_gauge* entries = nullptr;
+  };
 
   template <class T>
   void broadcast(T&& cmd) {
@@ -132,6 +144,9 @@ public:
 
   /// Maps senders to manager objects for incoming commands.
   std::unordered_map<data, timestamp> expirations;
+
+  /// Caches pointers to the metric instances.
+  metrics_t metrics;
 
   /// Gives this actor a recognizable name in log files.
   static inline constexpr const char* name = "broker.master";
