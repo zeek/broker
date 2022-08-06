@@ -53,7 +53,9 @@ size_t num_buckets(const dbl_histogram_family_hdl* hdl) noexcept {
 
 double upper_bound_at(const dbl_histogram_family_hdl* hdl,
                       size_t index) noexcept {
-  return deref(hdl).extra_setting().at(index);
+  const auto& xs = deref(hdl).extra_setting();
+  BROKER_ASSERT(index < xs.size());
+  return xs[index];
 }
 
 size_t num_buckets(const int_histogram_family_hdl* hdl) noexcept {
@@ -62,7 +64,9 @@ size_t num_buckets(const int_histogram_family_hdl* hdl) noexcept {
 
 int64_t upper_bound_at(const int_histogram_family_hdl* hdl,
                        size_t index) noexcept {
-  return deref(hdl).extra_setting().at(index);
+  const auto& xs = deref(hdl).extra_setting();
+  BROKER_ASSERT(index < xs.size());
+  return xs[index];
 }
 
 // -- free function interface for histograms instances -------------------------
