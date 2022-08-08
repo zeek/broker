@@ -1,3 +1,7 @@
+2.4.0-dev.42 | 2022-08-08 10:48:37 +0200
+
+  * Remove dead code and obsolete files (Dominik Charousset, Corelight)
+
 2.4.0-dev.39 | 2022-08-03 20:44:57 +0200
 
   * Apply clang-format to the code base, add CI check (Dominik Charousset, Corelight)
