@@ -80,6 +80,7 @@ public:
   using super = metric_family;
 
   using handle = detail::histogram_fam_t<T>*;
+  using const_handle = const detail::histogram_fam_t<T>*;
 
   explicit histogram_family(handle hdl) noexcept : super(hdl) {
     // nop
@@ -106,6 +107,26 @@ public:
   /// @return Whether @c this and @p other refer to the same family.
   constexpr bool is_same_as(histogram_family other) const noexcept {
     return hdl_ == other.hdl_;
+  }
+
+  /// @return The number of buckets, including the implicit "infinite" bucket.
+  size_t num_buckets() const noexcept {
+    return telemetry::num_buckets(hdl());
+  }
+
+  /// @return The upper bound of the bucket at @p index.
+  /// @pre index < NumBuckets()
+  T upper_bound_at(size_t index) const noexcept {
+    return telemetry::upper_bound_at(hdl(), index);
+  }
+
+private:
+  const_handle hdl() const {
+    if constexpr (std::is_same_v<T, double>) {
+      return as_dbl_histogram_family(super::hdl_);
+    } else {
+      return as_int_histogram_family(super::hdl_);
+    }
   }
 };
 

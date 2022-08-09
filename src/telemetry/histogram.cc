@@ -7,6 +7,8 @@
 #include <caf/telemetry/metric_family.hpp>
 #include <caf/telemetry/metric_family_impl.hpp>
 
+#include <limits>
+
 namespace ct = caf::telemetry;
 
 namespace broker::telemetry {
@@ -33,7 +35,45 @@ auto& deref(metric_family_hdl* hdl) {
   return *reinterpret_cast<ct::metric_family*>(hdl);
 }
 
+const auto& deref(const dbl_histogram_family_hdl* hdl) {
+  using native_type = ct::metric_family_impl<ct::dbl_histogram>;
+  return *reinterpret_cast<const native_type*>(hdl);
+}
+
+const auto& deref(const int_histogram_family_hdl* hdl) {
+  using native_type = ct::metric_family_impl<ct::int_histogram>;
+  return *reinterpret_cast<const native_type*>(hdl);
+}
+
 } // namespace
+
+// -- free function interface for histograms families --------------------------
+
+size_t num_buckets(const dbl_histogram_family_hdl* hdl) noexcept {
+  // +1 for the implicit "Infinite" bucket.
+  return deref(hdl).extra_setting().size() + 1;
+}
+
+double upper_bound_at(const dbl_histogram_family_hdl* hdl,
+                      size_t index) noexcept {
+  using limits = std::numeric_limits<double>;
+  const auto& xs = deref(hdl).extra_setting();
+  return index < xs.size() ? xs[index] : limits::infinity();
+}
+
+size_t num_buckets(const int_histogram_family_hdl* hdl) noexcept {
+  // +1 for the implicit "Infinite" bucket.
+  return deref(hdl).extra_setting().size() + 1;
+}
+
+int64_t upper_bound_at(const int_histogram_family_hdl* hdl,
+                       size_t index) noexcept {
+  using limits = std::numeric_limits<int64_t>;
+  const auto& xs = deref(hdl).extra_setting();
+  return index < xs.size() ? xs[index] : limits::max();
+}
+
+// -- free function interface for histograms instances -------------------------
 
 void observe(dbl_histogram_hdl* hdl, double value) noexcept {
   deref(hdl).observe(value);
