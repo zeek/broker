@@ -6,6 +6,9 @@
 
 #include "broker/telemetry/metric_registry.hh"
 
+#include <cmath>
+#include <limits>
+
 using namespace broker;
 using namespace std::literals;
 
@@ -33,9 +36,11 @@ SCENARIO("telemetry managers provide access to histogram families") {
         CHECK_EQ(family.helptext(), "test"sv);
         CHECK_EQ(family.unit(), "bytes"sv);
         CHECK_EQ(family.is_sum(), false);
-        if (CHECK_EQ(family.num_buckets(), 2u)) {
+        if (CHECK_EQ(family.num_buckets(), 3u)) {
+          using limits = std::numeric_limits<int64_t>;
           CHECK_EQ(family.upper_bound_at(0), 10);
           CHECK_EQ(family.upper_bound_at(1), 20);
+          CHECK_EQ(family.upper_bound_at(2), limits::max());
         }
       }
       AND_THEN("get_or_add returns the same metric for the same labels") {
@@ -61,9 +66,10 @@ SCENARIO("telemetry managers provide access to histogram families") {
         CHECK_EQ(family.helptext(), "test"sv);
         CHECK_EQ(family.unit(), "seconds"sv);
         CHECK_EQ(family.is_sum(), false);
-        if (CHECK_EQ(family.num_buckets(), 2u)) {
+        if (CHECK_EQ(family.num_buckets(), 3u)) {
           CHECK_EQ(family.upper_bound_at(0), 10.0);
           CHECK_EQ(family.upper_bound_at(1), 20.0);
+          CHECK(std::isinf(family.upper_bound_at(2)));
         }
       }
       AND_THEN("get_or_add returns the same metric for the same labels") {
