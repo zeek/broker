@@ -269,7 +269,7 @@ public:
   }
 
   expected<uint16_t> start(uint16_t port, caf::actor core,
-                           const char* in = nullptr, bool reuse = false) {
+                           const char* in = nullptr, bool reuse = true) {
     caf::io::doorman_ptr dptr;
     if (auto maybe_dptr = mpx_.new_tcp_doorman(port, in, reuse)) {
       dptr = std::move(*maybe_dptr);
@@ -547,7 +547,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     auto ptask = std::make_unique<prometheus_http_task>(sys);
     auto addr = caf::get_or(cfg, "broker.metrics.address", std::string{});
     if (auto actual_port = ptask->start(
-          *port, native(core_), addr.empty() ? nullptr : addr.c_str(), false)) {
+          *port, native(core_), addr.empty() ? nullptr : addr.c_str())) {
       BROKER_INFO("expose metrics on port" << *actual_port);
       telemetry_exporter_ = facade(ptask->telemetry_exporter());
       background_tasks_.emplace_back(std::move(ptask));
