@@ -69,6 +69,9 @@ master_state::master_state(
   } else {
     detail::die("failed to get master expiries while initializing");
   }
+  if (auto entries = backend->size(); entries && *entries > 0) {
+    metrics.entries->value(static_cast<int64_t>(*entries));
+  }
   BROKER_INFO("attached master" << id << "to" << store_name);
 }
 
