@@ -31,7 +31,7 @@ bool operator<(const port& lhs, const port& rhs) {
   return std::tie(lhs.num_, lhs.proto_) < std::tie(rhs.num_, rhs.proto_);
 }
 
-void convert(const port& p, std::string& str) {
+bool convert(const port& p, std::string& str) {
   str = std::to_string(p.number());
   str += '/';
   switch (p.type()) {
@@ -48,6 +48,7 @@ void convert(const port& p, std::string& str) {
       str += "icmp";
       break;
   }
+  return true;
 }
 
 bool convert(const std::string& str, port& p) {

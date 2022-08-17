@@ -92,8 +92,9 @@ inline bool convert(const std::string& str, address& a) {
 }
 
 /// @relates address
-inline void convert(const address& a, std::string& str) {
+inline bool convert(const address& a, std::string& str) {
   a.convert_to(str);
+  return true;
 }
 
 /// @relates address

@@ -86,7 +86,7 @@ bool convert(const data& src, endpoint_info& dst);
 bool convert(const endpoint_info& src, data& dst);
 
 /// @relates endpoint_info
-void convert(const endpoint_info& src, std::string& dst);
+bool convert(const endpoint_info& src, std::string& dst);
 
 // Enable `can_convert` for `endpoint_info`.
 template <>

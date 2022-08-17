@@ -165,8 +165,9 @@ int error::compare(uint8_t code, uint16_t category) const noexcept {
   return native(*this).compare(code, category);
 }
 
-void convert(const error& in, std::string& out) {
+bool convert(const error& in, std::string& out) {
   out = caf::to_string(native(in));
+  return true;
 }
 
 error make_error(ec code, endpoint_info info, std::string description) {

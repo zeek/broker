@@ -119,8 +119,9 @@ bool operator<(const topic& lhs, const topic& rhs);
 topic operator/(const topic& lhs, const topic& rhs);
 
 /// @relates topic
-inline void convert(const topic& t, std::string& str) {
+inline bool convert(const topic& t, std::string& str) {
   str = t.string();
+  return true;
 }
 
 /// Checks whether a topic is internal, i.e., messages on this topic are always

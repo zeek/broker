@@ -75,7 +75,7 @@ inline bool operator<(const entity_id& x, const entity_id& y) noexcept {
 }
 
 /// @relates entity_id
-void convert(const entity_id& in, std::string& out);
+bool convert(const entity_id& in, std::string& out);
 
 } // namespace broker
 

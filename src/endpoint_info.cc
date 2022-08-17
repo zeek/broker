@@ -79,7 +79,7 @@ bool convert(const endpoint_info& src, data& dst) {
   return true;
 }
 
-void convert(const endpoint_info& src, std::string& dst) {
+bool convert(const endpoint_info& src, std::string& dst) {
   dst += "endpoint_info(";
   dst += to_string(src.node);
   dst += ", ";
@@ -90,6 +90,7 @@ void convert(const endpoint_info& src, std::string& dst) {
     dst += "none";
   }
   dst += ')';
+  return true;
 }
 
 } // namespace broker

@@ -187,7 +187,7 @@ private:
 };
 
 /// @relates error
-void convert(const error& in, std::string& out);
+bool convert(const error& in, std::string& out);
 
 /// Creates a new @ref error from given @ref ec code.
 inline error make_error(ec code) {

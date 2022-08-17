@@ -9,7 +9,7 @@
 namespace broker {
 
 /// @relates port
-void convert(const port& p, std::string& str);
+bool convert(const port& p, std::string& str);
 
 /// @relates port
 bool convert(const std::string& str, port& p);

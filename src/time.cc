@@ -4,36 +4,43 @@
 
 namespace broker {
 
-void convert(timespan s, std::string& str) {
+bool convert(timespan s, std::string& str) {
   using std::to_string;
   str = to_string(s.count());
   str += "ns";
+  return true;
 }
 
-void convert(timespan s, fractional_seconds& secs) {
+bool convert(timespan s, fractional_seconds& secs) {
   secs = std::chrono::duration_cast<fractional_seconds>(s);
+  return true;
 }
 
-void convert(timespan s, double& secs) {
+bool convert(timespan s, double& secs) {
   secs = std::chrono::duration_cast<fractional_seconds>(s).count();
+  return true;
 }
 
-void convert(timestamp t, std::string& str) {
+bool convert(timestamp t, std::string& str) {
   caf::append_timestamp_to_string(str, t);
+  return true;
 }
 
-void convert(timestamp t, double& secs) {
+bool convert(timestamp t, double& secs) {
   secs = std::chrono::duration_cast<fractional_seconds>(t.time_since_epoch())
            .count();
+  return true;
 }
 
-void convert(double secs, timespan& s) {
+bool convert(double secs, timespan& s) {
   s = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
+  return true;
 }
 
-void convert(double secs, timestamp& ts) {
+bool convert(double secs, timestamp& ts) {
   auto d = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
   ts = timestamp{d};
+  return true;
 }
 
 timestamp now() {

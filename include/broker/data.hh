@@ -29,19 +29,19 @@ class data;
 using vector = std::vector<data>;
 
 /// @relates vector
-void convert(const vector& v, std::string& str);
+bool convert(const vector& v, std::string& str);
 
 /// An associative, ordered container of unique keys.
 using set = std::set<data>;
 
 /// @relates set
-void convert(const set& s, std::string& str);
+bool convert(const set& s, std::string& str);
 
 /// An associative, ordered container that maps unique keys to values.
 using table = std::map<data, data>;
 
 /// @relates table
-void convert(const table& t, std::string& str);
+bool convert(const table& t, std::string& str);
 
 using data_variant = std::variant<none, boolean, count, integer, real,
                                   std::string, address, subnet, port, timestamp,
@@ -281,7 +281,7 @@ bool inspect(Inspector& f, broker::table& tbl) {
 }
 
 /// @relates data
-void convert(const data& x, std::string& str);
+bool convert(const data& x, std::string& str);
 
 /// @relates data
 bool convert(const data& x, endpoint_id& node);

@@ -42,33 +42,39 @@ void convert_duration(Rep count, const char* unit_name, std::string& str) {
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::nano> d, std::string& str) {
   convert_duration(d.count(), "ns", str);
+  return true;
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::micro> d, std::string& str) {
   convert_duration(d.count(), "us", str);
+  return true;
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::milli> d, std::string& str) {
   convert_duration(d.count(), "ms", str);
+  return true;
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::ratio<1>> d, std::string& str) {
   convert_duration(d.count(), "s", str);
+  return true;
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::ratio<60>> d, std::string& str) {
   convert_duration(d.count(), "mins", str);
+  return true;
 }
 
 template <class Rep>
-void convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
+bool convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
   convert_duration(d.count(), "hrs", str);
+  return true;
 }
 
 /// Attempts to convert `From` to `To`.

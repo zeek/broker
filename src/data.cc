@@ -136,24 +136,29 @@ struct data_converter {
 
 } // namespace
 
-void convert(const table::value_type& x, std::string& str) {
+bool convert(const table::value_type& x, std::string& str) {
   str += to_string(x.first) + " -> " + to_string(x.second);
+  return true;
 }
 
-void convert(const vector& x, std::string& str) {
+bool convert(const vector& x, std::string& str) {
   container_convert(x, str, "(", ")");
+  return true;
 }
 
-void convert(const set& x, std::string& str) {
+bool convert(const set& x, std::string& str) {
   container_convert(x, str, "{", "}");
+  return true;
 }
 
-void convert(const table& x, std::string& str) {
+bool convert(const table& x, std::string& str) {
   container_convert(x, str, "{", "}");
+  return true;
 }
 
-void convert(const data& x, std::string& str) {
+bool convert(const data& x, std::string& str) {
   visit(data_converter{str}, x);
+  return true;
 }
 
 bool convert(const data& x, endpoint_id& node) {
