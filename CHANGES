@@ -1,3 +1,11 @@
+2.4.0-dev.48 | 2022-08-17 16:47:55 +0200
+
+  * Set SO_REUSEADDR for the Prometheus HTTP server (Dominik Charousset, Corelight)
+
+    We already set SO_REUSEADDR by default for incoming Broker peerings, so
+    omitting it for the Prometheus server is inconsistent and can be
+    problematic when restarting an application.
+
 2.4.0-dev.46 | 2022-08-09 10:54:42 +0200
 
   * Add getters for bucket settings on family handles (Dominik Charousset, Corelight)
