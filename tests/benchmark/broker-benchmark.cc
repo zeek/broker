@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <random>
 #include <string>
 #include <thread>
 #include <utility>
@@ -46,6 +47,7 @@ uint64_t max_received = 0;
 uint64_t max_in_flight = 0;
 bool server = false;
 bool verbose = false;
+std::string store_backend = "memory";
 
 // Global state
 size_t total_recv;
@@ -71,27 +73,57 @@ double current_time() {
   return usec / 1e6;
 }
 
-static std::string random_string(int n) {
-  static unsigned int i = 0;
+thread_local std::minstd_rand rng;
+
+unsigned
+random_number(unsigned min_value = 0,
+              unsigned upper_bound = std::numeric_limits<unsigned>::max()) {
+  // Ideally, we would use std::uniform_int_distribution here. However, some of
+  // our use cases have a dynamic upper bound. Creating a new distribution
+  // object each time would essentially boil down to the same.
+  return (rng() % (upper_bound - min_value)) + min_value;
+}
+
+template <class T, size_t N>
+const T& choose_from(const T (&xs)[N]) {
+  auto index = random_number(0, static_cast<unsigned>(N));
+  return xs[index];
+}
+
+const data& choose_from(const set& xs) {
+  auto index = random_number(0, static_cast<unsigned>(xs.size()));
+  auto i = xs.begin();
+  std::advance(i, index);
+  return *i;
+}
+
+template <class T>
+const T& choose_from(const std::vector<T>& xs) {
+  return xs[random_number(0, static_cast<unsigned>(xs.size()))];
+}
+
+std::optional<timespan> random_expiry() {
+  std::optional<timespan> result;
+  if (auto timeout = random_number(0, 86400); timeout > 0) {
+    result.emplace(std::chrono::seconds{timeout});
+  }
+  return result;
+}
+
+std::string random_string(size_t n) {
   const char charset[] = "0123456789"
                          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                          "abcdefghijklmnopqrstuvwxyz";
-
-  const size_t max_index = (sizeof(charset) - 1);
-  char buffer[11];
-  for (unsigned int j = 0; j < sizeof(buffer) - 1; j++)
-    buffer[j] = charset[++i % max_index];
-  buffer[sizeof(buffer) - 1] = '\0';
-
-  return buffer;
-}
-
-static uint64_t random_count() {
-  static uint64_t i = 0;
-  return ++i;
+  std::string result;
+  result.reserve(n);
+  for (size_t i = 0; i < n; ++i) {
+    result.push_back(choose_from(charset));
+  }
+  return result;
 }
 
 vector createEventArgs() {
+  auto random_count = []() -> uint64_t { return random_number(); };
   switch (event_type) {
     case 1: {
       return std::vector<data>{42, "test"};
@@ -234,6 +266,8 @@ struct source_state {
   static inline const char* name = "broker.benchmark.source";
 };
 
+void store_writer_loop(endpoint& ep, bool verbose, status_subscriber& ss);
+
 void client_loop(endpoint& ep, bool verbose, status_subscriber& ss);
 
 void client_mode(endpoint& ep, bool verbose, const std::string& host,
@@ -263,7 +297,136 @@ void client_mode(endpoint& ep, bool verbose, const std::string& host,
     return;
   }
   VERBOSE_OUT << "*** endpoint is now peering to remote\n";
-  client_loop(ep, verbose, ss);
+  if (event_type == 4) {
+    store_writer_loop(ep, verbose, ss);
+  } else {
+    client_loop(ep, verbose, ss);
+  }
+}
+
+void store_writer_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
+  std::cout << "*** run store-writer loop\n";
+  auto st = ep.attach_clone("broker-benchmark");
+  if (!st) {
+    std::cerr << "unable to attach the data store: " << to_string(st.error())
+              << '\n';
+    return;
+  }
+  std::vector<std::string> keys;
+  keys.reserve(100);
+  for (size_t i = 0; i < 100; ++i) {
+    keys.emplace_back("key-");
+    keys.back() += std::to_string(i);
+  }
+  auto do_random_operation = [&st, &keys] {
+    // Creates a random integer between 0 and 100.
+    auto random_integer_data = [] {
+      return data{static_cast<integer>(random_number(0, 100))};
+    };
+    // Creates a random number, set, vector, table or string.
+    auto random_data = [] {
+      switch (random_number(0, 5)) {
+        case 0: {
+          return data{random_string(8)};
+        }
+        case 1: {
+          return data{static_cast<integer>(random_number(0, 100))};
+        }
+        case 2: {
+          vector result;
+          auto n = random_number(2, 10);
+          for (unsigned i = 0; i < n; ++i) {
+            result.emplace_back(random_string(8));
+          }
+          return data{std::move(result)};
+        }
+        case 3: {
+          table result;
+          auto n = random_number(2, 10);
+          for (unsigned i = 0; i < n; ++i) {
+            result.emplace(data{random_string(8)}, data{random_string(8)});
+          }
+          return data{std::move(result)};
+        }
+        default: {
+          set result;
+          auto n = random_number(2, 10);
+          for (unsigned i = 0; i < n; ++i) {
+            result.emplace(random_string(8));
+          }
+          return data{std::move(result)};
+        }
+      }
+    };
+    // Try until an operation has been selected.
+    for (;;) {
+      switch (random_number(0, 11)) {
+        case 0:
+          st->put(data{choose_from(keys)}, random_data(), random_expiry());
+          return;
+        case 1:
+          st->erase(choose_from(keys));
+          return;
+          break;
+        case 2:
+          st->append(data{choose_from(keys)}, data{random_string(8)},
+                     random_expiry());
+          return;
+        case 3:
+          st->increment(data{choose_from(keys)}, random_integer_data(),
+                        random_expiry());
+          return;
+        case 4:
+          st->decrement(data{choose_from(keys)}, random_integer_data(),
+                        random_expiry());
+          return;
+        case 5:
+          st->insert_into(data{choose_from(keys)}, data{random_string(8)},
+                          random_expiry());
+          return;
+        case 6:
+          st->insert_into(data{choose_from(keys)}, data{random_string(8)},
+                          data{random_string(8)}, random_expiry());
+          return;
+        case 7:
+          st->remove_from(data{choose_from(keys)}, data{random_string(8)},
+                          random_expiry());
+          return;
+        case 8:
+          st->push(data{choose_from(keys)}, random_data(), random_expiry());
+          return;
+        case 9:
+          st->pop(data{choose_from(keys)});
+          return;
+        default:
+          st->put_unique(data{choose_from(keys)}, random_data(),
+                         random_expiry());
+          return;
+      }
+    }
+  };
+  auto print_status_events = [&verbose, &ss] {
+    auto status_events = ss.poll();
+    if (verbose)
+      for (auto& ev : status_events)
+        std::visit([](auto& x) { std::cout << to_string(x) << std::endl; }, ev);
+  };
+  if (batch_rate == 0) {
+    // Run as fast as possible, but wait once per second for the master to catch
+    // up.
+    timestamp next_wait = std::chrono::system_clock::now() + 1s;
+    for (;;) {
+      do_random_operation();
+      print_status_events();
+      timestamp t = std::chrono::system_clock::now();
+      if (next_wait >= t) {
+        st->await_idle();
+        next_wait = std::chrono::system_clock::now() + 1s;
+      }
+    }
+  } else {
+    std::cerr << "NOT IMPLEMENTED\n";
+  }
 }
 
 void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
@@ -333,6 +496,18 @@ void server_loop(endpoint& ep, bool verbose, status_subscriber& ss,
 // This mode mimics what benchmark.bro does.
 void server_mode(endpoint& ep, bool verbose, const std::string& iface,
                  int port) {
+  // Spin up a store if a backend is configured.
+  backend_options store_opts;
+  store_opts["path"] = "broker-bench-tmp.sqlite";
+  unlink("broker-bench-tmp.sqlite"); // make sure we always start fresh
+  auto st = ep.attach_master("broker-benchmark",
+                             store_backend == "sqlite" ? backend::sqlite
+                                                       : backend::memory,
+                             std::move(store_opts));
+  if (!st) {
+    std::cerr << "*** failed to start store: " << to_string(st.error()) << '\n';
+    return;
+  }
   // Make sure to receive status updates.
   auto ss = ep.make_status_subscriber(true);
   // Subscribe to /benchmark/events.
@@ -408,7 +583,8 @@ void server_loop(endpoint& ep, bool verbose, status_subscriber& ss,
 
 void add_options(configuration& cfg) {
   cfg.add_option(&event_type, "event-type,t",
-                 "1 (vector, default) | 2 (conn log entry) | 3 (table)");
+                 "1 (vector, default) | 2 (conn log entry) | 3 (table) "
+                 "| 4 (store commands)");
   cfg.add_option(&batch_rate, "batch-rate,r",
                  "batches/sec (default: 1, set to 0 for infinite)");
   cfg.add_option(&batch_size, "batch-size,s", "events per batch (default: 1)");
@@ -422,6 +598,7 @@ void add_options(configuration& cfg) {
                  "report when exceeding this count");
   cfg.add_option(&server, "server", "run in server mode");
   cfg.add_option(&verbose, "verbose", "enable status output");
+  cfg.add_option(&store_backend, "store-backend", "memory (default) or sqlite");
 }
 
 void usage(const configuration& cfg, const char* cmd_name) {
@@ -477,6 +654,10 @@ int main(int argc, char** argv) {
   // Run benchmark.
   endpoint ep(std::move(cfg));
   if (server) {
+    if (store_backend != "sqlite" && store_backend != "memory") {
+      std::cerr << "*** invalid store backend, must be 'sqlite' or 'memory'\n";
+      return EXIT_FAILURE;
+    }
     VERBOSE_OUT << "*** run in server mode\n";
     server_mode(ep, verbose, host, port);
   } else {
