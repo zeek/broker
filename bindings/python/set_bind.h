@@ -95,7 +95,7 @@ auto set_if_insertion_operator(Class_& cl, std::string const& name)
       std::ostringstream t;
       bool first = true;
       t << name << "{";
-      for (auto i : s) {
+      for (const auto& i : s) {
         if (!first)
           t << ", ";
         t << i;

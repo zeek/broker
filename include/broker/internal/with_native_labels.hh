@@ -22,7 +22,7 @@ auto with_native_labels(span<const telemetry::label_view> xs, F continuation) {
     return continuation(span{buf, xs.size()});
   } else {
     std::vector<ct::label_view> buf;
-    for (auto x : xs)
+    for (const auto& x : xs)
       buf.emplace_back(x.first, x.second);
     return continuation(span{buf});
   }
@@ -37,7 +37,7 @@ auto with_native_labels(span<const std::string_view> xs, F continuation) {
     return continuation(span{buf, xs.size()});
   } else {
     std::vector<caf::string_view> buf;
-    for (auto x : xs)
+    for (const auto& x : xs)
       buf.emplace_back(x);
     return continuation(span{buf});
   }
