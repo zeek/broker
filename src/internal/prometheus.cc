@@ -64,13 +64,13 @@ caf::behavior prometheus_actor::make_behavior() {
     BROKER_ERROR("started a Prometheus actor with an invalid core handle");
     return {};
   }
-    monitor(core_);
-    set_down_handler([this](const caf::down_msg& msg) {
-      if (msg.source == core_) {
-        BROKER_INFO("the core terminated:" << msg.reason);
-        quit(msg.reason);
-      }
-    });
+  monitor(core_);
+  set_down_handler([this](const caf::down_msg& msg) {
+    if (msg.source == core_) {
+      BROKER_INFO("the core terminated:" << msg.reason);
+      quit(msg.reason);
+    }
+  });
   if (!filter_.empty()) {
     BROKER_INFO("collect remote metrics from topics" << filter_);
     send(core_, atom::join_v, filter_);
