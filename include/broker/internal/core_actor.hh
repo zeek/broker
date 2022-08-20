@@ -314,6 +314,15 @@ public:
   /// Stores the subscriptions for our input sources to allow us to cancel them.
   std::vector<caf::disposable> subscriptions;
 
+  /// Bundles state for a subscriber that does not integrate into the flows.
+  struct legacy_subscriber {
+    std::shared_ptr<filter_type> filter;
+    caf::disposable sub;
+  };
+
+  /// Associates handles to legacy subscribers with their state.
+  std::map<caf::actor_addr, legacy_subscriber> legacy_subs;
+
   /// Time-to-live when sending messages.
   uint16_t ttl;
 

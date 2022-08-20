@@ -93,6 +93,10 @@ public:
       [this](atom::put, filter_type& new_prefixes_filter) {
         set_prefixes(std::move(new_prefixes_filter));
       },
+      [this](atom::join, const filter_type&) {
+        // Ignored. The prometheus_actor "overrides" this handler but it has no
+        // effect on a "plain" exporter.
+      },
     };
   }
 

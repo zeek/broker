@@ -64,9 +64,6 @@ caf::behavior prometheus_actor::make_behavior() {
     BROKER_ERROR("started a Prometheus actor with an invalid core handle");
     return {};
   }
-  if (!filter_.empty()) {
-    BROKER_INFO("collect remote metrics from topics" << filter_);
-    send(core_, atom::join_v, filter_);
     monitor(core_);
     set_down_handler([this](const caf::down_msg& msg) {
       if (msg.source == core_) {
@@ -74,6 +71,9 @@ caf::behavior prometheus_actor::make_behavior() {
         quit(msg.reason);
       }
     });
+  if (!filter_.empty()) {
+    BROKER_INFO("collect remote metrics from topics" << filter_);
+    send(core_, atom::join_v, filter_);
   }
   auto bhvr = caf::message_handler{
     [this](const caf::io::new_data_msg& msg) {
@@ -138,6 +138,11 @@ caf::behavior prometheus_actor::make_behavior() {
     [this](data_message msg) {
       BROKER_TRACE(BROKER_ARG(msg));
       collector_.insert_or_update(get_data(msg));
+    },
+    [this](atom::join, const filter_type& filter) {
+      filter_ = filter;
+      BROKER_INFO("collect remote metrics from topics" << filter_);
+      send(core_, atom::join_v, filter_);
     },
   };
   auto params = metric_exporter_params::from(config());
