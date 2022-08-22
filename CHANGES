@@ -1,3 +1,7 @@
+2.4.0-dev.52 | 2022-08-22 16:40:48 +0200
+
+  * Set SO_REUSEADDR for the Prometheus HTTP server (Dominik Charousset, Corelight)
+
 2.4.0-dev.50 | 2022-08-22 16:39:58 +0200
 
   * Revert accidental change to CMake file from #255 (Dominik Charousset, Corelight)
