@@ -1,3 +1,7 @@
+2.4.0-dev.54 | 2022-08-22 16:41:54 +0200
+
+  * Remove the retry limit on peerings (Dominik Charousset, Corelight)
+
 2.4.0-dev.52 | 2022-08-22 16:40:48 +0200
 
   * Set SO_REUSEADDR for the Prometheus HTTP server (Dominik Charousset, Corelight)
