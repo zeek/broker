@@ -488,9 +488,6 @@ using stream_transport_error = caf::net::stream_transport_error;
 
 using caf::net::stream_socket;
 
-// TODO: make configurable
-constexpr size_t max_connection_attempts = 10;
-
 // Size of the 'constant' part of a handshake message without the leading
 // 4-Bytes to encode the payload size.
 static constexpr size_t handshake_prefix_size = 17;
@@ -1099,7 +1096,7 @@ struct connect_manager {
       pending_fdset.push_back({sock->id, mask, 0});
       state->transition(&connect_state::await_hello_or_version_select);
       state->send(wire_format::make_hello_msg(this_peer));
-    } else if (++state->connection_attempts < max_connection_attempts) {
+    } else {
       auto retry_interval = state->addr.retry;
       if (retry_interval.count() != 0) {
         BROKER_DEBUG("failed to connect to" << authority << "-> retry in"
@@ -1114,13 +1111,6 @@ struct connect_manager {
       } else {
         listener->on_peer_unavailable(state->addr);
       }
-    } else {
-      BROKER_DEBUG("failed to connect to"
-                   << authority << "-> fail (reached max connection attempts)");
-      if (valid(event_id))
-        listener->on_error(event_id, caf::make_error(ec::peer_unavailable));
-      else
-        listener->on_peer_unavailable(state->addr);
     }
   }
 
@@ -1311,8 +1301,7 @@ struct connect_manager {
                                             state->addr);
       } else if (state->event_id != invalid_connector_event_id) {
         auto retry_interval = state->addr.retry;
-        if (retry_interval.count() > 0
-            && ++state->connection_attempts < max_connection_attempts) {
+        if (retry_interval.count() > 0) {
           retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                  std::move(state));
           BROKER_DEBUG("failed to connect on socket"
