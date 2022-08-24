@@ -105,6 +105,11 @@ public:
     /// *all*.
     void set_prefixes(std::vector<std::string> new_prefixes);
 
+    /// Sets a new filter for the Prometheus metrics exporter to collect metrics
+    /// from remote endpoints. An empty vector means *none*.
+    /// @note Has no effect when not configuring Prometheus export.
+    void set_import_topics(std::vector<std::string> new_topics);
+
   private:
     endpoint* parent_;
   };

@@ -152,6 +152,13 @@ caf::behavior core_actor_state::make_behavior() {
       shutdown(shutdown_options{});
     }
   });
+  // Override the down handler to drop legacy subscribers.
+  self->set_down_handler([this](caf::down_msg& msg) {
+    if (auto i = legacy_subs.find(msg.source); i != legacy_subs.end()) {
+      i->second.sub.dispose();
+      legacy_subs.erase(i);
+    }
+  });
   // Create the behavior (set of message handlers / callbacks) for the actor.
   caf::behavior result{
     // -- peering --------------------------------------------------------------
@@ -308,30 +315,38 @@ caf::behavior core_actor_state::make_behavior() {
       shutdown_stores();
     },
     // -- interface for legacy subscribers -------------------------------------
-    [this](atom::join, const filter_type& filter) mutable {
+    [this](atom::join, const filter_type& filter) {
       // Sanity checking: reject anonymous messages.
-      if (self->current_sender() == nullptr)
+      auto sender_ptr = self->current_sender();
+      if (sender_ptr == nullptr)
         return;
+      // Update state for repeated join messages.
+      auto addr = caf::actor_cast<caf::actor_addr>(sender_ptr);
+      if (auto i = legacy_subs.find(addr); i != legacy_subs.end()) {
+        if (filter.empty()) {
+          i->second.sub.dispose();
+          legacy_subs.erase(i);
+        } else {
+          subscribe(filter);
+          *i->second.filter = filter;
+        }
+        return;
+      }
       // Take selected messages out of the flow and send them via asynchronous
       // messages to the client.
-      auto hdl = caf::actor_cast<caf::actor>(self->current_sender());
-      subscribe(filter);
+      auto fptr = std::make_shared<filter_type>(filter);
+      auto hdl = caf::actor_cast<caf::actor>(sender_ptr);
       auto sub = get_or_init_data_outputs()
-                   .filter([filter](const data_message& item) {
+                   .filter([fptr](const data_message& item) {
                      detail::prefix_matcher f;
-                     return f(filter, item);
+                     return f(*fptr, item);
                    })
                    .for_each([this, hdl](const data_message& msg) {
                      self->send(hdl, msg);
                    });
+      legacy_subs.emplace(addr, legacy_subscriber{fptr, sub});
       // Drop this `for_each`-subscription if the client goes down.
-      auto weak_self = self->address();
-      hdl->attach_functor([weak_self, sub]() mutable {
-        if (auto strong_self = caf::actor_cast<caf::actor>(weak_self)) {
-          auto cb = caf::make_action([sub]() mutable { sub.dispose(); });
-          caf::anon_send(strong_self, std::move(cb));
-        }
-      });
+      self->monitor(hdl);
     },
     // -- miscellaneous --------------------------------------------------------
     [this](atom::shutdown, shutdown_options opts) { //
