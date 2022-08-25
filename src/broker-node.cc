@@ -54,7 +54,7 @@ namespace atom = broker::internal::atom;
 #define BROKER_NODE_ADD_ATOM(name, text)                                       \
   CAF_ADD_ATOM(broker_node, broker::atom, name, text)
 
-CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker::end)
+CAF_BEGIN_TYPE_ID_BLOCK(broker_node, id_block::broker_internal::end)
 
   BROKER_NODE_ADD_ATOM(blocking, "blocking")
   BROKER_NODE_ADD_ATOM(relay, "relay")
@@ -82,12 +82,6 @@ bool convert(const caf::uri& from, network_info& to) {
   const auto& auth = from.authority();
   if (auth.empty())
     return false;
-  auto set_host = [&](const auto& host) {
-    if constexpr (std::is_same_v<decltype(host), const std::string&>)
-      to.address = host;
-    else
-      to.address = to_string(host);
-  };
   to.port = auth.port;
   return true;
 }
@@ -308,9 +302,9 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     timeout += std::chrono::seconds(1);
     size_t received = 0;
     for (;;) {
-      auto x = in.get(timeout);
-      if (x) {
-        if (!handle_message(*x))
+      if (auto maybe_msg = in.get(timeout)) {
+        auto msg = std::move(*maybe_msg);
+        if (!handle_message(msg))
           return;
         ++received;
       } else {
@@ -392,7 +386,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 
 // -- main function ------------------------------------------------------------
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
   broker::endpoint::system_guard sys_guard; // Initialize global state.
   setvbuf(stdout, NULL, _IOLBF, 0);         // Always line-buffer stdout.
   // Parse CLI parameters using our config.
@@ -492,4 +486,7 @@ int main(int argc, char** argv) {
   }
   // Stop utility actors.
   anon_send_exit(verbose_logger, exit_reason::user_shutdown);
+} catch (std::exception& ex) {
+  std::cerr << "*** exception: " << ex.what() << "\n";
+  return EXIT_FAILURE;
 }

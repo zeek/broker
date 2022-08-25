@@ -279,7 +279,10 @@ metric_registry metric_registry::pre_init_instance() {
 
 metric_registry metric_registry::merge(metric_registry what,
                                        broker::endpoint& where) {
-  return what.impl_->merge(where) ? from(where) : what;
+  if (what.impl_->merge(where)) {
+    return from(where);
+  }
+  return what;
 }
 
 metric_registry metric_registry::from(broker::endpoint& where) {

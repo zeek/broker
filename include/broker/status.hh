@@ -39,7 +39,7 @@ template <sc S>
 using sc_constant = std::integral_constant<sc, S>;
 
 /// @relates sc
-std::string to_string(sc code) noexcept;
+std::string to_string(sc code);
 
 /// @relates sc
 bool convert(std::string_view str, sc& code) noexcept;
@@ -229,10 +229,10 @@ public:
 
   /// @copydoc status::code
   /// @pre `valid()`
-  sc code() const noexcept;
+  sc code() const;
 
   /// @copydoc status::code
-  const std::string* message() const noexcept;
+  const std::string* message() const;
 
   /// Retrieves additional contextual information, if available.
   std::optional<endpoint_info> context() const;

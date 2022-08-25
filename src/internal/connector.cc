@@ -843,7 +843,6 @@ public:
             return read_result::stop;
           payload_size = 0;
           read_pos = 0;
-          read_size = 4;
           return reached_fin_state() ? read_result::stop : read_result::again;
         } else {
           return read_result::again;
@@ -1012,7 +1011,7 @@ struct connect_manager {
                    << (event == read_mask ? "reading" : "writing")
                    << BROKER_ARG2("fd", i->first));
       if (auto fds_ptr = find_pollfd(i->first)) {
-        fds_ptr->events |= event;
+        fds_ptr->events = static_cast<short>(fds_ptr->events | event);
       } else {
         pending_fdset.emplace_back(pollfd{i->first, event, 0});
       }
@@ -1753,7 +1752,8 @@ connector::connector(endpoint_id this_peer, broker_options broker_cfg,
               static_cast<int>(max_ssl_passphrase_size));
       ::abort();
     }
-    strcpy(ssl_passphrase_buf, ssl_cfg_->passphrase.c_str());
+    strncpy(ssl_passphrase_buf, ssl_cfg_->passphrase.c_str(),
+            max_ssl_passphrase_size);
   }
 }
 

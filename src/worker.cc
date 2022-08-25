@@ -43,7 +43,8 @@ worker& worker::operator=(worker&& other) noexcept {
 }
 
 worker& worker::operator=(const worker& other) noexcept {
-  native(*this) = native(other);
+  if (this != &other)
+    native(*this) = native(other);
   return *this;
 }
 
@@ -64,7 +65,7 @@ void worker::swap(worker& other) noexcept {
   native(*this).swap(native(other));
 }
 
-int worker::compare(const worker& other) const noexcept {
+intptr_t worker::compare(const worker& other) const noexcept {
   return native(*this).compare(native(other));
 }
 

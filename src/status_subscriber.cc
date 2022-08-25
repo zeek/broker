@@ -64,9 +64,8 @@ status_subscriber status_subscriber::make(endpoint& ep, bool receive_statuses,
 }
 
 value_type status_subscriber::get(caf::timestamp timeout) {
-  auto maybe_msg = impl_.get(timeout);
-  if (maybe_msg) {
-    auto& msg = *maybe_msg;
+  if (auto maybe_msg = impl_.get(timeout)) {
+    auto msg = std::move(*maybe_msg);
     BROKER_RETURN_CONVERTED_MSG()
   }
   return nil;

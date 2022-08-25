@@ -24,6 +24,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-static-only   only build static libraries, not shared
     --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
                              ERROR, WARNING, INFO, DEBUG, TRACE
+    --with-clang-tidy      run with clang-tidy (requires CMake >= 3.7.2)
     --sanitizers=LIST      comma-separated list of sanitizer names to enable
     --disable-sanitizer-optimizations
                            build without any optimizations when using sanitizers
@@ -130,6 +131,9 @@ while [ $# -ne 0 ]; do
             ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true
+            ;;
+        --with-clang-tidy)
+            append_cache_entry BROKER_ENABLE_TIDY   BOOL   true
             ;;
         --sanitizers=*)
             append_cache_entry BROKER_SANITIZERS    STRING    $optarg

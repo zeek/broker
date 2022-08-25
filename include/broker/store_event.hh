@@ -73,7 +73,7 @@ public:
         return {};
     }
 
-    entity_id publisher() const noexcept {
+    entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[5])) {
         return {std::move(*value), get<uint64_t>((*xs_)[6])};
       }
@@ -119,7 +119,7 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const noexcept {
+    const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
@@ -142,7 +142,7 @@ public:
         return {};
     }
 
-    entity_id publisher() const noexcept {
+    entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[6]))
         return {*value, get<uint64_t>((*xs_)[7])};
       else
@@ -186,7 +186,7 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const noexcept {
+    const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
@@ -194,7 +194,7 @@ public:
       return (*xs_)[2];
     }
 
-    entity_id publisher() const noexcept {
+    entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
       }
@@ -238,7 +238,7 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const noexcept {
+    const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
@@ -246,7 +246,7 @@ public:
       return (*xs_)[2];
     }
 
-    entity_id publisher() const noexcept {
+    entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3]))
         return {*value, get<uint64_t>((*xs_)[4])};
       else

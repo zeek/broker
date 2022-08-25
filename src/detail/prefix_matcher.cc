@@ -4,7 +4,7 @@ namespace broker {
 namespace detail {
 
 bool prefix_matcher::operator()(const filter_type& filter,
-                                const topic& t) const {
+                                const topic& t) const noexcept {
   for (auto& prefix : filter)
     if (prefix.prefix_of(t))
       return true;

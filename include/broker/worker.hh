@@ -4,6 +4,7 @@
 #include "broker/detail/comparable.hh"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -20,9 +21,9 @@ public:
   // -- constants --------------------------------------------------------------
 
 #ifdef BROKER_WINDOWS
-  static constexpr size_t obj_size = sizeof(impl*) * 2;
+  static constexpr size_t obj_size = sizeof(void*) * 2;
 #else
-  static constexpr size_t obj_size = sizeof(impl*);
+  static constexpr size_t obj_size = sizeof(void*);
 #endif
 
   // --- construction and destruction ------------------------------------------
@@ -63,7 +64,7 @@ public:
 
   /// Compares this instance to `other`.
   /// @returns -1 if `*this < other`, 0 if `*this == other`, and 1 otherwise.
-  int compare(const worker& other) const noexcept;
+  intptr_t compare(const worker& other) const noexcept;
 
   /// Returns a has value for the ID.
   size_t hash() const noexcept;

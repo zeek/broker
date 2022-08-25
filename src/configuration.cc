@@ -515,7 +515,7 @@ std::once_flag init_global_state_flag;
 
 void configuration::init_global_state() {
   std::call_once(init_global_state_flag, [] {
-    caf::init_global_meta_objects<caf::id_block::broker>();
+    caf::init_global_meta_objects<caf::id_block::broker_internal>();
     caf::io::middleman::init_global_meta_objects();
     caf::core::init_global_meta_objects();
   });

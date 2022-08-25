@@ -90,7 +90,7 @@ size_t num_buckets(const dbl_histogram_hdl* hdl) noexcept {
 double count_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {
   auto xs = deref(hdl).buckets();
   BROKER_ASSERT(index < xs.size());
-  return xs[index].count.value();
+  return static_cast<double>(xs[index].count.value());
 }
 
 double upper_bound_at(const dbl_histogram_hdl* hdl, size_t index) noexcept {

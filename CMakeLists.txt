@@ -398,6 +398,23 @@ else()
   set(BROKER_LIBRARY broker_static)
 endif()
 
+set(tidyCfgFile "${CMAKE_SOURCE_DIR}/.clang-tidy")
+if (BROKER_ENABLE_TIDY)
+  # Create a preprocessor definition that depends on .clang-tidy content so
+  # the compile command will change when .clang-tidy changes. This ensures
+  # that a subsequent build re-runs clang-tidy on all sources even if they
+  # do not otherwise need to be recompiled.
+  file(SHA1 ${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy clang_tidy_sha1)
+  set(BROKER_CLANG_TIDY_DEF "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
+  unset(clang_tidy_sha1)
+  add_custom_target(clang_tidy_dummy DEPENDS ${tidyCfgFile})
+  set_target_properties(${BROKER_LIBRARY} PROPERTIES
+                        CXX_CLANG_TIDY "clang-tidy;--config-file=${tidyCfgFile}")
+  target_compile_definitions(${BROKER_LIBRARY} PRIVATE ${BROKER_CLANG_TIDY_DEF})
+  configure_file(.clang-tidy .clang-tidy COPYONLY)
+endif ()
+
+
 # -- Tools --------------------------------------------------------------------
 
 macro(add_tool name)
@@ -409,6 +426,11 @@ macro(add_tool name)
     target_link_libraries(${name} broker_static CAF::core CAF::io CAF::net)
     add_dependencies(${name} broker_static)
   endif()
+  if (BROKER_ENABLE_TIDY)
+    set_target_properties(${name} PROPERTIES
+                          CXX_CLANG_TIDY "clang-tidy;--config-file=${tidyCfgFile}")
+    target_compile_definitions(${name} PRIVATE ${BROKER_CLANG_TIDY_DEF})
+  endif ()
 endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)

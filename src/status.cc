@@ -24,7 +24,7 @@ std::string_view sc_strings[] = {
 
 } // namespace
 
-std::string to_string(sc code) noexcept {
+std::string to_string(sc code) {
   auto index = static_cast<uint8_t>(code);
   BROKER_ASSERT(index < std::size(sc_strings));
   return std::string{sc_strings[index]};
@@ -167,12 +167,12 @@ bool convert(const status& src, data& dst) {
   return true;
 }
 
-sc status_view::code() const noexcept {
+sc status_view::code() const {
   BROKER_ASSERT(xs_ != nullptr);
   return get_as<sc>((*xs_)[1]);
 }
 
-const std::string* status_view::message() const noexcept {
+const std::string* status_view::message() const {
   BROKER_ASSERT(xs_ != nullptr);
   if (is<none>((*xs_)[3]))
     return nullptr;

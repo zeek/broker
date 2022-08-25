@@ -65,7 +65,7 @@ struct consumer_msg {
 
 // -- ID block for all message types in test suites ----------------------------
 
-CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker::end)
+CAF_BEGIN_TYPE_ID_BLOCK(broker_test, caf::id_block::broker_internal::end)
 
   CAF_ADD_TYPE_ID(broker_test, (consumer_msg))
   CAF_ADD_TYPE_ID(broker_test, (producer_msg))

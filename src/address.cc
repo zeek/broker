@@ -97,7 +97,7 @@ bool address::mask(uint8_t top_bits_to_keep) {
   if (top_bits_to_keep > 128)
     return false;
   uint32_t mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
-  auto res = std::ldiv(top_bits_to_keep, 32);
+  auto res = std::div(top_bits_to_keep, 32);
   if (res.quot < 4)
     mask[res.quot] =
       caf::detail::to_network_order(mask[res.quot] & ~bit_mask32(32 - res.rem));

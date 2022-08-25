@@ -67,23 +67,22 @@ void convert(const subnet& sn, std::string& str) {
 
 bool convert(const std::string& str, subnet& sn) {
   address addr;
-  if (auto separator_pos = str.find('/'); separator_pos == std::string::npos) {
+  auto separator_pos = str.find('/');
+  if (separator_pos == std::string::npos) {
     return false;
-  } else if (!convert(str.substr(0, separator_pos), addr)) {
-    return false;
-  } else {
+  }
+  if (convert(str.substr(0, separator_pos), addr)) {
     try {
       auto len = std::stoi(str.substr(separator_pos + 1));
-      if (len < 0 || len > 255) {
-        return false;
-      } else {
+      if (len >= 0 && len <= 255) {
         sn = subnet{addr, static_cast<uint8_t>(len)};
         return true;
       }
     } catch (std::exception&) {
-      return false;
+      // nop
     }
   }
+  return false;
 }
 
 } // namespace broker

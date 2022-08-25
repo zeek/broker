@@ -105,7 +105,8 @@ error::error(error&& other) noexcept {
 }
 
 error& error::operator=(const error& other) {
-  native(*this) = native(other);
+  if (this != &other)
+    native(*this) = native(other);
   return *this;
 }
 
@@ -306,12 +307,13 @@ const std::string* error_view::message() const noexcept {
 }
 
 std::optional<endpoint_info> error_view::context() const {
-  if (is<none>((*xs_)[2]))
+  if (is<none>((*xs_)[2])) {
     return std::nullopt;
-  else if (auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2)
+  }
+  if (auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2) {
     return get_as<endpoint_info>(ctx[0]);
-  else
-    return std::nullopt;
+  }
+  return std::nullopt;
 }
 
 error_view error_view::make(const data& src) {

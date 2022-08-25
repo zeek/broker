@@ -1,0 +1,10 @@
+---
+  Checks: -*,
+          bugprone-*,
+          clang-analyzer-*,
+          -bugprone-easily-swappable-parameters,
+          -clang-analyzer-security.insecureAPI.rand,
+          -clang-analyzer-webkit*,
+  WarningsAsErrors: '*'
+  HeaderFilterRegex: 'broker/.*.hh'
+...
