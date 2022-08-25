@@ -37,7 +37,6 @@ bool try_again_later() {
 
 #else // BROKER_WINDOWS
 
-#  include <cerrno>
 #  include <fcntl.h>
 #  include <poll.h>
 #  include <unistd.h>
@@ -49,10 +48,11 @@ bool try_again_later() {
 namespace {
 
 bool try_again_later() {
-  if constexpr (EAGAIN == EWOULDBLOCK)
+  if constexpr (EAGAIN == EWOULDBLOCK) {
     return errno == EAGAIN;
-  else
+  } else {
     return errno == EAGAIN || errno == EWOULDBLOCK;
+  }
 }
 
 } // namespace
@@ -84,10 +84,12 @@ flare::flare() {
   auto [first, second] = *maybe_fds;
   fds_[0] = first.id;
   fds_[1] = second.id;
-  if (auto err = caf::net::child_process_inherit(first, false))
+  if (auto err = caf::net::child_process_inherit(first, false)) {
     BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << err);
-  if (auto err = caf::net::child_process_inherit(second, false))
+  }
+  if (auto err = caf::net::child_process_inherit(second, false)) {
     BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
+  }
   if (auto err = caf::net::nonblocking(first, true)) {
     BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
     std::terminate();
@@ -125,10 +127,11 @@ size_t flare::extinguish() {
   size_t result = 0;
   for (;;) {
     auto n = PIPE_READ(fds_[0], tmp.data, stack_buffer_size);
-    if (n > 0)
+    if (n > 0) {
       result += static_cast<size_t>(n);
-    else if (n == -1 && try_again_later())
+    } else if (n == -1 && try_again_later()) {
       return result; // Pipe is now drained.
+    }
   }
 }
 
@@ -136,10 +139,12 @@ bool flare::extinguish_one() {
   char tmp = 0;
   for (;;) {
     auto n = PIPE_READ(fds_[0], &tmp, 1);
-    if (n == 1)
+    if (n == 1) {
       return true; // Read one byte.
-    if (n < 0 && try_again_later())
+    }
+    if (n < 0 && try_again_later()) {
       return false; // No data available to read.
+    }
   }
 }
 
@@ -149,8 +154,9 @@ void flare::await_one() {
   for (;;) {
     BROKER_DEBUG("polling");
     auto n = ::poll(&p, 1, -1);
-    if (n < 0 && !try_again_later())
+    if (n < 0 && !try_again_later()) {
       std::terminate();
+    }
     if (n == 1) {
       BROKER_ASSERT(p.revents & POLLIN);
       return;
@@ -162,8 +168,9 @@ bool flare::await_one_impl(int ms_timeout) {
   BROKER_TRACE("");
   pollfd p = {fds_[0], POLLIN, 0};
   auto n = ::poll(&p, 1, ms_timeout);
-  if (n < 0 && !try_again_later())
+  if (n < 0 && !try_again_later()) {
     std::terminate();
+  }
   if (n == 1) {
     BROKER_ASSERT(p.revents & POLLIN);
     return true;

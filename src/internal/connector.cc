@@ -199,7 +199,7 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     return nullptr;
   }
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-  auto method = TLS_method();
+  const auto* method = TLS_method();
 #else
   auto method = TLSv1_2_method();
 #endif
@@ -210,8 +210,9 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     if (!cfg->certificate.empty()
         && SSL_CTX_use_certificate_chain_file(ctx.get(),
                                               cfg->certificate.c_str())
-             != 1)
+             != 1) {
       throw ssl_error("failed to load certificate");
+    }
     if (!cfg->passphrase.empty()) {
       auto pem_passwd_cb = [](char* buf, int size, int, void*) -> int {
         strncpy(buf, ssl_passphrase_buf, static_cast<size_t>(size));
@@ -223,19 +224,22 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     if (!cfg->key.empty()
         && SSL_CTX_use_PrivateKey_file(ctx.get(), cfg->key.c_str(),
                                        SSL_FILETYPE_PEM)
-             != 1)
+             != 1) {
       throw ssl_error("failed to load private key");
-    auto cafile = !cfg->cafile.empty() ? cfg->cafile.c_str() : nullptr;
-    auto capath = !cfg->capath.empty() ? cfg->capath.c_str() : nullptr;
+    }
+    const auto* cafile = !cfg->cafile.empty() ? cfg->cafile.c_str() : nullptr;
+    const auto* capath = !cfg->capath.empty() ? cfg->capath.c_str() : nullptr;
     if (cafile || capath) {
-      if (SSL_CTX_load_verify_locations(ctx.get(), cafile, capath) != 1)
+      if (SSL_CTX_load_verify_locations(ctx.get(), cafile, capath) != 1) {
         throw ssl_error("failed to load trusted CA certificates");
+      }
     }
     SSL_CTX_set_verify(ctx.get(),
                        SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                        nullptr);
-    if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1)
+    if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1) {
       throw ssl_error("failed to set cipher list");
+    }
   } else { // No authentication.
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
 #if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
@@ -254,8 +258,9 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
 #else
     const char* cipher = "AECDH-AES256-SHA";
 #endif
-    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
+    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1) {
       throw ssl_error("failed to set anonymous cipher");
+    }
   }
   return ctx;
 }
@@ -365,8 +370,9 @@ caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
 template <class... Ts>
 std::tuple<Ts...> from_source(caf::binary_deserializer& src) {
   std::tuple<Ts...> result;
-  if (!src.apply(result) || src.remaining() != 0)
+  if (!src.apply(result) || src.remaining() != 0) {
     throw std::runtime_error{"error while parsing pipe input"};
+  }
   return result;
 }
 
@@ -377,14 +383,15 @@ public:
   }
 
   [[nodiscard]] const char* what() const noexcept override {
-    if (flags_ & (POLLRDHUP | POLLHUP))
+    if (flags_ & (POLLRDHUP | POLLHUP)) {
       return "POLLRDHUP: cannot read from closed pipe";
-    else if (flags_ & POLLERR)
+    } else if (flags_ & POLLERR) {
       return "POLLERR: cannot write to closed pipe";
-    else if (flags_ & POLLNVAL)
+    } else if (flags_ & POLLNVAL) {
       return "POLLNVAL: invalid pipe handle";
-    else
+    } else {
       return "failed to read from pipe for an unknown reason";
+    }
   }
 
 private:
@@ -425,19 +432,22 @@ private:
     while (!buf_.empty()) {
       caf::binary_deserializer src{nullptr, buf_};
       uint8_t tag = 0;
-      if (!src.apply(tag))
+      if (!src.apply(tag)) {
         throw std::runtime_error{"error while parsing pipe input"};
+      }
       auto msg_type = static_cast<connector_msg>(tag);
       if (msg_type == connector_msg::shutdown) {
         BROKER_DEBUG("received shutdown event, stop the connector");
         *done_ = true;
         return;
       }
-      if (buf_.size() < 5)
+      if (buf_.size() < 5) {
         return; // Try again later.
+      }
       uint32_t len = 0;
-      if (!src.apply(len) || len == 0)
+      if (!src.apply(len) || len == 0) {
         throw std::runtime_error{"error while parsing pipe input"};
+      }
       if (src.remaining() < len) {
         BROKER_DEBUG("wait for payload of size"
                      << len << "with" << src.remaining() << "already received");
@@ -490,14 +500,14 @@ using caf::net::stream_socket;
 
 // Size of the 'constant' part of a handshake message without the leading
 // 4-Bytes to encode the payload size.
-static constexpr size_t handshake_prefix_size = 17;
+constexpr size_t handshake_prefix_size = 17;
 
 // The full size of HELLO and PING messages:
 // - 4 Bytes message length.
 // - 17 Bytes for the handshake prefix.
 // - 1 Byte for the protocol version.
 // - 4 Bytes for the magic number.
-static constexpr size_t handshake_first_msg_size = handshake_prefix_size + 9;
+constexpr size_t handshake_first_msg_size = handshake_prefix_size + 9;
 
 struct connect_manager;
 
@@ -742,8 +752,9 @@ public:
       default:
         break;
     }
-    if (wr_buf.empty())
+    if (wr_buf.empty()) {
       return write_result::stop;
+    }
     if (auto res = do_write(fd, wr_buf); res > 0) {
       wr_buf.erase(wr_buf.begin(), wr_buf.begin() + res);
       if (wr_buf.empty()) {
@@ -839,8 +850,9 @@ public:
             transition(&connect_state::err);
             return read_result::stop;
           }
-          if (!(*this.*fn)(msg))
+          if (!(*this.*fn)(msg)) {
             return read_result::stop;
+          }
           payload_size = 0;
           read_pos = 0;
           return reached_fin_state() ? read_result::stop : read_result::again;
@@ -981,8 +993,9 @@ struct connect_manager {
 
   /// Returns the relative timeout for the next retry in milliseconds or -1.
   int next_timeout_ms() {
-    if (retry_schedule.empty())
+    if (retry_schedule.empty()) {
       return -1;
+    }
     auto now = caf::make_timestamp();
     auto timeout = retry_schedule.begin()->first;
     if (timeout > now) {
@@ -994,12 +1007,16 @@ struct connect_manager {
   }
 
   pollfd* find_pollfd(caf::net::socket_id fd) {
-    for (auto& ref : fdset)
-      if (ref.fd == fd)
+    for (auto& ref : fdset) {
+      if (ref.fd == fd) {
         return std::addressof(ref);
-    for (auto& ref : pending_fdset)
-      if (ref.fd == fd)
+      }
+    }
+    for (auto& ref : pending_fdset) {
+      if (ref.fd == fd) {
         return std::addressof(ref);
+      }
+    }
     return nullptr;
   }
 
@@ -1010,7 +1027,7 @@ struct connect_manager {
       BROKER_DEBUG("register for"
                    << (event == read_mask ? "reading" : "writing")
                    << BROKER_ARG2("fd", i->first));
-      if (auto fds_ptr = find_pollfd(i->first)) {
+      if (auto* fds_ptr = find_pollfd(i->first)) {
         fds_ptr->events = static_cast<short>(fds_ptr->events | event);
       } else {
         pending_fdset.emplace_back(pollfd{i->first, event, 0});
@@ -1022,9 +1039,10 @@ struct connect_manager {
 
   connect_state* find_pending_handshake(endpoint_id peer) {
     for (auto& kvp : pending) {
-      auto st = kvp.second.get();
-      if (st->performing_handshake() && st->remote_id == peer)
+      auto* st = kvp.second.get();
+      if (st->performing_handshake() && st->remote_id == peer) {
         return st;
+      }
     }
     return nullptr;
   }
@@ -1112,10 +1130,11 @@ struct connect_manager {
               bool reuse_addr) {
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
-    if (addr.empty())
+    if (addr.empty()) {
       authority.host = std::string{"0.0.0.0"};
-    else
+    } else {
       authority.host = addr;
+    }
     authority.port = port;
 #ifdef BROKER_WINDOWS
     // SO_REUSEADDR behaves quite differently on Windows. CAF currently does not
@@ -1161,10 +1180,11 @@ struct connect_manager {
   }
 
   bool must_read_more(pollfd& entry) {
-    if (auto i = pending.find(entry.fd); i != pending.end())
+    if (auto i = pending.find(entry.fd); i != pending.end()) {
       return i->second->must_read_more();
-    else
+    } else {
       return false;
+    }
   }
 
   void continue_reading(pollfd& entry) {
@@ -1219,10 +1239,12 @@ struct connect_manager {
         }
         auto st = make_connect_state(this);
         st->addr.retry = 0s;
-        if (auto addr = caf::net::remote_addr(*sock))
+        if (auto addr = caf::net::remote_addr(*sock)) {
           st->addr.address = std::move(*addr);
-        if (auto port = caf::net::remote_port(*sock))
+        }
+        if (auto port = caf::net::remote_port(*sock)) {
           st->addr.port = *port;
+        }
         BROKER_DEBUG("accepted new connection from socket"
                      << entry.fd << "-> register for reading"
                      << BROKER_ARG2("fd", sock->id));
@@ -1284,9 +1306,10 @@ struct connect_manager {
       pending.erase(i);
       if (state->redundant) {
         BROKER_DEBUG("drop redundant connection on socket" << entry.fd);
-        if (state->event_id != invalid_connector_event_id)
+        if (state->event_id != invalid_connector_event_id) {
           listener->on_redundant_connection(state->event_id, state->remote_id,
                                             state->addr);
+        }
       } else if (state->event_id != invalid_connector_event_id) {
         auto retry_interval = state->addr.retry;
         if (retry_interval.count() > 0) {
@@ -1351,9 +1374,10 @@ struct connect_manager {
     if (new_end != fdset.end()) {
 #if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
       std::for_each(new_end, fdset.end(), [](auto& x) {
-        if (x.fd != detail::invalid_native_socket)
+        if (x.fd != detail::invalid_native_socket) {
           BROKER_DEBUG("drop completed socket from pollset"
                        << BROKER_ARG2("fd", x.fd));
+        }
       });
 #endif
       fdset.erase(new_end, fdset.end());
@@ -1370,20 +1394,22 @@ detail::peer_status_map& connect_state::peer_statuses() {
 }
 
 bool connect_state::must_read_more() {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy))
+  if (auto* pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
     return pol->buffered() > 0;
-  else
+  } else {
     return false;
+  }
 }
 
 template <bool IsServer>
 write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
+  if (auto* pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
     ptrdiff_t res;
-    if constexpr (IsServer)
+    if constexpr (IsServer) {
       res = pol->accept(fd);
-    else
+    } else {
       res = pol->connect(fd);
+    }
     if (res > 0) { // success
       sck_state = socket_state::running;
       mgr->register_reading(this);
@@ -1403,16 +1429,18 @@ write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
 
 template <bool IsServer>
 read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
+  if (auto* pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
     ptrdiff_t res;
-    if constexpr (IsServer)
+    if constexpr (IsServer) {
       res = pol->accept(fd);
-    else
+    } else {
       res = pol->connect(fd);
+    }
     if (res > 0) { // success
       sck_state = socket_state::running;
-      if (!wr_buf.empty())
+      if (!wr_buf.empty()) {
         mgr->register_writing(this);
+      }
       return read_result::again;
     } else if (res < 0) { // error
       return read_result_from_last_error(fd, res);
@@ -1515,7 +1543,7 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
         case peer_status::connecting:
         case peer_status::reconnecting:
           if (is_originator) {
-            if (auto other = mgr->find_pending_handshake(id)) {
+            if (auto* other = mgr->find_pending_handshake(id)) {
               BROKER_DEBUG("detected redundant connection, enter paused state");
               BROKER_ASSERT(other != this);
               redundant = true;
@@ -1812,8 +1840,9 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes,
     BROKER_ERROR(errmsg);
     throw std::runtime_error(errmsg);
   }
-  if (shutdown_after_write)
+  if (shutdown_after_write) {
     shutting_down_ = true;
+  }
 }
 
 void connector::init(std::unique_ptr<listener> sub, shared_filter_ptr filter,
@@ -1821,8 +1850,9 @@ void connector::init(std::unique_ptr<listener> sub, shared_filter_ptr filter,
   BROKER_ASSERT(sub != nullptr);
   BROKER_ASSERT(filter != nullptr);
   std::unique_lock guard{mtx_};
-  if (sub_ != nullptr)
+  if (sub_ != nullptr) {
     throw std::logic_error("connector::init called twice");
+  }
   BROKER_ASSERT(filter_ == nullptr);
   sub_ = std::move(sub);
   filter_ = std::move(filter);
@@ -1837,8 +1867,9 @@ void connector::run() {
   shared_filter_type* filter = nullptr;
   {
     std::unique_lock guard{mtx_};
-    while (sub_ == nullptr)
+    while (sub_ == nullptr) {
       sub_cv_.wait(guard);
+    }
     sub = sub_.get();
     filter = filter_.get();
   }
@@ -1868,8 +1899,9 @@ public:
   }
 
   ~ssl_lib_guard() {
-    if (ssl_initialized_)
+    if (ssl_initialized_) {
       endpoint::deinit_ssl_api();
+    }
   }
 };
 
@@ -1885,8 +1917,9 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   caf::net::multiplexer::block_sigpipe();
   using std::find_if;
   // When running with OpenSSL enabled, initialize the library.
-  if (ssl_cfg_ != nullptr && !broker_cfg_.skip_ssl_init)
+  if (ssl_cfg_ != nullptr && !broker_cfg_.skip_ssl_init) {
     global_ssl_guard.init();
+  }
   // Poll isn't terribly efficient nor fast, but the connector is not a
   // performance-critical system component. It only establishes connections and
   // reads handshake messages, so poll() is 'good enough' and we use it since
@@ -1942,8 +1975,9 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
           } else {
             mgr.abort(*i);
           }
-          while ((i->revents & read_mask) && mgr.must_read_more(*i))
+          while ((i->revents & read_mask) && mgr.must_read_more(*i)) {
             mgr.continue_reading(*i);
+          }
         }
       } while (--presult > 0 && advance());
     }

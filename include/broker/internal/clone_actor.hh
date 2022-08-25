@@ -54,15 +54,15 @@ public:
 
   void consume(consumer_type*, command_message& msg);
 
-  void consume(put_command& cmd);
+  void consume(put_command& x);
 
   void consume(put_unique_result_command& cmd);
 
-  void consume(erase_command& cmd);
+  void consume(erase_command& x);
 
-  void consume(expire_command& cmd);
+  void consume(expire_command& x);
 
-  void consume(clear_command& cmd);
+  void consume(clear_command& x);
 
   template <class T>
   void consume(T& cmd) {
@@ -122,8 +122,9 @@ public:
     if (max_get_delay.count() > 0) {
       self->run_delayed(max_get_delay,
                         [rp{std::move(rp)}, err{std::move(err)}]() mutable {
-                          if (rp.pending())
+                          if (rp.pending()) {
                             rp.deliver(std::move(err));
+                          }
                         });
       on_set_store_callbacks.emplace_back(std::forward<F>(body));
     } else {

@@ -30,37 +30,42 @@ WIRE_FORMAT_TYPE_NAME(v1::originator_ack_msg)
 namespace broker::internal::wire_format {
 
 std::pair<ec, std::string_view> check(const hello_msg& x) {
-  if (x.magic != magic_number)
+  if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  else if (x.min_version > protocol_version || x.max_version < protocol_version)
+  } else if (x.min_version > protocol_version
+             || x.max_version < protocol_version) {
     return {ec::peer_incompatible, "unsupported versions offered"};
-  else
+  } else {
     return {ec::none, {}};
+  }
 }
 
 std::pair<ec, std::string_view> check(const probe_msg& x) {
-  if (x.magic != magic_number)
+  if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  else
+  } else {
     return {ec::none, {}};
+  }
 }
 
 std::pair<ec, std::string_view> check(const version_select_msg& x) {
-  if (x.magic != magic_number)
+  if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  else if (x.selected_version != protocol_version)
+  } else if (x.selected_version != protocol_version) {
     return {ec::peer_incompatible, "unsupported version selected"};
-  else
+  } else {
     return {ec::none, {}};
+  }
 }
 
 std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
-  if (x.magic != magic_number)
+  if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  else if (!convertible_to_ec(x.code))
+  } else if (!convertible_to_ec(x.code)) {
     return {ec::unspecified, x.description};
-  else
+  } else {
     return {ec::none, {}};
+  }
 }
 
 namespace v1 {
@@ -90,8 +95,9 @@ bool trait::convert(const node_message& msg, caf::byte_buffer& buf) {
             && sink.apply(ttl)                                      //
             && write_topic(msg_topic)                               //
             && write_bytes(caf::as_bytes(caf::make_span(payload))); //
-  if (!ok)
+  if (!ok) {
     last_error_ = sink.get_error();
+  }
   return ok;
 }
 
@@ -129,8 +135,8 @@ bool trait::convert(caf::const_byte_span bytes, node_message& msg) {
   }
   // Extract payload, which simply is the remaining bytes of the message.
   auto remainder = source.remainder();
-  auto first = reinterpret_cast<const std::byte*>(remainder.data());
-  auto last = first + remainder.size();
+  const auto* first = reinterpret_cast<const std::byte*>(remainder.data());
+  const auto* last = first + remainder.size();
   payload.assign(first, last);
   return true;
 }
@@ -162,8 +168,9 @@ std::string stringify(const var_msg& msg) {
 var_msg decode(caf::const_byte_span bytes) {
   caf::binary_deserializer src{nullptr, bytes};
   auto msg_type = p2p_message_type{0};
-  if (!src.apply(msg_type))
+  if (!src.apply(msg_type)) {
     return make_var_msg_error(ec::invalid_message, "invalid message type tag"s);
+  }
   switch (msg_type) {
     MSG_CASE(hello_msg)
     MSG_CASE(probe_msg)

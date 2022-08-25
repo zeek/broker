@@ -25,17 +25,20 @@ std::vector<std::string> topic::split(const topic& t) {
 
 topic topic::join(const std::vector<std::string>& components) {
   topic result;
-  for (auto& component : components)
+  for (const auto& component : components) {
     result /= component;
+  }
   return result;
 }
 
 topic& topic::operator/=(const topic& rhs) {
-  if (!rhs.str_.empty() && rhs.str_[0] != sep && !str_.empty())
+  if (!rhs.str_.empty() && rhs.str_[0] != sep && !str_.empty()) {
     str_ += sep;
+  }
   str_ += rhs.str_;
-  if (!str_.empty() && str_.back() == sep)
+  if (!str_.empty() && str_.back() == sep) {
     str_.pop_back();
+  }
   return *this;
 }
 

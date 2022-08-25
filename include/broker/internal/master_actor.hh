@@ -35,8 +35,9 @@ public:
   void broadcast(T&& cmd) {
     BROKER_TRACE(BROKER_ARG(cmd));
     // Suppress message if no one is listening.
-    if (output.paths().empty())
+    if (output.paths().empty()) {
       return;
+    }
     auto seq = output.next_seq();
     auto msg = make_command_message(clones_topic,
                                     internal_command{seq, id, entity_id::nil(),
@@ -64,19 +65,19 @@ public:
 
   // -- callbacks for the consumer ---------------------------------------------
 
-  void consume(consumer_type* src, command_message& cmd);
+  void consume(consumer_type* src, command_message& msg);
 
-  void consume(put_command& cmd);
+  void consume(put_command& x);
 
-  void consume(put_unique_command& cmd);
+  void consume(put_unique_command& x);
 
-  void consume(erase_command& cmd);
+  void consume(erase_command& x);
 
-  void consume(add_command& cmd);
+  void consume(add_command& x);
 
-  void consume(subtract_command& cmd);
+  void consume(subtract_command& x);
 
-  void consume(clear_command& cmd);
+  void consume(clear_command& x);
 
   template <class T>
   void consume(T& cmd) {

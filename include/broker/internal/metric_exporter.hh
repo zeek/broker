@@ -77,8 +77,9 @@ public:
           proc_importer.update();
           impl.scrape(self->system().metrics());
           // Send nothing if we only have meta data (or nothing) to send.
-          if (const auto& rows = impl.rows(); rows.size() > 1)
+          if (const auto& rows = impl.rows(); rows.size() > 1) {
             self->send(core, atom::publish_v, make_data_message(target, rows));
+          }
           auto t = detail::next_tick(tick_init, self->clock().now(), interval);
           self->scheduled_send(self, t, caf::tick_atom_v);
         }
@@ -125,8 +126,9 @@ public:
   void set_interval(caf::timespan new_interval) {
     if (new_interval.count() > 0) {
       // Use the new interval from the next tick onward.
-      if (running_)
+      if (running_) {
         tick_init = detail::next_tick(tick_init, self->clock().now(), interval);
+      }
       interval = new_interval;
       cold_boot();
     }
@@ -136,8 +138,9 @@ public:
     if (!new_target.empty()) {
       BROKER_INFO("publish metrics to topic" << new_target);
       target = std::move(new_target);
-      if (impl.id().empty())
+      if (impl.id().empty()) {
         impl.id(std::string{target.suffix()});
+      }
       cold_boot();
     }
   }
@@ -154,8 +157,9 @@ public:
     // to std::vector<std::string> (which technically would require us to change
     // Broker ID on the network).
     std::vector<std::string> new_prefixes;
-    for (auto& prefix : new_prefixes_filter)
+    for (auto& prefix : new_prefixes_filter) {
       new_prefixes.emplace_back(std::move(prefix).move_string());
+    }
     impl.selected_prefixes(std::move(new_prefixes));
     cold_boot();
   }

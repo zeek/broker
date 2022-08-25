@@ -33,16 +33,20 @@ constexpr tbl_entry tbl[] = {
 } // namespace
 
 caf::string_view json_type_mapper::operator()(caf::type_id_t type) const {
-  for (auto& entry : tbl)
-    if (entry.type == type)
+  for (const auto& entry : tbl) {
+    if (entry.type == type) {
       return entry.name;
+    }
+  }
   return caf::query_type_name(type);
 }
 
 caf::type_id_t json_type_mapper::operator()(caf::string_view name) const {
-  for (auto& entry : tbl)
-    if (entry.name == name)
+  for (const auto& entry : tbl) {
+    if (entry.name == name) {
       return entry.type;
+    }
+  }
   return caf::query_type_id(name);
 }
 

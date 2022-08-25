@@ -165,8 +165,9 @@ public:
     // -- message processing ---------------------------------------------------
 
     void produce(Payload content) {
-      if (paths_.empty())
+      if (paths_.empty()) {
         return;
+      }
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
       last_broadcast_ = tick_;
@@ -174,8 +175,9 @@ public:
     }
 
     error add(const Handle& hdl) {
-      if (find_path(hdl) != paths_.end())
+      if (find_path(hdl) != paths_.end()) {
         return ec::consumer_exists;
+      }
       BROKER_DEBUG("add" << hdl << "to the channel");
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
@@ -183,10 +185,12 @@ public:
     }
 
     void trigger_handshakes() {
-      for (auto& path : paths_)
-        if (path.offset == 0)
+      for (auto& path : paths_) {
+        if (path.offset == 0) {
           backend_->send(this, path.hdl,
                          handshake{path.offset, heartbeat_interval_});
+        }
+      }
     }
 
     void handle_ack(const Handle& hdl, sequence_number_type seq) {
@@ -221,8 +225,9 @@ public:
     void handle_nack(const Handle& hdl,
                      const std::vector<sequence_number_type>& seqs) {
       // Sanity checks.
-      if (seqs.empty())
+      if (seqs.empty()) {
         return;
+      }
       // Nack 0 implicitly acts as a handshake.
       auto p = find_path(hdl);
       if (p == paths_.end()) {
@@ -246,10 +251,11 @@ public:
       }
       handle_ack(hdl, first - 1);
       for (auto seq : seqs) {
-        if (auto i = find_event(seq); i != buf_.end())
+        if (auto i = find_event(seq); i != buf_.end()) {
           backend_->send(this, hdl, *i);
-        else
+        } else {
           backend_->send(this, hdl, retransmit_failed{seq});
+        }
       }
     }
 
@@ -259,8 +265,9 @@ public:
       BROKER_TRACE("");
       // Increase local time and send heartbeats.
       ++tick_;
-      if (heartbeat_interval_ == 0)
+      if (heartbeat_interval_ == 0) {
         return;
+      }
       if (last_broadcast_ + heartbeat_interval_ == tick_) {
         last_broadcast_ = tick_;
         backend_->broadcast(this, heartbeat{seq_});
@@ -285,9 +292,11 @@ public:
       } else if (erased_paths > 0) {
         auto i = paths_.begin();
         auto acked = i->acked;
-        for (++i; i != paths_.end(); ++i)
-          if (i->acked < acked)
+        for (++i; i != paths_.end(); ++i) {
+          if (i->acked < acked) {
             acked = i->acked;
+          }
+        }
         auto not_acked = [acked](const event& x) { return x.seq > acked; };
         buf_.erase(buf_.begin(),
                    std::find_if(buf_.begin(), buf_.end(), not_acked));
@@ -467,8 +476,9 @@ public:
                           tick_interval_type heartbeat_interval) {
       BROKER_TRACE(BROKER_ARG(producer_hdl)
                    << BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
-      if (initialized())
+      if (initialized()) {
         return false;
+      }
       producer_ = std::move(producer_hdl);
       return handle_handshake_impl(offset, heartbeat_interval);
     }
@@ -477,8 +487,9 @@ public:
     bool handle_handshake(sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
       BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
-      if (initialized())
+      if (initialized()) {
         return false;
+      }
       return handle_handshake_impl(offset, heartbeat_interval);
     }
 
@@ -505,10 +516,12 @@ public:
     void handle_heartbeat(sequence_number_type seq) {
       // Do nothing when receiving this before the handshake or if the master
       // did not produce any events yet.
-      if (last_seq_ == 0 || seq == 0)
+      if (last_seq_ == 0 || seq == 0) {
         return;
-      if (seq + 1 > last_seq_)
+      }
+      if (seq + 1 > last_seq_) {
         last_seq_ = seq + 1;
+      }
     }
 
     void handle_event(sequence_number_type seq, Payload payload) {
@@ -519,17 +532,19 @@ public:
         bump_seq();
         try_consume_buffer();
       } else if (seq > next_seq_) {
-        if (seq > last_seq_)
+        if (seq > last_seq_) {
           last_seq_ = seq;
+        }
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
-        if (i == buf_.end())
+        if (i == buf_.end()) {
           buf_.emplace_back(seq, std::move(payload));
-        else if (i->seq != seq)
+        } else if (i->seq != seq) {
           buf_.emplace(i, seq, std::move(payload));
-        else if (!i->content)
+        } else if (!i->content) {
           i->content = std::move(payload);
+        }
       }
     }
 
@@ -546,10 +561,11 @@ public:
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
-        if (i == buf_.end())
+        if (i == buf_.end()) {
           buf_.emplace_back(seq);
-        else if (i->seq != seq)
+        } else if (i->seq != seq) {
           buf_.emplace(i, seq);
+        }
       }
     }
 
@@ -576,10 +592,12 @@ public:
       last_tick_seq_ = next_seq_;
       if (progressed) {
         BROKER_DEBUG("made progress since last tick");
-        if (idle_ticks_ > 0)
+        if (idle_ticks_ > 0) {
           idle_ticks_ = 0;
-        if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
+        }
+        if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0) {
           send_ack();
+        }
         return;
       }
       ++idle_ticks_;
@@ -591,18 +609,21 @@ public:
         std::vector<sequence_number_type> seqs;
         seqs.reserve(last - first);
         auto generate = [&, i{first}](sequence_number_type found) mutable {
-          for (; i < found; ++i)
+          for (; i < found; ++i) {
             seqs.emplace_back(i);
+          }
           ++i;
         };
-        for (const auto& x : buf_)
+        for (const auto& x : buf_) {
           generate(x.seq);
+        }
         generate(last);
         backend_->send(this, nack{std::move(seqs)});
         return;
       }
-      if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
+      if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0) {
         send_ack();
+      }
     }
 
     // -- properties -----------------------------------------------------------
@@ -697,8 +718,9 @@ public:
 
     // Bumps the sequence number for the next expected event.
     void bump_seq() {
-      if (++next_seq_ > last_seq_)
+      if (++next_seq_ > last_seq_) {
         last_seq_ = next_seq_;
+      }
     }
 
     // Consumes all events from buf_ until either hitting the end or hitting a

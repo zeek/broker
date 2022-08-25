@@ -77,8 +77,9 @@ dbl_histogram_fam(metric_registry_impl* impl, std::string_view pre,
 metric_registry::metric_registry(metric_registry_impl* impl,
                                  bool add_ref) noexcept
   : impl_(impl) {
-  if (impl_ && add_ref)
+  if (impl_ && add_ref) {
     impl_->ref();
+  }
 }
 
 metric_registry::metric_registry(metric_registry&& other) noexcept
@@ -102,8 +103,9 @@ metric_registry::operator=(const metric_registry& other) noexcept {
 }
 
 metric_registry::~metric_registry() {
-  if (impl_)
+  if (impl_) {
     impl_->deref();
+  }
 }
 
 namespace {

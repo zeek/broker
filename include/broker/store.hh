@@ -305,7 +305,7 @@ public:
   void reset();
 
 private:
-  store(endpoint_id this_peer, worker actor, std::string name);
+  store(endpoint_id this_peer, worker frontend, std::string name);
 
   /// Adds a value to another one, with a type-specific meaning of
   /// "add". This is the backend for a number of the modifiers methods.

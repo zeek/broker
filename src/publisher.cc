@@ -40,8 +40,9 @@ public:
   }
 
   ~publisher_queue() override {
-    if (buf_)
+    if (buf_) {
       buf_->close();
+    }
   }
 
   buffer_type& buf() {
@@ -56,8 +57,9 @@ public:
     BROKER_TRACE("");
     guard_type guard{mtx_};
     cancelled_ = true;
-    if (demand_ == 0)
+    if (demand_ == 0) {
       fx_.fire();
+    }
   }
 
   void on_consumer_demand(size_t demand) override {
@@ -96,17 +98,20 @@ public:
 
   void push(caf::span<const value_type> items) {
     BROKER_TRACE(BROKER_ARG2("items.size", items.size()));
-    if (items.empty())
+    if (items.empty()) {
       return;
+    }
     guard_type guard{mtx_};
-    if (cancelled_)
+    if (cancelled_) {
       return;
+    }
     while (demand_ == 0) {
       guard.unlock();
       fx_.await_one();
       guard.lock();
-      if (cancelled_)
+      if (cancelled_) {
         return;
+      }
     }
     if (items.size() < demand_) {
       demand_ -= items.size();
@@ -229,12 +234,14 @@ void publisher::publish(data x) {
 void publisher::publish(std::vector<data> xs) {
   std::vector<data_message> msgs;
   msgs.reserve(xs.size());
-  for (auto& x : xs)
+  for (auto& x : xs) {
     msgs.emplace_back(topic_, std::move(x));
+  }
 #ifdef DEBUG
   BROKER_DEBUG("publishing batch of size" << xs.size());
-  for (auto& msg : msgs)
+  for (auto& msg : msgs) {
     BROKER_DEBUG("publishing" << msg);
+  }
 #endif
   dptr(queue_)->push(msgs);
 }

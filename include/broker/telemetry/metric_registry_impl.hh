@@ -90,8 +90,9 @@ public:
   }
 
   void deref() const noexcept {
-    if (--rc_ == 0)
+    if (--rc_ == 0) {
       delete this;
+    }
   }
 
   bool unique() const noexcept {

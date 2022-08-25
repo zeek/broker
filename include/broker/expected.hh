@@ -75,11 +75,11 @@ public:
   }
 
   expected& operator=(const expected& other) noexcept(nothrow_copy) {
-    if (engaged_ && other.engaged_)
+    if (engaged_ && other.engaged_) {
       value_ = other.value_;
-    else if (!engaged_ && !other.engaged_)
+    } else if (!engaged_ && !other.engaged_) {
       error_ = other.error_;
-    else {
+    } else {
       destroy();
       construct(other);
     }
@@ -87,11 +87,11 @@ public:
   }
 
   expected& operator=(expected&& other) noexcept(nothrow_move) {
-    if (engaged_ && other.engaged_)
+    if (engaged_ && other.engaged_) {
       value_ = std::move(other.value_);
-    else if (!engaged_ && !other.engaged_)
+    } else if (!engaged_ && !other.engaged_) {
       error_ = std::move(other.error_);
-    else {
+    } else {
       destroy();
       construct(std::move(other));
     }
@@ -126,9 +126,9 @@ public:
   }
 
   expected& operator=(broker::error e) noexcept {
-    if (!engaged_)
+    if (!engaged_) {
       error_ = std::move(e);
-    else {
+    } else {
       destroy();
       engaged_ = false;
       new (std::addressof(error_)) broker::error(std::move(e));
@@ -214,26 +214,29 @@ public:
 
 private:
   void construct(expected&& other) noexcept(nothrow_move) {
-    if (other.engaged_)
+    if (other.engaged_) {
       new (std::addressof(value_)) T(std::move(other.value_));
-    else
+    } else {
       new (std::addressof(error_)) broker::error(std::move(other.error_));
+    }
     engaged_ = other.engaged_;
   }
 
   void construct(const expected& other) noexcept(nothrow_copy) {
-    if (other.engaged_)
+    if (other.engaged_) {
       new (std::addressof(value_)) T(other.value_);
-    else
+    } else {
       new (std::addressof(error_)) broker::error(other.error_);
+    }
     engaged_ = other.engaged_;
   }
 
   void destroy() {
-    if (engaged_)
+    if (engaged_) {
       value_.~T();
-    else
+    } else {
       error_.~error();
+    }
   }
 
   bool engaged_;
@@ -384,10 +387,11 @@ inline bool operator!=(const expected<void>& x, const expected<void>& y) {
 }
 
 inline std::string to_string(const expected<void>& x) {
-  if (x)
+  if (x) {
     return "unit";
-  else
+  } else {
     return "!" + to_string(x.error());
+  }
 }
 
 } // namespace broker

@@ -33,7 +33,7 @@ metric_view::metric_view(const data& row_data)
 }
 
 bool metric_view::has_properly_typed_labels(const vector& row) noexcept {
-  if (auto tbl = get_if<table>(row[index(field::labels)])) {
+  if (const auto* tbl = get_if<table>(row[index(field::labels)])) {
     auto is_string_pair = [](const auto& kvp) {
       return is<std::string>(kvp.first) && is<std::string>(kvp.second);
     };
@@ -48,7 +48,7 @@ namespace {
 template <class First, class Second = First>
 struct pair_predicate {
   bool operator()(const data& x) const noexcept {
-    if (auto vec = get_if<vector>(x); vec && vec->size() == 2) {
+    if (const auto* vec = get_if<vector>(x); vec && vec->size() == 2) {
       return is<First>((*vec)[0]) && is<Second>((*vec)[1]);
     } else {
       return false;
@@ -84,7 +84,7 @@ bool metric_view::get_type(const vector& row,
       return good(metric_type::dbl_gauge);
     }
   } else if (*t == "histogram") {
-    if (auto vals = get_if<vector>(v); vals && vals->size() >= 2) {
+    if (const auto* vals = get_if<vector>(v); vals && vals->size() >= 2) {
       if (std::all_of(vals->begin(), vals->end() - 1, pair_predicate<integer>{})
           && is<integer>(vals->back())) {
         return good(metric_type::int_histogram);

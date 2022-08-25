@@ -107,8 +107,9 @@ public:
   }
 
   ~sink_driver_impl() override {
-    if (!initialized_)
+    if (!initialized_) {
       after_init();
+    }
   }
 
   void init() override {
@@ -120,8 +121,9 @@ public:
   }
 
   void on_next(const data_message& msg) override {
-    if (!completed_)
+    if (!completed_) {
       on_next_(state_, msg);
+    }
   }
 
   void on_cleanup(const error& what) override {
@@ -162,8 +164,9 @@ public:
   }
 
   ~sink_driver_impl() override {
-    if (!initialized_)
+    if (!initialized_) {
       after_init();
+    }
   }
 
   void init() override {
@@ -175,8 +178,9 @@ public:
   }
 
   void on_next(const data_message& msg) override {
-    if (!completed_)
+    if (!completed_) {
       on_next_(msg);
+    }
   }
 
   void on_cleanup(const error& what) override {

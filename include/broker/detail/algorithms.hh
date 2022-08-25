@@ -9,11 +9,13 @@ template <class Container, class Predicate>
 size_t erase_if(Container& xs, Predicate predicate) {
   size_t old_size = xs.size();
   auto i = xs.begin();
-  while (i != xs.end())
-    if (predicate(*i))
+  while (i != xs.end()) {
+    if (predicate(*i)) {
       i = xs.erase(i);
-    else
+    } else {
       ++i;
+    }
+  }
   return old_size - xs.size();
 }
 

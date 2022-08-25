@@ -56,8 +56,9 @@ public:
   }
 
   ~opaque_ptr() noexcept {
-    if (ptr_)
+    if (ptr_) {
       intrusive_ptr_release(ptr_);
+    }
   }
 
   void swap(opaque_ptr& other) noexcept {
@@ -65,17 +66,20 @@ public:
   }
 
   void reset(pointer ptr = nullptr, bool add_ref = true) noexcept {
-    if (ptr_)
+    if (ptr_) {
       intrusive_ptr_release(ptr_);
+    }
     ptr_ = ptr;
-    if (ptr_ && add_ref)
+    if (ptr_ && add_ref) {
       intrusive_ptr_add_ref(ptr_);
+    }
   }
 
   pointer release() noexcept {
-    auto result = ptr_;
-    if (result)
+    auto* result = ptr_;
+    if (result) {
       ptr_ = nullptr;
+    }
     return result;
   }
 

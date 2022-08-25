@@ -190,10 +190,11 @@ struct inspector_access<broker::cow_tuple<Ts...>> {
 
   template <class Inspector>
   static bool apply(Inspector& f, value_type& x) {
-    if constexpr (Inspector::is_loading)
+    if constexpr (Inspector::is_loading) {
       return f.tuple(x.unshared());
-    else
+    } else {
       return f.tuple(x.data());
+    }
   }
 
   template <class Inspector>

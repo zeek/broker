@@ -83,9 +83,11 @@ template <class Predicate>
 bool filter_extend(filter_type& f, const filter_type& other,
                    Predicate predicate) {
   size_t count = 0;
-  for (auto& x : other)
-    if (predicate(x) && filter_extend(f, x))
+  for (const auto& x : other) {
+    if (predicate(x) && filter_extend(f, x)) {
       ++count;
+    }
+  }
   return count > 0;
 }
 

@@ -119,24 +119,27 @@ namespace broker {
 template <class F>
 void store::with_state(F f) const {
   using namespace broker;
-  if (auto ptr = state_.lock())
+  if (auto ptr = state_.lock()) {
     f(dref(ptr));
+  }
 }
 
 template <class F>
 void store::with_state_ptr(F f) const {
   using namespace broker;
-  if (auto ptr = state_.lock())
+  if (auto ptr = state_.lock()) {
     f(ptr);
+  }
 }
 
 template <class F, class G>
 auto store::with_state_or(F f, G fallback) const -> decltype(fallback()) {
   using namespace broker;
-  if (auto ptr = state_.lock())
+  if (auto ptr = state_.lock()) {
     return f(dref(ptr));
-  else
+  } else {
     return fallback();
+  }
 }
 
 template <class... Ts>
@@ -204,8 +207,9 @@ store& store::operator=(store&& other) noexcept {
 }
 
 store& store::operator=(const store& other) {
-  if (this == &other)
+  if (this == &other) {
     return *this;
+  }
   with_state_ptr([this](detail::shared_store_state_ptr& st) {
     auto frontend = dref(st).frontend;
     caf::anon_send(frontend, atom::decrement_v, std::move(st));
@@ -274,16 +278,18 @@ request_id store::proxy::put_unique(data key, data val,
 }
 
 request_id store::proxy::get_index_from_value(data key, data index) {
-  if (!frontend_)
+  if (!frontend_) {
     return 0;
+  }
   send_as(native(proxy_), native(frontend_), atom::get_v, std::move(key),
           std::move(index), ++id_);
   return id_;
 }
 
 request_id store::proxy::keys() {
-  if (!frontend_)
+  if (!frontend_) {
     return 0;
+  }
   send_as(native(proxy_), native(frontend_), atom::get_v, atom::keys_v, ++id_);
   return id_;
 }
@@ -305,7 +311,7 @@ mailbox store::proxy::mailbox() {
 store::response store::proxy::receive() {
   BROKER_TRACE("");
   auto resp = response{error{}, 0};
-  auto fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
+  auto* fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
   fa->receive(
     [&resp, fa](data& x, request_id id) {
       resp = {std::move(x), id};
@@ -339,7 +345,7 @@ store::response store::proxy::receive() {
 }
 
 entity_id store::proxy::frontend_id() const noexcept {
-  auto& hdl = native(frontend_);
+  const auto& hdl = native(frontend_);
   return {this_peer_, hdl.id()};
 }
 
@@ -347,16 +353,18 @@ std::vector<store::response> store::proxy::receive(size_t n) {
   BROKER_TRACE(BROKER_ARG(n));
   std::vector<store::response> rval;
   rval.reserve(n);
-  for (size_t i = 0; i < n; ++i)
+  for (size_t i = 0; i < n; ++i) {
     rval.emplace_back(receive());
+  }
   return rval;
 }
 
 std::string store::name() const {
-  if (auto ptr = state_.lock())
+  if (auto ptr = state_.lock()) {
     return dref(ptr).name;
-  else
+  } else {
     return {};
+  }
 }
 
 expected<data> store::exists(data key) const {

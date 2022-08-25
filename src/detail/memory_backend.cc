@@ -23,25 +23,29 @@ expected<void> memory_backend::add(const data& key, const data& value,
                                    std::optional<timestamp> expiry) {
   auto i = store_.find(key);
   if (i == store_.end()) {
-    if (init_type == data::type::none)
+    if (init_type == data::type::none) {
       return ec::type_clash;
+    }
     auto new_val = std::make_pair(data::from_type(init_type), expiry);
     i = store_.emplace(key, std::move(new_val)).first;
   }
   auto result = visit(adder{value}, i->second.first);
-  if (result)
+  if (result) {
     i->second.second = expiry;
+  }
   return result;
 }
 
 expected<void> memory_backend::subtract(const data& key, const data& value,
                                         std::optional<timestamp> expiry) {
   auto i = store_.find(key);
-  if (i == store_.end())
+  if (i == store_.end()) {
     return ec::no_such_key;
+  }
   auto result = visit(remover{value}, i->second.first);
-  if (result)
+  if (result) {
     i->second.second = expiry;
+  }
   return result;
 }
 
@@ -57,32 +61,37 @@ expected<void> memory_backend::clear() {
 
 expected<bool> memory_backend::expire(const data& key, timestamp ts) {
   auto i = store_.find(key);
-  if (i == store_.end())
+  if (i == store_.end()) {
     return false;
-  if (!i->second.second || ts < i->second.second)
+  }
+  if (!i->second.second || ts < i->second.second) {
     return false;
+  }
   store_.erase(i);
   return true;
 }
 
 expected<data> memory_backend::get(const data& key) const {
   auto i = store_.find(key);
-  if (i == store_.end())
+  if (i == store_.end()) {
     return ec::no_such_key;
+  }
   return i->second.first;
 }
 
 expected<data> memory_backend::keys() const {
   set keys;
-  for (const auto& kvp : store_)
+  for (const auto& kvp : store_) {
     keys.insert(kvp.first);
+  }
   return {std::move(keys)};
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {
   auto i = store_.find(key);
-  if (i == store_.end())
+  if (i == store_.end()) {
     return ec::no_such_key;
+  }
   // We do not use the default implementation because operating directly on the
   // stored data element is more efficient in case the visitation returns an
   // error.
@@ -99,17 +108,19 @@ expected<uint64_t> memory_backend::size() const {
 
 expected<snapshot> memory_backend::snapshot() const {
   broker::snapshot ss;
-  for (auto& p : store_)
+  for (const auto& p : store_) {
     ss.emplace(p.first, p.second.first);
+  }
   return {std::move(ss)};
 }
 
 expected<expirables> memory_backend::expiries() const {
   expirables rval;
 
-  for (auto& p : store_) {
-    if (p.second.second)
+  for (const auto& p : store_) {
+    if (p.second.second) {
       rval.emplace_back(expirable(p.first, *p.second.second));
+    }
   }
 
   return {std::move(rval)};

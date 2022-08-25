@@ -62,8 +62,9 @@ public:
     using clk = typename Timeout::clock;
     auto delta = timeout - clk::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
-    if (ms.count() <= 0)
+    if (ms.count() <= 0) {
       return false;
+    }
     return await_one_impl(static_cast<int>(ms.count()));
   }
 

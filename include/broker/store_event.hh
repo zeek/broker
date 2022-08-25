@@ -43,8 +43,9 @@ public:
     insert& operator=(const insert&) noexcept = default;
 
     static insert make(const data& src) noexcept {
-      if (auto xs = get_if<vector>(src))
+      if (const auto* xs = get_if<vector>(src)) {
         return make(*xs);
+      }
       return insert{nullptr};
     }
 
@@ -67,10 +68,11 @@ public:
     }
 
     [[nodiscard]] std::optional<timespan> expiry() const noexcept {
-      if (auto value = get_if<timespan>((*xs_)[4]))
+      if (const auto* value = get_if<timespan>((*xs_)[4])) {
         return *value;
-      else
+      } else {
         return {};
+      }
     }
 
     [[nodiscard]] entity_id publisher() const {
@@ -108,8 +110,9 @@ public:
     update& operator=(const update&) noexcept = default;
 
     static update make(const data& src) noexcept {
-      if (auto xs = get_if<vector>(src))
+      if (const auto* xs = get_if<vector>(src)) {
         return make(*xs);
+      }
       return update{nullptr};
     }
 
@@ -136,17 +139,19 @@ public:
     }
 
     [[nodiscard]] std::optional<timespan> expiry() const noexcept {
-      if (auto value = get_if<timespan>((*xs_)[5]))
+      if (const auto* value = get_if<timespan>((*xs_)[5])) {
         return *value;
-      else
+      } else {
         return {};
+      }
     }
 
     [[nodiscard]] entity_id publisher() const {
-      if (auto value = to<endpoint_id>((*xs_)[6]))
+      if (auto value = to<endpoint_id>((*xs_)[6])) {
         return {*value, get<uint64_t>((*xs_)[7])};
-      else
+      } else {
         return {};
+      }
     }
 
   private:
@@ -175,8 +180,9 @@ public:
     erase& operator=(const erase&) noexcept = default;
 
     static erase make(const data& src) noexcept {
-      if (auto xs = get_if<vector>(src))
+      if (const auto* xs = get_if<vector>(src)) {
         return make(*xs);
+      }
       return erase{nullptr};
     }
 
@@ -227,8 +233,9 @@ public:
     expire& operator=(const expire&) noexcept = default;
 
     static expire make(const data& src) noexcept {
-      if (auto xs = get_if<vector>(src))
+      if (const auto* xs = get_if<vector>(src)) {
         return make(*xs);
+      }
       return expire{nullptr};
     }
 
@@ -247,10 +254,11 @@ public:
     }
 
     [[nodiscard]] entity_id publisher() const {
-      if (auto value = to<endpoint_id>((*xs_)[3]))
+      if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
-      else
+      } else {
         return {};
+      }
     }
 
   private:

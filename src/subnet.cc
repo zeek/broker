@@ -14,16 +14,18 @@ namespace broker {
 subnet::subnet() : len_(0) {}
 
 subnet::subnet(const address& addr, uint8_t length) : net_(addr), len_(length) {
-  if (init())
+  if (init()) {
     return;
+  }
   net_ = {};
   len_ = 0;
 }
 
 bool subnet::init() {
   if (net_.is_v4()) {
-    if (len_ > 32)
+    if (len_ > 32) {
       return false;
+    }
     len_ += 96;
   } else if (len_ > 128) {
     return false;

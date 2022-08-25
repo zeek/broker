@@ -40,8 +40,9 @@ public:
   }
 
   ~subscriber_queue() override {
-    if (buf_)
+    if (buf_) {
       buf_->cancel();
+    }
   }
 
   void on_producer_ready() override {
@@ -91,8 +92,9 @@ public:
   }
 
   void cancel() {
-    if (buf_)
+    if (buf_) {
       buf_->cancel();
+    }
   }
 
   void extinguish() {
@@ -182,7 +184,7 @@ private:
 namespace {
 
 auto* dptr(detail::opaque_type* ptr) {
-  auto bptr = reinterpret_cast<caf::ref_counted*>(ptr);
+  auto* bptr = reinterpret_cast<caf::ref_counted*>(ptr);
   return static_cast<subscriber_queue*>(bptr);
 }
 
@@ -240,14 +242,15 @@ data_message subscriber::get() {
 std::vector<data_message> subscriber::get(size_t num) {
   BROKER_TRACE(BROKER_ARG(num));
   BROKER_ASSERT(num > 0);
-  auto q = dptr(queue_);
+  auto* q = dptr(queue_);
   std::vector<data_message> buf;
   buf.reserve(num);
   q->pull(buf, num);
   while (buf.size() < num) {
     wait();
-    if (!q->pull(buf, num))
+    if (!q->pull(buf, num)) {
       return buf;
+    }
   }
   return buf;
 }
@@ -262,19 +265,20 @@ std::vector<data_message> subscriber::do_get(size_t num,
 void subscriber::do_get(std::vector<data_message>& buf, size_t num,
                         timestamp abs_timeout) {
   BROKER_TRACE(BROKER_ARG(num) << BROKER_ARG(abs_timeout));
-  auto q = dptr(queue_);
+  auto* q = dptr(queue_);
   buf.clear();
   buf.reserve(num);
   q->pull(buf, num);
-  while (buf.size() < num && wait_until(abs_timeout))
+  while (buf.size() < num && wait_until(abs_timeout)) {
     q->pull(buf, num);
+  }
 }
 
 std::vector<data_message> subscriber::poll() {
   BROKER_TRACE("");
   // The Queue may return a capacity of 0 if the producer has closed the flow.
   std::vector<data_message> buf;
-  auto q = dptr(queue_);
+  auto* q = dptr(queue_);
   auto max_size = q->capacity();
   if (max_size > 0) {
     buf.reserve(max_size);

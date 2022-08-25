@@ -24,8 +24,9 @@ table to_table(const std::vector<ct::label>& labels) {
     return std::string{str_view.begin(), str_view.end()};
   };
   table result;
-  for (const auto& lbl : labels)
+  for (const auto& lbl : labels) {
     result.emplace(str(lbl.name()), str(lbl.value()));
+  }
   return result;
 }
 
@@ -101,45 +102,51 @@ void metric_scraper::id(std::string new_id) {
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::dbl_counter* counter) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "counter", to_table(instance->labels()), counter->value());
+  }
 }
 
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::int_counter* counter) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "counter", to_table(instance->labels()), counter->value());
+  }
 }
 
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::dbl_gauge* gauge) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "gauge", to_table(instance->labels()), gauge->value());
+  }
 }
 
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::int_gauge* gauge) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "gauge", to_table(instance->labels()), gauge->value());
+  }
 }
 
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::dbl_histogram* histogram) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "histogram", to_table(instance->labels()),
             pack_histogram(histogram));
+  }
 }
 
 void metric_scraper::operator()(const ct::metric_family* family,
                                 const ct::metric* instance,
                                 const ct::int_histogram* histogram) {
-  if (selected(family))
+  if (selected(family)) {
     add_row(family, "histogram", to_table(instance->labels()),
             pack_histogram(histogram));
+  }
 }
 
 template <class T>

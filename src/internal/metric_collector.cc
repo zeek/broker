@@ -77,7 +77,7 @@ public:
 
   void update(metric_view mv) override {
     if (mv.type() == type_tag) {
-      auto& vals = get<vector>(mv.value());
+      const auto& vals = get<vector>(mv.value());
       BROKER_ASSERT(vals.size() >= 2);
       buckets_.clear();
       std::for_each(vals.begin(), vals.end() - 1, [this](const auto& kvp_data) {
@@ -99,8 +99,9 @@ public:
     for (size_t index = 0; index < buckets_.size(); ++index) {
       auto [upper_bound, count] = buckets_[index];
       buf[index].upper_bound = upper_bound;
-      if (count > 0)
+      if (count > 0) {
         buf[index].count.inc(count);
+      }
     }
     auto buf_span = caf::make_span(buf.get(), buckets_.size());
     f.append_histogram(this->parent_, this, buf_span, sum_);
@@ -139,23 +140,25 @@ metric_collector::~metric_collector() {
 // -- data management ----------------------------------------------------------
 
 size_t metric_collector::insert_or_update(const data& content) {
-  if (auto vec = get_if<vector>(content))
+  if (const auto* vec = get_if<vector>(content)) {
     return insert_or_update(*vec);
-  else
+  } else {
     return 0;
+  }
 }
 
 size_t metric_collector::insert_or_update(const vector& vec) {
   auto has_meta_data = [](const data& x) {
-    if (auto meta = get_if<vector>(x); meta && meta->size() == 2)
+    if (const auto* meta = get_if<vector>(x); meta && meta->size() == 2) {
       return is<std::string>((*meta)[0]) && is<timestamp>((*meta)[1]);
-    else
+    } else {
       return false;
+    }
   };
   if (vec.size() >= 2 && has_meta_data(vec[0])) {
-    auto& meta = get<vector>(vec[0]);
-    auto& endpoint_name = get<std::string>(meta[0]);
-    auto& ts = get<timestamp>(meta[1]);
+    const auto& meta = get<vector>(vec[0]);
+    const auto& endpoint_name = get<std::string>(meta[0]);
+    const auto& ts = get<timestamp>(meta[1]);
     return insert_or_update(endpoint_name, ts,
                             caf::make_span(vec.data() + 1, vec.size() - 1));
   } else {
@@ -168,22 +171,28 @@ size_t metric_collector::insert_or_update(const std::string& endpoint_name,
                                           caf::span<const data> rows) {
   using caf::telemetry::metric_type;
   auto res = size_t{0};
-  if (advance_time(endpoint_name, ts))
-    for (const auto& row_data : rows)
-      if (auto mv = metric_view{row_data})
-        if (auto ptr = instance(endpoint_name, mv)) {
+  if (advance_time(endpoint_name, ts)) {
+    for (const auto& row_data : rows) {
+      if (auto mv = metric_view{row_data}) {
+        if (auto* ptr = instance(endpoint_name, mv)) {
           ptr->update(mv);
           ++res;
         }
+      }
+    }
+  }
   return res;
 }
 
 std::string_view metric_collector::prometheus_text() {
   if (generator_.begin_scrape()) {
-    for (auto& [prefix, names] : prefixes_)
-      for (auto& [name, scope] : names)
-        for (auto& instance : scope.instances)
+    for (auto& [prefix, names] : prefixes_) {
+      for (auto& [name, scope] : names) {
+        for (auto& instance : scope.instances) {
           instance->append_to(generator_);
+        }
+      }
+    }
     generator_.end_scrape();
   }
   auto res = generator_.str();
@@ -224,9 +233,10 @@ metric_collector::labels_for(const std::string& endpoint_name,
   };
   labels_.clear();
   labels_.emplace_back("endpoint"sv, endpoint_name);
-  for (const auto& kvp : row.labels())
+  for (const auto& kvp : row.labels()) {
     labels_.emplace_back(get<std::string>(kvp.first),
                          get<std::string>(kvp.second));
+  }
   std::sort(labels_.begin(), labels_.end(), name_less);
   return labels_;
 }
@@ -235,8 +245,9 @@ metric_collector::string_span
 metric_collector::label_names_for(metric_view row) {
   label_names_.clear();
   label_names_.emplace_back("endpoint");
-  for (const auto& kvp : row.labels())
+  for (const auto& kvp : row.labels()) {
     label_names_.emplace_back(get<std::string>(kvp.first));
+  }
   std::sort(label_names_.begin(), label_names_.end());
   return label_names_;
 }
@@ -251,8 +262,9 @@ auto owned(metric_collector::string_span xs) {
   std::vector<std::string> result;
   if (!xs.empty()) {
     result.reserve(xs.size());
-    for (auto& x : xs)
+    for (const auto& x : xs) {
       result.emplace_back(owned(x));
+    }
   }
   return result;
 }
@@ -261,8 +273,9 @@ auto owned(metric_collector::label_span xs) {
   std::vector<caf::telemetry::label> result;
   if (!xs.empty()) {
     result.reserve(xs.size());
-    for (auto& x : xs)
+    for (const auto& x : xs) {
       result.emplace_back(x);
+    }
   }
   return result;
 }
@@ -274,9 +287,9 @@ metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
   auto& names = prefixes_[mv.prefix()];
   auto& scope = names[mv.name()];
   if (scope.family == nullptr) {
-    auto ptr = new ct::metric_family(mv.type(), mv.prefix(), mv.name(),
-                                     owned(label_names_for(mv)), mv.helptext(),
-                                     mv.unit(), mv.is_sum());
+    auto* ptr = new ct::metric_family(mv.type(), mv.prefix(), mv.name(),
+                                      owned(label_names_for(mv)), mv.helptext(),
+                                      mv.unit(), mv.is_sum());
     scope.family.reset(ptr);
   }
   auto* fptr = scope.family.get();

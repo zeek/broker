@@ -12,7 +12,7 @@
 namespace broker {
 
 bool convertible_to_endpoint_info(const data& src) {
-  if (auto vec = get_if<vector>(src)) {
+  if (const auto* vec = get_if<vector>(src)) {
     return convertible_to_endpoint_info(*vec);
   } else {
     return false;
@@ -32,17 +32,20 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
 }
 
 bool convert(const data& src, endpoint_info& dst) {
-  if (!is<vector>(src))
+  if (!is<vector>(src)) {
     return false;
+  }
   // Types: <string, string, port, count>. Fields 1 can be none.
   // Field 2 -4 are either all none or all defined.
-  auto& xs = get<vector>(src);
-  if (xs.size() != 4)
+  const auto& xs = get<vector>(src);
+  if (xs.size() != 4) {
     return false;
+  }
   // Parse the node (field 1).
-  if (auto str = get_if<std::string>(xs[0])) {
-    if (!convert(*str, dst.node))
+  if (const auto* str = get_if<std::string>(xs[0])) {
+    if (!convert(*str, dst.node)) {
       return false;
+    }
   } else if (is<none>(xs[0])) {
     dst.node = endpoint_id{};
   } else {
@@ -68,8 +71,9 @@ bool convert(const data& src, endpoint_info& dst) {
 bool convert(const endpoint_info& src, data& dst) {
   vector result;
   result.resize(4);
-  if (src.node)
+  if (src.node) {
     result[0] = to_string(src.node);
+  }
   if (src.network) {
     result[1] = src.network->address;
     result[2] = port{src.network->port, port::protocol::tcp};
@@ -83,7 +87,7 @@ void convert(const endpoint_info& src, std::string& dst) {
   dst += "endpoint_info(";
   dst += to_string(src.node);
   dst += ", ";
-  if (auto& net = src.network) {
+  if (const auto& net = src.network) {
     dst += '*';
     dst += to_string(*net);
   } else {

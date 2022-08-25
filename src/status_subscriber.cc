@@ -44,8 +44,9 @@ std::vector<topic> make_status_topics(bool receive_statuses) {
   std::vector<topic> result;
   result.reserve(2);
   result.emplace_back(topic::errors());
-  if (receive_statuses)
+  if (receive_statuses) {
     result.emplace_back(topic::statuses());
+  }
   return result;
 }
 

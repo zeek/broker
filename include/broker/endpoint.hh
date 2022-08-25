@@ -127,7 +127,7 @@ public:
   explicit endpoint(configuration config);
 
   /// @private
-  endpoint(configuration config, endpoint_id this_peer);
+  endpoint(configuration config, endpoint_id id);
 
   endpoint(endpoint&&) = delete;
   endpoint(const endpoint&) = delete;
@@ -203,7 +203,7 @@ public:
   /// @param retry If non-zero, seconds after which to retry if connection
   ///        cannot be established, or breaks.
   /// @return A `future` for catching the result at a later time.
-  std::future<bool> peer_async(std::string address, uint16_t port,
+  std::future<bool> peer_async(std::string host, uint16_t port,
                                timeout::seconds retry = timeout::seconds(10));
 
   /// Shuts down a peering with a remote endpoint.
@@ -474,10 +474,11 @@ public:
   /// Sets whether the endpoint waits for masters and slaves on shutdown.
   void await_stores_on_shutdown(bool x) {
     constexpr auto flag = shutdown_options::await_stores_on_shutdown;
-    if (x)
+    if (x) {
       shutdown_options_.set(flag);
-    else
+    } else {
       shutdown_options_.unset(flag);
+    }
   }
 
   /// Returns a configuration object for the metrics exporter.
@@ -514,8 +515,8 @@ protected:
   worker subscriber_;
 
 private:
-  worker do_subscribe(filter_type&& topics,
-                      const detail::sink_driver_ptr& driver);
+  worker do_subscribe(filter_type&& filter,
+                      const detail::sink_driver_ptr& sink);
 
   worker do_publish_all(const detail::source_driver_ptr& driver);
 

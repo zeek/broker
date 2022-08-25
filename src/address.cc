@@ -20,7 +20,7 @@ namespace {
 
 using native_t = caf::ip_address;
 
-static constexpr bool is_little_endian =
+constexpr bool is_little_endian =
 #ifdef BROKER_BIG_ENDIAN
   false;
 #else
@@ -36,10 +36,10 @@ auto to_array(const uint32_t* bytes, address::family fam,
   using std::make_reverse_iterator;
   address::array_type result;
   if (fam == address::family::ipv4) {
-    auto dst = std::copy(v4_mapped_prefix.begin(), v4_mapped_prefix.end(),
-                         result.begin());
-    auto first = reinterpret_cast<const uint8_t*>(bytes);
-    auto last = first + sizeof(uint32_t);
+    auto* dst = std::copy(v4_mapped_prefix.begin(), v4_mapped_prefix.end(),
+                          result.begin());
+    const auto* first = reinterpret_cast<const uint8_t*>(bytes);
+    const auto* last = first + sizeof(uint32_t);
     if constexpr (is_little_endian) {
       if (order == address::byte_order::host) {
         std::copy(make_reverse_iterator(last), make_reverse_iterator(first),
@@ -51,18 +51,18 @@ auto to_array(const uint32_t* bytes, address::family fam,
   } else {
     if constexpr (is_little_endian) {
       if (order == address::byte_order::host) {
-        auto dst = result.begin();
-        for (auto iter = bytes; iter != bytes + bytes_size; ++iter) {
-          auto first = reinterpret_cast<const uint8_t*>(iter);
-          auto last = first + sizeof(uint32_t);
+        auto* dst = result.begin();
+        for (const auto* iter = bytes; iter != bytes + bytes_size; ++iter) {
+          const auto* first = reinterpret_cast<const uint8_t*>(iter);
+          const auto* last = first + sizeof(uint32_t);
           dst = std::copy(make_reverse_iterator(last),
                           make_reverse_iterator(first), dst);
         }
         return result;
       }
     }
-    auto first = reinterpret_cast<const uint8_t*>(bytes);
-    auto last = first + address::num_bytes;
+    const auto* first = reinterpret_cast<const uint8_t*>(bytes);
+    const auto* last = first + address::num_bytes;
     std::copy(first, last, result.begin());
   }
   return result;
@@ -88,24 +88,29 @@ address& address::operator=(const address& other) noexcept {
 }
 
 static uint32_t bit_mask32(int bottom_bits) {
-  if (bottom_bits >= 32)
+  if (bottom_bits >= 32) {
     return 0xffffffff;
+  }
   return (((uint32_t) 1) << bottom_bits) - 1;
 }
 
 bool address::mask(uint8_t top_bits_to_keep) {
-  if (top_bits_to_keep > 128)
+  if (top_bits_to_keep > 128) {
     return false;
+  }
   uint32_t mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
   auto res = std::div(top_bits_to_keep, 32);
-  if (res.quot < 4)
+  if (res.quot < 4) {
     mask[res.quot] =
       caf::detail::to_network_order(mask[res.quot] & ~bit_mask32(32 - res.rem));
-  for (auto i = res.quot + 1; i < 4; ++i)
+  }
+  for (auto i = res.quot + 1; i < 4; ++i) {
     mask[i] = 0;
-  auto p = reinterpret_cast<uint32_t*>(&bytes());
-  for (auto i = 0; i < 4; ++i)
+  }
+  auto* p = reinterpret_cast<uint32_t*>(&bytes());
+  for (auto i = 0; i < 4; ++i) {
     p[i] &= mask[i];
+  }
   return true;
 }
 

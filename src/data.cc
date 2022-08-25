@@ -101,8 +101,9 @@ void container_convert(Container& c, std::string& str, char left, char right) {
   str += left;
   if (first != last) {
     str += to_string(*first);
-    while (++first != last)
+    while (++first != last) {
       str += delim + to_string(*first);
+    }
   }
   str += right;
 }
@@ -161,18 +162,20 @@ bool convert(const data& x, endpoint_id& node) {
 }
 
 bool convert(const endpoint_id& node, data& d) {
-  if (node)
+  if (node) {
     d = to_string(node);
-  else
+  } else {
     d = nil;
+  }
   return true;
 }
 
 std::string to_string(const expected<data>& x) {
-  if (x)
+  if (x) {
     return to_string(*x);
-  else
+  } else {
     return "!" + to_string(x.error());
+  }
 }
 
 } // namespace broker

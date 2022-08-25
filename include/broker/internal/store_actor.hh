@@ -64,14 +64,14 @@ public:
   /// @pre `ptr != nullptr`
   /// @pre `clock != nullptr`
   void init(caf::event_based_actor* self, endpoint_id this_endpoint,
-            endpoint::clock* clock, std::string&& id, caf::actor&& core,
+            endpoint::clock* clock, std::string&& store_name, caf::actor&& core,
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
   template <class Backend, class Base>
   void init(channel_type::producer<Backend, Base>& out) {
     using caf::get_or;
-    auto& cfg = self->config();
+    const auto& cfg = self->config();
     out.heartbeat_interval(get_or(cfg, "broker.store.heartbeat-interval",
                                   defaults::store::heartbeat_interval));
     out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
@@ -81,7 +81,7 @@ public:
   template <class Backend>
   void init(channel_type::consumer<Backend>& in) {
     using caf::get_or;
-    auto& cfg = self->config();
+    const auto& cfg = self->config();
     auto heartbeat_interval = get_or(cfg, "broker.store.heartbeat-interval",
                                      defaults::store::heartbeat_interval);
     auto connection_timeout = get_or(cfg, "broker.store.connection-timeout",
@@ -105,9 +105,11 @@ public:
       },
       [this](atom::decrement, const detail::shared_store_state_ptr& ptr) {
         auto& xs = attached_states;
-        if (auto i = xs.find(ptr); i != xs.end())
-          if (--(i->second) == 0)
+        if (auto i = xs.find(ptr); i != xs.end()) {
+          if (--(i->second) == 0) {
             xs.erase(i);
+          }
+        }
       },
     };
   }

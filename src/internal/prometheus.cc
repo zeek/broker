@@ -81,8 +81,9 @@ caf::behavior prometheus_actor::make_behavior() {
         flush(msg.handle);
         close(msg.handle);
         requests_.erase(msg.handle);
-        if (num_connections() + num_doormen() == 0)
+        if (num_connections() + num_doormen() == 0) {
           quit();
+        }
       };
       auto& req = requests_[msg.handle];
       if (req.size() + msg.buf.size() > max_request_size) {
@@ -94,8 +95,9 @@ caf::behavior prometheus_actor::make_behavior() {
       auto req_str = string_view{reinterpret_cast<char*>(req.data()),
                                  req.size()};
       // Stop here if the first header line isn't complete yet.
-      if (req_str.size() < valid_request_start.size())
+      if (req_str.size() < valid_request_start.size()) {
         return;
+      }
       // We only check whether it's a GET request for /metrics for HTTP 1.x.
       // Everything else, we ignore for now.
       if (!caf::starts_with(req_str, valid_request_start)) {
@@ -127,13 +129,15 @@ caf::behavior prometheus_actor::make_behavior() {
     },
     [this](const caf::io::connection_closed_msg& msg) {
       requests_.erase(msg.handle);
-      if (num_connections() + num_doormen() == 0)
+      if (num_connections() + num_doormen() == 0) {
         quit();
+      }
     },
     [this](const caf::io::acceptor_closed_msg&) {
       BROKER_ERROR("Prometheus actor lost its acceptor!");
-      if (num_connections() + num_doormen() == 0)
+      if (num_connections() + num_doormen() == 0) {
         quit();
+      }
     },
     [this](const data_message& msg) {
       BROKER_TRACE(BROKER_ARG(msg));

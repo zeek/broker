@@ -14,20 +14,25 @@ metric_exporter_params::from(const caf::actor_system_config& cfg) {
   using std::string;
   using dict_type = caf::config_value::dictionary;
   metric_exporter_params result;
-  if (auto idp = caf::get_if<string>(&cfg, "broker.metrics.endpoint-name");
+  if (const auto* idp = caf::get_if<string>(&cfg,
+                                            "broker.metrics.endpoint-name");
       idp && !idp->empty()) {
     result.id = *idp;
   }
-  if (auto dict = caf::get_if<dict_type>(&cfg, "broker.metrics.export")) {
-    if (auto tp = caf::get_if<string>(dict, "topic"); tp && !tp->empty()) {
+  if (const auto* dict = caf::get_if<dict_type>(&cfg,
+                                                "broker.metrics.export")) {
+    if (const auto* tp = caf::get_if<string>(dict, "topic");
+        tp && !tp->empty()) {
       result.target = *tp;
-      if (result.id.empty())
+      if (result.id.empty()) {
         result.id = result.target.suffix();
+      }
     }
     result.interval = caf::get_or(*dict, "interval",
                                   defaults::metrics::export_interval);
-    if (result.interval.count() == 0)
+    if (result.interval.count() == 0) {
       result.interval = defaults::metrics::export_interval;
+    }
   }
   return result;
 }

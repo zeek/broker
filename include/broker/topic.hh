@@ -64,7 +64,7 @@ public:
 
   /// Appends a topic components with a separator.
   /// @param t The topic to append to this instance.
-  topic& operator/=(const topic& t);
+  topic& operator/=(const topic& rhs);
 
   /// Retrieves the underlying string representation of the topic.
   /// @returns A reference to the underlying string.

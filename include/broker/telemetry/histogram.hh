@@ -93,10 +93,11 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   histogram<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T, double>)
+    if constexpr (std::is_same_v<T, double>) {
       return histogram<T>{dbl_histogram_get_or_add(super::hdl_, labels)};
-    else
+    } else {
       return histogram<T>{int_histogram_get_or_add(super::hdl_, labels)};
+    }
   }
 
   /// @copydoc get_or_add

@@ -119,11 +119,13 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
     }
     auto num = std::min(cap - i, out.free_capacity());
     assert(num > 0);
-    for (size_t j = 0; j < num; ++j)
-      if (!std::getline(std::cin, line))
+    for (size_t j = 0; j < num; ++j) {
+      if (!std::getline(std::cin, line)) {
         return; // Reached end of STDIO.
-      else
+      } else {
         out.publish(line);
+      }
+    }
     i += num;
     msg_count += num;
   }
@@ -137,8 +139,9 @@ void subscribe_mode_blocking(broker::endpoint& ep, const std::string& topic_str,
   std::string line;
   for (size_t i = 0; i < cap; ++i) {
     auto msg = in.get();
-    if (!rate)
+    if (!rate) {
       print_line(std::cout, to_string(msg));
+    }
     ++msg_count;
   }
 }
@@ -167,8 +170,9 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
     auto num = std::min(cap - i, in.available());
     for (size_t j = 0; j < num; ++j) {
       auto msg = in.get();
-      if (!rate)
+      if (!rate) {
         print_line(std::cout, to_string(msg));
+      }
     }
     i += num;
     msg_count += num;
@@ -187,10 +191,12 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     // OnNext.
     [cap](size_t& msgs, const data_message& x) {
       ++msg_count;
-      if (!rate)
+      if (!rate) {
         print_line(std::cout, to_string(x));
-      if (++msgs >= cap)
+      }
+      if (++msgs >= cap) {
         throw std::runtime_error("Reached cap");
+      }
     },
     [=](size_t&, const broker::error&) {
       // nop
@@ -203,14 +209,16 @@ void split(std::vector<std::string>& result, std::string_view str,
   size_t prev = 0;
   while ((pos = str.find_first_of(delims, prev)) != std::string::npos) {
     auto substr = str.substr(prev, pos - prev);
-    if (keep_all || !substr.empty())
+    if (keep_all || !substr.empty()) {
       result.emplace_back(substr);
+    }
     prev = pos + 1;
   }
-  if (prev < str.size())
+  if (prev < str.size()) {
     result.emplace_back(str.substr(prev));
-  else if (keep_all)
+  } else if (keep_all) {
     result.emplace_back(std::string{});
+  }
 }
 
 } // namespace
@@ -251,8 +259,9 @@ int main(int argc, char** argv) try {
       // Cleanup: nop.
     });
   // Publish endpoint at demanded port.
-  if (params.local_port != 0)
+  if (params.local_port != 0) {
     ep.listen({}, params.local_port);
+  }
   // Connect to the requested peers.
   for (auto& p : params.peers) {
     std::vector<std::string> fields;
@@ -297,8 +306,9 @@ int main(int argc, char** argv) try {
     {"publish", "blocking"}, {"publish", "select"},   {"subscribe", "blocking"},
     {"subscribe", "select"}, {"subscribe", "stream"},
   };
-  auto b = std::begin(as);
-  auto i = std::find(b, std::end(as), std::make_pair(params.mode, params.impl));
+  auto* b = std::begin(as);
+  auto* i = std::find(b, std::end(as),
+                      std::make_pair(params.mode, params.impl));
   auto f = fs[std::distance(b, i)];
   f(ep, params.topic, params.message_cap);
 } catch (std::exception& ex) {

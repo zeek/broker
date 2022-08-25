@@ -15,10 +15,11 @@ namespace {
 
 template <class T>
 constexpr size_t vec_slots() {
-  if constexpr (std::is_same_v<T, entity_id>)
+  if constexpr (std::is_same_v<T, entity_id>) {
     return 2;
-  else
+  } else {
     return 1;
+  }
 }
 
 template <class T>
@@ -28,10 +29,11 @@ void append(vector& xs, const T& x) {
 
 template <class T>
 void append(vector& xs, const std::optional<T>& x) {
-  if (x)
+  if (x) {
     xs.emplace_back(*x);
-  else
+  } else {
     xs.emplace_back(nil);
+  }
 }
 
 void append(vector& xs, const entity_id& x) {
@@ -75,7 +77,7 @@ void store_actor_state::init(caf::event_based_actor* selfptr,
   this->id.object = self->id();
   this->core = std::move(core);
   this->dst = topic::store_events() / this->store_name;
-  auto& cfg = self->system().config();
+  const auto& cfg = self->system().config();
   tick_interval = caf::get_or(cfg, "broker.store.tick-interval",
                               defaults::store::tick_interval);
   self //
@@ -138,10 +140,11 @@ void store_actor_state::on_down_msg(const caf::actor_addr& source,
   }
   auto i = local_requests.begin();
   while (i != local_requests.end()) {
-    if (source == i->second.next())
+    if (source == i->second.next()) {
       i = local_requests.erase(i);
-    else
+    } else {
       ++i;
+    }
   }
 }
 

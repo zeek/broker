@@ -79,7 +79,7 @@ core_actor_state::~core_actor_state() {
 caf::behavior core_actor_state::make_behavior() {
   // Our metrics for keeping track of how many messages pass through this peer.
   // Indexes into the array are values of packed_message_type, they start at 1.
-  auto proc_fam = self->system().metrics().counter_family(
+  auto* proc_fam = self->system().metrics().counter_family(
     "broker", "processed-elements", {"type"},
     "Number of processed stream elements.");
   using counter_ptr = caf::telemetry::int_counter*;
@@ -117,8 +117,10 @@ caf::behavior core_actor_state::make_behavior() {
       // Update metrics.
       counters[static_cast<size_t>(get_type(msg))]->inc();
       // We only care about incoming filter updates messages here.
-      if (sender == id || get_type(msg) != packed_message_type::routing_update)
+      if (sender == id
+          || get_type(msg) != packed_message_type::routing_update) {
         return;
+      }
       // Deserialize payload and update peer filter.
       if (auto i = peer_filters.find(sender); i != peer_filters.end()) {
         filter_type new_filter;
@@ -137,9 +139,10 @@ caf::behavior core_actor_state::make_behavior() {
     ->as_observable()
     .for_each([this, counters](const node_message& msg) {
       auto sender = get_sender(msg);
-      if (sender == id || get_type(msg) != packed_message_type::ping)
+      if (sender == id || get_type(msg) != packed_message_type::ping) {
         return;
-      auto& payload = get_payload(msg);
+      }
+      const auto& payload = get_payload(msg);
       BROKER_DEBUG("received a PING message with a payload of" << payload.size()
                                                                << "bytes");
       dispatch(sender, make_packed_message(packed_message_type::pong, 1,
@@ -186,10 +189,11 @@ caf::behavior core_actor_state::make_behavior() {
            const filter_type& filter, node_consumer_res in_res,
            node_producer_res out_res) -> caf::result<void> {
       if (auto err = init_new_peer(peer, addr, filter, std::move(in_res),
-                                   std::move(out_res)))
+                                   std::move(out_res))) {
         return err;
-      else
+      } else {
         return caf::unit;
+      }
     },
     // -- unpeering ------------------------------------------------------------
     [this](atom::unpeer, const network_info& peer_addr) { //
@@ -204,10 +208,11 @@ caf::behavior core_actor_state::make_behavior() {
            data_consumer_res& in_res,
            data_producer_res& out_res) -> caf::result<void> {
       if (auto err = init_new_client(addr, type, std::move(filter),
-                                     std::move(in_res), std::move(out_res)))
+                                     std::move(in_res), std::move(out_res))) {
         return err;
-      else
+      } else {
         return caf::unit;
+      }
     },
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
@@ -283,11 +288,13 @@ caf::behavior core_actor_state::make_behavior() {
           subscribe(*fptr);
         }
       } else {
-        if (i != e)
+        if (i != e) {
           fptr->erase(i);
+        }
       }
-      if (sync)
+      if (sync) {
         sync->set_value();
+      }
     },
     // -- interface for publishers ---------------------------------------------
     [this](data_consumer_res src) {
@@ -310,10 +317,11 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::data_store, atom::master, atom::get,
            const std::string& name) -> caf::result<caf::actor> {
       auto i = masters.find(name);
-      if (i != masters.end())
+      if (i != masters.end()) {
         return i->second;
-      else
+      } else {
         return caf::make_error(ec::no_such_master);
+      }
     },
     [this](atom::shutdown, atom::data_store) { //
       shutdown_stores();
@@ -322,8 +330,9 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::join, const filter_type& filter) {
       // Sanity checking: reject anonymous messages.
       auto sender_ptr = self->current_sender();
-      if (sender_ptr == nullptr)
+      if (sender_ptr == nullptr) {
         return;
+      }
       // Update state for repeated join messages.
       auto addr = caf::actor_cast<caf::actor_addr>(sender_ptr);
       if (auto i = legacy_subs.find(addr); i != legacy_subs.end()) {
@@ -362,10 +371,11 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::await, endpoint_id peer_id) {
       auto rp = self->make_response_promise();
       if (auto i = peers.find(peer_id);
-          i != peers.end() && !i->second.invalidated)
+          i != peers.end() && !i->second.invalidated) {
         rp.deliver(peer_id);
-      else
+      } else {
         awaited_peers.emplace(peer_id, rp);
+      }
       return rp;
     },
   };
@@ -379,8 +389,9 @@ caf::behavior core_actor_state::make_behavior() {
 void core_actor_state::shutdown(shutdown_options options) {
   BROKER_TRACE(BROKER_ARG(options));
   // Tell the connector to shut down. No new connection allowed.
-  if (adapter)
+  if (adapter) {
     adapter->async_shutdown();
+  }
   // Close the shared state for the peers.
   peer_statuses->close();
   // Shut down data stores.
@@ -399,8 +410,9 @@ void core_actor_state::shutdown(shutdown_options options) {
   peers.clear();
   // Cancel all incoming flows.
   BROKER_DEBUG("cancel" << subscriptions.size() << "subscriptions");
-  for (auto& sub : subscriptions)
+  for (auto& sub : subscriptions) {
     sub.dispose();
+  }
   subscriptions.clear();
   // Allow our mergers to shut down. They still process pending data.
   data_inputs->shutdown_on_last_complete(true);
@@ -409,8 +421,9 @@ void core_actor_state::shutdown(shutdown_options options) {
   // Inform our clients that we no longer wait for any peer.
   BROKER_DEBUG("cancel" << awaited_peers.size()
                         << "pending await_peer requests");
-  for (auto& kvp : awaited_peers)
+  for (auto& kvp : awaited_peers) {
     kvp.second.deliver(caf::make_error(ec::shutting_down));
+  }
   awaited_peers.clear();
   // Ignore future messages. Calling unbecome() removes our 'behavior' (set of
   // message handlers). An actor without behavior runs as long as still has
@@ -424,10 +437,11 @@ void core_actor_state::shutdown(shutdown_options options) {
       // regular, asynchronous messages we just produce a 'void' result by
       // returning an empty message. For requests, we still do produce an error
       // since we otherwise break request/response semantics silently.
-      if (sptr->current_message_id().is_request())
+      if (sptr->current_message_id().is_request()) {
         return caf::make_error(caf::sec::request_receiver_down);
-      else
+      } else {
         return caf::make_message();
+      }
     });
 }
 
@@ -437,15 +451,17 @@ template <class EnumConstant>
 void core_actor_state::emit(endpoint_info ep, EnumConstant code,
                             const char* msg) {
   // Sanity checking.
-  if (disable_notifications || !data_outputs)
+  if (disable_notifications || !data_outputs) {
     return;
+  }
   // Pick the right topic and factory based on the event type.
   using value_type = typename EnumConstant::value_type;
   std::string str;
-  if constexpr (std::is_same_v<value_type, sc>)
+  if constexpr (std::is_same_v<value_type, sc>) {
     str = topic::statuses_str;
-  else
+  } else {
     str = topic::errors_str;
+  }
   using factory =
     std::conditional_t<std::is_same_v<value_type, sc>, status, error_factory>;
   // Generate a data message from the converted content and address it to this
@@ -479,17 +495,19 @@ std::optional<T> core_actor_state::unpack(const packed_message& msg) {
   caf::binary_deserializer src{nullptr, get_payload(msg)};
   if constexpr (std::is_same_v<T, data_message>) {
     data content;
-    if (src.apply(content))
+    if (src.apply(content)) {
       return make_data_message(get_topic(msg), std::move(content));
-    else
+    } else {
       return std::nullopt;
+    }
   } else {
     static_assert(std::is_same_v<T, command_message>);
     internal_command content;
-    if (src.apply(content))
+    if (src.apply(content)) {
       return make_command_message(get_topic(msg), std::move(content));
-    else
+    } else {
       return std::nullopt;
+    }
   }
 }
 
@@ -510,16 +528,18 @@ bool core_actor_state::is_subscribed_to(endpoint_id id, const topic& what) {
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
-  if (auto i = peers.find(id); i != peers.end())
+  if (auto i = peers.find(id); i != peers.end()) {
     return i->second.addr;
-  else
+  } else {
     return std::nullopt;
+  }
 }
 
 std::vector<endpoint_id> core_actor_state::peer_ids() const {
   std::vector<endpoint_id> result;
-  for (auto& kvp : peers)
+  for (const auto& kvp : peers) {
     result.emplace_back(kvp.first);
+  }
   return result;
 }
 
@@ -618,10 +638,11 @@ void core_actor_state::try_connect(const network_info& addr,
                const pending_connection_ptr& conn) mutable {
       BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
       if (auto err = init_new_peer(peer, addr, filter, conn);
-          err && err != ec::repeated_peering_handshake_request)
+          err && err != ec::repeated_peering_handshake_request) {
         rp.deliver(std::move(err));
-      else
+      } else {
         rp.deliver(atom::peer_v, atom::ok_v, peer);
+      }
     },
     [this, rp](endpoint_id peer, const network_info& addr) mutable {
       BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
@@ -629,8 +650,9 @@ void core_actor_state::try_connect(const network_info& addr,
         // Override the address if this one has a retry field. This makes
         // sure we "prefer" a user-defined address over addresses we read
         // from sockets for incoming peerings.
-        if (addr.has_retry_time() && !i->second.addr.has_retry_time())
+        if (addr.has_retry_time() && !i->second.addr.has_retry_time()) {
           i->second.addr = addr;
+        }
         rp.deliver(atom::peer_v, atom::ok_v, peer);
       } else {
         // Race on the state. May happen if the remote peer already
@@ -642,8 +664,9 @@ void core_actor_state::try_connect(const network_info& addr,
         self->run_delayed(1ms, [this, peer, addr, rp]() mutable {
           BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
           if (auto i = peers.find(peer); i != peers.end()) {
-            if (addr.has_retry_time() && !i->second.addr.has_retry_time())
+            if (addr.has_retry_time() && !i->second.addr.has_retry_time()) {
               i->second.addr = addr;
+            }
             rp.deliver(atom::peer_v, atom::ok_v, peer);
           } else {
             try_connect(addr, rp);
@@ -762,8 +785,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // Sanity checking: make sure this isn't a repeated handshake.
   auto i = peers.find(peer_id);
-  if (i != peers.end() && !i->second.invalidated)
+  if (i != peers.end() && !i->second.invalidated) {
     return caf::make_error(ec::repeated_peering_handshake_request);
+  }
   // Set the status for this peer to 'peered'. The only legal transitions are
   // 'nil -> peered' and 'connected -> peered'.
   auto& psm = *peer_statuses;
@@ -785,10 +809,12 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                ->as_observable()
                // Select by subscription and sender/receiver fields.
                .filter([this, pid = peer_id](const node_message& msg) {
-                 if (get_sender(msg) == pid)
+                 if (get_sender(msg) == pid) {
                    return false;
-                 if (disable_forwarding && get_sender(msg) != id)
+                 }
+                 if (disable_forwarding && get_sender(msg) != id) {
                    return false;
+                 }
                  auto receiver = get_receiver(msg);
                  return receiver == pid
                         || (!receiver && is_subscribed_to(pid, get_topic(msg)));
@@ -846,8 +872,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   peer_connected(peer_id, i->second.addr);
   // Notify clients that wait for this peering.
   if (auto [first, last] = awaited_peers.equal_range(peer_id); first != last) {
-    for (auto i = first; i != last; ++i)
+    for (auto i = first; i != last; ++i) {
       i->second.deliver(peer_id);
+    }
     awaited_peers.erase(first, last);
   }
   return caf::none;
@@ -908,8 +935,9 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                  // Select by subscription.
                  .filter([this, filt = std::move(filter),
                           client_id](const node_message& msg) {
-                   if (get_sender(msg) == client_id)
+                   if (get_sender(msg) == client_id) {
                      return false;
+                   }
                    detail::prefix_matcher f;
                    return f(filt, get_topic(msg));
                  })
@@ -947,11 +975,7 @@ void core_actor_state::subscribe(const filter_type& what) {
   BROKER_TRACE(BROKER_ARG(what));
   auto changed = filter->update([this, &what](auto&, auto& xs) {
     auto not_internal = [](const topic& x) { return !is_internal(x); };
-    if (filter_extend(xs, what, not_internal)) {
-      return true;
-    } else {
-      return false;
-    }
+    return static_cast<bool>(filter_extend(xs, what, not_internal));
   });
   // Note: this member function is the only place we call `update`. Hence, we
   // need not worry about the filter changing again concurrently.
@@ -978,16 +1002,18 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   BROKER_TRACE(BROKER_ARG(name)
                << BROKER_ARG(backend_type) << BROKER_ARG(opts));
   // Sanity checking: master must not already exist locally or on a peer.
-  if (auto i = masters.find(name); i != masters.end())
+  if (auto i = masters.find(name); i != masters.end()) {
     return i->second;
+  }
   if (has_remote_master(name)) {
     BROKER_WARNING("remote master with same name exists already");
     return caf::make_error(ec::master_exists);
   }
   // Create backend and buffers.
   auto ptr = detail::make_backend(backend_type, std::move(opts));
-  if (!ptr)
+  if (!ptr) {
     return caf::make_error(ec::backend_failure);
+  }
   BROKER_INFO("spawning new master:" << name);
   using caf::async::make_spsc_buffer_resource;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
@@ -1027,8 +1053,9 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
     BROKER_WARNING("attempted to run clone & master on the same endpoint");
     return caf::make_error(ec::no_such_master);
   }
-  if (auto i = clones.find(name); i != clones.end())
+  if (auto i = clones.find(name); i != clones.end()) {
     return i->second;
+  }
   // Spin up the clone and connect it to our flows.
   BROKER_INFO("spawning new clone:" << name);
   using std::chrono::duration_cast;
@@ -1060,11 +1087,13 @@ void core_actor_state::shutdown_stores() {
   BROKER_TRACE(BROKER_ARG2("masters.size()", masters.size())
                << BROKER_ARG2("clones.size()", clones.size()));
   // TODO: consider re-implementing graceful shutdown of the store actors
-  for (auto& kvp : masters)
+  for (auto& kvp : masters) {
     self->send_exit(kvp.second, caf::exit_reason::kill);
+  }
   masters.clear();
-  for (auto& kvp : clones)
+  for (auto& kvp : clones) {
     self->send_exit(kvp.second, caf::exit_reason::kill);
+  }
   clones.clear();
 }
 
@@ -1083,13 +1112,14 @@ void core_actor_state::broadcast_subscriptions() {
   [[maybe_unused]] auto ok = sink.apply(fs);
   BROKER_ASSERT(ok);
   // Pack and send to each peer.
-  auto first = reinterpret_cast<std::byte*>(buf.data());
-  auto last = first + buf.size();
+  auto* first = reinterpret_cast<std::byte*>(buf.data());
+  auto* last = first + buf.size();
   auto packed = packed_message{packed_message_type::routing_update, ttl,
                                topic{std::string{topic::reserved}},
                                std::vector<std::byte>{first, last}};
-  for (auto& kvp : peers)
+  for (auto& kvp : peers) {
     central_merge->append_to_buf(node_message(id, kvp.first, packed));
+  }
   central_merge->try_push();
 }
 
@@ -1097,19 +1127,22 @@ void core_actor_state::broadcast_subscriptions() {
 
 void core_actor_state::unpeer(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
-  if (auto i = peers.find(peer_id); i != peers.end())
+  if (auto i = peers.find(peer_id); i != peers.end()) {
     unpeer(i);
-  else
+  } else {
     cannot_remove_peer(peer_id);
+  }
 }
 
 void core_actor_state::unpeer(const network_info& peer_addr) {
   BROKER_TRACE(BROKER_ARG(peer_addr));
   auto pred = [peer_addr](auto& kvp) { return kvp.second.addr == peer_addr; };
-  if (auto i = std::find_if(peers.begin(), peers.end(), pred); i != peers.end())
+  if (auto i = std::find_if(peers.begin(), peers.end(), pred);
+      i != peers.end()) {
     unpeer(i);
-  else
+  } else {
     cannot_remove_peer(peer_addr);
+  }
 }
 
 void core_actor_state::unpeer(peer_state_map::iterator i) {

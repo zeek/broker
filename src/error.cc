@@ -105,8 +105,9 @@ error::error(error&& other) noexcept {
 }
 
 error& error::operator=(const error& other) {
-  if (this != &other)
+  if (this != &other) {
     native(*this) = native(other);
+  }
   return *this;
 }
 
@@ -132,22 +133,24 @@ uint16_t error::category() const noexcept {
 }
 
 const std::string* error::message() const noexcept {
-  auto& msg = native(*this).context();
+  const auto& msg = native(*this).context();
   if (auto v1 =
-        caf::make_const_typed_message_view<endpoint_info, std::string>(msg))
+        caf::make_const_typed_message_view<endpoint_info, std::string>(msg)) {
     return std::addressof(get<1>(v1));
-  else if (auto v2 = caf::make_const_typed_message_view<std::string>(msg))
+  } else if (auto v2 = caf::make_const_typed_message_view<std::string>(msg)) {
     return std::addressof(get<0>(v2));
-  else
+  } else {
     return nullptr;
+  }
 }
 
 const endpoint_info* error::context() const noexcept {
-  auto& msg = native(*this).context();
-  if (auto v = caf::make_const_typed_message_view<endpoint_info>(msg))
+  const auto& msg = native(*this).context();
+  if (auto v = caf::make_const_typed_message_view<endpoint_info>(msg)) {
     return std::addressof(get<0>(v));
-  else
+  } else {
     return nullptr;
+  }
 }
 
 error::impl* error::native_ptr() noexcept {
@@ -191,8 +194,9 @@ bool convert(std::string_view str, ec& code) noexcept {
 }
 
 bool convert(const data& src, ec& code) noexcept {
-  if (auto val = get_if<enum_value>(src))
+  if (const auto* val = get_if<enum_value>(src)) {
     return convert(val->name, code);
+  }
   return false;
 }
 
@@ -209,20 +213,23 @@ bool convertible_to_error(const vector& xs) noexcept {
   if (!contains<std::string, ec, any_type>(xs)) {
     // There is one special case: default errors with enum value "none" fail to
     // convert to ec but are still legal.
-    if (contains<std::string, enum_value, none>(xs))
+    if (contains<std::string, enum_value, none>(xs)) {
       return get<std::string>(xs[0]) == "error"
              && get<enum_value>(xs[1]).name == "none";
+    }
     return false;
   }
-  if (get<std::string>(xs[0]) != "error")
+  if (get<std::string>(xs[0]) != "error") {
     return false;
+  }
   return is<none>(xs[2]) || contains<std::string>(xs[2])
          || contains<endpoint_info, std::string>(xs[2]);
 }
 
 bool convertible_to_error(const data& src) noexcept {
-  if (auto xs = get_if<vector>(src))
+  if (const auto* xs = get_if<vector>(src)) {
     return convertible_to_error(*xs);
+  }
   return false;
 }
 
@@ -235,13 +242,14 @@ bool convert(const error& src, data& dst) {
     dst = std::move(result);
     return true;
   }
-  if (src.category() != caf::type_id_v<broker::ec>)
+  if (src.category() != caf::type_id_v<broker::ec>) {
     return false;
+  }
   vector result;
   result.resize(3);
   result[0] = "error"s;
   result[1] = enum_value{to_string(static_cast<ec>(src.code()))};
-  auto& context = native(src).context();
+  const auto& context = native(src).context();
   if (context.empty()) {
     dst = std::move(result);
     return true;
@@ -254,8 +262,9 @@ bool convert(const error& src, data& dst) {
   if (context.match_elements<endpoint_info, std::string>()) {
     vector xs;
     xs.resize(2);
-    if (!convert(context.get_as<endpoint_info>(0), xs[0]))
+    if (!convert(context.get_as<endpoint_info>(0), xs[0])) {
       return false;
+    }
     xs[1] = context.get_as<std::string>(1);
     result[2] = std::move(xs);
     dst = std::move(result);
@@ -265,9 +274,10 @@ bool convert(const error& src, data& dst) {
 }
 
 bool convert(const data& src, error& dst) {
-  if (!convertible_to_error(src))
+  if (!convertible_to_error(src)) {
     return false;
-  auto& xs = get<vector>(src);
+  }
+  const auto& xs = get<vector>(src);
   if (get<enum_value>(xs[1]).name == "none") {
     dst = error{};
     return true;
@@ -276,7 +286,7 @@ bool convert(const data& src, error& dst) {
     dst = make_error(get_as<ec>(xs[1]));
     return true;
   }
-  auto& cxt = get<vector>(xs[2]);
+  const auto& cxt = get<vector>(xs[2]);
   if (contains<std::string>(cxt)) {
     dst = make_error(get_as<ec>(xs[1]), get<std::string>(cxt[0]));
   } else {
@@ -294,12 +304,13 @@ ec error_view::code() const noexcept {
 }
 
 const std::string* error_view::message() const noexcept {
-  if (is<none>((*xs_)[2]))
+  if (is<none>((*xs_)[2])) {
     return nullptr;
+  }
   auto try_get_str = [](const vector& vec, size_t index) {
     return vec.size() > index ? get_if<std::string>(vec[index]) : nullptr;
   };
-  if (auto ctx = get_if<vector>((*xs_)[2]); !ctx) {
+  if (const auto* ctx = get_if<vector>((*xs_)[2]); !ctx) {
     return nullptr;
   } else {
     return try_get_str(*ctx, ctx->size() == 1 ? 0 : 1);
@@ -310,7 +321,7 @@ std::optional<endpoint_info> error_view::context() const {
   if (is<none>((*xs_)[2])) {
     return std::nullopt;
   }
-  if (auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2) {
+  if (const auto& ctx = get<vector>((*xs_)[2]); ctx.size() == 2) {
     return get_as<endpoint_info>(ctx[0]);
   }
   return std::nullopt;

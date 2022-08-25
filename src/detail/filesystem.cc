@@ -150,9 +150,11 @@ std::vector<std::string> readlines(const path& p, bool keep_empties) {
   std::vector<std::string> result;
   std::string line;
   std::ifstream f{p};
-  while (std::getline(f, line))
-    if (!line.empty() || keep_empties)
+  while (std::getline(f, line)) {
+    if (!line.empty() || keep_empties) {
       result.emplace_back(line);
+    }
+  }
   return result;
 }
 

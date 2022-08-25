@@ -72,10 +72,11 @@ public:
   template <class Rep, class Period>
   std::vector<data_message>
   get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
-    if (rel_timeout != infinite)
+    if (rel_timeout != infinite) {
       return do_get(num, now() + rel_timeout);
-    else
+    } else {
       return get(num);
+    }
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
@@ -85,8 +86,9 @@ public:
   get(std::chrono::time_point<clock, Duration> abs_timeout) {
     optional_data_message result;
     auto tmp = get(1, abs_timeout);
-    if (tmp.size() == 1)
+    if (tmp.size() == 1) {
       result.emplace(std::move(tmp.front()));
+    }
     return result;
   }
 
@@ -96,8 +98,9 @@ public:
   optional_data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
     optional_data_message result;
     auto tmp = get(1, rel_timeout);
-    if (tmp.size() == 1)
+    if (tmp.size() == 1) {
       result.emplace(std::move(tmp.front()));
+    }
     return result;
   }
 
@@ -135,7 +138,7 @@ private:
   subscriber(detail::opaque_ptr queue, std::shared_ptr<filter_type> core_filter,
              worker core);
 
-  void update_filter(topic x, bool add, bool block);
+  void update_filter(topic what, bool add, bool block);
 
   std::vector<data_message> do_get(size_t num, timestamp abs_timeout);
 

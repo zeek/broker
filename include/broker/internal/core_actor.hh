@@ -117,7 +117,7 @@ public:
   /// @param addr Network address for the peer.
   /// @note The new peer gets stored in the routing table *before* calling this
   ///       member function.
-  void peer_connected(endpoint_id peer_id, const network_info& net);
+  void peer_connected(endpoint_id peer_id, const network_info& addr);
 
   /// Called whenever this peer lost a connection to a remote peer.
   /// @param peer_id ID of the disconnected peer.
@@ -135,15 +135,15 @@ public:
 
   /// Called whenever the user tried to unpeer from an unknown peer.
   /// @param xs Either a peer ID, an actor handle or a network info.
-  void cannot_remove_peer(endpoint_id x);
+  void cannot_remove_peer(endpoint_id peer_id);
 
   /// Called whenever the user tried to unpeer from an unknown peer.
   /// @param xs Either a peer ID, an actor handle or a network info.
-  void cannot_remove_peer(const network_info& x);
+  void cannot_remove_peer(const network_info& addr);
 
   /// Called whenever establishing a connection to a remote peer failed.
   /// @param xs Either a peer ID or a network info.
-  void peer_unavailable(const network_info& x);
+  void peer_unavailable(const network_info& addr);
 
   /// Called whenever a new client connected.
   void client_added(endpoint_id client_id, const network_info& addr,
@@ -190,7 +190,7 @@ public:
   /// `init_new_peer` with the buffers that connect to the worker.
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            const filter_type& filter,
-                           const pending_connection_ptr& conn);
+                           const pending_connection_ptr& ptr);
 
   /// Connects the input and output buffers for a new client to our central
   /// merge point.

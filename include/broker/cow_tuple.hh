@@ -60,8 +60,9 @@ public:
     }
 
     void deref() const noexcept {
-      if (--rc == 0)
+      if (--rc == 0) {
         delete this;
+      }
     }
 
     bool unique() const noexcept {
@@ -88,14 +89,16 @@ public:
   }
 
   cow_tuple(const cow_tuple& other) noexcept : ptr_(other.ptr_) {
-    if (ptr_)
+    if (ptr_) {
       ptr_->ref();
+    }
   }
 
   cow_tuple& operator=(cow_tuple&& other) noexcept {
     if (this != &other) {
-      if (ptr_)
+      if (ptr_) {
         ptr_->deref();
+      }
       ptr_ = other.ptr_;
       other.ptr_ = nullptr;
     }
@@ -104,18 +107,21 @@ public:
 
   cow_tuple& operator=(const cow_tuple& other) noexcept {
     if (this != &other) {
-      if (ptr_)
+      if (ptr_) {
         ptr_->deref();
+      }
       ptr_ = other.ptr_;
-      if (ptr_)
+      if (ptr_) {
         ptr_->ref();
+      }
     }
     return *this;
   }
 
   ~cow_tuple() noexcept {
-    if (ptr_)
+    if (ptr_) {
       ptr_->deref();
+    }
   }
 
   // -- properties -------------------------------------------------------------

@@ -86,7 +86,7 @@ inline packed_message make_packed_message(packed_message_type type,
                                           uint16_t ttl, topic dst,
                                           const std::vector<T>& buf) {
   static_assert(sizeof(T) == 1);
-  auto first = reinterpret_cast<const std::byte*>(buf.data());
+  const auto* first = reinterpret_cast<const std::byte*>(buf.data());
   auto last = first + buf.size();
   return packed_message{type, ttl, std::move(dst),
                         std::vector<std::byte>{first, last}};

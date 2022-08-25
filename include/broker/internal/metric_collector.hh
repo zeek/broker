@@ -93,10 +93,10 @@ private:
   // -- lookups ----------------------------------------------------------------
 
   /// Extracts the names for all label dimensions from `mv`.
-  string_span label_names_for(metric_view mv);
+  string_span label_names_for(metric_view row);
 
   /// Extracts the label dimensions from `mv`.
-  label_span labels_for(const std::string& endpoint_name, metric_view mv);
+  label_span labels_for(const std::string& endpoint_name, metric_view row);
 
   /// Retrieves or lazily creates a metric object for `mv`.
   remote_metric* instance(const std::string& endpoint_name, metric_view mv);

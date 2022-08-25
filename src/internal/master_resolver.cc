@@ -28,9 +28,9 @@ caf::behavior master_resolver(master_resolver_actor* self) {
     [=](const std::vector<caf::actor>& peers, const std::string& name,
         caf::actor& who_asked) {
       BROKER_DEBUG("resolver starts looking for:" << name);
-      for (auto& peer : peers)
+      for (const auto& peer : peers) {
         self->send(peer, atom::data_store_v, atom::master_v, atom::get_v, name);
-
+      }
       self->state.remaining_responses = peers.size();
       self->state.who_asked = std::move(who_asked);
     },

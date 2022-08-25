@@ -22,10 +22,11 @@ bool is_entity_id(const vector& xs, size_t endpoint_index,
 
 template <class T>
 std::string opt_to_string(const std::optional<T>& x) {
-  if (x)
+  if (x) {
     return caf::deep_to_string(*x);
-  else
+  } else {
     return "null";
+  }
 }
 
 } // namespace
@@ -71,10 +72,11 @@ const char* to_string(store_event::type code) noexcept {
 namespace {
 
 std::string expiry_to_string(const std::optional<timespan>& x) {
-  if (x)
+  if (x) {
     return "*" + caf::deep_to_string(*x);
-  else
+  } else {
     return "null";
+  }
 }
 
 } // namespace
@@ -123,9 +125,9 @@ std::string to_string(const store_event::erase& x) {
 }
 
 bool convert(const std::string& src, store_event::type& dst) noexcept {
-  auto begin = std::begin(type_strings);
-  auto end = std::end(type_strings);
-  auto i = std::find(begin, end, src);
+  const auto* begin = std::begin(type_strings);
+  const auto* end = std::end(type_strings);
+  const auto* i = std::find(begin, end, src);
   if (i != end) {
     auto code = static_cast<uint8_t>(std::distance(begin, i));
     dst = static_cast<store_event::type>(code);
@@ -135,13 +137,14 @@ bool convert(const std::string& src, store_event::type& dst) noexcept {
 }
 
 bool convert(const data& src, store_event::type& dst) noexcept {
-  if (auto str = get_if<std::string>(src))
+  if (const auto* str = get_if<std::string>(src)) {
     return convert(*str, dst);
+  }
   return false;
 }
 
 bool convertible_to_store_event_type(const data& src) noexcept {
-  if (auto str = get_if<std::string>(src)) {
+  if (const auto* str = get_if<std::string>(src)) {
     auto predicate = [&](const char* x) { return *str == x; };
     return std::any_of(std::begin(type_strings), std::end(type_strings),
                        predicate);

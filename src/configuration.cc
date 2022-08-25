@@ -76,8 +76,9 @@ bool valid_log_level(caf::string_view x) {
 
 std::string to_log_level(const char* var, const char* cstr) {
   std::string str = cstr;
-  if (valid_log_level(str))
+  if (valid_log_level(str)) {
     return str;
+  }
   throw_illegal_log_level(var, cstr);
 }
 
@@ -173,10 +174,14 @@ struct configuration::impl : public caf::actor_system_config {
     put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
-    if (auto path = get_as<std::string>(content, "broker.recording-directory"))
+    if (auto path = get_as<std::string>(content,
+                                        "broker.recording-directory")) {
       put_missing(grp, "recording-directory", std::move(*path));
-    if (auto cap = get_as<size_t>(content, "broker.output-generator-file-cap"))
+    }
+    if (auto cap = get_as<size_t>(content,
+                                  "broker.output-generator-file-cap")) {
       put_missing(grp, "output-generator-file-cap", *cap);
+    }
     return result;
   }
 
@@ -221,8 +226,9 @@ configuration::~configuration() {
 
 void configuration::impl::init(int argc, char** argv) {
   std::vector<std::string> args;
-  if (argc > 1 && argv != nullptr)
+  if (argc > 1 && argv != nullptr) {
     args.assign(argv + 1, argv + argc);
+  }
   // Load CAF modules.
   load<caf::net::middleman>();
   // Phase 1: parse broker.conf or configuration file specified by the user on
@@ -247,18 +253,18 @@ void configuration::impl::init(int argc, char** argv) {
   put(content, "caf.metrics-filters.actors.includes",
       std::vector<std::string>{internal::core_actor_state::name});
   // Phase 2: parse environment variables (override config file settings).
-  if (auto console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
+  if (auto* console_verbosity = getenv("BROKER_CONSOLE_VERBOSITY")) {
     auto level = to_log_level("BROKER_CONSOLE_VERBOSITY", console_verbosity);
     set("caf.logger.console.verbosity", level);
   }
-  if (auto file_verbosity = getenv("BROKER_FILE_VERBOSITY")) {
+  if (auto* file_verbosity = getenv("BROKER_FILE_VERBOSITY")) {
     auto level = to_log_level("BROKER_FILE_VERBOSITY", file_verbosity);
     set("caf.logger.file.verbosity", level);
   }
-  if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
+  if (auto* env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
   }
-  if (auto env = getenv("BROKER_WEB_SOCKET_PORT")) {
+  if (auto* env = getenv("BROKER_WEB_SOCKET_PORT")) {
     // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
     caf::config_value val{env};
     if (auto port_num = caf::get_as<uint16_t>(val)) {
@@ -271,7 +277,7 @@ void configuration::impl::init(int argc, char** argv) {
       throw std::invalid_argument(what);
     }
   }
-  if (auto env = getenv("BROKER_METRICS_PORT")) {
+  if (auto* env = getenv("BROKER_METRICS_PORT")) {
     caf::config_value val{env};
     if (auto port = caf::get_as<uint16_t>(val)) {
       set("broker.metrics.port", *port);
@@ -281,13 +287,13 @@ void configuration::impl::init(int argc, char** argv) {
       throw std::invalid_argument(what);
     }
   }
-  if (auto env = getenv("BROKER_METRICS_ENDPOINT_NAME")) {
+  if (auto* env = getenv("BROKER_METRICS_ENDPOINT_NAME")) {
     set("broker.metrics.endpoint-name", env);
   }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_TOPIC")) {
+  if (auto* env = getenv("BROKER_METRICS_EXPORT_TOPIC")) {
     set("broker.metrics.export.topic", env);
   }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_INTERVAL")) {
+  if (auto* env = getenv("BROKER_METRICS_EXPORT_INTERVAL")) {
     caf::config_value val{env};
     if (auto interval = caf::get_as<caf::timespan>(val)) {
       set("broker.metrics.export.interval", *interval);
@@ -297,15 +303,17 @@ void configuration::impl::init(int argc, char** argv) {
       throw std::invalid_argument(what);
     }
   }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_PREFIXES")) {
-    if (auto prefixes = split_and_trim(env); !prefixes.empty())
+  if (auto* env = getenv("BROKER_METRICS_EXPORT_PREFIXES")) {
+    if (auto prefixes = split_and_trim(env); !prefixes.empty()) {
       set("broker.metrics.export.prefixes", std::move(prefixes));
+    }
   }
-  if (auto env = getenv("BROKER_METRICS_IMPORT_TOPICS")) {
-    if (auto topics = split_and_trim(env); !topics.empty())
+  if (auto* env = getenv("BROKER_METRICS_IMPORT_TOPICS")) {
+    if (auto topics = split_and_trim(env); !topics.empty()) {
       set("broker.metrics.import.topics", std::move(topics));
+    }
   }
-  if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
+  if (auto* env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
     auto value = strtol(env, &end, 10);
     if (errno == ERANGE || *end != '\0' || value < 0) {
@@ -395,52 +403,58 @@ openssl_options_ptr configuration::openssl_options() const {
 
 void configuration::add_option(int64_t* dst, std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<int64_t>("global", name, description);
+  }
 }
 
 void configuration::add_option(uint64_t* dst, std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<uint64_t>("global", name, description);
+  }
 }
 
 void configuration::add_option(double* dst, std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<double>("global", name, description);
+  }
 }
 
 void configuration::add_option(bool* dst, std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<bool>("global", name, description);
+  }
 }
 
 void configuration::add_option(std::string* dst, std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<std::string>("global", name, description);
+  }
 }
 
 void configuration::add_option(std::vector<std::string>* dst,
                                std::string_view name,
                                std::string_view description) {
-  if (dst)
+  if (dst) {
     impl_->custom_options().add(*dst, "global", name, description);
-  else
+  } else {
     impl_->custom_options().add<std::vector<std::string>>("global", name,
                                                           description);
+  }
 }
 
 void configuration::set(std::string_view key, timespan val) {
@@ -471,40 +485,45 @@ std::optional<int64_t> configuration::read_i64(std::string_view key,
                                                int64_t min_val,
                                                int64_t max_val) const {
   if (auto res = caf::get_as<int64_t>(*impl_, key);
-      res && *res >= min_val && *res <= max_val)
+      res && *res >= min_val && *res <= max_val) {
     return {*res};
-  else
+  } else {
     return {};
+  }
 }
 
 std::optional<uint64_t> configuration::read_u64(std::string_view key,
                                                 uint64_t max_val) const {
-  if (auto res = caf::get_as<uint64_t>(*impl_, key); res && *res <= max_val)
+  if (auto res = caf::get_as<uint64_t>(*impl_, key); res && *res <= max_val) {
     return {*res};
-  else
+  } else {
     return {};
+  }
 }
 
 std::optional<timespan> configuration::read_ts(std::string_view key) const {
-  if (auto res = caf::get_as<caf::timespan>(*impl_, key))
+  if (auto res = caf::get_as<caf::timespan>(*impl_, key)) {
     return {*res};
-  else
+  } else {
     return {};
+  }
 }
 
 std::optional<std::string> configuration::read_str(std::string_view key) const {
-  if (auto res = caf::get_as<std::string>(*impl_, key))
+  if (auto res = caf::get_as<std::string>(*impl_, key)) {
     return {std::move(*res)};
-  else
+  } else {
     return {};
+  }
 }
 
 std::optional<std::vector<std::string>>
 configuration::read_str_vec(std::string_view key) const {
-  if (auto res = caf::get_as<std::vector<std::string>>(*impl_, key))
+  if (auto res = caf::get_as<std::vector<std::string>>(*impl_, key)) {
     return {std::move(*res)};
-  else
+  } else {
     return {};
+  }
 }
 
 namespace {

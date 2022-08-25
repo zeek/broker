@@ -24,9 +24,9 @@ std::string to_string(p2p_message_type x) {
 
 bool from_string(std::string_view str, p2p_message_type& x) {
   auto predicate = [&](std::string_view x) { return x == str; };
-  auto begin = std::begin(p2p_message_type_names);
-  auto end = std::end(p2p_message_type_names);
-  auto i = std::find_if(begin, end, predicate);
+  const auto* begin = std::begin(p2p_message_type_names);
+  const auto* end = std::end(p2p_message_type_names);
+  const auto* i = std::find_if(begin, end, predicate);
   if (i == begin || i == end) {
     return false;
   } else {

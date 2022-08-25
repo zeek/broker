@@ -15,8 +15,8 @@ constexpr size_t block_size = 1024;
 } // namespace
 
 void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
-  if (auto res = std::align(alignment, num_bytes, current_->bytes,
-                            remaining_)) {
+  if (auto* res = std::align(alignment, num_bytes, current_->bytes,
+                             remaining_)) {
     current_->bytes = static_cast<std::byte*>(res) + num_bytes;
     remaining_ -= num_bytes;
     return res;
@@ -27,7 +27,7 @@ void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
 }
 
 void monotonic_buffer_resource::allocate_block(block* prev_block) {
-  if (auto vptr = malloc(block_size)) {
+  if (auto* vptr = malloc(block_size)) {
     current_ = static_cast<block*>(vptr);
     current_->next = prev_block;
     current_->bytes = static_cast<std::byte*>(vptr) + sizeof(block);
@@ -38,9 +38,9 @@ void monotonic_buffer_resource::allocate_block(block* prev_block) {
 }
 
 void monotonic_buffer_resource::destroy() noexcept {
-  auto blk = current_;
+  auto* blk = current_;
   while (blk != nullptr) {
-    auto prev = blk;
+    auto* prev = blk;
     blk = blk->next;
     free(prev);
   }

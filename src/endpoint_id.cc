@@ -14,17 +14,19 @@ std::byte nil_bytes[16];
 
 caf::uuid to_uuid(const endpoint_id& id) {
   std::array<caf::byte, 16> tmp;
-  auto& bytes = id.bytes();
-  for (size_t index = 0; index < 16; ++index)
+  const auto& bytes = id.bytes();
+  for (size_t index = 0; index < 16; ++index) {
     tmp[index] = static_cast<caf::byte>(bytes[index]);
+  }
   return caf::uuid{tmp};
 }
 
 endpoint_id from_uuid(const caf::uuid& id) {
   std::array<std::byte, 16> tmp;
-  auto& bytes = id.bytes();
-  for (size_t index = 0; index < 16; ++index)
+  const auto& bytes = id.bytes();
+  for (size_t index = 0; index < 16; ++index) {
     tmp[index] = static_cast<std::byte>(bytes[index]);
+  }
   return endpoint_id{tmp};
 }
 

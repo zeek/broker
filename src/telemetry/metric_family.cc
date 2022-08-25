@@ -63,14 +63,14 @@ const metric_family_hdl* upcast_impl(const T* ptr) {
 
 template <class T>
 T* downcast_impl(metric_family_hdl* ptr) {
-  auto native_ptr = reinterpret_cast<ct::metric_family*>(ptr);
+  auto* native_ptr = reinterpret_cast<ct::metric_family*>(ptr);
   auto native_dptr = static_cast<native_hdl_t<T>*>(native_ptr);
   return reinterpret_cast<T*>(native_dptr);
 }
 
 template <class T>
 const T* downcast_impl(const metric_family_hdl* ptr) {
-  auto native_ptr = reinterpret_cast<const ct::metric_family*>(ptr);
+  const auto* native_ptr = reinterpret_cast<const ct::metric_family*>(ptr);
   auto native_dptr = static_cast<const native_hdl_t<T>*>(native_ptr);
   return reinterpret_cast<const T*>(native_dptr);
 }

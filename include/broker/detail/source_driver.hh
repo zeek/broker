@@ -100,8 +100,9 @@ public:
   }
 
   ~source_driver_impl() override {
-    if (!initialized_)
+    if (!initialized_) {
       after_init();
+    }
   }
 
   void init() override {
@@ -149,8 +150,9 @@ public:
   }
 
   ~source_driver_impl() override {
-    if (!initialized_)
+    if (!initialized_) {
       after_init();
+    }
   }
 
   void init() override {

@@ -98,8 +98,9 @@ to(const From& from) {
 template <class To, class From>
 std::enable_if_t<detail::has_convert_v<From, To>, To> get_as(const From& from) {
   To result;
-  if (!convert(from, result))
+  if (!convert(from, result)) {
     throw std::logic_error("conversion failed");
+  }
   return result;
 }
 

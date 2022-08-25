@@ -157,8 +157,9 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
 }
 
 json_client_state::~json_client_state() {
-  for (auto& sub : subscriptions)
+  for (auto& sub : subscriptions) {
     sub.dispose();
+  }
 }
 
 std::string json_client_state::render_error(std::string_view code,
@@ -186,7 +187,7 @@ struct const_data_message_decorator {
 };
 
 const_data_message_decorator decorated(const data_message& msg) {
-  auto& [t, d] = msg.data();
+  const auto& [t, d] = msg.data();
   return const_data_message_decorator{t, d};
 }
 
@@ -257,8 +258,9 @@ std::string_view json_client_state::default_serialization_failed_error() {
 }
 
 void json_client_state::on_down_msg(const caf::down_msg& msg) {
-  for (auto& sub : subscriptions)
+  for (auto& sub : subscriptions) {
     sub.dispose();
+  }
   subscriptions.clear();
   self->quit();
 }

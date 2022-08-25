@@ -111,10 +111,11 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   counter<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T, double>)
+    if constexpr (std::is_same_v<T, double>) {
       return counter<T>{dbl_counter_get_or_add(super::hdl_, labels)};
-    else
+    } else {
       return counter<T>{int_counter_get_or_add(super::hdl_, labels)};
+    }
   }
 
   /// @copydoc get_or_add

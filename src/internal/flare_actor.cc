@@ -25,8 +25,9 @@ void flare_actor::act() {
 void flare_actor::await_data() {
   BROKER_DEBUG("awaiting data");
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  if (flare_count_ > 0)
+  if (flare_count_ > 0) {
     return;
+  }
   lock.unlock();
   flare_.await_one();
 }
@@ -34,8 +35,9 @@ void flare_actor::await_data() {
 bool flare_actor::await_data(timeout_type timeout) {
   BROKER_DEBUG("awaiting data with timeout");
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  if (flare_count_ > 0)
+  if (flare_count_ > 0) {
     return true;
+  }
   lock.unlock();
   auto res = flare_.await_one(timeout);
   return res;

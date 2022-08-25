@@ -29,7 +29,7 @@ public:
 
   expected<void> clear() override;
 
-  expected<bool> expire(const data& key, timestamp current_time) override;
+  expected<bool> expire(const data& key, timestamp ts) override;
 
   [[nodiscard]] expected<data> get(const data& key) const override;
 

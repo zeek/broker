@@ -52,23 +52,27 @@ void convert(const port& p, std::string& str) {
 
 bool convert(const std::string& str, port& p) {
   auto i = str.find('/');
-  if (i == std::string::npos)
+  if (i == std::string::npos) {
     return false;
+  }
   char* end;
   auto num = std::strtoul(str.data(), &end, 10);
-  if (errno == ERANGE)
+  if (errno == ERANGE) {
     return false;
-  auto slash = std::strchr(end, '/');
-  if (slash == nullptr)
+  }
+  auto* slash = std::strchr(end, '/');
+  if (slash == nullptr) {
     return false;
+  }
   // Both strings are NUL-terminated, so strcmp is safe.
   auto proto = port::protocol::unknown;
-  if (std::strcmp(slash + 1, "tcp") == 0)
+  if (std::strcmp(slash + 1, "tcp") == 0) {
     proto = port::protocol::tcp;
-  else if (std::strcmp(slash + 1, "udp") == 0)
+  } else if (std::strcmp(slash + 1, "udp") == 0) {
     proto = port::protocol::udp;
-  else if (std::strcmp(slash + 1, "icmp") == 0)
+  } else if (std::strcmp(slash + 1, "icmp") == 0) {
     proto = port::protocol::icmp;
+  }
   p = {static_cast<port::number_type>(num), proto};
   return true;
 }

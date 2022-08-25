@@ -34,7 +34,7 @@ struct adder {
   }
 
   result_type operator()(timestamp& tp) {
-    if (auto s = get_if<timespan>(&value)) {
+    if (const auto* s = get_if<timespan>(&value)) {
       tp += *s;
       return {};
     } else {
@@ -43,7 +43,7 @@ struct adder {
   }
 
   result_type operator()(std::string& str) {
-    if (auto x = get_if<std::string>(&value)) {
+    if (const auto* x = get_if<std::string>(&value)) {
       str += *x;
       return {};
     } else {
@@ -64,11 +64,13 @@ struct adder {
   result_type operator()(table& t) {
     // Data must come as key-value pair to be valid, which we model as
     // vector of length 2.
-    auto v = get_if<vector>(&value);
-    if (!v)
+    const auto* v = get_if<vector>(&value);
+    if (!v) {
       return ec::type_clash;
-    if (v->size() != 2)
+    }
+    if (v->size() != 2) {
       return ec::invalid_data;
+    }
     t[v->front()] = v->back();
     return {};
   }
@@ -94,16 +96,18 @@ struct remover {
   }
 
   result_type operator()(timestamp& ts) {
-    auto s = get_if<timespan>(&value);
-    if (!s)
+    const auto* s = get_if<timespan>(&value);
+    if (!s) {
       return ec::type_clash;
+    }
     ts -= *s;
     return {};
   }
 
   result_type operator()(vector& v) {
-    if (!v.empty())
+    if (!v.empty()) {
       v.pop_back();
+    }
     return {};
   }
 
@@ -137,10 +141,10 @@ struct retriever {
   }
 
   result_type operator()(const vector& v) const {
-    if (auto x = get_if<count>(&aspect)) {
+    if (const auto* x = get_if<count>(&aspect)) {
       return at_index(v, *x);
     } else {
-      if (auto y = get_if<integer>(&aspect); y && *y >= 0) {
+      if (const auto* y = get_if<integer>(&aspect); y && *y >= 0) {
         return at_index(v, static_cast<count>(*y));
       } else {
         return ec::type_clash;
@@ -154,8 +158,9 @@ struct retriever {
 
   result_type operator()(const table& t) const {
     auto i = t.find(aspect);
-    if (i == t.end())
+    if (i == t.end()) {
       return ec::no_such_key;
+    }
     return i->second;
   }
 

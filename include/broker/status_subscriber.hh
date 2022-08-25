@@ -48,8 +48,9 @@ public:
   value_type get(Duration relative_timeout) {
     value_type result;
     do {
-      if (auto maybe_msg = impl_.get(relative_timeout))
+      if (auto maybe_msg = impl_.get(relative_timeout)) {
         result = convert(*maybe_msg);
+      }
     } while (std::holds_alternative<none>(result)
              && relative_timeout == infinite);
     return result;
@@ -69,8 +70,9 @@ public:
     std::vector<value_type> result;
     do {
       auto msgs = impl_.get(num, relative_timeout);
-      for (auto& msg : msgs)
+      for (auto& msg : msgs) {
         append_converted(result, msg);
+      }
     } while (result.empty() && relative_timeout == infinite);
     return result;
   }
@@ -139,18 +141,20 @@ inline const T* get_if(const status_variant& d) {
 
 template <class T>
 inline T& get(status_variant& d) {
-  if (auto rval = get_if<T>(&d))
+  if (auto rval = get_if<T>(&d)) {
     return *rval;
-  else
+  } else {
     throw bad_variant_access{};
+  }
 }
 
 template <class T>
 inline const T& get(const status_variant& d) {
-  if (auto rval = get_if<T>(&d))
+  if (auto rval = get_if<T>(&d)) {
     return *rval;
-  else
+  } else {
     throw bad_variant_access{};
+  }
 }
 
 } // namespace broker

@@ -193,10 +193,13 @@ public:
 private:
   template <class Inspector>
   bool save_children(Inspector& f) {
-    if (f.begin_sequence(down_.size()))
-      for (auto& child : down_)
-        if (!child.save(f))
+    if (f.begin_sequence(down_.size())) {
+      for (auto& child : down_) {
+        if (!child.save(f)) {
           return false;
+        }
+      }
+    }
     return f.end_sequence();
   }
 
@@ -222,7 +225,7 @@ private:
     size_t n = 0;
     if (f.begin_sequence(n)) {
       for (size_t i = 0; i < n; ++i) {
-        auto child = detail::new_instance<multipath_node>(mem, endpoint_id{});
+        auto* child = detail::new_instance<multipath_node>(mem, endpoint_id{});
         if (!child->load(mem, f)) {
           child->shallow_delete();
           return false;
@@ -297,9 +300,10 @@ public:
   explicit multipath(Iterator first, Sentinel last) : multipath() {
     if (first != last) {
       head_->id_ = *first;
-      auto pos = head_;
-      for (++first; first != last; ++first)
+      auto* pos = head_;
+      for (++first; first != last; ++first) {
         pos = pos->down_.emplace(tree_->mem, *first).first;
+      }
       pos->is_receiver_ = true;
     }
   }
@@ -336,24 +340,28 @@ public:
 
   template <class F>
   void for_each_node(F fun) const {
-    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i) {
       fun(multipath{tree_, i.get()});
+    }
   }
 
   template <class F>
   bool for_each_node_while(F fun) const {
-    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i)
-      if (!fun(multipath{tree_, i.get()}))
+    for (auto i = head_->down_.begin(); i != head_->down_.end(); ++i) {
+      if (!fun(multipath{tree_, i.get()})) {
         return false;
+      }
+    }
     return true;
   }
 
   template <class Inspector>
   friend bool inspect(Inspector& f, multipath& x) {
-    if constexpr (Inspector::is_loading)
+    if constexpr (Inspector::is_loading) {
       return x.load(f);
-    else
+    } else {
       return x.save(f);
+    }
   }
 
   friend std::string to_string(const alm::multipath& x) {

@@ -50,7 +50,7 @@ private:
 // replacement for polymorphic_allocator.
 template <class T, class... Args>
 T* new_instance(monotonic_buffer_resource& buf, Args&&... args) {
-  auto ptr = buf.allocate(sizeof(T), alignof(T));
+  auto* ptr = buf.allocate(sizeof(T), alignof(T));
   return new (ptr) T(std::forward<Args>(args)...);
 }
 

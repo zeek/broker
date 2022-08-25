@@ -376,13 +376,15 @@ private:
   static void with_label_names(span<const label_view> xs, F continuation) {
     if (xs.size() <= 10) {
       std::string_view buf[10];
-      for (size_t index = 0; index < xs.size(); ++index)
+      for (size_t index = 0; index < xs.size(); ++index) {
         buf[index] = xs[index].first;
+      }
       return continuation(span{buf, xs.size()});
     } else {
       std::vector<std::string_view> buf;
-      for (auto x : xs)
+      for (auto x : xs) {
         buf.emplace_back(x.first, x.second);
+      }
       return continuation(span{buf});
     }
   }

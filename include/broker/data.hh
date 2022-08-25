@@ -29,19 +29,19 @@ class data;
 using vector = std::vector<data>;
 
 /// @relates vector
-void convert(const vector& v, std::string& str);
+void convert(const vector& x, std::string& str);
 
 /// An associative, ordered container of unique keys.
 using set = std::set<data>;
 
 /// @relates set
-void convert(const set& s, std::string& str);
+void convert(const set& x, std::string& str);
 
 /// An associative, ordered container that maps unique keys to values.
 using table = std::map<data, data>;
 
 /// @relates table
-void convert(const table& t, std::string& str);
+void convert(const table& x, std::string& str);
 
 using data_variant = std::variant<none, boolean, count, integer, real,
                                   std::string, address, subnet, port, timestamp,
@@ -258,10 +258,12 @@ bool inspect(Inspector& f, broker::table& tbl) {
         broker::data key;
         broker::data value;
         broker::detail::kvp_view view{&key, &value};
-        if (!f.apply(view))
+        if (!f.apply(view)) {
           return false;
-        if (!tbl.emplace(std::move(key), std::move(value)).second)
+        }
+        if (!tbl.emplace(std::move(key), std::move(value)).second) {
           return false;
+        }
       }
       return true;
     };
@@ -271,8 +273,9 @@ bool inspect(Inspector& f, broker::table& tbl) {
       for (auto& kvp : tbl) {
         detail::kvp_view view{&const_cast<broker::data&>(kvp.first),
                               &kvp.second};
-        if (!f.apply(view))
+        if (!f.apply(view)) {
           return false;
+        }
       }
       return true;
     };
@@ -287,7 +290,7 @@ void convert(const data& x, std::string& str);
 bool convert(const data& x, endpoint_id& node);
 
 /// @relates data
-bool convert(const endpoint_id& node, data& x);
+bool convert(const endpoint_id& node, data& d);
 
 /// @relates data
 std::string to_string(const expected<data>& x);
@@ -349,18 +352,20 @@ const T* get_if(const data& x) {
 
 template <class T>
 T& get(data& x) {
-  if (auto ptr = get_if<T>(&x))
+  if (auto ptr = get_if<T>(&x)) {
     return *ptr;
-  else
+  } else {
     throw bad_variant_access{};
+  }
 }
 
 template <class T>
 const T& get(const data& x) {
-  if (auto ptr = get_if<T>(&x))
+  if (auto ptr = get_if<T>(&x)) {
     return *ptr;
-  else
+  } else {
     throw bad_variant_access{};
+  }
 }
 
 template <class Visitor>
@@ -410,10 +415,11 @@ bool contains(const vector& xs) {
 
 template <class... Ts>
 bool contains(const data& x) {
-  if (auto xs = get_if<vector>(x))
+  if (const auto* xs = get_if<vector>(x)) {
     return contains<Ts...>(*xs);
-  else
+  } else {
     return false;
+  }
 }
 } // namespace broker
 

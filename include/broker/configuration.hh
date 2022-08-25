@@ -178,12 +178,13 @@ public:
 
   template <class T>
   std::enable_if_t<std::is_integral_v<T>> set(std::string_view key, T val) {
-    if constexpr (std::is_same_v<T, bool>)
+    if constexpr (std::is_same_v<T, bool>) {
       set_bool(key, val);
-    else if constexpr (std::is_signed_v<T>)
+    } else if constexpr (std::is_signed_v<T>) {
       set_i64(key, val);
-    else
+    } else {
       set_u64(key, val);
+    }
   }
 
   void set(std::string_view key, timespan val);
@@ -238,11 +239,13 @@ auto get_as(const configuration& cfg, std::string_view key) {
     std::optional<T> res;
     using lim = std::numeric_limits<T>;
     if constexpr (std::is_signed_v<T>) {
-      if (auto val = cfg.read_i64(key, lim::min(), lim::max()))
+      if (auto val = cfg.read_i64(key, lim::min(), lim::max())) {
         res = static_cast<T>(*val);
+      }
     } else {
-      if (auto val = cfg.read_u64(key, lim::max()))
+      if (auto val = cfg.read_u64(key, lim::max())) {
         res = static_cast<T>(*val);
+      }
     }
     return res;
   } else if constexpr (std::is_same_v<T, timespan>) {

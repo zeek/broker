@@ -75,13 +75,16 @@ string node_name;
 namespace broker {
 
 bool convert(const caf::uri& from, network_info& to) {
-  if (from.empty())
+  if (from.empty()) {
     return false;
-  if (from.scheme() != "tcp")
+  }
+  if (from.scheme() != "tcp") {
     return false;
+  }
   const auto& auth = from.authority();
-  if (auth.empty())
+  if (auth.empty()) {
     return false;
+  }
   to.port = auth.port;
   return true;
 }
@@ -156,10 +159,11 @@ std::atomic<bool> enabled;
 
 template <class... Ts>
 void println(Ts&&... xs) {
-  if (enabled)
+  if (enabled) {
     ::detail::println(std::clog, caf::term::blue,
                       std::chrono::system_clock::now(), " ", node_name, ": ",
                       std::forward<Ts>(xs)...);
+  }
 }
 
 } // namespace verbose
@@ -218,13 +222,13 @@ void extend_config(broker::configuration& broker_cfg) {
 
 template <class T>
 auto get_or(broker::endpoint& d, string_view key, const T& default_value) {
-  auto& cfg = broker::internal::endpoint_access(&d).cfg();
+  const auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_or(cfg, key, default_value);
 }
 
 template <class T>
 auto get_as(broker::endpoint& d, string_view key) {
-  auto& cfg = broker::internal::endpoint_access(&d).cfg();
+  const auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_as<T>(cfg, key);
 }
 
@@ -232,15 +236,15 @@ auto get_as(broker::endpoint& d, string_view key) {
 
 /// @pre `is_ping_msg(x) || is_pong_msg(x)`
 count msg_id(const broker::data& x) {
-  auto& vec = get<broker::vector>(x);
+  const auto& vec = get<broker::vector>(x);
   return get<count>(vec[1]);
 }
 
 bool is_ping_msg(const broker::data& x) {
-  if (auto vec = get_if<broker::vector>(&x)) {
+  if (const auto* vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 3) {
-      auto& xs = *vec;
-      auto str = broker::get_if<string>(&xs[0]);
+      const auto& xs = *vec;
+      const auto* str = broker::get_if<string>(xs.data());
       return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
     }
   }
@@ -248,10 +252,10 @@ bool is_ping_msg(const broker::data& x) {
 }
 
 bool is_pong_msg(const broker::data& x) {
-  if (auto vec = get_if<broker::vector>(&x)) {
+  if (const auto* vec = get_if<broker::vector>(&x)) {
     if (vec->size() == 2) {
-      auto& xs = *vec;
-      auto str = broker::get_if<string>(&xs[0]);
+      const auto& xs = *vec;
+      const auto* str = broker::get_if<string>(xs.data());
       return str && *str == "pong" && is<count>(xs[1]);
     }
   }
@@ -263,7 +267,7 @@ bool is_pong_msg(const broker::data& x, count id) {
 }
 
 bool is_stop_msg(const broker::data& x) {
-  auto str = get_if<string>(&x);
+  const auto* str = get_if<string>(&x);
   return str && *str == "stop";
 }
 
@@ -284,7 +288,7 @@ broker::data make_stop_msg() {
 void relay_mode(broker::endpoint& ep, topic_list topics) {
   verbose::println("relay messages");
   auto handle_message = [&](const broker::data_message& x) {
-    auto& val = get_data(x);
+    const auto& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
     } else if (is_pong_msg(val)) {
@@ -296,7 +300,7 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     return true;
   };
   auto in = ep.make_subscriber(std::move(topics));
-  auto& cfg = broker::internal::endpoint_access{&ep}.cfg();
+  const auto& cfg = broker::internal::endpoint_access{&ep}.cfg();
   if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
     auto timeout = std::chrono::system_clock::now();
     timeout += std::chrono::seconds(1);
@@ -304,8 +308,9 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     for (;;) {
       if (auto maybe_msg = in.get(timeout)) {
         auto msg = std::move(*maybe_msg);
-        if (!handle_message(msg))
+        if (!handle_message(msg)) {
           return;
+        }
         ++received;
       } else {
         verbose::println(received, "/s");
@@ -316,14 +321,15 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
   } else {
     for (;;) {
       auto x = in.get();
-      if (!handle_message(x))
+      if (!handle_message(x)) {
         return;
+      }
     }
   }
 }
 
 void ping_mode(broker::endpoint& ep, topic_list topics) {
-  assert(topics.size() > 0);
+  assert(!topics.empty());
   auto topic = topics[0];
   verbose::println("send pings to topic ", topic);
   std::vector<timespan> xs;
@@ -342,10 +348,11 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
   ep.publish(topic, make_ping_msg(0, 0));
   while (!connected) {
     auto x = in.get(retry_timeout);
-    if (x && is_pong_msg(get_data(*x), 0))
+    if (x && is_pong_msg(get_data(*x), 0)) {
       connected = true;
-    else
+    } else {
       ep.publish(topic, make_ping_msg(0, 0));
+    }
   }
   // Measurement.
   timespan total_time{0};
@@ -366,12 +373,12 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
 }
 
 void pong_mode(broker::endpoint& ep, topic_list topics) {
-  assert(topics.size() > 0);
+  assert(!topics.empty());
   verbose::println("receive pings from topics ", topics);
   auto in = ep.make_subscriber(std::move(topics));
   for (;;) {
     auto x = in.get();
-    auto& val = get_data(x);
+    const auto& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
       ep.publish(get_topic(x), make_pong_msg(msg_id(val)));
@@ -398,10 +405,11 @@ int main(int argc, char** argv) try {
     err::println(ex.what());
     return EXIT_FAILURE;
   }
-  if (cfg.cli_helptext_printed())
+  if (cfg.cli_helptext_printed()) {
     return EXIT_SUCCESS;
+  }
   // Pick up BROKER_PORT environment variable.
-  if (auto env = getenv("BROKER_PORT")) {
+  if (auto* env = getenv("BROKER_PORT")) {
     // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
     caf::config_value val{env};
     if (auto port_num = caf::get_as<uint16_t>(val)) {
@@ -428,8 +436,9 @@ int main(int argc, char** argv) try {
       err::println("no topics specified");
       return EXIT_FAILURE;
     }
-    for (auto& topic_name : topic_names)
+    for (auto& topic_name : topic_names) {
       topics.emplace_back(std::move(topic_name));
+    }
   }
   ep.forward(topics);
   // Enable verbose output if demanded by user.
@@ -466,8 +475,9 @@ int main(int argc, char** argv) try {
     if (auto info = broker::to<broker::network_info>(peer)) {
       verbose::println("connect to ", info->address, " on port ", info->port,
                        " ...");
-      if (!ep.peer(*info))
+      if (!ep.peer(*info)) {
         err::println("unable to connect to <", peer, '>');
+      }
     } else {
       err::println("unrecognized scheme (expected tcp) or no authority in: <",
                    peer, '>');
@@ -476,7 +486,7 @@ int main(int argc, char** argv) try {
   f(ep, std::move(topics));
   // Disconnect from peers.
   for (auto& peer : peers) {
-    auto& auth = peer.authority();
+    const auto& auth = peer.authority();
     if (peer.scheme() == "tcp" && !auth.empty()) {
       auto host = caf::deep_to_string(auth.host);
       auto port = auth.port;

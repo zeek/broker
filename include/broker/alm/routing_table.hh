@@ -28,10 +28,12 @@ struct path_less_t {
   /// Returns `true` if X is shorter than Y or both paths have equal length but
   /// X comes before Y lexicographically, `false` otherwise.
   bool operator()(const path_type& x, const path_type& y) const noexcept {
-    if (x.size() < y.size())
+    if (x.size() < y.size()) {
       return true;
-    if (x.size() == y.size())
+    }
+    if (x.size() == y.size()) {
       return x < y;
+    }
     return false;
   }
 
@@ -102,20 +104,22 @@ bool is_direct_connection(const routing_table_row& row);
 /// Returns whether `tbl` contains a direct connection to `peer`.
 inline bool is_direct_connection(const routing_table& tbl,
                                  const endpoint_id& peer) {
-  if (auto path = shortest_path(tbl, peer))
+  if (const auto* path = shortest_path(tbl, peer)) {
     return path->size() == 1;
-  else
+  } else {
     return false;
+  }
 }
 
 /// Returns the hop count on the shortest path or `nil` if no route to the peer
 /// exists.
 inline std::optional<size_t> distance_to(const routing_table& tbl,
                                          const endpoint_id& peer) {
-  if (auto ptr = shortest_path(tbl, peer))
+  if (const auto* ptr = shortest_path(tbl, peer)) {
     return ptr->size();
-  else
+  } else {
     return std::nullopt;
+  }
 }
 
 /// Erases all state for `whom` and also removes all paths that include `whom`.
@@ -136,8 +140,9 @@ void erase(routing_table& tbl, const endpoint_id& whom,
       auto sep = std::remove_if(paths.begin(), paths.end(), stale);
       if (sep != paths.end()) {
         paths.erase(sep, paths.end());
-        if (paths.empty())
+        if (paths.empty()) {
           unreachable_peers.emplace_back(id);
+        }
       }
     }
   };
@@ -162,17 +167,19 @@ void erase(routing_table& tbl, const endpoint_id& whom,
 template <class OnRemovePeer>
 bool erase_direct(routing_table& tbl, const endpoint_id& whom,
                   OnRemovePeer on_remove) {
-  if (auto i = tbl.find(whom); i == tbl.end())
+  if (auto i = tbl.find(whom); i == tbl.end()) {
     return false;
+  }
   // Drop all paths with whom as first hop.
   for (auto i = tbl.begin(); i != tbl.end();) {
     auto& paths = i->second.versioned_paths;
     for (auto j = paths.begin(); j != paths.end();) {
       auto& path = j->first;
-      if (path[0] == whom)
+      if (path[0] == whom) {
         j = paths.erase(j);
-      else
+      } else {
         ++j;
+      }
     }
     if (paths.empty()) {
       on_remove(i->first);
@@ -186,10 +193,12 @@ bool erase_direct(routing_table& tbl, const endpoint_id& whom,
 
 template <class F>
 void for_each_direct(const routing_table& tbl, F fun) {
-  for (auto& [peer, row] : tbl)
+  for (const auto& [peer, row] : tbl) {
     if (!row.versioned_paths.empty()
-        && row.versioned_paths.front().first.size() == 1)
+        && row.versioned_paths.front().first.size() == 1) {
       fun(peer);
+    }
+  }
 }
 
 /// Returns a pointer to the row of the remote peer if it exists, `nullptr`
@@ -290,14 +299,16 @@ auto emplace(revocations<PeerId>& lst, Self* self, Revoker&& revoker,
 template <class PeerId, class Revoker>
 auto equal_range(revocations<PeerId>& lst, const Revoker& revoker) {
   auto key_less = [](const auto& x, const auto& y) {
-    if constexpr (std::is_same_v<std::decay_t<decltype(y)>, Revoker>)
+    if constexpr (std::is_same_v<std::decay_t<decltype(y)>, Revoker>) {
       return x.revoker < y;
-    else
+    } else {
       return x < y.revoker;
+    }
   };
   auto i = std::lower_bound(lst.begin(), lst.end(), revoker, key_less);
-  if (i == lst.end())
+  if (i == lst.end()) {
     return std::make_pair(i, i);
+  }
   return std::make_pair(i, std::upper_bound(i, lst.end(), revoker, key_less));
 }
 
@@ -308,18 +319,23 @@ bool revoked(const std::vector<PeerId>& path, const vector_timestamp& path_ts,
              const PeerId& revoker, lamport_timestamp ts, const PeerId& hop) {
   BROKER_ASSERT(path.size() == path_ts.size());
   // Short-circuit trivial cases.
-  if (path.size() <= 1)
+  if (path.size() <= 1) {
     return false;
+  }
   // Scan for the revoker anywhere in the path and see if it's next to the
   // revoked hop.
-  if (path.front() == revoker)
+  if (path.front() == revoker) {
     return path_ts.front() <= ts && path[1] == hop;
-  for (size_t index = 1; index < path.size() - 1; ++index)
-    if (path[index] == revoker)
+  }
+  for (size_t index = 1; index < path.size() - 1; ++index) {
+    if (path[index] == revoker) {
       return path_ts[index] <= ts
              && (path[index - 1] == hop || path[index + 1] == hop);
-  if (path.back() == revoker)
+    }
+  }
+  if (path.back() == revoker) {
     return path_ts.back() <= ts && path[path.size() - 2] == hop;
+  }
   return false;
 }
 
@@ -336,9 +352,11 @@ std::enable_if_t<
   std::is_same_v<typename Container::value_type, revocation<PeerId>>, bool>
 revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
         const Container& entries) {
-  for (const auto& entry : entries)
-    if (revoked(path, ts, entry))
+  for (const auto& entry : entries) {
+    if (revoked(path, ts, entry)) {
       return true;
+    }
+  }
   return false;
 }
 

@@ -48,8 +48,8 @@ multipath_group::emplace_impl(const endpoint_id& id,
       first_ = new_node;
       return {new_node, true};
     }
-    auto pos = first_;
-    auto next = pos->right_;
+    auto* pos = first_;
+    auto* next = pos->right_;
     while (next != nullptr) {
       if (next->id_ == id) {
         return {next, false};
@@ -87,8 +87,9 @@ bool multipath_group::emplace(multipath_node* new_node) {
 }
 
 void multipath_group::shallow_delete() noexcept {
-  for (auto& child : *this)
+  for (auto& child : *this) {
     child.shallow_delete();
+  }
 }
 
 multipath_node::~multipath_node() {
@@ -149,15 +150,17 @@ void multipath::generate(const std::vector<endpoint_id>& receivers,
                          std::vector<multipath>& routes,
                          std::vector<endpoint_id>& unreachables) {
   auto route = [&](const endpoint_id& id) -> auto& {
-    for (auto& mpath : routes)
-      if (mpath.head().id() == id)
+    for (auto& mpath : routes) {
+      if (mpath.head().id() == id) {
         return mpath;
+      }
+    }
     routes.emplace_back(id);
     return routes.back();
   };
-  for (auto& receiver : receivers) {
-    if (auto ptr = shortest_path(tbl, receiver)) {
-      auto& sp = *ptr;
+  for (const auto& receiver : receivers) {
+    if (const auto* ptr = shortest_path(tbl, receiver)) {
+      const auto& sp = *ptr;
       BROKER_ASSERT(!sp.empty());
       route(sp[0]).splice(sp);
     } else {
@@ -169,9 +172,10 @@ void multipath::generate(const std::vector<endpoint_id>& receivers,
 void multipath::splice(const std::vector<endpoint_id>& path) {
   BROKER_ASSERT(path.empty() || path[0] == head().id());
   if (!path.empty()) {
-    auto child = head_;
-    for (auto i = path.begin() + 1; i != path.end(); ++i)
+    auto* child = head_;
+    for (auto i = path.begin() + 1; i != path.end(); ++i) {
       child = child->down_.emplace(tree_->mem, *i).first;
+    }
     child->is_receiver_ = true;
   }
 }

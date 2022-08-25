@@ -45,7 +45,7 @@ std::string to_string(sc code);
 bool convert(std::string_view str, sc& code) noexcept;
 
 /// @relates sc
-bool convert(const data& str, sc& code) noexcept;
+bool convert(const data& src, sc& code) noexcept;
 
 /// @relates sc
 inline bool convert(const std::string& str, sc& code) noexcept {
@@ -250,7 +250,7 @@ private:
 };
 
 /// @relates status_view
-std::string to_string(status_view sv);
+std::string to_string(status_view x);
 
 /// @relates status_view
 inline status_view make_status_view(const data& src) {

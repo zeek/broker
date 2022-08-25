@@ -225,7 +225,7 @@ std::string_view enum_str(ec code);
 bool convert(std::string_view str, ec& code) noexcept;
 
 /// @relates ec
-bool convert(const data& str, ec& code) noexcept;
+bool convert(const data& src, ec& code) noexcept;
 
 /// @relates ec
 inline bool convert(const std::string& str, ec& code) noexcept {

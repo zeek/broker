@@ -33,16 +33,16 @@ public:
   using error_callback = callback<const caf::error&>;
 
   connector_adapter(caf::event_based_actor* self, connector_ptr conn,
-                    peering_callback on_peering,
-                    peer_unavailable_callback on_peer_unavailable,
+                    peering_callback cb,
+                    peer_unavailable_callback on_unavailable,
                     shared_filter_ptr filter,
-                    detail::shared_peer_status_map_ptr peer_statuses);
+                    detail::shared_peer_status_map_ptr ps_map);
 
   caf::message_handler message_handlers();
 
-  void async_connect(const network_info& addr, peering_callback on_success,
+  void async_connect(const network_info& addr, peering_callback f,
                      redundant_peering_callback on_redundant_peering,
-                     error_callback on_error);
+                     error_callback h);
 
   void async_drop(const network_info& addr,
                   callback<std::optional<endpoint_id>> on_success,

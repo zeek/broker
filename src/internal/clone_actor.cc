@@ -66,7 +66,7 @@ void clone_state::dispatch(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or master.
-  auto& cmd = get_command(msg);
+  const auto& cmd = get_command(msg);
   auto seq = cmd.seq;
   auto tag = detail::tag_of(cmd);
   auto type = detail::type_of(cmd);
@@ -94,8 +94,9 @@ void clone_state::dispatch(const command_message& msg) {
     }
     case command_tag::producer_control: {
       // Control messages must be 'unicast'.
-      if (!is_receiver())
+      if (!is_receiver()) {
         return;
+      }
       // Control messages from the master.
       switch (type) {
         case internal_command::type::ack_clone_command: {
@@ -111,12 +112,13 @@ void clone_state::dispatch(const command_message& msg) {
           } else {
             master_id = cmd.sender;
           }
-          auto& inner = get<ack_clone_command>(cmd.content);
+          const auto& inner = get<ack_clone_command>(cmd.content);
           if (input.handle_handshake(cmd.sender, inner.offset,
                                      inner.heartbeat_interval)) {
             BROKER_DEBUG("received ack_clone from" << cmd.sender);
-            if (!master_id)
+            if (!master_id) {
               master_id = cmd.sender;
+            }
             set_store(inner.state);
             start_output();
           } else {
@@ -129,7 +131,7 @@ void clone_state::dispatch(const command_message& msg) {
             BROKER_DEBUG("ignored keepalive: input not initialized yet");
             break;
           }
-          auto& inner = get<keepalive_command>(cmd.content);
+          const auto& inner = get<keepalive_command>(cmd.content);
           BROKER_DEBUG("keepalive from master:"
                        << BROKER_ARG2("input.next_seq", input.next_seq())
                        << BROKER_ARG2("input.last_seq", input.last_seq())
@@ -138,9 +140,10 @@ void clone_state::dispatch(const command_message& msg) {
           break;
         }
         case internal_command::type::retransmit_failed_command: {
-          if (!input.initialized())
+          if (!input.initialized()) {
             break;
-          auto& inner = get<retransmit_failed_command>(cmd.content);
+          }
+          const auto& inner = get<retransmit_failed_command>(cmd.content);
           input.handle_retransmit_failed(inner.seq);
           break;
         }
@@ -164,7 +167,7 @@ void clone_state::dispatch(const command_message& msg) {
       // Control messages from the master for the writer.
       switch (type) {
         case internal_command::type::cumulative_ack_command: {
-          auto& inner = get<cumulative_ack_command>(cmd.content);
+          const auto& inner = get<cumulative_ack_command>(cmd.content);
           // We create the path with entity_id::nil(), but the channel still
           // cares about the handle. Hence, we need to set the actual handle
           // once once the master responds with an ACK.
@@ -189,7 +192,7 @@ void clone_state::dispatch(const command_message& msg) {
           break;
         }
         case internal_command::type::nack_command: {
-          auto& inner = get<nack_command>(cmd.content);
+          const auto& inner = get<nack_command>(cmd.content);
           output_opt->handle_nack(cmd.sender, inner.seqs);
           break;
         }
@@ -204,8 +207,9 @@ void clone_state::dispatch(const command_message& msg) {
 void clone_state::tick() {
   BROKER_TRACE("");
   input.tick();
-  if (output_opt)
+  if (output_opt) {
     output_opt->tick();
+  }
 }
 
 // -- callbacks for the consumer -----------------------------------------------
@@ -239,20 +243,23 @@ void clone_state::consume(put_unique_result_command& cmd) {
 
 void clone_state::consume(erase_command& x) {
   BROKER_INFO("ERASE" << x.key);
-  if (store.erase(x.key) != 0)
+  if (store.erase(x.key) != 0) {
     emit_erase_event(x.key, x.publisher);
+  }
 }
 
 void clone_state::consume(expire_command& x) {
   BROKER_INFO("EXPIRE" << x.key);
-  if (store.erase(x.key) != 0)
+  if (store.erase(x.key) != 0) {
     emit_expire_event(x.key, x.publisher);
+  }
 }
 
 void clone_state::consume(clear_command& x) {
   BROKER_INFO("CLEAR");
-  for (auto& kvp : store)
+  for (auto& kvp : store) {
     emit_erase_event(kvp.first, x.publisher);
+  }
   store.clear();
 }
 
@@ -337,7 +344,7 @@ void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
   // handshake. However, the master did not open the channel in this case. We
   // first need to create it by sending `attach_writer_command`. Everything
   // received before this attach message is going to be ignored by the master.
-  for (auto& path : ptr->paths()) {
+  for (const auto& path : ptr->paths()) {
     if (path.acked == 0) {
       BROKER_DEBUG("re-send attach_writer_command");
       send(ptr, path.hdl,
@@ -372,8 +379,9 @@ void clone_state::handshake_completed(producer_type*, const entity_id&) {
 
 data clone_state::keys() const {
   set result;
-  for (auto& kvp : store)
+  for (const auto& kvp : store) {
     result.emplace(kvp.first);
+  }
   return result;
 }
 
@@ -390,38 +398,46 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
     }
   } else if (store.empty()) {
     // Emit insert events.
-    for (auto& [key, value] : x)
+    for (auto& [key, value] : x) {
       emit_insert_event(key, value, std::nullopt, publisher);
+    }
   } else {
     // Emit erase and put events.
     std::vector<const data*> keys;
     keys.reserve(store.size());
-    for (auto& kvp : store)
+    for (auto& kvp : store) {
       keys.emplace_back(&kvp.first);
+    }
     auto is_erased = [&x](const data* key) { return x.count(*key) == 0; };
     auto p = std::partition(keys.begin(), keys.end(), is_erased);
-    for (auto i = keys.begin(); i != p; ++i)
+    for (auto i = keys.begin(); i != p; ++i) {
       emit_erase_event(**i, entity_id{});
+    }
     for (auto i = p; i != keys.end(); ++i) {
       const auto& value = x[**i];
       emit_update_event(**i, store[**i], value, std::nullopt, publisher);
     }
     // Emit insert events.
     auto is_new = [&keys](const data& key) {
-      for (const auto key_ptr : keys)
-        if (*key_ptr == key)
+      for (const auto* const key_ptr : keys) {
+        if (*key_ptr == key) {
           return false;
+        }
+      }
       return true;
     };
-    for (const auto& [key, value] : x)
-      if (is_new(key))
+    for (const auto& [key, value] : x) {
+      if (is_new(key)) {
         emit_insert_event(key, value, std::nullopt, publisher);
+      }
+    }
   }
   // Override local state.
   store = move(x);
   // Trigger any GET messages waiting for a reply.
-  for (auto& callback : on_set_store_callbacks)
+  for (auto& callback : on_set_store_callbacks) {
     callback();
+  }
   on_set_store_callbacks.clear();
 }
 
@@ -448,8 +464,9 @@ void clone_state::start_output() {
   if (!stalled.empty()) {
     std::vector<internal_command_variant> buf;
     buf.swap(stalled);
-    for (auto& content : buf)
+    for (auto& content : buf) {
       send_to_master(std::move(content));
+    }
     BROKER_ASSERT(stalled.empty());
   }
 }
@@ -481,12 +498,13 @@ caf::behavior clone_state::make_behavior() {
   // Schedule first tick and set a timeout for the attach operation.
   send_later(self, defaults::store::tick_interval,
              caf::make_message(atom::tick_v));
-  if (max_sync_interval.count() > 0)
+  if (max_sync_interval.count() > 0) {
     sync_timeout = caf::make_timestamp() + max_sync_interval;
+  }
   return super::make_behavior(
     // --- local communication -------------------------------------------------
     [=](atom::local, internal_command_variant& content) {
-      if (auto inner = get_if<put_unique_command>(&content)) {
+      if (auto* inner = get_if<put_unique_command>(&content)) {
         if (inner->who) {
           BROKER_DEBUG("received put_unique with who"
                        << inner->who << "and req_id" << inner->req_id);
@@ -514,8 +532,9 @@ caf::behavior clone_state::make_behavior() {
         } else if (caf::make_timestamp() >= *sync_timeout) {
           BROKER_ERROR("unable to find a master for" << store_name);
           auto err = caf::make_error(ec::no_such_master, store_name);
-          for (auto& rp : idle_callbacks)
+          for (auto& rp : idle_callbacks) {
             rp.deliver(err);
+          }
           idle_callbacks.clear();
           self->quit(err);
           return;
@@ -524,8 +543,9 @@ caf::behavior clone_state::make_behavior() {
       send_later(self, defaults::store::tick_interval,
                  caf::make_message(atom::tick_v));
       if (!idle_callbacks.empty() && idle()) {
-        for (auto& rp : idle_callbacks)
+        for (auto& rp : idle_callbacks) {
           rp.deliver(atom::ok_v);
+        }
         idle_callbacks.clear();
       }
     },
@@ -592,10 +612,11 @@ caf::behavior clone_state::make_behavior() {
       get_impl(rp, [this, rp, key{move(key)}, aspect{move(aspect)}]() mutable {
         if (auto i = this->store.find(key); i != this->store.end()) {
           BROKER_INFO("GET" << key << aspect << "->" << i->second);
-          if (auto res = visit(detail::retriever{aspect}, i->second))
+          if (auto res = visit(detail::retriever{aspect}, i->second)) {
             rp.deliver(std::move(*res));
-          else
+          } else {
             rp.deliver(native(res.error()));
+          }
         } else {
           BROKER_INFO("GET" << key << "-> no_such_key");
           rp.deliver(caf::make_error(ec::no_such_key));
@@ -627,10 +648,11 @@ caf::behavior clone_state::make_behavior() {
           if (auto i = this->store.find(key); i != this->store.end()) {
             auto x = visit(detail::retriever{asp}, i->second);
             BROKER_INFO("GET" << key << asp << "with id" << id << "->" << x);
-            if (x)
+            if (x) {
               rp.deliver(std::move(*x), id);
-            else
+            } else {
               rp.deliver(std::move(native(x.error())), id);
+            }
           } else {
             BROKER_INFO("GET" << key << asp << "with id" << id
                               << "-> no_such_key");
@@ -642,8 +664,9 @@ caf::behavior clone_state::make_behavior() {
     },
     [=](atom::get, atom::name) { return store_name; },
     [=](atom::await, atom::idle) -> caf::result<atom::ok> {
-      if (idle())
+      if (idle()) {
         return atom::ok_v;
+      }
       auto rp = self->make_response_promise();
       idle_callbacks.emplace_back(move(rp));
       return caf::delegated<atom::ok>();

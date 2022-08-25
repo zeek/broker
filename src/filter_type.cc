@@ -45,8 +45,9 @@ bool filter_extend(filter_type& f, const topic& x) {
 
 bool filter_extend(filter_type& f, const filter_type& other) {
   size_t count = 0;
-  for (auto& x : other)
+  for (const auto& x : other) {
     count += static_cast<size_t>(filter_extend(f, x));
+  }
   return count > 0;
 }
 

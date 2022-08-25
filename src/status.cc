@@ -35,7 +35,7 @@ bool convert(std::string_view str, sc& code) noexcept {
 }
 
 bool convert(const data& src, sc& code) noexcept {
-  if (auto val = get_if<enum_value>(src)) {
+  if (const auto* val = get_if<enum_value>(src)) {
     return convert(val->name, code);
   } else {
     return false;
@@ -56,21 +56,23 @@ error status::verify() const {
     default:
       return make_error(ec::invalid_status, "invalid enum value");
     case sc::unspecified:
-      if (!context_.node && !context_.network)
+      if (!context_.node && !context_.network) {
         return {};
-      else
+      } else {
         return make_error(ec::invalid_status,
                           "an unspecified status may not have a context");
+      }
     case sc::peer_added:
     case sc::peer_removed:
     case sc::peer_lost:
     case sc::endpoint_discovered:
     case sc::endpoint_unreachable:
-      if (context_.node)
+      if (context_.node) {
         return {};
-      else
+      } else {
         return make_error(ec::invalid_status,
                           "a non-default status must provide a node ID");
+      }
   }
 }
 
@@ -117,29 +119,35 @@ std::string to_string(status_view x) {
 }
 
 bool convertible_to_status(const vector& xs) noexcept {
-  if (xs.size() != 4)
+  if (xs.size() != 4) {
     return false;
-  if (auto str = get_if<std::string>(xs[0]); !str || *str != "status")
+  }
+  if (const auto* str = get_if<std::string>(xs[0]); !str || *str != "status") {
     return false;
-  if (auto code = to<sc>(xs[1]))
+  }
+  if (auto code = to<sc>(xs[1])) {
     return *code != sc::unspecified
              ? contains<any_type, any_type, endpoint_info, std::string>(xs)
              : contains<any_type, any_type, none, none>(xs);
+  }
   return false;
 }
 
 bool convertible_to_status(const data& src) noexcept {
-  if (auto xs = get_if<vector>(src))
+  if (const auto* xs = get_if<vector>(src)) {
     return convertible_to_status(*xs);
+  }
   return false;
 }
 
 bool convert(const data& src, status& dst) {
-  if (!convertible_to_status(src))
+  if (!convertible_to_status(src)) {
     return false;
-  auto& xs = get<vector>(src);
-  if (!convert(get<enum_value>(xs[1]).name, dst.code_))
+  }
+  const auto& xs = get<vector>(src);
+  if (!convert(get<enum_value>(xs[1]).name, dst.code_)) {
     return false;
+  }
   if (dst.code_ != sc::unspecified) {
     if (convert(get<vector>(xs[2]), dst.context_)) {
       dst.message_ = get<std::string>(xs[3]);
@@ -159,8 +167,9 @@ bool convert(const status& src, data& dst) {
   result[0] = "status"s;
   result[1] = enum_value{to_string(src.code_)};
   if (src.code_ != sc::unspecified) {
-    if (!convert(src.context_, result[2]))
+    if (!convert(src.context_, result[2])) {
       return false;
+    }
     result[3] = src.message_;
   }
   dst = std::move(result);
@@ -174,19 +183,21 @@ sc status_view::code() const {
 
 const std::string* status_view::message() const {
   BROKER_ASSERT(xs_ != nullptr);
-  if (is<none>((*xs_)[3]))
+  if (is<none>((*xs_)[3])) {
     return nullptr;
-  else
+  } else {
     return get_if<std::string>((*xs_)[3]);
+  }
 }
 
 std::optional<endpoint_info> status_view::context() const {
   BROKER_ASSERT(xs_ != nullptr);
   endpoint_info ei;
-  if (!convert((*xs_)[2], ei))
+  if (!convert((*xs_)[2], ei)) {
     return std::nullopt;
-  else
+  } else {
     return {std::move(ei)};
+  }
 }
 
 status_view status_view::make(const data& src) {

@@ -157,7 +157,7 @@ double count_at(const dbl_histogram_hdl*, size_t index) noexcept;
 double upper_bound_at(const dbl_histogram_hdl*, size_t index) noexcept;
 
 dbl_histogram_hdl* dbl_histogram_get_or_add(metric_family_hdl*,
-                                            span<const label_view> labels);
+                                            span<const label_view> xs);
 
 void observe(int_histogram_hdl*, int64_t value) noexcept;
 
@@ -170,7 +170,7 @@ int64_t count_at(const int_histogram_hdl*, size_t index) noexcept;
 int64_t upper_bound_at(const int_histogram_hdl*, size_t index) noexcept;
 
 int_histogram_hdl* int_histogram_get_or_add(metric_family_hdl*,
-                                            span<const label_view> labels);
+                                            span<const label_view> xs);
 
 // -- free function interface for metric families ------------------------------
 

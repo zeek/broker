@@ -4,7 +4,10 @@
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/domain_options.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/configuration_access.hh"
+#include "broker/internal/connector.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/json_client.hh"
@@ -40,22 +43,6 @@
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
-
-#include "broker/defaults.hh"
-#include "broker/detail/die.hh"
-#include "broker/detail/filesystem.hh"
-#include "broker/domain_options.hh"
-#include "broker/endpoint.hh"
-#include "broker/fwd.hh"
-#include "broker/internal/connector.hh"
-#include "broker/internal/core_actor.hh"
-#include "broker/internal/logger.hh"
-#include "broker/internal/metric_exporter.hh"
-#include "broker/internal/prometheus.hh"
-#include "broker/publisher.hh"
-#include "broker/status_subscriber.hh"
-#include "broker/subscriber.hh"
-#include "broker/timeout.hh"
 
 #include <chrono>
 #include <thread>
@@ -183,18 +170,21 @@ public:
 
   void advance_time(timestamp t) override {
     // Advance time.
-    if (t <= timestamp{time_since_epoch_})
+    if (t <= timestamp{time_since_epoch_}) {
       return;
+    }
     time_since_epoch_ = t.time_since_epoch();
     // Critical section: deliver messages.
-    if (pending_count_ == 0)
+    if (pending_count_ == 0) {
       return;
+    }
     std::unordered_set<caf::actor> sync_with_actors;
     {
       lock_type guard{mtx_};
       auto it = pending_.begin();
-      if (it->first > t)
+      if (it->first > t) {
         return;
+      }
       // Note: this function is performance-sensitive in the case of Zeek
       // reading pcaps and it's important to not construct fill the set unless
       // it's actually going to be used.
@@ -208,7 +198,7 @@ public:
     }
     // Wait for response messages.
     caf::scoped_actor self{ctx_->sys};
-    for (auto& who : sync_with_actors) {
+    for (const auto& who : sync_with_actors) {
       self->send(who, atom::sync_point_v, self);
       self->delayed_send(self, timeout::frontend, atom::tick_v);
       self->receive(
@@ -293,8 +283,9 @@ public:
       }
       void wait() {
         std::unique_lock<std::mutex> guard{mx};
-        while (!lit)
+        while (!lit) {
           cv.wait(guard);
+        }
       }
     } beacon;
     auto run_mpx = [this, &beacon] {
@@ -311,8 +302,8 @@ public:
   ~prometheus_http_task() override {
     if (mpx_supervisor_) {
       mpx_.dispatch([=] {
-        auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
-        auto ptr = static_cast<caf::io::broker*>(base_ptr);
+        auto* base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
+        auto* ptr = static_cast<caf::io::broker*>(base_ptr);
         if (!ptr->getf(caf::abstract_actor::is_terminated_flag)) {
           ptr->context(&mpx_);
           ptr->quit();
@@ -342,21 +333,24 @@ private:
 using string_list = std::vector<std::string>;
 
 void endpoint::metrics_exporter_t::set_interval(caf::timespan new_interval) {
-  if (new_interval.count() > 0)
+  if (new_interval.count() > 0) {
     caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                    new_interval);
+  }
 }
 
 void endpoint::metrics_exporter_t::set_target(topic new_target) {
-  if (!new_target.empty())
+  if (!new_target.empty()) {
     caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                    std::move(new_target));
+  }
 }
 
 void endpoint::metrics_exporter_t::set_id(std::string new_id) {
-  if (!new_id.empty())
+  if (!new_id.empty()) {
     caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                    std::move(new_id));
+  }
 }
 
 void endpoint::metrics_exporter_t::set_prefixes(string_list new_prefixes) {
@@ -364,16 +358,18 @@ void endpoint::metrics_exporter_t::set_prefixes(string_list new_prefixes) {
   // to std::vector<std::string> (which technically would require us to change
   // Broker ID on the network).
   filter_type boxed;
-  for (auto& str : new_prefixes)
+  for (auto& str : new_prefixes) {
     boxed.emplace_back(std::move(str));
+  }
   caf::anon_send(native(parent_->telemetry_exporter_), atom::put_v,
                  std::move(boxed));
 }
 
 void endpoint::metrics_exporter_t::set_import_topics(string_list new_topics) {
   filter_type filter;
-  for (auto& str : new_topics)
+  for (auto& str : new_topics) {
     filter.emplace_back(std::move(str));
+  }
   caf::anon_send(native(parent_->telemetry_exporter_), atom::join_v,
                  std::move(filter));
 }
@@ -430,8 +426,9 @@ indentation operator+(indentation x, size_t y) noexcept {
 }
 
 std::ostream& operator<<(std::ostream& out, indentation indent) {
-  for (size_t i = 0; i < indent.size; ++i)
+  for (size_t i = 0; i < indent.size; ++i) {
     out.put(' ');
+  }
   return out;
 }
 
@@ -441,20 +438,24 @@ void pretty_print(std::ostream& out, const caf::settings& xs,
                   indentation indent) {
   using std::cout;
   for (const auto& kvp : xs) {
-    if (kvp.first == "dump-config")
+    if (kvp.first == "dump-config") {
       continue;
-    if (auto submap = caf::get_if<caf::config_value::dictionary>(&kvp.second)) {
+    }
+    if (const auto* submap =
+          caf::get_if<caf::config_value::dictionary>(&kvp.second)) {
       out << indent << kvp.first << " {\n";
       pretty_print(out, *submap, indent + 2);
       out << indent << "}\n";
-    } else if (auto lst = caf::get_if<caf::config_value::list>(&kvp.second)) {
+    } else if (const auto* lst =
+                 caf::get_if<caf::config_value::list>(&kvp.second)) {
       if (lst->empty()) {
         out << indent << kvp.first << " = []\n";
       } else {
         out << indent << kvp.first << " = [\n";
         auto list_indent = indent + 2;
-        for (auto& x : *lst)
+        for (const auto& x : *lst) {
           out << list_indent << to_string(x) << ",\n";
+        }
         out << indent << "]\n";
       }
     } else {
@@ -482,8 +483,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
-  if (cfg.cli_helptext_printed)
+  if (cfg.cli_helptext_printed) {
     exit(0);
+  }
   // Make sure the OpenSSL config is consistent.
   if (ssl_cfg && ssl_cfg->authentication_enabled()) {
     if (ssl_cfg->certificate.empty()) {
@@ -499,15 +501,17 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   auto meta_dir = get_or(cfg, "broker.recording-directory",
                          caf::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
-    if (detail::is_directory(meta_dir))
+    if (detail::is_directory(meta_dir)) {
       detail::remove_all(meta_dir);
+    }
     if (detail::mkdirs(meta_dir)) {
       auto dump = cfg.dump_content();
       std::ofstream conf_file{meta_dir + "/broker.conf"};
-      if (!conf_file)
+      if (!conf_file) {
         BROKER_WARNING("failed to write to config file");
-      else
+      } else {
         pretty_print(conf_file, dump, {0});
+      }
     } else {
       std::cerr << "WARNING: unable to create \"" << meta_dir
                 << "\" for recording meta data\n";
@@ -524,10 +528,11 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   // Initialize remaining state.
   auto opts = ctx_->cfg.options();
-  if (opts.use_real_time)
+  if (opts.use_real_time) {
     clock_ = std::make_unique<real_time_clock>(ctx_.get());
-  else
+  } else {
     clock_ = std::make_unique<sim_clock>(ctx_.get());
+  }
   BROKER_INFO("creating endpoint" << id_);
   // TODO: the core actor may end up running basically nonstop in case it has a
   //       lot of incoming traffic to manage. CAF *should* suspend actors based
@@ -570,8 +575,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     telemetry_exporter_ = facade(hdl);
   }
   // Spin up a WebSocket server when requested.
-  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port"))
+  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port")) {
     web_socket_listen("0.0.0.0"s, *port);
+  }
 }
 
 endpoint::~endpoint() {
@@ -580,8 +586,9 @@ endpoint::~endpoint() {
 
 void endpoint::shutdown() {
   // Destroying a destroyed endpoint is a no-op.
-  if (!ctx_)
+  if (!ctx_) {
     return;
+  }
   BROKER_INFO("shutting down endpoint");
   if (!await_stores_on_shutdown_) {
     BROKER_DEBUG("tell core actor to terminate stores");
@@ -594,13 +601,14 @@ void endpoint::shutdown() {
     //       coordinator manually here.
     using caf::scheduler::test_coordinator;
     auto& sys = ctx_->sys;
-    auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
+    auto* sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
     caf::scoped_actor self{sys};
     BROKER_DEBUG("tell the core actor to stop");
     self->monitor(native(core_));
     self->send(native(core_), atom::shutdown_v, shutdown_options_);
-    if (sched)
+    if (sched) {
       sched->run();
+    }
     self->receive( // Give the core 5s time to shut down gracefully.
       [](const caf::down_msg&) {},
       caf::after(std::chrono::seconds(5)) >>
@@ -612,20 +620,24 @@ void endpoint::shutdown() {
     core_ = nullptr;
     BROKER_DEBUG("stop all background workers");
     if (!workers_.empty()) {
-      for (auto& hdl : workers_)
+      for (auto& hdl : workers_) {
         caf::anon_send_exit(native(hdl), caf::exit_reason::user_shutdown);
+      }
       BROKER_DEBUG("wait until all background workers terminated");
-      if (sched)
+      if (sched) {
         sched->run();
-      for (auto& hdl : workers_)
+      }
+      for (auto& hdl : workers_) {
         self->wait_for(native(hdl));
+      }
       workers_.clear();
     }
     BROKER_DEBUG("stop the telemetry exporter");
     self->send_exit(native(telemetry_exporter_),
                     caf::exit_reason::user_shutdown);
-    if (sched)
+    if (sched) {
       sched->run();
+    }
     self->wait_for(native(telemetry_exporter_));
     telemetry_exporter_ = nullptr;
   }
@@ -655,8 +667,9 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port,
       [&](caf::error& err) {
         BROKER_DEBUG("cannot listen to" << address << "on port" << port << ":"
                                         << err);
-        if (err_ptr)
+        if (err_ptr) {
           *err_ptr = facade(err);
+        }
       });
   return result;
 }
@@ -767,8 +780,9 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
   if (res) {
     return *res;
   } else {
-    if (err)
+    if (err) {
       *err = std::move(res.error());
+    }
     return 0;
   }
 }
@@ -810,8 +824,9 @@ void endpoint::publish(data_message x) {
 
 void endpoint::publish(std::vector<data_message> xs) {
   BROKER_INFO("publishing" << xs.size() << "messages");
-  for (auto& x : xs)
+  for (auto& x : xs) {
     publish(std::move(x));
+  }
 }
 
 publisher endpoint::make_publisher(topic ts) {
@@ -895,9 +910,11 @@ public:
     // Pull from the driver and propagate values down the pipeline.
     buf_.clear();
     driver_->pull(buf_, n);
-    for (auto& msg : buf_)
-      if (!step.on_next(msg, steps...))
+    for (auto& msg : buf_) {
+      if (!step.on_next(msg, steps...)) {
         return;
+      }
+    }
     // Check for end condition again.
     if (driver_->at_end()) {
       step.on_complete(steps...);

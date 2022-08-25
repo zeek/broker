@@ -33,10 +33,11 @@ std::optional<timestamp> to_opt_timestamp(timestamp ts,
 
 template <class T>
 auto to_caf_res(expected<T>&& x) {
-  if (x)
+  if (x) {
     return caf::result<T>{std::move(*x)};
-  else
+  } else {
     return caf::result<T>{std::move(native(x.error()))};
+  }
 }
 
 } // namespace
@@ -55,8 +56,9 @@ master_state::master_state(
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);
   if (auto es = backend->expiries()) {
-    for (auto& [key, expire_time] : *es)
+    for (auto& [key, expire_time] : *es) {
       expirations.emplace(key, expire_time);
+    }
   } else {
     detail::die("failed to get master expiries while initializing");
   }
@@ -69,17 +71,18 @@ void master_state::dispatch(const command_message& msg) {
   // figuring out whether the received message stems from a writer or clone.
   // Clones can only send control messages (they are always consumers). Writers
   // can send us either actions or control messages (they are producers).
-  auto& cmd = get_command(msg);
+  const auto& cmd = get_command(msg);
   auto seq = cmd.seq;
   auto tag = detail::tag_of(cmd);
   auto type = detail::type_of(cmd);
   switch (tag) {
     case command_tag::action: {
       // Action messages from writers.
-      if (auto i = inputs.find(cmd.sender); i != inputs.end())
+      if (auto i = inputs.find(cmd.sender); i != inputs.end()) {
         i->second.handle_event(seq, msg);
-      else
+      } else {
         BROKER_DEBUG("received action from unknown sender:" << cmd.sender);
+      }
       break;
     }
     case command_tag::producer_control: {
@@ -91,12 +94,12 @@ void master_state::dispatch(const command_message& msg) {
             break;
           }
           case internal_command::type::keepalive_command: {
-            auto& inner = get<keepalive_command>(cmd.content);
+            const auto& inner = get<keepalive_command>(cmd.content);
             i->second.handle_heartbeat(inner.seq);
             break;
           }
           case internal_command::type::retransmit_failed_command: {
-            auto& inner = get<retransmit_failed_command>(cmd.content);
+            const auto& inner = get<retransmit_failed_command>(cmd.content);
             i->second.handle_retransmit_failed(inner.seq);
             break;
           }
@@ -106,7 +109,7 @@ void master_state::dispatch(const command_message& msg) {
         }
       } else if (type == internal_command::type::attach_writer_command) {
         BROKER_DEBUG("attach new writer:" << cmd.sender);
-        auto& inner = get<attach_writer_command>(cmd.content);
+        const auto& inner = get<attach_writer_command>(cmd.content);
         i = inputs.emplace(cmd.sender, this).first;
         super::init(i->second);
         i->second.producer(cmd.sender);
@@ -125,12 +128,12 @@ void master_state::dispatch(const command_message& msg) {
       // Control messages from clones.
       switch (type) {
         case internal_command::type::cumulative_ack_command: {
-          auto& inner = get<cumulative_ack_command>(cmd.content);
+          const auto& inner = get<cumulative_ack_command>(cmd.content);
           output.handle_ack(cmd.sender, inner.seq);
           break;
         }
         case internal_command::type::nack_command: {
-          auto& inner = get<nack_command>(cmd.content);
+          const auto& inner = get<nack_command>(cmd.content);
           output.handle_nack(cmd.sender, inner.seqs);
           break;
         }
@@ -145,8 +148,9 @@ void master_state::dispatch(const command_message& msg) {
 void master_state::tick() {
   BROKER_TRACE("");
   output.tick();
-  for (auto& kvp : inputs)
+  for (auto& kvp : inputs) {
     kvp.second.tick();
+  }
   auto t = clock->now();
   for (auto i = expirations.begin(); i != expirations.end();) {
     if (t > i->second) {
@@ -171,10 +175,11 @@ void master_state::tick() {
 
 void master_state::set_expire_time(const data& key,
                                    const std::optional<timespan>& expiry) {
-  if (expiry)
+  if (expiry) {
     expirations.insert_or_assign(key, clock->now() + *expiry);
-  else
+  } else {
     expirations.erase(key);
+  }
 }
 
 // -- callbacks for the consumer -----------------------------------------------
@@ -196,10 +201,11 @@ void master_state::consume(put_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   set_expire_time(x.key, x.expiry);
-  if (old_value)
+  if (old_value) {
     emit_update_event(x, *old_value);
-  else
+  } else {
     emit_insert_event(x);
+  }
   broadcast(std::move(x));
 }
 
@@ -268,10 +274,11 @@ void master_state::consume(add_command& x) {
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
                     x.publisher};
-    if (old_value)
+    if (old_value) {
       emit_update_event(cmd, *old_value);
-    else
+    } else {
       emit_insert_event(cmd);
+    }
     broadcast(std::move(cmd));
   }
 }
@@ -313,18 +320,21 @@ void master_state::consume(clear_command& x) {
     BROKER_ERROR("unable to obtain keys:" << keys_res.error());
     return;
   } else {
-    if (auto keys = get_if<vector>(*keys_res)) {
-      for (auto& key : *keys)
+    if (auto* keys = get_if<vector>(*keys_res)) {
+      for (auto& key : *keys) {
         emit_erase_event(key, x.publisher);
-    } else if (auto keys = get_if<set>(*keys_res)) {
-      for (auto& key : *keys)
+      }
+    } else if (auto* keys = get_if<set>(*keys_res)) {
+      for (const auto& key : *keys) {
         emit_erase_event(key, x.publisher);
+      }
     } else if (!is<none>(*keys_res)) {
       BROKER_ERROR("backend->keys() returned an unexpected result type");
     }
   }
-  if (auto res = backend->clear(); !res)
+  if (auto res = backend->clear(); !res) {
     detail::die("failed to clear master");
+  }
   broadcast(x);
 }
 
@@ -341,10 +351,11 @@ error master_state::consume_nil(consumer_type* src) {
 void master_state::close(consumer_type* src, const error& reason) {
   BROKER_TRACE(BROKER_ARG(reason));
   if (auto i = inputs.find(src->producer()); i != inputs.end()) {
-    if (reason)
+    if (reason) {
       BROKER_INFO("removed" << src->producer() << "due to an error:" << reason);
-    else
+    } else {
       BROKER_DEBUG("received graceful shutdown for" << src->producer());
+    }
     inputs.erase(i);
   } else {
     BROKER_ERROR("close called from an unknown consumer");
@@ -385,8 +396,9 @@ void master_state::send(producer_type*, const entity_id& whom,
   auto i = open_handshakes.find(whom);
   if (i == open_handshakes.end()) {
     auto ss = backend->snapshot();
-    if (!ss)
+    if (!ss) {
       detail::die("failed to snapshot master");
+    }
     auto cmd = make_command_message(
       clones_topic,
       internal_command{msg.offset, id, whom,
@@ -443,8 +455,9 @@ void master_state::handshake_completed(producer_type*, const entity_id& clone) {
 // -- properties ---------------------------------------------------------------
 
 bool master_state::exists(const data& key) {
-  if (auto res = backend->exists(key))
+  if (auto res = backend->exists(key)) {
     return *res;
+  }
   return false;
 }
 
@@ -473,7 +486,7 @@ caf::behavior master_state::make_behavior() {
       // can process them immediately.
       auto tag = detail::tag_of(content);
       if (tag == command_tag::action) {
-        if (auto ptr = get_if<put_unique_command>(&content); ptr && ptr->who) {
+        if (auto* ptr = get_if<put_unique_command>(&content); ptr && ptr->who) {
           if (auto rp = self->make_response_promise(); rp.pending()) {
             store_actor_state::local_request_key key{ptr->who, ptr->req_id};
             if (!local_requests.emplace(key, rp).second) {
@@ -491,8 +504,9 @@ caf::behavior master_state::make_behavior() {
       tick();
       send_later(self, tick_interval, caf::make_message(atom::tick_v));
       if (!idle_callbacks.empty() && idle()) {
-        for (auto& rp : idle_callbacks)
+        for (auto& rp : idle_callbacks) {
           rp.deliver(atom::ok_v);
+        }
         idle_callbacks.clear();
       }
     },
@@ -508,10 +522,11 @@ caf::behavior master_state::make_behavior() {
       auto x = backend->keys();
       BROKER_INFO("KEYS"
                   << "with id:" << id << "->" << x);
-      if (x)
+      if (x) {
         return caf::make_message(std::move(*x), id);
-      else
+      } else {
         return caf::make_message(native(x.error()), id);
+      }
     },
     [this](atom::exists, const data& key) -> caf::result<data> {
       auto x = backend->exists(key);
@@ -537,24 +552,27 @@ caf::behavior master_state::make_behavior() {
     [this](atom::get, const data& key, request_id id) {
       auto x = backend->get(key);
       BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
-      if (x)
+      if (x) {
         return caf::make_message(std::move(*x), id);
-      else
+      } else {
         return caf::make_message(native(x.error()), id);
+      }
     },
     [this](atom::get, const data& key, const data& value, request_id id) {
       auto x = backend->get(key, value);
       BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->"
                         << x);
-      if (x)
+      if (x) {
         return caf::make_message(std::move(*x), id);
-      else
+      } else {
         return caf::make_message(std::move(native(x.error())), id);
+      }
     },
     [this](atom::get, atom::name) { return store_name; },
     [this](atom::await, atom::idle) -> caf::result<atom::ok> {
-      if (idle())
+      if (idle()) {
         return atom::ok_v;
+      }
       auto rp = self->make_response_promise();
       idle_callbacks.emplace_back(std::move(rp));
       return caf::delegated<atom::ok>();

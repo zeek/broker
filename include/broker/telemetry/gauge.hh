@@ -134,10 +134,11 @@ public:
   /// Returns the metrics handle for given labels, creating a new instance
   /// lazily if necessary.
   gauge<T> get_or_add(span<const label_view> labels) {
-    if constexpr (std::is_same_v<T, double>)
+    if constexpr (std::is_same_v<T, double>) {
       return gauge<T>{dbl_gauge_get_or_add(super::hdl_, labels)};
-    else
+    } else {
       return gauge<T>{int_gauge_get_or_add(super::hdl_, labels)};
+    }
   }
 
   /// @copydoc get_or_add

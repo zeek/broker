@@ -31,10 +31,11 @@ worker::worker(const worker& other) noexcept {
 }
 
 worker::worker(const impl* ptr) noexcept {
-  if (ptr)
+  if (ptr) {
     new (obj_) native_t(native(ptr));
-  else
+  } else {
     new (obj_) native_t();
+  }
 }
 
 worker& worker::operator=(worker&& other) noexcept {
@@ -43,8 +44,9 @@ worker& worker::operator=(worker&& other) noexcept {
 }
 
 worker& worker::operator=(const worker& other) noexcept {
-  if (this != &other)
+  if (this != &other) {
     native(*this) = native(other);
+  }
   return *this;
 }
 
