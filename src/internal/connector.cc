@@ -1302,6 +1302,7 @@ struct connect_manager {
       } else if (state->event_id != invalid_connector_event_id) {
         auto retry_interval = state->addr.retry;
         if (retry_interval.count() > 0) {
+          listener->on_peer_unavailable(state->addr);
           retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                  std::move(state));
           BROKER_DEBUG("failed to connect on socket"
@@ -1309,9 +1310,12 @@ struct connect_manager {
         } else {
           BROKER_DEBUG("failed to connect on socket" << entry.fd
                                                      << "-> give up");
-          if (valid(state->event_id))
+          if (valid(state->event_id)) {
             listener->on_error(state->event_id,
                                caf::make_error(ec::peer_unavailable));
+          } else {
+            listener->on_peer_unavailable(state->addr);
+          }
         }
       } else {
         BROKER_DEBUG("incoming peering failed on socket" << entry.fd);
