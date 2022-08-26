@@ -1,3 +1,9 @@
+2.3.1-4 | 2022-08-26 09:03:22 -0700
+
+  * Add missing error signaling (Dominik Charousset, Corelight)
+
+    (cherry picked from commit 5b82ef4356e2f7bbbaa908149929b332f28dc539)
+
 2.3.1-2 | 2022-08-24 10:06:55 -0700
 
   * Remove the retry limit on peerings (Dominik Charousset, Corelight)
