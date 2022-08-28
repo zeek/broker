@@ -60,7 +60,7 @@ public:
 
   static std::string_view default_serialization_failed_error();
 
-  void init(filter_type filter, out_t out,
+  void init(const filter_type& filter, const out_t& out,
             caf::async::consumer_resource<data_message> core_pull);
 };
 

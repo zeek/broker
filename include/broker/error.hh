@@ -334,8 +334,7 @@ public:
 
   template <ec Code>
   static error make(ec_constant<Code>, endpoint_id node, std::string msg) {
-    return make_impl(Code, endpoint_info{std::move(node), std::nullopt},
-                     std::move(msg));
+    return make_impl(Code, endpoint_info{node, std::nullopt}, std::move(msg));
   }
 
 private:

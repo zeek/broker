@@ -15,7 +15,7 @@ memory_backend::memory_backend(backend_options opts)
 
 expected<void> memory_backend::put(const data& key, data value,
                                    std::optional<timestamp> expiry) {
-  store_[key] = {std::move(value), std::move(expiry)};
+  store_[key] = {std::move(value), expiry};
   return {};
 }
 
@@ -26,12 +26,12 @@ expected<void> memory_backend::add(const data& key, const data& value,
   if (i == store_.end()) {
     if (init_type == data::type::none)
       return ec::type_clash;
-    auto newv = std::make_pair(data::from_type(init_type), expiry);
-    i = store_.emplace(std::move(key), std::move(newv)).first;
+    auto new_val = std::make_pair(data::from_type(init_type), expiry);
+    i = store_.emplace(key, std::move(new_val)).first;
   }
   auto result = visit(adder{value}, i->second.first);
   if (result)
-    i->second.second = std::move(expiry);
+    i->second.second = expiry;
   return result;
 }
 
@@ -42,7 +42,7 @@ expected<void> memory_backend::subtract(const data& key, const data& value,
     return ec::no_such_key;
   auto result = visit(remover{value}, i->second.first);
   if (result)
-    i->second.second = std::move(expiry);
+    i->second.second = expiry;
   return result;
 }
 

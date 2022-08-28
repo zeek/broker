@@ -77,7 +77,7 @@ using packed_message =
 inline packed_message make_packed_message(packed_message_type type,
                                           uint16_t ttl, topic dst,
                                           std::vector<std::byte> bytes) {
-  return packed_message{type, ttl, dst, std::move(bytes)};
+  return packed_message{type, ttl, std::move(dst), std::move(bytes)};
 }
 
 /// @relates packed_message

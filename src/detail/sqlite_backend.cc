@@ -464,7 +464,7 @@ expected<expirables> sqlite_backend::expiries() const {
       auto expiry_count = sqlite3_column_int64(impl_->expiries, 1);
       auto duration = timespan(expiry_count);
       auto expiry = timestamp(duration);
-      auto e = expirable(std::move(*key), std::move(expiry));
+      auto e = expirable(std::move(*key), expiry);
       rval.emplace_back(std::move(e));
     } else {
       return {key.error()};

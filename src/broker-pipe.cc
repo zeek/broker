@@ -185,7 +185,7 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
     // Init.
     [](size_t& msgs) { msgs = 0; },
     // OnNext.
-    [cap](size_t& msgs, data_message x) {
+    [cap](size_t& msgs, const data_message& x) {
       ++msg_count;
       if (!rate)
         print_line(std::cout, to_string(x));
