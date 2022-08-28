@@ -45,21 +45,21 @@ public:
 
   /// Returns the current demand on this publisher. The demand is the amount of
   /// messages that were requested by the Broker core.
-  size_t demand() const;
+  [[nodiscard]] size_t demand() const;
 
   /// Returns the current size of the output queue.
-  size_t buffered() const;
+  [[nodiscard]] size_t buffered() const;
 
   /// Returns the capacity of the output queue.
-  size_t capacity() const;
+  [[nodiscard]] size_t capacity() const;
 
   /// Returns the free capacity of the output queue, i.e., how many items can
   /// be enqueued before it starts blocking.
-  size_t free_capacity() const;
+  [[nodiscard]] size_t free_capacity() const;
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  detail::native_socket fd() const;
+  [[nodiscard]] detail::native_socket fd() const;
 
   // --- mutators --------------------------------------------------------------
 

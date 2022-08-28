@@ -160,10 +160,10 @@ public:
 
   /// Returns the user-defined error message if present, `nullptr` otherwise.
   /// @pre `valid()`
-  const std::string* message() const noexcept;
+  [[nodiscard]] const std::string* message() const noexcept;
 
   /// Returns additional contextual network information if available.
-  const endpoint_info* context() const noexcept;
+  [[nodiscard]] const endpoint_info* context() const noexcept;
 
   /// Returns a pointer to the native representation.
   [[nodiscard]] impl* native_ptr() noexcept;
@@ -296,7 +296,7 @@ public:
 
   error_view& operator=(const error_view&) noexcept = default;
 
-  bool valid() const noexcept {
+  [[nodiscard]] bool valid() const noexcept {
     return xs_ != nullptr;
   }
 
@@ -305,13 +305,13 @@ public:
   }
 
   /// @pre `valid()`
-  ec code() const noexcept;
+  [[nodiscard]] ec code() const noexcept;
 
   /// @copydoc error::code
-  const std::string* message() const noexcept;
+  [[nodiscard]] const std::string* message() const noexcept;
 
   /// Retrieves additional contextual information, if available.
-  std::optional<endpoint_info> context() const;
+  [[nodiscard]] std::optional<endpoint_info> context() const;
 
   /// Creates a view for given data.
   /// @returns A ::valid view on success, an invalid view otherwise.

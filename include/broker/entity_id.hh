@@ -22,7 +22,7 @@ struct entity_id {
 
   /// Returns whether this ID is valid, i.e., whether the `endpoint` member is
   /// valid.
-  bool valid() const noexcept {
+  [[nodiscard]] bool valid() const noexcept {
     return static_cast<bool>(endpoint);
   }
 
@@ -48,7 +48,7 @@ struct entity_id {
   }
 
   /// Computes a hash value for this object.
-  size_t hash() const noexcept;
+  [[nodiscard]] size_t hash() const noexcept;
 };
 
 /// @relates entity_id

@@ -245,7 +245,7 @@ public:
   bool convert(caf::const_byte_span bytes, node_message& msg);
 
   /// Retrieves the last error from a conversion.
-  const caf::error& last_error() const noexcept {
+  [[nodiscard]] const caf::error& last_error() const noexcept {
     return last_error_;
   }
 

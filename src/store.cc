@@ -55,7 +55,7 @@ public:
     BROKER_DEBUG("created state for store" << this->name);
   }
 
-  ~state_impl() {
+  ~state_impl() override {
     BROKER_DEBUG("destroyed state for store" << name);
   }
 
@@ -91,11 +91,11 @@ public:
     caf::anon_send(frontend, std::forward<Ts>(xs)...);
   }
 
-  entity_id self_id() const {
+  [[nodiscard]] entity_id self_id() const {
     return entity_id{this_peer, self->id()};
   }
 
-  entity_id frontend_id() const {
+  [[nodiscard]] entity_id frontend_id() const {
     return entity_id{this_peer, frontend.id()};
   }
 };

@@ -36,7 +36,7 @@ public:
   }
 
   /// @return The number of buckets, including the implicit "infinite" bucket.
-  size_t num_buckets() const noexcept {
+  [[nodiscard]] size_t num_buckets() const noexcept {
     return telemetry::num_buckets(hdl_);
   }
 
@@ -110,7 +110,7 @@ public:
   }
 
   /// @return The number of buckets, including the implicit "infinite" bucket.
-  size_t num_buckets() const noexcept {
+  [[nodiscard]] size_t num_buckets() const noexcept {
     return telemetry::num_buckets(hdl());
   }
 

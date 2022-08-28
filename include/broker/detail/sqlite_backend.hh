@@ -16,9 +16,9 @@ public:
   ///             the filesystem.
   sqlite_backend(backend_options opts = backend_options{});
 
-  ~sqlite_backend();
+  ~sqlite_backend() override;
 
-  bool init_failed() const;
+  [[nodiscard]] bool init_failed() const;
 
   expected<void> put(const data& key, data value,
                      std::optional<timestamp> expiry) override;
@@ -35,17 +35,17 @@ public:
 
   expected<bool> expire(const data& key, timestamp current_time) override;
 
-  expected<data> get(const data& key) const override;
+  [[nodiscard]] expected<data> get(const data& key) const override;
 
-  expected<bool> exists(const data& key) const override;
+  [[nodiscard]] expected<bool> exists(const data& key) const override;
 
-  expected<uint64_t> size() const override;
+  [[nodiscard]] expected<uint64_t> size() const override;
 
-  expected<data> keys() const override;
+  [[nodiscard]] expected<data> keys() const override;
 
-  expected<broker::snapshot> snapshot() const override;
+  [[nodiscard]] expected<broker::snapshot> snapshot() const override;
 
-  expected<expirables> expiries() const override;
+  [[nodiscard]] expected<expirables> expiries() const override;
 
 private:
   struct impl;

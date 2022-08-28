@@ -39,7 +39,7 @@ public:
     // nop
   }
 
-  ~subscriber_queue() {
+  ~subscriber_queue() override {
     if (buf_)
       buf_->cancel();
   }

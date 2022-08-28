@@ -139,8 +139,8 @@ multipath::multipath(const endpoint_id& id, bool is_receiver) : multipath(id) {
   head_->is_receiver_ = is_receiver;
 }
 
-multipath::multipath(const tree_ptr& t, multipath_node* h)
-  : tree_(t), head_(h) {
+multipath::multipath(tree_ptr tptr, multipath_node* hptr)
+  : tree_(std::move(tptr)), head_(hptr) {
   // nop
 }
 

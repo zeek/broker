@@ -62,9 +62,10 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
     auto on_peer_unavailable = [this](const network_info& addr) {
       peer_unavailable(addr);
     };
-    adapter.reset(new connector_adapter(self, std::move(conn), on_peering,
-                                        on_peer_unavailable, filter,
-                                        peer_statuses));
+    adapter = std::make_unique<connector_adapter>(self, std::move(conn),
+                                                  on_peering,
+                                                  on_peer_unavailable, filter,
+                                                  peer_statuses);
   }
   ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
 }
@@ -587,8 +588,8 @@ void core_actor_state::client_added(endpoint_id client_id,
   emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_discovered>(),
        "found a new client in the network");
-  emit(endpoint_info{client_id, addr, type},
-       sc_constant<sc::peer_added>(), "handshake successful");
+  emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_added>(),
+       "handshake successful");
 }
 
 void core_actor_state::client_removed(endpoint_id client_id,

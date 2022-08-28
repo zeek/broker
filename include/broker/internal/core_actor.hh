@@ -93,16 +93,16 @@ public:
   std::optional<T> unpack(const packed_message& msg);
 
   /// Returns whether `x` has at least one remote subscriber.
-  bool has_remote_subscriber(const topic& x) const noexcept;
+  [[nodiscard]] bool has_remote_subscriber(const topic& x) const noexcept;
 
   /// Checks whether peer with given `id` is subscribed to the topic `what`.
   bool is_subscribed_to(endpoint_id id, const topic& what);
 
   /// Returns the @ref network_info associated to given `id` if available.
-  std::optional<network_info> addr_of(endpoint_id id) const;
+  [[nodiscard]] std::optional<network_info> addr_of(endpoint_id id) const;
 
   /// Returns the IDs of all connected peers.
-  std::vector<endpoint_id> peer_ids() const;
+  [[nodiscard]] std::vector<endpoint_id> peer_ids() const;
 
   // -- callbacks --------------------------------------------------------------
 
@@ -208,7 +208,7 @@ public:
 
   /// Returns whether a master for `name` probably exists already on one of our
   /// peers.
-  bool has_remote_master(const std::string& name) const;
+  [[nodiscard]] bool has_remote_master(const std::string& name) const;
 
   /// Attaches a master for given store to this peer.
   caf::result<caf::actor> attach_master(const std::string& name,

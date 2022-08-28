@@ -61,7 +61,7 @@ struct openssl_options {
   std::string capath;
   std::string cafile;
 
-  bool authentication_enabled() const noexcept;
+  [[nodiscard]] bool authentication_enabled() const noexcept;
 };
 
 /// @relates openssl_options
@@ -124,37 +124,37 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns default Broker options and flags.
-  const broker_options& options() const;
+  [[nodiscard]] const broker_options& options() const;
 
-  std::string help_text() const;
+  [[nodiscard]] std::string help_text() const;
 
-  const std::vector<std::string>& remainder() const;
+  [[nodiscard]] const std::vector<std::string>& remainder() const;
 
-  bool cli_helptext_printed() const;
+  [[nodiscard]] bool cli_helptext_printed() const;
 
-  std::string openssl_certificate() const;
+  [[nodiscard]] std::string openssl_certificate() const;
 
   void openssl_certificate(std::string);
 
-  std::string openssl_key() const;
+  [[nodiscard]] std::string openssl_key() const;
 
   void openssl_key(std::string);
 
-  std::string openssl_passphrase() const;
+  [[nodiscard]] std::string openssl_passphrase() const;
 
   void openssl_passphrase(std::string);
 
-  std::string openssl_capath() const;
+  [[nodiscard]] std::string openssl_capath() const;
 
   void openssl_capath(std::string);
 
-  std::string openssl_cafile() const;
+  [[nodiscard]] std::string openssl_cafile() const;
 
   void openssl_cafile(std::string);
 
   /// Returns all OpenSSL-related parameters or `nullptra` if OpenSSL has been
   /// disabled.
-  openssl_options_ptr openssl_options() const;
+  [[nodiscard]] openssl_options_ptr openssl_options() const;
 
   // -- mutators ---------------------------------------------------------------
 
@@ -192,17 +192,17 @@ public:
 
   void set(std::string_view key, std::vector<std::string> val);
 
-  std::optional<int64_t> read_i64(std::string_view key, int64_t min_val,
-                                  int64_t max_val) const;
+  [[nodiscard]] std::optional<int64_t>
+  read_i64(std::string_view key, int64_t min_val, int64_t max_val) const;
 
-  std::optional<uint64_t> read_u64(std::string_view key,
-                                   uint64_t max_val) const;
+  [[nodiscard]] std::optional<uint64_t> read_u64(std::string_view key,
+                                                 uint64_t max_val) const;
 
-  std::optional<timespan> read_ts(std::string_view key) const;
+  [[nodiscard]] std::optional<timespan> read_ts(std::string_view key) const;
 
-  std::optional<std::string> read_str(std::string_view key) const;
+  [[nodiscard]] std::optional<std::string> read_str(std::string_view key) const;
 
-  std::optional<std::vector<std::string>>
+  [[nodiscard]] std::optional<std::vector<std::string>>
   read_str_vec(std::string_view key) const;
 
   /// Initializes any global state required by Broker such as the global meta

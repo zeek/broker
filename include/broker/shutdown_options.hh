@@ -11,7 +11,7 @@ public:
     await_stores_on_shutdown = 0x01,
   };
 
-  constexpr bool contains(flag f) const noexcept {
+  [[nodiscard]] [[nodiscard]] constexpr bool contains(flag f) const noexcept {
     return (flags_ & static_cast<uint8_t>(f)) != 0;
   }
 

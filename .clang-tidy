@@ -2,10 +2,14 @@
   Checks: -*,
           bugprone-*,
           clang-analyzer-*,
+          modernize-*,
           performance-*,
           -bugprone-easily-swappable-parameters,
           -clang-analyzer-security.insecureAPI.rand,
           -clang-analyzer-webkit*,
+          -modernize-avoid-c-arrays,
+          -modernize-use-equals-default,
+          -modernize-use-trailing-return-type,
   WarningsAsErrors: '*'
   HeaderFilterRegex: 'broker/.*.hh'
 ...

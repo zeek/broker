@@ -75,35 +75,35 @@ public:
 
   // -- iterators ------------------------------------------------------------
 
-  constexpr iterator begin() const noexcept {
+  [[nodiscard]] constexpr iterator begin() const noexcept {
     return memory_block;
   }
 
-  constexpr const_iterator cbegin() const noexcept {
+  [[nodiscard]] constexpr const_iterator cbegin() const noexcept {
     return memory_block;
   }
 
-  constexpr iterator end() const noexcept {
+  [[nodiscard]] constexpr iterator end() const noexcept {
     return begin() + num_elements;
   }
 
-  constexpr const_iterator cend() const noexcept {
+  [[nodiscard]] constexpr const_iterator cend() const noexcept {
     return cbegin() + num_elements;
   }
 
-  constexpr reverse_iterator rbegin() const noexcept {
+  [[nodiscard]] constexpr reverse_iterator rbegin() const noexcept {
     return reverse_iterator{end()};
   }
 
-  constexpr const_reverse_iterator crbegin() const noexcept {
+  [[nodiscard]] constexpr const_reverse_iterator crbegin() const noexcept {
     return const_reverse_iterator{end()};
   }
 
-  constexpr reverse_iterator rend() const noexcept {
+  [[nodiscard]] constexpr reverse_iterator rend() const noexcept {
     return reverse_iterator{begin()};
   }
 
-  constexpr const_reverse_iterator crend() const noexcept {
+  [[nodiscard]] constexpr const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator{begin()};
   }
 
@@ -113,47 +113,48 @@ public:
     return memory_block[index];
   }
 
-  constexpr reference front() const noexcept {
+  [[nodiscard]] constexpr reference front() const noexcept {
     return *memory_block;
   }
 
-  constexpr reference back() const noexcept {
+  [[nodiscard]] constexpr reference back() const noexcept {
     return (*this)[num_elements - 1];
   }
 
   // -- properties -----------------------------------------------------------
 
-  constexpr size_t size() const noexcept {
+  [[nodiscard]] constexpr size_t size() const noexcept {
     return num_elements;
   }
 
-  constexpr size_t size_bytes() const noexcept {
+  [[nodiscard]] constexpr size_t size_bytes() const noexcept {
     return num_elements * sizeof(element_type);
   }
 
-  constexpr bool empty() const noexcept {
+  [[nodiscard]] constexpr bool empty() const noexcept {
     return num_elements == 0;
   }
 
-  constexpr pointer data() const noexcept {
+  [[nodiscard]] constexpr pointer data() const noexcept {
     return memory_block;
   }
 
   // -- subviews -------------------------------------------------------------
 
-  constexpr span subspan(size_t offset, size_t num_elements) const {
+  [[nodiscard]] constexpr span subspan(size_t offset,
+                                       size_t num_elements) const {
     return {memory_block + offset, num_elements};
   }
 
-  constexpr span subspan(size_t offset) const {
+  [[nodiscard]] constexpr span subspan(size_t offset) const {
     return {memory_block + offset, num_elements - offset};
   }
 
-  constexpr span first(size_t num_elements) const {
+  [[nodiscard]] constexpr span first(size_t num_elements) const {
     return {memory_block, num_elements};
   }
 
-  constexpr span last(size_t num_elements) const {
+  [[nodiscard]] constexpr span last(size_t num_elements) const {
     return subspan(num_elements - num_elements, num_elements);
   }
 

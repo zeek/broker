@@ -126,12 +126,12 @@ public:
   }
 
   /// Default-constructs an unspecified status.
-  status() : code_(sc::unspecified) {
+  status() {
     // nop
   }
 
   /// @returns The code of this status.
-  sc code() const;
+  [[nodiscard]] sc code() const;
 
   /// Retrieves additional contextual information, if available.
   /// The [status code][::sc] determines the type of information that's
@@ -139,7 +139,7 @@ public:
   /// @tparam T The type of the attached context information. Only
   ///         `endpoint_info` is supported at the moment.
   template <class T = endpoint_info>
-  const T* context() const {
+  [[nodiscard]] const T* context() const {
     // TODO: should not be a template.
     static_assert(std::is_same_v<T, endpoint_info>);
     return code_ != sc::unspecified ? &context_ : nullptr;
@@ -147,7 +147,7 @@ public:
 
   /// Retrieves an optional details about the status, if available.
   /// @returns A textual description of status details.
-  const std::string* message() const {
+  [[nodiscard]] const std::string* message() const {
     return &message_;
   }
 
@@ -171,7 +171,7 @@ public:
   friend bool convert(const data& src, status& dst);
 
 private:
-  error verify() const;
+  [[nodiscard]] error verify() const;
 
   template <class T>
   status(sc code, T&& context, std::string msg)
@@ -181,7 +181,7 @@ private:
     // nop
   }
 
-  sc code_;
+  sc code_{sc::unspecified};
   endpoint_info context_;
   std::string message_;
 };
@@ -219,7 +219,7 @@ public:
 
   status_view& operator=(const status_view&) noexcept = default;
 
-  bool valid() const noexcept {
+  [[nodiscard]] bool valid() const noexcept {
     return xs_ != nullptr;
   }
 
@@ -229,13 +229,13 @@ public:
 
   /// @copydoc status::code
   /// @pre `valid()`
-  sc code() const;
+  [[nodiscard]] sc code() const;
 
   /// @copydoc status::code
-  const std::string* message() const;
+  [[nodiscard]] const std::string* message() const;
 
   /// Retrieves additional contextual information, if available.
-  std::optional<endpoint_info> context() const;
+  [[nodiscard]] std::optional<endpoint_info> context() const;
 
   /// Creates a view for given data.
   /// @returns A ::valid view on success, an invalid view otherwise.

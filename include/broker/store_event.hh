@@ -54,26 +54,26 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const {
+    [[nodiscard]] const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
-    const data& key() const noexcept {
+    [[nodiscard]] const data& key() const noexcept {
       return (*xs_)[2];
     }
 
-    const data& value() const noexcept {
+    [[nodiscard]] const data& value() const noexcept {
       return (*xs_)[3];
     }
 
-    std::optional<timespan> expiry() const noexcept {
+    [[nodiscard]] std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[4]))
         return *value;
       else
         return {};
     }
 
-    entity_id publisher() const {
+    [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[5])) {
         return {*value, get<uint64_t>((*xs_)[6])};
       }
@@ -119,30 +119,30 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const {
+    [[nodiscard]] const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
-    const data& key() const noexcept {
+    [[nodiscard]] const data& key() const noexcept {
       return (*xs_)[2];
     }
 
-    const data& old_value() const noexcept {
+    [[nodiscard]] const data& old_value() const noexcept {
       return (*xs_)[3];
     }
 
-    const data& new_value() const noexcept {
+    [[nodiscard]] const data& new_value() const noexcept {
       return (*xs_)[4];
     }
 
-    std::optional<timespan> expiry() const noexcept {
+    [[nodiscard]] std::optional<timespan> expiry() const noexcept {
       if (auto value = get_if<timespan>((*xs_)[5]))
         return *value;
       else
         return {};
     }
 
-    entity_id publisher() const {
+    [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[6]))
         return {*value, get<uint64_t>((*xs_)[7])};
       else
@@ -186,15 +186,15 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const {
+    [[nodiscard]] const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
-    const data& key() const noexcept {
+    [[nodiscard]] const data& key() const noexcept {
       return (*xs_)[2];
     }
 
-    entity_id publisher() const {
+    [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
       }
@@ -238,15 +238,15 @@ public:
       return xs_ != nullptr;
     }
 
-    const std::string& store_id() const {
+    [[nodiscard]] const std::string& store_id() const {
       return get<std::string>((*xs_)[1]);
     }
 
-    const data& key() const noexcept {
+    [[nodiscard]] const data& key() const noexcept {
       return (*xs_)[2];
     }
 
-    entity_id publisher() const {
+    [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3]))
         return {*value, get<uint64_t>((*xs_)[4])};
       else

@@ -105,11 +105,11 @@ public:
 
   /// Returns the amount of values than can be extracted immediately without
   /// blocking.
-  size_t available() const noexcept;
+  [[nodiscard]] size_t available() const noexcept;
 
   /// Returns a file handle for integrating this publisher into a `select` or
   /// `poll` loop.
-  detail::native_socket fd() const noexcept;
+  [[nodiscard]] detail::native_socket fd() const noexcept;
 
   // --- topic management ------------------------------------------------------
 

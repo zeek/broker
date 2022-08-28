@@ -7,8 +7,7 @@
 
 #include "broker/detail/abstract_backend.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// An in-memory key-value storage backend.
 class memory_backend : public abstract_backend {
@@ -32,19 +31,20 @@ public:
 
   expected<bool> expire(const data& key, timestamp current_time) override;
 
-  expected<data> get(const data& key) const override;
+  [[nodiscard]] expected<data> get(const data& key) const override;
 
-  expected<data> get(const data& key, const data& value) const override;
+  [[nodiscard]] expected<data> get(const data& key,
+                                   const data& value) const override;
 
-  expected<bool> exists(const data& key) const override;
+  [[nodiscard]] expected<bool> exists(const data& key) const override;
 
-  expected<uint64_t> size() const override;
+  [[nodiscard]] expected<uint64_t> size() const override;
 
-  expected<data> keys() const override;
+  [[nodiscard]] expected<data> keys() const override;
 
-  expected<broker::snapshot> snapshot() const override;
+  [[nodiscard]] expected<broker::snapshot> snapshot() const override;
 
-  expected<expirables> expiries() const override;
+  [[nodiscard]] expected<expirables> expiries() const override;
 
 private:
   backend_options options_;
@@ -52,5 +52,4 @@ private:
   std::unordered_map<data, timestamp> expirations_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

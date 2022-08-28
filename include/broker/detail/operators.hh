@@ -1,7 +1,6 @@
 #pragma once
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 template <class T, class U = T>
 struct equality_comparable {
@@ -29,5 +28,4 @@ template <class T, class U = T>
 struct totally_ordered : equality_comparable<T, U>,
                          less_than_comparable<T, U> {};
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

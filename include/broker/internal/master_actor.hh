@@ -111,7 +111,7 @@ public:
 
   bool exists(const data& key);
 
-  bool idle() const noexcept;
+  [[nodiscard]] bool idle() const noexcept;
 
   // -- member variables -------------------------------------------------------
 

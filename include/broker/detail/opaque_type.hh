@@ -79,7 +79,7 @@ public:
     return result;
   }
 
-  pointer get() const noexcept {
+  [[nodiscard]] pointer get() const noexcept {
     return ptr_;
   }
 

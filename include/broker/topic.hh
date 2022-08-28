@@ -68,17 +68,17 @@ public:
 
   /// Retrieves the underlying string representation of the topic.
   /// @returns A reference to the underlying string.
-  const std::string& string() const;
+  [[nodiscard]] const std::string& string() const;
 
   /// Retrieves an rvalue reference to the underlying string representation.
   std::string&& move_string() &&;
 
   /// Returns whether this topic is a prefix match for `t`.
-  bool prefix_of(const topic& t) const;
+  [[nodiscard]] bool prefix_of(const topic& t) const;
 
   /// Returns the suffix of the topic, i.e., the characters after the last
   /// separator. For example, the suffix of `/foo/bar` is `bar`.
-  std::string_view suffix() const noexcept;
+  [[nodiscard]] std::string_view suffix() const noexcept;
 
   /// Returns whether this topic was default-constructed.
   [[nodiscard]] bool empty() const noexcept {

@@ -47,7 +47,7 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Queries whether this node is *not* default-constructed.
-  bool valid() const noexcept;
+  [[nodiscard]] bool valid() const noexcept;
 
   /// Queries whether this node is *not* default-constructed.
   explicit operator bool() const noexcept {
@@ -64,10 +64,10 @@ public:
 
   /// Compares this instance to `other`.
   /// @returns -1 if `*this < other`, 0 if `*this == other`, and 1 otherwise.
-  intptr_t compare(const worker& other) const noexcept;
+  [[nodiscard]] intptr_t compare(const worker& other) const noexcept;
 
   /// Returns a has value for the ID.
-  size_t hash() const noexcept;
+  [[nodiscard]] size_t hash() const noexcept;
 
   /// Returns a pointer to the native representation.
   [[nodiscard]] impl* native_ptr() noexcept;

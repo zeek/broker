@@ -73,34 +73,35 @@ public:
   /// Retrieves the value associated with a given key.
   /// @param key The key to use.
   /// @returns The value associated with *key*.
-  virtual expected<data> get(const data& key) const = 0;
+  [[nodiscard]] virtual expected<data> get(const data& key) const = 0;
 
   /// Retrieves a specific aspect of a value for a given key.
   /// @param key The key to use.
   /// @param aspect The aspect of the value at *key* to lookup.
   /// @returns The *aspect* of the value at *key*.
-  virtual expected<data> get(const data& key, const data& value) const;
+  [[nodiscard]] virtual expected<data> get(const data& key,
+                                           const data& value) const;
 
   /// Checks if a key exists.
   /// @param key The key to check.
   /// @returns `true` if the *key* exists and `false` if it doesn't.
   /// the query.
-  virtual expected<bool> exists(const data& key) const = 0;
+  [[nodiscard]] virtual expected<bool> exists(const data& key) const = 0;
 
   /// Retrieves the number of entries in the store.
   /// @returns The number of key-value pairs in the store.
-  virtual expected<uint64_t> size() const = 0;
+  [[nodiscard]] virtual expected<uint64_t> size() const = 0;
 
   /// Retrieves the current keys.
   /// @returns The set of current keys.
-  virtual expected<data> keys() const = 0;
+  [[nodiscard]] virtual expected<data> keys() const = 0;
 
   /// Retrieves all key-value pairs.
   /// @returns A snapshot of the store that includes its content.
-  virtual expected<broker::snapshot> snapshot() const = 0;
+  [[nodiscard]] virtual expected<broker::snapshot> snapshot() const = 0;
 
   /// @returns the set of all keys that have expiry times.
-  virtual expected<expirables> expiries() const = 0;
+  [[nodiscard]] virtual expected<expirables> expiries() const = 0;
 };
 
 } // namespace broker::detail

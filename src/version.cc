@@ -1,7 +1,6 @@
 #include "broker/version.hh"
 
-namespace broker {
-namespace version {
+namespace broker::version {
 
 std::string string() {
   using std::to_string;
@@ -9,5 +8,4 @@ std::string string() {
          + to_string(version::patch) + version::suffix;
 }
 
-} // namespace version
-} // namespace broker
+} // namespace broker::version

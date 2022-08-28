@@ -85,11 +85,11 @@ public:
 
   // --- properties ------------------------------------------------------------
 
-  size_t available() const {
+  [[nodiscard]] size_t available() const {
     return impl_.available();
   }
 
-  auto fd() const {
+  [[nodiscard]] auto fd() const {
     return impl_.fd();
   }
 

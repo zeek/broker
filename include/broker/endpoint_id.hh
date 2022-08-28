@@ -37,12 +37,12 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns the individual bytes for the ID.
-  const array_type& bytes() const noexcept {
+  [[nodiscard]] const array_type& bytes() const noexcept {
     return bytes_;
   }
 
   /// Queries whether this node is *not* default-constructed.
-  bool valid() const noexcept;
+  [[nodiscard]] bool valid() const noexcept;
 
   /// Queries whether this node is *not* default-constructed.
   explicit operator bool() const noexcept {
@@ -56,12 +56,12 @@ public:
 
   /// Compares this instance to `other`.
   /// @returns -1 if `*this < other`, 0 if `*this == other`, and 1 otherwise.
-  int compare(const endpoint_id& other) const noexcept {
+  [[nodiscard]] int compare(const endpoint_id& other) const noexcept {
     return memcmp(bytes_.data(), other.bytes_.data(), num_bytes);
   }
 
   /// Returns a has value for the ID.
-  size_t hash() const noexcept;
+  [[nodiscard]] size_t hash() const noexcept;
 
   /// Creates a random endpoint_id.
   static endpoint_id random() noexcept;

@@ -19,35 +19,35 @@ public:
   ///         of Zeek return @c zeek. Custom metrics, e.g., created in a
   ///         script, may use a prefix that represents the application/script
   ///         or protocol (e.g. @c http) name.
-  std::string_view prefix() const noexcept {
+  [[nodiscard]] std::string_view prefix() const noexcept {
     return telemetry::prefix(hdl_);
   }
 
   /// @return The human-readable name of the metric, e.g., @p open-connections.
-  std::string_view name() const noexcept {
+  [[nodiscard]] std::string_view name() const noexcept {
     return telemetry::name(hdl_);
   }
 
   /// @return The names for all label dimensions.
-  span<const std::string> label_names() const noexcept {
+  [[nodiscard]] span<const std::string> label_names() const noexcept {
     return telemetry::label_names(hdl_);
   }
 
   /// @return A short explanation of the metric.
-  std::string_view helptext() const noexcept {
+  [[nodiscard]] std::string_view helptext() const noexcept {
     return telemetry::helptext(hdl_);
   }
 
   /// @return The unit of measurement, preferably a base unit such as @c bytes
   ///         or @c seconds. Dimensionless counts return the pseudo-unit @c 1.
-  std::string_view unit() const noexcept {
+  [[nodiscard]] std::string_view unit() const noexcept {
     return telemetry::unit(hdl_);
   }
 
   /// @return Whether metrics of this family accumulate values, where only the
   ///         total value is of interest. For example, the total number of
   ///         HTTP requests.
-  bool is_sum() const noexcept {
+  [[nodiscard]] bool is_sum() const noexcept {
     return telemetry::is_sum(hdl_);
   }
 

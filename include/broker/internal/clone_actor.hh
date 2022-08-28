@@ -96,15 +96,15 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns all keys of the store.
-  data keys() const;
+  [[nodiscard]] data keys() const;
 
   /// Sets the store content of the clone.
   void set_store(std::unordered_map<data, data> x);
 
   /// Returns whether the clone received a handshake from the master.
-  bool has_master() const noexcept;
+  [[nodiscard]] bool has_master() const noexcept;
 
-  bool idle() const noexcept;
+  [[nodiscard]] bool idle() const noexcept;
 
   // -- helper functions -------------------------------------------------------
 

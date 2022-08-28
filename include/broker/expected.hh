@@ -168,13 +168,13 @@ public:
 
   /// Returns the contained value.
   /// @pre `engaged() == true`.
-  const T& cvalue() const noexcept {
+  [[nodiscard]] const T& cvalue() const noexcept {
     BROKER_ASSERT(engaged_);
     return value_;
   }
 
   /// @copydoc cvalue
-  const T& value() const noexcept {
+  [[nodiscard]] const T& value() const noexcept {
     BROKER_ASSERT(engaged_);
     return value_;
   }
@@ -195,19 +195,19 @@ public:
   }
 
   /// Returns `true` if the object holds a value (is engaged).
-  bool engaged() const noexcept {
+  [[nodiscard]] bool engaged() const noexcept {
     return engaged_;
   }
 
   /// Returns the contained error.
   /// @pre `engaged() == false`.
-  const broker::error& cerror() const noexcept {
+  [[nodiscard]] const broker::error& cerror() const noexcept {
     BROKER_ASSERT(!engaged_);
     return error_;
   }
 
   /// @copydoc cerror
-  const broker::error& error() const noexcept {
+  [[nodiscard]] const broker::error& error() const noexcept {
     BROKER_ASSERT(!engaged_);
     return error_;
   }
@@ -365,7 +365,7 @@ public:
     return !error_;
   }
 
-  const broker::error& error() const {
+  [[nodiscard]] const broker::error& error() const {
     return error_;
   }
 

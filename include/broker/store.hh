@@ -85,7 +85,7 @@ public:
     std::vector<response> receive(size_t n);
 
     /// Returns a globally unique identifier for the frontend actor.
-    entity_id frontend_id() const noexcept;
+    [[nodiscard]] entity_id frontend_id() const noexcept;
 
   private:
     request_id id_ = 0;
@@ -118,16 +118,16 @@ public:
   /// Retrieves the name of the store.
   /// @returns A copy of the store name or an empty string when calling this
   ///          function on an invalid object.
-  std::string name() const;
+  [[nodiscard]] std::string name() const;
 
   /// Checks whether a key exists in the store.
   /// @returns A boolean that's if the key exists.
-  expected<data> exists(data key) const;
+  [[nodiscard]] expected<data> exists(data key) const;
 
   /// Retrieves a value.
   /// @param key The key of the value to retrieve.
   /// @returns The value under *key* or an error.
-  expected<data> get(data key) const;
+  [[nodiscard]] expected<data> get(data key) const;
 
   /// Inserts a value if the key does not already exist.
   /// @param key The key of the key-value pair.
@@ -144,13 +144,13 @@ public:
   /// @returns For tables and vector, the value under *index* or an error.
   /// For sets, a boolean indicating whether the set contains the index.
   /// Always returns an error if the store does not have the key.
-  expected<data> get_index_from_value(data key, data index) const;
+  [[nodiscard]] expected<data> get_index_from_value(data key, data index) const;
 
   /// Retrieves a copy of the store's current keys, returned as a set.
-  expected<data> keys() const;
+  [[nodiscard]] expected<data> keys() const;
 
   /// Returns whether the store was fully initialized
-  bool initialized() const noexcept;
+  [[nodiscard]] bool initialized() const noexcept;
 
   /// Returns whether the store was fully initialized
   explicit operator bool() const noexcept {
@@ -159,10 +159,10 @@ public:
 
   /// Retrieves the frontend.
   /// @pre `initialized()`
-  worker frontend() const;
+  [[nodiscard]] worker frontend() const;
 
   /// Returns a globally unique identifier for the frontend actor.
-  entity_id frontend_id() const;
+  [[nodiscard]] entity_id frontend_id() const;
 
   // --- modifiers -----------------------------------------------------------
 

@@ -292,30 +292,31 @@ metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
     return i->get();
   } else {
     using ct::metric_type;
-    instance_ptr new_instance;
+    instance_ptr ptr;
+    using std::make_unique;
     switch (mv.type()) {
       case metric_type::int_counter:
-        new_instance.reset(new remote_counter<integer>(owned(labels), fptr));
+        ptr = make_unique<remote_counter<integer>>(owned(labels), fptr);
         break;
       case metric_type::dbl_counter:
-        new_instance.reset(new remote_counter<real>(owned(labels), fptr));
+        ptr = make_unique<remote_counter<real>>(owned(labels), fptr);
         break;
       case metric_type::int_gauge:
-        new_instance.reset(new remote_gauge<integer>(owned(labels), fptr));
+        ptr = make_unique<remote_gauge<integer>>(owned(labels), fptr);
         break;
       case metric_type::dbl_gauge:
-        new_instance.reset(new remote_gauge<real>(owned(labels), fptr));
+        ptr = make_unique<remote_gauge<real>>(owned(labels), fptr);
         break;
       case metric_type::int_histogram:
-        new_instance.reset(new remote_histogram<integer>(owned(labels), fptr));
+        ptr = make_unique<remote_histogram<integer>>(owned(labels), fptr);
         break;
       case metric_type::dbl_histogram:
-        new_instance.reset(new remote_histogram<real>(owned(labels), fptr));
+        ptr = make_unique<remote_histogram<real>>(owned(labels), fptr);
         break;
       default:
         return nullptr;
     }
-    scope.instances.emplace_back(std::move(new_instance));
+    scope.instances.emplace_back(std::move(ptr));
     return scope.instances.back().get();
   }
 }

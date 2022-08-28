@@ -46,7 +46,7 @@ public:
 
   // -- properties -------------------------------------------------------------
 
-  bool valid() const noexcept {
+  [[nodiscard]] bool valid() const noexcept {
     return row_ != nullptr;
   }
 
@@ -55,47 +55,47 @@ public:
   }
 
   /// @pre `valid()`
-  const std::string& prefix() const {
+  [[nodiscard]] const std::string& prefix() const {
     return {get<std::string>(field::prefix)};
   }
 
   /// @pre `valid()`
-  const std::string& name() const {
+  [[nodiscard]] const std::string& name() const {
     return {get<std::string>(field::name)};
   }
 
   /// @pre `valid()`
-  caf::telemetry::metric_type type() const noexcept {
+  [[nodiscard]] caf::telemetry::metric_type type() const noexcept {
     return type_;
   }
 
   /// @pre `valid()`
-  const std::string& type_str() const {
+  [[nodiscard]] const std::string& type_str() const {
     return {get<std::string>(field::type)};
   }
 
   /// @pre `valid()`
-  const std::string& unit() const {
+  [[nodiscard]] const std::string& unit() const {
     return {get<std::string>(field::unit)};
   }
 
   /// @pre `valid()`
-  const std::string& helptext() const {
+  [[nodiscard]] const std::string& helptext() const {
     return {get<std::string>(field::helptext)};
   }
 
   /// @pre `valid()`
-  bool is_sum() const {
+  [[nodiscard]] bool is_sum() const {
     return get<bool>(field::is_sum);
   }
 
   /// @pre `valid()`
-  const table& labels() const {
+  [[nodiscard]] const table& labels() const {
     return get<table>(field::labels);
   }
 
   /// @pre `valid()`
-  const data& value() const {
+  [[nodiscard]] const data& value() const {
     return (*row_)[index(field::value)];
   }
 
@@ -106,7 +106,7 @@ private:
                        caf::telemetry::metric_type& var) noexcept;
 
   template <class T>
-  const T& get(field x) const {
+  [[nodiscard]] [[nodiscard]] [[nodiscard]] const T& get(field x) const {
     BROKER_ASSERT(row_ != nullptr);
     return broker::get<T>((*row_)[index(x)]);
   }

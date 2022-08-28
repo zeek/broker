@@ -29,7 +29,7 @@ public:
 
   /// Retrieves a file descriptor that will become ready if the flare has been
   /// "fired" and not yet "extinguished."
-  native_socket fd() const;
+  [[nodiscard]] native_socket fd() const;
 
   /// Puts the object in the "ready" state by writing `n` bytes into the
   /// underlying pipe.

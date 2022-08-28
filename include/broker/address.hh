@@ -51,10 +51,10 @@ public:
   bool mask(uint8_t top_bits_to_keep);
 
   /// @returns true if the address is IPv4.
-  bool is_v4() const noexcept;
+  [[nodiscard]] bool is_v4() const noexcept;
 
   /// @returns true if the address is IPv6.
-  bool is_v6() const noexcept {
+  [[nodiscard]] bool is_v6() const noexcept {
     return !is_v4();
   }
 
@@ -66,7 +66,7 @@ public:
 
   /// @returns the raw bytes of the address in network order. For IPv4
   /// addresses, this uses the IPv4-mapped IPv6 address representation.
-  const std::array<uint8_t, 16>& bytes() const noexcept {
+  [[nodiscard]] const std::array<uint8_t, 16>& bytes() const noexcept {
     return bytes_;
   }
 

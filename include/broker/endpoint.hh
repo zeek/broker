@@ -64,9 +64,9 @@ public:
 
     // -- accessors ------------------------------------------------------------
 
-    virtual timestamp now() const noexcept = 0;
+    [[nodiscard]] virtual timestamp now() const noexcept = 0;
 
-    virtual bool real_time() const noexcept = 0;
+    [[nodiscard]] virtual bool real_time() const noexcept = 0;
 
     // -- mutators -------------------------------------------------------------
 
@@ -146,7 +146,7 @@ public:
   void shutdown();
 
   /// @returns a unique node id for this endpoint.
-  endpoint_id node_id() const noexcept {
+  [[nodiscard]] endpoint_id node_id() const noexcept {
     return id_;
   }
 
@@ -225,10 +225,10 @@ public:
 
   /// Retrieves a list of all known peers.
   /// @returns A pointer to the list
-  std::vector<peer_info> peers() const;
+  [[nodiscard]] std::vector<peer_info> peers() const;
 
   /// Retrieves a list of topics that peers have subscribed to on this endpoint.
-  std::vector<topic> peer_subscriptions() const;
+  [[nodiscard]] std::vector<topic> peer_subscriptions() const;
 
   // --- alternative client protocols ------------------------------------------
 
@@ -466,7 +466,7 @@ public:
   // --- properties ------------------------------------------------------------
 
   /// Queries whether the endpoint waits for masters and slaves on shutdown.
-  bool await_stores_on_shutdown() const {
+  [[nodiscard]] bool await_stores_on_shutdown() const {
     constexpr auto flag = shutdown_options::await_stores_on_shutdown;
     return shutdown_options_.contains(flag);
   }
@@ -485,15 +485,15 @@ public:
     return metrics_exporter_t{this};
   }
 
-  bool is_shutdown() const {
+  [[nodiscard]] bool is_shutdown() const {
     return ctx_ == nullptr;
   }
 
-  bool use_real_time() const {
+  [[nodiscard]] bool use_real_time() const {
     return clock_->real_time();
   }
 
-  timestamp now() const {
+  [[nodiscard]] timestamp now() const {
     return clock_->now();
   }
 
@@ -501,14 +501,14 @@ public:
     clock_->advance_time(t);
   }
 
-  const worker& core() const {
+  [[nodiscard]] const worker& core() const {
     return core_;
   }
 
-  broker_options options() const;
+  [[nodiscard]] broker_options options() const;
 
   /// Retrieves the current filter.
-  filter_type filter() const;
+  [[nodiscard]] filter_type filter() const;
 
 protected:
   worker subscriber_;

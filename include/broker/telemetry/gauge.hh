@@ -90,12 +90,12 @@ public:
   }
 
   /// @return The current value.
-  T value() const noexcept {
+  [[nodiscard]] T value() const noexcept {
     return telemetry::value(hdl_);
   }
 
   /// @return Whether @c this and @p other refer to the same gauge.
-  constexpr bool is_same_as(gauge other) const noexcept {
+  [[nodiscard]] constexpr bool is_same_as(gauge other) const noexcept {
     return hdl_ == other.hdl_;
   }
 

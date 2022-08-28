@@ -33,12 +33,12 @@ public:
   port(number_type num, protocol p);
 
   /// @return The port number.
-  number_type number() const;
+  [[nodiscard]] number_type number() const;
 
   /// @return The port's transport protocol.
-  protocol type() const;
+  [[nodiscard]] protocol type() const;
 
-  size_t hash() const;
+  [[nodiscard]] size_t hash() const;
 
   friend bool operator==(const port& lhs, const port& rhs);
   friend bool operator<(const port& lhs, const port& rhs);

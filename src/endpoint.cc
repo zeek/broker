@@ -133,11 +133,11 @@ public:
     // nop
   }
 
-  timestamp now() const noexcept override {
+  [[nodiscard]] timestamp now() const noexcept override {
     return broker::now();
   }
 
-  bool real_time() const noexcept override {
+  [[nodiscard]] bool real_time() const noexcept override {
     return true;
   }
 
@@ -308,7 +308,7 @@ public:
     return actual_port;
   }
 
-  ~prometheus_http_task() {
+  ~prometheus_http_task() override {
     if (mpx_supervisor_) {
       mpx_.dispatch([=] {
         auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
@@ -391,7 +391,7 @@ public:
   connector_task(const connector_task&) = delete;
   connector_task& operator=(const connector_task&) = delete;
 
-  ~connector_task() {
+  ~connector_task() override {
     if (connector_) {
       connector_->async_shutdown();
       thread_.join();
@@ -525,9 +525,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   // Initialize remaining state.
   auto opts = ctx_->cfg.options();
   if (opts.use_real_time)
-    clock_.reset(new real_time_clock(ctx_.get()));
+    clock_ = std::make_unique<real_time_clock>(ctx_.get());
   else
-    clock_.reset(new sim_clock(ctx_.get()));
+    clock_ = std::make_unique<sim_clock>(ctx_.get());
   BROKER_INFO("creating endpoint" << id_);
   // TODO: the core actor may end up running basically nonstop in case it has a
   //       lot of incoming traffic to manage. CAF *should* suspend actors based
@@ -719,12 +719,11 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
   self
     ->request(native(core_), caf::infinite, atom::unpeer_v,
               network_info{address, port})
-    .receive([&](void) { result = true; },
+    .receive([&] { result = true; },
              [&](caf::error& err) {
                BROKER_DEBUG("Cannot unpeer from" << address << "on port" << port
                                                  << ":" << err);
              });
-
   return result;
 }
 

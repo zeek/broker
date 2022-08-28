@@ -121,7 +121,7 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns the managed tuple.
-  const data_type& data() const noexcept {
+  [[nodiscard]] const data_type& data() const noexcept {
     return ptr_->data;
   }
 
@@ -139,7 +139,7 @@ public:
   }
 
   /// Checks whether this object holds the only reference to the data.
-  bool unique() const noexcept {
+  [[nodiscard]] bool unique() const noexcept {
     return ptr_->unique();
   }
 

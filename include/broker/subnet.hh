@@ -22,15 +22,15 @@ public:
   subnet(const address& addr, uint8_t length);
 
   /// @return whether an address is contained within this subnet.
-  bool contains(const address& addr) const;
+  [[nodiscard]] bool contains(const address& addr) const;
 
   /// @return the network address of the subnet.
-  const address& network() const;
+  [[nodiscard]] const address& network() const;
 
   /// @return the prefix length of the subnet.
-  uint8_t length() const;
+  [[nodiscard]] uint8_t length() const;
 
-  size_t hash() const;
+  [[nodiscard]] size_t hash() const;
 
   friend bool operator==(const subnet& lhs, const subnet& rhs);
   friend bool operator<(const subnet& lhs, const subnet& rhs);

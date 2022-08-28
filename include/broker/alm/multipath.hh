@@ -96,11 +96,11 @@ public:
 
   ~multipath_group();
 
-  size_t size() const noexcept {
+  [[nodiscard]] size_t size() const noexcept {
     return size_;
   }
 
-  bool empty() const noexcept {
+  [[nodiscard]] bool empty() const noexcept {
     return size_ == 0;
   }
 
@@ -108,7 +108,7 @@ public:
     return iterator{first_};
   }
 
-  const_iterator begin() const noexcept {
+  [[nodiscard]] const_iterator begin() const noexcept {
     return const_iterator{first_};
   }
 
@@ -116,13 +116,13 @@ public:
     return iterator{nullptr};
   }
 
-  const_iterator end() const noexcept {
+  [[nodiscard]] const_iterator end() const noexcept {
     return const_iterator{nullptr};
   }
 
-  bool equals(const multipath_group& other) const noexcept;
+  [[nodiscard]] bool equals(const multipath_group& other) const noexcept;
 
-  bool contains(const endpoint_id& id) const noexcept;
+  [[nodiscard]] bool contains(const endpoint_id& id) const noexcept;
 
   std::pair<multipath_node*, bool>
   emplace(detail::monotonic_buffer_resource& mem, const endpoint_id& id);
@@ -164,15 +164,15 @@ public:
     return *this;
   }
 
-  const auto& head() const noexcept {
+  [[nodiscard]] const auto& head() const noexcept {
     return *this;
   }
 
-  const auto& id() const noexcept {
+  [[nodiscard]] const auto& id() const noexcept {
     return id_;
   }
 
-  bool is_receiver() const noexcept {
+  [[nodiscard]] bool is_receiver() const noexcept {
     return is_receiver_;
   }
 
@@ -180,13 +180,13 @@ public:
     return down_;
   }
 
-  const auto& nodes() const noexcept {
+  [[nodiscard]] const auto& nodes() const noexcept {
     return down_;
   }
 
-  bool equals(const multipath_node& other) const noexcept;
+  [[nodiscard]] bool equals(const multipath_node& other) const noexcept;
 
-  bool contains(const endpoint_id& id) const noexcept;
+  [[nodiscard]] bool contains(const endpoint_id& id) const noexcept;
 
   void stringify(std::string& buf) const;
 
@@ -304,7 +304,7 @@ public:
     }
   }
 
-  multipath(const tree_ptr&, multipath_node*);
+  multipath(tree_ptr, multipath_node*);
 
   explicit multipath(const tree_ptr& tptr) : multipath(tptr, tptr->root) {
     // nop
@@ -318,19 +318,19 @@ public:
 
   multipath& operator=(const multipath& other) = default;
 
-  const auto& head() const noexcept {
+  [[nodiscard]] const auto& head() const noexcept {
     return *head_;
   }
 
-  bool equals(const multipath& other) const noexcept {
+  [[nodiscard]] bool equals(const multipath& other) const noexcept {
     return head_->equals(*other.head_);
   }
 
-  bool contains(const endpoint_id& id) const noexcept {
+  [[nodiscard]] bool contains(const endpoint_id& id) const noexcept {
     return head_->contains(id);
   }
 
-  size_t num_nodes() const noexcept {
+  [[nodiscard]] size_t num_nodes() const noexcept {
     return head_->down_.size();
   }
 

@@ -113,7 +113,7 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
   while (i < cap) {
     FD_ZERO(&readset);
     FD_SET(fd, &readset);
-    if (select(fd + 1, &readset, NULL, NULL, NULL) <= 0) {
+    if (select(fd + 1, &readset, nullptr, nullptr, nullptr) <= 0) {
       print_line(std::cerr, "select() failed, errno: " + std::to_string(errno));
       return;
     }
@@ -160,7 +160,7 @@ void subscribe_mode_select(broker::endpoint& ep, const std::string& topic_str,
   while (i < cap) {
     FD_ZERO(&readset);
     FD_SET(fd, &readset);
-    if (select(fd + 1, &readset, NULL, NULL, NULL) <= 0) {
+    if (select(fd + 1, &readset, nullptr, nullptr, nullptr) <= 0) {
       print_line(std::cerr, "select() failed, errno: " + std::to_string(errno));
       return;
     }

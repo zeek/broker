@@ -300,27 +300,27 @@ public:
       return *backend_;
     }
 
-    const auto& backend() const noexcept {
+    [[nodiscard]] const auto& backend() const noexcept {
       return *backend_;
     }
 
-    auto seq() const noexcept {
+    [[nodiscard]] auto seq() const noexcept {
       return seq_;
     }
 
-    auto next_seq() const noexcept {
+    [[nodiscard]] auto next_seq() const noexcept {
       return seq_ + 1;
     }
 
-    const auto& buf() const noexcept {
+    [[nodiscard]] const auto& buf() const noexcept {
       return buf_;
     }
 
-    const auto& paths() const noexcept {
+    [[nodiscard]] const auto& paths() const noexcept {
       return paths_;
     }
 
-    auto heartbeat_interval() const noexcept {
+    [[nodiscard]] auto heartbeat_interval() const noexcept {
       return heartbeat_interval_;
     }
 
@@ -328,11 +328,11 @@ public:
       heartbeat_interval_ = value;
     }
 
-    auto connection_timeout() const noexcept {
+    [[nodiscard]] auto connection_timeout() const noexcept {
       return uint64_t{heartbeat_interval_} * connection_timeout_factor_;
     }
 
-    auto connection_timeout_factor() const noexcept {
+    [[nodiscard]] auto connection_timeout_factor() const noexcept {
       return connection_timeout_factor_;
     }
 
@@ -340,13 +340,13 @@ public:
       connection_timeout_factor_ = value;
     }
 
-    bool idle() const noexcept {
+    [[nodiscard]] bool idle() const noexcept {
       auto at_head = [seq{seq_}](const path& x) { return x.acked == seq; };
       return std::all_of(paths_.begin(), paths_.end(), at_head);
     }
 
     /// Checks whether any path was added but not yet acknowledged.
-    bool has_pending_paths() const noexcept {
+    [[nodiscard]] bool has_pending_paths() const noexcept {
       auto pending = [](const path& x) { return x.acked == 0; };
       return std::any_of(paths_.begin(), paths_.end(), pending);
     }
@@ -358,7 +358,7 @@ public:
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
 
-    auto find_path(const Handle& hdl) const noexcept {
+    [[nodiscard]] auto find_path(const Handle& hdl) const noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
@@ -611,11 +611,11 @@ public:
       return *backend_;
     }
 
-    const auto& backend() const noexcept {
+    [[nodiscard]] const auto& backend() const noexcept {
       return *backend_;
     }
 
-    const auto& producer() const {
+    [[nodiscard]] const auto& producer() const {
       return producer_;
     }
 
@@ -623,20 +623,20 @@ public:
       producer_ = std::move(hdl);
     }
 
-    const auto& buf() const noexcept {
+    [[nodiscard]] const auto& buf() const noexcept {
       return buf_;
     }
 
-    auto num_ticks() const noexcept {
+    [[nodiscard]] auto num_ticks() const noexcept {
       // Lamport timestamps start at 1.
       return tick_.value - 1;
     }
 
-    auto idle_ticks() const noexcept {
+    [[nodiscard]] auto idle_ticks() const noexcept {
       return idle_ticks_;
     }
 
-    auto heartbeat_interval() const noexcept {
+    [[nodiscard]] auto heartbeat_interval() const noexcept {
       return heartbeat_interval_;
     }
 
@@ -644,11 +644,11 @@ public:
       heartbeat_interval_ = value;
     }
 
-    auto connection_timeout() const noexcept {
+    [[nodiscard]] auto connection_timeout() const noexcept {
       return uint64_t{heartbeat_interval_} * connection_timeout_factor_;
     }
 
-    auto connection_timeout_factor() const noexcept {
+    [[nodiscard]] auto connection_timeout_factor() const noexcept {
       return connection_timeout_factor_;
     }
 
@@ -656,7 +656,7 @@ public:
       connection_timeout_factor_ = value;
     }
 
-    auto nack_timeout() const noexcept {
+    [[nodiscard]] auto nack_timeout() const noexcept {
       return nack_timeout_;
     }
 
@@ -664,19 +664,19 @@ public:
       nack_timeout_ = value;
     }
 
-    auto next_seq() const noexcept {
+    [[nodiscard]] auto next_seq() const noexcept {
       return next_seq_;
     }
 
-    auto last_seq() const noexcept {
+    [[nodiscard]] auto last_seq() const noexcept {
       return last_seq_;
     }
 
-    bool initialized() const noexcept {
+    [[nodiscard]] bool initialized() const noexcept {
       return next_seq_ != 0;
     }
 
-    bool idle() const noexcept {
+    [[nodiscard]] bool idle() const noexcept {
       return initialized() && buf_.empty() && next_seq_ == last_seq_;
     }
 
