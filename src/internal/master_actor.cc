@@ -49,8 +49,8 @@ master_state::master_state(
   caf::async::consumer_resource<command_message> in_res,
   caf::async::producer_resource<command_message> out_res)
   : output(this) {
-  super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
-              std::move(parent), std::move(in_res), std::move(out_res));
+  super::init(ptr, this_endpoint, ep_clock, std::move(nm), std::move(parent),
+              std::move(in_res), std::move(out_res));
   super::init(output);
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);
@@ -77,7 +77,7 @@ void master_state::dispatch(const command_message& msg) {
     case command_tag::action: {
       // Action messages from writers.
       if (auto i = inputs.find(cmd.sender); i != inputs.end())
-        i->second.handle_event(seq, std::move(msg));
+        i->second.handle_event(seq, msg);
       else
         BROKER_DEBUG("received action from unknown sender:" << cmd.sender);
       break;
@@ -150,7 +150,7 @@ void master_state::tick() {
   auto t = clock->now();
   for (auto i = expirations.begin(); i != expirations.end();) {
     if (t > i->second) {
-      auto& key = i->first;
+      const auto& key = i->first;
       BROKER_INFO("EXPIRE" << key);
       if (auto result = backend->expire(key, t); !result) {
         BROKER_ERROR("EXPIRE" << key << "(FAILED)"
@@ -158,7 +158,7 @@ void master_state::tick() {
       } else if (!*result) {
         BROKER_INFO("EXPIRE" << key << "(IGNORE/STALE)");
       } else {
-        expire_command cmd{std::move(key), id};
+        expire_command cmd{key, id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
       }
@@ -232,8 +232,8 @@ void master_state::consume(put_unique_command& x) {
   emit_insert_event(x);
   // Broadcast a regular "put" command (clones don't have to do their own
   // existence check) followed by the (positive) result message.
-  broadcast(put_command{std::move(x.key), std::move(x.value), x.expiry,
-                        std::move(x.publisher)});
+  broadcast(
+    put_command{std::move(x.key), std::move(x.value), x.expiry, x.publisher});
   broadcast_result(true);
 }
 
@@ -267,7 +267,7 @@ void master_state::consume(add_command& x) {
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    std::move(x.publisher)};
+                    x.publisher};
     if (old_value)
       emit_update_event(cmd, *old_value);
     else
@@ -300,7 +300,7 @@ void master_state::consume(subtract_command& x) {
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    std::move(x.publisher)};
+                    x.publisher};
     emit_update_event(cmd, *old_value);
     broadcast(std::move(cmd));
   }
@@ -325,7 +325,7 @@ void master_state::consume(clear_command& x) {
   }
   if (auto res = backend->clear(); !res)
     detail::die("failed to clear master");
-  broadcast(std::move(x));
+  broadcast(x);
 }
 
 error master_state::consume_nil(consumer_type* src) {
@@ -338,7 +338,7 @@ error master_state::consume_nil(consumer_type* src) {
   return {};
 }
 
-void master_state::close(consumer_type* src, [[maybe_unused]] error reason) {
+void master_state::close(consumer_type* src, const error& reason) {
   BROKER_TRACE(BROKER_ARG(reason));
   if (auto i = inputs.find(src->producer()); i != inputs.end()) {
     if (reason)
@@ -511,17 +511,17 @@ caf::behavior master_state::make_behavior() {
       if (x)
         return caf::make_message(std::move(*x), id);
       else
-        return caf::make_message(native(std::move(x.error())), id);
+        return caf::make_message(native(x.error()), id);
     },
     [this](atom::exists, const data& key) -> caf::result<data> {
       auto x = backend->exists(key);
       BROKER_INFO("EXISTS" << key << "->" << x);
-      return {data{std::move(*x)}};
+      return {data{*x}};
     },
     [this](atom::exists, const data& key, request_id id) {
       auto x = backend->exists(key);
       BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
-      return caf::make_message(data{std::move(*x)}, id);
+      return caf::make_message(data{*x}, id);
     },
     [this](atom::get, const data& key) -> caf::result<data> {
       auto x = backend->get(key);

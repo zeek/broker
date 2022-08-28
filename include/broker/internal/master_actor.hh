@@ -85,7 +85,7 @@ public:
 
   error consume_nil(consumer_type* src);
 
-  void close(consumer_type* src, error);
+  void close(consumer_type* src, const error&);
 
   void send(consumer_type*, channel_type::cumulative_ack);
 

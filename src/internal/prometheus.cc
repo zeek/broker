@@ -135,7 +135,7 @@ caf::behavior prometheus_actor::make_behavior() {
       if (num_connections() + num_doormen() == 0)
         quit();
     },
-    [this](data_message msg) {
+    [this](const data_message& msg) {
       BROKER_TRACE(BROKER_ARG(msg));
       collector_.insert_or_update(get_data(msg));
     },

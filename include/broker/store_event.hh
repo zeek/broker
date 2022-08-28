@@ -75,7 +75,7 @@ public:
 
     entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[5])) {
-        return {std::move(*value), get<uint64_t>((*xs_)[6])};
+        return {*value, get<uint64_t>((*xs_)[6])};
       }
       return {};
     }

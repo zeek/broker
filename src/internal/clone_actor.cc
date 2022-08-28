@@ -48,7 +48,7 @@ clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                          caf::async::consumer_resource<command_message> in_res,
                          caf::async::producer_resource<command_message> out_res)
   : input(this), max_sync_interval(master_timeout) {
-  super::init(ptr, move(this_endpoint), ep_clock, move(nm), move(parent),
+  super::init(ptr, this_endpoint, ep_clock, move(nm), move(parent),
               move(in_res), move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
@@ -89,7 +89,7 @@ void clone_state::dispatch(const command_message& msg) {
   switch (tag) {
     case command_tag::action: {
       // Action messages from the master (broadcasted).
-      input.handle_event(seq, move(msg));
+      input.handle_event(seq, msg);
       break;
     }
     case command_tag::producer_control: {
@@ -117,7 +117,7 @@ void clone_state::dispatch(const command_message& msg) {
             BROKER_DEBUG("received ack_clone from" << cmd.sender);
             if (!master_id)
               master_id = cmd.sender;
-            set_store(move(inner.state));
+            set_store(inner.state);
             start_output();
           } else {
             BROKER_DEBUG("drop repeated ack_clone from" << cmd.sender);
@@ -262,7 +262,8 @@ error clone_state::consume_nil(consumer_type* src) {
   return ec::broken_clone;
 }
 
-void clone_state::close(consumer_type* src, [[maybe_unused]] error reason) {
+void clone_state::close(consumer_type* src,
+                        [[maybe_unused]] const error& reason) {
   BROKER_ERROR(BROKER_ARG(reason));
   // TODO: send some 'bye, bye' message to enable the master to remove this
   //       clone early, rather than waiting for timeout, see:
@@ -384,7 +385,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
   // Short-circuit messages with an empty state.
   if (x.empty()) {
     if (!store.empty()) {
-      clear_command cmd{move(publisher)};
+      clear_command cmd{publisher};
       consume(cmd);
     }
   } else if (store.empty()) {

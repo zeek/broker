@@ -116,13 +116,13 @@ public:
   template <sc S>
   static status make(endpoint_id node, std::string msg) {
     static_assert(sc_has_endpoint_info_v<S>);
-    return {S, endpoint_info{std::move(node), std::nullopt}, std::move(msg)};
+    return {S, endpoint_info{node, std::nullopt}, std::move(msg)};
   }
 
   template <sc S>
   static status make(sc_constant<S>, endpoint_id node, std::string msg) {
     static_assert(sc_has_endpoint_info_v<S>);
-    return {S, endpoint_info{std::move(node), std::nullopt}, std::move(msg)};
+    return {S, endpoint_info{node, std::nullopt}, std::move(msg)};
   }
 
   /// Default-constructs an unspecified status.

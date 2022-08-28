@@ -194,7 +194,7 @@ store::store(endpoint_id this_peer, worker frontend, std::string name) {
   caf::anon_send(hdl, atom::increment_v, std::move(ptr));
 }
 
-store& store::operator=(store&& other) {
+store& store::operator=(store&& other) noexcept {
   with_state_ptr([this](detail::shared_store_state_ptr& st) {
     auto frontend = dref(st).frontend;
     caf::anon_send(frontend, atom::decrement_v, std::move(st));
@@ -463,7 +463,7 @@ void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
   with_state_or(
     [&](state_impl& st) {
       auto await_actor = [cb{std::move(callback)}](caf::event_based_actor* self,
-                                                   caf::actor frontend,
+                                                   const caf::actor& frontend,
                                                    timespan t) {
         self->request(frontend, t, atom::await_v, atom::idle_v)
           .then([cb](atom::ok) { cb(true); },

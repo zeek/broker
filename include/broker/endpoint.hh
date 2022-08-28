@@ -452,7 +452,7 @@ public:
   ///                this function may block.
   /// @returns `true` if `what` was added before the timeout, `false` otherwise.
   [[nodiscard]] bool
-  await_filter_entry(topic what,
+  await_filter_entry(const topic& what,
                      timespan timeout = defaults::await_peer_timeout);
 
   // -- worker management ------------------------------------------------------
@@ -514,9 +514,10 @@ protected:
   worker subscriber_;
 
 private:
-  worker do_subscribe(filter_type&& topics, detail::sink_driver_ptr driver);
+  worker do_subscribe(filter_type&& topics,
+                      const detail::sink_driver_ptr& driver);
 
-  worker do_publish_all(detail::source_driver_ptr driver);
+  worker do_publish_all(const detail::source_driver_ptr& driver);
 
   template <class F>
   worker make_worker(F fn);

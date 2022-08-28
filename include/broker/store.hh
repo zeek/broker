@@ -103,11 +103,11 @@ public:
 
   store() = default;
 
-  store(store&&) = default;
+  store(store&&) noexcept = default;
 
   store(const store&);
 
-  store& operator=(store&&);
+  store& operator=(store&&) noexcept;
 
   store& operator=(const store&);
 
@@ -204,7 +204,7 @@ public:
         break;
     }
 
-    add(std::move(key), std::move(amount), init_type, std::move(expiry));
+    add(std::move(key), std::move(amount), init_type, expiry);
   }
 
   /// Decrements a value by a given amount. This is supported for all
@@ -213,7 +213,7 @@ public:
   /// @param value The amount to decrement the value.
   /// @param expiry An optional new expiration time for *key*.
   void decrement(data key, data amount, std::optional<timespan> expiry = {}) {
-    subtract(std::move(key), std::move(amount), std::move(expiry));
+    subtract(std::move(key), std::move(amount), expiry);
   }
 
   /// Appends a string to another one.
@@ -221,7 +221,7 @@ public:
   /// @param str The string to append.
   /// @param expiry An optional new expiration time for *key*.
   void append(data key, data str, std::optional<timespan> expiry = {}) {
-    add(std::move(key), std::move(str), data::type::string, std::move(expiry));
+    add(std::move(key), std::move(str), data::type::string, expiry);
   }
 
   /// Inserts an index into a set.
@@ -229,7 +229,7 @@ public:
   /// @param index The index to insert.
   /// @param expiry An optional new expiration time for *key*.
   void insert_into(data key, data index, std::optional<timespan> expiry = {}) {
-    add(std::move(key), std::move(index), data::type::set, std::move(expiry));
+    add(std::move(key), std::move(index), data::type::set, expiry);
   }
 
   /// Inserts an index into a table.
@@ -241,7 +241,7 @@ public:
   void insert_into(data key, data index, data value,
                    std::optional<timespan> expiry = {}) {
     add(std::move(key), vector({std::move(index), std::move(value)}),
-        data::type::table, std::move(expiry));
+        data::type::table, expiry);
   }
 
   /// Removes am index from a set or table.
@@ -249,7 +249,7 @@ public:
   /// @param index The index to remove.
   /// @param expiry An optional new expiration time for *key*.
   void remove_from(data key, data index, std::optional<timespan> expiry = {}) {
-    subtract(std::move(key), std::move(index), std::move(expiry));
+    subtract(std::move(key), std::move(index), expiry);
   }
 
   /// Appends a value to a vector.
@@ -257,15 +257,14 @@ public:
   /// @param value The value to append.
   /// @param expiry An optional new expiration time for *key*.
   void push(data key, data value, std::optional<timespan> expiry = {}) {
-    add(std::move(key), std::move(value), data::type::vector,
-        std::move(expiry));
+    add(std::move(key), std::move(value), data::type::vector, expiry);
   }
 
   /// Removes the last value of a vector.
   /// @param key The key of the vector from which to remove the last value.
   /// @param expiry An optional new expiration time for *key*.
-  void pop(data key, std::optional<timespan> expiry = {}) {
-    subtract(key, key, std::move(expiry));
+  void pop(const data& key, std::optional<timespan> expiry = {}) {
+    subtract(key, key, expiry);
   }
 
   // --await-idle-start

@@ -111,7 +111,7 @@ public:
 
   configuration();
 
-  configuration(configuration&&);
+  configuration(configuration&&) noexcept;
 
   /// Constructs a configuration with non-default Broker options.
   explicit configuration(broker_options opts);
@@ -177,20 +177,20 @@ public:
                   std::string_view description);
 
   template <class T>
-  std::enable_if_t<std::is_integral_v<T>> set(std::string key, T val) {
+  std::enable_if_t<std::is_integral_v<T>> set(std::string_view key, T val) {
     if constexpr (std::is_same_v<T, bool>)
-      set_bool(std::move(key), val);
+      set_bool(key, val);
     else if constexpr (std::is_signed_v<T>)
-      set_i64(std::move(key), val);
+      set_i64(key, val);
     else
-      set_u64(std::move(key), val);
+      set_u64(key, val);
   }
 
-  void set(std::string key, timespan val);
+  void set(std::string_view key, timespan val);
 
-  void set(std::string key, std::string val);
+  void set(std::string_view key, std::string val);
 
-  void set(std::string key, std::vector<std::string> val);
+  void set(std::string_view key, std::vector<std::string> val);
 
   std::optional<int64_t> read_i64(std::string_view key, int64_t min_val,
                                   int64_t max_val) const;
@@ -223,11 +223,11 @@ public:
   void init(int argc, char** argv);
 
 private:
-  void set_i64(std::string key, int64_t val);
+  void set_i64(std::string_view key, int64_t val);
 
-  void set_u64(std::string key, uint64_t val);
+  void set_u64(std::string_view key, uint64_t val);
 
-  void set_bool(std::string key, bool val);
+  void set_bool(std::string_view key, bool val);
 
   std::unique_ptr<impl> impl_;
 };

@@ -295,7 +295,7 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     }
     return true;
   };
-  auto in = ep.make_subscriber(topics);
+  auto in = ep.make_subscriber(std::move(topics));
   auto& cfg = broker::internal::endpoint_access{&ep}.cfg();
   if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
     auto timeout = std::chrono::system_clock::now();
@@ -368,7 +368,7 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
 void pong_mode(broker::endpoint& ep, topic_list topics) {
   assert(topics.size() > 0);
   verbose::println("receive pings from topics ", topics);
-  auto in = ep.make_subscriber(topics);
+  auto in = ep.make_subscriber(std::move(topics));
   for (;;) {
     auto x = in.get();
     auto& val = get_data(x);

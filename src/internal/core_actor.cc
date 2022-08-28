@@ -56,8 +56,8 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
   if (conn) {
     auto on_peering = [this](endpoint_id remote_id, const network_info& addr,
                              const filter_type& filter,
-                             pending_connection_ptr conn) {
-      std::ignore = init_new_peer(remote_id, addr, filter, std::move(conn));
+                             const pending_connection_ptr& conn) {
+      std::ignore = init_new_peer(remote_id, addr, filter, conn);
     };
     auto on_peer_unavailable = [this](const network_info& addr) {
       peer_unavailable(addr);
@@ -184,7 +184,8 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::peer, endpoint_id peer, const network_info& addr,
            const filter_type& filter, node_consumer_res in_res,
            node_producer_res out_res) -> caf::result<void> {
-      if (auto err = init_new_peer(peer, addr, filter, in_res, out_res))
+      if (auto err = init_new_peer(peer, addr, filter, std::move(in_res),
+                                   std::move(out_res)))
         return err;
       else
         return caf::unit;
@@ -242,7 +243,7 @@ caf::behavior core_actor_state::make_behavior() {
       dispatch(dst, pack(msg));
     },
     // -- interface for subscribers --------------------------------------------
-    [this](atom::subscribe, filter_type filter) {
+    [this](atom::subscribe, const filter_type& filter) {
       // Subscribe to topics without actually caring about the events. This
       // makes sure that this node receives events on the topics, which in means
       // we can forward them.
@@ -289,7 +290,8 @@ caf::behavior core_actor_state::make_behavior() {
     },
     // -- interface for publishers ---------------------------------------------
     [this](data_consumer_res src) {
-      auto sub = data_inputs->add(self->make_observable().from_resource(src));
+      auto sub =
+        data_inputs->add(self->make_observable().from_resource(std::move(src)));
       subscriptions.emplace_back(std::move(sub));
     },
     // -- data store management ------------------------------------------------
@@ -302,7 +304,7 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::data_store, atom::master, atom::attach,
            const std::string& name, backend backend_type,
            backend_options opts) {
-      return attach_master(name, backend_type, opts);
+      return attach_master(name, backend_type, std::move(opts));
     },
     [this](atom::data_store, atom::master, atom::get,
            const std::string& name) -> caf::result<caf::actor> {
@@ -585,7 +587,7 @@ void core_actor_state::client_added(endpoint_id client_id,
   emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_discovered>(),
        "found a new client in the network");
-  emit(endpoint_info{client_id, addr, std::move(type)},
+  emit(endpoint_info{client_id, addr, type},
        sc_constant<sc::peer_added>(), "handshake successful");
 }
 
@@ -595,7 +597,7 @@ void core_actor_state::client_removed(endpoint_id client_id,
   BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
   emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_lost>(),
        "lost connection to client");
-  emit(endpoint_info{client_id, std::nullopt, std::move(type)},
+  emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_unreachable>(), "lost the last path");
 }
 
@@ -611,9 +613,10 @@ void core_actor_state::try_connect(const network_info& addr,
   adapter->async_connect(
     addr,
     [this, rp](endpoint_id peer, const network_info& addr,
-               const filter_type& filter, pending_connection_ptr conn) mutable {
+               const filter_type& filter,
+               const pending_connection_ptr& conn) mutable {
       BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
-      if (auto err = init_new_peer(peer, addr, filter, std::move(conn));
+      if (auto err = init_new_peer(peer, addr, filter, conn);
           err && err != ec::repeated_peering_handshake_request)
         rp.deliver(std::move(err));
       else
@@ -649,7 +652,7 @@ void core_actor_state::try_connect(const network_info& addr,
     },
     [this, rp, addr](const caf::error& what) mutable {
       BROKER_TRACE(BROKER_ARG(what));
-      rp.deliver(std::move(what));
+      rp.deliver(what);
       peer_unavailable(addr);
     });
 }
@@ -807,7 +810,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                  BROKER_DEBUG("close output flow to" << peer_id); //
                })
                // Emit values to the producer resource.
-               .subscribe(out_res);
+               .subscribe(std::move(out_res));
   // Increase the logical time for this connection. This timestamp is crucial
   // for our do_finally handler, because this handler must do nothing if we have
   // already removed the connection manually, e.g., as a result of unpeering.
@@ -815,7 +818,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   auto ts = (i == peers.end()) ? lamport_timestamp{} : ++i->second.ts;
   // Read messages from the peer.
   auto in = self->make_observable()
-              .from_resource(in_res)
+              .from_resource(std::move(in_res))
               // If the peer closes this buffer, we assume a disconnect.
               .do_finally([this, peer_id, ts] { //
                 BROKER_DEBUG("close input flow from" << peer_id);
@@ -852,7 +855,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
 caf::error core_actor_state::init_new_peer(endpoint_id peer,
                                            const network_info& addr,
                                            const filter_type& filter,
-                                           pending_connection_ptr ptr) {
+                                           const pending_connection_ptr& ptr) {
   // Spin up a background worker that takes care of socket I/O. We communicate
   // to this worker via producer/consumer buffer resources. The [rd_1, wr_1]
   // pair is the direction core actor -> network. The other pair is for the
@@ -902,11 +905,12 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
     auto sub = central_merge
                  ->as_observable()
                  // Select by subscription.
-                 .filter([this, filter, client_id](const node_message& msg) {
+                 .filter([this, filt = std::move(filter),
+                          client_id](const node_message& msg) {
                    if (get_sender(msg) == client_id)
                      return false;
                    detail::prefix_matcher f;
-                   return f(filter, get_topic(msg));
+                   return f(filt, get_topic(msg));
                  })
                  // Deserialize payload and wrap it into an data message.
                  .flat_map_optional([this](const node_message& msg) {
@@ -915,12 +919,12 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                    return unpack<data_message>(get_packed_message(msg));
                  })
                  // Emit values to the producer resource.
-                 .subscribe(out_res);
+                 .subscribe(std::move(out_res));
     subscriptions.emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
   auto in = self->make_observable()
-              .from_resource(in_res)
+              .from_resource(std::move(in_res))
               // If the client closes this buffer, we assume a disconnect.
               .do_finally([this, client_id, addr, type] {
                 BROKER_DEBUG("client" << addr << "disconnected");
@@ -1066,7 +1070,7 @@ void core_actor_state::shutdown_stores() {
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
 void core_actor_state::dispatch(endpoint_id receiver, packed_message msg) {
-  central_merge->append_to_buf(make_node_message(id, receiver, msg));
+  central_merge->append_to_buf(make_node_message(id, receiver, std::move(msg)));
   central_merge->try_push();
 }
 

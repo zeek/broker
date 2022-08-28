@@ -70,8 +70,7 @@ struct handshake_step {
       } else {
         initialized = true;
         // Ok, set up the actual pipeline and connect to the core.
-        state->init(std::move(filter), std::move(push_to_ws),
-                    std::move(pull_from_core));
+        state->init(filter, push_to_ws, std::move(pull_from_core));
         return true;
       }
     }
@@ -93,7 +92,10 @@ struct handshake_step {
 json_client_state::json_client_state(caf::event_based_actor* selfptr,
                                      endpoint_id this_node, caf::actor core_hdl,
                                      network_info ws_addr, in_t in, out_t out)
-  : self(selfptr), id(this_node), core(core_hdl), addr(ws_addr) {
+  : self(selfptr),
+    id(this_node),
+    core(std::move(core_hdl)),
+    addr(std::move(ws_addr)) {
   reader.mapper(&mapper);
   writer.mapper(&mapper);
   writer.skip_object_type_annotation(true);
@@ -114,8 +116,8 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   // Read from the WebSocket, push to core (core_push).
   self //
     ->make_observable()
-    .from_resource(in) // Read all input text messages.
-    .transform(handshake_step{this, out, core_pull}) // Calls init().
+    .from_resource(std::move(in)) // Read all input text messages.
+    .transform(handshake_step{this, std::move(out), core_pull}) // Calls init().
     .do_finally([this] { ctrl_msgs->dispose(); })
     // Parse all JSON coming in and forward them to the core.
     .flat_map_optional([this, n = 0](const caf::cow_string& str) mutable {
@@ -206,7 +208,7 @@ bool inspect(Inspector& f, const_data_message_decorator& x) {
 }
 
 void json_client_state::init(
-  filter_type filter, out_t out,
+  const filter_type& filter, const out_t& out,
   caf::async::consumer_resource<data_message> core_pull1) {
   using caf::async::make_spsc_buffer_resource;
   // Pull data from the core and forward as JSON.
@@ -237,12 +239,12 @@ void json_client_state::init(
                  .subscribe(out);
     subscriptions.push_back(std::move(sub));
     caf::anon_send(core, atom::attach_client_v, addr, "web-socket"s, filter,
-                   core_pull1, core_push2);
+                   std::move(core_pull1), std::move(core_push2));
   } else {
     auto sub = ctrl_msgs->as_observable().subscribe(out);
     subscriptions.push_back(std::move(sub));
     caf::anon_send(core, atom::attach_client_v, addr, "web-socket"s,
-                   filter_type{}, core_pull1,
+                   filter_type{}, std::move(core_pull1),
                    caf::async::producer_resource<data_message>{});
   }
   // Setup complete. Send ACK to the client.

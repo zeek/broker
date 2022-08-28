@@ -206,7 +206,7 @@ configuration::configuration() : configuration(skip_init) {
   init(0, nullptr);
 }
 
-configuration::configuration(configuration&& other)
+configuration::configuration(configuration&& other) noexcept
   : impl_(std::move(other.impl_)) {
   // cannot '= default' this because impl is incomplete in the header.
 }
@@ -443,28 +443,28 @@ void configuration::add_option(std::vector<std::string>* dst,
                                                           description);
 }
 
-void configuration::set(std::string key, timespan val) {
-  impl_->set(std::move(key), val);
+void configuration::set(std::string_view key, timespan val) {
+  impl_->set(key, val);
 }
 
-void configuration::set(std::string key, std::string val) {
-  impl_->set(std::move(key), std::move(val));
+void configuration::set(std::string_view key, std::string val) {
+  impl_->set(key, std::move(val));
 }
 
-void configuration::set(std::string key, std::vector<std::string> val) {
-  impl_->set(std::move(key), std::move(val));
+void configuration::set(std::string_view key, std::vector<std::string> val) {
+  impl_->set(key, std::move(val));
 }
 
-void configuration::set_i64(std::string key, int64_t val) {
-  impl_->set(std::move(key), val);
+void configuration::set_i64(std::string_view key, int64_t val) {
+  impl_->set(key, val);
 }
 
-void configuration::set_u64(std::string key, uint64_t val) {
-  impl_->set(std::move(key), val);
+void configuration::set_u64(std::string_view key, uint64_t val) {
+  impl_->set(key, val);
 }
 
-void configuration::set_bool(std::string key, bool val) {
-  impl_->set(std::move(key), val);
+void configuration::set_bool(std::string_view key, bool val) {
+  impl_->set(key, val);
 }
 
 std::optional<int64_t> configuration::read_i64(std::string_view key,

@@ -103,7 +103,7 @@ public:
       [this](atom::increment, detail::shared_store_state_ptr ptr) {
         attached_states.emplace(std::move(ptr), size_t{0}).first->second += 1;
       },
-      [this](atom::decrement, detail::shared_store_state_ptr ptr) {
+      [this](atom::decrement, const detail::shared_store_state_ptr& ptr) {
         auto& xs = attached_states;
         if (auto i = xs.find(ptr); i != xs.end())
           if (--(i->second) == 0)
@@ -169,7 +169,7 @@ public:
   // -- convenience functions --------------------------------------------------
 
   /// Sends a delayed message by using the endpoint's clock.
-  void send_later(caf::actor hdl, timespan delay, caf::message msg);
+  void send_later(const caf::actor& hdl, timespan delay, caf::message msg);
 
   // -- member variables -------------------------------------------------------
 

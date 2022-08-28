@@ -109,8 +109,9 @@ void ssl_accept(caf::net::multiplexer& mpx, Socket fd,
   mpx.init(ptr);
 }
 
-expected<uint16_t> launch(caf::actor_system& sys, openssl_options_ptr ssl_cfg,
-                          std::string addr, uint16_t port, bool reuse_addr,
+expected<uint16_t> launch(caf::actor_system& sys,
+                          const openssl_options_ptr& ssl_cfg, std::string addr,
+                          uint16_t port, bool reuse_addr,
                           const std::string& allowed_path,
                           on_connect_t on_connect) {
   using namespace std::literals;

@@ -13,8 +13,7 @@ namespace broker {
 
 subnet::subnet() : len_(0) {}
 
-subnet::subnet(address addr, uint8_t length)
-  : net_(std::move(addr)), len_(length) {
+subnet::subnet(const address& addr, uint8_t length) : net_(addr), len_(length) {
   if (init())
     return;
   net_ = {};
