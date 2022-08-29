@@ -418,12 +418,8 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
     }
     // Emit insert events.
     auto is_new = [&keys](const data& key) {
-      for (const auto* const key_ptr : keys) {
-        if (*key_ptr == key) {
-          return false;
-        }
-      }
-      return true;
+      auto equals = [&key](const auto* old_key) { return *old_key == key; };
+      return std::none_of(keys.begin(), keys.end(), equals);
     };
     for (const auto& [key, value] : x) {
       if (is_new(key)) {
