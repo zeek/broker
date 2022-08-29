@@ -20,10 +20,9 @@ void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
     current_->bytes = static_cast<std::byte*>(res) + num_bytes;
     remaining_ -= num_bytes;
     return res;
-  } else {
-    allocate_block(current_);
-    return allocate(num_bytes, alignment);
   }
+  allocate_block(current_);
+  return allocate(num_bytes, alignment);
 }
 
 void monotonic_buffer_resource::allocate_block(block* prev_block) {

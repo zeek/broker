@@ -396,9 +396,8 @@ void configuration::openssl_cafile(std::string x) {
 openssl_options_ptr configuration::openssl_options() const {
   if (!options().disable_ssl) {
     return impl_->ssl_options;
-  } else {
-    return nullptr;
   }
+  return nullptr;
 }
 
 void configuration::add_option(int64_t* dst, std::string_view name,
@@ -487,43 +486,38 @@ std::optional<int64_t> configuration::read_i64(std::string_view key,
   if (auto res = caf::get_as<int64_t>(*impl_, key);
       res && *res >= min_val && *res <= max_val) {
     return {*res};
-  } else {
-    return {};
   }
+  return {};
 }
 
 std::optional<uint64_t> configuration::read_u64(std::string_view key,
                                                 uint64_t max_val) const {
   if (auto res = caf::get_as<uint64_t>(*impl_, key); res && *res <= max_val) {
     return {*res};
-  } else {
-    return {};
   }
+  return {};
 }
 
 std::optional<timespan> configuration::read_ts(std::string_view key) const {
   if (auto res = caf::get_as<caf::timespan>(*impl_, key)) {
     return {*res};
-  } else {
-    return {};
   }
+  return {};
 }
 
 std::optional<std::string> configuration::read_str(std::string_view key) const {
   if (auto res = caf::get_as<std::string>(*impl_, key)) {
     return {std::move(*res)};
-  } else {
-    return {};
   }
+  return {};
 }
 
 std::optional<std::vector<std::string>>
 configuration::read_str_vec(std::string_view key) const {
   if (auto res = caf::get_as<std::vector<std::string>>(*impl_, key)) {
     return {std::move(*res)};
-  } else {
-    return {};
   }
+  return {};
 }
 
 namespace {

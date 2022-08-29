@@ -49,9 +49,8 @@ bool inspect(Inspector& f, peer_flags& x) {
     if ((val & 0x0F) == val) {
       x = static_cast<peer_flags>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

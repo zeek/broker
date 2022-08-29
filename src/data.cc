@@ -173,9 +173,8 @@ bool convert(const endpoint_id& node, data& d) {
 std::string to_string(const expected<data>& x) {
   if (x) {
     return to_string(*x);
-  } else {
-    return "!" + to_string(x.error());
   }
+  return "!" + to_string(x.error());
 }
 
 } // namespace broker

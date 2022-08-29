@@ -37,9 +37,8 @@ bool convert(std::string_view str, sc& code) noexcept {
 bool convert(const data& src, sc& code) noexcept {
   if (const auto* val = get_if<enum_value>(src)) {
     return convert(val->name, code);
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool convertible_to_sc(const data& src) noexcept {
@@ -185,9 +184,8 @@ const std::string* status_view::message() const {
   BROKER_ASSERT(xs_ != nullptr);
   if (is<none>((*xs_)[3])) {
     return nullptr;
-  } else {
-    return get_if<std::string>((*xs_)[3]);
   }
+  return get_if<std::string>((*xs_)[3]);
 }
 
 std::optional<endpoint_info> status_view::context() const {
@@ -195,9 +193,8 @@ std::optional<endpoint_info> status_view::context() const {
   endpoint_info ei;
   if (!convert((*xs_)[2], ei)) {
     return std::nullopt;
-  } else {
-    return {std::move(ei)};
   }
+  return {std::move(ei)};
 }
 
 status_view status_view::make(const data& src) {

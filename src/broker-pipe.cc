@@ -122,9 +122,8 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
     for (size_t j = 0; j < num; ++j) {
       if (!std::getline(std::cin, line)) {
         return; // Reached end of STDIO.
-      } else {
-        out.publish(line);
       }
+      out.publish(line);
     }
     i += num;
     msg_count += num;
@@ -237,7 +236,8 @@ int main(int argc, char** argv) try {
   }
   if (cfg.cli_helptext_printed()) {
     return EXIT_SUCCESS;
-  } else if (!cfg.remainder().empty()) {
+  }
+  if (!cfg.remainder().empty()) {
     std::cerr << "*** too many arguments\n\n";
     return EXIT_FAILURE;
   }

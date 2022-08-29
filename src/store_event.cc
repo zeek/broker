@@ -24,9 +24,8 @@ template <class T>
 std::string opt_to_string(const std::optional<T>& x) {
   if (x) {
     return caf::deep_to_string(*x);
-  } else {
-    return "null";
   }
+  return "null";
 }
 
 } // namespace
@@ -74,9 +73,8 @@ namespace {
 std::string expiry_to_string(const std::optional<timespan>& x) {
   if (x) {
     return "*" + caf::deep_to_string(*x);
-  } else {
-    return "null";
   }
+  return "null";
 }
 
 } // namespace

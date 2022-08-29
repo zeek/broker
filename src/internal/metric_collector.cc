@@ -142,18 +142,16 @@ metric_collector::~metric_collector() {
 size_t metric_collector::insert_or_update(const data& content) {
   if (const auto* vec = get_if<vector>(content)) {
     return insert_or_update(*vec);
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 size_t metric_collector::insert_or_update(const vector& vec) {
   auto has_meta_data = [](const data& x) {
     if (const auto* meta = get_if<vector>(x); meta && meta->size() == 2) {
       return is<std::string>((*meta)[0]) && is<timestamp>((*meta)[1]);
-    } else {
-      return false;
     }
+    return false;
   };
   if (vec.size() >= 2 && has_meta_data(vec[0])) {
     const auto& meta = get<vector>(vec[0]);
@@ -161,9 +159,8 @@ size_t metric_collector::insert_or_update(const vector& vec) {
     const auto& ts = get<timestamp>(meta[1]);
     return insert_or_update(endpoint_name, ts,
                             caf::make_span(vec.data() + 1, vec.size() - 1));
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 size_t metric_collector::insert_or_update(const std::string& endpoint_name,
@@ -214,12 +211,12 @@ bool metric_collector::advance_time(const std::string& endpoint_name,
   auto [i, added] = last_seen_.emplace(endpoint_name, current_time);
   if (added) {
     return true;
-  } else if (current_time > i->second) {
+  }
+  if (current_time > i->second) {
     i->second = current_time;
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 // -- lookups ----------------------------------------------------------------
@@ -303,35 +300,34 @@ metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
                         labels_match);
   if (i != scope.instances.end()) {
     return i->get();
-  } else {
-    using ct::metric_type;
-    instance_ptr ptr;
-    using std::make_unique;
-    switch (mv.type()) {
-      case metric_type::int_counter:
-        ptr = make_unique<remote_counter<integer>>(owned(labels), fptr);
-        break;
-      case metric_type::dbl_counter:
-        ptr = make_unique<remote_counter<real>>(owned(labels), fptr);
-        break;
-      case metric_type::int_gauge:
-        ptr = make_unique<remote_gauge<integer>>(owned(labels), fptr);
-        break;
-      case metric_type::dbl_gauge:
-        ptr = make_unique<remote_gauge<real>>(owned(labels), fptr);
-        break;
-      case metric_type::int_histogram:
-        ptr = make_unique<remote_histogram<integer>>(owned(labels), fptr);
-        break;
-      case metric_type::dbl_histogram:
-        ptr = make_unique<remote_histogram<real>>(owned(labels), fptr);
-        break;
-      default:
-        return nullptr;
-    }
-    scope.instances.emplace_back(std::move(ptr));
-    return scope.instances.back().get();
   }
+  using ct::metric_type;
+  instance_ptr ptr;
+  using std::make_unique;
+  switch (mv.type()) {
+    case metric_type::int_counter:
+      ptr = make_unique<remote_counter<integer>>(owned(labels), fptr);
+      break;
+    case metric_type::dbl_counter:
+      ptr = make_unique<remote_counter<real>>(owned(labels), fptr);
+      break;
+    case metric_type::int_gauge:
+      ptr = make_unique<remote_gauge<integer>>(owned(labels), fptr);
+      break;
+    case metric_type::dbl_gauge:
+      ptr = make_unique<remote_gauge<real>>(owned(labels), fptr);
+      break;
+    case metric_type::int_histogram:
+      ptr = make_unique<remote_histogram<integer>>(owned(labels), fptr);
+      break;
+    case metric_type::dbl_histogram:
+      ptr = make_unique<remote_histogram<real>>(owned(labels), fptr);
+      break;
+    default:
+      return nullptr;
+  }
+  scope.instances.emplace_back(std::move(ptr));
+  return scope.instances.back().get();
 }
 
 } // namespace broker::internal

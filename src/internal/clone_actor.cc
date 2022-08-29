@@ -77,14 +77,13 @@ void clone_state::dispatch(const command_message& msg) {
   auto is_receiver = [this, &cmd] {
     if (cmd.receiver == id) {
       return true;
-    } else {
-      if (cmd.receiver) {
-        BROKER_DEBUG("received message for" << cmd.receiver);
-      } else {
-        BROKER_DEBUG("received a broadcast command message");
-      }
-      return false;
     }
+    if (cmd.receiver) {
+      BROKER_DEBUG("received message for" << cmd.receiver);
+    } else {
+      BROKER_DEBUG("received a broadcast command message");
+    }
+    return false;
   };
   switch (tag) {
     case command_tag::action: {
@@ -109,9 +108,8 @@ void clone_state::dispatch(const command_message& msg) {
                            << master_id);
             }
             return;
-          } else {
-            master_id = cmd.sender;
           }
+          master_id = cmd.sender;
           const auto& inner = get<ack_clone_command>(cmd.content);
           if (input.handle_handshake(cmd.sender, inner.offset,
                                      inner.heartbeat_interval)) {
@@ -160,7 +158,8 @@ void clone_state::dispatch(const command_message& msg) {
         BROKER_DEBUG("dropped consumer control message for different receiver"
                      << cmd.receiver);
         break;
-      } else if (!output_opt) {
+      }
+      if (!output_opt) {
         BROKER_DEBUG("received control message for a non-existing channel");
         break;
       }

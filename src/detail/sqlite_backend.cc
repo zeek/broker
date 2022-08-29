@@ -45,9 +45,8 @@ expected<data> from_blob(const void* buf, size_t size) {
   data result;
   if (sink.apply(result)) {
     return {std::move(result)};
-  } else {
-    return {ec::invalid_data};
   }
+  return {ec::invalid_data};
 }
 
 } // namespace

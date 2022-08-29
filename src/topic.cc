@@ -58,9 +58,8 @@ std::string_view topic::suffix() const noexcept {
   if (auto index = str_.find_last_of(sep); index != std::string::npos) {
     auto first = index + 1;
     return {str_.data() + first, str_.size() - first};
-  } else {
-    return {str_};
   }
+  return {str_};
 }
 
 bool is_prefix(const topic& t, std::string_view prefix) noexcept {

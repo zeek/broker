@@ -29,9 +29,8 @@ std::string to_string(const network_info& x) {
 std::string to_string(const std::optional<network_info>& x) {
   if (x) {
     return "*" + to_string(*x);
-  } else {
-    return "null";
   }
+  return "null";
 }
 
 } // namespace broker

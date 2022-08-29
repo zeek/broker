@@ -380,13 +380,12 @@ private:
         buf[index] = xs[index].first;
       }
       return continuation(span{buf, xs.size()});
-    } else {
-      std::vector<std::string_view> buf;
-      for (auto x : xs) {
-        buf.emplace_back(x.first, x.second);
-      }
-      return continuation(span{buf});
     }
+    std::vector<std::string_view> buf;
+    for (auto x : xs) {
+      buf.emplace_back(x.first, x.second);
+    }
+    return continuation(span{buf});
   }
 
   metric_registry_impl* impl_;

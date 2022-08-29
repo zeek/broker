@@ -35,9 +35,8 @@ template <class T>
 auto to_caf_res(expected<T>&& x) {
   if (x) {
     return caf::result<T>{std::move(*x)};
-  } else {
-    return caf::result<T>{std::move(native(x.error()))};
   }
+  return caf::result<T>{std::move(native(x.error()))};
 }
 
 } // namespace
@@ -264,23 +263,22 @@ void master_state::consume(add_command& x) {
                                    << res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  if (auto val = backend->get(x.key); !val) {
+  auto val = backend->get(x.key);
+  if (!val) {
     BROKER_ERROR("failed to get"
                  << x.value << "after add() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
-  } else {
-    set_expire_time(x.key, x.expiry);
-    // Broadcast a regular "put" command. Clones don't have to repeat the same
-    // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    x.publisher};
-    if (old_value) {
-      emit_update_event(cmd, *old_value);
-    } else {
-      emit_insert_event(cmd);
-    }
-    broadcast(std::move(cmd));
   }
+  set_expire_time(x.key, x.expiry);
+  // Broadcast a regular "put" command. Clones don't have to repeat the same
+  // processing again.
+  put_command cmd{std::move(x.key), std::move(*val), std::nullopt, x.publisher};
+  if (old_value) {
+    emit_update_event(cmd, *old_value);
+  } else {
+    emit_insert_event(cmd);
+  }
+  broadcast(std::move(cmd));
 }
 
 void master_state::consume(subtract_command& x) {
@@ -297,40 +295,39 @@ void master_state::consume(subtract_command& x) {
     BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
     return; // TODO: propagate failure? to all clones? as status msg?
   }
-  if (auto val = backend->get(x.key); !val) {
+  auto val = backend->get(x.key);
+  if (!val) {
     BROKER_ERROR("failed to get"
                  << x.value
                  << "after subtract() returned success:" << val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
-  } else {
-    set_expire_time(x.key, x.expiry);
-    // Broadcast a regular "put" command. Clones don't have to repeat the same
-    // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    x.publisher};
-    emit_update_event(cmd, *old_value);
-    broadcast(std::move(cmd));
   }
+  set_expire_time(x.key, x.expiry);
+  // Broadcast a regular "put" command. Clones don't have to repeat the same
+  // processing again.
+  put_command cmd{std::move(x.key), std::move(*val), std::nullopt, x.publisher};
+  emit_update_event(cmd, *old_value);
+  broadcast(std::move(cmd));
 }
 
 void master_state::consume(clear_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("CLEAR" << x);
-  if (auto keys_res = backend->keys(); !keys_res) {
+  auto keys_res = backend->keys();
+  if (!keys_res) {
     BROKER_ERROR("unable to obtain keys:" << keys_res.error());
     return;
-  } else {
-    if (auto* keys = get_if<vector>(*keys_res)) {
-      for (auto& key : *keys) {
-        emit_erase_event(key, x.publisher);
-      }
-    } else if (auto* keys = get_if<set>(*keys_res)) {
-      for (const auto& key : *keys) {
-        emit_erase_event(key, x.publisher);
-      }
-    } else if (!is<none>(*keys_res)) {
-      BROKER_ERROR("backend->keys() returned an unexpected result type");
+  }
+  if (auto* keys = get_if<vector>(*keys_res)) {
+    for (auto& key : *keys) {
+      emit_erase_event(key, x.publisher);
     }
+  } else if (auto* keys = get_if<set>(*keys_res)) {
+    for (const auto& key : *keys) {
+      emit_erase_event(key, x.publisher);
+    }
+  } else if (!is<none>(*keys_res)) {
+    BROKER_ERROR("backend->keys() returned an unexpected result type");
   }
   if (auto res = backend->clear(); !res) {
     detail::die("failed to clear master");
@@ -524,9 +521,8 @@ caf::behavior master_state::make_behavior() {
                   << "with id:" << id << "->" << x);
       if (x) {
         return caf::make_message(std::move(*x), id);
-      } else {
-        return caf::make_message(native(x.error()), id);
       }
+      return caf::make_message(native(x.error()), id);
     },
     [this](atom::exists, const data& key) -> caf::result<data> {
       auto x = backend->exists(key);
@@ -554,9 +550,8 @@ caf::behavior master_state::make_behavior() {
       BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
       if (x) {
         return caf::make_message(std::move(*x), id);
-      } else {
-        return caf::make_message(native(x.error()), id);
       }
+      return caf::make_message(native(x.error()), id);
     },
     [this](atom::get, const data& key, const data& value, request_id id) {
       auto x = backend->get(key, value);
@@ -564,9 +559,8 @@ caf::behavior master_state::make_behavior() {
                         << x);
       if (x) {
         return caf::make_message(std::move(*x), id);
-      } else {
-        return caf::make_message(std::move(native(x.error())), id);
       }
+      return caf::make_message(std::move(native(x.error())), id);
     },
     [this](atom::get, atom::name) { return store_name; },
     [this](atom::await, atom::idle) -> caf::result<atom::ok> {

@@ -131,7 +131,8 @@ public:
         BROKER_DEBUG("nothing left to pull, queue closed");
         buf_ = nullptr;
         return false;
-      } else if (buf_->available() == 0) {
+      }
+      if (buf_->available() == 0) {
         // Note: We always *must* acquire the lock on the buffer before
         // acquiring the lock on the subscriber to prevent deadlocks.
         guard_type buf_guard{buf_->mtx()};
@@ -142,13 +143,11 @@ public:
           fx_.extinguish();
         }
         return true;
-      } else {
-        return true;
       }
-    } else {
-      BROKER_DEBUG("nothing left to pull, queue closed");
-      return false;
+      return true;
     }
+    BROKER_DEBUG("nothing left to pull, queue closed");
+    return false;
   }
 
   size_t capacity() const noexcept {

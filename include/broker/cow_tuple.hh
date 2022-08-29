@@ -136,12 +136,11 @@ public:
   data_type& unshared() {
     if (ptr_->unique()) {
       return ptr_->data;
-    } else {
-      auto new_ptr = ptr_->copy();
-      ptr_->deref();
-      ptr_ = new_ptr;
-      return new_ptr->data;
     }
+    auto new_ptr = ptr_->copy();
+    ptr_->deref();
+    ptr_ = new_ptr;
+    return new_ptr->data;
   }
 
   /// Checks whether this object holds the only reference to the data.

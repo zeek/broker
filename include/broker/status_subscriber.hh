@@ -143,18 +143,16 @@ template <class T>
 inline T& get(status_variant& d) {
   if (auto rval = get_if<T>(&d)) {
     return *rval;
-  } else {
-    throw bad_variant_access{};
   }
+  throw bad_variant_access{};
 }
 
 template <class T>
 inline const T& get(const status_variant& d) {
   if (auto rval = get_if<T>(&d)) {
     return *rval;
-  } else {
-    throw bad_variant_access{};
   }
+  throw bad_variant_access{};
 }
 
 } // namespace broker

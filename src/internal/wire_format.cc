@@ -32,40 +32,38 @@ namespace broker::internal::wire_format {
 std::pair<ec, std::string_view> check(const hello_msg& x) {
   if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  } else if (x.min_version > protocol_version
-             || x.max_version < protocol_version) {
-    return {ec::peer_incompatible, "unsupported versions offered"};
-  } else {
-    return {ec::none, {}};
   }
+  if (x.min_version > protocol_version || x.max_version < protocol_version) {
+    return {ec::peer_incompatible, "unsupported versions offered"};
+  }
+  return {ec::none, {}};
 }
 
 std::pair<ec, std::string_view> check(const probe_msg& x) {
   if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  } else {
-    return {ec::none, {}};
   }
+  return {ec::none, {}};
 }
 
 std::pair<ec, std::string_view> check(const version_select_msg& x) {
   if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  } else if (x.selected_version != protocol_version) {
-    return {ec::peer_incompatible, "unsupported version selected"};
-  } else {
-    return {ec::none, {}};
   }
+  if (x.selected_version != protocol_version) {
+    return {ec::peer_incompatible, "unsupported version selected"};
+  }
+  return {ec::none, {}};
 }
 
 std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
   if (x.magic != magic_number) {
     return {ec::wrong_magic_number, "wrong magic number"};
-  } else if (!convertible_to_ec(x.code)) {
-    return {ec::unspecified, x.description};
-  } else {
-    return {ec::none, {}};
   }
+  if (!convertible_to_ec(x.code)) {
+    return {ec::unspecified, x.description};
+  }
+  return {ec::none, {}};
 }
 
 namespace v1 {
@@ -122,16 +120,16 @@ bool trait::convert(caf::const_byte_span bytes, node_message& msg) {
     return false;
   }
   if (auto remainder = source.remainder();
-      topic_len == 0 || remainder.size() <= topic_len) {
-    last_error_ = caf::make_error(caf::sec::runtime_error,
-                                  "invalid topic size in node message");
-    BROKER_DEBUG("found invalid payload size in node message");
-    return false;
-  } else {
+      topic_len > 0 || remainder.size() > topic_len) {
     auto str = std::string{reinterpret_cast<const char*>(remainder.data()),
                            topic_len};
     msg_topic = topic{std::move(str)};
     source.skip(topic_len);
+  } else {
+    last_error_ = caf::make_error(caf::sec::runtime_error,
+                                  "invalid topic size in node message");
+    BROKER_DEBUG("found invalid payload size in node message");
+    return false;
   }
   // Extract payload, which simply is the remaining bytes of the message.
   auto remainder = source.remainder();
@@ -158,11 +156,11 @@ std::string stringify(const var_msg& msg) {
       return make_var_msg_error(ec::invalid_message,                           \
                                 "failed to parse " #type ":"                   \
                                   + to_string(src.get_error()));               \
-    } else if (auto [code, descr] = check(tmp); code != ec::none) {            \
-      return make_var_msg_error(code, std::string{descr});                     \
-    } else {                                                                   \
-      return {std::move(tmp)};                                                 \
     }                                                                          \
+    if (auto [code, descr] = check(tmp); code != ec::none) {                   \
+      return make_var_msg_error(code, std::string{descr});                     \
+    }                                                                          \
+    return {std::move(tmp)};                                                   \
   }
 
 var_msg decode(caf::const_byte_span bytes) {

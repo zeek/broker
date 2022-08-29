@@ -37,9 +37,8 @@ public:
     writer.reset();
     if (writer.apply(x)) {
       return to_string(writer.str());
-    } else {
-      return std::string{default_serialization_failed_error()};
     }
+    return std::string{default_serialization_failed_error()};
   }
 
   std::string render_error(std::string_view code, std::string_view context);

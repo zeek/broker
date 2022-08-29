@@ -779,12 +779,11 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                                           std::move(on_connect));
   if (res) {
     return *res;
-  } else {
-    if (err) {
-      *err = std::move(res.error());
-    }
-    return 0;
   }
+  if (err) {
+    *err = std::move(res.error());
+  }
+  return 0;
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
@@ -1067,7 +1066,8 @@ bool endpoint::await_filter_entry(const topic& what, timespan timeout) {
     auto xs = filter();
     if (std::find(xs.begin(), xs.end(), what) != xs.end()) {
       return true;
-    } else if (broker::now() < abs_timeout) {
+    }
+    if (broker::now() < abs_timeout) {
       std::this_thread::sleep_for(10ms);
     } else {
       return false;

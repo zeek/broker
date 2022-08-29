@@ -29,19 +29,17 @@ bool from_string(std::string_view str, p2p_message_type& x) {
   const auto* i = std::find_if(begin, end, predicate);
   if (i == begin || i == end) {
     return false;
-  } else {
-    x = static_cast<p2p_message_type>(std::distance(begin, i));
-    return true;
   }
+  x = static_cast<p2p_message_type>(std::distance(begin, i));
+  return true;
 }
 
 bool from_integer(uint8_t val, p2p_message_type& x) {
   if (val > 0 && val < std::size(p2p_message_type_names)) {
     x = static_cast<p2p_message_type>(val);
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 std::string to_string(packed_message_type x) {
@@ -54,9 +52,8 @@ bool from_string(std::string_view str, packed_message_type& x) {
   if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 5) {
     x = static_cast<packed_message_type>(tmp);
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool from_integer(uint8_t val, packed_message_type& x) {

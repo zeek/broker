@@ -146,11 +146,10 @@ expected<uint16_t> launch(caf::actor_system& sys,
       connect_event_t ev{std::move(pull2), std::move(push1)};
       cb(hdr, ev);
       return res_t{std::make_tuple(pull1, push2, trait_t{})};
-    } else {
-      BROKER_INFO("rejected JSON client on invalid path" << path);
-      return res_t{caf::make_error(caf::sec::invalid_argument,
-                                   "invalid path; try " + allowed_path)};
     }
+    BROKER_INFO("rejected JSON client on invalid path" << path);
+    return res_t{caf::make_error(caf::sec::invalid_argument,
+                                 "invalid path; try " + allowed_path)};
   };
   // Launch the WebSocket and dispatch to on_connect.
   namespace ws = caf::net::web_socket;

@@ -65,9 +65,8 @@ bool inspect(Inspector& f, sc& x) {
     if (val <= static_cast<uint8_t>(sc::endpoint_unreachable)) {
       x = static_cast<sc>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

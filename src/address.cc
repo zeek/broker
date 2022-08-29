@@ -134,10 +134,9 @@ bool address::convert_from(const std::string& str) {
   native_t tmp;
   if (auto err = caf::parse(str, tmp)) {
     return false;
-  } else {
-    bytes_ = tmp.bytes();
-    return true;
   }
+  bytes_ = tmp.bytes();
+  return true;
 }
 
 } // namespace broker

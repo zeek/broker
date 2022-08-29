@@ -81,9 +81,8 @@ to(const From& from) {
   if constexpr (std::is_same_v<convert_res_type, bool>) {
     if (convert(from, result)) {
       return {std::move(result)};
-    } else {
-      return {};
     }
+    return {};
   } else {
     static_assert(std::is_same_v<convert_res_type, void>,
                   "convert overloads must return 'bool' or 'void'");

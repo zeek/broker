@@ -70,9 +70,8 @@ public:
     [[nodiscard]] std::optional<timespan> expiry() const noexcept {
       if (const auto* value = get_if<timespan>((*xs_)[4])) {
         return *value;
-      } else {
-        return {};
       }
+      return {};
     }
 
     [[nodiscard]] entity_id publisher() const {
@@ -141,17 +140,15 @@ public:
     [[nodiscard]] std::optional<timespan> expiry() const noexcept {
       if (const auto* value = get_if<timespan>((*xs_)[5])) {
         return *value;
-      } else {
-        return {};
       }
+      return {};
     }
 
     [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[6])) {
         return {*value, get<uint64_t>((*xs_)[7])};
-      } else {
-        return {};
       }
+      return {};
     }
 
   private:
@@ -256,9 +253,8 @@ public:
     [[nodiscard]] entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3])) {
         return {*value, get<uint64_t>((*xs_)[4])};
-      } else {
-        return {};
       }
+      return {};
     }
 
   private:

@@ -25,30 +25,25 @@ struct adder {
       if (auto x = get_if<T>(&value)) {
         c += *x;
         return {};
-      } else {
-        return ec::type_clash;
       }
-    } else {
-      return ec::type_clash;
     }
+    return ec::type_clash;
   }
 
   result_type operator()(timestamp& tp) {
     if (const auto* s = get_if<timespan>(&value)) {
       tp += *s;
       return {};
-    } else {
-      return ec::type_clash;
     }
+    return ec::type_clash;
   }
 
   result_type operator()(std::string& str) {
     if (const auto* x = get_if<std::string>(&value)) {
       str += *x;
       return {};
-    } else {
-      return ec::type_clash;
     }
+    return ec::type_clash;
   }
 
   result_type operator()(vector& v) {
@@ -87,12 +82,9 @@ struct remover {
       if (auto x = get_if<T>(&value)) {
         c -= *x;
         return {};
-      } else {
-        return ec::type_clash;
       }
-    } else {
-      return ec::type_clash;
     }
+    return ec::type_clash;
   }
 
   result_type operator()(timestamp& ts) {
@@ -135,21 +127,18 @@ struct retriever {
   static result_type at_index(const vector& v, count index) {
     if (index < v.size()) {
       return v[index];
-    } else {
-      return ec::no_such_key;
     }
+    return ec::no_such_key;
   }
 
   result_type operator()(const vector& v) const {
     if (const auto* x = get_if<count>(&aspect)) {
       return at_index(v, *x);
-    } else {
-      if (const auto* y = get_if<integer>(&aspect); y && *y >= 0) {
-        return at_index(v, static_cast<count>(*y));
-      } else {
-        return ec::type_clash;
-      }
     }
+    if (const auto* y = get_if<integer>(&aspect); y && *y >= 0) {
+      return at_index(v, static_cast<count>(*y));
+    }
+    return ec::type_clash;
   }
 
   result_type operator()(const set& s) const {

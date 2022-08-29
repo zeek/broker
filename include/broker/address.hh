@@ -107,9 +107,8 @@ bool inspect(Inspector& f, address& x) {
     };
     auto set = [&](const std::string& str) { return convert(str, x); };
     return f.apply(get, set);
-  } else {
-    return f.object(x).fields(f.field("bytes", x.bytes()));
   }
+  return f.object(x).fields(f.field("bytes", x.bytes()));
 }
 
 } // namespace broker

@@ -66,10 +66,9 @@ bool convert(const std::string& str, endpoint_id& x) {
   caf::uuid id;
   if (auto err = caf::parse(str, id)) {
     return false;
-  } else {
-    x = from_uuid(id);
-    return true;
   }
+  x = from_uuid(id);
+  return true;
 }
 
 } // namespace broker

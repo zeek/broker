@@ -12,11 +12,10 @@ bool inspect_enum(Inspector& f, Enumeration& x) {
     auto get = [&x] { return to_string(x); };
     auto set = [&x](const std::string& str) { return from_string(str, x); };
     return f.apply(get, set);
-  } else {
-    auto get = [&x] { return static_cast<integer_type>(x); };
-    auto set = [&x](integer_type val) { return from_integer(val, x); };
-    return f.apply(get, set);
   }
+  auto get = [&x] { return static_cast<integer_type>(x); };
+  auto set = [&x](integer_type val) { return from_integer(val, x); };
+  return f.apply(get, set);
 }
 
 } // namespace broker::detail

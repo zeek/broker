@@ -248,9 +248,8 @@ bool inspect(Inspector& f, ec& x) {
     if (val <= static_cast<uint8_t>(ec::invalid_status)) {
       x = static_cast<ec>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

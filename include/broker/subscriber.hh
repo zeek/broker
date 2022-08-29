@@ -74,9 +74,8 @@ public:
   get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
     if (rel_timeout != infinite) {
       return do_get(num, now() + rel_timeout);
-    } else {
-      return get(num);
     }
+    return get(num);
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until

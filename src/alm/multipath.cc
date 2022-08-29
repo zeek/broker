@@ -36,40 +36,40 @@ multipath_group::emplace_impl(const endpoint_id& id,
     first_ = make_new_node();
     size_ = 1;
     return {first_, true};
-  } else {
-    // Insertion sorts by ID.
-    BROKER_ASSERT(first_ != nullptr);
-    if (first_->id_ == id) {
-      return {first_, false};
-    } else if (first_->id_ > id) {
-      ++size_;
-      auto new_node = make_new_node();
-      new_node->right_ = first_;
-      first_ = new_node;
-      return {new_node, true};
-    }
-    auto* pos = first_;
-    auto* next = pos->right_;
-    while (next != nullptr) {
-      if (next->id_ == id) {
-        return {next, false};
-      } else if (next->id_ > id) {
-        ++size_;
-        auto new_node = make_new_node();
-        pos->right_ = new_node;
-        new_node->right_ = next;
-        return {new_node, true};
-      } else {
-        pos = next;
-        next = next->right_;
-      }
-    }
+  }
+  // Insertion sorts by ID.
+  BROKER_ASSERT(first_ != nullptr);
+  if (first_->id_ == id) {
+    return {first_, false};
+  }
+  if (first_->id_ > id) {
     ++size_;
     auto new_node = make_new_node();
-    BROKER_ASSERT(pos->right_ == nullptr);
-    pos->right_ = new_node;
+    new_node->right_ = first_;
+    first_ = new_node;
     return {new_node, true};
   }
+  auto* pos = first_;
+  auto* next = pos->right_;
+  while (next != nullptr) {
+    if (next->id_ == id) {
+      return {next, false};
+    }
+    if (next->id_ > id) {
+      ++size_;
+      auto new_node = make_new_node();
+      pos->right_ = new_node;
+      new_node->right_ = next;
+      return {new_node, true};
+    }
+    pos = next;
+    next = next->right_;
+  }
+  ++size_;
+  auto new_node = make_new_node();
+  BROKER_ASSERT(pos->right_ == nullptr);
+  pos->right_ = new_node;
+  return {new_node, true};
 }
 
 std::pair<multipath_node*, bool>

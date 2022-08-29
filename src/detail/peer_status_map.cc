@@ -18,10 +18,9 @@ bool peer_status_map::insert(endpoint_id peer, peer_status& desired) {
   auto [i, added] = peers_.emplace(peer, desired);
   if (added) {
     return true;
-  } else {
-    desired = i->second;
-    return false;
   }
+  desired = i->second;
+  return false;
 }
 
 bool peer_status_map::update(endpoint_id peer, peer_status& expected,
@@ -35,10 +34,9 @@ bool peer_status_map::update(endpoint_id peer, peer_status& expected,
     if (i->second == expected) {
       i->second = desired;
       return true;
-    } else {
-      expected = i->second;
-      return false;
     }
+    expected = i->second;
+    return false;
   }
   expected = peer_status::unknown;
   return false;
@@ -54,10 +52,9 @@ bool peer_status_map::remove(endpoint_id peer, peer_status& expected) {
     if (i->second == expected) {
       peers_.erase(i);
       return true;
-    } else {
-      expected = i->second;
-      return false;
     }
+    expected = i->second;
+    return false;
   }
   expected = peer_status::unknown;
   return false;
@@ -72,9 +69,8 @@ peer_status peer_status_map::get(endpoint_id peer) {
   std::unique_lock guard{mtx_};
   if (auto i = peers_.find(peer); i != peers_.end()) {
     return i->second;
-  } else {
-    return peer_status::unknown;
   }
+  return peer_status::unknown;
 }
 
 void peer_status_map::close() {

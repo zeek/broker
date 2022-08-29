@@ -56,24 +56,22 @@ struct handshake_step {
   bool on_next(const input_type& item, Next& next, Steps&... steps) {
     if (initialized) {
       return next.on_next(item, steps...);
-    } else {
-      filter_type filter;
-      state->reader.load(item.str());
-      if (!state->reader.apply(filter)) {
-        // Received malformed input: drop remaining input and quit.
-        auto err = caf::make_error(caf::sec::invalid_argument,
-                                   "first message must contain a filter");
-        next.on_error(err, steps...);
-        push_to_ws = nullptr;
-        pull_from_core = nullptr;
-        return false;
-      } else {
-        initialized = true;
-        // Ok, set up the actual pipeline and connect to the core.
-        state->init(filter, push_to_ws, std::move(pull_from_core));
-        return true;
-      }
     }
+    filter_type filter;
+    state->reader.load(item.str());
+    if (!state->reader.apply(filter)) {
+      // Received malformed input: drop remaining input and quit.
+      auto err = caf::make_error(caf::sec::invalid_argument,
+                                 "first message must contain a filter");
+      next.on_error(err, steps...);
+      push_to_ws = nullptr;
+      pull_from_core = nullptr;
+      return false;
+    }
+    initialized = true;
+    // Ok, set up the actual pipeline and connect to the core.
+    state->init(filter, push_to_ws, std::move(pull_from_core));
+    return true;
   }
 
   template <class Next, class... Steps>
@@ -228,12 +226,11 @@ void json_client_state::init(
             auto json = writer.str();
             auto str = std::string{json.begin(), json.end()};
             return caf::cow_string{std::move(str)};
-          } else {
-            // Report internal error to client.
-            auto ctx = to_string(writer.get_error().context());
-            auto str = render_error(enum_str(ec::serialization_failed), ctx);
-            return caf::cow_string{std::move(str)};
           }
+          // Report internal error to client.
+          auto ctx = to_string(writer.get_error().context());
+          auto str = render_error(enum_str(ec::serialization_failed), ctx);
+          return caf::cow_string{std::move(str)};
         })
         .as_observable();
     auto sub = caf::flow::merge(ctrl_msgs->as_observable(), core_json) //

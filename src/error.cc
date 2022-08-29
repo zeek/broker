@@ -137,20 +137,19 @@ const std::string* error::message() const noexcept {
   if (auto v1 =
         caf::make_const_typed_message_view<endpoint_info, std::string>(msg)) {
     return std::addressof(get<1>(v1));
-  } else if (auto v2 = caf::make_const_typed_message_view<std::string>(msg)) {
-    return std::addressof(get<0>(v2));
-  } else {
-    return nullptr;
   }
+  if (auto v2 = caf::make_const_typed_message_view<std::string>(msg)) {
+    return std::addressof(get<0>(v2));
+  }
+  return nullptr;
 }
 
 const endpoint_info* error::context() const noexcept {
   const auto& msg = native(*this).context();
   if (auto v = caf::make_const_typed_message_view<endpoint_info>(msg)) {
     return std::addressof(get<0>(v));
-  } else {
-    return nullptr;
   }
+  return nullptr;
 }
 
 error::impl* error::native_ptr() noexcept {
@@ -310,11 +309,10 @@ const std::string* error_view::message() const noexcept {
   auto try_get_str = [](const vector& vec, size_t index) {
     return vec.size() > index ? get_if<std::string>(vec[index]) : nullptr;
   };
-  if (const auto* ctx = get_if<vector>((*xs_)[2]); !ctx) {
-    return nullptr;
-  } else {
+  if (const auto* ctx = get_if<vector>((*xs_)[2])) {
     return try_get_str(*ctx, ctx->size() == 1 ? 0 : 1);
   }
+  return nullptr;
 }
 
 std::optional<endpoint_info> error_view::context() const {

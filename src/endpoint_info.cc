@@ -14,9 +14,8 @@ namespace broker {
 bool convertible_to_endpoint_info(const data& src) {
   if (const auto* vec = get_if<vector>(src)) {
     return convertible_to_endpoint_info(*vec);
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool convertible_to_endpoint_info(const std::vector<data>& src) {
@@ -26,9 +25,8 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src)) {
     return can_convert_to<endpoint_id>(src[0]);
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool convert(const data& src, endpoint_info& dst) {

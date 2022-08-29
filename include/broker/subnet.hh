@@ -45,9 +45,8 @@ public:
       };
       auto set = [&x](const std::string& str) { return convert(str, x); };
       return f.apply(get, set);
-    } else {
-      return f.object(x).fields(f.field("net", x.net_), f.field("len", x.len_));
     }
+    return f.object(x).fields(f.field("net", x.net_), f.field("len", x.len_));
   }
 
 private:

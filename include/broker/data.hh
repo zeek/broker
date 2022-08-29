@@ -216,9 +216,8 @@ bool inspect(Inspector& f, data::type& x) {
     if (val <= static_cast<uint8_t>(data::type::vector)) {
       x = static_cast<data::type>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }
@@ -354,18 +353,16 @@ template <class T>
 T& get(data& x) {
   if (auto ptr = get_if<T>(&x)) {
     return *ptr;
-  } else {
-    throw bad_variant_access{};
   }
+  throw bad_variant_access{};
 }
 
 template <class T>
 const T& get(const data& x) {
   if (auto ptr = get_if<T>(&x)) {
     return *ptr;
-  } else {
-    throw bad_variant_access{};
   }
+  throw bad_variant_access{};
 }
 
 template <class Visitor>
@@ -417,9 +414,8 @@ template <class... Ts>
 bool contains(const data& x) {
   if (const auto* xs = get_if<vector>(x)) {
     return contains<Ts...>(*xs);
-  } else {
-    return false;
   }
+  return false;
 }
 } // namespace broker
 

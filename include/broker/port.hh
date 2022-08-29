@@ -53,10 +53,9 @@ public:
       };
       auto set = [&](const std::string& str) { return convert(str, x); };
       return f.apply(get, set);
-    } else {
-      return f.object(x).fields(f.field("num", x.num_),
-                                f.field("proto", x.proto_));
     }
+    return f.object(x).fields(f.field("num", x.num_),
+                              f.field("proto", x.proto_));
   }
 
 private:
@@ -71,9 +70,8 @@ bool inspect(Inspector& f, port::protocol& x) {
     if (val <= static_cast<uint8_t>(port::protocol::icmp)) {
       x = static_cast<port::protocol>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

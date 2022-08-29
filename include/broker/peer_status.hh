@@ -27,9 +27,8 @@ bool inspect(Inspector& f, peer_status& x) {
     if (val >= 0 && val <= static_cast<int>(peer_status::reconnecting)) {
       x = static_cast<peer_status>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

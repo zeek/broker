@@ -38,9 +38,8 @@ bool metric_view::has_properly_typed_labels(const vector& row) noexcept {
       return is<std::string>(kvp.first) && is<std::string>(kvp.second);
     };
     return std::all_of(tbl->begin(), tbl->end(), is_string_pair);
-  } else {
-    return false;
   }
+  return false;
 }
 
 namespace {
@@ -50,9 +49,8 @@ struct pair_predicate {
   bool operator()(const data& x) const noexcept {
     if (const auto* vec = get_if<vector>(x); vec && vec->size() == 2) {
       return is<First>((*vec)[0]) && is<Second>((*vec)[1]);
-    } else {
-      return false;
     }
+    return false;
   }
 };
 
@@ -74,13 +72,14 @@ bool metric_view::get_type(const vector& row,
   if (*t == "counter") {
     if (is<integer>(v)) {
       return good(metric_type::int_counter);
-    } else if (is<real>(v)) {
-      return good(metric_type::dbl_counter);
     }
-  } else if (*t == "gauge") {
+    return good(metric_type::dbl_counter);
+  }
+  if (*t == "gauge") {
     if (is<integer>(v)) {
       return good(metric_type::int_gauge);
-    } else if (is<real>(v)) {
+    }
+    if (is<real>(v)) {
       return good(metric_type::dbl_gauge);
     }
   } else if (*t == "histogram") {
@@ -88,9 +87,10 @@ bool metric_view::get_type(const vector& row,
       if (std::all_of(vals->begin(), vals->end() - 1, pair_predicate<integer>{})
           && is<integer>(vals->back())) {
         return good(metric_type::int_histogram);
-      } else if (std::all_of(vals->begin(), vals->end() - 1,
-                             pair_predicate<real, integer>{})
-                 && is<real>(vals->back())) {
+      }
+      if (std::all_of(vals->begin(), vals->end() - 1,
+                      pair_predicate<real, integer>{})
+          && is<real>(vals->back())) {
         return good(metric_type::dbl_histogram);
       }
     }

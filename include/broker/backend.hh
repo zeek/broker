@@ -18,9 +18,8 @@ bool inspect(Inspector& f, backend& x) {
     if (val <= static_cast<uint8_t>(backend::sqlite)) {
       x = static_cast<backend>(val);
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
   return f.apply(get, set);
 }

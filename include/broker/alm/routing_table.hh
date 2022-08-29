@@ -106,9 +106,8 @@ inline bool is_direct_connection(const routing_table& tbl,
                                  const endpoint_id& peer) {
   if (const auto* path = shortest_path(tbl, peer)) {
     return path->size() == 1;
-  } else {
-    return false;
   }
+  return false;
 }
 
 /// Returns the hop count on the shortest path or `nil` if no route to the peer
@@ -117,9 +116,8 @@ inline std::optional<size_t> distance_to(const routing_table& tbl,
                                          const endpoint_id& peer) {
   if (const auto* ptr = shortest_path(tbl, peer)) {
     return ptr->size();
-  } else {
-    return std::nullopt;
   }
+  return std::nullopt;
 }
 
 /// Erases all state for `whom` and also removes all paths that include `whom`.

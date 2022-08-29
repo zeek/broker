@@ -191,9 +191,8 @@ caf::behavior core_actor_state::make_behavior() {
       if (auto err = init_new_peer(peer, addr, filter, std::move(in_res),
                                    std::move(out_res))) {
         return err;
-      } else {
-        return caf::unit;
       }
+      return caf::unit;
     },
     // -- unpeering ------------------------------------------------------------
     [this](atom::unpeer, const network_info& peer_addr) { //
@@ -210,9 +209,8 @@ caf::behavior core_actor_state::make_behavior() {
       if (auto err = init_new_client(addr, type, std::move(filter),
                                      std::move(in_res), std::move(out_res))) {
         return err;
-      } else {
-        return caf::unit;
       }
+      return caf::unit;
     },
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
@@ -319,9 +317,8 @@ caf::behavior core_actor_state::make_behavior() {
       auto i = masters.find(name);
       if (i != masters.end()) {
         return i->second;
-      } else {
-        return caf::make_error(ec::no_such_master);
       }
+      return caf::make_error(ec::no_such_master);
     },
     [this](atom::shutdown, atom::data_store) { //
       shutdown_stores();
@@ -381,9 +378,8 @@ caf::behavior core_actor_state::make_behavior() {
   };
   if (adapter) {
     return adapter->message_handlers().or_else(result);
-  } else {
-    return result;
   }
+  return result;
 }
 
 void core_actor_state::shutdown(shutdown_options options) {
@@ -439,9 +435,8 @@ void core_actor_state::shutdown(shutdown_options options) {
       // since we otherwise break request/response semantics silently.
       if (sptr->current_message_id().is_request()) {
         return caf::make_error(caf::sec::request_receiver_down);
-      } else {
-        return caf::make_message();
       }
+      return caf::make_message();
     });
 }
 
@@ -497,17 +492,15 @@ std::optional<T> core_actor_state::unpack(const packed_message& msg) {
     data content;
     if (src.apply(content)) {
       return make_data_message(get_topic(msg), std::move(content));
-    } else {
-      return std::nullopt;
     }
+    return std::nullopt;
   } else {
     static_assert(std::is_same_v<T, command_message>);
     internal_command content;
     if (src.apply(content)) {
       return make_command_message(get_topic(msg), std::move(content));
-    } else {
-      return std::nullopt;
     }
+    return std::nullopt;
   }
 }
 
@@ -522,17 +515,15 @@ bool core_actor_state::is_subscribed_to(endpoint_id id, const topic& what) {
   if (auto i = peer_filters.find(id); i != peer_filters.end()) {
     detail::prefix_matcher f;
     return f(i->second, what);
-  } else {
-    return false;
   }
+  return false;
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
   if (auto i = peers.find(id); i != peers.end()) {
     return i->second.addr;
-  } else {
-    return std::nullopt;
   }
+  return std::nullopt;
 }
 
 std::vector<endpoint_id> core_actor_state::peer_ids() const {
@@ -826,12 +817,11 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                .map([this](const node_message& msg) {
                  if (get_sender(msg) == id) {
                    return msg;
-                 } else {
-                   using std::get;
-                   auto cpy = msg;
-                   get<0>(cpy.unshared()) = id;
-                   return cpy;
                  }
+                 using std::get;
+                 auto cpy = msg;
+                 get<0>(cpy.unshared()) = id;
+                 return cpy;
                })
                .do_finally([this, peer_id] {
                  BROKER_DEBUG("close output flow to" << peer_id); //
@@ -900,10 +890,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
     BROKER_DEBUG("failed to run pending connection:" << err);
     return err;
-  } else {
-    // With the connected buffers, dispatch to the other overload.
-    return init_new_peer(peer, addr, filter, std::move(rd_2), std::move(wr_1));
   }
+  // With the connected buffers, dispatch to the other overload.
+  return init_new_peer(peer, addr, filter, std::move(rd_2), std::move(wr_1));
 }
 
 caf::error core_actor_state::init_new_client(const network_info& addr,

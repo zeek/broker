@@ -137,9 +137,8 @@ auto store::with_state_or(F f, G fallback) const -> decltype(fallback()) {
   using namespace broker;
   if (auto ptr = state_.lock()) {
     return f(dref(ptr));
-  } else {
-    return fallback();
   }
+  return fallback();
 }
 
 template <class... Ts>
@@ -242,9 +241,8 @@ request_id store::proxy::exists(data key) {
     send_as(native(proxy_), native(frontend_), atom::exists_v, std::move(key),
             ++id_);
     return id_;
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 request_id store::proxy::get(data key) {
@@ -252,9 +250,8 @@ request_id store::proxy::get(data key) {
     send_as(native(proxy_), native(frontend_), atom::get_v, std::move(key),
             ++id_);
     return id_;
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 request_id store::proxy::put_unique(data key, data val,
@@ -272,9 +269,8 @@ request_id store::proxy::put_unique(data key, data val,
                                  entity_id{this_peer_, native(proxy_).id()},
                                  req_id, frontend_id()}});
     return id_;
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 request_id store::proxy::get_index_from_value(data key, data index) {
@@ -362,9 +358,8 @@ std::vector<store::response> store::proxy::receive(size_t n) {
 std::string store::name() const {
   if (auto ptr = state_.lock()) {
     return dref(ptr).name;
-  } else {
-    return {};
   }
+  return {};
 }
 
 expected<data> store::exists(data key) const {
