@@ -1032,9 +1032,9 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   using caf::async::make_spsc_buffer_resource;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
   auto resources1 = make_spsc_buffer_resource<command_message>();
-  auto [con1, prod1] = resources1;
+  auto& [con1, prod1] = resources1;
   auto resources2 = make_spsc_buffer_resource<command_message>();
-  auto [con2, prod2] = resources2;
+  auto& [con2, prod2] = resources2;
   auto hdl = self->system().spawn<clone_actor_type>(
     id, name, tout, caf::actor{self}, clock, std::move(con1), std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};
