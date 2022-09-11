@@ -207,6 +207,7 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
   BROKER_DEBUG(BROKER_ARG2("authentication", cfg->authentication_enabled()));
   if (cfg->authentication_enabled()) {
     // Require valid certificates on both sides.
+    ERR_clear_error();
     if (!cfg->certificate.empty()
         && SSL_CTX_use_certificate_chain_file(ctx.get(),
                                               cfg->certificate.c_str())
@@ -237,6 +238,7 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1)
       throw ssl_error("failed to set cipher list");
   } else { // No authentication.
+    ERR_clear_error();
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
 #if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
     SSL_CTX_set_ecdh_auto(ctx.get(), 1);
