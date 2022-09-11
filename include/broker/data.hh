@@ -6,6 +6,8 @@
 #include <set>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -21,9 +23,24 @@
 #include "broker/subnet.hh"
 #include "broker/time.hh"
 
-namespace broker {
+namespace broker::detail {
 
-class data;
+size_t fnv_hash(const broker::data& x);
+
+} // namespace broker::detail
+
+namespace std {
+
+template <>
+struct hash<broker::data> {
+  size_t operator()(const broker::data& x) const {
+    return broker::detail::fnv_hash(x);
+  }
+};
+
+} // namespace std
+
+namespace broker {
 
 /// A container of sequential data.
 using vector = std::vector<data>;
@@ -32,13 +49,13 @@ using vector = std::vector<data>;
 void convert(const vector& v, std::string& str);
 
 /// An associative, ordered container of unique keys.
-using set = std::set<data>;
+using set = std::unordered_set<data>;
 
 /// @relates set
 void convert(const set& s, std::string& str);
 
 /// An associative, ordered container that maps unique keys to values.
-using table = std::map<data, data>;
+using table = std::unordered_map<data, data>;
 
 /// @relates table
 void convert(const table& t, std::string& str);
@@ -419,8 +436,6 @@ bool contains(const data& x) {
 
 namespace broker::detail {
 
-size_t fnv_hash(const broker::data& x);
-
 size_t fnv_hash(const broker::set& x);
 
 size_t fnv_hash(const broker::vector& x);
@@ -434,13 +449,6 @@ size_t fnv_hash(const broker::table& x);
 // --- implementations of std::hash --------------------------------------------
 
 namespace std {
-
-template <>
-struct hash<broker::data> {
-  size_t operator()(const broker::data& x) const {
-    return broker::detail::fnv_hash(x);
-  }
-};
 
 template <>
 struct hash<broker::set> {

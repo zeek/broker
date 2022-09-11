@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/convert.hh"
+#include "broker/data.hh"
 #include "broker/detail/comparable.hh"
 #include "broker/detail/pp.hh"
 #include "broker/endpoint_info.hh"

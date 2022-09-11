@@ -254,7 +254,7 @@ TEST(clear / keys) {
   REQUIRE(size);
   CHECK_EQUAL(*size, 2u);
   auto keys = backend->keys();
-  std::set<data> x{data("foo"), data("bar")};
+  std::unordered_set<data> x{data("foo"), data("bar")};
   CHECK_EQUAL(*keys, x);
   auto clear = backend->clear();
   REQUIRE(clear);

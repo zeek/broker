@@ -156,13 +156,14 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::sc))
   BROKER_ADD_TYPE_ID((broker::set))
   BROKER_ADD_TYPE_ID((broker::shutdown_options))
-  BROKER_ADD_TYPE_ID((broker::snapshot))
   BROKER_ADD_TYPE_ID((broker::status))
   BROKER_ADD_TYPE_ID((broker::subnet))
   BROKER_ADD_TYPE_ID((broker::subtract_command))
   BROKER_ADD_TYPE_ID((broker::table))
   BROKER_ADD_TYPE_ID((broker::topic))
   BROKER_ADD_TYPE_ID((broker::vector))
+
+  // Note: don't add broker::snapshot since it's the same as broker::table.
 
   // -- STD/CAF type announcements ---------------------------------------------
 

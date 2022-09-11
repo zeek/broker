@@ -86,13 +86,10 @@ enum class sc : uint8_t;
 using backend_options = std::unordered_map<std::string, data>;
 using clock = std::chrono::system_clock;
 using filter_type = std::vector<topic>;
-using set = std::set<data>;
 using shared_filter_ptr = std::shared_ptr<shared_filter_type>;
 using snapshot = std::unordered_map<data, data>;
-using table = std::map<data, data>;
 using timespan = std::chrono::duration<int64_t, std::nano>;
 using timestamp = std::chrono::time_point<clock, timespan>;
-using vector = std::vector<data>;
 
 using internal_command_variant =
   std::variant<put_command, put_unique_command, put_unique_result_command,

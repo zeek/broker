@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "broker/endpoint_id.hh"
+#include "broker/fwd.hh"
 #include "broker/peer_status.hh"
 
 namespace broker::detail {
