@@ -204,6 +204,8 @@ store& store::operator=(store&& other) {
 }
 
 store& store::operator=(const store& other) {
+  if (this == &other)
+    return *this;
   with_state_ptr([this](detail::shared_store_state_ptr& st) {
     auto frontend = dref(st).frontend;
     caf::anon_send(frontend, atom::decrement_v, std::move(st));

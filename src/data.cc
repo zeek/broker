@@ -94,8 +94,8 @@ const char* data::get_type_name() const {
 namespace {
 
 template <class Container>
-void container_convert(Container& c, std::string& str, const char* left,
-                       const char* right, const char* delim = ", ") {
+void container_convert(Container& c, std::string& str, char left, char right) {
+  constexpr auto* delim = ", ";
   auto first = begin(c);
   auto last = end(c);
   str += left;
@@ -141,15 +141,15 @@ void convert(const table::value_type& x, std::string& str) {
 }
 
 void convert(const vector& x, std::string& str) {
-  container_convert(x, str, "(", ")");
+  container_convert(x, str, '(', ')');
 }
 
 void convert(const set& x, std::string& str) {
-  container_convert(x, str, "{", "}");
+  container_convert(x, str, '{', '}');
 }
 
 void convert(const table& x, std::string& str) {
-  container_convert(x, str, "{", "}");
+  container_convert(x, str, '{', '}');
 }
 
 void convert(const data& x, std::string& str) {

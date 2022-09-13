@@ -518,7 +518,7 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   self->state.this_node = this_node;
   self->state.observer = observer;
   self->send(self * core, atom::join_v, topics(*this_node));
-  self->send(self * core, atom::join_v, atom::store_v, topics(*this_node));
+  self->send(self * core, atom::join_v, atom::data_store_v, topics(*this_node));
   if (!verbose::enabled())
     return {
       [=](caf::stream<broker::data_message> in) {

@@ -108,7 +108,9 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   ctrl_msgs.emplace(self);
   // Connects us to the core.
   using caf::async::make_spsc_buffer_resource;
-  auto [core_pull, core_push] = make_spsc_buffer_resource<data_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources = make_spsc_buffer_resource<data_message>();
+  auto& [core_pull, core_push] = resources;
   // Read from the WebSocket, push to core (core_push).
   self //
     ->make_observable()
@@ -209,7 +211,9 @@ void json_client_state::init(
   using caf::async::make_spsc_buffer_resource;
   // Pull data from the core and forward as JSON.
   if (!filter.empty()) {
-    auto [core_pull2, core_push2] = make_spsc_buffer_resource<data_message>();
+    // Note: structured bindings with values confuses clang-tidy's leak checker.
+    auto resources = make_spsc_buffer_resource<data_message>();
+    auto& [core_pull2, core_push2] = resources;
     auto core_json = //
       self->make_observable()
         .from_resource(core_pull2)

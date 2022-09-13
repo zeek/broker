@@ -585,7 +585,7 @@ void endpoint::shutdown() {
   BROKER_INFO("shutting down endpoint");
   if (!await_stores_on_shutdown_) {
     BROKER_DEBUG("tell core actor to terminate stores");
-    caf::anon_send(native(core_), atom::shutdown_v, atom::store_v);
+    caf::anon_send(native(core_), atom::shutdown_v, atom::data_store_v);
   }
   // Lifetime scope of the scoped actor: must go out of scope before destroying
   // the actor system.
@@ -641,7 +641,6 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port,
   BROKER_INFO("try listening on"
               << (address + ":" + std::to_string(port))
               << (ctx_->cfg.options().disable_ssl ? "(no SSL)" : "(SSL)"));
-  char const* addr = address.empty() ? nullptr : address.c_str();
   uint16_t result = 0;
   caf::scoped_actor self{ctx_->sys};
   self
@@ -844,7 +843,9 @@ worker endpoint::do_subscribe(filter_type&& filter,
   BROKER_ASSERT(sink != nullptr);
   using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
-  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources = make_spsc_buffer_resource<data_message>();
+  auto& [con_res, prod_res] = resources;
   // Subscribe a new worker to the consumer end.
   auto [obs, launch_obs] = ctx_->sys.spawn_inactive<worker_actor>();
   sink->init();
@@ -916,7 +917,9 @@ worker endpoint::do_publish_all(std::shared_ptr<detail::source_driver> driver) {
   BROKER_ASSERT(driver != nullptr);
   using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
-  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources = make_spsc_buffer_resource<data_message>();
+  auto [con_res, prod_res] = resources;
   // Push to the producer end with a new worker.
   auto [src, launch_src] = ctx_->sys.spawn_inactive<worker_actor>();
   driver->init();
@@ -945,7 +948,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{ctx_->sys};
   self
-    ->request(native(core_), caf::infinite, atom::store_v, atom::master_v,
+    ->request(native(core_), caf::infinite, atom::data_store_v, atom::master_v,
               atom::attach_v, name, type, std::move(opts))
     .receive(
       [&](caf::actor& master) {
@@ -965,7 +968,7 @@ expected<store> endpoint::attach_clone(std::string name, double resync_interval,
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{ctx_->sys};
   self
-    ->request(native(core_), caf::infinite, atom::store_v, atom::clone_v,
+    ->request(native(core_), caf::infinite, atom::data_store_v, atom::clone_v,
               atom::attach_v, name, resync_interval, stale_interval,
               mutation_buffer_interval)
     .receive(

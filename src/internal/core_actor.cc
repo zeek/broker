@@ -293,17 +293,18 @@ caf::behavior core_actor_state::make_behavior() {
       subscriptions.emplace_back(std::move(sub));
     },
     // -- data store management ------------------------------------------------
-    [this](atom::store, atom::clone, atom::attach, const std::string& name,
+    [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
            double resync_interval, double stale_interval,
            double mutation_buffer_interval) {
       return attach_clone(name, resync_interval, stale_interval,
                           mutation_buffer_interval);
     },
-    [this](atom::store, atom::master, atom::attach, const std::string& name,
-           backend backend_type, backend_options opts) {
+    [this](atom::data_store, atom::master, atom::attach,
+           const std::string& name, backend backend_type,
+           backend_options opts) {
       return attach_master(name, backend_type, opts);
     },
-    [this](atom::store, atom::master, atom::get,
+    [this](atom::data_store, atom::master, atom::get,
            const std::string& name) -> caf::result<caf::actor> {
       auto i = masters.find(name);
       if (i != masters.end())
@@ -311,7 +312,7 @@ caf::behavior core_actor_state::make_behavior() {
       else
         return caf::make_error(ec::no_such_master);
     },
-    [this](atom::shutdown, atom::store) { //
+    [this](atom::shutdown, atom::data_store) { //
       shutdown_stores();
     },
     // -- interface for legacy subscribers -------------------------------------
@@ -860,8 +861,11 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   // message size. So on the wire, every byte block that our trait produces gets
   // prefixed with 32 bit with the size.
   namespace cn = caf::net;
-  auto [rd_1, wr_1] = caf::async::make_spsc_buffer_resource<node_message>();
-  auto [rd_2, wr_2] = caf::async::make_spsc_buffer_resource<node_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources1 = caf::async::make_spsc_buffer_resource<node_message>();
+  auto& [rd_1, wr_1] = resources1;
+  auto resources2 = caf::async::make_spsc_buffer_resource<node_message>();
+  auto& [rd_2, wr_2] = resources2;
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
     BROKER_DEBUG("failed to run pending connection:" << err);
     return err;
@@ -981,8 +985,11 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
     return caf::make_error(ec::backend_failure);
   BROKER_INFO("spawning new master:" << name);
   using caf::async::make_spsc_buffer_resource;
-  auto [con1, prod1] = make_spsc_buffer_resource<command_message>();
-  auto [con2, prod2] = make_spsc_buffer_resource<command_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources1 = make_spsc_buffer_resource<command_message>();
+  auto& [con1, prod1] = resources1;
+  auto resources2 = make_spsc_buffer_resource<command_message>();
+  auto& [con2, prod2] = resources2;
   // Spin up the master and connect it to our flows.
   auto hdl = self->system().spawn<master_actor_type>(id, name, std::move(ptr),
                                                      caf::actor{self}, clock,
@@ -1023,8 +1030,11 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   // TODO: make configurable.
   auto tout = duration_cast<timespan>(fractional_seconds{10});
   using caf::async::make_spsc_buffer_resource;
-  auto [con1, prod1] = make_spsc_buffer_resource<command_message>();
-  auto [con2, prod2] = make_spsc_buffer_resource<command_message>();
+  // Note: structured bindings with values confuses clang-tidy's leak checker.
+  auto resources1 = make_spsc_buffer_resource<command_message>();
+  auto& [con1, prod1] = resources1;
+  auto resources2 = make_spsc_buffer_resource<command_message>();
+  auto& [con2, prod2] = resources2;
   auto hdl = self->system().spawn<clone_actor_type>(
     id, name, tout, caf::actor{self}, clock, std::move(con1), std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};

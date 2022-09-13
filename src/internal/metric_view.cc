@@ -67,40 +67,35 @@ bool metric_view::get_type(const vector& row,
   };
   static constexpr bool bad = false;
   const auto* t = broker::get_if<std::string>(row[index(field::type)]);
-  const auto& v = row[index(field::value)];
-  if (!t) {
+  if (t == nullptr) {
     return bad;
-  } else if (*t == "counter") {
-    if (is<integer>(v))
+  }
+  const auto& v = row[index(field::value)];
+  if (*t == "counter") {
+    if (is<integer>(v)) {
       return good(metric_type::int_counter);
-    else if (is<real>(v))
+    } else if (is<real>(v)) {
       return good(metric_type::dbl_counter);
-    else
-      return bad;
+    }
   } else if (*t == "gauge") {
-    if (is<integer>(v))
+    if (is<integer>(v)) {
       return good(metric_type::int_gauge);
-    else if (is<real>(v))
+    } else if (is<real>(v)) {
       return good(metric_type::dbl_gauge);
-    else
-      return bad;
+    }
   } else if (*t == "histogram") {
     if (auto vals = get_if<vector>(v); vals && vals->size() >= 2) {
       if (std::all_of(vals->begin(), vals->end() - 1, pair_predicate<integer>{})
-          && is<integer>(vals->back()))
+          && is<integer>(vals->back())) {
         return good(metric_type::int_histogram);
-      else if (std::all_of(vals->begin(), vals->end() - 1,
-                           pair_predicate<real, integer>{})
-               && is<real>(vals->back()))
+      } else if (std::all_of(vals->begin(), vals->end() - 1,
+                             pair_predicate<real, integer>{})
+                 && is<real>(vals->back())) {
         return good(metric_type::dbl_histogram);
-      else
-        return bad;
-    } else {
-      return bad;
+      }
     }
-  } else {
-    return bad;
   }
+  return bad;
 }
 
 } // namespace broker::internal

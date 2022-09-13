@@ -183,7 +183,7 @@ public:
   }
 
 private:
-  std::byte obj_[sizeof(impl*)];
+  std::byte obj_[sizeof(void*)];
 };
 
 /// @relates error
@@ -350,7 +350,7 @@ inline error_view make_error_view(const data& src) {
 } // namespace broker
 
 #define BROKER_TRY_IMPL(statement)                                             \
-  if (auto err = statement)                                                    \
+  if (auto err = (statement))                                                  \
   return err
 
 #define BROKER_TRY_1(x1) BROKER_TRY_IMPL(x1)

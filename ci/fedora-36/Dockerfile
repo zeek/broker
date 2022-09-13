@@ -5,6 +5,8 @@ FROM fedora:36
 ENV DOCKERFILE_VERSION 20220615
 
 RUN dnf -y install \
+    clang \
+    clang-tools-extra \
     cmake \
     diffutils \
     gcc \

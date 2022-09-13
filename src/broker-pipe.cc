@@ -123,7 +123,7 @@ void publish_mode_select(broker::endpoint& ep, const std::string& topic_str,
       if (!std::getline(std::cin, line))
         return; // Reached end of STDIO.
       else
-        out.publish(std::move(line));
+        out.publish(line);
     i += num;
     msg_count += num;
   }
@@ -215,7 +215,7 @@ void split(std::vector<std::string>& result, std::string_view str,
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
   broker::endpoint::system_guard sys_guard;
   // Parse CLI parameters using our config.
   parameters params;
@@ -301,4 +301,7 @@ int main(int argc, char** argv) {
   auto i = std::find(b, std::end(as), std::make_pair(params.mode, params.impl));
   auto f = fs[std::distance(b, i)];
   f(ep, params.topic, params.message_cap);
+} catch (std::exception& ex) {
+  std::cerr << "*** exception: " << ex.what() << "\n";
+  return EXIT_FAILURE;
 }

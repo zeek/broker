@@ -17,7 +17,7 @@ namespace {
 using std::string_view;
 
 // Cap incoming HTTP requests.
-constexpr size_t max_request_size = 512 * 1024;
+constexpr size_t max_request_size = 512ul * 1024ul;
 
 constexpr string_view valid_request_start = "GET /metrics HTTP/1.";
 

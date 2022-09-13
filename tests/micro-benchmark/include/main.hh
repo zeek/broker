@@ -31,7 +31,7 @@ using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
 #define MICRO_BENCH_ADD_TYPE(type) CAF_ADD_TYPE_ID(micro_benchmarks, type)
 
-CAF_BEGIN_TYPE_ID_BLOCK(micro_benchmarks, caf::id_block::broker::end)
+CAF_BEGIN_TYPE_ID_BLOCK(micro_benchmarks, caf::id_block::broker_internal::end)
 
   MICRO_BENCH_ADD_TYPE((caf::stream<legacy_node_message>) )
   MICRO_BENCH_ADD_TYPE((legacy_node_message))

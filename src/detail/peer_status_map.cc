@@ -30,7 +30,8 @@ bool peer_status_map::update(endpoint_id peer, peer_status& expected,
   if (closed_) {
     expected = peer_status::unknown;
     return false;
-  } else if (auto i = peers_.find(peer); i != peers_.end()) {
+  }
+  if (auto i = peers_.find(peer); i != peers_.end()) {
     if (i->second == expected) {
       i->second = desired;
       return true;
@@ -38,10 +39,9 @@ bool peer_status_map::update(endpoint_id peer, peer_status& expected,
       expected = i->second;
       return false;
     }
-  } else {
-    expected = peer_status::unknown;
-    return false;
   }
+  expected = peer_status::unknown;
+  return false;
 }
 
 bool peer_status_map::remove(endpoint_id peer, peer_status& expected) {
@@ -49,7 +49,8 @@ bool peer_status_map::remove(endpoint_id peer, peer_status& expected) {
   if (closed_) {
     expected = peer_status::unknown;
     return false;
-  } else if (auto i = peers_.find(peer); i != peers_.end()) {
+  }
+  if (auto i = peers_.find(peer); i != peers_.end()) {
     if (i->second == expected) {
       peers_.erase(i);
       return true;
@@ -57,10 +58,9 @@ bool peer_status_map::remove(endpoint_id peer, peer_status& expected) {
       expected = i->second;
       return false;
     }
-  } else {
-    expected = peer_status::unknown;
-    return false;
   }
+  expected = peer_status::unknown;
+  return false;
 }
 
 void peer_status_map::remove(endpoint_id peer) {

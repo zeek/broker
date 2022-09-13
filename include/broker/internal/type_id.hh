@@ -15,9 +15,11 @@
 
 // -- imported atoms -----------------------------------------------------------
 
+// NOLINTBEGIN
 #define BROKER_CAF_ATOM_ALIAS(name)                                            \
   using name = caf::name##_atom;                                               \
   constexpr auto name##_v = caf::name##_atom_v;
+// NOLINTEND
 
 namespace broker::internal::atom {
 
@@ -50,11 +52,12 @@ static_assert(caf::has_type_id_v<broker::timespan>,
 static_assert(caf::has_type_id_v<broker::timestamp>,
               "broker::timestamp != caf::timestamp");
 
-#define BROKER_ADD_ATOM(name) CAF_ADD_ATOM(broker, broker::internal::atom, name)
+#define BROKER_ADD_ATOM(name)                                                  \
+  CAF_ADD_ATOM(broker_internal, broker::internal::atom, name)
 
-#define BROKER_ADD_TYPE_ID(type) CAF_ADD_TYPE_ID(broker, type)
+#define BROKER_ADD_TYPE_ID(type) CAF_ADD_TYPE_ID(broker_internal, type)
 
-CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
+CAF_BEGIN_TYPE_ID_BLOCK(broker_internal, caf::first_custom_type_id)
 
   // -- atoms for generic communication ----------------------------------------
 
@@ -86,6 +89,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(await)
   BROKER_ADD_ATOM(clear)
   BROKER_ADD_ATOM(clone)
+  BROKER_ADD_ATOM(data_store)
   BROKER_ADD_ATOM(decrement)
   BROKER_ADD_ATOM(erase)
   BROKER_ADD_ATOM(exists)
@@ -99,7 +103,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_ATOM(resolve)
   BROKER_ADD_ATOM(restart)
   BROKER_ADD_ATOM(stale_check)
-  BROKER_ADD_ATOM(store)
   BROKER_ADD_ATOM(subtract)
   BROKER_ADD_ATOM(sync_point)
 
@@ -173,7 +176,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((std::shared_ptr<std::promise<void>>) )
   BROKER_ADD_TYPE_ID((std::vector<broker::peer_info>) )
 
-CAF_END_TYPE_ID_BLOCK(broker)
+CAF_END_TYPE_ID_BLOCK(broker_internal)
 
 // -- enable opt-in features for Broker types ----------------------------------
 

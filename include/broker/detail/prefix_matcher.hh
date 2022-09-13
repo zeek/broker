@@ -11,10 +11,10 @@ namespace broker::detail {
 struct prefix_matcher {
   using filter_type = std::vector<topic>;
 
-  bool operator()(const filter_type& filter, const topic& t) const;
+  bool operator()(const filter_type& filter, const topic& t) const noexcept;
 
   template <class T>
-  bool operator()(const filter_type& filter, const T& x) const {
+  bool operator()(const filter_type& filter, const T& x) const noexcept {
     return (*this)(filter, get_topic(x));
   }
 };
