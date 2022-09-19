@@ -1,3 +1,7 @@
+2.4.0-dev.66 | 2022-09-19 09:21:27 -0700
+
+  * Fix error handling with OpenSSL calls (Dominik Charousset, Corelight)
+
 2.4.0-dev.64 | 2022-09-13 08:14:22 -0400
 
   * Avoid unnecessary copies (Dominik Charousset, Corelight)
