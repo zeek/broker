@@ -1,3 +1,16 @@
+Broker 2.3.3
+============
+
+- Fix a bug that prevented Broker nodes to recover from OpenSSL errors.
+
+- Fix handling of buffer sizes that caused Broker to stall despite having
+  sufficient capacity.
+
+Broker 2.3.2
+============
+
+- Add missing error signaling
+
 Broker 2.3.1
 ============
 

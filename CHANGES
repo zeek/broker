@@ -1,3 +1,11 @@
+2.3.3 | 2022-09-19 09:23:11 -0700
+
+  * Release 2.3.3.
+
+  * Fix error handling with OpenSSL calls (Dominik Charousset, Corelight)
+
+    (cherry picked from commit 0c391abfcfa75f58ba0fece21f361af0b256814c)
+
 2.3.2-1 | 2022-09-19 08:50:56 -0700
 
   * Update CAF submodule to fix stalling Broker pipelines (Dominik Charousset, Corelight)
