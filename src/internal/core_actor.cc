@@ -830,7 +830,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   auto ts = (i == peers.end()) ? lamport_timestamp{} : ++i->second.ts;
   // Read messages from the peer.
   auto in = self->make_observable()
-	          .from_resource(std::move(in_res))
+              .from_resource(std::move(in_res))
               .do_on_next([this](const node_message& msg) {
                 metrics_for(get_type(msg)).buffered->inc();
               })
