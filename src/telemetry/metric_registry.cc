@@ -260,7 +260,7 @@ public:
   using super = impl_base;
 
   post_init_impl(internal::endpoint_context_ptr ctx)
-    : super(std::addressof(ctx->sys.metrics())), ctx_(ctx) {
+    : super(std::addressof(ctx->sys.metrics())), ctx_(std::move(ctx)) {
     // nop
   }
 

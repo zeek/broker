@@ -19,7 +19,7 @@ public:
   subnet();
 
   /// Construct subnet from an address and length.
-  subnet(address addr, uint8_t length);
+  subnet(const address& addr, uint8_t length);
 
   /// @return whether an address is contained within this subnet.
   bool contains(const address& addr) const;

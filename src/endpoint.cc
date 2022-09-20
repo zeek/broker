@@ -656,7 +656,7 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port,
         BROKER_DEBUG("cannot listen to" << address << "on port" << port << ":"
                                         << err);
         if (err_ptr)
-          *err_ptr = facade(std::move(err));
+          *err_ptr = facade(err);
       });
   return result;
 }
@@ -839,7 +839,7 @@ using worker_actor = caf::stateful_actor<worker_state>;
 } // namespace
 
 worker endpoint::do_subscribe(filter_type&& filter,
-                              detail::sink_driver_ptr sink) {
+                              const detail::sink_driver_ptr& sink) {
   BROKER_ASSERT(sink != nullptr);
   using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
@@ -913,7 +913,8 @@ private:
 
 } // namespace
 
-worker endpoint::do_publish_all(std::shared_ptr<detail::source_driver> driver) {
+worker
+endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   BROKER_ASSERT(driver != nullptr);
   using caf::async::make_spsc_buffer_resource;
   // Get a pair of connected resources.
@@ -933,7 +934,7 @@ worker endpoint::do_publish_all(std::shared_ptr<detail::source_driver> driver) {
   caf::anon_send(native(core_),
                  internal::data_consumer_res{std::move(con_res)});
   // Store background worker and return.
-  workers_.emplace_back(facade(std::move(worker)));
+  workers_.emplace_back(facade(worker));
   return workers_.back();
 }
 
@@ -1030,7 +1031,7 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
     return;
   }
   auto f = [whom, cb{std::move(callback)}](caf::event_based_actor* self,
-                                           caf::actor core, timespan t) {
+                                           const caf::actor& core, timespan t) {
     self->request(core, t, atom::await_v, whom)
       .then(
         [&]([[maybe_unused]] endpoint_id& discovered) {
@@ -1042,7 +1043,7 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
   ctx_->sys.spawn(f, native(core_), timeout);
 }
 
-bool endpoint::await_filter_entry(topic what, timespan timeout) {
+bool endpoint::await_filter_entry(const topic& what, timespan timeout) {
   using namespace std::literals;
   BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(timeout));
   auto abs_timeout = broker::now() + timeout;

@@ -80,12 +80,12 @@ void store_actor_state::init(caf::event_based_actor* selfptr,
                               defaults::store::tick_interval);
   self //
     ->make_observable()
-    .from_resource(in_res)
+    .from_resource(std::move(in_res))
     .for_each([this](const command_message& msg) { dispatch(msg); },
               [this](const caf::error& what) { self->quit(what); },
               [this] { self->quit(); });
   out.emplace(self);
-  out->as_observable().subscribe(out_res);
+  out->as_observable().subscribe(std::move(out_res));
 }
 
 // -- event signaling ----------------------------------------------------------
@@ -147,7 +147,7 @@ void store_actor_state::on_down_msg(const caf::actor_addr& source,
 
 // -- convenience functions ----------------------------------------------------
 
-void store_actor_state::send_later(caf::actor hdl, timespan delay,
+void store_actor_state::send_later(const caf::actor& hdl, timespan delay,
                                    caf::message msg) {
   clock->send_later(facade(hdl), tick_interval, &msg);
 }

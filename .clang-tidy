@@ -2,6 +2,7 @@
   Checks: -*,
           bugprone-*,
           clang-analyzer-*,
+          performance-*,
           -bugprone-easily-swappable-parameters,
           -clang-analyzer-security.insecureAPI.rand,
           -clang-analyzer-webkit*,

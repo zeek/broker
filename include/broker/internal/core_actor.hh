@@ -190,7 +190,7 @@ public:
   /// `init_new_peer` with the buffers that connect to the worker.
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            const filter_type& filter,
-                           pending_connection_ptr conn);
+                           const pending_connection_ptr& conn);
 
   /// Connects the input and output buffers for a new client to our central
   /// merge point.

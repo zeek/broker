@@ -144,7 +144,7 @@ void erase(routing_table& tbl, const endpoint_id& whom,
   impl(whom);
   while (!unreachable_peers.empty()) {
     // Our lambda modifies unreachable_peers, so we can't use iterators here.
-    endpoint_id peer = std::move(unreachable_peers.back());
+    endpoint_id peer = unreachable_peers.back();
     unreachable_peers.pop_back();
     impl(peer);
     on_remove(peer);
