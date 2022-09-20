@@ -1,3 +1,9 @@
+2.4.0-dev.72 | 2022-09-20 08:49:22 -0700
+
+  * Get initial number of entries from the backend (Dominik Charousset, Corelight)
+
+  * Add additional health and performance metrics (Dominik Charousset, Corelight)
+
 2.4.0-dev.69 | 2022-09-20 08:20:48 -0700
 
   * Enable performance-* checks and fix findings (Dominik Charousset, Corelight)

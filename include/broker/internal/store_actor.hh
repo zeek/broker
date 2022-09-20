@@ -76,6 +76,7 @@ public:
                                   defaults::store::heartbeat_interval));
     out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
                                          defaults::store::connection_timeout));
+    out.metrics().init(self->system(), store_name);
   }
 
   template <class Backend>
@@ -93,6 +94,7 @@ public:
     in.heartbeat_interval(heartbeat_interval);
     in.connection_timeout_factor(connection_timeout);
     in.nack_timeout(nack_timeout);
+    in.metrics().init(self->system(), store_name);
   }
 
   template <class... Fs>

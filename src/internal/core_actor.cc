@@ -35,6 +35,22 @@ namespace broker::internal {
 
 // --- constructors and destructors --------------------------------------------
 
+core_actor_state::metrics_t::metrics_t(caf::actor_system& sys) {
+  metric_factory factory{sys};
+  // Initialize connection metrics.
+  auto [native, ws] = factory.core.connections_instances();
+  native_connections = native;
+  web_socket_connections = ws;
+  // Initialize message metrics, indexes are according to packed_message_type.
+  auto proc = factory.core.processed_messages_instances();
+  auto buf = factory.core.buffered_messages_instances();
+  message_metric_sets[1].assign(proc.data, buf.data);
+  message_metric_sets[2].assign(proc.command, buf.command);
+  message_metric_sets[3].assign(proc.routing_update, buf.routing_update);
+  message_metric_sets[4].assign(proc.ping, buf.ping);
+  message_metric_sets[5].assign(proc.pong, buf.pong);
+}
+
 core_actor_state::core_actor_state(caf::event_based_actor* self,
                                    endpoint_id this_peer,
                                    filter_type initial_filter,
@@ -44,8 +60,10 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
   : self(self),
     id(this_peer),
     filter(std::make_shared<shared_filter_type>(std::move(initial_filter))),
-    clock(clock) {
-  // Check for extra configuration parameters.
+    clock(clock),
+    metrics(self->system()) {
+  // Read config and check for extra configuration parameters.
+  ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {
     BROKER_INFO("disable forwarding on this peer");
     disable_forwarding = true;
@@ -66,7 +84,6 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
                                         on_peer_unavailable, filter,
                                         peer_statuses));
   }
-  ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
 }
 
 core_actor_state::~core_actor_state() {
@@ -76,20 +93,6 @@ core_actor_state::~core_actor_state() {
 // -- initialization and tear down ---------------------------------------------
 
 caf::behavior core_actor_state::make_behavior() {
-  // Our metrics for keeping track of how many messages pass through this peer.
-  // Indexes into the array are values of packed_message_type, they start at 1.
-  auto proc_fam = self->system().metrics().counter_family(
-    "broker", "processed-elements", {"type"},
-    "Number of processed stream elements.");
-  using counter_ptr = caf::telemetry::int_counter*;
-  std::array<counter_ptr, 6> counters{{
-    nullptr,
-    proc_fam->get_or_add({{"type", "data"}}),
-    proc_fam->get_or_add({{"type", "command"}}),
-    proc_fam->get_or_add({{"type", "routing-update"}}),
-    proc_fam->get_or_add({{"type", "ping"}}),
-    proc_fam->get_or_add({{"type", "pong"}}),
-  }};
   // Create the mergers.
   auto init_merger = [this](auto& ptr) {
     ptr.emplace(self);                     // Allocate the object.
@@ -111,10 +114,12 @@ caf::behavior core_actor_state::make_behavior() {
   // Process filter updates from our peers and add instrumentation for metrics.
   central_merge //
     ->as_observable()
-    .for_each([this, counters](const node_message& msg) {
+    .for_each([this](const node_message& msg) {
       auto sender = get_sender(msg);
       // Update metrics.
-      counters[static_cast<size_t>(get_type(msg))]->inc();
+      auto& metrics = metrics_for(get_type(msg));
+      metrics.processed->inc();
+      metrics.buffered->dec();
       // We only care about incoming filter updates messages here.
       if (sender == id || get_type(msg) != packed_message_type::routing_update)
         return;
@@ -134,7 +139,7 @@ caf::behavior core_actor_state::make_behavior() {
   // Respond to PING messages.
   central_merge //
     ->as_observable()
-    .for_each([this, counters](const node_message& msg) {
+    .for_each([this](const node_message& msg) {
       auto sender = get_sender(msg);
       if (sender == id || get_type(msg) != packed_message_type::ping)
         return;
@@ -290,8 +295,13 @@ caf::behavior core_actor_state::make_behavior() {
     },
     // -- interface for publishers ---------------------------------------------
     [this](data_consumer_res src) {
-      auto sub =
-        data_inputs->add(self->make_observable().from_resource(std::move(src)));
+      auto in = self
+                  ->make_observable() //
+                  .from_resource(src)
+                  .do_on_next([this](const data_message&) {
+                    metrics_for(packed_message_type::data).buffered->inc();
+                  });
+      auto sub = data_inputs->add(std::move(in));
       subscriptions.emplace_back(std::move(sub));
     },
     // -- data store management ------------------------------------------------
@@ -777,6 +787,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                                << BROKER_ARG(status));
     return caf::make_error(ec::invalid_status, to_string(status));
   }
+  // All sanity checks have passed, update our state.
+  metrics.native_connections->inc();
   // Store the filter for is_subscribed_to.
   peer_filters[peer_id] = filter;
   // Hook into the central merge point for forwarding the data to the peer.
@@ -818,10 +830,14 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   auto ts = (i == peers.end()) ? lamport_timestamp{} : ++i->second.ts;
   // Read messages from the peer.
   auto in = self->make_observable()
-              .from_resource(std::move(in_res))
+	          .from_resource(std::move(in_res))
+              .do_on_next([this](const node_message& msg) {
+                metrics_for(get_type(msg)).buffered->inc();
+              })
               // If the peer closes this buffer, we assume a disconnect.
               .do_finally([this, peer_id, ts] { //
                 BROKER_DEBUG("close input flow from" << peer_id);
+                metrics.native_connections->dec();
                 caf::error reason;
                 handle_peer_close_event(peer_id, ts, reason);
               })
@@ -894,6 +910,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
     return caf::make_error(caf::sec::invalid_argument,
                            "cannot add client without valid input buffer");
   }
+  // All sanity checks have passed, update our state.
+  metrics.web_socket_connections->inc();
   // We cannot simply treat a client like we treat a local publisher or
   // subscriber, because events from the client must be visible locally. Hence,
   // we assign a UUID to each client and treat it almost like a peer.
@@ -912,7 +930,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                    detail::prefix_matcher f;
                    return f(filt, get_topic(msg));
                  })
-                 // Deserialize payload and wrap it into an data message.
+                 // Deserialize payload and wrap it into a data message.
                  .flat_map_optional([this](const node_message& msg) {
                    // TODO: repeats deserialization in the core! Ideally, this
                    //       would only happen exactly once per message.
@@ -929,8 +947,10 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
               .do_finally([this, client_id, addr, type] {
                 BROKER_DEBUG("client" << addr << "disconnected");
                 client_removed(client_id, addr, type);
+                metrics.web_socket_connections->dec();
               })
               .map([this, client_id](const data_message& msg) {
+                metrics_for(packed_message_type::data).buffered->inc();
                 return make_node_message(client_id, endpoint_id::nil(),
                                          pack(msg));
               })
@@ -1007,7 +1027,10 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
       return f(xs, item);
     })
     .subscribe(prod1);
-  command_inputs->add(self->make_observable().from_resource(con2));
+  command_inputs->add(self->make_observable().from_resource(con2).do_on_next(
+    [this](const command_message&) {
+      metrics_for(packed_message_type::command).buffered->inc();
+    }));
   // Save the handle and monitor the new actor.
   masters.emplace(name, hdl);
   self->link_to(hdl);
@@ -1049,7 +1072,10 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
       return f(xs, item);
     })
     .subscribe(prod1);
-  command_inputs->add(self->make_observable().from_resource(con2));
+  command_inputs->add(self->make_observable().from_resource(con2).do_on_next(
+    [this](const command_message&) {
+      metrics_for(packed_message_type::command).buffered->inc();
+    }));
   // Save the handle for later.
   clones.emplace(name, hdl);
   return hdl;
@@ -1070,7 +1096,8 @@ void core_actor_state::shutdown_stores() {
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
 void core_actor_state::dispatch(endpoint_id receiver, packed_message msg) {
-  central_merge->append_to_buf(make_node_message(id, receiver, std::move(msg)));
+  metrics_for(get_type(msg)).buffered->inc();
+  central_merge->append_to_buf(make_node_message(id, receiver, msg));
   central_merge->try_push();
 }
 
@@ -1087,6 +1114,7 @@ void core_actor_state::broadcast_subscriptions() {
   auto packed = packed_message{packed_message_type::routing_update, ttl,
                                topic{std::string{topic::reserved}},
                                std::vector<std::byte>{first, last}};
+  metrics_for(packed_message_type::routing_update).buffered->inc();
   for (auto& kvp : peers)
     central_merge->append_to_buf(node_message(id, kvp.first, packed));
   central_merge->try_push();

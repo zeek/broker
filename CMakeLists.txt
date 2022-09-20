@@ -332,6 +332,7 @@ set(BROKER_SRC
   src/internal/master_resolver.cc
   src/internal/metric_collector.cc
   src/internal/metric_exporter.cc
+  src/internal/metric_factory.cc
   src/internal/metric_scraper.cc
   src/internal/metric_view.cc
   src/internal/pending_connection.cc

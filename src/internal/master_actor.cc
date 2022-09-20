@@ -18,6 +18,7 @@
 #include "broker/detail/assert.hh"
 #include "broker/detail/die.hh"
 #include "broker/internal/master_actor.hh"
+#include "broker/internal/metric_factory.hh"
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
@@ -41,6 +42,14 @@ auto to_caf_res(expected<T>&& x) {
 
 } // namespace
 
+// -- metrics ------------------------------------------------------------------
+
+master_state::metrics_t::metrics_t(caf::actor_system& sys,
+                                   const std::string& name) noexcept {
+  metric_factory factory{sys};
+  entries = factory.store.entries_instance(name);
+}
+
 // -- initialization -----------------------------------------------------------
 
 master_state::master_state(
@@ -48,7 +57,7 @@ master_state::master_state(
   backend_pointer bp, caf::actor parent, endpoint::clock* ep_clock,
   caf::async::consumer_resource<command_message> in_res,
   caf::async::producer_resource<command_message> out_res)
-  : output(this) {
+  : output(this), metrics(ptr->system(), nm) {
   super::init(ptr, this_endpoint, ep_clock, std::move(nm), std::move(parent),
               std::move(in_res), std::move(out_res));
   super::init(output);
@@ -59,6 +68,9 @@ master_state::master_state(
       expirations.emplace(key, expire_time);
   } else {
     detail::die("failed to get master expiries while initializing");
+  }
+  if (auto entries = backend->size(); entries && *entries > 0) {
+    metrics.entries->value(static_cast<int64_t>(*entries));
   }
   BROKER_INFO("attached master" << id << "to" << store_name);
 }
@@ -161,6 +173,7 @@ void master_state::tick() {
         expire_command cmd{key, id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
+        metrics.entries->dec();
       }
       i = expirations.erase(i);
     } else {
@@ -196,10 +209,12 @@ void master_state::consume(put_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   set_expire_time(x.key, x.expiry);
-  if (old_value)
+  if (old_value) {
     emit_update_event(x, *old_value);
-  else
+  } else {
     emit_insert_event(x);
+    metrics.entries->inc();
+  }
   broadcast(std::move(x));
 }
 
@@ -230,6 +245,7 @@ void master_state::consume(put_unique_command& x) {
   }
   set_expire_time(x.key, x.expiry);
   emit_insert_event(x);
+  metrics.entries->inc();
   // Broadcast a regular "put" command (clones don't have to do their own
   // existence check) followed by the (positive) result message.
   broadcast(
@@ -240,11 +256,16 @@ void master_state::consume(put_unique_command& x) {
 void master_state::consume(erase_command& x) {
   BROKER_TRACE(BROKER_ARG(x));
   BROKER_INFO("ERASE" << x.key);
+  if (!exists(x.key)) {
+    BROKER_DEBUG("failed to erase" << x.key << "-> no such key");
+    return;
+  }
   if (auto res = backend->erase(x.key); !res) {
     BROKER_WARNING("failed to erase" << x.key << "->" << res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   emit_erase_event(x.key, x.publisher);
+  metrics.entries->dec();
   broadcast(std::move(x));
 }
 
@@ -268,10 +289,12 @@ void master_state::consume(add_command& x) {
     // processing again.
     put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
                     x.publisher};
-    if (old_value)
+    if (old_value) {
       emit_update_event(cmd, *old_value);
-    else
+    } else {
       emit_insert_event(cmd);
+      metrics.entries->inc();
+    }
     broadcast(std::move(cmd));
   }
 }
@@ -316,9 +339,11 @@ void master_state::consume(clear_command& x) {
     if (auto keys = get_if<vector>(*keys_res)) {
       for (auto& key : *keys)
         emit_erase_event(key, x.publisher);
+      metrics.entries->value(0);
     } else if (auto keys = get_if<set>(*keys_res)) {
       for (auto& key : *keys)
         emit_erase_event(key, x.publisher);
+      metrics.entries->value(0);
     } else if (!is<none>(*keys_res)) {
       BROKER_ERROR("backend->keys() returned an unexpected result type");
     }

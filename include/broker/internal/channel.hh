@@ -12,6 +12,7 @@
 
 #include "broker/error.hh"
 #include "broker/internal/logger.hh"
+#include "broker/internal/metric_factory.hh"
 #include "broker/lamport_timestamp.hh"
 #include "broker/none.hh"
 
@@ -156,6 +157,56 @@ public:
 
     using path_list = std::vector<path>;
 
+    /// Bundles metrics for the producer.
+    struct metrics_t {
+      /// Keeps track of how many output channels exist.
+      caf::telemetry::int_gauge* output_channels = nullptr;
+
+      /// Keeps track of how many messages currently wait for an ACK.
+      caf::telemetry::int_gauge* unacknowledged = nullptr;
+
+      /// Keeps track of how many messages were sent (acknowledged) in total.
+      caf::telemetry::int_counter* processed = nullptr;
+
+      void init(caf::telemetry::metric_registry& reg, std::string_view name) {
+        metric_factory factory{reg};
+        output_channels = factory.store.output_channels_instance(name);
+        unacknowledged = factory.store.unacknowledged_updates_instance(name);
+        processed = factory.store.processed_updates_instance(name);
+      }
+
+      void init(caf::actor_system& sys, std::string_view name) {
+        init(sys.metrics(), name);
+      }
+
+      bool initialized() const noexcept {
+        // Either all pointer are null or none.
+        return output_channels != nullptr;
+      }
+
+      void inc_output_channels() {
+        if (output_channels)
+          output_channels->inc();
+      }
+
+      void dec_output_channels() {
+        if (output_channels)
+          output_channels->dec();
+      }
+
+      void inc_unacknowledged() {
+        if (unacknowledged)
+          unacknowledged->inc();
+      }
+
+      void shipped(int64_t num) {
+        if (unacknowledged) {
+          unacknowledged->dec(num);
+          processed->inc(num);
+        }
+      }
+    };
+
     // -- constructors, destructors, and assignment operators ------------------
 
     explicit producer(Backend* backend) : backend_(backend) {
@@ -167,6 +218,7 @@ public:
     void produce(Payload content) {
       if (paths_.empty())
         return;
+      metrics_.inc_unacknowledged();
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
       last_broadcast_ = tick_;
@@ -177,6 +229,7 @@ public:
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
       BROKER_DEBUG("add" << hdl << "to the channel");
+      metrics_.inc_output_channels();
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return {};
@@ -214,8 +267,11 @@ public:
       }
       // Drop events from the buffer if possible.
       auto not_acked = [acked](const event& x) { return x.seq > acked; };
-      buf_.erase(buf_.begin(),
-                 std::find_if(buf_.begin(), buf_.end(), not_acked));
+      auto new_begin = std::find_if(buf_.begin(), buf_.end(), not_acked);
+      if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
+        metrics_.shipped(n);
+        buf_.erase(buf_.begin(), new_begin);
+      }
     }
 
     void handle_nack(const Handle& hdl,
@@ -272,6 +328,7 @@ public:
       for (auto i = paths_.begin(); i != paths_.end();) {
         if (tick_.value - i->last_seen.value >= timeout) {
           BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
+          metrics_.dec_output_channels();
           backend_->drop(this, i->hdl, ec::connection_timeout);
           i = paths_.erase(i);
           ++erased_paths;
@@ -289,8 +346,11 @@ public:
           if (i->acked < acked)
             acked = i->acked;
         auto not_acked = [acked](const event& x) { return x.seq > acked; };
-        buf_.erase(buf_.begin(),
-                   std::find_if(buf_.begin(), buf_.end(), not_acked));
+        auto new_begin = std::find_if(buf_.begin(), buf_.end(), not_acked);
+        if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
+          metrics_.shipped(n);
+          buf_.erase(buf_.begin(), new_begin);
+        }
       }
     }
 
@@ -302,6 +362,10 @@ public:
 
     const auto& backend() const noexcept {
       return *backend_;
+    }
+
+    metrics_t& metrics() noexcept {
+      return metrics_;
     }
 
     auto seq() const noexcept {
@@ -373,6 +437,9 @@ public:
 
     /// Transmits messages to the consumers.
     Backend* backend_;
+
+    /// Caches pointers to the metric instances.
+    metrics_t metrics_;
 
     /// Monotonically increasing counter (starting at 1) to establish ordering
     /// of messages on this channel. Since we start at 1, the first message we
@@ -452,6 +519,50 @@ public:
 
     using buf_type = std::deque<optional_event>;
 
+    /// Bundles metrics for the consumer.
+    struct metrics_t {
+      /// Keeps track of how many output channels exist.
+      caf::telemetry::int_gauge* input_channels = nullptr;
+
+      /// Keeps track of how many messages are currently buffered because they
+      /// arrived out-of-order.
+      caf::telemetry::int_gauge* out_of_order_updates = nullptr;
+
+      void init(caf::telemetry::metric_registry& reg, std::string_view name) {
+        metric_factory factory{reg};
+        input_channels = factory.store.input_channels_instance(name);
+      }
+
+      void init(caf::actor_system& sys, std::string_view name) {
+        init(sys.metrics(), name);
+      }
+
+      bool initialized() const noexcept {
+        // Either all pointer are null or none.
+        return input_channels != nullptr;
+      }
+
+      void inc_input_channels() {
+        if (input_channels)
+          input_channels->inc();
+      }
+
+      void dec_input_channels() {
+        if (input_channels)
+          input_channels->dec();
+      }
+
+      void inc_out_of_order_updates() {
+        if (out_of_order_updates)
+          out_of_order_updates->inc();
+      }
+
+      void dec_out_of_order_updates(int64_t n = 1) {
+        if (out_of_order_updates)
+          out_of_order_updates->dec(n);
+      }
+    };
+
     // -- constructors, destructors, and assignment operators ------------------
 
     explicit consumer(Backend* backend) : backend_(backend) {
@@ -493,12 +604,17 @@ public:
       // message before that point.
       if (!buf_.empty()) {
         auto pred = [=](const optional_event& x) { return x.seq > offset; };
-        auto i = std::find_if(buf_.begin(), buf_.end(), pred);
-        buf_.erase(buf_.begin(), i);
+        auto new_begin = std::find_if(buf_.begin(), buf_.end(), pred);
+        if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
+          metrics_.dec_out_of_order_updates(n);
+          buf_.erase(buf_.begin(), new_begin);
+        }
       }
       // Consume buffered messages if possible and send initial ACK.
       try_consume_buffer();
       send_ack();
+      // Update our metric. This counter can only oscillate between 0 and 1.
+      metrics_.inc_input_channels();
       return true;
     }
 
@@ -524,12 +640,15 @@ public:
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
-        if (i == buf_.end())
+        if (i == buf_.end()) {
           buf_.emplace_back(seq, std::move(payload));
-        else if (i->seq != seq)
+          metrics_.inc_out_of_order_updates();
+        } else if (i->seq != seq) {
+          metrics_.inc_out_of_order_updates();
           buf_.emplace(i, seq, std::move(payload));
-        else if (!i->content)
+        } else if (!i->content) {
           i->content = std::move(payload);
+        }
       }
     }
 
@@ -538,6 +657,7 @@ public:
         // Process immediately.
         if (auto err = backend_->consume_nil(this)) {
           backend_->close(this, std::move(err));
+          reset();
           return;
         }
         bump_seq();
@@ -546,10 +666,13 @@ public:
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
         auto i = std::find_if(buf_.begin(), buf_.end(), pred);
-        if (i == buf_.end())
+        if (i == buf_.end()) {
           buf_.emplace_back(seq);
-        else if (i->seq != seq)
+          metrics_.inc_out_of_order_updates();
+        } else if (i->seq != seq) {
           buf_.emplace(i, seq);
+          metrics_.inc_out_of_order_updates();
+        }
       }
     }
 
@@ -613,6 +736,10 @@ public:
 
     const auto& backend() const noexcept {
       return *backend_;
+    }
+
+    metrics_t& metrics() noexcept {
+      return metrics_;
     }
 
     const auto& producer() const {
@@ -681,6 +808,9 @@ public:
     }
 
     void reset() {
+      if (initialized()) {
+        metrics_.dec_input_channels();
+      }
       producer_ = Handle{};
       next_seq_ = 0;
       last_seq_ = 0;
@@ -712,12 +842,16 @@ public:
           if (auto err = backend_->consume_nil(this)) {
             buf_.erase(buf_.begin(), i);
             backend_->close(this, std::move(err));
+            reset();
             return;
           }
         }
         bump_seq();
       }
-      buf_.erase(buf_.begin(), i);
+      if (auto n = std::distance(buf_.begin(), i); n > 0) {
+        buf_.erase(buf_.begin(), i);
+        metrics_.dec_out_of_order_updates(n);
+      }
     }
 
     void send_ack() {
@@ -728,6 +862,9 @@ public:
 
     /// Handles incoming events.
     Backend* backend_;
+
+    /// Caches pointers to the metric instances.
+    metrics_t metrics_;
 
     /// Stores the handle of the producer.
     Handle producer_;
