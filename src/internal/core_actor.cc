@@ -297,7 +297,7 @@ caf::behavior core_actor_state::make_behavior() {
     [this](data_consumer_res src) {
       auto in = self
                   ->make_observable() //
-                  .from_resource(src)
+                  .from_resource(std::move(src))
                   .do_on_next([this](const data_message&) {
                     metrics_for(packed_message_type::data).buffered->inc();
                   });
@@ -1095,7 +1095,8 @@ void core_actor_state::shutdown_stores() {
 
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
-void core_actor_state::dispatch(endpoint_id receiver, packed_message msg) {
+void core_actor_state::dispatch(endpoint_id receiver,
+                                const packed_message& msg) {
   metrics_for(get_type(msg)).buffered->inc();
   central_merge->append_to_buf(make_node_message(id, receiver, msg));
   central_merge->try_push();
