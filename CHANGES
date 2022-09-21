@@ -1,3 +1,9 @@
+2.4.0-dev.75 | 2022-09-21 09:56:19 -0700
+
+  * Fix a clang-tidy failure from a recent merge (Tim Wojtulewicz, Corelight)
+
+  * Fix minor formatting issue (Tim Wojtulewicz, Corelight)
+
 2.4.0-dev.72 | 2022-09-20 08:49:22 -0700
 
   * Get initial number of entries from the backend (Dominik Charousset, Corelight)

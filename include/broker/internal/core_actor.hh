@@ -265,7 +265,7 @@ public:
 
   /// Dispatches `msg` to `receiver` regardless of its subscriptions.
   /// @returns `true` on success, `false` if no peering to `receiver` exists.
-  void dispatch(endpoint_id receiver, packed_message msg);
+  void dispatch(endpoint_id receiver, const packed_message& msg);
 
   /// Broadcasts the local subscriptions to all peers.
   void broadcast_subscriptions();
