@@ -1,3 +1,11 @@
+2.4.0-dev.77 | 2022-10-02 10:22:23 +0200
+
+  * Performance improvements (Dominik Charousset, Corelight)
+
+    - Fix performance bottleneck in Broker-internal caching (see #277)
+    - Improve performance with the `stealing` scheduler policy
+      (see https://github.com/zeek/zeek/issues/2332)
+
 2.4.0-dev.75 | 2022-09-21 09:56:19 -0700
 
   * Fix a clang-tidy failure from a recent merge (Tim Wojtulewicz, Corelight)
