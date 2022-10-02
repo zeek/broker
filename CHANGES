@@ -1,3 +1,13 @@
+2.3.3-1 | 2022-10-06 11:48:12 -0700
+
+  * Performance improvements (Dominik Charousset, Corelight)
+
+    - Fix performance bottleneck in Broker-internal caching (see #277)
+    - Improve performance with the `stealing` scheduler policy
+      (see https://github.com/zeek/zeek/issues/2332)
+
+    (cherry picked from commit 97f55a8466428a247a177f9598506a235966bb04)
+
 2.3.3 | 2022-09-19 09:23:11 -0700
 
   * Release 2.3.3.
