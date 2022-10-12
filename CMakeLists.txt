@@ -14,7 +14,7 @@ else()
 endif()
 unset(parent_dir)
 
-if (WIN32)
+if ( MSVC )
   message(STATUS "Broker currently only supports static bulids on Windows")
   message(STATUS "Note: continue with ENABLE_STATIC_ONLY")
   set(ENABLE_STATIC_ONLY ON)
@@ -82,24 +82,24 @@ if (NOT broker_is_subproject)
       endif ()
   endif()
 
-  if (MSVC)
+endif()
+
+if ( MSVC )
     # Allow more sections in object files, otherwise Broker fails to compile.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} /bigobj")
-  else ()
+else ()
     # Increase warnings.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
     # Increase maximum number of instantiations.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
     # Make sure to get the full context on template errors.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=0")
-  endif ()
-
-  # Append our extra flags to the existing value of CXXFLAGS.
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
-
-endif()
-
+endif ()
 include(RequireCXX17)
+
+# Append our extra flags to the existing value of CXXFLAGS.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
+
 include(CheckCXXSourceCompiles)
 
 # Unfortunately, std::filesystem is a mess. The feature checks at compile time
@@ -185,7 +185,7 @@ test_big_endian(BROKER_BIG_ENDIAN)
 # -- Dependencies -------------------------------------------------------------
 
 if (WIN32)
-  set(LINK_LIBS ${LINK_LIBS} ws2_32 iphlpapi)
+  set(LINK_LIBS ${LINK_LIBS} ws2_32 iphlpapi crypt32)
 endif ()
 
 # Search for OpenSSL if not already provided by parent project
