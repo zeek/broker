@@ -95,11 +95,11 @@ else ()
     # Make sure to get the full context on template errors.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=0")
 endif ()
-include(RequireCXX17)
 
 # Append our extra flags to the existing value of CXXFLAGS.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
+include(RequireCXX17)
 include(CheckCXXSourceCompiles)
 
 # Unfortunately, std::filesystem is a mess. The feature checks at compile time
