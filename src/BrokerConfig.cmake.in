@@ -8,7 +8,10 @@ find_dependency(Threads REQUIRED)
 
 find_dependency(OpenSSL REQUIRED)
 
-find_dependency(CAF @CAF_VERSION@ REQUIRED COMPONENTS core io)
+set(BROKER_USE_EXTERNAL_CAF @BROKER_USE_EXTERNAL_CAF@)
+if(BROKER_USE_EXTERNAL_CAF)
+  find_dependency(CAF @CAF_VERSION@ REQUIRED COMPONENTS core io net)
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/BrokerTargets.cmake")
 

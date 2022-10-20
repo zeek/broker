@@ -210,6 +210,7 @@ if (CAF_ROOT)
     find_package(CAF REQUIRED COMPONENTS openssl test io core)
   endif()
   list(APPEND LINK_LIBS CAF::core CAF::io)
+  set(BROKER_USE_EXTERNAL_CAF ON)
 else ()
   message(STATUS "Using bundled CAF")
   set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
@@ -219,11 +220,15 @@ else ()
   add_subdirectory(caf EXCLUDE_FROM_ALL)
   list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
   list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
+  set(BROKER_USE_EXTERNAL_CAF OFF)
 endif ()
 
 # NOTE: building and linking against a different version of the CAF incubator is
 #       also FOR DEVELOPMENT ONLY.
 if (CAFIncubator_ROOT)
+  if(NOT BROKER_USE_EXTERNAL_CAF)
+    message(FATAL_ERROR "Cannot use bundled CAF with an external incubator")
+  endif()
   if (CMAKE_VERSION VERSION_LESS 3.12)
     find_package(CAFIncubator REQUIRED COMPONENTS net PATHS "${CAF_ROOT}")
   else()
@@ -231,6 +236,9 @@ if (CAFIncubator_ROOT)
   endif()
   list(APPEND LINK_LIBS CAF::net)
 else()
+  if(BROKER_USE_EXTERNAL_CAF)
+    message(FATAL_ERROR "Cannot use an external CAF with the bundled incubator")
+  endif()
   message(STATUS "Using bundled CAF incubator")
   set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
   set(CAF_INC_ENABLE_BB_MODULE OFF CACHE INTERNAL "")
@@ -511,15 +519,15 @@ install(
   EXPORT BrokerTargets
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
 
-write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
-  VERSION ${BROKER_VERSION}
-  COMPATIBILITY ExactVersion)
-
 configure_package_config_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/BrokerConfig.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
   INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfigVersion.cmake"
+  VERSION ${BROKER_VERSION}
+  COMPATIBILITY ExactVersion)
 
 install(
   FILES
