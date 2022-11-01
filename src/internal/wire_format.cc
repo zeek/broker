@@ -14,7 +14,7 @@ using namespace std::literals;
   namespace caf {                                                              \
   template <>                                                                  \
   struct type_name<broker::internal::wire_format::type> {                      \
-    static constexpr string_view value = #type;                                \
+    static constexpr std::string_view value = #type;                           \
   };                                                                           \
   }
 

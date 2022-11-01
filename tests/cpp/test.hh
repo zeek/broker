@@ -20,6 +20,7 @@
 #include <cassert>
 #include <ciso646>
 #include <functional>
+#include <optional>
 
 // -- test setup macros --------------------------------------------------------
 
@@ -288,7 +289,7 @@ public:
     };
     for (;;) {
       exhaust();
-      caf::optional<caf::actor_clock::time_point> next_timeout;
+      std::optional<caf::actor_clock::time_point> next_timeout;
       get_next_timeout(next_timeout, n1);
       get_next_timeout(next_timeout, n2);
       if (!next_timeout) {

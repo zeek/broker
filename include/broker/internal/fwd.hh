@@ -1,6 +1,7 @@
 #include "broker/fwd.hh"
 
 #include <caf/async/fwd.hpp>
+#include <caf/net/binary/fwd.hpp>
 
 #include <memory>
 

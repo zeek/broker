@@ -13,7 +13,6 @@
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/internal/web_socket.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
@@ -22,11 +21,8 @@
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_sink.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
-#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/flow/observable.hpp>
@@ -34,12 +30,13 @@
 #include <caf/message.hpp>
 #include <caf/net/middleman.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
-#include <caf/net/web_socket/server.hpp>
+#include <caf/net/web_socket/accept.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
+#include <caf/thread_owner.hpp>
 
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
@@ -263,7 +260,7 @@ public:
   }
 
   template <class T>
-  bool has(caf::string_view name) {
+  bool has(std::string_view name) {
     auto res = caf::get_as<T>(mpx_.system().config(), name);
     return static_cast<bool>(res);
   }
@@ -303,7 +300,8 @@ public:
       beacon.ignite();
       mpx_.run();
     };
-    thread_ = mpx_.system().launch_thread("broker.prom", run_mpx);
+    thread_ = mpx_.system().launch_thread("broker.prom",
+                                          caf::thread_owner::other, run_mpx);
     beacon.wait();
     return actual_port;
   }
@@ -497,7 +495,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(cfg, "broker.recording-directory",
-                         caf::string_view{defaults::recording_directory});
+                         std::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
     if (detail::is_directory(meta_dir))
       detail::remove_all(meta_dir);
@@ -746,8 +744,64 @@ std::vector<peer_info> endpoint::peers() const {
   return result;
 }
 
+namespace {
+
+void json_server(caf::event_based_actor* self, endpoint_id id, caf::actor core,
+                 caf::net::web_socket::listener_resource_t<network_info> res) {
+  namespace ws = caf::net::web_socket;
+  res //
+    .observe_on(self)
+    .for_each([self, id, core](const ws::accept_event_t<network_info>& event) {
+      const auto& [pull, push, net] = event.data();
+      using impl_t = internal::json_client_actor;
+      self->spawn<impl_t>(id, core, net, pull, push);
+    });
+}
+
+} // namespace
+
 uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                                      error* err, bool reuse_addr) {
+  // Callback for the WebSocket server.
+  auto on_request = [](const caf::settings& hdr, auto& req) {
+    // Sanity checking.
+    auto path = caf::get_or(hdr, "web-socket.path", "/");
+    if (path != "/v1/messages/json") {
+      auto err = caf::make_error(caf::sec::invalid_argument,
+                                 "unrecognized path, try '/v1/messages/json'");
+      req.reject(std::move(err));
+      return;
+    }
+    // Extract and log information about the client.
+    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
+    auto addr =
+      network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
+                   caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
+    BROKER_INFO("new JSON client with address" << addr << "and user agent"
+                                               << user_agent);
+    req.accept(addr);
+  };
+  // Try to open the port.
+  auto acc_fd = caf::net::make_tcp_accept_socket(port);
+  if (!acc_fd) {
+    BROKER_ERROR("failed to open port" << port << "->" << acc_fd.error());
+    return 0;
+  }
+  // Run the server.
+  namespace ws = caf::net::web_socket;
+  using ssl_acc_t = caf::net::ssl::acceptor;
+  auto [wres, sres] = ws::make_accept_event_resources<network_info>();
+  auto ssl_cfg = ctx_->cfg.openssl_options();
+  auto ssl_ctx = internal::ssl_context_from_cfg(ssl_cfg);
+  if (ssl_ctx) {
+    ws::accept(ctx_->sys, ssl_acc_t{*acc_fd, std::move(*ssl_ctx)},
+               std::move(sres), on_request);
+  } else {
+    ws::accept(ctx_->sys, *acc_fd, std::move(sres), on_request);
+  }
+  ctx_->sys.spawn(json_server, id_, native(core_), std::move(wres));
+  return port;
+  /*
   auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
                       const caf::settings& hdr,
                       internal::web_socket::connect_event_t& ev) {
@@ -772,6 +826,7 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
       *err = std::move(res.error());
     return 0;
   }
+  */
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
@@ -926,7 +981,7 @@ endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   driver->init();
   src //
     ->make_observable()
-    .lift(data_message_source{driver})
+    .from_generator(data_message_source{driver})
     .subscribe(prod_res);
   auto worker = caf::actor{src};
   launch_src();

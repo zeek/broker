@@ -31,12 +31,12 @@ auto with_native_labels(span<const telemetry::label_view> xs, F continuation) {
 template <class F>
 auto with_native_labels(span<const std::string_view> xs, F continuation) {
   if (xs.size() <= 10) {
-    caf::string_view buf[10];
+    std::string_view buf[10];
     for (size_t index = 0; index < xs.size(); ++index)
       buf[index] = xs[index];
     return continuation(span{buf, xs.size()});
   } else {
-    std::vector<caf::string_view> buf;
+    std::vector<std::string_view> buf;
     for (const auto& x : xs)
       buf.emplace_back(x);
     return continuation(span{buf});

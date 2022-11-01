@@ -8,15 +8,12 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
-#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/stream.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
@@ -37,8 +34,6 @@ namespace atom = broker::internal::atom;
 
 using namespace broker;
 using namespace broker::detail;
-
-using stream_type = caf::stream<data_message>;
 
 namespace {
 
@@ -95,42 +90,50 @@ FIXTURE_SCOPE_END()
 // a publisher eventually becomes unblocked via background activities.
 TEST(regression GH196) {
   MESSAGE("connect two endpoints over localhost");
-  endpoint ep1;
-  endpoint ep2;
-  auto sub1 = ep1.make_subscriber({topic{"/test"}});
-  auto sub2 = ep1.make_subscriber({topic{"/test"}});
-  REQUIRE(ep1.await_filter_entry(topic{"/test"}));
-  auto port = ep1.listen("127.0.0.1", 0);
-  ep2.peer("127.0.0.1", port);
-  auto pub = ep2.make_publisher({topic{"/test"}});
-  MESSAGE("wait until the peers have finished the handshake");
-  REQUIRE(ep1.await_peer(ep2.node_id()));
-  REQUIRE(ep2.await_peer(ep1.node_id()));
-  auto cap = pub.capacity();
-  MESSAGE("publish data, cap: " << cap);
-  std::vector<data> batch1;
-  for (size_t i = 0; i < cap; ++i)
-    batch1.emplace_back(i);
-  auto batch2 = batch1;
-  pub.publish(std::move(batch1));
-  pub.publish(std::move(batch2));
-  MESSAGE("receive data on sub1");
-  for (size_t n = 0; n < 2; ++n) {
-    for (size_t i = 0; i < cap; ++i) {
-      auto msg = sub1.get();
-      CHECK_EQUAL(get_topic(msg).string(), "/test");
-      CHECK_EQUAL(get_data(msg), data(i));
+  configuration cfg1;
+  cfg1.set("caf.logger.file.path", "ep1.log");
+  endpoint ep1{std::move(cfg1)};
+  {
+    configuration cfg2;
+    cfg2.set("caf.logger.file.path", "ep2.log");
+    endpoint ep2{std::move(cfg2)};
+    auto sub1 = ep1.make_subscriber({topic{"/test"}});
+    auto sub2 = ep1.make_subscriber({topic{"/test"}});
+    REQUIRE(ep1.await_filter_entry(topic{"/test"}));
+    auto port = ep1.listen("127.0.0.1", 0);
+    ep2.peer("127.0.0.1", port);
+    auto pub = ep2.make_publisher({topic{"/test"}});
+    MESSAGE("wait until the peers have finished the handshake");
+    REQUIRE(ep1.await_peer(ep2.node_id()));
+    REQUIRE(ep2.await_peer(ep1.node_id()));
+    auto cap = pub.capacity();
+    MESSAGE("publish data, cap: " << cap);
+    std::vector<data> batch1;
+    for (size_t i = 0; i < cap; ++i)
+      batch1.emplace_back(i);
+    auto batch2 = batch1;
+    pub.publish(std::move(batch1));
+    pub.publish(std::move(batch2));
+    MESSAGE("receive data on sub1");
+    for (size_t n = 0; n < 2; ++n) {
+      for (size_t i = 0; i < cap; ++i) {
+        auto msg = sub1.get();
+        CHECK_EQUAL(get_topic(msg).string(), "/test");
+        CHECK_EQUAL(get_data(msg), data(i));
+      }
     }
-  }
-  CHECK(sub1.poll().empty());
-  MESSAGE("receive data on sub2");
-  auto res = sub2.get(cap * 2);
-  for (size_t n = 0; n < 2; ++n) {
-    for (size_t i = 0; i < cap; ++i) {
-      auto& msg = res[(n * cap) + i];
-      CHECK_EQUAL(get_topic(msg).string(), "/test");
-      CHECK_EQUAL(get_data(msg), data(i));
+    CHECK(sub1.poll().empty());
+    MESSAGE("receive data on sub2");
+    auto res = sub2.get(cap * 2);
+    for (size_t n = 0; n < 2; ++n) {
+      for (size_t i = 0; i < cap; ++i) {
+        auto& msg = res[(n * cap) + i];
+        CHECK_EQUAL(get_topic(msg).string(), "/test");
+        CHECK_EQUAL(get_data(msg), data(i));
+      }
     }
+    CHECK(sub2.poll().empty());
+    MESSAGE("done, shut down ep2");
   }
-  CHECK(sub2.poll().empty());
+  MESSAGE("done, shut down ep1");
 }

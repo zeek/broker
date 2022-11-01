@@ -7,15 +7,16 @@
 
 #include <caf/cow_string.hpp>
 #include <caf/cow_tuple.hpp>
-#include <caf/detail/unordered_flat_map.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/flow/merge.hpp>
 #include <caf/scheduled_actor/flow.hpp>
+#include <caf/unordered_flat_map.hpp>
 
 using namespace std::literals;
 
-// Note: no longer a `detail` in CAF 0.19, so it's safe to use.
-using string_map = caf::detail::unordered_flat_map<std::string, std::string>;
+using string_map = caf::unordered_flat_map<std::string, std::string>;
+
+using ws_frame = caf::net::web_socket::frame;
 
 namespace broker::internal {
 
@@ -29,13 +30,13 @@ constexpr std::string_view default_serialization_failed_error_str = R"_({
 
 /// Catches errors by converting them into complete events instead.
 struct handshake_step {
-  using input_type = caf::cow_string;
+  using input_type = ws_frame;
 
-  using output_type = caf::cow_string;
+  using output_type = ws_frame;
 
   json_client_state* state;
 
-  json_client_state::out_t push_to_ws; // Our push handle to the WebSocket.
+  json_client_state::push_t push_to_ws; // Our push handle to the WebSocket.
 
   using pull_from_core_t = caf::async::consumer_resource<data_message>;
 
@@ -44,7 +45,7 @@ struct handshake_step {
   bool initialized = false;
 
   handshake_step(json_client_state* state_ptr,
-                 json_client_state::out_t push_to_ws,
+                 json_client_state::push_t push_to_ws,
                  pull_from_core_t pull_from_core)
     : state(state_ptr),
       push_to_ws(std::move(push_to_ws)),
@@ -56,9 +57,9 @@ struct handshake_step {
   bool on_next(const input_type& item, Next& next, Steps&... steps) {
     if (initialized) {
       return next.on_next(item, steps...);
-    } else {
+    } else if (item.is_text()) {
       filter_type filter;
-      state->reader.load(item.str());
+      state->reader.load(item.as_text());
       if (!state->reader.apply(filter)) {
         // Received malformed input: drop remaining input and quit.
         auto err = caf::make_error(caf::sec::invalid_argument,
@@ -73,6 +74,13 @@ struct handshake_step {
         state->init(filter, push_to_ws, std::move(pull_from_core));
         return true;
       }
+    } else {
+      auto err = caf::make_error(caf::sec::invalid_argument,
+                                 "first message must be a text frame");
+      next.on_error(err, steps...);
+      push_to_ws = nullptr;
+      pull_from_core = nullptr;
+      return false;
     }
   }
 
@@ -91,11 +99,13 @@ struct handshake_step {
 
 json_client_state::json_client_state(caf::event_based_actor* selfptr,
                                      endpoint_id this_node, caf::actor core_hdl,
-                                     network_info ws_addr, in_t in, out_t out)
+                                     network_info ws_addr, pull_t pull,
+                                     push_t push)
   : self(selfptr),
     id(this_node),
     core(std::move(core_hdl)),
-    addr(std::move(ws_addr)) {
+    addr(std::move(ws_addr)),
+    ctrl_msgs(selfptr) {
   reader.mapper(&mapper);
   writer.mapper(&mapper);
   writer.skip_object_type_annotation(true);
@@ -106,8 +116,6 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   self->set_down_handler([this](const caf::down_msg& msg) { //
     on_down_msg(msg);
   });
-  // Allows us to push control messages to the client.
-  ctrl_msgs.emplace(self);
   // Connects us to the core.
   using caf::async::make_spsc_buffer_resource;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
@@ -116,15 +124,19 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   // Read from the WebSocket, push to core (core_push).
   self //
     ->make_observable()
-    .from_resource(std::move(in)) // Read all input text messages.
-    .transform(handshake_step{this, std::move(out), core_pull}) // Calls init().
-    .do_finally([this] { ctrl_msgs->dispose(); })
+    .from_resource(std::move(pull)) // Read all input text messages.
+    .transform(handshake_step{this, std::move(push), core_pull}) // Calls init.
+    .do_finally([this] { ctrl_msgs.close(); })
+    // Drop any unexpected frames.
+    .filter([](const ws_frame& frame) { //
+      return frame.is_text();
+    })
     // Parse all JSON coming in and forward them to the core.
-    .flat_map_optional([this, n = 0](const caf::cow_string& str) mutable {
+    .flat_map([this, n = 0](const ws_frame& frame) mutable {
       ++n;
       std::optional<data_message> result;
       reader.reset();
-      if (reader.load(str)) {
+      if (reader.load(frame.as_text())) {
         using std::get;
         data_message msg;
         auto decorator = decorated(msg);
@@ -138,8 +150,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
           ctx += " contained invalid data -> ";
           ctx += to_string(reader.get_error());
           auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-          ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
-          ctrl_msgs->try_push();
+          ctrl_msgs.push(ws_frame{std::string_view{json}});
         }
       } else {
         // Failed to parse JSON.
@@ -148,8 +159,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
         ctx += " contained malformed JSON -> ";
         ctx += to_string(reader.get_error());
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-        ctrl_msgs->append_to_buf(caf::cow_string{std::move(json)});
-        ctrl_msgs->try_push();
+        ctrl_msgs.push(ws_frame{std::string_view{json}});
       }
       return result;
     })
@@ -197,7 +207,7 @@ bool inspect(Inspector& f, const_data_message_decorator& x) {
     json_type_mapper tm;
     using val_t = std::decay_t<decltype(val)>;
     auto type = "data-message"s;
-    auto dtype = to_string(tm(caf::type_id_v<val_t>));
+    auto dtype = std::string{tm(caf::type_id_v<val_t>)};
     // Note: const_cast is safe since we assert that the inspector is saving.
     return f.object(x).fields(f.field("type", type),
                               f.field("topic", const_cast<topic&>(x.t)),
@@ -208,7 +218,7 @@ bool inspect(Inspector& f, const_data_message_decorator& x) {
 }
 
 void json_client_state::init(
-  const filter_type& filter, const out_t& out,
+  const filter_type& filter, const push_t& push,
   caf::async::consumer_resource<data_message> core_pull1) {
   using caf::async::make_spsc_buffer_resource;
   // Pull data from the core and forward as JSON.
@@ -219,37 +229,34 @@ void json_client_state::init(
     auto core_json = //
       self->make_observable()
         .from_resource(core_pull2)
-        .map([this](const data_message& msg) -> caf::cow_string {
+        .map([this](const data_message& msg) -> ws_frame {
           writer.reset();
           auto decorator = decorated(msg);
           if (writer.apply(decorator)) {
             // Serialization OK, forward message to client.
-            auto json = writer.str();
-            auto str = std::string{json.begin(), json.end()};
-            return caf::cow_string{std::move(str)};
+            return ws_frame{writer.str()};
           } else {
             // Report internal error to client.
             auto ctx = to_string(writer.get_error().context());
             auto str = render_error(enum_str(ec::serialization_failed), ctx);
-            return caf::cow_string{std::move(str)};
+            return ws_frame{str};
           }
         })
         .as_observable();
-    auto sub = caf::flow::merge(ctrl_msgs->as_observable(), core_json) //
-                 .subscribe(out);
+    auto sub = ctrl_msgs.as_observable().merge(core_json).subscribe(push);
     subscriptions.push_back(std::move(sub));
     caf::anon_send(core, atom::attach_client_v, addr, "web-socket"s, filter,
                    std::move(core_pull1), std::move(core_push2));
   } else {
-    auto sub = ctrl_msgs->as_observable().subscribe(out);
+    auto sub = ctrl_msgs.as_observable().subscribe(push);
     subscriptions.push_back(std::move(sub));
     caf::anon_send(core, atom::attach_client_v, addr, "web-socket"s,
                    filter_type{}, std::move(core_pull1),
                    caf::async::producer_resource<data_message>{});
   }
   // Setup complete. Send ACK to the client.
-  ctrl_msgs->append_to_buf(caf::cow_string{render_ack()});
-  ctrl_msgs->try_push();
+  auto ack_str = render_ack();
+  ctrl_msgs.push(ws_frame{std::string_view{ack_str}});
 }
 
 std::string_view json_client_state::default_serialization_failed_error() {

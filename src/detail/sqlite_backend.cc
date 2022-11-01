@@ -10,12 +10,12 @@
 
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
-#include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/detail/scope_guard.hh"
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -29,7 +29,7 @@ namespace broker::detail {
 namespace {
 
 auto make_statement_guard = [](sqlite3_stmt* stmt) {
-  return caf::detail::make_scope_guard([=] { sqlite3_reset(stmt); });
+  return make_scope_guard([=] { sqlite3_reset(stmt); });
 };
 
 template <class T>

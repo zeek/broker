@@ -110,8 +110,8 @@ public:
     struct cb {
       subscriber_queue* qptr;
       std::vector<data_message>* dst;
-      void on_next(caf::span<const data_message> xs) {
-        dst->insert(dst->end(), xs.begin(), xs.end());
+      void on_next(const data_message& msg) {
+        dst->push_back(msg);
       }
       void on_complete() {
         qptr->extinguish();

@@ -15,13 +15,16 @@ class pending_connection {
 public:
   virtual ~pending_connection();
 
+  using pull_resource = caf::async::consumer_resource<node_message>;
+
+  using push_resource = caf::async::producer_resource<node_message>;
+
   /// Acknowledges and runs the connection in the background.
   /// @param sys the actor system with the network manager.
   /// @param pull The resource where the connection pulls data from.
   /// @param push The resource where the connection pushes data to.
-  virtual caf::error run(caf::actor_system& sys,
-                         caf::async::consumer_resource<node_message> pull,
-                         caf::async::producer_resource<node_message> push) = 0;
+  virtual caf::error run(caf::actor_system& sys, pull_resource pull,
+                         push_resource push) = 0;
 };
 
 /// @relates pending_connection

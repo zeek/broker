@@ -14,7 +14,7 @@ using namespace std::literals;
 namespace {
 
 // A data message that has one of everything.
-constexpr caf::string_view json = R"_({
+constexpr std::string_view json = R"_({
   "topic": "/test/cpp/internal/json-type-mapper",
   "@data-type": "vector",
   "data": [
@@ -175,5 +175,5 @@ TEST(the JSON mapper enables custom type names in JSON output) {
   if (CHECK(writer.apply(decorator)))
     CHECK_EQ(writer.str(), json);
   else
-    auto str = to_string(writer.str());
+    auto str = std::string{writer.str()};
 }

@@ -15,12 +15,12 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 #include <caf/config.hpp>
-#include <caf/detail/scope_guard.hpp>
 #include <caf/expected.hpp>
 #include <caf/net/length_prefix_framing.hpp>
 #include <caf/net/middleman.hpp>
-#include <caf/net/openssl_transport.hpp>
 #include <caf/net/pipe_socket.hpp>
+#include <caf/net/ssl/startup.hpp>
+#include <caf/net/ssl/transport.hpp>
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
@@ -28,6 +28,11 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+
+CAF_PUSH_WARNINGS
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+CAF_POP_WARNINGS
 
 // -- platform setup -----------------------------------------------------------
 
@@ -81,12 +86,6 @@ constexpr short rw_mask = read_mask | write_mask;
 
 } // namespace
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-struct CRYPTO_dynlock_value {
-  std::mutex mtx;
-};
-#endif
-
 namespace {
 
 // -- OpenSSL setup ------------------------------------------------------------
@@ -95,45 +94,12 @@ class ssl_error : public std::runtime_error {
 public:
   using super = std::runtime_error;
 
+  using super::super;
+
   ssl_error(const char* msg) noexcept : super(msg) {
     // nop
   }
 };
-
-/// Configure the maximum size for the OpenSSL passphrase.
-constexpr size_t max_ssl_passphrase_size = 127;
-
-/// Global buffer for the OpenSSL passphrase. Set by the connector constructor,
-/// read by the callback we provide to SSL_CTX_set_default_passwd_cb.
-char ssl_passphrase_buf[max_ssl_passphrase_size + 1]; // One extra for '\0'.
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-
-std::unique_ptr<std::mutex[]> ssl_mtx_tbl;
-
-void ssl_lock_fn(int mode, int n, const char*, int) {
-  if (mode & CRYPTO_LOCK)
-    ssl_mtx_tbl[static_cast<size_t>(n)].lock();
-  else
-    ssl_mtx_tbl[static_cast<size_t>(n)].unlock();
-}
-
-CRYPTO_dynlock_value* ssl_dynlock_create(const char*, int) {
-  return new CRYPTO_dynlock_value;
-}
-
-void ssl_dynlock_lock(int mode, CRYPTO_dynlock_value* ptr, const char*, int) {
-  if (mode & CRYPTO_LOCK)
-    ptr->mtx.lock();
-  else
-    ptr->mtx.unlock();
-}
-
-void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
-  delete ptr;
-}
-
-#endif // OPENSSL_VERSION_NUMBER < 0x10100000L
 
 bool init_ssl_api_called;
 
@@ -141,125 +107,80 @@ bool init_ssl_api_called;
 
 namespace broker {
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-
 void endpoint::init_ssl_api() {
-  BROKER_ASSERT(!init_ssl_api_called);
-  init_ssl_api_called = true;
-  ERR_load_crypto_strings();
-  OPENSSL_add_all_algorithms_conf();
-  SSL_library_init();
-  SSL_load_error_strings();
-  ssl_mtx_tbl.reset(new std::mutex[CRYPTO_num_locks()]);
-  CRYPTO_set_locking_callback(ssl_lock_fn);
-  CRYPTO_set_dynlock_create_callback(ssl_dynlock_create);
-  CRYPTO_set_dynlock_lock_callback(ssl_dynlock_lock);
-  CRYPTO_set_dynlock_destroy_callback(ssl_dynlock_destroy);
-  // OpenSSL's default thread ID callback should work, so don't set our own.
+  caf::net::ssl::startup();
 }
 
 void endpoint::deinit_ssl_api() {
-  BROKER_ASSERT(init_ssl_api_called);
-  ERR_free_strings();
-  EVP_cleanup();
-  CRYPTO_cleanup_all_ex_data();
-  CRYPTO_set_locking_callback(nullptr);
-  CRYPTO_set_dynlock_create_callback(nullptr);
-  CRYPTO_set_dynlock_lock_callback(nullptr);
-  CRYPTO_set_dynlock_destroy_callback(nullptr);
-  ssl_mtx_tbl.reset();
+  caf::net::ssl::cleanup();
 }
-
-#else
-
-void endpoint::init_ssl_api() {
-  BROKER_ASSERT(!init_ssl_api_called);
-  init_ssl_api_called = true;
-  OPENSSL_init_ssl(0, nullptr);
-}
-
-void endpoint::deinit_ssl_api() {
-  BROKER_ASSERT(init_ssl_api_called);
-  ERR_free_strings();
-  EVP_cleanup();
-  CRYPTO_cleanup_all_ex_data();
-}
-
-#endif
 
 } // namespace broker
 
 namespace broker::internal {
 
 /// Creates an SSL context for the connector.
-caf::net::openssl::ctx_ptr
+std::optional<caf::net::ssl::context>
 ssl_context_from_cfg(const openssl_options_ptr& cfg) {
+  // Sanity checking.
   if (cfg == nullptr) {
     BROKER_DEBUG("run without SSL (no SSL config)");
-    return nullptr;
+    return std::nullopt;
   }
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-  auto method = TLS_method();
-#else
-  auto method = TLSv1_2_method();
-#endif
-  auto ctx = caf::net::openssl::make_ctx(method);
-  BROKER_DEBUG(BROKER_ARG2("authentication", cfg->authentication_enabled()));
+  // Create our SSL context with TLS.
+  namespace ssl = caf::net::ssl;
+  auto ctx_res = ssl::context::make(ssl::tls::any);
+  if (!ctx_res) {
+    auto errstr = to_string(ctx_res.error());
+    throw ssl_error("failed to create SSL context: " + errstr);
+  }
+  auto& ctx = *ctx_res;
+  auto throw_ssl_err = [&ctx](std::string_view prefix) {
+    auto err_str = ctx.last_error_string();
+    err_str.insert(err_str.begin(), prefix.begin(), prefix.end());
+    throw ssl_error(err_str);
+  };
+  // Get a native handle to the context for adjusting ciphers.
+  auto ctx_ptr = reinterpret_cast<SSL_CTX*>(ctx.native_handle());
+  // Require certificates on both sides if authentication is configured.
   if (cfg->authentication_enabled()) {
-    // Require valid certificates on both sides.
-    ERR_clear_error();
-    if (!cfg->certificate.empty()
-        && SSL_CTX_use_certificate_chain_file(ctx.get(),
-                                              cfg->certificate.c_str())
-             != 1)
-      throw ssl_error("failed to load certificate");
-    if (!cfg->passphrase.empty()) {
-      auto pem_passwd_cb = [](char* buf, int size, int, void*) -> int {
-        strncpy(buf, ssl_passphrase_buf, static_cast<size_t>(size));
-        buf[size - 1] = '\0';
-        return static_cast<int>(strlen(buf));
-      };
-      SSL_CTX_set_default_passwd_cb(ctx.get(), pem_passwd_cb);
-    }
-    if (!cfg->key.empty()
-        && SSL_CTX_use_PrivateKey_file(ctx.get(), cfg->key.c_str(),
-                                       SSL_FILETYPE_PEM)
-             != 1)
-      throw ssl_error("failed to load private key");
-    auto cafile = !cfg->cafile.empty() ? cfg->cafile.c_str() : nullptr;
-    auto capath = !cfg->capath.empty() ? cfg->capath.c_str() : nullptr;
-    if (cafile || capath) {
-      if (SSL_CTX_load_verify_locations(ctx.get(), cafile, capath) != 1)
-        throw ssl_error("failed to load trusted CA certificates");
-    }
-    SSL_CTX_set_verify(ctx.get(),
-                       SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-                       nullptr);
-    if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1)
+    ctx.set_verify_mode(ssl::verify::peer | ssl::verify::fail_if_no_peer_cert);
+    if (!cfg->passphrase.empty())
+      ctx.set_password(cfg->passphrase);
+    if (!ctx.use_certificate_chain_file(cfg->certificate))
+      throw_ssl_err("failed to load certificate: ");
+    if (!ctx.use_private_key_file(cfg->key, ssl::format::pem))
+      throw_ssl_err("failed to load private key: ");
+    if (!cfg->cafile.empty() && !ctx.load_verify_file(cfg->cafile))
+      throw_ssl_err("failed to load CA file: ");
+    if (!cfg->capath.empty() && !ctx.add_verify_path(cfg->capath))
+      throw_ssl_err("failed to load CA path: ");
+    if (SSL_CTX_set_cipher_list(ctx_ptr, "HIGH:!aNULL:!MD5") != 1)
       throw ssl_error("failed to set cipher list");
-  } else { // No authentication.
-    ERR_clear_error();
-    SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
+    return std::move(ctx);
+  }
+  // Per default, we use SSL for encryption only.
+  ctx.set_verify_mode(ssl::verify::none);
+  ERR_clear_error();
 #if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
-    SSL_CTX_set_ecdh_auto(ctx.get(), 1);
+  SSL_CTX_set_ecdh_auto(ctx_ptr, 1);
 #elif OPENSSL_VERSION_NUMBER < 0x10101000L
-    auto ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
-    if (!ecdh)
-      throw ssl_error("failed to get ECDH curve");
-    SSL_CTX_set_tmp_ecdh(ctx.get(), ecdh);
-    EC_KEY_free(ecdh);
+  auto ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
+  if (!ecdh)
+    throw ssl_error("failed to get ECDH curve");
+  SSL_CTX_set_tmp_ecdh(ctx_ptr, ecdh);
+  EC_KEY_free(ecdh);
 #else // OPENSSL_VERSION_NUMBER < 0x10101000L
-    SSL_CTX_set1_groups_list(ctx.get(), "P-384");
+  SSL_CTX_set1_groups_list(ctx_ptr, "P-384");
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
+  const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
 #else
-    const char* cipher = "AECDH-AES256-SHA";
+  const char* cipher = "AECDH-AES256-SHA";
 #endif
-    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
-      throw ssl_error("failed to set anonymous cipher");
-  }
-  return ctx;
+  if (SSL_CTX_set_cipher_list(ctx_ptr, cipher) != 1)
+    throw ssl_error("failed to set anonymous cipher");
+  return std::move(ctx);
 }
 
 namespace {
@@ -276,23 +197,18 @@ public:
     caf::net::close(fd_);
   }
 
-  caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
+  caf::error run(caf::actor_system& sys, pull_resource pull,
+                 push_resource push) override {
     BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
                                           << "(no SSL)");
     using trait_t = wire_format::v1::trait;
+    using lpf = caf::net::length_prefix_framing::bind<trait_t>;
     if (fd_ != caf::net::invalid_socket) {
-      using caf::net::run_with_length_prefix_framing;
-      auto& mpx = sys.network_manager().mpx();
-      auto res = run_with_length_prefix_framing(mpx, fd_, caf::settings{},
-                                                std::move(pull),
-                                                std::move(push), trait_t{});
+      lpf::run(sys, fd_, std::move(pull), std::move(push));
       fd_.id = caf::net::invalid_socket_id;
-      return res;
-    } else {
-      return caf::make_error(caf::sec::socket_invalid);
+      return {};
     }
+    return caf::make_error(caf::sec::socket_invalid);
   }
 
 private:
@@ -301,41 +217,65 @@ private:
 
 class encrypted_pending_connection : public pending_connection {
 public:
-  encrypted_pending_connection(caf::net::stream_socket fd,
-                               caf::net::openssl::policy policy)
-    : fd_(fd), policy_(std::move(policy)) {
+  explicit encrypted_pending_connection(caf::net::ssl::connection conn)
+    : conn_(std::move(conn)) {
     // nop
   }
 
   ~encrypted_pending_connection() {
-    caf::net::close(fd_);
-  }
-
-  caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
-    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
-                                          << "(SSL)");
-    using trait_t = wire_format::v1::trait;
-    if (fd_ != caf::net::invalid_socket) {
-      using caf::net::run_with_length_prefix_framing;
-      auto& mpx = sys.network_manager().mpx();
-      auto res = run_with_length_prefix_framing<caf::net::openssl_transport>(
-        mpx, fd_, caf::settings{}, std::move(pull), std::move(push), trait_t{},
-        std::move(policy_));
-      fd_.id = caf::net::invalid_socket_id;
-      return res;
-    } else {
-      return caf::make_error(caf::sec::socket_invalid);
+    if (conn_) {
+      auto fd = conn_.fd();
+      conn_.close();
+      caf::net::close(fd);
     }
   }
 
+  caf::error run(caf::actor_system& sys, pull_resource pull,
+                 push_resource push) override {
+    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd())
+                                          << "(SSL)");
+    using trait_t = wire_format::v1::trait;
+    using lpf = caf::net::length_prefix_framing::bind<trait_t>;
+    if (conn_) {
+      lpf::run(sys, std::move(conn_), std::move(pull), std::move(push));
+      return {};
+    }
+    return caf::make_error(caf::sec::socket_invalid);
+  }
+
 private:
-  caf::net::stream_socket fd_;
-  caf::net::openssl::policy policy_;
+  caf::net::stream_socket fd() const {
+    if (conn_)
+      return conn_.fd();
+    return caf::net::stream_socket{caf::net::invalid_socket_id};
+  }
+
+  caf::net::ssl::connection conn_;
 };
 
 // -- networking and connector setup -------------------------------------------
+
+/// Encodes how a manager wishes to proceed after a read operation.
+enum class read_result {
+  /// Indicates that a manager wants to read again later.
+  again,
+  /// Indicates that a manager wants to stop reading until explicitly resumed.
+  stop,
+  /// Indicates that a manager wants to write to the socket instead of reading
+  /// from the socket.
+  want_write,
+};
+
+/// Encodes how a manager wishes to proceed after a write operation.
+enum class write_result {
+  /// Indicates that a manager wants to read again later.
+  again,
+  /// Indicates that a manager wants to stop reading until explicitly resumed.
+  stop,
+  /// Indicates that a manager wants to read from the socket instead of
+  /// writing to the socket.
+  want_read,
+};
 
 enum class connector_msg : uint8_t {
   indeterminate, // Needs more data.
@@ -478,13 +418,9 @@ private:
 
   caf::net::pipe_socket sock_;
   caf::byte_buffer buf_;
-  caf::byte rd_buf_[512];
+  std::byte rd_buf_[512];
   bool* done_;
 };
-
-using read_result = caf::net::socket_manager::read_result;
-
-using write_result = caf::net::socket_manager::write_result;
 
 using stream_transport_error = caf::net::stream_transport_error;
 
@@ -510,10 +446,6 @@ public:
   /// A member function pointer for storing the currently active handler.
   using fn_t = bool (connect_state::*)(wire_format::var_msg&);
 
-  /// The policy object for dispatching to native read and write functions.
-  using socket_policy = std::variant<caf::net::default_stream_transport_policy,
-                                     caf::net::openssl::policy>;
-
   /// Denotes the state of our socket.
   enum class socket_state {
     /// Indicates that the socket is ready for read and write operations.
@@ -524,12 +456,15 @@ public:
     connecting,
   };
 
+  /// Forwards read and write operations to the proper sys / library call.
+  using policy_ptr = std::unique_ptr<caf::net::stream_transport::policy>;
+
   // -- constructors, destructors, and assignment operators --------------------
 
   connect_state(connect_manager* mgr) : mgr(mgr), fn(&connect_state::err) {
     wr_buf.reserve(128);
     rd_buf.reserve(128);
-    reset(socket_state::running, caf::net::default_stream_transport_policy{});
+    reset(socket_state::running, nullptr);
     BROKER_DEBUG("created new connect_state object");
   }
 
@@ -537,7 +472,7 @@ public:
     : mgr(mgr), fn(&connect_state::err) {
     wr_buf.reserve(128);
     rd_buf.reserve(128);
-    reset(socket_state::running, caf::net::default_stream_transport_policy{});
+    reset(socket_state::running, nullptr);
     event_id = eid;
     BROKER_DEBUG("created new connect_state object" << BROKER_ARG(event_id)
                                                     << BROKER_ARG(addr));
@@ -557,9 +492,6 @@ public:
   /// Keeps track of the state of our socket to allow us to call connect() or
   /// accept() until the socket becomes ready for read and write operations.
   socket_state sck_state = socket_state::running;
-
-  /// Configures the state with a transport layer.
-  socket_policy sck_policy;
 
   /// Keeps track of the size of the payload we are about to read.
   uint32_t payload_size = 0;
@@ -603,6 +535,9 @@ public:
   /// the drop_conn message. Otherwise, the drop_conn message might arrive
   /// before handshake messages and the remote side may get confused.
   std::vector<std::shared_ptr<connect_state>> redundant_connections;
+
+  /// Governs operations on a socket.
+  policy_ptr sck_policy;
 
   /// Stores the currently active handler.
   fn_t fn = nullptr;
@@ -650,8 +585,7 @@ public:
 
   /// Resets the state after a connection attempt has failed before trying to
   /// reconnect.
-  template <class Policy>
-  void reset(socket_state st, Policy new_policy) {
+  void reset(socket_state st, policy_ptr ptr) {
     BROKER_DEBUG("resetting connect_state object"
                  << BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(st));
     redundant = false;
@@ -667,7 +601,7 @@ public:
     read_pos = 0;
     payload_size = 0;
     sck_state = st;
-    sck_policy = std::move(new_policy);
+    sck_policy = std::move(ptr);
     remote_id = endpoint_id::nil();
   }
 
@@ -676,21 +610,16 @@ public:
   /// Lifts the socket to a pending connection with any context required from
   /// this state.
   pending_connection_ptr make_pending_connection(stream_socket fd) {
-    using namespace caf::net;
-    auto f = detail::make_overload(
-      [fd](default_stream_transport_policy&) -> pending_connection_ptr {
-        return std::make_shared<plain_pending_connection>(fd);
-      },
-      [fd](openssl::policy& ssl_policy) -> pending_connection_ptr {
-        return std::make_shared<encrypted_pending_connection>(
-          fd, std::move(ssl_policy));
-      });
-    return std::visit(f, sck_policy);
+    using ssl_policy_t = caf::net::ssl::transport::policy_impl;
+    if (auto* dptr = dynamic_cast<ssl_policy_t*>(sck_policy.get())) {
+      using impl_t = encrypted_pending_connection;
+      return std::make_shared<impl_t>(std::move(dptr->conn));
+    }
+    return std::make_shared<plain_pending_connection>(fd);
   }
 
   stream_transport_error get_last_error(stream_socket fd, ptrdiff_t ret) {
-    return std::visit([=](auto& pl) { return pl.last_error(fd, ret); },
-                      sck_policy);
+    return sck_policy->last_error(fd, ret);
   }
 
   write_result write_result_from_last_error(stream_socket fd, ptrdiff_t ret) {
@@ -727,12 +656,12 @@ public:
   template <bool IsServer>
   read_result do_transport_handshake_rd(stream_socket fd);
 
-  ptrdiff_t do_write(stream_socket fd, caf::span<const caf::byte> buf) {
-    return std::visit([=](auto& pl) { return pl.write(fd, buf); }, sck_policy);
+  ptrdiff_t do_write(stream_socket fd, caf::span<const std::byte> buf) {
+    return sck_policy->write(fd, buf);
   }
 
-  ptrdiff_t do_read(stream_socket fd, caf::span<caf::byte> buf) {
-    return std::visit([=](auto& pl) { return pl.read(fd, buf); }, sck_policy);
+  ptrdiff_t do_read(stream_socket fd, caf::span<std::byte> buf) {
+    return sck_policy->read(fd, buf);
   }
 
   write_result continue_writing(stream_socket fd) {
@@ -934,6 +863,8 @@ connect_state_ptr make_connect_state(Ts&&... xs) {
 }
 
 struct connect_manager {
+  using optional_ssl_context = std::optional<caf::net::ssl::context>;
+
   /// Our pollset.
   std::vector<pollfd> fdset;
 
@@ -962,13 +893,13 @@ struct connect_manager {
   /// Stores the ID of the local peer.
   endpoint_id this_peer;
 
-  /// Stores a pointer to the OpenSSL context when running with SSL enabled.
-  caf::net::openssl::ctx_ptr ssl_ctx;
+  /// Stores our SSL context, if available.
+  optional_ssl_context ssl_ctx;
 
   connect_manager(endpoint_id this_peer, connector::listener* ls,
                   shared_filter_type* filter,
                   detail::peer_status_map* peer_statuses,
-                  caf::net::openssl::ctx_ptr ctx)
+                  optional_ssl_context ctx)
     : listener(ls),
       filter(filter),
       peer_statuses_(peer_statuses),
@@ -1074,13 +1005,23 @@ struct connect_manager {
       }
       short mask = 0;
       if (ssl_ctx) {
+        using policy_t = caf::net::ssl::transport::policy_impl;
+        auto conn = ssl_ctx->new_connection(*sock);
+        if (!conn) {
+          // This is pretty much an unrecoverable error. Maybe calling abort()
+          // here is more appropriately?
+          BROKER_ERROR("failed to create SSL connection:" << conn.error());
+          caf::net::close(*sock);
+          return;
+        }
         mask = write_mask; // SSL wants to write first.
         state->reset(connect_state::socket_state::connecting,
-                     caf::net::openssl::policy::make(ssl_ctx, *sock));
+                     std::make_unique<policy_t>(std::move(*conn)));
       } else {
+        using policy_t = caf::net::stream_transport::default_policy;
         mask = read_mask;
         state->reset(connect_state::socket_state::running,
-                     caf::net::default_stream_transport_policy{});
+                     std::make_unique<policy_t>());
       }
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, mask, 0});
@@ -1231,12 +1172,20 @@ struct connect_manager {
         short mask = 0;
         if (ssl_ctx) {
           mask = write_mask; // SSL wants to write first.
+          auto conn = ssl_ctx->new_connection(*sock);
+          if (!conn) {
+            BROKER_ERROR("failed to add SSL connection:" << conn.error());
+            // TODO: is there any reasonable step to recover here?
+            return;
+          }
+          using policy_t = caf::net::ssl::transport::policy_impl;
           st->sck_state = connect_state::socket_state::accepting;
-          st->sck_policy = caf::net::openssl::policy::make(ssl_ctx, *sock);
+          st->sck_policy = std::make_unique<policy_t>(std::move(*conn));
         } else {
+          using policy_t = caf::net::stream_transport::default_policy;
           mask = read_mask;
           st->sck_state = connect_state::socket_state::running;
-          st->sck_policy = caf::net::default_stream_transport_policy{};
+          st->sck_policy = std::make_unique<policy_t>();
         }
         pending_fdset.push_back({sock->id, mask, 0});
         pending.emplace(sock->id, st);
@@ -1372,61 +1321,46 @@ detail::peer_status_map& connect_state::peer_statuses() {
 }
 
 bool connect_state::must_read_more() {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy))
-    return pol->buffered() > 0;
-  else
-    return false;
+  return sck_policy->buffered() > 0;
 }
 
 template <bool IsServer>
 write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
-    ptrdiff_t res;
-    if constexpr (IsServer)
-      res = pol->accept(fd);
-    else
-      res = pol->connect(fd);
-    if (res > 0) { // success
-      sck_state = socket_state::running;
-      mgr->register_reading(this);
-      return write_result::again;
-    } else if (res < 0) { // error
-      return write_result_from_last_error(fd, res);
-    } else { // socket closed
-      transition(&connect_state::err);
-      return write_result::stop;
-    }
-  } else {
-    BROKER_ERROR("invalid state: called connect() on a non-SSL socket");
-    transition(&connect_state::err);
-    return write_result::stop;
+  ptrdiff_t res;
+  if constexpr (IsServer)
+    res = sck_policy->accept(fd);
+  else
+    res = sck_policy->connect(fd);
+  if (res > 0) { // success
+    sck_state = socket_state::running;
+    mgr->register_reading(this);
+    return write_result::again;
+  } else if (res < 0) { // error
+    return write_result_from_last_error(fd, res);
   }
+  // socket closed
+  transition(&connect_state::err);
+  return write_result::stop;
 }
 
 template <bool IsServer>
 read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
-    ptrdiff_t res;
-    if constexpr (IsServer)
-      res = pol->accept(fd);
-    else
-      res = pol->connect(fd);
-    if (res > 0) { // success
-      sck_state = socket_state::running;
-      if (!wr_buf.empty())
-        mgr->register_writing(this);
-      return read_result::again;
-    } else if (res < 0) { // error
-      return read_result_from_last_error(fd, res);
-    } else { // socket closed
-      transition(&connect_state::err);
-      return read_result::stop;
-    }
-  } else {
-    BROKER_ERROR("invalid state: called connect() on a non-SSL socket");
-    transition(&connect_state::err);
-    return read_result::stop;
+  ptrdiff_t res;
+  if constexpr (IsServer)
+    res = sck_policy->accept(fd);
+  else
+    res = sck_policy->connect(fd);
+  if (res > 0) { // success
+    sck_state = socket_state::running;
+    if (!wr_buf.empty())
+      mgr->register_writing(this);
+    return read_result::again;
+  } else if (res < 0) { // error
+    return read_result_from_last_error(fd, res);
   }
+  // socket closed
+  transition(&connect_state::err);
+  return read_result::stop;
 }
 
 template <class T>
@@ -1748,15 +1682,16 @@ connector::connector(endpoint_id this_peer, broker_options broker_cfg,
   pipe_rd_ = rd.id;
   pipe_wr_ = wr.id;
   // Copy the password into the global buffer if provided.
-  if (ssl_cfg_ && !ssl_cfg_->passphrase.empty()) {
-    if (ssl_cfg_->passphrase.size() > max_ssl_passphrase_size) {
-      fprintf(stderr, "SSL passphrase may not exceed %d characters\n",
-              static_cast<int>(max_ssl_passphrase_size));
-      ::abort();
-    }
-    strncpy(ssl_passphrase_buf, ssl_cfg_->passphrase.c_str(),
-            max_ssl_passphrase_size);
-  }
+  // TODO: ???
+//  if (ssl_cfg_ && !ssl_cfg_->passphrase.empty()) {
+//    if (ssl_cfg_->passphrase.size() > max_ssl_passphrase_size) {
+//      fprintf(stderr, "SSL passphrase may not exceed %d characters\n",
+//              static_cast<int>(max_ssl_passphrase_size));
+//      ::abort();
+//    }
+//    strncpy(ssl_passphrase_buf, ssl_cfg_->passphrase.c_str(),
+//            max_ssl_passphrase_size);
+//  }
 }
 
 connector::~connector() {
@@ -1794,7 +1729,7 @@ void connector::async_shutdown() {
   write_to_pipe(buf, true);
 }
 
-void connector::write_to_pipe(caf::span<const caf::byte> bytes,
+void connector::write_to_pipe(caf::span<const std::byte> bytes,
                               bool shutdown_after_write) {
   BROKER_TRACE(bytes.size() << "bytes");
   std::unique_lock guard{mtx_};

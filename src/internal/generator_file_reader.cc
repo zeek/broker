@@ -4,12 +4,12 @@
 #include <cstdlib>
 
 #include <caf/byte.hpp>
-#include <caf/detail/scope_guard.hpp>
 #include <caf/error.hpp>
 #include <caf/none.hpp>
 
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
+#include "broker/detail/scope_guard.hh"
 #include "broker/error.hh"
 #include "broker/internal/generator_file_writer.hh"
 #include "broker/internal/logger.hh"
@@ -229,7 +229,7 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {
     BROKER_ERROR("unable to open file:" << fname);
     return nullptr;
   }
-  auto guard1 = caf::detail::make_scope_guard([fd = fd] { close_file(fd); });
+  auto guard1 = detail::make_scope_guard([fd = fd] { close_file(fd); });
   // Read the file size.
   auto [fsize, fsize_ok] = file_size(fd);
   if (!fsize_ok) {
@@ -248,7 +248,7 @@ generator_file_reader_ptr make_generator_file_reader(const std::string& fname) {
     return nullptr;
   }
   auto cleanup = [mapper, fsize = fsize] { unmap_file(mapper, fsize); };
-  auto guard2 = caf::detail::make_scope_guard(cleanup);
+  auto guard2 = detail::make_scope_guard(cleanup);
   // Create a view into the mapped file.
   auto addr = make_file_view(mapper, fsize);
   if (addr == nullptr) {
