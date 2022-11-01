@@ -5,8 +5,7 @@
 #include "broker/detail/appliers.hh"
 #include "broker/detail/memory_backend.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 memory_backend::memory_backend(backend_options opts)
   : options_{std::move(opts)} {
@@ -75,9 +74,9 @@ expected<data> memory_backend::get(const data& key) const {
 
 expected<data> memory_backend::keys() const {
   set keys;
-  for (auto i = store_.begin(); i != store_.end(); i++)
-    keys.insert(i->first);
-  return expected<data>(std::move(keys));
+  for (const auto& i : store_)
+    keys.insert(i.first);
+  return {std::move(keys)};
 }
 
 expected<data> memory_backend::get(const data& key, const data& value) const {
@@ -116,5 +115,4 @@ expected<expirables> memory_backend::expiries() const {
   return {std::move(rval)};
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

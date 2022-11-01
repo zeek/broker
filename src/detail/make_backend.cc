@@ -5,8 +5,7 @@
 #include "broker/detail/memory_backend.hh"
 #include "broker/detail/sqlite_backend.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 std::unique_ptr<detail::abstract_backend> make_backend(backend type,
                                                        backend_options opts) {
@@ -24,5 +23,4 @@ std::unique_ptr<detail::abstract_backend> make_backend(backend type,
   die("invalid backend type");
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

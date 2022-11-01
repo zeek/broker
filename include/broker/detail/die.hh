@@ -2,8 +2,7 @@
 
 #include <iostream>
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 template <class T>
 void render(T&& x) {
@@ -26,5 +25,4 @@ template <class... Ts>
   std::abort();
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

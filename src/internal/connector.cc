@@ -272,7 +272,7 @@ public:
     // nop
   }
 
-  ~plain_pending_connection() {
+  ~plain_pending_connection() override {
     caf::net::close(fd_);
   }
 
@@ -307,7 +307,7 @@ public:
     // nop
   }
 
-  ~encrypted_pending_connection() {
+  ~encrypted_pending_connection() override {
     caf::net::close(fd_);
   }
 
@@ -378,7 +378,7 @@ public:
     // nop
   }
 
-  const char* what() const noexcept {
+  const char* what() const noexcept override {
     if (flags_ & (POLLRDHUP | POLLHUP))
       return "POLLRDHUP: cannot read from closed pipe";
     else if (flags_ & POLLERR)
