@@ -1,7 +1,6 @@
 #include "broker/detail/prefix_matcher.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 bool prefix_matcher::operator()(const filter_type& filter,
                                 const topic& t) const noexcept {
@@ -11,5 +10,4 @@ bool prefix_matcher::operator()(const filter_type& filter,
   return false;
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

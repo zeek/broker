@@ -106,7 +106,7 @@ public:
     new (&init_) Init(std::move(init_fn));
   }
 
-  ~sink_driver_impl() {
+  ~sink_driver_impl() override {
     if (!initialized_)
       after_init();
   }
@@ -161,7 +161,7 @@ public:
     new (&init_) Init(std::move(init_fn));
   }
 
-  ~sink_driver_impl() {
+  ~sink_driver_impl() override {
     if (!initialized_)
       after_init();
   }

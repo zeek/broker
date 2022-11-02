@@ -126,7 +126,7 @@ public:
   }
 
   /// Default-constructs an unspecified status.
-  status() : code_(sc::unspecified) {
+  status() {
     // nop
   }
 
@@ -181,7 +181,7 @@ private:
     // nop
   }
 
-  sc code_;
+  sc code_ = sc::unspecified;
   endpoint_info context_;
   std::string message_;
 };

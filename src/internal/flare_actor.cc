@@ -10,8 +10,7 @@
 
 namespace broker::internal {
 
-flare_actor::flare_actor(caf::actor_config& sys)
-  : blocking_actor{sys}, flare_count_{0} {}
+flare_actor::flare_actor(caf::actor_config& sys) : blocking_actor{sys} {}
 
 void flare_actor::launch(caf::execution_unit*, bool, bool) {
   // Nothing todo here since we only extract messages via receive() calls.

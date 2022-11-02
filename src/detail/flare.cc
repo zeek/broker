@@ -1,6 +1,6 @@
 #include "broker/detail/flare.hh"
 
-#include <errno.h>
+#include <cerrno>
 
 #include <algorithm>
 #include <exception>
@@ -38,7 +38,7 @@ bool try_again_later() {
 
 #else // BROKER_WINDOWS
 
-#  include <errno.h>
+#  include <cerrno>
 #  include <fcntl.h>
 #  include <poll.h>
 #  include <unistd.h>

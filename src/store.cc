@@ -55,7 +55,7 @@ public:
     BROKER_DEBUG("created state for store" << this->name);
   }
 
-  ~state_impl() {
+  ~state_impl() override {
     BROKER_DEBUG("destroyed state for store" << name);
   }
 

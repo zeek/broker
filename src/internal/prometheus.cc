@@ -1,5 +1,6 @@
 #include "broker/internal/prometheus.hh"
 
+#include <memory>
 #include <string_view>
 
 #include <caf/actor_system_config.hpp>
@@ -146,7 +147,8 @@ caf::behavior prometheus_actor::make_behavior() {
     },
   };
   auto params = metric_exporter_params::from(config());
-  exporter_.reset(new exporter_state_type(this, core_, std::move(params)));
+  exporter_ = std::make_unique<exporter_state_type>(this, core_,
+                                                    std::move(params));
   return bhvr.or_else(exporter_->make_behavior());
 }
 
