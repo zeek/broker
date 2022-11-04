@@ -10,6 +10,3 @@
 [submodule "caf"]
 	path = caf
 	url = https://github.com/zeek/actor-framework.git
-[submodule "caf-incubator"]
-	path = caf-incubator
-	url = https://github.com/actor-framework/incubator.git
