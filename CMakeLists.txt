@@ -386,6 +386,10 @@ if (ENABLE_SHARED)
   install(TARGETS broker
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_include_directories(broker INTERFACE
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+                             $<INSTALL_INTERFACE:include>)
 endif ()
 
 if (ENABLE_STATIC)
@@ -399,6 +403,10 @@ if (ENABLE_STATIC)
   install(TARGETS broker_static
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  target_include_directories(broker_static INTERFACE
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                             $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+                             $<INSTALL_INTERFACE:include>)
 endif ()
 
 if (ENABLE_SHARED)
