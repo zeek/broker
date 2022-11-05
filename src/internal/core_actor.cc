@@ -858,6 +858,21 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     i->second.out = std::move(out);
     i->second.invalidated = false;
   }
+  // Serialize the filter and send a status update to make sure there aren't
+  // races on the filter.
+  auto fs = this->filter->read();
+  buf.clear();
+  caf::binary_serializer sink{nullptr, buf};
+  [[maybe_unused]] auto ok = sink.apply(fs);
+  BROKER_ASSERT(ok);
+  auto first = reinterpret_cast<std::byte*>(buf.data());
+  auto last = first + buf.size();
+  auto packed = packed_message{packed_message_type::routing_update, ttl,
+                               topic{std::string{topic::reserved}},
+                               std::vector<std::byte>{first, last}};
+  metrics_for(packed_message_type::routing_update).buffered->inc();
+  central_merge->append_to_buf(node_message(id, peer_id, packed));
+  central_merge->try_push();
   // Emit status updates.
   peer_discovered(peer_id);
   peer_connected(peer_id, i->second.addr);
