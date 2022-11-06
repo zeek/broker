@@ -444,9 +444,8 @@ void core_actor_state::shutdown(shutdown_options options) {
 
 // -- convenience functions ----------------------------------------------------
 
-template <class EnumConstant>
-void core_actor_state::emit(endpoint_info ep, EnumConstant code,
-                            const char* msg) {
+template <class Info, class EnumConstant>
+void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
   // Sanity checking.
   if (disable_notifications || !data_outputs)
     return;
@@ -461,7 +460,7 @@ void core_actor_state::emit(endpoint_info ep, EnumConstant code,
     std::conditional_t<std::is_same_v<value_type, sc>, status, error_factory>;
   // Generate a data message from the converted content and address it to this
   // node only. This ensures that the data remains visible locally only.
-  auto val = factory::make(code, std::move(ep), msg);
+  auto val = factory::make(code, std::forward<Info>(ep), msg);
   try {
     auto content = get_as<data>(val);
     dispatch(id, pack(make_data_message(std::move(str), std::move(content))));

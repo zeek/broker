@@ -355,7 +355,7 @@ PYBIND11_MODULE(_broker, m) {
 
   py::class_<broker::endpoint>(m, "Endpoint")
     .def(py::init<>())
-    .def(py::init([](Configuration cfg) {
+    .def(py::init([](const Configuration& cfg) {
       broker::configuration bcfg(cfg.options);
       bcfg.openssl_capath(cfg.openssl_capath);
       bcfg.openssl_passphrase(cfg.openssl_passphrase);
