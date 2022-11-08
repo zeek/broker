@@ -1,3 +1,24 @@
+Broker 2.4.0
+============
+
+- Fix CMake package file when bundling CAF (Dominik Charousset, Corelight)
+
+- Fix a performance bottleneck in Broker-internal caching.
+
+- Improve performance with the ``stealing`` scheduler policy.
+
+- Fix messaging between clones and proxies that was resulting in an error
+  message being reported.
+
+- Fix a bug that prevented Broker nodes to recover from OpenSSL errors.
+
+- Fix handling of buffer sizes that caused Broker to stall despite having
+  sufficient capacity.
+
+- Add missing error signaling
+
+- Fix communication between Broker data stores.
+
 Broker 2.3.0
 ============
 
