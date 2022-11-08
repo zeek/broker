@@ -1,3 +1,13 @@
+Broker 2.3.4
+============
+
+- Fix a performance bottleneck in Broker-internal caching.
+
+- Improve performance with the ``stealing`` scheduler policy.
+
+- Fix messaging between clones and proxies that was resulting in an error
+  message being reported.
+
 Broker 2.3.3
 ============
 
