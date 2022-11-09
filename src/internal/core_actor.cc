@@ -22,6 +22,7 @@
 #include <caf/stream_slot.hpp>
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
+#include <memory>
 
 #include "broker/detail/assert.hh"
 #include "broker/detail/make_backend.hh"
@@ -80,9 +81,10 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
     auto on_peer_unavailable = [this](const network_info& addr) {
       peer_unavailable(addr);
     };
-    adapter.reset(new connector_adapter(self, std::move(conn), on_peering,
-                                        on_peer_unavailable, filter,
-                                        peer_statuses));
+    adapter = std::make_unique<connector_adapter>(self, std::move(conn),
+                                                  on_peering,
+                                                  on_peer_unavailable, filter,
+                                                  peer_statuses);
   }
 }
 

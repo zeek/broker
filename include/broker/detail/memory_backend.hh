@@ -7,8 +7,7 @@
 
 #include "broker/detail/abstract_backend.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /// An in-memory key-value storage backend.
 class memory_backend : public abstract_backend {
@@ -52,5 +51,4 @@ private:
   std::unordered_map<data, timestamp> expirations_;
 };
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -191,7 +192,7 @@ configuration::configuration(skip_init_t) {
   using std::string;
   using string_list = std::vector<string>;
   init_global_state();
-  impl_.reset(new impl);
+  impl_ = std::make_unique<impl>();
 }
 
 configuration::configuration(broker_options opts) : configuration(skip_init) {

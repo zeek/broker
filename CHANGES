@@ -1,3 +1,14 @@
+2.5.0-dev.2 | 2022-11-09 10:45:06 -0700
+
+  * Merge commit 'd9db9ce515f576dc8a4113b1accc489a645bd43c' (Tim Wojtulewicz, Corelight)
+
+    * commit 'd9db9ce515f576dc8a4113b1accc489a645bd43c':
+      Enable modernize-* checks and apply auto-fixes
+
+  * Enable modernize-* checks and apply auto-fixes (Dominik Charousset, Corelight)
+
+  * Update submodules [nomail] [skip ci] (Tim Wojtulewicz)
+
 2.4.0-dev.86 | 2022-10-20 16:49:49 -0700
 
   * Fix CMake package file when bundling CAF (Dominik Charousset, Corelight)

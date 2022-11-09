@@ -16,7 +16,7 @@ public:
   ///             the filesystem.
   sqlite_backend(backend_options opts = backend_options{});
 
-  ~sqlite_backend();
+  ~sqlite_backend() override;
 
   bool init_failed() const;
 

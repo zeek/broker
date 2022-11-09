@@ -8,7 +8,7 @@ namespace broker::version {
 using type = unsigned;
 
 constexpr type major = 2;
-constexpr type minor = 4;
+constexpr type minor = 5;
 constexpr type patch = 0;
 constexpr auto suffix = "-dev";
 

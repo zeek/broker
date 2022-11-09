@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "broker/alm/multipath.hh"
 
 #include "broker/alm/routing_table.hh"
@@ -139,8 +141,8 @@ multipath::multipath(const endpoint_id& id, bool is_receiver) : multipath(id) {
   head_->is_receiver_ = is_receiver;
 }
 
-multipath::multipath(const tree_ptr& t, multipath_node* h)
-  : tree_(t), head_(h) {
+multipath::multipath(tree_ptr t, multipath_node* h)
+  : tree_(std::move(t)), head_(h) {
   // nop
 }
 

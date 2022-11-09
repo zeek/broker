@@ -39,7 +39,7 @@ public:
     // nop
   }
 
-  ~publisher_queue() {
+  ~publisher_queue() override {
     if (buf_)
       buf_->close();
   }

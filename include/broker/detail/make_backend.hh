@@ -7,11 +7,9 @@
 
 #include "broker/detail/abstract_backend.hh"
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 std::unique_ptr<abstract_backend> make_backend(backend type,
                                                backend_options opts);
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

@@ -388,7 +388,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 
 int main(int argc, char** argv) try {
   broker::endpoint::system_guard sys_guard; // Initialize global state.
-  setvbuf(stdout, NULL, _IOLBF, 0);         // Always line-buffer stdout.
+  setvbuf(stdout, nullptr, _IOLBF, 0);      // Always line-buffer stdout.
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};
   extend_config(cfg);

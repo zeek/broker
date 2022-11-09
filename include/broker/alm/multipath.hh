@@ -304,7 +304,7 @@ public:
     }
   }
 
-  multipath(const tree_ptr&, multipath_node*);
+  multipath(tree_ptr, multipath_node*);
 
   explicit multipath(const tree_ptr& tptr) : multipath(tptr, tptr->root) {
     // nop
