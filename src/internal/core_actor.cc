@@ -166,6 +166,7 @@ caf::behavior core_actor_state::make_behavior() {
       legacy_subs.erase(i);
     }
   });
+  self->delayed_send(self, std::chrono::seconds(5), atom::tick_v);
   // Create the behavior (set of message handlers / callbacks) for the actor.
   caf::behavior result{
     // -- peering --------------------------------------------------------------
@@ -378,6 +379,105 @@ caf::behavior core_actor_state::make_behavior() {
       else
         awaited_peers.emplace(peer_id, rp);
       return rp;
+    },
+    [this](atom::tick) {
+      auto env_or_default = [](const char* env_name,
+                               const char* fallback) -> std::string {
+        if (auto val = getenv(env_name))
+          return val;
+        return fallback;
+      };
+      self->delayed_send(self, std::chrono::seconds(5), atom::tick_v);
+      using namespace std::literals;
+      auto fname = env_or_default("BROKER_STAT_DIR", "/tmp/zeek-broker-dumps");
+      if (fname.back() != '/')
+        fname += '/';
+      fname += to_string(id);
+      fname += ' ';
+      fname += std::to_string(tick_nr++);
+      fname += ".json";
+      std::ofstream ostr{fname};
+      auto add_ws = [&ostr](size_t n) {
+        for (size_t i = 0; i < n; ++i)
+          ostr.put(' ');
+      };
+      auto print_kvp = [&](size_t offset, const auto& key, const auto& val,
+                           bool add_comma = true) {
+        add_ws(offset);
+        ostr << '"' << key << "\": ";
+        using val_t = std::decay_t<decltype(val)>;
+        if constexpr (std::is_same_v<val_t, bool>) {
+          ostr << (val ? "true" : "false");
+        } else if constexpr (std::is_integral_v<val_t>) {
+          ostr << val;
+        } else {
+          ostr << '"' << val << '"';
+        }
+        ostr << (add_comma ? ",\n" : "\n");
+      };
+      ostr << "{\n";
+      print_kvp(2, "cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
+      print_kvp(2, "native-connections", metrics.native_connections->value());
+      print_kvp(2, "web-socket-connections", metrics.web_socket_connections->value());
+      ostr << "  \"message-metrics\": {" << '\n';
+      for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
+        auto msg_metrics = metrics.message_metric_sets[msg_type];
+        auto enum_val = static_cast<packed_message_type>(msg_type);
+        ostr << "    \"" << to_string(enum_val) << "\": {\n";
+        print_kvp(6, "processed", msg_metrics.processed->value());
+        print_kvp(6, "buffered", msg_metrics.buffered->value(), false);
+        if (msg_type < 5)
+          ostr << "    },\n";
+        else
+          ostr << "    }\n";
+      }
+      ostr << "  },\n";
+      auto dump_list = [&](size_t offset, auto& ls) {
+        for (size_t index = 0; index < ls.size(); ++index) {
+          add_ws(offset);
+          ostr << "\"" << ls[index].string() << "\"";
+          if (index < (ls.size() - 1))
+            ostr << ",\n";
+          else
+            ostr << "\n";
+        }
+      };
+      auto dump_dict = [&](size_t offset, auto& dict) {
+        if (dict.empty())
+          return;
+        size_t n = 0;
+        for (auto& kvp : dict) {
+          ++n;
+          print_kvp(offset, kvp.first, kvp.second, n < dict.size());
+        }
+      };
+      ostr << "  \"peers\": [\n";
+      {
+        auto i = peers.begin();
+        auto e = peers.end();
+        while (i != e) {
+          ostr << "    {\n";
+          print_kvp(6, "id", to_string(i->first));
+          print_kvp(6, "invalidated", i->second.invalidated);
+          ostr << "      \"filter\": [\n";
+          if (auto j = peer_filters.find(i->first); j != peer_filters.end())
+            dump_list(8, j->second);
+          ostr << "      ],\n";
+          ostr << "      \"outputs\": {\n";
+          dump_dict(8, i->second.send_to);
+          ostr << "      },\n";
+          ostr << "      \"inputs\": {\n";
+          dump_dict(8, i->second.received_from);
+          ostr << "      }\n";
+          ++i;
+          if (i != e)
+            ostr << "    },\n";
+          else
+            ostr << "    }\n";
+        }
+      }
+      ostr << "  ]\n";
+      ostr << "}\n";
     },
   };
   if (adapter) {
@@ -810,7 +910,12 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                // always reflects the last hop. Since we only need this
                // information to avoid forwarding loops, "sender" really just
                // means "last hop" right now.
-               .map([this](const node_message& msg) {
+               .map([this, pid = peer_id](const node_message& msg) {
+                 // <TMP>
+                 if (auto i = peers.find(pid); i != peers.end()) {
+                   i->second.send_to[get_topic(msg)] += 1;
+                 }
+                 // </TMP>
                  if (get_sender(msg) == id) {
                    return msg;
                  } else {
@@ -833,8 +938,13 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Read messages from the peer.
   auto in = self->make_observable()
               .from_resource(std::move(in_res))
-              .do_on_next([this](const node_message& msg) {
+              .do_on_next([this, pid = peer_id](const node_message& msg) {
                 metrics_for(get_type(msg)).buffered->inc();
+                // <TMP>
+                if (auto i = peers.find(pid); i != peers.end()) {
+                  i->second.received_from[get_topic(msg)] += 1;
+                }
+                // </TMP>
               })
               // If the peer closes this buffer, we assume a disconnect.
               .do_finally([this, peer_id, ts] { //

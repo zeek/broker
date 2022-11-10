@@ -41,6 +41,10 @@ public:
     /// A logical timestamp for avoiding race conditions on this state.
     lamport_timestamp ts;
 
+    std::unordered_map<topic, size_t> received_from;
+
+    std::unordered_map<topic, size_t> send_to;
+
     peer_state() = delete;
 
     peer_state(caf::disposable in, caf::disposable out, network_info addr)
@@ -372,6 +376,8 @@ public:
   message_metrics_t& metrics_for(packed_message_type msg_type) {
     return metrics.metrics_for(msg_type);
   }
+
+  int tick_nr = 1;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;
