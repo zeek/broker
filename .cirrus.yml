@@ -61,6 +61,7 @@ clang_tidy_task:
   sync_submodules_script: git submodule update --recursive --init
   build_script: ./ci/analyze.sh
   << : *UNIX_ENV
+  << : *BRANCH_WHITELIST
 
 fedora35_task:
   container:
@@ -266,4 +267,4 @@ windows_task:
     BROKER_CI_CPUS: 8
     # Give verbose error output on a test failure.
     CTEST_OUTPUT_ON_FAILURE: 1
-
+  <<: *BRANCH_WHITELIST

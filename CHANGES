@@ -1,3 +1,7 @@
+2.5.0-dev.4 | 2022-11-09 18:27:33 -0700
+
+  * Add the branch whitelist to the Windows/Clang-Tidy Cirrus tasks (Tim Wojtulewicz, Corelight)
+
 2.5.0-dev.2 | 2022-11-09 10:45:06 -0700
 
   * Merge commit 'd9db9ce515f576dc8a4113b1accc489a645bd43c' (Tim Wojtulewicz, Corelight)
