@@ -27,8 +27,9 @@ void convert(timestamp t, double& secs) {
            .count();
 }
 
-void convert(double secs, timespan& s) {
+bool convert(double secs, timespan& s) {
   s = std::chrono::duration_cast<timespan>(fractional_seconds{secs});
+  return true;
 }
 
 void convert(double secs, timestamp& ts) {

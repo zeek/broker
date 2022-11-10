@@ -417,6 +417,7 @@ caf::behavior core_actor_state::make_behavior() {
       };
       ostr << "{\n";
       print_kvp(2, "cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
+      print_kvp(2, "time", caf::timestamp_to_string(caf::make_timestamp()));
       print_kvp(2, "native-connections", metrics.native_connections->value());
       print_kvp(2, "web-socket-connections", metrics.web_socket_connections->value());
       ostr << "  \"message-metrics\": {" << '\n';
