@@ -259,12 +259,18 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](filter_type& filter, data_producer_res snk) {
       subscribe(filter);
+      // <TMP>
+      auto sstate = make_subscriber_state();
+      auto log_name = "subscriber:" + to_string(endpoint_id::random());
+      subscriber_states[log_name] = sstate;
+      // </TMP>
       get_or_init_data_outputs()
         .filter([xs = std::move(filter)](const data_message& msg) {
           detail::prefix_matcher f;
           return f(xs, msg);
         })
-        .subscribe(std::move(snk));
+        .subscribe(std::move(snk), sstate.total_requested,
+                   sstate.total_received);
     },
     [this](std::shared_ptr<filter_type> fptr, data_producer_res snk) {
       // Here, we accept a shared_ptr to the filter instead of an actual object.
@@ -272,12 +278,18 @@ caf::behavior core_actor_state::make_behavior() {
       // an update message. The filter itself is not thread-safe. Hence, the
       // publishers should never write to it directly.
       subscribe(*fptr);
+      // <TMP>
+      auto sstate = make_subscriber_state();
+      auto log_name = "subscriber:" + to_string(endpoint_id::random());
+      subscriber_states[log_name] = sstate;
+      // </TMP>
       get_or_init_data_outputs()
         .filter([fptr = std::move(fptr)](const data_message& msg) {
           detail::prefix_matcher f;
           return f(*fptr, msg);
         })
-        .subscribe(std::move(snk));
+        .subscribe(std::move(snk), sstate.total_requested,
+                   sstate.total_received);
     },
     [this](std::shared_ptr<filter_type>& fptr, topic& x, bool add,
            std::shared_ptr<std::promise<void>>& sync) {
@@ -410,6 +422,11 @@ caf::behavior core_actor_state::make_behavior() {
           ostr << (val ? "true" : "false");
         } else if constexpr (std::is_integral_v<val_t>) {
           ostr << val;
+        } else if constexpr (std::is_same_v<val_t, std::shared_ptr<size_t>>) {
+          if (val)
+            ostr << *val;
+          else
+            ostr << "null";
         } else {
           ostr << '"' << val << '"';
         }
@@ -452,6 +469,22 @@ caf::behavior core_actor_state::make_behavior() {
           print_kvp(offset, kvp.first, kvp.second, n < dict.size());
         }
       };
+      ostr << "  \"subscriber-states\": {\n";
+      {
+        auto i = subscriber_states.begin();
+        auto e = subscriber_states.end();
+        while (i != e) {
+          ostr << "    \"" << i->first << "\": {\n";
+          print_kvp(6, "total-requested", *i->second.total_requested);
+          print_kvp(6, "total-received", *i->second.total_received, false);
+          ++i;
+          if (i != e)
+            ostr << "    },\n";
+          else
+            ostr << "    }\n";
+        }
+      }
+      ostr << "  },\n";
       ostr << "  \"peers\": [\n";
       {
         auto i = peers.begin();
@@ -876,6 +909,11 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   auto i = peers.find(peer_id);
   if (i != peers.end() && !i->second.invalidated)
     return caf::make_error(ec::repeated_peering_handshake_request);
+  // <TMP>
+  auto sstate = make_subscriber_state();
+  auto log_name = "peer:" + to_string(peer_id);
+  subscriber_states[log_name] = sstate;
+  // </TMP>
   // Set the status for this peer to 'peered'. The only legal transitions are
   // 'nil -> peered' and 'connected -> peered'.
   auto& psm = *peer_statuses;
@@ -930,7 +968,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                  BROKER_DEBUG("close output flow to" << peer_id); //
                })
                // Emit values to the producer resource.
-               .subscribe(std::move(out_res));
+               .subscribe(std::move(out_res), sstate.total_requested,
+                          sstate.total_received);
   // Increase the logical time for this connection. This timestamp is crucial
   // for our do_finally handler, because this handler must do nothing if we have
   // already removed the connection manually, e.g., as a result of unpeering.
@@ -1033,6 +1072,11 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   client_added(client_id, addr, type);
   // Hook into the central merge point for forwarding the data to the client.
   if (out_res) {
+    // <TMP>
+    auto sstate = make_subscriber_state();
+    auto log_name = "client:" + to_string(client_id);
+    subscriber_states[log_name] = sstate;
+    // </TMP>
     auto sub = central_merge
                  ->as_observable()
                  // Select by subscription.
@@ -1050,7 +1094,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                    return unpack<data_message>(get_packed_message(msg));
                  })
                  // Emit values to the producer resource.
-                 .subscribe(std::move(out_res));
+                 .subscribe(std::move(out_res), sstate.total_requested,
+                            sstate.total_received);
     subscriptions.emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
@@ -1134,12 +1179,17 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
                                                      std::move(prod2));
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
+  // <TMP>
+  auto sstate = make_subscriber_state();
+  auto log_name = "master:" + name;
+  subscriber_states[log_name] = sstate;
+  // </TMP>
   get_or_init_command_outputs()
     .filter([xs = filter](const command_message& item) {
       detail::prefix_matcher f;
       return f(xs, item);
     })
-    .subscribe(prod1);
+    .subscribe(prod1, sstate.total_requested, sstate.total_received);
   command_inputs->add(self->make_observable().from_resource(con2).do_on_next(
     [this](const command_message&) {
       metrics_for(packed_message_type::command).buffered->inc();
@@ -1179,12 +1229,17 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
     id, name, tout, caf::actor{self}, clock, std::move(con1), std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
+  // <TMP>
+  auto sstate = make_subscriber_state();
+  auto log_name = "clone:" + name;
+  subscriber_states[log_name] = sstate;
+  // </TMP>
   get_or_init_command_outputs()
     .filter([xs = filter](const command_message& item) {
       detail::prefix_matcher f;
       return f(xs, item);
     })
-    .subscribe(prod1);
+    .subscribe(prod1, sstate.total_requested, sstate.total_received);
   command_inputs->add(self->make_observable().from_resource(con2).do_on_next(
     [this](const command_message&) {
       metrics_for(packed_message_type::command).buffered->inc();

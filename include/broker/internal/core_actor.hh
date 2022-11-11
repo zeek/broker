@@ -57,6 +57,17 @@ public:
     peer_state& operator=(peer_state&&) = default;
   };
 
+  struct subscriber_state {
+    std::shared_ptr<size_t> total_requested;
+    std::shared_ptr<size_t> total_received;
+  };
+
+  static subscriber_state make_subscriber_state() {
+    return {std::make_shared<size_t>(0u), std::make_shared<size_t>(0u)};
+  }
+
+  std::map<std::string, subscriber_state> subscriber_states;
+
   /// Convenience alias for a map of @ref peer_state objects.
   using peer_state_map = std::unordered_map<endpoint_id, peer_state>;
 
