@@ -432,24 +432,6 @@ caf::behavior core_actor_state::make_behavior() {
         }
         ostr << (add_comma ? ",\n" : "\n");
       };
-      ostr << "{\n";
-      print_kvp(2, "cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
-      print_kvp(2, "time", caf::timestamp_to_string(caf::make_timestamp()));
-      print_kvp(2, "native-connections", metrics.native_connections->value());
-      print_kvp(2, "web-socket-connections", metrics.web_socket_connections->value());
-      ostr << "  \"message-metrics\": {" << '\n';
-      for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
-        auto msg_metrics = metrics.message_metric_sets[msg_type];
-        auto enum_val = static_cast<packed_message_type>(msg_type);
-        ostr << "    \"" << to_string(enum_val) << "\": {\n";
-        print_kvp(6, "processed", msg_metrics.processed->value());
-        print_kvp(6, "buffered", msg_metrics.buffered->value(), false);
-        if (msg_type < 5)
-          ostr << "    },\n";
-        else
-          ostr << "    }\n";
-      }
-      ostr << "  },\n";
       auto dump_list = [&](size_t offset, auto& ls) {
         for (size_t index = 0; index < ls.size(); ++index) {
           add_ws(offset);
@@ -469,6 +451,65 @@ caf::behavior core_actor_state::make_behavior() {
           print_kvp(offset, kvp.first, kvp.second, n < dict.size());
         }
       };
+      ostr << "{\n";
+      print_kvp(2, "cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
+      print_kvp(2, "time", caf::timestamp_to_string(caf::make_timestamp()));
+      print_kvp(2, "native-connections", metrics.native_connections->value());
+      print_kvp(2, "web-socket-connections", metrics.web_socket_connections->value());
+      // message metrics
+      ostr << "  \"message-metrics\": {" << '\n';
+      for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
+        auto msg_metrics = metrics.message_metric_sets[msg_type];
+        auto enum_val = static_cast<packed_message_type>(msg_type);
+        ostr << "    \"" << to_string(enum_val) << "\": {\n";
+        print_kvp(6, "processed", msg_metrics.processed->value());
+        print_kvp(6, "buffered", msg_metrics.buffered->value(), false);
+        if (msg_type < 5)
+          ostr << "    },\n";
+        else
+          ostr << "    }\n";
+      }
+      ostr << "  },\n";
+      // state of the mergers
+      auto print_merger_stats = [&](auto& merger) {
+        print_kvp(4, "desired-capacity", merger.desired_capacity());
+        print_kvp(4, "buf-size", merger.buf_size());
+        print_kvp(4, "max-demand", merger.max_demand());
+        print_kvp(4, "total-pushed", merger.total_pushed());
+        ostr << "    \"outputs\": [\n";
+        {
+          auto i = merger.outputs().begin();
+          auto e = merger.outputs().end();
+          while (i != e) {
+            ostr << "      {\n";
+            auto sink_id = reinterpret_cast<intptr_t>(i->sink.ptr());
+            print_kvp(8, "demand", i->demand);
+            print_kvp(8, "sink-address", sink_id, false);
+            ++i;
+            if (i != e)
+              ostr << "      },\n";
+            else
+              ostr << "      }\n";
+          }
+        }
+        ostr << "    ]\n";
+      };
+      if (data_inputs) {
+        ostr << "  \"data-inputs\": {\n";
+        print_merger_stats(*data_inputs);
+        ostr << "  },\n";
+      }
+      if (command_inputs) {
+        ostr << "  \"command-inputs\": {\n";
+        print_merger_stats(*command_inputs);
+        ostr << "  },\n";
+      }
+      if (central_merge) {
+        ostr << "  \"central-merge\": {\n";
+        print_merger_stats(*central_merge);
+        ostr << "  },\n";
+      }
+      // state of subscribers
       ostr << "  \"subscriber-states\": {\n";
       {
         auto i = subscriber_states.begin();
@@ -485,6 +526,7 @@ caf::behavior core_actor_state::make_behavior() {
         }
       }
       ostr << "  },\n";
+      // state of peers
       ostr << "  \"peers\": [\n";
       {
         auto i = peers.begin();
