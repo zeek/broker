@@ -42,7 +42,8 @@ void convert(timestamp t, std::string& str);
 void convert(timestamp i, double& secs);
 
 /// @relates timespan
-void convert(double secs, timespan& i);
+/// @note always returns `true` for compatibility with Zeek 5.0 releases.
+bool convert(double secs, timespan& i);
 
 /// @relates timespan
 void convert(double secs, timestamp& ts);
