@@ -114,8 +114,8 @@ public:
 
   /// Emits a status or error code.
   /// @private
-  template <class EnumConstant>
-  void emit(endpoint_info ep, EnumConstant code, const char* msg);
+  template <class Info, class EnumConstant>
+  void emit(Info&& ep, EnumConstant code, const char* msg);
 
   /// Serializes a content of a data or command message and wraps the serialized
   /// data into a @ref packed_message.

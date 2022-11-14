@@ -314,12 +314,12 @@ public:
   /// incoming messages. The worker will run in the background, but `init` is
   /// guaranteed to be called before the function returns.
   template <class Init, class OnNext, class Cleanup>
-  worker subscribe(filter_type filter, Init init, OnNext on_next,
-                   Cleanup cleanup) {
-    return do_subscribe(std::move(filter),
-                        detail::make_sink_driver(std::move(init),
-                                                 std::move(on_next),
-                                                 std::move(cleanup)));
+  worker subscribe(filter_type filter, Init&& init, OnNext&& on_next,
+                   Cleanup&& cleanup) {
+    auto driver = detail::make_sink_driver(std::forward<Init>(init),
+                                           std::forward<OnNext>(on_next),
+                                           std::forward<Cleanup>(cleanup));
+    return do_subscribe(std::move(filter), std::move(driver));
   }
 
   /// Starts a background worker from the given set of function that consumes

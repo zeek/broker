@@ -1,3 +1,9 @@
+2.5.0-dev.8 | 2022-11-14 12:15:19 -0700
+
+  * Remove LGTM config file (Dominik Charousset, Corelight)
+
+  * Apply LGTM recommendations for some minor findings (Dominik Charousset, Corelight)
+
 2.5.0-dev.4 | 2022-11-09 18:27:33 -0700
 
   * Add the branch whitelist to the Windows/Clang-Tidy Cirrus tasks (Tim Wojtulewicz, Corelight)

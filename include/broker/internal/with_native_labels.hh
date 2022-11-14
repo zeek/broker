@@ -10,7 +10,8 @@
 namespace broker::internal {
 
 template <class F>
-auto with_native_labels(span<const telemetry::label_view> xs, F continuation) {
+auto with_native_labels(span<const telemetry::label_view> xs,
+                        F&& continuation) {
   namespace ct = caf::telemetry;
   if (xs.size() <= 10) {
     ct::label_view buf[10] = {
@@ -29,7 +30,7 @@ auto with_native_labels(span<const telemetry::label_view> xs, F continuation) {
 }
 
 template <class F>
-auto with_native_labels(span<const std::string_view> xs, F continuation) {
+auto with_native_labels(span<const std::string_view> xs, F&& continuation) {
   if (xs.size() <= 10) {
     caf::string_view buf[10];
     for (size_t index = 0; index < xs.size(); ++index)

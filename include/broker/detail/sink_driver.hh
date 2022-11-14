@@ -99,11 +99,13 @@ public:
 
   using cleanup_trait = sink_driver_cleanup_trait<signature_of_t<Cleanup>>;
 
-  sink_driver_impl(Init init_fn, OnNext on_next_fn, Cleanup cleanup_fn)
+  template <class InitFn, class OnNextFn, class CleanupFn>
+  sink_driver_impl(InitFn&& init_fn, OnNextFn&& on_next_fn,
+                   CleanupFn&& cleanup_fn)
     : state_(),
-      on_next_(std::move(on_next_fn)),
-      cleanup_(std::move(cleanup_fn)) {
-    new (&init_) Init(std::move(init_fn));
+      on_next_(std::forward<OnNextFn>(on_next_fn)),
+      cleanup_(std::forward<CleanupFn>(cleanup_fn)) {
+    new (&init_) Init(std::forward<InitFn>(init_fn));
   }
 
   ~sink_driver_impl() override {
