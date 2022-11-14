@@ -22,8 +22,8 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --enable-debug         compile in debugging mode (like --build-type=Debug)
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
-    --with-log-level=LVL   build embedded CAF with debugging output.  Levels:
-                             ERROR, WARNING, INFO, DEBUG, TRACE
+    --with-log-level=LVL   enable debugging output via the CAF logger.
+                           Levels: ERROR, WARNING, INFO, DEBUG, TRACE
     --with-clang-tidy      run with clang-tidy (requires CMake >= 3.7.2)
     --sanitizers=LIST      comma-separated list of sanitizer names to enable
     --disable-sanitizer-optimizations
@@ -53,8 +53,10 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                            build micro benchmarks (requires Google Benchmark)
 
   Required Packages in Non-Standard Locations:
-    --with-caf=PATH        path to CAF installation (use only for development!)
     --with-openssl=PATH    path to OpenSSL install root
+
+  Advanced Options (for developers):
+    -D PARAM               passes a parameter directly to CMake
 
   Influential Environment Variables (only on first invocation
   per build directory):
@@ -93,6 +95,14 @@ while [ $# -ne 0 ]; do
         --help|-h)
             echo "${usage}" 1>&2
             exit 1
+            ;;
+        -D)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: -D requires an argument."
+                exit 1
+            fi
+            CMakeCacheEntries="$CMakeCacheEntries -D $1"
             ;;
         --cmake=*)
             CMakeCommand=$optarg
@@ -155,9 +165,6 @@ while [ $# -ne 0 ]; do
             ;;
         --disable-tests)
             append_cache_entry BROKER_DISABLE_TESTS BOOL    true
-            ;;
-        --with-caf=*)
-            append_cache_entry CAF_ROOT             PATH    $optarg
             ;;
         --with-openssl=*)
             append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg

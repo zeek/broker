@@ -1,3 +1,9 @@
+2.5.0-dev.16 | 2022-11-14 12:17:17 -0700
+
+  * Tweak documentation for --with-log-level (Dominik Charousset, Corelight)
+
+  * Configure script: drop --with-caf, add -D option (Dominik Charousset, Corelight)
+
 2.5.0-dev.12 | 2022-11-14 12:16:44 -0700
 
   * Add interface include dirs to broker lib targets (Dominik Charousset, Corelight)
