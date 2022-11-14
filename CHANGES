@@ -1,3 +1,7 @@
+2.5.0-dev.18 | 2022-11-14 12:21:07 -0700
+
+  * Minimize messaging in sim_clock::advance_time (Dominik Charousset, Corelight)
+
 2.5.0-dev.16 | 2022-11-14 12:17:17 -0700
 
   * Tweak documentation for --with-log-level (Dominik Charousset, Corelight)
