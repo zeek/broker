@@ -1,3 +1,7 @@
+2.5.0-dev.12 | 2022-11-14 12:16:44 -0700
+
+  * Add interface include dirs to broker lib targets (Dominik Charousset, Corelight)
+
 2.5.0-dev.10 | 2022-11-14 12:16:23 -0700
 
   * Drop CAF incubator: caf-net moved to the main repo (Dominik Charousset, Corelight)
