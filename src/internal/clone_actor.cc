@@ -13,14 +13,12 @@
 
 #include <caf/actor.hpp>
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
 #include <caf/message.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/sum_type.hpp>
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
 
@@ -47,9 +45,9 @@ clone_state::clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                          caf::actor parent, endpoint::clock* ep_clock,
                          caf::async::consumer_resource<command_message> in_res,
                          caf::async::producer_resource<command_message> out_res)
-  : input(this), max_sync_interval(master_timeout) {
-  super::init(ptr, this_endpoint, ep_clock, move(nm), move(parent),
-              move(in_res), move(out_res));
+  : super(ptr), input(this), max_sync_interval(master_timeout) {
+  super::init(this_endpoint, ep_clock, move(nm), move(parent), move(in_res),
+              move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
   max_get_delay = caf::get_or(ptr->config(), "broker.store.max-get-delay",
