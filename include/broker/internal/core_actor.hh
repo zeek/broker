@@ -7,6 +7,7 @@
 #include "broker/lamport_timestamp.hh"
 
 #include <caf/disposable.hpp>
+#include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
 
@@ -170,16 +171,6 @@ public:
 
   // -- flow management --------------------------------------------------------
 
-  /// Returns the `data_outputs` member, initializing it lazily if needed. We
-  /// spin up this member only on demand to make sure we're not subscribing to
-  /// the central merge point if we don't need to.
-  caf::flow::observable<data_message> get_or_init_data_outputs();
-
-  /// Returns the `command_outputs` member, initializing it lazily if needed. We
-  /// spin up this member only on demand to make sure we're not subscribing to
-  /// the central merge point if we don't need to.
-  caf::flow::observable<command_message> get_or_init_command_outputs();
-
   /// Connects the input and output buffers for a new peer to our central merge
   /// point.
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
@@ -229,7 +220,7 @@ public:
 
   /// Dispatches `msg` to `receiver` regardless of its subscriptions.
   /// @returns `true` on success, `false` if no peering to `receiver` exists.
-  void dispatch(endpoint_id receiver, packed_message msg);
+  void dispatch(endpoint_id receiver, const packed_message& msg);
 
   /// Broadcasts the local subscriptions to all peers.
   void broadcast_subscriptions();
@@ -280,19 +271,21 @@ public:
   /// Stores all clone actors created by this endpoint.
   std::unordered_map<std::string, caf::actor> clones;
 
-  /// Collects inputs from @ref broker::publisher objects.
-  caf::flow::merger_impl_ptr<data_message> data_inputs;
+  /// Pushes messages into the flow. This is marked as unsafe, because we push
+  /// inputs from the mailbox directly into the buffer without a back-pressure
+  /// for the senders.
+  caf::flow::item_publisher<node_message> unsafe_inputs;
 
-  /// Collects inputs from data store objects.
-  caf::flow::merger_impl_ptr<command_message> command_inputs;
+  /// Pushes flows into the central merge point.
+  caf::flow::item_publisher<caf::flow::observable<node_message>> flow_inputs;
 
-  /// Provides central access to packed messages.
-  caf::flow::merger_impl_ptr<node_message> central_merge;
+  /// The output of `flow_inputs`.
+  caf::flow::observable<node_message> central_merge;
 
-  /// Pushes data to local @ref broker::subscriber objects.
+  /// Pushes data messages into the flow.
   caf::flow::observable<data_message> data_outputs;
 
-  /// Pushes commands to local data store objects.
+  /// Pushes command messages into the flow.
   caf::flow::observable<command_message> command_outputs;
 
   /// Handle to the background worker for establishing peering relations.

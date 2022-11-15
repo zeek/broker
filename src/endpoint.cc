@@ -22,11 +22,8 @@
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_sink.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
-#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/flow/observable.hpp>
@@ -915,7 +912,7 @@ worker endpoint::do_publish_all(std::shared_ptr<detail::source_driver> driver) {
   driver->init();
   src //
     ->make_observable()
-    .lift(data_message_source{driver})
+    .from_generator(data_message_source{driver})
     .subscribe(prod_res);
   auto worker = caf::actor{src};
   launch_src();

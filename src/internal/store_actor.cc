@@ -61,14 +61,16 @@ store_actor_state::~store_actor_state() {
 using caf::async::consumer_resource;
 using caf::async::producer_resource;
 
-void store_actor_state::init(caf::event_based_actor* selfptr,
-                             endpoint_id this_endpoint, endpoint::clock* clock,
+store_actor_state::store_actor_state(caf::event_based_actor* selfptr)
+  : self(selfptr), out(selfptr) {
+  // nop
+}
+
+void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
                              std::string&& store_name, caf::actor&& core,
                              consumer_resource<command_message> in_res,
                              producer_resource<command_message> out_res) {
-  BROKER_ASSERT(selfptr != nullptr);
   BROKER_ASSERT(clock != nullptr);
-  this->self = selfptr;
   this->clock = clock;
   this->store_name = std::move(store_name);
   this->id.endpoint = this_endpoint;
@@ -80,12 +82,12 @@ void store_actor_state::init(caf::event_based_actor* selfptr,
                               defaults::store::tick_interval);
   self //
     ->make_observable()
-    .from_resource(in_res)
-    .for_each([this](const command_message& msg) { dispatch(msg); },
-              [this](const caf::error& what) { self->quit(what); },
-              [this] { self->quit(); });
-  out.emplace(self);
-  out->as_observable().subscribe(out_res);
+    .from_resource(std::move(in_res))
+    .subscribe(caf::flow::make_observer(
+      [this](const command_message& msg) { dispatch(msg); },
+      [this](const caf::error& what) { self->quit(what); },
+      [this] { self->quit(); }));
+  out.as_observable().subscribe(std::move(out_res));
 }
 
 // -- event signaling ----------------------------------------------------------

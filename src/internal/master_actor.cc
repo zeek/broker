@@ -1,13 +1,11 @@
 #include "broker/internal/logger.hh" // Needs to come before CAF includes.
 
 #include <caf/actor.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/make_message.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/sum_type.hpp>
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
 
@@ -48,9 +46,9 @@ master_state::master_state(
   backend_pointer bp, caf::actor parent, endpoint::clock* ep_clock,
   caf::async::consumer_resource<command_message> in_res,
   caf::async::producer_resource<command_message> out_res)
-  : output(this) {
-  super::init(ptr, std::move(this_endpoint), ep_clock, std::move(nm),
-              std::move(parent), std::move(in_res), std::move(out_res));
+  : super(ptr), output(this) {
+  super::init(this_endpoint, ep_clock, std::move(nm), std::move(parent),
+              std::move(in_res), std::move(out_res));
   super::init(output);
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);

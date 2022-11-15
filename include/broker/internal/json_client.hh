@@ -56,7 +56,7 @@ public:
   caf::json_reader reader;
   caf::json_writer writer;
   std::vector<caf::disposable> subscriptions;
-  caf::flow::buffered_observable_impl_ptr<caf::cow_string> ctrl_msgs;
+  caf::flow::item_publisher<caf::cow_string> ctrl_msgs;
 
   static std::string_view default_serialization_failed_error();
 

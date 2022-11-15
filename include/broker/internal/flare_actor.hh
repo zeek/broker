@@ -51,7 +51,7 @@ public:
 
 private:
   detail::flare flare_;
-  int flare_count_;
+  int flare_count_ = 0;
   std::mutex flare_mtx_;
 };
 

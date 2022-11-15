@@ -18,8 +18,6 @@
 #include <caf/sec.hpp>
 #include <caf/spawn_options.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/stream.hpp>
-#include <caf/stream_slot.hpp>
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
 
@@ -29,6 +27,7 @@
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/clone_actor.hh"
+#include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
 
 namespace broker::internal {
@@ -44,8 +43,11 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
   : self(self),
     id(this_peer),
     filter(std::make_shared<shared_filter_type>(std::move(initial_filter))),
-    clock(clock) {
-  // Check for extra configuration parameters.
+    clock(clock),
+    unsafe_inputs(self),
+    flow_inputs(self) {
+  // Read config and check for extra configuration parameters.
+  ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {
     BROKER_INFO("disable forwarding on this peer");
     disable_forwarding = true;
@@ -90,27 +92,10 @@ caf::behavior core_actor_state::make_behavior() {
     proc_fam->get_or_add({{"type", "ping"}}),
     proc_fam->get_or_add({{"type", "pong"}}),
   }};
-  // Create the mergers.
-  auto init_merger = [this](auto& ptr) {
-    ptr.emplace(self);                     // Allocate the object.
-    ptr->delay_error(true);                // Do not stop on errors.
-    ptr->shutdown_on_last_complete(false); // Always keep running.
-  };
-  init_merger(data_inputs);
-  init_merger(command_inputs);
-  init_merger(central_merge);
-  // Connect incoming data and command messages to the central merge node.
-  central_merge->add(
-    data_inputs->as_observable().map([this](const data_message& msg) {
-      return make_node_message(id, endpoint_id::nil(), pack(msg));
-    }));
-  central_merge->add(
-    command_inputs->as_observable().map([this](const command_message& msg) {
-      return make_node_message(id, endpoint_id::nil(), pack(msg));
-    }));
+  // Create the central "bus" where everything flows through.
+  central_merge = flow_inputs.as_observable().merge().share();
   // Process filter updates from our peers and add instrumentation for metrics.
   central_merge //
-    ->as_observable()
     .for_each([this, counters](const node_message& msg) {
       auto sender = get_sender(msg);
       // Update metrics.
@@ -133,8 +118,7 @@ caf::behavior core_actor_state::make_behavior() {
     });
   // Respond to PING messages.
   central_merge //
-    ->as_observable()
-    .for_each([this, counters](const node_message& msg) {
+    .for_each([this](const node_message& msg) {
       auto sender = get_sender(msg);
       if (sender == id || get_type(msg) != packed_message_type::ping)
         return;
@@ -144,6 +128,44 @@ caf::behavior core_actor_state::make_behavior() {
       dispatch(sender, make_packed_message(packed_message_type::pong, 1,
                                            get_topic(msg), payload));
     });
+  // Initialize data_outputs and command_outputs.
+  data_outputs =
+    central_merge
+      // Drop everything but data messages and only process messages that are
+      // not meant for another peer.
+      .filter([this](const node_message& msg) {
+        // Note: local subscribers do not receive messages from local
+        // publishers. Except when the message explicitly says otherwise by
+        // setting receiver == id. This is the case for messages that were
+        // published via `(atom::publish, atom::local, ...)` message.
+        auto receiver = get_receiver(msg);
+        return get_type(msg) == packed_message_type::data
+               && (get_sender(msg) != id || receiver == id)
+               && (!receiver || receiver == id);
+      })
+      // Deserialize payload and wrap it into an actual data message.
+      .flat_map([this](const node_message& msg) {
+        return unpack<data_message>(get_packed_message(msg));
+      })
+      // Convert this blueprint to a *hot* observable.
+      .share();
+  command_outputs =
+    central_merge
+      // Drop everything but command messages and only process messages that
+      // are not meant for another peer.
+      .filter([this](const node_message& msg) {
+        auto receiver = get_receiver(msg);
+        return get_type(msg) == packed_message_type::command
+               && (!receiver || receiver == id);
+      })
+      // Deserialize payload and wrap it into an actual command message.
+      .flat_map([this](const node_message& msg) {
+        return unpack<command_message>(get_packed_message(msg));
+      })
+      // Convert this blueprint to a *hot* observable.
+      .share();
+  // Connect the unsafe inputs to the central merge point.
+  flow_inputs.push(unsafe_inputs.as_observable());
   // Override the default exit handler to add logging.
   self->set_exit_handler([this](caf::exit_msg& msg) {
     if (msg.reason) {
@@ -243,7 +265,7 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](filter_type& filter, data_producer_res snk) {
       subscribe(filter);
-      get_or_init_data_outputs()
+      data_outputs
         .filter([xs = std::move(filter)](const data_message& msg) {
           detail::prefix_matcher f;
           return f(xs, msg);
@@ -256,7 +278,7 @@ caf::behavior core_actor_state::make_behavior() {
       // an update message. The filter itself is not thread-safe. Hence, the
       // publishers should never write to it directly.
       subscribe(*fptr);
-      get_or_init_data_outputs()
+      data_outputs
         .filter([fptr = std::move(fptr)](const data_message& msg) {
           detail::prefix_matcher f;
           return f(*fptr, msg);
@@ -282,8 +304,16 @@ caf::behavior core_actor_state::make_behavior() {
     },
     // -- interface for publishers ---------------------------------------------
     [this](data_consumer_res src) {
-      auto sub = data_inputs->add(self->make_observable().from_resource(src));
-      subscriptions.emplace_back(std::move(sub));
+      auto [in, sub] =
+        self
+          ->make_observable() //
+          .from_resource(std::move(src))
+          .map([this](const data_message& msg) {
+            return make_node_message(id, endpoint_id::nil(), pack(msg));
+          })
+          .compose(add_killswitch_t{});
+      flow_inputs.push(std::move(in));
+      subscriptions.push_back(std::move(sub));
     },
     // -- data store management ------------------------------------------------
     [this](atom::store, atom::clone, atom::attach, const std::string& name,
@@ -314,10 +344,11 @@ caf::behavior core_actor_state::make_behavior() {
         return;
       // Take selected messages out of the flow and send them via asynchronous
       // messages to the client.
-      auto hdl = caf::actor_cast<caf::actor>(self->current_sender());
       subscribe(filter);
-      auto sub = get_or_init_data_outputs()
-                   .filter([filter](const data_message& item) {
+      auto fptr = std::make_shared<filter_type>(filter);
+      auto hdl = caf::actor_cast<caf::actor>(self->current_sender());
+      auto sub = data_outputs
+                   .filter([fptr, filter](const data_message& item) {
                      detail::prefix_matcher f;
                      return f(filter, item);
                    })
@@ -378,15 +409,13 @@ void core_actor_state::shutdown(shutdown_options options) {
     }
   }
   peers.clear();
-  // Cancel all incoming flows.
-  BROKER_DEBUG("cancel" << subscriptions.size() << "subscriptions");
+  // Close all inputs.
+  unsafe_inputs.close();
+  flow_inputs.close();
+  // Cancel all subscriptions to local publishers.
   for (auto& sub : subscriptions)
     sub.dispose();
-  subscriptions.clear();
-  // Allow our mergers to shut down. They still process pending data.
-  data_inputs->shutdown_on_last_complete(true);
-  command_inputs->shutdown_on_last_complete(true);
-  central_merge->shutdown_on_last_complete(true);
+   subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
   BROKER_DEBUG("cancel" << awaited_peers.size()
                         << "pending await_peer requests");
@@ -675,61 +704,6 @@ void core_actor_state::handle_peer_close_event(endpoint_id peer_id,
 
 // -- flow management ----------------------------------------------------------
 
-caf::flow::observable<data_message>
-core_actor_state::get_or_init_data_outputs() {
-  if (!data_outputs) {
-    BROKER_DEBUG("create data outputs");
-    // Hook into the central merge point.
-    data_outputs
-      = central_merge
-          ->as_observable()
-          // Drop everything but data messages and only process messages that
-          // are not meant for another peer.
-          .filter([this](const node_message& msg) {
-            // Note: local subscribers do not receive messages from local
-            // publishers. Except when the message explicitly says otherwise by
-            // setting receiver == id. This is the case for messages that were
-            // published via `(atom::publish, atom::local, ...)` message.
-            auto receiver = get_receiver(msg);
-            return get_type(msg) == packed_message_type::data
-                   && (get_sender(msg) != id || receiver == id)
-                   && (!receiver || receiver == id);
-          })
-          // Deserialize payload and wrap it into an actual data message.
-          .flat_map_optional([this](const node_message& msg) {
-            return unpack<data_message>(get_packed_message(msg));
-          })
-          // Convert this blueprint to an actual observable.
-          .as_observable();
-  }
-  return data_outputs;
-}
-
-caf::flow::observable<command_message>
-core_actor_state::get_or_init_command_outputs() {
-  if (!command_outputs) {
-    BROKER_DEBUG("create command outputs");
-    // Hook into the central merge point.
-    command_outputs
-      = central_merge
-          ->as_observable()
-          // Drop everything but command messages and only process messages that
-          // are not meant for another peer.
-          .filter([this](const node_message& msg) {
-            auto receiver = get_receiver(msg);
-            return get_type(msg) == packed_message_type::command
-                   && (!receiver || receiver == id);
-          })
-          // Deserialize payload and wrap it into an actual command message.
-          .flat_map_optional([this](const node_message& msg) {
-            return unpack<command_message>(get_packed_message(msg));
-          })
-          // Convert this blueprint to an actual observable.
-          .as_observable();
-  }
-  return command_outputs;
-}
-
 caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                            const network_info& addr,
                                            const filter_type& filter,
@@ -762,7 +736,6 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   peer_filters[peer_id] = filter;
   // Hook into the central merge point for forwarding the data to the peer.
   auto out = central_merge
-               ->as_observable()
                // Select by subscription and sender/receiver fields.
                .filter([this, pid = peer_id](const node_message& msg) {
                  if (get_sender(msg) == pid)
@@ -798,26 +771,23 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Otherwise, we might drop a re-connected peer on accident.
   auto ts = (i == peers.end()) ? lamport_timestamp{} : ++i->second.ts;
   // Read messages from the peer.
-  auto in = self->make_observable()
-              .from_resource(in_res)
-              // If the peer closes this buffer, we assume a disconnect.
-              .do_finally([this, peer_id, ts] { //
-                BROKER_DEBUG("close input flow from" << peer_id);
-                caf::error reason;
-                handle_peer_close_event(peer_id, ts, reason);
-              })
-              .as_observable();
+  auto [in, ks] = self->make_observable()
+                    .from_resource(std::move(in_res))
+                    // If the peer closes this buffer, we assume a disconnect.
+                    .do_finally([this, peer_id, ts] { //
+                      BROKER_DEBUG("close input flow from" << peer_id);
+                      caf::error reason;
+                      handle_peer_close_event(peer_id, ts, reason);
+                    })
+                    .compose(add_killswitch_t{});
   // Push messages received from the peer into the central merge point.
-  central_merge->add(in);
+  flow_inputs.push(in);
   // Store some state to allow us to unpeer() from the node later.
-  subscriptions.emplace_back(in.as_disposable());
+  subscriptions.emplace_back(ks);
   if (i == peers.end()) {
-    i = peers
-          .emplace(peer_id, peer_state{std::move(in).as_disposable(),
-                                       std::move(out), addr})
-          .first;
+    i = peers.emplace(peer_id, peer_state{ks, std::move(out), addr}).first;
   } else {
-    i->second.in = std::move(in).as_disposable();
+    i->second.in = ks;
     i->second.out = std::move(out);
     i->second.invalidated = false;
   }
@@ -881,7 +851,6 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // Hook into the central merge point for forwarding the data to the client.
   if (out_res) {
     auto sub = central_merge
-                 ->as_observable()
                  // Select by subscription.
                  .filter([this, filter, client_id](const node_message& msg) {
                    if (get_sender(msg) == client_id)
@@ -889,8 +858,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                    detail::prefix_matcher f;
                    return f(filter, get_topic(msg));
                  })
-                 // Deserialize payload and wrap it into an data message.
-                 .flat_map_optional([this](const node_message& msg) {
+                 // Deserialize payload and wrap it into a data message.
+                 .flat_map([this](const node_message& msg) {
                    // TODO: repeats deserialization in the core! Ideally, this
                    //       would only happen exactly once per message.
                    return unpack<data_message>(get_packed_message(msg));
@@ -900,20 +869,20 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
     subscriptions.emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
-  auto in = self->make_observable()
-              .from_resource(in_res)
-              // If the client closes this buffer, we assume a disconnect.
-              .do_finally([this, client_id, addr, type] {
-                BROKER_DEBUG("client" << addr << "disconnected");
-                client_removed(client_id, addr, type);
-              })
-              .map([this, client_id](const data_message& msg) {
-                return make_node_message(client_id, endpoint_id::nil(),
-                                         pack(msg));
-              })
-              .as_observable();
-  auto sub = central_merge->add(std::move(in));
-  subscriptions.emplace_back(sub);
+  auto [in, ks] = self->make_observable()
+                    .from_resource(std::move(in_res))
+                    // If the client closes this buffer, we assume a disconnect.
+                    .do_finally([this, client_id, addr, type] {
+                      BROKER_DEBUG("client" << addr << "disconnected");
+                      client_removed(client_id, addr, type);
+                    })
+                    .map([this, client_id](const data_message& msg) {
+                      return make_node_message(client_id, endpoint_id::nil(),
+                                               pack(msg));
+                    })
+                    .compose(add_killswitch_t{});
+  flow_inputs.push(in);
+  subscriptions.emplace_back(ks);
   return caf::none;
 }
 
@@ -974,13 +943,20 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
     std::move(prod2));
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
-  get_or_init_command_outputs()
+  command_outputs
     .filter([xs = filter](const command_message& item) {
       detail::prefix_matcher f;
       return f(xs, item);
     })
     .subscribe(prod1);
-  command_inputs->add(self->make_observable().from_resource(con2));
+  auto in = self
+              ->make_observable() //
+              .from_resource(con2)
+              .map([this](const command_message& msg) {
+                return make_node_message(id, endpoint_id::nil(), pack(msg));
+              })
+              .as_observable();
+  flow_inputs.push(in);
   // Save the handle and monitor the new actor.
   masters.emplace(name, hdl);
   self->link_to(hdl);
@@ -1013,13 +989,20 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
     id, name, tout, caf::actor{self}, clock, std::move(con1), std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
-  get_or_init_command_outputs()
+  command_outputs
     .filter([xs = filter](const command_message& item) {
       detail::prefix_matcher f;
       return f(xs, item);
     })
     .subscribe(prod1);
-  command_inputs->add(self->make_observable().from_resource(con2));
+  auto in = self
+              ->make_observable() //
+              .from_resource(con2)
+              .map([this](const command_message& msg) {
+                return make_node_message(id, endpoint_id::nil(), pack(msg));
+              })
+              .as_observable();
+  flow_inputs.push(in);
   // Save the handle for later.
   clones.emplace(name, hdl);
   return hdl;
@@ -1039,9 +1022,9 @@ void core_actor_state::shutdown_stores() {
 
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
-void core_actor_state::dispatch(endpoint_id receiver, packed_message msg) {
-  central_merge->append_to_buf(make_node_message(id, receiver, msg));
-  central_merge->try_push();
+void core_actor_state::dispatch(endpoint_id receiver,
+                                const packed_message& msg) {
+  unsafe_inputs.push(make_node_message(id, receiver, msg));
 }
 
 void core_actor_state::broadcast_subscriptions() {
@@ -1058,8 +1041,7 @@ void core_actor_state::broadcast_subscriptions() {
                                topic{std::string{topic::reserved}},
                                std::vector<std::byte>{first, last}};
   for (auto& kvp : peers)
-    central_merge->append_to_buf(node_message(id, kvp.first, packed));
-  central_merge->try_push();
+    unsafe_inputs.push(node_message(id, kvp.first, packed));
 }
 
 // -- unpeering ----------------------------------------------------------------
