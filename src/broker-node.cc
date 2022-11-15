@@ -14,11 +14,9 @@
 #include <vector>
 
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
-#include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/init_global_meta_objects.hpp>
@@ -217,13 +215,13 @@ void extend_config(broker::configuration& broker_cfg) {
 // -- convenience get_or and get_if overloads for enpoint ----------------------
 
 template <class T>
-auto get_or(broker::endpoint& d, string_view key, const T& default_value) {
+auto get_or(broker::endpoint& d, std::string_view key, const T& default_value) {
   auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_or(cfg, key, default_value);
 }
 
 template <class T>
-auto get_as(broker::endpoint& d, string_view key) {
+auto get_as(broker::endpoint& d, std::string_view key) {
   auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_as<T>(cfg, key);
 }
@@ -241,7 +239,8 @@ bool is_ping_msg(const broker::data& x) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
+      return str && *str == "ping" && broker::is<count>(xs[1])
+             && broker::is<string>(xs[2]);
     }
   }
   return false;
@@ -252,7 +251,7 @@ bool is_pong_msg(const broker::data& x) {
     if (vec->size() == 2) {
       auto& xs = *vec;
       auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "pong" && is<count>(xs[1]);
+      return str && *str == "pong" && broker::is<count>(xs[1]);
     }
   }
   return false;
@@ -388,7 +387,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 
 int main(int argc, char** argv) try {
   broker::endpoint::system_guard sys_guard; // Initialize global state.
-  setvbuf(stdout, nullptr, _IOLBF, 0);      // Always line-buffer stdout.
+  setvbuf(stdout, NULL, _IOLBF, 0);         // Always line-buffer stdout.
   // Parse CLI parameters using our config.
   broker::configuration cfg{broker::skip_init};
   extend_config(cfg);

@@ -14,12 +14,14 @@ class flare_actor;
 
 } // namespace broker::internal
 
-namespace caf::mixin {
+namespace caf {
+namespace mixin {
 
 template <>
 struct is_blocking_requester<broker::internal::flare_actor> : std::true_type {};
 
-} // namespace caf::mixin
+} // namespace mixin
+} // namespace caf
 
 namespace broker::internal {
 
@@ -49,7 +51,7 @@ public:
 
 private:
   detail::flare flare_;
-  int flare_count_ = 0;
+  int flare_count_;
   std::mutex flare_mtx_;
 };
 
