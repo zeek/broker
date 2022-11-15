@@ -1,8 +1,8 @@
 #include "broker/internal/flare_actor.hh"
 
-#include <caf/detail/enqueue_result.hpp>
 #include <caf/detail/sync_request_bouncer.hpp>
 #include <caf/execution_unit.hpp>
+#include <caf/intrusive/inbox_result.hpp>
 #include <caf/mailbox_element.hpp>
 
 #include "broker/detail/assert.hh"
@@ -47,13 +47,13 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
   switch (mailbox().enqueue(ptr.release())) {
-    case caf::detail::enqueue_result::unblocked_reader: {
+    case caf::intrusive::inbox_result::unblocked_reader: {
       BROKER_DEBUG("firing flare");
       flare_.fire();
       ++flare_count_;
       return true;
     }
-    case caf::detail::enqueue_result::success: {
+    case caf::intrusive::inbox_result::success: {
       flare_.fire();
       ++flare_count_;
       return true;

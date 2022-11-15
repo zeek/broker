@@ -3,7 +3,6 @@
 #include <string_view>
 
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/string_algorithms.hpp>
 
 #include "broker/internal/logger.hh"
