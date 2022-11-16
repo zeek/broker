@@ -1073,6 +1073,7 @@ void core_actor_state::unpeer(peer_state_map::iterator i) {
     auto peer_id = i->first;
     BROKER_DEBUG("drop state for" << peer_id);
     // Drop local state for this peer.
+    st.invalidated = true;
     st.in.dispose();
     st.out.dispose();
     auto addr = std::move(st.addr);
