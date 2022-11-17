@@ -438,7 +438,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   // Cancel all subscriptions to local publishers.
   for (auto& sub : subscriptions)
     sub.dispose();
-   subscriptions.clear();
+  subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
   BROKER_DEBUG("cancel" << awaited_peers.size()
                         << "pending await_peer requests");

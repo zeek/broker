@@ -66,8 +66,8 @@ public:
   /// Initializes the state.
   /// @pre `ptr != nullptr`
   /// @pre `clock != nullptr`
-  void init(endpoint_id this_endpoint,
-            endpoint::clock* clock, std::string&& id, caf::actor&& core,
+  void init(endpoint_id this_endpoint, endpoint::clock* clock, std::string&& id,
+            caf::actor&& core,
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
