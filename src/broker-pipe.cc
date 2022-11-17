@@ -210,7 +210,7 @@ void split(std::vector<std::string>& result, std::string_view str,
   if (prev < str.size())
     result.emplace_back(str.substr(prev));
   else if (keep_all)
-    result.emplace_back(std::string{});
+    result.emplace_back();
 }
 
 } // namespace
