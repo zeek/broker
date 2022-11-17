@@ -4,7 +4,7 @@
           clang-analyzer-*,
           performance-*,
           -bugprone-easily-swappable-parameters,
-          -clang-analyzer-cplusplus.NewDeleteLeaks
+          -clang-analyzer-cplusplus.NewDeleteLeaks,
           -clang-analyzer-security.insecureAPI.rand,
           -clang-analyzer-webkit*,
   WarningsAsErrors: '*'

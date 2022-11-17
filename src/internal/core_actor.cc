@@ -328,7 +328,9 @@ caf::behavior core_actor_state::make_behavior() {
           })
           .compose(add_killswitch_t{});
       flow_inputs.push(in);
-      subscriptions.push_back(sub);
+      // TODO: next lines seems to be a false positive, but maybe there's
+      //       something we can do upstream to avoid the alert.
+      subscriptions.push_back(sub); // NOLINT
     },
     // -- data store management ------------------------------------------------
     [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
