@@ -809,6 +809,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                       caf::error reason;
                       handle_peer_close_event(peer_id, ts, reason);
                     })
+                    // Ignore any errors from the peer.
+                    .on_error_complete()
                     .compose(add_killswitch_t{});
   // Push messages received from the peer into the central merge point.
   flow_inputs.push(in);
@@ -918,6 +920,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                       return make_node_message(client_id, endpoint_id::nil(),
                                                pack(msg));
                     })
+                    // Ignore any errors from the client.
+                    .on_error_complete()
                     .compose(add_killswitch_t{});
   flow_inputs.push(in);
   subscriptions.emplace_back(ks);
