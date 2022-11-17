@@ -327,8 +327,8 @@ caf::behavior core_actor_state::make_behavior() {
             return make_node_message(id, endpoint_id::nil(), pack(msg));
           })
           .compose(add_killswitch_t{});
-      flow_inputs.push(std::move(in));
-      subscriptions.push_back(std::move(sub));
+      flow_inputs.push(in);
+      subscriptions.push_back(sub);
     },
     // -- data store management ------------------------------------------------
     [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
