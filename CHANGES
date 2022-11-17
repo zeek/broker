@@ -1,3 +1,15 @@
+2.3.3-9 | 2022-11-17 08:49:45 -0700
+
+  * Fix clang-tidy warnings (Dominik Charousset, Corelight)
+
+  * Fix handling of peer/client errors (Dominik Charousset, Corelight)
+
+  * Set missing flag during unpeering process (Dominik Charousset, Corelight)
+
+  * Migrate to CAF 0.19 backport of the flow API (Dominik Charousset, Corelight)
+
+  * Drop CAF incubator: caf-net moved to the main repo (Dominik Charousset, Corelight)
+
 2.3.4 | 2022-11-02 08:20:10 -0700
 
   * Release 2.3.4.

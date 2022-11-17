@@ -11,11 +11,9 @@
 #include "broker/topic.hh"
 
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
-#include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/init_global_meta_objects.hpp>

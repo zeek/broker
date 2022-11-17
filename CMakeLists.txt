@@ -207,9 +207,9 @@ if (CAF_ROOT)
                  COMPONENTS openssl test io core
                  PATHS "${CAF_ROOT}")
   else()
-    find_package(CAF REQUIRED COMPONENTS openssl test io core)
+    find_package(CAF REQUIRED COMPONENTS openssl test io core net)
   endif()
-  list(APPEND LINK_LIBS CAF::core CAF::io)
+  list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
 else ()
   message(STATUS "Using bundled CAF")
   set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
@@ -219,25 +219,8 @@ else ()
   add_subdirectory(caf EXCLUDE_FROM_ALL)
   list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
   list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
-endif ()
-
-# NOTE: building and linking against a different version of the CAF incubator is
-#       also FOR DEVELOPMENT ONLY.
-if (CAFIncubator_ROOT)
-  if (CMAKE_VERSION VERSION_LESS 3.12)
-    find_package(CAFIncubator REQUIRED COMPONENTS net PATHS "${CAF_ROOT}")
-  else()
-    find_package(CAFIncubator REQUIRED COMPONENTS net)
-  endif()
-  list(APPEND LINK_LIBS CAF::net)
-else()
-  message(STATUS "Using bundled CAF incubator")
-  set(CAF_INC_ENABLE_TESTING OFF CACHE INTERNAL "")
-  set(CAF_INC_ENABLE_BB_MODULE OFF CACHE INTERNAL "")
-  set(CAF_INC_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
-  add_subdirectory(caf-incubator EXCLUDE_FROM_ALL)
   list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_net_obj>)
-endif()
+endif ()
 
 # -- libroker -----------------------------------------------------------------
 

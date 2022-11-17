@@ -8,15 +8,12 @@
 #include "test.hh"
 
 #include <caf/actor.hpp>
-#include <caf/attach_stream_sink.hpp>
 #include <caf/behavior.hpp>
-#include <caf/downstream.hpp>
 #include <caf/error.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/stream.hpp>
 
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
@@ -37,8 +34,6 @@ namespace atom = broker::internal::atom;
 
 using namespace broker;
 using namespace broker::detail;
-
-using stream_type = caf::stream<data_message>;
 
 namespace {
 
