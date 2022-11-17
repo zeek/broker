@@ -1,3 +1,20 @@
+2.4.0-dev.98 | 2022-11-17 13:56:32 -0700
+
+  * Fix clang-tidy warnings (Dominik Charousset, Corelight)
+
+  * Disable noisy clang-tidy NewDeleteLeaks (Dominik Charousset, Corelight)
+
+    The `NewDeleteLeaks` check currently produces too many false positives
+    that have no obvious workaround.
+
+  * Fix handling of peer/client errors (Dominik Charousset, Corelight)
+
+  * Set missing flag during unpeering process (Dominik Charousset, Corelight)
+
+  * Migrate to CAF 0.19 backport of the flow API (Dominik Charousset, Corelight)
+
+  * Drop CAF incubator: caf-net moved to the main repo (Dominik Charousset, Corelight)
+
 2.4.0 | 2022-10-27 08:47:44 -0700
 
   * Update cmake submodule [nomail] [skip ci] (Tim Wojtulewicz, Corelight)

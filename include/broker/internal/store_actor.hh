@@ -11,6 +11,7 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/hash/fnv.hpp>
 #include <caf/response_handle.hpp>
@@ -56,6 +57,8 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
+  store_actor_state(caf::event_based_actor* self);
+
   virtual ~store_actor_state();
 
   // -- initialization ---------------------------------------------------------
@@ -63,8 +66,8 @@ public:
   /// Initializes the state.
   /// @pre `ptr != nullptr`
   /// @pre `clock != nullptr`
-  void init(caf::event_based_actor* self, endpoint_id this_endpoint,
-            endpoint::clock* clock, std::string&& id, caf::actor&& core,
+  void init(endpoint_id this_endpoint, endpoint::clock* clock, std::string&& id,
+            caf::actor&& core,
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
@@ -212,7 +215,7 @@ public:
   ///       terminates.
   std::unordered_map<detail::shared_store_state_ptr, size_t> attached_states;
 
-  caf::flow::broadcaster_impl_ptr<command_message> out;
+  caf::flow::item_publisher<command_message> out;
 };
 
 } // namespace broker::internal

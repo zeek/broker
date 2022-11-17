@@ -14,11 +14,9 @@
 #include <vector>
 
 #include <caf/actor_system_config.hpp>
-#include <caf/attach_stream_source.hpp>
 #include <caf/behavior.hpp>
 #include <caf/config_option_adder.hpp>
 #include <caf/deep_to_string.hpp>
-#include <caf/downstream.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/init_global_meta_objects.hpp>
@@ -241,7 +239,8 @@ bool is_ping_msg(const broker::data& x) {
     if (vec->size() == 3) {
       auto& xs = *vec;
       auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "ping" && is<count>(xs[1]) && is<string>(xs[2]);
+      return str && *str == "ping" && broker::is<count>(xs[1])
+             && broker::is<string>(xs[2]);
     }
   }
   return false;
@@ -252,7 +251,7 @@ bool is_pong_msg(const broker::data& x) {
     if (vec->size() == 2) {
       auto& xs = *vec;
       auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "pong" && is<count>(xs[1]);
+      return str && *str == "pong" && broker::is<count>(xs[1]);
     }
   }
   return false;
