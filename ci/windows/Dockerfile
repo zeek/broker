@@ -16,40 +16,23 @@
 
 FROM mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019
 
-# Restore the default Windows shell for correct batch processing.
-SHELL ["cmd", "/S", "/C"]
+SHELL [ "powershell" ]
 
-# From Cirrus CI base image:
-# https://github.com/cirruslabs/docker-images-windows/blob/master/windowsservercore/Dockerfile
-RUN powershell -NoLogo -NoProfile -Command `
-    netsh interface ipv4 show interfaces ; `
-    netsh interface ipv4 set subinterface 18 mtu=1460 store=persistent ; `
-    netsh interface ipv4 show interfaces ; `
-    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1')) ; `
-    choco install -y --no-progress git 7zip ; `
-    Remove-Item C:\ProgramData\chocolatey\logs -Force -Recurse ; `
-    Remove-Item C:\Users\ContainerAdministrator\AppData\Local\Temp -Force -Recurse
+RUN Set-ExecutionPolicy Unrestricted -Force
 
-# OpenSSL has to be installed separately from the above here or
-# the call to install the MSVC bits fails for some reason. Python
-# is separate so we can specify a version.
+# Install Chocolatey
+RUN [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; `
+    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+# Install the Visual Studio tooling
+RUN choco install -y --no-progress visualstudio2022buildtools
+RUN choco install -y --no-progress visualstudio2022-workload-vctools
+
+# Install some dependencies that aren't included in the MSVC tools
 RUN choco install -y --no-progress openssl
 RUN choco install -y --no-progress --version=3.10.0 python
+RUN choco install -y --no-progress msysgit
 
-# Download the Build Tools bootstrapper.
-ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
-
-# Install Build Tools and additional workloads, excluding workloads and
-# components with known issues.  Based on example from:
-# https://docs.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2019
-RUN C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache `
-    --add Microsoft.VisualStudio.Workload.VCTools `
-    --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-    --add Microsoft.VisualStudio.Component.VC.CMake.Project `
-    --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
-    --add Microsoft.VisualStudio.Component.TestTools.BuildTools `
-    --remove Microsoft.VisualStudio.Component.Windows10SDK.10240 `
-    --remove Microsoft.VisualStudio.Component.Windows10SDK.10586 `
-    --remove Microsoft.VisualStudio.Component.Windows10SDK.14393 `
-    --remove Microsoft.VisualStudio.Component.Windows81SDK `
- || IF "%ERRORLEVEL%"=="3010" EXIT 0
+# Add git to the global PATH
+SHELL [ "cmd", "/c" ]
+RUN setx /M PATH "%PATH%;C:\\Program Files\\Git\\bin"
