@@ -1,3 +1,10 @@
+2.5.0-dev.22 | 2022-11-21 09:54:18 -0700
+
+  * Windows CI: make Dockerfile a little more like one in Zeek (Tim Wojtulewicz, Corelight)
+
+    - Install choco in a much less-verbose way
+    - Use choco to install VS build tools and git
+
 2.5.0-dev.20 | 2022-11-15 11:49:21 -0700
 
   * Update CAF submodule for SPCP buffer fix (Dominik Charousset, Corelight)
