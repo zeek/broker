@@ -1,3 +1,7 @@
+2.5.0-dev.31 | 2022-11-22 13:13:43 -0700
+
+  * Zeek 5.0.x compatibility (Dominik Charousset, Corelight)
+
 2.5.0-dev.29 | 2022-11-22 13:13:09 -0700
 
   * Fix formatting (Dominik Charousset, Corelight)
