@@ -1,3 +1,15 @@
+2.3.5 | 2022-11-22 08:44:02 -0700
+
+  * Update CHANGES, VERSION, and NEWS for 2.3.5 release (Tim Wojtulewicz, Corelight)
+
+  * Add clangd .cache directory to gitignore (Tim Wojtulewicz, Corelight)
+
+  * Windows CI: make Dockerfile a little more like one in Zeek (Tim Wojtulewicz, Corelight)
+
+    - Install choco in a much less-verbose way
+    - Use choco to install VS build tools and git
+
+
 2.3.3-9 | 2022-11-17 08:49:45 -0700
 
   * Fix clang-tidy warnings (Dominik Charousset, Corelight)

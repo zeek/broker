@@ -1,3 +1,11 @@
+Broker 2.3.5
+============
+
+- Fix Windows CI builds (Tim Wojtulewicz, Corelight)
+
+- Fix a potential stall in Broker’s internal data pipeline (Dominik Charousset,
+  Corelight)
+
 Broker 2.3.4
 ============
 
