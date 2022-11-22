@@ -1,3 +1,15 @@
+2.5.0-dev.29 | 2022-11-22 13:13:09 -0700
+
+  * Fix formatting (Dominik Charousset, Corelight)
+
+  * Fix clang-tidy warnings (Dominik Charousset, Corelight)
+
+  * Fix handling of peer/client errors (Dominik Charousset, Corelight)
+
+  * Set missing flag during unpeering process (Dominik Charousset, Corelight)
+
+  * Migrate to CAF 0.19 backport of the flow API (Dominik Charousset, Corelight)
+
 2.5.0-dev.22 | 2022-11-21 09:54:18 -0700
 
   * Windows CI: make Dockerfile a little more like one in Zeek (Tim Wojtulewicz, Corelight)
