@@ -19,6 +19,9 @@ constexpr size_t output_generator_file_cap = std::numeric_limits<size_t>::max();
 /// Configures the default timeout of @ref endpoint::await_peer.
 constexpr timespan await_peer_timeout = std::chrono::seconds{10};
 
+/// Configures the default timeout for unpeering from another node.
+constexpr timespan unpeer_timeout = std::chrono::seconds{3};
+
 } // namespace broker::defaults
 
 namespace broker::defaults::subscriber {

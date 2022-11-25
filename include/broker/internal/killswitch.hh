@@ -79,4 +79,26 @@ struct add_killswitch_t {
   }
 };
 
+/// Utility class for injecting a killswitch to an `observable` without
+/// "breaking the chain".
+struct inject_killswitch_t {
+  caf::disposable* result;
+
+  explicit inject_killswitch_t(caf::disposable* result_ptr)
+    : result(result_ptr) {
+    // nop
+  }
+
+  template <class Observable>
+  auto operator()(Observable&& input) const {
+    using obs_t = typename std::decay_t<Observable>;
+    using val_t = typename obs_t::output_type;
+    using impl_t = killswitch<val_t>;
+    auto obs = std::forward<Observable>(input).as_observable();
+    auto ptr = caf::make_counted<impl_t>(std::move(obs));
+    *result = ptr->as_disposable();
+    return caf::flow::observable<val_t>{ptr};
+  }
+};
+
 } // namespace broker::internal
