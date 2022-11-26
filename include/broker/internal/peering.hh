@@ -1,5 +1,6 @@
 #pragma once
 
+#include "broker/detail/prefix_matcher.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
@@ -18,10 +19,10 @@ namespace broker::internal {
 
 class peering : public std::enable_shared_from_this<peering> {
 public:
-  peering(endpoint_id id, endpoint_id peer_id) : id_(id), peer_id_(peer_id) {
+  peering(filter_type peer_filter, endpoint_id id, endpoint_id peer_id)
+    : filter_(std::move(peer_filter)), id_(id), peer_id_(peer_id) {
     // nop
   }
-
 
   /// Called when the ACK message for out BYE.
   void on_bye_ack();
@@ -77,6 +78,19 @@ public:
     addr_ = new_value;
   }
 
+  /// Queries whether the peer subscribed to the given topic.
+  bool is_subscribed_to(const topic& what) const;
+
+  /// Returns the filter of the peer.
+  const filter_type& filter() const noexcept {
+    return filter_;
+  }
+
+  /// Set a new filter for the peer.
+  void filter(filter_type new_filter) {
+    filter_ = std::move(new_filter);
+  }
+
 private:
   /// Indicates whether we have explicitly removed this connection by sending a
   /// BYE message to the peer.
@@ -84,6 +98,9 @@ private:
 
   /// Network address as reported from the transport (usually TCP).
   network_info addr_;
+
+  /// Stores the subscriptions of the remote peer.
+  filter_type filter_;
 
   /// Handle for aborting inputs.
   caf::disposable in_;

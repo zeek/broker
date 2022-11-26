@@ -218,9 +218,6 @@ public:
   /// with the connector, which needs access to the filter during handshake.
   shared_filter_ptr filter;
 
-  /// Stores known filters from other peers.
-  std::unordered_map<endpoint_id, filter_type> peer_filters;
-
   /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
   /// node to other peers.
   bool disable_forwarding = false;

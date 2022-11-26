@@ -213,4 +213,9 @@ void peering::remove(caf::scheduled_actor* self,
   snk.push(make_bye_message());
 }
 
+bool peering::is_subscribed_to(const topic& what) const {
+  detail::prefix_matcher f;
+  return f(filter_, what);
+}
+
 } // namespace broker::internal

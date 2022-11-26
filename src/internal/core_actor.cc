@@ -127,11 +127,11 @@ caf::behavior core_actor_state::make_behavior() {
           break;
         case packed_message_type::routing_update: {
           // Deserialize payload and update peer filter.
-          if (auto i = peer_filters.find(sender); i != peer_filters.end()) {
+          if (auto i = peers.find(sender); i != peers.end()) {
             filter_type new_filter;
             caf::binary_deserializer src{nullptr, get_payload(msg)};
             if (src.apply(new_filter)) {
-              i->second.swap(new_filter);
+              i->second->filter(std::move(new_filter));
             } else {
               BROKER_ERROR("received malformed routing update from" << sender);
             }
@@ -555,19 +555,10 @@ std::optional<T> core_actor_state::unpack(const packed_message& msg) {
 }
 
 bool core_actor_state::has_remote_subscriber(const topic& x) const noexcept {
-  auto is_subscribed = [&x, f = detail::prefix_matcher{}](auto& kvp) {
-    return f(kvp.second, x);
+  auto is_subscribed = [&x](auto& kvp) {
+    return kvp.second->is_subscribed_to(x);
   };
-  return std::any_of(peer_filters.begin(), peer_filters.end(), is_subscribed);
-}
-
-bool core_actor_state::is_subscribed_to(endpoint_id id, const topic& what) {
-  if (auto i = peer_filters.find(id); i != peer_filters.end()) {
-    detail::prefix_matcher f;
-    return f(i->second, what);
-  } else {
-    return false;
-  }
+  return std::any_of(peers.begin(), peers.end(), is_subscribed);
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
@@ -715,22 +706,20 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // All sanity checks have passed, update our state.
   metrics.native_connections->inc();
-  // Store the filter for is_subscribed_to.
-  peer_filters[peer_id] = filter;
   // Hook into the central merge point for forwarding the data to the peer.
-  auto ptr = std::make_shared<peering>(id, peer_id);
+  auto ptr = std::make_shared<peering>(filter, id, peer_id);
   auto in = ptr->setup(
     self, std::move(in_res), std::move(out_res),
     central_merge
       // Select by subscription and sender/receiver fields.
-      .filter([this, pid = peer_id](const node_message& msg) {
+      .filter([this, pid = peer_id, ptr](const node_message& msg) {
         if (get_sender(msg) == pid)
           return false;
         if (disable_forwarding && get_sender(msg) != id)
           return false;
         auto receiver = get_receiver(msg);
         return receiver == pid
-               || (!receiver && is_subscribed_to(pid, get_topic(msg)));
+               || (!receiver && ptr->is_subscribed_to(get_topic(msg)));
       })
       // Override the sender field. This makes sure the sender field
       // always reflects the last hop. Since we only need this
@@ -766,7 +755,6 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
           // TODO: maybe we should consider this a fatal error?
         }
         // Clean up state our local state.
-        peer_filters.erase(peer_id);
         peers.erase(peer_id);
         // Trigger a reconnect if we have initiated the peering and did not
         // disconnect this peer as a result of unpeering from it.
