@@ -32,19 +32,6 @@
 
 namespace broker::internal {
 
-namespace {
-
-constexpr size_t bye_token_size = 11;
-
-void set_bye_token(caf::byte* token, uint64_t bye_id) {
-  const auto* prefix = "BYE";
-  const auto* suffix = &bye_id;
-  memcpy(token, prefix, 3);
-  memcpy(token + 3, suffix, 8);
-}
-
-} // namespace
-
 // --- constructors and destructors --------------------------------------------
 
 core_actor_state::metrics_t::metrics_t(caf::actor_system& sys) {
