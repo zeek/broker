@@ -773,6 +773,11 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
         if (!ptr->removed() && !ptr->addr().address.empty()
             && ptr->addr().has_retry_time())
           try_connect(ptr->addr(), caf::response_promise{});
+        // Shutting down? Finalize shutdown after removing the last peer.
+        if (shutting_down() && peers.empty()) {
+          shutting_down_timeout.dispose();
+          finalize_shutdown();
+        }
       })
       .as_observable());
   peers.emplace(peer_id, ptr);
