@@ -19,10 +19,9 @@ namespace broker::internal {
 
 class peering : public std::enable_shared_from_this<peering> {
 public:
-  peering(const network_info& peer_addr,
-          std::shared_ptr<filter_type> peer_filter, endpoint_id id,
-          endpoint_id peer_id)
-    : addr_(peer_addr),
+  peering(network_info peer_addr, std::shared_ptr<filter_type> peer_filter,
+          endpoint_id id, endpoint_id peer_id)
+    : addr_(std::move(peer_addr)),
       filter_(std::move(peer_filter)),
       id_(id),
       peer_id_(peer_id) {
