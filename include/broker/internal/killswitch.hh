@@ -23,18 +23,22 @@ public:
       out.on_error(make_error(caf::sec::disposed));
       return {};
     }
-    auto sub = decorated_.subscribe(out);
-    if (sub)
-      subs_.emplace_back(sub);
-    return sub;
+    if (!decorated_) {
+      out.on_error(make_error(caf::sec::too_many_observers,
+                              "killswitch may only be subscribed to once"));
+      return {};
+    }
+    BROKER_ASSERT(!sub_);
+    sub_ = decorated_.subscribe(out);
+    decorated_ = nullptr;
+    return sub_;
   }
 
   void dispose() override {
     if (!disposed_) {
       disposed_ = true;
-      for (auto& sub : subs_)
-        sub.dispose();
-      subs_.clear();
+      decorated_ = nullptr;
+      sub_.dispose();
     }
   }
 
@@ -53,7 +57,7 @@ public:
 private:
   bool disposed_ = false;
   caf::flow::observable<T> decorated_;
-  std::vector<caf::disposable> subs_;
+  caf::disposable sub_;
 };
 
 template <class T>

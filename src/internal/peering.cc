@@ -25,14 +25,17 @@ public:
   void pull(size_t n, Step& step, Steps&... steps) {
     while (n > 0) {
       switch (emitted_) {
-        case 0:{
+        case 0: {
           if (!step.on_next(first(), steps...))
             return;
+          emitted_ = 1;
           break;
-          }
+        }
         case 1: {
           if (!step.on_next(second(), steps...))
             return;
+          emitted_ = 2;
+          ptr_ = nullptr;
           break;
         }
         default: {
@@ -40,7 +43,6 @@ public:
           return;
         }
       }
-      ++emitted_;
       --n;
     }
   }
@@ -177,15 +179,17 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
         .from_resource(in_res)
         .on_error_complete()
         .compose(inject_killswitch_t{&in_})
-        .do_on_next([ptr = shared_from_this(),
-                     token = make_bye_token()](const node_message& msg) {
+        .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
+                      const node_message& msg) mutable {
           // When unpeering, we send a BYE ping message. When
           // receiving the corresponding pong message, we can safely
           // discard the input (this flow).
-          if (get_type(msg) != packed_message_type::pong)
+          if (!ptr || get_type(msg) != packed_message_type::pong)
             return;
-          if (auto& payload = get_payload(msg); payload == token)
+          if (auto& payload = get_payload(msg); payload == token) {
             ptr->on_bye_ack();
+            ptr = nullptr;
+          }
         }),
       self //
         ->make_observable()
@@ -215,7 +219,7 @@ void peering::remove(caf::scheduled_actor* self,
 
 bool peering::is_subscribed_to(const topic& what) const {
   detail::prefix_matcher f;
-  return f(filter_, what);
+  return f(*filter_, what);
 }
 
 } // namespace broker::internal

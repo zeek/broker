@@ -19,8 +19,13 @@ namespace broker::internal {
 
 class peering : public std::enable_shared_from_this<peering> {
 public:
-  peering(filter_type peer_filter, endpoint_id id, endpoint_id peer_id)
-    : filter_(std::move(peer_filter)), id_(id), peer_id_(peer_id) {
+  peering(const network_info& peer_addr,
+          std::shared_ptr<filter_type> peer_filter, endpoint_id id,
+          endpoint_id peer_id)
+    : addr_(peer_addr),
+      filter_(std::move(peer_filter)),
+      id_(id),
+      peer_id_(peer_id) {
     // nop
   }
 
@@ -83,12 +88,12 @@ public:
 
   /// Returns the filter of the peer.
   const filter_type& filter() const noexcept {
-    return filter_;
+    return *filter_;
   }
 
   /// Set a new filter for the peer.
   void filter(filter_type new_filter) {
-    filter_ = std::move(new_filter);
+    *filter_ = std::move(new_filter);
   }
 
 private:
@@ -100,7 +105,7 @@ private:
   network_info addr_;
 
   /// Stores the subscriptions of the remote peer.
-  filter_type filter_;
+  std::shared_ptr<filter_type> filter_;
 
   /// Handle for aborting inputs.
   caf::disposable in_;

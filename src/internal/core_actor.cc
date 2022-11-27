@@ -694,19 +694,20 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // All sanity checks have passed, update our state.
   metrics.native_connections->inc();
   // Hook into the central merge point for forwarding the data to the peer.
-  auto ptr = std::make_shared<peering>(filter, id, peer_id);
+  auto filter_ptr = std::make_shared<filter_type>(filter);
+  auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
   auto in = ptr->setup(
     self, std::move(in_res), std::move(out_res),
     central_merge
       // Select by subscription and sender/receiver fields.
-      .filter([this, pid = peer_id, ptr](const node_message& msg) {
+      .filter([this, pid = peer_id, filter_ptr](const node_message& msg) {
         if (get_sender(msg) == pid)
           return false;
         if (disable_forwarding && get_sender(msg) != id)
           return false;
+        auto f = detail::prefix_matcher{};
         auto receiver = get_receiver(msg);
-        return receiver == pid
-               || (!receiver && ptr->is_subscribed_to(get_topic(msg)));
+        return receiver == pid || (!receiver && f(*filter_ptr, get_topic(msg)));
       })
       // Override the sender field. This makes sure the sender field
       // always reflects the last hop. Since we only need this
@@ -731,7 +732,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
         metrics_for(get_type(msg)).buffered->inc();
       })
       // Handle peer disconnect events.
-      .do_on_complete([this, peer_id, ptr] {
+      .do_on_complete([this, peer_id, ptr]() mutable {
+        if (!ptr)
+          return;
         // Update our 'global' state for this peer.
         auto status = peer_status::peered;
         if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
@@ -753,6 +756,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
           shutting_down_timeout.dispose();
           finalize_shutdown();
         }
+        ptr = nullptr;
       })
       .as_observable());
   peers.emplace(peer_id, ptr);
