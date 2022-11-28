@@ -79,6 +79,14 @@ fedora36_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+fedora37_task:
+  container:
+    # Fedora 37 EOL: Around Dec 2024
+    dockerfile: ci/fedora-37/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 centosstream9_task:
   container:
     # Stream 9 EOL: Around Dec 2027
