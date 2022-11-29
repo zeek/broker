@@ -129,8 +129,7 @@ void peering::on_bye_ack() {
 
 void peering::force_disconnect() {
   assert(removed_);
-  in_.dispose();
-  out_.dispose();
+  on_bye_ack();
 }
 
 void peering::schedule_bye_timeout(caf::scheduled_actor* self) {
