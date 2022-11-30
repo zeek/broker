@@ -1,5 +1,7 @@
 #pragma once
 
+#include "broker/detail/assert.hh"
+
 #include <caf/disposable.hpp>
 #include <caf/flow/op/cold.hpp>
 #include <caf/scheduled_actor.hpp>
