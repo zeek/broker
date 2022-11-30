@@ -19,6 +19,7 @@ set(tests
   cpp/internal/channel.cc
   cpp/internal/core_actor.cc
   cpp/internal/json_type_mapper.cc
+  cpp/internal/killswitch.cc
   # cpp/internal/data_generator.cc
   # cpp/internal/generator_file_writer.cc
   # cpp/internal/meta_command_writer.cc
