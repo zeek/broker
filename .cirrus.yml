@@ -258,4 +258,4 @@ windows_task:
     BROKER_CI_CPUS: 8
     # Give verbose error output on a test failure.
     CTEST_OUTPUT_ON_FAILURE: 1
-
+  << : *BRANCH_WHITELIST
