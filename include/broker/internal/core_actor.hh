@@ -115,6 +115,21 @@ public:
   /// Returns the IDs of all connected peers.
   std::vector<endpoint_id> peer_ids() const;
 
+  /// Creates a snapshot for the current values of the message metrics.
+  table message_metrics_snapshot() const;
+
+  /// Creates a snapshot for the peering statistics.
+  table peer_stats_snapshot() const;
+
+  /// Creates a snapshot for the status of local subscribers.
+  vector local_subscriber_stats_snapshot() const;
+
+  /// Creates a snapshot for the status of local publishers.
+  vector local_publisher_stats_snapshot() const;
+
+  /// Creates a snapshot that summarizes the current status of the core.
+  table status_snapshot() const;
+
   // -- callbacks --------------------------------------------------------------
 
   /// Called whenever the user tried to unpeer from an unknown peer.
@@ -293,6 +308,32 @@ public:
   /// after the timeout.
   caf::disposable shutting_down_timeout;
 
+  /// Keeps track of statistics for local subscribers.
+  std::set<flow_scope_stats_ptr> local_subscriber_stats;
+
+  /// Returns a function object for adding instrumentation to flow that belongs
+  /// to a local subscriber.
+  auto local_subscriber_scope_adder() {
+    auto stats_ptr = std::make_shared<flow_scope_stats>();
+    local_subscriber_stats.emplace(stats_ptr);
+    return add_flow_scope_t{stats_ptr, [this](const flow_scope_stats_ptr& ptr) {
+                              local_subscriber_stats.erase(ptr);
+                            }};
+  }
+
+  /// Keeps track of statistics for local publishers.
+  std::set<flow_scope_stats_ptr> local_publisher_stats;
+
+  /// Returns a function object for adding instrumentation to flow that belongs
+  /// to a local publisher.
+  auto local_publisher_scope_adder() {
+    auto stats_ptr = std::make_shared<flow_scope_stats>();
+    local_publisher_stats.emplace(stats_ptr);
+    return add_flow_scope_t{stats_ptr, [this](const flow_scope_stats_ptr& ptr) {
+                              local_publisher_stats.erase(ptr);
+                            }};
+  }
+
   /// Returns whether `shutdown` was called.
   bool shutting_down();
 
@@ -300,6 +341,10 @@ public:
   message_metrics_t& metrics_for(packed_message_type msg_type) {
     return metrics.metrics_for(msg_type);
   }
+
+  /// Counts messages that were published directly via message, i.e., without
+  /// using the back-pressure of flows.
+  int64_t published_via_async_msg = 0;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

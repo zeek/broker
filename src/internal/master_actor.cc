@@ -21,6 +21,8 @@
 #include "broker/time.hh"
 #include "broker/topic.hh"
 
+using namespace std::literals;
+
 namespace broker::internal {
 
 namespace {
@@ -150,6 +152,21 @@ void master_state::dispatch(const command_message& msg) {
       }
     }
   }
+}
+
+table master_state::status_snapshot() const {
+  auto inputs_stats = [this] {
+    table result;
+    for (auto& [key, in] : inputs)
+      result.emplace(to_string(key.endpoint), get_stats(in));
+    return result;
+  };
+  table result;
+  if (auto val = backend->size())
+    result.emplace("entries"s, *val);
+  result.emplace("inputs"s, inputs_stats());
+  result.emplace("output"s, get_stats(output));
+  return result;
 }
 
 void master_state::tick() {

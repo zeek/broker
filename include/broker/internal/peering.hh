@@ -4,6 +4,7 @@
 #include "broker/endpoint.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
+#include "broker/internal/flow_scope.hh"
 #include "broker/internal/fwd.hh"
 
 #include <caf/disposable.hpp>
@@ -24,7 +25,9 @@ public:
     : addr_(std::move(peer_addr)),
       filter_(std::move(peer_filter)),
       id_(id),
-      peer_id_(peer_id) {
+      peer_id_(peer_id),
+      input_stats_(std::make_shared<flow_scope_stats>()),
+      output_stats_(std::make_shared<flow_scope_stats>()) {
     // nop
   }
 
@@ -95,6 +98,16 @@ public:
     *filter_ = std::move(new_filter);
   }
 
+  /// Returns a status object that keeps track of input messages from the peer.
+  flow_scope_stats_ptr input_stats() const {
+    return input_stats_;
+  }
+
+  /// Returns a status object that keeps track of output messages to the peer.
+  flow_scope_stats_ptr output_stats() const {
+    return output_stats_;
+  }
+
 private:
   /// Indicates whether we have explicitly removed this connection by sending a
   /// BYE message to the peer.
@@ -125,6 +138,12 @@ private:
 
   /// The ID of our peer.
   endpoint_id peer_id_;
+
+  /// .
+  flow_scope_stats_ptr input_stats_;
+
+  /// .
+  flow_scope_stats_ptr output_stats_;
 };
 
 using peering_ptr = std::shared_ptr<peering>;

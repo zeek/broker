@@ -27,6 +27,8 @@
 
 using std::move;
 
+using namespace std::literals;
+
 namespace broker::internal {
 
 namespace {
@@ -197,6 +199,17 @@ void clone_state::dispatch(const command_message& msg) {
       }
     }
   }
+}
+
+table clone_state::status_snapshot() const {
+  table result;
+  result.emplace("master-id"s, to_string(master_id.endpoint));
+  result.emplace("input"s, get_stats(input));
+  if (output_opt)
+    result.emplace("output"s, get_stats(*output_opt));
+  else
+    result.emplace("output"s, nil);
+  return result;
 }
 
 void clone_state::tick() {

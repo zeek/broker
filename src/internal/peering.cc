@@ -168,7 +168,10 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
                                             make_bye_token());
   auto bye_msg = make_node_message(id_, peer_id_, std::move(bye_packed_msg));
   // Inject our kill switch to allow us to cancel this peering later on.
-  src.compose(inject_killswitch_t{&out_}).subscribe(std::move(out_res));
+  src //
+    .compose(add_flow_scope_t{output_stats_})
+    .compose(inject_killswitch_t{&out_})
+    .subscribe(std::move(out_res));
   // Read inputs and surround them with connect/disconnect status messages.
   return self //
     ->make_observable()
@@ -177,6 +180,7 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
       self->make_observable()
         .from_resource(std::move(in_res))
         .on_error_complete()
+        .compose(add_flow_scope_t{input_stats_})
         .compose(inject_killswitch_t{&in_})
         .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
                       const node_message& msg) mutable {
