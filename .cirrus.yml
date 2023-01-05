@@ -177,16 +177,16 @@ ubuntu18_task:
 
 # Apple doesn't publish official long-term support timelines.
 # We aim to support both the current and previous macOS release.
-macos_monterey_task:
+macos_ventura_task:
   macos_instance:
-    image: monterey-base
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
 
-macos_big_sur_task:
+macos_monterey_task:
   macos_instance:
-    image: big-sur-base
+    image: ghcr.io/cirruslabs/macos-monterey-base:latest
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE

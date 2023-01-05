@@ -1,3 +1,12 @@
+2.5.0-dev.36 | 2023-01-05 12:08:33 -0700
+
+  * CI: macOS platform updates (Tim Wojtulewicz, Corelight)
+
+    - Add Ventura build
+    - Switch all macOS builds to use M1 images. x86_64 builds are no longer supported
+      by Cirrus for macOS as of 2023/1/1.
+    - Drop Big Sur build
+
 2.5.0-dev.34 | 2022-11-29 14:46:24 +0100
 
   * Add formatting helper for consistent pre/post Python 3.11 enum stringification (Christian Kreibich, Corelight)
