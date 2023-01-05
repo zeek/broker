@@ -1,3 +1,16 @@
+2.4.1-2 | 2023-01-28 10:16:18 -0700
+
+  * CI: macOS platform updates (Tim Wojtulewicz, Corelight)
+
+    - Add Ventura build
+    - Switch all macOS builds to use M1 images. x86_64 builds are no longer supported
+      by Cirrus for macOS as of 2023/1/1.
+    - Drop Big Sur build
+
+    (cherry picked from commit 56c3e95982f377bd133302239431d0d183dfdf26)
+
+  * Minimize messaging in sim_clock::advance_time (Dominik Charousset, Corelight)
+
 2.4.1 | 2022-11-21 16:43:16 -0700
 
   * Add clangd .cache directory to gitignore (Tim Wojtulewicz, Corelight)
