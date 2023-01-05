@@ -176,12 +176,17 @@ def unpack_responder_syn_ack(buf):
 
 # -- utility functions for socket I/O on handshake messages --------------------
 
+def enum_to_str(e):
+    # For compatibility around Python 3.11, this dictates how to render an enum
+    # to a string. This changed in 3.11 for some enum types.
+    return type(e).__name__ + '.' + e.name
+
 # Reads a handshake message (phase 1 and phase 2).
 def read_hs_msg(fd):
     # -1 since we extract the tag right away
     msg_len = int.from_bytes(fd.recv(4), byteorder='big', signed=False) - 1
     tag = MessageType(fd.recv(1)[0])
-    tag_str = str(tag)
+    tag_str = enum_to_str(tag)
     print(f'received a {tag_str} message with {msg_len} bytes')
     unpack_tbl = {
         MessageType.HELLO: unpack_hello,
@@ -201,7 +206,7 @@ def write_hs_msg(fd, tag, buf):
     fd.send(payload_len.to_bytes(4, byteorder='big', signed=False))
     fd.send(int(tag).to_bytes(1, byteorder='big', signed=False))
     fd.send(buf)
-    tag_str = str(tag)
+    tag_str = enum_to_str(tag)
     print(f'sent {tag_str} message with {payload_len} bytes')
 
 
@@ -236,7 +241,7 @@ def read_op_msg(fd):
     topic_len = int.from_bytes(fd.recv(2), byteorder='big', signed=False)
     topic = fd.recv(topic_len).decode()
     buf = fd.recv(msg_len - topic_len)
-    tag_str = str(tag)
+    tag_str = enum_to_str(tag)
     print(f'received a {tag_str} with a payload of {msg_len} bytes')
     unpack_tbl = {
         MessageType.PING: unpack_ping,
@@ -257,7 +262,7 @@ def write_op_msg(fd, src, dst, tag, topic, buf):
     fd.send(len(topic).to_bytes(2, byteorder='big', signed=False))
     fd.send(topic.encode())
     fd.send(buf)
-    tag_str = str(tag)
+    tag_str = enum_to_str(tag)
     print(f'sent {tag_str} message with a payload of {payload_len} bytes')
 
 

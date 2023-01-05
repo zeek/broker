@@ -1,3 +1,24 @@
+2.3.5-6 | 2023-01-05 14:54:09 -0700
+
+  * CI: macOS platform updates (Tim Wojtulewicz, Corelight)
+
+    - Add Ventura build
+    - Switch all macOS builds to use M1 images. x86_64 builds are no longer supported
+      by Cirrus for macOS as of 2023/1/1.
+    - Drop Big Sur build
+
+    (cherry picked from commit 56c3e95982f377bd133302239431d0d183dfdf26)
+
+  * Add formatting helper for consistent pre/post Python 3.11 enum stringification (Christian Kreibich, Corelight)
+
+    (cherry picked from commit daa71300d16294a0de1e88c981666d4b7ba349b8)
+
+  * CI: add Fedora 37 (Christian Kreibich, Corelight)
+
+  * CI: avoid doing Windows builds with every push (Tim Wojtulewicz, Corelight)
+
+  * Upgrade pybind11 to version 2.10.0 (Dominik Charousset, Corelight)
+
 2.3.5 | 2022-11-22 08:44:02 -0700
 
   * Update CHANGES, VERSION, and NEWS for 2.3.5 release (Tim Wojtulewicz, Corelight)

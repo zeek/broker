@@ -70,6 +70,14 @@ fedora36_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
+fedora37_task:
+  container:
+    # Fedora 37 EOL: Around Dec 2024
+    dockerfile: ci/fedora-37/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 centosstream9_task:
   container:
     # Stream 9 EOL: Around Dec 2027
@@ -160,16 +168,16 @@ ubuntu18_task:
 
 # Apple doesn't publish official long-term support timelines.
 # We aim to support both the current and previous macOS release.
-macos_monterey_task:
+macos_ventura_task:
   macos_instance:
-    image: monterey-base
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
 
-macos_big_sur_task:
+macos_monterey_task:
   macos_instance:
-    image: big-sur-base
+    image: ghcr.io/cirruslabs/macos-monterey-base:latest
   prepare_script: ./ci/macos/prepare.sh
   << : *CI_TEMPLATE
   << : *MACOS_RESOURCES_TEMPLATE
@@ -258,4 +266,4 @@ windows_task:
     BROKER_CI_CPUS: 8
     # Give verbose error output on a test failure.
     CTEST_OUTPUT_ON_FAILURE: 1
-
+  << : *BRANCH_WHITELIST
