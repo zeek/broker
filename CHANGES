@@ -1,3 +1,7 @@
+2.3.6 | 2023-01-09 08:41:10 -0700
+
+  * Update CHANGES, VERSION, and NEWS for 2.3.6 release (Tim Wojtulewicz, Corelight)
+
 2.3.5-6 | 2023-01-05 14:54:09 -0700
 
   * CI: macOS platform updates (Tim Wojtulewicz, Corelight)

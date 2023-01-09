@@ -9,8 +9,8 @@ using type = unsigned;
 
 constexpr type major = 2;
 constexpr type minor = 3;
-constexpr type patch = 5;
-constexpr auto suffix = "-6";
+constexpr type patch = 6;
+constexpr auto suffix = "";
 
 constexpr type protocol = 2;
 
