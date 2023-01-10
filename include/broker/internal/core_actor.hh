@@ -4,6 +4,7 @@
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/fwd.hh"
+#include "broker/internal/peering.hh"
 #include "broker/lamport_timestamp.hh"
 
 #include <caf/disposable.hpp>
@@ -24,38 +25,8 @@ class core_actor_state {
 public:
   // -- member types -----------------------------------------------------------
 
-  /// Bundles state for a single connected peer.
-  struct peer_state {
-    /// Handle for aborting inputs from this peer.
-    caf::disposable in;
-
-    /// Handle for aborting outputs to this peer.
-    caf::disposable out;
-
-    /// Network address as reported from the transport (usually TCP).
-    network_info addr;
-
-    /// Stores whether the connection to this peer has been closed. We set this
-    /// flag instead of removing the peer entirely for implementing reconnects.
-    bool invalidated = false;
-
-    /// A logical timestamp for avoiding race conditions on this state.
-    lamport_timestamp ts;
-
-    peer_state() = delete;
-
-    peer_state(caf::disposable in, caf::disposable out, network_info addr)
-      : in(std::move(in)), out(std::move(out)), addr(std::move(addr)) {
-      // nop
-    }
-
-    peer_state(peer_state&&) = default;
-
-    peer_state& operator=(peer_state&&) = default;
-  };
-
   /// Convenience alias for a map of @ref peer_state objects.
-  using peer_state_map = std::unordered_map<endpoint_id, peer_state>;
+  using peer_state_map = std::unordered_map<endpoint_id, peering_ptr>;
 
   /// Bundles message-related metrics that have a label dimension for the type.
   struct message_metrics_t {
@@ -108,8 +79,11 @@ public:
   /// Creates the initial set of message handlers for `self`.
   caf::behavior make_behavior();
 
-  /// Cleans up all state for an orderly shutdown.
+  /// Initiates an orderly shutdown.
   void shutdown(shutdown_options options);
+
+  /// Cleans up all state.
+  void finalize_shutdown();
 
   // -- convenience functions --------------------------------------------------
 
@@ -143,33 +117,6 @@ public:
 
   // -- callbacks --------------------------------------------------------------
 
-  /// Called whenever this peer discovers a new peer in the network.
-  /// @param peer_id ID of the new peer.
-  /// @note The new peer gets stored in the routing table *before* calling this
-  ///       member function.
-  void peer_discovered(endpoint_id peer_id);
-
-  /// Called whenever this peer established a new connection.
-  /// @param peer_id ID of the newly connected peer.
-  /// @param addr Network address for the peer.
-  /// @note The new peer gets stored in the routing table *before* calling this
-  ///       member function.
-  void peer_connected(endpoint_id peer_id, const network_info& net);
-
-  /// Called whenever this peer lost a connection to a remote peer.
-  /// @param peer_id ID of the disconnected peer.
-  /// @param addr Network address for the peer.
-  void peer_disconnected(endpoint_id peer_id, const network_info& addr);
-
-  /// Called whenever this peer removed a direct connection to a remote peer.
-  /// @param peer_id ID of the removed peer.
-  /// @param addr Network address for the peer.
-  void peer_removed(endpoint_id peer_id, const network_info& addr);
-
-  /// Called after removing the last path to `peer_id` from the routing table.
-  /// @param peer_id ID of the (now unreachable) peer.
-  void peer_unreachable(endpoint_id peer_id);
-
   /// Called whenever the user tried to unpeer from an unknown peer.
   /// @param xs Either a peer ID, an actor handle or a network info.
   void cannot_remove_peer(endpoint_id x);
@@ -194,16 +141,6 @@ public:
 
   /// Tries to asynchronously connect to addr via the connector.
   void try_connect(const network_info& addr, caf::response_promise rp);
-
-  /// Cleans up state when a peer is shutting down the connection.
-  /// @param peer_id ID of the affected peer.
-  /// @param ts Timestamp of the connection. This function does nothing if the
-  ///           connection has been re-established in the meantime.
-  /// @param reason Error code describing why the peer is shutting the
-  ///               connection or a default-constructed error on regular
-  ///               shutdown.
-  void handle_peer_close_event(endpoint_id peer_id, lamport_timestamp ts,
-                               caf::error& reason);
 
   // -- flow management --------------------------------------------------------
 
@@ -269,9 +206,6 @@ public:
   /// Disconnects a peer by demand of the user.
   void unpeer(const network_info& peer_addr);
 
-  /// Disconnects a peer by demand of the user.
-  void unpeer(peer_state_map::iterator i);
-
   // -- properties -------------------------------------------------------------
 
   /// Points to the actor itself.
@@ -283,9 +217,6 @@ public:
   /// Stores prefixes that have subscribers on this endpoint. This is shared
   /// with the connector, which needs access to the filter during handshake.
   shared_filter_ptr filter;
-
-  /// Stores known filters from other peers.
-  std::unordered_map<endpoint_id, filter_type> peer_filters;
 
   /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
   /// node to other peers.
@@ -357,6 +288,10 @@ public:
 
   /// Time-to-live when sending messages.
   uint16_t ttl;
+
+  /// When shutting down, this scheduled action forces disconnects on all peers
+  /// after the timeout.
+  caf::disposable shutting_down_timeout;
 
   /// Returns whether `shutdown` was called.
   bool shutting_down();

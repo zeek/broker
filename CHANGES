@@ -1,3 +1,7 @@
+2.5.0-dev.44 | 2023-01-10 16:49:10 +0100
+
+  * Implement graceful disconnect handshake (Dominik Charousset, Corelight)
+
 2.5.0-dev.36 | 2023-01-05 12:08:33 -0700
 
   * CI: macOS platform updates (Tim Wojtulewicz, Corelight)

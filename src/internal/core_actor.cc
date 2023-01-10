@@ -97,7 +97,7 @@ core_actor_state::~core_actor_state() {
 caf::behavior core_actor_state::make_behavior() {
   // Create the central "bus" where everything flows through.
   central_merge = flow_inputs.as_observable().merge().share();
-  // Process filter updates from our peers and add instrumentation for metrics.
+  // Process control messages and add instrumentation for metrics.
   central_merge //
     .for_each([this](const node_message& msg) {
       auto sender = get_sender(msg);
@@ -105,33 +105,38 @@ caf::behavior core_actor_state::make_behavior() {
       auto& metrics = metrics_for(get_type(msg));
       metrics.processed->inc();
       metrics.buffered->dec();
-      // We only care about incoming filter updates messages here.
-      if (sender == id || get_type(msg) != packed_message_type::routing_update)
+      // Ignore our own outputs.
+      if (sender == id)
         return;
-      // Deserialize payload and update peer filter.
-      if (auto i = peer_filters.find(sender); i != peer_filters.end()) {
-        filter_type new_filter;
-        caf::binary_deserializer src{nullptr, get_payload(msg)};
-        if (src.apply(new_filter)) {
-          i->second.swap(new_filter);
-        } else {
-          BROKER_ERROR("received malformed routing update from" << sender);
+      // Dispatch on the type of the message.
+      switch (get_type(msg)) {
+        default:
+          break;
+        case packed_message_type::routing_update: {
+          // Deserialize payload and update peer filter.
+          if (auto i = peers.find(sender); i != peers.end()) {
+            filter_type new_filter;
+            caf::binary_deserializer src{nullptr, get_payload(msg)};
+            if (src.apply(new_filter)) {
+              i->second->filter(std::move(new_filter));
+            } else {
+              BROKER_ERROR("received malformed routing update from" << sender);
+            }
+          } else {
+            // Ignore. Probably a stale message after unpeering.
+          }
+          break;
         }
-      } else {
-        // Ignore. Probably a stale message after unpeering.
+        case packed_message_type::ping: {
+          // Respond to PING messages with a PONG that has the same payload.
+          auto& payload = get_payload(msg);
+          BROKER_DEBUG("received a PING message with a payload of"
+                       << payload.size() << "bytes");
+          dispatch(sender, make_packed_message(packed_message_type::pong, ttl,
+                                               get_topic(msg), payload));
+          break;
+        }
       }
-    });
-  // Respond to PING messages.
-  central_merge //
-    .for_each([this](const node_message& msg) {
-      auto sender = get_sender(msg);
-      if (sender == id || get_type(msg) != packed_message_type::ping)
-        return;
-      auto& payload = get_payload(msg);
-      BROKER_DEBUG("received a PING message with a payload of" << payload.size()
-                                                               << "bytes");
-      dispatch(sender, make_packed_message(packed_message_type::pong, 1,
-                                           get_topic(msg), payload));
     });
   // Initialize data_outputs and command_outputs.
   data_outputs =
@@ -239,7 +244,7 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::get, atom::peer) {
       std::vector<peer_info> result;
       for (const auto& [peer_id, state] : peers) {
-        endpoint_info info{peer_id, state.addr};
+        endpoint_info info{peer_id, state->addr()};
         result.emplace_back(peer_info{std::move(info), peer_flags::remote,
                                       peer_status::connected});
       }
@@ -399,8 +404,7 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](atom::await, endpoint_id peer_id) {
       auto rp = self->make_response_promise();
-      if (auto i = peers.find(peer_id);
-          i != peers.end() && !i->second.invalidated)
+      if (auto i = peers.find(peer_id); i != peers.end())
         rp.deliver(peer_id);
       else
         awaited_peers.emplace(peer_id, rp);
@@ -416,27 +420,14 @@ caf::behavior core_actor_state::make_behavior() {
 
 void core_actor_state::shutdown(shutdown_options options) {
   BROKER_TRACE(BROKER_ARG(options));
+  if (shutting_down())
+    return;
   // Tell the connector to shut down. No new connection allowed.
   if (adapter)
     adapter->async_shutdown();
-  // Close the shared state for the peers.
-  peer_statuses->close();
   // Shut down data stores.
   shutdown_stores();
-  // Drop all peers. Don't cancel their flows, though. Incoming flows were
-  // cancelled already and output flows get closed automatically once the
-  // mergers shut down.
-  for (auto& kvp : peers) {
-    auto& [peer_id, st] = kvp;
-    if (!st.invalidated) {
-      BROKER_DEBUG("drop state for" << peer_id);
-      peer_removed(peer_id, st.addr);
-      peer_unreachable(peer_id);
-    }
-  }
-  peers.clear();
-  // Close all inputs.
-  unsafe_inputs.close();
+  // We no longer add new input flows.
   flow_inputs.close();
   // Cancel all subscriptions to local publishers.
   for (auto& sub : subscriptions)
@@ -450,8 +441,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   awaited_peers.clear();
   // Ignore future messages. Calling unbecome() removes our 'behavior' (set of
   // message handlers). An actor without behavior runs as long as still has
-  // active flows. Once the flows processed currently pending data the actor
-  // goes down.
+  // active flows. Once the last flow terminates, the actor goes down.
   self->unbecome();
   self->set_default_handler(
     [](caf::scheduled_actor* sptr, caf::message&) -> caf::skippable_result {
@@ -465,6 +455,29 @@ void core_actor_state::shutdown(shutdown_options options) {
       else
         return caf::make_message();
     });
+  // Close all peers gracefully. By disposing their outputs, we send the BYE
+  // message and wait for the "ack" (via one last pong message).
+  if (peers.empty()) {
+    // Nothing to wait for, do the final steps right away.
+    finalize_shutdown();
+    return;
+  }
+  for (auto& kvp : peers)
+    kvp.second->remove(self, unsafe_inputs, false);
+  shutting_down_timeout = self->run_delayed(defaults::unpeer_timeout,
+                                            [this] { finalize_shutdown(); });
+}
+
+void core_actor_state::finalize_shutdown() {
+  // Drop any remaining state of peers.
+  for (auto& kvp : peers)
+    kvp.second->force_disconnect();
+  peers.clear();
+  // Close the shared state for all peers.
+  peer_statuses->close();
+  // Close all inputs.
+  unsafe_inputs.close();
+  // After this point, any remaining flow should stop and the actor terminate.
 }
 
 // -- convenience functions ----------------------------------------------------
@@ -529,24 +542,15 @@ std::optional<T> core_actor_state::unpack(const packed_message& msg) {
 }
 
 bool core_actor_state::has_remote_subscriber(const topic& x) const noexcept {
-  auto is_subscribed = [&x, f = detail::prefix_matcher{}](auto& kvp) {
-    return f(kvp.second, x);
+  auto is_subscribed = [&x](auto& kvp) {
+    return kvp.second->is_subscribed_to(x);
   };
-  return std::any_of(peer_filters.begin(), peer_filters.end(), is_subscribed);
-}
-
-bool core_actor_state::is_subscribed_to(endpoint_id id, const topic& what) {
-  if (auto i = peer_filters.find(id); i != peer_filters.end()) {
-    detail::prefix_matcher f;
-    return f(i->second, what);
-  } else {
-    return false;
-  }
+  return std::any_of(peers.begin(), peers.end(), is_subscribed);
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
   if (auto i = peers.find(id); i != peers.end())
-    return i->second.addr;
+    return i->second->addr();
   else
     return std::nullopt;
 }
@@ -559,42 +563,6 @@ std::vector<endpoint_id> core_actor_state::peer_ids() const {
 }
 
 // -- callbacks ----------------------------------------------------------------
-
-void core_actor_state::peer_discovered(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_discovered>(),
-       "found a new peer in the network");
-}
-
-void core_actor_state::peer_connected(endpoint_id peer_id,
-                                      const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(addr));
-  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_added>(),
-       "handshake successful");
-}
-
-void core_actor_state::peer_disconnected(endpoint_id peer_id,
-                                         const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(addr));
-  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_lost>(),
-       "lost connection to remote peer");
-  peer_filters.erase(peer_id);
-}
-
-void core_actor_state::peer_removed(endpoint_id peer_id,
-                                    const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id, addr}, sc_constant<sc::peer_removed>(),
-       "removed connection to remote peer");
-  peer_filters.erase(peer_id);
-}
-
-void core_actor_state::peer_unreachable(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
-  emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_unreachable>(),
-       "lost the last path");
-  peer_filters.erase(peer_id);
-}
 
 void core_actor_state::cannot_remove_peer(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
@@ -664,8 +632,8 @@ void core_actor_state::try_connect(const network_info& addr,
         // Override the address if this one has a retry field. This makes
         // sure we "prefer" a user-defined address over addresses we read
         // from sockets for incoming peerings.
-        if (addr.has_retry_time() && !i->second.addr.has_retry_time())
-          i->second.addr = addr;
+        if (addr.has_retry_time() && !i->second->addr().has_retry_time())
+          i->second->addr(addr);
         rp.deliver(atom::peer_v, atom::ok_v, peer);
       } else {
         // Race on the state. May happen if the remote peer already
@@ -677,8 +645,8 @@ void core_actor_state::try_connect(const network_info& addr,
         self->run_delayed(1ms, [this, peer, addr, rp]() mutable {
           BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
           if (auto i = peers.find(peer); i != peers.end()) {
-            if (addr.has_retry_time() && !i->second.addr.has_retry_time())
-              i->second.addr = addr;
+            if (addr.has_retry_time() && !i->second->addr().has_retry_time())
+              i->second->addr(addr);
             rp.deliver(atom::peer_v, atom::ok_v, peer);
           } else {
             try_connect(addr, rp);
@@ -691,41 +659,6 @@ void core_actor_state::try_connect(const network_info& addr,
       rp.deliver(what);
       peer_unavailable(addr);
     });
-}
-
-void core_actor_state::handle_peer_close_event(endpoint_id peer_id,
-                                               lamport_timestamp ts,
-                                               caf::error& reason) {
-  if (auto i = peers.find(peer_id);
-      i != peers.end() && !i->second.invalidated && i->second.ts == ts) {
-    // Update our 'global' state for this peer.
-    auto status = peer_status::peered;
-    if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
-      BROKER_DEBUG(peer_id << ":: peered -> disconnected");
-    } else {
-      BROKER_ERROR("invalid status for new peer" << BROKER_ARG(peer_id)
-                                                 << BROKER_ARG(status));
-      // TODO: we could also consider this a fatal error instead. Probably worth
-      //       a discussion or two. For now, we just assume so other part of the
-      //       system is doing something with this peer and leave the state.
-      return;
-    }
-    // Close any pending flows and mark as disconnected / invalid.
-    i->second.invalidated = true;
-    i->second.in.dispose();
-    i->second.out.dispose();
-    // Trigger events.
-    peer_disconnected(peer_id, i->second.addr);
-    peer_unreachable(peer_id);
-    // If there is a retry time, it means that we have established the peering.
-    // Try reconnecting.
-    if (i->second.addr.has_retry_time()) {
-      try_connect(i->second.addr, caf::response_promise{});
-    }
-  } else {
-    // Nothing to do. We have already cleaned up this state, probably as a
-    // result of unpeering.
-  }
 }
 
 // -- flow management ----------------------------------------------------------
@@ -742,7 +675,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // Sanity checking: make sure this isn't a repeated handshake.
   auto i = peers.find(peer_id);
-  if (i != peers.end() && !i->second.invalidated)
+  if (i != peers.end())
     return caf::make_error(ec::repeated_peering_handshake_request);
   // Set the status for this peer to 'peered'. The only legal transitions are
   // 'nil -> peered' and 'connected -> peered'.
@@ -760,74 +693,73 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // All sanity checks have passed, update our state.
   metrics.native_connections->inc();
-  // Store the filter for is_subscribed_to.
-  peer_filters[peer_id] = filter;
   // Hook into the central merge point for forwarding the data to the peer.
-  auto out = central_merge
-               // Select by subscription and sender/receiver fields.
-               .filter([this, pid = peer_id](const node_message& msg) {
-                 if (get_sender(msg) == pid)
-                   return false;
-                 if (disable_forwarding && get_sender(msg) != id)
-                   return false;
-                 auto receiver = get_receiver(msg);
-                 return receiver == pid
-                        || (!receiver && is_subscribed_to(pid, get_topic(msg)));
-               })
-               // Override the sender field. This makes sure the sender field
-               // always reflects the last hop. Since we only need this
-               // information to avoid forwarding loops, "sender" really just
-               // means "last hop" right now.
-               .map([this](const node_message& msg) {
-                 if (get_sender(msg) == id) {
-                   return msg;
-                 } else {
-                   using std::get;
-                   auto cpy = msg;
-                   get<0>(cpy.unshared()) = id;
-                   return cpy;
-                 }
-               })
-               .do_finally([this, peer_id] {
-                 BROKER_DEBUG("close output flow to" << peer_id); //
-               })
-               // Emit values to the producer resource.
-               .subscribe(std::move(out_res));
-  // Increase the logical time for this connection. This timestamp is crucial
-  // for our do_finally handler, because this handler must do nothing if we have
-  // already removed the connection manually, e.g., as a result of unpeering.
-  // Otherwise, we might drop a re-connected peer on accident.
-  auto ts = (i == peers.end()) ? lamport_timestamp{} : ++i->second.ts;
-  // Read messages from the peer.
-  auto [in, ks] = self->make_observable()
-                    .from_resource(std::move(in_res))
-                    .do_on_next([this](const node_message& msg) {
-                      metrics_for(get_type(msg)).buffered->inc();
-                    })
-                    // If the peer closes this buffer, we assume a disconnect.
-                    .do_finally([this, peer_id, ts] { //
-                      BROKER_DEBUG("close input flow from" << peer_id);
-                      metrics.native_connections->dec();
-                      caf::error reason;
-                      handle_peer_close_event(peer_id, ts, reason);
-                    })
-                    // Ignore any errors from the peer.
-                    .on_error_complete()
-                    .compose(add_killswitch_t{});
+  auto filter_ptr = std::make_shared<filter_type>(filter);
+  auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
+  auto in = ptr->setup(
+    self, std::move(in_res), std::move(out_res),
+    central_merge
+      // Select by subscription and sender/receiver fields.
+      .filter([this, pid = peer_id, filter_ptr](const node_message& msg) {
+        if (get_sender(msg) == pid)
+          return false;
+        if (disable_forwarding && get_sender(msg) != id)
+          return false;
+        auto f = detail::prefix_matcher{};
+        auto receiver = get_receiver(msg);
+        return receiver == pid || (!receiver && f(*filter_ptr, get_topic(msg)));
+      })
+      // Override the sender field. This makes sure the sender field
+      // always reflects the last hop. Since we only need this
+      // information to avoid forwarding loops, "sender" really just
+      // means "last hop" right now.
+      .map([this](const node_message& msg) {
+        if (get_sender(msg) == id) {
+          return msg;
+        } else {
+          using std::get;
+          auto cpy = msg;
+          get<0>(cpy.unshared()) = id;
+          return cpy;
+        }
+      })
+      .as_observable());
   // Push messages received from the peer into the central merge point.
-  flow_inputs.push(in);
-  // Store some state to allow us to unpeer() from the node later.
-  subscriptions.emplace_back(ks);
-  if (i == peers.end()) {
-    i = peers.emplace(peer_id, peer_state{ks, std::move(out), addr}).first;
-  } else {
-    i->second.in = ks;
-    i->second.out = std::move(out);
-    i->second.invalidated = false;
-  }
-  // Emit status updates.
-  peer_discovered(peer_id);
-  peer_connected(peer_id, i->second.addr);
+  flow_inputs.push( //
+    in
+      // Add instrumentation for metrics.
+      .do_on_next([this](const node_message& msg) {
+        metrics_for(get_type(msg)).buffered->inc();
+      })
+      // Handle peer disconnect events.
+      .do_on_complete([this, peer_id, ptr]() mutable {
+        if (!ptr)
+          return;
+        // Update our 'global' state for this peer.
+        auto status = peer_status::peered;
+        if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
+          BROKER_DEBUG(peer_id << ":: peered -> disconnected");
+        } else {
+          BROKER_ERROR("invalid status for disconnected peer"
+                       << BROKER_ARG(peer_id) << BROKER_ARG(status));
+          // TODO: maybe we should consider this a fatal error?
+        }
+        // Clean up state our local state.
+        peers.erase(peer_id);
+        // Trigger a reconnect if we have initiated the peering and did not
+        // disconnect this peer as a result of unpeering from it.
+        if (!ptr->removed() && !ptr->addr().address.empty()
+            && ptr->addr().has_retry_time())
+          try_connect(ptr->addr(), caf::response_promise{});
+        // Shutting down? Finalize shutdown after removing the last peer.
+        if (shutting_down() && peers.empty()) {
+          shutting_down_timeout.dispose();
+          finalize_shutdown();
+        }
+        ptr = nullptr;
+      })
+      .as_observable());
+  peers.emplace(peer_id, ptr);
   // Notify clients that wait for this peering.
   if (auto [first, last] = awaited_peers.equal_range(peer_id); first != last) {
     for (auto i = first; i != last; ++i)
@@ -1104,43 +1036,18 @@ void core_actor_state::broadcast_subscriptions() {
 void core_actor_state::unpeer(endpoint_id peer_id) {
   BROKER_TRACE(BROKER_ARG(peer_id));
   if (auto i = peers.find(peer_id); i != peers.end())
-    unpeer(i);
+    i->second->remove(self, unsafe_inputs);
   else
     cannot_remove_peer(peer_id);
 }
 
-void core_actor_state::unpeer(const network_info& peer_addr) {
-  BROKER_TRACE(BROKER_ARG(peer_addr));
-  auto pred = [peer_addr](auto& kvp) { return kvp.second.addr == peer_addr; };
+void core_actor_state::unpeer(const network_info& addr) {
+  BROKER_TRACE(BROKER_ARG(addr));
+  auto pred = [&addr](auto& kvp) { return kvp.second->addr() == addr; };
   if (auto i = std::find_if(peers.begin(), peers.end(), pred); i != peers.end())
-    unpeer(i);
+    i->second->remove(self, unsafe_inputs);
   else
-    cannot_remove_peer(peer_addr);
-}
-
-void core_actor_state::unpeer(peer_state_map::iterator i) {
-  BROKER_TRACE("");
-  if (i == peers.end()) {
-    // Nothing to do.
-  } else if (auto& st = i->second; st.invalidated) {
-    BROKER_DEBUG(i->first << "already unpeered (invalidated)");
-  } else {
-    auto peer_id = i->first;
-    BROKER_DEBUG("drop state for" << peer_id);
-    // Drop local state for this peer.
-    st.invalidated = true;
-    st.in.dispose();
-    st.out.dispose();
-    auto addr = std::move(st.addr);
-    peers.erase(i);
-    // Drop shared state for this peer.
-    auto& psm = *peer_statuses;
-    BROKER_DEBUG(peer_id << "::" << psm.get(peer_id) << "-> ()");
-    psm.remove(peer_id);
-    // Emit events.
-    peer_removed(peer_id, addr);
-    peer_unreachable(peer_id);
-  }
+    cannot_remove_peer(addr);
 }
 
 bool core_actor_state::shutting_down() {
