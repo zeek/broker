@@ -1,3 +1,9 @@
+2.5.0-dev.46 | 2023-01-10 17:28:37 -0800
+
+  * CI: switch action/checkout to v3 (Christian Kreibich, Corelight)
+
+  * CI: remove Fedora 35, now EOL (Christian Kreibich, Corelight)
+
 2.5.0-dev.44 | 2023-01-10 16:49:10 +0100
 
   * Implement graceful disconnect handshake (Dominik Charousset, Corelight)
