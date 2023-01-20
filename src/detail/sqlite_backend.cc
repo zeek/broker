@@ -49,11 +49,68 @@ expected<data> from_blob(const void* buf, size_t size) {
     return {ec::invalid_data};
 }
 
+bool optional_enum_option(const broker::backend_options& options,
+                          const std::string& name, const std::string& prefix,
+                          const std::set<std::string>& allowed,
+                          std::string* result) {
+  auto i = options.find(name);
+  if (i == options.end())
+    return true; // no error
+
+  auto value = get_if<broker::enum_value>(i->second);
+  if (!value) {
+    BROKER_ERROR("SQLite backend option '" << name << "' not an enum value");
+    return false;
+  }
+
+  if (value->name.rfind(prefix, 0) != 0) {
+    BROKER_ERROR("SQLite backend option '"
+                 << name << "' not starting with prefix " << prefix);
+    return false;
+  }
+
+  auto sstr = value->name.substr(prefix.size(), std::string::npos);
+  if (allowed.count(sstr) == 0) {
+    BROKER_ERROR("SQLite backend option '" << name << "' has invalid value");
+    return false;
+  }
+
+  *result = sstr;
+  return true;
+}
+
 } // namespace
 
 struct sqlite_backend::impl {
   impl(backend_options opts) : options{std::move(opts)} {
-    auto i = options.find("path");
+    if (!optional_enum_option(options, "synchronous",
+                              "Broker::SQLITE_SYNCHRONOUS_",
+                              {"OFF", "NORMAL", "FULL", "EXTRA"},
+                              &pragma_synchronous))
+      return;
+
+    if (!optional_enum_option(options, "journal_mode",
+                              "Broker::SQLITE_JOURNAL_MODE_", {"DELETE", "WAL"},
+                              &pragma_journal_mode))
+      return;
+
+    std::string failure_mode;
+    if (!optional_enum_option(options, "failure_mode",
+                              "Broker::", {"DELETE", "FAIL"}, &failure_mode))
+      return;
+    delete_corrupt = failure_mode == "DELETE";
+
+    auto i = options.find("integrity_check");
+    if (i != options.end()) {
+      if (auto value = get_if<broker::boolean>(&i->second)) {
+        integrity_check = *value;
+      } else {
+        BROKER_ERROR("SQLite backend option 'integrity_check' not a boolean");
+        return;
+      }
+    }
+
+    i = options.find("path");
     if (i == options.end()) {
       BROKER_ERROR("SQLite backend options are missing required 'path' string");
       return;
@@ -76,16 +133,56 @@ struct sqlite_backend::impl {
     sqlite3_close(db);
   }
 
-  bool open(const std::string& path) {
-    BROKER_TRACE(BROKER_ARG(path));
+  // Run PRAGAMA comamnd with an optional value.
+  //
+  // Assumes name and value have been verified previously and are safe
+  // to be formatted into SQL.
+  bool exec_pragma(const std::string& name,
+                   const std::string& value = std::string()) {
+    std::stringstream ss;
+    ss << "PRAGMA " << name;
+    if (!value.empty())
+      ss << "=" << value;
 
-    auto dir = detail::dirname(path);
-    if (!dir.empty()) {
-      if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
-        return false;
-      }
+    auto result = sqlite3_exec(db, ss.str().c_str(), nullptr, nullptr, nullptr);
+    if (result != SQLITE_OK) {
+      BROKER_ERROR("failed to run " << ss.str() << ":" << sqlite3_errmsg(db));
+      sqlite3_close(db);
+      db = nullptr;
+      return false;
+    }
+    return true;
+  }
+
+  // Run PRAGMA integrity_check and verify the output is just "ok";
+  bool run_integrity_check() {
+    auto cb = [](void* arg, int argc, char** argv, char** col) {
+      auto messasges = static_cast<std::vector<std::string>*>(arg);
+      messasges->push_back(argv[0]);
+      return 0;
+    };
+
+    std::vector<std::string> messages;
+    const char* sql = "PRAGMA integrity_check";
+    auto result = sqlite3_exec(db, sql, cb, &messages, nullptr);
+
+    if (result != SQLITE_OK || !(messages.size() == 1 && messages[0] == "ok")) {
+      BROKER_ERROR("failed to run PRAGMA integrity_check: "
+                   << sqlite3_errmsg(db) << " / messages: " << messages.size());
+
+      for (const auto& msg : messages)
+        BROKER_ERROR("PRAGMA integrity_check: " << msg);
+
+      sqlite3_close(db);
+      db = nullptr;
+      return false;
     }
 
+    return true;
+  }
+
+  // Initialize the database handle and populate with tables.
+  bool initialize_db(const std::string& path) {
     // Initialize database.  SQLite has a bit of custom memory management
     // that seems to cause some LSANs to lose track and report a leak.
     BROKER_LSAN_DISABLE();
@@ -98,13 +195,24 @@ struct sqlite_backend::impl {
       db = nullptr;
       return false;
     }
+
+    if (!pragma_synchronous.empty()) {
+      if (!exec_pragma("synchronous", pragma_synchronous))
+        return false;
+    }
+
+    if (!pragma_journal_mode.empty()) {
+      if (!exec_pragma("journal_mode", pragma_journal_mode))
+        return false;
+    }
+
     // Create table for store meta data.
     result = sqlite3_exec(db,
                           "create table if not exists "
                           "meta(key text primary key, value text);",
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to create meta data table");
+      BROKER_ERROR("failed to create meta data table" << sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -115,7 +223,7 @@ struct sqlite_backend::impl {
                           "(key blob primary key, value blob, expiry integer);",
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to create store table");
+      BROKER_ERROR("failed to create store table" << sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -128,11 +236,60 @@ struct sqlite_backend::impl {
                   version::major, version::minor, version::patch);
     result = sqlite3_exec(db, tmp, nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to insert Broker version");
+      BROKER_ERROR("failed to insert Broker version" << sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
     }
+
+    if (integrity_check) {
+      BROKER_INFO("running integrity check for database " << path);
+      if (!run_integrity_check())
+        return false;
+    }
+
+    return true;
+  }
+
+  bool open(const std::string& path) {
+    BROKER_TRACE(BROKER_ARG(path));
+
+    auto dir = detail::dirname(path);
+    if (!dir.empty()) {
+      if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
+        BROKER_ERROR("failed to create directory for database: " << dir);
+        return false;
+      }
+    }
+
+    // Attempt to initialize the database. If we find it corrupt
+    // and failure_mode is "DELETE", attempt to delete the file
+    // and do it again.
+    if (!initialize_db(path)) {
+      if (!delete_corrupt)
+        return false;
+
+      if (!detail::exists(path))
+        return false;
+
+      if (!detail::is_file(path)) {
+        BROKER_ERROR("database path is not a file " << path);
+        return false;
+      }
+
+      BROKER_WARNING("attempting to delete corrupt database " << path);
+      if (!detail::remove(path)) {
+        BROKER_ERROR("failed to delete corrupt database " << path);
+        return false;
+      }
+
+      // Old file is out of the way, try it again.
+      if (!initialize_db(path)) {
+        BROKER_ERROR("failed to initialize database after deletion");
+        return false;
+      }
+    }
+
     // Prepare statements.
     std::vector<std::pair<sqlite3_stmt**, const char*>> statements{
       {&replace, "replace into store(key, value, expiry) values(?, ?, ?);"},
@@ -219,6 +376,10 @@ struct sqlite_backend::impl {
   sqlite3_stmt* clear = nullptr;
   sqlite3_stmt* keys = nullptr;
   std::vector<sqlite3_stmt*> finalize;
+  std::string pragma_synchronous;
+  std::string pragma_journal_mode;
+  bool delete_corrupt = false;
+  bool integrity_check = false;
 };
 
 sqlite_backend::sqlite_backend(backend_options opts)

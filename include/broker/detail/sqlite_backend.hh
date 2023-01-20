@@ -14,6 +14,16 @@ public:
   /// Required parameters:
   ///   - `path`: a `std::string` representing the location of the database on
   ///             the filesystem.
+  /// Optional parameters:
+  ///   - `synchronous`: a `broker::enum_value` representing the value
+  ///                    to be used for PRAGMA synchronous.
+  ///   - `journal_mode`: a `broker::enum_value` representing the value
+  ///                    to be used for PRAGMA journal_mode.
+  ///   - `failure_mode`: a `broker::enum_value` allowing "Broker::DELETE"
+  ///                     to indicate deletion of the database file when
+  ///                     initialization fails is acceptable.
+  ///   - `integrity_check`: a `broker::boolean` toggling PRAGMA integrity_check
+  ///                        execution during initialization.
   sqlite_backend(backend_options opts = backend_options{});
 
   ~sqlite_backend() override;
