@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+#include <vector>
 
 #include "broker/backend_options.hh"
 #include "broker/detail/abstract_backend.hh"
@@ -56,6 +58,15 @@ public:
   expected<broker::snapshot> snapshot() const override;
 
   expected<expirables> expiries() const override;
+
+  /// Run PRAGAMA command with an optional value.
+  /// @param name The name of the PRAGMA to run.
+  /// @param value An optional value for the PRAGMA.
+  /// @param messages Pointer to vector for collecting the output.
+  /// @returns True on success, false on error.
+  bool exec_pragma(std::string_view name,
+                   std::string_view value = std::string(),
+                   std::vector<std::string>* messages = nullptr);
 
 private:
   struct impl;

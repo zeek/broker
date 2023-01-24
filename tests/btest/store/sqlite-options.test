@@ -1,0 +1,6 @@
+# @TEST-GROUP: store
+#
+# This just needs to pass. Redirect output stdout to stderr so the errors
+# become visible when running with -d.
+#
+# @TEST-EXEC: btest-sqlite-options 1>&2

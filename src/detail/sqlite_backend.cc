@@ -55,8 +55,8 @@ expected<data> from_blob(const void* buf, size_t size) {
 // set result to the value.
 bool extract_optional_enum_option(
   const broker::backend_options& options, const std::string& name,
-  const std::string_view& prefix,
-  std::initializer_list<std::string_view> allowed, std::string& result) {
+  std::string_view prefix, std::initializer_list<std::string_view> allowed,
+  std::string& result) {
   auto i = options.find(name);
   if (i == options.end())
     return true; // no error
@@ -141,16 +141,25 @@ struct sqlite_backend::impl {
   //
   // Assumes name and value have been verified previously and are safe
   // to be formatted into SQL.
-  bool exec_pragma(const std::string& name,
-                   const std::string& value = std::string()) {
-    auto query = std::string("PRAGMA ");
+  //
+  // The output of the PRAGMA execution is collected in messages if provided.
+  bool exec_pragma(std::string_view name, std::string_view value,
+                   std::vector<std::string>* messages = nullptr) {
+    auto query = std::string{"PRAGMA "};
     query += name;
     if (!value.empty()) {
       query += '=';
       query += value;
     }
 
-    auto result = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
+    auto cb = [](void* arg, int argc, char** argv, char** col) {
+      auto messages = static_cast<std::vector<std::string>*>(arg);
+      if (messages)
+        messages->push_back(argv[0]);
+      return 0;
+    };
+
+    auto result = sqlite3_exec(db, query.c_str(), cb, messages, nullptr);
     if (result != SQLITE_OK) {
       BROKER_ERROR("failed to run " << query << ":" << sqlite3_errmsg(db));
       sqlite3_close(db);
@@ -162,17 +171,12 @@ struct sqlite_backend::impl {
 
   // Run PRAGMA integrity_check and verify the output is just "ok";
   bool run_integrity_check() {
-    auto cb = [](void* arg, int argc, char** argv, char** col) {
-      auto messages = static_cast<std::vector<std::string>*>(arg);
-      messages->push_back(argv[0]);
-      return 0;
-    };
-
     std::vector<std::string> messages;
-    const char* sql = "PRAGMA integrity_check";
-    auto result = sqlite3_exec(db, sql, cb, &messages, nullptr);
+    if (!exec_pragma("integrity_check", "", &messages))
+      return false;
 
-    if (result != SQLITE_OK || !(messages.size() == 1 && messages[0] == "ok")) {
+    // The integrity check should output just "ok".
+    if (messages.size() != 1 || messages[0] != "ok") {
       BROKER_ERROR("failed to run PRAGMA integrity_check: "
                    << sqlite3_errmsg(db) << " / messages: " << messages.size());
 
@@ -393,6 +397,13 @@ sqlite_backend::~sqlite_backend() {}
 
 bool sqlite_backend::init_failed() const {
   return !impl_->db;
+}
+
+bool sqlite_backend::exec_pragma(std::string_view name, std::string_view value,
+                                 std::vector<std::string>* messages) {
+  if (!impl_->db)
+    return false;
+  return !impl_->exec_pragma(name, value, messages);
 }
 
 expected<void> sqlite_backend::put(const data& key, data value,
