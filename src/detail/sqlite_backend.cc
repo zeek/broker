@@ -5,6 +5,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -49,10 +50,13 @@ expected<data> from_blob(const void* buf, size_t size) {
     return {ec::invalid_data};
 }
 
-bool optional_enum_option(const broker::backend_options& options,
-                          const std::string& name, const std::string& prefix,
-                          const std::set<std::string>& allowed,
-                          std::string* result) {
+// Find name in options and verify it starts with the given prefix,
+// if the prefix-stripped part of the value is found in allowed,
+// set result to the value.
+bool extract_optional_enum_option(
+  const broker::backend_options& options, const std::string& name,
+  const std::string_view& prefix,
+  std::initializer_list<std::string_view> allowed, std::string& result) {
   auto i = options.find(name);
   if (i == options.end())
     return true; // no error
@@ -69,13 +73,13 @@ bool optional_enum_option(const broker::backend_options& options,
     return false;
   }
 
-  auto sstr = value->name.substr(prefix.size(), std::string::npos);
-  if (allowed.count(sstr) == 0) {
-    BROKER_ERROR("SQLite backend option '" << name << "' has invalid value");
+  auto sstr = value->name.substr(prefix.size());
+  if (std::find(allowed.begin(), allowed.end(), sstr) == allowed.end()) {
+    BROKER_ERROR("SQLite backend option '" << name << "' has an invalid value");
     return false;
   }
 
-  *result = sstr;
+  result = std::move(sstr);
   return true;
 }
 
@@ -83,20 +87,20 @@ bool optional_enum_option(const broker::backend_options& options,
 
 struct sqlite_backend::impl {
   impl(backend_options opts) : options{std::move(opts)} {
-    if (!optional_enum_option(options, "synchronous",
-                              "Broker::SQLITE_SYNCHRONOUS_",
-                              {"OFF", "NORMAL", "FULL", "EXTRA"},
-                              &pragma_synchronous))
+    if (!extract_optional_enum_option(options, "synchronous",
+                                      "Broker::SQLITE_SYNCHRONOUS_",
+                                      {"OFF", "NORMAL", "FULL", "EXTRA"},
+                                      pragma_synchronous))
       return;
 
-    if (!optional_enum_option(options, "journal_mode",
-                              "Broker::SQLITE_JOURNAL_MODE_", {"DELETE", "WAL"},
-                              &pragma_journal_mode))
+    if (!extract_optional_enum_option(options, "journal_mode",
+                                      "Broker::SQLITE_JOURNAL_MODE_",
+                                      {"DELETE", "WAL"}, pragma_journal_mode))
       return;
 
     std::string failure_mode;
-    if (!optional_enum_option(options, "failure_mode",
-                              "Broker::", {"DELETE", "FAIL"}, &failure_mode))
+    if (!extract_optional_enum_option(options, "failure_mode", "Broker::",
+                                      {"DELETE", "FAIL"}, failure_mode))
       return;
     delete_corrupt = failure_mode == "DELETE";
 
@@ -133,20 +137,22 @@ struct sqlite_backend::impl {
     sqlite3_close(db);
   }
 
-  // Run PRAGAMA comamnd with an optional value.
+  // Run PRAGAMA command with an optional value.
   //
   // Assumes name and value have been verified previously and are safe
   // to be formatted into SQL.
   bool exec_pragma(const std::string& name,
                    const std::string& value = std::string()) {
-    std::stringstream ss;
-    ss << "PRAGMA " << name;
-    if (!value.empty())
-      ss << "=" << value;
+    auto query = std::string("PRAGMA ");
+    query += name;
+    if (!value.empty()) {
+      query += '=';
+      query += value;
+    }
 
-    auto result = sqlite3_exec(db, ss.str().c_str(), nullptr, nullptr, nullptr);
+    auto result = sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to run " << ss.str() << ":" << sqlite3_errmsg(db));
+      BROKER_ERROR("failed to run " << query << ":" << sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -157,8 +163,8 @@ struct sqlite_backend::impl {
   // Run PRAGMA integrity_check and verify the output is just "ok";
   bool run_integrity_check() {
     auto cb = [](void* arg, int argc, char** argv, char** col) {
-      auto messasges = static_cast<std::vector<std::string>*>(arg);
-      messasges->push_back(argv[0]);
+      auto messages = static_cast<std::vector<std::string>*>(arg);
+      messages->push_back(argv[0]);
       return 0;
     };
 
@@ -196,15 +202,13 @@ struct sqlite_backend::impl {
       return false;
     }
 
-    if (!pragma_synchronous.empty()) {
-      if (!exec_pragma("synchronous", pragma_synchronous))
-        return false;
-    }
+    if (!pragma_synchronous.empty()
+        && !exec_pragma("synchronous", pragma_synchronous))
+      return false;
 
-    if (!pragma_journal_mode.empty()) {
-      if (!exec_pragma("journal_mode", pragma_journal_mode))
-        return false;
-    }
+    if (!pragma_journal_mode.empty()
+        && !exec_pragma("journal_mode", pragma_journal_mode))
+      return false;
 
     // Create table for store meta data.
     result = sqlite3_exec(db,
