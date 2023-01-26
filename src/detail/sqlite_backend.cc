@@ -99,7 +99,8 @@ struct sqlite_backend::impl {
       return;
 
     std::string failure_mode;
-    if (!extract_optional_enum_option(options, "failure_mode", "Broker::",
+    if (!extract_optional_enum_option(options, "failure_mode",
+                                      "Broker::SQLITE_FAILURE_MODE_",
                                       {"DELETE", "FAIL"}, failure_mode))
       return;
     delete_corrupt = failure_mode == "DELETE";

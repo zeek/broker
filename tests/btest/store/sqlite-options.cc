@@ -167,19 +167,22 @@ TEST_CASE("backend sqlite") {
   }
 
   SUBCASE("valid failure_mode - fail") {
-    fixture.opts["failure_mode"] = enum_value{"Broker::FAIL"};
+    fixture.opts["failure_mode"] =
+      enum_value{"Broker::SQLITE_FAILURE_MODE_FAIL"};
     auto backend = std::make_unique<detail::sqlite_backend>(fixture.opts);
     CHECK(!backend->init_failed());
   }
 
   SUBCASE("valid failure_mode - delete") {
-    fixture.opts["failure_mode"] = enum_value{"Broker::DELETE"};
+    fixture.opts["failure_mode"] =
+      enum_value{"Broker::SQLITE_FAILURE_MODE_DELETE"};
     auto backend = std::make_unique<detail::sqlite_backend>(fixture.opts);
     CHECK(!backend->init_failed());
   }
 
   SUBCASE("valid failure_mode - wrong type") {
-    fixture.opts["failure_mode"] = std::string{"Broker::DELETE"};
+    fixture.opts["failure_mode"] =
+      std::string{"Broker::SQLITE_FAILURE_MODE_DELETE"};
     auto backend = std::make_unique<detail::sqlite_backend>(fixture.opts);
     CHECK(backend->init_failed());
   }
@@ -214,7 +217,8 @@ TEST_CASE("backend sqlite") {
     backend.reset();
 
     // Reopen works in DELETE mode, but the data will be gone.
-    fixture.opts["failure_mode"] = enum_value{"Broker::DELETE"};
+    fixture.opts["failure_mode"] =
+      enum_value{"Broker::SQLITE_FAILURE_MODE_DELETE"};
     backend = std::make_unique<detail::sqlite_backend>(fixture.opts);
     CHECK(!backend->init_failed());
     auto r2 = backend->get(data{"k"});
