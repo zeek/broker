@@ -66,7 +66,7 @@ public:
   /// @param messages Pointer to vector for collecting the output.
   /// @returns True on success, false on error.
   bool exec_pragma(std::string_view name,
-                   std::string_view value = std::string(),
+                   std::string_view value = std::string{},
                    std::vector<std::string>* messages = nullptr);
 
 private:
