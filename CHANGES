@@ -1,3 +1,14 @@
+2.5.0-dev.55 | 2023-01-28 10:08:31 +0100
+
+  * sqlite_backend: Add a few more backend_options (Arne Welzel, Corelight)
+
+    * synchronous to run 'PRAGMA synchronous=<value>' during initialization.
+    * journal_mode to run 'PRAGMA journal_mode=<value>' during initialization.
+    * failure_mode to delete the database and reopen it when
+      an error occurs during initialization.
+    * integrity_check to run PRAGMA integrity_check during initialization to
+      reliably detect corrupted databases.
+
 2.5.0-dev.46 | 2023-01-10 17:28:37 -0800
 
   * CI: switch action/checkout to v3 (Christian Kreibich, Corelight)
