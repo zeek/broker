@@ -1,3 +1,7 @@
+2.4.2 | 2023-01-28 10:20:11 -0700
+
+  * Release 2.4.2.
+
 2.4.1-3 | 2023-01-28 10:20:05 -0700
 
   * Prevent Windows build running on every push (Tim Wojtulewicz, Corelight)

@@ -1,3 +1,8 @@
+Broker 2.4.2
+============
+
+- Minimize messaging in sim_clock::advance_time (Dominik Charousset, Corelight)
+
 Broker 2.4.1
 ============
 
