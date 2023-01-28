@@ -1,3 +1,9 @@
+2.3.7 | 2023-01-28 09:54:10 -0700
+
+  * Update CHANGES, VERSION, and NEWS for 2.3.7 release (Tim Wojtulewicz, Corelight)
+
+  * Minimize messaging in sim_clock::advance_time (Dominik Charousset, Corelight)
+
 2.3.6 | 2023-01-09 08:41:10 -0700
 
   * Update CHANGES, VERSION, and NEWS for 2.3.6 release (Tim Wojtulewicz, Corelight)

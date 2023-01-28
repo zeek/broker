@@ -1,3 +1,8 @@
+Broker 2.3.7
+============
+
+- Minimize messaging in sim_clock::advance_time
+
 Broker 2.3.6
 ============
 
