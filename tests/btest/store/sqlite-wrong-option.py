@@ -11,7 +11,6 @@
 # @TEST-EXEC: btest-bg-run prog6 "btest-sqlite-driver --program=../prog6.json > out.txt"
 # @TEST-EXEC: btest-bg-run prog7 "btest-sqlite-driver --program=../prog6.json > out.txt"
 # @TEST-EXEC: btest-bg-wait 30
-# @TEST-EXEC: btest-bg-run concat "python3 ../concat.py > out.txt"
 # @TEST-EXEC: awk 'FNR==1 {print "==> ", FILENAME}{print}' prog*/out.txt > all.txt
 # @TEST-EXEC: btest-diff all.txt
 
