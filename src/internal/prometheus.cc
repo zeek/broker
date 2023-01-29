@@ -106,13 +106,17 @@ caf::behavior prometheus_actor::make_behavior() {
         return;
       // Dispatch to a handler or send an error if nothing matches.
       if (caf::starts_with(req_str, prom_request_start)) {
+        BROKER_DEBUG("serve HTTP request for /metrics");
         on_metrics_request(msg.handle);
         return;
       }
       if (caf::starts_with(req_str, status_request_start)) {
+        BROKER_DEBUG("serve HTTP request for /v1/status/json");
         on_status_request(msg.handle);
         return;
       }
+      BROKER_DEBUG("reject unsupported HTTP request: "
+                   << std::string{req_str.substr(0, req_str.find("\r\n"sv))});
       write(msg.handle, caf::as_bytes(caf::make_span(request_not_supported)));
       flush_and_close(msg.handle);
     },
