@@ -52,8 +52,15 @@ void convert(const port& p, std::string& str) {
 
 bool convert(const std::string& str, port& p) {
   auto i = str.find('/');
-  if (i == std::string::npos)
-    return false;
+  // Default to TCP if no protocol is present.
+  if (i == std::string::npos) {
+    char* end;
+    auto num = std::strtoul(str.data(), &end, 10);
+    if (errno == ERANGE)
+      return false;
+    p = {static_cast<port::number_type>(num), port::protocol::tcp};
+    return true;
+  }
   char* end;
   auto num = std::strtoul(str.data(), &end, 10);
   if (errno == ERANGE)
