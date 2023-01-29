@@ -77,13 +77,13 @@ struct status_collector_state {
     auto i = src.find(key);
     if (i == src.end())
       return;
-    table entry;
-    entry.emplace(data{key}, std::move(res));
     auto j = result.find(category);
     if (j == result.end()) {
+      table entry;
+      entry.emplace(data{key}, std::move(res));
       result.emplace(std::move(category), data{std::move(entry)});
     } else if (auto entries = get_if<table>(j->second)) {
-      entries->emplace(std::move(category), data{std::move(entry)});
+      entries->emplace(data{key}, std::move(res));
     } else {
       BROKER_ERROR("status collector found a malformed result table");
     }
