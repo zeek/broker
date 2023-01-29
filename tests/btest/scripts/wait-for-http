@@ -1,0 +1,47 @@
+#! /usr/bin/env bash
+
+# Sleeps until an HTTP server becomes responsive, i.e., responds with code 200.
+# When passing the optional <required keys> parameter, the script also checks
+# that the payload sent by the server contains the keys.
+
+if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+    echo >&2 "usage: $0 <port> <path> <max secs to wait> [<required keys>]"
+    exit 1
+fi
+
+base_dir=`dirname "$0"`
+port=`awk -F/ '{print $1}' <<< $1`
+wait_url="http://localhost:$port/$2"
+max_wait=$3
+required_keys=$4
+wait_count=0
+tmp_file=wait-for-http-tmp
+
+function get_status_code() {
+  rm -f $tmp_file
+  curl -s -o $tmp_file -w "%{http_code}" $wait_url
+}
+
+while true; do
+    # try to get a valid response from the server
+    response_code=`get_status_code`
+    if [ "$response_code" = "200" ]; then
+        if [ -z "$search_string" ]; then
+            rm -f $tmp_file
+            exit 0
+        else
+            if python3 "$base_dir/extract-json-keys.py" $tmp_file $required_keys; then
+                rm -f $tmp_file
+                exit 0
+            fi
+        fi
+    fi
+    # wait for a second unless we've hit the maximum wait time
+    let "wait_count += 1"
+    if [ $wait_count -ge $max_wait ]; then
+        rm -f $tmp_file
+        echo >&2 "error: server does not respond on $wait_url after $max_wait seconds"
+        exit 1
+    fi
+    sleep 1
+done

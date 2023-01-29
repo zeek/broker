@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+
+# Retries an HTTP resource via CURL from localhost.
+
+if [[ $# -ne 3 ]]; then
+    echo >&2 "usage: $0 <port> <path> <output file>"
+    exit 1
+fi
+
+port=`awk -F/ '{print $1}' <<< $1`
+read_url="http://localhost:$port/$2"
+out_file=$3
+
+curl -o $out_file $read_url
