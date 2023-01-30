@@ -354,10 +354,13 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
   ep.publish(topic, make_ping_msg(0, 0));
   while (!connected) {
     auto x = in.get(retry_timeout);
-    if (x && is_pong_msg(get_data(*x), 0))
-      connected = true;
-    else
+    if (x) {
+      auto msg = std::move(*x);
+      if (is_pong_msg(get_data(msg), 0))
+        connected = true;
+    } else {
       ep.publish(topic, make_ping_msg(0, 0));
+    }
   }
   // Measurement.
   timespan total_time{0};

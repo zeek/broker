@@ -47,9 +47,16 @@ public:
     // nop
   }
 
-  ~flow_scope_sub() {
-    if (deregister_cb_)
-      deregister_cb_(stats_);
+  ~flow_scope_sub() override {
+    if (deregister_cb_) {
+      try {
+        deregister_cb_(stats_);
+      } catch (...) {
+        // The callbacks may not throw. However, we can't specify them noexcept
+        // because std::function does not support noexcept signatures. Hence,
+        // this catch-all to silence tool warnings.
+      }
+    }
   }
 
   // -- ref counting -----------------------------------------------------------
@@ -204,7 +211,7 @@ public:
     : stats_(std::move(stats)), deregister_cb_(std::move(deregister_cb)) {}
 
   template <class Observable>
-  auto operator()(Observable&& input) const {
+  auto operator()(Observable&& input) {
     using obs_t = typename std::decay_t<Observable>;
     using val_t = typename obs_t::output_type;
     using impl_t = flow_scope<val_t>;

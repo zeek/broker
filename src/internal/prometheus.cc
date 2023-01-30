@@ -230,7 +230,7 @@ public:
     for (auto ch : x) {
       switch (ch) {
         case '"':
-          add("\\\""sv);
+          add(R"(\")");
           break;
         default:
           add(ch);

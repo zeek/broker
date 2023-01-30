@@ -71,8 +71,8 @@ struct status_collector_state {
     };
   }
 
-  void on_response(map_t& src, data category,
-                   const std::string& key, table& res) {
+  void on_response(map_t& src, data category, const std::string& key,
+                   table& res) {
     // Add a new entry to the result table.
     auto i = src.find(key);
     if (i == src.end())
