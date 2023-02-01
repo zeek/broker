@@ -1,3 +1,7 @@
+2.5.0-dev.59 | 2023-02-01 15:33:14 -0700
+
+  * Bump pybind11 to version 2.10.3 (Tim Wojtulewicz, Corelight)
+
 2.5.0-dev.55 | 2023-01-28 10:08:31 +0100
 
   * sqlite_backend: Add a few more backend_options (Arne Welzel, Corelight)
