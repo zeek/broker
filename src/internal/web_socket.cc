@@ -114,6 +114,9 @@ expected<uint16_t> launch(caf::actor_system& sys,
                           uint16_t port, bool reuse_addr,
                           const std::string& allowed_path,
                           on_connect_t on_connect) {
+  BROKER_DEBUG("launch WebSocket server:"
+               << BROKER_ARG(addr) << BROKER_ARG(port) << BROKER_ARG(reuse_addr)
+               << BROKER_ARG(allowed_path));
   using namespace std::literals;
   // Open up the port.
   caf::uri::authority_type auth;

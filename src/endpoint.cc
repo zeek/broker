@@ -585,7 +585,8 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   // Spin up a WebSocket server when requested.
   if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port"))
-    web_socket_listen("0.0.0.0"s, *port);
+    web_socket_listen(caf::get_or(cfg, "broker.web-socket.address", ""s),
+                      *port);
 }
 
 endpoint::~endpoint() {
