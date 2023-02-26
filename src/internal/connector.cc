@@ -1112,7 +1112,7 @@ struct connect_manager {
 
   void listen(connector_event_id event_id, std::string& addr, uint16_t port,
               bool reuse_addr) {
-  using namespace std::literals;
+    using namespace std::literals;
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
     authority.host = addr;
