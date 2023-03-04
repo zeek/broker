@@ -224,7 +224,7 @@ public:
   void unpeer_nosync(const std::string& address, uint16_t port);
 
   /// Retrieves a list of all known peers.
-  /// @returns A pointer to the list
+  /// @returns A list containing a @ref peer_info entry for each known peer.
   std::vector<peer_info> peers() const;
 
   /// Retrieves a list of topics that peers have subscribed to on this endpoint.
