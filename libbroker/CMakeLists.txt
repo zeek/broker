@@ -64,6 +64,7 @@ set(BROKER_SRC
   broker/internal/pending_connection.cc
   broker/internal/println.cc
   broker/internal/publisher_queue.cc
+  broker/internal/radix_filter.cc
   broker/internal/store_actor.cc
   broker/internal/subscriber_queue.cc
   broker/internal/web_socket.cc
@@ -181,6 +182,7 @@ set(BROKER_TEST_SRC
   broker/hub.test.cc
   broker/internal/channel.test.cc
   broker/internal/json.test.cc
+  broker/internal/radix_filter.test.cc
   broker/internal/wire_format.test.cc
   broker/peering.test.cc
   broker/radix_tree.test.cc
