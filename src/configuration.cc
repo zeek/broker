@@ -121,6 +121,7 @@ struct configuration::impl : public caf::actor_system_config {
       .add<size_t>("max-pending-inputs-per-source",
                    "maximum number of items we buffer per peer or publisher");
     opt_group{custom_options_, "broker.web-socket"} //
+      .add<string>("address", "bind address for the WebSocket server socket")
       .add<uint16_t>("port", "port for incoming WebSocket connections");
     opt_group{custom_options_, "broker.metrics"}
       .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")

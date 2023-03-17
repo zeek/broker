@@ -1112,12 +1112,10 @@ struct connect_manager {
 
   void listen(connector_event_id event_id, std::string& addr, uint16_t port,
               bool reuse_addr) {
+    using namespace std::literals;
     BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
-    if (addr.empty())
-      authority.host = std::string{"0.0.0.0"};
-    else
-      authority.host = addr;
+    authority.host = addr;
     authority.port = port;
 #ifdef BROKER_WINDOWS
     // SO_REUSEADDR behaves quite differently on Windows. CAF currently does not
