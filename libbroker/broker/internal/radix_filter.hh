@@ -35,6 +35,11 @@ size_t filter_add_ref(radix_filter& tree, const filter_type& other,
 /// otherwise.
 bool filter_release_ref(radix_filter& tree, const topic& x);
 
+/// Convenience function for calling `filter_release_ref` with each topic in
+/// `xs`.
+/// @return the number of removed nodes.
+bool filter_release_ref(radix_filter& tree, const filter_type& xs);
+
 /// Converts the radix-filter to a regular filter.
 filter_type to_filter(const radix_filter& tree);
 

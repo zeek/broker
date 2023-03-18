@@ -34,4 +34,12 @@ filter_type to_filter(const radix_filter& tree) {
   return result;
 }
 
+bool filter_release_ref(radix_filter& tree, const filter_type& xs) {
+  size_t removed = 0;
+  for (auto& x : xs)
+    if (filter_release_ref(tree, x))
+      ++removed;
+  return removed;
+}
+
 } // namespace broker::internal

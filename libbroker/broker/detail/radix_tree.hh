@@ -48,9 +48,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <emmintrin.h>
 #endif
 
-#include <caf/deserializer.hpp>
-#include <caf/serializer.hpp>
-
 namespace broker {
 namespace detail {
 
@@ -247,6 +244,12 @@ public:
   std::deque<iterator> prefixed_by(const key_type& prefix) const;
 
   /**
+   * @return `true` if `prefix` is the prefix of any of the stored keys, `false
+   *         otherwise.`
+   */
+  bool is_prefix(const key_type& prefix) const;
+
+  /**
    * @return all entries that have a key that are a prefix of the argument.
    */
   std::deque<iterator> prefix_of(const key_type& data) const;
@@ -387,6 +390,8 @@ private:
   static void recursive_clear(node* n);
 
   void recursive_add_leaves(node* n, std::deque<iterator>& leaves) const;
+
+  bool has_leaves(node* n) const;
 
   node* add_prefix_leaf(node* n, std::deque<iterator>& leaves) const;
 
@@ -531,6 +536,48 @@ radix_tree<T, N>::prefixed_by(const key_type& prefix) const {
   }
 
   return rval;
+}
+
+template <typename T, std::size_t N>
+bool radix_tree<T, N>::is_prefix(const key_type& prefix) const {
+  node* n = root;
+  int depth = 0;
+
+  while (n) {
+    if (n->type == node::tag::leaf) {
+      return prefix_matches(reinterpret_cast<leaf*>(n)->key(), prefix);
+    }
+
+    if (static_cast<size_t>(depth) == prefix.size()) {
+      auto l = minimum(n);
+      return prefix_matches(l->key(), prefix);
+    }
+
+    if (n->partial_len) {
+      auto prefix_len = prefix_mismatch(n, prefix, depth);
+
+      if (!prefix_len)
+        return false;
+
+      if (depth + prefix_len == prefix.size()) {
+        return has_leaves(n);
+      }
+
+      // There is a full match, go deeper.
+      depth += n->partial_len;
+    }
+
+    auto child = find_child(n, prefix[depth]).first;
+
+    if (child)
+      n = *child;
+    else
+      n = nullptr;
+
+    ++depth;
+  }
+
+  return false;
 }
 
 template <typename T, std::size_t N>
@@ -968,6 +1015,47 @@ void radix_tree<T, N>::recursive_add_leaves(
     } break;
     default:
       abort();
+  }
+}
+
+template <typename T, std::size_t N>
+bool radix_tree<T, N>::has_leaves(node* n) const {
+  switch (n->type) {
+    case node::tag::leaf:
+      return true;
+    case node::tag::node4: {
+      auto p = reinterpret_cast<node4*>(n);
+      for (int i = 0; i < n->num_children; ++i)
+        if (has_leaves(p->children[i]))
+          return true;
+      return false;
+    }
+    case node::tag::node16: {
+      auto p = reinterpret_cast<node16*>(n);
+      for (int i = 0; i < n->num_children; ++i)
+        if (has_leaves(p->children[i]))
+          return true;
+      return false;
+    }
+    case node::tag::node48: {
+      auto p = reinterpret_cast<node48*>(n);
+      for (int i = 0; i < 256; ++i) {
+        if (auto idx = p->keys[i])
+          if (has_leaves(p->children[idx - 1]))
+            return true;
+      }
+      return false;
+    }
+    case node::tag::node256: {
+      auto p = reinterpret_cast<node256*>(n);
+      for (int i = 0; i < 256; ++i)
+        if (p->children[i])
+          if (has_leaves(p->children[i]))
+            return true;
+      return false;
+    }
+    default:
+      return false;
   }
 }
 
