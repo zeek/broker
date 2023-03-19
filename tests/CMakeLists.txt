@@ -136,8 +136,10 @@ if (BROKER_PYTHON_BINDINGS)
   # set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
 
-# -- Python -------------------------------------------------------------------
+# -- optional micro benchmarks -------------------------------------------------
 
-if (BROKER_ENABLE_MICRO_BENCHMARKS)
+find_package(benchmark QUIET)
+
+if (benchmark_FOUND)
   add_subdirectory(micro-benchmark)
 endif ()

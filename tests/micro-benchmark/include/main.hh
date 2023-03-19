@@ -1,7 +1,10 @@
 #pragma once
 
+#include "broker/alm/multipath.hh"
 #include "broker/data.hh"
+#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/time.hh"
 
@@ -9,6 +12,7 @@
 #include <caf/uuid.hpp>
 
 #include <random>
+#include <variant>
 
 // -- forward declarations -----------------------------------------------------
 
@@ -23,7 +27,7 @@ class uuid_multipath_group;
 class uuid_multipath_node;
 
 using node_message_content =
-  broker::variant<broker::data_message, broker::command_message>;
+  std::variant<broker::data_message, broker::command_message>;
 
 using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
@@ -33,11 +37,9 @@ using uuid_node_message = caf::cow_tuple<node_message_content, uuid_multipath>;
 
 CAF_BEGIN_TYPE_ID_BLOCK(micro_benchmarks, caf::id_block::broker_internal::end)
 
-  MICRO_BENCH_ADD_TYPE((caf::stream<legacy_node_message>) )
   MICRO_BENCH_ADD_TYPE((legacy_node_message))
   MICRO_BENCH_ADD_TYPE((std::vector<legacy_node_message>) )
 
-  MICRO_BENCH_ADD_TYPE((caf::stream<uuid_node_message>) )
   MICRO_BENCH_ADD_TYPE((std::vector<uuid_node_message>) )
   MICRO_BENCH_ADD_TYPE((uuid_multipath))
   MICRO_BENCH_ADD_TYPE((uuid_node_message))
