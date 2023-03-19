@@ -70,6 +70,8 @@ public:
 
   void dispatch(const command_message& msg) override;
 
+  table status_snapshot() const override;
+
   void tick();
 
   void set_expire_time(const data& key, const std::optional<timespan>& expiry);

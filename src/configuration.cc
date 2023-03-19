@@ -122,9 +122,9 @@ struct configuration::impl : public caf::actor_system_config {
                    "maximum number of items we buffer per peer or publisher");
     opt_group{custom_options_, "broker.web-socket"} //
       .add<string>("address", "bind address for the WebSocket server socket")
-      .add<uint16_t>("port", "port for incoming WebSocket connections");
+      .add<port>("port", "port for incoming WebSocket connections");
     opt_group{custom_options_, "broker.metrics"}
-      .add<uint16_t>("port", "port for incoming Prometheus (HTTP) requests")
+      .add<port>("port", "port for incoming Prometheus (HTTP) requests")
       .add<string>("address", "bind address for the HTTP server socket")
       .add<string>(
         "endpoint-name",
@@ -261,27 +261,26 @@ void configuration::impl::init(int argc, char** argv) {
     set("broker.recording-directory", env);
   }
   if (auto env = getenv("BROKER_WEB_SOCKET_PORT")) {
-    // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
-    caf::config_value val{env};
-    if (auto port_num = caf::get_as<uint16_t>(val)) {
-      set("broker.web-socket.port", *port_num);
-    } else if (auto port_obj = caf::get_as<port>(val)) {
-      set("broker.web-socket.port", port_obj->number());
-    } else {
+    // Check for validity before overriding any CLI or config file value.
+    auto str = std::string{env};
+    broker::port tmp;
+    if (!convert(str, tmp)) {
       auto what = concat("invalid value for BROKER_WEB_SOCKET_PORT: ", env,
                          " (expected a non-zero port number)");
       throw std::invalid_argument(what);
     }
+    set("broker.web-socket.port", std::move(str));
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
-    caf::config_value val{env};
-    if (auto port = caf::get_as<uint16_t>(val)) {
-      set("broker.metrics.port", *port);
-    } else {
+    // Check for validity before overriding any CLI or config file value.
+    auto str = std::string{env};
+    broker::port tmp;
+    if (!convert(str, tmp)) {
       auto what = concat("invalid value for BROKER_METRICS_PORT: ", env,
                          " (expected a non-zero port number)");
       throw std::invalid_argument(what);
     }
+    set("broker.metrics.port", std::move(str));
   }
   if (auto env = getenv("BROKER_METRICS_ENDPOINT_NAME")) {
     set("broker.metrics.endpoint-name", env);

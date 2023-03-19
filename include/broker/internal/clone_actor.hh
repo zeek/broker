@@ -48,6 +48,8 @@ public:
 
   void dispatch(const command_message& msg) override;
 
+  table status_snapshot() const override;
+
   void tick();
 
   // -- callbacks for the consumer ---------------------------------------------

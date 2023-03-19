@@ -14,6 +14,7 @@
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
+#include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
@@ -566,11 +567,12 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   core_ = facade(core);
   // Spin up a Prometheus actor if configured or an exporter.
-  if (auto port = caf::get_as<uint16_t>(cfg, "broker.metrics.port")) {
+  if (auto port = caf::get_as<broker::port>(cfg, "broker.metrics.port")) {
     auto ptask = std::make_unique<prometheus_http_task>(sys);
     auto addr = caf::get_or(cfg, "broker.metrics.address", std::string{});
-    if (auto actual_port = ptask->start(
-          *port, native(core_), addr.empty() ? nullptr : addr.c_str())) {
+    if (auto actual_port =
+          ptask->start(port->number(), native(core_),
+                       addr.empty() ? nullptr : addr.c_str())) {
       BROKER_INFO("expose metrics on port" << *actual_port);
       telemetry_exporter_ = facade(ptask->telemetry_exporter());
       background_tasks_.emplace_back(std::move(ptask));
@@ -584,9 +586,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     telemetry_exporter_ = facade(hdl);
   }
   // Spin up a WebSocket server when requested.
-  if (auto port = caf::get_as<uint16_t>(cfg, "broker.web-socket.port"))
+  if (auto port = caf::get_as<broker::port>(cfg, "broker.web-socket.port"))
     web_socket_listen(caf::get_or(cfg, "broker.web-socket.address", ""s),
-                      *port);
+                      port->number());
 }
 
 endpoint::~endpoint() {

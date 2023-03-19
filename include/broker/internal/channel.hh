@@ -368,6 +368,14 @@ public:
       return metrics_;
     }
 
+    const metrics_t& metrics() const noexcept {
+      return metrics_;
+    }
+
+    auto tick_time() const noexcept {
+      return tick_;
+    }
+
     auto seq() const noexcept {
       return seq_;
     }
@@ -529,8 +537,9 @@ public:
       caf::telemetry::int_gauge* out_of_order_updates = nullptr;
 
       void init(caf::telemetry::metric_registry& reg, std::string_view name) {
-        metric_factory factory{reg};
-        input_channels = factory.store.input_channels_instance(name);
+        metric_factory mf{reg};
+        input_channels = mf.store.input_channels_instance(name);
+        out_of_order_updates = mf.store.out_of_order_updates_instance(name);
       }
 
       void init(caf::actor_system& sys, std::string_view name) {
@@ -739,6 +748,10 @@ public:
     }
 
     metrics_t& metrics() noexcept {
+      return metrics_;
+    }
+
+    const metrics_t& metrics() const noexcept {
       return metrics_;
     }
 

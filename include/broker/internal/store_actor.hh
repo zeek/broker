@@ -16,6 +16,7 @@
 #include <caf/hash/fnv.hpp>
 #include <caf/response_handle.hpp>
 
+#include "broker/data.hh"
 #include "broker/defaults.hh"
 #include "broker/detail/store_state.hh"
 #include "broker/endpoint.hh"
@@ -114,6 +115,7 @@ public:
           if (--(i->second) == 0)
             xs.erase(i);
       },
+      [this](atom::get, atom::status) { return status_snapshot(); },
     };
   }
 
@@ -169,12 +171,47 @@ public:
 
   virtual void dispatch(const command_message& msg) = 0;
 
+  /// Creates a snapshot that summarizes the current status of the store actor.
+  virtual table status_snapshot() const = 0;
+
   void on_down_msg(const caf::actor_addr& source, const caf::error& reason);
 
   // -- convenience functions --------------------------------------------------
 
   /// Sends a delayed message by using the endpoint's clock.
   void send_later(const caf::actor& hdl, timespan delay, caf::message msg);
+
+  template <class Derived>
+  static table get_stats(const channel_type::consumer<Derived>& in) {
+    using namespace std::literals;
+    table result;
+    result.emplace("next-seq"s, in.next_seq());
+    result.emplace("last-seq"s, in.last_seq());
+    result.emplace("num-ticks"s, in.num_ticks());
+    if (auto out_of_order_updates = in.metrics().out_of_order_updates)
+      result.emplace("buffered"s, out_of_order_updates->value());
+    return result;
+  }
+
+  template <class Derived>
+  static table get_stats(const channel_type::producer<Derived>& out) {
+    using namespace std::literals;
+    table result;
+    result.emplace("seq"s, out.seq());
+    result.emplace("tick-time"s, out.tick_time().value);
+    result.emplace("buffered"s, out.buf().size());
+    vector paths;
+    for (const auto& path : out.paths()) {
+      table entry;
+      entry.emplace("id"s, to_string(path.hdl.endpoint));
+      entry.emplace("offset"s, path.offset);
+      entry.emplace("acked"s, path.acked);
+      entry.emplace("last-seen"s, path.last_seen.value);
+      paths.emplace_back(std::move(entry));
+    }
+    result.emplace("paths"s, std::move(paths));
+    return result;
+  }
 
   // -- member variables -------------------------------------------------------
 

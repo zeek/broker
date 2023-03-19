@@ -30,6 +30,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/type_id.hh"
@@ -80,6 +81,15 @@ bool convert(const caf::uri& from, network_info& to) {
   const auto& auth = from.authority();
   if (auth.empty())
     return false;
+  to.address = caf::visit(
+    [](const auto& what) {
+      using what_t = std::decay_t<decltype(what)>;
+      if constexpr (std::is_same_v<what_t, std::string>)
+        return what;
+      else
+        return to_string(what);
+    },
+    auth.host);
   to.port = auth.port;
   return true;
 }
@@ -209,7 +219,10 @@ void extend_config(broker::configuration& broker_cfg) {
                  "number of pings (default: 100, 'ping' mode only)")
     .add<uri_list>("peers", "list of peers we connect to on startup in "
                             "<tcp://$host:$port> notation")
-    .add<uint16_t>("port,p", "port to listen for incoming Broker peerings");
+    .add<broker::port>("port,p", "port to listen for incoming Broker peerings")
+    .add<string>("endpoint-id", "forces the endpoint to use this ID")
+    .add<string_list>("master-stores", "list of stores to attach as masters")
+    .add<string_list>("clone-stores", "list of stores to attach as clones");
 }
 
 // -- convenience get_or and get_if overloads for enpoint ----------------------
@@ -341,10 +354,13 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
   ep.publish(topic, make_ping_msg(0, 0));
   while (!connected) {
     auto x = in.get(retry_timeout);
-    if (x && is_pong_msg(get_data(*x), 0))
-      connected = true;
-    else
+    if (x) {
+      auto msg = std::move(*x);
+      if (is_pong_msg(get_data(msg), 0))
+        connected = true;
+    } else {
       ep.publish(topic, make_ping_msg(0, 0));
+    }
   }
   // Measurement.
   timespan total_time{0};
@@ -383,6 +399,17 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
 
 } // namespace
 
+// Converts plain port numbers and Zeek-style "<num>/<proto>" notation into a
+// 16-bit port number.
+std::optional<uint16_t> to_port(std::string str) {
+  caf::config_value val{std::move(str)};
+  if (auto port_num = caf::get_as<uint16_t>(val))
+    return *port_num;
+  if (auto port_obj = caf::get_as<broker::port>(val))
+    return port_obj->number();
+  return std::nullopt;
+}
+
 // -- main function ------------------------------------------------------------
 
 int main(int argc, char** argv) try {
@@ -401,20 +428,19 @@ int main(int argc, char** argv) try {
     return EXIT_SUCCESS;
   // Pick up BROKER_PORT environment variable.
   if (auto env = getenv("BROKER_PORT")) {
-    // We accept plain port numbers and Zeek-style "<num>/<proto>" notation.
-    caf::config_value val{env};
-    if (auto port_num = caf::get_as<uint16_t>(val)) {
-      cfg.set("global.port", *port_num);
-    } else if (auto port_obj = caf::get_as<broker::port>(val)) {
-      cfg.set("global.port", port_obj->number());
-    } else {
-      err::println("invalid value for BROKER_PORT: ", env,
-                   " (expected a non-zero port number)");
-      return EXIT_FAILURE;
-    }
+    cfg.set("global.port", string{env});
   }
   // Construct the endpoint.
-  broker::endpoint ep{std::move(cfg)};
+  broker::endpoint_id eid;
+  if (auto eid_str = get_as<string>(cfg, "endpoint-id")) {
+    if (!convert(*eid_str, eid)) {
+      err::println("endpoint-id must be a valid UUID");
+      return EXIT_FAILURE;
+    }
+  } else {
+    eid = broker::endpoint_id::random();
+  }
+  broker::endpoint ep{std::move(cfg), eid};
   // Get mode.
   auto mode = get_or(ep, "mode", "relay");
   // Get process name, using the mode name as fallback.
@@ -443,9 +469,9 @@ int main(int argc, char** argv) try {
                  });
   }
   // Publish endpoint at demanded port.
-  if (auto port = get_as<uint16_t>(ep, "port")) {
-    verbose::println("listen for peers on port ", *port);
-    ep.listen({}, *port);
+  if (auto port = get_as<broker::port>(ep, "port")) {
+    verbose::println("listen for peers on port ", port->number());
+    ep.listen({}, port->number());
   }
   // Select function f based on the mode.
   mode_fun f = nullptr;
@@ -458,6 +484,27 @@ int main(int argc, char** argv) try {
   } else {
     err::println("invalid mode: ", mode);
     return EXIT_FAILURE;
+  }
+  // Attach master stores.
+  std::vector<broker::store> stores;
+  for (const auto& name : get_or(ep, "master-stores", string_list{})) {
+    if (auto maybe_store = ep.attach_master(name, broker::backend::memory)) {
+      stores.emplace_back(std::move(*maybe_store));
+    } else {
+      err::println("failed to attach master store for ", name, ": ",
+                   maybe_store.error());
+      return EXIT_FAILURE;
+    }
+  }
+  // Attach clone stores.
+  for (const auto& name : get_or(ep, "clone-stores", string_list{})) {
+    if (auto maybe_store = ep.attach_clone(name)) {
+      stores.emplace_back(std::move(*maybe_store));
+    } else {
+      err::println("failed to attach clone store for ", name, ": ",
+                   maybe_store.error());
+      return EXIT_FAILURE;
+    }
   }
   // Connect to peers.
   auto peers = get_or(ep, "peers", uri_list{});

@@ -8,6 +8,7 @@ ENV DOCKERFILE_VERSION 20220519
 
 RUN apt-get update && apt-get -y install \
     cmake \
+    curl \
     g++ \
     gcc \
     git \

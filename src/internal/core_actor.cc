@@ -30,9 +30,91 @@
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
 
+using namespace std::literals;
+
 namespace broker::internal {
 
-// --- constructors and destructors --------------------------------------------
+// -- private utilities --------------------------------------------------------
+
+namespace {
+
+struct status_collector_state {
+  using map_t = std::unordered_map<std::string, caf::actor>;
+
+  status_collector_state(caf::event_based_actor* selfptr, map_t masters,
+                         map_t clones)
+    : self(selfptr),
+      store_masters(std::move(masters)),
+      store_clones(std::move(clones)) {
+    // nop
+  }
+
+  caf::behavior make_behavior() {
+    return {
+      [this](table& res) {
+        auto max_delay = defaults::store::max_get_delay;
+        result = std::move(res);
+        rp = self->make_response_promise();
+        for (auto& entry : store_masters)
+          self->request(entry.second, max_delay, atom::get_v, atom::status_v)
+            .then([this, key = entry.first](table& res) {
+              on_master_response(key, res);
+            });
+        for (auto& entry : store_clones)
+          self->request(entry.second, max_delay, atom::get_v, atom::status_v)
+            .then([this, key = entry.first](table& res) {
+              on_clone_response(key, res);
+            });
+        self->unbecome();
+        return rp;
+      },
+    };
+  }
+
+  void on_response(map_t& src, data category, const std::string& key,
+                   table& res) {
+    // Add a new entry to the result table.
+    auto i = src.find(key);
+    if (i == src.end())
+      return;
+    auto j = result.find(category);
+    if (j == result.end()) {
+      table entry;
+      entry.emplace(data{key}, std::move(res));
+      result.emplace(std::move(category), data{std::move(entry)});
+    } else if (auto entries = get_if<table>(j->second)) {
+      entries->emplace(data{key}, std::move(res));
+    } else {
+      BROKER_ERROR("status collector found a malformed result table");
+    }
+    // Mark as processed and emit result after receiving all responses.
+    src.erase(i);
+    if (store_masters.size() + store_clones.size() == 0) {
+      rp.deliver(std::move(result));
+      self->quit();
+    }
+  }
+
+  void on_master_response(const std::string& key, table& res) {
+    on_response(store_masters, {"masters"s}, key, res);
+  }
+
+  void on_clone_response(const std::string& key, table& res) {
+    on_response(store_clones, {"clones"s}, key, res);
+  }
+
+  caf::event_based_actor* self;
+  map_t store_masters;
+  map_t store_clones;
+  table result;
+  caf::response_promise rp;
+};
+
+using status_collector_actor = caf::stateful_actor<status_collector_state>;
+
+} // namespace
+
+// -- constructors and destructors ---------------------------------------------
 
 core_actor_state::metrics_t::metrics_t(caf::actor_system& sys) {
   metric_factory factory{sys};
@@ -256,15 +338,19 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::get_filter) { return filter->read(); },
     // -- publishing of messages without going through a publisher -------------
     [this](atom::publish, const data_message& msg) {
+      ++published_via_async_msg;
       dispatch(endpoint_id::nil(), pack(msg));
     },
     [this](atom::publish, const data_message& msg, const endpoint_info& dst) {
+      ++published_via_async_msg;
       dispatch(dst.node, pack(msg));
     },
     [this](atom::publish, const data_message& msg, endpoint_id dst) {
+      ++published_via_async_msg;
       dispatch(dst, pack(msg));
     },
     [this](atom::publish, atom::local, const data_message& msg) {
+      ++published_via_async_msg;
       dispatch(id, pack(msg));
     },
     [this](atom::publish, const command_message& msg) {
@@ -291,6 +377,7 @@ caf::behavior core_actor_state::make_behavior() {
           detail::prefix_matcher f;
           return f(xs, msg);
         })
+        .compose(local_subscriber_scope_adder())
         .subscribe(std::move(snk));
     },
     [this](std::shared_ptr<filter_type> fptr, data_producer_res snk) {
@@ -304,6 +391,7 @@ caf::behavior core_actor_state::make_behavior() {
           detail::prefix_matcher f;
           return f(*fptr, msg);
         })
+        .compose(local_subscriber_scope_adder())
         .subscribe(std::move(snk));
     },
     [this](std::shared_ptr<filter_type>& fptr, topic& x, bool add,
@@ -335,6 +423,7 @@ caf::behavior core_actor_state::make_behavior() {
           .map([this](const data_message& msg) {
             return make_node_message(id, endpoint_id::nil(), pack(msg));
           })
+          .compose(local_publisher_scope_adder())
           .compose(add_killswitch_t{});
       flow_inputs.push(in);
       // TODO: next lines seems to be a false positive, but maybe there's
@@ -391,6 +480,7 @@ caf::behavior core_actor_state::make_behavior() {
                      detail::prefix_matcher f;
                      return f(*fptr, item);
                    })
+                   .compose(local_subscriber_scope_adder())
                    .for_each([this, hdl](const data_message& msg) {
                      self->send(hdl, msg);
                    });
@@ -412,6 +502,15 @@ caf::behavior core_actor_state::make_behavior() {
       else
         awaited_peers.emplace(peer_id, rp);
       return rp;
+    },
+    [this](atom::get, atom::status) {
+      if (masters.size() + clones.size() > 0) {
+        auto worker = self->spawn<status_collector_actor>(masters, clones);
+        self->delegate(worker, status_snapshot());
+      } else {
+        auto rp = self->make_response_promise();
+        rp.deliver(status_snapshot());
+      }
     },
   };
   if (adapter) {
@@ -562,6 +661,79 @@ std::vector<endpoint_id> core_actor_state::peer_ids() const {
   std::vector<endpoint_id> result;
   for (auto& kvp : peers)
     result.emplace_back(kvp.first);
+  return result;
+}
+
+table core_actor_state::message_metrics_snapshot() const {
+  table result;
+  for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
+    auto& msg_metrics = metrics.message_metric_sets[msg_type];
+    table vals;
+    vals.emplace("processed"s, msg_metrics.processed->value());
+    vals.emplace("buffered"s, msg_metrics.buffered->value());
+    auto key = static_cast<packed_message_type>(msg_type);
+    result.emplace(to_string(key), std::move(vals));
+  }
+  return result;
+}
+
+namespace {
+
+table to_vals(const flow_scope_stats& stats) {
+  table vals;
+  vals.emplace("requested"s, stats.requested);
+  vals.emplace("delivered"s, stats.delivered);
+  return vals;
+}
+
+} // namespace
+
+table core_actor_state::peer_stats_snapshot() const {
+  table result;
+  for (auto& [pid, state_ptr] : peers) {
+    table entry;
+    entry.emplace("input", to_vals(*state_ptr->input_stats()));
+    entry.emplace("output", to_vals(*state_ptr->output_stats()));
+    result.emplace(to_string(pid), std::move(entry));
+  }
+  return result;
+}
+
+vector core_actor_state::local_subscriber_stats_snapshot() const {
+  vector result;
+  for (auto& state_ptr : local_subscriber_stats)
+    result.emplace_back(to_vals(*state_ptr));
+  return result;
+}
+
+vector core_actor_state::local_publisher_stats_snapshot() const {
+  vector result;
+  for (auto& state_ptr : local_publisher_stats)
+    result.emplace_back(to_vals(*state_ptr));
+  return result;
+}
+
+table core_actor_state::status_snapshot() const {
+  auto env_or_default = [](const char* env_name,
+                           const char* fallback) -> std::string {
+    if (auto val = getenv(env_name))
+      return val;
+    return fallback;
+  };
+  table result;
+  auto add = [&result](std::string key, auto value) {
+    result.emplace(std::move(key), std::move(value));
+  };
+  add("id", to_string(id));
+  add("cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
+  add("time", caf::timestamp_to_string(caf::make_timestamp()));
+  add("native-connections", metrics.native_connections->value());
+  add("web-socket-connections", metrics.web_socket_connections->value());
+  add("message-metrics", message_metrics_snapshot());
+  add("peerings", peer_stats_snapshot());
+  add("local-subscribers", local_subscriber_stats_snapshot());
+  add("local-publishers", local_publisher_stats_snapshot());
+  add("published-via-async-msg", published_via_async_msg);
   return result;
 }
 
