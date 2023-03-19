@@ -8,6 +8,7 @@
 #include <caf/init_global_meta_objects.hpp>
 
 #include <cstdlib>
+#include <iostream>
 
 using namespace broker;
 using namespace std::literals;
@@ -171,13 +172,14 @@ generator::generator() : rng_(0xB7E57), ts_(brokergenesis()) {
 }
 
 endpoint_id generator::next_endpoint_id() {
-  using array_type = caf::hashed_node_id::host_id_type;
+  using array_type = endpoint_id::array_type;
   using value_type = array_type::value_type;
-  std::uniform_int_distribution<> d{0, std::numeric_limits<value_type>::max()};
+  std::uniform_int_distribution<> d{0, 255};
   array_type result;
   for (auto& x : result)
     x = static_cast<value_type>(d(rng_));
-  return caf::make_node_id(d(rng_), result);
+  return endpoint_id{result};
+  //return caf::make_node_id(d(rng_), result);
 }
 
 count generator::next_count() {
@@ -250,9 +252,9 @@ data generator::next_data(size_t event_type) {
 }
 
 int main(int argc, char** argv) {
-  caf::init_global_meta_objects<caf::id_block::micro_benchmarks>();
+  // caf::init_global_meta_objects<caf::id_block::micro_benchmarks>();
   configuration::init_global_state();
-  run_streaming_benchmark();
+  //run_streaming_benchmark();
   benchmark::Initialize(&argc, argv);
   if (benchmark::ReportUnrecognizedArguments(argc, argv)) {
     return EXIT_FAILURE;
