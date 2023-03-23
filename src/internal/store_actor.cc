@@ -151,7 +151,7 @@ void store_actor_state::on_down_msg(const caf::actor_addr& source,
 
 void store_actor_state::send_later(const caf::actor& hdl, timespan delay,
                                    caf::message msg) {
-  clock->send_later(facade(hdl), tick_interval, &msg);
+  clock->send_later(facade(hdl), delay, &msg);
 }
 
 } // namespace broker::internal
