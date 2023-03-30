@@ -1,3 +1,9 @@
+2.5.0-dev.82 | 2023-03-30 11:58:10 -0700
+
+  * CI: Force rebuild of opensuse-tumbleweed VM to pick up gcc 13 (Tim Wojtulewicz, Corelight)
+
+  * Update CAF for GCC 13 build (Dominik Charousset, Corelight)
+
 2.5.0-dev.79 | 2023-03-23 21:00:02 +0100
 
   * Fix tick_interval usage in send_later (Arne Welzel, Corelight)
