@@ -1,3 +1,7 @@
+2.5.0-dev.84 | 2023-04-06 11:06:09 -0700
+
+  * Explicitly use std namespace when calling std::move (Tim Wojtulewicz, Corelight)
+
 2.5.0-dev.82 | 2023-03-30 11:58:10 -0700
 
   * CI: Force rebuild of opensuse-tumbleweed VM to pick up gcc 13 (Tim Wojtulewicz, Corelight)

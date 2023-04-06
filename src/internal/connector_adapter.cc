@@ -147,8 +147,8 @@ void connector_adapter::async_connect(const network_info& addr,
                                       error_callback h) {
   BROKER_TRACE(BROKER_ARG(addr));
   using caf::get;
-  using std::move;
-  auto cb = [f{move(f)}, g{move(g)}, h{move(h)}](const caf::message& msg) {
+  auto cb = [f{std::move(f)}, g{std::move(g)},
+             h{std::move(h)}](const caf::message& msg) {
     if (auto xs1 = connection_event(msg)) {
       f(get<0>(xs1), get<1>(xs1), get<2>(xs1), get<3>(xs1));
     } else if (auto xs2 = redundant_connection_event(msg)) {
@@ -171,8 +171,8 @@ void connector_adapter::async_listen(const std::string& host, uint16_t port,
                                      error_callback on_error) {
   BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port) << BROKER_ARG(reuse_addr));
   using caf::get;
-  using std::move;
-  auto h = [f{move(on_success)}, g(move(on_error))](const caf::message& msg) {
+  auto h = [f{std::move(on_success)},
+            g(std::move(on_error))](const caf::message& msg) {
     if (auto xs = listen_event(msg)) {
       f(get<0>(xs));
     } else if (auto ys = error_event(msg)) {
