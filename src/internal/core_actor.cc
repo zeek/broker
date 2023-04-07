@@ -701,14 +701,14 @@ table core_actor_state::peer_stats_snapshot() const {
 
 vector core_actor_state::local_subscriber_stats_snapshot() const {
   vector result;
-  for (auto& state_ptr : local_subscriber_stats)
+  for (auto& state_ptr : *local_subscriber_stats)
     result.emplace_back(to_vals(*state_ptr));
   return result;
 }
 
 vector core_actor_state::local_publisher_stats_snapshot() const {
   vector result;
-  for (auto& state_ptr : local_publisher_stats)
+  for (auto& state_ptr : *local_publisher_stats)
     result.emplace_back(to_vals(*state_ptr));
   return result;
 }

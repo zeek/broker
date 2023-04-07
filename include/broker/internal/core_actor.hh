@@ -308,29 +308,41 @@ public:
   /// after the timeout.
   caf::disposable shutting_down_timeout;
 
-  /// Keeps track of statistics for local subscribers.
-  std::set<flow_scope_stats_ptr> local_subscriber_stats;
+  using flow_scope_stats_ptr_set = std::set<flow_scope_stats_ptr>;
+
+  /// Keeps track of statistics for local subscribers. This is a pointer,
+  /// because some scopes may get destroyed after the state object or while
+  /// destroying the state.
+  std::shared_ptr<flow_scope_stats_ptr_set> local_subscriber_stats =
+    std::make_shared<flow_scope_stats_ptr_set>();
 
   /// Returns a function object for adding instrumentation to flow that belongs
   /// to a local subscriber.
   auto local_subscriber_scope_adder() {
     auto stats_ptr = std::make_shared<flow_scope_stats>();
-    local_subscriber_stats.emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr, [this](const flow_scope_stats_ptr& ptr) {
-                              local_subscriber_stats.erase(ptr);
+    auto stats_set = local_subscriber_stats;
+    stats_set->emplace(stats_ptr);
+    return add_flow_scope_t{stats_ptr,
+                            [stats_set](const flow_scope_stats_ptr& ptr) {
+                              stats_set->erase(ptr);
                             }};
   }
 
-  /// Keeps track of statistics for local publishers.
-  std::set<flow_scope_stats_ptr> local_publisher_stats;
+  /// Keeps track of statistics for local publishers. This is a pointer, because
+  /// some scopes may get destroyed after the state object or while destroying
+  /// the state.
+  std::shared_ptr<flow_scope_stats_ptr_set> local_publisher_stats =
+    std::make_shared<flow_scope_stats_ptr_set>();
 
   /// Returns a function object for adding instrumentation to flow that belongs
   /// to a local publisher.
   auto local_publisher_scope_adder() {
     auto stats_ptr = std::make_shared<flow_scope_stats>();
-    local_publisher_stats.emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr, [this](const flow_scope_stats_ptr& ptr) {
-                              local_publisher_stats.erase(ptr);
+    auto stats_set = local_publisher_stats;
+    stats_set->emplace(stats_ptr);
+    return add_flow_scope_t{stats_ptr,
+                            [stats_set](const flow_scope_stats_ptr& ptr) {
+                              stats_set->erase(ptr);
                             }};
   }
 
