@@ -8,7 +8,6 @@
 #include <caf/cow_string.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/flow/merge.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/unordered_flat_map.hpp>
 

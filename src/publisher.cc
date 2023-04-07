@@ -3,7 +3,6 @@
 #include <future>
 #include <numeric>
 
-#include <caf/flow/merge.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/send.hpp>
