@@ -195,6 +195,14 @@ if (NOT OPENSSL_LIBRARIES)
 endif()
 set(LINK_LIBS ${LINK_LIBS} OpenSSL::SSL OpenSSL::Crypto)
 
+function(add_bundled_caf)
+  # Disable unnecessary features and make sure CAF builds static libraries.
+  set(CAF_ENABLE_EXAMPLES OFF)
+  set(CAF_ENABLE_TESTING OFF)
+  set(CAF_ENABLE_TOOLS OFF)
+  set(BUILD_SHARED_LIBS OFF)
+  add_subdirectory(caf EXCLUDE_FROM_ALL)
+endfunction()
 
 # NOTE: building and linking against an external CAF version is NOT supported!
 #       This variable is FOR DEVELOPMENT ONLY. The only officially supported CAF
@@ -209,20 +217,14 @@ if (CAF_ROOT)
   else()
     find_package(CAF REQUIRED COMPONENTS openssl test io core net)
   endif()
-  list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
   set(BROKER_USE_EXTERNAL_CAF ON)
 else ()
   message(STATUS "Using bundled CAF")
-  set(CAF_ENABLE_EXAMPLES OFF CACHE INTERNAL "")
-  set(CAF_ENABLE_TESTING OFF CACHE INTERNAL "")
-  set(CAF_ENABLE_TOOLS OFF CACHE INTERNAL "")
-  set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
-  add_subdirectory(caf EXCLUDE_FROM_ALL)
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_net_obj>)
+  add_bundled_caf()
   set(BROKER_USE_EXTERNAL_CAF OFF)
 endif ()
+
+list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
 
 # -- libroker -----------------------------------------------------------------
 
