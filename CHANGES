@@ -1,3 +1,7 @@
+2.5.0-dev.89 | 2023-04-08 10:05:14 +0200
+
+  * Fix heap-use-after free with flow scopes (Dominik Charousset, Corelight)
+
 2.5.0-dev.86 | 2023-04-08 10:03:18 +0200
 
   * Bump CAF for fixing clang warnings (Dominik Charousset, Corelight)

@@ -97,16 +97,16 @@ public:
   void on_complete() override {
     in_ = nullptr;
     if (out_) {
-      out_.on_complete();
-      out_ = nullptr;
+      auto tmp = std::move(out_);
+      tmp.on_complete();
     }
   }
 
   void on_error(const caf::error& what) override {
     in_ = nullptr;
     if (out_) {
-      out_.on_error(what);
-      out_ = nullptr;
+      auto tmp = std::move(out_);
+      tmp.on_error(what);
     }
   }
 
