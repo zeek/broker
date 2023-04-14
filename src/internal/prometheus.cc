@@ -157,7 +157,7 @@ void prometheus_actor::flush_and_close(caf::io::connection_handle hdl) {
   requests_.erase(hdl);
   if (num_connections() + num_doormen() == 0)
     quit();
-};
+}
 
 void prometheus_actor::on_metrics_request(caf::io::connection_handle hdl) {
   // Collect metrics, ship response, and close. If the user configured
