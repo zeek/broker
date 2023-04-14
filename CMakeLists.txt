@@ -217,14 +217,19 @@ if (CAF_ROOT)
   else()
     find_package(CAF REQUIRED COMPONENTS openssl test io core net)
   endif()
+  list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
   set(BROKER_USE_EXTERNAL_CAF ON)
 else ()
+  # Note: we use the object libraries here to avoid having dependencies on the
+  # actual CAF targets that would force consumers of Broker to have CMake being
+  # able to find a CAF installation.
   message(STATUS "Using bundled CAF")
   add_bundled_caf()
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
+  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_net_obj>)
   set(BROKER_USE_EXTERNAL_CAF OFF)
 endif ()
-
-list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
 
 # -- libroker -----------------------------------------------------------------
 
