@@ -118,8 +118,6 @@ public:
   using producer_message =
     std::variant<handshake, event, retransmit_failed, heartbeat>;
 
-  struct default_producer_base {};
-
   /// Produces events (messages) for any number of consumers.
   /// @tparam Backend Hides the underlying (unreliable) communication layer. The
   ///                 backend must provide the following member functions:
@@ -133,8 +131,8 @@ public:
   ///                   indicate that a consumer got removed by the producer.
   ///                 - `void handshake_completed(producer*, const Handle&)`
   ///                   called to indicate that the producer received an ACK
-  template <class Backend, class Base = default_producer_base>
-  class producer : public Base {
+  template <class Backend>
+  class producer {
   public:
     // -- member types ---------------------------------------------------------
 

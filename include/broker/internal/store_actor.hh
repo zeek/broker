@@ -72,8 +72,8 @@ public:
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
-  template <class Backend, class Base>
-  void init(channel_type::producer<Backend, Base>& out) {
+  template <class Backend>
+  void init(channel_type::producer<Backend>& out) {
     using caf::get_or;
     auto& cfg = self->config();
     out.heartbeat_interval(get_or(cfg, "broker.store.heartbeat-interval",
