@@ -19,12 +19,12 @@ using channel_type = internal::channel<std::string, std::string>;
 struct consumer_backend;
 struct fixture;
 
-using consumer_type = channel_type::consumer<consumer_backend>;
+using consumer_type = channel_type::consumer;
 using producer_type = channel_type::producer;
 
 // -- consumer boilerplate code ------------------------------------------------
 
-struct consumer_backend {
+struct consumer_backend : channel_type::consumer_transport {
   std::string id;
   std::string input;
   std::string output;
@@ -44,22 +44,30 @@ struct consumer_backend {
     this->fix = fix;
   }
 
-  void consume(consumer_type*, std::string x) {
+  void consume(consumer_type*, std::string& x) override {
     input += x;
   }
 
-  error consume_nil(consumer_type*) {
+  error lost_message(consumer_type*) override {
     input += '?';
     if (fail_on_nil)
-      return make_error(ec::unspecified, "I really wanted that data! 😭");
+      return make_error(ec::unspecified, "I really wanted that data!");
     else
       return {};
   }
 
   template <class T>
-  void send(consumer_type*, const T& x);
+  void send_impl(consumer_type*, const T& x);
 
-  void close(consumer_type*, error) {
+  void send(consumer_type* src, channel_type::cumulative_ack msg) override {
+    send_impl(src, msg);
+  }
+
+  void send(consumer_type* src, channel_type::nack msg) override {
+    send_impl(src, msg);
+  }
+
+  void close(consumer_type*, error) override {
     closed = true;
   }
 };
@@ -224,12 +232,12 @@ struct fixture : base_fixture, channel_type::producer_transport {
     tick();
   }
 
-  consumer_type& get(const std::string& id) {
+  consumer_backend& get(const std::string& id) {
     auto i = consumers.find(id);
     if (i == consumers.end())
       FAIL("unable to retrieve state for consumer " << id);
     using actor_type = caf::stateful_actor<consumer_state>;
-    return deref<actor_type>(i->second).state.consumer;
+    return deref<actor_type>(i->second).state.backend;
   }
 
   std::map<std::string, caf::actor> consumers;
@@ -263,7 +271,7 @@ caf::behavior producer_actor(caf::event_based_actor* self,
 }
 
 template <class T>
-void consumer_backend::send(consumer_type*, const T& x) {
+void consumer_backend::send_impl(consumer_type*, const T& x) {
   if (!output.empty())
     output += '\n';
   output += caf::deep_to_string(x);
@@ -428,11 +436,11 @@ TEST(consumers process nil events if retransmits fail) {
   CAF_CHECK_EQUAL(render_buffer(consumer), "b?d?f");
   consumer.handle_event(3, "c");
   CAF_CHECK_EQUAL(render_buffer(consumer), "bcd?f");
-  CAF_MESSAGE("the consumer calls consume and consume_nil as needed");
+  CAF_MESSAGE("the consumer calls consume and lost_message as needed");
   consumer.handle_event(1, "a");
   CHECK_EQUAL(cb.input, "abcd?f");
   CHECK_EQUAL(cb.closed, false);
-  CAF_MESSAGE("the consumer stops and closes if consume_nil returns an error");
+  CAF_MESSAGE("the consumer stops and closes if lost_message returns an error");
   cb.fail_on_nil = true;
   consumer.handle_event(9, "i");
   consumer.handle_retransmit_failed(8);
@@ -534,20 +542,20 @@ TEST(producers become idle after all consumers ACKed all messages) {
     run();
   }
   CHECK_EQUAL(producer.buf().size(), 0u);
-  CHECK_EQUAL(get("A").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("B").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("C").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("D").backend().input, "abcdefghijkl");
+  CHECK_EQUAL(get("A").input, "abcdefghijkl");
+  CHECK_EQUAL(get("B").input, "abcdefghijkl");
+  CHECK_EQUAL(get("C").input, "abcdefghijkl");
+  CHECK_EQUAL(get("D").input, "abcdefghijkl");
 }
 
 TEST(messages arrive eventually - even with 33 percent loss rate) {
   producer.connection_timeout_factor(12);
   // Essentially the same test as above, but with a loss rate of 33%.
   setup_actors({"A", "B", "C", "D"});
-  CHECK_EQUAL(get("A").backend().input, "");
-  CHECK_EQUAL(get("B").backend().input, "");
-  CHECK_EQUAL(get("C").backend().input, "");
-  CHECK_EQUAL(get("D").backend().input, "");
+  CHECK_EQUAL(get("A").input, "");
+  CHECK_EQUAL(get("B").input, "");
+  CHECK_EQUAL(get("C").input, "");
+  CHECK_EQUAL(get("D").input, "");
   producer.produce("a");
   producer.produce("b");
   producer.produce("c");
@@ -572,10 +580,10 @@ TEST(messages arrive eventually - even with 33 percent loss rate) {
     run();
   }
   CHECK_EQUAL(producer.buf().size(), 0u);
-  CHECK_EQUAL(get("A").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("B").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("C").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("D").backend().input, "abcdefghijkl");
+  CHECK_EQUAL(get("A").input, "abcdefghijkl");
+  CHECK_EQUAL(get("B").input, "abcdefghijkl");
+  CHECK_EQUAL(get("C").input, "abcdefghijkl");
+  CHECK_EQUAL(get("D").input, "abcdefghijkl");
 }
 
 TEST(messages arrive eventually - even with 66 percent loss rate) {
@@ -606,10 +614,10 @@ TEST(messages arrive eventually - even with 66 percent loss rate) {
     run();
   }
   CHECK_EQUAL(producer.buf().size(), 0u);
-  CHECK_EQUAL(get("A").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("B").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("C").backend().input, "abcdefghijkl");
-  CHECK_EQUAL(get("D").backend().input, "abcdefghijkl");
+  CHECK_EQUAL(get("A").input, "abcdefghijkl");
+  CHECK_EQUAL(get("B").input, "abcdefghijkl");
+  CHECK_EQUAL(get("C").input, "abcdefghijkl");
+  CHECK_EQUAL(get("D").input, "abcdefghijkl");
 }
 
 FIXTURE_SCOPE_END()

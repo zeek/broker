@@ -510,22 +510,33 @@ public:
   /// Messages sent by the consumer.
   using consumer_message = std::variant<cumulative_ack, nack>;
 
+  class consumer;
+
+  /// Models the transport for a @ref consumer.
+  class consumer_transport {
+  public:
+    virtual ~consumer_transport() {
+      // nop
+    }
+
+    /// Sends an `msg` to the producer message from `src`.
+    virtual void send(consumer* src, cumulative_ack msg) = 0;
+
+    /// Sends an `msg` to the producer from `src`.
+    virtual void send(consumer* src, nack msg) = 0;
+
+    /// Processes a received message `msg` from `src`.
+    virtual void consume(consumer* src, payload_type& msg) = 0;
+
+    /// Called if the channel was unable to receive a message. Aborts the
+    /// channel when returning a non-default error from this handler.
+    virtual error lost_message(consumer* src) = 0;
+
+    /// Called when the consumer is done with the channel.
+    virtual void close(consumer* src, error reason) = 0;
+  };
+
   /// Handles events (messages) from a single producer.
-  /// @tparam Backend Hides the underlying (unreliable) communication layer. The
-  ///                 backend must provide the following member functions:
-  ///                 - `void consume(consumer*, Payload)` process a single
-  ///                 event.
-  ///                 - `void send(consumer*, T)` sends a message to the
-  ///                   producer, where `T` is any type in `consumer_message`.
-  ///                 - `error consume_nil(consumer*)` process a lost event. The
-  ///                   callback may abort further processing by returning a
-  ///                   non-default `error`. In this case, the `consumer`
-  ///                   immediately calls `close` with the returned error.
-  ///                 - `void close(consumer*, error)` drops this consumer.
-  ///                   After calling this function, no further function calls
-  ///                   on the consumer are allowed (except calling the
-  ///                   destructor).
-  template <class Backend>
   class consumer {
   public:
     // -- member types ---------------------------------------------------------
@@ -601,7 +612,7 @@ public:
 
     // -- constructors, destructors, and assignment operators ------------------
 
-    explicit consumer(Backend* backend) : backend_(backend) {
+    explicit consumer(consumer_transport* transport) : transport_(transport) {
       // nop
     }
 
@@ -667,7 +678,7 @@ public:
       BROKER_TRACE(BROKER_ARG(seq) << BROKER_ARG(payload));
       if (next_seq_ == seq) {
         // Process immediately.
-        backend_->consume(this, payload);
+        transport_->consume(this, payload);
         bump_seq();
         try_consume_buffer();
       } else if (seq > next_seq_) {
@@ -691,8 +702,8 @@ public:
     void handle_retransmit_failed(sequence_number_type seq) {
       if (next_seq_ == seq) {
         // Process immediately.
-        if (auto err = backend_->consume_nil(this)) {
-          backend_->close(this, std::move(err));
+        if (auto err = transport_->lost_message(this)) {
+          transport_->close(this, std::move(err));
           reset();
           return;
         }
@@ -726,7 +737,7 @@ public:
         ++idle_ticks_;
         if (idle_ticks_ >= nack_timeout_) {
           idle_ticks_ = 0;
-          backend_->send(this, nack{std::vector<sequence_number_type>{0}});
+          transport_->send(this, nack{std::vector<sequence_number_type>{0}});
         }
         return;
       }
@@ -757,7 +768,7 @@ public:
         for (const auto& x : buf_)
           generate(x.seq);
         generate(last);
-        backend_->send(this, nack{std::move(seqs)});
+        transport_->send(this, nack{std::move(seqs)});
         return;
       }
       if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
@@ -767,11 +778,11 @@ public:
     // -- properties -----------------------------------------------------------
 
     auto& backend() noexcept {
-      return *backend_;
+      return *transport_;
     }
 
     const auto& backend() const noexcept {
-      return *backend_;
+      return *transport_;
     }
 
     metrics_t& metrics() noexcept {
@@ -877,11 +888,11 @@ public:
       auto i = buf_.begin();
       for (; i != buf_.end() && i->seq == next_seq_; ++i) {
         if (i->content) {
-          backend_->consume(this, *i->content);
+          transport_->consume(this, *i->content);
         } else {
-          if (auto err = backend_->consume_nil(this)) {
+          if (auto err = transport_->lost_message(this)) {
             buf_.erase(buf_.begin(), i);
-            backend_->close(this, std::move(err));
+            transport_->close(this, std::move(err));
             reset();
             return;
           }
@@ -895,13 +906,13 @@ public:
     }
 
     void send_ack() {
-      backend_->send(this, cumulative_ack{next_seq_ > 0 ? next_seq_ - 1 : 0});
+      transport_->send(this, cumulative_ack{next_seq_ > 0 ? next_seq_ - 1 : 0});
     }
 
     // -- member variables -----------------------------------------------------
 
     /// Handles incoming events.
-    Backend* backend_;
+    consumer_transport* transport_;
 
     /// Caches pointers to the metric instances.
     metrics_t metrics_;
@@ -939,6 +950,9 @@ public:
     /// longer exists.
     tick_interval_type connection_timeout_factor_ = 4;
   };
+
+  /// A transport that for both producing and consuming events.
+  class transport : public producer_transport, public consumer_transport {};
 };
 
 } // namespace broker::internal

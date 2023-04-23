@@ -368,7 +368,7 @@ void master_state::consume(clear_command& x) {
   broadcast(x);
 }
 
-error master_state::consume_nil(consumer_type* src) {
+error master_state::lost_message(consumer_type* src) {
   BROKER_TRACE("");
   // We lost a message from a writer. This is obviously bad, since we lost some
   // information before it made it into the backend. However, it is not a fatal
@@ -378,7 +378,7 @@ error master_state::consume_nil(consumer_type* src) {
   return {};
 }
 
-void master_state::close(consumer_type* src, const error& reason) {
+void master_state::close(consumer_type* src, error reason) {
   BROKER_TRACE(BROKER_ARG(reason));
   if (auto i = inputs.find(src->producer()); i != inputs.end()) {
     if (reason)

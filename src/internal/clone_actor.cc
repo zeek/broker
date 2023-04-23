@@ -265,14 +265,13 @@ void clone_state::consume(clear_command& x) {
   store.clear();
 }
 
-error clone_state::consume_nil(consumer_type* src) {
+error clone_state::lost_message(consumer_type* src) {
   BROKER_ERROR("clone out of sync: lost message from the master!");
   // By returning an error, we cause the channel to abort and call `close`.
   return ec::broken_clone;
 }
 
-void clone_state::close(consumer_type* src,
-                        [[maybe_unused]] const error& reason) {
+void clone_state::close(consumer_type* src, [[maybe_unused]] error reason) {
   BROKER_ERROR(BROKER_ARG(reason));
   // TODO: send some 'bye, bye' message to enable the master to remove this
   //       clone early, rather than waiting for timeout, see:

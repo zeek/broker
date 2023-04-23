@@ -220,87 +220,14 @@ reliability.
 A channel is unaware of the underlying transport and leaves the rendezvous
 process (i.e., how producers learn handles of new consumers) to the user. The
 class ``channel`` defines message types as well as interfaces for ``producer``
-and ``consumer`` implementations (both use CRTP to interface with user code).
+and ``consumer`` implementations.
 
-Producer
-~~~~~~~~
+The producer requires a ``producer_transport`` in its constructor. This  object
+implements a transport layer for the channel and must provide the following
+interface (pseudo code):
 
-The producer requires a ``Backend`` template parameter and expects a pointer of
-type ``Backend*`` in its constructor. This backend implements a transport layer
-for the channel and must provide the following interface (pseudo code):
-
-.. code-block:: cpp
-
-  interface Backend {
-    // Sends a unicast message to `hdl`.
-    void send(producer*, const Handle& hdl, const T& msg);
-
-    // Sends a multicast message to all consumers.
-    void broadcast(producer*, const T& msg)
-
-    // Called to indicate that a consumer got removed by the producer.
-    void drop(producer*, const Handle& hdl, ec reason)
-
-    // Called to indicate that the producer received the initial ACK.
-    void handshake_completed(producer*, const Handle& hdl)
-  };
-
-The first argument is always the ``this`` pointer of the producer. This enables
-the backend to multiplex more than one producer at a time. The type ``Handle``
-identifies a single consumer. In the data store actors, this is an
-``entity_id``. Finally, ``T`` is one of the following message types:
-
-+-----------------------+----------------------------------------------------+
-| Type                  | Semantics                                          |
-+=======================+====================================================+
-| ``handshake``         | Transmits the first sequence number to a consumer. |
-+-----------------------+----------------------------------------------------+
-| ``event``             | Transmits ordered data to consumers.               |
-+-----------------------+----------------------------------------------------+
-| ``retransmit_failed`` | Notifies that an event is no longer available.     |
-+-----------------------+----------------------------------------------------+
-| ``heartbeat``         | Keeps connections to consumers alive.              |
-+-----------------------+----------------------------------------------------+
-
-Consumer
-~~~~~~~~
-
-Similar to the producer, the consumer also requires a ``Backend`` for providing
-a transport and consuming incoming events (pseudo code):
-
-.. code-block:: cpp
-
-  interface Backend {
-    // process a single event.
-    void consume(consumer*, Payload)
-
-    // Sends a control message to the producer.
-    void send(consumer*, T)`
-
-    // Process a lost event. The callback may abort further processing by
-    // returning a non-default error. In this case, the consumer immediately
-    // calls `close` with the returned error.
-    error consume_nil(consumer*)
-
-    // Drops this consumer. After calling this function, no further function
-    // calls on the consumer are allowed (except calling the destructor).
-    void close(consumer*, error)
-  };
-
-The first argument is always the ``this`` pointer of the consumer. This enables
-the backend to multiplex more than one consumer at a time. The member function
-``send`` always implicitly transmits control messages to the single producer.
-The type ``Payload`` is a template parameter of ``channel`` and denotes the
-content of ``event`` messages of the producer. Finally, ``T`` is one of the
-following message types:
-
-+--------------------+----------------------------------------------------+
-| Type               | Semantics                                          |
-+====================+====================================================+
-| ``cumulative_ack`` | Notifies the producer which events were processed. |
-+--------------------+----------------------------------------------------+
-| ``nack``           | Notifies the producer that events got lost.        |
-+--------------------+----------------------------------------------------+
+Similar to the producer, the consumer also requires a ``consumer_transport`` for
+providing a transport and consuming incoming events (pseudo code).
 
 Consumers send ``cumulative_ack`` messages periodically, even if no messages
 were received. This enables the producer to keep track of which consumers are
@@ -319,9 +246,9 @@ attached to it and any number of consumers:
 
 .. code-block:: cpp
 
-  using producer_type = channel_type::producer<master_state>;
+  using producer_type = channel_type::producer;
 
-  using consumer_type = channel_type::consumer<master_state>;
+  using consumer_type = channel_type::consumer;
 
   producer_type output;
 
@@ -332,9 +259,9 @@ attached to it and it *may* have a producer:
 
 .. code-block:: cpp
 
-  using consumer_type = channel_type::consumer<clone_state>;
+  using consumer_type = channel_type::consumer;
 
-  using producer_type = channel_type::producer<clone_state, producer_base>;
+  using producer_type = channel_type::producer;
 
   consumer_type input;
 

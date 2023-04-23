@@ -30,7 +30,7 @@ public:
   using producer_type = channel_type::producer;
 
   /// Channel type for consuming messages from a clone.
-  using consumer_type = channel_type::consumer<master_state>;
+  using consumer_type = channel_type::consumer;
 
   /// Owning smart pointer type to a backend.
   using backend_pointer = std::unique_ptr<detail::abstract_backend>;
@@ -78,7 +78,7 @@ public:
 
   // -- callbacks for the consumer ---------------------------------------------
 
-  void consume(consumer_type* src, command_message& cmd);
+  void consume(consumer_type* src, command_message& cmd) override;
 
   void consume(put_command& cmd);
 
@@ -97,13 +97,13 @@ public:
     BROKER_ERROR("master got unexpected command:" << cmd);
   }
 
-  error consume_nil(consumer_type* src);
+  error lost_message(consumer_type* src) override;
 
-  void close(consumer_type* src, const error&);
+  void close(consumer_type* src, error) override;
 
-  void send(consumer_type*, channel_type::cumulative_ack);
+  void send(consumer_type*, channel_type::cumulative_ack) override;
 
-  void send(consumer_type*, channel_type::nack);
+  void send(consumer_type*, channel_type::nack) override;
 
   // -- callbacks for the producer ---------------------------------------------
 

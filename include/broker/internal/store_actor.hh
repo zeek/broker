@@ -47,7 +47,7 @@ namespace broker::internal {
 
 using command_channel = channel<entity_id, command_message>;
 
-class store_actor_state : public command_channel::producer_transport {
+class store_actor_state : public command_channel::transport {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -74,8 +74,7 @@ public:
 
   void init(channel_type::producer& out);
 
-  template <class Backend>
-  void init(channel_type::consumer<Backend>& in) {
+  void init(channel_type::consumer& in) {
     using caf::get_or;
     auto& cfg = self->config();
     auto heartbeat_interval = get_or(cfg, "broker.store.heartbeat-interval",
@@ -172,8 +171,7 @@ public:
   /// Sends a delayed message by using the endpoint's clock.
   void send_later(const caf::actor& hdl, timespan delay, caf::message msg);
 
-  template <class Derived>
-  static table get_stats(const channel_type::consumer<Derived>& in) {
+  static table get_stats(const channel_type::consumer& in) {
     using namespace std::literals;
     table result;
     result.emplace("next-seq"s, in.next_seq());
