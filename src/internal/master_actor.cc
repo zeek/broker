@@ -466,18 +466,18 @@ void master_state::broadcast(producer_type*, const channel_type::event& what) {
   self->send(core, atom::publish_v, what.content);
 }
 
-void master_state::drop(producer_type*, const entity_id& clone,
-                        [[maybe_unused]] ec reason) {
+void master_state::accepted(producer_type*, const entity_id& clone) {
+  BROKER_TRACE(BROKER_ARG(clone));
+  BROKER_INFO("producer handshake completed for" << clone);
+  open_handshakes.erase(clone);
+}
+
+void master_state::dropped(producer_type*, const entity_id& clone,
+                           [[maybe_unused]] ec reason) {
   BROKER_TRACE(BROKER_ARG(clone) << BROKER_ARG(reason));
   BROKER_INFO("drop" << clone);
   open_handshakes.erase(clone);
   inputs.erase(clone);
-}
-
-void master_state::handshake_completed(producer_type*, const entity_id& clone) {
-  BROKER_TRACE(BROKER_ARG(clone));
-  BROKER_INFO("producer handshake completed for" << clone);
-  open_handshakes.erase(clone);
 }
 
 // -- properties ---------------------------------------------------------------

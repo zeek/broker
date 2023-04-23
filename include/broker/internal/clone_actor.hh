@@ -26,7 +26,7 @@ public:
 
   using consumer_type = channel_type::consumer<clone_state>;
 
-  using producer_type = channel_type::producer<clone_state>;
+  using producer_type = channel_type::producer;
 
   /// Callback for set_store;
   using on_set_store = std::function<void()>;
@@ -81,19 +81,21 @@ public:
 
   // -- callbacks for the producer ---------------------------------------------
 
-  void send(producer_type*, const entity_id&, channel_type::event&);
+  void send(producer_type*, const entity_id&,
+            const channel_type::event&) override;
 
-  void send(producer_type*, const entity_id&, channel_type::handshake);
+  void send(producer_type*, const entity_id&, channel_type::handshake) override;
 
-  void send(producer_type*, const entity_id&, channel_type::retransmit_failed);
+  void send(producer_type*, const entity_id&,
+            channel_type::retransmit_failed) override;
 
-  void broadcast(producer_type*, channel_type::heartbeat);
+  void broadcast(producer_type*, channel_type::heartbeat) override;
 
-  void broadcast(producer_type*, const channel_type::event&);
+  void broadcast(producer_type*, const channel_type::event&) override;
 
-  void drop(producer_type*, const entity_id&, ec);
+  void accepted(producer_type*, const entity_id&) override;
 
-  void handshake_completed(producer_type*, const entity_id&);
+  void dropped(producer_type*, const entity_id&, ec) override;
 
   // -- properties -------------------------------------------------------------
 

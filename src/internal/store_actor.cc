@@ -54,17 +54,17 @@ void fill_vector(vector& vec, const Ts&... xs) {
 
 } // namespace
 
-store_actor_state::~store_actor_state() {
+// -- constructors, destructors, and assignment operators ----------------------
+
+store_actor_state::store_actor_state(caf::event_based_actor* selfptr)
+  : self(selfptr), out(selfptr) {
   // nop
 }
 
 using caf::async::consumer_resource;
 using caf::async::producer_resource;
 
-store_actor_state::store_actor_state(caf::event_based_actor* selfptr)
-  : self(selfptr), out(selfptr) {
-  // nop
-}
+// -- initialization -----------------------------------------------------------
 
 void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
                              std::string&& store_name, caf::actor&& core,
@@ -88,6 +88,16 @@ void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
       [this](const caf::error& what) { self->quit(what); },
       [this] { self->quit(); }));
   out.as_observable().subscribe(std::move(out_res));
+}
+
+void store_actor_state::init(channel_type::producer& out) {
+  using caf::get_or;
+  auto& cfg = self->config();
+  out.heartbeat_interval(get_or(cfg, "broker.store.heartbeat-interval",
+                                defaults::store::heartbeat_interval));
+  out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
+                                       defaults::store::connection_timeout));
+  out.metrics().init(self->system(), store_name);
 }
 
 // -- event signaling ----------------------------------------------------------

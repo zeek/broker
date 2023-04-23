@@ -304,19 +304,22 @@ void clone_state::send(consumer_type* ptr, channel_type::nack nack) {
 // -- callbacks for the producer -----------------------------------------------
 
 void clone_state::send(producer_type* ptr, const entity_id& dst,
-                       channel_type::event& what) {
+                       const channel_type::event& what) {
   BROKER_TRACE(BROKER_ARG(what));
   BROKER_DEBUG("send event with seq"
                << get_command(what.content).seq << "and type"
                << get_command(what.content).content.index() << "to" << dst);
   BROKER_ASSERT(dst == master_id);
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
-  if (get_command(what.content).receiver != dst) {
-    // Technical debt: the event really should be internal_command_variant to
-    // allow us to assemble the command_message here instead of altering it.
-    get<1>(what.content.unshared()).receiver = dst;
+  if (get_command(what.content).receiver == dst) {
+    self->send(core, atom::publish_v, what.content);
+    return;
   }
-  self->send(core, atom::publish_v, what.content);
+  // Technical debt: the event really should be internal_command_variant to
+  // allow us to assemble the command_message here instead of altering it.
+  auto cpy = what.content;
+  get<1>(cpy.unshared()).receiver = dst;
+  self->send(core, atom::publish_v, std::move(cpy));
 }
 
 void clone_state::send(producer_type* ptr, const entity_id&,
@@ -367,14 +370,14 @@ void clone_state::broadcast(producer_type* ptr,
   self->send(core, atom::publish_v, what.content);
 }
 
-void clone_state::drop(producer_type*, const entity_id&,
-                       [[maybe_unused]] ec reason) {
-  BROKER_DEBUG(BROKER_ARG(reason));
-  // TODO: see comment in close()
+void clone_state::accepted(producer_type*, const entity_id&) {
+  BROKER_DEBUG("completed producer handshake for store" << store_name);
 }
 
-void clone_state::handshake_completed(producer_type*, const entity_id&) {
-  BROKER_DEBUG("completed producer handshake for store" << store_name);
+void clone_state::dropped(producer_type*, const entity_id&,
+                          [[maybe_unused]] ec reason) {
+  BROKER_DEBUG(BROKER_ARG(reason));
+  // TODO: see comment in close()
 }
 
 // -- properties ---------------------------------------------------------------

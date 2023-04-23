@@ -24,6 +24,13 @@ namespace broker::internal {
 template <class Handle, class Payload>
 class channel {
 public:
+  // -- member types: aliases --------------------------------------------------
+
+  /// User-defined
+  using handle_type = Handle;
+
+  using payload_type = Payload;
+
   // -- member types: messages from consumers to the producer ------------------
 
   /// Notifies the producer that a consumer received all events up to a certain
@@ -79,7 +86,7 @@ public:
   /// Transmits ordered data to a consumer.
   struct event {
     sequence_number_type seq;
-    Payload content;
+    payload_type content;
 
     template <class Inspector>
     friend bool inspect(Inspector& f, event& x) {
@@ -114,32 +121,54 @@ public:
 
   // -- implementation of the producer -----------------------------------------
 
+  class producer;
+
   /// Messages sent by the producer.
   using producer_message =
     std::variant<handshake, event, retransmit_failed, heartbeat>;
 
+  /// Models the transport for a @ref producer.
+  class producer_transport {
+  public:
+    virtual ~producer_transport() {
+      // nop
+    }
+
+    /// Sends an `msg` as asynchronous message from `src` to `dst`.
+    virtual void send(producer* src, const handle_type& dst, handshake msg) = 0;
+
+    /// Sends an `msg` as asynchronous message from `src` to `dst`.
+    virtual void send(producer* src, const handle_type& dst,
+                      retransmit_failed msg) = 0;
+
+    /// Sends an `msg` as asynchronous message from `src` to `dst`.
+    virtual void send(producer* src, const handle_type& dst,
+                      const event& msg) = 0;
+
+    /// Sends an `msg` a broadcast message from `src` to all consumers.
+    virtual void broadcast(producer* src, heartbeat msg) = 0;
+
+    /// Sends an `msg` a broadcast message from `src` to all consumers.
+    virtual void broadcast(producer* src, const event& msg) = 0;
+
+    /// Informs the transport that `src` has accepted `dst` after completing the
+    /// handshake.
+    virtual void accepted(producer*, const handle_type&) = 0;
+
+    /// Informs the transport that `src` has dropped `dst` due to the error
+    /// `code`.
+    virtual void dropped(producer*, const handle_type&, ec) = 0;
+  };
+
   /// Produces events (messages) for any number of consumers.
-  /// @tparam Backend Hides the underlying (unreliable) communication layer. The
-  ///                 backend must provide the following member functions:
-  ///                 - `void send(producer*, const Handle&, const T&)` sends a
-  ///                   unicast message to a single consumer, where `T` is any
-  ///                   type in `producer_message`.
-  ///                 - `void broadcast(producer*, const T&)` sends a multicast
-  ///                   message to all consumers, where `T` is any type in
-  ///                   `producer_message`.
-  ///                 - `void drop(producer*, const Handle&, ec)` called to
-  ///                   indicate that a consumer got removed by the producer.
-  ///                 - `void handshake_completed(producer*, const Handle&)`
-  ///                   called to indicate that the producer received an ACK
-  template <class Backend>
   class producer {
   public:
     // -- member types ---------------------------------------------------------
 
     /// Bundles bookkeeping state for a consumer.
     struct path {
-      /// Allows the backend to uniquely address this consumer.
-      Handle hdl;
+      /// Allows the transport to uniquely address this consumer.
+      handle_type hdl;
 
       /// The sequence number that was active when adding this consumer.
       sequence_number_type offset;
@@ -207,40 +236,40 @@ public:
 
     // -- constructors, destructors, and assignment operators ------------------
 
-    explicit producer(Backend* backend) : backend_(backend) {
+    explicit producer(producer_transport* transport) : transport_(transport) {
       // nop
     }
 
     // -- message processing ---------------------------------------------------
 
-    void produce(Payload content) {
+    void produce(payload_type content) {
       if (paths_.empty())
         return;
       metrics_.inc_unacknowledged();
       ++seq_;
       buf_.emplace_back(event{seq_, std::move(content)});
       last_broadcast_ = tick_;
-      backend_->broadcast(this, buf_.back());
+      transport_->broadcast(this, buf_.back());
     }
 
-    error add(const Handle& hdl) {
+    error add(const handle_type& hdl) {
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
       BROKER_DEBUG("add" << hdl << "to the channel");
       metrics_.inc_output_channels();
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
-      backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
+      transport_->send(this, hdl, handshake{seq_, heartbeat_interval_});
       return {};
     }
 
     void trigger_handshakes() {
       for (auto& path : paths_)
         if (path.offset == 0)
-          backend_->send(this, path.hdl,
-                         handshake{path.offset, heartbeat_interval_});
+          transport_->send(this, path.hdl,
+                           handshake{path.offset, heartbeat_interval_});
     }
 
-    void handle_ack(const Handle& hdl, sequence_number_type seq) {
+    void handle_ack(const handle_type& hdl, sequence_number_type seq) {
       sequence_number_type acked = seq;
       // Iterate all paths once, fetching minimum acknowledged sequence number
       // and updating the path belonging to `hdl` in one go.
@@ -252,7 +281,7 @@ public:
           }
           x.last_seen = tick_;
           if (x.acked == 0) {
-            backend_->handshake_completed(this, hdl);
+            transport_->accepted(this, hdl);
           } else if (x.acked == seq) {
             // Old news. Stop processing this event, since it won't allow us to
             // clear events from the buffer anyways.
@@ -272,7 +301,7 @@ public:
       }
     }
 
-    void handle_nack(const Handle& hdl,
+    void handle_nack(const handle_type& hdl,
                      const std::vector<sequence_number_type>& seqs) {
       // Sanity checks.
       if (seqs.empty())
@@ -289,21 +318,21 @@ public:
       // Seqs must be sorted. Everything before the first missing ID is ACKed.
       p->last_seen = tick_;
       if (seqs.size() > 1 && !std::is_sorted(seqs.begin(), seqs.end())) {
-        backend_->drop(this, p->hdl, ec::invalid_message);
+        transport_->dropped(this, p->hdl, ec::invalid_message);
         paths_.erase(p);
         return;
       }
       auto first = seqs.front();
       if (first == 0) {
-        backend_->send(this, hdl, handshake{p->offset, heartbeat_interval_});
+        transport_->send(this, hdl, handshake{p->offset, heartbeat_interval_});
         return;
       }
       handle_ack(hdl, first - 1);
       for (auto seq : seqs) {
         if (auto i = find_event(seq); i != buf_.end())
-          backend_->send(this, hdl, *i);
+          transport_->send(this, hdl, *i);
         else
-          backend_->send(this, hdl, retransmit_failed{seq});
+          transport_->send(this, hdl, retransmit_failed{seq});
       }
     }
 
@@ -317,7 +346,7 @@ public:
         return;
       if (last_broadcast_ + heartbeat_interval_ == tick_) {
         last_broadcast_ = tick_;
-        backend_->broadcast(this, heartbeat{seq_});
+        transport_->broadcast(this, heartbeat{seq_});
       }
       // Check whether any consumer timed out.
       auto timeout = connection_timeout();
@@ -327,7 +356,7 @@ public:
         if (tick_.value - i->last_seen.value >= timeout) {
           BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
           metrics_.dec_output_channels();
-          backend_->drop(this, i->hdl, ec::connection_timeout);
+          transport_->dropped(this, i->hdl, ec::connection_timeout);
           i = paths_.erase(i);
           ++erased_paths;
         } else {
@@ -354,12 +383,12 @@ public:
 
     // -- properties -----------------------------------------------------------
 
-    auto& backend() noexcept {
-      return *backend_;
+    auto& transport() noexcept {
+      return *transport_;
     }
 
-    const auto& backend() const noexcept {
-      return *backend_;
+    const auto& transport() const noexcept {
+      return *transport_;
     }
 
     metrics_t& metrics() noexcept {
@@ -423,12 +452,12 @@ public:
 
     // -- path and event lookup ------------------------------------------------
 
-    auto find_path(const Handle& hdl) noexcept {
+    auto find_path(const handle_type& hdl) noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
 
-    auto find_path(const Handle& hdl) const noexcept {
+    auto find_path(const handle_type& hdl) const noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
       return std::find_if(paths_.begin(), paths_.end(), has_hdl);
     }
@@ -442,7 +471,7 @@ public:
     // -- member variables -----------------------------------------------------
 
     /// Transmits messages to the consumers.
-    Backend* backend_;
+    producer_transport* transport_;
 
     /// Caches pointers to the metric instances.
     metrics_t metrics_;
@@ -503,7 +532,7 @@ public:
 
     struct optional_event {
       sequence_number_type seq;
-      std::optional<Payload> content;
+      std::optional<payload_type> content;
 
       explicit optional_event(sequence_number_type seq) : seq(seq) {
         // nop
@@ -581,7 +610,7 @@ public:
     /// Initializes the consumer from the settings in the handshake.
     /// @returns `true` if the consumer was initialized, `false` on a repeated
     ///          handshake that got dropped by the consumer.
-    bool handle_handshake(Handle producer_hdl, sequence_number_type offset,
+    bool handle_handshake(handle_type producer_hdl, sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
       BROKER_TRACE(BROKER_ARG(producer_hdl)
                    << BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
@@ -634,7 +663,7 @@ public:
         last_seq_ = seq + 1;
     }
 
-    void handle_event(sequence_number_type seq, Payload payload) {
+    void handle_event(sequence_number_type seq, payload_type payload) {
       BROKER_TRACE(BROKER_ARG(seq) << BROKER_ARG(payload));
       if (next_seq_ == seq) {
         // Process immediately.
@@ -757,7 +786,7 @@ public:
       return producer_;
     }
 
-    void producer(Handle hdl) {
+    void producer(handle_type hdl) {
       producer_ = std::move(hdl);
     }
 
@@ -822,7 +851,7 @@ public:
       if (initialized()) {
         metrics_.dec_input_channels();
       }
-      producer_ = Handle{};
+      producer_ = handle_type{};
       next_seq_ = 0;
       last_seq_ = 0;
       buf_.clear();
@@ -878,7 +907,7 @@ public:
     metrics_t metrics_;
 
     /// Stores the handle of the producer.
-    Handle producer_;
+    handle_type producer_;
 
     /// Monotonically increasing counter (starting at 1) to establish ordering
     /// of messages on this channel.

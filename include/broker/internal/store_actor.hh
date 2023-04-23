@@ -45,7 +45,9 @@ struct hash<broker::internal::local_request_key> {
 
 namespace broker::internal {
 
-class store_actor_state {
+using command_channel = channel<entity_id, command_message>;
+
+class store_actor_state : public command_channel::producer_transport {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -60,8 +62,6 @@ public:
 
   store_actor_state(caf::event_based_actor* self);
 
-  virtual ~store_actor_state();
-
   // -- initialization ---------------------------------------------------------
 
   /// Initializes the state.
@@ -72,16 +72,7 @@ public:
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
-  template <class Backend>
-  void init(channel_type::producer<Backend>& out) {
-    using caf::get_or;
-    auto& cfg = self->config();
-    out.heartbeat_interval(get_or(cfg, "broker.store.heartbeat-interval",
-                                  defaults::store::heartbeat_interval));
-    out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
-                                         defaults::store::connection_timeout));
-    out.metrics().init(self->system(), store_name);
-  }
+  void init(channel_type::producer& out);
 
   template <class Backend>
   void init(channel_type::consumer<Backend>& in) {
@@ -193,8 +184,7 @@ public:
     return result;
   }
 
-  template <class Derived>
-  static table get_stats(const channel_type::producer<Derived>& out) {
+  static table get_stats(const channel_type::producer& out) {
     using namespace std::literals;
     table result;
     result.emplace("seq"s, out.seq());

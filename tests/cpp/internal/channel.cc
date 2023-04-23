@@ -20,7 +20,7 @@ struct consumer_backend;
 struct fixture;
 
 using consumer_type = channel_type::consumer<consumer_backend>;
-using producer_type = channel_type::producer<fixture>;
+using producer_type = channel_type::producer;
 
 // -- consumer boilerplate code ------------------------------------------------
 
@@ -80,7 +80,7 @@ caf::behavior consumer_actor(caf::stateful_actor<consumer_state>* self,
 caf::behavior producer_actor(caf::event_based_actor* self,
                              producer_type* state);
 
-struct fixture : base_fixture {
+struct fixture : base_fixture, channel_type::producer_transport {
   struct outgoing_message {
     caf::actor sender;
     caf::actor receiver;
@@ -129,7 +129,7 @@ struct fixture : base_fixture {
   }
 
   template <class T>
-  void send(producer_type*, const std::string& dst, const T& x) {
+  void send_impl(producer_type*, const std::string& dst, const T& x) {
     producer_log += '\n';
     producer_log += dst;
     producer_log += " <- ";
@@ -139,8 +139,23 @@ struct fixture : base_fixture {
                                      channel_type::producer_message{x});
   }
 
+  void send(producer_type* src, const std::string& dst,
+            channel_type::handshake msg) override {
+    send_impl(src, dst, msg);
+  }
+
+  void send(producer_type* src, const std::string& dst,
+            channel_type::retransmit_failed msg) override {
+    send_impl(src, dst, msg);
+  }
+
+  void send(producer_type* src, const std::string& dst,
+            const channel_type::event& msg) override {
+    send_impl(src, dst, msg);
+  }
+
   template <class T>
-  void broadcast(producer_type*, const T& x) {
+  void broadcast_impl(producer_type*, const T& x) {
     producer_log += '\n';
     producer_log += render(producer.paths());
     producer_log += " <- ";
@@ -150,12 +165,20 @@ struct fixture : base_fixture {
                                      channel_type::producer_message{x});
   }
 
-  void drop(producer_type*, std::string hdl, ec) {
-    consumers.erase(hdl);
+  void broadcast(producer_type* src, channel_type::heartbeat msg) override {
+    broadcast_impl(src, msg);
   }
 
-  void handshake_completed(producer_type*, const std::string&) {
+  void broadcast(producer_type* src, const channel_type::event& msg) override {
+    broadcast_impl(src, msg);
+  }
+
+  void accepted(producer_type*, const std::string&) override {
     // nop
+  }
+
+  void dropped(producer_type*, const std::string& hdl, ec) override {
+    consumers.erase(hdl);
   }
 
   // Uses a simulated transport channel that's beyond terrible. Randomly

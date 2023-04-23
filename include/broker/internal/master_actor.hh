@@ -27,7 +27,7 @@ public:
   using super = store_actor_state;
 
   /// Channel type for producing messages for a clone.
-  using producer_type = channel_type::producer<master_state>;
+  using producer_type = channel_type::producer;
 
   /// Channel type for consuming messages from a clone.
   using consumer_type = channel_type::consumer<master_state>;
@@ -107,19 +107,22 @@ public:
 
   // -- callbacks for the producer ---------------------------------------------
 
-  void send(producer_type*, const entity_id&, const channel_type::event&);
+  void send(producer_type* src, const entity_id& dst,
+            channel_type::handshake msg) override;
 
-  void send(producer_type*, const entity_id&, channel_type::handshake);
+  void send(producer_type* src, const entity_id& dst,
+            channel_type::retransmit_failed msg) override;
 
-  void send(producer_type*, const entity_id&, channel_type::retransmit_failed);
+  void send(producer_type* src, const entity_id& dst,
+            const channel_type::event& msg) override;
 
-  void broadcast(producer_type*, channel_type::heartbeat);
+  void broadcast(producer_type* src, channel_type::heartbeat msg) override;
 
-  void broadcast(producer_type*, const channel_type::event&);
+  void broadcast(producer_type* src, const channel_type::event& msg) override;
 
-  void drop(producer_type*, const entity_id&, ec);
+  void accepted(producer_type*, const entity_id&) override;
 
-  void handshake_completed(producer_type*, const entity_id&);
+  void dropped(producer_type*, const entity_id&, ec) override;
 
   // -- properties -------------------------------------------------------------
 
