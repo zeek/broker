@@ -5,6 +5,7 @@ import multiprocessing
 import broker
 
 from zeek_common import run_zeek_path, run_zeek
+from datetime import datetime
 
 ZeekPing = """
 redef Broker::default_connect_retry=1secs;
@@ -45,7 +46,13 @@ event Broker::peer_lost(endpoint: Broker::EndpointInfo, msg: string)
 
 event pong(s: string, n: int)
     {
-    send_event(s);
+    local ts = time_to_double(current_event_time());
+    if ( ts == 23.0 * n )
+        send_event(s);
+    else if ( ts == 0.0 && s == "done" )
+        send_event(s);
+    else
+        send_event(fmt("Unexpected timestamp: %s", ts));
     }
 """
 
@@ -69,14 +76,17 @@ class TestCommunication(unittest.TestCase):
                 if i == 5:
                     expected_arg = expected_arg.encode('utf-8') + b'\x82'
 
+                ts_now = datetime.now().timestamp()
+
                 self.assertEqual(ev.name(), "ping")
+                self.assertLess(ts_now - ev.timestamp(), 1.0)
                 self.assertEqual(s, expected_arg)
                 self.assertEqual(c, i)
 
                 if i < 3:
-                    ev = broker.zeek.Event("pong", s + "X", c)
+                    ev = broker.zeek.Event("pong", s + "X", c, ts=(23.0 * c))
                 elif i < 5:
-                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c)
+                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c, ts=(23.0 * c))
                 else:
                     ev = broker.zeek.Event("pong", 'done', c)
 
