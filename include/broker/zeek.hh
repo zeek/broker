@@ -95,6 +95,9 @@ public:
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
 
+  Event(std::string name, vector args, timestamp ts)
+    : Message(Message::Type::Event, {std::move(name), std::move(args), ts}) {}
+
   Event(data msg) : Message(std::move(msg)) {}
 
   const std::string& name() const {
@@ -103,6 +106,22 @@ public:
 
   std::string& name() {
     return get<std::string>(get<vector>(as_vector()[2])[0]);
+  }
+
+  const std::optional<timestamp> ts() const {
+    auto ev_vec = get<vector>(as_vector()[2]);
+    if (ev_vec.size() > 2)
+      return get<timestamp>(ev_vec[2]);
+
+    return std::nullopt;
+  }
+
+  std::optional<timestamp> ts() {
+    auto ev_vec = get<vector>(as_vector()[2]);
+    if (ev_vec.size() > 2)
+      return get<timestamp>(ev_vec[2]);
+
+    return std::nullopt;
   }
 
   const vector& args() const {
@@ -137,7 +156,22 @@ public:
     if (!args_ptr)
       return false;
 
+    // Optional event timestamp
+    if (v.size() > 2) {
+      auto ts_ptr = get_if<timestamp>(&v[2]);
+
+      if (!ts_ptr)
+        return false;
+    }
+
     return true;
+  }
+
+  bool has_ts() const {
+    if (!valid())
+      return false;
+
+    return get<vector>(as_vector()[2]).size() > 2;
   }
 };
 
