@@ -76,17 +76,27 @@ class TestCommunication(unittest.TestCase):
                 if i == 5:
                     expected_arg = expected_arg.encode('utf-8') + b'\x82'
 
-                ts_now = datetime.now().timestamp()
+                # Extract metadata.
+                ev_metadata = ev.metadata()
+                self.assertIsNotNone(ev_metadata)
+                ev_metadata = dict(ev_metadata)
+                self.assertIn(broker.zeek.Metadata.NETWORK_TIMESTAMP, ev_metadata)
+                ts_ev = ev_metadata[broker.zeek.Metadata.NETWORK_TIMESTAMP]
+                ts_now = datetime.now(broker.utc)
 
                 self.assertEqual(ev.name(), "ping")
-                self.assertLess(ts_now - ev.timestamp(), 1.0)
                 self.assertEqual(s, expected_arg)
                 self.assertEqual(c, i)
+                # Test that the event timestamp is before current.
+                self.assertLess(ts_ev, ts_now)
+
+                dt = datetime.fromtimestamp(23.0 * c, broker.utc)
+                metadata = [(broker.zeek.Metadata.NETWORK_TIMESTAMP, dt)]
 
                 if i < 3:
-                    ev = broker.zeek.Event("pong", s + "X", c, ts=(23.0 * c))
+                    ev = broker.zeek.Event("pong", s + "X", c, metadata=metadata)
                 elif i < 5:
-                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c, ts=(23.0 * c))
+                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c, metadata=metadata)
                 else:
                     ev = broker.zeek.Event("pong", 'done', c)
 

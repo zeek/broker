@@ -29,15 +29,16 @@ void init_zeek(py::module& m) {
     .def(py::init(
       [](broker::data data) { return broker::zeek::Event(std::move(data)); }))
     .def(py::init([](std::string name, broker::data args,
-                     std::optional<double> ts) {
-      if (ts)
-        return broker::zeek::Event(std::move(name),
-                                   std::move(broker::get<broker::vector>(args)),
-                                   broker::to_timestamp(*ts));
-      else
-        return broker::zeek::Event(
-          std::move(name), std::move(broker::get<broker::vector>(args)));
-    }))
+                     std::optional<broker::data> metadata) {
+           if (metadata)
+             return broker::zeek::Event(
+               std::move(name), std::move(broker::get<broker::vector>(args)),
+               std::move(broker::get<broker::vector>(*metadata)));
+           else
+             return broker::zeek::Event(
+               std::move(name), std::move(broker::get<broker::vector>(args)));
+         }),
+         py::arg("name"), py::arg("args"), py::arg("metadata") = py::none())
     .def("valid",
          [](const broker::zeek::Event& ev) -> bool {
            auto t = broker::zeek::Message::type(ev.as_data());
@@ -56,23 +57,22 @@ void init_zeek(py::module& m) {
            }
            return ev.name();
          })
-    .def("timestamp",
-         [](const broker::zeek::Event& ev) -> const std::optional<double> {
-           auto t = broker::zeek::Message::type(ev.as_data());
-           if (t != broker::zeek::Message::Type::Event) {
-             throw std::invalid_argument("invalid Event data/type");
-           }
-           if (!ev.valid()) {
-             throw std::invalid_argument("invalid Event data");
-           }
-           if (auto ev_ts = ev.ts()) {
-             double ts;
-             broker::convert(*ev_ts, ts);
-             return ts;
-           }
+    .def(
+      "metadata",
+      [](const broker::zeek::Event& ev) -> const std::optional<broker::vector> {
+        auto t = broker::zeek::Message::type(ev.as_data());
+        if (t != broker::zeek::Message::Type::Event) {
+          throw std::invalid_argument("invalid Event data/type");
+        }
+        if (!ev.valid()) {
+          throw std::invalid_argument("invalid Event data");
+        }
 
-           return std::nullopt;
-         })
+        if (const auto& md = ev.metadata())
+          return md->as_vector();
+
+        return std::nullopt;
+      })
     .def("args", [](const broker::zeek::Event& ev) -> const broker::vector& {
       auto t = broker::zeek::Message::type(ev.as_data());
       if (t != broker::zeek::Message::Type::Event) {

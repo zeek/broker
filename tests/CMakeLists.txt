@@ -127,6 +127,7 @@ if (BROKER_PYTHON_BINDINGS)
   # make_python_test(ssl-tests): re-enable after implementing SSL support
   make_python_test(store)
   make_python_test(topic)
+  make_python_test(zeek-module)
   # TODO: re-enable after updating generator files or adding backwards compatiblity
   # make_python_test(broker-cluster-benchmark
   #                  $<TARGET_FILE:broker-cluster-benchmark>)
