@@ -57,7 +57,7 @@ class TestCommunication(unittest.TestCase):
             with self.assertRaises(TypeError) as ctx:
                 t, msg = sub.get()
 
-            self.assertEquals(str(ctx.exception), "unhashable type: 'dict'")
+            self.assertEqual(str(ctx.exception), "unhashable type: 'dict'")
 
     def test_safe(self):
         with broker.Endpoint() as ep, \
@@ -79,7 +79,7 @@ class TestCommunication(unittest.TestCase):
                 ev = broker.zeek.Event(msg)
                 args = ev.args()
 
-            self.assertEquals(str(ctx.exception), "unhashable type: 'dict'")
+            self.assertEqual(str(ctx.exception), "unhashable type: 'dict'")
 
             # broker.zeek.SafeEvent uses broker.ImmutableData, so can access
             # the arguments safely:

@@ -82,12 +82,12 @@ class TestCommunication(unittest.TestCase):
                 ev_metadata = dict(ev_metadata)
                 self.assertIn(broker.zeek.Metadata.NETWORK_TIMESTAMP, ev_metadata)
                 ts_ev = ev_metadata[broker.zeek.Metadata.NETWORK_TIMESTAMP]
-                ts_now = datetime.now(broker.utc)
 
                 self.assertEqual(ev.name(), "ping")
                 self.assertEqual(s, expected_arg)
                 self.assertEqual(c, i)
-                # Test that the event timestamp is before current.
+                # Zeek's event timestamp should be before current time.
+                ts_now = datetime.now(broker.utc)
                 self.assertLess(ts_ev, ts_now)
 
                 dt = datetime.fromtimestamp(23.0 * c, broker.utc)
