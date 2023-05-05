@@ -7,12 +7,11 @@ except ImportError:
 import broker
 
 # Keep this in sync with zeek.hh
-class Metadata:
-    NETWORK_TIMESTAMP = broker.Count(1)
-    USER_METADATA_START = broker.Count(200)
+class MetadataType:
+    NetworkTimestamp = broker.Count(1)
+    UserMetadataStart = broker.Count(200)
 
 class Event(_broker.zeek.Event):
-
     def __init__(self, *args, metadata=None):
         if len(args) == 1 and not isinstance(args[0], str):
             # Parse raw broker message as event.

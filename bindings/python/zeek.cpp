@@ -57,22 +57,21 @@ void init_zeek(py::module& m) {
            }
            return ev.name();
          })
-    .def(
-      "metadata",
-      [](const broker::zeek::Event& ev) -> const std::optional<broker::vector> {
-        auto t = broker::zeek::Message::type(ev.as_data());
-        if (t != broker::zeek::Message::Type::Event) {
-          throw std::invalid_argument("invalid Event data/type");
-        }
-        if (!ev.valid()) {
-          throw std::invalid_argument("invalid Event data");
-        }
+    .def("metadata",
+         [](const broker::zeek::Event& ev) -> std::optional<broker::vector> {
+           auto t = broker::zeek::Message::type(ev.as_data());
+           if (t != broker::zeek::Message::Type::Event) {
+             throw std::invalid_argument("invalid Event data/type");
+           }
+           if (!ev.valid()) {
+             throw std::invalid_argument("invalid Event data");
+           }
 
-        if (const auto& md = ev.metadata())
-          return md->as_vector();
+           if (const auto vec = ev.metadata().get_vector())
+             return *vec;
 
-        return std::nullopt;
-      })
+           return std::nullopt;
+         })
     .def("args", [](const broker::zeek::Event& ev) -> const broker::vector& {
       auto t = broker::zeek::Message::type(ev.as_data());
       if (t != broker::zeek::Message::Type::Event) {

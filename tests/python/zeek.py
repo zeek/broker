@@ -80,8 +80,8 @@ class TestCommunication(unittest.TestCase):
                 ev_metadata = ev.metadata()
                 self.assertIsNotNone(ev_metadata)
                 ev_metadata = dict(ev_metadata)
-                self.assertIn(broker.zeek.Metadata.NETWORK_TIMESTAMP, ev_metadata)
-                ts_ev = ev_metadata[broker.zeek.Metadata.NETWORK_TIMESTAMP]
+                self.assertIn(broker.zeek.MetadataType.NetworkTimestamp, ev_metadata)
+                ts_ev = ev_metadata[broker.zeek.MetadataType.NetworkTimestamp]
 
                 self.assertEqual(ev.name(), "ping")
                 self.assertEqual(s, expected_arg)
@@ -91,7 +91,7 @@ class TestCommunication(unittest.TestCase):
                 self.assertLess(ts_ev, ts_now)
 
                 dt = datetime.fromtimestamp(23.0 * c, broker.utc)
-                metadata = [(broker.zeek.Metadata.NETWORK_TIMESTAMP, dt)]
+                metadata = [(broker.zeek.MetadataType.NetworkTimestamp, dt)]
 
                 if i < 3:
                     ev = broker.zeek.Event("pong", s + "X", c, metadata=metadata)
