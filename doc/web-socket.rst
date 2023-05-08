@@ -412,7 +412,7 @@ Encoding of Zeek Events
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Broker encodes Zeek events as nested vectors using the following structure:
-``[<format-nr>, <type>, [<name>, <args>]]``:
+``[<format-nr>, <type>, [<name>, <args>, <metadata (optional)>]]``:
 
 ``format-nr``
   A ``count`` denoting the format version. Currently, this is always ``1``.
@@ -427,9 +427,25 @@ Broker encodes Zeek events as nested vectors using the following structure:
 ``args``
   Contains the arguments for the event in the form of another ``vector``.
 
+``metadata``
+  Contains a ``vector`` of key-value pairs (represented as further ``vectors``
+  of size 2) for which the first element is a ``count`` for identification
+  purposes and the second element any supported Broker data type. This vector
+  can be used to attach arbitrary metadata to events.
+
+  Zeek version 6.0 and up always includes the network time of an event as metadata.
+  The key for a network timestamp is ``1`` and the data type for the value is
+  a ``timestamp``.
+
+  Broker endpoints are free to use counts starting with 200 to identify
+  and exchange metadata of their own choosing. Within a network of Broker
+  nodes, individual endpoints need to agree on the meaning and type of metadata
+  attached to events.
+
+
 For example, an event called ``event_1`` that has been published to topic
 ``/foo/bar`` with an integer argument ``42`` and a string argument ``test``
-would render as:
+without attached metadata would be render as:
 
 .. code-block:: json
 
@@ -463,6 +479,68 @@ would render as:
               {
                 "@data-type": "string",
                 "data": "test"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
+An event including with ``NetworkTimestamp`` metadata event render as follows,
+having the ``args`` vector followed by another vector containing the network
+timestamp of the event:
+
+.. code-block:: json
+
+  {
+    "type": "data-message",
+    "topic": "/foo/bar",
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "count",
+        "data": 1
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "string",
+            "data": "event_1"
+          },
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "integer",
+                "data": 42
+              },
+              {
+                "@data-type": "string",
+                "data": "test"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "@data-type": "vector",
+        "data": [
+          {
+            "@data-type": "vector",
+            "data": [
+              {
+                "@data-type": "count",
+                "data": 1
+              },
+              {
+                "@data-type": "timestamp",
+                "data": "2023-04-18T14:13:14.000"
               }
             ]
           }
