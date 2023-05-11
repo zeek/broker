@@ -525,22 +525,22 @@ timestamp of the event:
                 "data": "test"
               }
             ]
-          }
-        ]
-      },
-      {
-        "@data-type": "vector",
-        "data": [
+          },
           {
             "@data-type": "vector",
             "data": [
               {
-                "@data-type": "count",
-                "data": 1
-              },
-              {
-                "@data-type": "timestamp",
-                "data": "2023-04-18T14:13:14.000"
+                "@data-type": "vector",
+                "data": [
+                  {
+                    "@data-type": "count",
+                    "data": 1
+                  },
+                  {
+                    "@data-type": "timestamp",
+                    "data": "2023-04-18T14:13:14.000"
+                  }
+                ]
               }
             ]
           }
