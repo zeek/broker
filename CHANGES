@@ -1,3 +1,25 @@
+2.5.0-dev.110 | 2023-05-11 12:42:51 +0200
+
+  * Add metadata section to websocket docs (Arne Welzel, Corelight)
+
+  * zeek-unsafe-types: assertEquals() is deprecated (Arne Welzel, Corelight)
+
+  * bindings: Rework Python for extensible metadata format (Arne Welzel, Corelight)
+
+  * Implement extensible metadata format for events (Arne Welzel, Corelight)
+
+  * Update tests to consider event timestamps. (Jan Grashoefer, Corelight)
+
+  * Add event timestamp to python bindings. (Jan Grashoefer, Corelight)
+
+  * Add optional timestamp to event message. (Jan Grashoefer, Corelight)
+
+  * Pin Sphinx/sphinx_rtd_theme in requirements.txt (Arne Welzel, Corelight)
+
+  * Fix urllib/openssl 1.0.2 error in readthedocs build (Arne Welzel, Corelight)
+
+    Fix as per: readthedocs/readthedocs.org#10290 (comment)
+
 2.5.0-dev.95 | 2023-04-14 19:41:45 +0200
 
   * Fix trailing semicolon (Arne Welzel, Corelight)
