@@ -105,14 +105,18 @@ protected:
 
 /// Support iteration with structured binding.
 class MetadataIterator {
+public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
   using value_type = std::pair<count, const data&>;
   using pointer = value_type*;
   using reference = value_type&;
 
-public:
   explicit MetadataIterator(const broker::data* ptr) noexcept : ptr_(ptr) {}
+
+  MetadataIterator(const MetadataIterator&) noexcept = default;
+
+  MetadataIterator& operator=(const MetadataIterator&) noexcept = default;
 
   value_type operator*() const {
     auto entry_ptr = get_if<vector>(*ptr_);
@@ -203,12 +207,11 @@ public:
   }
 
   MetadataWrapper metadata() const {
-    const vector* md_vec_ptr = nullptr;
-    auto ev_vec_ptr = get_if<vector>(as_vector()[2]);
-    if (ev_vec_ptr && ev_vec_ptr->size() >= 3)
-      md_vec_ptr = get_if<vector>((*ev_vec_ptr)[2]);
+    if (const auto* ev_vec_ptr = get_if<vector>(as_vector()[2]);
+        ev_vec_ptr && ev_vec_ptr->size() >= 3)
+      return MetadataWrapper{get_if<vector>((*ev_vec_ptr)[2])};
 
-    return MetadataWrapper{md_vec_ptr};
+    return MetadataWrapper{nullptr};
   }
 
   const std::optional<timestamp> ts() const {
