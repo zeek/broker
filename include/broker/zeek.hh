@@ -1,10 +1,24 @@
 #pragma once
 
+#include <cstddef>
+#include <iterator>
+#include <optional>
+
 #include "broker/data.hh"
+#include "broker/detail/assert.hh"
 
 namespace broker::zeek {
 
 const count ProtocolVersion = 1;
+
+/// Metadata attached to Zeek events.
+enum class MetadataType : uint8_t {
+  NetworkTimestamp = 1,
+  // 1 - 199 is reserved for Zeek. Otherwise free for external
+  // users to experiment with before potentially including
+  // in the reserved range.
+  UserMetadataStart = 200,
+};
 
 /// Generic Zeek-level message.
 class Message {
@@ -89,11 +103,98 @@ protected:
   data data_;
 };
 
+/// Support iteration with structured binding.
+class MetadataIterator {
+public:
+  using iterator_category = std::forward_iterator_tag;
+  using difference_type = std::ptrdiff_t;
+  using value_type = std::pair<count, const data&>;
+  using pointer = value_type*;
+  using reference = value_type&;
+
+  explicit MetadataIterator(const broker::data* ptr) noexcept : ptr_(ptr) {}
+
+  MetadataIterator(const MetadataIterator&) noexcept = default;
+
+  MetadataIterator& operator=(const MetadataIterator&) noexcept = default;
+
+  value_type operator*() const {
+    auto entry_ptr = get_if<vector>(*ptr_);
+    BROKER_ASSERT(entry_ptr && entry_ptr->size() == 2);
+    const auto& entry = *entry_ptr;
+    return {get<count>(entry[0]), entry[1]};
+  }
+
+  MetadataIterator& operator++() noexcept {
+    ++ptr_;
+    return *this;
+  }
+
+  MetadataIterator operator++(int) noexcept {
+    return MetadataIterator{ptr_++};
+  }
+
+  bool operator!=(const MetadataIterator& other) const noexcept {
+    return ptr_ != other.ptr_;
+  }
+
+  bool operator==(const MetadataIterator& other) const noexcept {
+    return ptr_ == other.ptr_;
+  }
+
+private:
+  const broker::data* ptr_;
+};
+
+/// Supports iteration over metadata
+class MetadataWrapper {
+public:
+  explicit MetadataWrapper(const vector* v) noexcept : v_(v) {}
+
+  [[nodiscard]] MetadataIterator begin() const noexcept {
+    return MetadataIterator{v_ ? v_->data() : nullptr};
+  }
+
+  [[nodiscard]] MetadataIterator end() const noexcept {
+    return MetadataIterator{v_ ? v_->data() + v_->size() : nullptr};
+  }
+
+  const data* value(MetadataType key) const {
+    return value(static_cast<count>(key));
+  }
+
+  const data* value(count key) const {
+    for (const auto& [k, v] : *this) {
+      if (k == key)
+        return &v;
+    }
+    return nullptr;
+  }
+
+  /// Raw access to the underlying metadata vector.
+  const vector* get_vector() const noexcept {
+    return v_;
+  }
+
+private:
+  const vector* v_;
+};
+
 /// A Zeek event.
 class Event : public Message {
 public:
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
+
+  Event(std::string name, vector args, timestamp ts)
+    : Message(Message::Type::Event,
+              {std::move(name), std::move(args),
+               vector{{vector{
+                 static_cast<count>(MetadataType::NetworkTimestamp), ts}}}}) {}
+
+  Event(std::string name, vector args, vector metadata)
+    : Message(Message::Type::Event,
+              {std::move(name), std::move(args), std::move(metadata)}) {}
 
   Event(data msg) : Message(std::move(msg)) {}
 
@@ -103,6 +204,21 @@ public:
 
   std::string& name() {
     return get<std::string>(get<vector>(as_vector()[2])[0]);
+  }
+
+  MetadataWrapper metadata() const {
+    if (const auto* ev_vec_ptr = get_if<vector>(as_vector()[2]);
+        ev_vec_ptr && ev_vec_ptr->size() >= 3)
+      return MetadataWrapper{get_if<vector>((*ev_vec_ptr)[2])};
+
+    return MetadataWrapper{nullptr};
+  }
+
+  const std::optional<timestamp> ts() const {
+    if (auto ts_ptr = metadata().value(MetadataType::NetworkTimestamp))
+      return get<timestamp>(*ts_ptr);
+
+    return std::nullopt;
   }
 
   const vector& args() const {
@@ -136,6 +252,40 @@ public:
 
     if (!args_ptr)
       return false;
+
+    // Optional event metadata verification.
+    //
+    // Verify the third element if it exists is a vector<vector<count, data>>
+    // and type and further check that the NetworkTimestamp metadata has the
+    // right type because we know down here what to expect.
+    if (v.size() > 2) {
+      auto md_ptr = get_if<vector>(&v[2]);
+      if (!md_ptr)
+        return false;
+
+      for (const auto& mde : *md_ptr) {
+        auto mdev_ptr = get_if<vector>(mde);
+        if (!mdev_ptr)
+          return false;
+
+        if (mdev_ptr->size() != 2)
+          return false;
+
+        const auto& mdev = *mdev_ptr;
+
+        auto mde_key_ptr = get_if<count>(mdev[0]);
+        if (!mde_key_ptr)
+          return false;
+
+        constexpr auto net_ts_key =
+          static_cast<count>(MetadataType::NetworkTimestamp);
+        if (*mde_key_ptr == net_ts_key) {
+          auto mde_val_ptr = get_if<timestamp>(mdev[1]);
+          if (!mde_val_ptr)
+            return false;
+        }
+      }
+    }
 
     return true;
   }
