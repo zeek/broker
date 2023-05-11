@@ -1,3 +1,12 @@
+2.3.7-2 | 2023-05-11 11:12:21 -0700
+
+  * Merge branch 'topic/timw/update-caf-for-gcc-13-fixes' into release/2.3 (Tim Wojtulewicz, Corelight)
+
+    * topic/timw/update-caf-for-gcc-13-fixes:
+      Bump CAF submodule to get GCC 13 fixes plus a few others
+
+  * Bump CAF submodule to get GCC 13 fixes plus a few others (Tim Wojtulewicz, Corelight)
+
 2.3.7 | 2023-01-28 09:54:10 -0700
 
   * Update CHANGES, VERSION, and NEWS for 2.3.7 release (Tim Wojtulewicz, Corelight)
