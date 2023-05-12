@@ -1,3 +1,7 @@
+2.5.0-dev.116 | 2023-05-12 11:18:43 -0700
+
+  * Pick up CAF backport of uint64_t support in JSON (Dominik Charousset, Corelight)
+
 2.5.0-dev.114 | 2023-05-12 11:18:26 -0700
 
   * Allow reading port parameters as integers (Dominik Charousset, Corelight)

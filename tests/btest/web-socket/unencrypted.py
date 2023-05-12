@@ -49,10 +49,9 @@ async def do_run():
             # tell btest to start the sender now
             with open('ready', 'w') as f:
                 f.write('ready')
-            # dump messages to stdout (redirected to recv.out)
-            for i in range(10):
-                msg = await ws.recv()
-                print(f'{msg}')
+            # dump message to stdout (redirected to recv.out)
+            msg = await ws.recv()
+            print(f'{msg}')
             # tell btest we're done
             with open('done', 'w') as f:
                 f.write('done')
@@ -78,20 +77,40 @@ ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
 ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
 
+# Our message with one value of every type.
 msg = {
     'type': 'data-message',
     'topic': '/test',
-    '@data-type': "count",
-    "data": 0
+    '@data-type': "vector",
+    'data': [
+        # min int64
+        {
+            '@data-type': "integer",
+            "data": -9223372036854775808
+        },
+        # max int64
+        {
+            '@data-type': "integer",
+            "data": 9223372036854775807
+        },
+        # min uint64
+        {
+            '@data-type': "count",
+            "data": 0
+        },
+        # max uint64
+        {
+            '@data-type': "count",
+            "data": 18446744073709551615
+        },
+    ],
 }
 
 async def do_run():
     async with websockets.connect(ws_url) as ws:
       await ws.send('[]')
       await ws.recv() # wait for ACK
-      for i in range(10):
-          msg['data'] += 1
-          await ws.send(json.dumps(msg))
+      await ws.send(json.dumps(msg))
       await ws.close()
 
 loop = asyncio.get_event_loop()
