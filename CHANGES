@@ -1,3 +1,7 @@
+2.5.0-dev.118 | 2023-05-12 12:39:11 -0700
+
+  * Update CAF submodule to remove leftover debug message (Tim Wojtulewicz, Corelight)
+
 2.5.0-dev.116 | 2023-05-12 11:18:43 -0700
 
   * Pick up CAF backport of uint64_t support in JSON (Dominik Charousset, Corelight)
