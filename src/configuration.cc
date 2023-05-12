@@ -471,19 +471,31 @@ void configuration::set_bool(std::string_view key, bool val) {
 std::optional<int64_t> configuration::read_i64(std::string_view key,
                                                int64_t min_val,
                                                int64_t max_val) const {
+  // Read the value as an int64_t and perform a range check. On success, return
+  // the value.
   if (auto res = caf::get_as<int64_t>(*impl_, key);
       res && *res >= min_val && *res <= max_val)
     return {*res};
-  else
-    return {};
+  // Special case: if the value is a port, we allow a conversion here.
+  if (auto res = caf::get_as<port>(*impl_, key);
+      res && res->number() >= min_val && res->number() <= max_val)
+    return {static_cast<int64_t>(res->number())};
+  // No matching conversion: return nullopt.
+  return {};
 }
 
 std::optional<uint64_t> configuration::read_u64(std::string_view key,
                                                 uint64_t max_val) const {
+  // Read the value as an uint64_t and perform a range check. On success, return
+  // the value.
   if (auto res = caf::get_as<uint64_t>(*impl_, key); res && *res <= max_val)
     return {*res};
-  else
-    return {};
+  // Special case: if the value is a port, we allow a conversion here.
+  if (auto res = caf::get_as<port>(*impl_, key);
+      res && res->number() <= max_val)
+    return {static_cast<uint64_t>(res->number())};
+  // No matching conversion: return nullopt.
+  return {};
 }
 
 std::optional<timespan> configuration::read_ts(std::string_view key) const {

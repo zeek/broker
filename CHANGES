@@ -1,3 +1,15 @@
+2.5.0-dev.114 | 2023-05-12 11:18:26 -0700
+
+  * Allow reading port parameters as integers (Dominik Charousset, Corelight)
+
+    Restore backwards compatibility (in particular with Zeek) that expect
+    the port parameters to be accessible as 16-bit integers.
+
+  * Fix metadata vector location in websocket docs (Arne Welzel, Corelight)
+
+    As documented, they are one level further down, following args
+    directly.
+
 2.5.0-dev.110 | 2023-05-11 12:42:51 +0200
 
   * Add metadata section to websocket docs (Arne Welzel, Corelight)
