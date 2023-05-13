@@ -49,9 +49,11 @@ async def do_run():
             # tell btest to start the sender now
             with open('ready', 'w') as f:
                 f.write('ready')
-            # dump message to stdout (redirected to recv.out)
-            msg = await ws.recv()
-            print(f'{msg}')
+            # the message must be valid JSON
+            msg_json = await ws.recv()
+            msg = json.loads(msg_json)
+            # pretty-print to stdout (redirected to recv.out)
+            print(json.dumps(msg, indent=2))
             # tell btest we're done
             with open('done', 'w') as f:
                 f.write('done')
@@ -102,6 +104,91 @@ msg = {
         {
             '@data-type': "count",
             "data": 18446744073709551615
+        },
+        # string
+        {
+            "@data-type": "string",
+            "data": "Hello Broker!"
+        },
+        # none
+        {
+            "@data-type": "none",
+            "data": {}
+        },
+        # boolean
+        {
+            "@data-type": "boolean",
+            "data": True
+        },
+        # floating point
+        {
+            "@data-type": "real",
+            "data": -7.5
+        },
+        # timespan
+        {
+            "@data-type": "timespan",
+            "data": "15ms"
+        },
+        # enum
+        {
+            "@data-type": "enum-value",
+            "data": "foo"
+        },
+        # IP address
+        {
+            "@data-type": "address",
+            "data": "2001:db8::"
+        },
+        # IP subnet
+        {
+            "@data-type": "subnet",
+            "data": "255.255.255.0/24"
+        },
+        # port
+        {
+            "@data-type": "port",
+            "data": "8080/tcp"
+        },
+        # set
+        {
+            "@data-type": "set",
+            "data": [
+                {
+                    "@data-type": "string",
+                    "data": "bar"
+                },
+                {
+                    "@data-type": "string",
+                    "data": "foo"
+                },
+            ]
+        },
+        # table
+        {
+            "@data-type": "table",
+            "data": [
+                {
+                    "key": {
+                        "@data-type": "string",
+                        "data": "first-name"
+                    },
+                    "value": {
+                        "@data-type": "string",
+                        "data": "John"
+                    }
+                },
+                {
+                    "key": {
+                        "@data-type": "string",
+                        "data": "last-name"
+                    },
+                    "value": {
+                        "@data-type": "string",
+                        "data": "Doe"
+                    }
+                }
+            ]
         },
     ],
 }
