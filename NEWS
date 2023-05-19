@@ -1,3 +1,8 @@
+Broker 2.3.8
+============
+
+- Update CAF to support GCC 13 (Tim Wojtulewicz, Corelight)x
+
 Broker 2.3.7
 ============
 
