@@ -1,3 +1,46 @@
+Broker 2.5.0
+============
+
+- Add interface include dirs to broker lib targets
+
+- Minimize messaging in sim_clock::advance_time
+
+- Update CAF submodule for SPCP buffer fix
+
+- Fix handling of peer/client errors
+
+- Implement graceful disconnect handshake
+
+- Add ``synchronous``, ``journal_mode``, ``failure_mode``, and
+  ``integrity_check`` options to the SQLite store backend.
+
+- Fix to use IPv6 mode for accept sockets by default
+
+- Add support for using Zeek-style port/protocol notation as arguments
+
+- Add support for building with GCC 13.
+
+Broker 2.4.0
+============
+
+- Fix CMake package file when bundling CAF
+
+- Fix a performance bottleneck in Broker-internal caching.
+
+- Improve performance with the ``stealing`` scheduler policy.
+
+- Fix messaging between clones and proxies that was resulting in an error
+  message being reported.
+
+- Fix a bug that prevented Broker nodes to recover from OpenSSL errors.
+
+- Fix handling of buffer sizes that caused Broker to stall despite having
+  sufficient capacity.
+
+- Add missing error signaling
+
+- Fix communication between Broker data stores.
+
 Broker 2.3.0
 ============
 
