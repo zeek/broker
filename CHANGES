@@ -1,3 +1,7 @@
+2.6.0-dev.66 | 2023-05-23 11:33:10 -0700
+
+  * Bump CAF submodule to fix sprintf warning (Dominik Charousset, Corelight)
+
 2.5.0-dev.120 | 2023-05-18 09:59:21 +0200
 
   * Cover more types with the WebSocket btest (Dominik Charousset, Corelight)
