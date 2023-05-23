@@ -1,3 +1,20 @@
+Broker 2.6.0
+============
+
+- Add new feature that allows users to retrieve a status report about the
+  current state of Broker over HTTP in JSON format. This report gives a more
+  detailed picture than the metrics do, including information about attached
+  stores, the current connection state of a cluster, and more. The endpoint for
+  retrieving this report is ``/v1/status/json`` on the same port used for
+  metrics.
+
+- Fix a regression where the ``endpoint::peers()`` method was alwas returning a
+  status of ``connected`` for all peers. This is most noticable with zeekctl
+  when collecting and printing peer statuses.
+
+- Force static builds with the bundled version of CAF to ensure that all of the
+  dependencies between the various CAF targets are met.
+
 Broker 2.5.0
 ============
 
