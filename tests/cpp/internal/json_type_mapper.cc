@@ -6,6 +6,7 @@
 
 #include <caf/json_reader.hpp>
 #include <caf/json_writer.hpp>
+#include <caf/string_algorithms.hpp>
 
 using namespace broker;
 
@@ -56,7 +57,7 @@ constexpr caf::string_view json = R"_({
     },
     {
       "@data-type": "timestamp",
-      "data": "2022-04-10T16:07:00.000"
+      "data": "2022-04-10T16:07:00Z"
     },
     {
       "@data-type": "timespan",
@@ -134,7 +135,7 @@ data_message native() {
   xs.emplace_back(dummy_addr_v6);
   xs.emplace_back(subnet{dummy_addr_v4, 24});
   xs.emplace_back(port{8080, port::protocol::tcp});
-  xs.emplace_back(timestamp_from_string("2022-04-10T16:07:00.000"));
+  xs.emplace_back(timestamp_from_string("2022-04-10T16:07:00Z"));
   xs.emplace_back(timespan{23s});
   xs.emplace_back(enum_value{"foo"s});
   xs.emplace_back(set{data{1}, data{2}, data{3}});
@@ -172,8 +173,17 @@ TEST(the JSON mapper enables custom type names in JSON output) {
   writer.mapper(&mapper);
   auto msg = native();
   auto decorator = decorated(msg);
-  if (CHECK(writer.apply(decorator)))
-    CHECK_EQ(writer.str(), json);
-  else
-    auto str = to_string(writer.str());
+  if (CHECK(writer.apply(decorator))) {
+    auto expected_json = to_string(json);
+    // Give the timestamp in the expected output a roundtrip through the
+    // chrono library to normalize the format.
+    auto utc = "2022-04-10T16:07:00Z"s;
+    auto parsed = caf::chrono::datetime::from_string(utc);
+    REQUIRE(parsed);
+    auto ts = parsed->to_local_time<timestamp::duration>();
+    auto normalized = caf::chrono::to_string(ts);
+    MESSAGE("normalized timestamp from " << utc << " to " << normalized);
+    caf::replace_all(expected_json, utc, normalized);
+    CHECK_EQ(writer.str(), expected_json);
+  }
 }
