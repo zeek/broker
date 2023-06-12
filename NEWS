@@ -15,6 +15,8 @@ Broker 2.6.0
 - Force static builds with the bundled version of CAF to ensure that all of the
   dependencies between the various CAF targets are met.
 
+- Fix handling of fragmented WebSocket frames
+
 Broker 2.5.0
 ============
 

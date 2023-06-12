@@ -1,6 +1,6 @@
-2.6.0 | 2023-05-26 11:05:12 -0700
+2.6.0 | 2023-06-12 14:22:39 -0700
 
-  * Release 2.6.0.
+  * Fix handling of fragmented WebSocket frames (Dominik Charousset, Corelight)
 
   * Add NEWS for 2.6.0 release [nomail] [skip ci] (Tim Wojtulewicz, Corelight)
 
