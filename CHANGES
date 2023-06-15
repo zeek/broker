@@ -1,3 +1,7 @@
+2.7.0-dev.9 | 2023-06-15 14:46:55 -0700
+
+  * CI: a round of updates to align with Zeek (Christian Kreibich, Corelight)
+
 2.7.0-dev.7 | 2023-06-12 14:08:19 -0700
 
   * ci/windows: choco --localonly is gone (Tim Wojtulewicz, Corelight)
