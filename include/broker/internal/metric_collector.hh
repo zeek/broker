@@ -28,7 +28,9 @@ public:
   template <class T>
   using mono_pair = std::pair<T, T>;
 
-  using label_span = caf::span<const caf::telemetry::label_view>;
+  using label_list = std::vector<caf::telemetry::label>;
+
+  using label_view_list = std::vector<caf::telemetry::label_view>;
 
   using string_span = caf::span<const std::string_view>;
 
@@ -36,7 +38,7 @@ public:
   public:
     using super = caf::telemetry::metric;
 
-    remote_metric(std::vector<caf::telemetry::label> labels,
+    remote_metric(label_list labels,
                   const caf::telemetry::metric_family* parent);
 
     ~remote_metric() override;
@@ -77,8 +79,15 @@ private:
   using instance_ptr = std::unique_ptr<remote_metric>;
 
   struct metric_scope {
+    /// The metric family.
     family_ptr family;
+    /// The instances of the metric family, sorted by label values.
     std::vector<instance_ptr> instances;
+
+    metric_scope() {
+      // Allocate space for 64 instances to avoid frequent reallocations.
+      instances.reserve(64);
+    }
   };
 
   using name_map = std::unordered_map<std::string, metric_scope>;
@@ -95,8 +104,9 @@ private:
   /// Extracts the names for all label dimensions from `mv`.
   string_span label_names_for(metric_view mv);
 
-  /// Extracts the label dimensions from `mv`.
-  label_span labels_for(const std::string& endpoint_name, metric_view mv);
+  /// Extracts the label dimensions from `mv` and stores them in `result`.
+  void labels_for(const std::string& endpoint_name, metric_view mv,
+                  label_view_list& result);
 
   /// Retrieves or lazily creates a metric object for `mv`.
   remote_metric* instance(const std::string& endpoint_name, metric_view mv);
@@ -115,6 +125,10 @@ private:
 
   /// Generates Prometheus-formatted text.
   caf::telemetry::collector::prometheus generator_;
+
+  /// Caches the string "endpoint" as a broker::data instance. Having this as a
+  /// member avoids constructing this object each time in `labels_for`.
+  data ep_key_ = data{"endpoint"};
 };
 
 } // namespace broker::internal
