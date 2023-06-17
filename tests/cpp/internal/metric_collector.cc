@@ -81,6 +81,74 @@ bool contains(std::string_view str, std::string_view what) {
 
 FIXTURE_SCOPE(telemetry_collector_tests, fixture)
 
+TEST(less predicate) {
+  internal::metric_collector::labels_less less;
+  using labels_list = std::vector<caf::telemetry::label>;
+  { // Single label (equal).
+    auto lhs = labels_list{{"type", "native"}};
+    auto rhs = labels_list{{"type", "native"}};
+    CHECK(!less(lhs, rhs));
+    CHECK(!less(rhs, lhs));
+  }
+  { // Single label (unequal).
+    auto lhs = labels_list{{"type", "native"}};
+    auto rhs = labels_list{{"type", "web-socket"}};
+    CHECK(less(lhs, rhs));
+    CHECK(!less(rhs, lhs));
+  }
+  { // Two equal labels.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    CHECK(!less(lhs, rhs));
+    CHECK(!less(rhs, lhs));
+  }
+  { // Two labels, with the first being smaller.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-2"}, {"type", "native"}};
+    CHECK(less(lhs, rhs));
+    CHECK(!less(rhs, lhs));
+  }
+  { // Two labels, with the second being smaller.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-1"}, {"type", "web-socket"}};
+    CHECK(less(lhs, rhs));
+    CHECK(!less(rhs, lhs));
+  }
+}
+
+TEST(equal predicate) {
+  internal::metric_collector::labels_equal equal;
+  using labels_list = std::vector<caf::telemetry::label>;
+  { // Single label (equal).
+    auto lhs = labels_list{{"type", "native"}};
+    auto rhs = labels_list{{"type", "native"}};
+    CHECK(equal(lhs, rhs));
+  }
+  { // Single label (unequal).
+    auto lhs = labels_list{{"type", "native"}};
+    auto rhs = labels_list{{"type", "web-socket"}};
+    CHECK(!equal(lhs, rhs));
+  }
+  { // Two equal labels.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    CHECK(equal(lhs, rhs));
+    CHECK(equal(rhs, lhs));
+  }
+  { // Two labels, with the first being smaller.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-2"}, {"type", "native"}};
+    CHECK(!equal(lhs, rhs));
+    CHECK(!equal(rhs, lhs));
+  }
+  { // Two labels, with the second being smaller.
+    auto lhs = labels_list{{"endpoint", "exporter-1"}, {"type", "native"}};
+    auto rhs = labels_list{{"endpoint", "exporter-1"}, {"type", "web-socket"}};
+    CHECK(!equal(lhs, rhs));
+    CHECK(!equal(rhs, lhs));
+  }
+}
+
 TEST(a collector consumes the output of an exporter) {
   MESSAGE("fill in some data");
   foo_g1->inc(1);

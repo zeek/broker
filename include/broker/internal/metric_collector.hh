@@ -1,5 +1,6 @@
 #pragma once
 
+#include <set>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -51,6 +52,80 @@ public:
     const caf::telemetry::metric_family* parent_;
   };
 
+  using family_ptr = std::unique_ptr<caf::telemetry::metric_family>;
+
+  using instance_ptr = std::unique_ptr<remote_metric>;
+
+  /// Predicate for checking whether a list of labels is less than another list
+  /// of labels. Automatically un-boxes `instance_ptr`.
+  struct labels_less {
+    using is_transparent = std::true_type;
+
+    /// Compares a two individual label elements.
+    template <class T1, class T2>
+    auto cmp_element(const T1& lhs, const T2& rhs) const noexcept {
+      auto cmp1 = lhs.name().compare(rhs.name());
+      return cmp1 != 0 ? cmp1 : lhs.value().compare(rhs.value());
+    }
+
+    template <class T1, class T2>
+    bool operator()(const T1& lhs, const T2& rhs) const noexcept {
+      using remote_metric = std::unique_ptr<metric_collector::remote_metric>;
+      if constexpr (std::is_same_v<T1, remote_metric>) {
+        return (*this)(lhs->labels(), rhs);
+      } else if constexpr (std::is_same_v<T2, remote_metric>) {
+        return (*this)(lhs, rhs->labels());
+      } else {
+        if (lhs.size() != rhs.size())
+          return lhs.size() < rhs.size();
+        // Empty lists are equal.
+        if (lhs.empty())
+          return false;
+        // Compare the first n - 1 labels.
+        size_t index = 0;
+        for (; index < lhs.size() - 1; ++index) {
+          auto res = cmp_element(lhs[index], rhs[index]);
+          // If a label was less than the corresponding label in the other list,
+          // we can return true immediately.
+          if (res < 0)
+            return true;
+          // If a label was greater than the corresponding label in the other
+          // list, we can return false immediately.
+          if (res > 0)
+            return false;
+          // Otherwise, the labels are equal and we continue with the next
+          // label.
+        }
+        // Compare the last label. Must be less.
+        return lhs[index] < rhs[index];
+      }
+    }
+  };
+
+  /// Predicate for checking whether two lists of labels are equal.
+  /// Automatically un-boxes `instance_ptr`.
+  struct labels_equal {
+    using is_transparent = std::true_type;
+
+    template <class T1, class T2>
+    bool operator()(const T1& lhs, const T2& rhs) const {
+      using remote_metric = std::unique_ptr<metric_collector::remote_metric>;
+      if constexpr (std::is_same_v<T1, remote_metric>) {
+        return (*this)(lhs->labels(), rhs);
+      } else if constexpr (std::is_same_v<T2, remote_metric>) {
+        return (*this)(lhs, rhs->labels());
+      } else {
+        if (lhs.size() != rhs.size())
+          return false;
+        for (size_t index = 0; index < lhs.size(); ++index) {
+          if (lhs[index] != rhs[index])
+            return false;
+        }
+        return true;
+      }
+    }
+  };
+
   // --- constructors and destructors ------------------------------------------
 
   metric_collector();
@@ -74,20 +149,11 @@ public:
 private:
   // -- private member types ---------------------------------------------------
 
-  using family_ptr = std::unique_ptr<caf::telemetry::metric_family>;
-
-  using instance_ptr = std::unique_ptr<remote_metric>;
-
   struct metric_scope {
     /// The metric family.
     family_ptr family;
     /// The instances of the metric family, sorted by label values.
-    std::vector<instance_ptr> instances;
-
-    metric_scope() {
-      // Allocate space for 64 instances to avoid frequent reallocations.
-      instances.reserve(64);
-    }
+    std::set<instance_ptr, labels_less> instances;
   };
 
   using name_map = std::unordered_map<std::string, metric_scope>;

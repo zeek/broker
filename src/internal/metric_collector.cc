@@ -270,49 +270,7 @@ auto owned(const metric_collector::label_view_list& xs) {
   return result;
 }
 
-/// Checks whether a list of labels LHS is less than another list of labels RHS.
-struct labels_less {
-  template <class T1, class T2>
-  bool operator()(const T1& lhs, const T2& rhs) const {
-    using remote_metric = std::unique_ptr<metric_collector::remote_metric>;
-    if constexpr (std::is_same_v<T1, remote_metric>) {
-      return (*this)(lhs->labels(), rhs);
-    } else if constexpr (std::is_same_v<T2, remote_metric>) {
-      return (*this)(lhs, rhs->labels());
-    } else {
-      if (lhs.size() != rhs.size())
-        return lhs.size() < rhs.size();
-      for (size_t index = 0; index < lhs.size(); ++index)
-        if (!(lhs[index] < rhs[index]))
-          return false;
-      return true;
-    }
-  }
-};
-
-constexpr labels_less labels_less_v{};
-
-/// Checks whether two lists of labels are equal.
-struct labels_equal {
-  template <class T1, class T2>
-  bool operator()(const T1& lhs, const T2& rhs) const {
-    using remote_metric = std::unique_ptr<metric_collector::remote_metric>;
-    if constexpr (std::is_same_v<T1, remote_metric>) {
-      return (*this)(lhs->labels(), rhs);
-    } else if constexpr (std::is_same_v<T2, remote_metric>) {
-      return (*this)(lhs, rhs->labels());
-    } else {
-      if (lhs.size() != rhs.size())
-        return false;
-      for (size_t index = 0; index < lhs.size(); ++index)
-        if (!(lhs[index] == rhs[index]))
-          return false;
-      return true;
-    }
-  }
-};
-
-constexpr labels_equal labels_equal_v{};
+constexpr metric_collector::labels_equal labels_equal_v{};
 
 } // namespace
 
@@ -328,14 +286,12 @@ metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
   }
   auto* fptr = scope.family.get();
   labels_for(endpoint_name, mv, labels_);
-  auto i = std::lower_bound(scope.instances.begin(), scope.instances.end(),
-                            labels_, labels_less_v);
-  if (i != scope.instances.end() && labels_equal_v((*i)->labels(), labels_))
+  auto i = scope.instances.lower_bound(labels_);
+  if (i != scope.instances.end() && labels_equal_v(*i, labels_))
     return i->get();
   auto add = [&](auto* ptr) {
-    // Note: by inserting the new instance at the current position, we keep the
-    // vector sorted. This is required for lower_bound to work correctly.
-    scope.instances.insert(i, instance_ptr{ptr});
+    auto j = scope.instances.insert(i, instance_ptr{ptr});
+    BROKER_ASSERT(j->get() == ptr);
     return ptr;
   };
   using ct::metric_type;
