@@ -118,8 +118,7 @@ private:
 // -- member types -------------------------------------------------------------
 
 metric_collector::remote_metric::remote_metric(
-  std::vector<caf::telemetry::label> labels,
-  const caf::telemetry::metric_family* parent)
+  label_list labels, const caf::telemetry::metric_family* parent)
   : super(std::move(labels)), parent_(parent) {
   // nop
 }
@@ -193,7 +192,6 @@ std::string_view metric_collector::prometheus_text() {
 }
 
 void metric_collector::clear() {
-  labels_.clear();
   label_names_.clear();
   prefixes_.clear();
   last_seen_.clear();
@@ -217,25 +215,28 @@ bool metric_collector::advance_time(const std::string& endpoint_name,
 
 // -- lookups ----------------------------------------------------------------
 
-metric_collector::label_span
-metric_collector::labels_for(const std::string& endpoint_name,
-                             metric_view row) {
+void metric_collector::labels_for(const std::string& endpoint_name,
+                                  metric_view row,
+                                  metric_collector::label_view_list& result) {
   using namespace std::literals;
-  auto name_less = [](const auto& lhs, const auto& rhs) {
-    return lhs.name() < rhs.name();
-  };
-  labels_.clear();
-  labels_.emplace_back("endpoint"sv, endpoint_name);
-  for (const auto& kvp : row.labels())
-    labels_.emplace_back(get<std::string>(kvp.first),
-                         get<std::string>(kvp.second));
-  std::sort(labels_.begin(), labels_.end(), name_less);
-  return labels_;
+  result.clear();
+  result.reserve(row.labels().size() + 1);
+  // Get insertion point for "endpoint" to keep the vector sorted. Then copy all
+  // labels to their final destination.
+  auto pos = row.labels().lower_bound(ep_key_);
+  for (auto i = row.labels().begin(); i != pos; ++i)
+    result.emplace_back(get<std::string>(i->first),
+                        get<std::string>(i->second));
+  result.emplace_back("endpoint"sv, endpoint_name);
+  for (auto i = pos; i != row.labels().end(); ++i)
+    result.emplace_back(get<std::string>(i->first),
+                        get<std::string>(i->second));
 }
 
 metric_collector::string_span
 metric_collector::label_names_for(metric_view row) {
   label_names_.clear();
+  label_names_.reserve(row.labels().size() + 1);
   label_names_.emplace_back("endpoint");
   for (const auto& kvp : row.labels())
     label_names_.emplace_back(get<std::string>(kvp.first));
@@ -259,8 +260,8 @@ auto owned(metric_collector::string_span xs) {
   return result;
 }
 
-auto owned(metric_collector::label_span xs) {
-  std::vector<caf::telemetry::label> result;
+auto owned(const metric_collector::label_view_list& xs) {
+  metric_collector::label_list result;
   if (!xs.empty()) {
     result.reserve(xs.size());
     for (auto& x : xs)
@@ -268,6 +269,8 @@ auto owned(metric_collector::label_span xs) {
   }
   return result;
 }
+
+constexpr metric_collector::labels_equal labels_equal_v{};
 
 } // namespace
 
@@ -282,49 +285,31 @@ metric_collector::instance(const std::string& endpoint_name, metric_view mv) {
     scope.family.reset(ptr);
   }
   auto* fptr = scope.family.get();
-  auto labels = labels_for(endpoint_name, mv);
-  auto labels_match = [lhs{labels}](const instance_ptr& ptr) {
-    BROKER_ASSERT(ptr != nullptr);
-    const auto& rhs = ptr->labels();
-    return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-  };
-  auto i = std::find_if(scope.instances.begin(), scope.instances.end(),
-                        labels_match);
-  if (i != scope.instances.end()) {
+  labels_for(endpoint_name, mv, labels_);
+  auto i = scope.instances.lower_bound(labels_);
+  if (i != scope.instances.end() && labels_equal_v(*i, labels_))
     return i->get();
-  } else {
-    using ct::metric_type;
-    instance_ptr new_instance;
-    switch (mv.type()) {
-      case metric_type::int_counter:
-        new_instance = std::make_unique<remote_counter<integer>>(owned(labels),
-                                                                 fptr);
-        break;
-      case metric_type::dbl_counter:
-        new_instance = std::make_unique<remote_counter<real>>(owned(labels),
-                                                              fptr);
-        break;
-      case metric_type::int_gauge:
-        new_instance = std::make_unique<remote_gauge<integer>>(owned(labels),
-                                                               fptr);
-        break;
-      case metric_type::dbl_gauge:
-        new_instance = std::make_unique<remote_gauge<real>>(owned(labels),
-                                                            fptr);
-        break;
-      case metric_type::int_histogram:
-        new_instance =
-          std::make_unique<remote_histogram<integer>>(owned(labels), fptr);
-        break;
-      case metric_type::dbl_histogram:
-        new_instance = std::make_unique<remote_histogram<real>>(owned(labels),
-                                                                fptr);
-        break;
-      default:
-        return nullptr;
-    }
-    scope.instances.emplace_back(std::move(new_instance));
-    return scope.instances.back().get();
+  auto add = [&](auto* ptr) {
+    auto j = scope.instances.insert(i, instance_ptr{ptr});
+    BROKER_ASSERT(j->get() == ptr);
+    return ptr;
+  };
+  using ct::metric_type;
+  switch (mv.type()) {
+    case metric_type::int_counter:
+      return add(new remote_counter<integer>(owned(labels_), fptr));
+    case metric_type::dbl_counter:
+      return add(new remote_counter<real>(owned(labels_), fptr));
+    case metric_type::int_gauge:
+      return add(new remote_gauge<integer>(owned(labels_), fptr));
+    case metric_type::dbl_gauge:
+      return add(new remote_gauge<real>(owned(labels_), fptr));
+    case metric_type::int_histogram:
+      return add(new remote_histogram<integer>(owned(labels_), fptr));
+    case metric_type::dbl_histogram:
+      return add(new remote_histogram<real>(owned(labels_), fptr));
+    default:
+      return nullptr;
   }
 }
 
