@@ -19,9 +19,6 @@
 #include <map>
 #include <set>
 
-#include <iomanip> // delme
-#include <iostream> //delme
-
 using namespace broker;
 
 namespace {
@@ -108,13 +105,11 @@ public:
     if (!reader.apply(event_1))
       throw std::logic_error("failed to parse data from the JSON: "
                              + to_string(reader.get_error()));
-    printf("event_1: %s\n", to_string(event_1).c_str());
     // Serialize event-1 to the native format.
     {
       caf::binary_serializer snk{nullptr, event_1_bytes};
       if (!snk.apply(event_1))
         throw std::logic_error("failed to serialize event_1");
-      printf("serialized event_1 has %d bytes\n", (int) event_1_bytes.size());
     }
     // Read the JSON for table-1.
     if (!reader.load(table_1_json))
@@ -123,13 +118,11 @@ public:
     if (!reader.apply(table_1))
       throw std::logic_error("failed to parse data from the JSON: "
                              + to_string(reader.get_error()));
-    printf("table_1: %s\n", to_string(table_1).c_str());
     // Serialize table-1 to the native format.
     {
       caf::binary_serializer snk{nullptr, table_1_bytes};
       if (!snk.apply(table_1))
         throw std::logic_error("failed to serialize table_1");
-      printf("serialized table_1 has %d bytes\n", (int) table_1_bytes.size());
     }
   }
 };
@@ -310,7 +303,6 @@ void container_convert(Container& c, std::string& str, char left, char right) {
   constexpr auto* delim = ", ";
   auto first = c.begin();
   auto last = c.end();
-printf("container size: %d\n",(int)std::distance(first,last));
   str += left;
   if (first != last) {
     str += to_string(*first);

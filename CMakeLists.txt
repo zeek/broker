@@ -293,6 +293,7 @@ set(BROKER_SRC
   src/configuration.cc
   src/convert.cc
   src/data.cc
+  src/data_view.cc
   src/detail/abstract_backend.cc
   src/detail/filesystem.cc
   src/detail/flare.cc

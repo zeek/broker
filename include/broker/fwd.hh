@@ -101,6 +101,14 @@ using internal_command_variant =
                cumulative_ack_command, nack_command, ack_clone_command,
                retransmit_failed_command>;
 
+// -- view types ---------------------------------------------------------------
+
+class data_view;
+class enum_value_view;
+class set_view;
+class table_view;
+class vector_view;
+
 // -- arithmetic type aliases --------------------------------------------------
 
 using boolean = bool;

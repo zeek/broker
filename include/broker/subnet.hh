@@ -16,10 +16,12 @@ bool convert(const std::string& str, subnet& sn);
 class subnet : detail::totally_ordered<subnet> {
 public:
   /// Default construct empty subnet ::/0.
-  subnet();
+  subnet() noexcept;
+
+  subnet(const subnet&) noexcept = default;
 
   /// Construct subnet from an address and length.
-  subnet(const address& addr, uint8_t length);
+  subnet(const address& addr, uint8_t length) noexcept;
 
   /// @return whether an address is contained within this subnet.
   bool contains(const address& addr) const;

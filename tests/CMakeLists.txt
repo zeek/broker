@@ -11,6 +11,7 @@ set(tests
   cpp/alm/routing_table.cc
   cpp/backend.cc
   cpp/data.cc
+  cpp/data_view.cc
   cpp/detail/peer_status_map.cc
   cpp/domain_options.cc
   cpp/error.cc

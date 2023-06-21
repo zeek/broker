@@ -130,4 +130,29 @@ struct signature_of_oracle<F, true> {
 template <class F>
 using signature_of_t = typename signature_of_oracle<F>::type;
 
+// Trait that checks whether type T has a member function named "begin".
+template <class T>
+struct has_begin {
+  template <class U>
+  static auto test(U* x) -> decltype(x->begin(), std::true_type());
+
+  template <class U>
+  static auto test(...) -> std::false_type;
+
+  static constexpr bool value = decltype(test<T>(nullptr))::value;
+};
+
+template <class T>
+inline constexpr bool has_begin_v = has_begin<T>::value;
+
+// Trait that checks whether T is a std::pair.
+template <class T>
+struct is_pair : std::false_type {};
+
+template <class T, class U>
+struct is_pair<std::pair<T, U>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_pair_v = is_pair<T>::value;
+
 } // namespace broker::detail

@@ -347,6 +347,22 @@ const T* get_if(const data& x) {
   return std::get_if<T>(std::addressof(x.get_data()));
 }
 
+template <data::type T>
+auto& get(data& x) {
+  if (auto ptr = get_if<static_cast<size_t>(T)>(std::addressof(x.get_data())))
+    return *ptr;
+  else
+    throw bad_variant_access{};
+}
+
+template <data::type T>
+const auto& get(const data& x) {
+  if (auto ptr = get_if<static_cast<size_t>(T)>(std::addressof(x.get_data())))
+    return *ptr;
+  else
+    throw bad_variant_access{};
+}
+
 template <class T>
 T& get(data& x) {
   if (auto ptr = get_if<T>(&x))
