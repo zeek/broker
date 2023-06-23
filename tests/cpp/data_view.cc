@@ -39,19 +39,6 @@ byte_buffer make_bytes(Ts... xs) {
   return {static_cast<caf::byte>(xs)...};
 }
 
-template <class T>
-data_view parse_bytes_buf(const std::vector<T>& bytes) {
-  auto result = data_view::from(bytes);
-  if (result)
-    return *result;
-  return data_view{};
-}
-
-template <class... Ts>
-data_view parse_bytes(Ts... xs) {
-  return parse_bytes_buf(make_bytes(xs...));
-}
-
 bool convert(const byte_buffer& bytes, data& value) {
   caf::binary_deserializer source{nullptr, bytes};
   return source.apply(value);
@@ -66,6 +53,51 @@ byte_buffer to_bytes(const data& value) {
   byte_buffer result;
   REQUIRE(convert(value, result));
   return result;
+}
+
+class data_envelope_test_impl : public data_envelope {
+public:
+  data_envelope_test_impl(byte_buffer bytes) : bytes_(std::move(bytes)) {
+    topic_ = topic{"test"};
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {reinterpret_cast<const std::byte*>(bytes_.data()), bytes_.size()};
+  }
+
+  const topic& get_topic() const noexcept override {
+    return topic_;
+  }
+
+  error parse() {
+    return do_parse();
+  }
+
+private:
+  byte_buffer bytes_;
+  topic topic_;
+};
+
+template<class T, class... Ts>
+error parse_bytes_result(T arg, Ts... args) {
+  if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
+    auto envelope = std::make_shared<data_envelope_test_impl>(std::move(arg));
+    return envelope->parse();
+  } else {
+    return parse_bytes(make_bytes(arg, args...));
+  }
+}
+
+template<class T, class... Ts>
+data_view parse_bytes(T arg, Ts... args) {
+  if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
+    auto envelope = std::make_shared<data_envelope_test_impl>(std::move(arg));
+    if (auto err = envelope->parse(); err)
+      return data_view{};
+    return envelope->to_data_view();
+  } else {
+    return parse_bytes(make_bytes(arg, args...));
+  }
 }
 
 using type = data::type;
@@ -90,10 +122,10 @@ TEST(default construction) {
 }
 
 TEST(parsing a none) {
-  CHECK(data_view::from(make_bytes(type::none)));
-  CHECK(!data_view::from(make_bytes(type::none, 1)));
-  if (auto val = data_view::from(make_bytes(type::none)); CHECK(val))
-    CHECK(val->is_none());
+  CHECK_EQ(parse_bytes_result(make_bytes(type::none)), error{});
+  CHECK_EQ(parse_bytes_result(make_bytes(type::none, 1)),
+           ec::deserialization_failed);
+  CHECK(parse_bytes(make_bytes(type::none)).is_none());
 }
 
 TEST(parsing a boolean) {
@@ -151,18 +183,18 @@ TEST(parsing a string) {
   // created a shallow copy while parsing.
   auto bytes = make_bytes(type::string, 3, 'a', 'b', 'c');
   auto* abc = static_cast<const void*>(bytes.data() + 2);
-  if (auto val = data_view::from(std::move(bytes)); CHECK(val)) {
-    auto str = val->to_string();
-    CHECK_EQ(str, "abc");
-    CHECK_EQ(static_cast<const void*>(str.data()), abc);
-  }
+  auto val = parse_bytes(std::move(bytes));
+  auto str = val.to_string();
+  CHECK_EQ(str, "abc");
+  CHECK_EQ(static_cast<const void*>(str.data()), abc);
 }
 
 TEST(parsing an address) {
-  std::vector<uint8_t> bytes;
-  bytes.push_back(static_cast<uint8_t>(type::address));
-  bytes.insert(bytes.end(), localhost.bytes().begin(), localhost.bytes().end());
-  auto cpy = parse_bytes_buf(bytes);
+  byte_buffer bytes;
+  bytes.push_back(static_cast<caf::byte>(type::address));
+  auto* begin = reinterpret_cast<const caf::byte*>(localhost.bytes().data());
+  bytes.insert(bytes.end(), begin, begin + localhost.bytes().size());
+  auto cpy = parse_bytes(bytes);
   CHECK(cpy.is_address());
   CHECK_EQ(cpy.to_address(), localhost);
 }
@@ -177,11 +209,10 @@ TEST(parsing an enum value) {
   // created a shallow copy while parsing.
   auto bytes = make_bytes(type::enum_value, 3, 'a', 'b', 'c');
   auto* abc = static_cast<const void*>(bytes.data() + 2);
-  if (auto val = data_view::from(std::move(bytes)); CHECK(val)) {
-    auto str = val->to_enum_value();
-    CHECK_EQ(str.name, "abc");
-    CHECK_EQ(static_cast<const void*>(str.name.data()), abc);
-  }
+  auto val = parse_bytes(std::move(bytes));
+  auto str = val.to_enum_value();
+  CHECK_EQ(str.name, "abc");
+  CHECK_EQ(static_cast<const void*>(str.name.data()), abc);
 }
 
 TEST(parsing a vector) {
@@ -299,12 +330,17 @@ TEST(parsing a table) {
   CHECK(xs["key4"].is_none());
 }
 
-TEST(data roundtrips) {
-  auto to_view = [](const data& value) {
-    auto buf = to_bytes(value);
-    MESSAGE(value << " -> " << to_hex(buf));
-    return parse_bytes_buf(buf);
-  };
+namespace {
+
+auto to_view(const data& value) {
+  auto buf = to_bytes(value);
+  MESSAGE(value << " -> " << to_hex(buf));
+  return parse_bytes(buf);
+};
+
+  } // namespace
+
+TEST(data serialization roundtrips) {
   auto ts = timespan{100'000};
   auto icmp = port::protocol::icmp;
   CHECK(to_view(data{}).is_none());
@@ -322,6 +358,31 @@ TEST(data roundtrips) {
   CHECK_EQ(to_view(data{set{1, 2, 3}}), set({1, 2, 3}));
   CHECK_EQ(to_view(data{table{{"a", 1}, {"b", 2}, {"c", 3}}}),
            table({{"a", 1}, {"b", 2}, {"c", 3}}));
+}
+
+#define CHECK_DEEP_COPY_ROUNDTRIP(data_init)                                   \
+  {                                                                            \
+    auto value = data{data_init};                                              \
+    CHECK_EQ(to_view(value).deep_copy(), value);                               \
+  }                                                                            \
+  static_cast<void>(0)
+
+TEST(deep copies) {
+  auto ts = timespan{100'000};
+  CHECK_DEEP_COPY_ROUNDTRIP(true);
+  CHECK_DEEP_COPY_ROUNDTRIP(false);
+  CHECK_DEEP_COPY_ROUNDTRIP(42);
+  CHECK_DEEP_COPY_ROUNDTRIP(42u);
+  CHECK_DEEP_COPY_ROUNDTRIP(2.5);
+  CHECK_DEEP_COPY_ROUNDTRIP("foo"s);
+  CHECK_DEEP_COPY_ROUNDTRIP(localhost);
+  CHECK_DEEP_COPY_ROUNDTRIP(localnet);
+  CHECK_DEEP_COPY_ROUNDTRIP(port(123, port::protocol::icmp));
+  CHECK_DEEP_COPY_ROUNDTRIP(timestamp{ts});
+  CHECK_DEEP_COPY_ROUNDTRIP(ts);
+  CHECK_DEEP_COPY_ROUNDTRIP(vector({1, 2, 3}));
+  CHECK_DEEP_COPY_ROUNDTRIP(set({1, 2, 3}));
+  CHECK_DEEP_COPY_ROUNDTRIP(table({{"a", 1}, {"b", 2}, {"c", 3}}));
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

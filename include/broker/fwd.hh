@@ -157,6 +157,7 @@ using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;
 namespace broker::detail {
 
 class abstract_backend;
+class data_view_value;
 
 } // namespace broker::detail
 

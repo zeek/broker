@@ -287,29 +287,6 @@ parse_shallow(detail::monotonic_buffer_resource& buf, data_view_value& value,
   }
 }
 
-data_view_envelope::~data_view_envelope() {
-  // nop
-}
-
-
-error data_view_envelope::parse() {
-  auto [bytes, size] = raw_bytes();
-  if (bytes == nullptr || size == 0)
-    return {ec::deserialization_failed, "cannot parse null data"};
-  // Create the root object.
-  {
-    mbr_allocator<data_view_value> allocator{&buf};
-    root = new (allocator.allocate(1)) data_view_value();
-  }
-  // Parse the data. This is a shallow parse, which is why we need to copy the
-  // bytes into the buffer resource first.
-  auto end = bytes + size;
-  auto [ok, pos] = parse_shallow(buf, *root, bytes, end);
-  if (ok && pos == end)
-    return {};
-  return {ec::deserialization_failed, "failed to parse data"};
-}
-
 namespace {
 
 const data_view_value nil_instance;
@@ -318,6 +295,36 @@ const data_view_value nil_instance;
 
 const data_view_value* data_view_value::nil() noexcept {
   return &nil_instance;
+}
+
+data data_view_value::deep_copy() const {
+  auto f = [](const auto& value) -> broker::data {
+    using value_type = std::decay_t<decltype(value)>;
+    if constexpr (std::is_same_v<std::string_view, value_type>) {
+      return broker::data{std::string{value}};
+    } else if constexpr (std::is_same_v<enum_value_view, value_type>) {
+      return broker::data{enum_value{std::string{value.name}}};
+    } else if constexpr (std::is_same_v<set_view*, value_type>) {
+      broker::set result;
+      for (const auto& x : *value)
+        result.emplace(x.deep_copy());
+      return broker::data{std::move(result)};
+    } else if constexpr (std::is_same_v<table_view*, value_type>) {
+      broker::table result;
+      for (const auto& [key, val] : *value)
+        result.emplace(key.deep_copy(), val.deep_copy());
+      return broker::data{std::move(result)};
+    } else if constexpr (std::is_same_v<vector_view*, value_type>) {
+      broker::vector result;
+      result.reserve(value->size());
+      for (const auto& x : *value)
+        result.emplace_back(x.deep_copy());
+      return broker::data{std::move(result)};
+    } else {
+      return broker::data{value};
+    }
+  };
+  return std::visit(f, data);
 }
 
 bool operator==(const data& lhs, const data_view_value& rhs) noexcept {
@@ -331,6 +338,37 @@ bool operator==(const data_view_value& lhs, const data& rhs) noexcept {
 } // namespace broker::detail
 
 namespace broker {
+
+data_envelope::~data_envelope() {
+  // nop
+}
+
+error data_envelope::do_parse() {
+  auto [bytes, size] = raw_bytes();
+  if (bytes == nullptr || size == 0)
+    return {ec::deserialization_failed, "cannot parse null data"};
+  // Create the root object.
+  {
+    detail::mbr_allocator<detail::data_view_value> allocator{&buf_};
+    root_ = new (allocator.allocate(1)) detail::data_view_value();
+  }
+  // Parse the data. This is a shallow parse, which is why we need to copy the
+  // bytes into the buffer resource first.
+  auto end = bytes + size;
+  auto [ok, pos] = parse_shallow(buf_, *root_, bytes, end);
+  if (ok && pos == end)
+    return {};
+  return {ec::deserialization_failed, "failed to parse data"};
+}
+
+
+data_view data_envelope::to_data_view() const noexcept {
+  return {root_, shared_from_this()};
+}
+
+data data_view::deep_copy() const {
+  return value_->deep_copy();
+}
 
 set_view data_view::to_set() const noexcept {
   using detail_t = detail::data_view_value::set_view*;

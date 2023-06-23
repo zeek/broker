@@ -8,21 +8,12 @@
 #include <list>
 #include <memory>
 
-namespace broker::detail {
-
-class data_view_value;
+namespace broker {
 
 /// Wraps a @ref data_view_value and the memory it points into.
-class data_view_envelope
-  : public std::enable_shared_from_this<data_view_envelope> {
+class data_envelope : public std::enable_shared_from_this<data_envelope> {
 public:
-  virtual ~data_view_envelope();
-
-  /// Provides the memory for all of the parsed data.
-  detail::monotonic_buffer_resource buf;
-
-  /// The root of the data object. Points into the buffer resource.
-  data_view_value* root = nullptr;
+  virtual ~data_envelope();
 
   /// Returns a view to the root value.
   /// @pre `root != nullptr`
@@ -31,45 +22,27 @@ public:
   /// Returns the raw bytes of the serialized data stored in this envelope.
   virtual std::pair<const std::byte*, size_t> raw_bytes() const noexcept = 0;
 
+  /// Returns the topic for the data in this envelope.
+  virtual const topic& get_topic() const noexcept = 0;
+
+protected:
   /// Parses the data returned from @ref raw_bytes.
-  error parse();
-};
+  error do_parse();
 
-/// A data_view_envelope that owns a container with the serialized data.
-template <class Container, class Trait>
-class data_view_envelope_impl : public data_view_envelope {
-public:
-  data_view_envelope_impl(Container container)
-    : container_(std::move(container)) {
-    // nop
-  }
+  /// Provides the memory for all of the parsed data.
+  detail::monotonic_buffer_resource buf_;
 
-  const Container& container() const noexcept {
-    return container_;
-  }
-
-  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
-    if constexpr (std::is_same_v<Trait, void>) {
-      return {reinterpret_cast<const std::byte*>(container_.data()),
-              container_.size()};
-    } else {
-      return Trait::get_bytes(container());
-    }
-  }
-
-private:
-  Container container_;
+  /// The root of the data object. Points into the buffer resource.
+  detail::data_view_value* root_ = nullptr;
 };
 
 /// A shared pointer to a storage object.
-using data_view_envelope_ptr = std::shared_ptr<const data_view_envelope>;
+using data_envelope_ptr = std::shared_ptr<const data_envelope>;
 
-/// Creates a data_view_envelope from a container.
-template <class Trait = void, class Container>
-auto make_data_view_envelope(Container container) {
-  using impl_t = data_view_envelope_impl<Container, Trait>;
-  return std::make_shared<impl_t>(std::move(container));
-}
+} // namespace broker
+
+namespace broker::detail {
+
 
 /// A view into a data object.
 class data_view_value {
@@ -113,6 +86,10 @@ public:
   data::type get_type() const noexcept {
     return static_cast<data::type>(data.index());
   }
+
+  // -- conversion -------------------------------------------------------------
+
+  data deep_copy() const;
 
   // -- member variables -------------------------------------------------------
 
@@ -176,7 +153,7 @@ public:
   data_view& operator=(const data_view&) = default;
 
   data_view(const detail::data_view_value* value,
-            detail::data_view_envelope_ptr envelope) noexcept
+            data_envelope_ptr envelope) noexcept
     : value_(value), envelope_(std::move(envelope)) {
     // nop
   }
@@ -264,6 +241,9 @@ public:
   }
 
   // -- conversions ------------------------------------------------------------
+
+  /// Converts this view into a @c data object.
+  data deep_copy() const;
 
   /// Retrieves the @c boolean value or returns @p fallback if this object does
   /// not contain a @c boolean.
@@ -385,19 +365,6 @@ public:
     throw bad_variant_access{};
   }
 
-  // -- parsing ----------------------------------------------------------------
-
-  /// Attempts to parse the given data into a data_view.
-  /// @param source The data to parse. The view object will take ownership of
-  ///               the source and then perform a shallow parse.
-  template <class Trait = void, class Source>
-  static expected<data_view> from(Source source) {
-    auto envelope = detail::make_data_view_envelope<Trait>(std::move(source));
-    if (auto err = envelope->parse())
-      return err;
-    return data_view{std::move(envelope)};
-  }
-
   // -- operators --------------------------------------------------------------
 
   /// Returns a pointer to the underlying data.
@@ -441,16 +408,11 @@ public:
   }
 
 private:
-  explicit data_view(detail::data_view_envelope_ptr envelope)
-    : value_(envelope->root), envelope_(std::move(envelope)) {
-    // nop
-  }
-
   /// The value of this object.
   const detail::data_view_value* value_;
 
   /// The envelope that holds the data.
-  detail::data_view_envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 /// A view into a list of data objects.
@@ -506,14 +468,13 @@ public:
   private:
     using native_iterator = detail::data_view_value::vector_view_iterator;
 
-    iterator(native_iterator pos,
-             const detail::data_view_envelope* envelope) noexcept
+    iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
       // nop
     }
 
     native_iterator pos_;
-    const detail::data_view_envelope* envelope_;
+    const data_envelope* envelope_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------
@@ -542,7 +503,7 @@ public:
 
 private:
   vector_view(const detail::data_view_value::vector_view* values,
-              detail::data_view_envelope_ptr envelope_) noexcept
+              data_envelope_ptr envelope_) noexcept
     : values_(values), envelope_(std::move(envelope_)) {
     // nop
   }
@@ -551,7 +512,7 @@ private:
   const detail::data_view_value::vector_view* values_ = nullptr;
 
   /// The envelope that holds the data.
-  detail::data_view_envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 /// A view into a set of data objects.
@@ -607,14 +568,13 @@ public:
   private:
     using native_iterator = detail::data_view_value::set_view_iterator;
 
-    iterator(native_iterator pos,
-             const detail::data_view_envelope* envelope) noexcept
+    iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
       // nop
     }
 
     native_iterator pos_;
-    const detail::data_view_envelope* envelope_;
+    const data_envelope* envelope_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------
@@ -643,7 +603,7 @@ public:
 
 private:
   set_view(const detail::data_view_value::set_view* values,
-           detail::data_view_envelope_ptr envelope_) noexcept
+           data_envelope_ptr envelope_) noexcept
     : values_(values), envelope_(std::move(envelope_)) {
     // nop
   }
@@ -652,7 +612,7 @@ private:
   const detail::data_view_value::set_view* values_ = nullptr;
 
   /// The envelope that holds the data.
-  detail::data_view_envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 /// A view into a map of data objects.
@@ -725,14 +685,13 @@ public:
   private:
     using native_iterator = detail::data_view_value::table_view_iterator;
 
-    iterator(native_iterator pos,
-             const detail::data_view_envelope* envelope) noexcept
+    iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
       // nop
     }
 
     native_iterator pos_;
-    const detail::data_view_envelope* envelope_;
+    const data_envelope* envelope_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------
@@ -791,7 +750,7 @@ private:
   }
 
   table_view(const detail::data_view_value::table_view* values,
-             detail::data_view_envelope_ptr envelope_) noexcept
+             data_envelope_ptr envelope_) noexcept
     : values_(values), envelope_(std::move(envelope_)) {
     // nop
   }
@@ -800,7 +759,7 @@ private:
   const detail::data_view_value::table_view* values_ = nullptr;
 
   /// The envelope that holds the data.
-  detail::data_view_envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 } // namespace broker
