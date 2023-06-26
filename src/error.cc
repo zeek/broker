@@ -1,6 +1,7 @@
 #include "broker/error.hh"
 
 #include "broker/data.hh"
+#include "broker/data_view.hh"
 #include "broker/detail/assert.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/internal/native.hh"
@@ -186,6 +187,12 @@ std::string_view enum_str(ec code) {
   return ec_names[index];
 }
 
+ec ec_by_name(std::string_view str) noexcept {
+  auto code = ec::none;
+  default_enum_convert(ec_names, str, code);
+  return code;
+}
+
 bool convert(std::string_view str, ec& code) noexcept {
   return default_enum_convert(ec_names, str, code);
 }
@@ -196,13 +203,30 @@ bool convert(const data& src, ec& code) noexcept {
   return false;
 }
 
+bool convert(const data_view& src, ec& code) noexcept {
+  if (src.is_enum_value())
+    return convert(src.to_enum_value().name, code);
+  return false;
+}
+
 bool convertible_to_ec(const data& src) noexcept {
+  ec dummy;
+  return convert(src, dummy);
+}
+
+bool convertible_to_ec(const data_view& src) noexcept {
   ec dummy;
   return convert(src, dummy);
 }
 
 bool convertible_to_ec(uint8_t src) noexcept {
   return src < std::size(ec_names);
+}
+
+bool convertible_to_error(const data& src) noexcept {
+  if (auto xs = get_if<vector>(src))
+    return convertible_to_error(*xs);
+  return false;
 }
 
 bool convertible_to_error(const vector& xs) noexcept {
@@ -220,9 +244,35 @@ bool convertible_to_error(const vector& xs) noexcept {
          || contains<endpoint_info, std::string>(xs[2]);
 }
 
-bool convertible_to_error(const data& src) noexcept {
-  if (auto xs = get_if<vector>(src))
-    return convertible_to_error(*xs);
+bool convertible_to_error(const data_view& src) noexcept {
+  return convertible_to_error(src.to_vector());
+}
+
+bool convertible_to_error(const vector_view& xs) noexcept {
+  if (xs.size() != 3)
+    return false;
+  // There is one special case: default errors with enum value "none" fail to
+  // convert to ec but are still legal.
+  if (contains<std::string, enum_value, none>(xs)) {
+    auto i = xs.begin();
+    if ((*i++).to_string() != "error")
+      return false;
+    return i->to_enum_value().name == "none";
+  }
+  return false;
+  if (contains<std::string, ec, any_type>(xs)) {
+    auto i = xs.begin();
+    if ((*i++).to_string() != "error")
+      return false;
+    ++i; // Skip ec: all values are valid.
+    if (i->is_none())
+      return true;
+    if (!i->is_vector())
+      return false;
+    auto nested = i->to_vector();
+    return contains<std::string>(nested)
+           || contains<endpoint_info, std::string>(nested);
+  }
   return false;
 }
 
@@ -264,27 +314,37 @@ bool convert(const error& src, data& dst) {
   return false;
 }
 
-bool convert(const data& src, error& dst) {
+template <class DataOrView>
+bool convert_impl(const DataOrView& src, error& dst) {
   if (!convertible_to_error(src))
     return false;
-  auto& xs = get<vector>(src);
-  if (get<enum_value>(xs[1]).name == "none") {
+  auto&& xs = src.to_vector();
+  auto code = ec_by_name(xs[1].to_enum_value().name);
+  if (code == ec::none) {
     dst = error{};
     return true;
   }
-  if (is<none>(xs[2])) {
-    dst = make_error(get_as<ec>(xs[1]));
+  if (xs[2].is_none()) {
+    dst = make_error(code);
     return true;
   }
-  auto& cxt = get<vector>(xs[2]);
+  auto&& cxt = xs[2].to_vector();
   if (contains<std::string>(cxt)) {
-    dst = make_error(get_as<ec>(xs[1]), get<std::string>(cxt[0]));
-  } else {
-    BROKER_ASSERT((contains<endpoint_info, std::string>(cxt)));
-    dst = make_error(get_as<ec>(xs[1]), get_as<endpoint_info>(cxt[0]),
-                     get<std::string>(cxt[1]));
+    dst = make_error(code, std::string{cxt[0].to_string()});
+    return true;
   }
+  BROKER_ASSERT((contains<endpoint_info, std::string>(cxt)));
+  dst = make_error(code, get_as<endpoint_info>(cxt[0]),
+                   std::string{cxt[1].to_string()});
   return true;
+}
+
+bool convert(const data& src, error& dst) {
+  return convert_impl(src, dst);
+}
+
+bool convert(const data_view& src, error& dst) {
+  return convert_impl(src, dst);
 }
 
 ec error_view::code() const noexcept {

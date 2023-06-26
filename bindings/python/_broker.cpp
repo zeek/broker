@@ -196,7 +196,8 @@ PYBIND11_MODULE(_broker, m) {
     .def("get",
          [](broker::subscriber& ep) -> topic_data_pair {
            auto res = ep.get();
-           return std::make_pair(broker::get_topic(res), broker::get_data(res));
+           return std::make_pair(broker::get_topic(res),
+                                 broker::get_data(res).deep_copy());
          })
 
     .def("get",

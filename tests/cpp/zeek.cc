@@ -13,64 +13,59 @@
 #include "broker/time.hh"
 
 using namespace broker;
-using namespace std::chrono_literals;
+using namespace std::literals;
+
+using broker::zeek::ArgsBuilder;
+using broker::zeek::Event;
+using broker::zeek::MetadataBuilder;
 
 TEST(event) {
-  auto args = vector{1, "s", port(42, port::protocol::tcp)};
-  zeek::Event ev("test", vector(args));
-  zeek::Event ev2(std::move(ev));
+  auto ev = Event::make("test", 1, "s", port(42, port::protocol::tcp));
+  auto ev2 = (std::move(ev));
+  auto args = ev2.args();
   REQUIRE(ev2.valid());
+  CHECK(ev2.metadata().empty());
   CHECK_EQUAL(ev2.name(), "test");
-  CHECK_EQUAL(ev2.args(), args);
+  CHECK_EQUAL(args[0].to_integer(), 1);
+  CHECK_EQUAL(args[1].to_string(), "s");
+  CHECK_EQUAL(args[2].to_port(), port(42, port::protocol::tcp));
 }
 
 TEST(event_ts) {
-  zeek::Event ev("test", vector{}, broker::timestamp(12s));
+  auto ev = Event::make_with_ts("test", broker::timestamp{12s}, 1, 2u);
   REQUIRE(ev.valid());
+  auto args = ev.args();
+  CHECK_EQUAL(args[0].to_integer(), 1);
+  CHECK_EQUAL(args[1].to_count(), 2);
   CHECK_EQUAL(ev.ts(), broker::timestamp(12s));
 }
 
 TEST(event_ts_metadata) {
-  auto ts_md = vector{static_cast<count>(zeek::MetadataType::NetworkTimestamp),
-                      broker::timestamp(12s)};
-  zeek::Event ev("test", vector{}, vector{{ts_md}});
+  auto mb = MetadataBuilder{}.add(zeek::MetadataType::NetworkTimestamp,
+                                  broker::timestamp(12s));
+  auto ev = Event::make_with_args("test", {}, mb);
+  auto mt = ev.metadata();
   REQUIRE(ev.valid());
+  CHECK(ev.args().empty());
   CHECK_EQUAL(ev.ts(), broker::timestamp(12s));
-  CHECK_EQUAL(*get_if<broker::timestamp>(
-                ev.metadata().value(zeek::MetadataType::NetworkTimestamp)),
+  CHECK_EQUAL(mt.value(zeek::MetadataType::NetworkTimestamp).to_timestamp(),
               broker::timestamp(12s));
 }
 
 TEST(event_ts_metadata_extra) {
-  auto ts_md = vector{static_cast<count>(1), broker::timestamp(12s)};
-  auto extra_md = vector{static_cast<count>(4711),
-                         broker::enum_value(std::string("hello"))};
-  auto md = vector{ts_md, extra_md};
-
-  zeek::Event ev("test", vector{}, md);
+  auto mb = MetadataBuilder{}
+              .add(1, broker::timestamp(12s)) // NetworkTimestamp
+              .add(4711u, "hello"sv);         // Custom metadata.
+  auto ev = Event::make_with_args("test", {}, mb);
+  auto mt = ev.metadata();
   REQUIRE(ev.valid());
-  CHECK_EQUAL(ev.metadata().value(0), nullptr);
-  CHECK_EQUAL(*get_if<timestamp>(
-                ev.metadata().value(zeek::MetadataType::NetworkTimestamp)),
-              broker::timestamp(12s));
-  CHECK_EQUAL(*get_if<enum_value>(ev.metadata().value(4711)),
-              broker::enum_value(std::string("hello")));
-}
-
-TEST(event_no_metadata) {
-  zeek::Event ev("test", vector{});
-  REQUIRE(ev.valid());
-  CHECK_EQUAL(ev.ts(), std::nullopt);
-  CHECK_EQUAL(ev.metadata().value(zeek::MetadataType::NetworkTimestamp),
-              nullptr);
-  CHECK_EQUAL(ev.metadata().value(1234), nullptr);
-  CHECK_EQUAL(ev.metadata().get_vector(), nullptr);
-  CHECK_EQUAL(ev.metadata().begin(), ev.metadata().end());
+  CHECK_EQUAL(ev.ts(), broker::timestamp(12s));
+  CHECK_EQUAL(mt.value(1).to_timestamp(), broker::timestamp(12s));
+  CHECK_EQUAL(mt.value(4711).to_string(), "hello");
 }
 
 TEST(event_ts_bad_type) {
-  auto ts_md = vector{static_cast<count>(1), broker::enum_value("invalid")};
-  auto md = vector{{ts_md}};
-  zeek::Event ev("test", vector{}, md);
+  auto mb = MetadataBuilder{}.add(1, "invalid"sv);
+  auto ev = Event::make_with_args("test", {}, mb);
   CHECK(!ev.valid());
 }

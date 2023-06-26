@@ -63,6 +63,9 @@ public:
   /// Returns a has value for the ID.
   size_t hash() const noexcept;
 
+  /// Tries to parse `str` as an endpoint_id.
+  bool parse(std::string_view str) noexcept;
+
   /// Creates a random endpoint_id.
   static endpoint_id random() noexcept;
 
@@ -76,7 +79,7 @@ public:
   }
 
   /// Queries whether `str` is convertible to an `endpoint_id`.
-  static bool can_parse(const std::string& str);
+  static bool can_parse(std::string_view str) noexcept;
 
   // -- inspection -------------------------------------------------------------
 

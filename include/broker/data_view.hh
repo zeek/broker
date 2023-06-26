@@ -17,23 +17,28 @@ public:
 
   /// Returns a view to the root value.
   /// @pre `root != nullptr`
-  data_view to_data_view() const noexcept;
-
-  /// Returns the raw bytes of the serialized data stored in this envelope.
-  virtual std::pair<const std::byte*, size_t> raw_bytes() const noexcept = 0;
+  virtual data_view get_data() const noexcept = 0;
 
   /// Returns the topic for the data in this envelope.
   virtual const topic& get_topic() const noexcept = 0;
 
+  /// Checks whether `val` is the root value.
+  virtual bool is_root(const detail::data_view_value* val) const noexcept = 0;
+
+  /// Returns the raw bytes of the serialized data stored in this envelope or a
+  /// range of size 0 if the data is not available in serialized form.
+  virtual std::pair<const std::byte*, size_t> raw_bytes() const noexcept = 0;
+
+  /// Creates a new data envolope from the given @ref topic and @ref data.
+  static data_envelope_ptr make(topic t, const data& d);
+
+  /// Creates a new data envolope from the given @ref topic and @ref data.
+  static data_envelope_ptr make(topic t, data_view d);
+
 protected:
   /// Parses the data returned from @ref raw_bytes.
-  error do_parse();
-
-  /// Provides the memory for all of the parsed data.
-  detail::monotonic_buffer_resource buf_;
-
-  /// The root of the data object. Points into the buffer resource.
-  detail::data_view_value* root_ = nullptr;
+  detail::data_view_value* do_parse(detail::monotonic_buffer_resource& buf,
+                                    error& err);
 };
 
 /// A shared pointer to a storage object.
@@ -42,7 +47,6 @@ using data_envelope_ptr = std::shared_ptr<const data_envelope>;
 } // namespace broker
 
 namespace broker::detail {
-
 
 /// A view into a data object.
 class data_view_value {
@@ -110,27 +114,19 @@ bool operator==(const data& lhs, const data_view_value& rhs) noexcept;
 
 bool operator==(const data_view_value& lhs, const data& rhs) noexcept;
 
-inline bool operator<(const data_view_value& lhs,
-                      const data_view_value& rhs) noexcept {
-  if (lhs.data.index() != rhs.data.index())
-    return lhs.data.index() < rhs.data.index();
-  return std::visit(
-    [&rhs](const auto& x) -> bool {
-      using T = std::decay_t<decltype(x)>;
-      if constexpr (std::is_same_v<T, data_view_value::set_view*>) {
-        return *x < *std::get<data_view_value::set_view*>(rhs.data);
-      } else if constexpr (std::is_same_v<T, data_view_value::vector_view*>) {
-        return *x < *std::get<data_view_value::vector_view*>(rhs.data);
-      } else {
-        return x < std::get<T>(rhs.data);
-      }
-    },
-    lhs.data);
-}
+bool operator<(const data_view_value& lhs, const data_view_value& rhs) noexcept;
 
 } // namespace broker::detail
 
 namespace broker {
+
+/// Evaluates to `true` if `T` is a primitive type that can be passed to a
+/// `vector_builder` by value.
+template <class T>
+inline constexpr bool is_primtivie_data_v =
+  detail::is_one_of_v<T, none, boolean, count, integer, real, std::string_view,
+                      address, subnet, port, timestamp, timespan,
+                      enum_value_view>;
 
 /// A view into a serialized data object.
 class data_view {
@@ -159,6 +155,11 @@ public:
   }
 
   // -- properties -------------------------------------------------------------
+
+  /// Checks whether this object is the root object in its envelope.
+  bool is_root() const noexcept {
+    return envelope_ && envelope_->is_root(value_);
+  }
 
   /// Returns the type of the contained data.
   data::type get_type() const noexcept {
@@ -365,6 +366,21 @@ public:
     throw bad_variant_access{};
   }
 
+  /// @private
+  const auto& as_variant() const noexcept {
+    return value_->data;
+  }
+
+  /// @private
+  const auto* raw_ptr() const noexcept {
+    return value_;
+  }
+
+  /// @private
+  const auto* envelope_ptr() const noexcept {
+    return envelope_.get();
+  }
+
   // -- operators --------------------------------------------------------------
 
   /// Returns a pointer to the underlying data.
@@ -415,6 +431,18 @@ private:
   data_envelope_ptr envelope_;
 };
 
+/// Checks whether a data object can be converted to `T`.
+template <class T>
+bool exact_match_or_can_convert_to(const data_view& x) {
+  if constexpr (detail::data_tag_oracle<T>::specialized) {
+    return x.get_type() == detail::data_tag_oracle<T>::value;
+  } else if constexpr (std::is_same_v<any_type, T>) {
+    return true;
+  } else {
+    return can_convert_to<T>(x);
+  }
+}
+
 /// A view into a list of data objects.
 class vector_view {
 public:
@@ -446,7 +474,7 @@ public:
     }
 
     data_view value() const noexcept {
-      return data_view{std::addressof(*pos_), envelope_->shared_from_this()};
+      return data_view{std::addressof(*pos_), shared_envelope()};
     }
 
     data_view operator*() const noexcept {
@@ -467,6 +495,12 @@ public:
 
   private:
     using native_iterator = detail::data_view_value::vector_view_iterator;
+
+    data_envelope_ptr shared_envelope() const {
+      if (envelope_)
+        return envelope_->shared_from_this();
+      return nullptr;
+    }
 
     iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
@@ -501,6 +535,32 @@ public:
                     envelope_.get()};
   }
 
+  // -- element access ---------------------------------------------------------
+
+  // TODO: this is only implemented for compatibility with broker::vector API
+  //       and to have existing algorithms work with data_view. Should be
+  //       removed eventually, because it is very inefficient.
+  data_view operator[](size_t index) const noexcept {
+    auto i = values_->begin();
+    std::advance(i, index);
+    return data_view{std::addressof(*i), envelope_};
+  }
+
+  data_view front() const noexcept {
+    return data_view{std::addressof(values_->front()), envelope_};
+  }
+
+  data_view back() const noexcept {
+    return data_view{std::addressof(values_->back()), envelope_};
+  }
+
+  // -- properties -------------------------------------------------------------
+
+  /// @private
+  const auto* raw_ptr() const noexcept {
+    return values_;
+  }
+
 private:
   vector_view(const detail::data_view_value::vector_view* values,
               data_envelope_ptr envelope_) noexcept
@@ -514,6 +574,28 @@ private:
   /// The envelope that holds the data.
   data_envelope_ptr envelope_;
 };
+
+inline bool contains_impl(vector_view::iterator, detail::parameter_pack<>) {
+  return true;
+}
+
+template <class T, class... Ts>
+bool contains_impl(vector_view::iterator pos,
+                   detail::parameter_pack<T, Ts...>) {
+  if (!exact_match_or_can_convert_to<T>(*pos++))
+    return false;
+  return contains_impl(pos, detail::parameter_pack<Ts...>{});
+}
+
+/// Checks whether `xs` contains values of types `Ts...`. Performs "fuzzy"
+/// matching by calling `can_convert_to<T>` for any `T` that is not part of the
+/// variant.
+template <class... Ts>
+bool contains(const vector_view& xs) {
+  if (xs.size() != sizeof...(Ts))
+    return false;
+  return contains_impl(xs.begin(), detail::parameter_pack<Ts...>{});
+}
 
 /// A view into a set of data objects.
 class set_view {
@@ -546,7 +628,7 @@ public:
     }
 
     data_view value() const noexcept {
-      return data_view{std::addressof(*pos_), envelope_->shared_from_this()};
+      return data_view{std::addressof(*pos_), shared_envelope()};
     }
 
     data_view operator*() const noexcept {
@@ -567,6 +649,12 @@ public:
 
   private:
     using native_iterator = detail::data_view_value::set_view_iterator;
+
+    data_envelope_ptr shared_envelope() const {
+      if (envelope_)
+        return envelope_->shared_from_this();
+      return nullptr;
+    }
 
     iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
@@ -599,6 +687,21 @@ public:
   iterator end() const noexcept {
     return iterator{values_ ? values_->end() : iterator::native_iterator{},
                     envelope_.get()};
+  }
+
+  // -- properties -------------------------------------------------------------
+
+  /// @private
+  const auto* raw_ptr() const noexcept {
+    return values_;
+  }
+
+  /// Checks whether this set contains `what`.
+  template <class T>
+  std::enable_if_t<is_primtivie_data_v<T>, bool>
+  contains(T what) const noexcept {
+    detail::data_view_value tmp{what};
+    return values_->find(tmp) != values_->end();
   }
 
 private:
@@ -657,13 +760,11 @@ public:
     }
 
     data_view key() const noexcept {
-      return data_view{std::addressof(pos_->first),
-                       envelope_->shared_from_this()};
+      return data_view{std::addressof(pos_->first), shared_envelope()};
     }
 
     data_view value() const noexcept {
-      return data_view{std::addressof(pos_->second),
-                       envelope_->shared_from_this()};
+      return data_view{std::addressof(pos_->second), shared_envelope()};
     }
 
     key_value_pair operator*() const noexcept {
@@ -684,6 +785,12 @@ public:
 
   private:
     using native_iterator = detail::data_view_value::table_view_iterator;
+
+    data_envelope_ptr shared_envelope() const {
+      if (envelope_)
+        return envelope_->shared_from_this();
+      return nullptr;
+    }
 
     iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
@@ -708,6 +815,11 @@ public:
 
   size_t size() const noexcept {
     return values_ ? values_->size() : 0u;
+  }
+
+  /// @private
+  const auto* raw_ptr() const noexcept {
+    return values_;
   }
 
   // -- iterator access --------------------------------------------------------
@@ -761,5 +873,29 @@ private:
   /// The envelope that holds the data.
   data_envelope_ptr envelope_;
 };
+
+/// Converts `what` to a string.
+void convert(const data_view& what, std::string& out);
+
+/// Converts `what` to a string.
+void convert(const set_view& what, std::string& out);
+
+/// Converts `what` to a string.
+void convert(const table_view& what, std::string& out);
+
+/// Converts `what` to a string.
+void convert(const vector_view& what, std::string& out);
+
+/// Prints `what` to `out`.
+std::ostream& operator<<(std::ostream& out, const data_view& what);
+
+/// Prints `what` to `out`.
+std::ostream& operator<<(std::ostream& out, const set_view& what);
+
+/// Prints `what` to `out`.
+std::ostream& operator<<(std::ostream& out, const table_view& what);
+
+/// Prints `what` to `out`.
+std::ostream& operator<<(std::ostream& out, const vector_view& what);
 
 } // namespace broker

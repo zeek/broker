@@ -45,7 +45,10 @@ std::string to_string(sc code);
 bool convert(std::string_view str, sc& code) noexcept;
 
 /// @relates sc
-bool convert(const data& str, sc& code) noexcept;
+bool convert(const data& src, sc& code) noexcept;
+
+/// @relates sc
+bool convert(const data_view& src, sc& code) noexcept;
 
 /// @relates sc
 inline bool convert(const std::string& str, sc& code) noexcept {
@@ -56,6 +59,9 @@ inline bool convert(const std::string& str, sc& code) noexcept {
 
 /// @relates sc
 bool convertible_to_sc(const data& src) noexcept;
+
+/// @relates sc
+bool convertible_to_sc(const data_view& src) noexcept;
 
 /// @relates sc
 template <class Inspector>
@@ -88,6 +94,10 @@ constexpr bool sc_has_network_info_v =
 template <>
 struct can_convert_predicate<sc> {
   static bool check(const data& src) noexcept {
+    return convertible_to_sc(src);
+  }
+
+  static bool check(const data_view& src) noexcept {
     return convertible_to_sc(src);
   }
 };
@@ -170,6 +180,10 @@ public:
   /// status.
   friend bool convert(const data& src, status& dst);
 
+  /// Converts data in the format `["status", code, context, message]` back to a
+  /// status.
+  friend bool convert(const data_view& src, status& dst);
+
 private:
   error verify() const;
 
@@ -199,6 +213,9 @@ status make_status(Ts&&... xs) {
 bool convertible_to_status(const data& src) noexcept;
 
 /// @relates status
+bool convertible_to_status(const data_view& src) noexcept;
+
+/// @relates status
 bool convertible_to_status(const vector& xs) noexcept;
 
 template <>
@@ -208,6 +225,10 @@ struct can_convert_predicate<status> {
   }
 
   static bool check(const vector& src) noexcept {
+    return convertible_to_status(src);
+  }
+
+  static bool check(const data_view& src) noexcept {
     return convertible_to_status(src);
   }
 };

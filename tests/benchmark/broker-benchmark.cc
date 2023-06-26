@@ -14,6 +14,7 @@
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
+#include "broker/data_view.hh"
 #include "broker/endpoint.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -91,11 +92,10 @@ static uint64_t random_count() {
   return ++i;
 }
 
-vector createEventArgs() {
+vector_builder createEventArgs() {
   switch (event_type) {
-    case 1: {
-      return std::vector<data>{42, "test"};
-    }
+    case 1:
+      return vector_builder{}.add(integer{42}).add("test"sv);
 
     case 2: {
       // This resembles a line in conn.log.
@@ -103,40 +103,37 @@ vector createEventArgs() {
       address a2;
       convert("1.2.3.4", a1);
       convert("3.4.5.6", a2);
-
-      return vector{now(),
-                    random_string(10),
-                    vector{a1, port(4567, port::protocol::tcp), a2,
-                           port(80, port::protocol::tcp)},
-                    enum_value("tcp"),
-                    random_string(10),
-                    std::chrono::duration_cast<timespan>(
-                      std::chrono::duration<double>(3.14)),
-                    random_count(),
-                    random_count(),
-                    random_string(5),
-                    true,
-                    false,
-                    random_count(),
-                    random_string(10),
-                    random_count(),
-                    random_count(),
-                    random_count(),
-                    random_count(),
-                    set({random_string(10), random_string(10)})};
+      return vector_builder{}
+        .add(now())
+        .add(random_string(10))
+        .add_vector(a1, port(4567, port::protocol::tcp), // originator
+                    a2, port(80, port::protocol::tcp))   // responder
+        .add(enum_value_view{"tcp"sv})
+        .add(random_string(10))
+        .add(timespan{3'140'000'000}) // 3.14s
+        .add(random_count())
+        .add(random_count())
+        .add(random_string(5))
+        .add(true)
+        .add(false)
+        .add(random_count())
+        .add(random_string(10))
+        .add(random_count())
+        .add(random_count())
+        .add(random_count())
+        .add(random_count())
+        .add_set(random_string(10), random_string(10));
     }
 
     case 3: {
-      table m;
-
+      table_builder tbl;
       for (int i = 0; i < 100; i++) {
-        set s;
+        set_builder val;
         for (int j = 0; j < 10; j++)
-          s.insert(random_string(5));
-        m[random_string(15)] = s;
+          val.add(random_string(5));
+        tbl.add(random_string(15), val);
       }
-
-      return vector{now(), m};
+      return vector_builder{}.add(now()).add(tbl);
     }
 
     default:
@@ -147,45 +144,42 @@ vector createEventArgs() {
 
 void send_batch(endpoint& ep, publisher& p) {
   auto name = "event_" + std::to_string(event_type);
-  vector batch;
   for (int i = 0; i < batch_size; i++) {
-    auto ev = zeek::Event(std::string(name), createEventArgs());
-    batch.emplace_back(std::move(ev));
+    auto ev = zeek::Event::make_with_args(name, createEventArgs());
+    p.publish(ev.content());
   }
-  total_sent += batch.size();
-  p.publish(std::move(batch));
+  total_sent += batch_size;
 }
 
-const vector* inner_vector(const vector& vec) {
-  for (auto& x : vec)
-    if (auto ptr = get_if<vector>(&x))
-      return inner_vector(*ptr);
-  return &vec;
+vector_view inner_vector(const vector_view& vec) {
+  for (const auto& val : vec)
+    if (val.is_vector())
+      return inner_vector(val.to_vector());
+  return vec;
 }
 
-void receivedStats(endpoint& ep, const data& x) {
+void receivedStats(endpoint& ep, const data_view& x) {
   // Example for an x: '[1, 1, [stats_update, [1ns, 1ns, 0]]]'.
   // We are only interested in the '[1ns, 1ns, 0]' part (the inner vector).
-  if (!is<vector>(x)) {
+  if (!x.is_vector()) {
     std::cerr << "received invalid stats (not a vector): " << to_string(x)
               << '\n';
     return;
   }
-  auto inner = inner_vector(get<vector>(x));
-  if (inner->size() != 3) {
+  auto rec = inner_vector(x.to_vector());
+  if (rec.size() != 3) {
     std::cerr << "received invalid stats (most inner vector has size "
-              << inner->size() << ", expected 3): " << to_string(x) << '\n';
+              << rec.size() << ", expected 3): " << to_string(x) << '\n';
     return;
   }
-  auto& rec = *inner;
 
   double t;
-  convert(get<timestamp>(rec[0]), t);
+  convert(rec[0].to_timestamp(), t);
 
   double dt_recv;
-  convert(get<timespan>(rec[1]), dt_recv);
+  convert(rec[1].to_timespan(), dt_recv);
 
-  auto ev1 = get<count>(rec[2]);
+  auto ev1 = rec[2].to_count();
   auto all_recv = ev1;
   total_recv += ev1;
 
@@ -214,8 +208,8 @@ void receivedStats(endpoint& ep, const data& x) {
   last_sent = total_sent;
 
   if (max_received && total_recv > max_received) {
-    zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("/benchmark/terminate", ev);
+    auto ev = zeek::Event::make("quit_benchmark");
+    ep.publish("/benchmark/terminate", ev.content());
     std::this_thread::sleep_for(2s); // Give clients a bit.
     exit(0);
   }
@@ -246,9 +240,9 @@ void client_mode(endpoint& ep, bool verbose, const std::string& host,
     [] {
       // Init: nop.
     },
-    [&](data_message x) {
+    [&](data_message msg) {
       // Print everything we receive.
-      receivedStats(ep, move_data(x));
+      receivedStats(ep, get_data(msg));
     },
     [](const error&) {
       // Cleanup: nop.
@@ -276,8 +270,8 @@ void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
         // Pull: generate random events.
         for (size_t i = 0; i < hint; ++i) {
           auto name = "event_" + std::to_string(event_type);
-          out.emplace_back("/benchmark/events",
-                           zeek::Event(std::move(name), createEventArgs()));
+          auto ev = zeek::Event::make_with_args(name, createEventArgs());
+          out.emplace_back("/benchmark/events", ev.content());
         }
       },
       [] {
@@ -341,12 +335,11 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
     [] {
       // Init: nop.
     },
-    [](data_message x) {
-      // OnNext: increase the global num_events counter.
-      auto msg = move_data(x);
+    [](data_message msg) {
       // Count number of events (counts each element in a batch as one event).
-      if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
-        zeek::Batch batch(std::move(msg));
+      auto content = get_data(msg);
+      if (zeek::Message::type(content) == zeek::Message::Type::Batch) {
+        auto batch = zeek::Batch(std::move(content));
         num_events += batch.batch().size();
       } else {
         ++num_events;
@@ -392,11 +385,11 @@ void server_loop(endpoint& ep, bool verbose, status_subscriber& ss,
     std::this_thread::sleep_until(timeout);
     // Generate and publish zeek event.
     timestamp now = std::chrono::system_clock::now();
-    auto stats = vector{now, now - last_time, count{reset_num_events()}};
+    auto ev = zeek::Event::make("stats_update", now, now - last_time,
+                                count{reset_num_events()});
     if (verbose)
-      std::cout << "stats: " << to_string(stats) << std::endl;
-    zeek::Event ev("stats_update", std::move(stats));
-    ep.publish("/benchmark/stats", std::move(ev));
+      std::cout << "stats: " << ev.content() << std::endl;
+    ep.publish("/benchmark/stats", ev.content());
     // Advance time and print status events.
     last_time = now;
     auto status_events = ss.poll();

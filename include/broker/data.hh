@@ -156,6 +156,161 @@ public:
     return data_;
   }
 
+  // -- properties -------------------------------------------------------------
+
+  /// Checks whether this view contains the `nil` value.
+  bool is_none() const noexcept {
+    return get_type() == data::type::none;
+  }
+
+  /// Checks whether this view contains a boolean.
+  bool is_boolean() const noexcept {
+    return get_type() == data::type::boolean;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_count() const noexcept {
+    return get_type() == data::type::count;
+  }
+
+  /// Checks whether this view contains a integer.
+  bool is_integer() const noexcept {
+    return get_type() == data::type::integer;
+  }
+
+  /// Checks whether this view contains a real.
+  bool is_real() const noexcept {
+    return get_type() == data::type::real;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_string() const noexcept {
+    return get_type() == data::type::string;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_address() const noexcept {
+    return get_type() == data::type::address;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_subnet() const noexcept {
+    return get_type() == data::type::subnet;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_port() const noexcept {
+    return get_type() == data::type::port;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_timestamp() const noexcept {
+    return get_type() == data::type::timestamp;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_timespan() const noexcept {
+    return get_type() == data::type::timespan;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_enum_value() const noexcept {
+    return get_type() == data::type::enum_value;
+  }
+
+  /// Checks whether this view contains a set.
+  bool is_set() const noexcept {
+    return get_type() == data::type::set;
+  }
+
+  /// Checks whether this view contains a table.
+  bool is_table() const noexcept {
+    return get_type() == data::type::table;
+  }
+
+  /// Checks whether this view contains a vector.
+  bool is_vector() const noexcept {
+    return get_type() == data::type::vector;
+  }
+
+  // -- conversions ------------------------------------------------------------
+
+  bool to_boolean() const {
+    return std::get<bool>(data_);
+  }
+
+  count to_count() const {
+    return std::get<count>(data_);
+  }
+
+  integer to_integer() const {
+    return std::get<integer>(data_);
+  }
+
+  real to_real() const {
+    return std::get<real>(data_);
+  }
+
+  std::string& to_string() {
+    return std::get<std::string>(data_);
+  }
+
+  const std::string& to_string() const {
+    return std::get<std::string>(data_);
+  }
+
+  address to_address() const {
+    return std::get<address>(data_);
+  }
+
+  subnet to_subnet() const {
+    return std::get<subnet>(data_);
+  }
+
+  port to_port() const {
+    return std::get<port>(data_);
+  }
+
+  timestamp to_timestamp() const {
+    return std::get<timestamp>(data_);
+  }
+
+  timespan to_timespan() const {
+    return std::get<timespan>(data_);
+  }
+
+  enum_value& to_enum_value() {
+    return std::get<enum_value>(data_);
+  }
+
+  const enum_value& to_enum_value() const {
+    return std::get<enum_value>(data_);
+  }
+
+  set& to_set() {
+    return std::get<set>(data_);
+  }
+
+  const set& to_set() const {
+    return std::get<set>(data_);
+  }
+
+  table& to_table() {
+    return std::get<table>(data_);
+  }
+
+  const table& to_table() const {
+    return std::get<table>(data_);
+  }
+
+  vector& to_vector() {
+    return std::get<vector>(data_);
+  }
+
+  const vector& to_vector() const {
+    return std::get<vector>(data_);
+  }
+
 private:
   data_variant data_;
 };
@@ -431,6 +586,7 @@ bool contains(const data& x) {
   else
     return false;
 }
+
 } // namespace broker
 
 namespace broker::detail {

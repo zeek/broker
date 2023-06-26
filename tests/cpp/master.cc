@@ -100,7 +100,7 @@ struct fixture : base_fixture {
       [] {},
       // Consume.
       [this](data_message msg) {
-        auto content = get_data(msg);
+        auto content = get_data(msg).deep_copy();
         if (auto insert = store_event::insert::make(content))
           log.emplace_back(to_string(insert));
         else if (auto update = store_event::update::make(content))

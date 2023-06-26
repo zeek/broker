@@ -22,6 +22,7 @@
 #include <caf/unit.hpp>
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/bbf.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
@@ -613,11 +614,11 @@ void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
 template <class T>
 packed_message core_actor_state::pack(const T& msg) {
   buf.clear();
-  caf::binary_serializer snk{nullptr, buf};
   if constexpr (std::is_same_v<T, data_message>) {
-    std::ignore = snk.apply(get_data(msg));
+    detail::bbf::encode(get_data(msg), std::back_inserter(buf));
   } else {
     static_assert(std::is_same_v<T, command_message>);
+    caf::binary_serializer snk{nullptr, buf};
     std::ignore = snk.apply(get_command(msg));
   }
   return make_packed_message(packed_message_type_v<T>, ttl, get_topic(msg),

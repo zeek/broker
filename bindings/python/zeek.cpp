@@ -20,36 +20,39 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 void init_zeek(py::module& m) {
-  py::class_<broker::zeek::Message>(m, "Message")
-    .def("as_data",
-         static_cast<const broker::data& (broker::zeek::Message::*) () const>(
-           &broker::zeek::Message::as_data));
-
-  py::class_<broker::zeek::Event, broker::zeek::Message>(m, "Event")
-    .def(py::init(
-      [](broker::data data) { return broker::zeek::Event(std::move(data)); }))
-    .def(py::init([](std::string name, broker::data args,
-                     std::optional<broker::data> metadata) {
-           if (metadata)
-             return broker::zeek::Event(
-               std::move(name), std::move(broker::get<broker::vector>(args)),
-               std::move(broker::get<broker::vector>(*metadata)));
-           else
-             return broker::zeek::Event(
-               std::move(name), std::move(broker::get<broker::vector>(args)));
-         }),
-         py::arg("name"), py::arg("args"), py::arg("metadata") = py::none())
+  namespace bz = broker::zeek;
+  py::class_<bz::Message>(m, "Message")
+    .def("as_data", [](const bz::Message& msg) -> broker::data {
+      return msg.deep_copy();
+    });
+  py::class_<bz::Event, bz::Message>(m, "Event")
+    .def(py::init([](const broker::data& data) {
+      return bz::Event::convert_from(std::move(data));
+    }))
+    /*
+      .def(py::init([](std::string name, broker::data args,
+                       std::optional<broker::data> metadata) {
+             if (metadata)
+               return bz::Event(
+                 std::move(name), std::move(broker::get<broker::vector>(args)),
+                 std::move(broker::get<broker::vector>(*metadata)));
+             else
+               return bz::Event(
+                 std::move(name), std::move(broker::get<broker::vector>(args)));
+           }),
+           py::arg("name"), py::arg("args"), py::arg("metadata") = py::none())
+           */
     .def("valid",
-         [](const broker::zeek::Event& ev) -> bool {
-           auto t = broker::zeek::Message::type(ev.as_data());
-           if (t != broker::zeek::Message::Type::Event)
+         [](const bz::Event& ev) -> bool {
+           auto t = bz::Message::type(ev.as_data());
+           if (t != bz::Message::Type::Event)
              return false;
            return ev.valid();
          })
     .def("name",
-         [](const broker::zeek::Event& ev) -> const std::string& {
-           auto t = broker::zeek::Message::type(ev.as_data());
-           if (t != broker::zeek::Message::Type::Event) {
+         [](const bz::Event& ev) -> const std::string& {
+           auto t = bz::Message::type(ev.as_data());
+           if (t != bz::Message::Type::Event) {
              throw std::invalid_argument("invalid Event data/type");
            }
            if (!ev.valid()) {
@@ -58,9 +61,9 @@ void init_zeek(py::module& m) {
            return ev.name();
          })
     .def("metadata",
-         [](const broker::zeek::Event& ev) -> std::optional<broker::vector> {
-           auto t = broker::zeek::Message::type(ev.as_data());
-           if (t != broker::zeek::Message::Type::Event) {
+         [](const bz::Event& ev) -> std::optional<broker::vector> {
+           auto t = bz::Message::type(ev.as_data());
+           if (t != bz::Message::Type::Event) {
              throw std::invalid_argument("invalid Event data/type");
            }
            if (!ev.valid()) {
@@ -72,9 +75,9 @@ void init_zeek(py::module& m) {
 
            return std::nullopt;
          })
-    .def("args", [](const broker::zeek::Event& ev) -> const broker::vector& {
-      auto t = broker::zeek::Message::type(ev.as_data());
-      if (t != broker::zeek::Message::Type::Event) {
+    .def("args", [](const bz::Event& ev) -> const broker::vector& {
+      auto t = bz::Message::type(ev.as_data());
+      if (t != bz::Message::Type::Event) {
         throw std::invalid_argument("invalid Event data/type");
       }
       if (!ev.valid()) {

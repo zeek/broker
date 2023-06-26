@@ -4,12 +4,15 @@
 #include <iterator>
 #include <optional>
 
+#include "broker/builder.hh"
 #include "broker/data.hh"
+#include "broker/data_view.hh"
 #include "broker/detail/assert.hh"
+#include "broker/topic.hh"
 
 namespace broker::zeek {
 
-const count ProtocolVersion = 1;
+constexpr count ProtocolVersion = 1;
 
 /// Metadata attached to Zeek events.
 enum class MetadataType : uint8_t {
@@ -34,73 +37,34 @@ public:
   };
 
   Type type() const {
-    if (as_vector().size() < 2)
-      return Type::Invalid;
-
-    auto cp = get_if<count>(&as_vector()[1]);
-
-    if (!cp)
-      return Type::Invalid;
-
-    if (*cp > Type::MAX)
-      return Type::Invalid;
-
-    return Type(*cp);
+    return type(data_);
   }
 
-  data&& move_data() {
-    return std::move(data_);
+  data deep_copy() const noexcept {
+    return data_.deep_copy();
   }
 
-  const data& as_data() const {
+  const data_view& content() const noexcept {
     return data_;
   }
 
-  data& as_data() {
-    return data_;
+  vector_view as_vector() const noexcept {
+    return data_.to_vector();
   }
 
-  const vector& as_vector() const {
-    return get<vector>(data_);
-  }
-
-  vector& as_vector() {
-    return get<vector>(data_);
-  }
-
-  operator data() const {
-    return as_data();
-  }
-
-  static Type type(const data& msg) {
-    auto vp = get_if<vector>(&msg);
-
-    if (!vp)
+  static Type type(const data_view& msg) {
+    auto vec = msg.to_vector();
+    if (vec.size() < 2 || !vec.back().is_count())
       return Type::Invalid;
-
-    auto& v = *vp;
-
-    if (v.size() < 2)
-      return Type::Invalid;
-
-    auto cp = get_if<count>(&v[1]);
-
-    if (!cp)
-      return Type::Invalid;
-
-    if (*cp > Type::MAX)
-      return Type::Invalid;
-
-    return Type(*cp);
+    if (auto val = vec.back().to_count(); val < Type::MAX)
+      return static_cast<Type>(val);
+    return Type::Invalid;
   }
 
 protected:
-  Message(Type type, vector content)
-    : data_(vector{ProtocolVersion, count(type), std::move(content)}) {}
+  Message(data_view msg) : data_(std::move(msg)) {}
 
-  Message(data msg) : data_(std::move(msg)) {}
-
-  data data_;
+  data_view data_;
 };
 
 /// Support iteration with structured binding.
@@ -108,149 +72,222 @@ class MetadataIterator {
 public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using value_type = std::pair<count, const data&>;
+  using value_type = std::pair<count, data_view>;
   using pointer = value_type*;
   using reference = value_type&;
 
-  explicit MetadataIterator(const broker::data* ptr) noexcept : ptr_(ptr) {}
+  explicit MetadataIterator(vector_view::iterator raw) noexcept : raw_(raw) {}
 
   MetadataIterator(const MetadataIterator&) noexcept = default;
 
   MetadataIterator& operator=(const MetadataIterator&) noexcept = default;
 
   value_type operator*() const {
-    auto entry_ptr = get_if<vector>(*ptr_);
-    BROKER_ASSERT(entry_ptr && entry_ptr->size() == 2);
-    const auto& entry = *entry_ptr;
-    return {get<count>(entry[0]), entry[1]};
+    auto entry = raw_->to_vector();
+    BROKER_ASSERT(entry.size() == 2);
+    return {entry.front().to_count(), entry.back()};
   }
 
   MetadataIterator& operator++() noexcept {
-    ++ptr_;
+    ++raw_;
     return *this;
   }
 
   MetadataIterator operator++(int) noexcept {
-    return MetadataIterator{ptr_++};
+    return MetadataIterator{raw_++};
   }
 
   bool operator!=(const MetadataIterator& other) const noexcept {
-    return ptr_ != other.ptr_;
+    return raw_ != other.raw_;
   }
 
   bool operator==(const MetadataIterator& other) const noexcept {
-    return ptr_ == other.ptr_;
+    return raw_ == other.raw_;
   }
 
 private:
-  const broker::data* ptr_;
+  vector_view::iterator raw_;
 };
 
 /// Supports iteration over metadata
 class MetadataWrapper {
 public:
-  explicit MetadataWrapper(const vector* v) noexcept : v_(v) {}
+  explicit MetadataWrapper(vector_view values) noexcept : values_(values) {}
 
   [[nodiscard]] MetadataIterator begin() const noexcept {
-    return MetadataIterator{v_ ? v_->data() : nullptr};
+    return MetadataIterator{values_.begin()};
   }
 
   [[nodiscard]] MetadataIterator end() const noexcept {
-    return MetadataIterator{v_ ? v_->data() + v_->size() : nullptr};
+    return MetadataIterator{values_.end()};
   }
 
-  const data* value(MetadataType key) const {
+  data_view value(MetadataType key) const {
     return value(static_cast<count>(key));
   }
 
-  const data* value(count key) const {
+  data_view value(count key) const {
     for (const auto& [k, v] : *this) {
       if (k == key)
-        return &v;
+        return v;
     }
-    return nullptr;
+    return {};
+  }
+
+  bool empty() const noexcept {
+    return values_.empty();
   }
 
   /// Raw access to the underlying metadata vector.
-  const vector* get_vector() const noexcept {
-    return v_;
+  vector_view get_vector() const noexcept {
+    return values_;
   }
 
 private:
-  const vector* v_;
+  vector_view values_;
 };
+
+/// A builder object for constructing metadata.
+class MetadataBuilder {
+public:
+  template <class T>
+  MetadataBuilder& add(MetadataType key, T&& value) & {
+    builder_.add_vector(static_cast<count>(key), std::forward<T>(value));
+    return *this;
+  }
+
+  template <class T>
+  MetadataBuilder& add(count key, T&& value) & {
+    builder_.add_vector(key, std::forward<T>(value));
+    return *this;
+  }
+
+  template <class T>
+  MetadataBuilder&& add(MetadataType key, T&& value) && {
+    builder_.add_vector(static_cast<count>(key), std::forward<T>(value));
+    return std::move(*this);
+  }
+
+  template <class T>
+  MetadataBuilder&& add(count key, T&& value) && {
+    builder_.add_vector(key, std::forward<T>(value));
+    return std::move(*this);
+  }
+
+  const vector_builder& vec() const noexcept {
+    return builder_;
+  }
+
+private:
+  vector_builder builder_;
+};
+
+/// A builder object for constructing arguments to a Zeek event.
+using ArgsBuilder = vector_builder;
 
 /// A Zeek event.
 class Event : public Message {
 public:
-  Event(std::string name, vector args)
-    : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
+  Event(Event&&) noexcept = default;
 
-  Event(std::string name, vector args, timestamp ts)
-    : Message(Message::Type::Event,
-              {std::move(name), std::move(args),
-               vector{{vector{
-                 static_cast<count>(MetadataType::NetworkTimestamp), ts}}}}) {}
+  Event(const Event&) noexcept = default;
 
-  Event(std::string name, vector args, vector metadata)
-    : Message(Message::Type::Event,
-              {std::move(name), std::move(args), std::move(metadata)}) {}
+  Event& operator=(Event&&) noexcept = default;
 
-  Event(data msg) : Message(std::move(msg)) {}
+  Event& operator=(const Event&) noexcept = default;
 
-  const std::string& name() const {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+  explicit Event(const data_view& msg) noexcept : Message(msg) {}
+
+  static Event make(std::string_view name) {
+    return Event{vector_builder{}
+                   .add(ProtocolVersion)
+                   .add(count{Type::Event})
+                   .add(name)
+                   .add_vector()
+                   .build()};
   }
 
-  std::string& name() {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+  /// Constructs an event.
+  template <class... Ts>
+  static Event make(std::string_view name,  Ts&&... xs) {
+    return Event{vector_builder{}
+                   .add(ProtocolVersion)
+                   .add(count{Type::Event})
+                   .add(name)
+                   .add_vector(std::forward<Ts>(xs)...)
+                   .build()};
+  }
+
+  /// Constructs an event with a network timestamp.
+  template <class... Ts>
+  static Event make_with_ts(std::string_view name, timestamp ts,  Ts&&... xs) {
+    auto tag = static_cast<count>(MetadataType::NetworkTimestamp);
+    return Event{vector_builder{}
+                   .add(ProtocolVersion)
+                   .add(count{Type::Event})
+                   .add(name)
+                   .add_vector(std::forward<Ts>(xs)...)
+                   .add_vector(vector_builder{}.add(tag).add(ts))
+                   .build()};
+  }
+
+  static Event make_with_args(std::string_view name, const ArgsBuilder& args) {
+    return Event{vector_builder{}
+                   .add(ProtocolVersion)
+                   .add(count{Type::Event})
+                   .add(name)
+                   .add(args)
+                   .build()};
+  }
+
+  static Event make_with_args(std::string_view name, const ArgsBuilder& args,
+                              const MetadataBuilder& metadata) {
+    return Event{vector_builder{}
+                   .add(ProtocolVersion)
+                   .add(count{Type::Event})
+                   .add(name)
+                   .add(args)
+                   .add(metadata.vec())
+                   .build()};
+  }
+
+  static Event convert_from(const data& src) {
+    auto envelope = data_envelope::make(topic{"$"}, src);
+    return Event{envelope->get_data()};
+  }
+
+  std::string_view name() const {
+    return as_vector()[2].to_vector().front().to_string();
   }
 
   MetadataWrapper metadata() const {
-    if (const auto* ev_vec_ptr = get_if<vector>(as_vector()[2]);
-        ev_vec_ptr && ev_vec_ptr->size() >= 3)
-      return MetadataWrapper{get_if<vector>((*ev_vec_ptr)[2])};
-
-    return MetadataWrapper{nullptr};
+    auto ev = as_vector()[2].to_vector();
+    if(ev.size() < 3)
+      return MetadataWrapper{data_view{}.to_vector()};
+    return MetadataWrapper{ev[2].to_vector()};
   }
 
-  const std::optional<timestamp> ts() const {
-    if (auto ts_ptr = metadata().value(MetadataType::NetworkTimestamp))
-      return get<timestamp>(*ts_ptr);
-
+  std::optional<timestamp> ts() const {
+    if (auto val = metadata().value(MetadataType::NetworkTimestamp);
+        val.is_timestamp())
+      return val.to_timestamp();
     return std::nullopt;
   }
 
-  const vector& args() const {
-    return get<vector>(get<vector>(as_vector()[2])[1]);
-  }
-
-  vector& args() {
-    return get<vector>(get<vector>(as_vector()[2])[1]);
+  vector_view args() const {
+    return as_vector()[2].to_vector()[1].to_vector();
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    auto vec = as_vector();
+    if (vec.size() < 3)
       return false;
 
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
+    auto nested = vec[2].to_vector();
+    if (nested.size() < 2)
       return false;
 
-    auto& v = *vp;
-
-    if (v.size() < 2)
-      return false;
-
-    auto name_ptr = get_if<std::string>(&v[0]);
-
-    if (!name_ptr)
-      return false;
-
-    auto args_ptr = get_if<vector>(&v[1]);
-
-    if (!args_ptr)
+    if (!nested[0].is_string() || !nested[1].is_vector())
       return false;
 
     // Optional event metadata verification.
@@ -258,32 +295,21 @@ public:
     // Verify the third element if it exists is a vector<vector<count, data>>
     // and type and further check that the NetworkTimestamp metadata has the
     // right type because we know down here what to expect.
-    if (v.size() > 2) {
-      auto md_ptr = get_if<vector>(&v[2]);
-      if (!md_ptr)
+    if (nested.size() > 2) {
+      auto meta_args = nested[2];
+      if (!meta_args.is_vector())
         return false;
-
-      for (const auto& mde : *md_ptr) {
-        auto mdev_ptr = get_if<vector>(mde);
-        if (!mdev_ptr)
+      for (const auto& meta_arg : meta_args.to_vector()) {
+        auto meta = meta_arg.to_vector();
+        if (meta.size() != 2)
           return false;
-
-        if (mdev_ptr->size() != 2)
+        if (!meta.front().is_count())
           return false;
-
-        const auto& mdev = *mdev_ptr;
-
-        auto mde_key_ptr = get_if<count>(mdev[0]);
-        if (!mde_key_ptr)
-          return false;
-
         constexpr auto net_ts_key =
           static_cast<count>(MetadataType::NetworkTimestamp);
-        if (*mde_key_ptr == net_ts_key) {
-          auto mde_val_ptr = get_if<timestamp>(mdev[1]);
-          if (!mde_val_ptr)
-            return false;
-        }
+        if (meta.front().to_count() == net_ts_key
+            && !meta.back().is_timestamp())
+          return false;
       }
     }
 
@@ -294,30 +320,23 @@ public:
 /// A batch of other messages.
 class Batch : public Message {
 public:
-  Batch(vector msgs) : Message(Message::Type::Batch, std::move(msgs)) {}
+  //Batch(vector msgs) : Message(Message::Type::Batch, std::move(msgs)) {}
 
-  Batch(data msg) : Message(std::move(msg)) {}
+  explicit Batch(data_view msg) : Message(std::move(msg)) {}
 
-  const vector& batch() const {
-    return get<vector>(as_vector()[2]);
-  }
-
-  vector& batch() {
-    return get<vector>(as_vector()[2]);
+  vector_view batch() const {
+    return as_vector()[2].to_vector();
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    auto values = as_vector();
+    if (values.size() < 3)
       return false;
-
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
-      return false;
-
-    return true;
+    return values[2].is_vector();
   }
 };
+
+/*
 
 /// A Zeek log-create message. Note that at the moment this should be used
 /// only by Zeek itself as the arguments aren't pulbically defined.
@@ -499,5 +518,7 @@ public:
     return true;
   }
 };
+
+*/
 
 } // namespace broker::zeek

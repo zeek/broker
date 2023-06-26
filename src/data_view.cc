@@ -1,12 +1,19 @@
 #include "broker/data_view.hh"
 
 #include "broker/detail/assert.hh"
+#include "broker/detail/btf.hh"
 #include "broker/detail/type_traits.hh"
+#include "broker/internal/stringifier.hh"
+#include "broker/internal/type_id.hh"
+#include "broker/topic.hh"
 
+#include <caf/binary_serializer.hpp>
+#include <caf/byte_buffer.hpp>
 #include <caf/detail/ieee_754.hpp>
 #include <caf/detail/network_order.hpp>
 
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <type_traits>
 
@@ -291,6 +298,12 @@ namespace {
 
 const data_view_value nil_instance;
 
+const data_view_value::set_view empty_set_instance;
+
+const data_view_value::table_view empty_table_instance;
+
+const data_view_value::vector_view empty_vector_instance;
+
 } // namespace
 
 const data_view_value* data_view_value::nil() noexcept {
@@ -335,6 +348,22 @@ bool operator==(const data_view_value& lhs, const data& rhs) noexcept {
   return visit_if_same_type(eq_predicate{}, lhs, rhs);
 }
 
+bool operator<(const data_view_value& lhs,
+               const data_view_value& rhs) noexcept {
+  if (lhs.data.index() != rhs.data.index())
+    return lhs.data.index() < rhs.data.index();
+  return std::visit(
+    [&rhs](const auto& x) -> bool {
+      using T = std::decay_t<decltype(x)>;
+      if constexpr (std::is_pointer_v<T>) {
+        return *x < *std::get<T>(rhs.data);
+      } else {
+        return x < std::get<T>(rhs.data);
+      }
+    },
+    lhs.data);
+}
+
 } // namespace broker::detail
 
 namespace broker {
@@ -343,27 +372,139 @@ data_envelope::~data_envelope() {
   // nop
 }
 
-error data_envelope::do_parse() {
+detail::data_view_value*
+data_envelope::do_parse(detail::monotonic_buffer_resource& buf, error& err) {
   auto [bytes, size] = raw_bytes();
-  if (bytes == nullptr || size == 0)
-    return {ec::deserialization_failed, "cannot parse null data"};
+  if (bytes == nullptr || size == 0) {
+    err = make_error(ec::deserialization_failed, "cannot parse null data");
+    return nullptr;
+  }
   // Create the root object.
+  detail::data_view_value* root;
   {
-    detail::mbr_allocator<detail::data_view_value> allocator{&buf_};
-    root_ = new (allocator.allocate(1)) detail::data_view_value();
+    detail::mbr_allocator<detail::data_view_value> allocator{&buf};
+    root = new (allocator.allocate(1)) detail::data_view_value();
   }
   // Parse the data. This is a shallow parse, which is why we need to copy the
   // bytes into the buffer resource first.
   auto end = bytes + size;
-  auto [ok, pos] = parse_shallow(buf_, *root_, bytes, end);
+  auto [ok, pos] = parse_shallow(buf, *root, bytes, end);
   if (ok && pos == end)
-    return {};
-  return {ec::deserialization_failed, "failed to parse data"};
+    return root;
+  err = make_error(ec::deserialization_failed, "failed to parse data");
+  return nullptr;
 }
 
+namespace {
 
-data_view data_envelope::to_data_view() const noexcept {
-  return {root_, shared_from_this()};
+/// The default implementation for @ref data_envelope that wraps a byte buffer
+/// and a topic..
+class default_data_envelope : public data_envelope {
+public:
+  default_data_envelope(topic t, caf::byte_buffer bytes)
+    : topic_(std::move(t)), bytes_(std::move(bytes)) {
+    // nop
+  }
+
+  data_view get_data() const noexcept override {
+    return {root_, shared_from_this()};
+  }
+
+  const topic& get_topic() const noexcept override {
+    return topic_;
+  }
+
+  bool is_root(const detail::data_view_value* val) const noexcept override {
+    return val == root_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {reinterpret_cast<const std::byte*>(bytes_.data()), bytes_.size()};
+  }
+
+  error parse() {
+    error result;
+    root_ = do_parse(buf_, result);
+    return result;
+  }
+
+private:
+  detail::data_view_value* root_ = nullptr;
+  topic topic_;
+  caf::byte_buffer bytes_;
+  detail::monotonic_buffer_resource buf_;
+};
+
+} // namespace
+
+data_envelope_ptr data_envelope::make(topic t, const data& d) {
+  caf::byte_buffer buf;
+  caf::binary_serializer sink{nullptr, buf};
+#ifndef NDEBUG
+  if (auto ok = sink.apply(d); !ok) {
+    auto errstr = caf::to_string(sink.get_error());
+    fprintf(stderr,
+            "broker::data_envelope::make failed to serialize data: %s\n",
+            errstr.c_str());
+    abort();
+  }
+#else
+  std::ignore = sink.apply(d);
+#endif
+  auto res = std::make_shared<default_data_envelope>(std::move(t),
+                                                     std::move(buf));
+#ifndef NDEBUG
+  if (auto err = res->parse()) {
+    auto errstr = to_string(err);
+    fprintf(stderr,
+            "broker::data_envelope::make generated malformed data: %s\n",
+            errstr.c_str());
+    abort();
+  }
+#else
+  std::ignore = res->parse();
+#endif
+  return res;
+}
+
+namespace {
+
+/// Wraps a data view and a topic.
+class data_envelope_wrapper : public data_envelope {
+public:
+  data_envelope_wrapper(topic t, data_view val)
+    : topic_(std::move(t)), val_(std::move(val)) {
+    // nop
+  }
+
+  data_view get_data() const noexcept override {
+    return val_;
+  }
+
+  const topic& get_topic() const noexcept override {
+    return topic_;
+  }
+
+  bool is_root(const detail::data_view_value* val) const noexcept override {
+    return val == val_.raw_ptr() && val_.is_root();
+  }
+
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    if (val_.is_root())
+      val_.envelope_ptr()->raw_bytes();
+    return {nullptr, 0};
+  }
+
+private:
+  topic topic_;
+  data_view val_;
+};
+
+} // namespace
+
+data_envelope_ptr data_envelope::make(topic t, data_view d) {
+  return std::make_shared<data_envelope_wrapper>(std::move(t), std::move(d));
 }
 
 data data_view::deep_copy() const {
@@ -372,17 +513,59 @@ data data_view::deep_copy() const {
 
 set_view data_view::to_set() const noexcept {
   using detail_t = detail::data_view_value::set_view*;
-  return set_view{std::get<detail_t>(value_->data), envelope_};
+  if (auto ptr = std::get_if<detail_t>(&value_->data))
+    return set_view{*ptr, envelope_};
+  return set_view{&detail::empty_set_instance, nullptr};
 }
 
 table_view data_view::to_table() const noexcept {
   using detail_t = detail::data_view_value::table_view*;
-  return table_view{std::get<detail_t>(value_->data), envelope_};
+  if (auto ptr = std::get_if<detail_t>(&value_->data))
+    return table_view{*ptr, envelope_};
+  return table_view{&detail::empty_table_instance, nullptr};
 }
 
 vector_view data_view::to_vector() const noexcept {
   using detail_t = detail::data_view_value::vector_view*;
-  return vector_view{std::get<detail_t>(value_->data), envelope_};
+  if (auto ptr = std::get_if<detail_t>(&value_->data))
+    return vector_view{*ptr, envelope_};
+  return vector_view{&detail::empty_vector_instance, nullptr};
+}
+
+void convert(const data_view& value, std::string& out) {
+  detail::btf::encode(value.raw_ptr(), std::back_inserter(out));
+}
+
+void convert(const set_view& value, std::string& out) {
+  detail::btf::encode(value.raw_ptr(), std::back_inserter(out));
+}
+
+void convert(const table_view& value, std::string& out) {
+  detail::btf::encode(value.raw_ptr(), std::back_inserter(out));
+}
+
+void convert(const vector_view& value, std::string& out) {
+  detail::btf::encode(value.raw_ptr(), std::back_inserter(out));
+}
+
+std::ostream& operator<<(std::ostream& out, const data_view& what) {
+  detail::btf::encode(what, std::ostream_iterator<char>(out));
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const set_view& what) {
+  detail::btf::encode(what.raw_ptr(), std::ostream_iterator<char>(out));
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const table_view& what) {
+  detail::btf::encode(what.raw_ptr(), std::ostream_iterator<char>(out));
+  return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const vector_view& what) {
+  detail::btf::encode(what.raw_ptr(), std::ostream_iterator<char>(out));
+  return out;
 }
 
 } // namespace broker

@@ -14,6 +14,9 @@ class topic;
 
 namespace broker::detail {
 
+template <class...>
+struct parameter_pack {};
+
 template <class T>
 struct tag {
   using type = T;
@@ -24,6 +27,10 @@ struct always_false : std::false_type {};
 
 template <class T>
 inline constexpr bool always_false_v = always_false<T>::value;
+
+/// Checks whether T is one of the types in the template parameter pack Ts.
+template <class T, class... Ts>
+inline constexpr bool is_one_of_v = (std::is_same_v<T, Ts> || ...);
 
 // A variadic extension of std::is_same.
 template <class... Ts>

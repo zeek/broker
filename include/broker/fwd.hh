@@ -103,6 +103,7 @@ using internal_command_variant =
 
 // -- view types ---------------------------------------------------------------
 
+class data_envelope;
 class data_view;
 class enum_value_view;
 class set_view;
@@ -144,10 +145,11 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
+using data_envelope_ptr = std::shared_ptr<const data_envelope>;
 using packed_message =
   cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 using command_message = cow_tuple<topic, internal_command>;
-using data_message = cow_tuple<topic, data>;
+class data_message;
 using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;
 
 } // namespace broker

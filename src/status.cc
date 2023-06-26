@@ -1,6 +1,7 @@
 #include "broker/status.hh"
 
 #include "broker/data.hh"
+#include "broker/data_view.hh"
 #include "broker/detail/assert.hh"
 #include "broker/error.hh"
 #include "broker/internal/native.hh"
@@ -42,7 +43,20 @@ bool convert(const data& src, sc& code) noexcept {
   }
 }
 
+bool convert(const data_view& src, sc& code) noexcept {
+  if (src.is_enum_value()) {
+    return convert(src.to_enum_value().name, code);
+  } else {
+    return false;
+  }
+}
+
 bool convertible_to_sc(const data& src) noexcept {
+  sc dummy;
+  return convert(src, dummy);
+}
+
+bool convertible_to_sc(const data_view& src) noexcept {
   sc dummy;
   return convert(src, dummy);
 }
@@ -116,10 +130,11 @@ std::string to_string(status_view x) {
   return status_to_string_impl(x);
 }
 
-bool convertible_to_status(const vector& xs) noexcept {
+template <class VectorOrView>
+bool convertible_to_status_impl(const VectorOrView& xs) noexcept {
   if (xs.size() != 4)
     return false;
-  if (auto str = get_if<std::string>(xs[0]); !str || *str != "status")
+  if (!xs[0].is_string() || xs[0].to_string() != "status")
     return false;
   if (auto code = to<sc>(xs[1]))
     return *code != sc::unspecified
@@ -128,29 +143,50 @@ bool convertible_to_status(const vector& xs) noexcept {
   return false;
 }
 
+bool convertible_to_status(const vector& xs) noexcept {
+    return convertible_to_status_impl(xs);
+}
+
 bool convertible_to_status(const data& src) noexcept {
   if (auto xs = get_if<vector>(src))
-    return convertible_to_status(*xs);
+    return convertible_to_status_impl(*xs);
+  return false;
+}
+
+bool convertible_to_status(const data_view& src) noexcept {
+  if (src.is_vector())
+    return convertible_to_status_impl(src.to_vector());
+  return false;
+}
+
+
+template <class DataOrView>
+bool convert_impl(const DataOrView& src, sc& code, endpoint_info& context,
+                  std::string& message) {
+  if (!convertible_to_status(src))
+    return false;
+  auto&& xs = src.to_vector();
+  if (!convert(xs[1].to_enum_value().name, code))
+    return false;
+  if (code != sc::unspecified) {
+    if (convert(xs[2], context)) {
+      message = xs[3].to_string();
+      return true;
+    }
+  } else {
+    context = endpoint_info{};
+    message.clear();
+    return true;
+  }
   return false;
 }
 
 bool convert(const data& src, status& dst) {
-  if (!convertible_to_status(src))
-    return false;
-  auto& xs = get<vector>(src);
-  if (!convert(get<enum_value>(xs[1]).name, dst.code_))
-    return false;
-  if (dst.code_ != sc::unspecified) {
-    if (convert(get<vector>(xs[2]), dst.context_)) {
-      dst.message_ = get<std::string>(xs[3]);
-      return true;
-    }
-  } else {
-    dst.context_ = endpoint_info{};
-    dst.message_.clear();
-    return true;
-  }
-  return false;
+  return convert_impl(src, dst.code_, dst.context_, dst.message_);
+}
+
+bool convert(const data_view& src, status& dst) {
+  return convert_impl(src, dst.code_, dst.context_, dst.message_);
 }
 
 bool convert(const status& src, data& dst) {

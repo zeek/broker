@@ -7,6 +7,7 @@
 
 #include "broker/cow_tuple.hh"
 #include "broker/data.hh"
+#include "broker/data_view.hh"
 #include "broker/detail/inspect_enum.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
@@ -153,7 +154,56 @@ inline const std::vector<std::byte>& get_payload(const node_message& msg) {
 }
 
 /// A user-defined message with topic and data.
-using data_message = cow_tuple<topic, data>;
+class data_message {
+public:
+  explicit data_message(data_envelope_ptr from) : envolope_(std::move(from)) {}
+
+  // Note: for backward compatibility.
+  data_message(topic t, const data& src)
+    : envolope_(data_envelope::make(std::move(t), src)) {
+    // nop
+  }
+
+  // Note: for backward compatibility.
+  data_message(topic t, const data_view& src)
+    : envolope_(data_envelope::make(std::move(t), src)) {
+    // nop
+  }
+
+  data_message() noexcept = default;
+  data_message(data_message&&) noexcept = default;
+  data_message(const data_message&) noexcept = default;
+  data_message&operator=(data_message&&) noexcept = default;
+  data_message&operator=(const data_message&) noexcept = default;
+
+  /// Checks whether this data message is valid.
+  explicit operator bool() const noexcept {
+    return static_cast<bool>(envolope_);
+  }
+
+  /// Returns the topic of this message.
+  const topic& get_topic() const noexcept {
+    return envolope_->get_topic();
+  }
+
+  /// Returns the data of this message.
+  data_view get_data() const noexcept {
+    return envolope_->get_data();
+  }
+
+private:
+  data_envelope_ptr envolope_;
+};
+
+inline bool operator==(const data_message& lhs,
+                       const data_message& rhs) noexcept {
+  return lhs.get_topic() == rhs.get_topic() && lhs.get_data() == rhs.get_data();
+}
+
+inline bool operator!=(const data_message& lhs,
+                       const data_message& rhs) noexcept {
+  return !(lhs==rhs);
+}
 
 /// A Broker-internal message with topic and command.
 using command_message = cow_tuple<topic, internal_command>;
@@ -182,10 +232,17 @@ struct packed_message_type_oracle<command_message> {
 template <class T>
 constexpr auto packed_message_type_v = packed_message_type_oracle<T>::value;
 
+/// Converts a @ref packed_message to a @ref data_message.
+expected<data_message> make_data_message(packed_message src);
+
 /// Generates a @ref data_message.
-template <class Topic, class Data>
-data_message make_data_message(Topic&& t, Data&& d) {
-  return data_message(std::forward<Topic>(t), std::forward<Data>(d));
+inline data_message make_data_message(topic t, data d) {
+  return data_message{std::move(t), std::move(d)};
+}
+
+/// Generates a @ref data_message.
+inline data_message make_data_message(topic t, data_view d) {
+  return data_message{std::move(t), std::move(d)};
 }
 
 /// Generates a @ref command_message.
@@ -209,40 +266,26 @@ inline node_message make_node_message(endpoint_id sender, endpoint_id receiver,
 /// Retrieves the topic from a @ref data_message.
 /// @relates data_message
 inline const topic& get_topic(const data_message& x) {
-  return get<0>(x);
+  return x.get_topic();
 }
 
 /// Retrieves the topic from a ::command_message.
-/// @relates data_message
+/// @relates command_message
 inline const topic& get_topic(const command_message& x) {
   return get<0>(x);
 }
 
-/// Moves the topic out of a ::data_message. Causes `x` to make a lazy copy of
-/// its content if other ::data_message objects hold references to it.
-/// @relates data_message
-inline topic&& move_topic(data_message& x) {
-  return std::move(get<0>(x.unshared()));
-}
-
 /// Moves the topic out of a ::command_message. Causes `x` to make a lazy copy
 /// of its content if other ::command_message objects hold references to it.
-/// @relates data_message
+/// @relates command_message
 inline topic&& move_topic(command_message& x) {
   return std::move(get<0>(x.unshared()));
 }
 
 /// Retrieves the data from a @ref data_message.
 /// @relates data_message
-inline const data& get_data(const data_message& x) {
-  return get<1>(x);
-}
-
-/// Moves the data out of a @ref data_message. Causes `x` to make a lazy copy of
-/// its content if other @ref data_message objects hold references to it.
-/// @relates data_message
-inline data&& move_data(data_message& x) {
-  return std::move(get<1>(x.unshared()));
+inline data_view get_data(const data_message& x) {
+  return x.get_data();
 }
 
 /// Retrieves the command content from a ::command_message.
@@ -259,13 +302,6 @@ inline internal_command&& move_command(command_message& x) {
   return std::move(get<1>(x.unshared()));
 }
 
-/// Force `x` to become uniquely referenced. Performs a deep-copy of the content
-/// in case they is more than one reference to it. If `x` is the only object
-/// referring to the content, this function does nothing.
-inline void force_unshared(data_message& x) {
-  x.unshared();
-}
-
 /// @copydoc force_unshared
 inline void force_unshared(command_message& x) {
   x.unshared();
@@ -278,24 +314,5 @@ std::string to_string(const data_message& msg);
 /// Converts `msg` to a human-readable string representation.
 /// @relates command_message
 std::string to_string(const command_message& msg);
-
-/// Gives data messages a nicer representation in JSON input and output.
-struct data_message_decorator {
-  topic& t;
-  data& d;
-};
-
-/// @relates data_message_decorator
-template <class Inspector>
-bool inspect(Inspector& f, data_message_decorator& x) {
-  return f.object(x).fields(f.field("topic", x.t),
-                            f.field("data", x.d.get_data()));
-}
-
-/// @relates data_message
-inline data_message_decorator decorated(data_message& msg) {
-  auto& [t, d] = msg.unshared();
-  return data_message_decorator{t, d};
-}
 
 } // namespace broker

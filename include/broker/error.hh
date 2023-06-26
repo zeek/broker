@@ -222,10 +222,16 @@ std::string to_string(ec code);
 std::string_view enum_str(ec code);
 
 /// @relates ec
+ec ec_by_name(std::string_view str) noexcept;
+
+/// @relates ec
 bool convert(std::string_view str, ec& code) noexcept;
 
 /// @relates ec
 bool convert(const data& str, ec& code) noexcept;
+
+/// @relates ec
+bool convert(const data_view& str, ec& code) noexcept;
 
 /// @relates ec
 inline bool convert(const std::string& str, ec& code) noexcept {
@@ -236,6 +242,9 @@ inline bool convert(const std::string& str, ec& code) noexcept {
 
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
+
+/// @relates ec
+bool convertible_to_ec(const data_view& src) noexcept;
 
 /// @relates ec
 bool convertible_to_ec(uint8_t src) noexcept;
@@ -260,6 +269,9 @@ struct can_convert_predicate<ec> {
   static bool check(const data& src) noexcept {
     return convertible_to_ec(src);
   }
+  static bool check(const data_view& src) noexcept {
+    return convertible_to_ec(src);
+  }
 };
 
 /// Checks whethter `src` is convertible to a `caf::error` with
@@ -269,6 +281,13 @@ bool convertible_to_error(const data& src) noexcept;
 /// @copydoc convertible_to_error
 bool convertible_to_error(const vector& xs) noexcept;
 
+/// Checks whethter `src` is convertible to a `caf::error` with
+/// `category() == caf::atom("broker")`.
+bool convertible_to_error(const data_view& src) noexcept;
+
+/// @copydoc convertible_to_error
+bool convertible_to_error(const vector_view& xs) noexcept;
+
 template <>
 struct can_convert_predicate<error> {
   static bool check(const data& src) noexcept {
@@ -276,6 +295,14 @@ struct can_convert_predicate<error> {
   }
 
   static bool check(const vector& src) noexcept {
+    return convertible_to_error(src);
+  }
+
+  static bool check(const data_view& src) noexcept {
+    return convertible_to_error(src);
+  }
+
+  static bool check(const vector_view& src) noexcept {
     return convertible_to_error(src);
   }
 };
@@ -288,6 +315,9 @@ bool convert(const error& src, data& dst);
 
 /// Converts data in the format `["error", code, context]` back to an error.
 bool convert(const data& src, error& dst);
+
+/// Converts data in the format `["error", code, context]` back to an error.
+bool convert(const data_view& src, error& dst);
 
 /// Creates a view into a ::data object that is convertible to ::error.
 class error_view {

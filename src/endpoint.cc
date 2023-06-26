@@ -809,6 +809,12 @@ void endpoint::forward(std::vector<topic> ts) {
   caf::anon_send(native(core_), atom::subscribe_v, std::move(ts));
 }
 
+void endpoint::publish(topic t, data_view d) {
+  BROKER_INFO("publishing" << std::make_pair(t, d));
+  caf::anon_send(native(core_), atom::publish_v,
+                 make_data_message(std::move(t), std::move(d)));
+}
+
 void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
   caf::anon_send(native(core_), atom::publish_v,

@@ -250,6 +250,11 @@ public:
   /// Publishes a message.
   /// @param t The topic of the message.
   /// @param d The message data.
+  void publish(topic t, data_view d);
+
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
   void publish(topic t, data d);
 
   /// Publishes a message to a specific peer endpoint only.

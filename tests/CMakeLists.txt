@@ -10,6 +10,7 @@ set(tests
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
+  cpp/builder.cc
   cpp/data.cc
   cpp/data_view.cc
   cpp/detail/peer_status_map.cc

@@ -9,12 +9,62 @@ using namespace std::literals;
 
 namespace broker {
 
+namespace {
+
 constexpr std::string_view p2p_message_type_names[] = {
   "invalid",        "data",      "command",        "routing_update",
   "ping",           "pong",      "hello",          "probe",
   "version_select", "drop_conn", "originator_syn", "responder_syn_ack",
   "originator_ack",
 };
+
+class packed_message_envelope : public data_envelope {
+public:
+  packed_message_envelope(packed_message packed) : packed_(std::move(packed)) {
+    // nop
+  }
+
+  data_view get_data() const noexcept override {
+    return {root_, shared_from_this()};
+  }
+
+  const topic& get_topic() const noexcept override {
+    return broker::get_topic(packed_);
+  }
+
+  bool is_root(const detail::data_view_value* val) const noexcept override {
+    return val == root_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    auto& bytes = get_payload(packed_);
+    return {bytes.data(), bytes.size()};
+  }
+
+  error parse() {
+    error result;
+    root_ = do_parse(buf_, result);
+    return result;
+  }
+
+private:
+  packed_message packed_;
+  detail::data_view_value* root_ = nullptr;
+  detail::monotonic_buffer_resource buf_;
+};
+
+} // namespace
+
+expected<data_message> make_data_message(packed_message src) {
+  auto envelope = std::make_shared<packed_message_envelope>(std::move(src));
+  if (auto err = envelope->parse())
+    return err;
+  return data_message{std::move(envelope)};
+}
+
+data_message make_data_message(topic t, const data& d) {
+  return data_message(std::move(t), d);
+}
 
 std::string to_string(p2p_message_type x) {
   auto index = static_cast<uint8_t>(x);
@@ -71,7 +121,13 @@ bool from_integer(uint8_t val, packed_message_type& x) {
 }
 
 std::string to_string(const data_message& msg) {
-  return caf::deep_to_string(msg.data());
+  std::string result;
+  result = "broker::data_message(";
+  caf::detail::print_escaped(result, get_topic(msg).string());
+  result += ", ";
+  convert(get_data(msg), result);
+  result += ')';
+  return result;
 }
 
 std::string to_string(const command_message& msg) {

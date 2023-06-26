@@ -26,11 +26,11 @@ int main() {
   for (int n = 0; n < 5; n++) {
     // Wait for a "ping" event.
     auto msg = sub.get();
-    zeek::Event ping(move_data(msg));
+    auto ping = zeek::Event{get_data(msg)};
     std::cout << "received " << ping.name() << ping.args() << std::endl;
 
     // Send event "pong" response.
-    zeek::Event pong("pong", {n});
-    ep.publish("/topic/test", pong);
+    auto pong = zeek::Event::make("pong", n);
+    ep.publish("/topic/test", pong.content());
   }
 }

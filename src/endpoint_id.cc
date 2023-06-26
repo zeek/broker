@@ -50,8 +50,17 @@ endpoint_id endpoint_id::random(unsigned seed) noexcept {
   return from_uuid(caf::uuid::random(seed));
 }
 
-bool endpoint_id::can_parse(const std::string& str) {
-  return caf::uuid::can_parse(str);
+bool endpoint_id::parse(std::string_view str) noexcept {
+  caf::uuid id;
+  if (auto err = caf::parse(str, id)) {
+    return false;
+  }
+  *this = from_uuid(id);
+  return true;
+}
+
+bool endpoint_id::can_parse(std::string_view str) noexcept {
+  return caf::uuid::can_parse(caf::string_view{str.data(), str.size()});
 }
 
 // -- free functions -----------------------------------------------------------
@@ -61,13 +70,7 @@ void convert(endpoint_id x, std::string& str) {
 }
 
 bool convert(const std::string& str, endpoint_id& x) {
-  caf::uuid id;
-  if (auto err = caf::parse(str, id)) {
-    return false;
-  } else {
-    x = from_uuid(id);
-    return true;
-  }
+  return x.parse(str);
 }
 
 } // namespace broker

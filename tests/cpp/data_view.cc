@@ -1,7 +1,6 @@
 #define SUITE data_view
 
 #include "broker/data_view.hh"
-#include "broker/data.hh"
 
 #include "test.hh"
 
@@ -14,6 +13,7 @@
 #include <utility>
 
 #include "broker/convert.hh"
+#include "broker/data.hh"
 
 #include <caf/detail/append_hex.hpp>
 
@@ -61,21 +61,33 @@ public:
     topic_ = topic{"test"};
   }
 
-  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
-    return {reinterpret_cast<const std::byte*>(bytes_.data()), bytes_.size()};
+  data_view get_data() const noexcept override {
+    return {root_, shared_from_this()};
   }
 
   const topic& get_topic() const noexcept override {
     return topic_;
   }
 
+  bool is_root(const detail::data_view_value* val) const noexcept override {
+    return val == root_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {reinterpret_cast<const std::byte*>(bytes_.data()), bytes_.size()};
+  }
+
   error parse() {
-    return do_parse();
+    error result;
+    root_ = do_parse(buf_, result);
+    return result;
   }
 
 private:
-  byte_buffer bytes_;
+  detail::data_view_value* root_ = nullptr;
   topic topic_;
+  caf::byte_buffer bytes_;
+  detail::monotonic_buffer_resource buf_;
 };
 
 template<class T, class... Ts>
@@ -94,7 +106,7 @@ data_view parse_bytes(T arg, Ts... args) {
     auto envelope = std::make_shared<data_envelope_test_impl>(std::move(arg));
     if (auto err = envelope->parse(); err)
       return data_view{};
-    return envelope->to_data_view();
+    return envelope->get_data();
   } else {
     return parse_bytes(make_bytes(arg, args...));
   }

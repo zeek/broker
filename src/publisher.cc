@@ -225,6 +225,12 @@ void publisher::publish(data x) {
   dptr(queue_)->push(caf::make_span(&msg, 1));
 }
 
+void publisher::publish(data_view x) {
+  auto msg = make_data_message(topic_, x);
+  BROKER_DEBUG("publishing" << msg);
+  dptr(queue_)->push(caf::make_span(&msg, 1));
+}
+
 void publisher::publish(std::vector<data> xs) {
   std::vector<data_message> msgs;
   msgs.reserve(xs.size());

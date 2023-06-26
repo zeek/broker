@@ -13,6 +13,7 @@
 
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/metric_view.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
@@ -58,6 +59,8 @@ public:
   // -- data management --------------------------------------------------------
 
   size_t insert_or_update(const data& content);
+
+  size_t insert_or_update(const data_view& content);
 
   size_t insert_or_update(const vector& vec);
 

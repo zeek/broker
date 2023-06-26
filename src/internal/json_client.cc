@@ -120,6 +120,9 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     .flat_map([this, n = 0](const caf::cow_string& str) mutable {
       ++n;
       std::optional<data_message> result;
+      // TODO: implement me
+      return result;
+      /*
       reader.reset();
       if (reader.load(str)) {
         using std::get;
@@ -147,6 +150,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
         ctrl_msgs.push(caf::cow_string{std::move(json)});
       }
       return result;
+      */
     })
     .subscribe(core_push);
 }
@@ -175,6 +179,7 @@ std::string json_client_state::render_ack() {
   return render(obj);
 }
 
+/*
 struct const_data_message_decorator {
   const topic& t;
   const data& d;
@@ -201,6 +206,7 @@ bool inspect(Inspector& f, const_data_message_decorator& x) {
   };
   return visit(do_inspect, x.d);
 }
+*/
 
 void json_client_state::init(
   const filter_type& filter, const out_t& out,
@@ -215,6 +221,8 @@ void json_client_state::init(
       self->make_observable()
         .from_resource(core_pull2)
         .map([this](const data_message& msg) -> caf::cow_string {
+          return caf::cow_string{std::string{"TODO: implement me"}};
+          /*
           writer.reset();
           auto decorator = decorated(msg);
           if (writer.apply(decorator)) {
@@ -228,6 +236,7 @@ void json_client_state::init(
             auto str = render_error(enum_str(ec::serialization_failed), ctx);
             return caf::cow_string{std::move(str)};
           }
+          */
         })
         .as_observable();
     auto sub = ctrl_msgs.as_observable().merge(core_json).subscribe(out);

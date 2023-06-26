@@ -72,6 +72,9 @@ public:
   /// Sends `x` to all subscribers.
   void publish(data x);
 
+  /// Sends `x` to all subscribers.
+  void publish(data_view x);
+
   /// Sends `xs` to all subscribers.
   void publish(std::vector<data> xs);
 

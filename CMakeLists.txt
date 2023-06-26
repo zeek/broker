@@ -290,11 +290,13 @@ set(BROKER_SRC
   src/address.cc
   src/alm/multipath.cc
   src/alm/routing_table.cc
+  src/builder.cc
   src/configuration.cc
   src/convert.cc
   src/data.cc
   src/data_view.cc
   src/detail/abstract_backend.cc
+  src/detail/bbf.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
   src/detail/make_backend.cc
@@ -445,38 +447,38 @@ endif ()
 
 # -- Bindings -----------------------------------------------------------------
 
-if (NOT DISABLE_PYTHON_BINDINGS)
-  set(Python_ADDITIONAL_VERSIONS 3)
-  find_package(PythonInterp)
-  if (NOT PYTHONINTERP_FOUND)
-    message(STATUS "Skipping Python bindings: Python interpreter not found")
-  endif ()
-
-  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/3rdparty/pybind11/CMakeLists.txt")
-    message(WARNING "Skipping Python bindings: pybind11 submodule not available")
-    set(PYTHONINTERP_FOUND false)
-  endif ()
-
-  if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 3.5)
-    message(WARNING "Skipping Python bindings: Python 3.5 or greater required")
-    set(PYTHONINTERP_FOUND false)
-  endif ()
-
-  find_package(PythonDev)
-  if (PYTHONDEV_FOUND)
-    # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
-    set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
-  else ()
-    message(STATUS
-            "Skipping Python bindings: Python includes/libraries not found")
-  endif ()
-
-  if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND)
-    set (BROKER_PYTHON_BINDINGS true)
-    set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
-    add_subdirectory(bindings/python)
-  endif ()
-endif ()
+# if (NOT DISABLE_PYTHON_BINDINGS)
+#   set(Python_ADDITIONAL_VERSIONS 3)
+#   find_package(PythonInterp)
+#   if (NOT PYTHONINTERP_FOUND)
+#     message(STATUS "Skipping Python bindings: Python interpreter not found")
+#   endif ()
+#
+#   if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/3rdparty/pybind11/CMakeLists.txt")
+#     message(WARNING "Skipping Python bindings: pybind11 submodule not available")
+#     set(PYTHONINTERP_FOUND false)
+#   endif ()
+#
+#   if (${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR} VERSION_LESS 3.5)
+#     message(WARNING "Skipping Python bindings: Python 3.5 or greater required")
+#     set(PYTHONINTERP_FOUND false)
+#   endif ()
+#
+#   find_package(PythonDev)
+#   if (PYTHONDEV_FOUND)
+#     # The standard PythonLibs package puts its includes at PYTHON_INCLUDE_DIRS.
+#     set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIR})
+#   else ()
+#     message(STATUS
+#             "Skipping Python bindings: Python includes/libraries not found")
+#   endif ()
+#
+#   if (PYTHONINTERP_FOUND AND PYTHONDEV_FOUND)
+#     set (BROKER_PYTHON_BINDINGS true)
+#     set (BROKER_PYTHON_STAGING_DIR ${CMAKE_CURRENT_BINARY_DIR}/python)
+#     add_subdirectory(bindings/python)
+#   endif ()
+# endif ()
 
 # -- Zeek ---------------------------------------------------------------------
 

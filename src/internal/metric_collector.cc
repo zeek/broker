@@ -1,8 +1,9 @@
-#include <memory>
-
 #include "broker/internal/metric_collector.hh"
 
 #include "broker/internal/logger.hh"
+#include "broker/data_view.hh"
+
+#include <memory>
 
 namespace ct = caf::telemetry;
 
@@ -145,6 +146,11 @@ size_t metric_collector::insert_or_update(const data& content) {
     return insert_or_update(*vec);
   else
     return 0;
+}
+
+size_t metric_collector::insert_or_update(const data_view& content) {
+  // TODO: implement me
+  return 0;
 }
 
 size_t metric_collector::insert_or_update(const vector& vec) {

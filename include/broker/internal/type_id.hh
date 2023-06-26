@@ -241,6 +241,7 @@ struct inspector_access<broker::cow_tuple<Ts...>> {
 #undef BROKER_ADD_ATOM
 #undef BROKER_ADD_TYPE_ID
 
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::data_message)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::shared_store_state_ptr)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::command_consumer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::command_producer_res)
