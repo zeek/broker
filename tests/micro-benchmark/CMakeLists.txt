@@ -1,18 +1,23 @@
-find_package(benchmark REQUIRED)
+add_library(micro-benchmark-base INTERFACE)
 
-add_executable(micro-benchmark
-  "src/main.cc"
-  "src/routing-table.cc"
-  "src/serialization.cc"
-  "src/streaming.cc"
-)
-
-target_include_directories(micro-benchmark PRIVATE "include")
-
-target_link_libraries(micro-benchmark PRIVATE benchmark::benchmark_main)
+target_link_libraries(micro-benchmark-base INTERFACE benchmark::benchmark_main)
 
 if (ENABLE_STATIC)
-  target_link_libraries(micro-benchmark PRIVATE broker_static)
+  target_link_libraries(micro-benchmark-base INTERFACE broker_static)
 else ()
-  target_link_libraries(micro-benchmark PRIVATE broker)
+  target_link_libraries(micro-benchmark-base INTERFACE broker)
 endif ()
+
+target_include_directories(micro-benchmark-base INTERFACE "include")
+
+add_executable(broker-serialization-benchmark src/serialization.cc)
+target_link_libraries(broker-serialization-benchmark PRIVATE micro-benchmark-base)
+
+# add_executable(micro-benchmark
+#   "src/main.cc"
+#   "src/routing-table.cc"
+#   "src/serialization.cc"
+#   "src/streaming.cc"
+# )
+#
+# target_link_libraries(micro-benchmark PRIVATE benchmark::benchmark_main)

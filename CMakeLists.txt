@@ -290,6 +290,7 @@ set(BROKER_SRC
   src/address.cc
   src/alm/multipath.cc
   src/alm/routing_table.cc
+  src/builder.cc
   src/configuration.cc
   src/convert.cc
   src/data.cc
@@ -311,8 +312,10 @@ set(BROKER_SRC
   src/endpoint_id.cc
   src/endpoint_info.cc
   src/entity_id.cc
+  src/envelope.cc
   src/error.cc
   src/filter_type.cc
+  src/format/bin.cc
   src/internal/clone_actor.cc
   src/internal/connector.cc
   src/internal/connector_adapter.cc
@@ -355,6 +358,11 @@ set(BROKER_SRC
   src/telemetry/metric_registry_impl.cc
   src/time.cc
   src/topic.cc
+  src/variant.cc
+  src/variant_data.cc
+  src/variant_list.cc
+  src/variant_set.cc
+  src/variant_table.cc
   src/version.cc
   src/worker.cc
 )

@@ -52,6 +52,9 @@ class configuration;
 class data;
 class endpoint;
 class endpoint_id;
+class enum_value_view;
+class envelope;
+class error;
 class internal_command;
 class mailbox;
 class port;
@@ -63,6 +66,11 @@ class store;
 class subnet;
 class subscriber;
 class topic;
+class variant;
+class variant_data;
+class variant_list;
+class variant_set;
+class variant_table;
 class worker;
 
 // -- templates ----------------------------------------------------------------
@@ -80,6 +88,7 @@ enum class ec : uint8_t;
 enum class p2p_message_type : uint8_t;
 enum class packed_message_type : uint8_t;
 enum class sc : uint8_t;
+enum class variant_tag : uint8_t;
 
 // -- STD type aliases ---------------------------------------------------------
 
@@ -136,6 +145,7 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
+using envelope_ptr = std::shared_ptr<const envelope>;
 using packed_message =
   cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 using command_message = cow_tuple<topic, internal_command>;
@@ -149,6 +159,7 @@ using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;
 namespace broker::detail {
 
 class abstract_backend;
+class monotonic_buffer_resource;
 
 } // namespace broker::detail
 

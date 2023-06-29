@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstddef>
+#include "broker/fwd.hh"
 
+#include <cstddef>
 #include <type_traits>
 
 namespace broker {
@@ -14,6 +15,9 @@ class topic;
 
 namespace broker::detail {
 
+template <class...>
+struct parameter_pack {};
+
 template <class T>
 struct tag {
   using type = T;
@@ -24,6 +28,10 @@ struct always_false : std::false_type {};
 
 template <class T>
 inline constexpr bool always_false_v = always_false<T>::value;
+
+/// Checks whether T is one of the types in the template parameter pack Ts.
+template <class T, class... Ts>
+inline constexpr bool is_one_of_v = (std::is_same_v<T, Ts> || ...);
 
 // A variadic extension of std::is_same.
 template <class... Ts>
@@ -129,5 +137,41 @@ struct signature_of_oracle<F, true> {
 
 template <class F>
 using signature_of_t = typename signature_of_oracle<F>::type;
+
+// Trait that checks whether type T has a member function named "begin".
+template <class T>
+struct has_begin {
+  template <class U>
+  static auto test(U* x) -> decltype(x->begin(), std::true_type());
+
+  template <class U>
+  static auto test(...) -> std::false_type;
+
+  static constexpr bool value = decltype(test<T>(nullptr))::value;
+};
+
+template <class T>
+inline constexpr bool has_begin_v = has_begin<T>::value;
+
+// Trait that checks whether T is a std::pair.
+template <class T>
+struct is_pair_oracle : std::false_type {};
+
+template <class T, class U>
+struct is_pair_oracle<std::pair<T, U>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_pair = is_pair_oracle<T>::value;
+
+
+// Trait that checks whether T is a std::tuple.
+template <class T>
+struct is_tuple_oracle : std::false_type {};
+
+template <class... Ts>
+struct is_tuple_oracle<std::tuple<Ts...>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_tuple = is_tuple_oracle<T>::value;
 
 } // namespace broker::detail
