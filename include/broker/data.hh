@@ -20,10 +20,9 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
+#include "broker/variant_tag.hh"
 
 namespace broker {
-
-class data;
 
 /// A container of sequential data.
 using vector = std::vector<data>;
@@ -51,25 +50,7 @@ using data_variant = std::variant<none, boolean, count, integer, real,
 /// different primitive or compound types.
 class data {
 public:
-  // Warning: *must* have the same order as `data_variant`, because the integer
-  // value for this tag must be equal to `get_data().index()`.
-  enum class type : uint8_t {
-    none,
-    boolean,
-    count,
-    integer,
-    real,
-    string,
-    address,
-    subnet,
-    port,
-    timestamp,
-    timespan,
-    enum_value,
-    set,
-    table,
-    vector,
-  };
+  using type = variant_tag;
 
   template <class T>
   static constexpr auto tag_of() {
@@ -144,6 +125,11 @@ public:
   /// Returns the type tag of the stored type.
   type get_type() const;
 
+  /// Returns the type tag of the stored type.
+  type get_tag() const {
+    return get_type();
+  }
+
   static data from_type(type);
 
   /// Needed by `get` function overloads.
@@ -153,6 +139,16 @@ public:
 
   /// Needed by `get` function overloads.
   [[nodiscard]] const data_variant& get_data() const noexcept {
+    return data_;
+  }
+
+  /// Returns a reference to the `std::variant` stored in this object.
+  auto& stl_value() noexcept {
+    return data_;
+  }
+
+  /// Returns a reference to the `std::variant` stored in this object.
+  const auto& stl_value() const noexcept {
     return data_;
   }
 

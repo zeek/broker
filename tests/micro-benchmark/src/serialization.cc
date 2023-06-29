@@ -1,188 +1,254 @@
-#include "main.hh"
-
-#include "broker/alm/multipath.hh"
+#include "broker/builder.hh"
+#include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
-
-#include <benchmark/benchmark.h>
+#include "broker/variant.hh"
 
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
+#include <caf/byte_buffer.hpp>
 
-#include <atomic>
-#include <limits>
-#include <random>
+#include <benchmark/benchmark.h>
 
 using namespace broker;
+using namespace std::literals;
 
 namespace {
 
-using buffer_type = caf::binary_serializer::container_type;
+// Usually, the envelope owns the buffer. Since the buffer is owned by the
+// fixture in this benchmark, we use a shallow envelope to avoid copying that
+// would not happen in real code either.
+class shallow_envelope : public envelope {
+public:
+  shallow_envelope(const std::byte* data, size_t size)
+    : data_(data), size_(size) {
+    // nop
+  }
 
-size_t max_size(size_t init) {
-  return init;
-}
+  variant value() const noexcept override {
+    return {root_, shared_from_this()};
+  }
 
-template <class T, class... Ts>
-size_t max_size(size_t init, const T& x, const Ts&... xs) {
-  auto combinator = [](size_t init, const buffer_type& buf) {
-    return std::max(init, buf.size());
-  };
-  return max_size(std::accumulate(x.begin(), x.end(), init, combinator), xs...);
+  std::string_view topic() const noexcept override {
+    return {};
+  }
+
+  bool is_root(const variant_data* val) const noexcept override {
+    return val == root_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {data_, size_};
+  }
+
+  error parse() {
+    error result;
+    root_ = do_parse(buf_, result);
+    return result;
+  }
+
+private:
+  variant_data* root_ = nullptr;
+  const std::byte* data_;
+  size_t size_;
+  detail::monotonic_buffer_resource buf_;
+};
+
+void write(std::pair<const std::byte*, size_t> range, caf::byte_buffer& buf) {
+  const auto* first = reinterpret_cast<const caf::byte*>(range.first);
+  buf.insert(buf.end(), first, first + range.second);
 }
 
 class serialization : public benchmark::Fixture {
 public:
-  static constexpr size_t num_message_types = 3;
+  broker::data event_1;
 
-  template <class T>
-  using array_t = std::array<T, num_message_types>;
+  broker::data table_1;
 
   serialization() {
-    generator g;
-    dst = g.next_endpoint_id();
-    for (size_t index = 0; index < num_message_types; ++index) {
-      dmsg[index] = make_data_message("/micro/benchmark",
-                                      g.next_data(index + 1));
-      to_bytes(dmsg[index], dmsg_buf[index]);
-      nmsg[index] = make_node_message(dmsg[index], alm::multipath{dst});
-      to_bytes(nmsg[index], nmsg_buf[index]);
-      legacy_nmsg[index] = legacy_node_message{dmsg[index], 20};
-      to_bytes(legacy_nmsg[index], legacy_nmsg_buf[index]);
-    }
-    sink_buf.reserve(max_size(0, dmsg_buf, nmsg_buf, legacy_nmsg_buf));
+    event_1 = data{vector{1, 1, vector{"event_1", vector{42, "test"}}}};
+    table_1 = data{table{{"first-name", "John"}, {"last-name", "Doe"}}};
+  }
+};
+
+class deserialization : public benchmark::Fixture {
+public:
+  static constexpr size_t num_message_types = 3;
+
+  /// Event 1: [1u, 1u, ["event_1", [42, "test"]]]
+  caf::byte_buffer event_1_bytes;
+
+  /// Table 1: {"first-name" -> "John", "last-name" -> "Doe"}
+  caf::byte_buffer table_1_bytes;
+
+  deserialization() {
+    // Event 1.
+    list_builder lst;
+    lst.add(1u).add(1u).add_list("event_1"sv, std::tuple{42, "test"sv});
+    write(lst.bytes(), event_1_bytes);
+    // Table 1.
+    table_builder tbl;
+    tbl.add("first-name"sv, "John"sv).add("last-name"sv, "Doe"sv);
+    write(tbl.bytes(), table_1_bytes);
   }
 
-  template <class T>
-  void to_bytes(T&& what, buffer_type& storage) {
-    caf::binary_serializer sink{nullptr, storage};
-    std::ignore = sink.apply(what);
+  auto event_1_data() {
+    return std::pair{reinterpret_cast<const std::byte*>(event_1_bytes.data()),
+                     event_1_bytes.size()};
   }
 
-  template <class T>
-  void from_bytes(const buffer_type& storage, T& what) {
-    caf::binary_deserializer source{nullptr, storage};
-    std::ignore = source.apply(what);
-  }
-
-  // Dummy node ID for a receiver.
-  endpoint_id dst;
-
-  // One data message per type.
-  array_t<data_message> dmsg;
-
-  // Serialized versions of dmsg;
-  array_t<buffer_type> dmsg_buf;
-
-  // One node message per type.
-  array_t<node_message> nmsg;
-
-  // Serialized versions of dmsg;
-  array_t<buffer_type> nmsg_buf;
-
-  // One legacy node message per type.
-  array_t<legacy_node_message> legacy_nmsg;
-
-  // Serialized versions of legacy_dmsg;
-  array_t<buffer_type> legacy_nmsg_buf;
-
-  // A pre-allocated buffer for the benchmarks to serialize into.
-  buffer_type sink_buf;
-
-  template <class T>
-  auto& get_msg(int signed_index) {
-    auto index = static_cast<size_t>(signed_index);
-    if constexpr (std::is_same_v<T, data_message>) {
-      return dmsg[index];
-    } else if constexpr (std::is_same_v<T, node_message>) {
-      return nmsg[index];
-    } else {
-      static_assert(std::is_same_v<T, legacy_node_message>);
-      return legacy_nmsg[index];
-    }
-  }
-
-  template <class T>
-  const buffer_type& get_buf(int signed_index) const {
-    auto index = static_cast<size_t>(signed_index);
-    if constexpr (std::is_same_v<T, data_message>) {
-      return dmsg_buf[index];
-    } else if constexpr (std::is_same_v<T, node_message>) {
-      return nmsg_buf[index];
-    } else {
-      static_assert(std::is_same_v<T, legacy_node_message>);
-      return legacy_nmsg_buf[index];
-    }
-  }
-
-  template <class T>
-  void run_serialization_bench(benchmark::State& state) {
-    const auto& msg = get_msg<T>(state.range(0));
-    caf::binary_serializer sink{nullptr, sink_buf};
-    for (auto _ : state) {
-      sink.seek(0);
-      std::ignore = sink.apply(msg);
-      benchmark::DoNotOptimize(sink_buf);
-    }
-  }
-
-  template <class T>
-  void run_deserialization_bench(benchmark::State& state) {
-    const auto& buf = get_buf<T>(state.range(0));
-    for (auto _ : state) {
-      T msg;
-      caf::binary_deserializer source{nullptr, buf};
-      std::ignore = source.apply(msg);
-      benchmark::DoNotOptimize(msg);
-    }
+  auto table_1_data() {
+    return std::pair{reinterpret_cast<const std::byte*>(table_1_bytes.data()),
+                     table_1_bytes.size()};
   }
 };
 
 } // namespace
 
-// -- saving and loading data messages -----------------------------------------
+// -- serialization: broker::data ----------------------------------------------
 
-BENCHMARK_DEFINE_F(serialization, save_data_message)(benchmark::State& state) {
-  run_serialization_bench<data_message>(state);
+BENCHMARK_DEFINE_F(serialization, event_1_data)(benchmark::State& state) {
+  for (auto _ : state) {
+    caf::byte_buffer buf;
+    buf.reserve(512);
+    caf::binary_serializer snk{nullptr, buf};
+    if (!snk.apply(event_1))
+      throw std::logic_error("failed to serialize event_1");
+    benchmark::DoNotOptimize(buf);
+  }
 }
 
-BENCHMARK_REGISTER_F(serialization, save_data_message)->DenseRange(0, 2, 1);
+BENCHMARK_REGISTER_F(serialization, event_1_data);
 
-BENCHMARK_DEFINE_F(serialization, load_data_message)(benchmark::State& state) {
-  run_deserialization_bench<data_message>(state);
-}
-
-BENCHMARK_REGISTER_F(serialization, load_data_message)->DenseRange(0, 2, 1);
-
-// -- saving and loading node messages -----------------------------------------
-
-BENCHMARK_DEFINE_F(serialization, save_node_message)(benchmark::State& state) {
-  run_serialization_bench<node_message>(state);
-}
-
-BENCHMARK_REGISTER_F(serialization, save_node_message)->DenseRange(0, 2, 1);
-
-BENCHMARK_DEFINE_F(serialization, load_node_message)(benchmark::State& state) {
-  run_deserialization_bench<node_message>(state);
-}
-
-BENCHMARK_REGISTER_F(serialization, load_node_message)->DenseRange(0, 2, 1);
-
-// -- saving and loading legacy node messages ----------------------------------
-
-BENCHMARK_DEFINE_F(serialization, save_legacy_node_message)
+BENCHMARK_DEFINE_F(serialization, table_1_data)
 (benchmark::State& state) {
-  run_serialization_bench<legacy_node_message>(state);
+  for (auto _ : state) {
+    caf::byte_buffer buf;
+    buf.reserve(512);
+    caf::binary_serializer snk{nullptr, buf};
+    if (!snk.apply(table_1))
+      throw std::logic_error("failed to serialize table_1");
+    benchmark::DoNotOptimize(buf);
+  }
 }
 
-BENCHMARK_REGISTER_F(serialization, save_legacy_node_message)
-  ->DenseRange(0, 2, 1);
+BENCHMARK_REGISTER_F(serialization, table_1_data);
 
-BENCHMARK_DEFINE_F(serialization, load_legacy_node_message)
+// -- serialization: broker::builder -------------------------------------------
+
+BENCHMARK_DEFINE_F(serialization, event_1_builder)(benchmark::State& state) {
+  for (auto _ : state) {
+    list_builder builder;
+    auto res = builder.add(1u)
+                 .add(1u)
+                 .add_list("event_1"sv, std::tuple{42, "test"sv})
+                 .bytes();
+    benchmark::DoNotOptimize(res);
+  }
+}
+
+BENCHMARK_REGISTER_F(serialization, event_1_builder);
+
+BENCHMARK_DEFINE_F(serialization, table_1_builder)
 (benchmark::State& state) {
-  run_deserialization_bench<legacy_node_message>(state);
+  for (auto _ : state) {
+    table_builder builder;
+    auto res = builder.add("first-name"sv, "John"sv)
+                 .add("last-name"sv, "Doe"sv) //
+                 .bytes();
+    benchmark::DoNotOptimize(res);
+  }
 }
 
-BENCHMARK_REGISTER_F(serialization, load_legacy_node_message)
-  ->DenseRange(0, 2, 1);
+BENCHMARK_REGISTER_F(serialization, table_1_builder);
+
+// -- deserialization: broker::data --------------------------------------------
+
+BENCHMARK_DEFINE_F(deserialization, event_1_data)(benchmark::State& state) {
+  for (auto _ : state) {
+    data uut;
+    caf::binary_deserializer src{nullptr, event_1_bytes};
+    if (!src.apply(uut))
+      throw std::logic_error("failed to deserialize event_1");
+    benchmark::DoNotOptimize(uut);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, event_1_data);
+
+BENCHMARK_DEFINE_F(deserialization, table_1_data)
+(benchmark::State& state) {
+  for (auto _ : state) {
+    data uut;
+    caf::binary_deserializer src{nullptr, table_1_bytes};
+    if (!src.apply(uut))
+      throw std::logic_error("failed to deserialize table_1");
+    benchmark::DoNotOptimize(uut);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, table_1_data);
+
+// -- deserialization: broker::variant -----------------------------------------
+
+BENCHMARK_DEFINE_F(deserialization, event_1_variant)
+(benchmark::State& state) {
+  for (auto _ : state) {
+    detail::monotonic_buffer_resource buf;
+    variant_data uut;
+    auto [bytes, size] = event_1_data();
+    auto [ok, pos] = uut.parse_shallow(buf, bytes, size);
+    if (!ok)
+      throw std::logic_error("failed to deserialize event_1");
+    benchmark::DoNotOptimize(uut);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, event_1_variant);
+
+BENCHMARK_DEFINE_F(deserialization, table_1_variant)
+(benchmark::State& state) {
+  for (auto _ : state) {
+    detail::monotonic_buffer_resource buf;
+    variant_data uut;
+    auto [bytes, size] = table_1_data();
+    auto [ok, pos] = uut.parse_shallow(buf, bytes, size);
+    if (!ok)
+      throw std::logic_error("failed to deserialize table_1");
+    benchmark::DoNotOptimize(uut);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, table_1_variant);
+
+// -- deserialization: broker::envelope ----------------------------------------
+
+BENCHMARK_DEFINE_F(deserialization, event_1_envelope)
+(benchmark::State& state) {
+  for (auto _ : state) {
+    auto [bytes, size] = event_1_data();
+    auto env = std::make_shared<shallow_envelope>(bytes, size);
+    if (auto err = env->parse())
+      throw std::logic_error("failed to deserialize event_1");
+    auto val = env->value();
+    benchmark::DoNotOptimize(val);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, event_1_envelope);
+
+BENCHMARK_DEFINE_F(deserialization, table_1_envelope)
+(benchmark::State& state) {
+  for (auto _ : state) {
+    auto [bytes, size] = table_1_data();
+    auto env = std::make_shared<shallow_envelope>(bytes, size);
+    if (auto err = env->parse())
+      throw std::logic_error("failed to deserialize table_1");
+    auto val = env->value();
+    benchmark::DoNotOptimize(val);
+  }
+}
+
+BENCHMARK_REGISTER_F(deserialization, table_1_envelope);
