@@ -39,6 +39,10 @@
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
 
+#include <fmt/chrono.h>
+#include <fmt/color.h>
+#include <fmt/core.h>
+
 using std::string;
 
 using broker::count;
@@ -96,95 +100,29 @@ bool convert(const caf::uri& from, network_info& to) {
 
 } // namespace broker
 
-// -- I/O utility --------------------------------------------------------------
-
-namespace detail {
-
-namespace {
-
-std::mutex ostream_mtx;
-
-} // namespace
-
-int print_impl(std::ostream& ostr, const char* x) {
-  ostr << x;
-  return 0;
-}
-
-int print_impl(std::ostream& ostr, const string& x) {
-  ostr << x;
-  return 0;
-}
-
-int print_impl(std::ostream& ostr, const caf::term& x) {
-  ostr << x;
-  return 0;
-}
-
-template <class T>
-int print_impl(std::ostream& ostr, const T& x) {
-  return print_impl(ostr, caf::deep_to_string(x));
-}
-
-template <class... Ts>
-void println(std::ostream& ostr, Ts&&... xs) {
-  std::unique_lock<std::mutex> guard{ostream_mtx};
-  std::initializer_list<int>{print_impl(ostr, std::forward<Ts>(xs))...};
-  ostr << caf::term::reset_endl;
-}
-
-} // namespace detail
-
-namespace out {
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  ::detail::println(std::cout, std::forward<Ts>(xs)...);
-}
-
-} // namespace out
-
-namespace err {
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  ::detail::println(std::cerr, caf::term::red, node_name, ": ",
-                    std::forward<Ts>(xs)...);
-}
-
-} // namespace err
-
-namespace verbose {
-
-namespace {
-
-std::atomic<bool> enabled;
-
-} // namespace
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  if (enabled)
-    ::detail::println(std::clog, caf::term::blue,
-                      std::chrono::system_clock::now(), " ", node_name, ": ",
-                      std::forward<Ts>(xs)...);
-}
-
-} // namespace verbose
-
 // -- CAF setup ----------------------------------------------------------------
 
 using namespace caf;
 
 namespace {
 
+// -- global flags -------------------------------------------------------------
+
+std::atomic<bool> verbose;
+
 // -- constants ----------------------------------------------------------------
 
-size_t default_payload_size = 0;
+const auto error_style = fg(fmt::color::red);
 
-timespan default_rendezvous_retry = std::chrono::milliseconds(250);
+const auto verbose_style = fg(fmt::color::blue);
 
-size_t default_ping_count = 100;
+constexpr size_t max_cap = std::numeric_limits<size_t>::max();
+
+constexpr size_t default_payload_size = 0;
+
+constexpr timespan default_rendezvous_retry = std::chrono::milliseconds(250);
+
+constexpr size_t default_ping_count = 100;
 
 // -- type aliases -------------------------------------------------------------
 
@@ -195,10 +133,6 @@ using topic_list = std::vector<topic>;
 using string_list = std::vector<string>;
 
 using mode_fun = void (*)(broker::endpoint&, topic_list);
-
-// -- constants ----------------------------------------------------------------
-
-constexpr size_t max_cap = std::numeric_limits<size_t>::max();
 
 // -- program options ----------------------------------------------------------
 
@@ -294,15 +228,19 @@ broker::data make_stop_msg() {
 // -- mode implementations -----------------------------------------------------
 
 void relay_mode(broker::endpoint& ep, topic_list topics) {
-  verbose::println("relay messages");
+  if (verbose)
+    fmt::print(verbose_style, "relay messages\n");
   auto handle_message = [&](const broker::data_message& x) {
     auto& val = get_data(x);
     if (is_ping_msg(val)) {
-      verbose::println("received ping ", msg_id(val));
+      if (verbose)
+        fmt::print(verbose_style, "received ping {}\n", msg_id(val));
     } else if (is_pong_msg(val)) {
-      verbose::println("received pong ", msg_id(val));
+      if (verbose)
+        fmt::print(verbose_style, "received pong {}\n", msg_id(val));
     } else if (is_stop_msg(val)) {
-      verbose::println("received stop");
+      if (verbose)
+        fmt::print(verbose_style, "received stop\n");
       return false;
     }
     return true;
@@ -320,7 +258,8 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
           return;
         ++received;
       } else {
-        verbose::println(received, "/s");
+        if (verbose)
+          fmt::print(verbose_style, "{}/s\n", received);
         timeout += std::chrono::seconds(1);
         received = 0;
       }
@@ -337,12 +276,13 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
 void ping_mode(broker::endpoint& ep, topic_list topics) {
   assert(topics.size() > 0);
   auto topic = topics[0];
-  verbose::println("send pings to topic ", topic);
+  if (verbose)
+    fmt::print(verbose_style, "send pings to topic {}\n", topic.string());
   std::vector<timespan> xs;
   auto n = get_or(ep, "num-messages", default_ping_count);
   auto s = get_or(ep, "payload-size", default_payload_size);
   if (n == 0) {
-    err::println("send no pings: n = 0");
+    fmt::print(error_style, "send no pings: n = 0\n");
     return;
   }
   auto in = ep.make_subscriber({topic});
@@ -375,23 +315,28 @@ void ping_mode(broker::endpoint& ep, topic_list topics) {
     auto t1 = std::chrono::system_clock::now();
     auto roundtrip = std::chrono::duration_cast<timespan>(t1 - t0);
     total_time += roundtrip;
-    out::println(roundtrip.count());
+    fmt::print("{}\n", roundtrip.count());
   }
-  verbose::println("AVG: ", total_time / n);
+  if (verbose)
+    fmt::print(verbose_style, "AVG: {}\n", total_time / n);
 }
 
 void pong_mode(broker::endpoint& ep, topic_list topics) {
   assert(topics.size() > 0);
-  verbose::println("receive pings from topics ", topics);
+  if (verbose)
+    fmt::print(verbose_style, "receive pings from topic {}\n",
+               topics[0].string());
   auto in = ep.make_subscriber(std::move(topics));
   for (;;) {
     auto x = in.get();
     auto& val = get_data(x);
     if (is_ping_msg(val)) {
-      verbose::println("received ping ", msg_id(val));
+      if (verbose)
+        fmt::print(verbose_style, "received ping {}\n", msg_id(val));
       ep.publish(get_topic(x), make_pong_msg(msg_id(val)));
     } else if (is_stop_msg(val)) {
-      verbose::println("received stop");
+      if (verbose)
+        fmt::print(verbose_style, "received stop\n");
       return;
     }
   }
@@ -421,7 +366,7 @@ int main(int argc, char** argv) try {
   try {
     cfg.init(argc, argv);
   } catch (std::exception& ex) {
-    err::println(ex.what());
+    fmt::print(error_style, "{}\n", ex.what());
     return EXIT_FAILURE;
   }
   if (cfg.cli_helptext_printed())
@@ -434,7 +379,7 @@ int main(int argc, char** argv) try {
   broker::endpoint_id eid;
   if (auto eid_str = get_as<string>(cfg, "endpoint-id")) {
     if (!convert(*eid_str, eid)) {
-      err::println("endpoint-id must be a valid UUID");
+      fmt::print(error_style, "endpoint-id must be a valid UUID\n");
       return EXIT_FAILURE;
     }
   } else {
@@ -450,7 +395,7 @@ int main(int argc, char** argv) try {
   { // Lifetime scope of temporary variables.
     auto topic_names = get_or(ep, "topics", string_list{});
     if (topic_names.empty()) {
-      err::println("no topics specified");
+      fmt::print(error_style, "no topics specified\n");
       return EXIT_FAILURE;
     }
     for (auto& topic_name : topic_names)
@@ -460,17 +405,20 @@ int main(int argc, char** argv) try {
   // Enable verbose output if demanded by user.
   actor verbose_logger;
   if (get_or(ep, "verbose", false)) {
-    verbose::enabled = true;
+    verbose = true;
     // Launch background worker that prints status and error events when running
     // in verbose mode.
     ep.subscribe({topic::errors(), topic::statuses()},
                  [](const broker::data_message& msg) {
-                   verbose::println(msg);
+                   if (verbose)
+                     fmt::print(verbose_style, "{}\n", to_string(msg));
                  });
   }
   // Publish endpoint at demanded port.
   if (auto port = get_as<broker::port>(ep, "port")) {
-    verbose::println("listen for peers on port ", port->number());
+    if (verbose)
+      fmt::print(verbose_style, "listen for peers on port {}\n",
+                 port->number());
     ep.listen({}, port->number());
   }
   // Select function f based on the mode.
@@ -482,7 +430,7 @@ int main(int argc, char** argv) try {
   } else if (mode == "pong") {
     f = pong_mode;
   } else {
-    err::println("invalid mode: ", mode);
+    fmt::print(error_style, "invalid mode: {}\n", mode);
     return EXIT_FAILURE;
   }
   // Attach master stores.
@@ -491,8 +439,8 @@ int main(int argc, char** argv) try {
     if (auto maybe_store = ep.attach_master(name, broker::backend::memory)) {
       stores.emplace_back(std::move(*maybe_store));
     } else {
-      err::println("failed to attach master store for ", name, ": ",
-                   maybe_store.error());
+      fmt::print(error_style, "failed to attach master store for {}: {}\n",
+                 name, to_string(maybe_store.error()));
       return EXIT_FAILURE;
     }
   }
@@ -501,8 +449,8 @@ int main(int argc, char** argv) try {
     if (auto maybe_store = ep.attach_clone(name)) {
       stores.emplace_back(std::move(*maybe_store));
     } else {
-      err::println("failed to attach clone store for ", name, ": ",
-                   maybe_store.error());
+      fmt::print(error_style, "failed to attach clone store for {}: {}\n", name,
+                 to_string(maybe_store.error()));
       return EXIT_FAILURE;
     }
   }
@@ -510,13 +458,14 @@ int main(int argc, char** argv) try {
   auto peers = get_or(ep, "peers", uri_list{});
   for (auto& peer : peers) {
     if (auto info = broker::to<broker::network_info>(peer)) {
-      verbose::println("connect to ", info->address, " on port ", info->port,
-                       " ...");
+      if (verbose)
+        fmt::print(verbose_style, "connect to {} on port {} ...\n",
+                   info->address, info->port);
       if (!ep.peer(*info))
-        err::println("unable to connect to <", peer, '>');
+        fmt::print(error_style, "unable to connect to <{}>\n", to_string(peer));
     } else {
-      err::println("unrecognized scheme (expected tcp) or no authority in: <",
-                   peer, '>');
+      fmt::print(error_style, "invalid URI: (tcp://$authority): <{}>\n",
+                 to_string(peer));
     }
   }
   f(ep, std::move(topics));
@@ -526,7 +475,9 @@ int main(int argc, char** argv) try {
     if (peer.scheme() == "tcp" && !auth.empty()) {
       auto host = caf::deep_to_string(auth.host);
       auto port = auth.port;
-      verbose::println("diconnect from ", host, " on port ", port, " ...");
+      if (verbose)
+        fmt::print(verbose_style, "disconnect from {} on port {} ...\n", host,
+                   port);
       ep.unpeer_nosync(host, port);
     }
   }

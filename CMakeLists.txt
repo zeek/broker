@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(broker C CXX)
 include(CMakePackageConfigHelpers)
+include(FetchContent)
 include(GNUInstallDirs)
 include(cmake/CommonCMakeConfig.cmake)
 
@@ -416,16 +417,29 @@ if (BROKER_ENABLE_TIDY)
   configure_file(.clang-tidy .clang-tidy COPYONLY)
 endif ()
 
+# -- Get libfmt for tools and tests -------------------------------------------
+
+function(get_fmt)
+  set(FMT_INSTALL OFF)
+  set(FMT_SYSTEM_HEADERS ON)
+  set(BUILD_SHARED_LIBS OFF)
+  FetchContent_Declare(
+    dl_fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG        10.0.0
+  )
+  FetchContent_MakeAvailable(dl_fmt)
+endfunction()
 
 # -- Tools --------------------------------------------------------------------
 
 macro(add_tool name)
   add_executable(${name} src/${name}.cc ${ARGN})
   if (ENABLE_SHARED)
-    target_link_libraries(${name} broker CAF::core CAF::io CAF::net)
+    target_link_libraries(${name} PRIVATE broker)
     add_dependencies(${name} broker)
   else()
-    target_link_libraries(${name} broker_static CAF::core CAF::io CAF::net)
+    target_link_libraries(${name} PRIVATE broker_static)
     add_dependencies(${name} broker_static)
   endif()
   if (BROKER_ENABLE_TIDY)
@@ -433,9 +447,13 @@ macro(add_tool name)
                           CXX_CLANG_TIDY "clang-tidy;--config-file=${tidyCfgFile}")
     target_compile_definitions(${name} PRIVATE ${BROKER_CLANG_TIDY_DEF})
   endif ()
+  target_link_libraries(${name} PRIVATE CAF::core CAF::io CAF::net fmt::fmt)
+  # fmt messes with the flags, so we need to set the C++ standard explicitly.
+  set_target_properties(${name} PROPERTIES CXX_STANDARD 17)
 endmacro()
 
 if (NOT BROKER_DISABLE_TOOLS)
+  get_fmt()
   # TODO: fix these tools
   # add_tool(broker-gateway)
   add_tool(broker-node)
