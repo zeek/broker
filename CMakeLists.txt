@@ -87,6 +87,8 @@ endif()
 if ( MSVC )
     # Allow more sections in object files, otherwise Broker fails to compile.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} /bigobj")
+    # Similar to -funsigned-char on other platforms.
+    set(EXTRA_FLAGS "${EXTRA_FLAGS} /J")
 else ()
     # Increase warnings.
     set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")

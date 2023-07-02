@@ -1,3 +1,9 @@
+2.7.0-dev.15 | 2023-07-02 14:55:22 -0700
+
+  * Add /J flag on Windows to force unsigned char (Tim Wojtulewicz, Corelight)
+
+  * Pass -funsigned-char flag during compilation (Tim Wojtulewicz, Corelight)
+
 2.7.0-dev.12 | 2023-06-21 09:26:05 -0700
 
   * Use a set for caching metric instances (Dominik Charousset, Corelight)
