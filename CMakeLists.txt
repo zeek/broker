@@ -15,6 +15,14 @@ else()
 endif()
 unset(parent_dir)
 
+set(BROKER_LIBFMT_URL OFF
+    CACHE STRING "URL to libfmt source tarball or OFF for fetching from GitHub")
+
+# Use timestamps of extractions when using tarballs for libfmt.
+if (POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif ()
+
 if ( MSVC )
   message(STATUS "Broker currently only supports static bulids on Windows")
   message(STATUS "Note: continue with ENABLE_STATIC_ONLY")
@@ -423,11 +431,13 @@ function(get_fmt)
   set(FMT_INSTALL OFF)
   set(FMT_SYSTEM_HEADERS ON)
   set(BUILD_SHARED_LIBS OFF)
-  FetchContent_Declare(
-    dl_fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG        10.0.0
-  )
+  if(BROKER_LIBFMT_URL)
+    set(DL_FMT_URL "${BROKER_LIBFMT_URL}")
+  else()
+    set(DL_FMT_URL "https://github.com/fmtlib/fmt/archive/refs/tags/10.0.0.zip")
+  endif()
+  message(STATUS "Fetching libfmt from ${DL_FMT_URL}")
+  FetchContent_Declare(dl_fmt URL "${DL_FMT_URL}")
   FetchContent_MakeAvailable(dl_fmt)
 endfunction()
 
