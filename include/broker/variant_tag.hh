@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace broker{
+namespace broker {
 
 /// A tag that discriminates the type of a @ref data or @ref variant object.
 enum class variant_tag : uint8_t {

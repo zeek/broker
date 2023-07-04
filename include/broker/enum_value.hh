@@ -52,7 +52,7 @@ public:
   enum_value_view() = default;
 
   /// Construct enum value from a string.
-  explicit enum_value_view(std::string_view name) : name{std::move(name)} {
+  explicit enum_value_view(std::string_view name) : name{name} {
     // nop
   }
 

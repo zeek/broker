@@ -5,6 +5,7 @@
           modernize-*,
           performance-*,
           -bugprone-easily-swappable-parameters,
+          -bugprone-forward-declaration-namespace,
           -clang-analyzer-cplusplus.NewDeleteLeaks,
           -clang-analyzer-security.insecureAPI.rand,
           -clang-analyzer-webkit*,

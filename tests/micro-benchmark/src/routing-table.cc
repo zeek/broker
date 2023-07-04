@@ -370,9 +370,7 @@ using default_routing_table = broker::alm::routing_table;
 #define BENCH_SETUP(TableType, Algorithm)                                      \
   using TableType##_impl = routing_table<TableType>;                           \
   BENCHMARK_DEFINE_F(TableType##_impl, Algorithm)                              \
-  (benchmark::State & state) {                                                 \
-    Algorithm##_bench(state);                                                  \
-  }                                                                            \
+  (benchmark::State & state) { Algorithm##_bench(state); }                     \
   BENCHMARK_REGISTER_F(TableType##_impl, Algorithm)->DenseRange(0, 9, 1);
 
 // -- adding entries to a routing table ----------------------------------------

@@ -44,8 +44,8 @@ struct are_same<A, B> {
 
 template <class A, class B, class C, class... Ts>
 struct are_same<A, B, C, Ts...> {
-  static constexpr bool value =
-    std::is_same_v<A, B> && are_same<B, C, Ts...>::value;
+  static constexpr bool value = std::is_same_v<A, B>
+                                && are_same<B, C, Ts...>::value;
 };
 
 template <class... Ts>
@@ -162,7 +162,6 @@ struct is_pair_oracle<std::pair<T, U>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_pair = is_pair_oracle<T>::value;
-
 
 // Trait that checks whether T is a std::tuple.
 template <class T>

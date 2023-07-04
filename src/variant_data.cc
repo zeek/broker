@@ -73,7 +73,7 @@ auto visit_if_same_type(Predicate&& pred, const T1& lhs, const T2& rhs) {
 /// Compares two `data` and/or `variant` objects for equality.
 struct eq_predicate {
   template <class T1, class T2>
-  bool operator()(const T1& lhs, const T2& rhs) const noexcept {
+  bool operator()(const T1& lhs, const T2& rhs) const {
     if constexpr (std::is_pointer_v<T1>)
       return (*this)(*lhs, rhs);
     else if constexpr (std::is_pointer_v<T2>)
@@ -342,16 +342,19 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
 
 // -- free functions -----------------------------------------------------------
 
-bool operator==(const data& lhs, const variant_data& rhs) noexcept {
+bool operator==(const data& lhs, const variant_data& rhs) {
   return visit_if_same_type(eq_predicate{}, lhs, rhs);
 }
 
-bool operator==(const variant_data& lhs, const data& rhs) noexcept {
+bool operator==(const variant_data& lhs, const data& rhs) {
   return visit_if_same_type(eq_predicate{}, lhs, rhs);
 }
 
-bool operator<(const variant_data& lhs,
-               const variant_data& rhs) noexcept {
+bool operator==(const variant_data& lhs, const variant_data& rhs) {
+  return visit_if_same_type(eq_predicate{}, lhs, rhs);
+}
+
+bool operator<(const variant_data& lhs, const variant_data& rhs) {
   if (lhs.value.index() != rhs.value.index())
     return lhs.value.index() < rhs.value.index();
   return std::visit(
