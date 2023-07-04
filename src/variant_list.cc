@@ -2,6 +2,8 @@
 
 #include "broker/format/txt.hh"
 
+#include <iterator>
+
 namespace broker {
 
 std::ostream& operator<<(std::ostream& out, const variant_list& what) {

@@ -32,7 +32,8 @@ template <class OutIter>
 OutIter encode(count value, OutIter out) {
   // An integer can at most have 20 digits (UINT64_MAX).
   char buf[24];
-  auto size = std::snprintf(buf, 24, "%llu", value);
+  auto size = std::snprintf(buf, 24, "%llu",
+                            static_cast<long long unsigned>(value));
   return std::copy(buf, buf + size, out);
 }
 
@@ -41,7 +42,7 @@ template <class OutIter>
 OutIter encode(integer value, OutIter out) {
   // An integer can at most have 20 digits (UINT64_MAX).
   char buf[24];
-  auto size = std::snprintf(buf, 24, "%lld", value);
+  auto size = std::snprintf(buf, 24, "%lld", static_cast<long long>(value));
   return std::copy(buf, buf + size, out);
 }
 

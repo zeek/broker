@@ -6,6 +6,8 @@
 #include <caf/detail/ieee_754.hpp>
 #include <caf/detail/network_order.hpp>
 
+#include <cstring>
+
 namespace broker {
 
 namespace {
@@ -168,6 +170,12 @@ bool rd_varbyte(const_byte_pointer& first, const_byte_pointer last,
   return true;
 }
 
+// Like sizeof(), but returns a ptrdiff_t instead of a size_t.
+template <class T>
+ptrdiff_t ssizeof() {
+  return static_cast<ptrdiff_t>(sizeof(T));
+}
+
 } // namespace
 
 std::pair<bool, const std::byte*>
@@ -185,17 +193,17 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
       value = *pos++ != std::byte{0};
       return {true, pos};
     case variant_tag::count:
-      if (end - pos < sizeof(count))
+      if (end - pos < ssizeof<count>())
         return {false, end};
       value = rd_u64(pos);
       return {true, pos};
     case variant_tag::integer:
-      if (end - pos < sizeof(count))
+      if (end - pos < ssizeof<count>())
         return {false, end};
       value = static_cast<broker::integer>(rd_u64(pos));
       return {true, pos};
     case variant_tag::real:
-      if (end - pos < sizeof(real))
+      if (end - pos < ssizeof<real>())
         return {false, end};
       value = caf::detail::unpack754(rd_u64(pos));
       return {true, pos};
@@ -211,7 +219,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
       return {true, pos};
     }
     case variant_tag::address: {
-      if (end - pos < address::num_bytes)
+      if (end - pos < static_cast<ptrdiff_t>(address::num_bytes))
         return {false, end};
       address tmp;
       memcpy(tmp.bytes().data(), pos, address::num_bytes);
@@ -221,7 +229,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
     }
     case variant_tag::subnet: {
       static constexpr size_t subnet_len = address::num_bytes + 1;
-      if (end - pos < subnet_len)
+      if (end - pos < static_cast<ptrdiff_t>(subnet_len))
         return {false, end};
       address addr;
       memcpy(addr.bytes().data(), pos, address::num_bytes);
@@ -241,13 +249,13 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
       return {true, pos};
     }
     case variant_tag::timestamp: {
-      if (end - pos < sizeof(timespan))
+      if (end - pos < ssizeof<timespan>())
         return {false, end};
       value = timestamp{timespan{rd_u64(pos)}};
       return {true, pos};
     }
     case variant_tag::timespan: {
-      if (end - pos < sizeof(timespan))
+      if (end - pos < ssizeof<timespan>())
         return {false, end};
       value = timespan{rd_u64(pos)};
       return {true, pos};
@@ -358,4 +366,4 @@ bool operator<(const variant_data& lhs,
     lhs.value);
 }
 
-}; // namespace broker
+} // namespace broker
