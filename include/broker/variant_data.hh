@@ -28,7 +28,14 @@ public:
                         std::string_view, address, subnet, port, timestamp,
                         timespan, enum_value_view>;
 
-  using less = std::less<>;
+  // Note: GCC-8 has a broken std::less<> implementation. Remove this workaround
+  //       once we drop support for GCC-8.
+  struct less {
+    template <class T, class U>
+    bool operator()(const T& x, const U& y) const {
+      return x < y;
+    }
+  };
 
   template <class T>
   using allocator_t = detail::monotonic_buffer_resource::allocator<T>;

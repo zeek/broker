@@ -158,7 +158,7 @@ TEST(parsing a count) {
   CHECK(parse_bytes(type::count, 1, 2, 3, 4, 5, 6, 7).is_none());
   CHECK(parse_bytes(type::count, 1, 2, 3, 4, 5, 6, 7, 8, 9).is_none());
   CHECK_EQ(parse_bytes(type::count, 1, 2, 3, 4, 5, 6, 7, 8).to_count(),
-           0x0102030405060708);
+           0x0102030405060708u);
 }
 
 TEST(parsing an integer) {
@@ -238,7 +238,7 @@ TEST(parsing a vector) {
   if (!CHECK(val.is_vector()))
     return;
   auto xs = val.to_vector();
-  if (!CHECK_EQ(xs.size(), 3))
+  if (!CHECK_EQ(xs.size(), 3u))
     return;
   // [0]: true
   auto i = xs.begin();
@@ -282,7 +282,7 @@ TEST(parsing a set) {
   if (!CHECK(val.is_set()))
     return;
   auto xs = val.to_set();
-  if (!CHECK_EQ(xs.size(), 3))
+  if (!CHECK_EQ(xs.size(), 3u))
     return;
   // [0]: 1
   auto i = xs.begin();
@@ -315,7 +315,7 @@ TEST(parsing a table) {
   if (!CHECK(val.is_table()))
     return;
   auto xs = val.to_table();
-  if (!CHECK_EQ(xs.size(), 3))
+  if (!CHECK_EQ(xs.size(), 3u))
     return;
   // Test the iterator API.
   // [0]: { "key1": 1}
@@ -349,9 +349,9 @@ auto to_variant(const data& value) {
   auto buf = to_bytes(value);
   MESSAGE(value << " -> " << to_hex(buf));
   return parse_bytes(buf);
-};
+}
 
-  } // namespace
+} // namespace
 
 TEST(data serialization roundtrips) {
   auto ts = timespan{100'000};
