@@ -70,7 +70,7 @@ OutIter encode(std::string_view value, OutIter out) {
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
 template <class OutIter>
-OutIter encode(address value, OutIter out) {
+OutIter encode(const address& value, OutIter out) {
   std::string str;
   convert(value, str);
   return std::copy(str.begin(), str.end(), out);
@@ -78,7 +78,7 @@ OutIter encode(address value, OutIter out) {
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
 template <class OutIter>
-OutIter encode(subnet value, OutIter out) {
+OutIter encode(const subnet& value, OutIter out) {
   std::string str;
   convert(value, str);
   return std::copy(str.begin(), str.end(), out);

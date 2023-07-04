@@ -186,13 +186,13 @@ OutIter encode(std::string_view value, OutIter out) {
 }
 
 template <class OutIter>
-OutIter encode(address value, OutIter out) {
+OutIter encode(const address& value, OutIter out) {
   out = write_unsigned(data::type::address, out);
   return write_bytes(value.bytes(), out);
 }
 
 template <class OutIter>
-OutIter encode(subnet value, OutIter out) {
+OutIter encode(const subnet& value, OutIter out) {
   out = write_unsigned(data::type::subnet, out);
   out = write_bytes(value.network().bytes(), out);
   return write_unsigned(value.length(), out);
@@ -299,4 +299,4 @@ OutIter write_sequence(data::type tag, size_t num_elements, InputIter first,
   out = write_varbyte(num_elements, out);
   return write_bytes(first, last, out);
 }
-}
+} // namespace broker::format::bin::v1

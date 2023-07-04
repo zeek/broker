@@ -91,7 +91,7 @@ private:
   detail::monotonic_buffer_resource buf_;
 };
 
-template<class T, class... Ts>
+template <class T, class... Ts>
 error parse_bytes_result(T arg, Ts... args) {
   if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
     auto envelope = std::make_shared<envelope_test_impl>(std::move(arg));
@@ -101,7 +101,7 @@ error parse_bytes_result(T arg, Ts... args) {
   }
 }
 
-template<class T, class... Ts>
+template <class T, class... Ts>
 variant parse_bytes(T arg, Ts... args) {
   if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
     auto envelope = std::make_shared<envelope_test_impl>(std::move(arg));
@@ -142,7 +142,7 @@ TEST(parsing a none) {
 }
 
 TEST(parsing a boolean) {
-  CHECK(parse_bytes(type::boolean).is_none()); // not enough bytes
+  CHECK(parse_bytes(type::boolean).is_none());       // not enough bytes
   CHECK(parse_bytes(type::boolean, 1, 1).is_none()); // trailing bytes
   CHECK_EQ(parse_bytes(type::boolean, 1).to_boolean(false), true);
   CHECK_EQ(parse_bytes(type::boolean, 0).to_boolean(true), false);
@@ -190,7 +190,7 @@ TEST(parsing a string) {
   CHECK(parse_bytes(type::string).is_none());
   CHECK(parse_bytes(type::string, 3).is_none());
   CHECK(parse_bytes(type::string, 3, 'a').is_none());
-  CHECK(parse_bytes(type::string, 3, 'a','b').is_none());
+  CHECK(parse_bytes(type::string, 3, 'a', 'b').is_none());
   CHECK(parse_bytes(type::string, 3, 'a', 'b', 'c', 'd').is_none());
   // We not only check that we get "abc", but also that the view has in fact
   // created a shallow copy while parsing.
@@ -216,7 +216,7 @@ TEST(parsing an enum value) {
   CHECK(parse_bytes(type::enum_value).is_none());
   CHECK(parse_bytes(type::enum_value, 3).is_none());
   CHECK(parse_bytes(type::enum_value, 3, 'a').is_none());
-  CHECK(parse_bytes(type::enum_value, 3, 'a','b').is_none());
+  CHECK(parse_bytes(type::enum_value, 3, 'a', 'b').is_none());
   CHECK(parse_bytes(type::enum_value, 3, 'a', 'b', 'c', 'd').is_none());
   // We not only check that we get "abc", but also that the view has in fact
   // created a shallow copy while parsing.

@@ -102,12 +102,12 @@ public:
 
 // -- free functions -----------------------------------------------------------
 
-bool operator==(const data& lhs, const variant_data& rhs) noexcept;
+bool operator==(const data& lhs, const variant_data& rhs);
 
-bool operator==(const variant_data& lhs, const data& rhs) noexcept;
+bool operator==(const variant_data& lhs, const data& rhs);
 
-bool operator==(const variant_data& lhs, const variant_data& rhs) noexcept;
+bool operator==(const variant_data& lhs, const variant_data& rhs);
 
-bool operator<(const variant_data& lhs, const variant_data& rhs) noexcept;
+bool operator<(const variant_data& lhs, const variant_data& rhs);
 
 } // namespace broker

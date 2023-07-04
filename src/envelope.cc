@@ -98,8 +98,7 @@ envelope_ptr envelope::make(broker::topic t, const data& d) {
 #ifndef NDEBUG
   if (auto ok = sink.apply(d); !ok) {
     auto errstr = caf::to_string(sink.get_error());
-    fprintf(stderr,
-            "broker::envelope::make failed to serialize data: %s\n",
+    fprintf(stderr, "broker::envelope::make failed to serialize data: %s\n",
             errstr.c_str());
     abort();
   }
@@ -111,8 +110,7 @@ envelope_ptr envelope::make(broker::topic t, const data& d) {
 #ifndef NDEBUG
   if (auto err = res->parse()) {
     auto errstr = to_string(err);
-    fprintf(stderr,
-            "broker::envelope::make generated malformed data: %s\n",
+    fprintf(stderr, "broker::envelope::make generated malformed data: %s\n",
             errstr.c_str());
     abort();
   }
@@ -136,14 +134,13 @@ public:
     return val_;
   }
 
-  std::string_view  topic() const noexcept override {
+  std::string_view topic() const noexcept override {
     return topic_;
   }
 
   bool is_root(const variant_data* val) const noexcept override {
     return val == val_.raw() && val_.is_root();
   }
-
 
   std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
     if (val_.is_root())
@@ -162,6 +159,5 @@ envelope_ptr envelope::make(broker::topic t, variant d) {
   return std::make_shared<envelope_wrapper>(std::move(t).move_string(),
                                             std::move(d));
 }
-
 
 } // namespace broker

@@ -30,7 +30,7 @@ struct stringifier {
     } else if constexpr (std::is_same_v<T, dvv::vector_view*>
                          || std::is_same_v<T, vector>) {
       add_range(value, '(', ')');
-    } else if constexpr (std::is_same_v<T,bool>) {
+    } else if constexpr (std::is_same_v<T, bool>) {
       if (value)
         str += 'T';
       else

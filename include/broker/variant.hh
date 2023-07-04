@@ -15,8 +15,7 @@ namespace broker {
 template <class T>
 inline constexpr bool is_primtivie_data_v =
   detail::is_one_of_v<T, none, boolean, count, integer, real, std::string,
-                      address, subnet, port, timestamp, timespan,
-                      enum_value>;
+                      address, subnet, port, timestamp, timespan, enum_value>;
 
 /// Represents a value of any of the following types:
 /// - @ref none
@@ -203,7 +202,7 @@ public:
 
   /// Retrieves the @c address value or returns @p fallback if this object does
   /// not contain a @c address.
-  address to_address(address fallback = {}) const noexcept {
+  address to_address(const address& fallback = {}) const noexcept {
     if (auto* val = std::get_if<address>(&raw_->value))
       return *val;
     return fallback;
@@ -211,7 +210,7 @@ public:
 
   /// Retrieves the @c subnet value or returns @p fallback if this object does
   /// not contain a @c subnet.
-  subnet to_subnet(subnet fallback = {}) const noexcept {
+  subnet to_subnet(const subnet& fallback = {}) const noexcept {
     if (auto* val = std::get_if<subnet>(&raw_->value))
       return *val;
     return fallback;

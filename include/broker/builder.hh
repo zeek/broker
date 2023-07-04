@@ -17,7 +17,7 @@
 #include <tuple>
 #include <vector>
 
-namespace broker{
+namespace broker {
 
 using builder_buffer = std::vector<std::byte>;
 
@@ -389,7 +389,6 @@ protected:
     auto out = format::bin::v1::write_unsigned(data::type::set, adder());
     format::bin::v1::write_varbyte(num_elements, out);
   }
-
 
   size_t size_ = 0;
   builder_buffer bytes_;
