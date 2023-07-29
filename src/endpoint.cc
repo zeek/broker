@@ -4,16 +4,24 @@
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/domain_options.hh"
+#include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/configuration_access.hh"
+#include "broker/internal/connector.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/json_client.hh"
 #include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/logger.hh"
-#include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
+#include "broker/publisher.hh"
+#include "broker/status_subscriber.hh"
+#include "broker/subscriber.hh"
+#include "broker/timeout.hh"
+
 #include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
@@ -26,6 +34,7 @@
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
 #include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
@@ -38,22 +47,6 @@
 #include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
-
-#include "broker/defaults.hh"
-#include "broker/detail/die.hh"
-#include "broker/detail/filesystem.hh"
-#include "broker/domain_options.hh"
-#include "broker/endpoint.hh"
-#include "broker/fwd.hh"
-#include "broker/internal/connector.hh"
-#include "broker/internal/core_actor.hh"
-#include "broker/internal/logger.hh"
-#include "broker/internal/metric_exporter.hh"
-#include "broker/internal/prometheus.hh"
-#include "broker/publisher.hh"
-#include "broker/status_subscriber.hh"
-#include "broker/subscriber.hh"
-#include "broker/timeout.hh"
 
 #include <chrono>
 #include <memory>
@@ -579,10 +572,9 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
     } else {
       BROKER_ERROR("failed to expose metrics:" << actual_port.error());
     }
-  } else {
+  } else if (get_if<caf::settings>(&cfg, "broker.metrics.export")) {
     using exporter_t = internal::metric_exporter_actor;
-    auto params = internal::metric_exporter_params::from(cfg);
-    auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
+    auto hdl = sys.spawn<exporter_t>(native(core_));
     telemetry_exporter_ = facade(hdl);
   }
   // Spin up a WebSocket server when requested.

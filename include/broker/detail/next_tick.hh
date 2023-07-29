@@ -2,6 +2,8 @@
 
 #include "broker/detail/assert.hh"
 
+#include <type_traits>
+
 namespace broker::detail {
 
 /// Computes the next tick based on an initial time, the current time and a

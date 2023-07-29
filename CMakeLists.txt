@@ -324,11 +324,8 @@ set(BROKER_SRC
   src/internal/json_type_mapper.cc
   src/internal/master_actor.cc
   src/internal/master_resolver.cc
-  src/internal/metric_collector.cc
   src/internal/metric_exporter.cc
   src/internal/metric_factory.cc
-  src/internal/metric_scraper.cc
-  src/internal/metric_view.cc
   src/internal/peering.cc
   src/internal/pending_connection.cc
   src/internal/prometheus.cc

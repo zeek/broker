@@ -1,17 +1,18 @@
 #pragma once
 
-#include <unordered_map>
-#include <vector>
+#include "broker/data.hh"
+#include "broker/filter_type.hh"
+#include "broker/internal/metric_exporter.hh"
 
 #include <caf/actor.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/io/broker.hpp>
 #include <caf/io/connection_handle.hpp>
+#include <caf/telemetry/collector/prometheus.hpp>
+#include <caf/telemetry/importer/process.hpp>
 
-#include "broker/filter_type.hh"
-#include "broker/internal/metric_collector.hh"
-#include "broker/internal/metric_exporter.hh"
-#include "broker/internal/metric_scraper.hh"
+#include <unordered_map>
+#include <vector>
 
 namespace broker::internal {
 
@@ -25,8 +26,6 @@ public:
   // -- member types -----------------------------------------------------------
 
   using super = caf::io::broker;
-
-  using exporter_state_type = metric_exporter_state<super>;
 
   struct request_state {
     uint64_t async_id = 0;
@@ -47,6 +46,34 @@ public:
   caf::behavior make_behavior() override;
 
 private:
+  /// When assembling the response, we need to "merge" all inputs into a single
+  /// group per metric name.
+  struct metric_group {
+    /// The type of the metric, e.g., counter, gauge, or histogram.
+    std::string type;
+
+    /// The help string for the metric.
+    std::string help;
+
+    /// The Prometheus-encoded lines for the metric.
+    std::vector<char> lines;
+  };
+
+  /// Maps metric names to metric groups.
+  using metric_groups = std::unordered_map<std::string, metric_group>;
+
+  // Adds lines from the range `(pos, end)` to `group` until either reaching the
+  // end or finding the start of a new metric.
+  caf::string_view::iterator merge_metrics(const std::string& endpoint_name,
+                                           caf::string_view metric_name,
+                                           std::vector<char>& lines,
+                                           caf::string_view::iterator pos,
+                                           caf::string_view::iterator end);
+
+  // Splits `prom_txt` into lines and adds them to `metric_groups`.
+  void merge_metrics(const std::string& endpoint_name,
+                     caf::string_view prom_txt);
+
   void flush_and_close(caf::io::connection_handle hdl);
 
   void on_metrics_request(caf::io::connection_handle hdl);
@@ -59,8 +86,10 @@ private:
   /// Caches input per open connection for parsing the HTTP header.
   std::unordered_map<caf::io::connection_handle, request_state> requests_;
 
-  /// Combines various metrics into a single Prometheus output.
-  metric_collector collector_;
+  /// Caches metrics from remote Broker instances. The key is the remote
+  /// endpoint's name (broker.metrics.endpoint-name) and the value is the
+  /// rendered metrics in Prometheus text format.
+  std::map<std::string, std::string> remote_metrics_;
 
   /// Handle to the Broker endpoint actor.
   caf::actor core_;
@@ -68,12 +97,14 @@ private:
   /// Filter for subscribing to metrics-related topics.
   filter_type filter_;
 
-  /// Optional export of local metrics if the user configured a value for
-  /// "broker.metrics.export.topic".
-  std::unique_ptr<exporter_state_type> exporter_;
+  /// Buffer for rendering Prometheus or JSON output.
+  std::vector<char> buf_;
 
-  /// Buffer for writing JSON output.
-  std::vector<char> json_buf_;
+  /// Caches metrics while we merge them into groups.
+  metric_groups metric_groups_;
+
+  /// The exporter for remote metrics.
+  metric_exporter exporter_;
 };
 
 } // namespace broker::internal

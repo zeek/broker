@@ -7,7 +7,7 @@
 #include <caf/string_algorithms.hpp>
 
 #include "broker/internal/logger.hh"
-#include "broker/internal/metric_exporter.hh"
+#include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 
 using namespace std::literals;
@@ -52,9 +52,7 @@ constexpr string_view request_ok_json = "HTTP/1.1 200 OK\r\n"
 
 prometheus_actor::prometheus_actor(caf::actor_config& cfg,
                                    caf::io::doorman_ptr ptr, caf::actor core)
-  : super(cfg), core_(std::move(core)) {
-  filter_ = caf::get_or(config(), "broker.metrics.import.topics",
-                        filter_type{});
+  : super(cfg), core_(std::move(core)), exporter_(system()) {
   add_doorman(std::move(ptr));
 }
 
@@ -63,7 +61,6 @@ prometheus_actor::prometheus_actor(caf::actor_config& cfg,
 void prometheus_actor::on_exit() {
   requests_.clear();
   core_ = nullptr;
-  exporter_.reset();
 }
 
 const char* prometheus_actor::name() const {
@@ -82,11 +79,19 @@ caf::behavior prometheus_actor::make_behavior() {
       quit(msg.reason);
     }
   });
+  if (auto imports = caf::get_or(config(), "broker.metrics.import.topics",
+                                 std::vector<std::string>{});
+      !imports.empty()) {
+    for (auto& str : imports)
+      filter_.emplace_back(std::move(str));
+  }
   if (!filter_.empty()) {
     BROKER_INFO("collect remote metrics from topics" << filter_);
     send(core_, atom::join_v, filter_);
   }
-  auto bhvr = caf::message_handler{
+  exporter_.schedule_first_tick(this);
+  return {
+    [this](caf::tick_atom) { exporter_.on_tick(this, core_); },
     [this](const caf::io::new_data_msg& msg) {
       // Ignore data we're no longer interested in.
       auto iter = requests_.find(msg.handle);
@@ -107,6 +112,7 @@ caf::behavior prometheus_actor::make_behavior() {
       // Dispatch to a handler or send an error if nothing matches.
       if (caf::starts_with(req_str, prom_request_start)) {
         BROKER_DEBUG("serve HTTP request for /metrics");
+        exporter_.proc_importer.update();
         on_metrics_request(msg.handle);
         return;
       }
@@ -135,9 +141,18 @@ caf::behavior prometheus_actor::make_behavior() {
       if (num_connections() + num_doormen() == 0)
         quit();
     },
-    [this](const data_message& msg) {
+    [this](data_message& msg) {
       BROKER_TRACE(BROKER_ARG(msg));
-      collector_.insert_or_update(get_data(msg));
+      auto&& rows_data = move_data(msg);
+      if (!is<vector>(rows_data))
+        return;
+      using string = std::string;
+      auto& rows = get<vector>(rows_data);
+      if (rows.size() != 3 || !is<string>(rows[0]) || !is<timestamp>(rows[1])
+          || !is<string>(rows[2]))
+        return;
+      remote_metrics_.insert_or_assign(std::move(get<string>(rows[0])),
+                                       std::move(get<string>(rows[2])));
     },
     [this](atom::join, const filter_type& filter) {
       filter_ = filter;
@@ -145,10 +160,6 @@ caf::behavior prometheus_actor::make_behavior() {
       send(core_, atom::join_v, filter_);
     },
   };
-  auto params = metric_exporter_params::from(config());
-  exporter_ = std::make_unique<exporter_state_type>(this, core_,
-                                                    std::move(params));
-  return bhvr.or_else(exporter_->make_behavior());
 }
 
 void prometheus_actor::flush_and_close(caf::io::connection_handle hdl) {
@@ -159,22 +170,186 @@ void prometheus_actor::flush_and_close(caf::io::connection_handle hdl) {
     quit();
 }
 
+namespace {
+
+// Constructing a view from iterators is a C++20 feature.
+caf::string_view to_sv(caf::string_view::iterator from,
+                       caf::string_view::iterator to) {
+  return caf::string_view{std::addressof(*from),
+                          static_cast<size_t>(to - from)};
+}
+
+} // namespace
+
+caf::string_view::iterator //
+prometheus_actor::merge_metrics(const std::string& endpoint_name,
+                                caf::string_view metric_name,
+                                std::vector<char>& lines,
+                                caf::string_view::iterator pos,
+                                caf::string_view::iterator end) {
+  auto append = [&lines](caf::string_view sv) {
+    lines.insert(lines.end(), sv.begin(), sv.end());
+  };
+  // Iterate over the input.
+  while (pos != end) {
+    switch (*pos) {
+      case ' ':
+      case '\n':
+        // We simply ignore leading whitespace and empty lines.
+        ++pos;
+        break;
+      case '#':
+        // Probably the start of a new help text or comment. Parse upstream.
+        return pos;
+      default: {
+        // Prometheus format is: <metric>[{<label>...}] <value> <timestamp>.
+        // Since <metric> is the first token, we can simply search for the
+        // first non-alphanumeric character to find the end of the metric.
+        auto pred = [](char c) { return !std::isalnum(c) && c != '_'; };
+        auto eol = std::find(pos, end, '\n');
+        auto sep = std::find_if(pos, eol, pred);
+        if (sep == eol) {
+          // Should not happen, but we handle it gracefully.
+          BROKER_ERROR("invalid Prometheus text: " << std::string({pos, eol}));
+        } else {
+          // `sep` is now at the end of the metric name. Check if we are still
+          // within the metric group.
+          auto found_name = to_sv(pos, sep);
+          if (found_name != metric_name) {
+            // We found a new metric group. Handle upstream.
+            return pos;
+          }
+          // We found a metric with the expected name. Add it to the group and
+          // insert the endpoint label right after it.
+          append(found_name);
+          append("{endpoint=\"");
+          append(endpoint_name);
+          if (*sep == ' ') {
+            // We found a metric without labels. Hence, we can close the
+            // label set immediately.
+            append("\"} ");
+          } else {
+            // We found a metric with labels. Hence, we need to insert a comma
+            // here to separate the endpoint label from the rest of the labels.
+            append("\",");
+          }
+          // Add the remainder of the line verbatim.
+          append(to_sv(sep + 1, eol));
+          lines.push_back('\n');
+        }
+        pos = eol;
+      }
+    }
+  }
+  return end;
+}
+
+void prometheus_actor::merge_metrics(const std::string& endpoint_name,
+                                     caf::string_view prom_txt) {
+  auto pos = prom_txt.begin();
+  auto end = prom_txt.end();
+  while (pos != end) {
+    switch (*pos) {
+      case ' ':
+      case '\n':
+        // We simply ignore leading whitespace and empty lines.
+        ++pos;
+        break;
+      case '#': {
+        // We found a comment. Ignore unless it's a HELP or TYPE line.
+        auto eol = std::find(pos, end, '\n');
+        auto line = to_sv(pos, eol);
+        auto pred = [](char c) { return !std::isalnum(c) && c != '_'; };
+        if (caf::starts_with(line, "# HELP ")) {
+          // Chop off the prefix and parse the metric name.
+          auto remainder = line.substr(8);
+          auto sep = std::find_if(pos, eol, pred);
+          auto metric_name = to_string(to_sv(pos, sep));
+          // Add the helptext unless we have a prior definition.
+          if (!metric_name.empty()) {
+            auto& helptext = metric_groups_[metric_name].help;
+            if (!helptext.empty())
+              helptext.assign(pos, eol);
+          }
+        } else if (caf::starts_with(line, "# TYPE ")) {
+          // Chop off the prefix and parse the metric name.
+          auto remainder = line.substr(8);
+          auto sep = std::find_if(pos, eol, pred);
+          auto metric_name = to_string(to_sv(pos, sep));
+          // Add the type annotation unless we have a prior definition.
+          if (!metric_name.empty()) {
+            auto& type= metric_groups_[metric_name].type;
+            if (!type.empty())
+              type.assign(pos, eol);
+          }
+        }
+        pos = eol;
+        break;
+      }
+      default: {
+        // Prometheus format is: <metric>[{<label>...}] <value> <timestamp>.
+        // Since <metric> is the first token, we can simply search for the
+        // first non-alphanumeric character to find the end of the metric.
+        auto pred = [](char c) { return !std::isalnum(c) && c != '_'; };
+        auto eol = std::find(pos, end, '\n');
+        auto sep = std::find_if(pos, eol, pred);
+        auto metric_name = to_string(to_sv(pos, sep));
+        auto& metric_lines = metric_groups_[metric_name].lines;
+        if (metric_lines.empty())
+          metric_lines.reserve(256);
+        pos = merge_metrics(endpoint_name, metric_name, metric_lines, pos, end);
+      }
+    }
+  }
+}
+
 void prometheus_actor::on_metrics_request(caf::io::connection_handle hdl) {
+  // The HTTP header for the response.
+  auto hdr = caf::as_bytes(caf::make_span(request_ok_text));
   // Collect metrics, ship response, and close. If the user configured
   // neither Broker-side import nor export of metrics, we fall back to the
   // default CAF Prometheus export.
-  auto hdr = caf::as_bytes(caf::make_span(request_ok_text));
-  BROKER_ASSERT(exporter_ != nullptr);
-  if (!exporter_->running()) {
-    exporter_->proc_importer.update();
-    exporter_->impl.scrape(system().metrics());
+  if (exporter_.name.empty()) {
+    auto res = exporter_.collector.collect_from(system().metrics());
+    auto res_bytes = caf::as_bytes(caf::make_span(res));
+    auto& dst = wr_buf(hdl);
+    dst.insert(dst.end(), hdr.begin(), hdr.end());
+    dst.insert(dst.end(), res_bytes.begin(), res_bytes.end());
+    flush_and_close(hdl);
+    return;
   }
-  collector_.insert_or_update(exporter_->impl.rows());
-  auto text = collector_.prometheus_text();
-  auto payload = caf::as_bytes(caf::make_span(text));
+  // Otherwise, we need to add the endpoint as additional label dimension to all
+  // metrics and ship them to the remote endpoint. For this, we parse the
+  // Prometheus text output from local and remote endpoints and merge them.
+  metric_groups_.clear();
+  merge_metrics(exporter_.name,
+                exporter_.collector.collect_from(system().metrics()));
+  for (auto& [remote_name, prom_txt] : remote_metrics_) {
+    merge_metrics(remote_name, prom_txt);
+  }
+  // Finally, we can ship the merged metrics to the remote endpoint.
   auto& dst = wr_buf(hdl);
   dst.insert(dst.end(), hdr.begin(), hdr.end());
-  dst.insert(dst.end(), payload.begin(), payload.end());
+  auto append_text = [&dst](caf::string_view str) {
+    auto bytes = caf::as_bytes(caf::make_span(str));
+    dst.insert(dst.end(), bytes.begin(), bytes.end());
+  };
+  for (auto& [metric_name, group] : metric_groups_) {
+    auto& [type, help, lines] = group;
+    if (lines.empty())
+      continue;
+    if (!type.empty()) {
+      append_text(type);
+      dst.push_back(caf::byte{'\n'});
+    }
+    if (!help.empty()) {
+      append_text(help);
+      dst.push_back(caf::byte{'\n'});
+    }
+    append_text({lines.data(), lines.size()});
+    if (lines.back() != '\n')
+      dst.push_back(caf::byte{'\n'});
+  }
   flush_and_close(hdl);
 }
 
@@ -345,13 +520,13 @@ void prometheus_actor::on_status_request_cb(caf::io::connection_handle hdl,
   if (req.async_id != async_id)
     return;
   // Generate JSON output.
-  json_buf_.clear();
-  jsonizer f{json_buf_};
+  buf_.clear();
+  jsonizer f{buf_};
   f(res);
-  json_buf_.push_back('\n');
+  buf_.push_back('\n');
   // Send result and close connection.
   auto hdr = caf::as_bytes(caf::make_span(request_ok_json));
-  auto payload = caf::as_bytes(caf::make_span(json_buf_));
+  auto payload = caf::as_bytes(caf::make_span(buf_));
   auto& dst = wr_buf(hdl);
   dst.insert(dst.end(), hdr.begin(), hdr.end());
   dst.insert(dst.end(), payload.begin(), payload.end());
