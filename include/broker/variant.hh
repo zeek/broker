@@ -47,8 +47,8 @@ public:
 
   variant& operator=(const variant&) = default;
 
-  variant(const variant_data* value, envelope_ptr envelope) noexcept
-    : raw_(value), envelope_(std::move(envelope)) {
+  variant(const variant_data* value, data_envelope_ptr ptr) noexcept
+    : raw_(value), envelope_(std::move(ptr)) {
     // nop
   }
 
@@ -327,7 +327,7 @@ private:
   const variant_data* raw_;
 
   /// The envelope that holds (owns) the data.
-  envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 /// Checks whether a data object can be converted to `T`.

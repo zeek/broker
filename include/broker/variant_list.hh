@@ -60,19 +60,17 @@ public:
   private:
     using native_iterator = variant_data::list_iterator;
 
-    envelope_ptr shared_envelope() const {
-      if (envelope_)
-        return envelope_->shared_from_this();
-      return nullptr;
+    data_envelope_ptr shared_envelope() const {
+      return {new_ref, envelope_};
     }
 
-    iterator(native_iterator pos, const envelope* envelope) noexcept
+    iterator(native_iterator pos, const data_envelope* envelope) noexcept
       : pos_(pos), envelope_(envelope) {
       // nop
     }
 
     native_iterator pos_;
-    const envelope* envelope_;
+    const data_envelope* envelope_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------
@@ -143,8 +141,8 @@ public:
   }
 
 private:
-  variant_list(const variant_data::list* values, envelope_ptr envelope) noexcept
-    : values_(values), envelope_(std::move(envelope)) {
+  variant_list(const variant_data::list* values, data_envelope_ptr ptr) noexcept
+    : values_(values), envelope_(std::move(ptr)) {
     // nop
   }
 
@@ -152,7 +150,7 @@ private:
   const variant_data::list* values_ = nullptr;
 
   /// The envelope that holds the data.
-  envelope_ptr envelope_;
+  data_envelope_ptr envelope_;
 };
 
 /// End of recursion for `contains`.

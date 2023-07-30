@@ -48,8 +48,10 @@ using publisher_id [[deprecated("use entity_id instead")]] = entity_id;
 // -- classes ------------------------------------------------------------------
 
 class address;
+class command_envelope;
 class configuration;
 class data;
+class data_envelope;
 class endpoint;
 class endpoint_id;
 class enum_value_view;
@@ -57,6 +59,8 @@ class envelope;
 class error;
 class internal_command;
 class mailbox;
+class ping_envelope;
+class pong_envelope;
 class port;
 class publisher;
 class shared_filter_type;
@@ -80,6 +84,9 @@ class expected;
 
 template <class... Ts>
 class cow_tuple;
+
+template <class T>
+class intrusive_ptr;
 
 // -- enum classes -------------------------------------------------------------
 
@@ -145,7 +152,12 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
-using envelope_ptr = std::shared_ptr<const envelope>;
+using envelope_ptr = intrusive_ptr<const envelope>;
+using data_envelope_ptr = intrusive_ptr<const data_envelope>;
+using command_envelope_ptr = intrusive_ptr<const command_envelope>;
+using ping_envelope_ptr = intrusive_ptr<const ping_envelope>;
+using pong_envelope_ptr = intrusive_ptr<const pong_envelope>;
+
 using packed_message =
   cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
 using command_message = cow_tuple<topic, internal_command>;

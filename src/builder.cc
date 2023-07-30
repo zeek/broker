@@ -1,6 +1,7 @@
 #include "broker/builder.hh"
 
 #include "broker/data.hh"
+#include "broker/defaults.hh"
 #include "broker/envelope.hh"
 #include "broker/error.hh"
 #include "broker/topic.hh"
@@ -9,7 +10,7 @@ namespace broker {
 
 namespace {
 
-class builder_envelope : public envelope {
+class builder_envelope : public data_envelope {
 public:
   builder_envelope(std::vector<std::byte> bytes, size_t offset)
     : bytes_(std::move(bytes)), offset_(offset) {
@@ -17,7 +18,7 @@ public:
   }
 
   variant value() const noexcept override {
-    return {root_, shared_from_this()};
+    return {root_, {new_ref, this}};
   }
 
   std::string_view topic() const noexcept override {
@@ -45,9 +46,9 @@ private:
   size_t offset_;
 };
 
-envelope_ptr make_builder_envelope(std::vector<std::byte> bytes,
-                                   size_t offset) {
-  auto res = std::make_shared<builder_envelope>(std::move(bytes), offset);
+data_envelope_ptr make_builder_envelope(std::vector<std::byte> bytes,
+                                        size_t offset) {
+  auto res = make_intrusive<builder_envelope>(std::move(bytes), offset);
 #ifndef NDEBUG
   if (auto err = res->parse()) {
     auto errstr = to_string(err);

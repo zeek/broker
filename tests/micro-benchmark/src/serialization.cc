@@ -20,15 +20,19 @@ namespace {
 // Usually, the envelope owns the buffer. Since the buffer is owned by the
 // fixture in this benchmark, we use a shallow envelope to avoid copying that
 // would not happen in real code either.
-class shallow_envelope : public envelope {
+class shallow_envelope : public data_envelope {
 public:
   shallow_envelope(const std::byte* data, size_t size)
     : data_(data), size_(size) {
     // nop
   }
 
+  uint16_t ttl() const noexcept override {
+    return defaults::ttl;
+  }
+
   variant value() const noexcept override {
-    return {root_, shared_from_this()};
+    return {root_, {new_ref, this}};
   }
 
   std::string_view topic() const noexcept override {

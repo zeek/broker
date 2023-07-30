@@ -58,12 +58,12 @@ byte_buffer to_bytes(const data& value) {
   return result;
 }
 
-class envelope_test_impl : public envelope {
+class envelope_test_impl : public data_envelope {
 public:
   envelope_test_impl(byte_buffer bytes) : bytes_(std::move(bytes)) {}
 
   variant value() const noexcept override {
-    return {root_, shared_from_this()};
+    return {root_, {new_ref, this}};
   }
 
   std::string_view topic() const noexcept override {
@@ -94,7 +94,7 @@ private:
 template <class T, class... Ts>
 error parse_bytes_result(T arg, Ts... args) {
   if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
-    auto envelope = std::make_shared<envelope_test_impl>(std::move(arg));
+    auto envelope = make_intrusive<envelope_test_impl>(std::move(arg));
     return envelope->parse();
   } else {
     return parse_bytes(make_bytes(arg, args...));
@@ -104,7 +104,7 @@ error parse_bytes_result(T arg, Ts... args) {
 template <class T, class... Ts>
 variant parse_bytes(T arg, Ts... args) {
   if constexpr (sizeof...(Ts) == 0 && std::is_same_v<byte_buffer, T>) {
-    auto envelope = std::make_shared<envelope_test_impl>(std::move(arg));
+    auto envelope = make_intrusive<envelope_test_impl>(std::move(arg));
     if (auto err = envelope->parse(); err)
       return variant{};
     return envelope->value();

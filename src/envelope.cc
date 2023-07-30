@@ -1,5 +1,6 @@
 #include "broker/envelope.hh"
 
+#include "broker/defaults.hh"
 #include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/error.hh"
 #include "broker/internal/type_id.hh"
@@ -27,8 +28,36 @@ envelope::~envelope() {
   // nop
 }
 
-variant_data* envelope::do_parse(detail::monotonic_buffer_resource& buf,
-                                 error& err) {
+uint16_t envelope::ttl() const noexcept {
+  return defaults::ttl;
+}
+
+endpoint_id envelope::sender() const noexcept {
+  return endpoint_id::nil();
+}
+
+endpoint_id envelope::receiver() const noexcept {
+  return endpoint_id::nil();
+}
+
+envelope_type data_envelope::type() const noexcept {
+  return envelope_type::data;
+}
+
+envelope_type command_envelope::type() const noexcept {
+  return envelope_type::command;
+}
+
+envelope_type ping_envelope::type() const noexcept {
+  return envelope_type::ping;
+}
+
+envelope_type pong_envelope::type() const noexcept {
+  return envelope_type::pong;
+}
+
+variant_data* data_envelope::do_parse(detail::monotonic_buffer_resource& buf,
+                                      error& err) {
   auto [bytes, size] = raw_bytes();
   if (bytes == nullptr || size == 0) {
     err = make_error(ec::deserialization_failed, "cannot parse null data");
@@ -52,17 +81,17 @@ variant_data* envelope::do_parse(detail::monotonic_buffer_resource& buf,
 
 namespace {
 
-/// The default implementation for @ref envelope that wraps a byte buffer
+/// The default implementation for @ref data_envelope that wraps a byte buffer
 /// and a topic..
-class default_envelope : public envelope {
+class default_data_envelope : public data_envelope {
 public:
-  default_envelope(std::string topic_str, caf::byte_buffer bytes)
+  default_data_envelope(std::string topic_str, caf::byte_buffer bytes)
     : topic_(std::move(topic_str)), bytes_(std::move(bytes)) {
     // nop
   }
 
   variant value() const noexcept override {
-    return {root_, shared_from_this()};
+    return {root_, {new_ref, this}};
   }
 
   std::string_view topic() const noexcept override {
@@ -92,7 +121,7 @@ private:
 
 } // namespace
 
-envelope_ptr envelope::make(broker::topic t, const data& d) {
+data_envelope_ptr data_envelope::make(broker::topic t, const data& d) {
   caf::byte_buffer buf;
   caf::binary_serializer sink{nullptr, buf};
 #ifndef NDEBUG
@@ -105,8 +134,8 @@ envelope_ptr envelope::make(broker::topic t, const data& d) {
 #else
   std::ignore = sink.apply(d);
 #endif
-  auto res = std::make_shared<default_envelope>(std::move(t).move_string(),
-                                                std::move(buf));
+  auto res = make_intrusive<default_data_envelope>(std::move(t).move_string(),
+                                                   std::move(buf));
 #ifndef NDEBUG
   if (auto err = res->parse()) {
     auto errstr = to_string(err);
@@ -123,9 +152,9 @@ envelope_ptr envelope::make(broker::topic t, const data& d) {
 namespace {
 
 /// Wraps a data view and a topic.
-class envelope_wrapper : public envelope {
+class data_envelope_wrapper : public data_envelope {
 public:
-  envelope_wrapper(std::string topic_str, variant val)
+  data_envelope_wrapper(std::string topic_str, variant val)
     : topic_(std::move(topic_str)), val_(std::move(val)) {
     // nop
   }
@@ -155,9 +184,9 @@ private:
 
 } // namespace
 
-envelope_ptr envelope::make(broker::topic t, variant d) {
-  return std::make_shared<envelope_wrapper>(std::move(t).move_string(),
-                                            std::move(d));
+data_envelope_ptr data_envelope::make(broker::topic t, variant d) {
+  return make_intrusive<data_envelope_wrapper>(std::move(t).move_string(),
+                                               std::move(d));
 }
 
 } // namespace broker
