@@ -331,6 +331,7 @@ set(BROKER_SRC
   src/internal/metric_view.cc
   src/internal/peering.cc
   src/internal/pending_connection.cc
+  src/internal/println.cc
   src/internal/prometheus.cc
   src/internal/store_actor.cc
   src/internal/web_socket.cc

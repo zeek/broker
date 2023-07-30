@@ -33,6 +33,7 @@
 #include "broker/endpoint_id.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/endpoint_access.hh"
+#include "broker/internal/println.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -47,6 +48,9 @@ using broker::topic;
 using broker::internal::native;
 
 namespace atom = broker::internal::atom;
+namespace err = broker::internal::err;
+namespace out = broker::internal::out;
+namespace verbose = broker::internal::verbose;
 
 // -- additional message and atom types ----------------------------------------
 
@@ -95,82 +99,6 @@ bool convert(const caf::uri& from, network_info& to) {
 }
 
 } // namespace broker
-
-// -- I/O utility --------------------------------------------------------------
-
-namespace detail {
-
-namespace {
-
-std::mutex ostream_mtx;
-
-} // namespace
-
-int print_impl(std::ostream& ostr, const char* x) {
-  ostr << x;
-  return 0;
-}
-
-int print_impl(std::ostream& ostr, const string& x) {
-  ostr << x;
-  return 0;
-}
-
-int print_impl(std::ostream& ostr, const caf::term& x) {
-  ostr << x;
-  return 0;
-}
-
-template <class T>
-int print_impl(std::ostream& ostr, const T& x) {
-  return print_impl(ostr, caf::deep_to_string(x));
-}
-
-template <class... Ts>
-void println(std::ostream& ostr, Ts&&... xs) {
-  std::unique_lock<std::mutex> guard{ostream_mtx};
-  std::initializer_list<int>{print_impl(ostr, std::forward<Ts>(xs))...};
-  ostr << caf::term::reset_endl;
-}
-
-} // namespace detail
-
-namespace out {
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  ::detail::println(std::cout, std::forward<Ts>(xs)...);
-}
-
-} // namespace out
-
-namespace err {
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  ::detail::println(std::cerr, caf::term::red, node_name, ": ",
-                    std::forward<Ts>(xs)...);
-}
-
-} // namespace err
-
-namespace verbose {
-
-namespace {
-
-std::atomic<bool> enabled;
-
-} // namespace
-
-template <class... Ts>
-void println(Ts&&... xs) {
-  if (enabled)
-    ::detail::println(std::clog, caf::term::blue,
-                      std::chrono::system_clock::now(), " ", node_name, ": ",
-                      std::forward<Ts>(xs)...);
-}
-
-} // namespace verbose
 
 // -- CAF setup ----------------------------------------------------------------
 
@@ -460,7 +388,7 @@ int main(int argc, char** argv) try {
   // Enable verbose output if demanded by user.
   actor verbose_logger;
   if (get_or(ep, "verbose", false)) {
-    verbose::enabled = true;
+    verbose::enabled(true);
     // Launch background worker that prints status and error events when running
     // in verbose mode.
     ep.subscribe({topic::errors(), topic::statuses()},
