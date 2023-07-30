@@ -17,7 +17,7 @@ public:
     // nop
   }
 
-  variant value() const noexcept override {
+  variant value() noexcept override {
     return {root_, {new_ref, this}};
   }
 

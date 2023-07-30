@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/config.hh"
+#include "broker/detail/inspect_enum.hh"
 #include "broker/fwd.hh"
 #include "broker/intrusive_ptr.hh"
 
@@ -19,6 +20,21 @@ enum class envelope_type : uint8_t {
   ping,
   pong,
 };
+
+/// @relates envelope_type
+std::string to_string(envelope_type);
+
+/// @relates envelope_type
+bool from_string(std::string_view, envelope_type&);
+
+/// @relates envelope_type
+bool from_integer(uint8_t, envelope_type&);
+
+/// @relates envelope_type
+template <class Inspector>
+bool inspect(Inspector& f, envelope_type& x) {
+  return detail::inspect_enum(f, x);
+}
 
 /// Wraps a value of type @ref variant and associates it with a @ref topic.
 class envelope {
@@ -48,11 +64,14 @@ public:
   /// Returns the topic for the data in this envelope.
   virtual std::string_view topic() const noexcept = 0;
 
-  /// Returns the contained value in its serialized form, if available. If the
-  /// envelope does not contain serialized data, returns `nullptr` and `0`.
+  /// Returns the contained value in its serialized form.
   virtual std::pair<const std::byte*, size_t> raw_bytes() const noexcept = 0;
 
-  /// Increments the reference count by one.
+  /// Attempts to deserialize an envelope from the given message in Broker's
+  /// write format.
+  static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
+
+  /// Increments the reference count.
   void ref() const noexcept {
     ++ref_count_;
   }
@@ -72,7 +91,7 @@ private:
 
 /// A shared pointer to an @ref envelope.
 /// @relates envelope
-using envelope_ptr = intrusive_ptr<const envelope>;
+using envelope_ptr = intrusive_ptr<envelope>;
 
 /// Wraps a value of type @ref variant and associates it with a @ref topic.
 class data_envelope : public envelope {
@@ -81,7 +100,7 @@ public:
 
   /// Returns the contained value.
   /// @pre `root != nullptr`
-  virtual variant value() const noexcept = 0;
+  virtual variant value() noexcept = 0;
 
   /// Checks whether `val` is the root value.
   virtual bool is_root(const variant_data* val) const noexcept = 0;
@@ -92,6 +111,10 @@ public:
   /// Creates a new data envolope from the given @ref topic and @ref data.
   static data_envelope_ptr make(broker::topic t, variant d);
 
+  /// Attempts to deserialize an envelope from the given message in Broker's
+  /// write format.
+  static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
+
 protected:
   /// Parses the data returned from @ref raw_bytes.
   variant_data* do_parse(detail::monotonic_buffer_resource& buf, error& err);
@@ -99,7 +122,7 @@ protected:
 
 /// A shared pointer to a @ref data_envelope.
 /// @relates data_envelope
-using data_envelope_ptr = intrusive_ptr<const data_envelope>;
+using data_envelope_ptr = intrusive_ptr<data_envelope>;
 
 /// Wraps an @ref internal_command and associates it with a @ref topic.
 class command_envelope : public envelope {
@@ -112,7 +135,7 @@ public:
 
 /// A shared pointer to a @ref command_envelope.
 /// @relates command_envelope
-using command_envelope_ptr = intrusive_ptr<const command_envelope>;
+using command_envelope_ptr = intrusive_ptr<command_envelope>;
 
 /// Represents a ping message.
 class ping_envelope : public envelope {
@@ -122,7 +145,7 @@ public:
 
 /// A shared pointer to a @ref ping_envelope.
 /// @relates ping_envelope
-using ping_envelope_ptr = intrusive_ptr<const ping_envelope>;
+using ping_envelope_ptr = intrusive_ptr<ping_envelope>;
 
 /// Represents a pong message.
 class pong_envelope : public envelope {
@@ -132,6 +155,6 @@ public:
 
 /// A shared pointer to a @ref pong_envelope.
 /// @relates pong_envelope
-using pong_envelope_ptr = intrusive_ptr<const pong_envelope>;
+using pong_envelope_ptr = intrusive_ptr<pong_envelope>;
 
 } // namespace broker

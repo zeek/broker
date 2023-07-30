@@ -77,13 +77,13 @@ public:
       return {new_ref, envelope_};
     }
 
-    iterator(native_iterator pos, const data_envelope* ptr) noexcept
+    iterator(native_iterator pos, data_envelope* ptr) noexcept
       : pos_(pos), envelope_(ptr) {
       // nop
     }
 
     native_iterator pos_;
-    const data_envelope* envelope_;
+    data_envelope* envelope_;
   };
 
   // -- constructors, destructors, and assignment operators --------------------

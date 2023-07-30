@@ -69,6 +69,9 @@ public:
   /// Creates a random endpoint_id with a predefined seed.
   static endpoint_id random(unsigned seed) noexcept;
 
+  /// Creates an endpoint_id from raw bytes.
+  static endpoint_id from_bytes(const std::byte* input) noexcept;
+
   /// Convenience function for creating an endpoint_id with all 128 bits set to
   /// zero.
   static endpoint_id nil() noexcept {

@@ -244,6 +244,12 @@ public:
   /// Deserializes a @ref node_message from a sequence of bytes.
   bool convert(caf::const_byte_span bytes, node_message& msg);
 
+  /// Serializes a @ref envelope_ptr to a sequence of bytes.
+  bool convert(const envelope_ptr& msg, caf::byte_buffer& buf);
+
+  /// Deserializes a @ref envelope_ptr from a sequence of bytes.
+  bool convert(caf::const_byte_span bytes, envelope_ptr& msg);
+
   /// Retrieves the last error from a conversion.
   const caf::error& last_error() const noexcept {
     return last_error_;

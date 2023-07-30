@@ -7,8 +7,6 @@ namespace broker {
 
 namespace {
 
-std::byte nil_bytes[16];
-
 // TODO: caf::byte is soon to get replaced by std::byte. This is going to make
 //       these two conversion functions trivial.
 
@@ -35,7 +33,8 @@ endpoint_id::endpoint_id() noexcept {
 }
 
 bool endpoint_id::valid() const noexcept {
-  return memcmp(bytes_.data(), nil_bytes, num_bytes) != 0;
+  return std::all_of(bytes_.begin(), bytes_.end(),
+                     [](auto x) { return x == std::byte{0}; });
 }
 
 size_t endpoint_id::hash() const noexcept {
@@ -48,6 +47,12 @@ endpoint_id endpoint_id::random() noexcept {
 
 endpoint_id endpoint_id::random(unsigned seed) noexcept {
   return from_uuid(caf::uuid::random(seed));
+}
+
+endpoint_id endpoint_id::from_bytes(const std::byte* input) noexcept {
+  endpoint_id result;
+  memcpy(result.bytes_.data(), input, num_bytes);
+  return result;
 }
 
 bool endpoint_id::can_parse(const std::string& str) {

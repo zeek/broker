@@ -3,7 +3,10 @@
 #include "broker/defaults.hh"
 #include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/error.hh"
+#include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 #include "broker/variant.hh"
 #include "broker/variant_data.hh"
@@ -14,6 +17,32 @@
 #include <caf/detail/network_order.hpp>
 
 namespace broker {
+
+std::string to_string(envelope_type x) {
+  // Same strings since packed_message is a subset of p2p_message.
+  return to_string(static_cast<p2p_message_type>(x));
+}
+
+bool from_string(std::string_view str, envelope_type& x) {
+  auto tmp = p2p_message_type{0};
+  if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 5) {
+    x = static_cast<envelope_type>(tmp);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool from_integer(uint8_t val, envelope_type& x) {
+  if (val <= 0x04) {
+    auto tmp = p2p_message_type{0};
+    if (from_integer(val, tmp)) {
+      x = static_cast<envelope_type>(tmp);
+      return true;
+    }
+  }
+  return false;
+}
 
 namespace {
 
@@ -40,6 +69,26 @@ endpoint_id envelope::receiver() const noexcept {
   return endpoint_id::nil();
 }
 
+expected<envelope_ptr> envelope::deserialize(const std::byte* data,
+                                             size_t size) {
+  // Format is as follows:
+  // -  16 bytes: sender
+  // -  16 bytes: receiver
+  // -   1 byte : message type
+  // -   2 bytes: TTL
+  // -   2 bytes: topic length T
+  // -   T bytes: topic
+  // - remainder: payload (type-specific)
+  if (size < 37)
+    return make_error(ec::invalid_data, "message too short");
+  switch (static_cast<envelope_type>(data[32])) {
+    default:
+      return make_error(ec::invalid_data, "invalid message type");
+    case envelope_type::data:
+      return data_envelope::deserialize(data, size);
+  }
+}
+
 envelope_type data_envelope::type() const noexcept {
   return envelope_type::data;
 }
@@ -54,6 +103,134 @@ envelope_type ping_envelope::type() const noexcept {
 
 envelope_type pong_envelope::type() const noexcept {
   return envelope_type::pong;
+}
+
+namespace {
+
+/// A @ref data_envelope for deserialized data.
+class deserialized_data_envelope : public data_envelope {
+public:
+  deserialized_data_envelope(endpoint_id sender, endpoint_id receiver,
+                             uint16_t ttl, const char* topic_str,
+                             size_t topic_size, const std::byte* data,
+                             size_t data_size)
+    : sender_(sender),
+      receiver_(receiver),
+      ttl_(ttl),
+      topic_size_(topic_size),
+      data_size_(data_size) {
+    // Note: we need to copy the topic and the data into our memory resource.
+    // The pointers passed to the constructor are only valid for the duration of
+    // the call.
+    mbr_allocator<char> str_allocator{&buf_};
+    topic_ = str_allocator.allocate(topic_size + 1);
+    memcpy(topic_, topic_str, topic_size);
+    topic_[topic_size] = '\0';
+    mbr_allocator<std::byte> byte_allocator{&buf_};
+    data_ = byte_allocator.allocate(data_size);
+    memcpy(data_, data, data_size);
+  }
+
+  uint16_t ttl() const noexcept override {
+    return ttl_;
+  }
+
+  endpoint_id sender() const noexcept override {
+    return sender_;
+  }
+
+  endpoint_id receiver() const noexcept override {
+    return receiver_;
+  }
+
+  variant value() noexcept override {
+    return {root_, {new_ref, this}};
+  }
+
+  std::string_view topic() const noexcept override {
+    return {topic_, topic_size_};
+  }
+
+  bool is_root(const variant_data* val) const noexcept override {
+    return val == root_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {data_, data_size_};
+  }
+
+  error parse() {
+    error result;
+    root_ = do_parse(buf_, result);
+    return result;
+  }
+
+private:
+  variant_data* root_ = nullptr;
+
+  endpoint_id sender_;
+
+  endpoint_id receiver_;
+
+  uint16_t ttl_;
+
+  char* topic_;
+
+  size_t topic_size_;
+
+  std::byte* data_;
+
+  size_t data_size_;
+
+  detail::monotonic_buffer_resource buf_;
+};
+
+} // namespace
+
+expected<envelope_ptr> data_envelope::deserialize(const std::byte* data,
+                                                  size_t size) {
+  // Format: see envelope::deserialize.
+  if (size < 37)
+    return make_error(ec::invalid_data, "message too short");
+  auto advance = [&](size_t n) {
+    data += n;
+    size -= n;
+  };
+  // Extract the sender.
+  auto sender = endpoint_id::from_bytes(data);
+  advance(16);
+  // Extract the receiver.
+  auto receiver = endpoint_id::from_bytes(data);
+  advance(16);
+  // Check the type.
+  if (static_cast<envelope_type>(*data) != envelope_type::data)
+    return make_error(ec::invalid_data, "expected a data message");
+  advance(1);
+  // Extract the TTL.
+  auto ttl = uint16_t{0};
+  std::memcpy(&ttl, data, sizeof(ttl));
+  ttl = format::bin::v1::from_network_order(ttl);
+  advance(2);
+  // Extract the topic.
+  auto topic_size = uint16_t{0};
+  std::memcpy(&topic_size, data + 2, sizeof(topic_size));
+  advance(2);
+  if (topic_size > size)
+    return make_error(ec::invalid_data, "invalid topic size");
+  auto topic_data = reinterpret_cast<const char*>(data);
+  advance(topic_size);
+  // Sanity check: we need at least 1 byte for the payload.
+  if (size == 0)
+    return make_error(ec::invalid_data, "missing payload");
+  // Construct the envelope.
+  using impl_t = deserialized_data_envelope;
+  auto result = make_intrusive<impl_t>(sender, receiver, ttl, topic_data,
+                                       topic_size, data, size);
+  // Parse the payload.
+  if (auto err = result->parse())
+    return err;
+  // Done.
+  return {std::move(result)};
 }
 
 variant_data* data_envelope::do_parse(detail::monotonic_buffer_resource& buf,
@@ -90,7 +267,7 @@ public:
     // nop
   }
 
-  variant value() const noexcept override {
+  variant value() noexcept override {
     return {root_, {new_ref, this}};
   }
 
@@ -159,7 +336,7 @@ public:
     // nop
   }
 
-  variant value() const noexcept override {
+  variant value() noexcept override {
     return val_;
   }
 

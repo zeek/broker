@@ -62,7 +62,7 @@ class envelope_test_impl : public data_envelope {
 public:
   envelope_test_impl(byte_buffer bytes) : bytes_(std::move(bytes)) {}
 
-  variant value() const noexcept override {
+  variant value() noexcept override {
     return {root_, {new_ref, this}};
   }
 

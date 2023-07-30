@@ -1,6 +1,9 @@
 #include "broker/internal/wire_format.hh"
 
+#include "broker/envelope.hh"
+#include "broker/expected.hh"
 #include "broker/internal/logger.hh"
+#include "broker/internal/native.hh"
 #include "broker/message.hh"
 
 #include <caf/binary_deserializer.hpp>
@@ -132,6 +135,50 @@ bool trait::convert(caf::const_byte_span bytes, node_message& msg) {
   auto first = reinterpret_cast<const std::byte*>(remainder.data());
   auto last = first + remainder.size();
   payload.assign(first, last);
+  return true;
+}
+
+bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
+  caf::binary_serializer sink{nullptr, buf};
+  auto write_topic = [&msg, &sink] {
+    const auto& str = msg->topic();
+    if (str.size() > 0xFFFF) {
+      BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
+      sink.emplace_error(caf::sec::invalid_argument,
+                         "topic exceeds maximum size of 65,535 characters");
+      return false;
+    }
+    if (!sink.apply(static_cast<uint16_t>(str.size())))
+      return false;
+    auto first = reinterpret_cast<const caf::byte*>(str.data());
+    sink.buf().insert(sink.buf().end(), first, first + str.size());
+    return true;
+  };
+  auto write_payload = [&msg, &sink] {
+    auto [data, size] = msg->raw_bytes();
+    auto first = reinterpret_cast<const caf::byte*>(data);
+    sink.buf().insert(sink.buf().end(), first, first + size);
+    return true;
+  };
+  auto ok = sink.apply(msg->sender())      //
+            && sink.apply(msg->receiver()) //
+            && sink.apply(msg->type())     //
+            && sink.apply(msg->ttl())      //
+            && write_topic()               //
+            && write_payload();            //
+  if (!ok)
+    last_error_ = sink.get_error();
+  return ok;
+}
+
+bool trait::convert(caf::const_byte_span bytes, envelope_ptr& msg) {
+  auto data = reinterpret_cast<const std::byte*>(bytes.data());
+  auto res = envelope::deserialize(data, bytes.size());
+  if (!res) {
+    last_error_ = std::move(native(res.error()));
+    return false;
+  }
+  msg = std::move(*res);
   return true;
 }
 

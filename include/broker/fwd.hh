@@ -152,11 +152,11 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
-using envelope_ptr = intrusive_ptr<const envelope>;
-using data_envelope_ptr = intrusive_ptr<const data_envelope>;
-using command_envelope_ptr = intrusive_ptr<const command_envelope>;
-using ping_envelope_ptr = intrusive_ptr<const ping_envelope>;
-using pong_envelope_ptr = intrusive_ptr<const pong_envelope>;
+using envelope_ptr = intrusive_ptr<envelope>;
+using data_envelope_ptr = intrusive_ptr<data_envelope>;
+using command_envelope_ptr = intrusive_ptr<command_envelope>;
+using ping_envelope_ptr = intrusive_ptr<ping_envelope>;
+using pong_envelope_ptr = intrusive_ptr<pong_envelope>;
 
 using packed_message =
   cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
