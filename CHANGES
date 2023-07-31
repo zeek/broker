@@ -1,3 +1,16 @@
+2.7.0-dev.19 | 2023-07-31 10:35:39 -0700
+
+  * Force rebuilds of alpine, debian-11, ubuntu-2210, and Windows CI images (Tim Wojtulewicz, Corelight)
+
+  * Replace usage of deprecated CMake FindPythonInterp and FindPythonDev (Tim Wojtulewicz, Corelight)
+
+    These were both replaced by components to the FindPython module, and
+    were marked as deprecated in CMake 3.12. This removes their usage
+    since CMake 3.27 and above now report a warning for CMP0148. This also
+    replaces the naming of some variables to match the CMake documentation.
+
+  * Update pybind11 to v2.11.1 (Tim Wojtulewicz, Corelight)
+
 2.7.0-dev.15 | 2023-07-02 14:55:22 -0700
 
   * Add /J flag on Windows to force unsigned char (Tim Wojtulewicz, Corelight)

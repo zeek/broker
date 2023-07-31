@@ -170,7 +170,7 @@ while [ $# -ne 0 ]; do
             append_cache_entry OPENSSL_ROOT_DIR     PATH    $optarg
             ;;
         --with-python=*)
-            append_cache_entry PYTHON_EXECUTABLE    PATH    $optarg
+            append_cache_entry Python_EXECUTABLE    PATH    $optarg
             ;;
         --with-python-config=*)
             append_cache_entry PYTHON_CONFIG        PATH    $optarg
