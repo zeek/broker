@@ -2,7 +2,7 @@ FROM fedora:37
 
 # A version field to invalide Cirrus's build cache when needed, as suggested in
 # https://github.com/cirruslabs/cirrus-ci-docs/issues/544#issuecomment-566066822
-ENV DOCKERFILE_VERSION 20221127
+ENV DOCKERFILE_VERSION 20230813
 
 RUN dnf -y install \
     cmake \
