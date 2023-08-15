@@ -453,7 +453,7 @@ endif ()
 
 if (NOT DISABLE_PYTHON_BINDINGS)
   set(Python_ADDITIONAL_VERSIONS 3)
-  find_package(Python 3.7 COMPONENTS Interpreter Development)
+  find_package(Python 3.5 COMPONENTS Interpreter Development)
 
   if (NOT Python_FOUND)
     message(STATUS "Skipping Python bindings: Python interpreter not found")
