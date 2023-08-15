@@ -1,3 +1,12 @@
+2.7.0-dev.21 | 2023-08-15 17:39:57 +0100
+
+  * Build broker bindings for older versions of Python (Johanna Amann, Corelight)
+
+    Recently (GH-370), the version of Python required to build the bindings
+    was upped to 3.7. This is problematic, as we have older versions of
+    Python in distributions that we still support; this lowers this version
+    again.
+
 2.7.0-dev.19 | 2023-07-31 10:35:39 -0700
 
   * Force rebuilds of alpine, debian-11, ubuntu-2210, and Windows CI images (Tim Wojtulewicz, Corelight)
