@@ -9,8 +9,14 @@ RUN zypper in -y \
     gcc \
     gcc-c++ \
     git \
+    gzip \
     libopenssl-devel \
     make \
-    python3 \
-    python3-devel \
+    python39 \
+    python39-devel \
+    python39-pip \
+    tar \
   && rm -rf /var/cache/zypp
+
+RUN update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.9 100
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 100
