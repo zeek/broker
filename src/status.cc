@@ -5,6 +5,7 @@
 #include "broker/error.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/variant.hh"
 
 using namespace std::literals;
 
@@ -151,6 +152,10 @@ bool convert(const data& src, status& dst) {
     return true;
   }
   return false;
+}
+
+bool convert(const variant& src, status& dst) {
+  return convert(src.to_data(), dst);
 }
 
 bool convert(const status& src, data& dst) {

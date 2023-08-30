@@ -291,9 +291,11 @@ set(BROKER_SRC
   src/alm/multipath.cc
   src/alm/routing_table.cc
   src/builder.cc
+  src/command_envelope.cc
   src/configuration.cc
   src/convert.cc
   src/data.cc
+  src/data_envelope.cc
   src/detail/abstract_backend.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
@@ -338,11 +340,14 @@ set(BROKER_SRC
   src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc
-  src/message.cc
   src/network_info.cc
+  src/p2p_message_type.cc
   src/peer_status.cc
+  src/ping_envelope.cc
+  src/pong_envelope.cc
   src/port.cc
   src/publisher.cc
+  src/routing_update_envelope.cc
   src/shutdown_options.cc
   src/status.cc
   src/status_subscriber.cc
@@ -446,8 +451,8 @@ endmacro()
 if (NOT BROKER_DISABLE_TOOLS)
   # TODO: fix these tools
   # add_tool(broker-gateway)
-  add_tool(broker-node)
-  add_tool(broker-pipe)
+  # add_tool(broker-node)
+  # add_tool(broker-pipe)
 endif ()
 
 # -- Bindings -----------------------------------------------------------------

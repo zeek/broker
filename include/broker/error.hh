@@ -289,6 +289,9 @@ bool convert(const error& src, data& dst);
 /// Converts data in the format `["error", code, context]` back to an error.
 bool convert(const data& src, error& dst);
 
+/// Converts data in the format `["error", code, context]` back to an error.
+bool convert(const variant& src, error& dst);
+
 /// Creates a view into a ::data object that is convertible to ::error.
 class error_view {
 public:

@@ -33,8 +33,8 @@ endpoint_id::endpoint_id() noexcept {
 }
 
 bool endpoint_id::valid() const noexcept {
-  return std::all_of(bytes_.begin(), bytes_.end(),
-                     [](auto x) { return x == std::byte{0}; });
+  return !std::all_of(bytes_.begin(), bytes_.end(),
+                      [](auto x) { return x == std::byte{0}; });
 }
 
 size_t endpoint_id::hash() const noexcept {

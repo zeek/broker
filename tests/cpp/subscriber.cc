@@ -16,11 +16,11 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/envelope.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/message.hh"
 #include "broker/topic.hh"
 
 using broker::internal::native;
@@ -36,15 +36,22 @@ using namespace broker::detail;
 namespace {
 
 struct fixture : net_fixture<base_fixture> {
-  std::vector<data_message> out_buf;
+  std::vector<data_envelope_ptr> out_buf;
+
+  std::vector<std::string> out_topics;
+  std::vector<data> out_data;
 
   fixture()
-    : out_buf{make_data_message("foo", 0),     make_data_message("foo", true),
-              make_data_message("foo", 1),     make_data_message("foo", 2),
-              make_data_message("foo", false), make_data_message("foo", true),
-              make_data_message("foo", 3),     make_data_message("foo", false),
-              make_data_message("foo", 4),     make_data_message("foo", 5)} {
-    // nop
+    : out_buf{
+      data_envelope::make("foo", 0),     data_envelope::make("foo", true),
+      data_envelope::make("foo", 1),     data_envelope::make("foo", 2),
+      data_envelope::make("foo", false), data_envelope::make("foo", true),
+      data_envelope::make("foo", 3),     data_envelope::make("foo", false),
+      data_envelope::make("foo", 4),     data_envelope::make("foo", 5)} {
+    for (auto& msg : out_buf) {
+      out_topics.emplace_back(msg->topic());
+      out_data.emplace_back(msg->value().to_data());
+    }
   }
 };
 
@@ -67,9 +74,16 @@ TEST(subscribers receive data from remote publications) {
   CHECK_EQUAL(mars_sub.available(), 0u);
   CHECK_EQUAL(earth_sub.available(), 10u);
   auto inputs = earth_sub.poll();
+  std::vector<std::string> in_topics;
+  std::vector<data> in_data;
+  for (auto& msg : inputs) {
+    in_topics.emplace_back(msg->topic());
+    in_data.emplace_back(msg->value().to_data());
+  }
   CHECK_EQUAL(earth_sub.available(), 0u);
   CHECK_EQUAL(inputs.size(), 10u);
-  CHECK_EQUAL(inputs, out_buf);
+  CHECK_EQUAL(in_topics, out_topics);
+  CHECK_EQUAL(in_data, out_data);
 }
 
 FIXTURE_SCOPE_END()

@@ -30,7 +30,7 @@ int main() {
 
     // Wait for "pong" reply event.
     auto msg = sub.get();
-    zeek::Event pong(move_data(msg));
+    zeek::Event pong(msg->value().to_data());
     std::cout << "received " << pong.name() << pong.args() << std::endl;
   }
 }

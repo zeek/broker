@@ -8,7 +8,9 @@
 #include <caf/stateful_actor.hpp>
 #include <caf/telemetry/gauge.hpp>
 
+#include "broker/command_envelope.hh"
 #include "broker/data.hh"
+#include "broker/data_envelope.hh"
 #include "broker/detail/abstract_backend.hh"
 #include "broker/endpoint.hh"
 #include "broker/entity_id.hh"
@@ -50,9 +52,9 @@ public:
     if (output.paths().empty())
       return;
     auto seq = output.next_seq();
-    auto msg = make_command_message(clones_topic,
-                                    internal_command{seq, id, entity_id::nil(),
-                                                     std::forward<T>(cmd)});
+    auto msg = command_envelope::make(
+      clones_topic,
+      internal_command{seq, id, entity_id::nil(), std::forward<T>(cmd)});
     output.produce(std::move(msg));
   }
 
@@ -61,14 +63,14 @@ public:
   master_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
                std::string nm, backend_pointer bp, caf::actor parent,
                endpoint::clock* clock,
-               caf::async::consumer_resource<command_message> in_res,
-               caf::async::producer_resource<command_message> out_res);
+               caf::async::consumer_resource<command_envelope_ptr> in_res,
+               caf::async::producer_resource<command_envelope_ptr> out_res);
 
   caf::behavior make_behavior();
 
   // -- callbacks for the behavior ---------------------------------------------
 
-  void dispatch(const command_message& msg) override;
+  void dispatch(const command_envelope_ptr& msg) override;
 
   table status_snapshot() const override;
 
@@ -78,7 +80,7 @@ public:
 
   // -- callbacks for the consumer ---------------------------------------------
 
-  void consume(consumer_type* src, command_message& cmd);
+  void consume(consumer_type* src, command_envelope_ptr& cmd);
 
   void consume(put_command& cmd);
 
@@ -142,7 +144,7 @@ public:
   std::unordered_map<entity_id, consumer_type> inputs;
 
   /// Maps senders to manager objects for incoming commands.
-  std::unordered_map<entity_id, command_message> open_handshakes;
+  std::unordered_map<entity_id, command_envelope_ptr> open_handshakes;
 
   /// Maps senders to manager objects for incoming commands.
   std::unordered_map<data, timestamp> expirations;

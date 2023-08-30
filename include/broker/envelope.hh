@@ -2,6 +2,8 @@
 
 #include "broker/config.hh"
 #include "broker/detail/inspect_enum.hh"
+#include "broker/detail/monotonic_buffer_resource.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/intrusive_ptr.hh"
 
@@ -67,9 +69,28 @@ public:
   /// Returns the contained value in its serialized form.
   virtual std::pair<const std::byte*, size_t> raw_bytes() const noexcept = 0;
 
+  /// Returns a new envelope with the given sender and receiver.
+  virtual envelope_ptr with(endpoint_id new_sender,
+                            endpoint_id new_receiver) = 0;
+
   /// Attempts to deserialize an envelope from the given message in Broker's
   /// write format.
   static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
+
+  /// @pre `type == envelope_type::data`
+  data_envelope_ptr as_data();
+
+  /// @pre `type == envelope_type::command`
+  command_envelope_ptr as_command();
+
+  /// @pre `type == envelope_type::routing_update`
+  routing_update_envelope_ptr as_routing_update();
+
+  /// @pre `type == envelope_type::ping`
+  ping_envelope_ptr as_ping();
+
+  /// @pre `type == envelope_type::pong`
+  pong_envelope_ptr as_pong();
 
   /// Increments the reference count.
   void ref() const noexcept {
@@ -83,6 +104,109 @@ public:
       delete this;
   }
 
+  /// Base type for decorators that wrap another envelope to override sender and
+  /// receiver.
+  template <class Decorated>
+  class decorator : public Decorated {
+  public:
+    using decorated_ptr = intrusive_ptr<Decorated>;
+
+    decorator(decorated_ptr decorated, endpoint_id sender,
+                            endpoint_id receiver)
+      : decorated_(std::move(decorated)), sender_(sender), receiver_(receiver) {
+      // nop
+    }
+
+    endpoint_id sender() const noexcept override {
+      return sender_;
+    }
+
+    endpoint_id receiver() const noexcept override {
+      return receiver_;
+    }
+
+    std::string_view topic() const noexcept override {
+      return decorated_->topic();
+    }
+
+    std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+      return decorated_->raw_bytes();
+    }
+
+  protected:
+    decorated_ptr decorated_;
+    endpoint_id sender_;
+    endpoint_id receiver_;
+  };
+
+  template <class T>
+  using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
+
+  template <class Base>
+  class deserialized : public Base {
+  public:
+    deserialized(const endpoint_id& sender, const endpoint_id& receiver,
+                 uint16_t ttl, std::string_view topic_str,
+                 const std::byte* payload, size_t payload_size)
+      : sender_(sender),
+        receiver_(receiver),
+        ttl_(ttl),
+        topic_size_(topic_str.size()),
+        payload_size_(payload_size) {
+      // Note: we need to copy the topic and the data into our memory resource.
+      // The pointers passed to the constructor are only valid for the duration
+      // of the call.
+      mbr_allocator<char> str_allocator{&buf_};
+      topic_ = str_allocator.allocate(topic_str.size() + 1);
+      memcpy(topic_, topic_str.data(), topic_str.size());
+      topic_[topic_str.size()] = '\0';
+      mbr_allocator<std::byte> byte_allocator{&buf_};
+      payload_ = byte_allocator.allocate(payload_size);
+      memcpy(payload_, payload, payload_size);
+    }
+
+    uint16_t ttl() const noexcept override {
+      return ttl_;
+    }
+
+    endpoint_id sender() const noexcept override {
+      return sender_;
+    }
+
+    endpoint_id receiver() const noexcept override {
+      return receiver_;
+    }
+
+    std::string_view topic() const noexcept override {
+      return {topic_, topic_size_};
+    }
+
+    std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+      return {payload_, payload_size_};
+    }
+
+    detail::monotonic_buffer_resource& buf() {
+      return buf_;
+    }
+
+  private:
+    endpoint_id sender_;
+
+    endpoint_id receiver_;
+
+    uint16_t ttl_;
+
+    char* topic_;
+
+    size_t topic_size_;
+
+    std::byte* payload_;
+
+    size_t payload_size_;
+
+    detail::monotonic_buffer_resource buf_;
+  };
+
 private:
   using ref_count_t = std::atomic<size_t>;
 
@@ -92,69 +216,5 @@ private:
 /// A shared pointer to an @ref envelope.
 /// @relates envelope
 using envelope_ptr = intrusive_ptr<envelope>;
-
-/// Wraps a value of type @ref variant and associates it with a @ref topic.
-class data_envelope : public envelope {
-public:
-  envelope_type type() const noexcept final;
-
-  /// Returns the contained value.
-  /// @pre `root != nullptr`
-  virtual variant value() noexcept = 0;
-
-  /// Checks whether `val` is the root value.
-  virtual bool is_root(const variant_data* val) const noexcept = 0;
-
-  /// Creates a new data envolope from the given @ref topic and @ref data.
-  static data_envelope_ptr make(broker::topic t, const data& d);
-
-  /// Creates a new data envolope from the given @ref topic and @ref data.
-  static data_envelope_ptr make(broker::topic t, variant d);
-
-  /// Attempts to deserialize an envelope from the given message in Broker's
-  /// write format.
-  static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
-
-protected:
-  /// Parses the data returned from @ref raw_bytes.
-  variant_data* do_parse(detail::monotonic_buffer_resource& buf, error& err);
-};
-
-/// A shared pointer to a @ref data_envelope.
-/// @relates data_envelope
-using data_envelope_ptr = intrusive_ptr<data_envelope>;
-
-/// Wraps an @ref internal_command and associates it with a @ref topic.
-class command_envelope : public envelope {
-public:
-  envelope_type type() const noexcept final;
-
-  /// Returns the contained command.
-  virtual internal_command& value() const noexcept = 0;
-};
-
-/// A shared pointer to a @ref command_envelope.
-/// @relates command_envelope
-using command_envelope_ptr = intrusive_ptr<command_envelope>;
-
-/// Represents a ping message.
-class ping_envelope : public envelope {
-public:
-  envelope_type type() const noexcept final;
-};
-
-/// A shared pointer to a @ref ping_envelope.
-/// @relates ping_envelope
-using ping_envelope_ptr = intrusive_ptr<ping_envelope>;
-
-/// Represents a pong message.
-class pong_envelope : public envelope {
-public:
-  envelope_type type() const noexcept final;
-};
-
-/// A shared pointer to a @ref pong_envelope.
-/// @relates pong_envelope
-using pong_envelope_ptr = intrusive_ptr<pong_envelope>;
 
 } // namespace broker

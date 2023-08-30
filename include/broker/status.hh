@@ -170,6 +170,10 @@ public:
   /// status.
   friend bool convert(const data& src, status& dst);
 
+  /// Converts data in the format `["status", code, context, message]` back to a
+  /// status.
+  friend bool convert(const variant& src, status& dst);
+
 private:
   error verify() const;
 

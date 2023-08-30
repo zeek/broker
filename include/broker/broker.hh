@@ -5,6 +5,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/envelope.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -13,4 +14,5 @@
 #include "broker/subnet.hh"
 #include "broker/subscriber.hh"
 #include "broker/time.hh"
+#include "broker/variant.hh"
 #include "broker/version.hh"

@@ -72,8 +72,8 @@ FIXTURE_SCOPE(system_shutdown_tests, fixture)
 // the short-lived endpoints.
 TEST(status listeners receive peering events) {
   MESSAGE("status subscribers receive discovery and peering events");
-  auto ep1_log = std::make_shared<std::vector<data_message>>();
-  auto ep2_log = std::make_shared<std::vector<data_message>>();
+  auto ep1_log = std::make_shared<std::vector<data_envelope_ptr>>();
+  auto ep2_log = std::make_shared<std::vector<data_envelope_ptr>>();
   auto port_promise = std::promise<uint16_t>{};
   auto port_future = port_promise.get_future();
   barrier checkpoint{2}; // Makes sure that the endpoint in t2 shuts down first.
@@ -81,7 +81,7 @@ TEST(status listeners receive peering events) {
     endpoint ep{make_config(log_path_template("peering-events", "ep1"))};
     ep.subscribe(
       {topic::statuses()}, [](caf::unit_t&) {},
-      [ep1_log](caf::unit_t&, data_message msg) {
+      [ep1_log](caf::unit_t&, data_envelope_ptr msg) {
         ep1_log->emplace_back(std::move(msg));
       },
       [](caf::unit_t&, const error&) {});
@@ -97,7 +97,7 @@ TEST(status listeners receive peering events) {
       endpoint ep{make_config(log_path_template("peering-events", "ep2"))};
       ep.subscribe(
         {topic::statuses()}, [](caf::unit_t&) {},
-        [ep2_log](caf::unit_t&, data_message msg) {
+        [ep2_log](caf::unit_t&, data_envelope_ptr msg) {
           ep2_log->emplace_back(std::move(msg));
         },
         [](caf::unit_t&, const error&) {});
@@ -128,7 +128,7 @@ TEST(status listeners receive peering events) {
 
 TEST(endpoints send published data before terminating) {
   MESSAGE("status subscribers receive discovery and peering events");
-  auto ep1_log = std::make_shared<std::vector<data_message>>();
+  auto ep1_log = std::make_shared<std::vector<data_envelope_ptr>>();
   auto port_promise = std::promise<uint16_t>{};
   auto port_future = port_promise.get_future();
   auto beacon_ptr = std::make_shared<beacon>(); // Blocks t1 until data arrived.
@@ -136,7 +136,7 @@ TEST(endpoints send published data before terminating) {
     endpoint ep{make_config(log_path_template("publish", "ep1"))};
     ep.subscribe(
       {"/foo/bar"}, [](caf::unit_t&) {},
-      [ep1_log, beacon_ptr](caf::unit_t&, data_message msg) {
+      [ep1_log, beacon_ptr](caf::unit_t&, data_envelope_ptr msg) {
         ep1_log->emplace_back(std::move(msg));
         beacon_ptr->set_true();
       },

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "broker/detail/type_traits.hh"
+#include "broker/envelope.hh"
 #include "broker/error.hh"
-#include "broker/message.hh"
 
 #include <deque>
 
@@ -31,17 +31,17 @@ template <class F>
 struct source_driver_pull_trait {
   static_assert(always_false_v<F>,
                 "Pull must have signature "
-                "'void (std::deque<data_message>&, size_t)' or "
-                "'void (State&, std::deque<data_message>&, size_t)'");
+                "'void (std::deque<data_envelope_ptr>&, size_t)' or "
+                "'void (State&, std::deque<data_envelope_ptr>&, size_t)'");
 };
 
 template <>
-struct source_driver_pull_trait<void(std::deque<data_message>&, size_t)> {
+struct source_driver_pull_trait<void(std::deque<data_envelope_ptr>&, size_t)> {
   using state_type = void;
 };
 
 template <class State>
-struct source_driver_pull_trait<void(State&, std::deque<data_message>&,
+struct source_driver_pull_trait<void(State&, std::deque<data_envelope_ptr>&,
                                      size_t)> {
   static_assert(!std::is_const_v<State>);
   using state_type = State;
@@ -71,7 +71,7 @@ public:
 
   virtual void init() = 0;
 
-  virtual void pull(std::deque<data_message>&, size_t) = 0;
+  virtual void pull(std::deque<data_envelope_ptr>&, size_t) = 0;
 
   virtual bool at_end() = 0;
 };
@@ -112,7 +112,7 @@ public:
     }
   }
 
-  void pull(std::deque<data_message>& buf, size_t hint) override {
+  void pull(std::deque<data_envelope_ptr>& buf, size_t hint) override {
     pull_(state_, buf, hint);
   }
 
@@ -161,7 +161,7 @@ public:
     }
   }
 
-  void pull(std::deque<data_message>& buf, size_t hint) override {
+  void pull(std::deque<data_envelope_ptr>& buf, size_t hint) override {
     pull_(buf, hint);
   }
 

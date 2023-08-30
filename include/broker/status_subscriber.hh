@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "broker/bad_variant_access.hh"
+#include "broker/data_envelope.hh"
 #include "broker/defaults.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
@@ -48,8 +49,8 @@ public:
   value_type get(Duration relative_timeout) {
     value_type result;
     do {
-      if (auto maybe_msg = impl_.get(relative_timeout))
-        result = convert(*maybe_msg);
+      if (auto msg = impl_.get(relative_timeout))
+        result = convert(msg);
     } while (std::holds_alternative<none>(result)
              && relative_timeout == infinite);
     return result;
@@ -112,10 +113,10 @@ private:
   //  status_subscriber(endpoint& ep, bool receive_statuses = false);
   explicit status_subscriber(subscriber impl);
 
-  value_type convert(const data_message& msg);
+  value_type convert(const data_envelope_ptr& msg);
 
   void append_converted(std::vector<value_type>& result,
-                        const data_message& msg);
+                        const data_envelope_ptr& msg);
 
   subscriber impl_;
 };

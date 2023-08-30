@@ -12,7 +12,7 @@ struct tbl_entry {
 };
 
 constexpr tbl_entry tbl[] = {
-  {caf::type_id_v<data_message>, "data-message"},
+  {caf::type_id_v<data_envelope_ptr>, "data-message"},
   {caf::type_id_v<none>, "none"},
   {caf::type_id_v<boolean>, "boolean"},
   {caf::type_id_v<count>, "count"},

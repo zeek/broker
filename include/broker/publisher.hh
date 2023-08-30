@@ -3,8 +3,9 @@
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
 #include "broker/entity_id.hh"
+#include "broker/envelope.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
+#include "broker/topic.hh"
 
 #include <chrono>
 #include <cstddef>
@@ -21,7 +22,7 @@ public:
 
   // --- nested types ----------------------------------------------------------
 
-  using value_type = data_message;
+  using value_type = data_envelope_ptr;
 
   using guard_type = std::unique_lock<std::mutex>;
 
@@ -70,10 +71,19 @@ public:
   // --- messaging -------------------------------------------------------------
 
   /// Sends `x` to all subscribers.
-  void publish(data x);
+  void publish(const data& x);
 
   /// Sends `xs` to all subscribers.
   void publish(std::vector<data> xs);
+
+  /// Sends `x` to all subscribers.
+  void publish(set_builder&& x);
+
+  /// Sends `x` to all subscribers.
+  void publish(table_builder&& x);
+
+  /// Sends `x` to all subscribers.
+  void publish(list_builder&& x);
 
   // --- miscellaneous ---------------------------------------------------------
 

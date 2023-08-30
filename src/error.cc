@@ -5,6 +5,7 @@
 #include "broker/endpoint_info.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/variant.hh"
 
 #include "caf/const_typed_message_view.hpp"
 
@@ -285,6 +286,10 @@ bool convert(const data& src, error& dst) {
                      get<std::string>(cxt[1]));
   }
   return true;
+}
+
+bool convert(const variant& src, error& dst) {
+  return convert(src.to_data(), dst);
 }
 
 ec error_view::code() const noexcept {

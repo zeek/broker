@@ -1,8 +1,9 @@
 #include "broker/internal/store_actor.hh"
 
-#include "broker/internal/type_id.hh"
-
+#include "broker/command_envelope.hh"
+#include "broker/data_envelope.hh"
 #include "broker/detail/assert.hh"
+#include "broker/internal/type_id.hh"
 
 #include <caf/actor_system_config.hpp>
 #include <caf/scheduled_actor/flow.hpp>
@@ -68,8 +69,8 @@ store_actor_state::store_actor_state(caf::event_based_actor* selfptr)
 
 void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
                              std::string&& store_name, caf::actor&& core,
-                             consumer_resource<command_message> in_res,
-                             producer_resource<command_message> out_res) {
+                             consumer_resource<command_envelope_ptr> in_res,
+                             producer_resource<command_envelope_ptr> out_res) {
   BROKER_ASSERT(clock != nullptr);
   this->clock = clock;
   this->store_name = std::move(store_name);
@@ -84,7 +85,7 @@ void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
     ->make_observable()
     .from_resource(std::move(in_res))
     .subscribe(caf::flow::make_observer(
-      [this](const command_message& msg) { dispatch(msg); },
+      [this](const command_envelope_ptr& msg) { dispatch(msg); },
       [this](const caf::error& what) { self->quit(what); },
       [this] { self->quit(); }));
   out.as_observable().subscribe(std::move(out_res));
@@ -98,7 +99,7 @@ void store_actor_state::emit_insert_event(const data& key, const data& value,
   vector xs;
   fill_vector(xs, "insert"s, store_name, key, value, expiry, publisher);
   self->send(core, atom::publish_v, atom::local_v,
-             make_data_message(dst, data{std::move(xs)}));
+             data_envelope::make(dst, data{std::move(xs)}));
 }
 
 void store_actor_state::emit_update_event(const data& key,
@@ -110,7 +111,7 @@ void store_actor_state::emit_update_event(const data& key,
   fill_vector(xs, "update"s, store_name, key, old_value, new_value, expiry,
               publisher);
   self->send(core, atom::publish_v, atom::local_v,
-             make_data_message(dst, data{std::move(xs)}));
+             data_envelope::make(dst, data{std::move(xs)}));
 }
 
 void store_actor_state::emit_erase_event(const data& key,
@@ -118,7 +119,7 @@ void store_actor_state::emit_erase_event(const data& key,
   vector xs;
   fill_vector(xs, "erase"s, store_name, key, publisher);
   self->send(core, atom::publish_v, atom::local_v,
-             make_data_message(dst, data{std::move(xs)}));
+             data_envelope::make(dst, data{std::move(xs)}));
 }
 
 void store_actor_state::emit_expire_event(const data& key,
@@ -126,7 +127,7 @@ void store_actor_state::emit_expire_event(const data& key,
   vector xs;
   fill_vector(xs, "expire"s, store_name, key, publisher);
   self->send(core, atom::publish_v, atom::local_v,
-             make_data_message(dst, data{std::move(xs)}));
+             data_envelope::make(dst, data{std::move(xs)}));
 }
 
 // -- callbacks for the behavior -----------------------------------------------

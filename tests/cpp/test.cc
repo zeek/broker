@@ -18,17 +18,18 @@
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/message.hh"
 
 namespace atom = broker::internal::atom;
 
 using broker::internal::native;
 
 std::vector<std::string>
-normalize_status_log(const std::vector<broker::data_message>& xs,
+normalize_status_log(const std::vector<broker::data_envelope_ptr>& xs,
                      bool include_endpoint_id) {
   using namespace broker;
-  auto stringify = [](const data_message& msg) {
-    std::string result = get_topic(msg).string();
+  auto stringify = [](const data_envelope_ptr& msg) {
+    auto result = std::string{get_topic(msg)};
     result += ": ";
     result += to_string(get_data(msg));
     return result;
@@ -209,7 +210,7 @@ caf::actor base_fixture::bridge(caf::actor left_core, caf::actor right_core) {
 }
 
 void base_fixture::push_data(caf::actor core,
-                             std::vector<broker::data_message> xs) {
+                             std::vector<broker::data_envelope_ptr> xs) {
   for (auto& x : xs)
     caf::anon_send(core, atom::publish_v, std::move(x));
 }
@@ -223,21 +224,21 @@ struct data_collector_state {
 using data_collector_actor = caf::stateful_actor<data_collector_state>;
 
 void data_collector_impl(data_collector_actor* self,
-                         std::shared_ptr<std::vector<data_message>> buf,
-                         caf::async::consumer_resource<data_message> res) {
+                         std::shared_ptr<std::vector<data_envelope_ptr>> buf,
+                         caf::async::consumer_resource<data_envelope_ptr> res) {
   self->make_observable()
     .from_resource(std::move(res))
-    .for_each([buf](const data_message& msg) { buf->emplace_back(msg); });
+    .for_each([buf](const data_envelope_ptr& msg) { buf->emplace_back(msg); });
 }
 
 } // namespace
 
-std::shared_ptr<std::vector<data_message>>
+std::shared_ptr<std::vector<data_envelope_ptr>>
 base_fixture::collect_data(caf::actor core, filter_type filter) {
   using actor_t = data_collector_actor;
   auto& sys = core.home_system();
-  auto [con, prod] = caf::async::make_spsc_buffer_resource<data_message>();
-  auto buf = std::make_shared<std::vector<data_message>>();
+  auto [con, prod] = caf::async::make_spsc_buffer_resource<data_envelope_ptr>();
+  auto buf = std::make_shared<std::vector<data_envelope_ptr>>();
   sys.spawn(data_collector_impl, buf, std::move(con));
   anon_send(core, std::move(filter), std::move(prod));
   return buf;

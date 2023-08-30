@@ -14,9 +14,11 @@
 #include <caf/send.hpp>
 #include <caf/stateful_actor.hpp>
 
+#include "broker/data_envelope.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
+#include "broker/envelope.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/logger.hh"
@@ -29,9 +31,9 @@ namespace broker::detail {
 
 struct subscriber_queue : public caf::ref_counted, public caf::async::consumer {
 public:
-  using buffer_type = caf::async::spsc_buffer<data_message>;
+  using buffer_type = caf::async::spsc_buffer<data_envelope_ptr>;
 
-  using buffer_ptr = caf::async::spsc_buffer_ptr<data_message>;
+  using buffer_ptr = caf::async::spsc_buffer_ptr<data_envelope_ptr>;
 
   using guard_type = std::unique_lock<std::mutex>;
 
@@ -103,14 +105,14 @@ public:
     }
   }
 
-  bool pull(std::vector<data_message>& dst, size_t num) {
+  bool pull(std::vector<data_envelope_ptr>& dst, size_t num) {
     BROKER_TRACE(BROKER_ARG2("dst.size", dst.size()) << BROKER_ARG(num));
     BROKER_ASSERT(num > 0);
     BROKER_ASSERT(dst.size() < num);
     struct cb {
       subscriber_queue* qptr;
-      std::vector<data_message>* dst;
-      void on_next(const data_message& val) {
+      std::vector<data_envelope_ptr>* dst;
+      void on_next(const data_envelope_ptr& val) {
         dst->push_back(val);
       }
       void on_complete() {
@@ -219,7 +221,7 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
   BROKER_INFO("creating subscriber for topic(s)" << filter);
   using caf::async::make_spsc_buffer_resource;
   auto fptr = std::make_shared<filter_type>(std::move(filter));
-  auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
+  auto [con_res, prod_res] = make_spsc_buffer_resource<data_envelope_ptr>();
   caf::anon_send(native(ep.core()), fptr, std::move(prod_res));
   auto buf = con_res.try_open();
   BROKER_ASSERT(buf != nullptr);
@@ -229,7 +231,7 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
                     ep.core()};
 }
 
-data_message subscriber::get() {
+data_envelope_ptr subscriber::get() {
   auto tmp = get(1);
   BROKER_ASSERT(tmp.size() == 1);
   auto x = std::move(tmp.front());
@@ -237,11 +239,11 @@ data_message subscriber::get() {
   return x;
 }
 
-std::vector<data_message> subscriber::get(size_t num) {
+std::vector<data_envelope_ptr> subscriber::get(size_t num) {
   BROKER_TRACE(BROKER_ARG(num));
   BROKER_ASSERT(num > 0);
   auto q = dptr(queue_);
-  std::vector<data_message> buf;
+  std::vector<data_envelope_ptr> buf;
   buf.reserve(num);
   q->pull(buf, num);
   while (buf.size() < num) {
@@ -252,14 +254,14 @@ std::vector<data_message> subscriber::get(size_t num) {
   return buf;
 }
 
-std::vector<data_message> subscriber::do_get(size_t num,
+std::vector<data_envelope_ptr> subscriber::do_get(size_t num,
                                              timestamp abs_timeout) {
-  std::vector<data_message> buf;
+  std::vector<data_envelope_ptr> buf;
   do_get(buf, num, abs_timeout);
   return buf;
 }
 
-void subscriber::do_get(std::vector<data_message>& buf, size_t num,
+void subscriber::do_get(std::vector<data_envelope_ptr>& buf, size_t num,
                         timestamp abs_timeout) {
   BROKER_TRACE(BROKER_ARG(num) << BROKER_ARG(abs_timeout));
   auto q = dptr(queue_);
@@ -270,10 +272,10 @@ void subscriber::do_get(std::vector<data_message>& buf, size_t num,
     q->pull(buf, num);
 }
 
-std::vector<data_message> subscriber::poll() {
+std::vector<data_envelope_ptr> subscriber::poll() {
   BROKER_TRACE("");
   // The Queue may return a capacity of 0 if the producer has closed the flow.
-  std::vector<data_message> buf;
+  std::vector<data_envelope_ptr> buf;
   auto q = dptr(queue_);
   auto max_size = q->capacity();
   if (max_size > 0) {

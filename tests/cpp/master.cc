@@ -20,6 +20,7 @@
 #include "broker/internal_command.hh"
 #include "broker/store_event.hh"
 #include "broker/topic.hh"
+#include "broker/variant.hh"
 
 using broker::internal::native;
 using std::cout;
@@ -99,8 +100,8 @@ struct fixture : base_fixture {
       // Init.
       [] {},
       // Consume.
-      [this](data_message msg) {
-        auto content = get_data(msg);
+      [this](data_envelope_ptr msg) {
+        auto content = msg->value().to_data();
         if (auto insert = store_event::insert::make(content))
           log.emplace_back(to_string(insert));
         else if (auto update = store_event::update::make(content))

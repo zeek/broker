@@ -26,6 +26,7 @@ set(tests
   # cpp/internal/meta_data_writer.cc
   cpp/internal/metric_collector.cc
   cpp/internal/metric_exporter.cc
+  cpp/internal/wire_format.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
@@ -94,8 +95,8 @@ add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${BROKER_LIBRARY})
 install(TARGETS broker-benchmark DESTINATION bin)
 
-add_executable(broker-fan-out benchmark/broker-fan-out.cc)
-target_link_libraries(broker-fan-out ${BROKER_LIBRARY})
+# add_executable(broker-fan-out benchmark/broker-fan-out.cc)
+# target_link_libraries(broker-fan-out ${BROKER_LIBRARY})
 
 # add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
 # target_link_libraries(broker-cluster-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
@@ -140,8 +141,8 @@ endif ()
 
 # -- optional micro benchmarks -------------------------------------------------
 
-find_package(benchmark QUIET)
-
-if (benchmark_FOUND)
-  add_subdirectory(micro-benchmark)
-endif ()
+# find_package(benchmark QUIET)
+#
+# if (benchmark_FOUND)
+#   add_subdirectory(micro-benchmark)
+# endif ()

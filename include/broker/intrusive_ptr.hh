@@ -143,6 +143,16 @@ private:
   pointer ptr_ = nullptr;
 };
 
+// -- deduction guides ---------------------------------------------------------
+
+template <class T>
+intrusive_ptr(new_ref_t, T*) -> intrusive_ptr<T>;
+
+template <class T>
+intrusive_ptr(adopt_ref_t, T*) -> intrusive_ptr<T>;
+
+// -- factory functions --------------------------------------------------------
+
 /// Convenience function for creating a reference counted object and wrapping it
 /// into an intrusive pointers.
 /// @param args Arguments for constructing the shared object of type @c T.

@@ -221,7 +221,8 @@ void clone_state::tick() {
 
 void clone_state::consume(consumer_type*, command_message& msg) {
   auto f = [this](auto& cmd) { consume(cmd); };
-  std::visit(f, get<1>(msg.unshared()).content);
+  auto val = get_command(msg);
+  std::visit(f, val.content);
 }
 
 void clone_state::consume(put_command& x) {
@@ -314,7 +315,11 @@ void clone_state::send(producer_type* ptr, const entity_id& dst,
   if (get_command(what.content).receiver != dst) {
     // Technical debt: the event really should be internal_command_variant to
     // allow us to assemble the command_message here instead of altering it.
-    get<1>(what.content.unshared()).receiver = dst;
+    auto val = get_command(what.content);
+    val.receiver = dst;
+    what.content =
+      make_command_message(what.content->sender(), what.content->receiver(),
+                           std::string{what.content->topic()}, std::move(val));
   }
   self->send(core, atom::publish_v, what.content);
 }

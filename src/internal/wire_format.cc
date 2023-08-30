@@ -2,9 +2,9 @@
 
 #include "broker/envelope.hh"
 #include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
-#include "broker/message.hh"
 
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
@@ -68,88 +68,20 @@ std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
 
 namespace v1 {
 
-bool trait::convert(const node_message& msg, caf::byte_buffer& buf) {
-  caf::binary_serializer sink{nullptr, buf};
-  auto write_bytes = [&sink](caf::const_byte_span bytes) {
-    sink.buf().insert(sink.buf().end(), bytes.begin(), bytes.end());
-    return true;
-  };
-  auto write_topic = [&](const auto& x) {
-    const auto& str = x.string();
-    if (str.size() > 0xFFFF) {
-      BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
-      sink.emplace_error(caf::sec::invalid_argument,
-                         "topic exceeds maximum size of 65,535 characters");
-      return false;
-    }
-    return sink.apply(static_cast<uint16_t>(str.size()))
-           && write_bytes(caf::as_bytes(caf::make_span(str)));
-  };
-  const auto& [sender, receiver, content] = msg.data();
-  const auto& [msg_type, ttl, msg_topic, payload] = content.data();
-  auto ok = sink.apply(sender)                                      //
-            && sink.apply(receiver)                                 //
-            && sink.apply(msg_type)                                 //
-            && sink.apply(ttl)                                      //
-            && write_topic(msg_topic)                               //
-            && write_bytes(caf::as_bytes(caf::make_span(payload))); //
-  if (!ok)
-    last_error_ = sink.get_error();
-  return ok;
-}
-
-bool trait::convert(caf::const_byte_span bytes, node_message& msg) {
-  caf::binary_deserializer source{nullptr, bytes};
-  auto& [sender, receiver, content] = msg.unshared();
-  auto& [msg_type, ttl, msg_topic, payload] = content.unshared();
-  // Extract sender, receiver, type and TTL.
-  if (!source.apply(sender)      //
-      || !source.apply(receiver) //
-      || !source.apply(msg_type) //
-      || !source.apply(ttl)) {
-    last_error_ = source.get_error();
-    BROKER_DEBUG("failed to parse node message fields:" << last_error_);
-    return false;
-  }
-  // Extract topic.
-  uint16_t topic_len = 0;
-  if (!source.apply(topic_len)) {
-    last_error_ = source.get_error();
-    BROKER_DEBUG("failed to parse topic length:" << last_error_);
-    return false;
-  }
-  if (auto remainder = source.remainder();
-      topic_len == 0 || remainder.size() <= topic_len) {
-    last_error_ = caf::make_error(caf::sec::runtime_error,
-                                  "invalid topic size in node message");
-    BROKER_DEBUG("found invalid payload size in node message");
-    return false;
-  } else {
-    auto str = std::string{reinterpret_cast<const char*>(remainder.data()),
-                           topic_len};
-    msg_topic = topic{std::move(str)};
-    source.skip(topic_len);
-  }
-  // Extract payload, which simply is the remaining bytes of the message.
-  auto remainder = source.remainder();
-  auto first = reinterpret_cast<const std::byte*>(remainder.data());
-  auto last = first + remainder.size();
-  payload.assign(first, last);
-  return true;
-}
-
 bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
   caf::binary_serializer sink{nullptr, buf};
   auto write_topic = [&msg, &sink] {
-    const auto& str = msg->topic();
+    auto str = msg->topic();
     if (str.size() > 0xFFFF) {
       BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
       sink.emplace_error(caf::sec::invalid_argument,
                          "topic exceeds maximum size of 65,535 characters");
       return false;
     }
-    if (!sink.apply(static_cast<uint16_t>(str.size())))
+    if (!sink.apply(static_cast<uint16_t>(str.size()))) {
+      BROKER_ERROR("failed to write topic size");
       return false;
+    }
     auto first = reinterpret_cast<const caf::byte*>(str.data());
     sink.buf().insert(sink.buf().end(), first, first + str.size());
     return true;

@@ -188,34 +188,29 @@ caf::behavior core_actor_state::make_behavior() {
       metrics.processed->inc();
       metrics.buffered->dec();
       // Ignore our own outputs.
-      if (sender == id)
+      if (is_local(msg))
         return;
       // Dispatch on the type of the message.
       switch (get_type(msg)) {
         default:
           break;
-        case packed_message_type::routing_update: {
+        case packed_message_type::routing_update:
           // Deserialize payload and update peer filter.
           if (auto i = peers.find(sender); i != peers.end()) {
             filter_type new_filter;
-            caf::binary_deserializer src{nullptr, get_payload(msg)};
-            if (src.apply(new_filter)) {
-              i->second->filter(std::move(new_filter));
-            } else {
-              BROKER_ERROR("received malformed routing update from" << sender);
+            for (auto new_topic : *msg->as_routing_update()) {
+              std::cout << "new topic: " << new_topic << "\n";
+              new_filter.emplace_back(std::string{new_topic});
             }
-          } else {
-            // Ignore. Probably a stale message after unpeering.
+            i->second->filter(std::move(new_filter));
           }
+          // else: ignore. Probably a stale message after unpeering.
           break;
-        }
         case packed_message_type::ping: {
           // Respond to PING messages with a PONG that has the same payload.
-          auto& payload = get_payload(msg);
           BROKER_DEBUG("received a PING message with a payload of"
-                       << payload.size() << "bytes");
-          dispatch(sender, make_packed_message(packed_message_type::pong, ttl,
-                                               get_topic(msg), payload));
+                       << msg->raw_bytes().second << "bytes");
+          dispatch(make_pong_message(msg->as_ping()));
           break;
         }
       }
@@ -231,14 +226,16 @@ caf::behavior core_actor_state::make_behavior() {
         // setting receiver == id. This is the case for messages that were
         // published via `(atom::publish, atom::local, ...)` message.
         auto receiver = get_receiver(msg);
-        return get_type(msg) == packed_message_type::data
-               && (get_sender(msg) != id || receiver == id)
-               && (!receiver || receiver == id);
+        //return get_type(msg) == packed_message_type::data
+        //       && (!is_local(msg) || receiver == id)
+        //       && (!receiver || receiver == id);
+        auto res = get_type(msg) == packed_message_type::data
+                   && (!is_local(msg) || receiver == id)
+                   && (!receiver || receiver == id);
+        return res;
       })
-      // Deserialize payload and wrap it into an actual data message.
-      .flat_map([this](const node_message& msg) {
-        return unpack<data_message>(get_packed_message(msg));
-      })
+      // Convert to data_message.
+      .map([this](const node_message& msg) { return msg->as_data(); })
       // Convert this blueprint to a *hot* observable.
       .share();
   command_outputs =
@@ -251,9 +248,7 @@ caf::behavior core_actor_state::make_behavior() {
                && (!receiver || receiver == id);
       })
       // Deserialize payload and wrap it into an actual command message.
-      .flat_map([this](const node_message& msg) {
-        return unpack<command_message>(get_packed_message(msg));
-      })
+      .map([this](const node_message& msg) { return msg->as_command(); })
       // Convert this blueprint to a *hot* observable.
       .share();
   // Connect the unsafe inputs to the central merge point.
@@ -339,29 +334,29 @@ caf::behavior core_actor_state::make_behavior() {
     // -- publishing of messages without going through a publisher -------------
     [this](atom::publish, const data_message& msg) {
       ++published_via_async_msg;
-      dispatch(endpoint_id::nil(), pack(msg));
+      dispatch(msg);
     },
     [this](atom::publish, const data_message& msg, const endpoint_info& dst) {
       ++published_via_async_msg;
-      dispatch(dst.node, pack(msg));
+      dispatch(msg->with(id, dst.node));
     },
     [this](atom::publish, const data_message& msg, endpoint_id dst) {
       ++published_via_async_msg;
-      dispatch(dst, pack(msg));
+      dispatch(msg->with(id, dst));
     },
     [this](atom::publish, atom::local, const data_message& msg) {
       ++published_via_async_msg;
-      dispatch(id, pack(msg));
+      dispatch(msg->with(id, id));
     },
-    [this](atom::publish, const command_message& msg) {
-      dispatch(endpoint_id::nil(), pack(msg));
+    [this](atom::publish, const command_message& msg) { //
+      dispatch(msg);
     },
     [this](atom::publish, const command_message& msg,
            const endpoint_info& dst) { //
-      dispatch(dst.node, pack(msg));
+      dispatch(msg->with(id, dst.node));
     },
     [this](atom::publish, const command_message& msg, endpoint_id dst) {
-      dispatch(dst, pack(msg));
+      dispatch(msg->with(id, dst));
     },
     // -- interface for subscribers --------------------------------------------
     [this](atom::subscribe, const filter_type& filter) {
@@ -417,11 +412,9 @@ caf::behavior core_actor_state::make_behavior() {
         self
           ->make_observable() //
           .from_resource(std::move(src))
-          .do_on_next([this](const data_message&) {
-            metrics_for(packed_message_type::data).buffered->inc();
-          })
           .map([this](const data_message& msg) {
-            return make_node_message(id, endpoint_id::nil(), pack(msg));
+            metrics_for(packed_message_type::data).buffered->inc();
+            return node_message{msg};
           })
           .compose(local_publisher_scope_adder())
           .compose(add_killswitch_t{});
@@ -603,43 +596,10 @@ void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
   auto val = factory::make(code, std::forward<Info>(ep), msg);
   try {
     auto content = get_as<data>(val);
-    dispatch(id, pack(make_data_message(std::move(str), std::move(content))));
+    dispatch(make_data_message(id, id, std::move(str), std::move(content)));
   } catch (std::exception&) {
     std::cerr << "*** failed to convert " << caf::deep_to_string(val)
               << " to data\n";
-  }
-}
-
-template <class T>
-packed_message core_actor_state::pack(const T& msg) {
-  buf.clear();
-  caf::binary_serializer snk{nullptr, buf};
-  if constexpr (std::is_same_v<T, data_message>) {
-    std::ignore = snk.apply(get_data(msg));
-  } else {
-    static_assert(std::is_same_v<T, command_message>);
-    std::ignore = snk.apply(get_command(msg));
-  }
-  return make_packed_message(packed_message_type_v<T>, ttl, get_topic(msg),
-                             buf);
-}
-
-template <class T>
-std::optional<T> core_actor_state::unpack(const packed_message& msg) {
-  caf::binary_deserializer src{nullptr, get_payload(msg)};
-  if constexpr (std::is_same_v<T, data_message>) {
-    data content;
-    if (src.apply(content))
-      return make_data_message(get_topic(msg), std::move(content));
-    else
-      return std::nullopt;
-  } else {
-    static_assert(std::is_same_v<T, command_message>);
-    internal_command content;
-    if (src.apply(content))
-      return make_command_message(get_topic(msg), std::move(content));
-    else
-      return std::nullopt;
   }
 }
 
@@ -878,7 +838,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
       .filter([this, pid = peer_id, filter_ptr](const node_message& msg) {
         if (get_sender(msg) == pid)
           return false;
-        if (disable_forwarding && get_sender(msg) != id)
+        if (disable_forwarding && is_local(msg) /*get_sender(msg) != id*/)
           return false;
         auto f = detail::prefix_matcher{};
         auto receiver = get_receiver(msg);
@@ -891,12 +851,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
       .map([this](const node_message& msg) {
         if (get_sender(msg) == id) {
           return msg;
-        } else {
-          using std::get;
-          auto cpy = msg;
-          get<0>(cpy.unshared()) = id;
-          return cpy;
         }
+        return msg->with(id, msg->receiver());
       })
       .as_observable());
   // Push messages received from the peer into the central merge point.
@@ -1000,16 +956,15 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                  // Select by subscription.
                  .filter([this, filt = std::move(filter),
                           client_id](const node_message& msg) {
-                   if (get_sender(msg) == client_id)
+                   if (get_type(msg) != packed_message_type::data
+                       || get_sender(msg) == client_id)
                      return false;
                    detail::prefix_matcher f;
                    return f(filt, get_topic(msg));
                  })
                  // Deserialize payload and wrap it into a data message.
-                 .flat_map([this](const node_message& msg) {
-                   // TODO: repeats deserialization in the core! Ideally, this
-                   //       would only happen exactly once per message.
-                   return unpack<data_message>(get_packed_message(msg));
+                 .map([this](const node_message& msg) { //
+                   return msg->as_data();
                  })
                  // Emit values to the producer resource.
                  .subscribe(std::move(out_res));
@@ -1026,8 +981,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                     })
                     .map([this, client_id](const data_message& msg) {
                       metrics_for(packed_message_type::data).buffered->inc();
-                      return make_node_message(client_id, endpoint_id::nil(),
-                                               pack(msg));
+                      return node_message{msg};
                     })
                     // Ignore any errors from the client.
                     .on_error_complete()
@@ -1109,7 +1063,7 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
               .from_resource(con2)
               .map([this](const command_message& msg) {
                 metrics_for(packed_message_type::command).buffered->inc();
-                return make_node_message(id, endpoint_id::nil(), pack(msg));
+                return node_message{msg};
               })
               .as_observable();
   flow_inputs.push(in);
@@ -1159,7 +1113,7 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
               .from_resource(con2)
               .map([this](const command_message& msg) {
                 metrics_for(packed_message_type::command).buffered->inc();
-                return make_node_message(id, endpoint_id::nil(), pack(msg));
+                return node_message{msg};
               })
               .as_observable();
   flow_inputs.push(in);
@@ -1182,28 +1136,16 @@ void core_actor_state::shutdown_stores() {
 
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
-void core_actor_state::dispatch(endpoint_id receiver,
-                                const packed_message& msg) {
+void core_actor_state::dispatch(const node_message& msg) {
   metrics_for(get_type(msg)).buffered->inc();
-  unsafe_inputs.push(make_node_message(id, receiver, msg));
+  unsafe_inputs.push(msg);
+  // unsafe_inputs.push(make_node_message(id, receiver, msg));
 }
 
 void core_actor_state::broadcast_subscriptions() {
-  // Serialize the filter.
-  auto fs = filter->read();
-  buf.clear();
-  caf::binary_serializer sink{nullptr, buf};
-  [[maybe_unused]] auto ok = sink.apply(fs);
-  BROKER_ASSERT(ok);
-  // Pack and send to each peer.
-  auto first = reinterpret_cast<std::byte*>(buf.data());
-  auto last = first + buf.size();
-  auto packed = packed_message{packed_message_type::routing_update, ttl,
-                               topic{std::string{topic::reserved}},
-                               std::vector<std::byte>{first, last}};
-  metrics_for(packed_message_type::routing_update).buffered->inc();
+  auto msg = routing_update_envelope::make(filter->read());
   for (auto& kvp : peers)
-    unsafe_inputs.push(node_message(id, kvp.first, packed));
+    dispatch(msg->with(id, kvp.first));
 }
 
 // -- unpeering ----------------------------------------------------------------

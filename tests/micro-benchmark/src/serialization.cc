@@ -1,9 +1,9 @@
 #include "broker/builder.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/envelope.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/message.hh"
 #include "broker/variant.hh"
 
 #include <caf/binary_deserializer.hpp>

@@ -32,6 +32,13 @@ real real_from_network_representation(uint64_t value);
 /// The maximum size of a varbyte-encoded value.
 constexpr size_t max_varbyte_size = 10;
 
+/// A pointer that a sequence of bytes.
+using const_byte_pointer = const std::byte*;
+
+/// Reads a size_t from a byte sequence using varbyte encoding.
+bool read_varbyte(const_byte_pointer& first, const_byte_pointer last,
+                  size_t& result);
+
 template <class OutIter>
 struct value_type_oracle {
   using type = typename std::iterator_traits<OutIter>::value_type;

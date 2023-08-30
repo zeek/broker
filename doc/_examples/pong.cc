@@ -26,7 +26,7 @@ int main() {
   for (int n = 0; n < 5; n++) {
     // Wait for a "ping" event.
     auto msg = sub.get();
-    zeek::Event ping(move_data(msg));
+    zeek::Event ping(msg->value().to_data());
     std::cout << "received " << ping.name() << ping.args() << std::endl;
 
     // Send event "pong" response.

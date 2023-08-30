@@ -21,10 +21,6 @@ namespace broker {
 
 using builder_buffer = std::vector<std::byte>;
 
-class set_builder;
-class table_builder;
-class list_builder;
-
 // -- is_builder ---------------------------------------------------------------
 
 template <class T>
@@ -58,6 +54,9 @@ struct builder_access {
     }
     return builder;
   }
+
+  template <class Builder>
+  static data_envelope_ptr build(Builder& src, std::string_view topic_str);
 };
 
 } // namespace broker::detail
@@ -153,6 +152,10 @@ public:
   /// builder would use when calling `build`.
   std::pair<const std::byte*, size_t> bytes();
 
+  /// Converts the sequence into an @ref envelope. The builder becomes invalid
+  /// after calling this function.
+  data_envelope_ptr build_envelope(std::string_view topic_str) &&;
+
   /// Converts the sequence into a @ref variant. The builder becomes invalid
   /// after calling this function.
   variant build() &&;
@@ -247,6 +250,10 @@ public:
   /// Writes meta data to the internal buffer and returns the bytes that the
   /// builder would use when calling `build`.
   std::pair<const std::byte*, size_t> bytes();
+
+  /// Converts the sequence into an @ref envelope. The builder becomes invalid
+  /// after calling this function.
+  data_envelope_ptr build_envelope(std::string_view topic_str) &&;
 
   /// Converts the sequence into a @ref variant. The builder becomes invalid
   /// after calling this function.
@@ -352,6 +359,10 @@ public:
   /// Writes meta data to the internal buffer and returns the bytes that the
   /// builder would use when calling `build`.
   std::pair<const std::byte*, size_t> bytes();
+
+  /// Converts the sequence into an @ref envelope. The builder becomes invalid
+  /// after calling this function.
+  data_envelope_ptr build_envelope(std::string_view topic_str) &&;
 
   /// Converts the sequence into a @ref variant. The builder becomes invalid
   /// after calling this function.

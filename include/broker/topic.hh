@@ -57,7 +57,7 @@ public:
   /// Constructs a topic from a type that is convertible to a string.
   /// @param x A value convertible to a string.
   template <class T,
-            class = std::enable_if_t<std::is_convertible_v<T, std::string>>>
+            class = std::enable_if_t<std::is_constructible_v<std::string, T>>>
   topic(T&& x) : str_(std::forward<T>(x)) {
     // nop
   }
@@ -73,8 +73,13 @@ public:
   /// Retrieves an rvalue reference to the underlying string representation.
   std::string&& move_string() &&;
 
+  /// Checks whether @p prefix is a prefix of @p str.
+  static bool is_prefix(std::string_view str, std::string_view prefix) noexcept;
+
   /// Returns whether this topic is a prefix match for `t`.
-  bool prefix_of(const topic& t) const;
+  bool prefix_of(const topic& t) const noexcept {
+    return is_prefix(t.str_, str_);
+  }
 
   /// Returns the suffix of the topic, i.e., the characters after the last
   /// separator. For example, the suffix of `/foo/bar` is `bar`.

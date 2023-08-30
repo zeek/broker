@@ -20,8 +20,8 @@ public:
   /// @param pull The resource where the connection pulls data from.
   /// @param push The resource where the connection pushes data to.
   virtual caf::error run(caf::actor_system& sys,
-                         caf::async::consumer_resource<node_message> pull,
-                         caf::async::producer_resource<node_message> push) = 0;
+                         caf::async::consumer_resource<envelope_ptr> pull,
+                         caf::async::producer_resource<envelope_ptr> push) = 0;
 };
 
 /// @relates pending_connection

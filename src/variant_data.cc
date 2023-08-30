@@ -2,6 +2,7 @@
 
 #include "broker/data.hh"
 #include "broker/detail/type_traits.hh"
+#include "broker/format/bin.hh"
 
 #include <caf/detail/ieee_754.hpp>
 #include <caf/detail/network_order.hpp>
@@ -152,24 +153,6 @@ uint16_t rd_u16(const_byte_pointer& bytes) {
   return caf::detail::from_network_order(tmp);
 }
 
-/// Reads a size_t from a byte sequence using varbyte encoding.
-bool rd_varbyte(const_byte_pointer& first, const_byte_pointer last,
-                size_t& result) {
-  // Use varbyte encoding to compress sequence size on the wire.
-  uint32_t x = 0;
-  int n = 0;
-  uint8_t low7 = 0;
-  do {
-    if (first == last)
-      return false;
-    low7 = rd_u8(first);
-    x |= static_cast<uint32_t>((low7 & 0x7F)) << (7 * n);
-    ++n;
-  } while (low7 & 0x80);
-  result = x;
-  return true;
-}
-
 // Like sizeof(), but returns a ptrdiff_t instead of a size_t.
 template <class T>
 ptrdiff_t ssizeof() {
@@ -209,7 +192,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
       return {true, pos};
     case variant_tag::string: {
       size_t size = 0;
-      if (!rd_varbyte(pos, end, size))
+      if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
       if (end - pos < static_cast<ptrdiff_t>(size))
         return {false, pos};
@@ -262,7 +245,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
     }
     case variant_tag::enum_value: {
       size_t size = 0;
-      if (!rd_varbyte(pos, end, size))
+      if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
       if (end - pos < static_cast<ptrdiff_t>(size))
         return {false, pos};
@@ -273,7 +256,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
     }
     case variant_tag::set: {
       size_t size = 0;
-      if (!rd_varbyte(pos, end, size))
+      if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
       using set_allocator = mbr_allocator<variant_data>;
       using set_type = variant_data::set;
@@ -294,7 +277,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
     }
     case variant_tag::table: {
       size_t size = 0;
-      if (!rd_varbyte(pos, end, size))
+      if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
       using table_allocator = variant_data::table_allocator;
       using table_type = variant_data::table;
@@ -320,7 +303,7 @@ variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
     }
     case variant_tag::list: {
       size_t size = 0;
-      if (!rd_varbyte(pos, end, size))
+      if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
       using vec_allocator = mbr_allocator<variant_data>;
       using vec_type = variant_data::list;

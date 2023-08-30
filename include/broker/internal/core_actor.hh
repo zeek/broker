@@ -6,6 +6,7 @@
 #include "broker/internal/fwd.hh"
 #include "broker/internal/peering.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/message.hh"
 
 #include <caf/disposable.hpp>
 #include <caf/flow/item_publisher.hpp>
@@ -96,12 +97,19 @@ public:
   /// data into a @ref packed_message.
   /// @private
   template <class T>
-  packed_message pack(const T& msg);
+  static node_message pack(const T& msg) {
+    return msg;
+  }
 
   /// Deserializes a data or command message from the payload of `msg`.
   /// @private
   template <class T>
-  std::optional<T> unpack(const packed_message& msg);
+  static T unpack(const node_message& msg) {
+    if (msg->type() == packed_type<T>()) {
+      return {new_ref, static_cast<typename T::value_type*>(msg.get())};
+    }
+    return nullptr;
+  }
 
   /// Returns whether `x` has at least one remote subscriber.
   bool has_remote_subscriber(const topic& x) const noexcept;
@@ -208,7 +216,7 @@ public:
 
   /// Dispatches `msg` to `receiver` regardless of its subscriptions.
   /// @returns `true` on success, `false` if no peering to `receiver` exists.
-  void dispatch(endpoint_id receiver, const packed_message& msg);
+  void dispatch(const node_message &msg);
 
   /// Broadcasts the local subscriptions to all peers.
   void broadcast_subscriptions();
@@ -228,6 +236,12 @@ public:
 
   /// Identifies this peer in the network.
   endpoint_id id;
+
+  /// Checks whether a message has a local sender.
+  bool is_local(const node_message& msg) const noexcept {
+    auto sender = get_sender(msg);
+    return !sender || sender == id;
+  }
 
   /// Stores prefixes that have subscribers on this endpoint. This is shared
   /// with the connector, which needs access to the filter during handshake.

@@ -39,7 +39,7 @@ struct fixture : base_fixture {
     if (!convert(x, xs))
       FAIL("unable to convert error to data");
     caf::anon_send(native(ep.core()), atom::publish_v, atom::local_v,
-                   make_data_message(topic::errors(), std::move(xs)));
+                   data_envelope::make(topic::errors(), std::move(xs)));
   }
 
   void push(status x) {
@@ -47,7 +47,7 @@ struct fixture : base_fixture {
     if (!convert(x, xs))
       FAIL("unable to convert status to data");
     caf::anon_send(native(ep.core()), atom::publish_v, atom::local_v,
-                   make_data_message(topic::statuses(), std::move(xs)));
+                   data_envelope::make(topic::statuses(), std::move(xs)));
   }
 };
 

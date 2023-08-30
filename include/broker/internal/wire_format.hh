@@ -3,7 +3,9 @@
 #include "broker/endpoint_id.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
+#include "broker/internal/channel.hh"
+#include "broker/p2p_message_type.hh"
+#include "broker/topic.hh"
 
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
@@ -234,16 +236,10 @@ inline originator_ack_msg make_originator_ack_msg() {
   return {};
 }
 
-/// Trait that translates between native @ref node_message and a binary network
+/// Trait that translates between native C++ types and a binary network
 /// representation.
 class trait {
 public:
-  /// Serializes a @ref node_message to a sequence of bytes.
-  bool convert(const node_message& msg, caf::byte_buffer& buf);
-
-  /// Deserializes a @ref node_message from a sequence of bytes.
-  bool convert(caf::const_byte_span bytes, node_message& msg);
-
   /// Serializes a @ref envelope_ptr to a sequence of bytes.
   bool convert(const envelope_ptr& msg, caf::byte_buffer& buf);
 

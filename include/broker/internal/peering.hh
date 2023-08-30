@@ -2,6 +2,7 @@
 
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/endpoint.hh"
+#include "broker/envelope.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/flow_scope.hh"
@@ -20,6 +21,9 @@ namespace broker::internal {
 
 class peering : public std::enable_shared_from_this<peering> {
 public:
+  // ASCII sequence 'BYE' followed by our 64-bit bye ID.
+  static constexpr size_t bye_token_size = 11;
+
   peering(network_info peer_addr, std::shared_ptr<filter_type> peer_filter,
           endpoint_id id, endpoint_id peer_id)
     : addr_(std::move(peer_addr)),
@@ -40,19 +44,21 @@ public:
 
   void schedule_bye_timeout(caf::scheduled_actor* self);
 
+  void assign_bye_token(std::array<std::byte, bye_token_size>& buf);
+
   std::vector<std::byte> make_bye_token();
 
-  node_message make_bye_message();
+  envelope_ptr make_bye_message();
 
   /// Returns the status message after losing the connection. If the
   /// connection was closed by calling `remove`, this function returns a
   /// `peer_removed` message. Otherwise, `peer_disconnected`.
-  node_message status_msg();
+  envelope_ptr status_msg();
 
   /// Sets up the pipeline for this peer.
-  caf::flow::observable<node_message>
+  caf::flow::observable<envelope_ptr>
   setup(caf::scheduled_actor* self, node_consumer_res in_res,
-        node_producer_res out_res, caf::flow::observable<node_message> src);
+        node_producer_res out_res, caf::flow::observable<envelope_ptr> src);
 
   /// Queries whether `remove` was called.
   bool removed() const noexcept {
@@ -62,7 +68,7 @@ public:
   /// Tag this peering as removed and send a BYE message on the `snk` for a
   /// graceful shutdown.
   void remove(caf::scheduled_actor* self,
-              caf::flow::item_publisher<node_message>& snk,
+              caf::flow::item_publisher<envelope_ptr>& snk,
               bool with_timeout = true);
 
   /// Returns the ID of this node.

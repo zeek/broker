@@ -32,20 +32,34 @@ struct fixture : test_coordinator_fixture<config> {
 
   std::vector<caf::actor> bridges;
 
-  using data_message_list = std::vector<data_message>;
+  using data_envelope_ptr_list = std::vector<data_envelope_ptr>;
 
-  data_message_list test_data = data_message_list({
-    make_data_message("a", 0),
-    make_data_message("b", true),
-    make_data_message("a", 1),
-    make_data_message("a", 2),
-    make_data_message("b", false),
-    make_data_message("b", true),
-    make_data_message("a", 3),
-    make_data_message("b", false),
-    make_data_message("a", 4),
-    make_data_message("a", 5),
+  data_envelope_ptr_list test_data = data_envelope_ptr_list({
+    data_envelope::make("a", data{0}),
+    data_envelope::make("b", data{true}),
+    data_envelope::make("a", data{1}),
+    data_envelope::make("a", data{2}),
+    data_envelope::make("b", data{false}),
+    data_envelope::make("b", data{true}),
+    data_envelope::make("a", data{3}),
+    data_envelope::make("b", data{false}),
+    data_envelope::make("a", data{4}),
+    data_envelope::make("a", data{5}),
   });
+
+  auto topics(const std::vector<data_envelope_ptr>& xs) {
+    std::vector<std::string> result;
+    for (auto& x : xs)
+      result.emplace_back(x->topic());
+    return result;
+  }
+
+  auto values(const std::vector<data_envelope_ptr>& xs) {
+    std::vector<data> result;
+    for (auto& x : xs)
+      result.emplace_back(x->value().to_data());
+    return result;
+  }
 
   fixture() {
     // We don't do networking, but our flares use the socket API.
@@ -78,14 +92,14 @@ struct fixture : test_coordinator_fixture<config> {
     return res;
   }
 
-  std::shared_ptr<std::vector<data_message>>
+  std::shared_ptr<std::vector<data_envelope_ptr>>
   collect_data(const endpoint_state& ep, filter_type filter) {
     auto res = base_fixture::collect_data(ep.hdl, std::move(filter));
     run();
     return res;
   }
 
-  void push_data(const endpoint_state& ep, data_message_list xs) {
+  void push_data(const endpoint_state& ep, data_envelope_ptr_list xs) {
     base_fixture::push_data(ep.hdl, xs);
   }
 
@@ -131,7 +145,8 @@ TEST(peers forward local data to direct peers) {
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   run();
-  CHECK_EQUAL(*buf, test_data);
+  CHECK_EQUAL(topics(*buf), topics(test_data));
+  CHECK_EQUAL(values(*buf), values(test_data));
 }
 
 TEST(peers forward local data to any peer with forwarding paths) {
@@ -152,7 +167,8 @@ TEST(peers forward local data to any peer with forwarding paths) {
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   run();
-  CHECK_EQUAL(*buf, test_data);
+  CHECK_EQUAL(topics(*buf), topics(test_data));
+  CHECK_EQUAL(values(*buf), values(test_data));
 }
 
 FIXTURE_SCOPE_END()

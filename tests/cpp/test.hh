@@ -16,6 +16,7 @@
 #include "broker/internal/channel.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/message.hh"
 
 #include <cassert>
 #include <ciso646>
@@ -130,7 +131,7 @@ private:
 // -- data processing ----------------------------------------------------------
 
 std::vector<std::string>
-normalize_status_log(const std::vector<broker::data_message>& xs,
+normalize_status_log(const std::vector<broker::data_envelope_ptr>& xs,
                      bool include_endpoint_id = false);
 
 // -- fixtures -----------------------------------------------------------------
@@ -237,10 +238,10 @@ public:
 
   /// Collect data directly at a Broker core without using a
   /// `broker::subscriber` or other public API.
-  static std::shared_ptr<std::vector<broker::data_message>>
+  static std::shared_ptr<std::vector<broker::data_envelope_ptr>>
   collect_data(caf::actor core, broker::filter_type filter);
 
-  static void push_data(caf::actor core, std::vector<broker::data_message> xs);
+  static void push_data(caf::actor core, std::vector<broker::data_envelope_ptr> xs);
 };
 
 template <class Fixture>
@@ -343,10 +344,10 @@ inline broker::error error_of(broker::expected<broker::data> x) {
 
 /// Convenience function for creating a vector of events from topic and data
 /// pairs.
-inline std::vector<broker::data_message>
+inline std::vector<broker::data_envelope_ptr>
 data_msgs(std::initializer_list<std::pair<broker::topic, broker::data>> xs) {
-  std::vector<broker::data_message> result;
+  std::vector<broker::data_envelope_ptr> result;
   for (auto& x : xs)
-    result.emplace_back(x.first, x.second);
+    result.push_back(broker::make_data_message(x.first, x.second));
   return result;
 }

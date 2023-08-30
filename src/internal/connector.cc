@@ -9,7 +9,7 @@
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/lamport_timestamp.hh"
-#include "broker/message.hh"
+#include "broker/p2p_message_type.hh"
 
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/binary_deserializer.hpp>
@@ -277,8 +277,8 @@ public:
   }
 
   caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
+                 caf::async::consumer_resource<envelope_ptr> pull,
+                 caf::async::producer_resource<envelope_ptr> push) override {
     BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
                                           << "(no SSL)");
     using trait_t = wire_format::v1::trait;
@@ -312,8 +312,8 @@ public:
   }
 
   caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
+                 caf::async::consumer_resource<envelope_ptr> pull,
+                 caf::async::producer_resource<envelope_ptr> push) override {
     BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
                                           << "(SSL)");
     using trait_t = wire_format::v1::trait;

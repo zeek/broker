@@ -18,10 +18,10 @@
 #include "broker/detail/source_driver.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/endpoint_info.hh"
+#include "broker/envelope.hh"
 #include "broker/expected.hh"
 #include "broker/frontend.hh"
 #include "broker/fwd.hh"
-#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_info.hh"
 #include "broker/shutdown_options.hh"
@@ -250,25 +250,31 @@ public:
   /// Publishes a message.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(topic t, data d);
+  void publish(topic t, const data& d);
+
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(topic t, variant d);
 
   /// Publishes a message to a specific peer endpoint only.
   /// @param dst The destination endpoint.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(const endpoint_info& dst, topic t, data d);
+  void publish(const endpoint_info& dst, topic t, const data& d);
 
   /// Publishes a message as vector.
   /// @param t The topic of the messages.
   /// @param xs The contents of the messages.
-  void publish(topic t, std::initializer_list<data> xs);
+  void publish(topic t, std::initializer_list<variant> xs);
 
-  // Publishes the messages `x`.
-  void publish(data_message x);
+  /// Publishes the messages `msg`.
+  void publish(data_envelope_ptr msg);
 
-  // Publishes all messages in `xs`.
-  void publish(std::vector<data_message> xs);
+  /// Publishes all messagess `xs`.
+  void publish(const std::vector<data_envelope_ptr>& xs);
 
+  /// Creates a new publisher for the given topic.
   publisher make_publisher(topic ts);
 
   /// Starts a background worker from the given set of functions that publishes
@@ -280,14 +286,6 @@ public:
     auto driver = std::make_shared<driver_t>(std::move(init), std::move(f),
                                              std::move(pred));
     return do_publish_all(std::move(driver));
-  }
-
-  /// Identical to ::publish_all, but does not guarantee that `init` is called
-  /// before the function returns.
-  template <class Init, class Pull, class AtEnd>
-  [[deprecated("use publish_all() instead")]] worker
-  publish_all_nosync(Init init, Pull f, AtEnd pred) {
-    return publish_all(std::move(init), std::move(f), std::move(pred));
   }
 
   // --- subscribing events ----------------------------------------------------
@@ -329,14 +327,6 @@ public:
     return do_subscribe(std::move(filter),
                         detail::make_sink_driver([] {}, std::move(on_next),
                                                  [](const error&) {}));
-  }
-
-  template <class Init, class OnNext, class Cleanup>
-  [[deprecated("use subscribe() instead")]] worker
-  subscribe_nosync(filter_type filter, Init init, OnNext on_next,
-                   Cleanup cleanup) {
-    return subscribe(std::move(filter), std::move(init), std::move(on_next),
-                     std::move(cleanup));
   }
 
   // --- data stores -----------------------------------------------------------
@@ -510,17 +500,11 @@ public:
   /// Retrieves the current filter.
   filter_type filter() const;
 
-protected:
-  worker subscriber_;
-
 private:
   worker do_subscribe(filter_type&& topics,
                       const detail::sink_driver_ptr& driver);
 
   worker do_publish_all(const detail::source_driver_ptr& driver);
-
-  template <class F>
-  worker make_worker(F fn);
 
   std::shared_ptr<internal::endpoint_context> ctx_;
   endpoint_id id_;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "broker/data.hh"
-#include "broker/envelope.hh"
+#include "broker/data_envelope.hh"
 #include "broker/fwd.hh"
 #include "broker/variant_data.hh"
 
