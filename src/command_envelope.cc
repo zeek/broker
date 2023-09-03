@@ -8,28 +8,106 @@
 #include "broker/topic.hh"
 
 #include <caf/binary_deserializer.hpp>
+#include <caf/binary_serializer.hpp>
+#include <caf/byte_buffer.hpp>
 
 namespace broker {
+
+namespace {
+
+/// Decorates another data envelope to override sender and receiver.
+class command_envelope_decorator : public envelope::decorator<command_envelope> {
+public:
+  using super = envelope::decorator<command_envelope>;
+
+  using super::super;
+
+  const internal_command& value() const noexcept override{
+    return decorated_->value();
+  }
+};
+
+} // namespace
+
+envelope_ptr command_envelope::with(endpoint_id new_sender,
+                                    endpoint_id new_receiver) {
+  return make_intrusive<command_envelope_decorator>(
+    intrusive_ptr{new_ref, this}, new_sender, new_receiver);
+}
+
+namespace {
+
+/// A @ref command_envelope for deserialized command.
+class default_command_envelope : public command_envelope {
+public:
+  using super = command_envelope;
+
+  default_command_envelope(const endpoint_id& sender,
+                           const endpoint_id& receiver, std::string&& topic_str,
+                           internal_command&& cmd)
+    : sender_(sender),
+      receiver_(receiver),
+      topic_(std::move(topic_str)),
+      value_(std::move(cmd)) {
+    caf::binary_serializer sink{nullptr, buf_};
+    if (!sink.apply(value_))
+      throw std::logic_error("failed to serialize command");
+  }
+
+  default_command_envelope(std::string&& topic_str, internal_command&& cmd)
+    : topic_(topic_str), value_(std::move(cmd)) {
+    caf::binary_serializer sink{nullptr, buf_};
+    if (!sink.apply(value_))
+      throw std::logic_error("failed to serialize command");
+  }
+
+  endpoint_id sender() const noexcept override {
+    return sender_;
+  }
+
+  endpoint_id receiver() const noexcept override {
+    return receiver_;
+  }
+
+  const internal_command& value() const noexcept override {
+    return value_;
+  }
+
+  std::string_view topic() const noexcept override {
+    return topic_;
+  }
+
+  std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
+    return {reinterpret_cast<const std::byte*>(buf_.data()), buf_.size()};
+  }
+
+private:
+  endpoint_id sender_;
+  endpoint_id receiver_;
+  std::string topic_;
+  internal_command value_;
+  caf::byte_buffer buf_;
+};
+
+} // namespace
 
 envelope_type command_envelope::type() const noexcept {
   return envelope_type::command;
 }
 
-envelope_ptr command_envelope::with(endpoint_id new_sender,
-                                    endpoint_id new_receiver) {
-  throw std::logic_error("command_envelope::with called");
-}
-
 command_envelope_ptr command_envelope::make(broker::topic t,
                                             internal_command d) {
-  throw std::logic_error("command_envelope::make called");
+  return make_intrusive<default_command_envelope>(std::move(t).move_string(),
+                                                  std::move(d));
 }
 
 command_envelope_ptr command_envelope::make(const endpoint_id& sender,
                                             const endpoint_id& receiver,
                                             std::string topic,
                                             internal_command d) {
-  throw std::logic_error("command_envelope::make called");
+  return make_intrusive<default_command_envelope>(sender, receiver,
+                                                  std::move(topic),
+                                                  std::move(d));
 }
 
 namespace {
